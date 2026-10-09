@@ -6,8 +6,8 @@
     "390:sidebar=trigger",
     "row-id=thread:tasks",
     "390:key:Escape",
-    "composer-tasks-row"
+    "drawer-row=tasks"
   ],
-  "wait": "composer-tasks-list",
+  "wait": "composer-bar=tasks",
   "settleMs": 800
 }
