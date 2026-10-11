@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Where the window has no title bar, the frame row is its drag region and leaves room for the window's controls; every
 // control in it is no-drag. A frame row that stands where the sidebar's New thread row is not on screen holds the New
-// thread glyph right after the toggle.
+// thread glyph right after the toggle, short of Settings, which offers no New thread.
 import type { ComponentPropsWithoutRef } from "react";
 import { SidebarTrigger } from "../components/ui/sidebar.js";
 import { NewThreadGlyph } from "../sidebar/NewThreadRow.js";
