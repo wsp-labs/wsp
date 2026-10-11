@@ -203,6 +203,22 @@ function scripted(lines: (prompt: string) => { kind: "text" | "tool_result"; tex
   });
 }
 
+/** A harness whose turn says "forgotten words" and fails before its result, so the thread did no work and may be forgotten. */
+const refusedOnce: HarnessAdapterFactory = () => ({
+  steers: false,
+  start: o => {
+    const localId = randomUUID();
+    const result: TurnResult = { status: "failed", error: "exited with code 1 before emitting a result" };
+    const finished = Promise.resolve().then(() => {
+      o.onEvent({ type: "turn.delta", sessionId: localId, kind: "text", text: "forgotten words", messageId: "m0" });
+      o.onEvent({ type: "turn.done", sessionId: localId, result });
+      o.onEvent({ type: "session.end", sessionId: localId, exitCode: 1, sawResult: false });
+      return result;
+    });
+    return { localId, finished, interrupt: async () => {} };
+  },
+});
+
 const freshSqlite = (): { store: Store; statePath: string } => {
   const statePath = join(home(), "state.json");
   return { store: sqliteStore(statePath, WRITER), statePath };
@@ -257,7 +273,9 @@ describe("a runtime whose store keeps transcripts as rows", () => {
     };
     const blobs = await run(memoryStore());
     const rows = await run(freshSqlite().store);
-    expect(blobs.history.length).toBeLessThanOrEqual(5000);
+    const threads = new Set(blobs.history.map(e => e.threadId));
+    expect(threads.size).toBe(2);
+    for (const threadId of threads) expect(blobs.history.filter(e => e.threadId === threadId).length).toBeLessThanOrEqual(5000);
     expect(blobs.history.length).toBeLessThan(1800 * 4 + 120 * 3);
     expect(shapeOf(rows.history)).toEqual(shapeOf(blobs.history));
     expect(rows.search).toBe(blobs.search);
@@ -292,23 +310,155 @@ describe("a runtime whose store keeps transcripts as rows", () => {
     await again.close();
   });
 
+  it("keeps a thread's every event while another thread in the same folder runs past what the two hold together", async () => {
+    const lines = (prompt: string): { kind: "text"; text: string }[] => Array.from({ length: 1020 }, (_, i) => ({ kind: "text", text: `${prompt} ${i}` }));
+    const { store } = freshSqlite();
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(lines) } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const x = await rt.sessions.start(ws.id, { prompt: "x 1" });
+    await x.finished;
+    const xId = x.view().threadId!;
+    for (const n of [2, 3]) await (await rt.sessions.start(ws.id, { prompt: `x ${n}`, thread: xId })).finished;
+    const before = await rt.sessions.page(ws.id, { threadId: xId, limit: 10_000 });
+    expect(before.total).toBeGreaterThan(3000);
+    const y = await rt.sessions.start(ws.id, { prompt: "y 1" });
+    await y.finished;
+    for (const n of [2, 3]) await (await rt.sessions.start(ws.id, { prompt: `y ${n}`, thread: y.view().threadId! })).finished;
+    const after = await rt.sessions.page(ws.id, { threadId: xId, limit: 10_000 });
+    expect(after.total).toBe(before.total);
+    expect(after.trimmed).toBeUndefined();
+    expect((await rt.sessions.history(ws.id)).find(e => e.threadId === xId && e.type === "session.start")).toMatchObject({ prompt: "x 1" });
+    await rt.close();
+    const again = createRuntime({ backend: stubBackend(), store, adapters: {} });
+    expect((await again.sessions.page(ws.id, { threadId: xId, limit: 10_000 })).total).toBe(before.total);
+    await again.close();
+  });
+
+  it("searches the threads whose words it holds at 300 threads, reading none back, says how many older ones it did not, and searches one again once it is opened", { timeout: 60_000 }, async () => {
+    // 300 threads of about 20 KB of reply each: 6 MB of words, past what the host holds.
+    const lines = (prompt: string): { kind: "text"; text: string }[] => [{ kind: "text", text: `${prompt} says marker-${prompt.slice(-3)} ${"filler words ".repeat(1600)}` }];
+    const { store, statePath } = freshSqlite();
+    const rows = store.transcripts!;
+    let wordReads = 0;
+    const wordEvents = rows.wordEvents.bind(rows);
+    rows.wordEvents = (workspaceId, threadId) => (wordReads++, wordEvents(workspaceId, threadId));
+    const backend = stubBackend();
+    const rt = createRuntime({ backend, store, adapters: { claude: scripted(lines) } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const threads: string[] = [];
+    for (let i = 0; i < 300; i++) {
+      const t = await rt.sessions.start(ws.id, { prompt: `thread ${String(i).padStart(3, "0")}` });
+      await t.finished;
+      threads.push(t.view().threadId!);
+    }
+    const found = async (runtime: typeof rt, n: number): Promise<string[]> => (await runtime.sessions.search(`marker-${String(n).padStart(3, "0")}`)).hits.map(h => h.threadId);
+    // "th" is in every event's keys ("threadId"), so a search over the stored JSON would read every let-go thread back.
+    const shortSearch = async (runtime: typeof rt): Promise<{ reads: number; unsearched: number | undefined }> => {
+      wordReads = 0;
+      const { unsearched } = await runtime.sessions.search("th");
+      return { reads: wordReads, unsearched };
+    };
+    const opened = async (runtime: typeof rt, n: number): Promise<string[]> => {
+      await runtime.sessions.page(ws.id, { threadId: threads[n]! });
+      for (let i = 0; i < 50 && (await found(runtime, n)).length === 0; i++) await new Promise(r => setTimeout(r, 10));
+      return found(runtime, n);
+    };
+    const day = await shortSearch(rt);
+    expect(day.reads).toBe(0);
+    expect(day.unsearched).toBeGreaterThan(150);
+    expect(await found(rt, 299)).toEqual([threads[299]]);
+    expect(await found(rt, 0)).toEqual([]);
+    expect(await opened(rt, 0)).toEqual([threads[0]]);
+    await rt.close();
+    // The index kept beside the rows names each thread's first words and holds none of its lines.
+    const d = openDb(statePath);
+    const index = JSON.parse((d.prepare("select json from transcript_index where workspace = ?").get(ws.id) as { json: string }).json) as { words: [string, { lines: string[]; first?: string }][] };
+    d.close();
+    expect(index.words).toHaveLength(300);
+    expect(index.words.every(([, w]) => w.lines.length === 0)).toBe(true);
+    expect(index.words.find(([id]) => id === threads[0])?.[1].first).toBe("thread 000");
+    const again = createRuntime({ backend, store, adapters: {} });
+    // A restart reads the newest threads' words back one thread at a time, off the loop's other work.
+    for (let i = 0; i < 100 && (await found(again, 299)).length === 0; i++) await new Promise(r => setTimeout(r, 10));
+    expect(await found(again, 299)).toEqual([threads[299]]);
+    const restarted = await shortSearch(again);
+    expect(restarted.reads).toBe(0);
+    expect(restarted.unsearched).toBeGreaterThan(150);
+    expect(await found(again, 150)).toEqual([]);
+    expect(await opened(again, 150)).toEqual([threads[150]]);
+    await again.close();
+  });
+
+  it("forgets one thread of 300 off that thread's rows alone, and leaves the other threads' words", { timeout: 60_000 }, async () => {
+    const lines = (prompt: string): { kind: "text"; text: string }[] => [{ kind: "text", text: `${prompt} says marker-${prompt.slice(-3)} ${"filler words ".repeat(1600)}` }];
+    const { store } = freshSqlite();
+    const rows = store.transcripts!;
+    let folderReads = 0;
+    const all = rows.all.bind(rows);
+    rows.all = workspaceId => (folderReads++, all(workspaceId));
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(lines), codex: refusedOnce } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    for (let i = 0; i < 300; i++) await (await rt.sessions.start(ws.id, { prompt: `thread ${String(i).padStart(3, "0")}` })).finished;
+    const junk = await rt.sessions.start(ws.id, { prompt: "refused", harness: "codex" });
+    await junk.finished.catch(() => {});
+    await new Promise(r => setTimeout(r, 300));
+    expect((await rt.sessions.search("forgotten words")).hits).toHaveLength(1);
+    folderReads = 0;
+    await rt.sessions.forget(junk.view().threadId!);
+    expect(folderReads).toBe(0);
+    expect((await rt.sessions.search("forgotten words")).hits).toEqual([]);
+    expect((await rt.sessions.search("marker-299")).hits).toHaveLength(1);
+    expect(await rt.sessions.threadHistory(ws.id, { threadId: junk.view().threadId! })).toEqual([]);
+    await rt.close();
+  });
+
+  it("keeps a let-go thread's newest words when another folder's flush reads it back before its own folder flushes", async () => {
+    let release!: () => void;
+    const held = new Promise<void>(r => (release = r));
+    // "big" holds 2,097,135 of the 2,097,152 characters held, so x's 19 are let go.
+    const lines = (prompt: string): { kind: "text"; text: string }[] =>
+      prompt === "big" ? [{ kind: "text", text: `${"filler ".repeat(299_590)}zz` }] : prompt === "x again" ? [{ kind: "text", text: "fresh-zebra words" }] : [{ kind: "text", text: `${prompt} said` }];
+    const { store } = freshSqlite();
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(lines, p => (p === "x again" ? held : undefined)) } });
+    const a = await createOn(rt, { golden: "snap_g", name: "a" });
+    const b = await createOn(rt, { golden: "snap_g", name: "b" });
+    const x = await rt.sessions.start(a.id, { prompt: "x first" });
+    await x.finished;
+    const xId = x.view().threadId!;
+    await (await rt.sessions.start(b.id, { prompt: "big" })).finished;
+    const again = await rt.sessions.start(a.id, { prompt: "x again", thread: xId });
+    await new Promise(r => setTimeout(r, 20));
+    await (await rt.sessions.start(b.id, { prompt: "small" })).finished;
+    release();
+    await again.finished;
+    await new Promise(r => setTimeout(r, 400));
+    expect((await rt.sessions.search("fresh-zebra")).hits.map(h => h.threadId)).toEqual([xId]);
+    expect((await rt.sessions.search("x again")).hits.map(h => h.threadId)).toEqual([xId]);
+    await rt.close();
+  });
+
+  it("reads one thread's every event off that thread alone, never its folder's rows", async () => {
+    const { store } = freshSqlite();
+    let folderReads = 0;
+    const rows = store.transcripts!;
+    const all = rows.all.bind(rows);
+    rows.all = workspaceId => (folderReads++, all(workspaceId));
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(p => [{ kind: "text", text: `${p} said` }]) } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const one = await rt.sessions.start(ws.id, { prompt: "one" });
+    await one.finished;
+    await (await rt.sessions.start(ws.id, { prompt: "two" })).finished;
+    const folder = await rt.sessions.history(ws.id);
+    folderReads = 0;
+    const read = await rt.sessions.threadHistory(ws.id, { threadId: one.view().threadId! });
+    expect(folderReads).toBe(0);
+    expect(read).toEqual(folder.filter(e => e.threadId === one.view().threadId));
+    await rt.close();
+  });
+
   it("forgets a thread's rows, and search no longer finds its words", async () => {
     const { store } = freshSqlite();
-    const refused: HarnessAdapterFactory = () => ({
-      steers: false,
-      start: o => {
-        const localId = randomUUID();
-        const result: TurnResult = { status: "failed", error: "exited with code 1 before emitting a result" };
-        const finished = Promise.resolve().then(() => {
-          o.onEvent({ type: "turn.delta", sessionId: localId, kind: "text", text: "forgotten words", messageId: "m0" });
-          o.onEvent({ type: "turn.done", sessionId: localId, result });
-          o.onEvent({ type: "session.end", sessionId: localId, exitCode: 1, sawResult: false });
-          return result;
-        });
-        return { localId, finished, interrupt: async () => {} };
-      },
-    });
-    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(() => [{ kind: "text", text: "stays" }]), codex: refused } });
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(() => [{ kind: "text", text: "stays" }]), codex: refusedOnce } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
     await (await rt.sessions.start(ws.id, { prompt: "kept words" })).finished;
     const junk = await rt.sessions.start(ws.id, { prompt: "refused", harness: "codex" });

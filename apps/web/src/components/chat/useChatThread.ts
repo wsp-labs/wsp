@@ -17,7 +17,7 @@
 import { isProjectHomeKey } from "../../protocol/store";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { agentName } from "@wsp/catalog";
-import { agentStartingLine, isSessionEvent, sendWaitsForLine, threadKeyOf } from "@wsp/protocol";
+import { HISTORY_PAGE_EVENTS, agentStartingLine, isSessionEvent, sendWaitsForLine, threadKeyOf } from "@wsp/protocol";
 import type { AttachmentRecord, SessionEvent, SessionHarness, SessionHeldEvent, SessionStartingEvent, SessionQueuedEvent, SessionRunEvent, SessionView } from "@wsp/protocol";
 import { useProtocolEvents, useStore } from "../../protocol/store";
 import type { Api, ProtocolEvent } from "../../protocol/client";
@@ -535,6 +535,19 @@ function sentEntry(sent: Kept): TimelineEntry {
   };
 }
 
+/** The thread of a folder's rows whose event is the folder's newest, as the whole history's last event names it: a
+ * running turn that announced its session, else the turn that ended last. A row that has not announced has written
+ * nothing yet. */
+function latestThreadOf(rows: readonly SessionView[] | undefined): string | undefined {
+  const last = (r: SessionView): number => (r.status === "running" ? Number.POSITIVE_INFINITY : (r.endedAt ?? r.startedAt ?? 0));
+  let latest: SessionView | undefined;
+  for (const r of rows ?? []) {
+    if (r.status === "running" && r.claudeSessionId === undefined) continue;
+    if (latest === undefined || last(r) >= last(latest)) latest = r;
+  }
+  return latest?.threadId;
+}
+
 /** The running row a view with no event and no send of its own is drawn off: the host lists a thread's row before its
  * first event, and one this window did not send (an agent's, the command line's, another window's) shows from it. */
 function drawnOffRow(state: ThreadState, row: SessionView | undefined): SessionView | undefined {
@@ -842,7 +855,12 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
       };
     }
     let current = true;
-    api.sessionHistory(workspaceId).then(
+    // A view with no thread draws the folder's latest one and settles on it, which then reads it by pages: each
+    // thread of a folder keeps its own budget, so that first paint reads the one thread's newest page alone.
+    const page = api.sessionPage?.bind(api);
+    const latest = threadId === null ? latestThreadOf(useStore.getState().sessions[workspaceId]) : undefined;
+    const read = latest === undefined || page === undefined ? api.sessionHistory(workspaceId) : page(workspaceId, latest, { limit: HISTORY_PAGE_EVENTS }).then(p => p.events);
+    read.then(
       events => {
         if (!current) return;
         const at = now();

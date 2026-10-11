@@ -452,6 +452,9 @@ export interface Runtime {
     list(workspaceId?: string, origin?: Caller): Promise<SessionView[]>;
     /** The workspace's persisted session events, oldest first; a chat replays these on mount. */
     history(workspaceId: string, origin?: Caller): Promise<SessionEvent[]>;
+    /** One thread's every kept event, oldest first, read off that thread alone; nothing for a thread the caller does
+     * not reach, as history leaves its events out. Refused as usage with no thread, or with a page's window. */
+    threadHistory(workspaceId: string, asked: { threadId?: string | undefined; before?: number | undefined; limit?: number | undefined }, origin?: Caller): Promise<SessionEvent[]>;
     /** One thread's newest events under `before`, as sessions.history answers a page; nothing for a thread the caller
      * does not reach, as history leaves its events out. */
     page(workspaceId: string, window: { threadId: string; before?: number; limit?: number }, origin?: Caller): Promise<HistoryPage>;

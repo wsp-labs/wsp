@@ -301,8 +301,10 @@ export interface TranscriptsArea {
   readonly moveBlobs: (rows: TranscriptRows) => void;
   readonly transcriptQueue: Map<string, Promise<void>>;
   readonly openTranscript: (workspaceId: string) => Promise<SessionEvent[]>;
+  readonly openThread: (workspaceId: string, threadId: string) => Promise<SessionEvent[]>;
+  readonly openedWords: (workspaceId: string, threadId: string) => void;
   readonly transcriptReader: TranscriptReader;
-  readonly dropFromTranscript: (workspaceId: string, drops: (e: SessionEvent) => boolean) => Promise<void>;
+  readonly dropFromTranscript: (workspaceId: string, threadId: string, drops?: (e: SessionEvent) => boolean) => Promise<void>;
   readonly transcriptTimers: Map<string, () => void>;
   readonly daemonTokens: Map<string, { hasDaemon: boolean; at: number }>;
   readonly daemonTokenOf: (machine: Machine, path?: string) => Promise<string | undefined>;
