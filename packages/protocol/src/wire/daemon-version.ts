@@ -157,6 +157,7 @@ const DAEMON_CONTENTS = [
   "ec71770f7aa868a95bf5fa8e4c665b9b54d5f60b519763c39b7078db5a44dd0e",
   "2251d179bdc717c30bf018e9e5dd800c99a0d838d4dd664bf220a4c6a92ce4bb",
   "fb4c9130d2a267071ff4628ec8f9bfb49a3c10818f6894b3b44b5dbddacddf22",
+  "0a0e575d0660d41561cf0038a2bbf6db41373f3ffa4654b941702c22bed43265",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -586,7 +587,8 @@ const DAEMON_CONTENTS = [
  * is one the host names with its title, first prompt, branch, entrypoint, mtime and size; transcripts.read walks one
  * session's transcript from its newest last prompt back through each line's parent, subagent lines left out, and
  * answers its newest messages with how many came before them. Both open every name under the store with no link
- * followed, as the home's owner. */
+ * followed, as the home's owner.
+ * Version 148: a Mac's daemon reads processes and ports through libproc. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
