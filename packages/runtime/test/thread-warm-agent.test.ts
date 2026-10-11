@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LocalBackend } from "@wsp/engine";
-import { AGENT_WARM_MS, AGENTS_KEPT, HERE_PLACE_ID, type Caller, type TurnResult } from "@wsp/protocol";
+import { AGENTS_KEPT, HERE_PLACE_ID, type Caller, type TurnResult } from "@wsp/protocol";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
 import { createRuntime, type LocalWiring, type Runtime } from "../src/runtime.js";
@@ -30,6 +30,8 @@ beforeEach(() => {
   claudeKeeper(join(root, "bin", "claude"));
 });
 const runtimes: Runtime[] = [];
+/** The window the owner ruled on 2026-10-11, written out so a change to the constant fails here. */
+const WARM_MS = 3 * 60_000;
 afterEach(async () => {
   for (const rt of runtimes.splice(0)) await rt.close();
   await localExecStream({ root, runDir }).sweep!([]);
@@ -95,22 +97,22 @@ describe("an agent process started ahead of a new thread's first send", () => {
     expect(row?.claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
   }, 30_000);
 
-  it("never outlives its window, and a send after it boots a process of its own", async () => {
+  it("never outlives its three idle minutes, and a send after it boots a process of its own", async () => {
     const fc = fakeClock();
     const rt = host({ clock: fc.clock });
     const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac" });
     await rt.sessions.warm(ws.id, { harness: "claude" });
     const [first] = await upCount(1);
-    fc.advance(AGENT_WARM_MS - 1_000);
+    fc.advance(WARM_MS - 1_000);
     expect(alive(first!.pid)).toBe(true);
     fc.advance(1_000);
     await gone(first!.pid);
     // Asked for again before its window is out, the window starts over.
     expect(await rt.sessions.warm(ws.id, { harness: "claude" })).toEqual({ warm: "started" });
     const [, second] = await upCount(2);
-    fc.advance(AGENT_WARM_MS - 1_000);
+    fc.advance(WARM_MS - 1_000);
     expect(await rt.sessions.warm(ws.id, { harness: "claude" })).toEqual({ warm: "standing" });
-    fc.advance(AGENT_WARM_MS - 1_000);
+    fc.advance(WARM_MS - 1_000);
     expect(alive(second!.pid)).toBe(true);
     fc.advance(1_000);
     await gone(second!.pid);
@@ -191,23 +193,46 @@ describe("an agent process started ahead of a new thread's first send", () => {
     expect(pidOf(mine.result.text)).toBe(warm!.pid);
   }, 30_000);
 
-  it(`stands one per folder and agent, five folders holding five, and every process counts against the cap of ${AGENTS_KEPT}`, async () => {
+  it("stands for the two composers asked for last across every project: warming a third ends the one asked for longest ago", async () => {
+    const rt = host();
+    const folders: Awaited<ReturnType<typeof createOn>>[] = [];
+    for (let n = 0; n < 4; n++) folders.push(await createOn(rt, { on: HERE_PLACE_ID, name: `folder${n}` }));
+    const warmIn = async (n: number, count: number) => {
+      await rt.sessions.warm(folders[n]!.id, { harness: "claude" });
+      return (await upCount(count)).at(-1)!.pid;
+    };
+    const first = await warmIn(0, 1);
+    const second = await warmIn(1, 2);
+    const third = await warmIn(2, 3);
+    await gone(first);
+    expect([second, third].every(alive)).toBe(true);
+    // Asked for again, the second is the more recent of the two, so the fourth ends the third.
+    expect(await rt.sessions.warm(folders[1]!.id, { harness: "claude" })).toEqual({ warm: "standing" });
+    const fourth = await warmIn(3, 4);
+    await gone(third);
+    expect([second, fourth].every(alive)).toBe(true);
+    // The first folder's send finds nothing standing for it and boots cold, the two standing left as they are.
+    const one = await send(rt, folders[0]!.id, "one", { harness: "claude" });
+    expect([first, second, fourth]).not.toContain(pidOf(one.result.text));
+    expect([second, fourth].every(alive)).toBe(true);
+  }, 60_000);
+
+  it(`five folders asked in turn leave two standing, and those count against the cap of ${AGENTS_KEPT}`, async () => {
     const rt = host();
     const folders = [];
     for (let n = 0; n < 5; n++) folders.push(await createOn(rt, { on: HERE_PLACE_ID, name: `folder${n}` }));
     for (const [n, ws] of folders.entries()) {
       await rt.sessions.warm(ws.id, { harness: "claude" });
-      await rt.sessions.warm(ws.id, { harness: "claude" });
       await upCount(n + 1);
     }
     const warm = ups();
-    expect(warm.every(w => alive(w.pid))).toBe(true);
-    // Two threads' kept processes in a sixth folder on top of the five: the seventh process ends the one idle
-    // longest, the first folder's.
+    for (const w of warm.slice(0, 3)) await gone(w.pid);
+    expect(warm.slice(3).every(w => alive(w.pid))).toBe(true);
+    // Five threads' kept processes in a sixth folder on top of the two: the seventh process ends the one idle
+    // longest, the older warm one.
     const sixth = await createOn(rt, { on: HERE_PLACE_ID, name: "folder5" });
-    await send(rt, sixth.id, "a", { harness: "claude" });
-    await send(rt, sixth.id, "b", { harness: "claude" });
-    await gone(warm[0]!.pid);
-    expect(warm.slice(1).every(w => alive(w.pid))).toBe(true);
+    for (const word of ["a", "b", "c", "d", "e"]) await send(rt, sixth.id, word, { harness: "claude" });
+    await gone(warm[3]!.pid);
+    expect(alive(warm[4]!.pid)).toBe(true);
   }, 60_000);
 });

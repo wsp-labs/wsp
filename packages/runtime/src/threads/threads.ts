@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { CATALOG_AGENTS, type ThreadAgent } from "@wsp/catalog";
 import { MachineUnreachableError, MachineUnreached, isPlaceAbsent } from "@wsp/engine";
 import {
-  AGENT_KEEP_MS, AGENT_WARM_MS, AGENTS_KEPT, type PermissionAsk, type SessionRenameWrite, type SessionView, type TurnResult,
+  AGENT_KEEP_MS, AGENT_WARM_MS, AGENTS_KEPT, AGENTS_WARM, type PermissionAsk, type SessionRenameWrite, type SessionView, type TurnResult,
   type Caller, SessionOrigin, ThreadScope, WorkspaceOrigin, GitDiffReply, GitWorktreesReply, repoPathOf, worktreeOf, foldThreads, threadWord, threadsFollowed, scopeOf,
   type ThreadWaitingOn, isLocalWorkspace, NO_SUCH_TURN, NOTIFY_ME, notifyLine, runsInFolder, DEVICE_OPS, sendRefusal,
   workspaceState, HERE_PLACE_ID, runningOn as runningOnPlace, type ThreadCapWait, roadOf, unreadLine, turnLines,
@@ -169,13 +169,19 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
   };
 
   /** A process launched ahead of a new thread's first send, kept under the thread id its launch was minted for: it
-   * counts against the same cap, and ends after AGENT_WARM_MS unless the composer asks for it again. */
+   * counts against the same cap, ends after AGENT_WARM_MS unless the composer asks for it again, and the one asked for
+   * longest ago ends once more than AGENTS_WARM stand. */
   const holdWarm = (threadId: string, o: Omit<KeptProcess, "file" | "usedAt" | "cancel">): void => {
     if (ctx.state.closing) {
       endKept(threadId, { ...o, usedAt: 0, cancel: () => {} });
       return;
     }
     keep(threadId, { ...o, usedAt: clock.now(), cancel: () => {} }, AGENT_WARM_MS);
+    for (;;) {
+      const standing = [...keptAgents].filter(([, kept]) => kept.warm?.claimed === false);
+      if (standing.length <= AGENTS_WARM) return;
+      reapKept(standing.reduce((a, b) => (b[1].usedAt < a[1].usedAt ? b : a))[0]);
+    }
   };
   /** The standing process launched ahead of a send on this workspace for this agent that no send took yet. */
   const warmOn = (workspaceId: string, harness: string): [string, KeptProcess] | undefined =>
