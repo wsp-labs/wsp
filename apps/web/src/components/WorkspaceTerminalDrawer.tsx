@@ -1,35 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The drawer under the chat, bound to the workspace's daemon link: ptys come
-// from WorkspaceTerminals, their arrangement from the drawer store, and each
-// viewport gets its io from the link. Ptys the right panel opened belong to
-// the panel and never appear here; a pty no store claims after a reload is
-// the drawer's. The drawer's first open with no pty of its own spawns one;
-// closing the last never respawns.
+// The drawer under the chat, the thread on screen's own, bound to the
+// workspace's daemon link: ptys come from WorkspaceTerminals, their
+// arrangement from the drawer store, and each viewport gets its io from the
+// link. Ptys the right panel opened belong to the panel and never appear here,
+// and a pty another thread's drawer opened is that drawer's. The drawer's
+// first open with no pty of its own spawns one; closing the last never respawns.
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { selectPanelTerminalIds, useRightPanelStore } from "../rightPanelStore.js";
 import { openDrawerTerminal, reportTerminalRefused, splitDrawerTerminal, type SplitDirection } from "../shell/shellCommands.js";
-import { selectTerminalUiState, useTerminalDrawerStore } from "../terminal/drawerStore.js";
+import { drawerPtyIds, firstSpawns, ptyThreadOf, selectTerminalUiState, useTerminalDrawerStore } from "../terminal/drawerStore.js";
 import { useTerminalViewportConfig } from "../terminal/fontSetting.js";
 import { reconcileTerminalIds, type TerminalUiState } from "../terminal/groups.js";
 import { getTerminals, onTerminals, type PtyTabView, type WorkspaceTerminals } from "../terminal/link.js";
 import { useTerminalPane } from "../terminal/paneWords.js";
 import { HERE_KEY } from "../terminal/computer.js";
+import { useStateKey } from "../stateKey.js";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer.js";
 
-// One first-open spawn per link: concurrent mounts share the create and a
-// drawer that later closes its last pty never respawns; a refused create
-// clears the slot so the next mount may try again.
-const firstSpawn = new WeakMap<WorkspaceTerminals, Promise<PtyTabView>>();
-
-function spawnFirstDrawerTerminal(terms: WorkspaceTerminals): Promise<PtyTabView> | null {
-  if (firstSpawn.has(terms)) return null;
-  // With no pty anywhere on the link, ensureOpen shares the create with the center tab's own first-open.
-  const spawn = (terms.tabs().length === 0 ? terms.ensureOpen() : terms.open()).catch((error: unknown) => {
-    firstSpawn.delete(terms);
+// One first-open spawn per drawer on a link: concurrent mounts share the
+// create and a drawer that later closes its last pty never respawns; a
+// refused create clears the slot so the next mount may try again.
+function spawnFirstDrawerTerminal(terms: WorkspaceTerminals, key: string): Promise<PtyTabView> | null {
+  const spawned = firstSpawns(terms);
+  if (spawned.has(key)) return null;
+  const thread = ptyThreadOf(key);
+  const spawn = terms.open(thread === undefined ? {} : { thread }).catch((error: unknown) => {
+    spawned.delete(key);
     throw error;
   });
-  firstSpawn.set(terms, spawn);
+  spawned.set(key, spawn);
   return spawn;
 }
 
@@ -43,9 +43,10 @@ export function lostTerminals(tabs: readonly PtyTabView[]): ReadonlySet<string> 
 
 export function WorkspaceTerminalDrawer({ workspaceId }: { workspaceId: string }) {
   const terms = useSyncExternalStore(onTerminals, () => getTerminals(workspaceId));
-  const ui = useTerminalDrawerStore(s => selectTerminalUiState(s.byWorkspaceId, workspaceId));
+  const drawerKey = useStateKey(workspaceId);
+  const ui = useTerminalDrawerStore(s => selectTerminalUiState(s.byWorkspaceId, drawerKey));
   if (!terms || !ui.terminalOpen) return null;
-  return <LinkedDrawer terms={terms} workspaceId={workspaceId} ui={ui} />;
+  return <LinkedDrawer terms={terms} workspaceId={workspaceId} drawerKey={drawerKey} ui={ui} />;
 }
 
 /** The drawer on this computer's own terminal, whose shells open in the home folder. */
@@ -53,12 +54,13 @@ export function ComputerTerminalDrawer() {
   return <WorkspaceTerminalDrawer workspaceId={HERE_KEY} />;
 }
 
-function LinkedDrawer({ terms, workspaceId, ui }: { terms: WorkspaceTerminals; workspaceId: string; ui: TerminalUiState }) {
+function LinkedDrawer({ terms, workspaceId, drawerKey, ui }: { terms: WorkspaceTerminals; workspaceId: string; drawerKey: string; ui: TerminalUiState }) {
   const tabs = useSyncExternalStore(fn => terms.onTabs(fn), () => terms.tabs());
   const status = useSyncExternalStore(fn => terms.onStatus(fn), () => terms.status());
   const refusal = useSyncExternalStore(fn => terms.onStatus(fn), () => terms.refusal());
   const panelIds = useRightPanelStore(useShallow(s => selectPanelTerminalIds(s.byWorkspaceId, workspaceId)));
-  const ids = useMemo(() => tabs.map(t => t.ptyId).filter(id => !panelIds.includes(id)), [tabs, panelIds]);
+  const ownIds = useTerminalDrawerStore(useShallow(s => drawerPtyIds(s.byWorkspaceId, drawerKey, tabs)));
+  const ids = useMemo(() => ownIds.filter(id => !panelIds.includes(id)), [ownIds, panelIds]);
   const labels = useMemo(() => terminalLabels(tabs), [tabs]);
   const lost = useMemo(() => lostTerminals(tabs), [tabs]);
   const { pane, hints, onWake } = useTerminalPane(workspaceId, status, refusal);
@@ -70,13 +72,13 @@ function LinkedDrawer({ terms, workspaceId, ui }: { terms: WorkspaceTerminals; w
   const shown = useMemo(() => reconcileTerminalIds(ui, ui.terminalIds.filter(id => ids.includes(id))), [ui, ids]);
 
   useEffect(() => {
-    if (status === "live") store.getState().reconcile(workspaceId, ids);
-  }, [store, workspaceId, ids, status]);
+    if (status === "live") store.getState().reconcile(drawerKey, ids);
+  }, [store, drawerKey, ids, status]);
 
   useEffect(() => {
     if (status !== "live" || ids.length > 0) return;
-    spawnFirstDrawerTerminal(terms)?.then(t => store.getState().add(workspaceId, t.ptyId), (e: unknown) => reportTerminalRefused(workspaceId, e));
-  }, [terms, store, workspaceId, status, ids.length]);
+    spawnFirstDrawerTerminal(terms, drawerKey)?.then(t => store.getState().add(drawerKey, t.ptyId), (e: unknown) => reportTerminalRefused(workspaceId, e));
+  }, [terms, store, workspaceId, drawerKey, status, ids.length]);
 
   const split = useCallback((direction: SplitDirection) => void splitDrawerTerminal(workspaceId, direction), [workspaceId]);
 
@@ -97,14 +99,14 @@ function LinkedDrawer({ terms, workspaceId, ui }: { terms: WorkspaceTerminals; w
       onSplitTerminalVertical={() => split("vertical")}
       onNewTerminal={() => void openDrawerTerminal(workspaceId)}
       onActiveTerminalChange={id => {
-        store.getState().activate(workspaceId, id);
+        store.getState().activate(drawerKey, id);
         terms.setActive(id);
       }}
       onCloseTerminal={id => {
-        store.getState().remove(workspaceId, id);
+        store.getState().remove(drawerKey, id);
         void terms.close(id);
       }}
-      onHeightChange={h => store.getState().setHeight(workspaceId, h)}
+      onHeightChange={h => store.getState().setHeight(drawerKey, h)}
       terminalLabelsById={labels}
       terminalIo={terminalIo}
       terminalConfig={terminalConfig}

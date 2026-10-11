@@ -16,7 +16,8 @@ import { useStore } from "../src/protocol/store.js";
 import { selectPanelState, selectWorkspaceRightPanelState, usePanelKey, useRightPanelStore } from "../src/rightPanelStore.js";
 import { RightPanel } from "../src/shell/RightPanel.js";
 import { openDrawerTerminal, openPanelTerminal, runShellCommand, splitActivePanelTerminal, splitDrawerTerminal } from "../src/shell/shellCommands.js";
-import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
+import { carryNewThreadDrawer, NEW_THREAD_PAGE, useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
+import { threadStateKey } from "../src/stateKey.js";
 import { provideTerminals, WorkspaceTerminals, type TerminalWire } from "../src/terminal/link.js";
 import { caps } from "./caps.js";
 import { clearNotices, lastNotice } from "./notice-text.js";
@@ -36,9 +37,11 @@ const WS = "ws_drawer_test";
 
 // The daemon side of the wire: the ptys it holds outlive any WorkspaceTerminals
 // over it, so relink() is a reload (a fresh model over the same daemon).
-function fakeLink({ refuseCreate = false, ptys = [], holdList = false }: { refuseCreate?: boolean; ptys?: string[]; holdList?: boolean } = {}) {
+function fakeLink({ refuseCreate = false, ptys = [], holdList = false, tags = {} }: { refuseCreate?: boolean; ptys?: string[]; holdList?: boolean; tags?: Record<string, string> } = {}) {
   let next = ptys.length + 1;
   const held = new Set(ptys);
+  // The thread a pty.create named, which the host keeps and names on each pty.list row.
+  const threads = new Map<string, string>(Object.entries(tags));
   const ops: { op: string; params: Record<string, unknown> }[] = [];
   // With holdList the daemon answers pty.list only when the test says so, to see what renders before adoption.
   let releaseList = (): void => {};
@@ -50,12 +53,17 @@ function fakeLink({ refuseCreate = false, ptys = [], holdList = false }: { refus
         if (refuseCreate) throw new Error("not answering");
         const ptyId = `p${next++}`;
         held.add(ptyId);
+        if (typeof params["thread"] === "string") threads.set(ptyId, params["thread"]);
         return { ok: true, ptyId };
+      }
+      if (op === "pty.thread") {
+        threads.set(String(params["ptyId"]), String(params["thread"]));
+        return { ok: true };
       }
       if (op === "pty.kill") held.delete(String(params["ptyId"]));
       if (op === "pty.list") {
         await listGate;
-        return { ok: true, ptys: [...held].map(id => ({ id, pid: 1, cols: 80, rows: 24, exited: false })) };
+        return { ok: true, ptys: [...held].map(id => ({ id, pid: 1, cols: 80, rows: 24, exited: false, ...(threads.has(id) ? { thread: threads.get(id) } : {}) })) };
       }
       return { ok: true };
     },
@@ -165,6 +173,132 @@ describe("WorkspaceTerminalDrawer", () => {
     await waitFor(() => expect(count("pty.create")).toBe(2));
     await waitFor(() => expect(inputs("drawer")).toHaveLength(1), { timeout: 15_000 });
   }, 20_000);
+});
+
+describe("the drawer of threads that share a project folder", () => {
+  const shown = (): (string | null)[] => [...document.querySelectorAll<HTMLElement>('[data-terminal-owner="drawer"] [data-terminal-viewport]')].map(el => el.getAttribute("data-terminal-viewport"));
+  afterEach(() => useStore.setState({ selectedId: null, selectedThreadId: null, freshThread: false }));
+
+  it("is each thread's own: a shell one thread opened never shows in another's drawer, nor in a window that claims none", async () => {
+    const { count, relink } = fakeLink();
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: "th_a", freshThread: false }));
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+
+    act(() => useStore.setState({ selectedThreadId: "th_b" }));
+    await waitFor(() => expect(shown()).toEqual([]));
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p2"]), { timeout: 15_000 });
+    expect(count("pty.create")).toBe(2);
+
+    act(() => useStore.setState({ selectedThreadId: "th_a" }));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+
+    // Another window over the same daemon, whose drawers claim nothing yet: each shell still goes to its own thread.
+    act(() => {
+      useTerminalDrawerStore.setState({ byWorkspaceId: {} });
+      relink();
+    });
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+    act(() => useStore.setState({ selectedThreadId: "th_b" }));
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p2"]), { timeout: 15_000 });
+    expect(count("pty.create")).toBe(2);
+  }, 60_000);
+});
+
+describe("the New thread page's drawer", () => {
+  const shown = (): (string | null)[] => [...document.querySelectorAll<HTMLElement>('[data-terminal-owner="drawer"] [data-terminal-viewport]')].map(el => el.getAttribute("data-terminal-viewport"));
+  afterEach(() => useStore.setState({ selectedId: null, selectedThreadId: null, freshThread: false }));
+
+  it("goes with its shell to the thread the first send opens, which a later New thread page never shows, nor a window that claims none", async () => {
+    const { ops, relink } = fakeLink();
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: null, freshThread: true }));
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+
+    // The first send's thread is taken, then the address names it, as ChatView does.
+    act(() => {
+      carryNewThreadDrawer(WS, "th_new");
+      useStore.setState({ selectedThreadId: "th_new", freshThread: false });
+    });
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+    expect(ops.filter(o => o.op === "pty.thread").map(o => o.params)).toEqual([{ ptyId: "p1", thread: "th_new" }]);
+    expect(Object.keys(useTerminalDrawerStore.getState().byWorkspaceId)).toEqual([threadStateKey(WS, "th_new")]);
+
+    act(() => useStore.setState({ selectedThreadId: null, freshThread: true }));
+    await waitFor(() => expect(shown()).toEqual([]));
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p2"]), { timeout: 15_000 });
+
+    act(() => {
+      useTerminalDrawerStore.setState({ byWorkspaceId: {} });
+      relink();
+      useStore.setState({ selectedThreadId: "th_new", freshThread: false });
+    });
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+  }, 60_000);
+
+  it("shows another window's New thread page shell on this one's, and its first send hands on this window's alone", async () => {
+    const { ops } = fakeLink({ ptys: ["p1"], tags: { p1: "new:another-window" } });
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: null, freshThread: true }));
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+    await act(() => openDrawerTerminal(WS));
+    await waitFor(() => expect(shown()).toEqual(["p2"]), { timeout: 15_000 });
+    expect(useTerminalDrawerStore.getState().byWorkspaceId[threadStateKey(WS, "")]?.terminalIds).toEqual(["p1", "p2"]);
+    expect(ops.find(o => o.op === "pty.create")?.params["thread"]).toBe(NEW_THREAD_PAGE);
+    act(() => carryNewThreadDrawer(WS, "th_new"));
+    expect(ops.filter(o => o.op === "pty.thread").map(o => o.params)).toEqual([{ ptyId: "p2", thread: "th_new" }]);
+  }, 30_000);
+
+  it("leaves a closed window's New thread page shell on the New thread page when this window's first send carries", async () => {
+    fakeLink({ ptys: ["p1"], tags: { p1: "new:a-closed-window" } });
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: null, freshThread: true }));
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+    act(() => {
+      carryNewThreadDrawer(WS, "th_new");
+      useStore.setState({ selectedThreadId: "th_new", freshThread: false });
+    });
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p2"]), { timeout: 15_000 });
+    act(() => useStore.setState({ selectedThreadId: null, freshThread: true }));
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+  }, 30_000);
+
+  it("puts a reply's run moved to a tab in its own thread's drawer, also in a window that claims none", async () => {
+    const { wt, relink } = fakeLink();
+    const run = await wt.run({ command: "npm test", thread: "th_a" });
+    await wt.moveToTab(run);
+    act(() => {
+      useTerminalDrawerStore.setState({ byWorkspaceId: {} });
+      relink();
+      useStore.setState({ selectedId: WS, selectedThreadId: "th_b", freshThread: false });
+    });
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p2"]), { timeout: 15_000 });
+    act(() => useStore.setState({ selectedThreadId: "th_a" }));
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual([run]), { timeout: 15_000 });
+  }, 30_000);
+
+  it("leaves a shell the workspace's own drawer arranged, from an older build, to the thread on screen", async () => {
+    fakeLink({ ptys: ["p1"] });
+    useTerminalDrawerStore.setState({ byWorkspaceId: { [WS]: { ...useTerminalDrawerStore.getState().byWorkspaceId[WS], terminalOpen: false, terminalHeight: 280, terminalIds: ["p1"], activeTerminalId: "p1", terminalGroups: [{ id: "g1", terminalIds: ["p1"] }], activeTerminalGroupId: "g1" } } });
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: "th_a", freshThread: false }));
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    act(() => useTerminalDrawerStore.getState().setOpen(WS, true));
+    await waitFor(() => expect(shown()).toEqual(["p1"]), { timeout: 15_000 });
+  }, 30_000);
 });
 
 const view: WorkspaceView = { id: WS, name: "drawer", machineId: "m_drawer", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" }, phase: "running", golden: "snap_g", createdAt: "2026-09-01T00:00:00Z" };
@@ -340,7 +474,7 @@ describe("one owner per pty", () => {
       act(() => wt.feedEvent({ type: "pty.data", ptyId: "p2", data: "meanwhile\r\n" }));
       expect(count("pty.kill")).toBe(0);
       expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1", "p2"]);
-      expect(useTerminalDrawerStore.getState().byWorkspaceId[WS]?.terminalIds).toEqual(["p1"]);
+      expect(useTerminalDrawerStore.getState().byWorkspaceId[threadStateKey(WS, "th_a")]?.terminalIds).toEqual(["p1"]);
 
       const bind = vi.spyOn(wt, "bind");
       act(() => useStore.setState({ selectedThreadId: "th_a" }));
@@ -898,4 +1032,19 @@ describe("panes on a workspace that is not running", () => {
     await waitFor(() => expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1", "p2"]));
     await waitFor(() => expect(overlay()).toBeNull());
   }, 20_000);
+});
+
+describe("this window's New thread page id", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // A browser on another computer reaches `wsp up --listen` over plain http, where crypto has no randomUUID.
+  it("is minted on a page that is not a secure context", async () => {
+    const webCrypto = globalThis.crypto;
+    vi.stubGlobal("crypto", { getRandomValues: webCrypto.getRandomValues.bind(webCrypto) });
+    window.sessionStorage.clear();
+    vi.resetModules();
+    const { NEW_THREAD_PAGE: minted } = await import("../src/terminal/drawerStore.js");
+    expect(minted).toMatch(/^new:[0-9a-f]{32}$/);
+    expect(window.sessionStorage.getItem("wsp:new-thread-page")).toBe(minted);
+  });
 });

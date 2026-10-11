@@ -48,6 +48,8 @@ interface Seen {
   query: URLSearchParams;
   headers: Record<string, string>;
   body: unknown;
+  /** The body as the bytes it went out as. */
+  raw?: string;
 }
 
 type Reply = { status: number; body: unknown };
@@ -68,7 +70,7 @@ class FakeBox {
     const method = init?.method ?? "GET";
     const headers = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]));
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-    const seen: Seen = { method, path: u.pathname.replace(/^\/api\/box\/v1/, ""), query: u.searchParams, headers, body };
+    const seen: Seen = { method, path: u.pathname.replace(/^\/api\/box\/v1/, ""), query: u.searchParams, headers, body, ...(typeof init?.body === "string" ? { raw: init.body } : {}) };
     this.seen.push(seen);
     const queue = this.routes.get(`${method} ${seen.path}`);
     if (queue === undefined || queue.length === 0) return new Response(JSON.stringify(ERROR(404, "not_found", "not_found")), { status: 404 });
@@ -1299,5 +1301,189 @@ describe("BoxBackend against a fake Box API", () => {
     const { machine } = machineOn(new FakeBox());
     await expect(machine.downloadUrl()).rejects.toThrow(/GET \/files/);
     await expect(machine.uploadUrl()).rejects.toThrow(/PUT \/files/);
+  });
+});
+
+describe("a create whose answer is lost", () => {
+  /** What fetch rejects with when the connection drops after the request left: the far end may have acted on it. */
+  const dropped = (): TypeError => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
+  /** The fake's fetch with the answers to its first `lost` creates dropped on the way back: Boat made the box, and
+   * the reply never arrived. */
+  const losing = (api: FakeBox, lost: number): typeof globalThis.fetch => {
+    let left = lost;
+    return async (url, init) => {
+      const res = await api.fetch(url as RequestInfo, init);
+      if (init?.method === "POST" && new URL(String(url)).pathname.endsWith("/boxes") && left-- > 0) throw dropped();
+      return res;
+    };
+  };
+  const backendLosing = (api: FakeBox, lost: number): { backend: BoxBackend; clock: RetryClock & { at: number } } => {
+    api.on("GET", "/limits", LIMITS("standard"));
+    const clock = fakeClock();
+    return { backend: new BoxBackend({ apiKey: "box_x", fetch: losing(api, lost), clock, budgets: { pollMs: 10, createMs: 100, restoreMs: 100 } }), clock };
+  };
+  const MADE = (id: string, status = "provisioning"): Reply => ({ status: 202, body: { ok: true, type: "box.created", status, box: BOX(id, status === "provisioning" ? "provisioning" : "ready", { name: "wsp-mac-default-v4" }) } });
+  const SPEC = { kind: "sandbox" as const, fromSnapshot: "wsp-mac-default-v4", cpu: 2, memMb: 4096, labels: { [OWNER_LABEL]: "h_1" }, idleTimeoutMs: 20 * 60_000, idempotencyKey: "workspace/ws_1:0011223344556677" };
+  const creates = (api: FakeBox): Seen[] => api.seen.filter(s => s.method === "POST" && s.path === "/boxes");
+
+  it("is asked again at once with the same key and the same bytes, and the box Boat made is the one the create goes on with", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", MADE("bx_ca2bqxuk", "ready"))
+      .on("GET", "/boxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4" }))
+      .on("PATCH", "/boxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_ca2bqxuk/commands", COMMAND(""));
+    const { backend } = backendLosing(api, 1);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const machine = await backend.create(SPEC);
+      expect(machine.id).toBe("bx_ca2bqxuk");
+      // Asked again by this create, so the box is this attempt's own and not a replay of an earlier one.
+      expect(machine.replayed).toBe(false);
+      const [first, again] = creates(api);
+      expect(creates(api)).toHaveLength(2);
+      expect(again!.raw).toBe(first!.raw);
+      expect(again!.headers["idempotency-key"]).toBe(SPEC.idempotencyKey);
+      expect(first!.headers["idempotency-key"]).toBe(SPEC.idempotencyKey);
+      // Adopted: named back, and nothing deleted.
+      expect(api.took("PATCH", "/boxes/bx_ca2bqxuk")!.body).toEqual({ name: "wsp;o=h_1" });
+      expect(api.calls().some(c => c.startsWith("DELETE"))).toBe(false);
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (fetch failed: ECONNRESET); wsp asked again and found bx_ca2bqxuk, which this create goes on with.");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("waits two seconds on idempotency_in_progress and every five between lost answers, the bytes the same on every ask", async () => {
+    const asked: number[] = [];
+    const api = new FakeBox();
+    const { backend, clock } = backendLosing(api, 2);
+    const at = (reply: Reply) => () => {
+      asked.push(clock.at);
+      return reply;
+    };
+    api
+      .on("POST", "/boxes", at(MADE("bx_1")), at(MADE("bx_1")), at({ status: 409, body: ERROR(409, "idempotency_in_progress", "A request with this key is still being processed") }), at(MADE("bx_1", "ready")))
+      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await backend.create(SPEC)).id).toBe("bx_1");
+    } finally {
+      vi.mocked(console.warn).mockRestore();
+    }
+    const raws = creates(api).map(s => s.raw);
+    expect(raws).toHaveLength(4);
+    expect(new Set(raws).size).toBe(1);
+    expect(asked.slice(1).map((t, i) => t - asked[i]!)).toEqual([0, 5_000, 2_000]);
+  });
+
+  it("a 500 is an answer Boat may give after it made the box, so it is asked again the same way, and a refusal below 500 is not", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 500, body: ERROR(500, "http_500", "Internal error") }, MADE("bx_1", "ready"))
+      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const { backend } = backendLosing(api, 0);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await backend.create(SPEC)).id).toBe("bx_1");
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (500 Internal error); wsp asked again and found bx_1, which this create goes on with.");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(new Set(creates(api).map(s => s.raw)).size).toBe(1);
+    expect(creates(api)).toHaveLength(2);
+
+    const refused = new FakeBox().on("POST", "/boxes", { status: 409, body: ERROR(409, "idempotency_key_reused", "This key was used with another body") });
+    await expect(backendLosing(refused, 0).backend.create(SPEC)).rejects.toThrow("This key was used with another body");
+    expect(creates(refused)).toHaveLength(1);
+  });
+
+  it("an ask that hears nothing inside a read's cap is a lost answer, asked again at once under the same key with the same bytes", async () => {
+    const api = new FakeBox().on("GET", "/limits", LIMITS("standard")).on("POST", "/boxes", MADE("bx_1", "ready")).on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" })).on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const silent: string[] = [];
+    const fetch: typeof globalThis.fetch = (url, init) => {
+      if (init?.method !== "POST" || !String(url).endsWith("/boxes") || silent.length > 0) return api.fetch(url as RequestInfo, init);
+      silent.push(String(init.body));
+      return new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+    };
+    const backend = new BoxBackend({ apiKey: "box_x", fetch, clock: fakeClock(), budgets: { pollMs: 10, createMs: 100, restoreMs: 100, readMs: 50 } });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await backend.create(SPEC)).id).toBe("bx_1");
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (The operation was aborted due to timeout); wsp asked again and found bx_1, which this create goes on with.");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(creates(api).map(s => [s.raw, s.headers["idempotency-key"]])).toEqual([[silent[0], SPEC.idempotencyKey]]);
+  });
+
+  it("an answer still lost after two minutes fails the create with the road's words and deletes nothing, so the sweep can ask again", async () => {
+    const api = new FakeBox().on("POST", "/boxes", MADE("bx_1"));
+    const { backend, clock } = backendLosing(api, 1_000);
+    const began = clock.at;
+    await expect(backend.create(SPEC)).rejects.toThrow("fetch failed");
+    expect(clock.at - began).toBeLessThanOrEqual(120_000);
+    expect(clock.at - began).toBeGreaterThanOrEqual(115_000);
+    expect(new Set(creates(api).map(s => s.raw)).size).toBe(1);
+    expect(api.calls().some(c => c.startsWith("DELETE") || c.startsWith("GET /boxes/"))).toBe(false);
+  });
+
+  it("an attempt's bytes are made once: a create handed them sends them as they are, though the same spec now reads otherwise", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", MADE("bx_1"))
+      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const { backend, clock } = backendLosing(api, 0);
+    // The first read of the account's cap takes a second and a half, between the instant the timer is set for and
+    // the clock the seconds to it are read off.
+    api.on("GET", "/limits", () => {
+      clock.at += 1_500;
+      return LIMITS("standard");
+    });
+    const sent = await backend.createRequest(SPEC);
+    expect(JSON.parse(sent)).toEqual({ type: "small", ttlSeconds: 1199, noEnv: true, name: "wsp;o=h_1", from: "wsp-mac-default-v4" });
+    // Read again with the cap held, the same spec asks another stop timer: the body a replay must not send.
+    expect(JSON.parse(await backend.createRequest(SPEC))).toMatchObject({ ttlSeconds: 1200 });
+    await backend.create(SPEC, undefined, sent);
+    expect(creates(api)[0]!.raw).toBe(sent);
+  });
+
+  it("a replay sends the attempt's bytes under its key, names the box Boat made back to what the bytes asked, and hands it back", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 200, body: { ok: true, type: "box.created", status: "ready", box: BOX("bx_sxtfdf4c", "ready", { name: "wsp-mac-default-v4" }) } })
+      .on("PATCH", "/boxes/bx_sxtfdf4c", INFO("bx_sxtfdf4c", "ready", { name: "wsp;o=h_1" }));
+    const { backend } = backendLosing(api, 0);
+    const sent = await backend.createRequest({ ...SPEC, labels: { [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" } });
+    const machine = await backend.replayCreate("workspace/ws_1:0011223344556677", sent);
+    expect(machine.id).toBe("bx_sxtfdf4c");
+    expect(machine.labels).toEqual({ [WSP_LABEL]: "1", [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" });
+    expect(creates(api)[0]!.raw).toBe(sent);
+    expect(creates(api)[0]!.headers["idempotency-key"]).toBe("workspace/ws_1:0011223344556677");
+    expect(api.took("PATCH", "/boxes/bx_sxtfdf4c")!.body).toEqual({ name: JSON.parse(sent).name });
+  });
+
+  it("lists the boxes named exactly one of the names asked, running or archived, and no other", async () => {
+    const api = new FakeBox()
+      .on("GET", "/boxes", ({ query }) => ({
+        status: 200,
+        body: {
+          ok: true,
+          boxes: query.get("state") === "archived"
+            ? [BOX("bx_old", "archived", { name: "wsp-mac-default-v3", createdAt: "2026-10-11T09:00:00.000Z" })]
+            : [
+                BOX("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4", createdAt: "2026-10-11T09:48:00.000Z" }),
+                BOX("bx_copy", "ready", { name: "wsp-mac-default-v4-copy" }),
+                BOX("bx_other", "ready", { name: "wsp-otherhost-default-v4" }),
+                BOX("bx_person", "ready", { name: "my box" }),
+                BOX("bx_ours", "ready", { name: "wsp;o=h_1" }),
+              ],
+          pageInfo: { nextCursor: null },
+        },
+      }));
+    const { backend } = backendLosing(api, 0);
+    expect(await backend.namedAfter(new Set(["wsp-mac-default-v4", "wsp-mac-default-v3"]))).toEqual([
+      { id: "bx_ca2bqxuk", name: "wsp-mac-default-v4", state: "running", createdAt: "2026-10-11T09:48:00.000Z" },
+      { id: "bx_old", name: "wsp-mac-default-v3", state: "paused", createdAt: "2026-10-11T09:00:00.000Z" },
+    ]);
   });
 });

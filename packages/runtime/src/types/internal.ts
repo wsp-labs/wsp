@@ -178,11 +178,10 @@ export const stopLogLine = (thread: string, task: string | undefined, outcome: s
 export const restartCutLine = (elapsedMs: number): string => `cut by a host restart after ${fmtDuration(elapsedMs, "clock")}`;
 /** A guest with no daemon is asked again after this long (one may be deployed later). */
 export const DAEMON_TOKEN_MISS_TTL_MS = 60_000;
-/** Events kept per workspace; the oldest fall off so one chatty workspace cannot grow the store forever. */
+/** Events kept per thread; the oldest fall off so one chatty thread cannot grow the store forever. */
 export const TRANSCRIPT_CAP = 5000;
-/** The bytes of JSON one workspace's transcript keeps, past which its oldest events fall off too: every transcript
- * is held in memory whole, and a turn's tool calls carry whole files, so the count alone let one workspace hold a
- * hundred megabytes. */
+/** The bytes of JSON one thread's events keep, past which its oldest fall off too: a turn's tool calls carry whole
+ * files, so the count alone let one thread hold a hundred megabytes. */
 export const TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 /** The characters of one tool result a transcript keeps, its text's and its patch's lines' each; a cut text carries
  * the bytes of the whole. Every reader of a kept result reads its first line (the app's row, the terminal's line, a
@@ -197,12 +196,31 @@ export const PENDING_FLUSH_BYTES = 1024 * 1024;
 /** setTimeout's longest wait; a longer one fires at once. */
 export const MAX_TIMER_MS = 2 ** 31 - 1;
 
+/** The characters of words the host holds for search, across every thread of every folder: each thread keeps up to
+ * its own transcript caps, so words held for all of them grew with every thread, past the host's whole memory budget
+ * at 300 threads that talk. The threads spoken in or opened last are held; search skips an older one and says how many
+ * it skipped, since reading them back blocked the host for 100 to 360 ms a search at 300 threads. */
+export const WORDS_HELD = 2 * 1024 * 1024;
+
 /** One thread's words as search reads them: its messages, the message still open, and when it last said anything. */
 export interface ThreadWords {
   lines: string[];
   open: string | undefined;
   last: number;
+  /** The characters its lines hold, or held when they were let go. */
+  size: number;
+  /** Its first line, cut short, kept when its lines are let go: a thread listed off its record is named by it. */
+  first?: string;
+  /** When it was last opened, which ranks it as a thread spoken in then. */
+  opened?: number;
+  /** Its lines were let go to keep the host inside WORDS_HELD; search skips it until it is read back. */
+  cold?: true;
 }
+
+const FIRST_KEPT = 200;
+/** A thread's first line, cut and copied: past 12 characters V8 keeps a piece of a string as a view into the whole, so
+ * a cut alone held each thread's whole first reply after its lines were let go. */
+const firstOf = (line: string): string => line.slice(0, FIRST_KEPT).split("").join("");
 
 /** What the host keeps of a transcript it does not hold: each thread's words for search, and the facts a send reads
  * off the transcript. Folded one event at a time in the order they were written, so it answers what a walk of the
@@ -347,28 +365,55 @@ export function foldEvent(index: TranscriptIndex, e: SessionEvent): void {
  * message they are. */
 function foldWords(index: TranscriptIndex, e: SessionEvent & { threadId?: string }): void {
   if (e.threadId === undefined) return;
-  const held = index.words.get(e.threadId) ?? { lines: [], open: undefined, last: 0 };
+  const held = index.words.get(e.threadId) ?? { lines: [], open: undefined, last: 0, size: 0 };
   index.words.set(e.threadId, held);
   held.last = Math.max(held.last, e.at ?? 0);
+  // A thread whose lines were let go is read back before it says more (`append`); folding onto none would hold part of them.
+  if (held.cold === true) return;
+  const push = (line: string): void => {
+    held.lines.push(line);
+    held.size += line.length;
+    held.first ??= firstOf(line);
+  };
   if ((e.type === "session.start" && e.prompt !== undefined) || e.type === "session.steer") {
-    held.lines.push(e.prompt!);
+    push(e.prompt!);
     held.open = undefined;
   } else if (e.type === "session.earlier" && (e.who === "person" || e.who === "agent")) {
-    held.lines.push(e.text);
+    push(e.text);
     held.open = undefined;
   } else if (e.type === "session.delta" && e.kind === "text" && e.parentToolUseId === undefined) {
     const message = `${e.turnId ?? e.sessionId}:${e.messageId ?? ""}`;
-    if (held.open === message) held.lines[held.lines.length - 1] += e.text;
-    else held.lines.push(e.text);
+    if (held.open === message) {
+      held.lines[held.lines.length - 1] += e.text;
+      held.size += e.text.length;
+    } else push(e.text);
     held.open = message;
   }
 }
+
+/** One thread's words read off its events, as the index folds them. */
+export const threadWordsOf = (events: readonly SessionEvent[], threadId: string): ThreadWords => {
+  const index = emptyIndex();
+  for (const e of events) if (e.threadId === threadId) foldWords(index, e);
+  return index.words.get(threadId) ?? { lines: [], open: undefined, last: 0, size: 0 };
+};
+
+/** A thread's words with its lines let go. */
+export const coldWords = (w: ThreadWords): ThreadWords => ({ lines: [], open: undefined, last: w.last, size: w.size, ...(w.first !== undefined ? { first: w.first } : {}), ...(w.opened !== undefined ? { opened: w.opened } : {}), cold: true });
 
 export const indexOf = (events: readonly SessionEvent[]): TranscriptIndex => {
   const index = emptyIndex();
   for (const e of events) foldEvent(index, e);
   return index;
 };
+/** The index's entries of these threads read again off their own events, every other thread's left as they were. A
+ * session's facts stay: a trim takes a thread's oldest events, and a fact only its dropped starts named is still the
+ * session's newest word on it. */
+export function reindexThreads(index: TranscriptIndex, threads: ReadonlySet<string>, eventsOf: (threadId: string) => readonly SessionEvent[]): void {
+  for (const threadId of threads) for (const held of [index.words, index.starts, index.cut, index.children]) held.delete(threadId);
+  for (const [requestId, taken] of index.taken) if (threads.has(taken.threadId)) index.taken.delete(requestId);
+  for (const threadId of threads) for (const e of eventsOf(threadId)) foldEvent(index, e);
+}
 /** How much of itself a turn has written, read off its workspace's transcript, where a live turn's rows are at the
  * tail. Only these are kept, since a turn holding the transcript would hold it whole for as long as it runs. */
 export interface TurnWritten {
@@ -407,27 +452,48 @@ export const turnWritten = (events: readonly SessionEvent[], turnId: string): Tu
  * has been written since (a crash between the two writes, a failed index write) is one boot reads again, and so is
  * one that does not parse, and one written before it held the starts by request id, since the restart that brings
  * this host up is the one a send may be waiting across. */
-export const indexBytes = (index: TranscriptIndex, of: BlobMark | undefined): Buffer =>
-  Buffer.from(JSON.stringify({ of, words: [...index.words], starts: [...index.starts], cut: [...index.cut], facts: [...index.facts], taken: [...index.taken], children: [...index.children].map(([thread, held]) => [thread, [...held]]), trimmed: [...index.trimmed], pos: index.pos }));
+/** The index as it is kept beside a transcript; on rows each thread's lines are left out, read again when held. */
+export const indexBytes = (index: TranscriptIndex, of: BlobMark | undefined, lines = true): Buffer =>
+  Buffer.from(JSON.stringify({ of, words: lines ? [...index.words] : [...index.words].map(([thread, w]) => [thread, coldWords(w)]), starts: [...index.starts], cut: [...index.cut], facts: [...index.facts], taken: [...index.taken], children: [...index.children].map(([thread, held]) => [thread, [...held]]), trimmed: [...index.trimmed], pos: index.pos }));
 export const indexRead = (bytes: Buffer): { index: TranscriptIndex; of?: BlobMark } | undefined => {
   try {
     const held = JSON.parse(bytes.toString("utf8")) as { of?: BlobMark; words: [string, ThreadWords][]; starts: [string, string][]; cut: [string, boolean][]; facts: [string, SessionFacts][]; taken?: [string, Taken][]; children?: [string, [string, Child][]][]; trimmed?: string[]; pos?: number };
     if (held.taken === undefined || held.children === undefined || held.pos === undefined) return undefined;
     const children = new Map(held.children.map(([thread, kids]) => [thread, new Map(kids)]));
-    return { index: { words: new Map(held.words), starts: new Map(held.starts), cut: new Map(held.cut), facts: new Map(held.facts), taken: new Map(held.taken), children, trimmed: new Set(held.trimmed), pos: held.pos }, ...(held.of !== undefined ? { of: held.of } : {}) };
+    // An index written before WORDS_HELD carried no size and no first line.
+    const words = held.words.map(([thread, w]): [string, ThreadWords] => {
+      const first = w.first ?? (w.lines[0] === undefined ? undefined : firstOf(w.lines[0]));
+      return [thread, { ...w, size: w.size ?? w.lines.reduce((n, l) => n + l.length, 0), ...(first !== undefined ? { first } : {}) }];
+    });
+    return { index: { words: new Map(words), starts: new Map(held.starts), cut: new Map(held.cut), facts: new Map(held.facts), taken: new Map(held.taken), children, trimmed: new Set(held.trimmed), pos: held.pos }, ...(held.of !== undefined ? { of: held.of } : {}) };
   } catch {
     return undefined;
   }
 };
 
+export type SearchedHit = { hit: { workspaceId: string; threadId: string; snippet: string }; last: number };
+/** One folder's hits of `words` (lowercased) into `found`, for the threads `drives` lets the caller see; answers how many
+ * of those it did not search, since their words were let go: they are counted, never read back, and opening one holds
+ * its words again. */
+export function searchIndex(workspaceId: string, index: TranscriptIndex, words: string, drives: (threadId: string) => boolean, found: SearchedHit[]): number {
+  let unsearched = 0;
+  for (const [threadId, { lines, last, cold }] of index.words) {
+    if (!drives(threadId)) continue;
+    if (cold === true) unsearched++;
+    // The snippet stays inside the one message that holds the words, so it never runs one message into the next.
+    const text = lines.find(line => line.toLowerCase().includes(words));
+    if (text !== undefined) found.push({ hit: { workspaceId, threadId, snippet: snippetAround(text, text.toLowerCase().indexOf(words), words.length) }, last });
+  }
+  return unsearched;
+}
 /** The words around a hit, on one line: a little before it and more after, an ellipsis where the text goes on. */
 export function snippetAround(text: string, at: number, length: number): string {
   const from = Math.max(0, at - 40);
   const to = Math.min(text.length, at + length + 80);
   return `${from > 0 ? "…" : ""}${text.slice(from, to).replace(/\s+/g, " ").trim()}${to < text.length ? "…" : ""}`;
 }
-/** Index rows kept per workspace; the oldest finished rows fall off, a running one never does. A row that falls off
- * still holding its launch's commit takes its unread card with it. */
+/** Index rows kept per workspace past each thread's newest; the oldest finished rows fall off, a running one and a
+ * thread's newest never do. A row that falls off still holding its launch's commit takes its unread card with it. */
 export const SESSION_INDEX_CAP = 200;
 /** A turn boundary waits this long for more before the transcript is written; measured at one put per
  * event, 5000 events cost 4 s of memory-store clones and 6.6 s of file rewrites after the last turn. */
@@ -716,7 +782,14 @@ export interface PendingCreate {
   body: string;
   host: string;
   pid: number;
+  /** The exact bytes the attempt sent, where the backend makes them, so every ask under the key sends the same. */
+  request?: string;
+  /** The image the attempt asked for: a machine made from it carries the image's name until wsp names it. */
+  image?: string;
 }
+
+/** How long an attempt nothing is making any more waits before the sweep asks it again: past a create's own asks. */
+export const LOST_CREATE_MS = 2 * 60_000;
 
 /** The spec minus what is minted per attempt, so the same request from two attempts reads the same. */
 export function fingerprint(spec: MachineSpec): string {
@@ -899,7 +972,7 @@ export async function readBodyUpTo(res: Response, cap: number): Promise<string> 
 
 /** The calls a backend carries only when its provider has them. One list, so a handle built out of a backend
  * forwards every one of them rather than naming the few a road happened to need. */
-export const OPTIONAL_BACKEND_CALLS = ["checkKey", "limits", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate"] as const;
+export const OPTIONAL_BACKEND_CALLS = ["checkKey", "limits", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate", "createRequest", "replayCreate", "namedAfter"] as const;
 
 /** Those calls bound to the backend, for a handle that stands in front of it. A backend is a module with its
  * methods on its prototype, so a spread of it carries none of them; each one is taken by name here. */

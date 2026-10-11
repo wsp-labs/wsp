@@ -721,6 +721,9 @@ export interface RuntimeOptions {
   /** What a road that needs a machine says where nothing here starts one; the host names it from what it registered.
    * NO_PROVIDER_LINE when unset. */
   noMachinesLine?: string;
+  /** Whether a project may be recorded on a cloud, which is the cloud's top-level road: the host says so where its
+   * cloud is on. True when unset. */
+  cloudProjects?: boolean;
 }
 
 export interface WakeOptions {

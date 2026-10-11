@@ -513,6 +513,11 @@
                     "title": "wsp image",
                     "filepath": "content/reference/cli/image.mdx"
                   },
+                  "/image-build": {
+                    "type": "page",
+                    "title": "wsp image build",
+                    "filepath": "content/reference/cli/image-build.mdx"
+                  },
                   "/join": {
                     "type": "page",
                     "title": "wsp join",

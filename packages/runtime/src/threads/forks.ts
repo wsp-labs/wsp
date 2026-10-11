@@ -74,7 +74,7 @@ export async function readFork(ctx: RuntimeContext, fork: ForkSource, origin: Ca
   // A slate's events are its own thread's, and the fork opens with no slate.
   // An outside conversation the thread opened on is written ahead of its first turn under no turn, and is carried
   // with any turn the fork carries through, since the agent's session holds it.
-  const read = (await ctx.openTranscript(workspaceId)).filter(e => e.threadId === threadId && e.type !== "session.slate");
+  const read = (await ctx.openThread(workspaceId, threadId)).filter(e => e.type !== "session.slate");
   const earlier = read.filter(e => e.type === "session.earlier");
   const events = read.filter(e => e.turnId !== undefined);
   const order: string[] = [];
@@ -207,8 +207,9 @@ export async function forkStart(ctx: RuntimeContext, start: (workspaceId: string
   // The fork runs where in its tree its source ran in the source's checkout.
   const from = ctx.checkoutOf(entry.record);
   const cwd = tree === undefined || plan.source.cwd === undefined || !plan.source.cwd.startsWith(`${from}/`) ? tree?.path : join(tree.path, relative(from, plan.source.cwd));
+  const setup = ctx.takeSetupLine(made.record.id);
   try {
-    return await start(made.record.id, { ...o, ...(cwd !== undefined ? { cwd } : {}) });
+    return await start(made.record.id, { ...o, ...(cwd !== undefined ? { cwd } : {}), ...(setup !== undefined ? { setup } : {}) });
   } catch (e) {
     if (!before.has(made.record.id) && tree?.made === true) {
       await ctx.removeWorktree(made, true).catch((gone: unknown) => console.warn(`the worktree a refused fork made at ${tree.path} was not removed: ${gone instanceof Error ? gone.message : String(gone)}`));

@@ -7,8 +7,7 @@ import type { HostSsh, PlaceWiring, RestartDoor, Runtime } from "@wsp/runtime";
 import { writeOwn } from "@wsp/own-file";
 import { GUEST_HOME, THREAD_AGENTS } from "@wsp/catalog";
 import { forksNoMachines, isLoopback, listenBeyondLoopbackLine, loopbackThreadsLine, LOOPBACK, verbFailure } from "@wsp/protocol";
-import { checkProviderKey } from "@wsp/engine";
-import { providerBackendFor, providerEnvWithKey, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
+import { providerBackendFor, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
 import { webDirFor } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, deployDaemon, missingBundleFile } from "../doctor.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
@@ -64,7 +63,7 @@ function hostInitDoor(rt: Runtime, statePath: string, run: RunningWsp, openUrl: 
     // Read at each ask, as the pricing below is, and out of the same layers: a key saved while this host serves
     // swaps its module in, and a run beside it is told the provider it forks on now.
     forksOn: () => wiredProviderId(providerEnvNow(providerEnv, statePath)),
-    checkKey: (key, provider) => checkProviderKey(providerBackendFor(providerEnvWithKey(providerEnv, key, provider))),
+    checkKey: (key, provider) => providerKeyCheck(providerEnv, key, provider),
     // What this host's own provider charges and gives, not one provider's table: a host that forks containers has
     // no bill and no disk cap, and the screens read both off here.
     pricing: () => providerBackendFor(providerEnvNow(providerEnv, statePath)).pricing,

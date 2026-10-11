@@ -641,7 +641,7 @@ export async function follow(
         );
       });
       if (socket !== client) {
-        for (const e of await history(socket, turn.session.workspaceId)) {
+        for (const e of await history(socket, turn.session.workspaceId, turn.threadId)) {
           if (e.turnId === turnId && (e.type === "session.done" || e.type === "session.end")) take(e as unknown as Frame, turn);
         }
         if (over) return turn;
@@ -722,19 +722,20 @@ export type Waited = { ended: Ended } | { timedOutMs: number };
  * gave up before it opened is the case with no rows behind it: it never wrote any, since it never ran, and the
  * reason it did not is on that end and nowhere else. */
 async function endedOf(client: HostClient, workspaceId: string, threadId: string, ended: TurnResult): Promise<Ended> {
-  return { threadId, result: threadResult(await history(client, workspaceId), threadId) ?? ended };
+  return { threadId, result: threadResult(await history(client, workspaceId, threadId), threadId) ?? ended };
 }
 
-/** The workspace's transcript as the host holds it, the rows every read and every wait folds. */
-async function history(client: HostClient, workspaceId: string): Promise<SessionEvent[]> {
-  return (await client.request<{ events: SessionEvent[] }>("sessions.history", { workspaceId })).events;
+/** One thread's transcript as the host holds it, the rows every read and every wait folds; the host reads that thread
+ * alone, never its folder's every thread. */
+async function history(client: HostClient, workspaceId: string, threadId: string): Promise<SessionEvent[]> {
+  return (await client.request<{ events: SessionEvent[] }>("sessions.history", { workspaceId, threadId, whole: true })).events;
 }
 
 /** A thread's messages as the app lists them, or its final reply alone: the transcript is the host's, so nothing is
  * woken for a read and a napping machine reads the same as a running one. */
 export async function readThread(client: HostClient, thread: ThreadView, last: boolean): Promise<{ threadId: string; messages: ThreadMessage[] }> {
   const threadId = threadIdOf(thread);
-  const events = await history(client, thread.workspaceId);
+  const events = await history(client, thread.workspaceId, threadId);
   // A read is a showing, as a window's is: the stamp moves, so the thread stops reading Done here and in every window.
   await client.request("sessions.read", { threadId: thread.id });
   return { threadId, messages: last ? threadReplyRows(events, threadId) : threadMessages(events, threadId) };
@@ -959,7 +960,7 @@ async function answerAsk(client: HostClient, sessionId: string, askId: string, o
 export async function answerOpenAsk(client: HostClient, ref: string, road: AnswerRoad & { answer: NonNullable<AnswerRoad["answer"]> }, reason?: string): Promise<{ threadId: string; askId: string; optionId: string; line: string }> {
   const thread = await threadOf(client, ref);
   const threadId = threadIdOf(thread);
-  const ask = openAsk(await history(client, thread.workspaceId), threadId);
+  const ask = openAsk(await history(client, thread.workspaceId, threadId), threadId);
   if (ask === undefined) throw new Error(noOpenAskLine(threadId));
   const option = ask.options.find((o: PermissionOption) => o.effect === road.effect);
   if (option === undefined) throw new Error(noSuchAnswerLine(threadId, road.answer.verb));

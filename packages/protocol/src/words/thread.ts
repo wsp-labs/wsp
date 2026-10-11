@@ -258,6 +258,11 @@ export function providerRoadRetryLine(call: string, code: string, tryNumber: num
   return `${call} did not leave this computer (${code}); try ${tryNumber} of ${tries}`;
 }
 
+/** A create whose answer never arrived, asked again under its key until the provider named the machine it made. */
+export function createAnswerLostLine(provider: string, said: string, machineId: string): string {
+  return `the answer to ${provider}'s create was lost (${said}); wsp asked again and found ${machineId}, which this create goes on with.`;
+}
+
 /** A fork the provider refused as "Snapshot not found" while its own listing holds that snapshot, asked again. */
 export function snapshotListedWaitLine(snapshotId: string, waitMs: number, waitedMs: number): string {
   return `the provider lists snapshot ${snapshotId} yet answered "Snapshot not found"; asking again in ${fmtDuration(waitMs)} (${fmtDuration(waitedMs)} so far)`;

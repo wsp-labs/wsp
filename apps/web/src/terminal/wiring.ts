@@ -22,7 +22,7 @@ import { paneOf } from "../panes.js";
 import { useSignInStore } from "../shell/signInStore.js";
 import { connectDaemonLink, type DaemonLink, type DaemonLinkOptions } from "./daemon-link.js";
 import { HERE_KEY } from "./computer.js";
-import { selectTerminalUiState, useTerminalDrawerStore } from "./drawerStore.js";
+import { anyDrawerOpen, selectTerminalUiState, useTerminalDrawerStore } from "./drawerStore.js";
 import { NOT_OPENED_YET, provideTerminals, WorkspaceTerminals, type TerminalWire } from "./link.js";
 
 export interface WiringOptions extends Pick<DaemonLinkOptions, "heartbeatMs" | "backoffMs"> {
@@ -98,7 +98,7 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
    * panel is open, or its terminal holds tabs. */
   const onScreen = (id: string, wt: WorkspaceTerminals): boolean =>
     daemonWireHeld(id) ||
-    selectTerminalUiState(useTerminalDrawerStore.getState().byWorkspaceId, id).terminalOpen ||
+    anyDrawerOpen(useTerminalDrawerStore.getState().byWorkspaceId, id) ||
     anyPanelOpen(useRightPanelStore.getState().byWorkspaceId, id) ||
     wt.tabs().length > 0;
 

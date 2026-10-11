@@ -301,8 +301,10 @@ export interface TranscriptsArea {
   readonly moveBlobs: (rows: TranscriptRows) => void;
   readonly transcriptQueue: Map<string, Promise<void>>;
   readonly openTranscript: (workspaceId: string) => Promise<SessionEvent[]>;
+  readonly openThread: (workspaceId: string, threadId: string) => Promise<SessionEvent[]>;
+  readonly openedWords: (workspaceId: string, threadId: string) => void;
   readonly transcriptReader: TranscriptReader;
-  readonly dropFromTranscript: (workspaceId: string, drops: (e: SessionEvent) => boolean) => Promise<void>;
+  readonly dropFromTranscript: (workspaceId: string, threadId: string, drops?: (e: SessionEvent) => boolean) => Promise<void>;
   readonly transcriptTimers: Map<string, () => void>;
   readonly daemonTokens: Map<string, { hasDaemon: boolean; at: number }>;
   readonly daemonTokenOf: (machine: Machine, path?: string) => Promise<string | undefined>;
@@ -351,6 +353,8 @@ export interface ChannelsArea {
   readonly GUEST_ROAD_FRAMES: string[];
   readonly portPids: Map<string, Map<string, number>>;
   readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
+  readonly threadTagged: (workspaceId: string, channel: DaemonChannel) => DaemonChannel;
+  readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
   readonly sharedDaemonReplaced: () => void;
   readonly turnGroups: Map<string, Set<number>>;
   readonly armRootsRecheck: () => void;
@@ -440,6 +444,8 @@ export interface DaemonArea {
 export interface MachinesArea {
   readonly imageMark: () => string;
   readonly inflight: Set<string>;
+  readonly replayCreates: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
+  readonly sweepStrays: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
   readonly claiming: <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at?: MachineBackend) => Promise<T>;
   readonly observed: (machine: Machine) => Machine;
   readonly observing: (b: MachineBackend) => MachineBackend;
@@ -516,7 +522,7 @@ export interface SubSpawnArea {
 export interface FoldersArea {
   readonly projectFolder: (project: ProjectView) => Promise<LiveWorkspace>;
   readonly worktreeFolder: (project: ProjectView, top: string, branch: string, parent?: string, madeFor?: string, checkpoint?: string) => Promise<LiveWorkspace>;
-  readonly folderFor: (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked }, origin: Caller | undefined) => Promise<{ entry: LiveWorkspace; cwd?: string }>;
+  readonly folderFor: (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked; opens?: true }, origin: Caller | undefined) => Promise<{ entry: LiveWorkspace; cwd?: string; setup?: string }>;
   readonly queued: <T>(id: string, work: () => Promise<T>) => Promise<T>;
   readonly removeWorktree: (entry: LiveWorkspace, force: boolean, o?: { ending?: boolean; check?: boolean }) => Promise<void>;
   readonly refuseChanged: (path: string) => Promise<void>;
@@ -529,8 +535,16 @@ export interface FoldersArea {
   readonly gitSaid: (res: { stdout: string; stderr: string }) => string;
   readonly worktreesOf: (top: string) => Promise<{ path: string; branch?: string }[]>;
   readonly worktreeMounted: (entry: LiveWorkspace) => Promise<void>;
-  /** What a new worktree ran before its first thread, once, for the first turn there to open with. */
+  /** What a new worktree ran before its first thread, once, for the start that names it first to open with. */
   readonly takeSetupLine: (workspaceId: string) => string | undefined;
+}
+
+/** The folder a start on a link runs in, with the lines its new thread is told first: the worktree was left behind the
+ * pull request, and what a worktree made for this start ran. */
+export interface Placed {
+  readonly entry: LiveWorkspace;
+  readonly behind?: string;
+  readonly setup?: string;
 }
 
 export interface StartFromArea {
@@ -538,9 +552,9 @@ export interface StartFromArea {
   readonly issueOf: (remote: string, number: number) => Promise<IssueRead>;
   readonly pullRequestOf: (remote: string, number: number) => Promise<PullRequest>;
   readonly fromOf: (kind: WorkspaceFrom["kind"], repo: string, read: IssueRead, fact: PullRequest | undefined) => WorkspaceFrom;
-  readonly workspaceFrom: (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined) => Promise<LiveWorkspace>;
+  readonly workspaceFrom: (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined) => Promise<Placed>;
   readonly picksHold: (project: ProjectView, o: StartPicksAsked) => Promise<void>;
-  readonly openWith: (entry: LiveWorkspace, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined) => Promise<StartResult>;
+  readonly openWith: (placed: Placed, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined) => Promise<StartResult>;
   readonly readOnlyOf: (agent: string) => string | undefined;
   readonly reviewers: () => string[];
   readonly takeReview: (entry: LiveWorkspace, threadId: string, text: string) => Promise<void>;
