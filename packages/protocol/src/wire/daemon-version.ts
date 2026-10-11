@@ -159,6 +159,7 @@ const DAEMON_CONTENTS = [
   "fb4c9130d2a267071ff4628ec8f9bfb49a3c10818f6894b3b44b5dbddacddf22",
   "0a0e575d0660d41561cf0038a2bbf6db41373f3ffa4654b941702c22bed43265",
   "2bcd6f46ae63613208d94094effd91ac33ff3d5c9d9d472a3739e756b88578ae",
+  "5561b75989b87c1acfb0b1b6312d0ce49fde4f286d6c6c495205956aeb77dca1",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -593,7 +594,13 @@ const DAEMON_CONTENTS = [
  * Version 149: fs.hash names back each path it was handed that lands on anything but a folder outside the folder once
  * links are followed, each that lands on a file inside past the most it hashes or over the size cap, and each that
  * lands on something inside that is not a regular file (a fifo, a socket, a device), so the host refuses an Always for
- * a script it cannot pin. */
+ * a script it cannot pin.
+ * Version 150: A checkpoint commit records the HEAD it was taken on as its parent, none where HEAD has no commit yet,
+ * and git.checkpoint's reply says which as based, and the same tree under the same ref keeps its commit only on the
+ * same HEAD; copy worktree takes --checkpoint <ref>, a ref under refs/wsp/checkpoints/ naming a commit, to make a new
+ * branch at the commit that checkpoint was taken on (the folder's HEAD for a checkpoint with no parent) with the config
+ * files and dependencies carried as for any new worktree and the checkpoint's files laid in uncommitted, the worktree's
+ * index left at the start, and refuses a branch that exists or that a worktree holds. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
@@ -651,6 +658,10 @@ export function placeDaemonBehind(place: { daemonVersion?: number }): string | u
 
 /** The first daemon that answers fs.folders. */
 export const FS_FOLDERS_DAEMON_VERSION = 73;
+
+/** The first daemon whose checkpoints record the HEAD they were taken on and whose copy worktree takes --checkpoint,
+ * which a fork onto a new branch needs. */
+export const FORK_BRANCH_DAEMON_VERSION = 150;
 
 /** The first build whose `wsp leave` takes --yes and --force, asks off a terminal without --yes, and takes the
  * runtime's folder. A gate written as this build's own daemon is pinned to its number by the landing's cut. */
