@@ -342,12 +342,12 @@ export const BranchIn = z.string().optional().describe("a branch other than the 
 export const OnIn = z
   .string()
   .optional()
-  .describe("a cloud to start the thread on as a sub-thread of the thread asking, by its name in computers: boat. The thread gets a machine of its own forked from the person's image, fetches your pushed branch and pushes a branch of its own; your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces");
+  .describe("boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch and pushes a branch of its own; your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces");
 export const SubSizeIn = z
   .string()
   .regex(/^\d+x\d+$/)
   .optional()
-  .describe("with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; the cloud's own size setting without it. A thread that builds or runs a test suite wants 4x8");
+  .describe("with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8");
 export const RunCwdIn = z.string().optional().describe("a folder inside the project or one of its worktrees, absolute, which the thread starts in");
 /** The threads an act on a shared folder took in too, on the answers of commit, discard and update. */
 export const SHARED_WITH = { sharedWith: z.array(z.string()).optional().describe("the other threads working in the same folder, by id, whose changes the act took in too; absent where none do") };

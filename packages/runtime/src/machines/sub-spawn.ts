@@ -7,11 +7,11 @@
 // turn holds nothing, so it is deleted and replaced once.
 import { randomBytes } from "node:crypto";
 import { gitHostOf, remoteHost, type GitHost } from "@wsp/catalog";
-import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, goldenHead, isMissing, type CloudLimits, type MachineBackend } from "@wsp/engine";
+import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type CloudLimits, type MachineBackend } from "@wsp/engine";
 import {
-  DETACHED_HEAD, GitStatusReply, SUB_DELETE_AFTER_MIN, SUB_SEED_MAX_BYTES, SUB_SIZE_DEFAULT, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, ownerRepoOf,
-  providerKeyName, scopeOf, shellQuote, startingLine, subAheadRefusal, subBranchNameRefusal, subBranchOf, subCopyingLine, subDayStartsRefusal, subDetachedRefusal, subFolderOf,
-  subHourStartsRefusal, subLeadBranchRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
+  DETACHED_HEAD, GitStatusReply, SUB_DELETE_AFTER_MIN, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
+  providerKeyName, scopeOf, shellLine, shellQuote, startingLine, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDayStartsRefusal, subDetachedRefusal, subFolderOf,
+  subHourStartsRefusal, subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOtherHostRefusal, subPickedElsewhereWhy, subPlanWord, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   subSizeWord, subTwiceRefusal, subUncommittedLine, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
@@ -25,13 +25,6 @@ const SETUP_IMAGE = "default";
 const HOST_WORDS: Readonly<Record<GitHost["id"], string>> = { github: "GitHub", gitlab: "GitLab" };
 /** The states a sealed login stands in on a fork. */
 const LOGIN_HELD = new Set(["copied", "signed-in"]);
-
-/** A name git refuses for a branch, by git check-ref-format's own rules. */
-function refName(name: string): boolean {
-  if (name === "" || name === "@" || name.startsWith("-") || name.startsWith("/") || name.endsWith("/") || name.endsWith(".") || name.endsWith(".lock")) return false;
-  if (/[\x00-\x20\x7f~^:?*[\\]/.test(name) || name.includes("..") || name.includes("//") || name.includes("@{")) return false;
-  return name.split("/").every(part => part !== "" && !part.startsWith("."));
-}
 
 /** Which of the three faults a fresh machine cures a failure is, with the machine it names; nothing for any other. */
 function faultOf(e: unknown): SubFault | undefined {
@@ -83,6 +76,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const { placeId } = await ctx.landingPlace(row.id);
       const place = placeId ?? row.id;
       const lead = live.get(scope.workspaceId)!;
+      // A lead is a thread on this computer or on a computer the person added (01, M4).
+      if (!runsInFolder(lead.record.kind)) throw subLeadOnMachineRefusal(on, scope.threadId, lead.record.name);
       const project = ctx.projectHeld(lead.record.project);
       // S4: a remote on a host whose command the image signs in to.
       if (project.remote === "") throw subNoRemoteRefusal(project.name, on);
@@ -98,7 +93,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const branch = read.branch.head;
       if (branch === "" || branch === DETACHED_HEAD) throw subDetachedRefusal(project.name);
       if (read.branch.upstream === undefined) throw subNoUpstreamRefusal(branch);
-      if (read.branch.ahead > 0 || read.countsUnknown === true) throw subAheadRefusal(branch, read.branch.ahead);
+      if (read.branch.ahead > 0) throw subAheadRefusal(branch, read.branch.ahead);
+      if (read.countsUnknown === true) throw subAheadUnknownRefusal(branch);
       const base = { branch, sha: read.branch.oid };
       const uncommitted = read.entries.filter(e => e.xy !== "!!").length;
       // S6: the image on the cloud, holding the sign-in of the remote's host.
@@ -114,14 +110,14 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const limits = at.limits === undefined ? undefined : await at.limits();
       const sold = soldBy(at, limits);
       const kept = settingOf(place, "size") as { cpu: number; memMb: number } | undefined;
-      const word = ask.size ?? subSizeWord(kept ?? SUB_SIZE_DEFAULT);
+      const word = ask.size ?? subSizeWord(kept ?? at.pricing.defaultSize);
       const asked = subSizeOf(word);
       const size = asked === undefined ? undefined : sold.find(s => s.cpu === asked.cpu && s.memMb === asked.memMb);
       if (size === undefined) throw subSizeRefusal(on, word, sold);
       // S8: a result branch git takes that is not the lead's own; the default numbered past one taken.
-      if (ask.branch !== undefined && !refName(ask.branch)) throw subBranchNameRefusal(ask.branch);
+      if (ask.branch !== undefined && !subBranchNameOk(ask.branch)) throw subBranchNameRefusal(ask.branch);
       if (ask.branch === branch) throw subLeadBranchRefusal(ask.branch);
-      const result = ask.branch ?? freeBranch(subBranchOf(name));
+      const result = ask.branch ?? (await freeBranch(subBranchOf(name), lead));
       // S10: the cloud's spend today.
       await ctx.placeGuard(place);
       // S11: the agent on the image, where the image says which it carries.
@@ -212,10 +208,19 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     }
   };
 
-  /** The default result branch, numbered past a name another sub-machine of this host pushes: every record keeps
-   * its branch past its machine, so a name wsp handed out before is never handed out again. */
-  const freeBranch = (wanted: string): string => {
+  /** The default result branch, numbered past a name the remote holds or another sub-machine of this host was given.
+   * The remote is read from the lead's folder on this computer, with no prompt and a bounded wait; a lead elsewhere,
+   * or a remote that does not answer, leaves the records alone to say what is taken. */
+  const freeBranch = async (wanted: string, lead: LiveWorkspace): Promise<string> => {
     const taken = new Set([...live.values()].map(e => e.record.sub?.branch).filter(b => b !== undefined));
+    if (copiesFolder(kindForComputer(ctx.projectHeld(lead.record.project).computer))) {
+      const machine = await ctx.moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID);
+      const heads = await machine.exec(`GIT_TERMINAL_PROMPT=0 ${shellLine(["git", "-C", ctx.checkoutOf(lead.record), "ls-remote", "--heads", "origin"])}`, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
+      for (const line of heads?.exitCode === 0 ? heads.stdout.split("\n") : []) {
+        const ref = line.split("\t")[1];
+        if (ref?.startsWith("refs/heads/") === true) taken.add(ref.slice("refs/heads/".length));
+      }
+    }
     if (!taken.has(wanted)) return wanted;
     for (let n = 2; ; n++) if (!taken.has(`${wanted}-${n}`)) return `${wanted}-${n}`;
   };

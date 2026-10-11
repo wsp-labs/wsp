@@ -9,10 +9,6 @@ import { refusal } from "./exit.js";
 import { ownerRepoOf } from "./start.js";
 import { fmtMemGb, sizeFromWord, sizeWord } from "./words/units.js";
 
-/** The machine sizes a sub-thread names, as `<cpu>x<memGb>`, smallest first: every class the cloud sells. */
-export const SUB_SIZE_WORDS = ["2x4", "4x8", "8x16", "16x32"] as const;
-/** The size a sub-thread gets when neither its start nor the cloud's own setting names one. */
-export const SUB_SIZE_DEFAULT = { cpu: 2, memMb: 4096 } as const;
 /** The minutes a finished sub-thread's machine stays before it is deleted, until the person sets another. */
 export const SUB_DELETE_AFTER_MIN = 30;
 /** The most a sub-thread's picked files may come to, packed: the files worth picking are a few KB of `.env` style
@@ -43,7 +39,7 @@ export type SubStarted = z.infer<typeof SubStarted>;
 
 /** Why a word beside --on is refused: the sub-thread runs in a folder of its own on the cloud, under the asking thread. */
 export const subBesideRefusal = (word: string): Error =>
-  refusal(`--on starts a sub-thread of the thread asking, in a folder of its own on the cloud, so it takes no ${word}`, `Drop ${word}, or run the work without --on.`, "usage");
+  refusal(`--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it takes no ${word}`, `Drop ${word}, or run the work without --on.`, "usage");
 
 /** One size a cloud sells a sub-thread, by its class's own name. */
 export interface SubSize {
@@ -74,6 +70,15 @@ export function subFolderOf(remote: string): string {
 export function subBranchOf(machine: string): string {
   const slug = machine.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/, "");
   return `wsp/${slug === "" ? "sub-thread" : slug}`;
+}
+
+/** Whether git takes a name for a branch, by `git check-ref-format --branch`'s rules: never HEAD, no leading `-` or
+ * `/`, no trailing `/` or `.`, no `//`, `..` or `@{`, no control character, space or any of `~^:?*[\`, and no part
+ * that starts with `.` or ends with `.lock`. */
+export function subBranchNameOk(name: string): boolean {
+  if (name === "" || name === "HEAD" || name.startsWith("-") || name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) return false;
+  if (/[\x00-\x20\x7f~^:?*[\\]/.test(name) || name.includes("..") || name.includes("//") || name.includes("@{")) return false;
+  return name.split("/").every(part => part !== "" && !part.startsWith(".") && !part.endsWith(".lock"));
 }
 
 /** The first message's head on a sub-thread: where it runs, the git lines that fetch the lead's pushed commit onto a
@@ -119,7 +124,13 @@ const provider = (happened: string, fix: string): Error => refusal(happened, fix
 export const subNoThreadRefusal = (on: string): Error =>
   usage(`run --on ${on} starts a sub-thread of the thread that asks, and this line came from no thread`, "Start it from a thread, or run the work on this computer with wsp run <project>.");
 /** `size` from a terminal with no cloud named. */
-export const subSizeNoCloudRefusal = (): Error => usage("--size takes a cloud", "Add --on boat.");
+export const subSizeNoCloudRefusal = (): Error => usage("--size sizes a sub-thread's machine, and this line starts none", "Add --on boat.");
+/** A lead runs on this computer or on a computer the person added, never on a machine wsp forked. */
+export const subLeadOnMachineRefusal = (on: string, thread: string, machine: string): Error =>
+  usage(`run --on ${on} starts a sub-thread of a thread on this computer or on a computer you added, and thread ${thread.slice(0, 8)} runs on ${machine}, a machine wsp forked`, "Start it from a thread on this computer.");
+/** A sub-thread asking to start a thread: it starts none of its own, and its lead can. */
+export const subStartsNothingRefusal = (thread: string, lead: string): Error =>
+  usage(`sub-thread ${thread.slice(0, 8)} starts no threads of its own`, `Send the work to thread ${lead.slice(0, 8)}, which started it, with wsp send ${lead.slice(0, 8)} "<message>".`);
 /** S3: the word names no cloud this host holds a key for. */
 export const subNoCloudRefusal = (word: string, held: readonly string[]): Error =>
   usage(`${word} is not a cloud this host holds`, `wsp add boat adds it. It holds: ${held.length === 0 ? "none" : held.join(", ")}.`);
@@ -136,6 +147,9 @@ export const subNoUpstreamRefusal = (branch: string): Error => usage(`${branch} 
 /** S5: the lead holds commits the remote lacks, which the sub-thread could not fetch. */
 export const subAheadRefusal = (branch: string, ahead: number): Error =>
   usage(`${branch} has ${ahead} ${ahead === 1 ? "commit" : "commits"} the remote does not`, "Run git push, then start the sub-thread again.");
+/** S5: git could not count the lead's commits against the remote, so some may not be on it. */
+export const subAheadUnknownRefusal = (branch: string): Error =>
+  usage(`git could not count ${branch}'s commits against the remote, so some of them may not be on it`, "Run git fetch, then git push, then start the sub-thread again.");
 /** S6: no image on the cloud. */
 export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}, or run wsp init --on ${on.toLowerCase()}.`);
 /** S6: the image holds no sign-in for the remote's git host, so the sub-thread could fetch nothing private and push nothing. */
@@ -148,7 +162,7 @@ export const subNoSignInRefusal = (on: string, host: { label: string; cli: strin
 export const subSizeRefusal = (on: string, word: string, sold: readonly SubSize[]): Error => {
   const named = sold.map(s => `${s.name} ${subSizeWord(s)} (${rateWord(s.rateUsdPerHour)})`);
   const list = named.length <= 1 ? (named[0] ?? "nothing") : `${named.slice(0, -1).join(", ")} and ${named.at(-1)!}`;
-  return usage(`${on} sells ${list} on this plan; ${word} is not one of them`, "Name one of them, or leave the size out for the cloud's own.");
+  return usage(`${on} sells ${list} on this plan; ${word} is not one of them`, `Name one of them, or leave the size out for ${on}'s own.`);
 };
 /** S8: a name git refuses for a branch. */
 export const subBranchNameRefusal = (name: string): Error => usage(`${name} is not a name git takes for a branch`, "Name another, or leave --branch out for wsp/<slug>.");
@@ -206,7 +220,7 @@ export const subUncommittedLine = (n: number, folder: string, branch: string, sh
 /** Why nothing ignored went: nothing is picked for the project. */
 export const subNothingPickedWhy = (project: string): string => `nothing is picked for ${project}`;
 /** Why nothing ignored went: the project's folder is on another computer. */
-export const subPickedElsewhereWhy = (project: string, computer: string): string => `${project} lives on ${computer}, and picks are sent from this computer's folders only`;
+export const subPickedElsewhereWhy = (project: string, computer: string): string => `${project} lives on ${computer}, and picks are read from folders on this computer only`;
 /** The line a start passes with when no git-ignored file was sent. */
 export const subNotSentLine = (why: string, project: string): string =>
   `no git-ignored files were sent: ${why}.${why.startsWith("nothing is picked") ? ` wsp projects seed ${project} shows what could go.` : ""}`;

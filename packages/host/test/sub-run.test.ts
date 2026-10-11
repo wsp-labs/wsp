@@ -15,7 +15,6 @@ import { PAID, leadOnThisComputer } from "../../runtime/test/sub-fixture.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
 import { CLI_VERBS, runVerb, type HostClient } from "../src/verbs.js";
 import { mcpServer } from "../src/mcp.js";
-import { CLOUD_ON } from "../src/cloud.js";
 import { captured } from "./verbs-fixture.js";
 
 let mcp: Client | undefined;
@@ -63,8 +62,7 @@ async function wsp(launch: Readonly<Record<string, string>>, ...argv: string[]) 
 
 const TASK = "Fix the flaky upload test";
 
-// Boat is the cloud's until the build that ships it, so --on and on are read with the cloud on alone.
-describe.skipIf(!CLOUD_ON)("wsp run --on boat from a lead thread on this computer", () => {
+describe("wsp run --on boat from a lead thread on this computer", () => {
   it("answers 03's object at once, opens the sub-thread in /root/web under the lead with the preamble, and says its stages on stderr", async () => {
     const { rt, boat, starts, threadId, launch } = await leadOnThisComputer({ served: true, picks: [".env", ".env.local"], git: { uncommitted: 2 } });
     const ran = await wsp(launch, "run", "--on", "boat", "--detach", "--notify", "me", TASK, "--json");

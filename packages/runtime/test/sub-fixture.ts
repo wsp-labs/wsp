@@ -52,6 +52,8 @@ interface LeadGit {
   upstream?: string;
   ahead: number;
   uncommitted: number;
+  /** git could not count the branch against its upstream. */
+  countsUnknown?: true;
 }
 
 /** One failure Boat gives a create: a box that runs nothing, one whose environment did not land, a cancelled create;
@@ -102,7 +104,7 @@ function leadDaemon(git: LeadGit) {
       frames.push(f);
       if (f["op"] === "git.status") {
         const entries = Array.from({ length: git.uncommitted }, (_, i) => ({ path: `f${i}`, xy: " M" }));
-        return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]) } as unknown as DaemonResponse;
+        return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]), ...(git.countsUnknown === true ? { countsUnknown: true } : {}) } as unknown as DaemonResponse;
       }
       return { id: 1, ok: false, error: `${String(f["op"])} was not answered` } as unknown as DaemonResponse;
     },
@@ -112,8 +114,8 @@ function leadDaemon(git: LeadGit) {
   return { frames, open };
 }
 
-/** A harness whose first turn, the lead's, runs until the case ends, and whose every other turn answers at once. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[]): HarnessAdapterFactory {
+/** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once. */
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: { end?: () => void }): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
     start: o => {
@@ -121,7 +123,16 @@ function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, 
       const sessionId = `s${starts.length}`;
       o.onEvent({ type: "session.start", sessionId });
       const result: TurnResult = { status: "completed", text: "done" };
-      if (starts.length === 1) return { localId: sessionId, finished: new Promise<TurnResult>(() => {}), interrupt: async () => {} };
+      if (starts.length === 1) {
+        const finished = new Promise<TurnResult>(resolve => {
+          lead.end = () => {
+            o.onEvent({ type: "turn.done", sessionId, result });
+            o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+            resolve(result);
+          };
+        });
+        return { localId: sessionId, finished, interrupt: async () => {} };
+      }
       o.onEvent({ type: "turn.done", sessionId, result });
       o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
       return { localId: sessionId, finished: Promise.resolve(result), interrupt: async () => {} };
@@ -162,6 +173,8 @@ export interface Setup {
   spendPerDayUsd?: number;
   /** Served on a socket, the lead's launch carrying the host's address and its own token, as a thread's wsp dials. */
   served?: true;
+  /** Branches the remote holds already. */
+  remoteHeads?: string[];
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -180,11 +193,12 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const git: LeadGit = { head: "feat/upload", upstream: "origin/feat/upload", ahead: 0, uncommitted: 0, ...o.git };
   const daemon = leadDaemon(git);
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
+  const leadTurn: { end?: () => void } = {};
   const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
   const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const rt: Runtime = createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts), codex: harness(starts) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents });
+  const rt: Runtime = createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts, leadTurn), codex: harness(starts, leadTurn) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents });
   if (o.served === true) {
     ctx.runtime = rt;
     ctx.srv = await serveRuntime(rt, { port: 0, authToken: "host-token", devices: rt.devices });
@@ -192,11 +206,18 @@ export async function leadOnThisComputer(o: Setup = {}) {
   }
   if (o.spendPerDayUsd !== undefined) await rt.places!.set("box", { spendPerDayUsd: o.spendPerDayUsd });
   const project = await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "web" });
+  // The remote, recorded on the project as GitHub's, answers from a bare repo here, so no read leaves this computer.
+  if (o.remote === undefined) {
+    const bare = join(root, "remote.git");
+    execFileSync("git", ["init", "-q", "--bare", bare]);
+    for (const head of o.remoteHeads ?? []) execFileSync("git", ["-C", repo, "push", "-q", bare, `HEAD:refs/heads/${head}`]);
+    execFileSync("git", ["-C", repo, "config", `url.${bare}.insteadOf`, "git@github.com:acme/web.git"]);
+  }
   if (o.picks !== undefined) await store.put("seed-choices", repo, { files: o.picks, memory: false, commits: false, remember: true });
   const folder = await rt.workspaces.create({ project: project.id, name: "web", agents: { spawn: true, ...(o.agents ?? {}) } });
   const turn = await rt.sessions.start(folder.id, { prompt: "coordinate", harness: "claude" });
   const threadId = turn.view().threadId!;
   const lead: Caller = { origin: "here", by: { kind: "thread", threadId, workspaceId: folder.id, rootThreadId: threadId } };
-  return { rt, store, boat, git, daemon, starts, project, folder, threadId, lead, token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo };
+  return { rt, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo };
 }
 
