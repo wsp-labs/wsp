@@ -93,6 +93,13 @@ export const BOX_RESTORE_MS = 120_000;
 /** How much later than the last instant sent a backstop instant has to be before it is worth a call: the runtime
  * arms its window on every streamed chunk, and a PATCH per chunk would be a call per keystroke. */
 export const BACKSTOP_SLACK_MS = 60_000;
+/** The wait after a backstop that failed before the next is sent, doubled per failure up to the most and reset by one
+ * that lands: a failure sets no instant, so without it every streamed chunk sent a PATCH into a network already down. */
+export const BACKSTOP_RETRY_MS = 30_000;
+export const BACKSTOP_RETRY_MAX_MS = 5 * 60_000;
+/** The longest a backstop's PATCH is waited on: one the provider takes and never answers would hold the box's one
+ * backstop for good, so it ends here and counts as a failure for the backoff. */
+export const BACKSTOP_CAP_MS = 20_000;
 /** The longest auto-stop the trial takes; `null` (no auto-stop) is refused there until the first payment. */
 export const TRIAL_TTL_S = 7200;
 
@@ -321,6 +328,8 @@ interface RequestOpts {
   headers?: Record<string, string>;
   capMs?: number;
   signal?: AbortSignal;
+  /** Sent once, for a caller that keeps a backoff of its own. */
+  once?: boolean;
 }
 
 export interface BoxBudgets {
@@ -332,6 +341,7 @@ export interface BoxBudgets {
   pollMs: number;
   /** The cap on one read (a GET) whose road names none. */
   readMs: number;
+  backstopMs: number;
 }
 
 export interface BoxBackendOptions {
@@ -383,6 +393,9 @@ export class BoxBackend implements MachineBackend {
   /** The stop timer last sent per box: the instant, so a window armed on every chunk costs one call a minute at
    * most, and the span it stood for, which is what a resume arms again before the runtime's first arming. */
   private readonly backstops = new Map<string, { until: number; spanMs: number }>();
+  /** The boxes a backstop is being sent for now, and per box the last failed one's end and the wait it set. */
+  private readonly backstopsSending = new Set<string>();
+  private readonly backstopFailures = new Map<string, { at: number; waitMs: number }>();
 
   constructor(opts: BoxBackendOptions) {
     this.apiKey = opts.apiKey;
@@ -397,6 +410,7 @@ export class BoxBackend implements MachineBackend {
       restoreMs: opts.budgets?.restoreMs ?? BOX_RESTORE_MS,
       pollMs: opts.budgets?.pollMs ?? BOX_POLL_MS,
       readMs: opts.budgets?.readMs ?? PROVIDER_READ_CAP_MS,
+      backstopMs: opts.budgets?.backstopMs ?? BACKSTOP_CAP_MS,
     };
   }
 
@@ -420,7 +434,7 @@ export class BoxBackend implements MachineBackend {
       } catch (e) {
         const road = roadCode(e);
         if (road === undefined) throw e;
-        if (++roadRetries >= ROAD_TRIES) throw e;
+        if (++roadRetries >= (opts.once ? 1 : ROAD_TRIES)) throw e;
         console.warn(providerRoadRetryLine(`${method} ${path}`, road, roadRetries + 1, ROAD_TRIES));
         await this.clock.sleep(roadBackoffMs(roadRetries));
         continue;
@@ -432,7 +446,7 @@ export class BoxBackend implements MachineBackend {
         envelope = JSON.parse(text) as typeof envelope;
       } catch { /* not a JSON envelope */ }
       const e = boxKind(classify(res.status, { code: envelope.code, error: envelope.message ?? text }, envelope.requestId));
-      if (!shouldRetry(e, attempt)) fail(e);
+      if (opts.once || !shouldRetry(e, attempt)) fail(e);
       await this.clock.sleep(backoffMs(attempt));
       attempt++;
     }
@@ -655,17 +669,29 @@ export class BoxBackend implements MachineBackend {
    * The timer counts from the PATCH (measured 2026-09-11), so an instant the runtime hands over on activity is
    * what a host that died leaves the box to stop at. */
   async backstop(machine: Machine, until: number): Promise<void> {
-    const cap = await this.ttlCap();
-    const now = this.clock.now();
-    const instant = cap === null ? until : Math.min(until, now + cap * 1000);
-    const last = this.backstops.get(machine.id);
-    if (last !== undefined && instant - last.until < BACKSTOP_SLACK_MS) return;
-    await this.request("PATCH", `/boxes/${encodeURIComponent(machine.id)}`, { body: { ttlSeconds: Math.max(1, Math.ceil((instant - now) / 1000)) } });
-    this.backstops.set(machine.id, { until: instant, spanMs: instant - now });
+    const failed = this.backstopFailures.get(machine.id);
+    if (this.backstopsSending.has(machine.id) || (failed !== undefined && this.clock.now() - failed.at < failed.waitMs)) return;
+    this.backstopsSending.add(machine.id);
+    try {
+      const cap = await this.ttlCap();
+      const now = this.clock.now();
+      const instant = cap === null ? until : Math.min(until, now + cap * 1000);
+      const last = this.backstops.get(machine.id);
+      if (last !== undefined && instant - last.until < BACKSTOP_SLACK_MS) return;
+      await this.request("PATCH", `/boxes/${encodeURIComponent(machine.id)}`, { body: { ttlSeconds: Math.max(1, Math.ceil((instant - now) / 1000)) }, capMs: this.budgets.backstopMs, once: true });
+      this.backstops.set(machine.id, { until: instant, spanMs: instant - now });
+      this.backstopFailures.delete(machine.id);
+    } catch (e) {
+      this.backstopFailures.set(machine.id, { at: this.clock.now(), waitMs: failed === undefined ? BACKSTOP_RETRY_MS : Math.min(failed.waitMs * 2, BACKSTOP_RETRY_MAX_MS) });
+      throw e;
+    } finally {
+      this.backstopsSending.delete(machine.id);
+    }
   }
 
   forgetBackstop(id: string): void {
     this.backstops.delete(id);
+    this.backstopFailures.delete(id);
   }
 }
 
