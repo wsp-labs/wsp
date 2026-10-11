@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Where the files and diff panes are rooted, per workspace: the folder the
+// Where the files and diff panes are rooted, per thread: the folder the
 // thread's agent works in, as the composer picked it, the harness then
 // reported it, and the agent's own tool calls then moved its shell, unless
 // the person pinned the panes somewhere; before any, the daemon's home. The
@@ -8,13 +8,16 @@
 // the next thread starts in: a folder the person chose outright, else the
 // project the runtime's rule picks, else the daemon's home, which is what the
 // line under the composer shows and what the start names. Every path here is
-// absolute. Not persisted: a reload follows the thread again.
+// absolute. Keyed by the thread on screen, so a thread of a shared folder that
+// has reported no folder yet never shows where another went. Not persisted: a
+// reload follows the thread again.
 import { useMemo } from "react";
 import { create } from "zustand";
 import type { WorkspaceView } from "@wsp/protocol";
 import { useStore } from "../protocol/store.js";
 import { parentPath, pathSegments, type PathSegment } from "./entries.js";
 import { getDaemonRoot, useDaemonRoot } from "./wire.js";
+import { onNewThreadPage, stateKeyOf, threadStateKey, useStateKey } from "../stateKey.js";
 
 export interface WorkspaceRoot {
   /** The thread's working directory, where its harness runs and the next turn resumes; null before any thread or pick. */
@@ -28,6 +31,7 @@ export interface WorkspaceRoot {
   readonly chosen: string | null;
 }
 
+/** Each action takes a workspace id, and acts on the thread it shows now, or a key from stateKey that names one. */
 interface RootStoreState {
   byWorkspaceId: Record<string, WorkspaceRoot>;
   follow: (workspaceId: string, cwd: string) => void;
@@ -71,37 +75,41 @@ export function folderCrumbs(roots: readonly string[], folder: string): PathSegm
   return [{ name: root, path: root }, ...pathSegments(root, folder)];
 }
 
+const patch = (byWorkspaceId: Record<string, WorkspaceRoot>, key: string, change: Partial<WorkspaceRoot>): Pick<RootStoreState, "byWorkspaceId"> => ({
+  byWorkspaceId: { ...byWorkspaceId, [key]: { ...(byWorkspaceId[key] ?? NONE), ...change } },
+});
+
 export const useRootStore = create<RootStoreState>()(set => ({
   byWorkspaceId: {},
   follow: (workspaceId, cwd) =>
     set(s => {
-      const current = s.byWorkspaceId[workspaceId] ?? NONE;
-      return current.followed === cwd ? s : { byWorkspaceId: { ...s.byWorkspaceId, [workspaceId]: { ...current, followed: cwd } } };
+      const key = stateKeyOf(workspaceId);
+      const current = s.byWorkspaceId[key] ?? NONE;
+      return current.followed === cwd ? s : { byWorkspaceId: { ...s.byWorkspaceId, [key]: { ...current, followed: cwd } } };
     }),
   shell: (workspaceId, dir) =>
     set(s => {
-      const current = s.byWorkspaceId[workspaceId] ?? NONE;
-      return current.shell === dir ? s : { byWorkspaceId: { ...s.byWorkspaceId, [workspaceId]: { ...current, shell: dir } } };
+      const key = stateKeyOf(workspaceId);
+      const current = s.byWorkspaceId[key] ?? NONE;
+      return current.shell === dir ? s : { byWorkspaceId: { ...s.byWorkspaceId, [key]: { ...current, shell: dir } } };
     }),
-  pin: (workspaceId, dir) =>
-    set(s => ({ byWorkspaceId: { ...s.byWorkspaceId, [workspaceId]: { ...(s.byWorkspaceId[workspaceId] ?? NONE), pinned: dir } } })),
-  unpin: workspaceId =>
-    set(s => ({ byWorkspaceId: { ...s.byWorkspaceId, [workspaceId]: { ...(s.byWorkspaceId[workspaceId] ?? NONE), pinned: null } } })),
+  pin: (workspaceId, dir) => set(s => patch(s.byWorkspaceId, stateKeyOf(workspaceId), { pinned: dir })),
+  unpin: workspaceId => set(s => patch(s.byWorkspaceId, stateKeyOf(workspaceId), { pinned: null })),
   // A chosen folder is where the panes go too, so the person sees the folder the thread will start in.
-  choose: (workspaceId, dir) =>
-    set(s => ({ byWorkspaceId: { ...s.byWorkspaceId, [workspaceId]: { ...(s.byWorkspaceId[workspaceId] ?? NONE), chosen: dir, followed: dir } } })),
+  choose: (workspaceId, dir) => set(s => patch(s.byWorkspaceId, stateKeyOf(workspaceId), { chosen: dir, followed: dir })),
   unchoose: workspaceId =>
     set(s => {
-      const current = s.byWorkspaceId[workspaceId] ?? NONE;
-      return current.chosen === null ? s : { byWorkspaceId: { ...s.byWorkspaceId, [workspaceId]: { ...current, chosen: null } } };
+      const key = stateKeyOf(workspaceId);
+      const current = s.byWorkspaceId[key] ?? NONE;
+      return current.chosen === null ? s : { byWorkspaceId: { ...s.byWorkspaceId, [key]: { ...current, chosen: null } } };
     }),
 }));
 
 /** The folder the panes show: the pin, else the agent's shell folder where the daemon can list it, else the thread's
  * folder, else the workspace's project folder where the daemon can list it, else the daemon's home (null until its
  * hello). A copy nobody has run a thread in yet opens on the copy, never on the whole home it sits in. */
-export function selectRoot(byWorkspaceId: Record<string, WorkspaceRoot>, workspaceId: string, roots: readonly string[], project: string | null = null): string | null {
-  const entry = byWorkspaceId[workspaceId] ?? NONE;
+export function selectRoot(byWorkspaceId: Record<string, WorkspaceRoot>, key: string, roots: readonly string[], project: string | null = null): string | null {
+  const entry = byWorkspaceId[key] ?? NONE;
   const listable = (dir: string | null): string | null => (dir !== null && rootOf(roots, dir) !== null ? dir : null);
   return entry.pinned ?? listable(entry.shell) ?? entry.followed ?? listable(project) ?? roots[0] ?? null;
 }
@@ -132,11 +140,13 @@ export function useRoot(workspaceId: string): string | null {
     const workspace = s.workspaces.find(w => w.id === workspaceId);
     return workspace === undefined ? null : projectFolderOf(workspace);
   });
-  return useRootStore(s => selectRoot(s.byWorkspaceId, workspaceId, roots, project));
+  const key = useStateKey(workspaceId);
+  return useRootStore(s => selectRoot(s.byWorkspaceId, key, roots, project));
 }
 
 export function usePinned(workspaceId: string): boolean {
-  return useRootStore(s => (s.byWorkspaceId[workspaceId] ?? NONE).pinned !== null);
+  const key = useStateKey(workspaceId);
+  return useRootStore(s => (s.byWorkspaceId[key] ?? NONE).pinned !== null);
 }
 
 /** The folder the workspace's thread works in, for a dialog about that folder (export): the thread's own as the
@@ -144,11 +154,13 @@ export function usePinned(workspaceId: string): boolean {
 export function useWorkingFolder(workspaceId: string): string | null {
   const daemonRoot = useDaemonRoot(workspaceId);
   const project = useProjectFolder(workspaceId);
-  return useRootStore(s => (s.byWorkspaceId[workspaceId] ?? NONE).followed) ?? project ?? daemonRoot;
+  const key = useStateKey(workspaceId);
+  return useRootStore(s => (s.byWorkspaceId[key] ?? NONE).followed) ?? project ?? daemonRoot;
 }
 
 export function useChosenFolder(workspaceId: string): string | null {
-  return useRootStore(s => (s.byWorkspaceId[workspaceId] ?? NONE).chosen);
+  const key = useStateKey(workspaceId);
+  return useRootStore(s => (s.byWorkspaceId[key] ?? NONE).chosen);
 }
 
 /** The folder the next thread starts in, as the line under the composer shows it: the folder chosen outright, else
@@ -175,7 +187,7 @@ export function pickThreadFolder(input: { chosen: string | null; project: string
 export function threadFolderOf(workspaceId: string): string | null {
   const workspace = useStore.getState().workspaces.find(w => w.id === workspaceId);
   return pickThreadFolder({
-    chosen: (useRootStore.getState().byWorkspaceId[workspaceId] ?? NONE).chosen,
+    chosen: (useRootStore.getState().byWorkspaceId[stateKeyOf(workspaceId)] ?? NONE).chosen,
     project: workspace === undefined ? undefined : projectFolderOf(workspace),
     kindFolder: workspace?.folder,
     daemonRoot: getDaemonRoot(workspaceId),
@@ -192,4 +204,16 @@ export function threadStart(chosen: string | null): { cwd?: string } {
 export function useThreadStart(workspaceId: string): { cwd?: string } {
   const chosen = useChosenFolder(workspaceId);
   return useMemo(() => threadStart(chosen), [chosen]);
+}
+
+/** What the New thread page pinned or chose goes to the thread its first send opened, as its pane and drawer do; a
+ * folder that thread already follows stays, under the page's pin. */
+export function carryNewThreadRoot(workspaceId: string, threadId: string): void {
+  if (!onNewThreadPage(workspaceId)) return;
+  const draft = threadStateKey(workspaceId, "");
+  const { [draft]: carried, ...rest } = useRootStore.getState().byWorkspaceId;
+  if (carried === undefined) return;
+  const key = threadStateKey(workspaceId, threadId);
+  const own = rest[key];
+  useRootStore.setState({ byWorkspaceId: { ...rest, [key]: own === undefined ? carried : { ...own, pinned: own.pinned ?? carried.pinned } } });
 }

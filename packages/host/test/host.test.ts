@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { DAEMON_VERSION, probePath, RecipeFile, type AdapterEvent, type TurnResult } from "@wsp/protocol";
 import { CATALOG, GUEST_HOME } from "@wsp/catalog";
 import { allRows, type RecipeAnswer } from "../src/recipe-answer.js";
 import { HERE } from "./recipe-fixture.js";
-import { BUILDER_IDLE_MS, type GoldenImport } from "@wsp/engine";
+import { BUILDER_IDLE_MS, goldenName, type GoldenImport } from "@wsp/engine";
 import { copyKey, createRuntime, memoryStore, type HarnessAdapterFactory, type ReapResult, type Runtime, type Store } from "@wsp/runtime";
 import { execFileSync } from "node:child_process";
 import { DAEMON_PORT } from "@wsp/engine";
@@ -20,6 +20,7 @@ import { REAP_INTERVAL_MS, startHost, type HostDoctorReaders, type HostHandle } 
 import { VERSION } from "../src/version.js";
 import { SEALED_GOLDEN as GOLDEN } from "./sealed-golden.js";
 import { ownedStore } from "../../runtime/test/stub-backend.js";
+import { templateHost } from "../../runtime/src/host-id.js";
 import { stubBackend, type StubBackend } from "./stub-backend.js";
 import { closeStandInGuests, fakeGuestAt } from "../src/fake-guest.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
@@ -543,6 +544,28 @@ describe("host sweeps orphaned machines", () => {
       `reap: left alone ${foreignSmoke.id}: smoke fork from another wsp setup (owner h_other), 20 min old, $0.11/h (about $0.04 so far); kill it from its provider's console if it is yours and forgotten`,
     ]);
     expect(await store.list("builders")).toEqual([]);
+  });
+
+  it("at start asks a lost create again and deletes its machine, and deletes one named after this host's image that nothing names, each in one line", async () => {
+    const { rt, backend, store } = testRuntime();
+    const image = goldenName(templateHost(hostname()) + templateHost(await rt.owner()), "default", 4);
+    await createOn(rt, { golden: image, name: "w" });
+    const lost = await backend.create({ kind: "sandbox" });
+    const stray = await backend.create({ kind: "sandbox" });
+    backend.replayCreate = async () => lost;
+    backend.namedAfter = async names => (names.has(image) ? [{ id: stray.id, name: image, state: "running" as const, createdAt: ago(11 * 60_000) }] : []);
+    // An earlier process of this host asked for a machine three minutes ago and died before the answer came.
+    await store.put("creates", "workspace/ws_gone", { key: "workspace/ws_gone:00", createdAt: ago(3 * 60_000), body: "b", request: "{}", image, host: hostname(), pid: 4_194_305 });
+    const lines: string[] = [];
+
+    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l) });
+
+    expect([lost, stray].map(m => backend.machines.find(x => x.id === m.id)!.killed)).toEqual([true, true]);
+    expect(lines.filter(l => l.startsWith("reap: deleting"))).toEqual([
+      `reap: deleting ${lost.id}, a machine the provider made for this host after the answer to its create was lost (named ${image}, 3 min old); no record waits for it`,
+      `reap: deleting ${stray.id}, named ${image} and 11 min old: a machine made from this host's image that no record or create of it names`,
+    ]);
+    expect(await store.list("creates")).toEqual([]);
   });
 
   it("a workspace machine from this setup that no record claims is recorded at start under the name its fork stamped, named in the log, listed by the app and deletable", async () => {

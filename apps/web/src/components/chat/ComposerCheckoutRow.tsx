@@ -14,6 +14,7 @@ import { GitBranchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DETACHED_HEAD, type PlaceView, type ProjectBranch } from "@wsp/protocol";
 import { projectFolderOf, useRootStore, useThreadFolder } from "../../files/root";
+import { useStateKey } from "../../stateKey";
 import { useDaemonWire } from "../../files/wire";
 import { useStatus, useStore, useWorkspace } from "../../protocol/store";
 import { ComputerGlyph } from "../../settings/ComputerGlyph";
@@ -158,12 +159,14 @@ export function ComposerCheckoutRow({
   const refresh = useCallback(() => void api?.workspaceCheckout?.(workspaceId, true).catch(() => undefined), [api, workspaceId]);
   useRereads(opening && onCheckout, refresh);
 
+  // Under the key of the thread on screen, and again when another is shown: a thread that names no folder yet keeps none.
+  const key = useStateKey(workspaceId);
   useEffect(() => {
-    if (cwd !== null) follow(workspaceId, cwd);
-  }, [cwd, follow, workspaceId]);
+    if (cwd !== null) follow(key, cwd);
+  }, [cwd, follow, key]);
   useEffect(() => {
-    shell(workspaceId, shellCwd);
-  }, [shell, shellCwd, workspaceId]);
+    shell(key, shellCwd);
+  }, [shell, shellCwd, key]);
 
   return (
     <ComposerSurface.Tray data-composer-checkout data-opening={opening || undefined} data-composer-folder={folder ?? undefined}>

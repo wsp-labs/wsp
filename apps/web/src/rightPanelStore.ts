@@ -21,6 +21,7 @@ import type { Place } from "./browser/url.js";
 import { addNotice } from "./notices/store.js";
 import { lastOpen } from "./protocol/lastWorkspace.js";
 import { useStore } from "./protocol/store.js";
+import { isThreadKey, onNewThreadPage, stateKeyIn, stateKeyOf, threadOfKey, threadStateKey, useStateKey, workspaceOfKey } from "./stateKey.js";
 import { HERE_KEY } from "./terminal/computer.js";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -108,35 +109,19 @@ const EMPTY_WORKSPACE_STATE: WorkspaceRightPanelState = {
 };
 // This computer's panel stands behind the default thread and the first run, where nothing asked for it yet.
 const EMPTY_HERE_STATE: WorkspaceRightPanelState = { ...EMPTY_WORKSPACE_STATE, isOpen: false };
-const emptyFor = (key: string): WorkspaceRightPanelState => (key === HERE_KEY || key.includes(THREAD_MARK) ? EMPTY_HERE_STATE : EMPTY_WORKSPACE_STATE);
-
-const THREAD_MARK = "#";
+const emptyFor = (key: string): WorkspaceRightPanelState => (key === HERE_KEY || isThreadKey(key) ? EMPTY_HERE_STATE : EMPTY_WORKSPACE_STATE);
 
 /** Thread panes kept on this browser: a thread forgotten on another client leaves no word here to drop its pane. */
 export const KEPT_THREAD_PANELS = 100;
 
-/** A thread's pane; the empty thread id is the New thread page's, before its first send names one. */
-export const threadPanelKey = (workspaceId: string, threadId: string): string => `${workspaceId}${THREAD_MARK}${threadId}`;
-
-const workspaceOfPanel = (key: string): string => {
-  const at = key.indexOf(THREAD_MARK);
-  return at < 0 ? key : key.slice(0, at);
-};
-
-type Selection = Pick<ReturnType<typeof useStore.getState>, "selectedId" | "selectedThreadId" | "freshThread">;
-
+/** A thread's pane is under the thread's state key; the empty thread id is the New thread page's. */
+export const threadPanelKey = threadStateKey;
+const workspaceOfPanel = workspaceOfKey;
+type Selection = Parameters<typeof stateKeyIn>[0];
 /** The pane a workspace shows: the selected thread's, the New thread page's, else the workspace's own. */
-function panelKeyIn(s: Selection, workspaceId: string): string {
-  if (workspaceId.includes(THREAD_MARK) || s.selectedId !== workspaceId) return workspaceId;
-  if (s.selectedThreadId !== null) return threadPanelKey(workspaceId, s.selectedThreadId);
-  return s.freshThread ? threadPanelKey(workspaceId, "") : workspaceId;
-}
-
-export const panelKeyOf = (workspaceId: string): string => panelKeyIn(useStore.getState(), workspaceId);
-
-export function usePanelKey(workspaceId: string): string {
-  return useStore(s => panelKeyIn(s, workspaceId));
-}
+const panelKeyIn = stateKeyIn;
+export const panelKeyOf = stateKeyOf;
+export const usePanelKey = useStateKey;
 
 const panelsOf = (byWorkspaceId: Record<string, WorkspaceRightPanelState>, workspaceId: string): [string, WorkspaceRightPanelState][] =>
   Object.entries(byWorkspaceId).filter(([key]) => workspaceOfPanel(key) === workspaceId);
@@ -209,7 +194,7 @@ const updatePanel = (
   if (next === current) return byWorkspaceId;
   // Written last goes last, so the thread panes past the cap that go are the ones touched longest ago.
   const { [key]: _was, ...rest } = byWorkspaceId;
-  const threads = Object.keys(rest).filter((k) => k.includes(THREAD_MARK));
+  const threads = Object.keys(rest).filter((k) => isThreadKey(k));
   for (const old of threads.slice(0, Math.max(0, threads.length + 1 - KEPT_THREAD_PANELS))) delete rest[old];
   return { ...rest, [key]: next };
 };
@@ -706,10 +691,9 @@ const LOADED_PANELS = 3;
 /** The New thread page's pane goes to the thread its first send made, which the page goes on showing. A click from
  * the page to another thread leaves it behind, so this is asked where the send's thread is taken, not on a selection. */
 export function carryNewThreadPanel(workspaceId: string, threadId: string): void {
-  const s = useStore.getState();
   const draft = threadPanelKey(workspaceId, "");
   const panels = useRightPanelStore.getState().byWorkspaceId;
-  if (!s.freshThread || s.selectedId !== workspaceId || s.selectedThreadId !== null || !(draft in panels)) return;
+  if (!onNewThreadPage(workspaceId) || !(draft in panels)) return;
   const { [draft]: carried, ...rest } = panels;
   const key = threadPanelKey(workspaceId, threadId);
   useRightPanelStore.setState({ byWorkspaceId: key in rest ? rest : { ...rest, [key]: carried! } });
@@ -722,7 +706,7 @@ export function followThreadPanels(): () => void {
   const keyOf = (s: Selection): string => (s.selectedId === null ? HERE_KEY : panelKeyIn(s, s.selectedId));
   const shown = (key: string): void => {
     // Only a thread takes one of the places: the New thread page, a project's home and a folder's own pane take none.
-    if (key.includes(THREAD_MARK) && !key.endsWith(THREAD_MARK)) {
+    if (isThreadKey(key) && threadOfKey(key) !== "") {
       const at = shownLast.indexOf(key);
       if (at >= 0) shownLast.splice(at, 1);
       shownLast.unshift(key);
