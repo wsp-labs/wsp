@@ -442,7 +442,6 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
       "workspaces.viewed": "a viewed mark is one person's place in a review; an agent reads the diff whole with git and marks nothing",
       "fs.write": "the pane's save of an edit made inside the diff; the command line reaches a file through wsp exec",
       "places.readings": "a computer's chart over a day, a week or a month; wsp computers prints its cores and memory now",
-      // The readings subscription's computer form, beside the chart it fills: sys.subscribe with placeId.
       "sys.subscribe": "with placeId, a computer's live CPU and memory band on the Computers list, off the one watch the host holds of that computer for every reader; wsp computers prints its cores and memory now",
       "workspaces.bringBack": "the Changes pane's Open pull request, a plain git action beside Commit and Push; an agent pushes and opens its pull request with git push and gh pr create",
     };

@@ -4,8 +4,10 @@
 // socket: a computer's row on the list, a folder's panes there, a channel. So
 // the watch is counted here, asked on the first reader and stopped with
 // sys.unwatch after the last, and asked again on the link that replaces one
-// that dropped while somebody was still reading.
-import { noSuchPlaceRefusal, type DaemonEvent, type SysSample } from "@wsp/protocol";
+// that dropped while somebody was still reading. A daemon behind this host
+// refuses sys.unwatch and counts a second sys.watch on its socket as a second
+// subscriber, so its watch is left running and the next reader rides it.
+import { noSuchPlaceRefusal, placeDaemonBehind, type DaemonEvent, type SysSample } from "@wsp/protocol";
 import type { DaemonReach } from "../reach.js";
 import type { PlaceDoorContext } from "./context.js";
 
@@ -28,8 +30,18 @@ export interface PlaceReadings {
 
 export function placeReadings(ctx: PlaceDoorContext): PlaceReadings {
   const watched = new Map<string, Watched>();
+  /** The links whose daemon could not be told to stop and so still sends the readings no one here reads. */
+  const stillSending = new WeakSet<DaemonReach>();
+  const unwatches = (placeId: string): boolean => {
+    const version = ctx.kept.get(placeId)?.report.daemonVersion;
+    return version !== undefined && placeDaemonBehind({ daemonVersion: version }) === undefined;
+  };
 
   const ask = (w: Watched, on: DaemonReach): Promise<Record<string, unknown>> => {
+    if (stillSending.has(on)) {
+      w.asked = { on, answer: Promise.resolve({ ok: true }) };
+      return w.asked.answer;
+    }
     const answer: Promise<Record<string, unknown>> = on
       .request("sys.watch")
       .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }))
@@ -52,12 +64,15 @@ export function placeReadings(ctx: PlaceDoorContext): PlaceReadings {
         if (!w.readers.delete(fn) || w.readers.size > 0 || watched.get(placeId) !== w) return;
         watched.delete(placeId);
         const on = w.asked?.on;
-        if (on !== undefined && ctx.live.get(placeId)?.reach === on) void on.request("sys.unwatch").catch(() => undefined);
+        if (on === undefined || ctx.live.get(placeId)?.reach !== on) return;
+        if (unwatches(placeId)) void on.request("sys.unwatch").catch(() => undefined);
+        else stillSending.add(on);
       };
       const on = ctx.live.get(placeId)?.reach;
       if (on === undefined) return release;
       const said = await (w.asked?.on === on ? w.asked.answer : ask(w, on));
-      if (said["ok"] !== true) {
+      // An answer lost with its link is no refusal: the reader stays held, and the link that comes back is asked.
+      if (said["ok"] !== true && ctx.live.get(placeId)?.reach === on) {
         release();
         throw new Error(typeof said["error"] === "string" ? said["error"] : "the computer would not send its readings");
       }
