@@ -21,15 +21,17 @@ const HOST_MEMORY_BUDGET_MB = 40;
 /** What a day of turns may add to what the host holds once it has started. Start-up is the code and the schemas every
  * feature loads, so a cap on the whole moved with each one and failed branches that never touched what a turn keeps:
  * under Node 22 on Linux the day added 3.7 MB on 2026-10-06 before the Slate landed (31.2 MB at start-up), with it
- * (33.3) and once start-up shed 9 MB (23.4), and 3.9 under Node 24. Start-up answers to the budget alone. */
-const HOST_DAY_CAP_MB = 5;
+ * (33.3) and once start-up shed 9 MB (23.4), and 3.9 under Node 24. Start-up answers to the budget alone. On
+ * 2026-10-11 the transcript caps moved from each folder to each thread, so the day's four threads keep all their events
+ * where the folder kept 5000, and the index of their words took the day from 4.9 to 5.2. */
+const HOST_DAY_CAP_MB = 6;
 
 /** The scripted day: ten threads that run one turn first thing, each replying 18 KB that ends on one word, then four
  * threads a person keeps open in the project's folder, thirty turns each, forty deltas a turn
  * and a reply whose last line runs to the 200 characters a row keeps, and four subagents a turn that each start with
  * the 280 characters of what they were asked, name their model, say ten lines and end, then one thread on a branch in
- * a worktree of its own with one turn. That is past the transcript ring's 5000 events, so the host is measured with every cap it has
- * already full and every child the ring still holds kept under its thread. */
+ * a worktree of its own with one turn. That is past the 5000 events a folder kept before each thread kept its own, so the
+ * host is measured holding every thread's events whole and every child they hold kept under its thread. */
 const THREADS = 4;
 const TURNS_PER_THREAD = 30;
 const DELTAS_PER_TURN = 40;
@@ -52,6 +54,8 @@ interface Reading {
   turns: number;
   /** Each collection's figure from the last turn until one freed nothing more. */
   readings?: number[];
+  /** The folder of threads that talk: what a search found and skipped, and how long a search and a delete held the loop. */
+  talk?: { found: number; unsearched: number; opened: number; searchMs: number; deleteMs?: number; deleteHeapMb?: number };
 }
 
 /** The host as its own process: the wiring `wsp up` builds, a local workspace, and one harness that answers with a
@@ -212,6 +216,131 @@ await host.close();
 process.exit(0);
 `;
 
+/** A folder of threads that talk: each one turn whose reply is this many characters of words, past what the host holds
+ * of words for search all together. */
+const TALKING_THREADS = 300;
+const TALKING_REPLY = 30 * 1024;
+/** The longest a search or a delete in that folder may hold the host's loop, the best of three tries: reading back every
+ * thread whose words were let go held it 100 to 360 ms a search, and parsing the folder's every row twice held a delete
+ * 1.1 s (2026-10-11). */
+const LOOP_HELD_MS = 50;
+/** What a delete there may grow the heap by: the folder parsed whole grew it 245 MB. */
+const DELETE_HEAP_MB = 20;
+
+/** The host on one folder of TALKING_THREADS threads, measured once they are quiet, or, started again on that state
+ * as a host of its own, once it is. Both times it searches for the oldest thread's words, which it let go, times a
+ * short search, opens the oldest thread and searches again; started again it also times deleting one thread. */
+const talkingScript = (home: string, again: boolean): string => `
+import { execFileSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { setTimeout as sleep } from "node:timers/promises";
+import { createRuntime, sqliteStore } from ${JSON.stringify(distOf("runtime"))};
+import { startHost, localWiring, stateWriterHere } from ${JSON.stringify(DIST)};
+import { fakeCopier, NoProviderBackend } from ${JSON.stringify(distOf("engine"))};
+import { DAEMON_VERSION } from ${JSON.stringify(distOf("protocol"))};
+
+const home = ${JSON.stringify(home)};
+const again = ${again};
+const webDir = join(home, "web");
+mkdirSync(webDir, { recursive: true });
+writeFileSync(join(webDir, "index.html"), '<!doctype html><html><body><script>window.__WSP__ = window.__WSP__ || { token: "" };</script></body></html>');
+const statePath = join(home, "state", "state.json");
+mkdirSync(join(home, "state"), { recursive: true });
+let nth = 0;
+const talking = () => ({
+  steers: false,
+  start: ({ onEvent, prompt }) => {
+    const sessionId = \`00000000-0000-4000-8000-\${String(++nth).padStart(12, "0")}\`;
+    const finished = (async () => {
+      onEvent({ type: "session.start", sessionId });
+      // Text of its own in every piece, as a reply read off an agent's stream is: one string repeated would be held as
+      // references to it, and the words would cost nothing until a restart read them back.
+      const piece = i => \`\${nth}.\${i} \${"words of a long reply ".repeat(93)}\`;
+      onEvent({ type: "turn.delta", sessionId, kind: "text", text: \`marker-\${prompt} \`, messageId: "m" });
+      for (let i = 0; i * piece(0).length < ${TALKING_REPLY}; i++) onEvent({ type: "turn.delta", sessionId, kind: "text", text: piece(i), messageId: "m" });
+      const result = { status: "completed", text: "done" };
+      onEvent({ type: "turn.done", sessionId, result });
+      onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+      return result;
+    })();
+    return { localId: sessionId, finished, interrupt: async () => {} };
+  },
+});
+const daemon = async () => ({ version: DAEMON_VERSION, road: { url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }, sysSamples: async () => () => {}, close: async () => {} });
+const up = async () => {
+  const runtime = createRuntime({ statePath, backend: new NoProviderBackend(), local: localWiring(home, undefined, daemon, statePath, fakeCopier()), store: sqliteStore(statePath, stateWriterHere()), adapters: { claude: talking } });
+  return { runtime, host: await startHost({ runtime, webDir, port: 0, statePath }) };
+};
+const held = () => {
+  global.gc();
+  global.gc();
+  const m = process.memoryUsage();
+  return (m.heapUsed + m.external) / 1048576;
+};
+const quiet = async () => {
+  let before = Infinity;
+  let after = held();
+  for (let i = 0; i < 60 && Math.abs(before - after) > 0.1; i++) {
+    await sleep(250);
+    before = after;
+    after = held();
+  }
+  return after;
+};
+const { runtime, host } = await up();
+if (!${again}) {
+  const folder = join(home, "repo");
+  mkdirSync(folder, { recursive: true });
+  execFileSync("git", ["init", "-q", "-b", "main", folder]);
+  const project = await host.addProject(folder);
+  const workspace = await host.createWorkspace("here", undefined, project.id);
+  for (let t = 0; t < ${TALKING_THREADS}; t++) {
+    const handle = await runtime.sessions.start(workspace.id, { prompt: String(t).padStart(3, "0"), harness: "claude" });
+    await handle.finished?.catch(() => {});
+  }
+}
+const threads = (await runtime.sessions.list()).filter(v => v.threadId !== undefined).sort((a, b) => a.startedAt - b.startedAt);
+const heldMb = await quiet();
+/** The longest the loop was held while fn ran, and the most the heap grew over what it held before. */
+const loopHeld = async fn => {
+  const delay = monitorEventLoopDelay({ resolution: 1 });
+  const before = process.memoryUsage().heapUsed;
+  let peak = before;
+  const probe = setInterval(() => (peak = Math.max(peak, process.memoryUsage().heapUsed)), 1);
+  delay.enable();
+  // The histogram's first sample is armed a tick after enable: a block in the same tick reads as none.
+  await sleep(5);
+  await fn();
+  await sleep(5);
+  delay.disable();
+  clearInterval(probe);
+  peak = Math.max(peak, process.memoryUsage().heapUsed);
+  return { ms: +(delay.max / 1e6).toFixed(1), heapMb: +((peak - before) / 1048576).toFixed(1) };
+};
+/** The best of three tries, as a loaded machine can hold the loop 200 ms on an act that holds it 7 ms the next try. */
+const bestOf = async fns => {
+  const tries = [];
+  for (const fn of fns) tries.push(await loopHeld(fn));
+  return { ms: Math.min(...tries.map(t => t.ms)), heapMb: Math.min(...tries.map(t => t.heapMb)) };
+};
+const searched = await runtime.sessions.search("marker-000");
+const short = await bestOf([0, 1, 2].map(() => () => runtime.sessions.search("th")));
+const oldest = threads[0];
+await runtime.sessions.page(oldest.workspaceId, { threadId: oldest.threadId });
+let opened = 0;
+for (let i = 0; i < 100 && opened === 0; i++, await sleep(10)) opened = (await runtime.sessions.search("marker-000")).hits.length;
+const talk = { found: searched.hits.length, unsearched: searched.unsearched ?? 0, opened, searchMs: short.ms };
+if (again) {
+  const deleted = await bestOf([150, 151, 152].map(n => () => runtime.sessions.delete(threads[n].threadId)));
+  Object.assign(talk, { deleteMs: deleted.ms, deleteHeapMb: deleted.heapMb });
+}
+console.log(\`measured \${JSON.stringify({ heldMb: +heldMb.toFixed(1), rssMb: +(process.memoryUsage().rss / 1048576).toFixed(1), turns: ${TALKING_THREADS}, talk })}\`);
+await host.close();
+process.exit(0);
+`;
+
 /** How long a measuring run may take before it is ended, so a host that will not close cannot outlive this file. */
 const RUN_CAP_MS = 240_000;
 
@@ -342,5 +471,34 @@ describeWithDists("what the host holds after a day of agents", ["host", "runtime
     console.log(said);
     expect(held.heldMb, said).toBeLessThanOrEqual(HOST_MEMORY_BUDGET_MB);
     expect(day, said).toBeLessThanOrEqual(HOST_DAY_CAP_MB);
+  }, 300_000);
+});
+
+describeWithDists("what the host holds of a folder of threads that talk", ["host", "runtime", "engine"], () => {
+  let home: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "wsp-talking-"));
+  });
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it(`stays under ${HOST_MEMORY_BUDGET_MB} MB with ${TALKING_THREADS} threads of ${TALKING_REPLY / 1024} KB of words in one folder, searches and deletes under ${LOOP_HELD_MS} ms, and finds the oldest one's once it is opened`, async () => {
+    const day = await ran(talkingScript(home, false), home);
+    expect(day.code, day.out).toBe(0);
+    const restart = await ran(talkingScript(home, true), home);
+    expect(restart.code, restart.out).toBe(0);
+    const [first, again] = [reading(day.out, "the host"), reading(restart.out, "the host started again")];
+    const said = `the host held ${first.heldMb} MB after ${first.turns} threads and ${again.heldMb} MB started again (resident ${first.rssMb} and ${again.rssMb} MB); searches ${JSON.stringify(first.talk)} and started again ${JSON.stringify(again.talk)}`;
+    console.log(said);
+    expect(Math.max(first.heldMb, again.heldMb), said).toBeLessThanOrEqual(HOST_MEMORY_BUDGET_MB);
+    for (const { talk } of [first, again]) {
+      expect(talk, said).toMatchObject({ found: 0, opened: 1 });
+      expect(talk!.unsearched, said).toBeGreaterThan(TALKING_THREADS / 2);
+      expect(talk!.searchMs, said).toBeLessThan(LOOP_HELD_MS);
+    }
+    expect(again.talk!.deleteMs, said).toBeLessThan(LOOP_HELD_MS);
+    expect(again.talk!.deleteHeapMb, said).toBeLessThan(DELETE_HEAP_MB);
   }, 300_000);
 });

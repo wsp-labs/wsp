@@ -74,7 +74,7 @@ export async function readFork(ctx: RuntimeContext, fork: ForkSource, origin: Ca
   // A slate's events are its own thread's, and the fork opens with no slate.
   // An outside conversation the thread opened on is written ahead of its first turn under no turn, and is carried
   // with any turn the fork carries through, since the agent's session holds it.
-  const read = (await ctx.openTranscript(workspaceId)).filter(e => e.threadId === threadId && e.type !== "session.slate");
+  const read = (await ctx.openThread(workspaceId, threadId)).filter(e => e.type !== "session.slate");
   const earlier = read.filter(e => e.type === "session.earlier");
   const events = read.filter(e => e.turnId !== undefined);
   const order: string[] = [];

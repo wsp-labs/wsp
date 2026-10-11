@@ -539,7 +539,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
       await turn.finished;
     });
 
-    it("lists and sends to the lead and a sibling whose rows all fell off the folder's cap", { timeout: 240_000 }, async () => {
+    it("lists and sends to the lead and a sibling once the folder passed its row cap, their rows kept", { timeout: 240_000 }, async () => {
       const repo = join(dir, "repo");
       mkdirSync(repo, { recursive: true });
       execFileSync("git", ["init", "-q", "-b", "main", repo]);
@@ -560,7 +560,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
         held.release(3 + i, "done");
         await person.finished;
       }
-      expect((await runtime.sessions.list()).filter(r => r.threadId === lead || r.threadId === sibling)).toEqual([]);
+      expect((await runtime.sessions.list()).filter(r => r.threadId === lead || r.threadId === sibling)).toHaveLength(2);
       const launch = held.envs[1]!;
       const pair = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_TOKEN_ENV]: launch[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: launch[TURN_TOKEN_ENV]! };
       const { out, code } = await served([MCP_BIN!, "mcp", "--state", statePath], { ...env, ...pair }, [
@@ -579,7 +579,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
   });
 
   describe("a child on a computer the person joined whose tool server is the binary", () => {
-    it("lists and sends to its lead once the lead's rows all fell off the cap of its folder here", { timeout: 240_000 }, async () => {
+    it("lists and sends to its lead once its folder here passed its row cap, the lead's row kept", { timeout: 240_000 }, async () => {
       const { rt, folder, starts, threadId, launch, turn } = await leadAndBox(dir, { reach: true });
       const asLead = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_KEY_ENV]: launch[HOST_KEY_ENV]!, [HOST_TOKEN_ENV]: launch[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: launch[TURN_TOKEN_ENV]! };
       const ran = await served([MCP_BIN!, "mcp", "--state", statePath], { ...env, ...asLead }, [callOf(1, "run", { project: "lab-box", message: `${HOLD}build it`, detach: true })]);
@@ -588,7 +588,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
       starts[0]!.answer("waiting on the child");
       await turn.finished;
       for (let i = 0; i < 205; i++) await (await rt.sessions.start(folder.id, { prompt: `the person's ${i}`, harness: "claude" })).finished;
-      expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toEqual([]);
+      expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toHaveLength(1);
       const child = starts[1]!.env;
       const pair = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_KEY_ENV]: launch[HOST_KEY_ENV]!, [HOST_TOKEN_ENV]: child[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: child[TURN_TOKEN_ENV]! };
       const { out, code } = await served([MCP_BIN!, "mcp", "--state", statePath], { ...env, ...pair }, [callOf(1, "threads"), callOf(2, "send", { thread: threadId, message: "which branch do I push to?", detach: true })]);
