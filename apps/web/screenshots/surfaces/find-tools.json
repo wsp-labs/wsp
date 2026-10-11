@@ -1,0 +1,21 @@
+{
+  "at": "/",
+  "fixture": "find",
+  "widths": [
+    1440,
+    390
+  ],
+  "reason": "With Include tool calls on, F3 opens the newest edit and paints the match in its diff; at 390 the toggles stand on their own row, so both widths draw it.",
+  "steps": [
+    "390:key:Escape",
+    "390:sidebar=trigger",
+    "row-id=thread:find-claude",
+    "390:key:Escape",
+    "testid=composer-editor",
+    "key:ControlOrMeta+f",
+    "type:init(config)",
+    "find-toggle=tools",
+    "key:F3"
+  ],
+  "wait": "thread-find=whole"
+}

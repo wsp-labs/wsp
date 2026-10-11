@@ -292,6 +292,8 @@ pub struct HeadOut {
     pub pos: Box<RawValue>,
     #[cfg_attr(test, schemars(with = "u64"))]
     pub total: Box<RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trimmed: Option<bool>,
 }
 
 /// As much of a head's facts as its text reads.
