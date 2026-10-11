@@ -368,6 +368,17 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(mobile-d
   }
 }
 
+/* A project's image clipped as an app icon: Figma's 22% radius at full corner smoothing, which a CSS squircle
+   draws at 41% (it bends inside its radius where Figma's curve runs out to twice it). A plain 22% radius elsewhere. */
+@utility rounded-icon {
+  border-radius: 22%;
+
+  @supports (corner-shape: squircle) {
+    border-radius: 41%;
+    corner-shape: squircle;
+  }
+}
+
 /* The lift under the popover tier: the dropdown, the menu and the switcher overlay all sit at it. */
 @utility popover-shadow {
   box-shadow: 0 16px 40px -18px rgb(0 0 0 / 55%);
