@@ -399,6 +399,9 @@ export interface PlaceRecording {
   /** The machine of every workspace record at that place, by id: what a provider's remove deletes beside what the
    * provider's listing names, since that listing can miss a row. */
   machinesOn?(placeId: string): Promise<string[]>;
+  /** Drops every workspace record at that place from this host, its threads ended, asking nothing of the place: a
+   * provider forgotten rather than removed. Absent, the records stay. */
+  forgetRecordsOn?(placeId: string): Promise<void>;
   /** Signs an agent in on that computer through the sign-in relay, as the app's own sign-in does: every step it
    * reaches, the page and the code among them, goes to `emit`. Absent, a machine sign-in fails its row. */
   signIn?(placeId: string, agent: string, emit: (e: AgentsSignInEvent) => void): Promise<{ leave(): void; stop?(): void }>;

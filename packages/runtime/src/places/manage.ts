@@ -547,6 +547,13 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     async remove(placeId, ask = {}) {
       const held = await recordOf(placeId);
       const provider = held === undefined && providerIds().includes(placeId) ? providerBackend(placeId) : undefined;
+      if (provider !== undefined && ask.forget === true) {
+        // Nothing at the provider is asked: a key it refuses reaches no machine there, and the records go with it.
+        await recording.forgetRecordsOn?.(placeId);
+        await wiring.forgetKey?.(placeId);
+        emit({ type: "place.removed", placeId });
+        return { removed: true, swept: [] };
+      }
       if (provider !== undefined) {
         const forgetKey = wiring.forgetKey?.bind(wiring);
         const answer = await removeProvider({ placeId, backend: provider, owner: (await opts.owner?.()) ?? "", known: (await recording.machinesOn?.(placeId)) ?? [], ...(forgetKey === undefined ? {} : { forgetKey }), ...(opts.killConfirm === undefined ? {} : { confirm: opts.killConfirm }) });
