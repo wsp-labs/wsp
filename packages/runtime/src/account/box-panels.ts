@@ -87,6 +87,8 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
     let closed = false;
     /** The roots and cgroups this pane's ports watch last named, undefined until it watches. */
     let named: { roots: number[]; cgroups: string } | undefined;
+    /** The threads this pane last named for the computer's process rows, undefined until it watches them. */
+    let scoped: string | undefined;
 
     const behind = async (): Promise<Frame | undefined> => namedWatchRefusal(door.nameOf(placeId), (await door.reportOf(placeId))?.daemonVersion);
     /** The roots are the terminals the folder's panes opened, which the channel under this one names. */
@@ -95,8 +97,18 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
       named = { roots, cgroups: cgroups.join(",") };
       return served({ op: "ports.watch", roots, folder, cgroups, watch: workspaceId });
     };
+    /** Every thread on the computer, each by its cgroup, for the owner the daemon stamps on its process rows; a
+     * daemon from before proc.scopes refuses it and its rows carry none. */
+    const scopeProcs = async (): Promise<void> => {
+      const scopes = ctx.scopesOn(placeId);
+      const said = JSON.stringify(scopes);
+      if (said === scoped) return;
+      scoped = said;
+      await served({ op: "proc.scopes", scopes }).catch(() => undefined);
+    };
     /** A thread that started since names its cgroup in the watch again; the daemon answers the moves as events. */
     const push = (): void => {
+      if (watchingProcs) void scopeProcs();
       if (named === undefined || cgroupsOf(workspaceId).join(",") === named.cgroups) return;
       void watchPorts(named.roots).catch(() => undefined);
     };
@@ -147,6 +159,8 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
           const cgroups = Array.isArray(frame["cgroups"]) ? frame["cgroups"].filter((c): c is string => typeof c === "string") : null;
           watchingProcs = true;
           if (link !== undefined) asksOn(link).set(pane, cgroups);
+          scoped = undefined;
+          await scopeProcs();
           // Asked again on a link already watching, the daemon sends the whole list next, which every pane can take.
           const said = await watchOnLink();
           if (said["ok"] !== true) unwatchProcs();

@@ -342,6 +342,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
             | "transcripts.read"
             | "proc.watch"
             | "proc.unwatch"
+            | "proc.scopes"
             | "proc.inspect"
             | "proc.list"
             | "proc.kill"

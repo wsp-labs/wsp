@@ -530,6 +530,8 @@ export const KEPT_CLOSE_WAIT_MS = 2_000;
 export interface KeptProcess {
   workspaceId: string;
   agent: KeptAgent<HarnessSession>;
+  /** The process on the computer the host runs on, where the turn that left it ran there. */
+  pid?: number;
   launch: KeptLaunch;
   session?: string;
   warm?: { harness: string; claimed: boolean };

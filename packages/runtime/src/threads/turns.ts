@@ -632,9 +632,9 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
     if (turnId !== rowId) sessions.delete(turnId);
     sessions.set(rowId, { view, turnId, calls, ...(notify !== undefined ? { notify } : {}), ...(notifyBy !== undefined ? { notifyBy } : {}), ...(notifyRoad !== undefined ? { notifyRoad } : {}), ...(turnToken !== undefined ? { turnToken } : {}), ...(scopeDeviceId !== undefined ? { scopeDeviceId } : {}), handle, end, turnLive, ...(started.run !== undefined ? { run: started.run } : {}), ...(started.from !== undefined ? { from: started.from } : {}), ...(t.asked !== undefined ? { asked: t.asked } : {}), ...(typeof t.snapshot?.from === "string" ? { snapshot: t.snapshot.from } : {}), ...(started.pid !== undefined ? { pid: started.pid } : {}) });
     if (started.pid !== undefined && ctx.moduleOf(entry.record.kind).sharedDaemon) {
-      const groups = ctx.turnGroups.get(workspaceId) ?? new Set<number>();
+      const groups = ctx.turnGroups.get(workspaceId) ?? new Map<number, string>();
       ctx.turnGroups.set(workspaceId, groups);
-      groups.add(started.pid);
+      groups.set(started.pid, threadId);
       ctx.armRootsRecheck();
     }
     ctx.portRootsMoved(workspaceId);
@@ -663,7 +663,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
         !ended &&
         turnToken !== undefined &&
         view.claudeSessionId !== undefined &&
-        ctx.holdKept(threadId, { workspaceId, agent, launch: t.keep!.launch, session: view.claudeSessionId, turnToken, ...(scopeDeviceId !== undefined ? { scopeDeviceId } : {}), waiting: t.waiting ?? { on: false } });
+        ctx.holdKept(threadId, { workspaceId, agent, launch: t.keep!.launch, session: view.claudeSessionId, turnToken, ...(started.pid !== undefined ? { pid: started.pid } : {}), ...(scopeDeviceId !== undefined ? { scopeDeviceId } : {}), waiting: t.waiting ?? { on: false } });
       if (agent !== undefined && !keeps) void agent.close().catch(() => {});
       // The process is gone, so the token in its environment names nothing that can be asked for anything: it is
       // taken away here, the one exit both the reply road and the failure road reach.

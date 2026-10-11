@@ -66,7 +66,7 @@ describe("an End's plan", () => {
 
   it("refuses each process of the stretch to the agent, and one with the agent under it", () => {
     for (const pid of [100, 101, 102]) expect(refusal(() => endPlan(read(), pid, START + pid, anyone))).toContain(agentEndLine(pid, LAB));
-    const above = read([...PROCS.map(p => (p.pid === 100 ? { ...p, ppid: 90 } : p)), row(90, 1, "tmux", "tmux", { owner: { by: "folder", workspace: "ws-1" } })]);
+    const above = read([...PROCS.map(p => (p.pid === 100 ? { ...p, ppid: 90 } : p)), row(90, 1, "tmux", "tmux", { owner: { by: "env", thread: LAB.threadId, workspace: "ws-1" } })]);
     expect(refusal(() => endPlan(above, 90, START + 90, anyone))).toContain(agentUnderLine(90, LAB));
   });
 
@@ -103,10 +103,18 @@ describe("an End's plan", () => {
     }
   });
 
-  it("refuses for the person a process wsp did not start, and ends one the daemon names as wsp's with no thread", () => {
+  it("refuses for the person a process wsp did not start, one its folder or coalition alone places included, and ends one a thread started", () => {
     expect(refusal(() => endPlan(read(), 70, START + 70, anyone))).toContain(notStartedLine(70));
     expect(refusal(() => endPlan(read(), 70, 1, anyone))).toContain(notStartedLine(70));
-    const folders = read([...PROCS, row(500, 1, "node", "node slate.js", { owner: { by: "folder", workspace: "ws-1" } })]);
-    expect(endPlan(folders, 500, START + 500, anyone)).toEqual({ targets: [folders.procs.at(-1)] });
+    // The person's own editor in a workspace's folder, and one in wsp's coalition on a Mac: where it runs, not who started it.
+    for (const owner of [{ by: "folder", workspace: "ws-1" }, { by: "coalition" }] as const) {
+      const placed = read([...PROCS, row(500, 1, "vim", "vim notes.md", { owner })]);
+      expect(refusal(() => endPlan(placed, 500, START + 500, anyone))).toContain(notStartedLine(500));
+      expect(activityOf(placed).unowned).toEqual([]);
+    }
+    // A thread's process the daemon names by its mark, the thread no longer among the read's scopes, is still wsp's.
+    const marked = read([...PROCS, row(500, 1, "node", "node vite.js", { owner: { by: "env", thread: "t-gone" } })]);
+    expect(endPlan(marked, 500, START + 500, anyone)).toEqual({ targets: [marked.procs.at(-1)] });
+    expect(activityOf(marked).unowned.map(p => p.pid)).toEqual([500]);
   });
 });

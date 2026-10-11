@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LAUNCH_ENV, TURN_TOKEN_ENV, WSP_TOOL_TIMEOUT_SEC } from "@wsp/protocol";
+import { HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LAUNCH_ENV, THREAD_ENV, TURN_TOKEN_ENV, WSP_TOOL_TIMEOUT_SEC } from "@wsp/protocol";
 import { describe, expect, it } from "vitest";
 import { accessParams, buildCommand, buildEnv } from "../src/command.js";
 import { threadResumeLine, threadStartLine } from "../src/rpc.js";
@@ -55,7 +55,7 @@ describe("buildCommand", () => {
     expect(command).toContain(`-c mcp_servers.wsp.args='["mcp"]'`);
     // Codex clears a server's environment down to its own short list, so the pair is named for it to pass through.
     expect(command).toContain(`-c mcp_servers.wsp.env_vars='${JSON.stringify(LAUNCH_ENV)}'`);
-    expect([...LAUNCH_ENV].sort()).toEqual([HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV].sort());
+    expect([...LAUNCH_ENV].sort()).toEqual([HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, THREAD_ENV].sort());
     expect(command).toContain(`-c mcp_servers.docs.args='["-y","docs-mcp"]'`);
     expect(command).not.toContain("mcp_servers.docs.env_vars");
     // Codex ends a tool call past its own limit, and a send can wait through a paused Boat's wake before its turn.

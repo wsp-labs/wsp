@@ -67,7 +67,7 @@ import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Store } from "./store.js";
 import { SLATES } from "./lazy-slates.js";
-import { createSlateRuns, HELD_APPROVAL, lastResult, mapStrings, restartedRecord, rewoundRecord, runningRecord, type CmdRunDecl, type RunApprovals, type RunAsk, type RunBy, type RunInput, type RunRecord, type SlateRuns, type SlateRunsDeps } from "./slate-runs.js";
+import { createSlateRuns, HELD_APPROVAL, NO_FOLDER, lastResult, mapStrings, restartedRecord, rewoundRecord, runningRecord, type CmdRunDecl, type RunApprovals, type RunAsk, type RunBy, type RunInput, type RunRecord, type SlateRuns, type SlateRunsDeps } from "./slate-runs.js";
 import { boxLedger, boxRoad, boxSlateDir } from "./slate-box.js";
 import { alwaysRefused, boxPins, cannotPin, keyed, pinHere, withFiles, writeSlateFiles, type HashOn, type Pin } from "./slate-files.js";
 import { slateImage, type ImageOn } from "./slate-images.js";
@@ -178,6 +178,7 @@ export interface SlatesDeps {
   runs?: (d: SlateRunsDeps) => SlateRuns;
   /** One of the thread's agent's MCP servers, as that agent would start it on this computer. */
   mcpServer?(threadId: string, name: string): Promise<McpServerSpec>;
+  ownProcess?(threadId: string, pid: number, kind: "slate" | "tool"): () => void;
 }
 
 /** Where a slate op names its thread: a window always, a thread's token by itself, a person's shell inside a turn by
@@ -212,8 +213,6 @@ const ERRORS_LISTED = SLATE_LIMITS.errorsPerPass;
 const PROBLEMS_KEPT = 20;
 const PIECES_NAMED = SLATE_LIMITS.piecesNamed;
 const SOURCE_NAMES = [...HOST_SLATE_SOURCES.keys()];
-/** Why a command did not start: it starts in its thread's folder, never the host's own, and none is known. */
-const NO_FOLDER = "this host knows no folder for the thread, so the command did not start";
 /** The approval key that lets a slate's reactions message the agent. */
 export { SLATE_SEND_KEY };
 
@@ -388,6 +387,7 @@ export function createSlates(deps: SlatesDeps): Slates {
           );
     },
     approvals,
+    own: deps.ownProcess,
     onRecord: moved,
     onLine: (threadId, run, line) => {
       const r = records.get(threadId);
@@ -426,6 +426,7 @@ export function createSlates(deps: SlatesDeps): Slates {
       return folder === undefined ? { done: Promise.resolve({ why: NO_FOLDER, exit: null, err: "" }), kill: () => {} } : runs.reshape(threadId, cmd, input, folder);
     },
     computer: threadId => deps.thread(threadId)?.computer ?? "this computer",
+    own: deps.ownProcess,
     now: deps.now,
   });
 

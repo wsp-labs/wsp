@@ -170,6 +170,36 @@ describe("a slate's MCP runs", () => {
     mcp.close();
   }, 30_000);
 
+  it("names a stdio server's process as the thread's tool server while connected, and releases it once closed", async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "wsp-slate-mcp-")));
+    roots.push(root);
+    const records: Record<string, RunRecord> = {};
+    const owned: { threadId: string; pid: number; kind: string; released: boolean }[] = [];
+    const mcp = createSlateMcp({
+      server: async () => ({ transport: { kind: "stdio", command: process.execPath, args: [STUB], env: { STUB_STARTS: join(root, "starts") } }, cwd: root, env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" }, secrets: [] }),
+      onRecord: (_t, run, r) => (records[run] = r),
+      approvals: { has: () => true, allow: () => {}, revoke: () => {}, list: () => [] },
+      secrets: { plaintext: () => undefined, scrub: (_t, text) => text },
+      reshape: () => {
+        throw new Error("no run here reshapes");
+      },
+      computer: () => "this computer",
+      own: (threadId, pid, kind) => {
+        const row = { threadId, pid, kind, released: false };
+        owned.push(row);
+        return () => void (row.released = true);
+      },
+      idleMs: 200,
+    });
+    mcp.servers("t", ["stub"], []);
+    mcp.start({ threadId: "t", run: "inbox", decl: { kind: "tool", server: "stub", tool: "list_items" }, by: "person", args: () => ({ params: { account: "a", limit: 1 } }) });
+    await vi.waitFor(() => expect(records["inbox"]).toMatchObject({ state: "done" }), { timeout: 10_000 });
+    expect(owned.map(o => [o.threadId, o.kind, o.released])).toEqual([["t", "tool", false]]);
+    expect(() => process.kill(owned[0]!.pid, 0)).not.toThrow();
+    await vi.waitFor(() => expect(owned[0]!.released).toBe(true), { timeout: 10_000 });
+    mcp.close();
+  }, 30_000);
+
   it("cuts a server off past 2 MB in one message, and fails an answer too deep or too wide before walking it", async () => {
     const big = createServer((req, res) => {
       let body = "";

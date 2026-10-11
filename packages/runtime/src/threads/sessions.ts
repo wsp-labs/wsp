@@ -12,7 +12,7 @@ import {
   asideUnsupportedLine, isLocalWorkspace, mcpServersBlocked, actionRefusal, homeShortened, EMPTY_TITLE_LINE,
   threadRunsOnLine, notFoundRefusal, NOTIFY_ME, noCwdLine,
   THREAD_WORKING_LINE, threadOnMachineLine, WORKTREE_BUSY_LINE, copiesFolder, runsInFolder, sendRefusal, startPicks, titleLine,
-  TURN_TOKEN_ENV, turnImagesDir, workspaceState, REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE,
+  THREAD_ENV, TURN_TOKEN_ENV, turnImagesDir, workspaceState, REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE,
   REWIND_SHARED_LINE, REWIND_WORKING_LINE, rewindBesideLine, rewindChildrenLine, rewindKeptLine, rewindNoAnchorLine,
   attachmentRecord, attachmentKey, filesBlocked, filesRefusal, steerFilesBlocked, type Attachment, isImage, sendFilesDir, attachedFilesPrompt, threadMessages,
   threadSeed, taskStopRefusedLine, taskStopUnsupportedLine, agentOffLine, HEAD_BYTES, HISTORY_PAGE_BYTES,
@@ -446,7 +446,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         built = ctx.adapterFor(
           entry,
           o.harness,
-          { [TURN_TOKEN_ENV]: turnToken, ...launchEnv },
+          { [TURN_TOKEN_ENV]: turnToken, [THREAD_ENV]: threadId, ...launchEnv },
           () => waiting.on,
           // A name no catalog row declares is one an MCP server's definition reads; the kind decides whether the
           // environment is what carries it.

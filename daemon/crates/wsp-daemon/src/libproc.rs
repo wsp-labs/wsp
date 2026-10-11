@@ -126,6 +126,56 @@ pub(crate) fn lineage(pid: u32) -> Option<(u32, u32)> {
     pidinfo::<libc::proc_bsdshortinfo>(pid, libc::PROC_PIDT_SHORTBSDINFO).map(|short| (short.pbsi_ppid, short.pbsi_pgid))
 }
 
+/// The kernel's names for one process, which any account may read: its 64-bit unique id, never reused while the
+/// computer runs, its parent's at its fork or its last exec, its pid version, which every exec moves, and its first
+/// parent's pid version at its fork, which an exec keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Uniq {
+    pub(crate) unique: u64,
+    pub(crate) parent: u64,
+    pub(crate) version: i32,
+    pub(crate) parent_version: i32,
+}
+
+/// `struct proc_uniqidentifierinfo` from XNU's private proc_info header, 56 bytes on arm64 and x86_64.
+#[repr(C)]
+struct UniqIdentifierInfo {
+    uuid: [u8; 16],
+    unique: u64,
+    parent: u64,
+    version: i32,
+    parent_version: i32,
+    reserved: [u64; 2],
+}
+const PROC_PIDUNIQIDENTIFIERINFO: c_int = 17;
+
+pub(crate) fn uniq(pid: u32) -> Option<Uniq> {
+    pidinfo::<UniqIdentifierInfo>(pid, PROC_PIDUNIQIDENTIFIERINFO).map(|u| Uniq {
+        unique: u.unique,
+        parent: u.parent,
+        version: u.version,
+        parent_version: u.parent_version,
+    })
+}
+
+/// The pids whose parent is `pid` now, whoever runs them.
+pub(crate) fn children(pid: u32) -> Vec<u32> {
+    let mut room = 64usize;
+    loop {
+        let mut buf = vec![0 as c_int; room];
+        let n = unsafe { libc::proc_listchildpids(pid as c_int, buf.as_mut_ptr().cast(), (room * size_of::<c_int>()) as c_int) };
+        if n <= 0 {
+            return Vec::new();
+        }
+        let n = n as usize;
+        if n < room {
+            buf.truncate(n);
+            return buf.into_iter().filter(|p| *p > 0).map(|p| p as u32).collect();
+        }
+        room *= 4;
+    }
+}
+
 /// Mach time units to nanoseconds, off the kernel's own timebase frequency: one to one on Intel, 125/3 on Apple
 /// silicon. mach_timebase_info is not that under Rosetta, where it answers one to one while the kernel still counts a
 /// process's time in its own units, and an Intel build on Apple silicon read every process at a forty-second of its
@@ -183,6 +233,10 @@ fn arg_max() -> usize {
 /// argc, the executable's path, padding, then argv and the environment, each NUL-terminated; only argv is read. None
 /// for a process out of reach or with no argv, a kernel task's or a zombie's.
 pub(crate) fn argv(pid: u32, cap: usize) -> Option<String> {
+    argv_of(&procargs(pid)?, cap)
+}
+
+fn procargs(pid: u32) -> Option<Vec<u8>> {
     let mut buf = vec![0u8; arg_max()];
     let mut mib = [libc::CTL_KERN, libc::KERN_PROCARGS2, pid as c_int];
     let mut len = buf.len();
@@ -190,7 +244,40 @@ pub(crate) fn argv(pid: u32, cap: usize) -> Option<String> {
     if rc != 0 || len < size_of::<c_int>() {
         return None;
     }
-    argv_of(&buf[..len], cap)
+    buf.truncate(len);
+    Some(buf)
+}
+
+/// A process's environment as NUL-separated `NAME=value` entries, the part of KERN_PROCARGS2 after argv up to the
+/// first empty entry, where the loader's own strings begin. macOS 26 answers none for an Apple platform binary, even
+/// to the same account (/bin/bash, /bin/sleep), and the whole of it for node, python and the agents.
+pub(crate) fn environ(pid: u32) -> Option<Vec<u8>> {
+    environ_of(&procargs(pid)?)
+}
+
+fn environ_of(area: &[u8]) -> Option<Vec<u8>> {
+    let argc = c_int::from_ne_bytes(area.get(..size_of::<c_int>())?.try_into().ok()?);
+    let mut rest = &area[size_of::<c_int>()..];
+    let path_end = rest.iter().position(|b| *b == 0)?;
+    rest = &rest[path_end..];
+    let start = rest.iter().position(|b| *b != 0)?;
+    let mut out = Vec::new();
+    for entry in rest[start..].split(|b| *b == 0).skip(argc.max(0) as usize) {
+        if entry.is_empty() {
+            break;
+        }
+        out.extend_from_slice(entry);
+        out.push(0);
+    }
+    Some(out)
+}
+
+/// `PROC_PIDCOALITIONINFO`, answered without root though sys/proc_info.h leaves it out: the resource coalition first,
+/// one per launchd job, which the host and the daemon it starts share.
+const PROC_PIDCOALITIONINFO: c_int = 20;
+
+pub(crate) fn coalition(pid: u32) -> Option<u64> {
+    pidinfo::<[u64; 5]>(pid, PROC_PIDCOALITIONINFO).map(|info| info[0]).filter(|id| *id != 0)
 }
 
 fn argv_of(area: &[u8], cap: usize) -> Option<String> {
@@ -401,6 +488,33 @@ mod tests {
         assert_eq!(argv_of(&area, 4096).as_deref(), Some("node server.js"));
         assert_eq!(argv_of(&area[..2], 4096), None);
         assert_eq!(argv_of(&2i32.to_ne_bytes(), 4096), None);
+    }
+
+    #[test]
+    fn reads_the_environment_after_argv_up_to_the_loaders_own_strings() {
+        let mut area = 2i32.to_ne_bytes().to_vec();
+        area.extend_from_slice(b"/usr/bin/node\0\0\0\0node\0server.js\0PATH=/bin\0WSP_THREAD=t1\0\0\0executable_path=/usr/bin/node\0");
+        assert_eq!(environ_of(&area).as_deref(), Some(&b"PATH=/bin\0WSP_THREAD=t1\0"[..]));
+        assert_eq!(crate::proc_owner::mark_of(&environ_of(&area).unwrap()).map(|m| m.thread).as_deref(), Some("t1"));
+        assert_eq!(environ_of(&area[..2]), None);
+    }
+
+    #[test]
+    fn a_child_of_this_process_reads_the_mark_it_was_started_with_and_shares_its_coalition() {
+        let mut child = std::process::Command::new("python3")
+            .args(["-c", "import time; time.sleep(30)"])
+            .env("WSP_THREAD", "t_mark")
+            .stdin(Stdio::null())
+            .spawn()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let mark = environ(child.id()).and_then(|bytes| crate::proc_owner::mark_of(&bytes)).map(|m| m.thread);
+        let theirs = coalition(child.id());
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(mark.as_deref(), Some("t_mark"));
+        assert!(theirs.is_some());
+        assert_eq!(theirs, coalition(std::process::id()));
     }
 
     #[test]
