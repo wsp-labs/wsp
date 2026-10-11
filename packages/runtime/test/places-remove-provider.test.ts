@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { OWNER_LABEL, WSP_LABEL, type MachineBackend, type MachineSpec } from "@wsp/engine";
-import { PROVIDER_LEFT_WORDS, providerKeptLine, providerKeyRefused, refusalLine } from "@wsp/protocol";
+import { PROVIDER_LEFT_WORDS, providerKeptLine, providerKeyRefused, providerKeyStillLine, providerUnlistedLine, refusalLine } from "@wsp/protocol";
 import { createRuntime, type PlaceBackends } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
@@ -12,7 +12,7 @@ import { wiring } from "./place-join.js";
 import { ctx, placesOf, remove } from "./places-fixture.js";
 
 /** A host wired to Solari that also holds a Boat key, which `forgetKey` takes away: the row goes once it is gone. */
-async function holdingBoat(box: StubBackend): Promise<{ forgot: string[]; aliveAtForget: () => number }> {
+async function holdingBoat(box: StubBackend, still?: string): Promise<{ forgot: string[]; aliveAtForget: () => number }> {
   const solari = stubBackend();
   const at: Record<string, MachineBackend> = { solari, box };
   const forgot: string[] = [];
@@ -35,6 +35,7 @@ async function holdingBoat(box: StubBackend): Promise<{ forgot: string[]; aliveA
       forgetKey: async placeId => {
         alive = box.machines.filter(m => !m.killed).length;
         forgot.push(placeId);
+        return still;
       },
     },
   });
@@ -232,5 +233,46 @@ describe("removing a provider", () => {
     expect(held.forgot).toEqual(["box"]);
     expect(await workspaceIds()).not.toContain(a.id);
     expect((await placesOf()).map(p => p.id)).not.toContain("box");
+  });
+  it("says a machine whose read failed after the delete could not be read, and one whose delete failed could not be deleted", async () => {
+    const box = stubBackend();
+    const held = await holdingBoat(box);
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "b", on: "box" });
+    const [unread, undeleted] = box.machines;
+    // The first read finds it; every read once it was asked to go answers 429.
+    const get = box.get.bind(box);
+    box.get = async id => (id === unread!.id && unread!.killed ? Promise.reject(Object.assign(new Error("Too Many Requests"), { kind: "concurrency", status: 429 })) : get(id));
+    undeleted!.kill = async () => Promise.reject(Object.assign(new Error("Internal Server Error"), { kind: "unknown", status: 500 }));
+
+    const answer = await remove("box");
+    expect(answer).toMatchObject({ removed: false, deleted: 0 });
+    const note = String(answer["note"]);
+    expect(note).toContain(`${unread!.id} (${PROVIDER_LEFT_WORDS.unread("Too Many Requests")})`);
+    expect(note).toContain(`${undeleted!.id} (${PROVIDER_LEFT_WORDS.undeleted("Internal Server Error")})`);
+    expect(held.forgot).toEqual([]);
+  });
+
+  it("says a listing that failed after the deletes in the kept line's way, with how many went, and keeps the key", async () => {
+    const box = stubBackend();
+    const held = await holdingBoat(box);
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "b", on: "box" });
+    const list = box.list.bind(box);
+    let lists = 0;
+    box.list = async labels => (++lists === 2 ? Promise.reject(Object.assign(new Error("Internal Server Error"), { kind: "unknown", status: 500 })) : list(labels));
+
+    expect(await remove("box")).toMatchObject({ removed: false, deleted: 2, note: providerUnlistedLine("Boat", 2, "Internal Server Error") });
+    expect(box.machines.filter(m => !m.killed)).toEqual([]);
+    expect(held.forgot).toEqual([]);
+  });
+
+  it("answers where the key still is when the host also reads it from beyond its own file", async () => {
+    const box = stubBackend();
+    const still = providerKeyStillLine({ file: "/work/acme/.env" });
+    const held = await holdingBoat(box, still);
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
+    expect(await remove("box")).toMatchObject({ removed: true, deleted: 1, note: still });
+    expect(held.forgot).toEqual(["box"]);
   });
 });

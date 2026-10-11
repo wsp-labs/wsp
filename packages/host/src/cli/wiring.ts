@@ -5,13 +5,13 @@ import { dirname, join, resolve } from "node:path";
 import { collect, expand, nodeHost, seedMenu, type Manifest, type Rung } from "@wsp/collect";
 import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type GoldenRecipe, type GoldenVersion, type HarnessAdapterFactory, type LocalWiring, type Machine, type PlaceWiring, type Runtime, type SeedWiring, type Store } from "@wsp/runtime";
 import { CATALOG_AGENTS, GOLDEN_SETUP, GOLDEN_SMOKE } from "@wsp/catalog";
-import { PRICES_URL, PERSON_HOME_ENV, type SealedImage } from "@wsp/protocol";
+import { PRICES_URL, PERSON_HOME_ENV, providerKeyStillLine, type SealedImage } from "@wsp/protocol";
 import { agentHome, type Copier, LocalBackend, providerSlot, type ProviderSlot, verbCopier } from "@wsp/engine";
 import { noMachinesLine, PROVIDER_ENV, PROVIDER_MODULES, placeIdOf, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
 import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
-import { envFileFor, serverVault, writeEnvFile, type Keys } from "../env-keys.js";
+import { envFileFor, keyIn, serverVault, writeEnvFile, type Keys } from "../env-keys.js";
 import { loginEnv } from "../login-path.js";
 import { CACHE_RULE } from "../project-bundle.js";
 import { packSeed } from "../project-seed.js";
@@ -36,7 +36,7 @@ import { threadShellEnv, writeThreadWsp } from "../shim.js";
 import { mcpServerSpec, runningWsp, wspCommand, type RunningWsp } from "../mcp-install.js";
 import { hostPlatform } from "../verbs.js";
 import { VERSION } from "../version.js";
-import { vaultNow } from "./keys.js";
+import { keyLayers, vaultNow, type KeySources } from "./keys.js";
 import { stateStore } from "./state.js";
 
 /** What every golden wsp init seals is made of: the harness install and its smoke from the doctor, the daemon
@@ -240,17 +240,26 @@ export function swapProvider(rt: Runtime, keys: Readonly<Record<string, string |
   }
 }
 
+/** Where a host read its keys from before the file beside its state: the environment it started with and the folder
+ * it started in. */
+export type KeyReads = Pick<KeySources, "env" | "cwd">;
+
 /** Takes the key a provider row is opened by out of the .env beside the state file, and the word wiring this host to
  * that provider with it, since a host wired to a cloud it holds no key for forks into a refusal; the runtime then
- * forks on what is left. */
-export function forgetProviderKey(rt: Runtime, statePath: string, placeId: string): void {
+ * forks on what is left. The shell's environment and the start folder's .env are the person's, which wsp never
+ * edits, so a key still there is answered as the sentence saying where, since the next host started there reads it. */
+export function forgetProviderKey(rt: Runtime, statePath: string, placeId: string, reads: KeyReads = { env: process.env, cwd: process.cwd() }): string | undefined {
   const pick = PROVIDER_PICKS.get(rt);
   const env = pick?.env ?? process.env;
   const row = (pick?.modules ?? PROVIDER_MODULES).find(m => m.keyEnv !== undefined && placeIdOf(m, env) === placeId);
-  if (row?.keyEnv === undefined) return;
+  if (row?.keyEnv === undefined) return undefined;
   const gone = { [row.keyEnv]: undefined, ...(env[PROVIDER_ENV] === row.id ? { [PROVIDER_ENV]: undefined } : {}) };
   writeEnvFile(envFileFor(statePath), gone);
   swapProvider(rt, gone);
+  const [shell = {}, folder = {}] = keyLayers({ ...reads, statePath });
+  if (keyIn(shell, row.keyEnv) !== undefined) return providerKeyStillLine({ env: row.keyEnv });
+  if (keyIn(folder, row.keyEnv) !== undefined) return providerKeyStillLine({ file: join(reads.cwd, ".env") });
+  return undefined;
 }
 
 /** This computer's wiring for a runtime that builds its own: a host that turns can reach writes its own wsp beside
@@ -285,6 +294,9 @@ export function makeRuntime(
   adapters: Record<string, HarnessAdapterFactory> = HARNESS_ADAPTERS,
   /** The providers this host answers for, its own process's by default; a test hands in the table it means. */
   modules: readonly ProviderModule[] = PROVIDER_MODULES,
+  /** Where this host read its keys from before its own file, which a provider's remove reads again; a test hands in
+   * its own. */
+  keyReads: KeyReads = { env: process.env, cwd: process.cwd() },
 ): Runtime {
   const slot = providerSlot(providerBackendFor(env, modules));
   // The place this host's copies are filed under is the provider module it forks on, read at each call: a host that
@@ -309,7 +321,7 @@ export function makeRuntime(
     local,
     // The provider row off the same pick the slot and the table stand on, so a key saved while this host serves
     // makes its provider a place on every screen at once.
-    placeLinks: { ...links, provider: () => wiredPlaceRow(pick.env, slot.current(), modules), forgetKey: async placeId => forgetProviderKey(rt, statePath, placeId) },
+    placeLinks: { ...links, provider: () => wiredPlaceRow(pick.env, slot.current(), modules), forgetKey: async placeId => forgetProviderKey(rt, statePath, placeId, keyReads) },
     // The build this host is, written into the state file at every save, so a host that meets a record it cannot
     // read says which wsp on this computer wrote it.
     store,

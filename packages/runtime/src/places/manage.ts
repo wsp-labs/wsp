@@ -550,9 +550,9 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       if (provider !== undefined && ask.forget === true) {
         // Nothing at the provider is asked: a key it refuses reaches no machine there, and the records go with it.
         await recording.forgetRecordsOn?.(placeId);
-        await wiring.forgetKey?.(placeId);
+        const still = await wiring.forgetKey?.(placeId);
         emit({ type: "place.removed", placeId });
-        return { removed: true, swept: [] };
+        return { removed: true, swept: [], ...(still === undefined ? {} : { note: still }) };
       }
       if (provider !== undefined) {
         const forgetKey = wiring.forgetKey?.bind(wiring);

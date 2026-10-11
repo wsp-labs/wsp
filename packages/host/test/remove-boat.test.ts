@@ -3,7 +3,7 @@
 // asked to remove the provider row, and the line says how many machines went;
 // a machine Boat would not delete fails the line with the host's own words.
 import { describe, expect, it } from "vitest";
-import { exitClassOf, providerForgetQuestion, providerForgotLine, providerKeptLine, providerRemoveQuestion, providerRemovedLine } from "@wsp/protocol";
+import { exitClassOf, providerForgetQuestion, providerForgotLine, providerKeptLine, providerKeyStillLine, providerRemoveQuestion, providerRemovedLine } from "@wsp/protocol";
 import { removeCommand } from "../src/places.js";
 import { captured } from "./verbs-fixture.js";
 
@@ -87,5 +87,30 @@ describe("wsp remove boat", () => {
     expect(asked).toEqual([providerForgetQuestion("Boat", 2)]);
     expect(io.lines).toEqual([providerForgotLine("Boat", 2)]);
     expect(io.lines[0]).toBe("Boat forgotten: the key and 2 tasks' records left this host. Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.");
+  });
+  it("says where the key still is in place of the key forgotten, on a remove and on a forget", async () => {
+    const still = providerKeyStillLine({ file: "/work/acme/.env" });
+    const removed = captured();
+    expect(await removeCommand(removed, opts, ["boat"], { yes: true }, deps(boatHost({ removed: true, swept: [], deleted: 2, note: still }).dial))).toBe(0);
+    expect(removed.lines).toEqual(["Boat removed: 2 machines deleted. Its key is still in /work/acme/.env, which a host started in that folder reads first; take it out there."]);
+    const forgot = captured();
+    expect(await removeCommand(forgot, opts, ["boat"], { yes: true, forget: true }, deps(boatHost({ removed: true, swept: [], note: still }).dial))).toBe(0);
+    expect(forgot.lines).toEqual([`Boat forgotten: 2 tasks' records left this host. ${still} Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.`]);
+  });
+});
+
+describe("the provider remove words at 0 and 1 tasks", () => {
+  it("reads at 0", () => {
+    expect(providerRemoveQuestion("Boat", 0)).toBe("Remove Boat?\nEvery machine wsp made there is deleted, and once Boat reads them gone the key is forgotten.");
+    expect(providerForgetQuestion("Boat", 0)).toBe("Forget Boat?\nThe key leaves this host. Nothing at Boat is touched, so machines wsp made there may bill until Boat's own timer ends them.");
+    expect(providerForgotLine("Boat", 0)).toBe("Boat forgotten: the key left this host. Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.");
+    expect(providerForgotLine("Boat", 0, "S.")).toBe("Boat forgotten. S. Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.");
+  });
+
+  it("reads at 1", () => {
+    expect(providerRemoveQuestion("Boat", 1)).toBe("Remove Boat?\nIts task is deleted at Boat, and once Boat reads it gone the key is forgotten.");
+    expect(providerForgetQuestion("Boat", 1)).toBe("Forget Boat?\nThe key and its task's record leave this host. Nothing at Boat is touched, so machines wsp made there may bill until Boat's own timer ends them.");
+    expect(providerForgotLine("Boat", 1)).toBe("Boat forgotten: the key and 1 task's record left this host. Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.");
+    expect(providerRemovedLine("Boat", 1)).toBe("Boat removed: 1 machine deleted, the key forgotten.");
   });
 });

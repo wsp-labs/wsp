@@ -388,42 +388,66 @@ export const PLACES_WORDS = {
   },
 } as const;
 
-const tasksWord = (tasks: number): string => (tasks === 1 ? "its task" : `its ${tasks} tasks`);
+const tasksRecords = (tasks: number, its: boolean): string => (tasks === 1 ? `${its ? "its task" : "1 task"}'s record` : `${its ? `its ${tasks}` : tasks} tasks' records`);
 
 /** The one question before a provider is removed at a terminal, naming what goes as the app's dialog does. */
 export const providerRemoveQuestion = (name: string, tasks: number): string =>
-  `Remove ${name}?\n${tasks === 0 ? "Every machine wsp made there is deleted" : `${tasks === 1 ? "Its task is" : `Its ${tasks} tasks are`} deleted at ${name}`}, and once ${name} reads them gone the key is forgotten.`;
+  `Remove ${name}?\n${tasks === 0 ? "Every machine wsp made there is deleted" : `${tasks === 1 ? "Its task is" : `Its ${tasks} tasks are`} deleted at ${name}`}, and once ${name} reads ${tasks === 1 ? "it" : "them"} gone the key is forgotten.`;
 
-/** What removing a provider answers once every machine this host made there is gone, and its key with them. */
-export const providerRemovedLine = (name: string, deleted: number): string => `${name} removed: ${plural(deleted, "machine")} deleted, the key forgotten.`;
+/** Where a provider's key still is once the file beside the state lost it: a host reads the shell's environment and
+ * the start folder's .env before that file, and wsp edits neither. */
+export type KeyStill = { file: string } | { env: string };
+
+/** The sentence naming where a forgotten key still is, for the person to take it out there. */
+export const providerKeyStillLine = (still: KeyStill): string =>
+  "file" in still
+    ? `Its key is still in ${still.file}, which a host started in that folder reads first; take it out there.`
+    : `Its key is still in the environment this host started with (${still.env}), which a host started from that shell reads first; take it out there.`;
+
+/** What removing a provider answers once every machine this host made there is gone: the key forgotten with them, or
+ * where it still is. */
+export const providerRemovedLine = (name: string, deleted: number, still?: string): string =>
+  still === undefined ? `${name} removed: ${plural(deleted, "machine")} deleted, the key forgotten.` : `${name} removed: ${plural(deleted, "machine")} deleted. ${still}`;
 
 const forgetBills = (name: string, touched: string): string => `Nothing at ${name} ${touched} touched, so machines wsp made there may bill until ${name}'s own timer ends them.`;
 
 /** The question before a provider is only forgotten: its key and records leave, and nothing there is asked. */
-export const providerForgetQuestion = (name: string, tasks: number): string => `Forget ${name}?\nThe key${tasks === 0 ? "" : ` and ${tasksWord(tasks)}' records`} leave this host. ${forgetBills(name, "is")}`;
+export const providerForgetQuestion = (name: string, tasks: number): string =>
+  `Forget ${name}?\nThe key ${tasks === 0 ? "leaves" : `and ${tasksRecords(tasks, true)} leave`} this host. ${forgetBills(name, "is")}`;
 
-/** What forgetting a provider answers. */
-export const providerForgotLine = (name: string, tasks: number): string => `${name} forgotten: the key${tasks === 0 ? "" : ` and ${plural(tasks, "task")}' records`} left this host. ${forgetBills(name, "was")}`;
+/** What forgetting a provider answers, with where its key still is when the host reads it from beyond its own file. */
+export const providerForgotLine = (name: string, tasks: number, still?: string): string => {
+  const records = tasks === 0 ? "" : `${tasksRecords(tasks, false)} left this host`;
+  const head = still === undefined ? `${name} forgotten: the key${records === "" ? " left this host" : ` and ${records}`}.` : `${name} forgotten${records === "" ? "." : `: ${records}.`} ${still}`;
+  return `${head} ${forgetBills(name, "was")}`;
+};
 
 /** Why one machine a provider's remove reached is not gone yet, as the kept line names it. */
 export const PROVIDER_LEFT_WORDS = {
   running: (state: string): string => `still ${state} after three asks`,
   unread: (said: string): string => `could not be read: ${said}`,
+  undeleted: (said: string): string => `could not be deleted: ${said}`,
   late: "made while the remove ran",
 } as const;
 
 /** How many machines the kept line names before it counts the rest. */
 export const PROVIDER_LEFT_NAMED = 5;
 
+const othersDeleted = (deleted: number): string => (deleted === 0 ? "" : `; ${deleted} ${deleted === 1 ? "other machine was" : "other machines were"} deleted`);
+
 /** What it answers when some machines are not gone: the first few named with why, the rest counted, and the key
  * kept, since a machine left there bills and only that key reaches it. */
 export function providerKeptLine(name: string, deleted: number, left: readonly { id: string; said: string }[]): string {
   const named = left.slice(0, PROVIDER_LEFT_NAMED).map(l => `${l.id} (${l.said})`).join(", ");
   const more = left.length > PROVIDER_LEFT_NAMED ? ` and ${left.length - PROVIDER_LEFT_NAMED} more` : "";
-  const others = deleted === 0 ? "" : `; ${deleted} ${deleted === 1 ? "other machine was" : "other machines were"} deleted`;
   const one = left.length === 1;
-  return `${plural(left.length, "machine")} wsp made at ${name} ${one ? "is" : "are"} not gone: ${named}${more}. The key is kept until ${one ? "it goes" : "they go"}${others}. Remove ${name} again to ask once more.`;
+  return `${plural(left.length, "machine")} wsp made at ${name} ${one ? "is" : "are"} not gone: ${named}${more}. The key is kept until ${one ? "it goes" : "they go"}${othersDeleted(deleted)}. Remove ${name} again to ask once more.`;
 }
+
+/** What it answers when the listing read again after the deletes failed: a machine a create made meanwhile may be
+ * there, so the key is kept. */
+export const providerUnlistedLine = (name: string, deleted: number, said: string): string =>
+  `${name}'s machines could not be listed again after ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted (${said}), so one made meanwhile may still be there and the key is kept. Remove ${name} again to finish.`;
 
 /** --force on a provider's remove: it takes work no remote has off a computer, and a provider is no computer. */
 export const providerForceRefusal = (name: string, typed: string): { said: string; fix: string } => ({

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { PROVIDER_LEFT_WORDS, providerKeptLine, providerKeyName, providerKeyRefused, refusal, type PlaceRemoved } from "@wsp/protocol";
-import { MachineAliveError, OWNER_LABEL, killUntilGone, sightMachine, type KillConfirm, type MachineBackend } from "@wsp/engine";
+import { PROVIDER_LEFT_WORDS, providerKeptLine, providerKeyName, providerKeyRefused, providerUnlistedLine, refusal, type PlaceRemoved } from "@wsp/protocol";
+import { MachineAliveError, OWNER_LABEL, isMissing, killUntilGone, sightMachine, type KillConfirm, type Machine, type MachineBackend } from "@wsp/engine";
 
 /** How many deletes run at once: each is one ask and a dozen reads, and a provider rate-limits the account as a whole. */
 export const KILLS_AT_ONCE = 4;
@@ -13,7 +13,7 @@ const messageOf = (e: unknown): string => (e instanceof Error ? e.message : Stri
 /** Takes a provider back out: every machine this host made there, by its owner mark and by its own records, is
  * deleted and read back gone, and only then is the key forgotten. One the provider will not delete is named and
  * keeps the key, since a machine left there bills and only that key reaches it. */
-export async function removeProvider(o: { placeId: string; backend: MachineBackend; owner: string; known: readonly string[]; forgetKey?: (placeId: string) => Promise<void>; confirm?: KillConfirm }): Promise<PlaceRemoved> {
+export async function removeProvider(o: { placeId: string; backend: MachineBackend; owner: string; known: readonly string[]; forgetKey?: (placeId: string) => Promise<string | undefined>; confirm?: KillConfirm }): Promise<PlaceRemoved> {
   const name = providerKeyName(o.placeId);
   // A backend's list may ignore the labels it is handed, so the mark is read again on every row.
   const listMarked = async (): Promise<string[]> => {
@@ -39,11 +39,20 @@ export async function removeProvider(o: { placeId: string; backend: MachineBacke
           continue;
         }
         if (seen.machine === undefined) continue;
+        // The kill both deletes and reads back, so a failure is told apart by which of the two raised it.
+        const machine = seen.machine;
+        let deleteFailed = false;
+        const asked: Machine = Object.create(machine);
+        asked.kill = () =>
+          machine.kill().catch((e: unknown) => {
+            deleteFailed = !isMissing(e);
+            throw e;
+          });
         try {
-          await killUntilGone(o.backend, seen.machine, o.confirm);
+          await killUntilGone(o.backend, asked, o.confirm);
           deleted++;
         } catch (e) {
-          left.push({ id, said: e instanceof MachineAliveError ? PROVIDER_LEFT_WORDS.running(e.state) : messageOf(e) });
+          left.push({ id, said: e instanceof MachineAliveError ? PROVIDER_LEFT_WORDS.running(e.state) : deleteFailed ? PROVIDER_LEFT_WORDS.undeleted(messageOf(e)) : PROVIDER_LEFT_WORDS.unread(messageOf(e)) });
         }
       }
     };
@@ -59,9 +68,16 @@ export async function removeProvider(o: { placeId: string; backend: MachineBacke
     }
     for (const id of ids) handled.add(id);
     await deleteEach(ids);
-    ids = (await listMarked()).filter(id => !handled.has(id));
+    let listed: string[];
+    try {
+      listed = await listMarked();
+    } catch (e) {
+      if (left.length > 0) break;
+      return { removed: false, swept: [], deleted, note: providerUnlistedLine(name, deleted, messageOf(e)) };
+    }
+    ids = listed.filter(id => !handled.has(id));
   }
   if (left.length > 0) return { removed: false, swept: [], deleted, note: providerKeptLine(name, deleted, left) };
-  await o.forgetKey?.(o.placeId);
-  return { removed: true, swept: [], deleted };
+  const still = await o.forgetKey?.(o.placeId);
+  return { removed: true, swept: [], deleted, ...(still === undefined ? {} : { note: still }) };
 }

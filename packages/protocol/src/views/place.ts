@@ -654,7 +654,7 @@ export const placeForgetsOnly = (holds: PlaceHolds): boolean => holds.away === t
 /** What places.remove answers: whether a computer of that id was there, the forks and projects that went with it,
  * every line of what the sweep took off it, and the one line for a computer that was not connected to sweep. A
  * provider answers how many machines it deleted there; `removed` false with a note is one it would not delete all
- * of, its key kept. */
+ * of, its key kept, and `removed` true with a note names where its key still is. */
 export const PlaceRemoved = z.object({ removed: z.boolean(), took: PlaceHolds.omit({ unsaved: true }).optional(), swept: z.array(z.string()), note: z.string().optional(), deleted: z.number().int().optional() });
 export type PlaceRemoved = z.infer<typeof PlaceRemoved>;
 

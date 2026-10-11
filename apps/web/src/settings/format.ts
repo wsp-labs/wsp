@@ -96,6 +96,8 @@ export const WHERE_WORDS = {
   removing: "Removing…",
   /** A remove the host answered as not made with no reason of its own: the record went before the ask landed. */
   removeUnmade: (computer: string): string => `${computer} was not removed: this host no longer holds it.`,
+  /** The fix under a cloud's refused key, where the dialog has turned to its Forget confirm. */
+  keyRefusedFix: (cloud: string): string => `Save a working key and remove ${cloud} again, or forget it here.`,
   /** The confirm for a computer whose link is down while forks or projects stand on it: they leave as records. */
   forget: "Forget",
   forgetting: "Forgetting…",

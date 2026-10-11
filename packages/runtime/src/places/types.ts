@@ -180,8 +180,9 @@ export interface PlaceWiring {
    * agent is still installed and leaves it to the person at that computer. */
   leave?: PlaceLeaver;
   /** Forgets the key a provider row is opened by, in the file the host reads it from and in the provider it forks
-   * on now, once a remove has deleted every machine there. Absent, the key stays where it is. */
-  forgetKey?(placeId: string): Promise<void>;
+   * on now, once a remove has deleted every machine there; answers the sentence naming where the key still is when
+   * the host also reads it from beyond that file. Absent, the key stays where it is. */
+  forgetKey?(placeId: string): Promise<string | undefined>;
   /** How a login reaches root on a computer, read before a remove or an update over that login does anything there:
    * answers the road where root is reachable, the password the person typed tried where sudo asks for one, and
    * throws the add's own refusal where it is not (the sudo kind where a password would do). Absent, the login is
