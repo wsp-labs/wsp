@@ -23,7 +23,7 @@ import { installFakeLayout } from "./fake-layout.js";
 import type { EventUnion, HarnessCatalog, PreferencesPatch, SessionEvent, SessionView, WorkspaceView } from "@wsp/protocol";
 import { DEFAULT_PREFERENCES, applyPreferencesPatch, QUESTION_TOOL, USAGE_WORDS, spawnCapRefusal, pickedOptionId, questionOptions } from "@wsp/protocol";
 import { useStore } from "../src/protocol/store.js";
-import { useRightPanelStore } from "../src/rightPanelStore.js";
+import { selectWorkspaceRightPanelState, useRightPanelStore } from "../src/rightPanelStore.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
 import type { Api, ProtocolEvent } from "../src/protocol/client.js";
 import { ChatView } from "../src/components/chat/ChatView.js";
@@ -977,7 +977,7 @@ describe("a file a reply names", () => {
     const { api } = fixtureApi([workspace], { [WS]: history });
     await setup(api);
     fireEvent.click(await screen.findByRole("button", { name: /main\.ts/ }));
-    const panel = () => useRightPanelStore.getState().byWorkspaceId[WS]!;
+    const panel = () => selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, WS);
     expect(panel().activeSurfaceId).toBe("file:/root/app/src/main.ts");
     expect(panel().surfaces.find(s => s.id === panel().activeSurfaceId)).toMatchObject({ kind: "files", path: "/root/app/src/main.ts", line: 12 });
     fireEvent.click(screen.getByRole("button", { name: /panes\.ts/ }));

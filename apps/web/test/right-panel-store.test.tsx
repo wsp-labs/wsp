@@ -28,7 +28,7 @@ afterEach(cleanup);
 
 /** Seeds the store's key at the current version and hydrates it. */
 async function hydrate(surfaces: unknown[], activeSurfaceId: string | null = null): Promise<void> {
-  window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: { [WS]: { isOpen: true, activeSurfaceId, surfaces } } }, version: 1 }));
+  window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: { [WS]: { isOpen: true, activeSurfaceId, surfaces } } }, version: 2 }));
   await useRightPanelStore.persist.rehydrate();
 }
 
@@ -74,7 +74,7 @@ describe("rightPanelStore hydrate", () => {
   });
 
   it("a stored value with a bad shape at the current version hydrates to a usable state", async () => {
-    window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: { [WS]: { isOpen: true, activeSurfaceId: "diff" } } }, version: 1 }));
+    window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: { [WS]: { isOpen: true, activeSurfaceId: "diff" } } }, version: 2 }));
     await useRightPanelStore.persist.rehydrate();
     const state = selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, WS);
     expect(state).toEqual({ isOpen: true, activeSurfaceId: null, surfaces: [] });
@@ -99,7 +99,7 @@ describe("rightPanelStore hydrate", () => {
             },
           },
         },
-        version: 1,
+        version: 2,
       }),
     );
     await useRightPanelStore.persist.rehydrate();
@@ -150,7 +150,7 @@ describe("rightPanelStore hydrate", () => {
   });
 
   it("a stored value that is not an object hydrates to the empty map", async () => {
-    window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: 7 }, version: 1 }));
+    window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: 7 }, version: 2 }));
     await useRightPanelStore.persist.rehydrate();
     expect(useRightPanelStore.getState().byWorkspaceId).toEqual({});
   });
@@ -177,7 +177,7 @@ describe("the browser tab cap counts guests holding a page", () => {
 
   it("never counts saved tabs with no page loaded, those of a workspace removed last week among them", async () => {
     const saved = Array.from({ length: 10 }, (_, i) => ({ id: `browser:old${i}`, kind: "preview", resourceId: `old${i}` }));
-    window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: { ws_deleted_last_week: { isOpen: true, activeSurfaceId: null, surfaces: saved } } }, version: 1 }));
+    window.localStorage.setItem(KEY, JSON.stringify({ state: { byWorkspaceId: { ws_deleted_last_week: { isOpen: true, activeSurfaceId: null, surfaces: saved } } }, version: 2 }));
     await useRightPanelStore.persist.rehydrate();
     expect(useRightPanelStore.getState().byWorkspaceId["ws_deleted_last_week"]?.surfaces).toHaveLength(10);
     useRightPanelStore.getState().openNewBrowser(LIVE);
