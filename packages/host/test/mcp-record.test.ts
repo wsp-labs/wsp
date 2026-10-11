@@ -130,6 +130,10 @@ const REFUSED: readonly [string, Record<string, unknown>][] = [
   ["computers_set", { computer: "attic", turn_limit: 1.5 }],
   ["computers_set", { computer: "attic", turn_limit: -1 }],
   ["computers_set", { computer: "attic", turn_limit: 25 }],
+  ["computers_set", { computer: "boat", size: "big" }],
+  ["computers_set", { computer: "boat", size: 4 }],
+  ["computers_set", { computer: "boat", delete_after: 1441 }],
+  ["computers_set", { computer: "boat", delete_after: 2.5 }],
   ["skills_search", { query: "q", limit: 0 }],
   ["skills_search", { query: "q", limit: 1000 }],
   ["threads_wait", { threads: [] }],
@@ -233,6 +237,7 @@ async function words(): Promise<Record<string, unknown>> {
     },
     noSuchPlace: noSuchPlaceRefusal("{word}", ["{held}"]),
     placesFix: PLACES_FIX,
+    providerNames: Object.fromEntries(Object.entries(PROVIDER_KEY_WORDS).map(([id, words]) => [id, words.name])),
     aimedUsage: aimedUsage("{tool}"),
     aimedBoth: refusalLine(aimedBothLine, "{usage}"),
     projectUnnamed: refusalLine(projectUnnamedLine, "{usage}"),
@@ -467,6 +472,18 @@ const PLACE: PlaceView = {
   forks: { running: 1, room: 2 },
 };
 const CLOUD: PlaceView = { id: "place-solari", kind: "provider", name: "solari", default: true, rateUsdPerHour: 0.1 + 0.2 };
+/** Boat's row as the owner's plan reads it, with the size and the delete delay a sub-thread's machine takes. */
+const BOAT: PlaceView = {
+  id: "box",
+  kind: "provider",
+  name: "box",
+  default: false,
+  rateUsdPerHour: 0.018,
+  plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
+  starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
+  size: { cpu: 2, memMb: 4096 },
+  deleteAfterMs: 1_800_000,
+};
 /** A second computer the person added, holding the name a rename of the first asks for. */
 const SPOO: PlaceView = { id: "place-7", kind: "computer", name: "spoo", default: false, present: true };
 const SPEND: PlaceSpend = { place: "place-solari", todayUsd: 1.25, monthUsd: 30, rateUsdPerHour: 0.035 };
@@ -660,6 +677,7 @@ const ANSWERED: Answered = {
   computers: [
     { case: "rows", arguments: {}, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "cost.spend": reply({ places: [SPEND] }) } },
     { case: "an add pending", arguments: {}, replies: { "places.list": reply({ places: [PLACE], pending: [PENDING] }), "cost.spend": reply({ places: [] }) } },
+    { case: "a cloud with its plan and the starts used", arguments: {}, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "cost.spend": reply({ places: [] }) } },
     { case: "empty", arguments: {}, replies: { "places.list": reply({ places: [] }), "cost.spend": reply({ places: [] }) } },
     { case: "refused", arguments: {}, replies: { "places.list": JSON.stringify({ id: 1, ok: false, error: "the token this line presented is not one this host holds", kind: "auth" }), "cost.spend": reply({ places: [] }) } },
   ],
@@ -667,6 +685,9 @@ const ANSWERED: Answered = {
     { case: "threads set", arguments: { computer: "attic", threads: 2 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 2 }, capDefault: { threads: 8 }, settings: { threads: 2 }, running: 0 } }) } },
     { case: "reset by id", arguments: { computer: "place-9", reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, running: 1 } }) } },
     { case: "a cloud's machines and spend", cloud: true, arguments: { computer: "solari", machines: 5, spend: 2.5, reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-solari", kind: "provider", name: "solari", takesForks: true }, { machines: 5, spendPerDayUsd: 2.5 }, ["threads"])!, "usage") } },
+    { case: "a sub-thread's size and delete delay on a cloud", arguments: { computer: "boat", size: "4x8", delete_after: 60 }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": reply({ place: { ...BOAT, settings: { size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 }, size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 } }) } },
+    { case: "a delete delay of none", arguments: { computer: "boat", delete_after: 0, reset: ["size"] }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": reply({ place: { ...BOAT, settings: { deleteAfterMs: 0 }, deleteAfterMs: 0 } }) } },
+    { case: "a size no cloud sells", arguments: { computer: "boat", size: "3x5" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": refused(placeSetRefusal({ id: "box", kind: "provider", name: "box", takesForks: true }, { size: { cpu: 3, memMb: 5120 } })!, "usage") } },
     { case: "nap after and never", arguments: { computer: "attic", nap: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { napMs: null }, napMs: null, running: 0 } }) } },
     { case: "nap after in minutes", arguments: { computer: "attic", nap: 45, threads: 3 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 3 }, capDefault: { threads: 8 }, settings: { threads: 3, napMs: 2_700_000 }, napMs: 2_700_000, running: 0 } }) } },
     { case: "no turn limit", arguments: { computer: "attic", turn_limit: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { turnLimitMs: null }, turnLimitMs: null, turnLimitDefault: null, running: 0 } }) } },

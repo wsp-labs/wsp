@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Boat's own settings on wsp computers set, and its plan and starts on wsp computers, over a host whose Boat row is a
+// BoxBackend answering /limits with the owner's recorded answer. Every case runs with the cloud off as well as on,
+// since Boat's settings are in every build.
+import { EXIT_CODES, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, HERE_PLACE_ID, type PlaceView } from "@wsp/protocol";
+import { BoxBackend } from "@wsp/engine";
+import { memoryStore } from "@wsp/runtime";
+import { describe, expect, it } from "vitest";
+import { hostKeyHere } from "../src/places.js";
+import { captured, type Captured } from "./verbs-fixture.js";
+import { cli } from "../src/cli.js";
+import { runsFromItsOwnFolder } from "./own-folder.js";
+import { verbsHost } from "./verbs-host.js";
+
+runsFromItsOwnFolder();
+
+/** GET /limits on the owner's account, 2026-10-11 17:06 UTC, trimmed to the fields a row reads (spec 01). */
+const OWNER_LIMITS = {
+  accessTier: "standard",
+  maxActiveBoxes: 100,
+  activeBoxes: 11,
+  starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
+  canStart: true,
+  boxPlanKey: "box_20",
+};
+
+describe("Boat's settings and its limits on the command line", () => {
+  const h = verbsHost();
+
+  /** The host again with Boat beside this computer, its backend a BoxBackend whose every call is counted. */
+  async function withBoat(): Promise<string[]> {
+    const asked: string[] = [];
+    const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      asked.push(`${init?.method ?? "GET"} ${String(url)}`);
+      return new Response(JSON.stringify(OWNER_LIMITS), { status: 200 });
+    }) as typeof globalThis.fetch;
+    const boat = new BoxBackend({ apiKey: "box_x", fetch });
+    await h.restartHost({}, memoryStore(), { wired: "default", backend: p => (p === "default" ? h.backend : p === "box" ? boat : undefined), list: () => ["box"] });
+    return asked;
+  }
+  const boatRow = async (): Promise<PlaceView> => (await h.rt.places!.rows()).find(p => p.id === "box")!;
+  const answered = (io: Captured): { computer: PlaceView } => h.json(io).at(-1) as { computer: PlaceView };
+
+  it("sets the size and the delete delay of a sub-thread's machine on Boat by its own name, and a reset takes each back", async () => {
+    await withBoat();
+    const set = await h.run("computers", "set", "boat", "--size", "4x8", "--delete-after", "60");
+    expect(set.io.errors).toEqual([]);
+    expect(set.code).toBe(0);
+    expect(set.io.lines[0]).toContain("size default, 4 vCPU, 8 GB (2x4 by default)");
+    expect(set.io.lines[0]).toContain("deleted after 60 min (30 min by default)");
+    expect(await boatRow()).toMatchObject({ settings: { size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 }, size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 });
+
+    const size = await h.run("computers", "set", "Boat", "--reset", "size", "--json");
+    expect(answered(size.io).computer).toMatchObject({ settings: { deleteAfterMs: 3_600_000 }, size: { cpu: 2, memMb: 4096 }, deleteAfterMs: 3_600_000 });
+    expect(answered(size.io).computer.settings?.size).toBeUndefined();
+
+    const delay = await h.run("computers", "set", "box", "--reset", "delete-after");
+    expect(delay.io.lines[0]).toContain("size small, 2 vCPU, 4 GB (the default), deleted after 30 min (the default)");
+    expect(await boatRow()).toMatchObject({ size: { cpu: 2, memMb: 4096 }, deleteAfterMs: 1_800_000 });
+    expect((await boatRow()).settings).toBeUndefined();
+
+    const once = await h.run("computers", "set", "boat", "--delete-after", "0");
+    expect(once.io.lines[0]).toContain("deleted once done (30 min by default)");
+  });
+
+  it("refuses a size Boat does not sell, a delay outside a day, and both on this computer, as usage", async () => {
+    await withBoat();
+    for (const word of ["3x5", "big", "4x8x2"]) {
+      const wrong = await h.run("computers", "set", "boat", "--size", word);
+      expect(wrong.code).toBe(EXIT_CODES.usage);
+      expect(wrong.io.errors).toEqual([`wsp computers set: --size for boat takes 2x4, 4x8, 8x16 or 16x32, and got ${JSON.stringify(word)}. Write it as --size 4x8.`]);
+    }
+    for (const word of ["1441", "1.5", "soon"]) {
+      const wrong = await h.run("computers", "set", "boat", "--delete-after", word);
+      expect(wrong.code).toBe(EXIT_CODES.usage);
+      expect(wrong.io.errors).toEqual([`wsp computers set: --delete-after for boat takes whole minutes from 0 to 1440, and got ${JSON.stringify(word)}. Write it as --delete-after 30, or 0 to delete once it is done.`]);
+    }
+    const here = await h.run("computers", "set", HERE_PLACE_ID, "--size", "4x8", "--delete-after", "10");
+    expect(here.code).toBe(EXIT_CODES.usage);
+    expect(here.io.errors[0]).toContain("not size and delete after");
+    expect((await boatRow()).settings).toBeUndefined();
+  });
+
+  it("sets machines at once and spend per day on Boat, with the cloud on or off", async () => {
+    await withBoat();
+    const set = await h.run("computers", "set", "boat", "--machines", "5", "--spend", "20", "--json");
+    expect(set.io.errors).toEqual([]);
+    expect(answered(set.io).computer).toMatchObject({ cap: { machines: 5, spendPerDayUsd: 20 }, settings: { machines: 5, spendPerDayUsd: 20 } });
+    const back = await h.run("computers", "set", "boat", "--reset", "machines", "--reset", "spend", "--json");
+    expect(answered(back.io).computer).toMatchObject({ cap: { machines: 3, spendPerDayUsd: 10 } });
+  });
+
+  it("lists Boat with its plan, its starts, the size and the delete delay, reading /limits once in ten seconds", async () => {
+    const asked = await withBoat();
+    const listed = await h.run("computers", "--json");
+    expect(listed.io.errors).toEqual([]);
+    const boat = (h.json(listed.io).at(-1) as { computers: PlaceView[] }).computers.find(p => p.id === "box");
+    expect(boat).toMatchObject({
+      plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
+      starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
+      size: { cpu: 2, memMb: 4096 },
+      deleteAfterMs: 1_800_000,
+    });
+    const table = await h.run("computers");
+    const [head, ...rows] = table.io.lines[0]!.split("\n");
+    expect(head!.split(/ {2,}/)).toContain("STARTS");
+    expect(rows.find(r => r.startsWith("Boat"))).toContain("187/200 today");
+    expect(asked).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
+  });
+
+  it("refuses a thread's own token every set on Boat, and changes nothing", async () => {
+    await withBoat();
+    expect((await h.macProject("alpha")).code).toBe(0);
+    const alpha = (await h.rt.workspaces.list()).find(w => w.name === "alpha")!;
+    const scoped = await h.rt.devices.mint("thread t_lead", { kind: "thread", threadId: "t_lead", workspaceId: alpha.id, rootThreadId: "t_lead" }, Date.now());
+    const env = { [HOST_URL_ENV]: `ws://127.0.0.1:${h.handle!.port}`, [HOST_TOKEN_ENV]: scoped.deviceToken, [HOST_KEY_ENV]: hostKeyHere(h.statePath) };
+    const lines = [
+      ["--size", "4x8"],
+      ["--delete-after", "60"],
+      ["--machines", "9"],
+      ["--spend", "100"],
+      ["--nap", "5"],
+      ["--turn-limit", "off"],
+      ["--spawn", "on", "--max-machines", "9", "--max-depth", "4"],
+      ["--reset", "size"],
+    ];
+    for (const flags of lines) {
+      const io = captured();
+      const code = await cli(["computers", "set", "boat", ...flags], io, undefined, env);
+      expect(code, flags.join(" ")).not.toBe(0);
+      expect(io.errors, flags.join(" ")).toHaveLength(1);
+    }
+    expect((await boatRow()).settings).toBeUndefined();
+  });
+});

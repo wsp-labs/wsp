@@ -12,10 +12,14 @@ export const CLOUD_SPAN_END = "<!-- /cloud -->";
 export const NO_CLOUD_MARK = "<!-- no cloud -->";
 export const NO_CLOUD_SPAN_END = "<!-- /no cloud -->";
 
+/** A span about Boat, which every build carries: its text kept with the cloud on or off, the marks gone. */
+export const BOAT_MARK = "<!-- boat -->";
+export const BOAT_SPAN_END = "<!-- /boat -->";
+
 /** Text as a process with or without a cloud reads it: each span kept or dropped by its mark, the marks gone. What the
  * skill's lines and every verb's own words go through, so both follow one rule. */
 export function cloudText(text: string, cloud: boolean): string {
-  return text.replace(/<!-- cloud -->(.*?)<!-- \/cloud -->/g, (_, kept: string) => (cloud ? kept : "")).replace(/<!-- no cloud -->(.*?)<!-- \/no cloud -->/g, (_, kept: string) => (cloud ? "" : kept));
+  return text.replaceAll(BOAT_MARK, "").replaceAll(BOAT_SPAN_END, "").replace(/<!-- cloud -->(.*?)<!-- \/cloud -->/g, (_, kept: string) => (cloud ? kept : "")).replace(/<!-- no cloud -->(.*?)<!-- \/no cloud -->/g, (_, kept: string) => (cloud ? "" : kept));
 }
 
 /** The skill as a process with or without a cloud reads it: the marks gone either way, and with no cloud everything

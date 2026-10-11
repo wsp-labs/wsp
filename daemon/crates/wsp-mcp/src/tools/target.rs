@@ -103,19 +103,31 @@ pub async fn thread_folder(client: &Client, thread: &str, tool: &str, cloud: boo
     Ok(folder.id)
 }
 
-/// A computer by the name or the id the list carries; a word nothing holds is refused with the names there are.
+/// A computer by the name or the id the list carries, and a provider also by its own name in any case, as namesPlace
+/// reads one; a word nothing holds is refused with the names there are.
 pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<String, Failure> {
     #[derive(Deserialize)]
     struct Place {
         id: String,
         name: String,
+        #[serde(default)]
+        kind: Option<String>,
     }
     #[derive(Deserialize)]
     struct Places {
         places: Vec<Place>,
     }
     let Places { places } = client.request("places.list", Map::new()).await?;
-    if let Some(place) = places.iter().find(|p| p.id == word || p.name == word) {
+    let lower = word.to_lowercase();
+    let names = |p: &Place| {
+        p.id == word
+            || p.name == word
+            || (p.kind.as_deref() == Some("provider")
+                && [p.id.as_str(), p.name.as_str(), words.provider_names.get(&p.name).map_or(p.name.as_str(), String::as_str)]
+                    .iter()
+                    .any(|name| name.to_lowercase() == lower))
+    };
+    if let Some(place) = places.iter().find(|p| names(p)) {
         return Ok(place.id.clone());
     }
     let held = places.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");

@@ -5,6 +5,7 @@
 // carries.
 import type {
   Capabilities,
+  CloudLimits,
   DaemonSupervisor,
   ExecResult,
   LifecycleBudgets,
@@ -229,6 +230,9 @@ export interface MachineBackend {
    * no machine's idle clock, so a key the provider refuses is known before anything is saved or billed. Rejects with
    * the provider's own WspError; `checkProviderKey` is what reads that answer. */
   checkKey?(): Promise<void>;
+  /** Optional: only a provider that publishes its account's limits. Its plan and the starts used, read now or a few
+   * seconds ago; nothing where the read failed, which a row says by leaving them out. */
+  placeLimits?(): Promise<CloudLimits | undefined>;
   get(id: string): Promise<Machine>;
   /** size comes off the listing itself; a per-machine GET would reset that machine's idle timer. */
   list(labels?: Record<string, string>): Promise<MachineListRow[]>;
