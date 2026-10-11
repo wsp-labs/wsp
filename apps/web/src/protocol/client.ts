@@ -135,6 +135,9 @@ import {
   WorkspaceCostEvent,
   type WorkspaceStatus,
   WorkspaceSysEvent,
+  AppProcList,
+  AppProcsEvent,
+  type AppProc,
   type WorkspaceView,
   PlaceHolds,
   PlaceRemoved,
@@ -251,6 +254,7 @@ export class ProtocolClient {
   /** Listeners for this computer's own readings, which the host pushes on this socket. Kept off #listeners for the
    * reason the daemon's frames are: a figure ticking twice a minute is not history for the store to fold. */
   #sys = new Set<(e: WorkspaceSysEvent) => void>();
+  #appProcs = new Set<(procs: AppProc[]) => void>();
   #opts: ProtocolClientOptions;
   #Ctor: typeof WebSocket;
   #backoff: (attempt: number) => number;
@@ -327,6 +331,11 @@ export class ProtocolClient {
     if (!this.#subscribed) { this.#subscribed = true; if (this.status === "live") this.#sendSubscribe(); }
     return () => this.#listeners.delete(fn);
   }
+  onAppProcs(fn: (procs: AppProc[]) => void): () => void {
+    this.#appProcs.add(fn);
+    return () => this.#appProcs.delete(fn);
+  }
+
 
   #sendSubscribe(): void {
     this.#subscribeId = this.#next();
@@ -435,6 +444,11 @@ export class ProtocolClient {
         // Parsed, not trusted: a row paints only figures the wire type vouches for, as a daemon's own samples are.
         const reading = WorkspaceSysEvent.safeParse(msg);
         if (reading.success) for (const fn of this.#sys) fn(reading.data);
+        return;
+      }
+      if (msg.type === "app.procs") {
+        const said = AppProcsEvent.safeParse(msg);
+        if (said.success) for (const fn of this.#appProcs) fn(said.data.procs);
         return;
       }
       if (typeof msg.seq === "number" && (this.#cursor === undefined || msg.seq > this.#cursor)) this.#cursor = msg.seq;
@@ -862,6 +876,12 @@ export interface Api {
   unwatchSys?(workspaceId: string): Promise<void>;
   /** The readings those asks push, for every workspace this socket asked about. */
   onSysSample?(fn: (e: WorkspaceSysEvent) => void): () => void;
+  /** Asks the host for the desktop app's processes by pid, pushed each time the app reads them again until the socket
+   * goes; the app reads them only while some socket watches. Optional for a fixture and for a host that predates it. */
+  watchAppProcs?(): Promise<AppProc[]>;
+  /** Ends this socket's watchAppProcs once no pane names this computer's processes. */
+  unwatchAppProcs?(): Promise<void>;
+  onAppProcs?(fn: (procs: AppProc[]) => void): () => void;
   /** The workspace's cost ticks since the runtime began metering it, folded to the rate changes and the newest. Optional
    * so fixtures without a usage chart need not fake it; without it the chart starts with the next tick. */
   costHistory?(workspaceId: string): Promise<WorkspaceCostEvent[]>;
@@ -1016,6 +1036,9 @@ export function makeApi(c: ProtocolClient): Api {
     watchSys: async workspaceId => void (await c.request("sys.subscribe", { workspaceId })),
     unwatchSys: async workspaceId => void (await c.request("sys.unsubscribe", { workspaceId })),
     onSysSample: fn => c.onSysSample(fn),
+    watchAppProcs: async () => AppProcList.parse((await c.request<{ procs?: unknown }>("appProcs.watch")).procs),
+    unwatchAppProcs: async () => void (await c.request("appProcs.unwatch")),
+    onAppProcs: fn => c.onAppProcs(fn),
     portReach: async (id, port) => (await c.request<{ reach: PortReachView }>("workspaces.portReach", { workspaceId: id, port })).reach,
     portProbe: async (id, port) => (await c.request<{ probe: PortProbeView }>("workspaces.portProbe", { workspaceId: id, port })).probe,
     startSession: async ({ workspaceId, ...opts }) => (await c.request<{ session: SessionView }>("sessions.start", opts.fork === undefined ? { workspaceId, ...opts } : { ...opts })).session,

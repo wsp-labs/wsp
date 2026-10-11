@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProcEntry } from "@wsp/protocol";
 import { compactBytes } from "@wsp/protocol";
+import type { AppProc } from "@wsp/protocol";
 import { procLabel, procTable, type ProcThread } from "../src/components/procs/tree.js";
 
 const proc = (pid: number, ppid: number, comm: string, extra: Partial<ProcEntry> = {}): ProcEntry => ({
@@ -144,6 +145,20 @@ describe("procLabel", () => {
     expect(procLabel(procs[4]!, 40, titles)).toBeNull();
     // Any catalog agent is named by the command its entry puts on PATH.
     expect(procLabel(proc(43, 40, "codex"), 40, titles)).toBe("agent");
+  });
+
+  it("names the desktop app's processes by what the app said each one is", () => {
+    const app = new Map<number, AppProc>([
+      [70, { pid: 70, kind: "main" }],
+      [71, { pid: 71, kind: "gpu" }],
+      [72, { pid: 72, kind: "network" }],
+      [73, { pid: 73, kind: "renderer" }],
+      [74, { pid: 74, kind: "tab", origins: ["https://github.com"] }],
+      [75, { pid: 75, kind: "frame", origins: ["https://ads.example.com", "https://cdn.example.com"] }],
+    ]);
+    const named = [70, 71, 72, 73, 74, 75].map(pid => procLabel(proc(pid, 1, "electron"), 40, titles, app));
+    expect(named).toEqual(["wsp app", "wsp graphics", "wsp network", "wsp window", "browser tab github.com", "frame ads.example.com +1"]);
+    expect(procLabel(proc(76, 1, "electron"), 40, titles, app)).toBeNull();
   });
 });
 
