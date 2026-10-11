@@ -4,7 +4,20 @@
 // now off `claude agents --json`, which lists the session each running Claude Code process holds and drops a killed
 // one's stale file (measured on 2.1.296).
 import { buildEnv } from "./landmines.js";
-import { claudeProjectKey, ENV_FROM_INPUT, foldersStampCommand, programWord, shellQuote, TranscriptsListReply, TranscriptsReadReply, type AgentLaunch, type ConversationOrigin, type ConversationStore } from "@wsp/protocol";
+import {
+  claudeProjectKey,
+  ENV_FROM_INPUT,
+  foldersStampCommand,
+  programWord,
+  shellQuote,
+  TRANSCRIPT_DIRS_MAX,
+  TranscriptsListReply,
+  TranscriptsReadReply,
+  type AgentLaunch,
+  type ConversationOrigin,
+  type ConversationRoad,
+  type ConversationStore,
+} from "@wsp/protocol";
 
 /** The entrypoints Claude Code's own picker leaves out as programmatic, `PROGRAMMATIC_ENTRYPOINTS` in the 2.1.296
  * bundle: a `-p` run, the TypeScript SDK and the Python SDK. wsp's own turns run as `sdk-cli` too. */
@@ -16,6 +29,21 @@ export const originOf = (entrypoint: string | undefined): ConversationOrigin => 
 /** The project folders under the store a folder's conversations sit in: the key Claude Code gives each folder, and the
  * one a launch pins every session of the project to. */
 export const keysFor = (cwds: readonly string[], pinned: string | undefined): string[] => [...new Set([...cwds.map(claudeProjectKey), ...(pinned !== undefined ? [pinned] : [])])];
+
+/** The line that prints each of `keys` the store at `root` holds as a folder, or as a folder holding `file`. */
+export const presentCommand = (root: string, keys: readonly string[], file?: string): string =>
+  `cd ${shellQuote(root)} 2>/dev/null && for d in ${keys.map(shellQuote).join(" ")}; do [ ${file === undefined ? '-d "$d"' : `-f "$d"/${shellQuote(file)}`} ] && printf '%s\\n' "$d"; done; true`;
+
+/** A list in runs of at most TRANSCRIPT_DIRS_MAX, the most one transcripts frame carries. */
+export const runsOf = <T>(list: readonly T[]): T[][] => Array.from({ length: Math.ceil(list.length / TRANSCRIPT_DIRS_MAX) }, (_, i) => list.slice(i * TRANSCRIPT_DIRS_MAX, (i + 1) * TRANSCRIPT_DIRS_MAX));
+
+/** The keys a frame names: all of them where one frame takes them, else only those the store holds, which on a project
+ * with many worktrees is a few, since a worktree no Claude Code session ran in has no folder. */
+async function presentKeys(root: string, keys: string[], road: ConversationRoad, file?: string): Promise<string[]> {
+  if (keys.length <= TRANSCRIPT_DIRS_MAX) return keys;
+  const held = new Set((await road.exec(presentCommand(root, keys, file))).split("\n"));
+  return keys.filter(k => held.has(k));
+}
 
 /** `claude agents --json`, with the turn's environment off its input as the other probes take it. */
 export function liveCommand(options: { launch?: AgentLaunch } = {}): string {
@@ -46,8 +74,12 @@ export function claudeConversations(deps: { configDir: string; projectDirName?: 
   const env = buildEnv({ base: deps.baseEnv });
   return {
     list: async (cwds, road) => {
-      const reply = TranscriptsListReply.parse(await road.ask({ op: "transcripts.list", root, dirs: keysFor(cwds, deps.projectDirName), cwds: [...cwds] }));
-      return reply.rows.map(r => ({
+      const dirs = await presentKeys(root, keysFor(cwds, deps.projectDirName), road);
+      // Every run of folders with every run of cwds, since a pinned folder holds the sessions of any of them.
+      const replies = await Promise.all(runsOf(dirs).flatMap(d => runsOf(cwds).map(async c => TranscriptsListReply.parse(await road.ask({ op: "transcripts.list", root, dirs: d, cwds: c })))));
+      const newest = new Map<string, TranscriptsListReply["rows"][number]>();
+      for (const r of replies.flatMap(reply => reply.rows)) if ((newest.get(r.id)?.lastAt ?? -Infinity) < r.lastAt) newest.set(r.id, r);
+      return [...newest.values()].map(r => ({
         id: r.id,
         title: r.title ?? r.firstPrompt ?? r.id,
         ...(r.firstPrompt !== undefined ? { firstPrompt: r.firstPrompt } : {}),
@@ -61,8 +93,10 @@ export function claudeConversations(deps: { configDir: string; projectDirName?: 
     stamp: (cwds, road) => road.exec(foldersStampCommand(keysFor(cwds, deps.projectDirName).map(k => shellQuote(`${root}/${k}`)))),
     live: road => road.exec(liveCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), env).then(parseLive, () => null),
     earlier: async (id, o, road) => {
-      const reply = TranscriptsReadReply.parse(await road.ask({ op: "transcripts.read", root, dirs: keysFor(o.cwds, deps.projectDirName), session: id, last: o.last }));
-      if (!reply.found) return "gone";
+      const dirs = await presentKeys(root, keysFor(o.cwds, deps.projectDirName), road, `${id}.jsonl`);
+      const replies = await Promise.all(runsOf(dirs).map(async d => TranscriptsReadReply.parse(await road.ask({ op: "transcripts.read", root, dirs: d, session: id, last: o.last }))));
+      const reply = replies.find(r => r.found);
+      if (reply === undefined) return "gone";
       return {
         ...(reply.cwd !== undefined ? { cwd: reply.cwd } : {}),
         ...(reply.title !== undefined ? { title: reply.title } : {}),
