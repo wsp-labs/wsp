@@ -424,10 +424,15 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("daemon.open"), workspaceId: z.string().optional(), placeId: z.string().optional() }),
   /** Pushes WorkspaceSysEvent frames for this workspace on this socket, one per poll tick, until sys.unsubscribe or
    * the socket goes. The one road for a workspace whose kind reads its Live rows in the host rather than off a daemon;
-   * refused for every other kind, which reads them over its own daemon link with sys.watch. Replies `{}`. */
-  z.object({ id: reqId, op: z.literal("sys.subscribe"), workspaceId: z.string() }),
-  /** Stops this socket's sys.subscribe for the workspace; replies `{}` whether or not it held one. */
-  z.object({ id: reqId, op: z.literal("sys.unsubscribe"), workspaceId: z.string() }),
+   * refused for every other kind, which reads them over its own daemon link with sys.watch. Replies `{}`.
+   *
+   * With `placeId` in place of `workspaceId` it pushes PlaceSysEvent frames for a computer the person owns, this one
+   * (HERE_PLACE_ID) or one they added, off the one watch the host holds of that computer for every reader. A computer
+   * that is away keeps the subscription, and its frames resume when it dials back. On the host's own road alone. One
+   * of the two, never both. */
+  z.object({ id: reqId, op: z.literal("sys.subscribe"), workspaceId: z.string().optional(), placeId: z.string().optional() }),
+  /** Stops this socket's sys.subscribe for the workspace or the computer; replies `{}` whether or not it held one. */
+  z.object({ id: reqId, op: z.literal("sys.unsubscribe"), workspaceId: z.string().optional(), placeId: z.string().optional() }),
   /** Pushes an AppProcsEvent on this socket each time the desktop app reads its processes, until appProcs.unwatch or
    * the socket goes; replies with { procs }, the newest list, empty until the app has read one since the first watch.
    * The host's own road alone, since a tab's address is the person's browsing. */
