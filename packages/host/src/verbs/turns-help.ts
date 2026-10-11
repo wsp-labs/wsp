@@ -100,6 +100,8 @@ import {
   RESUME_WHERE_LINE,
   RESUME_WHERE_FIX,
   type ResumeAsk,
+  ActivityEnded,
+  type ProcessesAsk,
 } from "@wsp/protocol";
 import { mainWorktreeOf } from "../repo-root.js";
 import { CLOUD_ON } from "../cloud.js";
@@ -371,9 +373,9 @@ export async function sharingWith(client: HostClient, at: { thread: ThreadView; 
 }
 
 /** What the host took with a thread it deleted: the record's id, the worktree that went with it, and how many threads. */
-export async function threadDeleted(client: HostClient, threadId: string): Promise<{ workspaceId: string; worktree?: string; threads: number }> {
-  const { workspaceId, worktree, threads } = await client.request<{ workspaceId: string; worktree?: string; threads: number }>("sessions.delete", { threadId });
-  return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads };
+export async function threadDeleted(client: HostClient, threadId: string, o: { processes?: ProcessesAsk; check?: boolean } = {}): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }> {
+  const { workspaceId, worktree, threads, ended } = await client.request<{ workspaceId: string; worktree?: string; threads: number; ended?: unknown }>("sessions.delete", { threadId, ...o });
+  return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads, ...(ended !== undefined ? { ended: z.array(ActivityEnded).parse(ended) } : {}) };
 }
 
 /** The worktree holding a branch of a project here, as the host answers it. */

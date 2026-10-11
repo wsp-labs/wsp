@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use ts_rs::TS;
 
 use crate::{
-    CheckState, DaemonErrorCode, FsEntryType, HostItemKind, MachineErrorKind, MergeMethod, Mergeable, PullRequestState, ReactionContent,
-    RequestId, ReviewState, TranscriptVoice, Usage,
+    CheckState, DaemonErrorCode, FsEntryType, HostItemKind, MachineErrorKind, MergeMethod, Mergeable, ProcEntry, PullRequestState,
+    ReactionContent, RequestId, ReviewState, TranscriptVoice, Usage,
 };
 
 /// The literal `true` the ok envelope carries.
@@ -203,6 +203,17 @@ pub struct ManifestRestartScriptReply {
 #[ts(export)]
 pub struct InboxRescanReply {
     pub count: u64,
+}
+
+/// Every process once, for a reader that wants no stream: the rows a running sampler last read, else one scan whose
+/// cpu reads 0, since a share has no interval to run over. at is the clock the rows were read at.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ProcListReply {
+    pub at: i64,
+    pub daemon: u32,
+    pub total: u64,
+    pub procs: Vec<ProcEntry>,
 }
 
 /// cwd is null when unreadable; threads is absent where the machine's processes module cannot count them.

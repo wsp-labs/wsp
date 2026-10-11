@@ -35,6 +35,7 @@ import { SEALED_GOLDEN } from "./sealed-golden.js";
 import { stubBackend, type StubBackend } from "./stub-backend.js";
 import { ASKS, STARTS_THEN_DIES, EXPORT_SOURCE, PAGE, SCRIPTED_ASK, bornDeadAgent, captured, execGuest, exportGuest, scriptedAgent, type Captured } from "./verbs-fixture.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
+import { fakeProcs, procRow, type FakeProcs } from "./fake-procs.js";
 import { agentHome, type AgentHome } from "../../collect/test/agent-home.js";
 import { agentsReader } from "../src/agents-reader.js";
 import { hostActs } from "../src/agents-signin.js";
@@ -159,9 +160,12 @@ describe("the agent contract on the command line and the tool door", () => {
   let handle: HostHandle | undefined;
   /** What the workspace's daemon refuses a pull request with, where a case wants the pull request half refused. */
   let prRefusal: string | undefined;
+  /** This computer's processes as its daemon lists them. */
+  let procs: FakeProcs;
 
   beforeEach(async () => {
     prRefusal = undefined;
+    procs = fakeProcs();
     dir = mkdtempSync(join(tmpdir(), "wsp-contract-"));
     const webDir = join(dir, "web");
     mkdirSync(join(webDir, "assets"), { recursive: true });
@@ -201,9 +205,10 @@ describe("the agent contract on the command line and the tool door", () => {
       },
       // The daemon inside a workspace, as far as the verbs that ask it anything are concerned. Its pull request half
       // refuses where a case sets that, since the two halves of a bring back are answered apart.
-      daemonChannel: async () => ({
+      daemonChannel: async ({ onEvent }) => ({
         send: async frame =>
-          frame.op in PULL_REQUEST_FRAMES
+          (procs.answer(frame, onEvent) as never) ??
+          (frame.op in PULL_REQUEST_FRAMES
             ? { id: 1, ok: true, ...PULL_REQUEST_FRAMES[frame.op as keyof typeof PULL_REQUEST_FRAMES] }
             : frame.op === "git.push"
             ? { id: 1, ok: true, branch: "work", base: "main", remote: "origin", ahead: 1, uncommitted: 0, stat: [" a.ts | 2 +-"] }
@@ -219,7 +224,7 @@ describe("the agent contract on the command line and the tool door", () => {
                   ? { id: 1, ok: true, branch: { oid: "abc", head: "work", ahead: 1, behind: 0 }, entries: [{ xy: ".M", path: "a.ts" }], root: "/root/alpha" }
                   : prRefusal === undefined
               ? { id: 1, ok: true, pr: { number: 3, url: "https://github.com/dev/alpha/pull/3", state: "open", host: "github.com", ...PR_REST }, created: true }
-              : { id: 1, ok: false as const, error: prRefusal },
+              : { id: 1, ok: false as const, error: prRefusal }),
         close: () => {},
         // Nothing here ends of its own: the runtime closes the channel when the verb it opened it for is done.
         closed: new Promise(() => {}),
@@ -539,6 +544,10 @@ describe("the agent contract on the command line and the tool door", () => {
     // The fixture's agents keep no store of their own, so the project's list is empty and says no agent went unread.
     expect(await last("conversations", "conversations", "here")).toEqual({ rows: [], held: [] });
     expect(await last("delete", "delete", inFolder.threadId, "--yes")).toEqual({ threadId: inFolder.threadId, workspaceId: expect.any(String), threads: 1 });
+    // This computer's daemon lists one process wsp started in a folder with no thread, which an End may take.
+    procs.procs = [procRow({ pid: 4242, cmdline: "node watch.js", owner: { by: "folder", workspace: alpha } })];
+    expect(await last("activity", "activity")).toMatchObject({ threads: [], unowned: [{ pid: 4242, kind: "other", command: "node watch.js" }] });
+    expect(await last("activity end", "activity", "end", "4242", "--started", String(procRow({ pid: 4242 }).startedAt))).toEqual({ pid: 4242, ended: [expect.objectContaining({ pid: 4242 })], forced: [], left: [] });
     // A launch that never started its agent leaves a row with no turn on it, which is the one a forget takes.
     const dead = await run("run", "--beside", lead, "--agent", "codex", "never gets going", "--json");
     expect(dead.code).toBe(1);
