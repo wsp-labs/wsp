@@ -235,6 +235,9 @@
             "pinnedAt": {
               "type": "number"
             },
+            "order": {
+              "type": "number"
+            },
             "foldedAt": {
               "type": "number"
             },
@@ -1877,6 +1880,9 @@
               "type": "number"
             },
             "pinnedAt": {
+              "type": "number"
+            },
+            "order": {
               "type": "number"
             },
             "foldedAt": {
