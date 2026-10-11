@@ -13,7 +13,7 @@ import { WorkspaceTerminalDrawer } from "../src/components/WorkspaceTerminalDraw
 import { getLive, resetLive } from "../src/machine/live.js";
 import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
-import { selectWorkspaceRightPanelState, useRightPanelStore } from "../src/rightPanelStore.js";
+import { selectPanelState, selectWorkspaceRightPanelState, usePanelKey, useRightPanelStore } from "../src/rightPanelStore.js";
 import { RightPanel } from "../src/shell/RightPanel.js";
 import { openDrawerTerminal, openPanelTerminal, runShellCommand, splitActivePanelTerminal, splitDrawerTerminal } from "../src/shell/shellCommands.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
@@ -169,9 +169,11 @@ describe("WorkspaceTerminalDrawer", () => {
 
 const view: WorkspaceView = { id: WS, name: "drawer", machineId: "m_drawer", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" }, phase: "running", golden: "snap_g", createdAt: "2026-09-01T00:00:00Z" };
 
+/** The panel as the shell draws it: the pane of the thread on screen, drawn while it stands open. */
 function Panel() {
-  const state = useRightPanelStore(s => selectWorkspaceRightPanelState(s.byWorkspaceId, WS));
-  return <RightPanel workspaceId={WS} state={state} mode="inline" />;
+  const key = usePanelKey(WS);
+  const state = useRightPanelStore(s => selectPanelState(s.byWorkspaceId, key));
+  return state.isOpen ? <RightPanel workspaceId={WS} state={state} mode="inline" /> : null;
 }
 
 describe("terminal as a right-panel surface", () => {
@@ -315,6 +317,39 @@ describe("one owner per pty", () => {
     await waitFor(() => expect(document.querySelector('[data-terminal-owner="drawer"]')).toBeNull());
     expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, WS).surfaces.map(s => s.id)).toEqual(["terminal:p1"]);
     expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1"]);
+  }, 30_000);
+
+  it("a thread's terminal keeps running while another thread is on screen, is never the drawer's, and comes back with what it printed meanwhile", async () => {
+    const { wt, count } = fakeLink();
+    act(() => useStore.setState({ selectedThreadId: "th_a" }));
+    useTerminalDrawerStore.getState().setOpen(WS, true);
+    render(
+      <>
+        <WorkspaceTerminalDrawer workspaceId={WS} />
+        <Panel />
+      </>,
+    );
+    try {
+      await waitFor(() => expect(inputs("drawer")).toHaveLength(1), { timeout: 15_000 });
+      await act(() => openPanelTerminal(WS));
+      await waitFor(() => expect(inputs("right-panel")).toHaveLength(1), { timeout: 15_000 });
+      act(() => wt.feedEvent({ type: "pty.data", ptyId: "p2", data: "before\r\n" }));
+
+      act(() => useStore.setState({ selectedThreadId: "th_b" }));
+      await waitFor(() => expect(inputs("right-panel")).toHaveLength(0));
+      act(() => wt.feedEvent({ type: "pty.data", ptyId: "p2", data: "meanwhile\r\n" }));
+      expect(count("pty.kill")).toBe(0);
+      expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1", "p2"]);
+      expect(useTerminalDrawerStore.getState().byWorkspaceId[WS]?.terminalIds).toEqual(["p1"]);
+
+      const bind = vi.spyOn(wt, "bind");
+      act(() => useStore.setState({ selectedThreadId: "th_a" }));
+      await waitFor(() => expect(inputs("right-panel")).toHaveLength(1), { timeout: 15_000 });
+      expect(bind.mock.calls.some(([id]) => id === "p2")).toBe(true);
+      expect(wt.mirrorText("p2")).toContain("before\r\nmeanwhile\r\n");
+    } finally {
+      act(() => useStore.setState({ selectedThreadId: null }));
+    }
   }, 30_000);
 
   it("closing the panel's Terminal tab kills its pty before the tab goes, so the drawer never adopts it", async () => {
