@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The right region: one pane at a time over the copied tab strip,
-// keyed by the selected workspace. A pane the workspace cannot serve yet (not
+// the thread on screen's own, else the selected workspace's. A pane the workspace cannot serve yet (not
 // running) stays greyed out in the picker with a reason. Terminal
 // surfaces mount the Ghostty drawer in panel mode over the workspace's daemon
 // link. The diff and the files run in their own worker pool, themed for the
@@ -27,7 +27,8 @@ import { SlateSurface } from "../slate/SlateSurface.js";
 import { PullRequestSurface } from "../pull-request/PullRequestSurface.js";
 import { useAppDark } from "../settings/theme.js";
 import { PANE_KINDS, paneOf, type PaneContext, type RightPanelKind } from "../panes.js";
-import { isOpenable, useRightPanelStore, type RightPanelSurface, type WorkspaceRightPanelState } from "../rightPanelStore.js";
+import { isOpenable, selectPanelBrowserTabIds, useRightPanelStore, type RightPanelSurface, type WorkspaceRightPanelState } from "../rightPanelStore.js";
+import { useShallow } from "zustand/react/shallow";
 import { HERE_KEY } from "../terminal/computer.js";
 import { getTerminals } from "../terminal/link.js";
 import { openPanelTerminal } from "./shellCommands.js";
@@ -123,10 +124,7 @@ export function RightPanel({
   const ports = useWorkspacePorts(workspaceId);
   const previewSessions = useMemo(() => previewTabSnapshots(browserTabs, ports), [browserTabs, ports]);
   const pruneBrowserTabs = useBrowserTabs(s => s.prune);
-  const openBrowserTabIds = useMemo(
-    () => state.surfaces.flatMap(surface => (surface.kind === "preview" && surface.resourceId !== null ? [surface.resourceId] : [])),
-    [state.surfaces],
-  );
+  const openBrowserTabIds = useRightPanelStore(useShallow(s => selectPanelBrowserTabIds(s.byWorkspaceId, workspaceId)));
   useEffect(() => {
     pruneBrowserTabs(workspaceId, openBrowserTabIds);
   }, [pruneBrowserTabs, workspaceId, openBrowserTabIds]);

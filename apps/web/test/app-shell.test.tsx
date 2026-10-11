@@ -313,6 +313,41 @@ describe("app shell", () => {
     expect(tab?.textContent).toContain("Changes");
     expect(useRightPanelStore.getState().byWorkspaceId["ws_a"]?.activeSurfaceId).toBe("diff");
   });
+
+  it("the pane is the thread's: a browser tab and Agents opened in one thread are not in the next one's, and are back in front as left", async () => {
+    await mountShell();
+    const tabs = () => Array.from(document.querySelectorAll<HTMLElement>("[data-active-tab]")).map(t => [t.textContent, t.dataset["activeTab"]]);
+    const showThread = async (threadId: string) => {
+      act(() => useStore.setState({ selectedThreadId: threadId }));
+      await settle();
+    };
+    await showThread("th_a");
+    expect(tabbar()).toBeNull();
+    act(() => {
+      useRightPanelStore.getState().openNewBrowser("ws_a");
+      useRightPanelStore.getState().open("ws_a", "agents");
+    });
+    await settle();
+    expect(tabs()).toEqual([["Browser", "false"], ["Agents", "true"]]);
+    await showThread("th_b");
+    expect(tabbar()).toBeNull();
+    act(() => useRightPanelStore.getState().open("ws_a", "processes"));
+    await settle();
+    expect(tabs()).toEqual([["Processes", "true"]]);
+    await showThread("th_a");
+    expect(tabs()).toEqual([["Browser", "false"], ["Agents", "true"]]);
+  });
+
+  it("New thread opens with the pane shut, whatever the thread before it had open", async () => {
+    await mountShell();
+    act(() => useStore.setState({ selectedThreadId: "th_a" }));
+    act(() => useRightPanelStore.getState().open("ws_a", "agents"));
+    await settle();
+    expect(tabbar()).not.toBeNull();
+    act(() => useStore.setState({ selectedThreadId: null, freshThread: true }));
+    await settle();
+    expect(tabbar()).toBeNull();
+  });
 });
 
 type Frame = Record<string, unknown>;
@@ -625,7 +660,6 @@ describe("a subagent's page over its lead's panels", () => {
     const { ops, terms } = terminalLink();
     // The lead's panel holds a shell of its own, opened on the workspace's link.
     const tab = await terms.open();
-    useRightPanelStore.getState().openTerminal("ws_a", tab.ptyId);
     useStore.getState().bind({ ...fakeApi([view("ws_a", "api")]), listSessions: async () => [lead] } as never);
     render(
       <AppShell>
@@ -634,6 +668,7 @@ describe("a subagent's page over its lead's panels", () => {
     );
     await waitFor(() => expect(useStore.getState().selectedId).toBe("ws_a"));
     act(() => useStore.getState().select("ws_a", LEAD));
+    act(() => useRightPanelStore.getState().openTerminal("ws_a", tab.ptyId));
     const terminal = await waitFor(
       () => {
         const found = document.querySelector<HTMLElement>('[data-terminal-owner="right-panel"]');
