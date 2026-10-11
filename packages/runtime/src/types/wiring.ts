@@ -346,6 +346,9 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
   /** What the host keeps of the workspace's pull request: enough that a merged one reads merged after a restart and is
    * never read again, and nothing more of it is written under the host's folder. */
   pr?: PullRequestRecord;
+  /** A project folder's branch and the threads whose turns ended on it since the folder went to it: the threads its
+   * pull request settles, since the folder's other threads did their work on other branches. */
+  branchThreads?: { branch: string; threads: string[] };
   /** The checkout git last gave, so a machine nothing can ask after a restart still shows its branch and counts. */
   checkout?: Checkout;
   /** What a child keeps of the tree it is in: its merge into its lead, the files a merge stopped on, and why its last
@@ -355,6 +358,8 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
   from?: WorkspaceFrom;
   /** A review workspace's review as the person shapes it before Post. */
   review?: ReviewDraft;
+  /** The thread the latest review opened: its replies alone are read as the draft, never another thread's in the copy. */
+  reviewThread?: string;
   /** The items of its pull request's page sent to its agent, with when. */
   prSent?: PullRequestSent[];
   /** Folders an import landed on the machine beside the project, which its daemon may browse: kept here so every

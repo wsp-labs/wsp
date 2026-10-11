@@ -146,7 +146,7 @@ describe("chat tab rendering", () => {
   });
 
   it("draws what a turn changed under its reply, and opens the Changes pane on that turn", async () => {
-    useDiffStore.setState({ turnByWorkspaceId: {} });
+    useDiffStore.setState({ turnByThread: {} });
     useRightPanelStore.setState({ byWorkspaceId: {} });
     const { api, emit } = fixtureApi([workspace]);
     await setup(api);
@@ -166,12 +166,12 @@ describe("chat tab rendering", () => {
     const counts = document.querySelector<HTMLElement>('[aria-label="14 additions, 3 deletions"]')!;
     expect([...counts.children].map(c => c.className.includes("text-success") || c.className.includes("text-error-foreground"))).toEqual([true, true]);
     fireEvent.click(open);
-    expect(useDiffStore.getState().turnByWorkspaceId[WS]).toEqual({ turnId: CHAT_TURN, cwd: expect.any(String), from, to, path: "server.js" });
+    expect(Object.values(useDiffStore.getState().turnByThread)).toEqual([{ threadId: expect.any(String), turnId: CHAT_TURN, cwd: expect.any(String), from, to, path: "server.js" }]);
     const panel = useRightPanelStore.getState().byWorkspaceId[WS];
     expect([panel?.isOpen, panel?.activeSurfaceId]).toEqual([true, "diff"]);
     // A reload keeps the pane on that turn's own range, never the branch's whole diff against its base.
-    const kept = JSON.parse(window.localStorage.getItem(useDiffStore.persist.getOptions().name!) ?? "null") as { state: { turnByWorkspaceId?: Record<string, unknown> } } | null;
-    expect(kept?.state.turnByWorkspaceId?.[WS]).toMatchObject({ turnId: CHAT_TURN, from, to });
+    const kept = JSON.parse(window.localStorage.getItem(useDiffStore.persist.getOptions().name!) ?? "null") as { state: { turnByThread?: Record<string, unknown> } } | null;
+    expect(Object.values(kept?.state.turnByThread ?? {})[0]).toMatchObject({ turnId: CHAT_TURN, from, to });
   });
 
   it("draws the card as the turn's files alone, and none for a turn that only moved the branch", async () => {

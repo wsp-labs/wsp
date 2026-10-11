@@ -92,6 +92,17 @@ function fakeApi(workspaces: WorkspaceView[], statuses: WorkspaceStatus[], sessi
         push({ type: "session.row", workspaceId: row.workspaceId, threadId, id: row.id });
       }
     }),
+    // The runtime takes a folder's thread alone and tells every window each of its rows is gone, as the real one does.
+    deleteThread: vi.fn(async (threadId: string) => {
+      const workspaceId = sessions.find(row => row.threadId === threadId)!.workspaceId;
+      for (let i = sessions.length - 1; i >= 0; i--) {
+        const row = sessions[i]!;
+        if (row.threadId !== threadId) continue;
+        sessions.splice(i, 1);
+        push({ type: "session.row", workspaceId: row.workspaceId, threadId, id: row.id });
+      }
+      return { workspaceId, threads: 1 };
+    }),
     rebuild: async id => ({ ...view(id, "?", "running"), machineId: "m_rebuilt" }),
     interruptSession: vi.fn(async () => ({ outcome: "accepted" as const })),
     // The runtime keeps the name on the row and pushes the row to every window, as the real one does.
@@ -391,6 +402,33 @@ describe("a project's menu", () => {
     await waitFor(() => expect(useTerminalDrawerStore.getState().byWorkspaceId["ws_f"]?.terminalOpen).toBe(true));
     expect(projectFolder).toHaveBeenCalledWith("pr_1");
     expect(useStore.getState().selectedId).toBe("ws_f");
+  });
+});
+
+describe("a thread's tile in a project folder two threads share", () => {
+  const FOLDER: WorkspaceView = { ...view("ws_f", "proj"), kind: "local" };
+  const A: SessionView = { id: "sa", workspaceId: "ws_f", harness: "claude", status: "completed", prompt: "thread A", threadId: "thr_a", startedAt: Date.now() - 60_000, endedAt: Date.now() - 50_000 };
+  const B: SessionView = { id: "sb", workspaceId: "ws_f", harness: "claude", status: "completed", prompt: "thread B", threadId: "thr_b", startedAt: Date.now() - 40_000, endedAt: Date.now() - 30_000 };
+
+  it("offers Delete thread, which takes that thread alone, and none of the folder record's Delete task, Rename task or Forget task", async () => {
+    const api = fakeApi([FOLDER], [statusOf(FOLDER)], [{ ...A }, { ...B }]);
+    await mountSidebar(api, "thread A");
+    rightClick(rowOf("thread A"));
+    await screen.findByRole("menu");
+    expect(labels()).toContain(THREAD_WORDS.delete);
+    expect(labels()).not.toContain(WORKSPACE_WORDS.delete);
+    expect(labels()).not.toContain(WORKSPACE_WORDS.rename);
+    expect(labels()).not.toContain(WORKSPACE_WORDS.forget);
+    expect(labels()).not.toContain(THREAD_WORDS.forget);
+    fireEvent.click(item(THREAD_WORDS.delete));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Delete thread A?");
+    expect(dialog.textContent).toContain("the folder it worked in is left as it is");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(api.deleteThread).toHaveBeenCalledWith("thr_a"));
+    await waitFor(() => expect(screen.queryByText("thread A")).toBeNull());
+    expect(screen.getByText("thread B")).toBeDefined();
+    expect(api.deleteWorkspace).not.toHaveBeenCalled();
   });
 });
 
