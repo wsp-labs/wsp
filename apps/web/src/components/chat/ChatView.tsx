@@ -27,11 +27,12 @@ import { childNodesOf, TreeRows } from "../../tree/TreeRows.js";
 import { Facts } from "../Facts.js";
 import { useMachineLine } from "../../notices/workspaceLines.js";
 import { openNamedFile } from "../../files/open";
-import { threadFolderOf } from "../../files/root";
+import { carryNewThreadRoot, threadFolderOf } from "../../files/root";
 import { cn } from "../../lib/utils";
 import { DEFAULT_TIMESTAMP_FORMAT, launchIn, subagentEntries, subagentRunOf, turnWait, type MessageId, type TimestampFormat, type TurnDiffSummary, type TurnSummary } from "./adapt";
 import { changedPathOf, onlyOf, useDiffStore } from "../../diffs/store";
 import { carryNewThreadPanel, openBrowserAt, useRightPanelStore } from "../../rightPanelStore";
+import { carryNewThreadDrawer } from "../../terminal/drawerStore";
 import { useReadStamp } from "./useReadStamp";
 import { threadsOpenedBy } from "../../sidebar/threadTree";
 import { computerName, useComputerName } from "../../sidebar/workspaceRows";
@@ -248,6 +249,8 @@ export function ChatView({
   useEffect(() => {
     if (!hydrated || asked || threadId !== null || threadKey === workspaceId) return;
     carryNewThreadPanel(workspaceId, threadKey);
+    carryNewThreadDrawer(workspaceId, threadKey);
+    carryNewThreadRoot(workspaceId, threadKey);
     readingThread(workspaceId, threadKey);
   }, [asked, hydrated, readingThread, threadId, threadKey, workspaceId]);
 

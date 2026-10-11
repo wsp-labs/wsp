@@ -88,7 +88,8 @@ export function foldersArea(ctx: RuntimeContext): FoldersArea {
       }
       return entry;
     });
-  /** What a new worktree ran, kept for the first turn that starts there to open with. */
+  /** What a new worktree ran, kept for the start that names it first, whose thread opens with it; one short line per
+   * worktree made and not yet named by a start, dropped when it is taken or the worktree is removed. */
   const setupLines = new Map<string, string>();
   const takeSetupLine = (workspaceId: string): string | undefined => {
     const said = setupLines.get(workspaceId);
@@ -150,7 +151,12 @@ export function foldersArea(ctx: RuntimeContext): FoldersArea {
    * named one. Nothing named runs in the project folder, or beside the thread asking; a branch runs in the worktree
    * holding it, the project folder when it is that folder's own branch; a cwd runs where it is, inside the project
    * folder or a worktree of its repo and nowhere else. */
-  const folderFor = async (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked }, origin: Caller | undefined): Promise<{ entry: LiveWorkspace; cwd?: string }> => {
+  const folderFor = async (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked; opens?: true }, origin: Caller | undefined): Promise<{ entry: LiveWorkspace; cwd?: string; setup?: string }> => {
+    const at = await placeFor(o, origin);
+    const setup = o.opens === true ? takeSetupLine(at.entry.record.id) : undefined;
+    return setup === undefined ? at : { ...at, setup };
+  };
+  const placeFor = async (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked }, origin: Caller | undefined): Promise<{ entry: LiveWorkspace; cwd?: string }> => {
     const scope = scopeOf(origin);
     const asking = scope === undefined ? undefined : live.get(scope.workspaceId);
     // A thread on a machine wsp forked has no folder to run beside: it names the workspace it means.
@@ -221,6 +227,7 @@ export function foldersArea(ctx: RuntimeContext): FoldersArea {
       if (existsSync(tree.path)) {
         await copier.worktreeRemove({ from: top, home: ctx.stateFolder(), path: tree.path, force });
       }
+      setupLines.delete(entry.record.id);
       if (o.ending !== true) await worktreeGone(entry, "removed");
     });
   /** Refuses over files no commit holds in a folder, naming how many: they would go with a removal. */
