@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CATALOG_AGENTS, MCP_AGENT_IDS, THREAD_AGENTS } from "@wsp/catalog";
 import { ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, COORDINATOR_HANDOFF, LOGIN_CHOICES, NOTIFY_CALLER, SessionStartOutcome, SLATE_BRIEF, backgroundTasksLine, notifyLine, stillRunningLine, stillWorkingLine } from "@wsp/protocol";
 import { slateCatalog } from "@wsp/protocol/slate";
-import { instructions, INSTRUCTIONS_KEPT, SLATE_WORDS, THREAD_SLATE_WORDS, RULES_HEADING, SETUP_HEADING, SHELL_HEADING, SKILL_NAME, VERBS_HEADING, wspSkill, agentsLine, instructionsOf, skillFor } from "../src/skill.js";
+import { BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, instructions, INSTRUCTIONS_KEPT, SLATE_WORDS, THREAD_SLATE_WORDS, RULES_HEADING, SETUP_HEADING, SHELL_HEADING, SKILL_NAME, VERBS_HEADING, wspSkill, agentsLine, instructionsOf, skillFor } from "../src/skill.js";
 import { CLOUD_ON } from "../src/cloud.js";
 import { ALL_VERBS, hasTool, CLI_VERBS, VERBS, toolName } from "../src/verbs.js";
 import { SERVICE_MANAGERS } from "../src/service.js";
@@ -25,7 +25,19 @@ describe("the wsp skill", () => {
     const lacking = [...publicSkill.matchAll(/`([^`\n]+)`/g)].map(m => m[1]!.replace(/^wsp /, "")).filter(span => named(span)?.cloudOnly === true);
     expect(lacking).toEqual([]);
     expect(named("pause")?.cloudOnly).toBe(true);
-    expect(named("image build")?.cloudOnly).toBe(true);
+    expect(named("image build")?.cloudOnly).toBe(false);
+  });
+
+  it("carries, as a public build inlines it, Boat's spans and no word of Solari's, and keeps both with the cloud on", () => {
+    const skill = readFileSync(new URL("../../../skills/wsp/SKILL.md", import.meta.url), "utf8");
+    // What the skill-text plugin inlines where PUBLIC_BUILD=1.
+    const publicSkill = skillFor(skill, false);
+    expect(publicSkill).not.toMatch(/solari|slr_live_/i);
+    expect(skillFor(skill, true)).toContain("SOLARI_API_KEY");
+    const spans = [...skill.matchAll(/<!-- boat -->(.*?)<!-- \/boat -->/g)].map(m => m[1]!);
+    const lines = skill.split("\n").filter(line => line.endsWith(` ${BOAT_MARK}`)).map(line => line.slice(0, -BOAT_MARK.length - 1));
+    for (const text of [...spans, ...lines]) expect(publicSkill, text).toContain(text);
+    expect(skillFor(`# t\nsub-threads ${BOAT_MARK}\nrun ${BOAT_MARK}--on boat ${BOAT_SPAN_END}here\nSolari ${CLOUD_MARK}\n`, false)).toBe("# t\nsub-threads\nrun --on boat here\n");
   });
 
   it("is the repo's skills/wsp/SKILL.md as this process reads it, with the frontmatter name and a one-line description without a colon or a quote", () => {
