@@ -1,0 +1,1 @@
+Process rows carry the power a Mac's process drew in milliwatts, the thread that owns them and what they are, and each process frame says what its tick cost the daemon in cpu, the ps it ran included, and held rows; a process watch narrowed to a cgroup reads every cgroup under it.

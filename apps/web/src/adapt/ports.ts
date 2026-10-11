@@ -13,11 +13,13 @@ export interface KnownPort {
   readonly port: number;
   readonly pid: number | null;
   readonly process: string | null;
+  /** Only this computer can reach it; absent where the daemon did not say. */
+  readonly loopback?: boolean;
 }
 
 /** ports.watch's reply payload. */
 export interface PortsSnapshot {
-  readonly ports: ReadonlyArray<{ readonly port: number; readonly pid?: number | null; readonly process?: string | null }>;
+  readonly ports: ReadonlyArray<{ readonly port: number; readonly pid?: number | null; readonly process?: string | null; readonly loopback?: boolean }>;
 }
 
 type PortEvent =
@@ -26,7 +28,7 @@ type PortEvent =
 
 export function applyPortsSnapshot(snapshot: PortsSnapshot): KnownPort[] {
   const byPort = new Map<number, KnownPort>();
-  for (const p of snapshot.ports) if (!byPort.has(p.port)) byPort.set(p.port, { port: p.port, pid: p.pid ?? null, process: p.process ?? null });
+  for (const p of snapshot.ports) if (!byPort.has(p.port)) byPort.set(p.port, { port: p.port, pid: p.pid ?? null, process: p.process ?? null, ...(p.loopback === undefined ? {} : { loopback: p.loopback }) });
   return [...byPort.values()].sort((a, b) => a.port - b.port);
 }
 
@@ -35,7 +37,7 @@ export function applyPortEvent(ports: ReadonlyArray<KnownPort>, event: PortEvent
   switch (event.type) {
     case "port.open":
       if (ports.some(p => p.port === event.port)) return [...ports];
-      return [...ports, { port: event.port, pid: event.pid ?? null, process: event.process ?? null }].sort((a, b) => a.port - b.port);
+      return [...ports, { port: event.port, pid: event.pid ?? null, process: event.process ?? null, ...("loopback" in event && typeof event.loopback === "boolean" ? { loopback: event.loopback } : {}) }].sort((a, b) => a.port - b.port);
     case "port.close":
       return ports.filter(p => p.port !== event.port);
     default: {

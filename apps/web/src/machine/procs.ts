@@ -23,7 +23,10 @@ export class WorkspaceProcs {
   readonly #workspaceId: string;
   #state: ProcsState = { snapshot: null, reach: "unreachable", unavailable: null };
   #fns = new Set<() => void>();
-  #watchers = 0;
+  /** Each holder's ask: the cgroups it reads, or null for every process. */
+  #holders = new Map<symbol, readonly string[] | null>();
+  /** The ask last sent, as its key, so a holder that names the same set again sends nothing. */
+  #asked: string | null = null;
   /** A whole snapshot has been asked for after a lost frame and has not come yet. */
   #resyncing = false;
 
@@ -41,7 +44,7 @@ export class WorkspaceProcs {
     }
     const next = this.#state.snapshot === null ? undefined : applyProcChanges(this.#state.snapshot, frame);
     if (next !== undefined) this.#set({ ...this.#state, snapshot: next });
-    else if (!this.#resyncing && this.#watchers > 0) {
+    else if (!this.#resyncing && this.#holders.size > 0) {
       this.#resyncing = true;
       this.#request("proc.watch");
     }
@@ -49,21 +52,55 @@ export class WorkspaceProcs {
 
   feedStatus(s: DaemonLinkStatus): void {
     const reach = s === "live" ? "live" : "unreachable";
-    if (reach === "live" && this.#watchers > 0) this.#request("proc.watch");
+    if (reach === "live" && this.#holders.size > 0) this.#request("proc.watch");
     if (reach !== this.#state.reach) this.#set({ ...this.#state, reach });
   }
 
-  /** The pane's hold on the stream; the first holder starts it, the last leaving ends it. */
-  watch(): () => void {
-    this.#watchers++;
-    if (this.#watchers === 1 && this.#state.reach === "live") this.#request("proc.watch");
+  /** A surface's hold on the stream, reading every process or only those in the cgroups it names; the first holder
+   * starts it, a holder that changes what it reads asks again, and the last leaving ends it. */
+  hold(cgroups: readonly string[] | null = null): { set(cgroups: readonly string[] | null): void; release(): void } {
+    const me = Symbol("hold");
+    this.#holders.set(me, cgroups);
+    this.#reask();
     let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      this.#watchers--;
-      if (this.#watchers === 0 && this.#state.reach === "live") this.#request("proc.unwatch");
+    return {
+      set: next => {
+        if (released) return;
+        this.#holders.set(me, next);
+        this.#reask();
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        this.#holders.delete(me);
+        if (this.#holders.size === 0) {
+          this.#asked = null;
+          if (this.#state.reach === "live") this.#request("proc.unwatch");
+        } else this.#reask();
+      },
     };
+  }
+
+  /** A hold on every process, released by the function it returns. */
+  watch(): () => void {
+    const held = this.hold();
+    return held.release;
+  }
+
+  /** What every holder reads together: every process once any holder asks for it, else the cgroups they name. */
+  #scope(): readonly string[] | null {
+    const all = new Set<string>();
+    for (const cgroups of this.#holders.values()) {
+      if (cgroups === null) return null;
+      for (const cg of cgroups) all.add(cg);
+    }
+    return [...all].sort();
+  }
+
+  #reask(): void {
+    const key = JSON.stringify(this.#scope());
+    if (key === this.#asked) return;
+    if (this.#state.reach === "live") this.#request("proc.watch");
   }
 
   async inspect(pid: number): Promise<ProcInspectReply> {
@@ -95,7 +132,9 @@ export class WorkspaceProcs {
       wire.request(op).catch(() => {});
       return;
     }
-    wire.request(op).then(
+    const scope = this.#scope();
+    this.#asked = JSON.stringify(scope);
+    wire.request(op, scope === null ? {} : { cgroups: [...scope] }).then(
       () => this.#setUnavailable(null),
       (e: unknown) => {
         // A refused re-watch brings no whole snapshot, so the next gap asks again.

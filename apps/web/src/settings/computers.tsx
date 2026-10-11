@@ -35,7 +35,8 @@ import { ComputerSignIns } from "./ComputerSignIns.js";
 import { readRecipes, useRecipes } from "./recipesStore.js";
 import { ComputerGlyph, useComputerIcon } from "./ComputerGlyph.js";
 import { BehindRow, LimitsCard, NameCard, SpawnCard } from "./computerSettings.js";
-import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, WHERE_WORDS, capitalised } from "./format.js";
+import { ACTIVITY_WORDS, ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, WHERE_WORDS, capitalised } from "./format.js";
+import { activityComputers } from "./activity/page.js";
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
 import { copyOn } from "./image.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
@@ -532,6 +533,26 @@ function AgentsLink({ place, ctx }: { place: PlaceView; ctx: SettingsContext }) 
   );
 }
 
+/** Activity scoped to this computer: what its threads run, their memory and CPU. Its line reads only what the page
+ * already holds, since nothing samples the computer while Activity is closed. */
+function ActivityLink({ place, ctx }: { place: PlaceView; ctx: SettingsContext }) {
+  const running = runningThreadsOn(ctx)[place.id] ?? 0;
+  return (
+    <Card id="computer-activity">
+      <Row
+        id="activity-on"
+        title={ACTIVITY_WORDS.computerRow}
+        description={ACTIVITY_WORDS.computerLine(running)}
+        open={() => {
+          useSettingsStore.getState().pickActivityPlace(place.id);
+          ctx.go({ kind: "group", group: "activity" });
+        }}
+        attrs={{ "data-k": "activity-on" }}
+      />
+    </Card>
+  );
+}
+
 /** One computer's or cloud's own page. A cloud keeps no computer to read: its agents are the image's, and every word
  * about the image stands under the rule the cloud's key does, since a cloud row drawn for a workspace alone is a
  * machine somebody else's key made. A computer's image is a cloud's too, so it stands only where a cloud is offered. */
@@ -565,6 +586,7 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
         </section>
       )}
       {cloud || here ? null : <ComputerSignIns place={place} now={ctx.now} />}
+      {activityComputers(ctx.places, ctx.workspaces).some(c => c.place.id === place.id) ? <ActivityLink place={place} ctx={ctx} /> : null}
       <LimitsCard place={place} />
       {cloud ? null : <SpawnCard place={place} />}
       {cloud ? image === null ? null : <ReportLists report={imageAgentsReport(image, place.id)} ctx={{ where: "provider", on: name, editImage: () => openImageRecipe(place.id) }} /> : <AgentsLink place={place} ctx={ctx} />}

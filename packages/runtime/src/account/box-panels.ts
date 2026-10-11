@@ -5,9 +5,10 @@
 // the host's own sign-in watch among them: so the ports a folder's threads hold
 // are a watch of its own named for the folder's record, its threads' cgroups in
 // its scope, the readings and the processes are one watch per link that every
-// pane there shares, and a terminal opens in the folder as the login the
-// computer was added with, under the environment its turns get.
-import { DAEMON_VERSION, placeBehindLine, placeDaemonBehind, threadCgroup } from "@wsp/protocol";
+// pane there shares, reading what the panes asked between them, and a terminal
+// opens in the folder as the login the computer was added with, under the
+// environment its turns get.
+import { DAEMON_VERSION, inCgroup, placeBehindLine, placeDaemonBehind, threadCgroup } from "@wsp/protocol";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
 
@@ -16,6 +17,19 @@ type Served = (frame: Frame) => Promise<Frame>;
 
 /** The most cgroups one watch names, the daemon's own cap: a folder with more threads names its newest. */
 const WATCH_CGROUPS_MAX = 16;
+
+/** What every pane on one link asked its process watch to read, as one watch: every process once any pane asks for them
+ * all, else each cgroup a pane named, a cgroup under another one named taking nothing more, and the whole table past the
+ * daemon's cap. */
+export function procWatchScope(asks: Iterable<readonly string[] | null>): string[] | null {
+  const named = new Set<string>();
+  for (const ask of asks) {
+    if (ask === null) return null;
+    for (const cg of ask) named.add(cg);
+  }
+  const kept = [...named].filter(cg => ![...named].some(other => other !== cg && inCgroup(cg, other))).sort();
+  return kept.length > WATCH_CGROUPS_MAX ? null : kept;
+}
 
 /** What a pane's channel into a folder there answers itself rather than passing up as it came. */
 const PANEL_OPS: ReadonlySet<string> = new Set(["ports.watch", "sys.watch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "pty.create"]);
@@ -40,7 +54,8 @@ export function namedWatchRefusal(name: string, daemonVersion: number | undefine
  * stands. `watchers` is the push each channel registers under its workspace to name its ports again when a thread
  * there starts. */
 export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<() => void>>): (entry: LiveWorkspace, placeId: string, served: Served, folder: string) => BoxPanels {
-  const procWatchers = new WeakMap<object, number>();
+  /** Each link's watching panes and what each asked its process watch to read. */
+  const procAsks = new WeakMap<object, Map<object, readonly string[] | null>>();
   const readingsAsked = new WeakSet<object>();
 
   /** The cgroups of the folder's threads, newest first, as the daemon's cap allows. */
@@ -61,6 +76,13 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
      * nothing of its count onto the one that replaced it. */
     const link = door.link(placeId);
     let watchingProcs = false;
+    const pane = {};
+    const asksOn = (at: object): Map<object, readonly string[] | null> => procAsks.get(at) ?? procAsks.set(at, new Map()).get(at)!;
+    /** The one watch the daemon holds for every pane on the link, asked again with what they now read between them. */
+    const watchOnLink = (): Promise<Frame> => {
+      const scope = link === undefined ? null : procWatchScope(asksOn(link).values());
+      return served({ op: "proc.watch", ...(scope === null ? {} : { cgroups: scope }) });
+    };
     let hearingReadings = false;
     let closed = false;
     /** The roots and cgroups this pane's ports watch last named, undefined until it watches. */
@@ -86,9 +108,12 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
       if (!watchingProcs) return;
       watchingProcs = false;
       if (link === undefined) return;
-      const left = (procWatchers.get(link) ?? 1) - 1;
-      procWatchers.set(link, left);
-      if (left <= 0 && door.link(placeId) === link) void served({ op: "proc.unwatch" }).catch(() => undefined);
+      const asks = asksOn(link);
+      const before = procWatchScope(asks.values());
+      asks.delete(pane);
+      if (door.link(placeId) !== link) return;
+      if (asks.size === 0) void served({ op: "proc.unwatch" }).catch(() => undefined);
+      else if (JSON.stringify(procWatchScope(asks.values())) !== JSON.stringify(before)) void watchOnLink().catch(() => undefined);
     };
 
     const answer = async (frame: Frame): Promise<Frame> => {
@@ -110,12 +135,11 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
           return { ok: true };
         }
         case "proc.watch": {
-          if (!watchingProcs && link !== undefined) {
-            watchingProcs = true;
-            procWatchers.set(link, (procWatchers.get(link) ?? 0) + 1);
-          }
+          const cgroups = Array.isArray(frame["cgroups"]) ? frame["cgroups"].filter((c): c is string => typeof c === "string") : null;
+          watchingProcs = true;
+          if (link !== undefined) asksOn(link).set(pane, cgroups);
           // Asked again on a link already watching, the daemon sends the whole list next, which every pane can take.
-          const said = await served({ op: "proc.watch" });
+          const said = await watchOnLink();
           if (said["ok"] !== true) unwatchProcs();
           return said;
         }

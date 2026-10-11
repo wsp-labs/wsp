@@ -55,5 +55,46 @@
       }
     ],
     "seq": 3
+  },
+  {
+    "type": "proc.snapshot",
+    "at": 1757000000000,
+    "daemon": 42,
+    "total": 2,
+    "procs": [
+      {
+        "pid": 60,
+        "ppid": 1,
+        "user": "root",
+        "state": "S",
+        "comm": "python3",
+        "cmdline": "python3 /tmp/slate/x.py",
+        "cpu": 0,
+        "rss": 4096,
+        "startedAt": 1757000001000,
+        "owner": {
+          "by": "root",
+          "thread": "t_abc",
+          "workspace": "w_1"
+        },
+        "kind": "slate"
+      },
+      {
+        "pid": 61,
+        "ppid": 1,
+        "user": "root",
+        "state": "S",
+        "comm": "node",
+        "cmdline": "node dev.js",
+        "cpu": 0,
+        "rss": 4096,
+        "startedAt": 1757000001000,
+        "owner": {
+          "by": "folder",
+          "workspace": "w_1"
+        }
+      }
+    ],
+    "seq": 4
   }
 ]
