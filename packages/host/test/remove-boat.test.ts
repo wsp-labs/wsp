@@ -3,7 +3,7 @@
 // asked to remove the provider row, and the line says how many machines went;
 // a machine Boat would not delete fails the line with the host's own words.
 import { describe, expect, it } from "vitest";
-import { exitClassOf, providerKeptLine, providerRemovedLine } from "@wsp/protocol";
+import { exitClassOf, providerForgetQuestion, providerForgotLine, providerKeptLine, providerRemoveQuestion, providerRemovedLine } from "@wsp/protocol";
 import { removeCommand } from "../src/places.js";
 import { captured } from "./verbs-fixture.js";
 
@@ -15,6 +15,8 @@ function boatHost(answer: Record<string, unknown>): { dial: Dial; asked: Record<
     Promise.resolve({
       request: (op: string, params?: Record<string, unknown>) => {
         if (op === "places.list") return Promise.resolve({ places: [{ id: "here", kind: "computer", name: "zingzys-mac", default: true }, { id: "box", kind: "provider", name: "box", default: false }] } as never);
+        // Two tasks on Boat and one here: the question counts Boat's alone, as the app's dialog does.
+        if (op === "workspaces.list") return Promise.resolve({ workspaces: [{ id: "w1", kind: "box", provider: "box", machineId: "m1" }, { id: "w2", kind: "box", provider: "box", machineId: "m2" }, { id: "w3", kind: "local", machineId: "" }] } as never);
         if (op === "places.remove") {
           asked.push(params ?? {});
           return Promise.resolve(answer as never);
@@ -36,7 +38,7 @@ const deps = (dial: Dial): Parameters<typeof removeCommand>[4] => ({ dial }) as 
 const opts = { statePath: "/nowhere/state.json", home: "/nowhere", env: {} };
 
 describe("wsp remove boat", () => {
-  for (const word of ["boat", "Boat", "box"]) {
+  for (const word of ["boat", "Boat", "BOAT", "box", "BOX"]) {
     it(`takes "${word}" for Boat and says how many machines went`, async () => {
       const io = captured();
       const host = boatHost({ removed: true, swept: [], deleted: 2 });
@@ -55,5 +57,35 @@ describe("wsp remove boat", () => {
     expect((failed as Error).message).toBe(note);
     expect((failed as Error).message).toContain("bx_rb3j87ys");
     expect(exitClassOf(failed)).toBe("provider");
+  });
+
+  it("asks with the count of Boat's tasks before anything goes", async () => {
+    const io = captured();
+    const asked: string[] = [];
+    Object.assign(io, { isTTY: true, ask: async (q: string) => (asked.push(q), "yes") });
+    const host = boatHost({ removed: true, swept: [], deleted: 2 });
+    expect(await removeCommand(io, opts, ["boat"], {}, deps(host.dial))).toBe(0);
+    expect(asked).toEqual([providerRemoveQuestion("Boat", 2)]);
+    expect(asked[0]).toBe("Remove Boat?\nIts 2 tasks are deleted at Boat, and once Boat reads them gone the key is forgotten.");
+  });
+
+  it("refuses --force on Boat as usage, asking the host nothing", async () => {
+    const host = boatHost({ removed: true, swept: [], deleted: 0 });
+    const failed = await removeCommand(captured(), opts, ["boat"], { yes: true, force: true }, deps(host.dial)).catch((e: unknown) => e);
+    expect(exitClassOf(failed)).toBe("usage");
+    expect((failed as Error).message).toContain("Boat is not a computer");
+    expect(host.asked).toEqual([]);
+  });
+
+  it("forgets Boat with --forget: the host is asked to forget, and the line says machines there may bill", async () => {
+    const io = captured();
+    const asked: string[] = [];
+    Object.assign(io, { isTTY: true, ask: async (q: string) => (asked.push(q), "yes") });
+    const host = boatHost({ removed: true, swept: [] });
+    expect(await removeCommand(io, opts, ["boat"], { forget: true }, deps(host.dial))).toBe(0);
+    expect(host.asked).toEqual([{ placeId: "box", forget: true }]);
+    expect(asked).toEqual([providerForgetQuestion("Boat", 2)]);
+    expect(io.lines).toEqual([providerForgotLine("Boat", 2)]);
+    expect(io.lines[0]).toBe("Boat forgotten: the key and 2 tasks' records left this host. Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.");
   });
 });

@@ -670,6 +670,13 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           await ctx.ready();
           return [...live.values()].filter(e => e.record.machineId !== "" && ctx.placeIdOf(e.record) === placeId).map(e => e.record.machineId);
         },
+        forgetRecordsOn: async placeId => {
+          await ctx.ready();
+          for (const entry of [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId)) {
+            ctx.endSessions(entry.record.id, DELETED_REASON);
+            await ctx.drop(entry.record.id);
+          }
+        },
         signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
         storesOn: (placeId, home) => ctx.placeStores(placeId, home),
         loginHere: agent => loginHere(ctx.homesHere, agent),

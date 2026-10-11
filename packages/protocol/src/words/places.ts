@@ -388,19 +388,54 @@ export const PLACES_WORDS = {
   },
 } as const;
 
-/** The one question before a provider is removed at a terminal. */
-export const providerRemoveQuestion = (name: string): string => `Remove ${name}?\nEvery machine wsp made there is deleted, and once ${name} reads them gone the key is forgotten.`;
+const tasksWord = (tasks: number): string => (tasks === 1 ? "its task" : `its ${tasks} tasks`);
+
+/** The one question before a provider is removed at a terminal, naming what goes as the app's dialog does. */
+export const providerRemoveQuestion = (name: string, tasks: number): string =>
+  `Remove ${name}?\n${tasks === 0 ? "Every machine wsp made there is deleted" : `${tasks === 1 ? "Its task is" : `Its ${tasks} tasks are`} deleted at ${name}`}, and once ${name} reads them gone the key is forgotten.`;
 
 /** What removing a provider answers once every machine this host made there is gone, and its key with them. */
 export const providerRemovedLine = (name: string, deleted: number): string => `${name} removed: ${plural(deleted, "machine")} deleted, the key forgotten.`;
 
-/** What it answers when the provider would not delete some: each named with what it said, and the key kept, since
- * a machine left there bills and only that key reaches it. */
+const forgetBills = (name: string, touched: string): string => `Nothing at ${name} ${touched} touched, so machines wsp made there may bill until ${name}'s own timer ends them.`;
+
+/** The question before a provider is only forgotten: its key and records leave, and nothing there is asked. */
+export const providerForgetQuestion = (name: string, tasks: number): string => `Forget ${name}?\nThe key${tasks === 0 ? "" : ` and ${tasksWord(tasks)}' records`} leave this host. ${forgetBills(name, "is")}`;
+
+/** What forgetting a provider answers. */
+export const providerForgotLine = (name: string, tasks: number): string => `${name} forgotten: the key${tasks === 0 ? "" : ` and ${plural(tasks, "task")}' records`} left this host. ${forgetBills(name, "was")}`;
+
+/** Why one machine a provider's remove reached is not gone yet, as the kept line names it. */
+export const PROVIDER_LEFT_WORDS = {
+  running: (state: string): string => `still ${state} after three asks`,
+  unread: (said: string): string => `could not be read: ${said}`,
+  late: "made while the remove ran",
+} as const;
+
+/** How many machines the kept line names before it counts the rest. */
+export const PROVIDER_LEFT_NAMED = 5;
+
+/** What it answers when some machines are not gone: the first few named with why, the rest counted, and the key
+ * kept, since a machine left there bills and only that key reaches it. */
 export function providerKeptLine(name: string, deleted: number, left: readonly { id: string; said: string }[]): string {
-  const named = left.map(l => `${l.id} (${l.said})`).join(", ");
+  const named = left.slice(0, PROVIDER_LEFT_NAMED).map(l => `${l.id} (${l.said})`).join(", ");
+  const more = left.length > PROVIDER_LEFT_NAMED ? ` and ${left.length - PROVIDER_LEFT_NAMED} more` : "";
   const others = deleted === 0 ? "" : `; ${deleted} ${deleted === 1 ? "other machine was" : "other machines were"} deleted`;
-  return `${name} would not delete ${named}, so the key is kept until ${left.length === 1 ? "it goes" : "they go"}${others}. Remove ${name} again to ask once more.`;
+  const one = left.length === 1;
+  return `${plural(left.length, "machine")} wsp made at ${name} ${one ? "is" : "are"} not gone: ${named}${more}. The key is kept until ${one ? "it goes" : "they go"}${others}. Remove ${name} again to ask once more.`;
 }
+
+/** --force on a provider's remove: it takes work no remote has off a computer, and a provider is no computer. */
+export const providerForceRefusal = (name: string, typed: string): { said: string; fix: string } => ({
+  said: `${name} is not a computer, so --force, which removes one over work no remote has, means nothing there.`,
+  fix: `Run ${typed} without it, or with --forget to drop the key and touch nothing at ${name}.`,
+});
+
+/** A provider that refused the key a remove reads its machines with: nothing there can be seen or deleted. */
+export const providerKeyRefused = (name: string, said: string): { said: string; fix: string } => ({
+  said: `${name} refused the key (${said}), so wsp cannot see or delete the machines it made there; the key is kept.`,
+  fix: `Save a working key and remove ${name} again, or remove it with --forget.`,
+});
 
 /** Every line a computer you own can join this host by: one per address it answers on, and the relay's address
  * last, with the note that it only answers while the host is linked. The one list wsp add prints and the app draws. */
