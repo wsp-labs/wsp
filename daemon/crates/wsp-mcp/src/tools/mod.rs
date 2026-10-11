@@ -144,6 +144,7 @@ pub const TOOLS: &[Tool] = &[
     slate::WRITE,
     slate::STATE,
     slate::READ,
+    slate::LOOK,
 ];
 
 /// The tool of that name the state lists, with its entry there; none where that state lists no such tool, which the
@@ -190,17 +191,19 @@ pub struct Answer {
     pub text: String,
     pub structured: String,
     pub error: bool,
+    /// A picture ahead of the text, as its media type and its bytes in base64.
+    pub image: Option<(String, String)>,
 }
 
 impl Answer {
     /// The text is the value as `jsonLine(value, 2)` writes it: asJson in packages/host/src/verbs.ts.
     pub fn json<T: Serialize>(value: &T) -> Answer {
-        Answer { text: js_line(value, true), structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false }
+        Answer { text: js_line(value, true), structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false, image: None }
     }
 
     /// The text is a line of its own and the value rides beside it: asText in packages/host/src/verbs.ts.
     pub fn text<T: Serialize>(text: String, value: &T) -> Answer {
-        Answer { text, structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false }
+        Answer { text, structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false, image: None }
     }
 
     /// The same, marked an error: a call that did nothing yet, or half of what it was asked, and says which.

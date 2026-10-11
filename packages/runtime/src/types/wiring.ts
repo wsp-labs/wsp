@@ -677,6 +677,9 @@ export interface RuntimeOptions {
   /** How the agents, skills and MCP servers are read off a computer or a workspace; the host wires the catalog's
    * readers. Absent, every agents.read is refused. */
   agentsReader?: AgentsReader;
+  /** Draws a slate through the app's renderer on this computer, for slate look; absent where the host runs without
+   * the app, and a look is refused. */
+  drawSlate?: import("../slates.js").DrawSlate;
   /** How the host signs agents in on a target, keeps their keys and writes the wsp tools into their configs; the host
    * wires the catalog's roads. Absent, every one of those acts is refused. */
   agentsActs?: AgentsActs;

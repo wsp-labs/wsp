@@ -33,7 +33,12 @@ pub const STATE: Tool = Tool {
     call: |host, args| Box::pin(state(host, args)),
 };
 /// The slate's tools by name, which a server for a thread with no slate leaves off.
-pub const NAMES: [&str; 4] = [CATALOG.name, WRITE.name, STATE.name, READ.name];
+pub const NAMES: [&str; 5] = [CATALOG.name, WRITE.name, STATE.name, READ.name, LOOK.name];
+pub const LOOK: Tool = Tool {
+    name: "slate_look",
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/slate_look.json")),
+    call: |host, args| Box::pin(look(host, args)),
+};
 
 pub const READ: Tool = Tool {
     name: "slate_read",
@@ -97,6 +102,13 @@ pub struct ReadIn {
     pub sketch: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub document: Option<bool>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct LookIn {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread: Option<String>,
 }
 
 /// The host's answer less its frame's own id and ok, every field in the bytes and the order the host wrote it, as
@@ -221,6 +233,18 @@ async fn read(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     answered(&client, "slates.read", asked).await
 }
 
+/// The picture goes out as an image ahead of the sketch, and the rest of the answer, less its bytes, as the value.
+async fn look(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    let LookIn { thread } = input("slate_look", arguments)?;
+    let client = host.client().await?;
+    let asked = target(&host, &client, thread).await?;
+    let answer = client.request::<Answered>("slates.look", asked).await?;
+    let field = |name: &str| answer.0.iter().find(|(k, _)| k == name).and_then(|(_, v)| serde_json::from_str::<String>(v.get()).ok());
+    let image = field("mediaType").zip(field("bytes"));
+    let rest = Answered(answer.0.iter().filter(|(k, _)| k != "bytes" && k != "mediaType").map(|(k, v)| (k.clone(), v.clone())).collect());
+    Ok(Answer { image, ..Answer::text(rest.text().unwrap_or_default(), &Out(rest)) })
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::held::to_the_record;
@@ -270,6 +294,16 @@ mod tests {
         approvals: Option<Value>,
     }
 
+    #[derive(schemars::JsonSchema)]
+    #[allow(dead_code)]
+    struct Looked {
+        path: Option<String>,
+        width: i64,
+        height: i64,
+        theme: String,
+        text: String,
+    }
+
     /// Each answer passes through whole, so what is held is the shape the host's answer is read as.
     #[test]
     fn its_structs_are_the_recorded_schemas() {
@@ -277,10 +311,11 @@ mod tests {
         to_the_record::<WriteIn, Wrote>(WRITE.listed);
         to_the_record::<StateIn, Stated>(STATE.listed);
         to_the_record::<ReadIn, Read>(READ.listed);
+        to_the_record::<LookIn, Looked>(LOOK.listed);
     }
 
     #[test]
-    fn the_four_entries_fit_the_budget_of_4400_characters() {
+    fn the_five_entries_fit_the_budget_of_5100_characters() {
         for cloud in [false, true] {
             let total: usize = TOOLS
                 .iter()
@@ -292,7 +327,7 @@ mod tests {
                     serde_json::to_string(&entry).unwrap().chars().count()
                 })
                 .sum();
-            assert!(total < 4400, "the slate tools list {total} characters with the cloud {}", if cloud { "on" } else { "off" });
+            assert!(total < 5100, "the slate tools list {total} characters with the cloud {}", if cloud { "on" } else { "off" });
         }
     }
 

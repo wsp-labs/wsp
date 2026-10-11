@@ -145,7 +145,8 @@ async fn called(host: Arc<Host>, asked: CallParams) -> String {
     };
     match (tool.call)(host, arguments).await {
         Ok(answered) => format!(
-            r#"{{"content":[{{"type":"text","text":{}}}],"structuredContent":{}{}}}"#,
+            r#"{{"content":[{}{{"type":"text","text":{}}}],"structuredContent":{}{}}}"#,
+            answered.image.as_ref().map(|(media, data)| format!(r#"{{"type":"image","data":{},"mimeType":{}}},"#, json_string(data), json_string(media))).unwrap_or_default(),
             json_string(&answered.text),
             answered.structured,
             if answered.error { r#","isError":true"# } else { "" }

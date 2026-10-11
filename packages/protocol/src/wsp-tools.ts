@@ -22,7 +22,7 @@ export const spawnsThread = (toolName: string): boolean => {
 /** The slate's tools, and the name a launch serves them under again for a harness that keeps a server's tools behind
  * a search until asked: Codex lists tools up front only per server (omit_tools_from, codex-rs/core/src/tools/
  * spec_plan.rs at rust-v0.155.1), and an agent that never searched never found the slate. */
-export const SLATE_TOOLS = ["slate_catalog", "slate_write", "slate_state", "slate_read"] as const;
+export const SLATE_TOOLS = ["slate_catalog", "slate_write", "slate_state", "slate_read", "slate_look"] as const;
 export const SLATE_SERVER_NAME = "wsp_slate";
 
 /** Whether a launch gives its thread a slate: its wsp server is there, scoped on this computer or the guest one a box

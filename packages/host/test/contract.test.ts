@@ -181,6 +181,7 @@ describe("the agent contract on the command line and the tool door", () => {
     const agents = agentHome(join(dir, "agents"));
     const runtime = (): Runtime => createRuntime({
       statePath,
+      drawSlate: async d => ({ png: Buffer.from("89504e470d0a1a0a", "hex"), width: d.width, height: 1 }),
       backend,
       store,
       // Claude Code here forks the way Codex does, the start making the fork, since the scripted agent names no anchors.
@@ -525,6 +526,9 @@ describe("the agent contract on the command line and the tool door", () => {
     // A rehearsal with no file: the sketch as it would read, the live slate left as it was.
     expect(await last("slate write", "slate", "write", opened.threadId, "--check", "--set", "done=1")).toMatchObject({ version: 2, problems: [] });
     expect(await last("slate read", "slate", "read", opened.threadId, "--values", "$done", "--document")).toMatchObject({ version: 2, values: { $done: 2 }, document: { schema: 2 } });
+    // A look draws through the app's renderer, played here; the picture lands where --out says.
+    expect(await last("slate look", "slate", "look", opened.threadId, "--out", join(dir, "look.png"))).toEqual({ width: 400, height: 1, theme: "graphite", text: expect.stringContaining("slate v2") });
+    expect(readFileSync(join(dir, "look.png")).subarray(1, 4).toString()).toBe("PNG");
     // A project on this computer: its worktree for a branch, the worktree taken away, and a thread in its folder
     // deleted by its id, the folder left as it stands.
     const here = join(dir, "here-proj");
@@ -598,7 +602,7 @@ describe("the agent contract on the command line and the tool door", () => {
     }
     expect(await last("restart", "restart")).toEqual({ running: [] });
     const served = CLI_VERBS.filter(hasTool);
-    expect(served.filter(v => v.tool.stream !== undefined).map(v => [v.name, v.tool.stream])).toEqual([...(CLOUD_ON ? [["fork", ["workspace", "notice"]]] : []), ["slate write", ["text"]], ["slate state", ["text"]], ["slate read", ["text"]], ["exec", ["output"]]]);
+    expect(served.filter(v => v.tool.stream !== undefined).map(v => [v.name, v.tool.stream])).toEqual([...(CLOUD_ON ? [["fork", ["workspace", "notice"]]] : []), ["slate write", ["text"]], ["slate state", ["text"]], ["slate read", ["text"]], ["slate look", ["path"]], ["exec", ["output"]]]);
 
     for (const verb of served) {
       const value = covered.get(verb.name);

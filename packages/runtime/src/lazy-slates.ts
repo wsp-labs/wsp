@@ -35,13 +35,15 @@ export function lazySlates(deps: SlatesDeps): Slates {
     state: (p, caller) => used(s => s.state(p, caller)),
     read: (p, caller) => used(s => s.read(p, caller)),
     catalog: (p, caller) => used(s => s.catalog(p, caller)),
-    shown: threadId => used(s => s.shown(threadId)),
+    shown: (threadId, drawn) => used(s => s.shown(threadId, drawn)),
+    look: (p, caller) => used(s => s.look(p, caller)),
     revoke: p => used(s => s.revoke(p)),
     event: p => used(s => s.event(p)),
     approve: p => used(s => s.approve(p)),
     cancel: p => used(s => s.cancel(p)),
     resolve: p => used(s => s.resolve(p)),
     image: p => used(s => s.image(p)),
+    page: p => used(s => s.page(p)),
     subscribe: p => {
       if (real !== undefined) return real.subscribe(p);
       let release: (() => void) | undefined;

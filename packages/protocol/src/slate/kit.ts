@@ -12,6 +12,7 @@ import type { SlateCode } from "./problems.js";
 import { slateIsSeries } from "./sources.js";
 import { SLATE_LIMITS } from "./limits.js";
 import { slateImageSource, slateListTooLong, SLATE_IMAGE_LAYOUTS } from "./image.js";
+import { slateFrameSource } from "./frame.js";
 import { IMAGE_MAX_WORDS, IMAGE_TYPE_WORDS } from "../attachments.js";
 
 export const SLATE_TONES = ["default", "muted", "good", "warning", "bad", "info", "accent"] as const;
@@ -106,6 +107,8 @@ export interface SlatePieceModule {
   childLimit?: { max: number; types: readonly string[] };
   /** The prop a text child fills. */
   textProp?: string;
+  /** Draws a page the agent wrote, for what no piece draws: a slate of nothing else is warned about. */
+  page?: true;
   /** The text child is literal: no holes, braces are characters. */
   rawText?: true;
   /** Has items with a row scope. */
@@ -443,6 +446,16 @@ const PIECES: Record<string, SlatePieceModule> = {
       if (Array.isArray(items) && items.length > SLATE_LIMITS.imagesPerList) c.add("R905", slateListTooLong(items.length, SLATE_LIMITS.imagesPerList, "images").message, "items");
     },
     fallback: "a list of paths", example: `<images layout="compare" items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }]} src={item.p} caption={item.c} />`,
+  },
+  frame: {
+    type: "frame", level: "core", page: true, purpose: "An HTML page you wrote, from a file on the thread's computer, for what no piece draws: a figure, an explainer, a small simulation. Sealed: it loads nothing and reaches nothing; look only, so actions stay in pieces. Check it once with slate_look.", holdsChildren: false,
+    props: { src: str({ ...req, about: "an .html file on the thread's computer, relative to its folder or whole, up to 1 MB; inline script, style and data: images run, nothing loads from outside; the theme's colours are var(--background), var(--foreground) and the rest" }), caption: str() }, items: {}, events: [],
+    sketch: v => join2(`[frame ${shown(v.prop("src"))}]`, shown(v.prop("caption"))),
+    check: c => {
+      const src = c.props.src;
+      if (typeof src === "string") { const read = slateFrameSource(src); if ("problem" in read) c.add(read.problem.code as SlateCode, read.problem.message, "src", 'src="figures/dial.html"'); }
+    },
+    fallback: "its path as text", example: `<frame src="figures/dial.html" caption="How the dial reads" />`,
   },
   sparkline: {
     type: "sparkline", level: "core", purpose: "A small line beside text, the way to show a figure's trend.", holdsChildren: false,

@@ -43,6 +43,8 @@ function slateOps() {
     op("slates.unsubscribe"),
     op("slates.resolve"),
     op("slates.image"),
+    op("slates.page"),
+    op("slates.look"),
   ] as const;
 }
 
@@ -1049,6 +1051,7 @@ export const THREAD_OPS: readonly string[] = [
   "slates.state",
   "slates.read",
   "slates.catalog",
+  "slates.look",
 ];
 
 /** The ops a computer the person paired may send with no role of its own, and the whole of them, for the reason
@@ -1156,6 +1159,8 @@ export const DEVICE_OPS: readonly string[] = [
   "slates.unsubscribe",
   "slates.resolve",
   "slates.image",
+  "slates.page",
+  "slates.look",
 ];
 
 /** The one sentence a thread's own token is refused an op with. It names the op rather than guessing why a caller

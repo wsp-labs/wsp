@@ -95,10 +95,11 @@ function ThreadSlate({ threadId }: { threadId: string }) {
     void api?.subscribe(threadId, [SHOWN_HOLD]).catch(() => {});
     return () => void api?.unsubscribe(threadId, [SHOWN_HOLD]).catch(() => {});
   }, [threadId, drawn, live]);
+  const surface = useDrawnAs(threadId, drawn && live);
   if (entry === undefined) return null;
   if (!drawn) return <EmptySlate threadId={threadId} entry={entry} />;
   return (
-    <div data-slate-surface={threadId} className="flex min-h-0 flex-1 flex-col">
+    <div ref={surface} data-slate-surface={threadId} className="flex min-h-0 flex-1 flex-col">
       <SlateHeader threadId={threadId} entry={entry} />
       <HeldRuns engine={bundle.engine} asks={entry.record?.asks ?? []} review={run => askConsent(threadId, { run })} refuse={ask => refuse(threadId, ask)} />
       <Consent threadId={threadId} />
@@ -110,6 +111,39 @@ function ThreadSlate({ threadId }: { threadId: string }) {
       </ScrollArea>
     </div>
   );
+}
+
+/** Tells the host how this window draws the slate, its theme and the panel's width, which a slate look then draws it
+ * as: once it is on screen, and again a moment after either changes. */
+function useDrawnAs(threadId: string, on: boolean): (node: HTMLDivElement | null) => void {
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!on || node === null || typeof ResizeObserver === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let said = "";
+    const tell = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const root = document.documentElement;
+        const theme = root.dataset["theme"] ?? (root.classList.contains("dark") ? "graphite" : "paper");
+        const width = Math.round(node.clientWidth);
+        if (width < 200 || `${theme}:${width}` === said) return;
+        said = `${theme}:${width}`;
+        void useStore.getState().api?.slates?.shown(threadId, { theme, width }).catch(() => {});
+      }, 600);
+    };
+    tell();
+    const sized = new ResizeObserver(tell);
+    sized.observe(node);
+    const themed = new MutationObserver(tell);
+    themed.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    return () => {
+      clearTimeout(timer);
+      sized.disconnect();
+      themed.disconnect();
+    };
+  }, [threadId, on, node]);
+  return setNode;
 }
 
 function SlateHeader({ threadId, entry }: { threadId: string; entry: SlateEntry }) {
