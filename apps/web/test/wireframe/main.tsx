@@ -42,6 +42,9 @@
 //   settings-light-picked the Light segment picked on the dark side
 //   settings-computers    the Computers list: this Mac, three boxes joined and
 //                         the cloud whose key this host holds
+//   settings-computers-live  the Computers list with a live CPU and memory band under each computer of the
+//                         person's own (this Mac building, hetzner idle, lab away) and none for the cloud, fed
+//                         every two seconds, with a switch between the two themes
 //   settings-computer     the box whose recipe is done, its own page
 //   settings-computer-failed  the box whose recipe lost rows
 //   settings-this-mac     this Mac's page, the agents found here
@@ -129,6 +132,8 @@ import { KEY_REFUSED_LINE, KEY_REFUSED_ROWS } from "../fixtures/keyRefusedJob";
 import "../../src/index.css";
 import { imageBuildLine } from "../../src/shell/creationLog";
 import { WorkspaceThread } from "../../src/shell/WorkspaceThread";
+import { Button } from "../../src/components/ui/button";
+import { LAB_AWAY_MS, startLiveReadings } from "./liveReadings";
 
 const params = new URLSearchParams(window.location.search);
 const screen = params.get("screen") ?? "sidebar";
@@ -390,6 +395,7 @@ const SETTINGS_SCREENS: Record<string, SettingsAt> = {
   "settings-appearance": { kind: "group", group: "appearance" },
   "settings-light-picked": { kind: "group", group: "appearance" },
   "settings-computers": { kind: "group", group: "computers" },
+  "settings-computers-live": { kind: "group", group: "computers" },
   "settings-computer": { kind: "computer", id: "p_spoo" },
   "settings-computer-failed": { kind: "computer", id: "p_lab" },
   "settings-this-mac": { kind: "computer", id: "here" },
@@ -454,7 +460,15 @@ const FAILED_ADD: PlaceAddJob = {
 };
 const settings = settingsAt !== undefined;
 /** Every computer this host holds on a settings screen: this Mac, three boxes and the cloud whose key it holds. */
-const computers = settings || params.get("fork") === "solari" ? COMPUTERS : places;
+const live = screen === "settings-computers-live";
+/** The computers the live screen draws: this Mac, a box at rest, a box that stopped answering, and a cloud. */
+const LIVE_COMPUTERS: PlaceView[] = [
+  { ...COMPUTERS[0]!, name: "zingzy's MacBook Pro" } as PlaceView,
+  box("p_hetzner", "hetzner", { ...setUp(), default: true, daemonVersion: DAEMON_VERSION, shape: { cpu: 8, memMb: 16384 } }),
+  box("p_lab", "lab", { ...setUp(), daemonVersion: DAEMON_VERSION, present: false, lastSeenAt: new Date(Date.now() - LAB_AWAY_MS).toISOString() }),
+  COMPUTERS.find(place => place.id === "solari")!,
+];
+const computers = live ? LIVE_COMPUTERS : settings || params.get("fork") === "solari" ? COMPUTERS : places;
 /** The image this host sealed and where it stands, on the cloud's page. */
 const IMAGE: SealedImage = {
   name: "default",
@@ -745,7 +759,7 @@ useStore.setState({
   conn: "live",
   ready: true,
   projectsRead: true,
-  preferences: { ...DEFAULT_PREFERENCES, ...picks, ...OVERRIDES, ...(sidebarWidth !== null ? { sidebarWidth: Number(sidebarWidth) } : {}), ...(screen === "settings-light-picked" ? { theme: "light" as const } : {}) },
+  preferences: { ...DEFAULT_PREFERENCES, ...picks, ...OVERRIDES, ...(sidebarWidth !== null ? { sidebarWidth: Number(sidebarWidth) } : {}), ...(screen === "settings-light-picked" ? { theme: "light" as const } : {}), ...(live ? { theme: params.get("theme") === "light" ? ("light" as const) : ("dark" as const) } : {}) },
   ...(agentScreen || toolsScreen ? { harnesses: HARNESSES } : {}),
   places: computers,
   settingsOpen: settings,
@@ -784,6 +798,7 @@ if (screen === "settings-add-computer-failed") {
 }
 if (screen === "settings-add-cloud") useSettingsStore.getState().askAdd("cloud");
 useStore.getState().bind(api);
+if (live) startLiveReadings();
 // The frames a copy build at the box sent, set after the bind, whose pull starts every place over.
 // A focus change during the build: the running stage ends and the next one starts, as the host's next view says.
 if (screen === "settings-image-build" && params.get("advance") === "1") {
@@ -842,6 +857,19 @@ function SettingsTheme() {
   return settings || settingsOpen ? <ThemeRule /> : null;
 }
 
+/** The live screen's one control the app has no place for: Graphite and Paper, side by side in one window. */
+function ThemeSwitch() {
+  const theme = useStore(s => s.preferences.theme);
+  const next = theme === "light" ? "dark" : "light";
+  return (
+    <div className="fixed right-4 bottom-4 z-50">
+      <Button data-k="theme-switch" size="xs" variant="outline" onClick={() => useStore.setState(s => ({ preferences: { ...s.preferences, theme: next } }))}>
+        {next === "light" ? "Paper" : "Graphite"}
+      </Button>
+    </div>
+  );
+}
+
 function Centre() {
   if (creatingScreen) return <CreatingCentre />;
   // With no project the first run is the whole centre, as the app draws it, beside the sidebar's one row.
@@ -867,6 +895,7 @@ createRoot(document.getElementById("root")!).render(
         {/* The shell draws Settings, over the centre it keeps hidden, and the theme rule stands outside that centre as
             App's does, since a hidden tree runs no effect. */}
         <SettingsTheme />
+        {live ? <ThemeSwitch /> : null}
         <AppShell>
           {params.get("notices") === "1" ? <HostNotices /> : null}
           <Centre />
