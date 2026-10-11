@@ -17,7 +17,7 @@ import { noticeFailure } from "../../notices/store.js";
 import { useSelectedThreadId, useSelectedWorkspaceId, useSidebarProjects, useStore } from "../../protocol/store.js";
 import { copyText } from "../../actions/clipboard.js";
 import { useRightPanelStore } from "../../rightPanelStore.js";
-import { cycleThreadInSpace, goToAdjacentWorkspace, goToWorkspace } from "../../shell/shellCommands.js";
+import { cycleThreadInSpace, goToAdjacentWorkspace, goToWorkspace, openRootMoves } from "../../shell/shellCommands.js";
 import { useKeybindings } from "../../shell/useKeybindings.js";
 import { openNewThread, useNewThreadPicks } from "../../shell/NewThreadPicks.js";
 import { requestAddProject } from "../../shell/shellRequests.js";
@@ -129,7 +129,7 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
   // what it last drew for its closing frames.
   const built = useRef<PaletteItems>(SHUT);
   const items = useMemo(() => {
-    if (open) built.current = buildPaletteItems({ projects, selectedId, query, messageHits, canCreate: api !== null, recorded, picks, asks, handlers, verbs, places });
+    if (open) built.current = buildPaletteItems({ projects, threadMoves: openRootMoves(), selectedId, query, messageHits, canCreate: api !== null, recorded, picks, asks, handlers, verbs, places });
     return built.current;
   }, [api, asks, handlers, messageHits, open, picks, places, projects, query, recorded, selectedId, verbs]);
   // A page whose row is gone or held, as the last project's removal leaves it, reads as the root.
