@@ -1,0 +1,93 @@
+{
+  "tool": "projects_seed",
+  "cases": [
+    {
+      "case": "the menu with nothing picked yet, nothing saved",
+      "arguments": {
+        "project": "lab"
+      },
+      "replies": {
+        "projects.seed": "{\"id\":1,\"ok\":true,\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":false},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false,\"extra\":\"dropped\"}],\"picked\":{\"paths\":[],\"bytes\":0,\"missing\":[]},\"saved\":false}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"project\\\": \\\"lab\\\",\\n  \\\"folder\\\": \\\"/work/acme/lab\\\",\\n  \\\"rows\\\": [\\n    {\\n      \\\"path\\\": \\\".env\\\",\\n      \\\"dir\\\": false,\\n      \\\"bytes\\\": 1126,\\n      \\\"kind\\\": \\\"config\\\",\\n      \\\"why\\\": \\\"environment file\\\",\\n      \\\"picked\\\": false\\n    },\\n    {\\n      \\\"path\\\": \\\"node_modules\\\",\\n      \\\"dir\\\": true,\\n      \\\"bytes\\\": 831520768,\\n      \\\"kind\\\": \\\"rebuilt\\\",\\n      \\\"why\\\": \\\"rebuilt on the box\\\",\\n      \\\"picked\\\": false\\n    }\\n  ],\\n  \\\"picked\\\": {\\n    \\\"paths\\\": [],\\n    \\\"bytes\\\": 0,\\n    \\\"missing\\\": []\\n  },\\n  \\\"saved\\\": false\\n}\"}],\"structuredContent\":{\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":false},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false}],\"picked\":{\"paths\":[],\"bytes\":0,\"missing\":[]},\"saved\":false}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "projects.seed",
+          "project": "lab"
+        }
+      ]
+    },
+    {
+      "case": "a path kept, one cut and the picks saved, one saved path gone from the folder",
+      "arguments": {
+        "project": "lab",
+        "keep": [
+          ".env"
+        ],
+        "cut": [
+          "node_modules"
+        ],
+        "none": true,
+        "confirm": true
+      },
+      "replies": {
+        "projects.seed": "{\"id\":1,\"ok\":true,\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":true},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false}],\"picked\":{\"paths\":[\".env\"],\"bytes\":1126,\"missing\":[\".env.old\"]},\"saved\":true}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"project\\\": \\\"lab\\\",\\n  \\\"folder\\\": \\\"/work/acme/lab\\\",\\n  \\\"rows\\\": [\\n    {\\n      \\\"path\\\": \\\".env\\\",\\n      \\\"dir\\\": false,\\n      \\\"bytes\\\": 1126,\\n      \\\"kind\\\": \\\"config\\\",\\n      \\\"why\\\": \\\"environment file\\\",\\n      \\\"picked\\\": true\\n    },\\n    {\\n      \\\"path\\\": \\\"node_modules\\\",\\n      \\\"dir\\\": true,\\n      \\\"bytes\\\": 831520768,\\n      \\\"kind\\\": \\\"rebuilt\\\",\\n      \\\"why\\\": \\\"rebuilt on the box\\\",\\n      \\\"picked\\\": false\\n    }\\n  ],\\n  \\\"picked\\\": {\\n    \\\"paths\\\": [\\n      \\\".env\\\"\\n    ],\\n    \\\"bytes\\\": 1126,\\n    \\\"missing\\\": [\\n      \\\".env.old\\\"\\n    ]\\n  },\\n  \\\"saved\\\": true\\n}\"}],\"structuredContent\":{\"project\":\"lab\",\"folder\":\"/work/acme/lab\",\"rows\":[{\"path\":\".env\",\"dir\":false,\"bytes\":1126,\"kind\":\"config\",\"why\":\"environment file\",\"picked\":true},{\"path\":\"node_modules\",\"dir\":true,\"bytes\":831520768,\"kind\":\"rebuilt\",\"why\":\"rebuilt on the box\",\"picked\":false}],\"picked\":{\"paths\":[\".env\"],\"bytes\":1126,\"missing\":[\".env.old\"]},\"saved\":true}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "projects.seed",
+          "project": "lab",
+          "keep": [
+            ".env"
+          ],
+          "cut": [
+            "node_modules"
+          ],
+          "none": true,
+          "save": true
+        }
+      ]
+    },
+    {
+      "case": "a thread's own token asking for the save",
+      "arguments": {
+        "project": "lab",
+        "keep": [
+          ".env"
+        ],
+        "confirm": true
+      },
+      "replies": {
+        "projects.seed": "{\"id\":1,\"ok\":false,\"error\":\"picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes\",\"kind\":\"usage\",\"fix\":\"Hand them the line wsp projects seed lab --keep .env --yes\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes\"}],\"structuredContent\":{\"error\":\"picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "projects.seed",
+          "project": "lab",
+          "keep": [
+            ".env"
+          ],
+          "save": true
+        }
+      ]
+    },
+    {
+      "case": "a project on another computer",
+      "arguments": {
+        "project": "lab"
+      },
+      "replies": {
+        "projects.seed": "{\"id\":1,\"ok\":false,\"error\":\"lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files.\",\"kind\":\"usage\",\"fix\":\"A sub-thread of lab starts with no git-ignored files.\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files.\"}],\"structuredContent\":{\"error\":\"lab lives on attic, and picks are read from folders on this computer only. A sub-thread of lab starts with no git-ignored files.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "projects.seed",
+          "project": "lab"
+        }
+      ]
+    }
+  ]
+}
