@@ -180,7 +180,8 @@ describe("how a thread's turns ended, on its listing", () => {
     const doc = (await store.get("sessions", ws.id)) as { sessions: unknown[] };
     await store.put("sessions", ws.id, { ...doc, sessions: [] });
     const rt2 = createRuntime({ backend, store, adapters: { claude: h.adapter } });
-    expect(await rt2.sessions.list(ws.id)).toEqual([]);
+    // Listed off its record, its row gone.
+    expect((await rt2.sessions.list(ws.id)).map(s => [s.id, s.threadId])).toEqual([[lead.threadId, lead.threadId]]);
     const { preferences } = await rt2.preferences.set({ threadsShut: { [lead.id]: true, thr_gone: true } });
     expect(preferences.threadsShut).toEqual({ [lead.id]: true });
     await rt2.close();

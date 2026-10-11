@@ -154,8 +154,8 @@ afterEach(() => {
   listeners.clear();
 });
 
-async function mount() {
-  useStore.getState().bind(hostApi());
+async function mount(api: Api = hostApi()) {
+  useStore.getState().bind(api);
   await whenAgentsAnswered();
   const { container } = render(<Shell />);
   const sidebar = () => within(container.querySelector<HTMLElement>("[data-app-sidebar]")!);
@@ -185,6 +185,18 @@ async function focusedComposer() {
   editor.registerUpdateListener(() => commits.n++);
   return { element, commits };
 }
+
+describe("a load that names no thread", () => {
+  it("draws the folder's latest thread off that thread's newest page, never reading every thread of the folder", async () => {
+    const api = hostApi();
+    const whole = vi.spyOn(api, "sessionHistory");
+    const page = vi.spyOn(api, "sessionPage" as never) as unknown as ReturnType<typeof vi.fn>;
+    const { center } = await mount(api);
+    expect(center().getByText("Checking the keychain.")).toBeDefined();
+    expect(page.mock.calls[0]?.slice(0, 2)).toEqual([WS, "thr_b"]);
+    expect(whole).not.toHaveBeenCalled();
+  });
+});
 
 describe("a thread switch", () => {
   it("keeps the transcript it leaves mounted, hidden and inert, until the next one has painted", async () => {
