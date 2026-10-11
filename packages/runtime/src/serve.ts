@@ -1204,8 +1204,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
             case "workspaces.create": {
               const { id, op, origin: _sent, ...rest } = msg;
               void op;
-              const { notice, ...workspace } = await rt.workspaces.create(rest, origin);
-              send({ id, ok: true, workspace: handed(workspace), ...(notice !== undefined ? { notice } : {}) });
+              const { notice, sub, ...workspace } = await rt.workspaces.create(rest, origin);
+              send({ id, ok: true, workspace: handed(workspace), ...(notice !== undefined ? { notice } : {}), ...(sub !== undefined ? { sub } : {}) });
               return;
             }
             case "workspaces.landing":

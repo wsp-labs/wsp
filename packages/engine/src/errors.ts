@@ -60,6 +60,30 @@ export class NotFirstLifeError extends Error {
   }
 }
 
+/** A box whose environment did not land before the restore budget ran out: the write under /etc sat past its
+ * deadline on a box still streaming its disk in. Nothing ran on it yet, so a fresh box cures it. */
+export class EnvNotLandedError extends Error {
+  constructor(
+    readonly machineId: string,
+    readonly exitCode: number,
+    detail: string,
+  ) {
+    super(`environment did not land on ${machineId} (exit ${exitCode}): ${detail}`);
+    this.name = "EnvNotLandedError";
+  }
+}
+
+/** A create the provider cancelled because it could not get a machine: terminal, read once and then gone. */
+export class CreateCancelledError extends Error {
+  constructor(
+    readonly machineId: string,
+    readonly why: string,
+  ) {
+    super(`box ${machineId} was cancelled during create${why === "" ? "" : `: ${why}`}`);
+    this.name = "CreateCancelledError";
+  }
+}
+
 /** Thrown by a backend whose machine the provider reports running while the road every command takes is dead in a
  * way no wait mends: the guest's shell cannot start, or the provider's agent cannot spawn it. A create that meets it
  * deletes the machine and fails with it; a wake fails with it and keeps the machine, whose disk is the person's. */
@@ -67,7 +91,7 @@ export class GuestUnusableError extends Error {
   constructor(
     readonly machineId: string,
     provider: string,
-    detail: string,
+    readonly detail: string,
     /** The status the provider answered the call with: the reading off a command it ran came on a 200, the one off
      * its own agent on the status it refused with. A create that ends here has already deleted its machine, and a
      * caller that keys its creates spends the key on an answer of any kind, so an error without one would send the

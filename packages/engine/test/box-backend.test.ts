@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { DAEMON_UNIT, stopRefusedLine } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
+import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS } from "../src/exec-detached.js";
 import { EXEC_ENV } from "../src/golden-import.js";
 import { GONE_READS, killUntilGone } from "../src/golden.js";
@@ -379,6 +379,52 @@ describe("BoxBackend against a fake Box API", () => {
     api.on("POST", "/boxes/bx_e1/commands", detachedGuest(1, "", "systemctl: not found"));
     await expect(backend.create({ kind: "sandbox", envs: { A: "1" } })).rejects.toThrow(/environment did not land on bx_e1/);
     expect(api.calls().filter(c => c.startsWith("DELETE"))).toHaveLength(3);
+  });
+
+  it("a create Boat cancels ends on the first read with its reason, typed, and the box it made is deleted", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", box: BOX("bx_c1", "provisioning") } })
+      .on("GET", "/boxes/bx_c1", INFO("bx_c1", "cancelled", { error: "no capacity" }))
+      .on("DELETE", "/boxes/bx_c1", { status: 202, body: { ok: true, operation: { id: "bdop_c" } } });
+    const { backend } = backendOn(api);
+    const failed = await backend.create({ kind: "sandbox" }).catch((e: unknown) => e);
+    expect(failed).toBeInstanceOf(CreateCancelledError);
+    expect(failed).toMatchObject({ machineId: "bx_c1", why: "no capacity" });
+    expect(api.calls().filter(c => c === "GET /boxes/bx_c1")).toHaveLength(1);
+    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /boxes/bx_c1"]);
+  });
+
+  it("an environment still not landed at the restore budget is typed with its box and its exit, which a sub-thread's start replaces", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_t1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/boxes/bx_t1", INFO("bx_t1", "ready", { name: "wsp" }))
+      .on("POST", "/boxes/bx_t1/commands", COMMAND(""), detachedGuest(DEADLINE_EXIT))
+      .on("DELETE", "/boxes/bx_t1", { status: 202, body: { ok: true, operation: { id: "bdop_t" } } });
+    const { backend } = backendOn(api, "trial", { restoreMs: 0 });
+    const failed = await backend.create({ kind: "sandbox", envs: { A: "1" } }).catch((e: unknown) => e);
+    expect(failed).toBeInstanceOf(EnvNotLandedError);
+    expect(failed).toMatchObject({ machineId: "bx_t1", exitCode: DEADLINE_EXIT });
+    expect((failed as Error).message).toMatch(/^environment did not land on bx_t1 \(exit 124\)/);
+  });
+
+  it("reads the plan off /limits: the trial sells small and default, a paid plan every class, and the starts per window", async () => {
+    const owner = { accessTier: "standard", boxPlanKey: "box_20", starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } } };
+    const api = new FakeBox();
+    const { backend } = backendOn(api, "standard");
+    api.on("GET", "/limits", { status: 200, body: { ok: true, type: "limits.info", ...owner } }, LIMITS("trial"));
+    expect(await backend.limits()).toEqual({
+      trial: false,
+      planKey: "box_20",
+      sizes: [
+        { name: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+        { name: "default", cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+        { name: "large", cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+      ],
+      starts: { minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
+    });
+    const trial = await backend.limits();
+    expect(trial).toMatchObject({ trial: true });
+    expect(trial.sizes.map(s => s.name)).toEqual(["small", "default"]);
   });
 
   it("a landing of the environment runs detached and one that times out on a box still taking its disk in is launched again inside the budget", async () => {

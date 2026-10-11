@@ -899,7 +899,7 @@ export async function readBodyUpTo(res: Response, cap: number): Promise<string> 
 
 /** The calls a backend carries only when its provider has them. One list, so a handle built out of a backend
  * forwards every one of them rather than naming the few a road happened to need. */
-export const OPTIONAL_BACKEND_CALLS = ["checkKey", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate"] as const;
+export const OPTIONAL_BACKEND_CALLS = ["checkKey", "limits", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate"] as const;
 
 /** Those calls bound to the backend, for a handle that stands in front of it. A backend is a module with its
  * methods on its prototype, so a spread of it carries none of them; each one is taken by name here. */

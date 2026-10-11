@@ -10,12 +10,12 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { DAEMON_UNIT, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, shellQuote, type Capabilities } from "@wsp/protocol";
-import { GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
+import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL, WSP_LABEL } from "./labels.js";
-import type { BackendPricing, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, PreviewReach, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
+import type { BackendPricing, CloudLimits, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, PreviewReach, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
 import { DAEMON_PORT } from "./preview.js";
 
 type Fetch = typeof globalThis.fetch;
@@ -24,6 +24,20 @@ export const BOX_API_URL = "https://ascii.dev/api/box/v1";
 
 /** The three classes the API sells without an operator allocation, with the disk each one floors at (the disk is
  * not settable and may be roomier) and the published rate. The trial allows small and default only. */
+/** One window of starts as /limits counts it. */
+interface BoxStartWindow {
+  limit?: number;
+  used?: number;
+  remaining?: number;
+}
+
+/** The fields of /limits a start reads (2026-10-11, the owner's account): the tier, the plan's key and the starts. */
+interface BoxLimits {
+  accessTier?: string;
+  boxPlanKey?: string | null;
+  starts?: { unlimited?: boolean; minute?: BoxStartWindow; hour?: BoxStartWindow; day?: BoxStartWindow };
+}
+
 export interface BoxClass {
   type: "small" | "default" | "large";
   cpu: number;
@@ -145,6 +159,8 @@ const STATE_MAP: Record<string, MachineState> = {
   archiving: "paused",
   archived: "paused",
   error: "gone",
+  // Terminal: a create or fork that could not get a machine, read once and then answered 404.
+  cancelled: "gone",
 };
 
 const stateOf = (state: string): MachineState => STATE_MAP[state] ?? "running";
@@ -486,6 +502,22 @@ export class BoxBackend implements MachineBackend {
     await this.request("GET", "/limits");
   }
 
+  /** The plan the account is on as /limits answers it now: the trial sells small and default alone, and every other
+   * plan every class. Starts are read per window; an account Boat counts none on carries none. */
+  async limits(): Promise<CloudLimits> {
+    const read = await this.request<BoxLimits>("GET", "/limits");
+    const trial = read.accessTier === "trial";
+    const sold = BOX_CLASSES.filter(c => !trial || c.type === "small" || c.type === "default");
+    const window = (w: BoxStartWindow | undefined) => ({ limit: w?.limit ?? 0, used: w?.used ?? 0, remaining: w?.remaining ?? 0 });
+    const starts = read.starts;
+    return {
+      trial,
+      ...(read.boxPlanKey !== undefined && read.boxPlanKey !== null ? { planKey: read.boxPlanKey } : {}),
+      sizes: sold.map(c => ({ name: c.type, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour })),
+      ...(starts === undefined || starts.unlimited === true ? {} : { starts: { minute: window(starts.minute), hour: window(starts.hour), day: window(starts.day) } }),
+    };
+  }
+
   view(id: string): Promise<BoxView> {
     return this.request<{ box: BoxView }>("GET", `/boxes/${encodeURIComponent(id)}`).then(r => r.box);
   }
@@ -499,6 +531,7 @@ export class BoxBackend implements MachineBackend {
       const view = await this.view(id);
       if (done(view)) return view;
       if (view.state === "error") throw new Error(`box ${id} reads error during ${what}${view.error ? `: ${view.error}` : ""}`);
+      if (view.state === "cancelled") throw new CreateCancelledError(id, view.error ?? "");
       if (this.clock.now() - started >= budgetMs) throw new Error(`${what} of ${id} still reads ${view.state} after ${Math.round(budgetMs / 1000)} s`);
       await this.clock.sleep(this.budgets.pollMs);
     }
@@ -799,7 +832,7 @@ export class BoxMachine implements Machine {
       const res = await this.exec(envLandingScript(envs), { timeoutMs: ENV_LANDING_MS });
       if (res.exitCode === 0) return;
       if (res.exitCode !== DEADLINE_EXIT || this.backend.clock.now() - started >= this.backend.budgets.restoreMs) {
-        throw new Error(`environment did not land on ${this.id} (exit ${res.exitCode}): ${res.stderr.trim() || res.stdout.trim()}`);
+        throw new EnvNotLandedError(this.id, res.exitCode, res.stderr.trim() || res.stdout.trim());
       }
       await this.backend.clock.sleep(this.backend.budgets.pollMs);
     }

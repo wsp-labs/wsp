@@ -218,7 +218,8 @@ const RuntimeOp = z.discriminatedUnion("op", [
      * thread asked for names none and is refused where it does: it takes the image its own workspace's project
      * runs, which is the only image a thread reaches. */
     golden: z.string().optional(),
-    /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. */
+    /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. Empty
+     * beside `sub`, whose project is the asking thread's own, read off its token. */
     project: z.string(),
     name: z.string(),
     cpu: z.number().optional(),
@@ -238,6 +239,11 @@ const RuntimeOp = z.discriminatedUnion("op", [
     parent: z.string().optional(),
     /** The workspace gets the place's container engine through the fenced socket; absent takes the image's recipe. */
     engine: z.boolean().optional(),
+    /** A sub-thread of the asking thread on the cloud `on` names: a machine of its own forked from the image, at
+     * `size` or the cloud's own size, whose thread pushes `branch` or wsp/<slug>. The project is the asking thread's;
+     * the reply carries `sub`, what the thread's start opens with. Refused, before the cloud is asked for a start,
+     * by every check run --on names. */
+    sub: z.object({ on: z.string(), size: z.string().optional(), branch: z.string().optional(), harness: z.string().optional() }).optional(),
   }),
   /** Where a workspace of this project would land and what that computer offers. Replies with
    * { place?, name, capabilities }, `place` absent where the landing is the provider this host forks on. Refused

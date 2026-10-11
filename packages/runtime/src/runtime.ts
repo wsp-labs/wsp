@@ -317,6 +317,7 @@ import { machinesArea } from "./machines/machines.js";
 import { bootArea } from "./machines/boot.js";
 
 import { createArea } from "./machines/create.js";
+import { subSpawnArea } from "./machines/sub-spawn.js";
 
 import { foldersArea } from "./projects/folders.js";
 
@@ -445,6 +446,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
   Object.assign(ctx, bootArea(ctx));
 
   Object.assign(ctx, createArea(ctx));
+  Object.assign(ctx, subSpawnArea(ctx));
 
   Object.assign(ctx, foldersArea(ctx));
 

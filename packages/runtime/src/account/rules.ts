@@ -234,7 +234,8 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
   };
   /** Where the switch a record runs under is held, as the depth refusal names the setting to raise. */
   const agentsHeldAt = (record: WorkspaceRecord): { computer: string } | { workspace: string } => {
-    const held = agentsRecordOf(record) ?? record;
+    // A sub-machine's own switch is the one that is off, whatever its root's reads.
+    const held = record.lead !== undefined ? record : (agentsRecordOf(record) ?? record);
     if (held.agents !== undefined) return { workspace: held.name };
     const placeId = ctx.placeIdOf(held) ?? HERE_PLACE_ID;
     return { computer: placeDoor?.nameOf(placeId) ?? placeId };
@@ -274,7 +275,9 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
    * else its kind's machine; nothing for a thread whose workspace this host no longer holds. */
   const placeOfThread = (scope: ThreadScope): string | undefined => {
     const own = live.get(scope.workspaceId)?.record;
-    return own === undefined ? undefined : threadPlace(own.kind, ctx.placeName(ctx.projectHeld(own.project).computer));
+    if (own === undefined) return undefined;
+    // A sub-machine names its lead's project and runs at its own place.
+    return threadPlace(own.kind, own.lead !== undefined ? ctx.placeName(own.place ?? ctx.places.wired) : ctx.placeName(ctx.projectHeld(own.project).computer));
   };
   /** The refusal for an act no thread may ask for, in the usage class: the line asked for something the caps never
    * open, which no retry changes. */
@@ -293,7 +296,8 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     // while a turn runs has turned it off: the one on the workspace its root runs on, which a fork carries, and where
     // it runs in a folder its root does not, that folder's own, which is its computer's where the folder holds none.
     const rooted = scope.rootThreadId === scope.threadId ? own : recordOfThread(scope.rootThreadId);
-    const over = rooted === undefined ? undefined : [{ record: rooted, policy: agentsOf(rooted) }, ...(rooted.id !== own.id && runsInFolder(own.kind) ? [{ record: own, policy: agentsOf(own) }] : [])];
+    // A sub-machine holds a switch of its own, off, which its root's never turns on.
+    const over = rooted === undefined ? undefined : [{ record: rooted, policy: agentsOf(rooted) }, ...(rooted.id !== own.id && runsInFolder(own.kind) ? [{ record: own, policy: agentsOf(own) }] : []), ...(own.lead !== undefined ? [{ record: own, policy: own.agents }] : [])];
     if (over === undefined) throw new Error(rootGoneRefusal(scope.threadId, act));
     for (const { record, policy } of over) if (policy?.spawn !== true) throw new Error(agentsOffLine(record, act, scope.threadId));
     if (!SPAWN_ACTS_ALLOWED.includes(act)) throw actRefusal(scope, act);
