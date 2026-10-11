@@ -915,7 +915,7 @@ pub(super) async fn follow(
             };
             if !Arc::ptr_eq(&socket, &client) {
                 let mut over = false;
-                for event in history(&socket, &turn.workspace_id).await? {
+                for event in history(&socket, &turn.workspace_id, &turn.thread_id).await? {
                     let Ok(event) = serde_json::from_value::<Event>(event) else { continue };
                     if !over
                         && event.turn_id.as_deref() == Some(turn.turn_id.as_str())

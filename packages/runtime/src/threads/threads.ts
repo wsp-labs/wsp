@@ -890,7 +890,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     const held = sessions.get(taken.sessionId);
     if (held === undefined) return undefined;
     if (held.handle !== undefined && held.turnId === taken.turnId) return { ...held.handle, outcome: taken.outcome };
-    const events = await ctx.openTranscript(workspaceId);
+    const events = await ctx.openThread(workspaceId, taken.threadId);
     const done = events.find(e => e.type === "session.done" && e.turnId === taken.turnId);
     const end = events.find(e => e.type === "session.end" && e.turnId === taken.turnId);
     const result: TurnResult = done?.type === "session.done" ? done.result : { status: "failed", error: end?.type === "session.end" && end.reason !== undefined ? end.reason : RESTARTED_REASON };
