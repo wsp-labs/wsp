@@ -26,6 +26,7 @@ import { AddButton } from "../components/ui/add-button.js";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { PROJECT_GLYPHS } from "../projects/look.js";
 import { Button, DANGER_BUTTON } from "../components/ui/button.js";
+import { useComputerLive } from "../machine/computerLive.js";
 import { useStore } from "../protocol/store.js";
 import { DialButton, useDialPlace } from "./AbsentRoad.js";
 import { AddComputer } from "./AddComputer.js";
@@ -39,8 +40,9 @@ import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, WHERE_WORDS, 
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
 import { copyOn } from "./image.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
+import { LiveBand } from "./LiveBand.js";
 import { openImageRecipe } from "./openAt.js";
-import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
+import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeIsOffline, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
 import { cloudsOffered, keyHeld } from "./providers.js";
 import { RemoveComputerDialog } from "./RemoveComputerDialog.js";
 import { CARD_SURFACE, Card, HeadRow, Row, type SettingsCardData, type SettingsRowData } from "./rows.js";
@@ -228,6 +230,8 @@ const placeGlyph = (place: PlaceView) => (
 export function ComputerListRow({ place, running, cell, open, ctx }: { place: PlaceView; running: number; cell: PlaceStateCell; open?: () => void; ctx: Pick<SettingsContext, "setPreferences" | "shell"> }) {
   const menu = useRowMenu(place, ctx);
   const fact = versionFact(place, ctx.shell.host);
+  const live = useStore(s => s.conn === "live");
+  useComputerLive(place.id, !placeIsOffline(place));
   return (
     <GridRow columns={LIST_COLUMNS} {...(open === undefined ? {} : { open })} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
       <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(place.default ? { tag: WHERE_WORDS.default } : {})} {...(fact === undefined ? {} : { fact })} />
@@ -240,6 +244,7 @@ export function ComputerListRow({ place, running, cell, open, ctx }: { place: Pl
       <Num k="threads">{running}</Num>
       <PlaceState place={place} cell={cell} {...(open === undefined ? {} : { onSignIn: open })} />
       {open === undefined ? <span /> : <Chevron />}
+      <LiveBand placeId={place.id} away={placeIsOffline(place) || !live} />
     </GridRow>
   );
 }

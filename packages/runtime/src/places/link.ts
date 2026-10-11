@@ -33,15 +33,17 @@ import { verifyPlaceBytes } from "@wsp/keys";
 import { CAPS, DEFAULT_COLLECTION, DEFAULT_ID, type PlaceRecord, type PlaceDoor, PlaceForksNowhereError, PlaceProvisioningError } from "./types.js";
 import { vaultSignIn, vaultHeldLine, pickedVault, landedOn, type LandedRow, bounded, readsAsEd25519, JOIN_PROVE_MS, PLACE_BAD_KEY_REFUSAL, takenReport, REPLACED, BACKEND_FACTS_MS, LOGINS_READ_MS, relistedLogins, sharedLoginsScript } from "./helpers.js";
 import { panePorts } from "./pane-ports.js";
+import { placeReadings } from "./readings.js";
 import type { PlaceDoorContext } from "./context.js";
 import type { PlaceRecordsArea } from "./records.js";
 import type { PlaceSetupArea } from "./setup.js";
 import type { PlaceViewsArea } from "./views.js";
 
 /** The door's half that joins, proves and holds each computer's link, and answers what a link and a place say. */
-export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "answerChallenge" | "join" | "auth" | "hostKey" | "prove" | "attach" | "link" | "channel" | "load" | "nameOf" | "settingsAt" | "turnLimitAt" | "threadsAt" | "signInsAt" | "vaultAt" | "githubFromVault" | "loginLanded" | "loginsAgain" | "keyLanded" | "ghThere" | "offerOf" | "backendOf" | "forkingBackend" | "joined" | "folderComputer" | "forward" | "paneForwards" | "placeFor" | "defaultPlace" | "markUsed" | "markDefaultIfNone"> {
+export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "answerChallenge" | "join" | "auth" | "hostKey" | "prove" | "attach" | "link" | "channel" | "watchSys" | "load" | "nameOf" | "settingsAt" | "turnLimitAt" | "threadsAt" | "signInsAt" | "vaultAt" | "githubFromVault" | "loginLanded" | "loginsAgain" | "keyLanded" | "ghThere" | "offerOf" | "backendOf" | "forkingBackend" | "joined" | "folderComputer" | "forward" | "paneForwards" | "placeFor" | "defaultPlace" | "markUsed" | "markDefaultIfNone"> {
   const { opts, store, wiring, clockNow, seenEveryMs, live, kept, signInsHere, backends, forwards, asking, emit } = ctx;
   const panes = panePorts({ forwards, now: clockNow, schedule: ctx.schedule });
+  const readings = placeReadings(ctx);
   const {
     records, wiredProvider, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, awaiting, holdBack,
     defaultId, inTurn, markDefault, markHeld, challenge, signedRefusal, writeSeen, change, withCap, rowIds, loginListed,
@@ -172,6 +174,7 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
           // rest, and neither is pushed at every watcher of the place.
           if (tunnelled(placeId, e)) return;
           void live.get(placeId)?.forward?.then(f => f.event(e)).catch(() => undefined);
+          readings.heard(placeId, e);
           for (const read of channels.get(placeId) ?? []) read(e as unknown as Record<string, unknown>);
           opts.onDaemonEvent?.(placeId, e);
         },
@@ -180,6 +183,7 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
       // The poller must not hold a host that is otherwise done open.
       seen.unref?.();
       live.set(placeId, { socket, reach, seen });
+      readings.linked(placeId);
       // Before anything else this attach does: a request held over the gap is sent again on this socket, and the
       // stage waiting on it was told to wait rather than told the computer was gone.
       woken(placeId, true);
@@ -221,6 +225,8 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
 
     link: placeId => live.get(placeId)?.reach,
 
+    watchSys: (placeId, fn) => readings.watch(placeId, fn),
+
     channel(placeId, onEvent) {
       const held = live.get(placeId);
       if (held === undefined) return undefined;
@@ -236,17 +242,40 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
         forget();
         end({ code, reason: reason.toString("utf8") });
       };
+      /** This channel's hold on the computer's one readings watch: the channel hears every event the link carries,
+       * so the hold is all it takes, and a sys.unwatch passed up as it came would stop the watch every reader shares. */
+      let readingsHeld: Promise<() => void> | undefined;
+      const unhold = (): void => {
+        void readingsHeld?.then(release => release(), () => undefined);
+        readingsHeld = undefined;
+      };
       const forget = (): void => {
         reading.delete(onEvent);
         if (reading.size === 0) channels.delete(placeId);
         held.socket.off("close", gone);
+        unhold();
       };
       held.socket.once("close", gone);
       return {
-        send: frame => {
+        send: async frame => {
           const { op, ...params } = frame;
           const on = live.get(placeId);
-          if (on?.reach !== held.reach) return Promise.reject(new PlaceAbsentError(absentComputer(kept.get(placeId)?.name ?? placeId, null).sentence));
+          if (on?.reach !== held.reach) throw new PlaceAbsentError(absentComputer(kept.get(placeId)?.name ?? placeId, null).sentence);
+          if (op === "sys.watch") {
+            const holding = readingsHeld ?? readings.watch(placeId, () => {});
+            readingsHeld = holding;
+            return holding.then(
+              (): DaemonResponse => ({ id: null, ok: true }),
+              (e: unknown): DaemonResponse => {
+                if (readingsHeld === holding) readingsHeld = undefined;
+                return { id: null, ok: false, error: e instanceof Error ? e.message : String(e) };
+              },
+            );
+          }
+          if (op === "sys.unwatch") {
+            unhold();
+            return { id: null, ok: true };
+          }
           return on.reach.request(op, params) as Promise<DaemonResponse>;
         },
         closed,

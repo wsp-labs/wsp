@@ -994,6 +994,14 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
         }
       : {}),
     hereChannel: async onEvent => ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent)),
+    watchPlaceSys: async (placeId, fn) => {
+      if (placeId !== HERE_PLACE_ID) {
+        if (ctx.placeDoor === undefined) throw new Error(noSuchPlaceRefusal(placeId, []));
+        return ctx.placeDoor.watchSys(placeId, fn);
+      }
+      if (ctx.local?.sysSamples === undefined) throw new Error("this host reads nothing of the computer it runs on");
+      return ctx.local.sysSamples(fn);
+    },
     agents: { ...ctx.agentsRead, homesHere: ctx.homesHere },
     preferences: ctx.preferences,
     usage: ctx.usage,

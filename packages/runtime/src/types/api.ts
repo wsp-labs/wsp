@@ -72,6 +72,9 @@ export interface Runtime {
   /** One channel to the daemon of the computer this host runs on, the one its local workspace dials, for a terminal
    * that belongs to this computer rather than to a workspace on it. */
   hereChannel(onEvent: (event: Record<string, unknown>) => void): Promise<DaemonChannel>;
+  /** A computer's live readings, this one or one the person added, off the one watch the host holds of it for every
+   * reader until the returned detach runs. */
+  watchPlaceSys(placeId: string, fn: (s: SysSample) => void): Promise<() => void>;
   /** The agents, skills and MCP servers on one computer or workspace, read as that computer's login. A napping
    * workspace answers the last report read while it ran and is never woken for this. */
   readonly agents: {
