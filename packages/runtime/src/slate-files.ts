@@ -48,16 +48,17 @@ const wordsAt = (folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>, t
 
 /** What a read of the files a run names found: each regular file inside the thread's folder by its path there with a
  * hash of its content, and the paths it was handed that land on a file outside the folder once links are followed or
- * on one inside past the most one read hashes. */
+ * on one inside past what one read hashes, by count or by size. */
 export type HashRead = { files: Record<string, string>; outside?: string[]; past?: string[] };
 
 /** The thread's own computer as its daemon reads the files a run names there, under `root`. Throws where that daemon
  * cannot say. */
 export type HashOn = (root: string, paths: string[]) => Promise<HashRead>;
 
-/** Why an Always cannot hold to a file a run names: its computer could not read it, or it is a script that lands
- * outside the thread's folder, by its path or through a link, or one past the files one read hashes. */
-type Unpinned = { path: string; why: "unread" | "outside" | "link" | "past" };
+/** Why an Always cannot hold to a file a run names: its computer could not read it, it is a script that lands outside
+ * the thread's folder, by its path or through a link, or one past what one read hashes, by count or by size, or it
+ * comes after the paths one ask on the thread's machine sends. */
+type Unpinned = { path: string; why: "unread" | "outside" | "link" | "past" | "paths" };
 
 /** The hashes an approval of a run binds, and the files it names that no hash can bind. */
 export type Pin = { scripts?: Record<string, string>; unpinned: Unpinned[] };
@@ -67,7 +68,12 @@ export type Pin = { scripts?: Record<string, string>; unpinned: Unpinned[] };
 export const keyed = (pin: Pin): Record<string, string> | undefined =>
   pin.unpinned.length === 0 ? pin.scripts : { ...pin.scripts, ...Object.fromEntries(pin.unpinned.map(u => [u.path, u.why])) };
 
-const UNPINNED = { outside: "is outside the thread's folder", link: "is a link out of the thread's folder", past: `is past the ${FS_HASH_FILES_MAX} files one command can pin` } as const;
+const UNPINNED = {
+  outside: "is outside the thread's folder",
+  link: "is a link out of the thread's folder",
+  past: `is past what one command can pin (${FS_HASH_FILES_MAX} files, each up to ${FS_HASH_CAP_BYTES / 1024 / 1024} MiB)`,
+  paths: `is past the ${FS_HASH_PATHS_MAX} paths one command can name`,
+} as const;
 
 /** Each script a run names that no hash can bind, and why: what the sheet and a refused Always say. */
 const whyUnpinned = (pin: Pin): string | undefined => {
@@ -115,31 +121,30 @@ function wordsRun(decl: Extract<SlateRunDecl, { kind: "cmd" }>): Set<string> {
   return run;
 }
 
-/** Whether a path, joined as text, leaves the folder: not under it, or a way up on the way. */
-const beyond = (folder: string, path: string): boolean => {
-  const top = folder.endsWith("/") ? folder : `${folder}/`;
-  return !path.startsWith(top) || path.slice(top.length).split("/").includes("..");
-};
+/** Whether a path, its ways up folded by their letters, is not under the folder; a link on the way is the read's to
+ * name, as outside. */
+const beyond = (folder: string, path: string): boolean => !path.startsWith(folder.endsWith("/") ? folder : `${folder}/`);
 
 /** What an approval of a run binds, given what a read of its files found: every file inside the folder by its hash,
- * and as unpinned each script it may run that lands outside the folder (where no hash is read), through a link out of
- * it, or past the files one read hashes. No read at all leaves every path it names unpinned. */
+ * and as unpinned, once each, every path after the ones a read on the thread's machine is sent, and each script it
+ * may run that lands outside the folder (where no hash is read), through a link out of it, or past what one read
+ * hashes. No read at all leaves every path it names unpinned. */
 function pinOf(folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>, read: HashRead | undefined, there: boolean): Pin {
   const words = pathsNamed(decl);
-  if (read === undefined) return { unpinned: words.map(path => ({ path, why: "unread" as const })) };
+  if (read === undefined) return { unpinned: [...new Set(words)].map(path => ({ path, why: "unread" as const })) };
   const at = wordsAt(folder, decl, there);
   const run = wordsRun(decl);
+  const folded = there ? posix.normalize : resolve;
   const outside = new Set(read.outside ?? []);
   const past = new Set(read.past ?? []);
-  const unpinned: Unpinned[] = [];
+  const unpinned = new Map<string, Unpinned["why"]>();
   words.forEach((path, i) => {
     const full = at[i]!;
-    if (past.has(full)) unpinned.push({ path, why: "past" });
-    else if (!SCRIPT.test(path) && !run.has(path)) return;
-    else if (beyond(folder, full)) unpinned.push({ path, why: "outside" });
-    else if (outside.has(full)) unpinned.push({ path, why: "link" });
+    const script = SCRIPT.test(path) || run.has(path);
+    const why = there && i >= FS_HASH_PATHS_MAX ? "paths" : !script ? undefined : past.has(full) ? "past" : beyond(folded(folder), folded(full)) ? "outside" : outside.has(full) ? "link" : undefined;
+    if (why !== undefined && !unpinned.has(path)) unpinned.set(path, why);
   });
-  return { ...(Object.keys(read.files).length > 0 ? { scripts: read.files } : {}), unpinned };
+  return { ...(Object.keys(read.files).length > 0 ? { scripts: read.files } : {}), unpinned: [...unpinned].map(([path, why]) => ({ path, why })) };
 }
 
 /** Every file a run's cmd or then names, read on this disk as a box's daemon reads one there: each regular file under
@@ -159,8 +164,8 @@ function readHere(folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>):
         if (rel !== "" && st.isFile()) read.outside.push(word);
         continue;
       }
-      if (read.files[rel] !== undefined || !st.isFile() || st.size > FS_HASH_CAP_BYTES) continue;
-      if (Object.keys(read.files).length >= FS_HASH_FILES_MAX) read.past.push(word);
+      if (read.files[rel] !== undefined || !st.isFile()) continue;
+      if (st.size > FS_HASH_CAP_BYTES || Object.keys(read.files).length >= FS_HASH_FILES_MAX) read.past.push(word);
       else read.files[rel] = createHash("sha256").update(readFileSync(at)).digest("hex").slice(0, 16);
     } catch { continue; }
   }

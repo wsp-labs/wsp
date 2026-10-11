@@ -652,12 +652,11 @@ export function createSlates(deps: SlatesDeps): Slates {
       return isRunRecord(rec) && rec.state === "held" && (rec.why === undefined || rec.why === HELD_APPROVAL || rec.why === HELD_CONFIRM);
     }).map(name => `$${name}`);
 
-  /** Which files a run names changed since the person said "Always" to it, when that is why it asks again. */
-  const changedSince = (r: SlateRecord, run: string, key: string): string | undefined => {
-    const declared = r.document?.runs[run];
-    if (declared === undefined) return undefined;
-    const now = approvalDecl(r, declared).scripts ?? {};
-    const unread = pinFor(r.threadId, declared).unpinned.flatMap(u => (u.why === "unread" ? [u.path] : []));
+  /** Which files a run names changed since the person said "Always" to it, when that is why it asks again, from the
+   * pin its ask read. */
+  const changedSince = (r: SlateRecord, run: string, key: string, pin: Pin): string | undefined => {
+    const now = keyed(pin) ?? {};
+    const unread = pin.unpinned.flatMap(u => (u.why === "unread" ? [u.path] : []));
     for (const [k, a] of Object.entries(r.approvals)) {
       if (k === key || a.state !== "allowed" || a.run !== run) continue;
       if (unread.length > 0) return `${unread.join(", ")} could not be read on ${deps.thread(r.threadId)?.computer ?? "this computer"}, so it asks again`;
@@ -687,7 +686,7 @@ export function createSlates(deps: SlatesDeps): Slates {
         ...(a.then !== undefined ? { then: a.then } : {}),
         ...(a.files !== undefined ? { files: a.files } : {}),
         ...(pin !== undefined && pin.unpinned.length > 0 ? { noAlways: true as const } : {}),
-        why: (pin !== undefined ? cannotPin(pin) : undefined) ?? changedSince(r, a.run, a.key) ?? (isRunRecord(rec) && rec.why !== undefined ? rec.why : HELD_APPROVAL),
+        why: (pin === undefined ? undefined : (cannotPin(pin) ?? changedSince(r, a.run, a.key, pin))) ?? (isRunRecord(rec) && rec.why !== undefined ? rec.why : HELD_APPROVAL),
       };
     });
     return [...cmds, ...mcp.held(r.threadId)];
