@@ -305,6 +305,10 @@
     ],
     "ceilingMs": 600000
   },
+  "providerNames": {
+    "box": "Boat",
+    "solari": "Solari"
+  },
   "usages": {
     "computers": "wsp computers",
     "computers_set": "wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--spawn on|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...",

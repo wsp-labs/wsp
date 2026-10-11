@@ -48,7 +48,7 @@ import type {
   WorkspaceCreatingEvent,
 } from "@wsp/protocol";
 import type { BringBackResult, GitCommitReply, GitDiscardReply, GitUpdateReply, MergeInResult, PullRequestPage, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, ReactionContent, PullRequestItem, PullRequestSendResult, FixResult, MergeMethod, MergeResult, CheckoutReply, CommitDraft, ViewedMarks, RunStep, SessionRunEvent } from "@wsp/protocol";
-import type { WorktreeMade, KeptAttachment, WorkspaceKind, ForkSource, ConversationsAnswer, ResumeAsk, SessionEarlierEvent } from "@wsp/protocol";
+import type { PlaceKind, WorktreeMade, KeptAttachment, WorkspaceKind, ForkSource, ConversationsAnswer, ResumeAsk, SessionEarlierEvent } from "@wsp/protocol";
 import type { CallbackForwards, SignInAsk, SkillAsk } from "../agents-read.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { AccessChoice, AgentRow, AgentSetupSet, ThreadDefaults } from "@wsp/protocol";
@@ -557,7 +557,7 @@ export interface Runtime {
      * reads and the backend a builder there is made on. Refused with the place's own reason where it runs none, with
      * NO_BUILD_PLACE_LINE where no place here does, and with buildPlaceAskLine where more than one does and none is the
      * default. */
-    buildPlace(word?: string): Promise<{ place: string; name: string; backend: MachineBackend }>;
+    buildPlace(word?: string): Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }>;
     /** Boots a first-life builder from the recipe; a person sets it up on its live screen, then seals it.
      * Once `signal` aborts the call rejects with PrepareStoppedError: a machine this prepare made is killed by its
      * recorded id and its record dropped (a create still in flight is killed as it lands); a builder it attached to

@@ -502,8 +502,8 @@ export class BoxBackend implements MachineBackend {
   }
 
   /** The cheapest authenticated read: the account's limits, which boot nothing and touch no box. */
-  async checkKey(): Promise<void> {
-    await this.request("GET", "/limits");
+  async checkKey(): Promise<unknown> {
+    return this.request("GET", "/limits");
   }
 
   view(id: string): Promise<BoxView> {

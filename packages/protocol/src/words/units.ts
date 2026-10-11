@@ -261,8 +261,13 @@ export function offeredSize(sizes: readonly WorkspaceSize[], size: WorkspaceSize
  * the float against its own cent form calls that noise a third place. The one rate rule, read by the size refusal,
  * the places table, the size pickers and the provider rows alike. */
 export function fmtRate(usdPerHour: number): string {
+  return `${fmtRateDollars(usdPerHour)}/hr`;
+}
+
+/** That rate's dollars alone, for a line that spells the hour its own way. */
+export function fmtRateDollars(usdPerHour: number): string {
   const mils = usdPerHour.toFixed(3);
-  return `$${mils.endsWith("0") ? usdPerHour.toFixed(2) : mils}/hr`;
+  return `$${mils.endsWith("0") ? usdPerHour.toFixed(2) : mils}`;
 }
 
 /** The one refusal every road gives a size the provider does not offer, malformed or merely absent: the word as it

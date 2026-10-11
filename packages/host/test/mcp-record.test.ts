@@ -276,6 +276,7 @@ async function words(): Promise<Record<string, unknown>> {
     newerTurn: NEWER_TURN_LINE,
     noTerminalConfig: NO_TERMINAL_CONFIG_LINE,
     add: { refused: refusalLine(addToolRefusal("{word}"), ADD_TOOL_FIX), providers: Object.keys(PROVIDER_KEY_WORDS), ceilingMs: ADD_TOOL_MS },
+    providerNames: Object.fromEntries(Object.entries(PROVIDER_KEY_WORDS).map(([id, row]) => [id, row.name])),
     usages: Object.fromEntries(VERBS.filter(hasTool).flatMap(v => ("usage" in v ? [[toolName(v.name), v.usage]] : []))),
     defaults: {
       agentSetNothing: refusalLine(agentSetNothingLine, NOTHING_TO_SET_FIX),
@@ -666,6 +667,7 @@ const ANSWERED: Answered = {
   computers_set: [
     { case: "threads set", arguments: { computer: "attic", threads: 2 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 2 }, capDefault: { threads: 8 }, settings: { threads: 2 }, running: 0 } }) } },
     { case: "reset by id", arguments: { computer: "place-9", reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, running: 1 } }) } },
+    { case: "a cloud by the name its rows give it, in any case", cloud: true, arguments: { computer: "Solari", machines: 5, reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-solari", kind: "provider", name: "solari", takesForks: true }, { machines: 5 }, ["threads"])!, "usage") } },
     { case: "a cloud's machines and spend", cloud: true, arguments: { computer: "solari", machines: 5, spend: 2.5, reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-solari", kind: "provider", name: "solari", takesForks: true }, { machines: 5, spendPerDayUsd: 2.5 }, ["threads"])!, "usage") } },
     { case: "nap after and never", arguments: { computer: "attic", nap: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { napMs: null }, napMs: null, running: 0 } }) } },
     { case: "nap after in minutes", arguments: { computer: "attic", nap: 45, threads: 3 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 3 }, capDefault: { threads: 8 }, settings: { threads: 3, napMs: 2_700_000 }, napMs: 2_700_000, running: 0 } }) } },

@@ -15,7 +15,7 @@ import { stripVTControlCharacters } from "node:util";
 import { S_RADIO_ACTIVE, S_RADIO_INACTIVE } from "@clack/prompts";
 import { RUNGS, parseManifest, type Manifest, type ManifestEntry } from "@wsp/collect";
 import { BUILDER_DISK_GB, LocalBackend, SNAPSHOT_STORAGE, type BackendPricing, type ExecResult } from "@wsp/engine";
-import { HERE_PLACE_ID, ALREADY_APPLIED, BUILD_NEEDS_FILE_FIX, DAEMON_TOKEN_PATH, buildNeedsFileLine, folderName, MACHINE_GONE_LINE, PORT_TAKEN_REFUSAL, Recipe, SEAL_FAILED_LINE, SIGN_IN_DEFERRED_WORD, SIGN_IN_LATER, type GoldenManifest, type ProjectImportResult, type ProjectPlan } from "@wsp/protocol";
+import { HERE_PLACE_ID, ALREADY_APPLIED, BOAT_NO_GITHUB_LINE, BOAT_READY_LINE, BUILD_NEEDS_FILE_FIX, DAEMON_TOKEN_PATH, buildNeedsFileLine, folderName, MACHINE_GONE_LINE, PORT_TAKEN_REFUSAL, Recipe, SEAL_FAILED_LINE, SIGN_IN_DEFERRED_WORD, SIGN_IN_LATER, type GoldenManifest, type ProjectImportResult, type ProjectPlan } from "@wsp/protocol";
 import { copyKey, DAEMON_TOKEN_SET, LOOPBACK, createRuntime, goldenHead, localExecStream, type GoldenRecipe, type LocalWiring, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { catalogEntry, parseJsonc } from "@wsp/catalog";
@@ -1745,6 +1745,44 @@ describe("wsp init, flags and no terminal", () => {
     expect(out).not.toContain("from your Keychain");
     // Nothing is printed as an object without --json.
     expect(f.records).toEqual([]);
+  });
+
+  it("a seal on Boat forks no first machine, even one named, and ends on how a lead starts a sub-thread there", async () => {
+    const f = fake({ tty: false, provider: "box", firstWorkspace: "first", recipe: async () => answeredInBuild("gh") });
+    const result = await runInit(f.opts, f.io);
+    expect(result.code).toBe(0);
+    const out = f.text();
+    expect(out).toContain("Image v1 sealed.");
+    expect(out).toContain(BOAT_READY_LINE);
+    // The GitHub CLI signed in on the builder, so the image can clone and push: no warning.
+    expect(result.logins?.find(l => l.id === "logins/gh")?.state).toBe("signed-in");
+    expect(out).not.toContain(BOAT_NO_GITHUB_LINE);
+    expect(out).not.toContain("forked from image v1");
+    expect(out).not.toContain(FIRST_QUESTION);
+    expect(f.trail).toEqual([]);
+    expect(await f.runtimes.at(-1)!.workspaces.list()).toEqual([]);
+    // The builder and the seal's smoke fork are all that ever booted.
+    expect(f.backends[0]!.machines.map(m => [m.spec.fromSnapshot, m.killed])).toEqual([[undefined, true], ["snap_wsp-h1s1-default-v1", true]]);
+  });
+
+  it("a seal on Boat whose image holds no GitHub sign-in ends warning that a sub-thread there can neither clone nor push", async () => {
+    const f = fake({ tty: false, provider: "box" });
+    const result = await runInit(f.opts, f.io);
+    expect(result.code).toBe(0);
+    expect(result.logins?.find(l => l.id === "logins/gh")?.state).not.toMatch(/^(signed-in|copied)$/);
+    const out = f.text();
+    expect(out).toContain(BOAT_READY_LINE);
+    expect(out).toContain(BOAT_NO_GITHUB_LINE);
+    // The warning is among the seal's last lines: after the seal, and after Boat's ready line.
+    expect(out.indexOf(BOAT_NO_GITHUB_LINE)).toBeGreaterThan(out.indexOf(BOAT_READY_LINE));
+    expect(out.indexOf(BOAT_READY_LINE)).toBeGreaterThan(out.indexOf("Image v1 sealed."));
+  });
+
+  it("a seal anywhere that is not Boat says nothing of Boat", async () => {
+    const f = fake({ tty: false, recipe: async () => answeredInBuild("gh") });
+    expect((await runInit(f.opts, f.io)).code).toBe(0);
+    expect(f.text()).not.toContain(BOAT_READY_LINE);
+    expect(f.text()).not.toContain(BOAT_NO_GITHUB_LINE);
   });
 
   it("off a terminal a saved copy answer still reads the Keychain, and says what is read before macOS can ask", async () => {
