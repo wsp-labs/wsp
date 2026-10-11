@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A project's image in the window: ProjectGlyph draws it in the glyph's own box
-// with no frame of its own, the glyph standing while it is read and whenever it
+// A project's image in the window: ProjectGlyph draws it as a squircle tile in
+// the glyph's own box, the glyph standing while it is read and whenever it
 // cannot draw; the window asks the host once for every hash it lacks and lets a
 // URL go once nothing names its hash; the palette's switch rows and the New
 // thread heading draw through the one mark; and the Icon row on a project's
@@ -53,7 +53,7 @@ const wearing = (projectIcon: Record<string, string>, projectLook: Record<string
   useStore.setState({ preferences: { ...DEFAULT_PREFERENCES, labs: false, projectLook, projectIcon } });
 
 describe("the mark", () => {
-  it("draws the image in the glyph's own box, any class the row puts on the mark landing on it, with no frame of its own", () => {
+  it("draws the image as a tile in the glyph's own box, clipped to the app icon's squircle on a quiet ground, any class the row puts on the mark landing on it", () => {
     wearing({ pr_1: A }, { pr_1: { icon: "rocket", hue: "teal" } });
     useProjectIcons.setState({ urls: { [A]: "blob:wsp/a" } });
     const dim = "size-3 shrink-0 opacity-40 grayscale";
@@ -69,7 +69,8 @@ describe("the mark", () => {
     expect(imgs.map(img => img.getAttribute("class")!.split(" ").find(c => c.startsWith("size-")))).toEqual(["size-3", "size-4", "size-6", "size-10", "size-3"]);
     for (const img of imgs) {
       expect(img.getAttribute("class")).toContain("object-contain");
-      expect(img.getAttribute("class")).not.toMatch(/rounded|mask|ring|border|bg-/);
+      expect(img.getAttribute("class")!.split(" ")).toEqual(expect.arrayContaining(["rounded-icon", "bg-foreground/[0.04]"]));
+      expect(img.getAttribute("class")).not.toMatch(/mask|ring|border/);
     }
     expect(imgs[4]!.getAttribute("class")).toContain("opacity-40 grayscale");
     expect(container.querySelector("svg")).toBeNull();
