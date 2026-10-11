@@ -6,7 +6,7 @@
 // the question opened it, and an answer landing after the close, or after a
 // newer question, lands nowhere.
 import { create } from "zustand";
-import { selectWorkspaceRightPanelState, useRightPanelStore } from "../../rightPanelStore";
+import { panelKeyOf, selectWorkspaceRightPanelState, useRightPanelStore } from "../../rightPanelStore";
 
 export interface Aside {
   readonly id: number;
@@ -23,6 +23,8 @@ export interface Aside {
   readonly panelWasOpen: boolean;
   /** The tab that showed before the question, which closing it shows again while that tab still stands. */
   readonly activeBefore: string | null;
+  /** The thread's pane the question stands in, which a close after the person moved to another thread still finds. */
+  readonly panel: string;
 }
 
 interface AsideState {
@@ -45,7 +47,7 @@ export const useAsideStore = create<AsideState>()((set, get) => ({
     // A question asked over one still standing keeps the panel's state from before the first.
     const was = selectWorkspaceRightPanelState(panel.byWorkspaceId, workspaceId);
     const standing = get().byWorkspace[workspaceId];
-    const before = standing === undefined ? { panelWasOpen: was.isOpen, activeBefore: was.activeSurfaceId } : { panelWasOpen: standing.panelWasOpen, activeBefore: standing.activeBefore };
+    const before = standing === undefined ? { panelWasOpen: was.isOpen, activeBefore: was.activeSurfaceId, panel: panelKeyOf(workspaceId) } : { panelWasOpen: standing.panelWasOpen, activeBefore: standing.activeBefore, panel: standing.panel };
     const aside: Aside = { id, askId: crypto.randomUUID(), question, askedAt: new Date().toISOString(), ...before };
     set(s => ({ byWorkspace: { ...s.byWorkspace, [workspaceId]: aside } }));
     panel.open(workspaceId, "aside");
@@ -73,9 +75,9 @@ export const useAsideStore = create<AsideState>()((set, get) => ({
       return { byWorkspace: rest };
     });
     const panel = useRightPanelStore.getState();
-    panel.closeSurface(workspaceId, "aside");
-    if (standing.activeBefore !== null) panel.activateSurface(workspaceId, standing.activeBefore);
-    if (!standing.panelWasOpen) panel.close(workspaceId);
+    panel.closeSurface(standing.panel, "aside");
+    if (standing.activeBefore !== null) panel.activateSurface(standing.panel, standing.activeBefore);
+    if (!standing.panelWasOpen) panel.close(standing.panel);
   },
 }));
 

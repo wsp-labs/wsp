@@ -17,7 +17,7 @@ import { getLive } from "../machine/live.js";
 import { getProcs } from "../machine/procs.js";
 import type { Api } from "../protocol/client.js";
 import type { useStore } from "../protocol/store.js";
-import { useRightPanelStore } from "../rightPanelStore.js";
+import { anyPanelOpen, useRightPanelStore } from "../rightPanelStore.js";
 import { paneOf } from "../panes.js";
 import { useSignInStore } from "../shell/signInStore.js";
 import { connectDaemonLink, type DaemonLink, type DaemonLinkOptions } from "./daemon-link.js";
@@ -99,7 +99,7 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
   const onScreen = (id: string, wt: WorkspaceTerminals): boolean =>
     daemonWireHeld(id) ||
     selectTerminalUiState(useTerminalDrawerStore.getState().byWorkspaceId, id).terminalOpen ||
-    useRightPanelStore.getState().byWorkspaceId[id]?.isOpen === true ||
+    anyPanelOpen(useRightPanelStore.getState().byWorkspaceId, id) ||
     wt.tabs().length > 0;
 
   const sync = (): void => {

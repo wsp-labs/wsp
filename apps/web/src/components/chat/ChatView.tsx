@@ -31,7 +31,7 @@ import { threadFolderOf } from "../../files/root";
 import { cn } from "../../lib/utils";
 import { DEFAULT_TIMESTAMP_FORMAT, launchIn, subagentEntries, subagentRunOf, turnWait, type MessageId, type TimestampFormat, type TurnDiffSummary, type TurnSummary } from "./adapt";
 import { changedPathOf, onlyOf, useDiffStore } from "../../diffs/store";
-import { openBrowserAt, useRightPanelStore } from "../../rightPanelStore";
+import { carryNewThreadPanel, openBrowserAt, useRightPanelStore } from "../../rightPanelStore";
 import { useReadStamp } from "./useReadStamp";
 import { threadsOpenedBy } from "../../sidebar/threadTree";
 import { computerName, useComputerName } from "../../sidebar/workspaceRows";
@@ -247,6 +247,7 @@ export function ChatView({
   // session.start gives it one, and a view about to clear itself for a new thread still holds the one it is leaving.
   useEffect(() => {
     if (!hydrated || asked || threadId !== null || threadKey === workspaceId) return;
+    carryNewThreadPanel(workspaceId, threadKey);
     readingThread(workspaceId, threadKey);
   }, [asked, hydrated, readingThread, threadId, threadKey, workspaceId]);
 
