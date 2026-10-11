@@ -1132,6 +1132,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           add(one, tree.filter(id => !settled(id)));
         }
       }
+      const ended = o.processes === undefined ? [] : await ctx.activity.meet(take, o.processes, "settle", origin);
       // The one stamp a settle writes is its mark: a restore takes back the threads that carry it and nothing else.
       const at = (lastSettleAt = Math.max(clock.now(), lastSettleAt + 1));
       if (take.length > 0) {
@@ -1139,7 +1140,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         const marked = [...new Set([...take, ...named])];
         await ctx.mark(marked, id => ({ ...(moved.has(id) ? { readAt: at, settledAt: at } : {}), ...(named.includes(id) ? { settleNamedAt: at } : {}) }), origin);
       }
-      return { settled: titled(take), left };
+      return { settled: titled(take), left, ...(ended.length > 0 ? { ended } : {}) };
     },
 
     async mark(threadIds, marks, origin) {
@@ -1398,7 +1399,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       return { turns: cutsConversation ? cut.length : 0, ...(moved !== undefined ? { files: Number(moved["files"] ?? 0) } : {}), ...(shared ? { kept: REWIND_SHARED_LINE } : {}) };
     },
 
-    async delete(threadId, origin) {
+    async delete(threadId, origin, o = {}) {
       await ctx.ready();
       ctx.spawnGuard("delete", origin);
       const workspaceId = [...sessions.values()].find(s => s.view.threadId === threadId)?.view.workspaceId ?? threadRecords.get(threadId)?.workspaceId;
@@ -1412,12 +1413,24 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         // its refs were dropped.
         if (ctx.turnRuns(workspaceId)) throw Object.assign(new Error(WORKTREE_BUSY_LINE), { kind: "conflict" });
         const threads = new Set([...sessions.values()].flatMap(s => (s.view.workspaceId === workspaceId && s.view.threadId !== undefined ? [s.view.threadId] : [])));
+        if (o.check === true) {
+          if (o.processes !== undefined) await ctx.activity.meet([...threads], o.processes === "stop" ? "keep" : o.processes, "delete", origin);
+          return { workspaceId, worktree: tree.path, threads: threads.size };
+        }
+        const ended = o.processes === undefined ? [] : await ctx.activity.meet([...threads], o.processes, "delete", origin);
         for (const thread of threads) await ctx.moduleOf(entry.record.kind).endThread?.(entry, thread, { remove: true });
         await ctx.workspaces.delete(workspaceId, origin);
-        return { workspaceId, worktree: tree.path, threads: threads.size };
+        return { workspaceId, worktree: tree.path, threads: threads.size, ...(ended.length > 0 ? { ended } : {}) };
       }
-      // A send waiting on an end owed to a computer that is away has done no work, and goes with the thread.
+      // A send waiting on an end owed to a computer that is away has done no work, and goes with the thread, but only
+      // once the delete is decided: a check, or a refusal on its processes, leaves it waiting.
       const held = [...heldSends].filter(([, h]) => h.threadId === threadId);
+      if ([...sessions].some(([id, s]) => s.view.threadId === threadId && s.view.status === "running" && !heldSends.has(id))) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
+      if (o.check === true) {
+        if (o.processes !== undefined) await ctx.activity.meet([threadId], o.processes === "stop" ? "keep" : o.processes, "delete", origin);
+        return { workspaceId, threads: 1 };
+      }
+      const ended = o.processes === undefined ? [] : await ctx.activity.meet([threadId], o.processes, "delete", origin);
       for (const [, h] of held) h.giveUp();
       await Promise.all(held.map(([id]) => sessions.get(id)?.launch));
       if (ctx.threadRuns(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
@@ -1436,7 +1449,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await ctx.dropFromTranscript(workspaceId, e => e.threadId === threadId);
       await ctx.persistSessions(workspaceId);
       await ctx.slates.forget(threadId);
-      return { workspaceId, threads: 1 };
+      return { workspaceId, threads: 1, ...(ended.length > 0 ? { ended } : {}) };
     },
 
     async forget(threadId, origin, o = {}) {

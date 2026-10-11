@@ -596,6 +596,11 @@ export type WorkspaceSysEvent = z.infer<typeof WorkspaceSysEvent>;
 export const ProcCost = z.object({ cpuMs: z.number(), held: z.number().int() });
 export type ProcCost = z.infer<typeof ProcCost>;
 
+/** One reading of a computer the person owns, pushed on a client's own socket as WorkspaceSysEvent is, for a
+ * sys.subscribe that named the computer. */
+export const PlaceSysEvent = z.object({ type: z.literal("place.sys"), placeId: z.string(), sample: SysSample });
+export type PlaceSysEvent = z.infer<typeof PlaceSysEvent>;
+
 /** Every process the daemon read this tick. daemon is its own pid, so a
  * client can name it; total counts /proc entries, procs holds at most the
  * first thousand of them by pid. */

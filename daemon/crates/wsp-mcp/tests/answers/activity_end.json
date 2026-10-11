@@ -1,0 +1,97 @@
+{
+  "tool": "activity_end",
+  "cases": [
+    {
+      "case": "ended with what was under it",
+      "arguments": {
+        "pid": 4200,
+        "started": 1760000001000
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":true,\"left\":[],\"forced\":[],\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0.25,\"memory\":20000000,\"command\":\"esbuild --service\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000001000,\"depth\":2,\"ppid\":4200,\"pid\":4300}],\"pid\":4200}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ended 4200 node and 1 under it\"}],\"structuredContent\":{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000001000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service\",\"memory\":20000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[],\"left\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4200,
+          "startedAt": 1760000001000
+        }
+      ]
+    },
+    {
+      "case": "forced, one left",
+      "arguments": {
+        "pid": 4200,
+        "started": 1760000001000,
+        "computer": "lab-mac"
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":true,\"left\":[4200],\"forced\":[4200],\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200}],\"pid\":4200}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ended 4200 node\\nKILL after TERM's 2 s: 4200\\nstill running after KILL: 4200\"}],\"structuredContent\":{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[4200],\"left\":[4200]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4200,
+          "startedAt": 1760000001000,
+          "computer": "lab-mac"
+        }
+      ]
+    },
+    {
+      "case": "a kept agent freed",
+      "arguments": {
+        "pid": 4100,
+        "started": 1760000000000
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":true,\"pid\":4100,\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"agent\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4100}],\"forced\":[],\"left\":[],\"freed\":\"thread-7f3a9c21e4b5\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"freed the agent thread thread-7 kept\"}],\"structuredContent\":{\"pid\":4100,\"ended\":[{\"pid\":4100,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"agent\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[],\"left\":[],\"freed\":\"thread-7f3a9c21e4b5\"}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4100,
+          "startedAt": 1760000000000
+        }
+      ]
+    },
+    {
+      "case": "the agent refused",
+      "arguments": {
+        "pid": 4100,
+        "started": 1760000000000
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":false,\"error\":\"4100 is the agent of thread thread-7 \\\"fix\\\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent.\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"4100 is the agent of thread thread-7 \\\"fix\\\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent.\"}],\"structuredContent\":{\"error\":\"4100 is the agent of thread thread-7 \\\"fix\\\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4100,
+          "startedAt": 1760000000000
+        }
+      ]
+    },
+    {
+      "case": "a pid that is another process now",
+      "arguments": {
+        "pid": 4200,
+        "started": 5
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":false,\"error\":\"pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now.\",\"kind\":\"not-found\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now.\"}],\"structuredContent\":{\"error\":\"pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4200,
+          "startedAt": 5
+        }
+      ]
+    }
+  ]
+}

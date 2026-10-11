@@ -1,1 +1,3 @@
 Process rows carry the power a Mac's process drew in milliwatts, the thread that owns them and what they are, and each process frame says what its tick cost the daemon in cpu, the ps it ran included, and held rows; a process watch narrowed to a cgroup reads every cgroup under it.
+sys.history at a step under a minute answers the last fifteen minutes of reads as they were taken, sys.unwatch ends a socket's readings watch, a sys.unwatch or proc.unwatch sent before its watch is answered still ends it, and a Linux computer's own disk is read as df reads it, without running df.
+proc.list answers every process at once for a reader that wants no stream: the rows a running process watch last read, or one scan of its own with cpu at 0 where none runs.

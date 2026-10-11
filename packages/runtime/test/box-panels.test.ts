@@ -13,7 +13,7 @@ import { createServer as createHttpServer, type Server as HttpServer } from "nod
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
-import { DAEMON_VERSION, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
+import { DAEMON_VERSION, SYS_SUBSCRIBE_ONE_OF, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import { namedWatchRefusal, procWatchScope } from "../src/account/box-panels.js";
@@ -44,6 +44,8 @@ interface BoxShape {
   endFails?: boolean;
   /** A thread's end there is never answered. */
   endHangs?: boolean;
+  /** How many readings watches there are refused before one is taken, as a daemon that cannot read its computer. */
+  refusesWatch?: number;
 }
 
 /** A joined computer as its daemon answers the host: its login, a turn's launch and polls, and the panes' frames. */
@@ -76,6 +78,10 @@ function box(client: WsClient, login: { home: string; owner: string }, listening
     if (op === "machine.backend") return say(KEEPS_NO_IMAGE);
     if (op === "ports.watch") return say({ ports: listening().map(port => ({ port, pid: 900, uid: 0, loopback: true })) });
     if (op === "pty.create") return say({ ptyId: "pty_1", pid: 4242 });
+    if (op === "sys.watch" && (shape.refusesWatch ?? 0) > 0) {
+      shape.refusesWatch! -= 1;
+      return client.say({ id: frame["id"], ok: false, error: "this computer reads no load" });
+    }
     if (op?.startsWith("tunnel.") && shape.tunnels === true) return tunnel(op, frame, say);
     if (op !== "exec") return say({});
     const cmd = String(frame["cmd"]);
@@ -627,6 +633,129 @@ describe("the terminal and the readings of a thread in a folder on a computer th
     const sample = { type: "sys.sample", cpu: 12, load1: 0.4, mem: { used: 1, total: 4 }, disk: { used: 2, total: 9 }, at: 1 };
     seen.client.say(sample);
     await expect.poll(() => [a, b].map(heard => heard.filter(e => e["type"] === "sys.sample").length)).toEqual([1, 1]);
+  });
+});
+
+describe("the readings of a computer the person joined, read by its page and a folder's panes at once", () => {
+  const sample = (at: number): Record<string, unknown> => ({ type: "sys.sample", cpu: 12, load1: 0.4, mem: { used: 1, total: 4 }, disk: { used: 2, total: 9 }, at });
+  const page = async (): Promise<WsClient> => {
+    const c = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
+    sockets.push(c.ws);
+    return c;
+  };
+  const onPage = (c: WsClient, placeId: string): unknown[] => c.events.filter(e => e.type === "place.sys" && e["placeId"] === placeId).map(e => e["sample"]);
+  const asked = (seen: Box, op: string): number => seen.frames.filter(f => f["op"] === op).length;
+
+  it("ride one watch of the link, and each sample reaches the page and the pane once", async () => {
+    const { rt, seen, placeId, workspaceId } = await joined({ adapters: { claude: answering([]) } });
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    const heard: Record<string, unknown>[] = [];
+    expect(await (await pane(rt, workspaceId, heard)).send({ id: 1, op: "sys.watch" })).toMatchObject({ ok: true });
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    expect(asked(seen, "sys.watch")).toBe(1);
+
+    seen.client.say(sample(1));
+    seen.client.say(sample(2));
+    await expect.poll(() => onPage(c, placeId)).toEqual([sample(1), sample(2)]);
+    await expect.poll(() => heard.filter(e => e["type"] === "sys.sample")).toEqual([sample(1), sample(2)]);
+  });
+
+  it("stop with sys.unwatch only when the last reader leaves, by unsubscribing or by its socket closing", async () => {
+    const { rt, seen, placeId, workspaceId } = await joined({ adapters: { claude: answering([]) } });
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    const panel = await pane(rt, workspaceId, []);
+    expect(await panel.send({ id: 1, op: "sys.watch" })).toMatchObject({ ok: true });
+
+    // The page leaving keeps the watch for the pane; the pane going after it ends it.
+    expect(await c.request("sys.unsubscribe", { placeId })).toMatchObject({ ok: true });
+    expect(asked(seen, "sys.unwatch")).toBe(0);
+    panel.close();
+    await expect.poll(() => asked(seen, "sys.unwatch")).toBe(1);
+
+    // A page that comes back asks again, and its window closing is the last reader leaving.
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    expect(asked(seen, "sys.watch")).toBe(2);
+    c.close();
+    await expect.poll(() => asked(seen, "sys.unwatch")).toBe(2);
+
+    // A pane's own sys.unwatch is its hold let go, never the shared watch stopped under another reader.
+    const other = await page();
+    expect(await other.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    const second = await pane(rt, workspaceId, []);
+    expect(await second.send({ id: 1, op: "sys.watch" })).toMatchObject({ ok: true });
+    expect(await second.send({ id: 2, op: "sys.unwatch" })).toMatchObject({ ok: true });
+    expect(asked(seen, "sys.unwatch")).toBe(2);
+    seen.client.say(sample(3));
+    await expect.poll(() => onPage(other, placeId)).toEqual([sample(3)]);
+  });
+
+  it("are held while the computer is away, asked again on the link that replaces the dropped one, and reach the same page", async () => {
+    const { seen, placeId, back } = await joined({ adapters: { claude: answering([]) } });
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    seen.client.say(sample(1));
+    await expect.poll(() => onPage(c, placeId)).toEqual([sample(1)]);
+
+    seen.client.close();
+    await until(async () => (await placesOf()).find(p => p.id === placeId)?.present === false);
+    // A page that opens while the computer is away is held too, and asks nothing of a link that is not there.
+    const late = await page();
+    expect(await late.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+
+    const again = await back();
+    await expect.poll(() => asked(again, "sys.watch")).toBe(1);
+    again.client.say(sample(2));
+    await expect.poll(() => onPage(c, placeId)).toEqual([sample(1), sample(2)]);
+    await expect.poll(() => onPage(late, placeId)).toEqual([sample(2)]);
+  });
+
+  it("share the one watch with a channel to that computer, whose sys.unwatch never goes up the link under another reader", async () => {
+    const { seen, placeId } = await joined({ adapters: { claude: answering([]) } });
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    const raw = await page();
+    const opened = await raw.request("daemon.open", { placeId });
+    expect(opened).toMatchObject({ ok: true });
+    const channel = opened["channel"] as string;
+    expect(await raw.request("daemon.send", { channel, frame: { op: "sys.watch" } })).toMatchObject({ ok: true, reply: { ok: true } });
+    expect(asked(seen, "sys.watch")).toBe(1);
+    expect(await raw.request("daemon.send", { channel, frame: { op: "sys.unwatch" } })).toMatchObject({ ok: true, reply: { ok: true } });
+    expect(asked(seen, "sys.unwatch")).toBe(0);
+    expect(await c.request("sys.unsubscribe", { placeId })).toMatchObject({ ok: true });
+    await expect.poll(() => asked(seen, "sys.unwatch")).toBe(1);
+  });
+
+  it("say the daemon's refusal of the watch, and keep nothing of it: the next reader on that link asks again", async () => {
+    const shape: BoxShape = { refusesWatch: 1 };
+    const { rt, seen, placeId, workspaceId, back } = await joined({ adapters: { claude: answering([]) }, shape });
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: false, error: "this computer reads no load" });
+
+    // A page held while the computer is away is asked for on the link it dials back on, which refuses too.
+    seen.client.close();
+    await until(async () => (await placesOf()).find(p => p.id === placeId)?.present === false);
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    shape.refusesWatch = 1;
+    const again = await back();
+    await expect.poll(() => asked(again, "sys.watch")).toBe(1);
+    // A pane on that same link, once the refusal is back (the ping's answer comes after it), is not handed a refusal
+    // it never asked for: it asks, and the watch is taken.
+    const panel = await pane(rt, workspaceId, []);
+    await panel.send({ id: 1, op: "ping" });
+    expect(await panel.send({ id: 2, op: "sys.watch" })).toMatchObject({ ok: true });
+    expect(asked(again, "sys.watch")).toBe(2);
+    again.client.say(sample(1));
+    await expect.poll(() => onPage(c, placeId)).toEqual([sample(1)]);
+  });
+
+  it("are refused for a place this host holds no computer for, and for an ask that names a workspace and a computer both", async () => {
+    const { placeId, workspaceId } = await joined({ adapters: { claude: answering([]) } });
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId: "p_nowhere" })).toMatchObject({ ok: false, error: expect.stringMatching(/no place named p_nowhere/) });
+    expect(await c.request("sys.subscribe", { placeId, workspaceId })).toMatchObject({ ok: false, error: SYS_SUBSCRIBE_ONE_OF });
+    expect(await c.request("sys.subscribe", {})).toMatchObject({ ok: false, error: SYS_SUBSCRIBE_ONE_OF });
   });
 });
 

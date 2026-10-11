@@ -342,6 +342,7 @@ import { projectsArea } from "./projects/projects.js";
 
 import { usageArea } from "./account/usage.js";
 import { conversationsArea } from "./threads/conversations.js";
+import { activityDoor } from "./activity.js";
 
 import { statusArea } from "./account/status.js";
 
@@ -422,6 +423,7 @@ export {
 export function createRuntime(opts: RuntimeOptions): Runtime {
   const ctx = {} as RuntimeContext;
   Object.assign(ctx, runtimeCore(ctx, opts));
+  Object.assign(ctx, { activity: activityDoor(ctx) });
   Object.assign(ctx, kindsArea(ctx));
 
   Object.assign(ctx, rulesArea(ctx));
@@ -994,10 +996,19 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
         }
       : {}),
     hereChannel: async onEvent => ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent)),
+    watchPlaceSys: async (placeId, fn) => {
+      if (placeId !== HERE_PLACE_ID) {
+        if (ctx.placeDoor === undefined) throw new Error(noSuchPlaceRefusal(placeId, []));
+        return ctx.placeDoor.watchSys(placeId, fn);
+      }
+      if (ctx.local?.sysSamples === undefined) throw new Error("this host reads nothing of the computer it runs on");
+      return ctx.local.sysSamples(fn);
+    },
     agents: { ...ctx.agentsRead, homesHere: ctx.homesHere },
     preferences: ctx.preferences,
     usage: ctx.usage,
     conversations: ctx.conversations,
+    activity: ctx.activity,
     status: {
       ...ctx.status,
       // Which workspaces this caller is served is decided here, after the probes, off the same reading the other

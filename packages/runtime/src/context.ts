@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { ActivityArea } from "./activity.js";
 import type {
   GoneWatch,
   Builder,
@@ -807,4 +808,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;

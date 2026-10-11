@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
 import { CATALOG_AGENTS, type ThreadAgent, loginHomeIn, sharedOn } from "@wsp/catalog";
-import { type DaemonFrame, type HarnessLimit, type ResetRoad, THIS_COMPUTER, underProject, absentComputer, HERE_PLACE_ID, isJoinedComputer, workspacePlace, RANGE_DAYS, READINGS_STEP_MS, SysHistoryReply, resetNoLoginsLine, USAGE_WORDS, UsageLogsReply, unknownOpLine, type UsageStore, type ReadingsAnswer, type PlaceView, type AccountsAnswer, type AgentSignInState, type ResetAnswer, type UsageSplit } from "@wsp/protocol";
+import { type DaemonFrame, type HarnessLimit, type ResetRoad, THIS_COMPUTER, underProject, absentComputer, HERE_PLACE_ID, isJoinedComputer, workspacePlace, READINGS_SPAN_MS, READINGS_STEP_MS, SysHistoryReply, resetNoLoginsLine, USAGE_WORDS, UsageLogsReply, unknownOpLine, type UsageStore, type ReadingsAnswer, type PlaceView, type AccountsAnswer, type AgentSignInState, type ResetAnswer, type UsageSplit } from "@wsp/protocol";
 import { envInput, withEnvFromInput } from "@wsp/engine";
 import { NO_PLACE_DOOR } from "../places.js";
 import { harnessCatalog, modelLabel } from "../harness-catalog.js";
@@ -320,7 +320,7 @@ export function usageArea(ctx: RuntimeContext): UsageArea {
     },
     readings: async (target, range, origin) => {
       const to = clock.now();
-      const from = to - RANGE_DAYS[range] * 86_400_000;
+      const from = to - READINGS_SPAN_MS[range];
       const stepMs = READINGS_STEP_MS[range];
       const frame = { op: "sys.history", from, to, stepMs } as DaemonFrame;
       const read = async (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>): Promise<ReadingsAnswer> => {

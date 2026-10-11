@@ -23,9 +23,9 @@ use crate::git::Asked::{Read as Reads, Work as Works};
 use crate::guest::SESSION_TAKEN;
 use crate::manifest::RecordInput;
 use crate::paths::OpError;
-use crate::proc::{kill_process, ProcSampler, ProtectedPids};
 use crate::pty::{passwd_row, process_env, pump, PtyCreateOpts};
 use crate::roads::guest_road_serves;
+use crate::sys::SocketWatch;
 use crate::tunnel::Tunnels;
 #[cfg(not(target_os = "linux"))]
 use crate::workspace::no_such_workspace;
@@ -33,10 +33,10 @@ use crate::workspace::no_such_workspace;
 use crate::workspace::workspaces_of;
 mod road;
 mod runner;
+mod sys_proc;
 mod update;
 use crate::{
-    bring_back, frame_text as text, fs, git, hosts, paths, readings, ssh, transcripts, tunnel, usage_logs, Ctx, Listener, Outbound,
-    Outgoing,
+    bring_back, frame_text as text, fs, git, hosts, paths, ssh, transcripts, tunnel, usage_logs, Ctx, Listener, Outbound, Outgoing,
 };
 pub(crate) use road::Road;
 use runner::Runner;
@@ -60,7 +60,11 @@ pub(crate) struct Conn {
     detaches: Mutex<Option<Vec<Detach>>>,
     /// This socket's proc.watch, so proc.unwatch can end it before the socket does and a second watch on the same
     /// socket asks for a whole snapshot rather than a second subscription.
-    proc_watch: Mutex<Option<(u64, Arc<ProcSampler>)>>,
+    proc_watch: Arc<sys_proc::ProcWatch>,
+    /// This socket's sys.watch, so sys.unwatch can end it before the socket does and a second watch on the same socket
+    /// is no second subscription. The close's undo for it and for proc_watch are the first two in the list, so a
+    /// watch and unwatch every time a page opens adds nothing to it.
+    sys_watch: Arc<SocketWatch>,
     /// The one guest session this socket opened, which ends with it.
     guest: Mutex<Option<String>>,
     /// The port watches this socket named, each by the key it holds in the daemon's one port watch.
@@ -69,6 +73,9 @@ pub(crate) struct Conn {
 
 impl Conn {
     pub(crate) fn new(key: u64, scope: Option<NonZeroU16>, out: Outbound, road: Road, token: Option<String>) -> Conn {
+        let (sys_watch, proc_watch) = (Arc::<SocketWatch>::default(), Arc::<sys_proc::ProcWatch>::default());
+        let (sys, procs) = (Arc::clone(&sys_watch), Arc::clone(&proc_watch));
+        let unwatch: Vec<Detach> = vec![Box::new(move || sys.unwatch()), Box::new(move || procs.unwatch())];
         Conn {
             key,
             scope,
@@ -76,8 +83,9 @@ impl Conn {
             road,
             token,
             tunnels: Tunnels::default(),
-            detaches: Mutex::new(Some(Vec::new())),
-            proc_watch: Mutex::new(None),
+            detaches: Mutex::new(Some(unwatch)),
+            proc_watch,
+            sys_watch,
             guest: Mutex::new(None),
             port_watches: Mutex::new(HashMap::new()),
         }
@@ -327,6 +335,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
             | "tunnel.write"
             | "tunnel.close"
             | "sys.watch"
+            | "sys.unwatch"
             | "sys.history"
             | "usage.logs"
             | "transcripts.list"
@@ -334,6 +343,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
             | "proc.watch"
             | "proc.unwatch"
             | "proc.inspect"
+            | "proc.list"
             | "proc.kill"
             | "guest.open"
             | "guest.send"
@@ -376,14 +386,6 @@ pub(crate) fn not_built(op: &str) -> String {
 
 fn no_such_pty(pty_id: &str) -> String {
     format!("no such pty: {pty_id}")
-}
-
-/// Both proc ops refuse a pid above the Linux pid_max ceiling as a bad request, as the node daemon does.
-fn pid_in_range(pid: std::num::NonZeroU32) -> Result<u32, OpError> {
-    if pid.get() > numbers::PID_MAX {
-        return Err(OpError::coded(DaemonErrorCode::BadRequest, format!("pid must be an integer between 1 and {}", numbers::PID_MAX)));
-    }
-    Ok(pid.get())
 }
 
 /// The real path a request names, inside the daemon's root or a folder the roots file names as of this op.
@@ -1098,77 +1100,11 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
             conn.tunnels.close(&tunnel_id);
             ok(id)
         }
-        DaemonOp::SysWatch => {
-            // One read before the watch is taken: a machine whose module cannot read it refuses here, where the pane
-            // can say so, rather than accepting a stream it will never send and leaving the rows at pending.
-            let watched = async {
-                let sampler = ctx.sys_sampler()?;
-                sampler.probe().await?;
-                let key = ctx.next_key();
-                conn.while_open(|| {
-                    sampler.subscribe(key, conn.out.clone());
-                    Some(Box::new(move || sampler.unsubscribe(key)) as Detach)
-                });
-                Ok(Empty {})
-            };
-            answer(id, watched.await)
-        }
-        DaemonOp::SysHistory { from, to, step_ms } => {
-            let read = async {
-                // A kind that reads no readings keeps none, and says so in the watch's own words.
-                readings::readings_for(&ctx.options.kind, std::env::consts::OS)?;
-                if step_ms == 0 || to <= from {
-                    return Err(OpError::coded(
-                        DaemonErrorCode::BadRequest,
-                        "sys.history takes a from before its to and a step above zero",
-                    ));
-                }
-                let history = Arc::clone(&ctx.history);
-                tokio::task::spawn_blocking(move || history.read(from, to, step_ms, numbers::READINGS_POINTS_CAP))
-                    .await
-                    .map_err(|e| OpError::plain(e.to_string()))
-            };
-            answer(id, read.await)
-        }
+        op if sys_proc::serves(&op) => sys_proc::serve(conn, ctx, id, name, op).await,
         DaemonOp::UsageLogs { stores } => answer(id, usage_logs::serve(&conn.road, ctx, stores).await),
         DaemonOp::TranscriptsList { root, dirs, cwds } => answer(id, transcripts::serve_list(&conn.road, ctx, root, dirs, cwds).await),
         DaemonOp::TranscriptsRead { root, dirs, session, last } => {
             answer(id, transcripts::serve_read(&conn.road, ctx, root, dirs, session, last.get()).await)
-        }
-        DaemonOp::ProcWatch { cgroups } => {
-            let watched = async {
-                let sampler = ctx.proc_sampler()?;
-                sampler.probe().await?;
-                let key = ctx.next_key();
-                conn.while_open(|| {
-                    let mut watch = conn.proc_watch.lock().unwrap_or_else(|e| e.into_inner());
-                    // A socket already watching that watches again missed a frame: its next one is whole.
-                    if let Some((held, sampler)) = watch.as_ref() {
-                        sampler.rescope(*held, cgroups);
-                        return None;
-                    }
-                    sampler.subscribe(key, conn.out.clone(), cgroups);
-                    *watch = Some((key, Arc::clone(&sampler)));
-                    Some(Box::new(move || sampler.unsubscribe(key)) as Detach)
-                });
-                Ok(Empty {})
-            };
-            answer(id, watched.await)
-        }
-        DaemonOp::ProcUnwatch => {
-            let watch = conn.proc_watch.lock().unwrap_or_else(|e| e.into_inner()).take();
-            if let Some((key, sampler)) = watch {
-                sampler.unsubscribe(key);
-            }
-            ok(id)
-        }
-        DaemonOp::ProcInspect { pid } => {
-            let inspected = async { ctx.proc_sampler()?.inspect(pid_in_range(pid)?).await };
-            answer(id, inspected.await)
-        }
-        DaemonOp::ProcKill { pid, signal } => {
-            let protected = ProtectedPids { this: std::process::id(), parent: std::os::unix::process::parent_id() };
-            answer(id, pid_in_range(pid).and_then(|pid| kill_process(pid, signal, protected)).map(|()| Empty {}))
         }
         _ => refuse(id, DaemonErrorCode::Unsupported, not_built(name)),
     }
@@ -1856,6 +1792,7 @@ pub(crate) mod tests {
             "sys.watch",
             "proc.watch",
             "proc.inspect",
+            "proc.list",
             "proc.kill",
             "manifest.get",
             "inbox.watch",

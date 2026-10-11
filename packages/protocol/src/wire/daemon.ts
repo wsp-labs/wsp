@@ -349,6 +349,15 @@ export const ProcInspectReply = z.object({
 });
 export type ProcInspectReply = z.infer<typeof ProcInspectReply>;
 
+/** proc.list's answer: the rows read at `at`, every process up to the cap, and how many the machine had. */
+export const ProcListReply = z.object({
+  at: z.number(),
+  daemon: z.number().int(),
+  total: z.number().int(),
+  procs: z.array(ProcEntry),
+});
+export type ProcListReply = z.infer<typeof ProcListReply>;
+
 /** How much of a command's output one exec op carries back, stdout and stderr together. Past it the reply says
  * truncated and the rest is dropped: the road is a WebSocket frame and a turn that cats a log would otherwise put
  * the machine's whole disk through it. */
@@ -439,11 +448,15 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("manifest.restartScript") }),
   z.object({ id: reqId, op: z.literal("inbox.watch") }),
   z.object({ id: reqId, op: z.literal("inbox.rescan") }),
-  /** Streams sys.sample events to this socket every two seconds until it
-   * closes. One sampler serves every subscriber and stops with the last one;
-   * the first sample lands one interval after the reply, since cpu is a delta. */
+  /** Streams sys.sample events to this socket every two seconds until
+   * sys.unwatch or the socket closes. One sampler serves every subscriber and
+   * stops with the last one; a second watch on one socket is no second
+   * subscription. The first sample lands one interval after the reply, since
+   * cpu is a delta. */
   z.object({ id: reqId, op: z.literal("sys.watch") }),
-  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs.
+  z.object({ id: reqId, op: z.literal("sys.unwatch") }),
+  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs. A
+  // step under a minute answers the last fifteen minutes of reads as they were taken.
   z.object({ id: reqId, op: z.literal("sys.history"), from: z.number().int(), to: z.number().int(), stepMs: z.number().int().nonnegative() }),
   // What each agent's own store on the daemon's computer counted, for the stores the host names: counts, a model and
   // a folder per session and half hour, and the newest plan reading a store kept, never a line of a transcript.
@@ -468,6 +481,9 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** One process in depth, replied as a ProcInspectReply; this is the only op
    * that scans /proc/net, and only for that pid's sockets. */
   z.object({ id: reqId, op: z.literal("proc.inspect"), pid: z.number().int().positive() }),
+  /** Every process once, replied as a ProcListReply, for a reader that wants no stream: the rows a running sampler
+   * last read, else one scan of its own whose cpu reads 0. */
+  z.object({ id: reqId, op: z.literal("proc.list") }),
   /** Sends the signal. pid 1, the daemon and the daemon's parent are refused
    * with code forbidden; a pid that is gone answers not-found. */
   z.object({ id: reqId, op: z.literal("proc.kill"), pid: z.number().int().positive(), signal: ProcSignal }),

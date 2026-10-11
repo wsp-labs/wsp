@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The computer's readings kept a minute apart for as long as the daemon runs: the sampler's two-second samples folded
-//! into one point a minute (the mean cpu and load, the last memory and disk), appended one line each to a file a day
-//! under the daemon's own folder, the oldest day dropped past READINGS_KEPT_DAYS or past READINGS_CAP_BYTES between
-//! them. sys.history reads those files back, folded into the steps a chart draws. A stopped machine runs no daemon
-//! and keeps nothing, so its chart has a gap where it was off.
+//! The computer's readings kept a minute apart for as long as the daemon runs: the recorder's fifteen-second reads
+//! folded into one point a minute (the mean cpu and load, the last memory and disk), appended one line each to a file
+//! a day under the daemon's own folder, the oldest day dropped past READINGS_KEPT_DAYS or past READINGS_CAP_BYTES
+//! between them. The last READINGS_RECENT_MS of reads are held in memory as taken too, since a minute is written only
+//! once the next one's first read lands. sys.history reads the files back folded into the steps a chart draws, and a
+//! step under a minute answers the reads held after them. A stopped machine runs no daemon and keeps nothing, so its
+//! chart has a gap where it was off.
 
+use std::collections::VecDeque;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use wsp_frames::{SysHistoryReply, SysPoint, Usage};
+use wsp_frames::{numbers, SysHistoryReply, SysPoint, Usage};
 
 const MINUTE_MS: i64 = 60_000;
 const DAY_MS: i64 = 86_400_000;
@@ -67,21 +70,32 @@ pub(crate) fn day_name(at: i64) -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
-/// The folder of day files, with how many days it keeps and the bytes they may come to.
+/// The folder of day files, with how many days it keeps and the bytes they may come to, and the newest reads.
 pub(crate) struct History {
     dir: PathBuf,
     keep_days: u32,
     cap_bytes: u64,
     fold: Mutex<MinuteFold>,
+    recent: Mutex<VecDeque<SysPoint>>,
 }
 
 impl History {
     pub(crate) fn new(dir: PathBuf, keep_days: u32, cap_bytes: u64) -> History {
-        History { dir, keep_days, cap_bytes, fold: Mutex::new(MinuteFold::default()) }
+        History { dir, keep_days, cap_bytes, fold: Mutex::new(MinuteFold::default()), recent: Mutex::new(VecDeque::new()) }
     }
 
-    /// One sample from the sampler: a finished minute is written, and the files are held to their days and cap.
+    /// One read from the recorder: held with the newest reads, a finished minute written, and the files held to their
+    /// days and cap.
     pub(crate) fn sample(&self, at: i64, cpu: f64, load1: f64, mem: Usage, disk: Usage) -> std::io::Result<()> {
+        {
+            let mut recent = self.recent.lock().unwrap_or_else(|e| e.into_inner());
+            let point =
+                SysPoint { at, cpu: crate::sys::finite(cpu), load1: crate::sys::finite(load1), mem: mem.clone(), disk: disk.clone() };
+            recent.push_back(point);
+            while recent.len() > numbers::READINGS_RECENT_CAP || recent.front().is_some_and(|p| p.at <= at - numbers::READINGS_RECENT_MS) {
+                recent.pop_front();
+            }
+        }
         let done = self.fold.lock().unwrap_or_else(|e| e.into_inner()).add(at, cpu, load1, mem, disk);
         match done {
             Some(point) => self.append(&point, at),
@@ -116,8 +130,24 @@ impl History {
     }
 
     /// The points between two instants, folded into steps of step_ms, oldest first: the mean cpu and load of each
-    /// step and its last memory and disk. At most `cap` steps; a range that holds more answers the first and says so.
+    /// step and its last memory and disk. A step under a minute answers the reads held in memory as they were taken,
+    /// and the files only for the whole minutes before the oldest of them. At most `cap` steps; a range that holds
+    /// more answers the first and says so.
     pub(crate) fn read(&self, from: i64, to: i64, step_ms: u64, cap: usize) -> SysHistoryReply {
+        let recent: Vec<SysPoint> = if step_ms < MINUTE_MS as u64 {
+            self.recent.lock().unwrap_or_else(|e| e.into_inner()).iter().filter(|p| p.at >= from && p.at < to).cloned().collect()
+        } else {
+            Vec::new()
+        };
+        let files_to = recent.first().map_or(to, |p| to.min(p.at.div_euclid(MINUTE_MS) * MINUTE_MS));
+        let mut points = if files_to > from { self.read_files(from, files_to, step_ms) } else { Vec::new() };
+        points.extend(recent);
+        let truncated = points.len() > cap;
+        points.truncate(cap);
+        SysHistoryReply { points, step_ms, truncated }
+    }
+
+    fn read_files(&self, from: i64, to: i64, step_ms: u64) -> Vec<SysPoint> {
         let step = i64::try_from(step_ms.max(1)).unwrap_or(i64::MAX);
         let (first, last) = (day_name(from), day_name(to));
         let mut steps: std::collections::BTreeMap<i64, (f64, f64, u32, Usage, Usage)> = std::collections::BTreeMap::new();
@@ -140,13 +170,10 @@ impl History {
                 held.4 = point.disk;
             }
         }
-        let truncated = steps.len() > cap;
-        let points = steps
+        steps
             .into_iter()
-            .take(cap)
             .map(|(at, (cpu, load1, n, mem, disk))| SysPoint { at, cpu: cpu / f64::from(n), load1: load1 / f64::from(n), mem, disk })
-            .collect();
-        SysHistoryReply { points, step_ms, truncated }
+            .collect()
     }
 }
 
@@ -289,5 +316,58 @@ mod tests {
         // The range reads across the day files it spans, and nothing outside it.
         history.append(&SysPoint { at: T0 + DAY_MS, cpu: 5.0, load1: 1.0, mem: usage(1), disk: usage(1) }, T0 + DAY_MS).unwrap();
         assert_eq!(history.read(T0 + 5 * MINUTE_MS, T0 + DAY_MS + 1, 3_600_000, 100).points.len(), 2);
+    }
+
+    /// Twenty minutes of the recorder's reads fifteen seconds apart, the last one at the instant answered.
+    fn twenty_minutes_of_reads(history: &History) -> i64 {
+        let now = T0 + 20 * MINUTE_MS + 7_000;
+        for i in 0..=80 {
+            history.sample(now - (80 - i) * 15_000, i as f64, 0.5, usage(i as u64), usage(9)).unwrap();
+        }
+        now
+    }
+
+    #[test]
+    fn a_step_under_a_minute_answers_the_last_fifteen_minutes_of_reads_as_they_were_taken() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = History::new(dir.path().to_path_buf(), 14, 1 << 20);
+        let now = twenty_minutes_of_reads(&history);
+        let recent = history.read(now - 15 * MINUTE_MS, now + 1, 10_000, 2000);
+        assert_eq!(recent.points.len(), 60);
+        let newest = recent.points.last().unwrap();
+        assert_eq!((newest.at, newest.cpu, newest.mem.clone()), (now, 80.0, usage(80)));
+        assert!(recent.points.windows(2).all(|w| w[1].at - w[0].at == 15_000));
+        // A range wider than the reads kept answers the minutes before them off the files, then the reads.
+        let hour = history.read(T0, now + 1, 10_000, 2000);
+        let cut = hour.points.iter().position(|p| p.at % MINUTE_MS != 0).unwrap();
+        assert_eq!(hour.points[cut..], recent.points[..]);
+        assert!(cut > 0 && hour.points[..cut].iter().all(|p| p.at % MINUTE_MS == 0 && p.at + MINUTE_MS <= recent.points[0].at));
+    }
+
+    #[test]
+    fn a_step_of_a_minute_or_more_and_a_range_older_than_the_reads_kept_answer_off_the_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = History::new(dir.path().to_path_buf(), 14, 1 << 20);
+        let now = twenty_minutes_of_reads(&history);
+        let minutes = history.read(now - 15 * MINUTE_MS, now + 1, MINUTE_MS as u64, 2000);
+        // Steps fold from the range's own start, seven seconds past a minute here.
+        assert!(minutes.points.iter().all(|p| p.at % MINUTE_MS == 7_000));
+        assert!(now - minutes.points.last().unwrap().at >= MINUTE_MS);
+        let old = history.read(T0, T0 + 5 * MINUTE_MS, 10_000, 2000);
+        assert_eq!(old.points.iter().map(|p| p.at).collect::<Vec<_>>(), (0..5).map(|m| T0 + m * MINUTE_MS).collect::<Vec<_>>());
+        // The first minute held the reads numbered 0 to 3, so its point is their mean.
+        assert_eq!(old.points[0].cpu, 1.5);
+    }
+
+    #[test]
+    fn keeps_sixty_reads_at_most_whatever_the_pace() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = History::new(dir.path().to_path_buf(), 14, 1 << 20);
+        for i in 0..500 {
+            history.sample(T0 + i * 100, 1.0, 0.5, usage(1), usage(1)).unwrap();
+        }
+        let recent = history.read(T0, T0 + 50_000, 1_000, 2000);
+        assert_eq!(recent.points.len(), 60);
+        assert_eq!(recent.points.last().unwrap().at, T0 + 499 * 100);
     }
 }
