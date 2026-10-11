@@ -125,6 +125,7 @@ import type { HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, Pr
 import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerSlate, isSlateRequest, type SlateHolds } from "./serve-slates.js";
+import { answerProject, isProjectRequest } from "./serve-projects.js";
 export type { ForwardsSource };
 
 /** The address a host binds when nobody names another and the path the runtime answers upgrades on, both the
@@ -871,6 +872,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
         };
         try {
           if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds)) });
+          if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
           switch (msg.op) {
             case "auth":
               send({ id: msg.id, ok: true, ...released });
@@ -1398,23 +1400,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               return;
             case "workspaces.snapshot":
               send({ id: msg.id, ok: true, projectGolden: await rt.workspaces.snapshot(msg.workspaceId, origin) });
-              return;
-            case "projects.add": {
-              const { notice, ...project } = await rt.projects.add({ source: msg.source, ...(msg.on !== undefined ? { on: msg.on } : {}), ...(msg.name !== undefined ? { name: msg.name } : {}), ...(msg.base !== undefined ? { base: msg.base } : {}), ...(msg.into !== undefined ? { into: msg.into } : {}), ...(msg.seed !== undefined ? { seed: msg.seed } : {}) }, origin);
-              send({ id: msg.id, ok: true, project, ...(notice !== undefined ? { notice } : {}) });
-              return;
-            }
-            case "projects.list":
-              send({ id: msg.id, ok: true, projects: await rt.projects.list(origin) });
-              return;
-            case "projects.defaults":
-              send({ id: msg.id, ok: true, defaults: await rt.projects.defaults(origin) });
-              return;
-            case "projects.resolve":
-              send({ id: msg.id, ok: true, project: await rt.projects.resolve(msg.ref, origin) });
-              return;
-            case "projects.remove":
-              send({ id: msg.id, ok: true, ...(await rt.projects.remove(msg.projectId, origin, { ...(msg.force === true ? { force: true } : {}), ...(msg.check === true ? { check: true } : {}) })) });
               return;
             case "projectGoldens.list":
               send({ id: msg.id, ok: true, projectGoldens: await rt.golden.projects() });
