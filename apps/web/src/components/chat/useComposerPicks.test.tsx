@@ -60,6 +60,7 @@ const view = (model: string | null, running = false, recorded: Recorded = UNRECO
   harness: null,
   model,
   plan: null,
+  earlier: false,
   ...recorded,
 });
 

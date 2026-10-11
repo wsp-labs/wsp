@@ -7,7 +7,7 @@
 // session id repeats across turns. Wire order is the timeline order. createdAt
 // is the wire's `at` (ms epoch) as ISO, else the caller's receipt clock, else
 // "" for unstamped history.
-import { AFTER_CUT_LINE, LIMIT_WORDS, NOTIFY_ME, compactedLine, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
+import { AFTER_CUT_LINE, LIMIT_WORDS, NOTIFY_ME, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
 import { spawnedThreadOf } from "./spawned.js";
 import type {
   CallResult,
@@ -44,6 +44,8 @@ export interface SessionModel {
   readonly runs: ReadonlyMap<string, SessionRunEvent>;
   /** The latest turn's step list, whatever state the turn is in; null where that turn wrote none. */
   readonly plan: TurnPlan | null;
+  /** The thread opened on a conversation kept outside wsp, whose rows come ahead of its first turn. */
+  readonly earlier: boolean;
 }
 
 export interface DeriveSessionOptions {
@@ -341,6 +343,7 @@ export function createSessionFold(): SessionFold {
       completedAt: null,
       checkpoint: null,
       limit: null,
+      ...(copiedFromOf(event) !== undefined ? { copied: true as const } : {}),
     };
     turns.push(summary);
     return { summary, startCount: count, ordinal: 0, openMessage: null, openMessageId: null, sawText: false, tools: new Map(), childCalls: new Map(), openAnonymousTool: null, subagents: new Map(), reply: null, planRow: null };
@@ -557,7 +560,7 @@ export function createSessionFold(): SessionFold {
         // Taken once the turn is over, so a later turn may already be open: the row goes on its own turn's summary.
         const at = turns.findIndex(t => t.turnId === event.turnId);
         if (at < 0) return;
-        const kept = { ...turns[at]!, checkpoint: { ref: event.ref ?? null, anchor: event.anchor ?? null, ...(event.kept !== undefined ? { kept: event.kept } : {}) } };
+        const kept = { ...turns[at]!, checkpoint: { ref: event.ref ?? null, ...(event.based === true ? { based: true as const } : {}), anchor: event.anchor ?? null, ...(event.kept !== undefined ? { kept: event.kept } : {}) } };
         turns[at] = kept;
         if (turn !== null && turn.summary.turnId === event.turnId) turn.summary = kept;
         return;
@@ -760,7 +763,7 @@ export function createSessionFold(): SessionFold {
     const latestPlan = latestTurn === null ? undefined : plans.get(latestTurn.turnId);
     const plan = latestTurn === null || latestPlan === undefined ? null : { turnId: latestTurn.turnId, steps: latestPlan.steps };
     if (runsSeen.size !== runs.size || [...runs].some(([block, run]) => runsSeen.get(block) !== run)) runsSeen = new Map(runs);
-    return { turns: [...turns], messages, workEntries, timeline: [...timeline], latestTurn, running, model: modelName, harness, agent, permissionMode, cwd, shellCwd, runs: runsSeen, plan };
+    return { turns: [...turns], messages, workEntries, timeline: [...timeline], latestTurn, running, model: modelName, harness, agent, permissionMode, cwd, shellCwd, runs: runsSeen, plan, earlier: earlier > 0 };
   };
   return { add, model, size: () => taken };
 }
