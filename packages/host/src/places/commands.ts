@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { platform } from "node:os";
-import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer } from "@wsp/protocol";
+import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerRemovedLine, tableName } from "@wsp/protocol";
 import { checkProviderKey, keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type SshReach } from "@wsp/engine";
 import { sharedOn } from "@wsp/catalog";
 import { randomBytes } from "node:crypto";
@@ -619,6 +619,23 @@ export interface RemoveFlags {
 
 export const REMOVE_USAGE = "wsp remove <computer> [--yes] [--force] [--forget] [--json]";
 
+/** The provider a word names, by its id or by the name the app gives it in any case, so `wsp remove boat` is Boat. */
+async function providerNamed(client: HostClient, ref: string): Promise<PlaceView | undefined> {
+  const { places } = await client.request<{ places: PlaceView[] }>("places.list");
+  return places.find(p => p.kind === "provider" && (p.id === ref || tableName(p).toLowerCase() === ref.toLowerCase()));
+}
+
+/** A provider taken back out: the host deletes every machine it made there and forgets the key only once all are
+ * gone, so one the provider would not delete is a failure that names it, the key kept. */
+async function removeProviderAt(io: CliIO, client: HostClient, place: PlaceView, typed: string, flags: RemoveFlags): Promise<number> {
+  const name = tableName(place);
+  if (!(await confirmedAt(io, flags.yes === true, providerRemoveQuestion(name), name))) return 1;
+  const answer = PlaceRemoved.parse(await client.request("places.remove", { placeId: place.id }));
+  if (!answer.removed) throw new Error(answer.note ?? noPlaceLine(typed, []));
+  io.log(flags.json === true ? jsonLine(answer) : providerRemovedLine(name, answer.deleted ?? 0));
+  return 0;
+}
+
 export async function removeCommand(io: CliIO, opts: PlaceOpts, args: readonly string[], flags: RemoveFlags = {}, deps: PlaceDeps = systemDeps): Promise<number> {
   const [ref] = args;
   if (ref === undefined || args.length !== 1) throw usageRefusal("wsp remove takes one computer.", `usage: ${REMOVE_USAGE}`);
@@ -628,6 +645,8 @@ export async function removeCommand(io: CliIO, opts: PlaceOpts, args: readonly s
   try {
     const picked = await onePlace(client, typed, ref);
     if ("refusal" in picked) {
+      const provider = await providerNamed(client, ref);
+      if (provider !== undefined) return await removeProviderAt(io, client, provider, typed, flags);
       io.error(picked.refusal);
       return 1;
     }

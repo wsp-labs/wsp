@@ -84,8 +84,9 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
     setRefusal(null);
     try {
       const answer = await api.removePlace(place.id, typed, unsaved.length > 0, forgets);
-      // A remove the host did not make is not a failure to report twice: the row is already gone from the list.
-      if (answer.note !== undefined && !answer.removed) setRefusal({ said: answer.note });
+      // A remove the host did not make stays on screen with its reason: a provider that would not delete a machine
+      // keeps its key, and a dialog that closed read as done while that machine billed on.
+      if (!answer.removed) setRefusal({ said: answer.note ?? WHERE_WORDS.removeUnmade(placeName(place)) });
       else {
         onRemoved?.();
         change(false);

@@ -7,7 +7,7 @@
 // that adds another computer.
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, type PlaceHolds, type ProjectView } from "@wsp/protocol";
+import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, providerKeptLine, type PlaceHolds, type ProjectView } from "@wsp/protocol";
 import { render } from "@testing-library/react";
 import { makeApi, ProtocolClient, RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useContextMenuStore } from "../src/actions/contextMenu.js";
@@ -619,6 +619,29 @@ describe("a computer's own page", () => {
     fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
     await waitFor(() => expect(removed).toEqual(["p_1"]));
     await waitFor(() => expect(pageAt()).toBe("computers"));
+  });
+
+  it("keeps the dialog open on a provider's remove that was not made, with the host's reason in the slot", async () => {
+    const note = providerKeptLine("Boat", 1, [{ id: "bx_rb3j87ys", said: "still running after three asks" }]);
+    const asked: string[] = [];
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    await mountComputers(computersApi({ removePlace: async (id: string) => (asked.push(id), { removed: false, swept: [], deleted: 1, note }) } as unknown as Partial<Api>).api, { kind: "computer", id: "box" });
+    expect(document.querySelector("[data-k='remove-note']")?.textContent).toBe(WHERE_WORDS.removeCloudDescription);
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toContain(note));
+    expect(asked).toEqual(["box"]);
+    expect(screen.getByText("Remove Boat?")).toBeTruthy();
+    expect(pageAt()).not.toBe("computers");
+  });
+
+  it("keeps the dialog open on a remove the host answers as not made with no reason, and says why", async () => {
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    await mountComputers(computersApi({ removePlace: async () => ({ removed: false, swept: [] }) } as unknown as Partial<Api>).api, { kind: "computer", id: "box" });
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toContain(WHERE_WORDS.removeUnmade("Boat")));
+    expect(screen.getByText("Remove Boat?")).toBeTruthy();
   });
 
   it("names the computer's projects at once, holds the confirm while it reads the work no remote has, then names that work in the slot's muted note with Remove anyway taking it", async () => {

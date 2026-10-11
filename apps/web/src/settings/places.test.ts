@@ -85,10 +85,11 @@ describe("the remove sentence", () => {
     );
   });
 
-  it("says a provider's workspaces are deleted there and its key forgotten here", () => {
+  it("says a provider's workspaces are deleted there and its key forgotten here, its threads kept", () => {
     expect(removeSentence(ascii, { workspaces: [{ name: "api", state: "Running", threads: 3 }, { name: "web", state: "Running", threads: 2 }] }, MAC)).toBe(
-      "Its 2 tasks are deleted at Boat and the key is forgotten on zingzy's MacBook Pro. Their records and 5 threads leave zingzy's MacBook Pro.",
+      "Its 2 tasks are deleted at Boat and the key is forgotten on zingzy's MacBook Pro. The 5 threads stay with their transcripts.",
     );
+    expect(removeSentence(ascii, { workspaces: [{ name: "api", state: "Running", threads: 1 }] }, MAC)).toBe("Its task is deleted at Boat and the key is forgotten on zingzy's MacBook Pro. Its thread stays with its transcript.");
   });
 
   it("says nothing comes off an offline computer joined with a code, and hands over the line to run there", () => {

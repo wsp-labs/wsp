@@ -587,6 +587,11 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
       onSetup: event => bus.emit(event),
       copyBuild: placeId => copyRows.get(placeId),
       napMs: defaultIdleWindowMs,
+      owner: async () => {
+        await ctx.ready();
+        return ctx.state.owner;
+      },
+      ...(opts.killConfirm !== undefined ? { killConfirm: opts.killConfirm } : {}),
       ...(opts.local?.hereDaemon !== undefined ? { hereDaemon: opts.local.hereDaemon } : {}),
       // Armed from now under the new window, on every workspace there whose window is its place's.
       napChanged: placeId => {
@@ -660,6 +665,10 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           const standing = [...live.values()].map(e => ({ ...e.record, provider: ctx.providerOf(e.record) }));
           // A turn the cap holds back is no thread running there, so the row says the count it waits on.
           return runningOnPlace(placeId, rows, standing, foldThreads([...sessions.values()].filter(s => !ctx.capHeld.has(s.turnId)).map(s => s.view)));
+        },
+        machinesOn: async placeId => {
+          await ctx.ready();
+          return [...live.values()].filter(e => e.record.machineId !== "" && ctx.placeIdOf(e.record) === placeId).map(e => e.record.machineId);
         },
         signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
         storesOn: (placeId, home) => ctx.placeStores(placeId, home),
