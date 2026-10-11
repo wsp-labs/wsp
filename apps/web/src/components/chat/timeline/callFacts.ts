@@ -4,6 +4,7 @@
 import type { FilePatch, PatchHunk } from "@wsp/protocol";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { getRenderablePatch } from "../../../lib/diffRendering";
+import { formatWorkspaceRelativePath } from "../../../lib/filePathDisplay";
 
 /** Lines of output a block shows before its "+N lines", and of hunks; a text only a few lines over shows whole. */
 export const OUTPUT_SHOWN = 10;
@@ -24,6 +25,18 @@ export function commandDuration(ms: number): string {
   const rest = seconds % 60;
   if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`;
+}
+
+/** A command's output as its block draws it: Codex's output can open on blank lines, which would stand as an empty
+ * first row. */
+export const outputText = (output: string): string => output.replace(/^\s*\n/, "").trimEnd();
+
+/** A command as its open heading draws it. */
+export const commandText = (command: string): string => command.replace(/^\s*\n|\s+$/g, "");
+
+/** A path as the turn's changed-files card shows it: from the thread's folder. */
+export function fromFolder(path: string, root: string | undefined): string {
+  return root !== undefined && path.startsWith(`${root.replace(/\/$/, "")}/`) ? path.slice(root.replace(/\/$/, "").length + 1) : formatWorkspaceRelativePath(path, root);
 }
 
 /** The lines a closed output shows and how many it leaves out: the first, or for a failure the last, since a
@@ -84,4 +97,17 @@ export function fileDiffOf(file: FilePatch, hunks: ReadonlyArray<PatchHunk>): Fi
   const body = hunks.flatMap(h => [`@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@`, ...h.lines]);
   const parsed = getRenderablePatch([`diff --git a/${path} b/${to}`, ...head, ...body, ""].join("\n"), "transcript");
   return parsed?.kind === "files" ? (parsed.files[0] ?? null) : null;
+}
+
+/** The text of each line a FileDiff draws, in the order it draws them: pierre aligns a hunk's changes again as it
+ * parses, so its order can differ from the patch's, and it draws no sign before a line. */
+export function drawnLines(fileDiff: FileDiffMetadata): string[] {
+  const text = (lines: ReadonlyArray<string>, from: number, count: number): string[] => lines.slice(from, from + count).map(line => line.replace(/\r?\n$/, ""));
+  return fileDiff.hunks.flatMap(hunk =>
+    hunk.hunkContent.flatMap(block =>
+      block.type === "context"
+        ? text(fileDiff.additionLines, block.additionLineIndex, block.lines)
+        : [...text(fileDiff.deletionLines, block.deletionLineIndex, block.deletions), ...text(fileDiff.additionLines, block.additionLineIndex, block.additions)],
+    ),
+  );
 }
