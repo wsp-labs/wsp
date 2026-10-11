@@ -209,7 +209,10 @@ export interface Runtime {
      * caller's own folder when a thread asks naming nothing, the worktree holding a branch, or the folder a cwd
      * names inside the project or a worktree of its repo. cwd is the folder the start runs in where it named one.
      * picks, where given, are read against the agent's lists on this computer before any folder is made or found. */
-    folderFor(o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked }, origin?: Caller): Promise<{ workspace: WorkspaceView; cwd?: string }>;
+    folderFor(o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked; opens?: true }, origin?: Caller): Promise<{ workspace: WorkspaceView; cwd?: string; setup?: string }>;
+    /** What a new worktree ran when it was made, once, for the start that names its record and opens a thread there;
+     * refused as any start naming that record is. */
+    takeSetupLine(workspaceId: string, origin?: Caller): Promise<string | undefined>;
     /** The record of a project's folder on this computer, made where no thread has made it yet: what the folder's
      * own acts name before its first thread. */
     folder(o: { project: string }, origin?: Caller): Promise<WorkspaceView>;
@@ -314,6 +317,9 @@ export interface Runtime {
      * landing under somebody else is. An event naming the thread it was asked for by is that thread's and its
      * tree's whatever the records say, which is what a fork's own stages are before its record exists. */
     seenBy(event: unknown, origin?: Caller): boolean;
+    /** An event this caller sees, as it is shown to them: a folder's status names only the children of its tree the
+     * caller may reach, since every thread of the folder shares that record and a thread's tree is its own. */
+    shownTo<E>(event: E, origin?: Caller): E;
     /** The last stage of every create this host is making and of every refused one it still holds, oldest first:
      * a window that connects after a create began hears nothing else of it. */
     creating(): WorkspaceCreatingEvent[];
@@ -412,6 +418,8 @@ export interface Runtime {
         mcpServers?: Readonly<Record<string, McpServerSpec>>;
         /** The line a thread opened on a pull request is told first: the worktree holding the branch was left behind it. */
         behind?: string;
+        /** What the worktree this start asked for ran when it was made, which its new thread is told first. */
+        setup?: string;
         /** Set by Resume at reset alone: the reset this turn goes on at, stamped on its session.start. */
         afterLimit?: number;
         /** Set by a child's finished line into its lead alone: no computer's threads at once holds it, since it is

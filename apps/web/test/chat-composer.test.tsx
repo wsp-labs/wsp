@@ -23,7 +23,7 @@ import { COMPOSER_STATE_WORDS } from "../src/composer-state-words.js";
 import { NOT_READY_NAMES } from "../screenshots/ready.mjs";
 import { useComposerModesStore } from "../src/components/chat/composerModesStore.js";
 import { useComposerOptionsStore } from "../src/components/chat/composerOptionsStore.js";
-import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
+import { composerKeyIn, useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { requestComposerFocus, requestNewThread } from "../src/shell/shellRequests.js";
 import { CHAT_HARNESS, CHAT_STREAM, CHAT_T0, CHAT_TURN, CHAT_WS } from "./fixtures/chat-stream.js";
 import { caps } from "./caps.js";
@@ -111,7 +111,7 @@ async function setup(api: Api, conn: ConnStatus = "live", agents = true) {
   return view;
 }
 
-const draft = () => useComposerDraftStore.getState().drafts[WS]?.prompt ?? "";
+const draft = () => useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt ?? "";
 const sendButton = () => screen.getByRole("button", { name: /Send message|Wake and send|Turn in flight|wsp|Workspace|This workspace|Loading|Connecting/ }) as HTMLButtonElement;
 const menuItem = (name: string) => document.querySelector<HTMLElement>(`[data-composer-item-id="provider-slash-command:claude:${name}"]`);
 const menuDrawer = () => document.querySelector<HTMLElement>("[data-composer-command-drawer]");
@@ -544,7 +544,7 @@ describe("composer slash menu", () => {
     await typeInto(editor, "c");
     expect(draft()).toBe("/c");
     expect(menuDrawer()).toBeNull();
-    await act(async () => useComposerDraftStore.getState().setDraft(WS, { prompt: "", cursor: 0 }));
+    await act(async () => useComposerDraftStore.getState().setDraft(composerKeyIn(WS), { prompt: "", cursor: 0 }));
     await typeInto(editor, "/");
     await waitFor(() => expect(menuItem("compact")).not.toBeNull());
   });
@@ -810,7 +810,7 @@ describe("composer chips", () => {
     const editor = composerEditor();
     clickIntoEditor(editor);
     // The caret sits right after the file chip: "see " is four places and the chip is one.
-    act(() => useComposerDraftStore.getState().setDraft(WS, { prompt: "see @src/composer-logic.ts now", cursor: 5 }));
+    act(() => useComposerDraftStore.getState().setDraft(composerKeyIn(WS), { prompt: "see @src/composer-logic.ts now", cursor: 5 }));
     await waitFor(() => expect(editor.querySelector("[data-composer-mention-chip]")).not.toBeNull());
     await press(editor, "Backspace");
     await waitFor(() => expect(editor.querySelector("[data-composer-mention-chip]")).toBeNull());
@@ -824,7 +824,7 @@ describe("composer chips", () => {
     const { api, started } = fixtureApi([workspace]);
     await setup(api);
     const editor = composerEditor();
-    act(() => useComposerDraftStore.getState().setDraft(WS, { prompt: "summarise @apps/web/src/composer-logic.ts please", cursor: 3 }));
+    act(() => useComposerDraftStore.getState().setDraft(composerKeyIn(WS), { prompt: "summarise @apps/web/src/composer-logic.ts please", cursor: 3 }));
     await waitFor(() => expect(editor.querySelector("[data-composer-mention-chip]")?.textContent).toBe("composer-logic.ts"));
     clickIntoEditor(editor);
     await press(editor, "Enter");

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The center thread for one workspace: the chat view with the composer in
-// its slot. The composer is keyed by workspace so the editor and its undo
-// history remount on a switch; the draft store keeps each workspace's text.
+// its slot. The composer is keyed by the thread it shows, so the editor, its
+// undo history and its notes remount on a switch; the draft store keeps each
+// thread's text.
 // The prompt this thread's own agent is stopped on takes the composer's slot
 // as the menu it is answered from, and the composer comes back once the
 // prompt closes; a prompt another thread is stopped on, or one of a
@@ -17,6 +18,7 @@ import { ChatComposer } from "../components/chat/ChatComposer.js";
 import { ChatView } from "../components/chat/ChatView.js";
 import { answerPrompt, type AnswerPrompt } from "../components/chat/answerPrompt.js";
 import { useComposerBarStore } from "../components/chat/composerBar.js";
+import { useComposerDraftStore } from "../components/chat/composerDraftStore.js";
 import { PromptDock } from "../components/chat/PromptDock.js";
 import { SubagentBar } from "../components/chat/SubagentBar.js";
 import { useSubagentModel } from "../components/threads/SubagentCard.js";
@@ -55,6 +57,7 @@ export function WorkspaceThread({ workspaceId, threadId = null, subagent = null 
 /** The bar of the subagent whose page this is, off the lead's listing, which says its state, times and model; where
  * the listing does not carry it, off its own fold in the lead's transcript. */
 function SubagentSlot({ workspaceId, threadId, subagent, thread }: { workspaceId: string; threadId: string; subagent: string; thread: ChatThreadHandle }) {
+  useShownThread(workspaceId, threadId);
   const rows = useThreadSessions(workspaceId, threadId);
   const row = rows.findLast(r => r.subagents?.some(sub => sub.parentToolUseId === subagent) === true);
   const run = subagentRunOf(thread.view.entries, subagent);
@@ -69,11 +72,22 @@ function SubagentSlot({ workspaceId, threadId, subagent, thread }: { workspaceId
   return <SubagentBar subagent={shown} harness={harness} model={model} onBack={back} />;
 }
 
+/** Words from outside the composer (a quote, a review comment, a terminal excerpt) go to the thread on screen, whether
+ * its composer stands or a prompt or a subagent's bar stands in its place. */
+function useShownThread(workspaceId: string, threadKey: string): void {
+  useEffect(() => {
+    const drafts = useComposerDraftStore.getState();
+    drafts.show(workspaceId, threadKey);
+    return () => drafts.hide(workspaceId, threadKey);
+  }, [threadKey, workspaceId]);
+}
+
 /** What stands in the composer's slot: the dock while this thread's own prompt is open and not folded, else the
  * composer with the folded prompt and the usage limit among its drawer's rows. */
 function Slot({ workspaceId, thread, answer }: { workspaceId: string; thread: ChatThreadHandle; answer: AnswerPrompt }) {
   const prompt = openPrompt(thread);
   const key = thread.threadKey;
+  useShownThread(workspaceId, key);
   const folded = useComposerBarStore(s => s.folded[key] ?? null);
   const catalog = useHarnessCatalog(thread.view.agent, workspaceId);
   const docked = prompt !== null && folded !== prompt.askId;
@@ -85,10 +99,10 @@ function Slot({ workspaceId, thread, answer }: { workspaceId: string; thread: Ch
     bars.dock(key, true);
     return () => bars.dock(key, false);
   }, [docked, key]);
-  useTypeToWrite(workspaceId, docked, () => {
+  useTypeToWrite(workspaceId, key, docked, () => {
     if (prompt !== null) useComposerBarStore.getState().fold(key, prompt.askId);
   });
-  const latest = useThreadSessions(workspaceId, key).at(-1);
+  const latest = useThreadSessions(workspaceId, key, thread.fresh).at(-1);
   const limit = latest !== undefined && latest.status === "failed" && latest.limit !== undefined ? latest.limit : null;
   const question = useMemo(() => (prompt === null ? null : askedLine(prompt)), [prompt]);
   const threadLimit = useMemo(() => (latest === undefined || limit === null ? null : { agent: latest.harness, limit, resumeAt: latest.resumeAt ?? null }), [latest, limit]);
@@ -107,5 +121,5 @@ function Slot({ workspaceId, thread, answer }: { workspaceId: string; thread: Ch
         }}
       />
     );
-  return <ChatComposer key={workspaceId} workspaceId={workspaceId} thread={thread} question={question} limit={threadLimit} />;
+  return <ChatComposer key={`${workspaceId}/${thread.drawKey}`} workspaceId={workspaceId} thread={thread} question={question} limit={threadLimit} />;
 }

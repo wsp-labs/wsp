@@ -276,8 +276,8 @@ export function ChatComposer({
   const multiPicks = useMultiPicks(workspaceId);
   // The message a send during a turn put at the head while its steer or its stop is out.
   const [next, setNext] = useState<string | null>(null);
-  const draft = useComposerDraft(workspaceId);
   const { threadKey, named, handed } = thread;
+  const draft = useComposerDraft(threadKey);
   const queue = useComposerQueue(threadKey);
   const held = useComposerQueueHeld(threadKey);
   const nextStart = useThreadStart(workspaceId);
@@ -299,6 +299,7 @@ export function ChatComposer({
   const release = useComposerDraftStore(s => s.release);
   const rekeyQueue = useComposerDraftStore(s => s.rekeyQueue);
   const rekeyModes = useComposerModesStore(s => s.rekey);
+  const rekeyFiles = useComposerFilesStore(s => s.rekey);
   // The view's key moves onto the thread at its hold, before its start: what waited under the old key goes with it,
   // still held until that start.
   useEffect(() => {
@@ -306,18 +307,37 @@ export function ChatComposer({
     const wasHeld = useComposerDraftStore.getState().held[handed.key] === true;
     rekeyQueue(handed.key, handed.thread);
     rekeyModes(handed.key, handed.thread);
+    rekeyFiles(handed.key, handed.thread);
     if (wasHeld) hold(handed.thread);
-  }, [handed, hold, rekeyModes, rekeyQueue]);
+  }, [handed, hold, rekeyFiles, rekeyModes, rekeyQueue]);
   useEffect(() => {
     if (named === null) return;
     if (named.key !== named.thread) {
       rekeyQueue(named.key, named.thread);
       rekeyModes(named.key, named.thread);
+      rekeyFiles(named.key, named.thread);
     }
     release(named.thread);
-  }, [named, rekeyModes, rekeyQueue, release]);
-  const files = useComposerFiles(workspaceId);
-  const refusedFiles = useRefusedFiles(workspaceId);
+  }, [named, rekeyFiles, rekeyModes, rekeyQueue, release]);
+  // A view that learns which thread it shows after it mounted, its rows or its transcript in late, keeps the words and
+  // files given it meanwhile; what stood under the workspace's key before is the New thread page's, and stays there.
+  // Queued rows stay where their send left them: a new thread's hold and start move those.
+  const shownKey = useRef(threadKey);
+  const [stood] = useState(() => ({ words: useComposerDraftStore.getState().drafts[threadKey]?.prompt, files: useComposerFilesStore.getState().pending[threadKey] }));
+  useEffect(() => {
+    const from = shownKey.current;
+    shownKey.current = threadKey;
+    if (from === threadKey || from !== workspaceId || thread.fresh) return;
+    const drafts = useComposerDraftStore.getState();
+    const words = drafts.drafts[from];
+    if (words !== undefined && words.prompt !== "" && words.prompt !== stood.words && (drafts.drafts[threadKey]?.prompt ?? "") === "") {
+      drafts.setDraft(threadKey, words);
+      drafts.setDraft(from, EMPTY_DRAFT);
+    }
+    if (useComposerFilesStore.getState().pending[from] !== stood.files) rekeyFiles(from, threadKey);
+  }, [rekeyFiles, stood, thread.fresh, threadKey, workspaceId]);
+  const files = useComposerFiles(threadKey);
+  const refusedFiles = useRefusedFiles(threadKey);
   const queuedFiles = useQueuedFiles();
   const addFiles = useComposerFilesStore(s => s.add);
   const removeFile = useComposerFilesStore(s => s.remove);
@@ -399,7 +419,7 @@ export function ChatComposer({
 
   // A turn its computer's threads at once holds back has no start in the transcript yet: its row is the turn a stop
   // ends before it starts, and there is nothing in it to steer.
-  const lastRow = useThreadSessions(workspaceId, thread.threadKey).at(-1);
+  const lastRow = useThreadSessions(workspaceId, thread.threadKey, thread.fresh).at(-1);
   const heldRow = !thread.view.running && lastRow?.status === "running" && lastRow.capped !== undefined ? lastRow : null;
   const runningTurn: Pick<TurnSummary, "turnId" | "sessionId"> | null = thread.view.running ? thread.view.latestTurn : heldRow === null ? null : { turnId: heldRow.id, sessionId: heldRow.id };
   // The runtime keys sessions.interrupt by its own session id; the events carry the harness id, which differs after a
@@ -532,14 +552,12 @@ export function ChatComposer({
     if (thread.fresh) editorRef.current?.focus();
   }, [thread.fresh]);
 
-  useComposerFocusRequest(workspaceId, editorRef);
-
   const onChange = useCallback(
     (value: string, cursor: number) => {
-      setDraft(workspaceId, { prompt: value, cursor });
+      setDraft(threadKey, { prompt: value, cursor });
       if (asks > 0 && warmAsk !== null && Date.now() - askedAt.current >= AGENT_WARM_TYPED_MS) setAsks(n => n + 1);
     },
-    [asks, setDraft, warmAsk, workspaceId],
+    [asks, setDraft, threadKey, warmAsk],
   );
 
   /** The one road every file takes into the composer: the paste, the drop and the picker all end here, so the caps
@@ -550,9 +568,9 @@ export function ChatComposer({
       // Paste and drop answer to the same state the picker button does: one door open and two shut would take a
       // file the send could not carry. A waiting card keeps only its words, so a composer that waits takes none.
       if (given.length === 0 || shut || waits) return;
-      void addFiles(workspaceId, given, readsImage ? undefined : noImagesLine(harnessId));
+      void addFiles(threadKey, given, readsImage ? undefined : noImagesLine(harnessId));
     },
-    [addFiles, harnessId, readsImage, shut, waits, workspaceId],
+    [addFiles, harnessId, readsImage, shut, threadKey, waits],
   );
 
   const onPaste = useCallback(
@@ -589,8 +607,8 @@ export function ChatComposer({
   );
 
   const { setSending, appendUserTurn, appendLocalError, thread: into, busy, sending } = thread;
-  // Drawing one of the workspace's threads ends its fork draft, here or on coming back from another project's thread:
-  // the composer is keyed by its workspace, so leaving for another project unmounts it before any change is seen.
+  // Drawing one of the workspace's threads ends its fork draft, here or on coming back from another thread: the
+  // composer is keyed by the thread it shows, so leaving for another thread unmounts it before any change is seen.
   useEffect(() => {
     if (!thread.fresh) endForkDraft(workspaceId);
   }, [thread.fresh, workspaceId]);
@@ -614,8 +632,8 @@ export function ChatComposer({
       if (into === undefined) launching(workspaceId, { requestId, title: prompt, harness: harnessId });
       // The files leave the composer with the send and are kept under its request id, which is what the person's
       // row in the transcript is drawn from; a refused send hands them back rather than losing them.
-      sendFilesAs(workspaceId, requestId, rowId);
-      if (rowId === undefined) dismissRefused(workspaceId);
+      sendFilesAs(threadKey, requestId, rowId);
+      if (rowId === undefined) dismissRefused(threadKey);
       // The wake settles or fails before the start is asked; a wake that failed leaves the runtime to refuse the
       // start in its own words, which land in the transcript like any other refusal.
       // A fork runs where its source runs and on its agent, naming only the picks its draft holds: the source's, which
@@ -658,7 +676,7 @@ export function ChatComposer({
           setSending(false);
           launched(workspaceId, requestId);
           onRefused();
-          restoreFiles(workspaceId, requestId, rowId);
+          restoreFiles(threadKey, requestId, rowId);
           appendLocalError(err instanceof Error ? err.message : String(err));
         });
     },
@@ -686,10 +704,10 @@ export function ChatComposer({
 
   const restoreDraft = useCallback(
     (prompt: string) => {
-      const current = useComposerDraftStore.getState().drafts[workspaceId];
-      if (current === undefined || current.prompt === "") setDraft(workspaceId, { prompt, cursor: prompt.length });
+      const current = useComposerDraftStore.getState().drafts[threadKey];
+      if (current === undefined || current.prompt === "") setDraft(threadKey, { prompt, cursor: prompt.length });
     },
-    [setDraft, workspaceId],
+    [setDraft, threadKey],
   );
 
   /** Stops the running turn. A stop wsp no longer knows, one the runtime refused, and one whose process has not ended
@@ -739,8 +757,8 @@ export function ChatComposer({
       setNext(row.id);
       // As a start does: the files are kept under the request id the thread's row draws them by, and go back on the
       // card where the turn did not take them, or into the box beside its words where an Edit took the card meanwhile.
-      sendFilesAs(workspaceId, requestId, row.id);
-      const giveBack = (): void => restoreFiles(workspaceId, requestId, Object.values(useComposerDraftStore.getState().queues).some(rows => rows.some(r => r.id === row.id)) ? row.id : undefined);
+      sendFilesAs(threadKey, requestId, row.id);
+      const giveBack = (): void => restoreFiles(threadKey, requestId, Object.values(useComposerDraftStore.getState().queues).some(rows => rows.some(r => r.id === row.id)) ? row.id : undefined);
       void method(stopTarget, words, requestId, carried).then(
         outcome => {
           setNext(null);
@@ -777,7 +795,7 @@ export function ChatComposer({
       const question = asideQuestion(prompt);
       if (question !== null) {
         if (!asides) return;
-        setDraft(workspaceId, EMPTY_DRAFT);
+        setDraft(threadKey, EMPTY_DRAFT);
         askAside(question);
         return;
       }
@@ -789,7 +807,7 @@ export function ChatComposer({
         dismissTrigger(trigger);
         return;
       }
-      setDraft(workspaceId, EMPTY_DRAFT);
+      setDraft(threadKey, EMPTY_DRAFT);
       // The send moves or drops the picks it named; an ask at what is left would end the process started for it.
       setAsks(0);
       if (waits) {
@@ -808,14 +826,14 @@ export function ChatComposer({
         start(prompt, () => restoreDraft(prompt));
         return;
       }
-      dismissRefused(workspaceId);
+      dismissRefused(threadKey);
       // Behind a pending send the card waits with the rest, held since that send began; its start releases them.
       if (sending || runningTurn === null) {
-        queueFiles(workspaceId, enqueue(threadKey, prompt, now && !sending ? "head" : "tail"));
+        queueFiles(threadKey, enqueue(threadKey, prompt, now && !sending ? "head" : "tail"));
         return;
       }
       const id = enqueue(threadKey, prompt, now || held ? "head" : "tail");
-      queueFiles(workspaceId, id);
+      queueFiles(threadKey, id);
       if (now) sendNow({ id, prompt });
       else release(threadKey);
     },
@@ -840,13 +858,13 @@ export function ChatComposer({
       const row = queue.find(r => r.id === id);
       if (row === undefined) return;
       removeQueued(threadKey, id);
-      putFiles(workspaceId, unqueueFiles(id));
+      putFiles(threadKey, unqueueFiles(id));
       const typed = (editorRef.current?.readSnapshot().value ?? draft.prompt).trim();
       const prompt = typed === "" ? row.prompt : `${typed}\n${row.prompt}`;
-      setDraft(workspaceId, { prompt, cursor: collapseExpandedComposerCursor(prompt, prompt.length) });
+      setDraft(threadKey, { prompt, cursor: collapseExpandedComposerCursor(prompt, prompt.length) });
       window.requestAnimationFrame(() => editorRef.current?.focus());
     },
-    [draft.prompt, putFiles, queue, removeQueued, setDraft, threadKey, unqueueFiles, workspaceId],
+    [draft.prompt, putFiles, queue, removeQueued, setDraft, threadKey, unqueueFiles],
   );
 
   const removeCard = useCallback(
@@ -877,7 +895,7 @@ export function ChatComposer({
     if (barGone) foldBar(threadKey, workspaceId);
   }, [barGone, threadKey, workspaceId]);
   // The editor is not drawn under a bar, so a letter typed there goes into the draft and the composer comes back.
-  useTypeToWrite(workspaceId, bar !== null, () => useComposerBarStore.getState().closeBar(threadKey));
+  useTypeToWrite(workspaceId, threadKey, bar !== null, () => useComposerBarStore.getState().closeBar(threadKey));
 
   const selectItem = useCallback(
     (item: ComposerCommandItem) => {
@@ -896,29 +914,29 @@ export function ChatComposer({
         next = replaceTextRange(snapshot.value, active.rangeStart, rangeEnd, replacement);
       }
       const cursor = collapseExpandedComposerCursor(next.text, next.cursor);
-      setDraft(workspaceId, { prompt: next.text, cursor });
+      setDraft(threadKey, { prompt: next.text, cursor });
       setHighlightedItemId(null);
       window.requestAnimationFrame(() => editorRef.current?.focusAt(cursor));
     },
-    [draft, setDraft, workspaceId],
+    [draft, setDraft, threadKey],
   );
 
   /** Puts the draft and its files on the stash and opens the composer empty; a stash that could not be written leaves
    * both where they were and says so. */
   const stashDraft = useCallback((): boolean => {
     const prompt = editorRef.current?.readSnapshot().value ?? draft.prompt;
-    const held = takeFiles(workspaceId);
+    const held = takeFiles(threadKey);
     const { kept, dropped } = partitionStashFiles(held.map(stashedOf));
     const written = usePromptStashStore.getState().stash({ id: newId(), createdAt: new Date().toISOString(), prompt, files: kept, dropped });
     if (!written) {
-      putFiles(workspaceId, held);
+      putFiles(threadKey, held);
       flyout(COMPOSER_WORDS.stashNotWritten);
       return false;
     }
     releaseFiles(held);
-    setDraft(workspaceId, EMPTY_DRAFT);
+    setDraft(threadKey, EMPTY_DRAFT);
     return true;
-  }, [draft.prompt, putFiles, setDraft, takeFiles, workspaceId]);
+  }, [draft.prompt, putFiles, setDraft, takeFiles, threadKey]);
 
   /** Brings a stashed prompt back with its files; a draft already in the box goes onto the stash, so a restore never
    * overwrites words. The entry comes off first, so a full stash never drops the very entry being restored, and it
@@ -933,11 +951,11 @@ export function ChatComposer({
         usePromptStashStore.getState().putBack(entry, at);
         return;
       }
-      putFiles(workspaceId, entry.files.map(fileFromStash));
-      setDraft(workspaceId, { prompt: entry.prompt, cursor: collapseExpandedComposerCursor(entry.prompt, entry.prompt.length) });
+      putFiles(threadKey, entry.files.map(fileFromStash));
+      setDraft(threadKey, { prompt: entry.prompt, cursor: collapseExpandedComposerCursor(entry.prompt, entry.prompt.length) });
       setStashOpen(false);
     },
-    [draft.prompt, files.length, putFiles, setDraft, stashDraft, workspaceId],
+    [draft.prompt, files.length, putFiles, setDraft, stashDraft, threadKey],
   );
 
   /** Cmd or Ctrl with S: a draft goes onto the stash; an empty box brings back the one stashed prompt, or opens the
@@ -969,10 +987,10 @@ export function ChatComposer({
       recallRef.current = step.position;
       // The caret lands on the edge the walk goes on from, so the next press keeps walking even through a prompt of
       // several lines.
-      setDraft(workspaceId, { prompt: step.prompt, cursor: direction === "backward" ? 0 : collapseExpandedComposerCursor(step.prompt, step.prompt.length) });
+      setDraft(threadKey, { prompt: step.prompt, cursor: direction === "backward" ? 0 : collapseExpandedComposerCursor(step.prompt, step.prompt.length) });
       return true;
     },
-    [draft, setDraft, workspaceId],
+    [draft, setDraft, threadKey],
   );
 
   const onCommandKeyDown = useCallback(
@@ -1046,6 +1064,7 @@ export function ChatComposer({
   const mirrorRef = useRef<HTMLDivElement | null>(null);
   const tall = useTallDraft(mirrorRef, draft.prompt, compact);
   useAnimatedHeight(heightRef, surfaceRef);
+  useComposerFocusRequest(workspaceId, editorRef, surfaceRef);
   const dropZone = useChatDropZone(heightRef, take, !shut && !waits);
   useTypeToFocus(editorRef, !shut);
   useFlip(surfaceRef, compact ? (tall ? "tall" : "line") : "full");
@@ -1178,7 +1197,7 @@ export function ChatComposer({
                     {files.length > 0 || refusedFiles.length > 0 ? (
                       <ul aria-label="Files to send" data-composer-files="true" className="flex flex-wrap gap-1.5 px-3 pt-3 sm:px-4">
                         {files.map((file, at) => {
-                          const remove = () => removeFile(workspaceId, file.id);
+                          const remove = () => removeFile(threadKey, file.id);
                           return (
                             <li key={file.id}>
                               {file.url !== undefined ? <ChatImageThumb image={file} at={at + 1} onRemove={remove} /> : <ChatFileTile name={file.name} size={file.size} at={at + 1} onRemove={remove} />}
@@ -1187,7 +1206,7 @@ export function ChatComposer({
                         })}
                         {refusedFiles.map(file => (
                           <li key={file.id}>
-                            <ChatRefusedFile name={file.name} why={file.why} onRemove={() => dismissRefused(workspaceId, file.id)} />
+                            <ChatRefusedFile name={file.name} why={file.why} onRemove={() => dismissRefused(threadKey, file.id)} />
                           </li>
                         ))}
                       </ul>

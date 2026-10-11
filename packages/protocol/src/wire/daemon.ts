@@ -270,6 +270,8 @@ export const PtyListEntry = z.object({
   exited: z.boolean(),
   /** Set on a pty that runs a reply's command and still belongs to that reply: no pane adopts it until pty.tab. */
   reply: z.boolean().optional(),
+  /** Set by the host on a client's channel: the thread whose pane opened the pty, which a folder's threads share. */
+  thread: z.string().optional(),
 });
 export type PtyListEntry = z.infer<typeof PtyListEntry>;
 export const PtyListReply = z.object({ ptys: z.array(PtyListEntry) });

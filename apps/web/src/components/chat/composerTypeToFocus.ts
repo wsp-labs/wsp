@@ -39,7 +39,7 @@ export function useTypeToFocus(focus: RefObject<{ focus: () => void } | null>, e
  * a letter lands in the composer: one the dock takes (a digit) is handed to the dock, and any other calls `fold` to
  * put it away and ends the draft with the key. No editor is mounted to hand that key to, so it goes into the draft,
  * and the composer that comes back takes the focus with its caret after it. */
-export function useTypeToWrite(workspaceId: string, enabled: boolean, fold: () => void): void {
+export function useTypeToWrite(workspaceId: string, threadKey: string, enabled: boolean, fold: () => void): void {
   const folding = useRef(fold);
   folding.current = fold;
   useEffect(() => {
@@ -54,12 +54,12 @@ export function useTypeToWrite(workspaceId: string, enabled: boolean, fold: () =
         return;
       }
       const store = useComposerDraftStore.getState();
-      const prompt = `${(store.drafts[workspaceId] ?? EMPTY_DRAFT).prompt}${event.key}`;
-      store.setDraft(workspaceId, { prompt, cursor: collapseExpandedComposerCursor(prompt, prompt.length) });
+      const prompt = `${(store.drafts[threadKey] ?? EMPTY_DRAFT).prompt}${event.key}`;
+      store.setDraft(threadKey, { prompt, cursor: collapseExpandedComposerCursor(prompt, prompt.length) });
       folding.current();
       requestComposerFocus(workspaceId);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [enabled, workspaceId]);
+  }, [enabled, threadKey, workspaceId]);
 }

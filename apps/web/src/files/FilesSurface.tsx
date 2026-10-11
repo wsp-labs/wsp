@@ -22,6 +22,7 @@ import { useRightPanelStore } from "../rightPanelStore.js";
 import { focusPaneOnShow, FolderBreadcrumbs, useUpAFolder } from "./FolderBreadcrumbs.js";
 import { useWorkspaceListing } from "./listing.js";
 import { usePinned, useRoot, useRootStore } from "./root.js";
+import { threadStateKey } from "../stateKey.js";
 import { useDaemonWire } from "./wire.js";
 
 /** What the Files pane says in place of a tree while there is no daemon to list one over. */
@@ -62,8 +63,8 @@ export function FilesSurface({ workspaceId, theme }: { workspaceId: string; them
   // sits there, and a stale tree with no sentence is the pane saying the daemon is fine.
   if (!wire || root === null || absent?.start !== undefined) return <NotRunning workspaceId={workspaceId} line={FILES_NOT_RUNNING} />;
   const newThreadHere = () => {
-    follow(workspaceId, root);
     newThread(workspaceId);
+    follow(threadStateKey(workspaceId, ""), root);
   };
 
   return (
