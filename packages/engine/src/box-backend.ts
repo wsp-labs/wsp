@@ -9,13 +9,13 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { DAEMON_UNIT, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, shellQuote, type Capabilities } from "@wsp/protocol";
-import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
+import { DAEMON_UNIT, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, shellQuote, type Capabilities } from "@wsp/protocol";
+import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL, WSP_LABEL } from "./labels.js";
-import type { BackendPricing, CloudLimits, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, PreviewReach, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
+import type { BackendPricing, CloudLimits, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
 import { DAEMON_PORT } from "./preview.js";
 
 type Fetch = typeof globalThis.fetch;
@@ -103,6 +103,14 @@ export const BOX_POLL_MS = 2_000;
 /** How long a box that reads ready may go on refusing commands with box_restoring or box_starting before the refusal
  * is the caller's: the restored disk streams in behind a ready box. */
 export const BOX_RESTORE_MS = 120_000;
+
+/** How long a create whose answer never arrived is asked again under its key and with its bytes, and the wait between
+ * asks after the first, which goes at once. Boat keeps a key 24 hours and answers its first box to the same key and
+ * body; another body under it is refused with idempotency_key_reused. */
+export const LOST_ANSWER_MS = 120_000;
+export const LOST_ANSWER_EVERY_MS = 5_000;
+/** The wait after idempotency_in_progress, Boat's answer while the first request under a key is still being made. */
+export const IN_PROGRESS_WAIT_MS = 2_000;
 
 /** How much later than the last instant sent a backstop instant has to be before it is worth a call: the runtime
  * arms its window on every streamed chunk, and a PATCH per chunk would be a call per keystroke. */
@@ -296,6 +304,7 @@ interface Paged {
   pageInfo?: { nextCursor?: string | null };
 }
 type BoxPage = Paged & { boxes?: BoxView[] };
+type CreateAnswer = { status?: string; box: BoxView };
 type SnapshotPage = Paged & { snapshots?: SnapshotView[] };
 
 /** Why the provider would not stop a box, in its own fields: its error for the box, else what its latest snapshot
@@ -335,12 +344,22 @@ const stillRestoring = (e: unknown): boolean => {
   return kind === "conflict" && (code === "box_restoring" || code === "box_starting");
 };
 
+/** What a call whose answer was lost said: the status a gateway gave, or the system's code under a road's failure. */
+function roadWords(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  const { status, cause } = (e ?? {}) as { status?: unknown; cause?: { code?: unknown } };
+  if (typeof status === "number") return `${status} ${message}`;
+  return typeof cause?.code === "string" ? `${message}: ${cause.code}` : message;
+}
+
 function fail(e: WspError): never {
   throw Object.assign(new Error(e.message || `${e.kind} (${e.status})`), e);
 }
 
 interface RequestOpts {
   body?: unknown;
+  /** A body already made, sent as these bytes. */
+  bytes?: string;
   headers?: Record<string, string>;
   capMs?: number;
   signal?: AbortSignal;
@@ -435,7 +454,8 @@ export class BoxBackend implements MachineBackend {
    * request left this computer is retried too, since nothing was sent. */
   async request<T>(method: string, path: string, opts: RequestOpts = {}): Promise<T> {
     const headers: Record<string, string> = { Authorization: `Bearer ${this.apiKey}`, ...opts.headers };
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    const body = opts.bytes ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined);
+    if (body !== undefined) headers["Content-Type"] = "application/json";
     let roadRetries = 0;
     let attempt = 1;
     for (;;) {
@@ -444,7 +464,7 @@ export class BoxBackend implements MachineBackend {
         res = await this.fetch(this.baseUrl + path, {
           method,
           headers,
-          body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+          body,
           ...abort(opts.capMs ?? (method === "GET" ? this.budgets.readMs : undefined), opts.signal),
         });
       } catch (e) {
@@ -554,30 +574,60 @@ export class BoxBackend implements MachineBackend {
     }
   }
 
-  async create(spec: MachineSpec): Promise<Machine> {
-    const cls = boxClassFor(spec);
+  /** The bytes a create of this spec sends, made once per attempt: `ttlSeconds` is read off the clock, and the same key
+   * asked again with another body is refused. */
+  async createRequest(spec: MachineSpec): Promise<string> {
     const named = spec.fromSnapshot ?? spec.template;
     const from = named === undefined || named === BOX_BASE_TEMPLATE ? undefined : named;
     // The runtime's backstop instant at create, so a host that dies before its first arming leaves a box with a
     // stop timer; the account's cap where it is shorter, and on an account with no cap and no window, none.
     const timerUntil = spec.idleTimeoutMs === undefined ? undefined : this.clock.now() + spec.idleTimeoutMs;
-    const body = {
-      type: cls.type,
+    return JSON.stringify({
+      type: boxClassFor(spec).type,
       ttlSeconds: await this.ttlSecondsFor(timerUntil),
       // None of the account's secrets, environment or credential toggles land on a machine wsp forks: sign-ins live
       // in the golden and the vault, and a box handed to a turn must not be able to act on the account.
       noEnv: true,
       name: boxName(spec.labels ?? {}),
       ...(from !== undefined ? { from } : {}),
-    };
-    const res = await this.request<{ status?: string; box: BoxView }>("POST", "/boxes", {
-      body,
-      headers: { "Idempotency-Key": spec.idempotencyKey ?? crypto.randomUUID() },
     });
+  }
+
+  /** One create's POST under its key: an answer lost on the way back is asked again with the same bytes, at once and
+   * then every LOST_ANSWER_EVERY_MS inside LOST_ANSWER_MS, so the box Boat made is found rather than left holding a
+   * slot. `lost` is what was said the first time one was lost. */
+  private async postCreate(key: string, bytes: string): Promise<{ answer: CreateAnswer; lost?: string }> {
+    const started = this.clock.now();
+    let lost: string | undefined;
+    for (let ask = 0; ; ask++) {
+      try {
+        // Boat answers a create while the box still provisions, so an ask silent past a read's cap is lost (fetch waits 300 s).
+        const answer = await this.request<CreateAnswer>("POST", "/boxes", { bytes, headers: { "Idempotency-Key": key }, capMs: this.budgets.readMs });
+        return { answer, ...(lost !== undefined ? { lost } : {}) };
+      } catch (e) {
+        const { code, status } = e as WspError;
+        const inProgress = code === "idempotency_in_progress";
+        // Boat may answer a 5xx after it accepted the create, so a 5xx is a lost answer too.
+        const lostHere = !farEndAnswered(e) || (typeof status === "number" && status >= 500);
+        if ((!inProgress && !lostHere) || this.clock.now() - started >= LOST_ANSWER_MS) throw e;
+        if (!inProgress) lost ??= roadWords(e);
+        await this.clock.sleep(inProgress ? IN_PROGRESS_WAIT_MS : ask === 0 ? 0 : LOST_ANSWER_EVERY_MS);
+      }
+    }
+  }
+
+  /** `sent` is the bytes an earlier ask under `spec.idempotencyKey` sent, sent again as they are. */
+  async create(spec: MachineSpec, _waiting?: (line: string) => void, sent?: string): Promise<Machine> {
+    const timerUntil = spec.idleTimeoutMs === undefined ? undefined : this.clock.now() + spec.idleTimeoutMs;
+    const bytes = sent ?? (await this.createRequest(spec));
+    const name = (JSON.parse(bytes) as { name: string }).name;
+    const { answer: res, lost } = await this.postCreate(spec.idempotencyKey ?? crypto.randomUUID(), bytes);
     // A fresh create answers with the box provisioning; a replay under a key already used answers with the box as it
-    // stands, which is the one fact the reply carries about it.
-    const replayed = res.status !== undefined && res.status !== "provisioning";
+    // stands, which is the one fact the reply carries about it. A box found by asking again inside this create is
+    // this attempt's own, not an earlier one's.
+    const replayed = lost === undefined && res.status !== undefined && res.status !== "provisioning";
     const id = res.box.id;
+    if (lost !== undefined) console.warn(createAnswerLostLine(providerKeyName("box"), lost, id));
     const machine = new BoxMachine(this, id, spec.kind, spec.labels, undefined, replayed);
     if (timerUntil !== undefined) this.backstops.set(id, { until: timerUntil, spanMs: spec.idleTimeoutMs! });
     try {
@@ -586,7 +636,7 @@ export class BoxBackend implements MachineBackend {
       await machine.proveRoad();
       // A box deployed from a named snapshot is named after the snapshot, whatever the create asked (measured
       // 2026-09-11), and the name is where the labels live: it is set again once the box stands.
-      if (view.name !== body.name) await this.request("PATCH", `/boxes/${encodeURIComponent(id)}`, { body: { name: body.name } });
+      if (view.name !== name) await this.request("PATCH", `/boxes/${encodeURIComponent(id)}`, { body: { name } });
       if (spec.envs !== undefined && Object.keys(spec.envs).length > 0) await machine.landEnvs(spec.envs);
     } catch (e) {
       // A box the provider made that never became a machine is nobody's but this backend's: the caller never learns
@@ -595,6 +645,30 @@ export class BoxBackend implements MachineBackend {
       throw e;
     }
     return machine;
+  }
+
+  /** Asks a create again under its key with the bytes its attempt sent, for a sweep that found the attempt never
+   * answered: Boat answers with the box the key made, named back to what the bytes asked so its labels read again. */
+  async replayCreate(key: string, bytes: string): Promise<Machine> {
+    const { answer } = await this.postCreate(key, bytes);
+    const name = (JSON.parse(bytes) as { name: string }).name;
+    const state = stateOf(answer.box.state);
+    if (state !== "gone" && answer.box.name !== name) await this.request("PATCH", `/boxes/${encodeURIComponent(answer.box.id)}`, { body: { name } });
+    return new BoxMachine(this, answer.box.id, "sandbox", boxLabels(name), {
+      state,
+      ...(answer.box.createdAt !== undefined && answer.box.createdAt !== null ? { createdAt: answer.box.createdAt } : {}),
+    }, true);
+  }
+
+  /** The boxes named exactly one of `names`, running or archived: a box made from a named snapshot carries the
+   * snapshot's name until wsp names it, so one whose create lost its answer is found by that name alone. */
+  async namedAfter(names: ReadonlySet<string>): Promise<NamedMachine[]> {
+    const out = new Map<string, NamedMachine>();
+    for (const box of await this.everyBox()) {
+      if (box.name === undefined || box.name === null || !names.has(box.name) || out.has(box.id)) continue;
+      out.set(box.id, { id: box.id, name: box.name, state: stateOf(box.state), ...(box.createdAt !== undefined && box.createdAt !== null ? { createdAt: box.createdAt } : {}) });
+    }
+    return [...out.values()];
   }
 
   async get(id: string): Promise<Machine> {
@@ -621,14 +695,19 @@ export class BoxBackend implements MachineBackend {
     return out;
   }
 
-  /** Every box wsp named, archived ones included; the other boxes on the account are not wsp's to list. The plain
-   * listing carried an archived row beside a running one when it was read (2026-09-11), and the archived listing is
-   * read too, so a napping box is in the fleet whichever of the two the provider keeps it on; a box on both is one. */
-  async list(labels?: Record<string, string>): Promise<{ id: string; state: MachineState; labels: Record<string, string>; size?: { cpu: number; memMb: number } }[]> {
+  /** The plain listing and the archived one: the plain one carried an archived row beside a running one when it was
+   * read (2026-09-11), so a napping box is on whichever of the two the provider keeps it, and may be on both. */
+  private async everyBox(): Promise<BoxView[]> {
     const rows = (p: BoxPage): unknown[] | undefined => p.boxes;
     const next = (p: BoxPage): string | null | undefined => p.pageInfo?.nextCursor;
+    return [...(await this.pages<BoxPage>("/boxes", rows, next)), ...(await this.pages<BoxPage>("/boxes", rows, next, { state: "archived" }))] as BoxView[];
+  }
+
+  /** Every box wsp named, archived ones included; the other boxes on the account are not wsp's to list. A box on
+   * both listings is one. */
+  async list(labels?: Record<string, string>): Promise<{ id: string; state: MachineState; labels: Record<string, string>; size?: { cpu: number; memMb: number } }[]> {
     const boxes = new Map<string, BoxView>();
-    for (const box of [...(await this.pages<BoxPage>("/boxes", rows, next)), ...(await this.pages<BoxPage>("/boxes", rows, next, { state: "archived" }))] as BoxView[]) {
+    for (const box of await this.everyBox()) {
       if (!boxes.has(box.id)) boxes.set(box.id, box);
     }
     const out: { id: string; state: MachineState; labels: Record<string, string>; size?: { cpu: number; memMb: number } }[] = [];

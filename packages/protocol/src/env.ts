@@ -16,7 +16,8 @@ export const HOST_ENV = "WSP_HOST";
 export const LABS_ENV = "WSP_LABS";
 
 /** The one road that turns the cloud on: this variable set to 1 in the environment of every wsp process, read once
- * when the process registers its providers. Off, no cloud provider is registered and nothing built from one exists. */
+ * when the process registers its providers. Off, Boat is the one cloud registered, as a place and never the provider a
+ * host forks on, and Solari and the cloud's top-level verbs do not exist. */
 export const CLOUD_ENV = "WSP_CLOUD";
 
 /** The variable a turn's launch environment carries so wsp run inside that turn can say which thread it is: one

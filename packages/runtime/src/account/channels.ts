@@ -248,6 +248,83 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
       closed: channel.closed,
     };
   };
+  /** The thread whose pane opened each pty of a workspace, as the pty.create a client sent named it: every thread of
+   * a project folder rides one workspace's channel, and each one's drawer shows its own shells. Kept in the host's
+   * state, one document per workspace, so a host that restarts over shells a daemon still holds still knows whose they
+   * are. An entry goes at the pty's kill and when a list no longer holds it; the document goes with its workspace. */
+  const PTY_THREADS = "pty-threads";
+  const tagsHeld = new Map<string, Promise<Map<string, string>>>();
+  const tagsOf = (workspaceId: string): Promise<Map<string, string>> => {
+    const held = tagsHeld.get(workspaceId);
+    if (held !== undefined) return held;
+    const read = ctx.store.get(PTY_THREADS, workspaceId).then(
+      kept => new Map(Object.entries(kept !== null && typeof kept === "object" ? (kept as Record<string, unknown>) : {}).filter((row): row is [string, string] => typeof row[1] === "string")),
+      () => new Map<string, string>(),
+    );
+    tagsHeld.set(workspaceId, read);
+    return read;
+  };
+  /** Writes one at a time per workspace, each the tags as they stand when it runs, so the last write is the latest. */
+  const tagWrites = new Map<string, Promise<void>>();
+  const keepTags = (workspaceId: string): void => {
+    const write = (tagWrites.get(workspaceId) ?? Promise.resolve())
+      .then(async () => {
+        const tags = await tagsOf(workspaceId);
+        if (tags.size === 0) await ctx.store.delete(PTY_THREADS, workspaceId);
+        else await ctx.store.put(PTY_THREADS, workspaceId, Object.fromEntries(tags));
+      })
+      .catch((e: unknown) => console.warn(`whose shells are whose in ${workspaceId} was not kept for the next host: ${e instanceof Error ? e.message : String(e)}`));
+    tagWrites.set(workspaceId, write);
+  };
+  ctx.bus.on("workspace.deleted", e => {
+    if (e.type !== "workspace.deleted") return;
+    tagsHeld.set(e.workspaceId, Promise.resolve(new Map<string, string>()));
+    keepTags(e.workspaceId);
+  });
+  /** A client's channel that keeps the thread a pty.create names, which the daemon never hears, and names it on
+   * every row of a pty.list. A pty.thread hands a shell to another thread (the New thread page's, to the thread its
+   * first send opened) and is answered here, never by the daemon. */
+  const threadTagged = (workspaceId: string, channel: DaemonChannel): DaemonChannel => ({
+    async send(frame) {
+      const { thread, ...rest } = frame as Record<string, unknown>;
+      const tags = await tagsOf(workspaceId);
+      if (frame.op === "pty.thread") {
+        const ptyId = (frame as Record<string, unknown>)["ptyId"];
+        if (typeof ptyId !== "string" || typeof thread !== "string") return { id: frame.id, ok: false, error: "pty.thread names a ptyId and a thread" } as DaemonResponse;
+        tags.set(ptyId, thread);
+        keepTags(workspaceId);
+        return { id: frame.id, ok: true } as DaemonResponse;
+      }
+      const sent = (frame.op === "pty.create" ? rest : frame) as DaemonFrame;
+      const reply = await channel.send(sent);
+      const said = reply as Record<string, unknown>;
+      if (said["ok"] !== true) return reply;
+      if (frame.op === "pty.create" && typeof thread === "string") {
+        tags.set(String(said["ptyId"]), thread);
+        keepTags(workspaceId);
+      }
+      if (frame.op === "pty.kill" && tags.delete(String((frame as Record<string, unknown>)["ptyId"]))) keepTags(workspaceId);
+      if (frame.op !== "pty.list" || !Array.isArray(said["ptys"])) return reply;
+      const rows = said["ptys"] as Record<string, unknown>[];
+      const held = new Set(rows.map(row => String(row["id"])));
+      const gone = [...tags.keys()].filter(id => !held.has(id));
+      for (const id of gone) tags.delete(id);
+      if (gone.length > 0) keepTags(workspaceId);
+      return { ...reply, ptys: rows.map(row => (tags.has(String(row["id"])) ? { ...row, thread: tags.get(String(row["id"])) } : row)) };
+    },
+    close: () => channel.close(),
+    closed: channel.closed,
+  });
+  /** Kills the shells a thread's panes opened, as its delete takes the thread: no pane shows them once it is gone. */
+  const endThreadShells = async (entry: LiveWorkspace, threadId: string): Promise<void> => {
+    const tags = await tagsOf(entry.record.id);
+    for (const [ptyId, thread] of [...tags]) {
+      if (thread !== threadId) continue;
+      await withDaemon(entry, ask => ask({ op: "pty.kill", ptyId } as DaemonFrame)).catch((e: unknown) => console.warn(`shell ${ptyId} of a deleted thread was not ended: ${e instanceof Error ? e.message : String(e)}`));
+      tags.delete(ptyId);
+      keepTags(entry.record.id);
+    }
+  };
   /** Forgets whose every pty was, once the daemon the owners share is replaced and its ptys with it. */
   const sharedDaemonReplaced = (): void => {
     for (const mine of ptyOwners.values()) mine.clear();
@@ -554,7 +631,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
     withDaemon, overChannel, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
-    portPids, heldToOwner, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
+    portPids, heldToOwner, threadTagged, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };
 }

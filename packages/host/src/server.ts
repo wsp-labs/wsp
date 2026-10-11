@@ -318,6 +318,8 @@ function describeReaped(r: ReapedMachine): string {
   if (r.reason === "expired" && r.ageMs === undefined) return `reap: stopping ${r.id}: your earlier builder from this setup, age unknown; a kept builder with no readable age is stopped at once`;
   if (r.reason === "expired") return `reap: stopping ${r.id}: your earlier builder from this setup, ${describeAge(r.ageMs)}; a kept builder is stopped at six hours`;
   if (r.reason === "grace") return `reap: stopping ${r.id}: the builder kept after the save for one more change; its ten-minute window is over`;
+  if (r.reason === "lost") return `reap: deleting ${r.id}, a machine the provider made for this host after the answer to its create was lost${r.name !== undefined ? ` (named ${r.name}, ${describeAge(r.ageMs)})` : `, ${describeAge(r.ageMs)}`}; no record waits for it`;
+  if (r.reason === "stray") return `reap: deleting ${r.id}, named ${r.name ?? "after one of this host's images"} and ${describeAge(r.ageMs)}: a machine made from this host's image that no record or create of it names`;
   const why = r.reason === "own" ? `${kind} from this setup that no record claims` : `${kind} with no owner`;
   return `reap: stopping ${r.id}${describeLabels(r.labels)}: ${why}, ${describeAge(r.ageMs)}`;
 }

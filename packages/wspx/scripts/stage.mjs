@@ -3,7 +3,7 @@
 // the way its own entry in the host's table says, into the folder the host
 // reads it back from. The root LICENSE is copied in because npm only ever
 // publishes the one in the package folder; the README is the package's own,
-// written for the public install, which carries no cloud.
+// written for the public install, which carries Boat and no other cloud.
 import { chmodSync, cpSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

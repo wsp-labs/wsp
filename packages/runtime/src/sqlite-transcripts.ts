@@ -39,11 +39,15 @@ export interface TranscriptRows {
   newest(workspaceId: string, threadId: string, before?: number): Iterable<SessionEvent>;
   /** How many events of the thread the transcript keeps. */
   count(workspaceId: string, threadId: string): number;
-  /** How many events the transcript keeps and their sizes summed. */
-  total(workspaceId: string): { count: number; size: number };
+  /** How many events the transcript keeps and their sizes summed, of one thread where it is named ('' for none). */
+  total(workspaceId: string, threadId?: string): { count: number; size: number };
   /** The newest position the transcript keeps, 0 where it keeps none. */
   newestPos(workspaceId: string): number;
-  sizes(workspaceId: string): EventSize[];
+  sizes(workspaceId: string, threadId?: string): EventSize[];
+  /** One thread's events that can carry its words (its prompts, steers, earlier lines and text), oldest first. */
+  wordEvents(workspaceId: string, threadId: string): SessionEvent[];
+  /** One thread's events, oldest first, and their sizes summed. */
+  thread(workspaceId: string, threadId: string): { events: SessionEvent[]; size: number };
   at(workspaceId: string, positions: readonly number[]): SessionEvent[];
   /** Events after every one the transcript keeps. */
   append(workspaceId: string, events: readonly SessionEvent[]): void;
@@ -102,28 +106,32 @@ export function transcriptRows(db: () => DatabaseSync): TranscriptRows {
   };
   const newestPos = (workspaceId: string): number => Number((s().newestPos.get(workspaceId) as { pos: number | null }).pos ?? 0);
 
+  const summed = (rows: unknown[]): { events: SessionEvent[]; size: number } => {
+    let size = 0;
+    const events = (rows as { json: string; size: number }[]).map(r => {
+      size += r.size;
+      return JSON.parse(r.json) as SessionEvent;
+    });
+    return { events, size };
+  };
+
   return {
-    all(workspaceId) {
-      let size = 0;
-      const events = (s().all.all(workspaceId) as { json: string; size: number }[]).map(r => {
-        size += r.size;
-        return JSON.parse(r.json) as SessionEvent;
-      });
-      return { events, size };
-    },
+    all: workspaceId => summed(s().all.all(workspaceId)),
+    thread: (workspaceId, threadId) => summed(s().thread.all(workspaceId, threadId)),
+    wordEvents: (workspaceId, threadId) => parse(s().wordEvents.all(workspaceId, threadId)),
     *newest(workspaceId, threadId, before) {
       for (const r of s().newest.iterate(workspaceId, threadId, before ?? Number.MAX_SAFE_INTEGER)) yield JSON.parse((r as { json: string }).json) as SessionEvent;
     },
     count(workspaceId, threadId) {
       return Number((s().count.get(workspaceId, threadId) as { n: number }).n);
     },
-    total(workspaceId) {
-      const r = s().total.get(workspaceId) as { n: number; size: number | null };
+    total(workspaceId, threadId) {
+      const r = (threadId === undefined ? s().total.get(workspaceId) : s().threadTotal.get(workspaceId, threadId)) as { n: number; size: number | null };
       return { count: Number(r.n), size: Number(r.size ?? 0) };
     },
     newestPos,
-    sizes(workspaceId) {
-      return (s().sizes.all(workspaceId) as { pos: number; thread: string; type: SessionEvent["type"]; size: number }[]).map(r => ({
+    sizes(workspaceId, threadId) {
+      return ((threadId === undefined ? s().sizes.all(workspaceId) : s().threadSizes.all(workspaceId, threadId)) as { pos: number; thread: string; type: SessionEvent["type"]; size: number }[]).map(r => ({
         pos: r.pos,
         ...(r.thread !== "" ? { threadId: r.thread } : {}),
         type: r.type,
@@ -212,6 +220,10 @@ function indexOfBlob(json: string, mark: { bytes: number; at: number }): string 
 
 interface Statements {
   all: StatementSync;
+  thread: StatementSync;
+  wordEvents: StatementSync;
+  threadTotal: StatementSync;
+  threadSizes: StatementSync;
   newest: StatementSync;
   count: StatementSync;
   total: StatementSync;
@@ -230,8 +242,15 @@ interface Statements {
   dropBlob: StatementSync;
 }
 
+/** The events a thread's words come from, so a read of its words parses none of its tool output. */
+const WORDS = "(type in ('session.start', 'session.steer', 'session.earlier') or (type = 'session.delta' and json_extract(json, '$.kind') = 'text'))";
+
 const statements = (d: DatabaseSync): Statements => ({
   all: d.prepare("select json, size from events where workspace = ? order by pos"),
+  thread: d.prepare("select json, size from events where workspace = ? and thread = ? order by pos"),
+  wordEvents: d.prepare(`select json from events where workspace = ? and thread = ? and ${WORDS} order by pos`),
+  threadTotal: d.prepare("select count(*) as n, sum(size) as size from events where workspace = ? and thread = ?"),
+  threadSizes: d.prepare("select pos, thread, type, size from events where workspace = ? and thread = ? order by pos"),
   newest: d.prepare("select json from events where workspace = ? and thread = ? and pos < ? order by pos desc"),
   count: d.prepare("select count(*) as n from events where workspace = ? and thread = ?"),
   total: d.prepare("select count(*) as n, sum(size) as size from events where workspace = ?"),

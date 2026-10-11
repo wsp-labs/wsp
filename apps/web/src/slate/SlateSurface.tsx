@@ -296,7 +296,7 @@ function EmptySlate({ threadId, entry }: { threadId: string; entry: SlateEntry }
   const ask = () => {
     const workspaceId = threadWorkspace(threadId);
     if (workspaceId === null) return;
-    useComposerDraftStore.getState().setDraft(workspaceId, { prompt: SLATE_WORDS.askPrompt, cursor: SLATE_WORDS.askPrompt.length });
+    useComposerDraftStore.getState().setDraft(threadId, { prompt: SLATE_WORDS.askPrompt, cursor: SLATE_WORDS.askPrompt.length });
     // A bar the person opened gives the composer's place back, as it does to a typed letter.
     foldBar(threadId, workspaceId);
   };

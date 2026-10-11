@@ -2,8 +2,8 @@
 import { dirname, join } from "node:path";
 import { serverValuesOf } from "@wsp/catalog";
 import { authRefusal, THIS_COMPUTER } from "@wsp/protocol";
-import { checkProviderKey, keyCheckLine, type KeyCheck } from "@wsp/engine";
-import { providerBackendFor, providerEnvWith, providerEnvWithKey, providerKeyRow, type ProviderEnv } from "../providers.js";
+import { keyCheckLine, type KeyCheck } from "@wsp/engine";
+import { providerEnvWith, providerKeyCheck, providerKeyRow, type ProviderEnv } from "../providers.js";
 import { ANTHROPIC_KEY, KEY_LAYER_WORDS, envFileFor, keyIn, parseEnvFile, savedEnv, serverEnvFileFor, vaultOf, writeEnvFile, type Keys } from "../env-keys.js";
 import { DEFAULT_HOME } from "../hosts.js";
 import type { CliIO } from "./io.js";
@@ -33,7 +33,7 @@ export function keyLayers(sources: KeySources): Array<Record<string, string | un
 export function keySources(env: ProviderEnv, statePath: string): KeySources {
   // The key is put to the provider this run is wired to, under that row's own variable: a person who named a
   // provider is typing that provider's key, whatever another row would have been taken by.
-  return { env, cwd: process.cwd(), statePath, checkKey: key => checkProviderKey(providerBackendFor(providerEnvWithKey(env, key))) };
+  return { env, cwd: process.cwd(), statePath, checkKey: key => providerKeyCheck(env, key) };
 }
 
 /** The environment a run picks its provider out of, as this computer stands now: the run's own with the command
