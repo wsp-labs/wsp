@@ -62,6 +62,7 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
       if (entry.record.phase !== "running") await ctx.workspaces.wake(entry.record.id);
     },
     loaded: () => ctx.ready(),
+    ...(opts.drawSlate !== undefined ? { drawSlate: opts.drawSlate } : {}),
     settled: async threadId => ctx.settledNow(threadId, SETTLE_MS[(await ctx.preferences.get()).settleAfter]),
     under: lead => ctx.treeUnder(lead),
     threadOfToken: token => ctx.threadOfToken(token),

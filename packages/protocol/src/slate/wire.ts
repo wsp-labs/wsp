@@ -193,12 +193,17 @@ export const SlatesCancelParams = z.object({ threadId: z.string(), run: z.string
 /** The person withdrawing one standing approval of a thread's slate: a command's, an MCP server's, a domain's, or
  * the one that lets reactions message the agent. */
 export const SlatesRevokeParams = z.object({ threadId: z.string(), key: z.string() });
-export const SlatesShownParams = z.object({ threadId: z.string() });
+/** theme and width are how this window draws the slate, which a look then draws it as. */
+export const SlatesShownParams = z.object({ threadId: z.string(), theme: z.string().regex(/^[a-z][a-z-]{0,39}$/).optional(), width: z.number().int().min(200).max(4000).optional() });
 export const SlatesSubscribeParams = z.object({ threadId: z.string(), sources: z.array(z.string()) });
 export const SlatesResolveParams = z.object({ threadId: z.string(), paths: z.array(z.string()).max(200) });
 /** An image piece's src: a path on the thread's computer or an http(s) address; have is the version the window
  * holds, which the host answers unchanged when the file is still that one. */
 export const SlatesImageParams = z.object({ threadId: z.string(), src: z.string().max(4096), have: z.string().max(200).optional() });
+/** A frame piece's src, an .html file on the thread's computer, read as an image is. */
+export const SlatesPageParams = SlatesImageParams;
+/** A picture of the thread's slate as the window draws it, for the agent that wrote it. */
+export const SlatesLookParams = z.object({ ...threadParams });
 
 /** Every slate op by name with its params, which the protocol's op union takes in whole. */
 export const SLATE_OPS = {
@@ -216,6 +221,8 @@ export const SLATE_OPS = {
   "slates.unsubscribe": SlatesSubscribeParams,
   "slates.resolve": SlatesResolveParams,
   "slates.image": SlatesImageParams,
+  "slates.page": SlatesPageParams,
+  "slates.look": SlatesLookParams,
 } as const;
 export type SlateOpName = keyof typeof SLATE_OPS;
 /** Each slate op's params as a client sends them. */
@@ -286,6 +293,14 @@ export const SlatesImageAnswer = z.union([
   z.object({ problem: SlateWireProblem }),
 ]);
 export type SlatesImageAnswer = z.infer<typeof SlatesImageAnswer>;
+
+/** The page's text and the version it is, unchanged where the window holds that version, or the problem. */
+export const SlatesPageAnswer = z.union([z.object({ html: z.string(), version: z.string().optional() }), z.object({ unchanged: z.literal(true), version: z.string() }), z.object({ problem: SlateWireProblem })]);
+export type SlatesPageAnswer = z.infer<typeof SlatesPageAnswer>;
+
+/** A PNG, base64, of the slate drawn at width in theme, with the sketch beside it. */
+export const SlatesLookAnswer = z.object({ mediaType: z.literal("image/png"), bytes: z.string(), width: z.number().int(), height: z.number().int(), theme: z.string(), text: z.string() });
+export type SlatesLookAnswer = z.infer<typeof SlatesLookAnswer>;
 
 // --- events ---
 

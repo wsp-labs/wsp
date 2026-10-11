@@ -367,6 +367,7 @@
     "slate_write": "wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]",
     "slate_state": "wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]",
     "slate_read": "wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch] [--document]",
+    "slate_look": "wsp slate look [<thread>] [--out <file>]",
     "send": "wsp send <thread> [--model, --effort <value>] [--fast] [--file <path>] [--detach] \"<message>\"",
     "restart": "wsp restart",
     "stop": "wsp stop <thread> [--subagent <id>]",

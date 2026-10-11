@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { z } from "zod";
-import { turnTokenOf, usageRefusal, SLATE_SCRIPT_WORDS, SLATE_TOOLS } from "@wsp/protocol";
+import { turnTokenOf, usageRefusal, SLATE_SCRIPT_WORDS, SLATE_TOOLS, type SlatesLookAnswer } from "@wsp/protocol";
 import { type HostClient, type VerbDeps, type VerbContext, usageIs, tool, type Verb, flagList, pick } from "./client.js";
 import { threadOf } from "./workspaces-help.js";
 import { asText } from "./io.js";
@@ -214,6 +215,37 @@ export const SLATE_VERBS: readonly Verb[] = [
         const client = await deps.client();
         const read = await slateAsk<{ text: string }>(client, "slates.read", { ...(await slateTarget(client, thread, deps.env)), ...pick({ values, text, sketch, document }) });
         return asText(read.text, read);
+      },
+    }),
+  },
+  {
+    name: "slate look",
+    usage: "wsp slate look [<thread>] [--out <file>]",
+    about: "a PNG of the slate as the person's window draws it, in their theme at the panel's width, drawn through the app on the host's computer; look once after a frame or a large change, never after each patch",
+    page: "agent",
+    options: { out: { type: "string" } },
+    run: async ctx => {
+      if (ctx.args.length > 1) throw usageRefusal("wsp slate look takes one thread at most.", usageIs(ctx));
+      const out = typeof ctx.flags["out"] === "string" ? ctx.flags["out"] : undefined;
+      if (out !== undefined && ctx.elsewhere === true) throw usageRefusal(`${out} would be a file on your machine, which this host cannot write.`, "Leave out --out; slate_look answers the picture itself.");
+      const client = await ctx.client();
+      const look = await slateAsk<SlatesLookAnswer>(client, "slates.look", await slateTarget(client, ctx.args[0], ctx.env));
+      const path = resolve(ctx.cwd ?? process.cwd(), out ?? join(tmpdir(), `wsp-slate-${Date.now()}.png`));
+      writeFileSync(path, Buffer.from(look.bytes, "base64"));
+      const { bytes: _bytes, mediaType: _type, ...rest } = look;
+      ctx.out.emit({ path }, `${path}  ${look.width} by ${look.height}, ${look.theme}\n${look.text}`);
+      ctx.out.emit(rest);
+      return 0;
+    },
+    tool: tool({
+      description: "A picture of the slate as the person sees it. Look once after writing a frame or a large change, not after each patch.",
+      input: { thread: SlateThreadIn },
+      output: { path: z.string().optional(), width: z.number().int(), height: z.number().int(), theme: z.string(), text: z.string() },
+      stream: ["path"],
+      call: async ({ thread }, deps) => {
+        const client = await deps.client();
+        const { bytes, mediaType, ...rest } = await slateAsk<SlatesLookAnswer>(client, "slates.look", await slateTarget(client, thread, deps.env));
+        return { content: [{ type: "image", data: bytes, mimeType: mediaType }, { type: "text", text: rest.text }], structuredContent: rest };
       },
     }),
   },

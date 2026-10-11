@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What happens on a click</title>
+<style>
+  body { font: 13px/1.55 var(--font-sans); color: var(--foreground); }
+  .wrap { display: flex; flex-direction: column; gap: 14px; padding: 2px 0 6px; }
+  p { margin: 0; color: var(--muted-foreground); max-width: 60ch; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .lane { fill: none; stroke: var(--border); stroke-width: 1; }
+  .node rect { fill: var(--card); stroke: var(--border); stroke-width: 1; rx: 8; transition: stroke .2s; }
+  .node text { fill: var(--muted-foreground); font: 12px var(--font-sans); transition: fill .2s; }
+  .node.on rect { stroke: var(--slate-accent); }
+  .node.on text { fill: var(--foreground); }
+  .edge { stroke: var(--border); stroke-width: 1.25; fill: none; transition: stroke .2s; }
+  .edge.on { stroke: var(--slate-accent); }
+  .ms { font: 11px var(--font-mono); fill: var(--muted-foreground); }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { font: 12px var(--font-sans); color: var(--muted-foreground); background: transparent; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { color: var(--foreground); border-color: var(--slate-accent); }
+  .say { min-height: 3.2em; color: var(--foreground); }
+  .say b { font-weight: 500; }
+  code { font: 12px var(--font-mono); color: var(--foreground); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p>A short link is three hops. Press a step to walk through it.</p>
+  <svg viewBox="0 0 560 150" role="img" aria-label="Browser to edge to cache to origin">
+    <path class="lane" d="M10 75 H550" stroke-dasharray="2 4" />
+    <g class="node" data-n="0"><rect x="0" y="52" width="96" height="46" /><text x="48" y="80" text-anchor="middle">Browser</text></g>
+    <g class="node" data-n="1"><rect x="150" y="52" width="96" height="46" /><text x="198" y="80" text-anchor="middle">Edge</text></g>
+    <g class="node" data-n="2"><rect x="300" y="12" width="96" height="46" /><text x="348" y="40" text-anchor="middle">Cache</text></g>
+    <g class="node" data-n="3"><rect x="300" y="92" width="96" height="46" /><text x="348" y="120" text-anchor="middle">Database</text></g>
+    <g class="node" data-n="4"><rect x="450" y="52" width="104" height="46" /><text x="502" y="80" text-anchor="middle">Long URL</text></g>
+    <path class="edge" data-e="1" d="M96 75 H150" />
+    <path class="edge" data-e="2" d="M246 68 C270 68 276 35 300 35" />
+    <path class="edge" data-e="3" d="M246 82 C270 82 276 115 300 115" />
+    <path class="edge" data-e="4" d="M396 35 C420 35 426 68 450 68" />
+    <text class="ms" x="123" y="66" text-anchor="middle">4 ms</text>
+    <text class="ms" x="273" y="30" text-anchor="middle">1 ms</text>
+    <text class="ms" x="273" y="140" text-anchor="middle">18 ms</text>
+  </svg>
+  <div class="steps" role="group" aria-label="Steps"></div>
+  <div class="say" aria-live="polite"></div>
+</div>
+<script>
+  const STEPS = [
+    { label: "Click", on: [0], edges: [], say: "The person clicks <code>spoo.me/x7</code>. Nothing is resolved in the browser." },
+    { label: "Edge", on: [1], edges: [1], say: "The nearest edge takes the request in about <b>4 ms</b> and reads the slug." },
+    { label: "Cache hit", on: [2], edges: [2], say: "Most slugs are in the cache: <b>1 ms</b>. A miss falls through to the database." },
+    { label: "Miss", on: [3], edges: [3], say: "A miss costs <b>18 ms</b> once, then the slug is cached for the next click." },
+    { label: "Redirect", on: [4], edges: [4], say: "The edge answers <code>301</code> with the long URL. The click is counted after, off the hot path." },
+  ];
+  const steps = document.querySelector(".steps");
+  const say = document.querySelector(".say");
+
+  function show(i) {
+    const s = STEPS[i];
+    document.querySelectorAll(".node").forEach(n => n.classList.toggle("on", s.on.includes(Number(n.dataset.n))));
+    document.querySelectorAll(".edge").forEach(e => e.classList.toggle("on", s.edges.includes(Number(e.dataset.e))));
+    steps.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+    say.innerHTML = s.say;
+  }
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.textContent = s.label;
+    b.onclick = () => show(i);
+    steps.append(b);
+  });
+  show(2);
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The window's slate ops, each answer parsed against the wire type.
-import { SlateEventAnswer, SlateReadAnswer, SlatesGetAnswer, SlatesImageAnswer, SlatesResolveAnswer, SlateStateAnswer, SlateWriteAnswer, type SlateOpName, type SlateOpParams, type SlateView } from "@wsp/protocol";
+import { SlateEventAnswer, SlateReadAnswer, SlatesGetAnswer, SlatesImageAnswer, SlatesPageAnswer, SlatesResolveAnswer, SlateStateAnswer, SlateWriteAnswer, type SlateOpName, type SlateOpParams, type SlateView } from "@wsp/protocol";
 import { SLATE_SCHEMA, type SlateDoc, type SlateJson } from "@wsp/protocol/slate";
 import type { SlateEventAsk } from "./actions.js";
 import type { SlateApproval } from "./model.js";
@@ -37,7 +37,7 @@ export interface SlateApi {
   cancel(threadId: string, run: string): Promise<void>;
   /** The person withdraws one of the thread's standing approvals. */
   revoke(threadId: string, key: string): Promise<void>;
-  shown(threadId: string): Promise<void>;
+  shown(threadId: string, drawn?: { theme: string; width: number }): Promise<void>;
   /** The slate as text, the sketch the agent reads. */
   sketch(threadId: string): Promise<string>;
   undo(threadId: string): Promise<{ version: number }>;
@@ -46,6 +46,7 @@ export interface SlateApi {
   unsubscribe(threadId: string, sources: readonly string[]): Promise<void>;
   resolve(threadId: string, paths: readonly string[]): Promise<Record<string, unknown>>;
   image?(threadId: string, src: string, have?: string): Promise<SlatesImageAnswer>;
+  page?(threadId: string, src: string, have?: string): Promise<SlatesPageAnswer>;
 }
 
 export function slateApi(c: Requester): SlateApi {
@@ -59,7 +60,7 @@ export function slateApi(c: Requester): SlateApi {
     approve: async (threadId, key, scope) => void (await ask("slates.approve", { threadId, key, scope })),
     cancel: async (threadId, run) => void (await ask("slates.cancel", { threadId, run })),
     revoke: async (threadId, key) => void (await ask("slates.revoke", { threadId, key })),
-    shown: async threadId => void (await ask("slates.shown", { threadId })),
+    shown: async (threadId, drawn) => void (await ask("slates.shown", { threadId, ...drawn })),
     sketch: async threadId => SlateReadAnswer.parse(await ask("slates.read", { threadId, sketch: true, text: false })).text,
     undo: threadId => write(threadId, "<undo />"),
     clear: threadId => write(threadId, "<clear />"),
@@ -67,5 +68,6 @@ export function slateApi(c: Requester): SlateApi {
     unsubscribe: async (threadId, sources) => void (await ask("slates.unsubscribe", { threadId, sources: [...sources] })),
     resolve: async (threadId, paths) => SlatesResolveAnswer.parse(await ask("slates.resolve", { threadId, paths: [...paths] })).values,
     image: async (threadId, src, have) => SlatesImageAnswer.parse(await ask("slates.image", { threadId, src, ...(have !== undefined ? { have } : {}) })),
+    page: async (threadId, src, have) => SlatesPageAnswer.parse(await ask("slates.page", { threadId, src, ...(have !== undefined ? { have } : {}) })),
   };
 }

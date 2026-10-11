@@ -150,7 +150,7 @@ describe("the wsp skill", () => {
     const reach = JSON.parse(readFileSync(new URL("./slate-reach.json", import.meta.url), "utf8")) as { prompt: string; intent: string[] }[];
     const kept = instructions(true).slice(0, INSTRUCTIONS_KEPT);
     const described = VERBS.filter(hasTool).filter(v => v.name.startsWith("slate ")).map(v => v.tool.description);
-    expect(described).toHaveLength(4);
+    expect(described).toHaveLength(5);
     for (const { prompt, intent } of reach) {
       expect(intent.length, prompt).toBeGreaterThan(0);
       for (const word of intent) {

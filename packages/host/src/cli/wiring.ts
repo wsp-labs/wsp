@@ -11,6 +11,7 @@ import { noMachinesLine, PROVIDER_MODULES, providerBackendFor, providerPlaces, w
 import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
+import { drawSlateThrough, lookRoad } from "../slate-look.js";
 import { envFileFor, serverVault, type Keys } from "../env-keys.js";
 import { loginEnv } from "../login-path.js";
 import { CACHE_RULE } from "../project-bundle.js";
@@ -278,6 +279,7 @@ export function makeRuntime(
   // starts with no key swaps its module in when one is saved, and its copies belong to the module that made them.
   const pick: ProviderPick = { id: wiredProviderId(env, modules), env, modules };
   const tools = keptTools();
+  const look = lookRoad();
   const rt = createRuntime({
     noMachinesLine: noMachinesLine(modules),
     places: providerPlaces(
@@ -336,6 +338,8 @@ export function makeRuntime(
     copyRecipe: hostCopyRecipe(statePath),
     hostId: hostIdentity(),
     vaultCaches: CACHE_RULE,
+    // A look draws through the app this host runs inside, on the page this host serves once it binds.
+    ...(look !== undefined && agents?.here !== undefined ? { drawSlate: drawSlateThrough(look, () => agents.here?.url ?? "") } : {}),
   });
   PROVIDER_SLOTS.set(rt, slot);
   PROVIDER_PICKS.set(rt, pick);

@@ -6,15 +6,21 @@ import { bootPayload } from "./boot.js";
 import "./index.css";
 import "./themes/index.js";
 
-const cfg = bootPayload();
-if (cfg === undefined) throw new Error("the page has no window.__WSP__ boot object");
-// React's dev build writes a performance measure per component render and nothing clears them; a window left open
-// for hours held millions.
-if (import.meta.env.DEV) setInterval(() => performance.clearMeasures(), 60_000);
+// A slate look's hidden window draws one slate and nothing of the app.
+if (new URLSearchParams(window.location.search).has("slate-look")) void import("./slate/look-page.js").then(m => m.mountLook(document.getElementById("root")!));
+else boot();
 
-createRoot(document.getElementById("root")!).render(
-  <>
-    <GlassGround />
-    <BootGate boot={cfg} at={window.location} agent={navigator.userAgent} storage={window.localStorage} />
-  </>,
-);
+function boot(): void {
+  const cfg = bootPayload();
+  if (cfg === undefined) throw new Error("the page has no window.__WSP__ boot object");
+  // React's dev build writes a performance measure per component render and nothing clears them; a window left open
+  // for hours held millions.
+  if (import.meta.env.DEV) setInterval(() => performance.clearMeasures(), 60_000);
+
+  createRoot(document.getElementById("root")!).render(
+    <>
+      <GlassGround />
+      <BootGate boot={cfg} at={window.location} agent={navigator.userAgent} storage={window.localStorage} />
+    </>,
+  );
+}

@@ -36,7 +36,7 @@ export async function answerSlate(slates: Slates, msg: SlateRequest, origin: Par
       return { ...(await slates.catalog(p, origin)) };
     }
     case "slates.shown":
-      await slates.shown(params.threadId);
+      await slates.shown(params.threadId, { ...(params.theme !== undefined ? { theme: params.theme } : {}), ...(params.width !== undefined ? { width: params.width } : {}) });
       return {};
     case "slates.event": {
       const { op: _op, ...p } = params;
@@ -68,6 +68,12 @@ export async function answerSlate(slates: Slates, msg: SlateRequest, origin: Par
     }
     case "slates.resolve":
       return { ...(await slates.resolve({ threadId: params.threadId, paths: params.paths })) };
+    case "slates.look": {
+      const { op: _op, ...p } = params;
+      return { ...(await slates.look(p, origin)) };
+    }
+    case "slates.page":
+      return { ...(await slates.page({ threadId: params.threadId, src: params.src, ...(params.have !== undefined ? { have: params.have } : {}) })) };
     case "slates.image":
       return { ...(await slates.image({ threadId: params.threadId, src: params.src, ...(params.have !== undefined ? { have: params.have } : {}) })) };
   }
