@@ -1,0 +1,316 @@
+{
+  "cloudOff": {
+    "name": "activity",
+    "description": "This computer's processes, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone. A thread reads itself and the threads under it alone. A box's processes are refused here, and so is a thread on one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one, whose processes alone to list"
+        },
+        "computer": {
+          "type": "string",
+          "description": "the computer, which must be this one; a box is refused"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "computer": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number"
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "workspaceId": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "number"
+              },
+              "cpu": {
+                "type": "number"
+              },
+              "processes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "threadId",
+              "title",
+              "workspaceId",
+              "memory",
+              "cpu",
+              "processes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "wsp": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/threads/items/properties/processes/items"
+          }
+        },
+        "unowned": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/threads/items/properties/processes/items"
+          }
+        }
+      },
+      "required": [
+        "computer",
+        "at",
+        "threads",
+        "wsp",
+        "unowned"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "activity",
+    "description": "This computer's processes, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone. A thread reads itself and the threads under it alone. A box's processes are refused here, and so is a thread on one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "string",
+          "description": "the thread, by its id or a prefix of it that names one, whose processes alone to list"
+        },
+        "computer": {
+          "type": "string",
+          "description": "the computer, which must be this one; a box is refused"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "computer": {
+          "type": "string"
+        },
+        "at": {
+          "type": "number"
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "workspaceId": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "number"
+              },
+              "cpu": {
+                "type": "number"
+              },
+              "processes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "threadId",
+              "title",
+              "workspaceId",
+              "memory",
+              "cpu",
+              "processes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "wsp": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/threads/items/properties/processes/items"
+          }
+        },
+        "unowned": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/threads/items/properties/processes/items"
+          }
+        }
+      },
+      "required": [
+        "computer",
+        "at",
+        "threads",
+        "wsp",
+        "unowned"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}

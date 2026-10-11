@@ -17,7 +17,7 @@ use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
-use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcEntry, ProcInspectReply, ProcSignal};
+use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcEntry, ProcInspectReply, ProcListReply, ProcSignal};
 
 use crate::paths::OpError;
 use crate::sys::{finite, read_named};
@@ -343,6 +343,7 @@ struct Inner {
     running: Option<AbortHandle>,
     last_at: Option<i64>,
     last_procs: Vec<ProcEntry>,
+    last_total: u64,
     /// What the last tick said, so a watch that arrives mid-stream inherits it; None until one has finished.
     last: Option<Result<(), String>>,
     /// The list every subscriber holds, which the next frame's changes are read against; None until the first
@@ -471,6 +472,7 @@ impl ProcSampler {
         let first = inner.last_at.is_none();
         inner.last_at = Some(at);
         inner.last_procs.clone_from(&scan.procs);
+        inner.last_total = scan.total;
         if first {
             return;
         }
@@ -503,6 +505,25 @@ impl ProcSampler {
         };
         let source = Arc::clone(&self.source);
         tokio::task::spawn_blocking(move || source.inspect(pid, &procs)).await.unwrap_or_else(|e| Err(OpError::plain(e.to_string())))
+    }
+
+    /// Every process once. A running sampler's last rows stand, since a scan of its own beside the tick would leave the
+    /// module's per pid state read from two clocks; with none running, one scan, whose cpu reads 0.
+    pub(crate) async fn list(&self) -> Result<ProcListReply, OpError> {
+        let held = {
+            let inner = self.lock();
+            inner.last_at.map(|at| (at, inner.last_total, inner.last_procs.clone()))
+        };
+        let daemon = self.opts.self_pid;
+        let (at, total, procs) = match held {
+            Some(held) => held,
+            None => {
+                let at = (self.opts.now)();
+                let scan = self.scan(0, at).await.map_err(OpError::plain)?;
+                (at, scan.total, scan.procs)
+            }
+        };
+        Ok(ProcListReply { at, daemon, total, procs })
     }
 
     fn start(self: &Arc<Self>, inner: &mut Inner) {
@@ -1061,6 +1082,39 @@ mod tests {
             4096,
         );
         assert_eq!(b.sampler.inspect(1).await.unwrap().children, vec![2]);
+    }
+
+    #[tokio::test]
+    async fn a_list_answers_every_process_at_once_and_rides_a_running_sampler_rather_than_scanning_beside_it() {
+        let b = sampler(
+            &[FakeProc { pid: 1, ..FakeProc::default() }, FakeProc { pid: 2, ppid: Some(1), ..FakeProc::default() }],
+            vec![],
+            None,
+            4096,
+        );
+        let listed = b.sampler.list().await.unwrap();
+        assert_eq!((listed.at, listed.daemon, listed.total), (1_000_000, 4242, 2));
+        assert_eq!(listed.procs.iter().map(|p| (p.pid, p.ppid, p.cpu)).collect::<Vec<_>>(), vec![(1, 0, 0.0), (2, 1, 0.0)]);
+
+        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false) });
+        let opts = ProcSamplerOptions {
+            self_pid: 1,
+            ptys: Arc::new(Vec::new),
+            first: Duration::from_secs(60),
+            interval: Duration::from_secs(60),
+            now: Arc::new(now_ms),
+            log: quiet(),
+        };
+        let s = ProcSampler::new(source.clone(), opts);
+        s.list().await.unwrap();
+        assert_eq!(source.scans.load(Ordering::SeqCst), 1);
+        let (tx, _rx) = mpsc::unbounded_channel();
+        s.subscribe(1, Outbound(tx));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(source.scans.load(Ordering::SeqCst), 2);
+        s.list().await.unwrap();
+        assert_eq!(source.scans.load(Ordering::SeqCst), 2);
+        s.unsubscribe(1);
     }
 
     const PROTECTED: ProtectedPids = ProtectedPids { this: 5000, parent: 4000 };

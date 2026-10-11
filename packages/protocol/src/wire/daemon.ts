@@ -278,6 +278,19 @@ export type PtyListReply = z.infer<typeof PtyListReply>;
 export const ProcSignal = z.enum(["TERM", "KILL"]);
 export type ProcSignal = z.infer<typeof ProcSignal>;
 
+/** Every kind a process row names, by what the person knows it as. */
+export const PROC_KINDS = ["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"] as const;
+export type ProcKind = (typeof PROC_KINDS)[number];
+
+/** The rung of the daemon's ladder that named a row's owner, first match wins: the thread's own process or a parent of
+ * it, a Mac's fork tracker, a group seen under the thread, the WSP_THREAD mark, the thread's cgroup on a box, a
+ * workspace's folder (no thread), wsp's own coalition on a Mac (no thread). */
+export const ProcOwnedBy = z.enum(["root", "fork", "group", "env", "cgroup", "folder", "coalition"]);
+export type ProcOwnedBy = z.infer<typeof ProcOwnedBy>;
+
+export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional() });
+export type ProcOwner = z.infer<typeof ProcOwner>;
+
 /** One process as /proc/[pid] shows it. cpu is its busy share of one core
  * over the interval (a threaded process can pass 100); rss in bytes;
  * startedAt epoch milliseconds; cmdline the first 200 bytes with the NULs as
@@ -297,6 +310,11 @@ export const ProcEntry = z.object({
   /** The cgroup v2 path the process stands in, Linux only: what tells a thread's processes on a computer from
    * another's, a server it detached included. */
   cgroup: z.string().optional(),
+  /** Whose it is, where the daemon could tell from the threads the host named; absent for a process that is not
+   * wsp's, and on a daemon that reads no owners. */
+  owner: ProcOwner.optional(),
+  /** One of PROC_KINDS; a word this version does not know reads as other. */
+  kind: z.string().optional(),
 });
 export type ProcEntry = z.infer<typeof ProcEntry>;
 
@@ -325,6 +343,15 @@ export const ProcInspectReply = z.object({
   children: z.array(z.number().int()),
 });
 export type ProcInspectReply = z.infer<typeof ProcInspectReply>;
+
+/** proc.list's answer: the rows read at `at`, every process up to the cap, and how many the machine had. */
+export const ProcListReply = z.object({
+  at: z.number(),
+  daemon: z.number().int(),
+  total: z.number().int(),
+  procs: z.array(ProcEntry),
+});
+export type ProcListReply = z.infer<typeof ProcListReply>;
 
 /** How much of a command's output one exec op carries back, stdout and stderr together. Past it the reply says
  * truncated and the rest is dropped: the road is a WebSocket frame and a turn that cats a log would otherwise put
@@ -446,6 +473,9 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** One process in depth, replied as a ProcInspectReply; this is the only op
    * that scans /proc/net, and only for that pid's sockets. */
   z.object({ id: reqId, op: z.literal("proc.inspect"), pid: z.number().int().positive() }),
+  /** Every process once, replied as a ProcListReply, for a reader that wants no stream: the rows a running sampler
+   * last read, else one scan of its own whose cpu reads 0. */
+  z.object({ id: reqId, op: z.literal("proc.list") }),
   /** Sends the signal. pid 1, the daemon and the daemon's parent are refused
    * with code forbidden; a pid that is gone answers not-found. */
   z.object({ id: reqId, op: z.literal("proc.kill"), pid: z.number().int().positive(), signal: ProcSignal }),

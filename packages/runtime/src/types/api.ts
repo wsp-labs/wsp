@@ -59,6 +59,8 @@ import type { GitPrDiffReply, ReviewDraft, ReviewPostResult, ReviewVerdict, Star
 import type { HistoryPage, ThreadHead } from "@wsp/protocol";
 import type { StartPicksAsked } from "./harness.js";
 import type { EventBus } from "./events.js";
+import type { ActivityDoor } from "../activity.js";
+import type { ActivityEnded, ProcessesAsk } from "@wsp/protocol";
 import type { CreatedWorkspace, CreateWorkspaceOptions, RecipeShelf, ProjectExportOptions, ProjectImportOptions, SessionHandle, GoldenRecipe, RunningExec, GoldenBuildRequest, GoldenPromotion, GoldenUpgradeResult, SweepResult, OriginStatusApi, UsageDoor } from "./wiring.js";
 
 export interface Runtime {
@@ -499,7 +501,7 @@ export interface Runtime {
      * thread whose tree works or asks is left whole, and one the fold holds already is left too. With finished, each
      * thread named stays and the finished threads under it settle, a failed one staying and one with work under it
      * left. A thread's own token settles itself and the threads under it alone. */
-    settle(threadIds: readonly string[], origin?: Caller, o?: { finished?: boolean }): Promise<SessionSettleResult>;
+    settle(threadIds: readonly string[], origin?: Caller, o?: { finished?: boolean; processes?: ProcessesAsk }): Promise<SessionSettleResult>;
     /** Pins, snoozes or places each thread, or takes one of those back, and tells every window as read does; a snooze
      * stamps the thread read too, and every window is told again the moment it ends. */
     mark(threadIds: readonly string[], marks: ThreadMarks, origin?: Caller): Promise<void>;
@@ -530,7 +532,7 @@ export interface Runtime {
     forget(threadId: string, origin?: Caller, o?: { check?: boolean }): Promise<void>;
     /** Takes a thread on this computer away with its turns and checkpoints, and a worktree wsp made with the thread
      * when the thread ran in one, every thread in it going too. Never the project folder. */
-    delete(threadId: string, origin?: Caller): Promise<{ workspaceId: string; worktree?: string; threads: number }>;
+    delete(threadId: string, origin?: Caller, o?: { processes?: ProcessesAsk; check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }>;
   };
   readonly harnesses: {
     /** What each harness with an adapter takes at launch; the composer's pickers render from this. With a running
@@ -644,6 +646,8 @@ export interface Runtime {
   };
   /** Each thread's slate: its record, the ops a window and the slate verbs send, and a press into the thread. */
   readonly slates: Slates;
+  /** This computer's processes by the thread that started them, and the End of one by its pid and start. */
+  readonly activity: ActivityDoor;
   /** The computers paired with this host and the one time codes that pair them, one collection each on this state
    * file, so a restart neither locks a paired computer out nor keeps a revoked one in. */
   readonly devices: DeviceDoor;

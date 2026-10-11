@@ -43,6 +43,7 @@ import { workspaceOf, threadOf, threadCwd, SSH_PIPES_HERE_LINE, sshWorkspaceOf, 
 import { type Turn, threadAt, pickFlags, checkedStart, runTarget, forkFor, worktreeFor, openingOf, threadFork, notifyOf, replacedOf, messageTo, startDetached, follow, hostRestartedLine, restartHost, readThread, readLine, threadHead, headLine, resumeAsked, type AnswerRoad, ANSWER_ROADS, answerOpenAsk, followVerb, beforeSending, detachVerb, turnView } from "./turns-help.js";
 import { confirmed, execOn, type ExportRequest, exportProject, withReplaceHint, agentsFlag, QUIET_LINE, QUIET_TURN, SEND_MEETS, CAP_MEETS, TurnOut, Argv, asJson, asText, turnText, detachedOut, turnOut, WorkspaceIn, ThreadIn, AgentIn, NotifyIn, RunProjectIn, BesideIn, BranchIn, RunCwdIn, ExecCwdIn, DetachIn, TitleIn, ReplacesIn, ForkIn, AtIn, FilesIn, FastIn, ResumeIn, CopyIn, PICK_INPUTS, SEND_INPUTS, schemeFlag, hostFolders, initSetup, folderLines, REASON_FLAG } from "./io.js";
 import { SLATE_VERBS } from "./slate.js";
+import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
 
 /** The lines another terminal answers a thread's open prompt with, one per road that carries a verb: the same op the
  * app's buttons send, by thread id, so a person or an agent watching a thread from anywhere can unstick it. */
@@ -329,15 +330,18 @@ export const THREAD_VERBS: readonly Verb[] = [
   },
   {
     name: "thread settle",
-    usage: "wsp thread settle <thread>... [--finished]",
-    about: "folds each thread and every thread under it into the sidebar's Settled, leaving a tree with a thread still working or asking in it; a thread settles itself and the threads it started, never its lead",
+    usage: "wsp thread settle <thread>... [--finished] [--processes stop|keep]",
+    about: "folds each thread and every thread under it into the sidebar's Settled, leaving a tree with a thread still working or asking in it; a thread settles itself and the threads it started, never its lead; refused while one on this computer still runs processes, unless --processes says to stop or keep them",
     page: "agent",
-    options: { finished: { type: "boolean" } },
+    options: { finished: { type: "boolean" }, processes: { type: "string" } },
     run: async ctx => {
       if (ctx.args.length === 0) throw usageRefusal("wsp thread settle takes one thread or more.", usageIs(ctx));
+      const choice = processesAsked(flag(ctx.flags, "processes"));
       const client = await ctx.client();
-      const answer = await settleThreads(client, await threadsOf(client, ctx.args), ctx.flags["finished"] === true);
-      ctx.out.emit(answer, settledLines(answer));
+      const threads = await threadsOf(client, ctx.args);
+      const finished = ctx.flags["finished"] === true;
+      const answer = await settleThreads(client, threads, finished, choice ?? "ask");
+      ctx.out.emit(answer, [...(answer.ended ?? []).map(endedLines), settledLines(answer)].join("\n"));
       return 0;
     },
     tool: tool({
@@ -346,12 +350,14 @@ export const THREAD_VERBS: readonly Verb[] = [
       input: {
         threads: z.array(z.string()).min(1).describe("the threads' ids, or prefixes that each name one, as threads lists them"),
         finished: z.boolean().optional().describe("settle the finished threads under each thread named, and not the thread itself"),
+        processes: ProcessesIn,
       },
       output: SessionSettleResult.shape,
-      call: async ({ threads: refs, finished }, deps) => {
+      call: async ({ threads: refs, finished, processes }, deps) => {
         const client = await deps.client();
-        const answer = await settleThreads(client, await threadsOf(client, refs), finished === true);
-        return asText(settledLines(answer), answer);
+        const threads = await threadsOf(client, refs);
+        const answer = await settleThreads(client, threads, finished === true, processes ?? "ask");
+        return asText([...(answer.ended ?? []).map(endedLines), settledLines(answer)].join("\n"), answer);
       },
     }),
   },

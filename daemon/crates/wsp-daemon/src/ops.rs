@@ -343,6 +343,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
             | "proc.watch"
             | "proc.unwatch"
             | "proc.inspect"
+            | "proc.list"
             | "proc.kill"
             | "guest.open"
             | "guest.send"
@@ -1099,13 +1100,7 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
             conn.tunnels.close(&tunnel_id);
             ok(id)
         }
-        op @ (DaemonOp::SysWatch
-        | DaemonOp::SysUnwatch
-        | DaemonOp::SysHistory { .. }
-        | DaemonOp::ProcWatch
-        | DaemonOp::ProcUnwatch
-        | DaemonOp::ProcInspect { .. }
-        | DaemonOp::ProcKill { .. }) => sys_proc::serve(conn, ctx, id, name, op).await,
+        op if sys_proc::serves(&op) => sys_proc::serve(conn, ctx, id, name, op).await,
         DaemonOp::UsageLogs { stores } => answer(id, usage_logs::serve(&conn.road, ctx, stores).await),
         DaemonOp::TranscriptsList { root, dirs, cwds } => answer(id, transcripts::serve_list(&conn.road, ctx, root, dirs, cwds).await),
         DaemonOp::TranscriptsRead { root, dirs, session, last } => {
@@ -1797,6 +1792,7 @@ pub(crate) mod tests {
             "sys.watch",
             "proc.watch",
             "proc.inspect",
+            "proc.list",
             "proc.kill",
             "manifest.get",
             "inbox.watch",
