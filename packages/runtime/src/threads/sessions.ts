@@ -17,7 +17,7 @@ import {
   attachmentRecord, attachmentKey, filesBlocked, filesRefusal, steerFilesBlocked, type Attachment, isImage, sendFilesDir, attachedFilesPrompt, threadMessages,
   threadSeed, taskStopRefusedLine, taskStopUnsupportedLine, agentOffLine, HEAD_BYTES, HISTORY_PAGE_BYTES,
   HISTORY_PAGE_EVENTS, AGENT_STARTING_MS, ASIDE_EMPTY_LINE, capStoppedLine, deletedBeforeStartLine, type AsideQuestion,
-  type McpServerSpec, type SessionAsker, refusal, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, waitAcrossLine, WAIT_ACROSS_FIX,
+  type McpServerSpec, type SessionAsker, refusal, RESUME_A_THREAD_LINE, RESUME_A_THREAD_FIX, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, waitAcrossLine, WAIT_ACROSS_FIX,
   TURN_STOPPED_LINE, workspacePlace, STOP_REACH_MS, sendGivenUpLine, threadResult, listedFailure, turnLines,
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX,
@@ -288,8 +288,11 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const fromTranscript = opened.thread === undefined ? undefined : ctx.startedAs(workspaceId, opened.thread);
       const heldOn = opened.thread === undefined ? undefined : (named?.workspaceId ?? threadRecords.get(opened.thread)?.workspaceId ?? (fromTranscript !== undefined ? workspaceId : undefined));
       if (opened.thread !== undefined && heldOn !== workspaceId) throw new Error(`no thread ${opened.thread} in this folder`);
+      // A conversation the agent kept outside wsp opens a thread; on a copy, the session is the one the agent names.
+      const outside = opened.outside;
+      if (outside !== undefined && opened.thread !== undefined) throw refusal(RESUME_A_THREAD_LINE, RESUME_A_THREAD_FIX, "usage");
       // Read again where the thread becomes this send's to run: the id it must resume may not exist yet.
-      let resume = named?.claudeSessionId ?? fromTranscript;
+      let resume = named?.claudeSessionId ?? fromTranscript ?? (outside !== undefined && !outside.copy ? outside.id : undefined);
       const threadId = opened.thread ?? randomUUID();
       // A message into a thread that already has turns is a send; anything else opens one, and only one of those
       // two is what a thread's own token is capped on. Read before the machine is asked for anything. The thread's
@@ -339,7 +342,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // A start that names no agent runs the project's, else the person's default, else the catalog's first, so the
       // command line, the composer and a tool all open the next thread on the same agent.
       const overrides = prefs.projectDefaults[entry.record.project];
-      const o = { ...opened, harness: carried?.harness ?? opened.harness ?? ctx.defaultAgentOf(prefs, entry) };
+      if (outside !== undefined && !opens) throw refusal(RESUME_A_THREAD_LINE, RESUME_A_THREAD_FIX, "usage");
+      const o = { ...opened, harness: carried?.harness ?? outside?.harness ?? opened.harness ?? ctx.defaultAgentOf(prefs, entry) };
       if (carried !== undefined) {
         delete o.permissionMode;
         delete o.access;
@@ -469,7 +473,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         ...(o.attempt !== undefined ? { attempt: o.attempt } : {}),
         prompt: o.prompt,
         startedAt: Date.now(),
-        ...(title !== undefined ? { harnessTitle: title, titleSource: "person" as const } : ctx.carriedTitle(threadId)),
+        // An outside conversation's own name stands as a generated one: nothing generated replaces it, and nothing of
+        // wsp's is written into the agent's store until the person names the thread here.
+        ...(title !== undefined ? { harnessTitle: title, titleSource: "person" as const } : outside !== undefined ? { harnessTitle: titleLine(outside.title), titleSource: "auto" as const } : ctx.carriedTitle(threadId)),
         ...(resume !== undefined ? { claudeSessionId: resume } : {}),
         ...(o.contextWindow !== undefined ? { contextWindow: o.contextWindow } : {}),
       };
@@ -562,8 +568,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           return { ...picks, ...(kept.contextWindow !== undefined ? { contextWindow: kept.contextWindow } : {}) };
         };
         // A pick the lists do not carry is refused here, before this send waits on anything; the picks themselves
-        // are decided below the loop, against the session this send turns out to resume.
-        picksFor(resume);
+        // are decided below the loop, against the session this send turns out to resume. An outside conversation is
+        // no session wsp ran, so it opens on the defaults as a new one does.
+        picksFor(outside !== undefined ? undefined : resume);
         const folder = await ctx.threadFolder(entry, o);
         if (o.cwd !== undefined && isLocalWorkspace(entry.record) && !existsSync(folder)) throw Object.assign(new Error(noCwdLine(homeShortened(folder, homedir()))), { kind: "usage" });
         const limitDetails = await ctx.limitDetailsDue(entry, harness);
@@ -735,7 +742,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
             delete view.claudeSessionId;
           }
         }
-        const picks = picksFor(resume);
+        const picks = picksFor(outside !== undefined ? undefined : resume);
         const afterCut = resume !== undefined && ctx.cutBefore(workspaceId, threadId);
         // What the trips above settled, onto the row the start wrote: the reads that decide them are behind us, so
         // none of them can be answered from the row they are about. Written before adapter.start, so events that
@@ -761,6 +768,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (kept !== undefined) dropScope();
         const promptAfter = promptsLate && snapshot?.from instanceof Promise ? snapshot.from.then(() => {}) : undefined;
         keptTaken = kept;
+        // The conversation so far, once, ahead of the prompt the turn opens with.
+        for (const row of outside?.earlier ?? []) ctx.record({ type: "session.earlier", workspaceId, sessionId: outside!.id, threadId, who: row.who, text: row.text });
         const handle = ctx.runTurn({
           entry,
           view,
@@ -789,7 +798,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               ? kept.agent.next({ prompt: handed, ...(images.length > 0 ? { images } : {}), ...(promptAfter !== undefined ? { after: promptAfter } : {}), onEvent })
               : adapter.start({
               prompt: handed,
-              ...(resume !== undefined ? { resume } : {}),
+              ...(outside?.copy === true ? { resume: outside.id, copy: true as const } : resume !== undefined ? { resume } : {}),
               ...(cutAt !== undefined ? { resumeAt: cutAt } : {}),
               ...(cwd !== undefined ? { cwd } : {}),
               ...picks,
