@@ -30,7 +30,7 @@ import { getTerminalFocusOwner } from "../lib/terminalFocus.js";
 import { addNotice } from "../notices/store.js";
 import { failureOf } from "../protocol/failure.js";
 import { pauseModesOf, useStore } from "../protocol/store.js";
-import { selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore.js";
+import { panelKeyOf, selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore.js";
 import { absenceOf } from "../settings/places.js";
 import { sidebarThreadOrder, topSidebarThread } from "../sidebar/Sidebar.logic.js";
 import { currentWorkspaceId } from "../adapt/workspaces.js";
@@ -104,22 +104,26 @@ export function splitDrawerTerminal(workspaceId: string, direction: SplitDirecti
   );
 }
 
-/** A fresh pty in its own right-panel surface. */
+/** A fresh pty in its own right-panel surface. Each of these takes the pane it was asked from before the daemon
+ * answers, so a pty landing after a switch to another thread stays in the thread that asked for it. */
 export function openPanelTerminal(workspaceId: string): Promise<void> {
-  return withTerminals(workspaceId, terminals => terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().openTerminal(workspaceId, id)));
+  const panel = panelKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals => terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)));
 }
 
 /** A fresh pty in its own right-panel surface with a line typed at its prompt and left for the person to run. */
 export function openPanelTerminalWith(workspaceId: string, line: string): Promise<void> {
+  const panel = panelKeyOf(workspaceId);
   return withTerminals(workspaceId, terminals =>
-    terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().openTerminal(workspaceId, id)).then(tab => terminals.write(tab.ptyId, line)),
+    terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)).then(tab => terminals.write(tab.ptyId, line)),
   );
 }
 
 /** A fresh pty split into one right-panel terminal surface. */
 export function splitPanelTerminal(workspaceId: string, surfaceId: string, direction: SplitDirection = "horizontal"): Promise<void> {
+  const panel = panelKeyOf(workspaceId);
   return withTerminals(workspaceId, terminals =>
-    terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().splitTerminal(workspaceId, surfaceId, id, direction)),
+    terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().splitTerminal(panel, surfaceId, id, direction)),
   );
 }
 
