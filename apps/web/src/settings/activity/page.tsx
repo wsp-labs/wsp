@@ -390,9 +390,10 @@ function Tile({ k, label, value, note, tint = null, history, y, floor }: { k: st
   );
 }
 
-/** Each line's ink, the Computers band's and the Usage page's by rank: CPU sky, memory violet, then Power amber. The
- * figure above a line carries its tint; the line keeps its own ink. */
-const LINE_INKS: Record<string, string | undefined> = { cpu: SPLIT_INKS[0], mem: SPLIT_INKS[1], energy: SPLIT_INKS[2] };
+/** Each line's ink, the Computers band's and the Usage page's: CPU sky, memory violet, and Power teal, since amber is
+ * every theme's warning and a line at rest is past no mark. The figure above a line carries its tint; the line keeps
+ * its own ink. */
+const LINE_INKS: Record<string, string | undefined> = { cpu: SPLIT_INKS[0], mem: SPLIT_INKS[1], energy: SPLIT_INKS[4] };
 
 /** The last minutes as a line, scaled to the highest point in the window and never below the floor, so a quiet
  * computer reads as low rather than filling the box. */
@@ -538,7 +539,7 @@ function AskDialog({ asking, onClose, onConfirm }: { asking: { kind: "stop" | "e
       <AlertDialogPopup>
         <AlertDialogHeader>
           <AlertDialogTitle>{asking?.kind === "endAll" ? W.endAllTitle(title) : W.stopTitle(title)}</AlertDialogTitle>
-          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(procs.filter(p => p.kind !== "agent").length, fmtBytes(spent(procs.filter(p => p.kind !== "agent")).mem)) : W.stopSentence(agentName(t?.harness ?? "claude"))}</AlertDialogDescription>
+          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(procs.filter(p => p.kind !== "agent").length, fmtBytes(spent(procs.filter(p => p.kind !== "agent")).mem)) : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{W.cancel}</AlertDialogClose>

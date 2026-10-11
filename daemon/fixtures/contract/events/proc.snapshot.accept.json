@@ -75,7 +75,8 @@
         "owner": {
           "by": "root",
           "thread": "t_abc",
-          "workspace": "w_1"
+          "workspace": "w_1",
+          "warm": true
         },
         "kind": "slate"
       },

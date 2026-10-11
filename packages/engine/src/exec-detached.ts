@@ -329,7 +329,7 @@ export async function execDetached(machine: Machine, script: string, opts: RunOp
 
   // A launch that failed may have left the script, or the pieces of one, on the guest: nothing else will come back
   // for them, and they hold whatever the caller put in the script.
-  const launched = await launch(machine, base, script).catch(async (e: unknown) => {
+  const launched = await launch(opts.launchOn ?? machine, base, script).catch(async (e: unknown) => {
     await quiet(exec(cleanCommand(base)));
     throw e;
   });

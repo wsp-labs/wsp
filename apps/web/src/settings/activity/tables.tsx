@@ -20,7 +20,7 @@ import { ACTIVITY_COLUMNS, ACTIVITY_FLAT_COLUMNS, ACTIVITY_PORT_COLUMNS, GlyphFr
 import { CARD_INSET, GLYPH, LIST_TITLE, NOTE } from "../layout.js";
 import { CARD_SURFACE } from "../rows.js";
 import { FACT, VALUE } from "../format.js";
-import { procActions, type ProcTarget, type ProcVerbs } from "./actions.js";
+import { groupActions, procActions, type GroupVerbs, type ProcTarget, type ProcVerbs } from "./actions.js";
 import {
   cpuTint,
   cpuWord,
@@ -87,6 +87,7 @@ const SUB_ROW = cn("group/row grid items-center gap-x-4 py-2.5 transition-colors
 const ACT = "flex justify-end gap-1.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 max-md:hidden";
 /** The row's menu: shown while the row is pointed at, and always below 768 px, where it is the only road to the acts. */
 const MENU = "flex justify-end opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 max-md:opacity-100";
+const MENU_BUTTON = "-mx-1 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 /** The acts a row shows inline: a process's End, or an agent's Stop; a port's Open beside its End. */
 const TREE_ACTS: readonly string[] = ["stop", "end"];
 const PORT_ACTS: readonly string[] = ["open-port", "end"];
@@ -95,8 +96,7 @@ const PORT_ACTS: readonly string[] = ["open-port", "end"];
 const UNTAGGED: ReadonlySet<ProcKind> = new Set(["agent", "other", "wsp", "app"]);
 
 /** What a row's acts reach; the page holds the dialogs, the signals and where a browser tab opens. */
-export interface Acts extends ProcVerbs {
-  endAll(group: ActivityGroup): void;
+export interface Acts extends ProcVerbs, GroupVerbs {
   /** The workspace a browser tab at a port of this group's opens in, where one is known. */
   workspaceOf(group: ActivityGroup | null): string | undefined;
 }
@@ -175,7 +175,7 @@ function RowMenu({ target, acts }: { target: ProcTarget; acts: Acts }) {
   if (target.p.heading === true) return <span />;
   return (
     <span className={MENU}>
-      <button type="button" aria-label={W.more} data-act="menu" onClick={e => openMenu(e, target, acts)} className="-mx-1 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <button type="button" aria-label={W.more} data-act="menu" onClick={e => openMenu(e, target, acts)} className={MENU_BUTTON}>
         <EllipsisIcon aria-hidden className="size-3.5" />
       </button>
     </span>
@@ -240,11 +240,20 @@ function SamplerRow({ cost, look }: { cost: SamplerCost; look: Look }) {
   );
 }
 
-function GroupHead({ glyph, name, status, note, procs, open, onOpen, act, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; open: boolean; onOpen: () => void; act?: ReactNode; look: Look; id: string; tinted?: boolean }) {
+/** A head's menu, which a thread's carries: right click at every width, and below 768 px a button by its name, where
+ * the act cell stands down. */
+interface HeadMenu {
+  readonly group: ActivityGroup;
+  readonly acts: Acts;
+}
+
+const openHeadMenu = (event: MouseEvent<HTMLElement>, menu: HeadMenu): void => void openContextMenu(event, resolveActions(groupActions, menu.group, menu.acts));
+
+function GroupHead({ glyph, name, status, note, procs, open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
   const t = spent(procs);
   return (
     <div className="group/row">
-      <GridRow columns={TREE} open={onOpen} attrs={{ "aria-expanded": String(open), "data-group": id }}>
+      <GridRow columns={TREE} open={onOpen} {...(menu === undefined ? {} : { onContextMenu: e => openHeadMenu(e, menu) })} attrs={{ "aria-expanded": String(open), "data-group": id }}>
         <span className="flex min-w-0 items-center gap-3">
           <GlyphFrame>{glyph}</GlyphFrame>
           <span className="flex min-w-0 flex-col">
@@ -253,6 +262,11 @@ function GroupHead({ glyph, name, status, note, procs, open, onOpen, act, look, 
                 {name}
               </span>
               {status}
+              {menu === undefined ? null : (
+                <button type="button" aria-label={W.more} data-act="head-menu" onClick={e => openHeadMenu(e, menu)} className={cn(MENU_BUTTON, "mx-0 shrink-0 md:hidden")}>
+                  <EllipsisIcon aria-hidden className="size-3.5" />
+                </button>
+              )}
             </span>
             <span className={cn(NOTE, "truncate")}>{note}</span>
           </span>
@@ -329,6 +343,7 @@ const GroupBlock = memo(
               {W.endAll}
             </Button>
           }
+          menu={{ group: g, acts }}
           look={look}
         />
         {opened ? procRows(g.procs, 0, g, acts, look) : null}

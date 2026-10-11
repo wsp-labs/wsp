@@ -2,7 +2,8 @@
 // What one of Activity's rows offers, one registry: the act its row shows
 // while pointed at, and its menu, which below 768 px is the only road to the
 // acts. An agent is stopped through its thread and never ended; what wsp
-// needs takes no act; a heading over a slate's runs is no process.
+// needs takes no act; a heading over a slate's runs is no process. A
+// thread's head has its own two, End all and Open thread.
 import { CircleStopIcon, ClipboardCopyIcon, Globe2Icon, MessageSquareIcon, SquareXIcon } from "lucide-react";
 import type { ActionEntry } from "../../actions/registry.js";
 import { ACTIVITY_WORDS as W } from "../format.js";
@@ -89,5 +90,34 @@ export const procActions: ReadonlyArray<ActionEntry<ProcTarget, ProcVerbs>> = [
     title: () => W.copyPid,
     refusal: () => null,
     run: (t, v) => v.copy(String(t.p.pid)),
+  },
+];
+
+export interface GroupVerbs {
+  endAll(group: ActivityGroup): void;
+  openThread(group: ActivityGroup): void;
+}
+
+/** What a thread's head offers: End all, which asks first, and Open thread. Below 768 px its menu is the road to them. */
+export const groupActions: ReadonlyArray<ActionEntry<ActivityGroup, GroupVerbs>> = [
+  {
+    id: "end-all",
+    group: "act",
+    icon: () => SquareXIcon,
+    destructive: true,
+    applies: g => g.thread !== undefined,
+    title: () => W.endAll,
+    rowLabel: () => W.endAll,
+    refusal: () => null,
+    run: (g, v) => v.endAll(g),
+  },
+  {
+    id: "open-thread",
+    group: "go",
+    icon: () => MessageSquareIcon,
+    applies: g => g.thread !== undefined,
+    title: () => W.openThread,
+    refusal: () => null,
+    run: (g, v) => v.openThread(g),
   },
 ];

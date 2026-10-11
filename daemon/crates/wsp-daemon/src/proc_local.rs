@@ -182,18 +182,21 @@ pub(crate) struct Counted {
 }
 
 /// Runs a command to its end, and reads what it printed and the cpu milliseconds it spent: std's wait drops the
-/// rusage the kernel hands back with the exit, so the reap is wait4's.
+/// rusage the kernel hands back with the exit, so the reap is wait4's. stderr is read on a thread of its own, so a
+/// child that fills that pipe before it closes stdout does not wait on this read, and the child is reaped whatever a
+/// read said.
 pub(crate) fn counted(mut command: std::process::Command) -> std::io::Result<Counted> {
     use std::io::Read;
     let mut child = command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn()?;
+    let err = child.stderr.take().map(|mut err| {
+        std::thread::spawn(move || {
+            let mut stderr = Vec::new();
+            err.read_to_end(&mut stderr).map(|_| stderr)
+        })
+    });
     let mut stdout = Vec::new();
-    let mut stderr = Vec::new();
-    if let Some(mut out) = child.stdout.take() {
-        out.read_to_end(&mut stdout)?;
-    }
-    if let Some(mut err) = child.stderr.take() {
-        err.read_to_end(&mut stderr)?;
-    }
+    let read = child.stdout.take().map_or(Ok(0), |mut out| out.read_to_end(&mut stdout));
+    let stderr = err.map_or(Ok(Vec::new()), |t| t.join().unwrap_or_else(|_| Err(std::io::Error::other("the stderr reader panicked"))));
     let mut status = 0;
     let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
     let pid = child.id() as libc::pid_t;
@@ -203,6 +206,8 @@ pub(crate) fn counted(mut command: std::process::Command) -> std::io::Result<Cou
             break r;
         }
     };
+    read?;
+    let stderr = stderr?;
     let ms = |t: libc::timeval| t.tv_sec as f64 * 1000.0 + t.tv_usec as f64 / 1000.0;
     let spent = if reaped == pid { ms(usage.ru_utime) + ms(usage.ru_stime) } else { 0.0 };
     Ok(Counted {
@@ -432,13 +437,33 @@ mod tests {
     }
 
     #[test]
+    fn a_command_that_fills_stderr_before_it_closes_stdout_is_read_whole() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut loud = std::process::Command::new("/bin/sh");
+            loud.args(["-c", "head -c 200000 /dev/zero >&2; echo done"]);
+            let _ = tx.send(counted(loud).map(|r| (r.stdout, r.stderr.len())).map_err(|e| e.to_string()));
+        });
+        let read = rx.recv_timeout(std::time::Duration::from_secs(10)).expect("counted waited on a full stderr pipe");
+        assert_eq!(read, Ok(("done\n".to_owned(), 200_000)));
+    }
+
+    #[test]
     fn this_computer_s_rows_leave_out_the_ps_that_read_them() {
         let user = std::env::var("USER").unwrap_or_else(|_| "root".to_owned());
-        let (rows, spent) = ps_rows(&user, now_ms()).unwrap();
-        assert!(rows.iter().any(|r| r.pid == std::process::id()), "the test's own process is listed");
-        let ours: Vec<&PsRow> = rows.iter().filter(|r| r.ppid == std::process::id() && r.cmdline.contains("-ww -U")).collect();
-        assert!(ours.is_empty(), "a ps this read ran is listed: {:?}", ours.iter().map(|r| &r.cmdline).collect::<Vec<_>>());
-        assert!(spent >= 0.0);
+        // A test running beside this one in the same process can have a ps of its own up at the moment of the read, so
+        // a read is taken again before a ps under this process counts as this read's own.
+        let mut listed = Vec::new();
+        for _ in 0..5 {
+            let (rows, spent) = ps_rows(&user, now_ms()).unwrap();
+            assert!(rows.iter().any(|r| r.pid == std::process::id()), "the test's own process is listed");
+            assert!(spent >= 0.0);
+            listed = rows.into_iter().filter(|r| r.ppid == std::process::id() && r.cmdline.contains("-ww -U")).map(|r| r.cmdline).collect();
+            if listed.is_empty() {
+                break;
+            }
+        }
+        assert!(listed.is_empty(), "a ps this read ran is listed: {listed:?}");
     }
 
     // Fixture provenance: the Linux rows were captured from ps in the column order this module asks for, the

@@ -61,13 +61,13 @@ const here = () => scopeOf({ snapshot: snap(HERE), threads: THREADS, ports: PORT
 const shape = (groups: readonly ActivityGroup[]) => groups.map(g => [g.id, g.procs.flatMap(flat).map(p => [p.pid, p.kind, p.name])]);
 
 describe("scopeOf", () => {
-  it("puts wsp's parts first, each thread with what it started, then what wsp started with no thread, and the rest apart", () => {
+  it("puts wsp's parts and what the host started outside a thread first, each thread with what it started, then a terminal with no thread, and the rest apart", () => {
     const s = here();
     expect(shape(s.groups)).toEqual([
-      ["wsp", [[10, "wsp", "Host"], [20, "wsp", "Daemon"]]],
+      ["wsp", [[10, "wsp", "Host"], [20, "wsp", "Daemon"], [50, "other", "python3 sampler.py"]]],
       ["t1", [[30, "agent", "Claude Code"], [31, "tool", "mcp"], [32, "dev", "vite"], [33, "dev", "esbuild"]]],
       ["t2", [[40, "agent", "Codex"], [41, "test", "vitest"], [42, "test", "forks"]]],
-      ["loose", [[21, "terminal", "zsh"], [50, "other", "python3 sampler.py"]]],
+      ["loose", [[21, "terminal", "zsh"]]],
     ]);
     expect(s.rest.map(p => p.pid)).toEqual([1, 90]);
     expect(s.groups[1]!.procs[0]!.harness).toBe("claude");
@@ -148,12 +148,23 @@ describe("scopeOf", () => {
     ]);
   });
 
-  it("refuses a kind outside the eleven words and an owner that is not the object", () => {
+  it("keeps a frame whose row carries a kind or an owner a newer daemon added, reading them as other and no owner", () => {
     const row = proc(60, 1, "python3");
-    const frame = (p: Record<string, unknown>) => ({ type: "proc.snapshot", at: 1, daemon: 20, total: 1, procs: [{ ...row, ...p }], seq: 1 });
-    expect(ProcSnapshot.safeParse(frame({ kind: "slateRun" })).success).toBe(false);
-    expect(ProcSnapshot.safeParse(frame({ owner: "t1" })).success).toBe(false);
-    expect(ProcSnapshot.safeParse(frame({ kind: "slate", owner: { by: "cgroup", thread: "t1" } })).success).toBe(true);
+    const frame = (p: Record<string, unknown>) => ProcSnapshot.parse({ type: "proc.snapshot", at: 1, daemon: 20, total: 1, procs: [{ ...row, ...p }], seq: 1 }).procs[0]!;
+    expect(frame({ kind: "slateRun" }).kind).toBe("other");
+    expect(frame({ owner: "t1" }).owner).toBeUndefined();
+    expect(frame({ kind: "slate", owner: { by: "cgroup", thread: "t1", warm: true } })).toMatchObject({ kind: "slate", owner: { by: "cgroup", thread: "t1", warm: true } });
+  });
+
+  it("keeps wsp's own parts under wsp where a Mac's daemon stamps them with its coalition", () => {
+    const procs = [
+      proc(1, 0, "launchd"),
+      proc(10, 1, "node", { cmdline: "node wsp host", owner: { by: "coalition" } }),
+      proc(20, 10, "wsp-daemon", { owner: { by: "coalition" } }),
+      proc(25, 10, "wsp", { cmdline: "/Applications/wsp.app/Contents/Resources/wsp mcp --scoped --guest", owner: { by: "coalition" } }),
+    ];
+    const s = scopeOf({ snapshot: snap(procs), threads: [], ports: new Map(), host: 10 });
+    expect(shape(s.groups)).toEqual([["wsp", [[10, "wsp", "Host"], [20, "wsp", "Daemon"], [25, "other", "wsp"]]]]);
   });
 
   it("finds the agent by argv[0] where a Mac names it by its file, and never offers End on it", () => {
@@ -207,8 +218,48 @@ describe("scopeOf", () => {
     const s = scopeOf({ snapshot: snap(box, 5), threads: [thread("t1", { cgroup: "/wsp-threads/t1" })], ports: new Map() });
     expect(shape(s.groups)).toEqual([
       ["wsp", [[5, "wsp", "Daemon"]]],
-      ["t1", [[70, "other", "claude"], [71, "other", "python bot.py"]]],
+      ["t1", [[70, "agent", "Claude Code"], [71, "other", "python bot.py"]]],
     ]);
+  });
+
+  it("finds a box thread's agent under the heads of its cgroup, and never offers End on it", () => {
+    const box = [
+      proc(1, 0, "systemd"),
+      proc(5, 1, "wsp-daemon"),
+      proc(100, 1, "bash", { cmdline: "bash /root/.wsp/run/r1.sh", cgroup: "/wsp-threads/t1", rss: 2 * MB }),
+      proc(101, 100, "claude", { cmdline: "claude -p --input-format stream-json", cgroup: "/wsp-threads/t1", rss: 300 * MB }),
+      proc(102, 101, "node", { cmdline: "node /opt/wsp/mcp.js", cgroup: "/wsp-threads/t1" }),
+      proc(110, 1, "python3", { cmdline: "python3 -m http.server 8110", cgroup: "/wsp-threads/t1" }),
+    ];
+    const t1 = thread("t1", { cgroup: "/wsp-threads/t1" });
+    const s = scopeOf({ snapshot: snap(box, 5), threads: [t1], ports: new Map() });
+    const group = s.groups.find(g => g.id === "t1")!;
+    expect(group.procs.flatMap(flat).map(p => [p.pid, p.kind, p.name])).toEqual([
+      [101, "agent", "Claude Code"],
+      [102, "tool", "mcp"],
+      [110, "dev", "http.server"],
+    ]);
+    expect(group.procs[0]!.mem).toBe(302 * MB);
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    expect(resolveActions(procActions, { p: group.procs[0]!, group }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
+    expect(resolveActions(procActions, { p: group.procs[1]!, group }, verbs).map(a => a.id)).toContain("end");
+  });
+
+  it("takes the native codex as a Codex thread's agent, its npm launcher folded in, and offers End on neither", () => {
+    const procs = [
+      proc(10, 1, "node", { cmdline: "node wsp host" }),
+      proc(20, 10, "wsp-daemon"),
+      proc(30, 10, "bash", { cmdline: "bash /root/.wsp/runs/r1.sh", rss: 2 * MB }),
+      proc(31, 30, "node", { cmdline: "node /usr/local/bin/codex app-server", rss: 40 * MB }),
+      proc(32, 31, "codex", { cmdline: "/usr/local/lib/node_modules/@openai/codex/vendor/x86_64-unknown-linux-musl/bin/codex app-server", rss: 200 * MB }),
+      proc(33, 32, "node", { cmdline: "node /opt/wsp/mcp.js" }),
+    ];
+    const s = scopeOf({ snapshot: snap(procs), threads: [thread("t1", { pid: 30, harness: "codex" })], ports: new Map(), host: 10 });
+    const group = s.groups.find(g => g.id === "t1")!;
+    expect(group.procs.flatMap(flat).map(p => [p.pid, p.kind, p.name])).toEqual([[32, "agent", "Codex"], [33, "tool", "mcp"]]);
+    expect(group.procs[0]!.mem).toBe(242 * MB);
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    expect(resolveActions(procActions, { p: group.procs[0]!, group }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
   });
 
   it("carries energy where the computer counts it, and none on one that does not", () => {

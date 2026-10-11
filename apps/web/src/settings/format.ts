@@ -511,7 +511,9 @@ export const ACTIVITY_WORDS = {
   chips: { threads: "Threads", kinds: "Kinds", projects: "Projects" },
   graph: (what: string): string => `${what} over the last minutes`,
   stopTitle: (title: string): string => `Stop the turn in ${title}?`,
-  stopSentence: (agent: string): string => `${agent} stops where it is and the turn reads Interrupted. The dev server and tool servers it started keep running.`,
+  /** On a box a stop ends the thread's cgroup whole; here it ends the agent alone. */
+  stopSentence: (agent: string, endsAll: boolean): string =>
+    `${agent} stops where it is and the turn reads Interrupted. ${endsAll ? "Everything else the thread started on that computer ends with it, its dev and tool servers included." : "The dev server and tool servers it started keep running."}`,
   stopTurn: "Stop turn",
   endAllTitle: (title: string): string => `End everything ${title} started?`,
   endAllSentence: (count: number, memory: string): string => `${count === 1 ? "1 process" : `${count} processes`} holding ${memory} end, and a turn running stops first.`,

@@ -278,20 +278,23 @@ export type PtyListReply = z.infer<typeof PtyListReply>;
 export const ProcSignal = z.enum(["TERM", "KILL"]);
 export type ProcSignal = z.infer<typeof ProcSignal>;
 
-/** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. wsp-frames' ProcKind
- * holds the same words. */
+/** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. The daemon stamps
+ * agent, slate and tool, the three it knows by fact; the page names the rest. */
 export const PROC_KINDS = ["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"] as const;
 export const ProcKind = z.enum(PROC_KINDS);
 export type ProcKind = z.infer<typeof ProcKind>;
 
 /** The rung of the daemon's ladder that named the owner, first match wins: the thread's own process or a parent of
  * it (`root`), a process a Mac's fork tracker followed from one of those (`fork`), a group seen under the thread
- * (`group`), the thread's mark in its environment (`env`), the thread's cgroup on a box (`cgroup`), a workspace's
- * folder (`folder`, no thread), wsp's own coalition on a Mac (`coalition`, no thread). */
+ * (`group`), the WSP_THREAD mark in its environment (`env`), the thread's
+ * cgroup on a box (`cgroup`), a workspace's folder (`folder`, no thread), wsp's own coalition on a Mac (`coalition`,
+ * no thread). */
 export const ProcOwnedBy = z.enum(["root", "fork", "group", "env", "cgroup", "folder", "coalition"]);
 export type ProcOwnedBy = z.infer<typeof ProcOwnedBy>;
 
-export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional() });
+/** The owner a row carries; `warm` says the thread is a warm agent's, started ahead of a send, and no thread has
+ * that id until a send claims it. */
+export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional(), warm: z.boolean().optional() });
 export type ProcOwner = z.infer<typeof ProcOwner>;
 
 /** One process as /proc/[pid] shows it. cpu is its busy share of one core
@@ -316,10 +319,12 @@ export const ProcEntry = z.object({
   /** The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a Mac
    * alone keeps one, so a row elsewhere, and a process's first reading, carry none. */
   energyMw: z.number().optional(),
-  /** Whose it is, where the daemon could tell; absent for a process that is not wsp's, and on a daemon that names no
-   * owners. */
-  owner: ProcOwner.optional(),
-  kind: ProcKind.optional(),
+  /** Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's, and on a
+   * daemon from before proc.scopes. One named by a rung a newer daemon adds reads as absent, rather than dropping the
+   * frame it rides in. */
+  owner: ProcOwner.optional().catch(undefined),
+  /** A word a newer daemon adds reads as other here, rather than dropping the frame it rides in. */
+  kind: ProcKind.catch("other").optional(),
 });
 export type ProcEntry = z.infer<typeof ProcEntry>;
 
