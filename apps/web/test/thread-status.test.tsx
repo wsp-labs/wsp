@@ -80,18 +80,26 @@ describe("ThreadStatus", () => {
     expect(s.textContent).toBe("");
   });
 
-  it("a working thread is the crab alone in the working ink, and its tooltip says Working and the time, ticking", async () => {
+  it("a working thread is how long it has run and the crab in the working ink, and its tooltip says Working and the time, ticking", async () => {
     const { container } = render(<ThreadStatus thread={thread({ status: "running", startedAt: "2026-09-26T11:58:38Z" })} age="3m" />);
     const s = slot(container);
     expect(s.dataset.tone).toBe("working");
     expect(s.classList).toContain("text-status-working");
-    expect(s.querySelector("canvas[data-crab]")).not.toBeNull();
+    expect(s.lastElementChild!.matches("canvas[data-crab]")).toBe(true);
     expect(s.querySelector("svg")).toBeNull();
     expect(s.getAttribute("aria-label")).toBe("Working");
-    expect(s.textContent).toBe("");
-    expect(await hover(s)).toBe("Working 1m 22s");
+    expect(s.textContent).toBe("1m");
+    expect(await hover(s)).toBe("Working 1m 23s");
     await act(async () => void vi.advanceTimersByTime(2_000));
-    expect(document.querySelector("[data-slot=tooltip-popup]")!.textContent).toBe("Working 1m 24s");
+    expect(document.querySelector("[data-slot=tooltip-popup]")!.textContent).toBe("Working 1m 25s");
+    await act(async () => void vi.advanceTimersByTime(35_000));
+    expect(s.textContent).toBe("2m");
+  });
+
+  it("a working slot whose row draws the crab elsewhere holds the time alone", () => {
+    const { container } = render(<ThreadStatus thread={thread({ status: "running", startedAt: "2026-09-26T11:58:38Z" })} crab={false} />);
+    expect(slot(container).querySelector("canvas")).toBeNull();
+    expect(slot(container).textContent).toBe("1m");
   });
 
   it("a failed thread is the alert glyph alone in the failed ink, and its tooltip adds how long ago", async () => {
@@ -236,6 +244,21 @@ describe("WorkingSince", () => {
       expect(container.textContent).toBe(want);
     }
     expect(commits.mock.calls.length).toBe(before);
+  });
+
+  it("every one on the page ticks off one timer, which stops when the last one goes", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    const { container, unmount } = render(
+      <>
+        {Array.from({ length: 20 }, (_, i) => (
+          <WorkingSince key={i} since="2026-09-26T11:59:00Z" />
+        ))}
+      </>,
+    );
+    expect(container.children).toHaveLength(20);
+    expect(vi.getTimerCount()).toBe(1);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
