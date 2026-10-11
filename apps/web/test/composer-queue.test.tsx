@@ -19,7 +19,7 @@ import { useStore } from "../src/protocol/store.js";
 import type { Api, ProtocolEvent, StartSessionOptions } from "../src/protocol/client.js";
 import { WorkspaceThread } from "../src/shell/WorkspaceThread.js";
 import { requestNewThread } from "../src/shell/shellRequests.js";
-import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
+import { composerKeyIn, useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { useComposerBarStore } from "../src/components/chat/composerBar.js";
 import { COMPOSER_WORDS } from "../src/components/chat/composerWords.js";
 import { QUEUE_WORDS } from "../src/components/chat/bars/QueueBar.js";
@@ -106,7 +106,7 @@ async function setup(api: Api) {
   return view;
 }
 
-const draft = () => useComposerDraftStore.getState().drafts[WS]?.prompt ?? "";
+const draft = () => useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt ?? "";
 /** The queue's bar, opened from the drawer's row where it is not open already; null while no message waits. */
 function openQueue(): HTMLElement | null {
   const open = document.querySelector<HTMLElement>("[data-composer-bar=queue]");

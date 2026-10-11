@@ -1,7 +1,7 @@
 import { BUILDER_IDLE_MS } from "./golden.js";
 import { isMissing } from "./errors.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, SMOKE_LABEL, WSP_LABEL, isReserved } from "./labels.js";
-import type { Machine, MachineBackend } from "./machine.js";
+import type { Machine, MachineBackend, NamedMachine } from "./machine.js";
 
 /** An own machine is claimed only once its create returns; a listing during
  * the create could show it unclaimed. Whether the provider lists a machine
@@ -44,9 +44,13 @@ export interface ReapedMachine {
   /** recorded: this state file's record from an earlier process, not sealable; unfinished: such a record
    * whose stages never completed; expired: a kept first-life record past six hours by its createdAt label;
    * own: wears this owner's label with no record left; orphan: no owner label and past its backstop;
-   * grace: a builder kept after its seal for one more change, past that window. */
-  reason: "recorded" | "unfinished" | "expired" | "grace" | "own" | "orphan";
+   * grace: a builder kept after its seal for one more change, past that window; lost: made for an attempt whose
+   * answer was lost, found by asking again, with no record waiting for it; stray: named after one of this host's
+   * images, which nothing of this host names. */
+  reason: "recorded" | "unfinished" | "expired" | "grace" | "own" | "orphan" | "lost" | "stray";
   ageMs?: number;
+  /** The name the provider listed it under, where that is not one wsp gave it. */
+  name?: string;
 }
 
 /** A running machine the sweep left alone: another owner's, or not yet past its backstop. */
@@ -85,6 +89,21 @@ export function lostWorkspace(m: ListedMachine, owner: string, now: number): boo
   if (m.labels[BUILDER_LABEL] === "1" || m.labels[SMOKE_LABEL] === "1") return false;
   const createdAt = Date.parse(m.labels[CREATED_AT_LABEL] ?? "");
   return Number.isNaN(createdAt) || now - createdAt >= OWN_GRACE_MS;
+}
+
+/** How old a machine named after one of this host's images must be before the sweep deletes it: past a create of
+ * this host that asked for that image and has not named its machine yet. */
+export const STRAY_GRACE_MS = 10 * 60_000;
+
+/** The machines named after one of this host's images that the sweep deletes: no record holds the id, no attempt of
+ * this host asked for that image, and the provider's own stamp proves it STRAY_GRACE_MS old. A row with no readable
+ * age is left, since nothing proves it is not a create still on its way. */
+export function strays(rows: readonly NamedMachine[], read: { known: ReadonlySet<string>; asked: ReadonlySet<string>; now: number }): (NamedMachine & { ageMs: number })[] {
+  return rows.flatMap(m => {
+    const ageMs = read.now - Date.parse(m.createdAt ?? "");
+    if (m.state === "gone" || read.known.has(m.id) || read.asked.has(m.name) || Number.isNaN(ageMs) || ageMs < STRAY_GRACE_MS) return [];
+    return [{ ...m, ageMs }];
+  });
 }
 
 /** An age for a person. A createdAt stamped by a clock ahead of ours reads as zero, never negative. */

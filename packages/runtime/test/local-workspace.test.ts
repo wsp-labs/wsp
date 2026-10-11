@@ -18,7 +18,7 @@ import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
 import { serveRuntime, type ForwardsSource } from "../src/serve.js";
 import { memoryStore, type Store } from "../src/store.js";
-import { stubBackend, copyingFake, createOn, projectOn, testPlatform } from "./stub-backend.js";
+import { stubBackend, copyingFake, createOn, projectOn, testPlatform, tokenGuest } from "./stub-backend.js";
 import { alive, grandchild, sweepStrays } from "./strays.js";
 import { until } from "./until.js";
 
@@ -335,7 +335,11 @@ describe("local workspace", () => {
     };
     const token = "cafef00d".repeat(3);
     const daemonRoad = async () => ({ url: "http://127.0.0.1:7070", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: token });
-    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: echoAdapter }, local: { ...localWiring, daemonRoad, restartDaemon }, daemonToken: token, daemonChannel });
+    const backend = stubBackend();
+    const boot = () => createRuntime({ backend, store, adapters: { claude: echoAdapter }, local: { ...localWiring, daemonRoad, restartDaemon }, daemonToken: token, daemonChannel });
+    const rt = boot();
+    /** A host started again over the same state and the same daemon, whose ptys outlived the host before it. */
+    const again = () => boot();
     const holdLists = (): (() => void) => {
       let release = (): void => {};
       listGate = new Promise<void>(resolve => (release = resolve));
@@ -344,7 +348,7 @@ describe("local workspace", () => {
         release();
       };
     };
-    return { rt, held, heard, holdLists };
+    return { rt, held, heard, holdLists, again, backend };
   };
   const listed = async (channel: DaemonChannel): Promise<unknown[]> =>
     ((await channel.send({ id: null, op: "pty.list" } as never)) as unknown as { ptys: { id: string }[] }).ptys.map(p => p.id);
@@ -380,6 +384,68 @@ describe("local workspace", () => {
     await chA.send({ id: null, op: "pty.kill", ptyId: "pty_1" } as never);
     expect(await listed(chA)).toEqual([]);
     expect(await listed(chB)).toEqual(["pty_2"]);
+  });
+
+  it("names the thread whose pane opened each shell of a folder its threads share, on every list, and the daemon never hears it", async () => {
+    const { rt, heard } = sharedDaemon();
+    const a = await rt.workspaces.create({ project: (await projectOn(rt, HERE_PLACE_ID, repoIn(root, "one"))).id, name: "a" });
+    const pane = await rt.workspaces.daemonChannel(a.id, () => {});
+    const mine = ((await pane.send({ id: null, op: "pty.create", thread: "th_a" } as never)) as unknown as { ptyId: string }).ptyId;
+    const theirs = ((await (await rt.workspaces.daemonChannel(a.id, () => {})).send({ id: null, op: "pty.create", thread: "th_b" } as never)) as unknown as { ptyId: string }).ptyId;
+    expect(heard.filter(f => f["op"] === "pty.create").map(f => f["thread"])).toEqual([undefined, undefined]);
+    const reloaded = await rt.workspaces.daemonChannel(a.id, () => {});
+    const rows = ((await reloaded.send({ id: null, op: "pty.list" } as never)) as unknown as { ptys: { id: string; thread?: string }[] }).ptys;
+    expect(rows.map(r => [r.id, r.thread])).toEqual([[mine, "th_a"], [theirs, "th_b"]]);
+    await reloaded.send({ id: null, op: "pty.kill", ptyId: mine } as never);
+    expect(((await pane.send({ id: null, op: "pty.list" } as never)) as unknown as { ptys: { id: string; thread?: string }[] }).ptys).toMatchObject([{ id: theirs, thread: "th_b" }]);
+  });
+
+  it("hands a shell to the thread a New thread page's first send opened, on the host alone, and never another folder's shell", async () => {
+    const { rt, heard } = sharedDaemon();
+    const a = await rt.workspaces.create({ project: (await projectOn(rt, HERE_PLACE_ID, repoIn(root, "one"))).id, name: "a" });
+    const b = await rt.workspaces.create({ project: (await projectOn(rt, HERE_PLACE_ID, repoIn(root, "other"))).id, name: "b" });
+    const pane = await rt.workspaces.daemonChannel(a.id, () => {});
+    const page = ((await pane.send({ id: null, op: "pty.create", thread: "" } as never)) as unknown as { ptyId: string }).ptyId;
+    const theirs = ((await (await rt.workspaces.daemonChannel(b.id, () => {})).send({ id: null, op: "pty.create" } as never)) as unknown as { ptyId: string }).ptyId;
+    expect(await pane.send({ id: 3, op: "pty.thread", ptyId: page, thread: "th_new" } as never)).toEqual({ id: 3, ok: true });
+    expect(await pane.send({ id: 4, op: "pty.thread", ptyId: theirs, thread: "th_new" } as never)).toEqual({ id: 4, ok: false, error: `no such pty: ${theirs}` });
+    expect(heard.some(f => f["op"] === "pty.thread")).toBe(false);
+    const rows = ((await (await rt.workspaces.daemonChannel(a.id, () => {})).send({ id: null, op: "pty.list" } as never)) as unknown as { ptys: { id: string; thread?: string }[] }).ptys;
+    expect(rows).toMatchObject([{ id: page, thread: "th_new" }]);
+  });
+
+  it("still names whose each shell is once the host restarts over a daemon that kept them", async () => {
+    const { rt, again, backend } = sharedDaemon();
+    // A fork's daemon answers at its machine's url from the moment it exists.
+    backend.execImpl = tokenGuest;
+    const make = backend.create.bind(backend);
+    backend.create = async spec => Object.assign(await make(spec), { previewUrl: async () => ({ url: "http://127.0.0.1:7071", token: "e", expiresAt: Date.now() + 3_600_000 }), daemonAnswers: async () => true });
+    const cloud = await createOn(rt, { golden: "snap_g", name: "b1" });
+    const pane = await rt.workspaces.daemonChannel(cloud.id, () => {});
+    const mine = ((await pane.send({ id: null, op: "pty.create", thread: "th_a" } as never)) as unknown as { ptyId: string }).ptyId;
+    const theirs = ((await pane.send({ id: null, op: "pty.create", thread: "th_b" } as never)) as unknown as { ptyId: string }).ptyId;
+    await pane.send({ id: null, op: "pty.thread", ptyId: theirs, thread: "th_c" } as never);
+    await rt.close();
+    const next = again();
+    const rows = ((await (await next.workspaces.daemonChannel(cloud.id, () => {})).send({ id: null, op: "pty.list" } as never)) as unknown as { ptys: { id: string; thread?: string }[] }).ptys;
+    expect(rows.map(r => [r.id, r.thread])).toEqual([[mine, "th_a"], [theirs, "th_c"]]);
+    await next.close();
+  });
+
+  it("ends the shells a deleted thread's panes opened, and no other thread's", async () => {
+    const { rt, heard } = sharedDaemon();
+    const a = await rt.workspaces.create({ project: (await projectOn(rt, HERE_PLACE_ID, repoIn(root, "one"))).id, name: "a" });
+    const gone = await rt.sessions.start(a.id, { prompt: "one" });
+    await gone.finished;
+    const kept = await rt.sessions.start(a.id, { prompt: "two" });
+    await kept.finished;
+    const pane = await rt.workspaces.daemonChannel(a.id, () => {});
+    const open = async (thread: string): Promise<string> => ((await pane.send({ id: null, op: "pty.create", thread } as never)) as unknown as { ptyId: string }).ptyId;
+    const its = await open(gone.view().threadId!);
+    const theirs = await open(kept.view().threadId!);
+    await rt.sessions.delete(gone.view().threadId!);
+    expect(heard.filter(f => f["op"] === "pty.kill").map(f => f["ptyId"])).toEqual([its]);
+    expect(((await pane.send({ id: null, op: "pty.list" } as never)) as unknown as { ptys: { id: string }[] }).ptys.map(p => p.id)).toEqual([theirs]);
   });
 
   it("a folder's channel is told there is no such pty for every op on another folder's shell or this computer's, and none of those frames reaches the daemon", async () => {

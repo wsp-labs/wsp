@@ -137,9 +137,8 @@ export interface ThreadVerbs {
   readonly deleteCopies?: ((workspaceIds: ReadonlyArray<string>) => void) | undefined;
   /** Asks to put back the files the thread's last rewind replaced: the surface puts its confirmation here. */
   readonly undoRewind?: ((thread: { threadId: string; workspaceId: string }) => void) | undefined;
-  /** Every event the host holds for a workspace, which a thread's copy folds its own out of; left out by a client
-   * with no road to the history. */
-  readonly readEvents?: ((workspaceId: string) => Promise<SessionEvent[]>) | undefined;
+  /** One thread's every event the host holds, which its copy folds; left out by a client with no road to the history. */
+  readonly readEvents?: ((workspaceId: string, threadId: string) => Promise<SessionEvent[]>) | undefined;
   readonly copyText: (text: string) => Promise<void>;
 }
 
@@ -222,7 +221,7 @@ export const threadActions: ReadonlyArray<ActionEntry<ThreadTarget, ThreadVerbs>
     refusal: (target, verbs) => (target.threadId === null ? THREAD_HAS_NO_ID : verbs.readEvents === undefined ? CLIENT_CANNOT_READ : null),
     run: async (target, verbs) => {
       if (target.threadId === null || verbs.readEvents === undefined) return;
-      await verbs.copyText(threadMarkdown(threadMessages(await verbs.readEvents(target.workspaceId), target.threadId)));
+      await verbs.copyText(threadMarkdown(threadMessages(await verbs.readEvents(target.workspaceId, target.threadId), target.threadId)));
     },
   },
   {

@@ -134,6 +134,7 @@ beforeEach(() => {
   useForkDrafts.setState({ drafts: {} });
   useComposerDraftStore.setState({ drafts: {} });
   useComposerFilesStore.getState().take(WS);
+  useComposerFilesStore.getState().take(THREAD);
   provideDaemonWire(WS, null);
 });
 
@@ -265,7 +266,7 @@ describe("the fork's draft from a message that carried an image", () => {
     expect(started[0]).toMatchObject({ prompt: "ask 2", fork: { threadId: THREAD, turnId: "turn_1" }, attachments: [{ mediaType: "image/png", bytes: PNG, name: "dot.png" }] });
   });
 
-  it("puts back on the dismiss the words and files the composer held before, since the folder's threads share one draft", async () => {
+  it("leaves the source thread's own words and files where they were, and the new thread page's, on the dismiss", async () => {
     const made = URL.createObjectURL;
     URL.createObjectURL = vi.fn(() => "blob:wsp/dot");
     onTestFinished(() => {
@@ -275,15 +276,15 @@ describe("the fork's draft from a message that carried an image", () => {
     const { api, started } = fixtureApi({ history: withImage });
     await mount(api);
     await waitFor(() => expect(forkButtons().length).toBeGreaterThan(0));
-    useComposerDraftStore.getState().setDraft(WS, { prompt: "half a thought", cursor: 4 });
+    useComposerDraftStore.getState().setDraft(THREAD, { prompt: "half a thought", cursor: 4 });
     const mine = { id: "mine", mediaType: "text/plain", name: "notes.txt", bytes: "aGk=", size: 2 };
-    useComposerFilesStore.getState().put(WS, [mine]);
+    useComposerFilesStore.getState().put(THREAD, [mine]);
     fireEvent.click(forkOn("ask 2"));
     await waitFor(() => expect(useComposerFilesStore.getState().pending[WS]?.map(f => f.name)).toEqual(["dot.png"]));
     expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("ask 2");
     fireEvent.click(within(await banner()).getByRole("button", { name: "Cancel the fork" }));
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]).toEqual({ prompt: "half a thought", cursor: 4 }));
-    expect(useComposerFilesStore.getState().pending[WS]).toEqual([mine]);
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[THREAD]).toEqual({ prompt: "half a thought", cursor: 4 }));
+    expect(useComposerFilesStore.getState().pending[THREAD]).toEqual([mine]);
     expect(started).toEqual([]);
   });
 });
@@ -294,16 +295,16 @@ describe("what the composer held before a fork off a person's message", () => {
     const { api, started } = fixtureApi();
     await mount(api);
     await waitFor(() => expect(forkButtons().length).toBeGreaterThan(0));
-    useComposerDraftStore.getState().setDraft(WS, { prompt: "half a thought", cursor: 4 });
-    useComposerFilesStore.getState().put(WS, [mine]);
+    useComposerDraftStore.getState().setDraft(THREAD, { prompt: "half a thought", cursor: 4 });
+    useComposerFilesStore.getState().put(THREAD, [mine]);
     fireEvent.click(forkOn("ask 2"));
     await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("ask 2"));
     await banner();
     return started;
   };
   const heldAgain = async () => {
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]).toEqual({ prompt: "half a thought", cursor: 4 }));
-    expect(useComposerFilesStore.getState().pending[WS]).toEqual([mine]);
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[THREAD]).toEqual({ prompt: "half a thought", cursor: 4 }));
+    expect(useComposerFilesStore.getState().pending[THREAD]).toEqual([mine]);
     expect(useForkDrafts.getState().drafts[WS]).toBeUndefined();
   };
 
@@ -335,7 +336,7 @@ describe("what the composer held before a fork off a person's message", () => {
     provideDaemonWire(WS2, null);
     await mount(api);
     await waitFor(() => expect(forkButtons().length).toBeGreaterThan(0));
-    useComposerDraftStore.getState().setDraft(WS, { prompt: "half a thought", cursor: 4 });
+    useComposerDraftStore.getState().setDraft(THREAD, { prompt: "half a thought", cursor: 4 });
     fireEvent.click(forkOn("ask 2"));
     await banner();
     act(() => useStore.getState().select(WS2, "thr_other"));
@@ -343,16 +344,17 @@ describe("what the composer held before a fork off a person's message", () => {
     act(() => useStore.getState().select(WS, THREAD));
     await screen.findAllByText("reply 3");
     expect(composerEditor().textContent).toBe("half a thought");
-    expect(useComposerDraftStore.getState().drafts[WS]).toEqual({ prompt: "half a thought", cursor: 4 });
+    expect(useComposerDraftStore.getState().drafts[THREAD]).toEqual({ prompt: "half a thought", cursor: 4 });
     expect(useForkDrafts.getState().drafts[WS]).toBeUndefined();
   });
 
-  it("comes back when the person asks for a new thread on the project instead, which is no fork", async () => {
+  it("stays with its thread when the person asks for a new thread on the project instead, which is no fork", async () => {
     const started = await forkAsk2();
     act(() => useStore.getState().newThread(WS));
     await heldAgain();
     await waitFor(() => expect(document.querySelector("[data-fork-banner]")).toBeNull());
-    expect(composerEditor().textContent).toBe("half a thought");
+    // The new thread's page has its own empty composer; the words stay with the thread they were typed in.
+    expect(composerEditor().textContent).toBe("");
     expect(started).toEqual([]);
   });
 

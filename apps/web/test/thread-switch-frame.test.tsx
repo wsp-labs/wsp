@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What a thread switch does in the frame that draws the next thread: the transcript it leaves stays mounted, hidden
-// and inert, until the next one has painted, and a composer whose draft and caret the switch leaves alone takes no
-// editor update, whether the switch came from a tile or from a chord that asks for the composer's focus. The next
+// and inert, until the next one has painted, and the next thread's own composer takes the caret the last one held,
+// whether the switch came from a tile or from a chord that asks for the composer's focus. The next
 // thread's rows show once its opening scroll to the end lands, not after a fixed wait, and a turn that starts in the
 // seconds after is still followed to its end.
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
@@ -154,8 +154,8 @@ afterEach(() => {
   listeners.clear();
 });
 
-async function mount() {
-  useStore.getState().bind(hostApi());
+async function mount(api: Api = hostApi()) {
+  useStore.getState().bind(api);
   await whenAgentsAnswered();
   const { container } = render(<Shell />);
   const sidebar = () => within(container.querySelector<HTMLElement>("[data-app-sidebar]")!);
@@ -186,6 +186,18 @@ async function focusedComposer() {
   return { element, commits };
 }
 
+describe("a load that names no thread", () => {
+  it("draws the folder's latest thread off that thread's newest page, never reading every thread of the folder", async () => {
+    const api = hostApi();
+    const whole = vi.spyOn(api, "sessionHistory");
+    const page = vi.spyOn(api, "sessionPage" as never) as unknown as ReturnType<typeof vi.fn>;
+    const { center } = await mount(api);
+    expect(center().getByText("Checking the keychain.")).toBeDefined();
+    expect(page.mock.calls[0]?.slice(0, 2)).toEqual([WS, "thr_b"]);
+    expect(whole).not.toHaveBeenCalled();
+  });
+});
+
 describe("a thread switch", () => {
   it("keeps the transcript it leaves mounted, hidden and inert, until the next one has painted", async () => {
     const { center, threadRow } = await mount();
@@ -199,24 +211,24 @@ describe("a thread switch", () => {
     expect(center().queryByText("Checking the keychain.")).toBeNull();
   });
 
-  it("from a tile leaves a composer it does not change untouched", async () => {
+  it("from a tile carries the caret into the next thread's own composer", async () => {
     const { center, threadRow } = await mount();
-    const { element, commits } = await focusedComposer();
+    const { element } = await focusedComposer();
     fireEvent.click(threadRow("make me a simple server"));
     await painted();
     expect(center().getByText("Added GET /health.")).toBeDefined();
-    expect(commits.n).toBe(0);
-    expect(document.activeElement).toBe(element);
+    expect(composerEditor()).not.toBe(element);
+    expect(document.activeElement).toBe(composerEditor());
   });
 
-  it("from a chord that asks for the composer's focus makes no editor update when the caret already stands there", async () => {
+  it("from a chord that asks for the composer's focus carries the caret into the next thread's own composer", async () => {
     const { center } = await mount();
-    const { element, commits } = await focusedComposer();
+    const { element } = await focusedComposer();
     act(() => goToWorkspace(WS, "thr_a"));
     await painted();
     expect(center().getByText("Added GET /health.")).toBeDefined();
-    expect(commits.n).toBe(0);
-    expect(document.activeElement).toBe(element);
+    expect(composerEditor()).not.toBe(element);
+    expect(document.activeElement).toBe(composerEditor());
   });
 
   it("from a chord still puts the caret in a composer that did not hold it", async () => {
@@ -226,9 +238,10 @@ describe("a thread switch", () => {
     act(() => goToWorkspace(WS, "thr_a"));
     await painted();
     expect(center().getByText("Added GET /health.")).toBeDefined();
-    expect(document.activeElement).toBe(element);
+    const next = composerEditor();
+    expect(document.activeElement).toBe(next);
     const selection = window.getSelection();
-    expect(selection !== null && selection.anchorNode !== null && element.contains(selection.anchorNode)).toBe(true);
+    expect(selection !== null && selection.anchorNode !== null && next.contains(selection.anchorNode)).toBe(true);
   });
 
   it("shows the next thread's rows within a few frames, not after a fixed wait for its scroll to settle", async () => {

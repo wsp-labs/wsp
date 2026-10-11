@@ -383,7 +383,7 @@ export * from "./verbs/io.js";
 export * from "./verbs/agents-help.js";
 export * from "./verbs/slate.js";
 
-/** Every verb, the cloud's among them; VERBS below is the table this process answers. */
+/** Every verb, the cloud's top-level ones among them; VERBS below is the table this process answers. */
 export const ALL_VERBS: readonly Verb[] = [
   ...COMPUTER_VERBS,
   ...AGENT_VERBS,
@@ -395,7 +395,7 @@ export const ALL_VERBS: readonly Verb[] = [
 
 const isCloudVerb = (v: Verb): boolean => "cloud" in v && v.cloud === true;
 
-/** A verb with its cloud flags gone from its table, its usage and its tool, for a process with no cloud registered. */
+/** A verb with its cloud flags gone from its table, its usage and its tool, for a process with the cloud off. */
 function withoutCloudFlags(v: Verb): Verb {
   const dropped = "cloudFlags" in v ? (v.cloudFlags ?? []) : [];
   if (dropped.length === 0 || !("run" in v)) return v;
@@ -413,11 +413,12 @@ function inCloudWords(v: Verb): Verb {
   return hasTool(worded) ? { ...worded, tool: { ...worded.tool, description: cloudText(worded.tool.description, CLOUD_ON) } } : worded;
 }
 
-/** The verbs this process answers: every one where a cloud is registered, and with none, every one but the cloud's,
- * each without its cloud flags. What the pages, the tool server and the skill's rows are all built from. */
+/** The verbs this process answers: every one with the cloud on, and with it off every one but the cloud's top-level
+ * verbs, each without its cloud flags; Boat's roads are on either way. What the pages, the tool server and the
+ * skill's rows are all built from. */
 export const VERBS: readonly Verb[] = (CLOUD_ON ? ALL_VERBS : ALL_VERBS.filter(v => !isCloudVerb(v)).map(withoutCloudFlags)).map(inCloudWords);
 
-/** The line a person typed, as the cloud line it is when no cloud is registered here: the verb it opens, or that
+/** The line a person typed, as the cloud line it is when the cloud is off here: the verb it opens, or that
  * verb with the cloud flag it carries. Nothing where the line means something without one, and nothing in a public
  * build, where no variable turns the cloud on and the line is a word like any other this wsp does not know. */
 export function cloudLineOf(argv: ReadonlyArray<string>): string | undefined {

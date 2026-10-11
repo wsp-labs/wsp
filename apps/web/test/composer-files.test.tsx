@@ -13,7 +13,7 @@ import { composerEditor, press, typeInto } from "./composer-harness.js";
 import { useStore } from "../src/protocol/store.js";
 import { DisconnectedError, RequestError, type Api, type ProtocolEvent, type StartSessionOptions } from "../src/protocol/client.js";
 import { WorkspaceThread } from "../src/shell/WorkspaceThread.js";
-import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
+import { composerKeyIn, useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { useComposerFilesStore } from "../src/components/chat/composerFiles.js";
 import { usePromptStashStore } from "../src/components/chat/promptStashStore.js";
 import { COMPOSER_WORDS } from "../src/components/chat/composerWords.js";
@@ -285,14 +285,14 @@ describe("the prompt stash", () => {
     const { api, started } = fixtureApi();
     await setup(api);
     const editor = composerEditor();
-    act(() => useComposerDraftStore.getState().setDraft(WS, { prompt: "compare @src/app.ts with", cursor: 3 }));
+    act(() => useComposerDraftStore.getState().setDraft(composerKeyIn(WS), { prompt: "compare @src/app.ts with", cursor: 3 }));
     await waitFor(() => expect(editor.querySelector("[data-composer-mention-chip]")).not.toBeNull());
     act(() => void paste([new File([new TextEncoder().encode("%PDF-1.7 spec")], "spec.pdf", { type: "application/pdf" })]));
     await waitFor(() => expect(tiles()).toHaveLength(1));
     expect(stashWord()).toBeNull();
     await press(editor, "s", { ctrlKey: true });
     await waitFor(() => expect(stashWord()?.textContent).toBe("Stashed 1"));
-    expect(useComposerDraftStore.getState().drafts[WS]?.prompt ?? "").toBe("");
+    expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt ?? "").toBe("");
     expect(tiles()).toHaveLength(0);
     // A stash that survives a reload: the bytes are in local storage.
     expect(localStorage.getItem("wsp:prompt-stash")).toContain(Buffer.from("%PDF-1.7 spec").toString("base64"));
@@ -303,7 +303,7 @@ describe("the prompt stash", () => {
     fireEvent.click(stashWord()!);
     const restore = await screen.findByRole("button", { name: /^Restore stashed prompt: compare @src\/app\.ts with/ });
     fireEvent.click(restore);
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("compare @src/app.ts with"));
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("compare @src/app.ts with"));
     await waitFor(() => expect(editor.querySelector("[data-composer-mention-chip]")?.textContent).toBe("app.ts"));
     expect(tiles().map(t => t.dataset["chatFile"])).toEqual(["spec.pdf"]);
     expect(stashWord()).toBeNull();
@@ -317,13 +317,13 @@ describe("the prompt stash", () => {
     await press(editor, "s", { metaKey: true });
     await waitFor(() => expect(stashWord()?.textContent).toBe("Stashed 1"));
     await press(editor, "s", { metaKey: true });
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("first draft"));
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("first draft"));
     expect(stashWord()).toBeNull();
     await press(editor, "s", { metaKey: true });
     await typeInto(editor, "second draft");
     fireEvent.click(stashWord()!);
     fireEvent.click(await screen.findByRole("button", { name: "Restore stashed prompt: first draft" }));
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("first draft"));
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("first draft"));
     expect(stashWord()?.textContent).toBe("Stashed 1");
     expect(usePromptStashStore.getState().entries.map(e => e.prompt)).toEqual(["second draft"]);
   });
@@ -342,7 +342,7 @@ describe("a stash this browser cannot write", () => {
       await waitFor(() => expect(tiles()).toHaveLength(1));
       await press(composerEditor(), "s", { ctrlKey: true });
       await waitFor(() => expect(lastNotice()).toBe(COMPOSER_WORDS.stashNotWritten));
-      expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("keep me");
+      expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("keep me");
       expect(tiles()).toHaveLength(1);
       noLineAbove();
     } finally {
@@ -360,7 +360,7 @@ describe("a restore over a full stash", () => {
     await typeInto(composerEditor(), "the draft in the box");
     fireEvent.click(document.querySelector<HTMLElement>("[data-composer-stash-word]")!);
     fireEvent.click(await screen.findByRole("button", { name: "Restore stashed prompt: stashed 19" }));
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("stashed 19"));
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("stashed 19"));
     expect(usePromptStashStore.getState().entries.map(e => e.prompt).slice(0, 2)).toEqual(["the draft in the box", "stashed 0"]);
     expect(usePromptStashStore.getState().entries).toHaveLength(20);
   });
@@ -702,7 +702,7 @@ describe("an image sent with steer picked during a running turn", () => {
     await waitFor(() => expect(steered).toHaveLength(1));
     fireEvent.click(document.querySelector("[data-drawer-row=queue]")!);
     fireEvent.click(document.querySelector<HTMLElement>("[data-composer-bar=queue] [data-queued-id] button[aria-label='Edit queued message']")!);
-    await waitFor(() => expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("what is in this picture?"));
+    await waitFor(() => expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("what is in this picture?"));
     expect(thumbs()).toHaveLength(0);
     await act(async () => answer("not-running"));
     await waitFor(() => expect(thumbs().map(t => t.dataset["chatImage"])).toEqual(["shot.png"]));

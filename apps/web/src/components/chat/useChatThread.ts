@@ -17,7 +17,7 @@
 import { isProjectHomeKey } from "../../protocol/store";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { agentName } from "@wsp/catalog";
-import { agentStartingLine, isSessionEvent, sendWaitsForLine, threadKeyOf } from "@wsp/protocol";
+import { HISTORY_PAGE_EVENTS, agentStartingLine, isSessionEvent, sendWaitsForLine, threadKeyOf } from "@wsp/protocol";
 import type { AttachmentRecord, SessionEvent, SessionHarness, SessionHeldEvent, SessionStartingEvent, SessionQueuedEvent, SessionRunEvent, SessionView } from "@wsp/protocol";
 import { useProtocolEvents, useStore } from "../../protocol/store";
 import type { Api, ProtocolEvent } from "../../protocol/client";
@@ -68,8 +68,9 @@ export interface ChatThreadHandle {
   readonly fromStart: boolean;
   /** The host's caps dropped the thread's oldest events, which no page brings back. */
   readonly trimmed: boolean;
-  /** Moves when the view takes another thread's rows, and not when a pin names the thread it already shows: the list
-   * is drawn anew, at its end, for a thread it did not just show. */
+  /** Moves when the view takes another thread's rows or leaves for a new thread's page, and not when a pin names the
+   * thread it already shows: the list is drawn anew, at its end, and the composer mounted anew, for a thread it did
+   * not just show. */
   readonly drawKey: string;
   /** True while this thread's turn is running or its send is in flight. */
   readonly busy: boolean;
@@ -77,9 +78,9 @@ export interface ChatThreadHandle {
   readonly sending: boolean;
   /** True from a new-thread request until its first session.start: the next send must not resume the old session. */
   readonly fresh: boolean;
-  /** The thread the next send goes to: the one the shown thread's last start opened, else, on an empty latest view, the thread of the workspace's remembered session, else, pinned, the one its session row carries, else the one the view shows, its launch having failed, so the runtime runs the message as that thread's first turn. None on a fresh view or an empty latest one with nothing remembered, where the runtime opens a thread. */
+  /** The thread the next send goes to: the one the shown thread's last start opened, else, on an empty latest view, the thread of the latest row, else, pinned, the one its session row carries, else the one the view shows, its launch having failed, so the runtime runs the message as that thread's first turn. None on a fresh view or an empty latest one with no row, where the runtime opens a thread. */
   readonly thread: string | undefined;
-  /** The held thread's runtime id, else the pinned one, else the workspace id before the thread has one; keys what belongs to this thread outside the transcript. */
+  /** The held thread's runtime id, else the pinned one, else the latest row's on the latest view, else the workspace id before the thread has one; keys what belongs to this thread outside the transcript. */
   readonly threadKey: string;
   /** The last send's start, once it landed: the key its rows waited under (the thread id the view held or was pinned to, or the workspace id before the thread had one) and the thread that start carried. Null while a send is in flight, after one that settled without a start, and before any. */
   readonly named: NamedStart | null;
@@ -534,10 +535,29 @@ function sentEntry(sent: Kept): TimelineEntry {
   };
 }
 
+/** The thread of a folder's rows whose event is the folder's newest, as the whole history's last event names it: a
+ * running turn that announced its session, else the turn that ended last. A row that has not announced has written
+ * nothing yet. */
+function latestThreadOf(rows: readonly SessionView[] | undefined): string | undefined {
+  const last = (r: SessionView): number => (r.status === "running" ? Number.POSITIVE_INFINITY : (r.endedAt ?? r.startedAt ?? 0));
+  let latest: SessionView | undefined;
+  for (const r of rows ?? []) {
+    if (r.status === "running" && r.claudeSessionId === undefined) continue;
+    if (latest === undefined || last(r) >= last(latest)) latest = r;
+  }
+  return latest?.threadId;
+}
+
 /** The running row a view with no event and no send of its own is drawn off: the host lists a thread's row before its
  * first event, and one this window did not send (an agent's, the command line's, another window's) shows from it. */
 function drawnOffRow(state: ThreadState, row: SessionView | undefined): SessionView | undefined {
   return !state.fresh && state.events.length === 0 && state.pendingPrompt === null && row?.status === "running" ? row : undefined;
+}
+
+/** A latest view with nothing of its own in it yet stands on the latest row's thread, so a pin to that thread is the
+ * view it already is. */
+function standsOnRow(state: ThreadState, latestThread: string | undefined, pinned: string): boolean {
+  return !state.fresh && state.events.length === 0 && state.pendingPrompt === null && state.localErrors.length === 0 && latestThread === pinned;
 }
 
 /** A view with no event yet, drawn off its running row: the row's prompt as the person's message, and the turn working. */
@@ -711,10 +731,13 @@ export function leaveView(s: ThreadState, from: ViewKey, to: ViewKey): ThreadSta
   return { ...EMPTY, known: knowing(s.known, s.events), stray: { text: sent.text, requestId: sent.requestId, key: from.threadId ?? from.workspaceId, ...(thread === undefined ? {} : { thread }) } };
 }
 
-/** The row a view without a session.start resumes from: pinned, the thread's latest turn the harness answered; on the latest view, the turn the workspace remembers. */
-function resumedRow(rows: ReadonlyArray<SessionView> | undefined, threadId: string | null, remembered: string | undefined): SessionView | undefined {
-  if (threadId !== null) return rows?.findLast(r => r.threadId === threadId && r.claudeSessionId !== undefined);
-  return remembered === undefined ? undefined : rows?.findLast(r => r.claudeSessionId === remembered);
+/** The row a view without a session.start resumes from: the latest turn the harness answered of the thread it shows,
+ * the pinned one or, on the latest view, the latest row's. Never the session the workspace last started, which is
+ * whichever of its threads ran last. */
+function resumedRow(rows: ReadonlyArray<SessionView> | undefined, threadId: string | null): SessionView | undefined {
+  const latest = rows?.at(-1);
+  const shown = threadId ?? (latest === undefined ? undefined : threadKeyOf(latest));
+  return rows?.findLast(r => threadKeyOf(r) === shown && r.claudeSessionId !== undefined);
 }
 
 /** The session the thread's last session.start opened; a turn that ended without one, its harness dead before init, names an id no harness ever held. */
@@ -728,11 +751,14 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
   const api = useStore(s => s.api);
   // Moves when a reconnect could not replay what the socket missed: the thread below is rebuilt from history.
   const gaps = useStore(s => s.gaps);
-  const remembered = useStore(s => s.workspaces.find(w => w.id === workspaceId)?.claudeSessionId);
   // The runtime stamps a row only once the harness announced its session, so a capped pinned thread resumes by its row and a dead one resumes nothing.
-  const rowThread = useStore(s => resumedRow(s.sessions[workspaceId], threadId, remembered)?.threadId);
-  const rowCwd = useStore(s => resumedRow(s.sessions[workspaceId], threadId, remembered)?.cwd);
+  const rowThread = useStore(s => resumedRow(s.sessions[workspaceId], threadId)?.threadId);
+  const rowCwd = useStore(s => resumedRow(s.sessions[workspaceId], threadId)?.cwd);
   const latestRow = useStore(s => (threadId === null ? s.sessions[workspaceId]?.at(-1) : s.sessions[workspaceId]?.findLast(r => (r.threadId ?? r.id) === threadId)));
+  const latestThread = useStore(s => {
+    const row = s.sessions[workspaceId]?.at(-1);
+    return row === undefined ? undefined : threadKeyOf(row);
+  });
   const viewKey = threadId === null ? workspaceId : `${workspaceId}/${threadId}`;
   // A host whose head refused this thread is read the old way, off the workspace's whole history.
   const [readsWhole, setReadsWhole] = useState<string | null>(null);
@@ -763,13 +789,14 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
     const next = held ? heldRowsOf(threadId) : undefined;
     // A pin landing on the thread this view already holds is the same reading under a new name: the transcript
     // stays, so a view whose own first turn opened the thread it is now pinned to never blinks through loading.
-    if (from.workspaceId === workspaceId && from.threadId === null && threadId !== null && (ownThread(state) === threadId || (hydratedFor === workspaceId && drawnOffRow(state, latestRow) !== undefined))) {
+    if (from.workspaceId === workspaceId && from.threadId === null && threadId !== null && (ownThread(state) === threadId || (hydratedFor === workspaceId && (drawnOffRow(state, latestRow) !== undefined || standsOnRow(state, latestThread, threadId))))) {
       carriedRef.current = viewKey;
       setHydratedFor(viewKey);
     } else if (fresh && from.workspaceId === workspaceId && threadId === null) {
       // The pin left for the workspace's next thread: that screen shows nothing, so it needs no transcript and
       // waits for no reply.
       carriedRef.current = viewKey;
+      setDrawn(n => n + 1);
       setHydratedFor(viewKey);
       setState(s => ({ ...EMPTY, fresh: true, known: knowing(s.known, s.events), stray: s.stray }));
     } else if (next !== undefined && threadId !== null) {
@@ -828,7 +855,12 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
       };
     }
     let current = true;
-    api.sessionHistory(workspaceId).then(
+    // A view with no thread draws the folder's latest one and settles on it, which then reads it by pages: each
+    // thread of a folder keeps its own budget, so that first paint reads the one thread's newest page alone.
+    const page = api.sessionPage?.bind(api);
+    const latest = threadId === null ? latestThreadOf(useStore.getState().sessions[workspaceId]) : undefined;
+    const read = latest === undefined || page === undefined ? api.sessionHistory(workspaceId) : page(workspaceId, latest, { limit: HISTORY_PAGE_EVENTS }).then(p => p.events);
+    read.then(
       events => {
         if (!current) return;
         const at = now();
@@ -900,7 +932,7 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
   const fromRow = !state.fresh && startedSession(state.events) === undefined && (threadId !== null || state.events.length === 0);
   const view = useMemo(() => {
     const carried = (held ? transcripts.fold(threadId) : undefined) ?? foldRef.current;
-    const { view: derived, fold } = deriveChatView(waitingOffRow(state, latestRow), previousEntries.current, carried);
+    const { view: derived, fold } = deriveChatView(state.fresh ? state : waitingOffRow(state, latestRow), previousEntries.current, carried);
     const next = turnFromRow(derived, latestRow, ownThread(state) ?? threadId ?? undefined);
     foldRef.current = fold;
     if (held) transcripts.keepFold(threadId, fold);
@@ -940,9 +972,14 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
       })),
     [],
   );
-  const startNewThread = useCallback(() => setState(s => ({ ...EMPTY, fresh: true, known: knowing(s.known, s.events), stray: s.stray })), []);
+  const startNewThread = useCallback(() => {
+    setDrawn(n => n + 1);
+    setState(s => ({ ...EMPTY, fresh: true, known: knowing(s.known, s.events), stray: s.stray }));
+  }, []);
 
   const thread = (state.fresh ? undefined : startedSession(state.events) !== undefined ? heldThreadId(state) : fromRow ? rowThread : undefined) ?? shownThread(state, threadId);
+  // The latest view stands on the latest row's thread before its transcript is in, so its composer is that thread's.
+  const shownRow = listed ?? (state.fresh || threadId !== null ? undefined : latestRow);
   return {
     view,
     hydrated: hydratedFor === viewKey,
@@ -955,7 +992,7 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
     sending: state.sending !== null,
     fresh: state.fresh,
     thread,
-    threadKey: ownThread(state) ?? threadId ?? (listed === undefined ? workspaceId : threadKeyOf(listed)),
+    threadKey: ownThread(state) ?? threadId ?? (shownRow === undefined ? workspaceId : threadKeyOf(shownRow)),
     named: state.named,
     handed: state.handed,
     appendUserTurn,

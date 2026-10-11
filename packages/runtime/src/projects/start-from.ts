@@ -8,7 +8,7 @@ import { HARNESS_CATALOGS, harnessCatalog } from "../harness-catalog.js";
 import { GitIssueReadReply, GitPrDiffReply, START_WORDS, isReviewRead, lineInDiff, reviewFromReply, reviewReaskPrompt, startName, takenNameAfter, type IssueRead, PullRequest, type StartResult, type WorkspaceFrom } from "@wsp/protocol";
 import type { StartPicksAsked } from "../types/harness.js";
 import { type LiveWorkspace, CLONE_MS } from "../types/wiring.js";
-import type { RuntimeContext, StartFromArea } from "../context.js";
+import type { Placed, RuntimeContext, StartFromArea } from "../context.js";
 
 export function startFromArea(ctx: RuntimeContext): StartFromArea {
   const { bus, clock, live, projectsHeld } = ctx;
@@ -48,14 +48,14 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
   /** A workspace made for a start or a review: the copy made by the create road, where the work came from on its
    * record, and for a pull request its base, its pull request and its head, the copy put on the head branch through
    * its own daemon. A checkout that is refused takes the half-made workspace with it and answers its own sentence. */
-  const workspaceFrom = async (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined): Promise<LiveWorkspace> => {
+  const workspaceFrom = async (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined): Promise<Placed> => {
     const at = ctx.kindOf(project.computer);
     if (copiesFolder(at)) return folderFrom(project, from, fact);
     // A folder on a computer the person joined: an issue runs in the project folder, and a pull request's head waits
     // on a worktree there, which wsp does not make yet.
     if (runsInFolder(at)) {
       if (fact !== undefined) throw Object.assign(new Error(placeBranchLine(ctx.placeName(project.computer))), { kind: "usage" });
-      return ctx.projectFolder(project);
+      return { entry: await ctx.projectFolder(project) };
     }
     const taken = new Set([...live.values()].map(e => e.record.name));
     const name = takenNameAfter(startName(kind, from.number, from.title), taken);
@@ -77,14 +77,14 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
         throw e;
       }
     }
-    return entry;
+    return { entry };
   };
 
   /** Where a start or a review on this computer runs: an issue in the project folder; a pull request in a worktree on
    * its head, fetched into the project's repo first as a branch of its own where none of that name stands, so
    * nothing moves the project folder's checkout. The pull request's facts go on the worktree's record alone. */
-  const folderFrom = async (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined): Promise<LiveWorkspace> => {
-    if (fact === undefined) return ctx.projectFolder(project);
+  const folderFrom = async (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined): Promise<Placed> => {
+    if (fact === undefined) return { entry: await ctx.projectFolder(project) };
     const top = project.git?.top;
     if (top === undefined) throw Object.assign(new Error(noBranchesLine(project.name)), { kind: "usage" });
     const branch = fact.fork === undefined ? fact.branch : `${fact.fork.owner}/${fact.branch}`;
@@ -93,17 +93,16 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
     const holds = (await ctx.worktreesOf(top)).some(w => w.branch === branch);
     if (!holds) await fetchHead(project, top, fact, branch);
     const entry = await ctx.worktreeFolder(project, top, branch);
-    if (holds) {
-      const behind = await catchUp(entry, project, top, fact);
-      if (behind !== undefined) behindOn.set(entry.record.id, behind);
-    }
-    if (entry.record.worktree === undefined) return entry;
+    const behind = holds ? await catchUp(entry, project, top, fact) : undefined;
+    const setup = ctx.takeSetupLine(entry.record.id);
+    const placed = { entry, ...(behind !== undefined ? { behind } : {}), ...(setup !== undefined ? { setup } : {}) };
+    if (entry.record.worktree === undefined) return placed;
     entry.record.from = from;
     entry.record.base = fact.base;
     entry.record.pr = { number: fact.number, url: fact.url, state: fact.state, base: fact.base };
     entry.pr = { ...fact, readAt: clock.now() };
     await ctx.persist(entry.record);
-    return entry;
+    return placed;
   };
 
   /** A start's picks read against the agent's lists before a folder is made or moved for it, by the rule the start
@@ -130,8 +129,6 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
     }
   };
 
-  /** The line a start on a pull request leaves for its thread, by the record of the folder that was left behind. */
-  const behindOn = new Map<string, string>();
   /** The project folder's record with this computer's daemon told the folder is its to work in, so an ask naming a
    * project anywhere a project may live resolves. */
   const askingIn = async (entry: LiveWorkspace): Promise<LiveWorkspace> => {
@@ -183,13 +180,12 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
   };
 
   /** The thread a start or a review opens, detached: the turn goes on without the caller. */
-  const openWith = async (entry: LiveWorkspace, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined): Promise<StartResult> => {
-    const behind = behindOn.get(entry.record.id);
-    behindOn.delete(entry.record.id);
+  const openWith = async ({ entry, behind, setup }: Placed, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined): Promise<StartResult> => {
     const handle = await ctx.sessionsApi.start(
       entry.record.id,
       {
         ...(behind !== undefined ? { behind } : {}),
+        ...(setup !== undefined ? { setup } : {}),
         prompt: o.prompt,
         ...(o.harness !== undefined ? { harness: o.harness } : {}),
         ...(o.model !== undefined ? { model: o.model } : {}),
