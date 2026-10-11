@@ -479,9 +479,15 @@ const BOAT: PlaceView = {
   name: "box",
   default: false,
   rateUsdPerHour: 0.018,
+  sizes: [
+    { cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+    { cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+    { cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+  ],
   plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
   starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
   size: { cpu: 2, memMb: 4096 },
+  sizeDefault: { cpu: 2, memMb: 4096 },
   deleteAfterMs: 1_800_000,
 };
 /** A second computer the person added, holding the name a rename of the first asks for. */
@@ -687,7 +693,8 @@ const ANSWERED: Answered = {
     { case: "a cloud's machines and spend", cloud: true, arguments: { computer: "solari", machines: 5, spend: 2.5, reset: ["threads"] }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": refused(placeSetRefusal({ id: "place-solari", kind: "provider", name: "solari", takesForks: true }, { machines: 5, spendPerDayUsd: 2.5 }, ["threads"])!, "usage") } },
     { case: "a sub-thread's size and delete delay on a cloud", arguments: { computer: "boat", size: "4x8", delete_after: 60 }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": reply({ place: { ...BOAT, settings: { size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 }, size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 } }) } },
     { case: "a delete delay of none", arguments: { computer: "boat", delete_after: 0, reset: ["size"] }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": reply({ place: { ...BOAT, settings: { deleteAfterMs: 0 }, deleteAfterMs: 0 } }) } },
-    { case: "a size no cloud sells", arguments: { computer: "boat", size: "3x5" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": refused(placeSetRefusal({ id: "box", kind: "provider", name: "box", takesForks: true }, { size: { cpu: 3, memMb: 5120 } })!, "usage") } },
+    { case: "a size no cloud sells", arguments: { computer: "boat", size: "3x5" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }), "places.set": refused(placeSetRefusal(BOAT, { size: { cpu: 3, memMb: 5120 } })!, "usage") } },
+    { case: "a size word that names no size", arguments: { computer: "boat", size: "0x4" }, replies: { "places.list": reply({ places: [PLACE, BOAT] }) } },
     { case: "nap after and never", arguments: { computer: "attic", nap: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { napMs: null }, napMs: null, running: 0 } }) } },
     { case: "nap after in minutes", arguments: { computer: "attic", nap: 45, threads: 3 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 3 }, capDefault: { threads: 8 }, settings: { threads: 3, napMs: 2_700_000 }, napMs: 2_700_000, running: 0 } }) } },
     { case: "no turn limit", arguments: { computer: "attic", turn_limit: 0 }, replies: { "places.list": reply({ places: [PLACE, CLOUD] }), "places.set": reply({ place: { ...PLACE, cap: { threads: 8 }, capDefault: { threads: 8 }, settings: { turnLimitMs: null }, turnLimitMs: null, turnLimitDefault: null, running: 0 } }) } },

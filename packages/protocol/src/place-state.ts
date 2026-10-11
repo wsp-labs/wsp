@@ -4,7 +4,7 @@
 // fold its own live rows through the same function, so the two cannot count
 // one computer two ways. One rule per kind of place, so a third kind is one
 // entry in the table below.
-import { agentsLine, fmtBytes, fmtCost, fmtDuration, fmtLimit, plural, SPEND_LIMIT_LINE } from "./format.js";
+import { agentsLine, fmtBytes, fmtCost, fmtDuration, fmtLimit, plural, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
 import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
 import { HERE_PLACE_ID } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
@@ -59,30 +59,6 @@ export const NAP_AFTER_MAX_MS = 3 * 60 * 60_000;
 /** The nap window a person names in minutes: none of them never naps. */
 export const napMsOf = (minutes: number): number | null => (minutes === 0 ? null : minutes * 60_000);
 
-/** The sizes a sub-thread's machine on a cloud may be asked for, by the word the command line and the tool take, each
- * with the name Boat sells it under. */
-export const CLOUD_SIZES = [
-  { word: "2x4", name: "small", cpu: 2, memMb: 4096 },
-  { word: "4x8", name: "default", cpu: 4, memMb: 8192 },
-  { word: "8x16", name: "large", cpu: 8, memMb: 16384 },
-  { word: "16x32", name: "xlarge", cpu: 16, memMb: 32768 },
-] as const;
-
-/** The size a sub-thread's machine gets where neither its start nor its cloud names one. */
-export const CLOUD_SIZE_DEFAULT: { cpu: number; memMb: number } = { cpu: 2, memMb: 4096 };
-
-/** A size as the command line writes it, `<cpu>x<memGb>`. */
-export const sizeWord = (size: { cpu: number; memMb: number }): string => `${size.cpu}x${Math.round(size.memMb / 1024)}`;
-
-/** The size a `<cpu>x<memGb>` word names, whether or not a cloud sells it; nothing for a word of another shape. */
-export function sizeOfWord(word: string): { cpu: number; memMb: number } | undefined {
-  const m = /^(\d+)x(\d+)$/.exec(word);
-  return m === null ? undefined : { cpu: Number(m[1]), memMb: Number(m[2]) * 1024 };
-}
-
-/** The sizes in a sentence: 2x4, 4x8, 8x16 or 16x32. */
-export const CLOUD_SIZE_WORDS = `${CLOUD_SIZES.slice(0, -1).map(s => s.word).join(", ")} or ${CLOUD_SIZES.at(-1)!.word}`;
-
 /** How long a finished sub-thread's machine stays before it is deleted until the person sets another delay. */
 export const DELETE_AFTER_MS = 30 * 60_000;
 /** The longest delete delay a person may set: a day. */
@@ -124,7 +100,7 @@ const dollars = (usd: number): string => (Number.isInteger(usd) ? `$${usd}` : fm
 const capNumber = (cap: PlaceCap | undefined, key: "threads" | "machines" | "spendPerDayUsd"): number | undefined =>
   cap !== undefined && key in cap ? (cap as Record<string, number>)[key] : undefined;
 
-type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault" | "size" | "deleteAfterMs">;
+type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault" | "size" | "sizeDefault" | "deleteAfterMs">;
 /** What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes. */
 type SettingSaid = { long: string; short: string };
 
@@ -145,11 +121,8 @@ const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: rea
     key: "size",
     words: "size",
     reads: (p, fallback) => {
-      const size = fallback ? CLOUD_SIZE_DEFAULT : p.size;
-      if (size === undefined) return undefined;
-      const sold = CLOUD_SIZES.find(s => s.cpu === size.cpu && s.memMb === size.memMb);
-      const figures = `${size.cpu} vCPU, ${fmtBytes(size.memMb * 1024 * 1024)}`;
-      return { long: `size ${sold === undefined ? figures : `${sold.name}, ${figures}`}`, short: sizeWord(size) };
+      const size = fallback ? p.sizeDefault : p.size;
+      return size === undefined ? undefined : { long: `size ${size.cpu} vCPU, ${fmtBytes(size.memMb * 1024 * 1024)}`, short: sizeWord(size) };
     },
   },
   "delete-after": {
@@ -277,7 +250,7 @@ export function placeTurnLimit(kind: PlaceKind, settings: PlaceSettings): number
 
 /** Why a set is refused on this place: nothing set or reset at all, a setting its kind does not take, or one both
  * set and reset. Nothing when every key fits. */
-export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
+export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks" | "sizes">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
   const takes = settingsOn(place);
   const said = (words: readonly PlaceSettingWord[]): string => andList(words.map(word => SETTINGS[word].words));
   const named = (Object.keys(SETTINGS) as PlaceSettingWord[]).filter(word => placeSettingNamed(set, word));
@@ -289,7 +262,7 @@ export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | 
   const both = named.filter(word => reset.includes(word));
   if (both.length > 0) return `${place.name}: ${said(both)} is both set and reset; name it once`;
   const size = set.size;
-  if (size !== undefined && !CLOUD_SIZES.some(s => s.cpu === size.cpu && s.memMb === size.memMb)) return `${place.name} takes a size of ${CLOUD_SIZE_WORDS}, not ${sizeWord(size)}`;
+  if (size !== undefined && sizeOffer(place.sizes ?? [], size) === undefined) return sizeRefusal(sizeWord(size), place.sizes ?? []);
   return undefined;
 }
 

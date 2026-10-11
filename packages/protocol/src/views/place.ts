@@ -637,6 +637,8 @@ export const PlaceView = z.object({
   starts: CloudStarts.optional(),
   /** On a cloud, the size a sub-thread's machine gets when its start names none, the person's or the default. */
   size: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
+  /** The size a reset of `size` goes back to: the default size that cloud's own pricing names. */
+  sizeDefault: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
   /** On a cloud, how long a finished sub-thread's machine stays before it is deleted, the person's or the default. */
   deleteAfterMs: z.number().int().optional(),
 });

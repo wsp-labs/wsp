@@ -5,7 +5,6 @@ import {
   PLACE_LINK_NONCE_BYTES,
   DAEMON_VERSION,
   NAP_AFTER_MS,
-  CLOUD_SIZE_DEFAULT,
   DELETE_AFTER_MS,
   placeCapOf,
   PlaceSettings,
@@ -22,6 +21,7 @@ import {
   placeFileNames,
   lastLine,
   refusalParts,
+  type CloudLimits,
   type MachineSizeOffer,
   type PlaceAddJob,
   type PlaceAuthRefusal,
@@ -109,15 +109,37 @@ export function placeRecords(ctx: PlaceDoorContext) {
       spawn: agentsFrom(undefined, settings.spawn ?? {}),
       spawnDefault: AGENTS_ON,
       running: await recording.runningOn(row.id, ids),
-      ...(placeTakes(row, "size") ? { size: settings.size ?? CLOUD_SIZE_DEFAULT } : {}),
+      ...(placeTakes(row, "size") ? sizeFacts(row.id, settings) : {}),
       ...(placeTakes(row, "delete-after") ? { deleteAfterMs: settings.deleteAfterMs ?? DELETE_AFTER_MS } : {}),
     };
   };
-  /** A cloud's row with its plan and the starts used, off its provider's own limits read; the row as it was where
-   * the provider publishes none or the read failed. Only the list and a set read it, the two answers a person reads. */
-  const withLimits = async (row: PlaceView): Promise<PlaceView> => {
-    const limits = row.kind === "provider" ? await providerBackend(row.id)?.placeLimits?.() : undefined;
+  /** The last plan and starts each cloud's limits read answered, and the clouds a read is out for now: one entry a
+   * cloud, replaced in place. A row carries the kept answer and never waits on Boat; each ask starts a read behind it. */
+  const limitsKept = new Map<string, CloudLimits>();
+  const limitsAsking = new Set<string>();
+  /** A cloud's row with the plan and starts its last limits read answered, the row as it was until one has; the list
+   * and a set read it, and each starts a read behind the row it answers. */
+  const withLimits = (row: PlaceView): PlaceView => {
+    const at = row.kind === "provider" ? providerBackend(row.id) : undefined;
+    if (at?.placeLimits !== undefined && !limitsAsking.has(row.id)) {
+      limitsAsking.add(row.id);
+      void at
+        .placeLimits()
+        .catch(() => undefined)
+        .then(limits => {
+          if (limits !== undefined) limitsKept.set(row.id, limits);
+        })
+        .finally(() => limitsAsking.delete(row.id));
+    }
+    const limits = limitsKept.get(row.id);
     return limits === undefined ? row : { ...row, plan: limits.plan, ...(limits.starts !== undefined ? { starts: limits.starts } : {}) };
+  };
+  /** The size a sub-thread's machine there gets, the person's or the one that cloud's pricing names, and that default
+   * beside it; nothing of either where this host holds no backend for the row and nobody set one. */
+  const sizeFacts = (placeId: string, settings: PlaceSettings): Pick<PlaceView, "size" | "sizeDefault"> => {
+    const fallback = providerBackend(placeId)?.pricing.defaultSize;
+    const size = settings.size ?? fallback;
+    return { ...(size !== undefined ? { size } : {}), ...(fallback !== undefined ? { sizeDefault: fallback } : {}) };
   };
   /** The version the place reports once it has dialled back, or what it still reads when the wait runs out. The
    * record is what a link writes its report onto, so this reads the one fact every other row reads. */
