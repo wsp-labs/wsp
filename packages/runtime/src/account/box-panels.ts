@@ -14,7 +14,8 @@ import type { RuntimeContext } from "../context.js";
 type Frame = Record<string, unknown>;
 type Served = (frame: Frame) => Promise<Frame>;
 
-/** The most cgroups one watch names, the daemon's own cap: a folder with more threads names its newest. */
+/** The most cgroups one watch names, the daemon's own cap: a folder with more threads names the rest in further watches
+ * of its own on the same socket, so no thread's server drops out of its ports however many threads it has had. */
 const WATCH_CGROUPS_MAX = 16;
 
 /** What a pane's channel into a folder there answers itself rather than passing up as it came. */
@@ -42,8 +43,12 @@ export function namedWatchRefusal(name: string, daemonVersion: number | undefine
 export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<() => void>>): (entry: LiveWorkspace, placeId: string, served: Served, folder: string) => BoxPanels {
   const procWatchers = new WeakMap<object, number>();
   const readingsAsked = new WeakSet<object>();
+  /** The watch each thread's cgroup is in, per folder, kept while the thread is: the watch names are the folder's on
+   * every pane, and one that moved would close its servers in one watch and open them in another, so a thread that
+   * starts takes room where there is some. */
+  const placements = new Map<string, Map<string, number>>();
 
-  /** The cgroups of the folder's threads, newest first, as the daemon's cap allows. */
+  /** The cgroups of the folder's threads, newest first. */
   const cgroupsOf = (workspaceId: string): string[] => {
     const newest = new Map<string, number>();
     for (const { view } of ctx.sessions.values()) {
@@ -51,7 +56,7 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
       newest.set(view.threadId, Math.max(newest.get(view.threadId) ?? 0, view.startedAt ?? 0));
     }
     for (const [threadId, record] of ctx.threadRecords) if (record.workspaceId === workspaceId && !newest.has(threadId)) newest.set(threadId, 0);
-    return [...newest].sort((a, b) => b[1] - a[1]).slice(0, WATCH_CGROUPS_MAX).map(([threadId]) => threadCgroup(threadId));
+    return [...newest].sort((a, b) => b[1] - a[1]).map(([threadId]) => threadCgroup(threadId));
   };
 
   return (entry, placeId, served, folder) => {
@@ -65,13 +70,68 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
     let closed = false;
     /** The roots and cgroups this pane's ports watch last named, undefined until it watches. */
     let named: { roots: number[]; cgroups: string } | undefined;
+    /** The folder's watches on the socket, the first its own id: the first carries the roots and the folder, each a
+     * share of the cgroups. One no longer needed is named again over nothing. */
+    let watches: string[] = [];
+    const placed = placements.get(workspaceId) ?? new Map<string, number>();
+    placements.set(workspaceId, placed);
+    const watchName = (n: number): string => (n === 0 ? workspaceId : `${workspaceId}-${n + 1}`);
+    /** Which of the folder's watches hold each port: a server in the folder and in a thread's cgroup is in two, and
+     * the pane hears it open once and close once. */
+    const holders = new Map<number, Set<string>>();
 
     const behind = async (): Promise<Frame | undefined> => namedWatchRefusal(door.nameOf(placeId), (await door.reportOf(placeId))?.daemonVersion);
     /** The roots are the terminals the folder's panes opened, which the channel under this one names. */
-    const watchPorts = (roots: number[]): Promise<Frame> => {
+    const watchPorts = async (roots: number[]): Promise<Frame> => {
       const cgroups = cgroupsOf(workspaceId);
       named = { roots, cgroups: cgroups.join(",") };
-      return served({ op: "ports.watch", roots, folder, cgroups, watch: workspaceId });
+      for (const cgroup of placed.keys()) if (!cgroups.includes(cgroup)) placed.delete(cgroup);
+      const room: number[] = [];
+      for (const n of placed.values()) room[n] = (room[n] ?? 0) + 1;
+      for (const cgroup of cgroups) {
+        if (placed.has(cgroup)) continue;
+        let n = 0;
+        while ((room[n] ?? 0) >= WATCH_CGROUPS_MAX) n += 1;
+        placed.set(cgroup, n);
+        room[n] = (room[n] ?? 0) + 1;
+      }
+      const shares = Math.max(1, room.length);
+      const names = Array.from({ length: Math.max(shares, watches.length) }, (_, n) => watchName(n));
+      watches = names.slice(0, shares);
+      const said = await Promise.all(
+        names.map((watch, n) => {
+          const share = cgroups.filter(cgroup => placed.get(cgroup) === n);
+          return served(n === 0 ? { op: "ports.watch", roots, folder, cgroups: share, watch } : { op: "ports.watch", roots: [], cgroups: share, watch });
+        }),
+      );
+      const refused = said.find(reply => reply["ok"] !== true);
+      if (refused !== undefined) return refused;
+      holders.clear();
+      const ports = new Map<number, unknown>();
+      said.slice(0, shares).forEach((reply, n) => {
+        for (const row of Array.isArray(reply["ports"]) ? (reply["ports"] as Frame[]) : []) {
+          const port = Number(row["port"]);
+          ports.set(port, ports.get(port) ?? row);
+          holders.set(port, (holders.get(port) ?? new Set()).add(watchName(n)));
+        }
+      });
+      return { ...said[0], ports: [...ports.values()] };
+    };
+    /** Whether a port event from one of the folder's watches is news to the pane. */
+    const portMoved = (event: Frame): boolean => {
+      const watch = String(event["watch"]);
+      if (!watches.includes(watch)) return false;
+      const port = Number(event["port"]);
+      const held = holders.get(port) ?? new Set<string>();
+      if (event["type"] === "port.open") {
+        const elsewhere = [...held].some(other => other !== watch);
+        holders.set(port, held.add(watch));
+        return !elsewhere;
+      }
+      if (!held.delete(watch)) return held.size === 0;
+      if (held.size > 0) return false;
+      holders.delete(port);
+      return true;
     };
     /** A thread that started since names its cgroup in the watch again; the daemon answers the moves as events. */
     const push = (): void => {
@@ -137,7 +197,7 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
       send: answer,
       heard: event => {
         const type = event["type"];
-        if (type === "port.open" || type === "port.close") return event["watch"] === workspaceId;
+        if (type === "port.open" || type === "port.close") return portMoved(event);
         if (type === "sys.sample") return hearingReadings;
         if (type === "proc.snapshot" || type === "proc.changes") return watchingProcs;
         return false;

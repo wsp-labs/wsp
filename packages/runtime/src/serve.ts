@@ -1171,7 +1171,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               // runtime's one rule, so what a listing hides and what the stream hides cannot come apart.
               const moved = costMoved();
               const pass = (e: unknown): void => {
-                if (rt.workspaces.seenBy(e, origin) && moved(e)) send(e as Record<string, unknown>);
+                if (rt.workspaces.seenBy(e, origin) && moved(e)) send(rt.workspaces.shownTo(e, origin) as Record<string, unknown>);
               };
               detaches.push(rt.events.on("*", pass));
               detaches.push(forwards.on(pass));

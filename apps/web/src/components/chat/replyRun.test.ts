@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { threadStateKey } from "../../stateKey.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { PTY_RUN_DAEMON_VERSION, type RunStep, type SessionRunEvent } from "@wsp/protocol";
 import type { RunExit, RunOpts } from "../../terminal/link.js";
@@ -52,7 +53,7 @@ describe("a reply block's run, as this window drives it", () => {
     const { api, steps } = recorder();
     const deps: RunDeps = { terminals: () => t.wt as never, version: () => PTY_RUN_DAEMON_VERSION, runId: () => "run-1" };
     expect(await startRun(api, TARGET, deps)).toBe("run-1");
-    expect(t.runs).toEqual([{ command: "kill 60082 60083", cwd: "/work/copy" }]);
+    expect(t.runs).toEqual([{ command: "kill 60082 60083", thread: "th_1", cwd: "/work/copy" }]);
     expect(steps).toEqual([{ threadId: "th_1", turnId: "turn_1", runId: "run-1", block: TARGET.block, command: TARGET.command, state: "running", ptyId: "pty_1" }]);
     t.output.set("pty_1", "\x1b[31mkill: 60082: No such process\x1b[0m\r\n");
     t.exit("pty_1", { code: 1 });
@@ -116,7 +117,9 @@ describe("a reply block's run, as this window drives it", () => {
     await moveRun(api, running, deps);
     expect(t.moved).toEqual(["pty_1"]);
     expect(steps.at(-1)).toMatchObject({ state: "moved", ptyId: "pty_1" });
-    const drawer = useTerminalDrawerStore.getState().byWorkspaceId["ws_a"];
+    // The run's own thread's drawer, never the drawer of another thread in the folder.
+    const drawer = useTerminalDrawerStore.getState().byWorkspaceId[threadStateKey("ws_a", "th_1")];
+    expect(useTerminalDrawerStore.getState().byWorkspaceId["ws_a"]).toBeUndefined();
     expect(drawer?.terminalOpen).toBe(true);
     expect(drawer?.activeTerminalId).toBe("pty_1");
     t.exit("pty_1", { code: 0 });
