@@ -251,6 +251,8 @@ const LISTS_ON_THE_COMMAND_LINE: Record<string, string> = {
   "agents setup unset_env": "--unset-env",
   "agents setup reset": "--reset",
   "projects set reset": "--reset",
+  "projects seed keep": "--keep",
+  "projects seed cut": "--cut",
   "slate read values": "--values",
   "slate state start": "--start",
 };
