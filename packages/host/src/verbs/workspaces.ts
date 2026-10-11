@@ -678,7 +678,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     name: "delete",
     usage: "wsp delete <thread><!-- cloud -->|<workspace><!-- /cloud --> [--yes]",
     about:
-      "takes a thread away, its turns and checkpoints with it, and the worktree wsp made for it with every thread in it, never the project folder<!-- cloud -->; a workspace goes as before, its machine deleted at the provider and its record and threads dropped from this computer<!-- /cloud -->",
+      "takes a thread away, its turns and checkpoints with it, and the worktree wsp made for it once no other thread is in it, never the project folder<!-- cloud -->; a workspace goes as before, its machine deleted at the provider and its record and threads dropped from this computer<!-- /cloud -->",
     page: "front",
     options: { yes: { type: "boolean" } },
     cloudFlags: ["workspace"],
@@ -707,7 +707,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "Takes a thread away, named by thread: its turns and checkpoints go, and where it ran in a worktree wsp made, that worktree goes with every thread in it, refused over files no commit holds; the project folder is never touched.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.",
+        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.",
       input: { thread: z.string().optional().describe("the thread, by its id or a prefix of it that names one"), workspace: WorkspaceIn.optional(), confirm: ConfirmIn },
       output: { threadId: z.string().optional(), workspaceId: z.string(), worktree: z.string().optional(), name: z.string().optional(), machineId: z.string().optional(), threads: z.number().int() },
       call: async ({ thread: threadRef, workspace: ref, confirm }, deps) => {

@@ -60,7 +60,7 @@ const SENTENCE_CLASSES = ["flex", "flex-1", "items-center", "justify-center", "p
 
 beforeEach(() => {
   resetSurfaces();
-  useDiffStore.setState({ scopeByWorkspaceId: {}, turnByWorkspaceId: {}, renderMode: "stacked" });
+  useDiffStore.setState({ scopeByWorkspaceId: {}, turnByThread: {}, renderMode: "stacked" });
 });
 
 const settle = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 20)));
@@ -372,11 +372,28 @@ describe("diff surface", () => {
     const from = "a".repeat(40);
     const to = "b".repeat(40);
     const rangeCalls = (wire: { calls: [string, Record<string, unknown>][] }) => wire.calls.filter(([op]) => op === "git.turn").map(([, p]) => p);
+    beforeEach(() => useStore.setState({ selectedThreadId: "thread-a" }));
+    const scopeOf = (container: HTMLElement) => container.querySelector("[data-diff-surface]")?.getAttribute("data-diff-scope");
+
+    it("keeps a reply's turn with the thread it ran in: another thread in the same folder shows its own scope", async () => {
+      const wire = fakeWire({ "fs.list": LISTING, "git.status": STATUS, "git.diff": DIFF, "git.turn": DIFF });
+      provideDaemonWire(WS, wire);
+      act(() => useDiffStore.getState().openTurn(WS, { threadId: "thread-a", turnId: "t1", cwd: "/root/app", from, to }));
+      const { container } = render(<DiffSurface workspaceId={WS} theme="dark" />);
+      await waitFor(() => expect(scopeOf(container)).toBe("turn"));
+      act(() => useStore.setState({ selectedThreadId: "thread-b" }));
+      await waitFor(() => expect(scopeOf(container)).toBe("branch"));
+      expect(screen.queryByRole("button", { name: "Changes scope: This turn" })).toBeNull();
+      // A scope picked in B leaves A's turn where it was.
+      act(() => useDiffStore.getState().setScope(WS, "staged"));
+      act(() => useStore.setState({ selectedThreadId: "thread-a" }));
+      await waitFor(() => expect(scopeOf(container)).toBe("turn"));
+    });
 
     it("reads the range between the turn's snapshots in its folder, reveals the file asked for, and leaves for a scope", async () => {
       const wire = fakeWire({ "fs.list": LISTING, "git.status": STATUS, "git.diff": DIFF, "git.turn": DIFF });
       provideDaemonWire(WS, wire);
-      act(() => useDiffStore.getState().openTurn(WS, { turnId: "t1", cwd: "/root/app", from, to, path: "gone.ts" }));
+      act(() => useDiffStore.getState().openTurn(WS, { threadId: "thread-a", turnId: "t1", cwd: "/root/app", from, to, path: "gone.ts" }));
       const { container } = render(<DiffSurface workspaceId={WS} theme="dark" />);
       await waitFor(() => expect(items(container)).toHaveLength(2));
       expect(rangeCalls(wire)).toEqual([{ cwd: "/root/app", from, to }]);
@@ -384,12 +401,12 @@ describe("diff surface", () => {
       expect(screen.getByRole("button", { name: "Changes scope: This turn" })).toBeTruthy();
       expect(container.querySelector("[data-diff-surface]")?.getAttribute("data-diff-scope")).toBe("turn");
       await waitFor(() => expect(container.querySelector("[data-diff-reveal-note]")?.textContent).toBe("gone.ts has no changes in this turn"));
-      act(() => useDiffStore.getState().openTurn(WS, { turnId: "t1", cwd: "/root/app", from, to, path: "src/a.ts" }));
+      act(() => useDiffStore.getState().openTurn(WS, { threadId: "thread-a", turnId: "t1", cwd: "/root/app", from, to, path: "src/a.ts" }));
       await waitFor(() => expect(container.querySelector("[data-diff-reveal-note]")).toBeNull());
 
       act(() => useDiffStore.getState().setScope(WS, "staged"));
       await waitFor(() => expect(diffCalls(wire).at(-1)).toEqual({ cwd: "/root", scope: "staged" }));
-      expect(useDiffStore.getState().turnByWorkspaceId[WS]).toBeUndefined();
+      expect(useDiffStore.getState().turnByThread).toEqual({});
     });
 
     it("offers no commit, no edit and no discard on a turn's range, which is a record of what the turn changed", async () => {
@@ -400,7 +417,7 @@ describe("diff surface", () => {
       useStore.setState({ api: api as never });
       // Opened over Uncommitted, the one scope that offers all three.
       useDiffStore.setState({ scopeByWorkspaceId: { [WS]: "head" } });
-      act(() => useDiffStore.getState().openTurn(WS, { turnId: "t1", cwd: "/root/app", from, to }));
+      act(() => useDiffStore.getState().openTurn(WS, { threadId: "thread-a", turnId: "t1", cwd: "/root/app", from, to }));
       const { container } = render(<DiffSurface workspaceId={WS} theme="dark" />);
       await waitFor(() => expect(items(container)).toHaveLength(2));
       await waitFor(() => expect(container.querySelector("[data-diff-repo]")).not.toBeNull());
@@ -413,7 +430,7 @@ describe("diff surface", () => {
       const gone = () => Object.assign(new Error(`the snapshot ${from} is gone`), { code: "not-found" });
       const wire = fakeWire({ "fs.list": LISTING, "git.status": STATUS, "git.turn": gone });
       provideDaemonWire(WS, wire);
-      act(() => useDiffStore.getState().openTurn(WS, { turnId: "t1", cwd: "/root/app", from, to }));
+      act(() => useDiffStore.getState().openTurn(WS, { threadId: "thread-a", turnId: "t1", cwd: "/root/app", from, to }));
       render(<DiffSurface workspaceId={WS} theme="dark" />);
       expect(await screen.findByText("The snapshot for this turn is gone")).toBeTruthy();
     });
@@ -513,7 +530,7 @@ describe("the Changes pane's writes", () => {
     const wire = fakeWire({ "fs.list": LISTING, "git.diff": DIFF, "git.status": STATUS });
     provideDaemonWire(WS, wire);
     const { api, asked } = paneApi();
-    useStore.setState({ api: api as never });
+    useStore.setState({ api: api as never, selectedThreadId: "thread-a" });
     const { container } = render(<DiffSurface workspaceId={WS} theme="dark" />);
     await waitFor(() => expect(items(container)).toHaveLength(2));
     const header = container.querySelector<HTMLElement>("[data-diff-commit]")!.parentElement!.parentElement!;
@@ -525,7 +542,8 @@ describe("the Changes pane's writes", () => {
     // Nothing in the header moves while the box is open: Commit stays in its slot, held, and the path stays.
     expect(shape()).toEqual(closed);
     expect(container.querySelector("[data-diff-commit]")!.hasAttribute("disabled")).toBe(true);
-    expect(asked.find(a => a.op === "commitDraft")?.args).toEqual([WS, ["src/a.ts", "README.md"]]);
+    // The thread on screen drafts, as two threads in one folder share its workspace.
+    expect(asked.find(a => a.op === "commitDraft")?.args).toEqual([WS, ["src/a.ts", "README.md"], "thread-a"]);
     const ticks = [...container.querySelectorAll<HTMLElement>("[data-commit-tick]")];
     expect(ticks.map(t => t.getAttribute("aria-checked"))).toEqual(["true", "true"]);
     fireEvent.click(within(rowOf(container, "README.md")).getByRole("checkbox", { name: "Commit README.md" }));

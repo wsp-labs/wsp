@@ -34,6 +34,7 @@ export const THREAD_WORDS = {
   copyMarkdown: "Copy as Markdown",
   copyLink: "Copy thread link",
   forget: "Forget thread",
+  delete: "Delete thread",
   settle: "Settle thread",
   settleTip: "Settle",
   settleRead: "Settle all read",
@@ -197,6 +198,7 @@ export const CLIENT_CANNOT_READ = "This client cannot read a thread";
 export const THREAD_HAS_NO_ID = "This thread has no id yet";
 export const CLIENT_CANNOT_RENAME = "This client cannot rename a thread";
 export const CLIENT_CANNOT_FORGET_THREAD = "This client cannot forget a thread";
+export const CLIENT_CANNOT_DELETE_THREAD = "This client cannot delete a thread";
 export const CLIENT_CANNOT_SETTLE = "This client cannot settle a thread";
 export const CLIENT_CANNOT_RESTORE = "This client cannot restore a thread";
 export const CLIENT_CANNOT_MARK = "This client cannot pin, snooze or move a thread";

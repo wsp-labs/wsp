@@ -318,9 +318,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("workspaces.pullRequestDiff"), workspaceId: z.string() }),
   /** Sends items of the workspace's pull request page to its agent as one message, each with its author, its words
    * and, for a comment on a line, its file, line and the diff's lines above it, numbered where there are several;
-   * the message joins the workspace's first thread as a fix's does. The host keeps what was sent, with when, and the
+   * the message joins the thread named, else the workspace's first thread, as a fix's does. The host keeps what was sent, with when, and the
    * page answers it. Answered as a PullRequestSendResult. */
-  z.object({ id: reqId, op: z.literal("workspaces.pullRequestSend"), workspaceId: z.string(), items: z.array(PullRequestItem).min(1) }),
+  z.object({ id: reqId, op: z.literal("workspaces.pullRequestSend"), workspaceId: z.string(), items: z.array(PullRequestItem).min(1), threadId: z.string().optional() }),
   /** Posts a reply as the person through this computer's signed-in command line, never a copy's: under the comment on
    * a line replyTo names, in the thread threadId names, or a new comment in the conversation where it names none.
    * Answered as a GitPrReplyReply with the new comment. */
@@ -560,8 +560,8 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * sentence once a turn reached the agent. */
   z.object({ id: reqId, op: z.literal("sessions.forget"), threadId: z.string(), check: z.boolean().optional() }),
   /** Takes a thread away on this computer, its turns and its checkpoints with it: a thread in the project folder goes
-   * alone and the folder is never touched; a thread in a worktree wsp made takes that worktree and every thread in it,
-   * refused over files no commit holds. A thread on a box goes with its machine. */
+   * alone and the folder is never touched; so does a thread in a worktree wsp made while another thread is in it, and
+   * the last one there takes that worktree, refused over files no commit holds. A thread on a box goes with its machine. */
   z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string() }),
   /** A window showed the thread, or `wsp thread read` read it: its read stamp moves to now, and every window hears
    * thread.marked. Takes the thread's fold key, as ThreadView.id carries it. */

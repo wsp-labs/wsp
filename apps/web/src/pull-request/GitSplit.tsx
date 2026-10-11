@@ -11,7 +11,7 @@ import { Button } from "../components/ui/button.js";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../components/ui/menu.js";
 import { useDiffStore } from "../diffs/store.js";
 import { addNotice, noticeFailure } from "../notices/store.js";
-import { useStatus, useStore, useWorkspace } from "../protocol/store.js";
+import { useShownThreadId, useStatus, useStore, useWorkspace } from "../protocol/store.js";
 import { useCheckoutOf } from "../sidebar/tileCheckout.js";
 import { useRightPanelStore } from "../rightPanelStore.js";
 import { GIT_WORDS, gitMenu, gitQuickAction, type GitAct, type GitMenuItem } from "./gitAction.logic.js";
@@ -23,6 +23,7 @@ export function GitSplit({ workspaceId }: { workspaceId: string }) {
   const status = useStatus(workspaceId);
   const base = useStore(s => s.projects.find(p => p.id === workspace?.project.id)?.base);
   const api = useStore(s => s.api);
+  const threadId = useShownThreadId(workspaceId);
   const bringBack = useStore(s => s.bringBack);
   const open = useRightPanelStore(s => s.open);
   const setScope = useDiffStore(s => s.setScope);
@@ -48,7 +49,7 @@ export function GitSplit({ workspaceId }: { workspaceId: string }) {
     }
   };
   const commitAll = async (): Promise<boolean> => {
-    const draft = await api.commitDraft?.(workspaceId);
+    const draft = await api.commitDraft?.(workspaceId, undefined, threadId);
     if (draft?.message == null) {
       if (draft?.note !== undefined) addNotice({ kind: "note", text: draft.note, where: name });
       openChanges();

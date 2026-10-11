@@ -507,7 +507,7 @@ export interface Api {
   /** Commits the files named with the message given. */
   commit?(id: string, message: string, paths?: readonly string[]): Promise<GitCommitReply>;
   /** A message for those files, drafted by the workspace's own agent, or none with the line saying why. */
-  commitDraft?(id: string, paths?: readonly string[]): Promise<CommitDraft>;
+  commitDraft?(id: string, paths?: readonly string[], threadId?: string | null): Promise<CommitDraft>;
   /** The workspace's viewed marks; with a path, sets the mark on that file against the blob, or takes it off at null. */
   viewed?(id: string, mark?: { path: string; blob: string | null }): Promise<ViewedMarks>;
   /** The workspace's pull request page, with the merge methods the repository allows; the host holds a read a minute,
@@ -516,7 +516,7 @@ export interface Api {
   /** The workspace's pull request's diff against its base as the git host holds it, cut on a file's boundary. */
   pullRequestDiff?(id: string): Promise<GitPrDiffReply>;
   /** Sends items of the pull request's page to the workspace's agent as one message, as a fix is sent. */
-  pullRequestSend?(id: string, items: readonly PullRequestItem[]): Promise<PullRequestSendResult>;
+  pullRequestSend?(id: string, items: readonly PullRequestItem[], threadId?: string | null): Promise<PullRequestSendResult>;
   /** Posts a reply as the person: under the comment on a line replyTo names, or a new comment in the conversation. */
   pullRequestReply?(id: string, o: { replyTo?: number; threadId?: string; body: string }): Promise<GitPrReplyReply>;
   /** Resolves or unresolves a review thread by its node id as the person. */
@@ -524,7 +524,7 @@ export interface Api {
   /** Adds a reaction to the item a node id names, or takes it off, as the person. */
   pullRequestReact?(id: string, o: { subject: string; content: ReactionContent; on: boolean }): Promise<GitPrReactReply>;
   /** Asks the workspace's agent to fix a failed check, or, with none, updates it from its base and sends the conflicts. */
-  fix?(id: string, check?: string): Promise<FixResult>;
+  fix?(id: string, check?: string, threadId?: string | null): Promise<FixResult>;
   /** Merges the workspace's pull request by the method named, or the repository's default, or once its checks pass, only while
    * its head is the one the window drew. */
   merge?(id: string, o: { method?: MergeMethod; whenChecksPass?: boolean; head: string }): Promise<MergeResult>;
@@ -680,6 +680,8 @@ export interface Api {
    * host refuses one whose turn reached its agent. Optional so fixtures that never forget one need not fake it; a
    * client without it offers no forget. */
   forgetThread?(threadId: string): Promise<void>;
+  /** Takes a thread in a folder away alone, and the worktree wsp made with the last thread in it. */
+  deleteThread?(threadId: string): Promise<{ workspaceId: string; worktree?: string; threads: number }>;
   /** Stamps a thread as shown now on the host, which tells every window; takes the thread's fold key. Optional so
    * fixtures that never open one need not fake it. */
   readThread?(threadId: string): Promise<void>;
@@ -983,15 +985,15 @@ export function makeApi(c: ProtocolClient): Api {
     workspaceCheckout: async (id, fresh) => CheckoutReply.parse(await c.request("workspaces.checkout", { workspaceId: id, ...(fresh === true ? { fresh } : {}) })),
     discard: async (id, path) => GitDiscardReply.parse(await c.request("workspaces.discard", { workspaceId: id, path })),
     commit: async (id, message, paths) => GitCommitReply.parse(await c.request("workspaces.commit", { workspaceId: id, message, ...(paths !== undefined ? { paths: [...paths] } : {}) })),
-    commitDraft: async (id, paths) => CommitDraft.parse(await c.request("workspaces.commitDraft", { workspaceId: id, ...(paths !== undefined ? { paths: [...paths] } : {}) })),
+    commitDraft: async (id, paths, threadId) => CommitDraft.parse(await c.request("workspaces.commitDraft", { workspaceId: id, ...(paths !== undefined ? { paths: [...paths] } : {}), ...(threadId != null ? { threadId } : {}) })),
     viewed: async (id, mark) => ViewedMarks.parse(await c.request("workspaces.viewed", { workspaceId: id, ...(mark ?? {}) })),
     pullRequestView: async (id, fresh) => PullRequestPage.parse(await c.request("workspaces.pullRequestView", { workspaceId: id, ...(fresh === true ? { fresh } : {}) })),
     pullRequestDiff: async id => GitPrDiffReply.parse(await c.request("workspaces.pullRequestDiff", { workspaceId: id })),
     pullRequestReply: async (id, o) => GitPrReplyReply.parse(await c.request("workspaces.pullRequestReply", { workspaceId: id, ...o })),
     pullRequestResolve: async (id, threadId, resolved) => GitPrResolveReply.parse(await c.request("workspaces.pullRequestResolve", { workspaceId: id, threadId, resolved })),
     pullRequestReact: async (id, o) => GitPrReactReply.parse(await c.request("workspaces.pullRequestReact", { workspaceId: id, ...o })),
-    pullRequestSend: async (id, items) => PullRequestSendResult.parse(await c.request("workspaces.pullRequestSend", { workspaceId: id, items: [...items] })),
-    fix: async (id, check) => FixResult.parse(await c.request("workspaces.fix", { workspaceId: id, ...(check !== undefined ? { check } : {}) })),
+    pullRequestSend: async (id, items, threadId) => PullRequestSendResult.parse(await c.request("workspaces.pullRequestSend", { workspaceId: id, items: [...items], ...(threadId != null ? { threadId } : {}) })),
+    fix: async (id, check, threadId) => FixResult.parse(await c.request("workspaces.fix", { workspaceId: id, ...(check !== undefined ? { check } : {}), ...(threadId != null ? { threadId } : {}) })),
     merge: async (id, o) => MergeResult.parse(await c.request("workspaces.merge", { workspaceId: id, ...o })),
     start: async o => StartResult.parse(await c.request("workspaces.start", o)),
     review: async o => StartResult.parse(await c.request("workspaces.review", o)),
@@ -1046,6 +1048,7 @@ export function makeApi(c: ProtocolClient): Api {
     // Parsed, not trusted: an outcome outside the enum must not read as renamed.
     renameSession: async (sessionId, title) => SessionRenameResult.parse(await c.request<Record<string, unknown>>("sessions.rename", { sessionId, title })),
     forgetThread: async threadId => void (await c.request("sessions.forget", { threadId })),
+    deleteThread: async threadId => await c.request<{ workspaceId: string; worktree?: string; threads: number }>("sessions.delete", { threadId }),
     readThread: async threadId => void (await c.request("sessions.read", { threadId })),
     settleThreads: async threadIds => SessionSettleResult.parse(await c.request<Record<string, unknown>>("sessions.settle", { threadIds })),
     markThreads: async (threadIds, marks) => void (await c.request("sessions.mark", { threadIds, marks })),

@@ -3,7 +3,7 @@
 // the copy asked only when this computer has no command line and the copy runs, the timer that reads an open one
 // whatever its checks say and nothing merged, the tree settled once its pull request merges and nothing in it works, and the
 // acts on it: the page, a fix sent into the workspace's thread, a merge of the head the host read, and an update.
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -43,6 +43,7 @@ import { localExecStream } from "../src/local-exec.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { fakeClock } from "./fake-clock.js";
 import { copyingFake, createOn, projectOn, stubBackend, tempRepo, testPlatform, tokenGuest, withDaemonRoads, type StubBackend } from "./stub-backend.js";
+import { gitCopier } from "./git-copier.js";
 import { until } from "./until.js";
 import { wiring } from "./place-join.js";
 import { newPlaceKeyPair } from "../src/places.js";
@@ -463,6 +464,83 @@ describe("settling on merge", () => {
     expect((await rt!.sessions.list(id)).every(r => r.settledAt === undefined)).toBe(true);
   });
 
+  it("in a project folder keeps the pull request with its branch: it settles only the threads that ran there, and goes when the folder leaves it", async () => {
+    let head = "main";
+    const daemons = fakeDaemons({
+      here: {
+        "git.status": () => ({ ...STATUS, branch: { oid: "abc", head, ahead: 1, behind: 0 } }) as DaemonResponse,
+        "git.prRead": f => ({ id: 1, ok: true, ...(f["branch"] === "fix/ci" || f["number"] === 12 ? { pr: open({ state: "merged" }) } : {}) }) as DaemonResponse,
+      },
+    });
+    const agent = heldAgent();
+    rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: agent.factory }, daemonToken: DAEMON_TOKEN, daemonChannel: daemons.open, local: localOn() });
+    const repo = tempRepo();
+    execFileSync("git", ["-C", repo, "remote", "add", "origin", "https://github.com/wsp/pr-lab.git"]);
+    const project = await projectOn(rt, HERE_PLACE_ID, repo, { name: "pr-lab", base: "main" });
+    const { workspace } = await rt.workspaces.folderFor({ project: project.id });
+    const id = workspace.id;
+    const settled = async (thread: string): Promise<boolean> => (await rt!.sessions.list(id)).filter(r => r.threadId === thread).every(r => r.settledAt !== undefined);
+    // C ran on main before the folder went to the branch.
+    const c = await rt.sessions.start(id, { prompt: "thread C on main" });
+    agent.end(0);
+    await c.finished;
+    // Its turn's end reads the checkout before the folder moves on.
+    const ended = (await rt.sessions.list(id)).find(r => r.threadId === c.view().threadId)!.endedAt!;
+    await until(async () => (((await store.get("workspaces", id)) as { checkout?: { branch: string; readAt: number } } | undefined)?.checkout?.readAt ?? 0) >= ended);
+    head = "fix/ci";
+    const a = await rt.sessions.start(id, { prompt: "thread A on the branch" });
+    agent.end(1);
+    await a.finished;
+    const kept = async () => ((await store.get("workspaces", id)) as { pr?: { state: string } } | undefined)?.pr;
+    await until(async () => (await kept())?.state === "merged");
+    await until(() => settled(a.view().threadId!));
+    expect(await settled(c.view().threadId!)).toBe(false);
+    // The folder keeps the threads of the branch alone, none of its base's.
+    const ranOn = async () => ((await store.get("workspaces", id)) as { branchThreads?: unknown } | undefined)?.branchThreads;
+    expect(await ranOn()).toEqual({ branch: "fix/ci", threads: [a.view().threadId] });
+    // Back on main: the merged pull request is not the folder's any more, and a turn ending there settles nobody.
+    head = "main";
+    const b = await rt.sessions.start(id, { prompt: "thread B on main" });
+    agent.end(2);
+    await b.finished;
+    await until(async () => (await kept()) === undefined);
+    await new Promise(r => setTimeout(r, 20));
+    expect(await settled(b.view().threadId!)).toBe(false);
+    expect(await settled(c.view().threadId!)).toBe(false);
+    expect(await ranOn()).toBeUndefined();
+  });
+
+  it("keeps a fork's pull request on the worktree a start made on <owner>/<branch>, which gh finds by number alone", async () => {
+    const fork = open({ branch: "feat", fork: { owner: "ana", pushable: true } });
+    const daemons = fakeDaemons({
+      here: {
+        "git.status": () => ({ ...STATUS, branch: { oid: "abc", head: "ana/feat", ahead: 0, behind: 0 } }) as DaemonResponse,
+        "git.prRead": f => ({ id: 1, ok: true, ...(f["number"] === 12 ? { pr: fork } : {}) }) as DaemonResponse,
+        "git.issueRead": () => ({ id: 1, ok: true, issue: { number: 12, url: fork.url, title: "Set ci", body: "b", state: "OPEN", comments: [] } }) as DaemonResponse,
+      },
+    });
+    mkdirSync(join(root, "state"));
+    const agent = heldAgent();
+    rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: agent.factory }, daemonToken: DAEMON_TOKEN, daemonChannel: daemons.open, local: { ...localOn(), copier: gitCopier() }, statePath: join(root, "state", "state.json") });
+    const repo = tempRepo();
+    execFileSync("git", ["-C", repo, "remote", "add", "origin", "https://github.com/wsp/pr-lab.git"]);
+    execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "first"]);
+    const project = await projectOn(rt, HERE_PLACE_ID, repo, { name: "pr-lab", base: "main" });
+    // A worktree already holds the fork's branch, so the start takes it without a fetch.
+    const { workspace } = await rt.workspaces.folderFor({ project: project.id, branch: "ana/feat" });
+    const started = await rt.workspaces.start({ url: fork.url });
+    const kept = async () => ((await store.get("workspaces", workspace.id)) as { pr?: { number: number; branch?: string } } | undefined)?.pr;
+    agent.end(0);
+    await until(async () => (await kept())?.branch === "feat");
+    const second = await rt.sessions.start(workspace.id, { prompt: "again", thread: started.threadId });
+    agent.end(1);
+    await second.finished;
+    await until(() => daemons.frames.filter(f => f.frame["op"] === "git.prRead").length >= 3);
+    await new Promise(r => setTimeout(r, 20));
+    expect((await kept())?.number).toBe(12);
+    expect(daemons.frames.some(f => f.frame["op"] === "git.prRead" && f.frame["branch"] !== undefined)).toBe(false);
+  });
+
   it("leaves a merged tree live while a child works, and stamps it when the child's turn ends", async () => {
     const daemons = fakeDaemons({ here: { "git.prRead": () => ({ id: 1, ok: true, pr: open({ state: "merged" }) }) } });
     const agent = heldAgent();
@@ -598,6 +676,28 @@ describe("the acts on a pull request", () => {
     await expect(rt!.workspaces.pullRequestSend({ workspaceId: id, items: [{ kind: "review", id: 1 }] })).rejects.toThrow(noSuchItemRefusal({ kind: "review", id: 1 }));
     expect(agent.prompts).toHaveLength(3);
     agent.end(2);
+  });
+
+  it("sends the items into the thread named, where two threads share the folder, and refuses a thread of another workspace", async () => {
+    const daemons = fakeDaemons({ here: { "git.prView": () => ({ id: 1, ok: true, ...PAGE }), "git.repoRead": () => ({ id: 1, ok: false, error: "no" }) as DaemonResponse } });
+    const agent = heldAgent();
+    const { id } = await withWorkspace(daemons, { adapters: { claude: agent.factory } });
+    const a = await rt!.sessions.start(id, { prompt: "thread A" });
+    agent.end(0);
+    await a.finished;
+    const b = await rt!.sessions.start(id, { prompt: "thread B" });
+    agent.end(1);
+    await b.finished;
+    await rt!.workspaces.checkout(id);
+    await until(async () => (await prOf(id))?.pr?.["number"] === 12);
+    const items = [{ kind: "comment", id: 5841958969 }] as const;
+    const sent = await rt!.workspaces.pullRequestSend({ workspaceId: id, items: [...items], threadId: b.view().threadId! });
+    expect(sent).toMatchObject({ outcome: "started", threadId: b.view().threadId });
+    expect(agent.prompts[2]).toBe(pullRequestSendPrompt(PAGE, items, 12));
+    agent.end(2);
+    await until(async () => (await rt!.sessions.list()).every(v => v.status !== "running"));
+    await expect(rt!.workspaces.pullRequestSend({ workspaceId: id, items: [...items], threadId: "t_elsewhere" })).rejects.toThrow(threadElsewhereLine("t_elsewhere"));
+    expect(agent.prompts).toHaveLength(3);
   });
 
   it("answers a send held by its computer's threads at once the moment it is held, with the wait, and the turn starts once a slot frees", async () => {

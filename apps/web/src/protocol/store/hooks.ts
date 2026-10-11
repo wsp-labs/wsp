@@ -8,7 +8,7 @@ import type { Failure } from "../failure.js";
 import { absenceOf } from "../../settings/places.js";
 import { useStore } from "./useStore.js";
 import { withHeldThreads } from "./heldKeys.js";
-import { catalogIn, catalogsIn, NO_SESSIONS, pauseModesOf, selectedWorkspaceIdOf, threadRows } from "./selectors.js";
+import { catalogIn, catalogsIn, NO_SESSIONS, pauseModesOf, selectedWorkspaceIdOf, shownThreadIdOf, threadRows } from "./selectors.js";
 import type { CostTick, Creation } from "./types.js";
 
 /** Every workspace with its threads, as the sidebar's rows read them, for the surfaces that need the whole fleet
@@ -31,6 +31,7 @@ export function useLaunches(): Record<string, Launch> {
 
 export function useSelectedId(): string | null { return useStore(s => s.selectedId); }
 export function useSelectedThreadId(): string | null { return useStore(s => s.selectedThreadId); }
+export function useShownThreadId(workspaceId: string): string | null { return useStore(s => shownThreadIdOf(s, workspaceId)); }
 export function useSelectedSubagent(): string | null { return useStore(s => s.selectedSubagent); }
 
 export function useSelectedWorkspaceId(): string | null {
