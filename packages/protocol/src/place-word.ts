@@ -12,17 +12,17 @@ export const SOLARI_CONSOLE = "console.getsolari.com";
 /** What a person calls a provider, its key and where they get one, keyed by the word WSP_PROVIDER holds. The host's
  * provider registry reads its keyName and keyConsole from here and the app's provider rows read the same, so the
  * screen that asks for a key and the terminal that asks for it say one thing. A provider that takes no key has no
- * row. */
-export const PROVIDER_KEY_WORDS: Record<string, { name: string; keyName: string; keyConsole?: string }> =
-  typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? {} : cloudKeyWords();
+ * row. Boat's row is in every build; Solari's is not in a public build. */
+export const PROVIDER_KEY_WORDS: Record<string, { name: string; keyName: string; keyConsole?: string }> = {
+  box: { name: "Boat", keyName: "Boat API key", keyConsole: "boat.dev/dashboard" },
+  ...(typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? {} : cloudOnlyKeyWords()),
+};
 
-/** The clouds' rows, in a function so a public build, whose bundler reads the test above as false, drops their words.
- * The test is spelled out where it is read, since a bundler folds the constant only there. */
-function cloudKeyWords(): Record<string, { name: string; keyName: string; keyConsole?: string }> {
-  return {
-    box: { name: "Boat", keyName: "Boat API key", keyConsole: "boat.dev/dashboard" },
-    solari: { name: "Solari", keyName: "Solari API key", keyConsole: SOLARI_CONSOLE },
-  };
+/** Solari's row, in a function so a public build, whose bundler reads the test above as false, drops its words. The
+ * test is spelled out where it is read, since a bundler folds the constant only there, and keeps the function's name,
+ * which so spells no Solari word. */
+function cloudOnlyKeyWords(): Record<string, { name: string; keyName: string; keyConsole?: string }> {
+  return { solari: { name: "Solari", keyName: "Solari API key", keyConsole: SOLARI_CONSOLE } };
 }
 
 /** A provider's name as its key rows say it, by its id; an id with no row reads as itself. */

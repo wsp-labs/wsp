@@ -567,7 +567,6 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
   },
   {
     name: "image build",
-    cloud: true,
     usage: "wsp image build <place> [--force]",
     about: "builds this host's image at a place from the record, its sign-ins coming from the vault and no sign-in run again",
     page: "agent",

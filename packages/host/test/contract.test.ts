@@ -453,12 +453,12 @@ describe("the agent contract on the command line and the tool door", () => {
     if (snapped !== undefined) {
       const { projectGolden } = snapped;
       expect(await last("image remove", "image", "remove", projectGolden.snapshotId, "--yes")).toEqual({ projectGolden: expect.objectContaining({ snapshotId: projectGolden.snapshotId }), alreadyGone: false });
-      // A place already standing on the record answers with the copy it holds and builds nothing, which is the road
-      // that costs no machine: the record and that place's copy are written here at one hash.
-      await store.put("images", "default", RECORD);
-      await store.put("goldens", copyKey("elsewhere", "default"), { ...SEALED_GOLDEN, versions: [{ ...SEALED_GOLDEN.versions[0]!, snapshotId: "snap_elsewhere", imageHash: RECORD.hash }] });
-      expect(await last("image build", "image", "build", "elsewhere")).toEqual({ copy: expect.objectContaining({ place: "elsewhere", version: 1, hash: RECORD.hash }), built: false });
     }
+    // A place already standing on the record answers with the copy it holds and builds nothing, which is the road
+    // that costs no machine: the record and that place's copy are written here at one hash.
+    await store.put("images", "default", RECORD);
+    await store.put("goldens", copyKey("elsewhere", "default"), { ...SEALED_GOLDEN, versions: [{ ...SEALED_GOLDEN.versions[0]!, snapshotId: "snap_elsewhere", imageHash: RECORD.hash }] });
+    expect(await last("image build", "image", "build", "elsewhere")).toEqual({ copy: expect.objectContaining({ place: "elsewhere", version: 1, hash: RECORD.hash }), built: false });
     const opened = (await last("run", "run", "--beside", lead, "hello")) as { threadId: string; text: string };
     expect(opened).toMatchObject({ threadId: expect.any(String), text: "re: hello", outcome: "started" });
     await last("send", "send", opened.threadId, "again");

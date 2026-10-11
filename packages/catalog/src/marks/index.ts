@@ -36,9 +36,9 @@ export const BRAND_MARKS: readonly BrandMark[] = [NODE, GITHUB, CLOUDFLARE, LINE
 /** False in a public build, which the bundler fills in where PUBLIC_BUILD=1; never filled in anywhere else. */
 declare const __WSP_CLOUD__: boolean | undefined;
 
-/** The clouds' marks, none in a public build, which carries no cloud: the test is spelled out here, since a bundler
- * folds the constant only where it is written, and the marks it drops go with it. */
-export const PROVIDER_MARKS: readonly ProviderMark[] = typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? [] : [SOLARI, BOAT];
+/** The clouds' marks: Boat's in every build, Solari's in none that is public. The test is spelled out here, since a
+ * bundler folds the constant only where it is written, and the mark it drops goes with it. */
+export const PROVIDER_MARKS: readonly ProviderMark[] = typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? [BOAT] : [SOLARI, BOAT];
 
 export const EDITOR_MARKS: readonly EditorMark[] = [VSCODE, CURSOR, VSCODE_INSIDERS, ZED, IDEA, WEBSTORM, PYCHARM, GOLAND, CLION, PHPSTORM, RUBYMINE, RIDER, JETBRAINS, FINDER];
 
