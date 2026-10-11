@@ -21,8 +21,9 @@ the sidebar's top: the New thread row (pencil, the word, its chord at the
 right in the row meta), the search row, the project picker. The owner kept
 both, and put the New thread row first on 2026-10-11, in place of the bare
 pencil at the search row's end; wherever the sidebar is away (collapsed,
-Settings, a phone's closed sheet) the header holds the pencil right after the
-sidebar toggle. Everything else takes the grammar below.
+a phone's closed sheet) the header holds the pencil right after the sidebar
+toggle. Settings offers no New thread, and New thread has one chord, mod+t.
+Everything else takes the grammar below.
 
 ## Foundations
 
@@ -552,7 +553,7 @@ the type sizes, the one left edge, the status tokens and both themes. Never
 
 - `references/mockup/index.html`, `assets.js`, `crab.js`: the locked mockup with the ruled words applied, every screen and state behind its foot bar.
 - `references/tiles-graphite.png`: the sidebar of thread tiles, the open thread kept, the agents panel kept.
-- `references/sidebar-top-graphite.png`: the sidebar's top as kept on 2026-10-11, New thread over Search and the project picker.
+- `references/sidebar-top-graphite.png`: the sidebar's top as kept on 2026-10-11, New thread over Search and the project picker, in a browser tab, which keeps mod+t, so the row reads no chord.
 - `references/nudge-graphite.png`: the sidebar with the cloud nudge pinned in the footer above Settings.
 - `references/computers-graphite.png`: the Computers page, two grids on one template.
 - `references/image-graphite.png`: the Image page, four lists with brand marks and MACHINES.

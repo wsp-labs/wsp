@@ -510,7 +510,7 @@ describe("one road to New thread from every screen", () => {
     expect(row().nextElementSibling).toBe(searchRow());
     expect(row().dataset["sidebar"]).toBe("menu-button");
     expect(row().className).toContain("h-9");
-    expect(row().textContent).toBe("New threadCtrl+N");
+    expect(row().textContent).toBe("New threadCtrl+T");
     expect(row().querySelector("svg.lucide-square-pen")).not.toBeNull();
     expect(searchRow().parentElement!.querySelector("svg.lucide-square-pen")).toBe(row().querySelector("svg.lucide-square-pen"));
     expect(searchRow().querySelector("svg.lucide-square-pen")).toBeNull();
@@ -526,7 +526,7 @@ describe("one road to New thread from every screen", () => {
     expect(row().getAttribute("aria-disabled")).toBe("true");
     expect(row().querySelector("[data-new-thread-chord]")!.className).toContain("max-md:hidden");
     fireEvent.focus(row());
-    await waitFor(() => expect(document.querySelector("[data-slot=tooltip-popup]")?.textContent).toBe("New thread (Ctrl+N)"));
+    await waitFor(() => expect(document.querySelector("[data-slot=tooltip-popup]")?.textContent).toBe("New thread (Ctrl+T)"));
     fireEvent.click(row());
     expect(useStore.getState().projectHome).toBeNull();
   });
@@ -543,24 +543,25 @@ describe("one road to New thread from every screen", () => {
     onPage(WSP);
   });
 
-  it("with Settings open the Settings sidebar's header holds the glyph between the toggle and the wordmark, and it opens New thread, closing Settings", async () => {
+  it("with Settings open no New thread glyph or row is drawn, the sidebar open or collapsed, and leaving Settings brings them back", async () => {
     await mount();
+    const drawn = (el: HTMLElement | null) => el !== null && el.closest('[style*="display: none"]') === null;
     act(() => useStore.getState().openSettings());
-    await waitFor(() => expect(glyph()).not.toBeNull());
-    expect(document.querySelectorAll("[data-new-thread-glyph]")).toHaveLength(1);
-    expect(glyph()!.previousElementSibling!.getAttribute("data-slot")).toBe("sidebar-trigger");
-    expect(glyph()!.closest('[data-slot="sidebar-header"]')).not.toBeNull();
-    fireEvent.click(glyph()!);
-    onPage(WSP);
-    // Settings over a collapsed sidebar: the page's own header row holds it.
-    act(() => useStore.getState().openSettings());
-    await waitFor(() => expect(glyph()).not.toBeNull());
-    fireEvent.click(glyph()!.previousElementSibling!);
+    await waitFor(() => expect(document.querySelector("[data-settings-page]")).not.toBeNull());
+    expect(glyph()).toBeNull();
+    expect(drawn(row())).toBe(false);
+    // Settings over a collapsed sidebar: the page's own header row holds the toggle alone.
+    fireEvent.click(sidebarToggle());
     await waitFor(() => expect(document.querySelector("[data-sidebar-state=collapsed]")).not.toBeNull());
-    const inHeader = screen.getByRole("banner").querySelector<HTMLElement>("[data-new-thread-glyph]")!;
-    expect(inHeader.previousElementSibling!.getAttribute("data-slot")).toBe("sidebar-trigger");
-    fireEvent.click(inHeader);
-    onPage(WSP);
+    expect(screen.getByRole("banner").querySelector('[data-slot="sidebar-trigger"]')).not.toBeNull();
+    expect(glyph()).toBeNull();
+    act(() => useStore.getState().closeSettings());
+    await waitFor(() => expect(glyph()).not.toBeNull());
+    expect(screen.getByRole("banner").querySelector('[data-slot="sidebar-trigger"]')!.nextElementSibling).toBe(glyph());
+    fireEvent.click(screen.getByRole("banner").querySelector<HTMLElement>('[data-slot="sidebar-trigger"]')!);
+    await waitFor(() => expect(document.querySelector("[data-sidebar-state=expanded]")).not.toBeNull());
+    expect(glyph()).toBeNull();
+    expect(drawn(row())).toBe(true);
   });
 
   it("a sidebar filtered to a project with no threads offers New thread in it under No threads yet.", async () => {
@@ -583,7 +584,7 @@ describe("one road to New thread from every screen", () => {
     fireEvent.click(row());
     onPage(WSP);
     back();
-    chord("n", {});
+    chord("t", {});
     onPage(WSP);
     back();
     act(() => openCommandPalette());
@@ -614,28 +615,34 @@ describe("one road to New thread from every screen", () => {
     expect(within(menu).getAllByRole("menuitemradio").map(item => item.textContent)).toEqual(["wsp", "py_spoo_url"]);
   });
 
-  it("mod+n, mod+t and mod+shift+o in the desktop shell each open New thread from a thread, the New thread page, Settings and a filtered empty sidebar", async () => {
+  it("mod+t in the desktop shell opens New thread from a thread, the New thread page, Settings and a filtered empty sidebar, and mod+n and mod+shift+o open nothing", async () => {
     vi.spyOn(navigator, "platform", "get").mockReturnValue(LINUX);
     asDesktopShell();
     window.localStorage.setItem(PROJECT_PICK_KEY, JSON.stringify(SPOO.id));
     await mount();
-    expect(row().querySelector("[data-new-thread-chord]")!.textContent).toBe("Ctrl+N");
+    expect(row().querySelector("[data-new-thread-chord]")!.textContent).toBe("Ctrl+T");
     const screens: Array<[string, () => void, ProjectView]> = [
       ["a thread", () => useStore.getState().select(PLANNER.id), SPOO],
       ["the New thread page", () => useStore.getState().openProjectHome(WSP.id), SPOO],
       ["Settings", () => { useStore.getState().select(PLANNER.id); useStore.getState().openSettings(); }, SPOO],
     ];
-    for (const [key, mods] of [["n", {}], ["t", {}], ["O", { shiftKey: true }]] as const) {
-      for (const [, show, lands] of screens) {
-        act(show);
-        chord(key, mods);
-        onPage(lands);
-      }
-      // The filtered sidebar with no thread in it, Escape-free: nothing selected, the page fallen back to.
-      act(() => useStore.getState().select(null));
-      expect(await screen.findByText("No threads yet.")).toBeTruthy();
+    for (const [, show, lands] of screens) {
+      act(show);
+      chord("t", {});
+      onPage(lands);
+    }
+    // The filtered sidebar with no thread in it, Escape-free: nothing selected, the page fallen back to.
+    act(() => useStore.getState().select(null));
+    expect(await screen.findByText("No threads yet.")).toBeTruthy();
+    chord("t", {});
+    onPage(SPOO);
+    for (const [key, mods] of [["n", {}], ["O", { shiftKey: true }]] as const) {
+      act(() => useStore.getState().select(PLANNER.id));
       chord(key, mods);
-      onPage(SPOO);
+      expect(useStore.getState()).toMatchObject({ selectedId: PLANNER.id, projectHome: null });
+      act(() => useStore.getState().openSettings());
+      chord(key, mods);
+      expect(useStore.getState().settingsOpen).toBe(true);
     }
   });
 
