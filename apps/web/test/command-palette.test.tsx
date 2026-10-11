@@ -266,6 +266,25 @@ describe("command palette", () => {
     }
   });
 
+  it("offers no Delete task on a project folder its threads share, which would take every thread in it", async () => {
+    const here: WorkspaceView = { ...view("ws_a", "mac"), kind: "local", machineId: "local" };
+    const api = fakeApi([here], [{ ...session("s_a", "ws_a", "thread A"), threadId: "t_a" }, { ...session("s_b", "ws_a", "thread B"), threadId: "t_b" }]);
+    useStore.getState().bind(api);
+    render(
+      <AppShell>
+        <div>center content</div>
+      </AppShell>,
+    );
+    await waitFor(() => expect(useStore.getState().selectedId).toBe(here.id));
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    for (const query of ["delete", "forget", "remove"]) {
+      fireEvent.change(screen.getByPlaceholderText(/Search commands/), { target: { value: query } });
+      await waitFor(() => expect(palette()!.textContent).not.toContain(WORKSPACE_WORDS.delete));
+      expect(palette()!.textContent).not.toContain(WORKSPACE_WORDS.forget);
+    }
+  });
+
   it("offers the start the row's own line names, under start and under daemon, and refuses it while the daemon answers", async () => {
     const here: WorkspaceView = { ...view("ws_a", "mac"), kind: "local", machineId: "local" };
     const asked: string[] = [];

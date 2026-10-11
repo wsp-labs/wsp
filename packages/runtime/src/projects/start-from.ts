@@ -218,6 +218,8 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
   const takeReview = async (entry: LiveWorkspace, threadId: string, text: string): Promise<void> => {
     const from = entry.record.from;
     if (from?.kind !== "review") return;
+    const reviewer = entry.record.reviewThread;
+    if (reviewer !== undefined && reviewer !== threadId) return;
     const read = reviewFromReply(text);
     const prior = entry.record.review;
     const at = clock.now();

@@ -240,9 +240,9 @@ export interface Runtime {
     pullRequestView(o: { workspaceId: string; fresh?: boolean }, origin?: Caller): Promise<PullRequestPage>;
     /** The workspace's pull request's diff against its base, read as the page is and cut at GIT_DIFF_CAP_BYTES. */
     pullRequestDiff(o: { workspaceId: string }, origin?: Caller): Promise<GitPrDiffReply>;
-    /** Sends items of the page to the workspace's agent as one message, read off the page anew, into the thread a fix
-     * goes to; keeps each item sent with when. Answers once the message is on its way. */
-    pullRequestSend(o: { workspaceId: string; items: readonly PullRequestItem[] }, origin?: Caller): Promise<PullRequestSendResult>;
+    /** Sends items of the page to the workspace's agent as one message, read off the page anew, into the thread named
+     * or else the thread a fix goes to; keeps each item sent with when. Answers once the message is on its way. */
+    pullRequestSend(o: { workspaceId: string; items: readonly PullRequestItem[]; threadId?: string }, origin?: Caller): Promise<PullRequestSendResult>;
     /** Posts a reply as the person through this computer's signed-in command line alone: under the comment on a line
      * replyTo names, in the thread threadId names, or a new comment in the conversation. */
     pullRequestReply(o: { workspaceId: string; replyTo?: number; threadId?: string; body: string }, origin?: Caller): Promise<GitPrReplyReply>;

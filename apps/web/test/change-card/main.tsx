@@ -13,7 +13,7 @@ import { deriveSession } from "../../src/components/chat/adapt";
 import { MessagesTimeline } from "../../src/components/chat/MessagesTimeline";
 import { DiffWorkerPoolProvider } from "../../src/components/DiffWorkerPoolProvider";
 import { DiffSurface } from "../../src/diffs/DiffSurface";
-import { onlyOf, useDiffStore } from "../../src/diffs/store";
+import { onlyOf, turnKey, useDiffStore } from "../../src/diffs/store";
 import { provideDaemonHello, provideDaemonWire } from "../../src/files/wire";
 import { useStore } from "../../src/protocol/store";
 import { PANEL_WIDTH } from "../diff-panel/width";
@@ -62,7 +62,8 @@ if (state === "narrowed") {
       op === "git.turn" ? { base: null, truncated: false, moved: [], files: range } : op === "git.status" ? { branch: { oid: "abc", head: "main", ahead: 0, behind: 0 }, entries: [], root: "/work/slate" } : {},
     onEvent: () => () => {},
   } as unknown as Parameters<typeof provideDaemonWire>[1]);
-  useDiffStore.setState({ turnByWorkspaceId: { [scoped.workspaceId]: { turnId: scoped.turnId, cwd: "/work/slate", from: changes.from, to: changes.to, only: onlyOf(changes)! } } });
+  useStore.setState({ selectedId: scoped.workspaceId, selectedThreadId: scoped.threadId });
+  useDiffStore.setState({ turnByThread: { [turnKey(scoped.workspaceId, scoped.threadId)]: { threadId: scoped.threadId, turnId: scoped.turnId, cwd: "/work/slate", from: changes.from, to: changes.to, only: onlyOf(changes)! } } });
 }
 
 function Pane() {

@@ -259,12 +259,13 @@ describe("a discard and a commit", () => {
 });
 
 describe("a drafted commit message", () => {
-  it("is asked of the workspace's newest thread's agent from the head diff of the files named and the thread's task, and the question's file goes after", async () => {
+  it("is asked of the named thread's agent from the head diff of the files named and the thread's task, and the question's file goes after", async () => {
     const daemon = fakeDaemon();
     const asked: { promptFile: string; model?: string }[] = [];
     const { backend, id } = await withWorkspace(daemon, { adapters: { claude: drafting({ asked }) } });
-    await (await rt!.sessions.start(id, { prompt: "Fix the flaky cart test" })).finished;
-    const drafted = await rt!.workspaces.commitDraft({ workspaceId: id, paths: ["a.ts"] });
+    const started = await rt!.sessions.start(id, { prompt: "Fix the flaky cart test" });
+    await started.finished;
+    const drafted = await rt!.workspaces.commitDraft({ workspaceId: id, paths: ["a.ts"], threadId: started.view().threadId! });
     expect(drafted).toEqual({ message: "Round the cart total once\n\nThe total rounded per line." });
     expect(daemon.frames.filter(f => f["op"] === "git.diff")).toEqual([{ op: "git.diff", cwd: CWD, scope: "head", paths: ["a.ts"] }]);
     const file = asked[0]!.promptFile;
@@ -290,6 +291,21 @@ describe("a drafted commit message", () => {
     const question = Buffer.from(/printf %s '([^']+)'/.exec(upload)![1]!, "base64").toString("utf8");
     expect(question).toContain("The task the agent was given:\nFix the flaky cart test");
     await expect(rt!.workspaces.commitDraft({ workspaceId: id, paths: ["a.ts"], threadId: "t_elsewhere" })).rejects.toThrow(threadElsewhereLine("t_elsewhere"));
+  });
+
+  it("is drafted from the diff alone where no thread is named, never from the task of another thread in the folder", async () => {
+    const daemon = fakeDaemon();
+    const asked: { promptFile: string; model?: string }[] = [];
+    const { backend, id } = await withWorkspace(daemon, { adapters: { claude: drafting({ asked }) } });
+    await (await rt!.sessions.start(id, { prompt: "Fix the flaky cart test" })).finished;
+    await (await rt!.sessions.start(id, { prompt: "hello from thread B" })).finished;
+    expect(await rt!.workspaces.commitDraft({ workspaceId: id, paths: ["a.ts"] })).toEqual({ message: "Round the cart total once\n\nThe total rounded per line." });
+    const file = asked[0]!.promptFile;
+    const upload = backend.machines[0]!.execLog.find(cmd => cmd.includes(file) && cmd.includes("base64 -d"))!;
+    const question = Buffer.from(/printf %s '([^']+)'/.exec(upload)![1]!, "base64").toString("utf8");
+    expect(question).toContain("+one");
+    expect(question).not.toContain("The task the agent was given");
+    expect(question).not.toContain("hello from thread B");
   });
 
   it("is none with the line saying why where no agent here drafts, or where nothing is named", async () => {

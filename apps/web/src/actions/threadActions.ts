@@ -7,10 +7,10 @@
 // mark the root alone, which carries its tree with it. Keep this one, on a
 // thread one send to several models opened, deletes the copies the others run in.
 import { AlarmClockIcon, ArrowDownIcon, ArrowUpIcon, ArrowUpToLineIcon, ArchiveIcon, ArchiveRestoreIcon, CheckIcon, FileTextIcon, HistoryIcon, LinkIcon, MessageSquareIcon, PencilIcon, PinIcon, PinOffIcon, RotateCwIcon, SquareIcon, SquareTerminalIcon, Trash2Icon, Undo2Icon, type LucideIcon } from "lucide-react";
-import { terminalResumeLine, threadMarkdown, threadMessages, type SessionSettleResult, type HarnessCatalog, type SessionEvent, type SessionStatus, type ThreadMarks, type WorkspaceState } from "@wsp/protocol";
+import { terminalResumeLine, THREAD_WORKING_LINE, threadMarkdown, threadMessages, type SessionSettleResult, type HarnessCatalog, type SessionEvent, type SessionStatus, type ThreadMarks, type WorkspaceState } from "@wsp/protocol";
 import type { SidebarThreadSnapshot } from "../adapt/index.js";
 import { addressLink } from "../protocol/address.js";
-import { CHILD_WORDS, CLIENT_CANNOT_OPEN, CLIENT_CANNOT_SEND, CLIENT_CANNOT_REWIND, CLIENT_CANNOT_DELETE, CLIENT_CANNOT_MARK, CLIENT_CANNOT_RESTORE, CLIENT_CANNOT_SETTLE, CLIENT_CANNOT_STOP, NOTHING_READ_TO_SETTLE, THREAD_HAS_NO_ID, THREAD_STILL_RUNNING_HERE, THREAD_NOT_RUNNING, THREAD_TREE_WORKING, THREAD_WORDS, threadForgetRefusalFor, threadRenameRefusal, CLIENT_CANNOT_READ } from "./format.js";
+import { CHILD_WORDS, CLIENT_CANNOT_OPEN, CLIENT_CANNOT_SEND, CLIENT_CANNOT_REWIND, CLIENT_CANNOT_DELETE, CLIENT_CANNOT_DELETE_THREAD, CLIENT_CANNOT_MARK, CLIENT_CANNOT_RESTORE, CLIENT_CANNOT_SETTLE, CLIENT_CANNOT_STOP, NOTHING_READ_TO_SETTLE, THREAD_HAS_NO_ID, THREAD_STILL_RUNNING_HERE, THREAD_NOT_RUNNING, THREAD_TREE_WORKING, THREAD_WORDS, threadForgetRefusalFor, threadRenameRefusal, CLIENT_CANNOT_READ } from "./format.js";
 import type { ChildPart } from "../components/threads/leadTree.js";
 import { addNotice } from "../notices/store.js";
 import type { ActionEntry } from "./registry.js";
@@ -53,6 +53,9 @@ export interface ThreadTarget {
   readonly terminalLine: string | null;
   /** The computer the thread runs on, by its name, where that is not the one the host runs on: where the line goes. */
   readonly elsewhere?: string | undefined;
+  /** The thread runs in a folder on a computer, beside the folder's other threads, rather than on a machine of its
+   * own: a delete takes the thread alone, and the folder's record is no act of one thread's. */
+  readonly inFolder: boolean;
 }
 
 export interface RootTree {
@@ -71,7 +74,7 @@ export interface RootTree {
  * machine's state, as workspaceTarget does for a workspace row. */
 export function threadTarget(
   thread: SidebarThreadSnapshot,
-  machine: { catalog: HarnessCatalog | null; state: WorkspaceState; goneWords?: string | undefined; elsewhere?: string | undefined },
+  machine: { catalog: HarnessCatalog | null; state: WorkspaceState; goneWords?: string | undefined; elsewhere?: string | undefined; inFolder?: boolean },
   root: RootTree | null = null,
   others: ReadonlyArray<string> = [],
 ): ThreadTarget {
@@ -92,6 +95,7 @@ export function threadTarget(
     ...(thread.rewound ? { rewound: true } : {}),
     terminalLine: thread.harnessSession === undefined ? null : terminalResumeLine(machine.catalog, thread.harnessSession.folder, thread.harnessSession.id),
     ...(machine.elsewhere !== undefined ? { elsewhere: machine.elsewhere } : {}),
+    inFolder: machine.inFolder === true,
   };
 }
 
@@ -111,6 +115,9 @@ export interface ThreadVerbs {
   /** Drops a thread no turn ever ran on through the host; the surface that draws the rows leaves it out when its
    * client has no road to the op. */
   readonly forget?: ((thread: { threadId: string; workspaceId: string }) => void) | undefined;
+  /** Asks to delete a thread that runs in a folder, alone: the surface that draws the rows puts its confirmation here,
+   * and a client with no road to the op leaves it out. */
+  readonly deleteThread?: ((thread: { threadId: string; workspaceId: string; title: string }) => void) | undefined;
   /** Settles threads by hand through the host, by fold key; left out by a client with no road to the op. */
   readonly settle?: ((threadIds: ReadonlyArray<string>) => Promise<void>) | undefined;
   /** Takes settled threads back out of the fold through the host, by fold key; left out as settle is. */
@@ -291,10 +298,22 @@ export const threadActions: ReadonlyArray<ActionEntry<ThreadTarget, ThreadVerbs>
     run: (target, verbs) => (target.root === null ? undefined : verbs.deleteCopies?.(target.root.workspaceIds)),
   },
   {
+    id: "delete",
+    group: "remove",
+    icon: () => Trash2Icon,
+    destructive: true,
+    applies: target => target.inFolder,
+    title: () => THREAD_WORDS.delete,
+    refusal: (target, verbs) => (target.threadId === null ? THREAD_HAS_NO_ID : verbs.deleteThread === undefined ? CLIENT_CANNOT_DELETE_THREAD : target.status === "running" ? THREAD_WORKING_LINE : null),
+    run: (target, verbs) => (target.threadId === null ? undefined : verbs.deleteThread?.({ threadId: target.threadId, workspaceId: target.workspaceId, title: target.title })),
+  },
+  {
     id: "forget",
     group: "remove",
     icon: () => Trash2Icon,
     destructive: true,
+    // A thread in a folder is deleted, which takes one that never ran as well.
+    applies: target => !target.inFolder,
     title: () => THREAD_WORDS.forget,
     refusal: (target, verbs) => threadForgetRefusalFor(target, verbs.forget !== undefined),
     run: (target, verbs) => (target.threadId === null ? undefined : verbs.forget?.({ threadId: target.threadId, workspaceId: target.workspaceId })),

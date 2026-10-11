@@ -224,10 +224,10 @@ export function ChatView({
         return;
       }
       const only = onlyOf(changes, path);
-      useDiffStore.getState().openTurn(workspaceId, { turnId, cwd: at, from: changes.from, to: changes.to, ...(path === undefined ? {} : { path }), ...(only === undefined ? {} : { only }) });
+      useDiffStore.getState().openTurn(workspaceId, { threadId: threadKey, turnId, cwd: at, from: changes.from, to: changes.to, ...(path === undefined ? {} : { path }), ...(only === undefined ? {} : { only }) });
       useRightPanelStore.getState().open(workspaceId, "diff");
     },
-    [cwd, onOpenFile, workspaceId],
+    [cwd, onOpenFile, threadKey, workspaceId],
   );
   const asked = useNewThreadRequests(s => s.pending.has(workspaceId));
   useEffect(() => {
