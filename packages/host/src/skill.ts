@@ -9,7 +9,7 @@ import { ANOTHER_AGENT_WORDS, BACKGROUND_WORK_WORDS, COORDINATOR_HANDOFF, NOTIFY
 import { CLOUD_ON } from "./cloud.js";
 import { skillFor } from "./cloud-text.js";
 
-export { CLOUD_MARK, CLOUD_SPAN_END, NO_CLOUD_MARK, NO_CLOUD_SPAN_END, cloudText, skillFor } from "./cloud-text.js";
+export { BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, CLOUD_SPAN_END, NO_CLOUD_MARK, NO_CLOUD_SPAN_END, cloudText, skillFor } from "./cloud-text.js";
 
 export const SKILL_NAME = WSP_SKILL_NAME;
 

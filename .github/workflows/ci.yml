@@ -299,7 +299,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # The release's road, bundled and laid out but not packaged, on a tree that built only what build:deps builds:
       # after the full build a package missing from the app's dependencies goes unseen until a tag fails.
-      # Built public, as the release builds it: no cloud provider, which the last step reads the build for.
+      # Built public, as the release builds it: Boat and no Solari, which the last step reads the build for.
       - name: Build what the desktop app depends on
         env:
           PUBLIC_BUILD: "1"
@@ -316,7 +316,7 @@ jobs:
       # loads the root one, so a setup file the root config names by a relative path fails here and not at a tag.
       - name: The release's signing check runs from apps/desktop
         run: pnpm --filter @wsp/desktop exec vitest run --minWorkers=1 --maxWorkers=1 test/signing.test.ts
-      - name: The packed command and the staged app carry no cloud provider
+      - name: The packed command and the staged app carry Boat and no Solari
         env:
           PUBLIC_BUILD: "1"
         run: pnpm exec vitest run --minWorkers=1 --maxWorkers=2 packages/wspx/test/public-check.test.ts
