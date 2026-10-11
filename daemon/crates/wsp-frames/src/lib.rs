@@ -54,7 +54,7 @@ pub use place_paths::{
     place_daemon_paths, place_owned_paths, place_provision_paths, probe_path, PlaceDaemonPaths, PlaceProvisionPaths, READINGS_FOLDER,
     SSH_FOLDER,
 };
-pub use proc_owner::{ProcKind, ProcOwnedBy, ProcOwner};
+pub use proc_owner::{ProcKind, ProcOwnedBy, ProcOwner, ProcScope, ProcScopePid, PROC_SCOPES_MAX, PROC_SCOPE_PIDS_MAX};
 pub use reply::{
     DaemonErrorResponse, DaemonExecReply, Empty, False, FsEntry, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsReadReply,
     FsSearchHit, FsSearchReply, FsWriteReply, GitBranch, GitBranchCompareReply, GitBranchesReply, GitCheckpointDropReply,

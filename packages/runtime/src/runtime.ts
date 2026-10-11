@@ -303,6 +303,7 @@ import { transcriptsArea } from "./threads/transcripts.js";
 import { slatesArea } from "./account/slates.js";
 
 import { channelsArea } from "./account/channels.js";
+import { procScopesArea } from "./account/proc-scopes.js";
 
 import { recordsArea } from "./images/records.js";
 
@@ -433,6 +434,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
   Object.assign(ctx, slatesArea(ctx));
 
   Object.assign(ctx, channelsArea(ctx));
+  Object.assign(ctx, procScopesArea(ctx));
 
   Object.assign(ctx, recordsArea(ctx));
 
@@ -995,7 +997,8 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
           },
         }
       : {}),
-    hereChannel: async onEvent => ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent)),
+    ownProcess: (threadId, pid, kind) => ctx.ownProcess(threadId, pid, kind),
+    hereChannel: async onEvent => ctx.scopedProcs(ctx.scopesHere, ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent))),
     watchPlaceSys: async (placeId, fn) => {
       if (placeId !== HERE_PLACE_ID) {
         if (ctx.placeDoor === undefined) throw new Error(noSuchPlaceRefusal(placeId, []));

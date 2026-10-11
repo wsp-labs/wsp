@@ -449,7 +449,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
       : guestDoor({
           authorize: token => rtServer.authorize(token),
           hostUrl: () => binding.then(() => here.url),
-          kinds: guestKinds(statePath),
+          kinds: guestKinds(statePath, undefined, (threadId, pid, kind) => rt.ownProcess(threadId, pid, kind)),
         });
   // Before the runtime socket: the app lists and stops the relay's forwards through it.
   const relay = startCallbackRelay({

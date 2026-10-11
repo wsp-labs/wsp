@@ -177,6 +177,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
       return;
     }
     keep(threadId, { ...o, usedAt: clock.now(), cancel: () => {} }, AGENT_WARM_MS);
+    ctx.procScopesMoved();
     for (;;) {
       const standing = [...keptAgents].filter(([, kept]) => kept.warm?.claimed === false);
       if (standing.length <= AGENTS_WARM) return;
@@ -200,6 +201,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     const found = warmOn(workspaceId, harness);
     if (found === undefined) return undefined;
     found[1].warm!.claimed = true;
+    ctx.procScopesMoved();
     return found[0];
   };
 

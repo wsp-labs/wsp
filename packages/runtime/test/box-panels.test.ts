@@ -13,7 +13,7 @@ import { createServer as createHttpServer, type Server as HttpServer } from "nod
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
-import { DAEMON_VERSION, SYS_SUBSCRIBE_ONE_OF, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
+import { DAEMON_VERSION, SYS_SUBSCRIBE_ONE_OF, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, THREAD_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import { namedWatchRefusal, procWatchScope } from "../src/account/box-panels.js";
@@ -599,7 +599,7 @@ describe("the terminal and the readings of a thread in a folder on a computer th
     const turn = starts[0]!.env;
     // The turn's environment, the login's home and the agent's store among them, less the tokens only its launch
     // carries, which name that turn.
-    const launchOnly = [TURN_TOKEN_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, HOST_KEY_ENV];
+    const launchOnly = [TURN_TOKEN_ENV, THREAD_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, HOST_KEY_ENV];
     expect(env["HOME"]).toBe("/root");
     expect(env["CLAUDE_CONFIG_DIR"]).toBe(turn["CLAUDE_CONFIG_DIR"]);
     for (const name of launchOnly) expect(env[name]).toBeUndefined();
@@ -868,6 +868,17 @@ describe.runIf(makesCgroups)("a thread's cgroup on this computer", () => {
     }
   });
 
+
+  it("gives the thread's cgroup memory and process counters, which the folder above turns on for it", () => {
+    const cgroup = threadCgroup(randomUUID());
+    const pid = launched(cgroup, "sleep 300");
+    try {
+      for (const file of ["memory.current", "memory.stat", "pids.current"]) expect(existsSync(`/sys/fs/cgroup${cgroup}/${file}`), file).toBe(true);
+      expect(Number(readFileSync(`/sys/fs/cgroup${cgroup}/pids.current`, "utf8"))).toBeGreaterThan(0);
+    } finally {
+      cleared([pid], [cgroup]);
+    }
+  });
 
   it("holds a server the launch detached, and its end takes that server and the cgroup away", () => {
     const thread = randomUUID();

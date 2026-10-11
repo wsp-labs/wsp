@@ -10,24 +10,25 @@
 //! and a daemon has pipes for streams.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use wsp_frames::{numbers, ProcEntry, ProcInspectReply};
+use wsp_frames::{numbers, ProcEntry, ProcInspectReply, ProcScope};
 
 use crate::paths::OpError;
 use crate::proc::{children_of, listening_ports_of, no_process, ProcScan, ProcScanInput, ProcSource};
+use crate::proc_owner::{folder_in, mark_in, Mark, Owned, OwnerFacts};
 use crate::sys::finite;
 use crate::sys_local::host_command;
 
 /// ps prints resident memory in kibibytes.
 const RSS_UNIT: u64 = 1024;
 
-/// The columns the pane reads, in one order both platforms print: the identity, the state, the memory the table
+/// The columns the pane reads, in one order both platforms print: the identity and the group, the state, the memory the table
 /// sorts on, the cpu the machine has spent, the time it has run, and the argv last, which is the only column
 /// allowed to hold spaces here. The start time is the elapsed time taken off the scan's clock: ps prints it as a
 /// local date otherwise, which nothing here can turn back into an instant without the C library's calendar.
-const PS_COLUMNS: &str = "pid=,ppid=,state=,user=,rss=,time=,etime=,args=";
+const PS_COLUMNS: &str = "pid=,ppid=,pgid=,state=,user=,rss=,time=,etime=,args=";
 /// The accounting name on its own, where everything after the pid is the name however many spaces it holds.
 const PS_NAMES: &str = "pid=,ucomm=";
 /// How far a start time read off two scans may drift before the pid counts as a new process: the elapsed column
@@ -39,6 +40,7 @@ const SAME_START_MS: i64 = 2_000;
 pub(crate) struct PsRow {
     pub(crate) pid: u32,
     pub(crate) ppid: u32,
+    pub(crate) pgid: u32,
     pub(crate) user: String,
     pub(crate) state: String,
     /// The accounting name; empty for a pid ps named between its two reads, until the next tick.
@@ -88,10 +90,10 @@ pub(crate) fn parse_ps_names(text: &str) -> HashMap<u32, String> {
     names
 }
 
-/// The first seven columns as words and the rest of the line as the argv.
-fn columns(line: &str) -> Option<([&str; 7], &str)> {
+/// The first eight columns as words and the rest of the line as the argv.
+fn columns(line: &str) -> Option<([&str; 8], &str)> {
     let mut rest = line.trim_start();
-    let mut words = [""; 7];
+    let mut words = [""; 8];
     for word in &mut words {
         let end = rest.find(char::is_whitespace)?;
         *word = &rest[..end];
@@ -108,8 +110,11 @@ fn columns(line: &str) -> Option<([&str; 7], &str)> {
 pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
     let mut rows = Vec::new();
     for line in text.lines() {
-        let Some(([pid, ppid, state, user, rss, time, etime], args)) = columns(line) else { continue };
-        let (Ok(pid), Ok(ppid), Ok(rss)) = (pid.parse::<u32>(), ppid.parse::<u32>(), rss.parse::<u64>()) else { continue };
+        let Some(([pid, ppid, pgid, state, user, rss, time, etime], args)) = columns(line) else { continue };
+        let (Ok(pid), Ok(ppid), Ok(pgid), Ok(rss)) = (pid.parse::<u32>(), ppid.parse::<u32>(), pgid.parse::<u32>(), rss.parse::<u64>())
+        else {
+            continue;
+        };
         let Some(letter) = state.chars().next() else { continue };
         if etime.is_empty() || !etime.bytes().all(|b| b.is_ascii_digit() || b == b':' || b == b'-') {
             continue;
@@ -121,6 +126,7 @@ pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
         rows.push(PsRow {
             pid,
             ppid,
+            pgid,
             user: user.to_owned(),
             state: letter.to_string(),
             comm: String::new(),
@@ -143,11 +149,25 @@ pub(crate) type PortsOfPid = Arc<dyn Fn(u32) -> Result<Vec<u16>, String> + Send 
 /// The rows, and the cpu milliseconds the commands run to read them spent.
 type RowsOf = Box<dyn Fn(&str, i64) -> Result<(Vec<PsRow>, f64), String> + Send + Sync>;
 
-/// How this computer is read: its processes, one pid's listening ports and one pid's folder.
+type FollowScopes = Box<dyn Fn(&[ProcScope]) + Send + Sync>;
+
+/// The threads a Mac's fork tracker follows, and the thread it followed a pid from.
+pub(crate) struct Forks {
+    follow: FollowScopes,
+    owner_of: Box<dyn Fn(u32) -> Option<Owned> + Send + Sync>,
+}
+
+/// How this computer is read: its processes, one pid's listening ports and one pid's folder, and what the owner
+/// ladder reads off a pid every tick, so none of those spawns anything.
 pub(crate) struct Road {
     rows: RowsOf,
     pub(crate) ports: PortsOfPid,
     folder: fn(u32) -> Option<String>,
+    mark: fn(u32) -> Option<Mark>,
+    cwd: fn(u32) -> Option<PathBuf>,
+    coalition: fn(u32) -> Option<u64>,
+    unique: fn(u32) -> Option<u64>,
+    forks: Option<Forks>,
 }
 
 /// The road for the system the daemon runs on, by the platform word the readings pick it with: libproc on a Mac, ps
@@ -157,9 +177,19 @@ pub(crate) fn road_for(platform: &str) -> Road {
     if platform == "macos" {
         return mac::road();
     }
+    let linux = platform == "linux";
     let ports: PortsOfPid =
-        if platform == "linux" { Arc::new(|pid| Ok(listening_ports_of(Path::new("/proc"), pid))) } else { Arc::new(|_| Ok(Vec::new())) };
-    Road { rows: Box::new(ps_rows), ports, folder: lsof_folder }
+        if linux { Arc::new(|pid| Ok(listening_ports_of(Path::new("/proc"), pid))) } else { Arc::new(|_| Ok(Vec::new())) };
+    Road {
+        rows: Box::new(ps_rows),
+        ports,
+        folder: lsof_folder,
+        mark: if linux { |pid| mark_in(Path::new("/proc"), pid) } else { |_| None },
+        cwd: if linux { |pid| folder_in(Path::new("/proc"), pid) } else { |_| None },
+        coalition: |_| None,
+        unique: |_| None,
+        forks: None,
+    }
 }
 
 /// ps exits non-zero with what it printed when a selection matches nothing, so a run that printed rows is read
@@ -238,11 +268,14 @@ mod mac {
 
     use wsp_frames::numbers;
 
-    use super::{PsRow, Road};
+    use super::{Forks, PsRow, Road};
     use crate::libproc;
+    use crate::proc_track::Tracker;
 
     pub(super) fn road() -> Road {
         let argvs: Mutex<HashMap<u32, Argv>> = Mutex::new(HashMap::new());
+        let tracker = Arc::new(Tracker::default());
+        let follows = Arc::clone(&tracker);
         Road {
             rows: Box::new(move |user, _| rows(user, &argvs).map(|rows| (rows, 0.0))),
             ports: Arc::new(|pid| {
@@ -252,6 +285,14 @@ mod mac {
                 Ok(ports)
             }),
             folder: |pid| libproc::cwd(pid).map(|p| p.to_string_lossy().into_owned()),
+            mark: |pid| libproc::environ(pid).and_then(|bytes| crate::proc_owner::mark_of(&bytes)),
+            cwd: libproc::cwd,
+            coalition: libproc::coalition,
+            unique: |pid| libproc::uniq(pid).map(|u| u.unique),
+            forks: Some(Forks {
+                follow: Box::new(move |scopes| follows.follow(scopes)),
+                owner_of: Box::new(move |pid| tracker.owner_of(pid).map(|o| (*o).clone())),
+            }),
         }
     }
 
@@ -291,6 +332,7 @@ mod mac {
             rows.push(PsRow {
                 pid,
                 ppid: id.ppid,
+                pgid: id.pgid,
                 user: user.to_owned(),
                 state: id.state.to_string(),
                 comm: id.comm,
@@ -370,6 +412,29 @@ impl LocalProcSource {
     }
 }
 
+impl OwnerFacts for LocalProcSource {
+    fn thread_mark(&self, pid: u32) -> Option<Mark> {
+        (self.road.mark)(pid)
+    }
+    fn folder(&self, pid: u32) -> Option<PathBuf> {
+        (self.road.cwd)(pid)
+    }
+    fn coalition(&self, pid: u32) -> Option<u64> {
+        (self.road.coalition)(pid)
+    }
+    fn unique_id(&self, pid: u32) -> Option<u64> {
+        (self.road.unique)(pid)
+    }
+    fn forked(&self, pid: u32) -> Option<Owned> {
+        self.road.forks.as_ref().and_then(|f| (f.owner_of)(pid))
+    }
+    fn scopes_moved(&self, scopes: &[ProcScope]) {
+        if let Some(f) = &self.road.forks {
+            (f.follow)(scopes);
+        }
+    }
+}
+
 impl ProcSource for LocalProcSource {
     fn scan(&self, input: &ProcScanInput) -> Result<ProcScan, String> {
         let (rows, child_ms) = (self.road.rows)(&self.user, input.at)?;
@@ -392,6 +457,7 @@ impl ProcSource for LocalProcSource {
                 pty: input.pty.get(&row.pid).cloned(),
                 cgroup: None,
                 energy_mw,
+                pgid: Some(row.pgid),
                 owner: None,
                 kind: None,
             });
@@ -469,12 +535,12 @@ mod tests {
     // Fixture provenance: the Linux rows were captured from ps in the column order this module asks for, the
     // macOS rows hand-written in the same documented order; the elapsed column replaces the printed date the node
     // daemon's fixtures carry, since this module reads etime.
-    const LINUX_PS: &str = "      1       0 S root      7040 00:00:03 5-02:07:19 /sbin/init
-      2       0 S root         0 00:00:00 5-02:07:19 [kthreadd]
-    904      1 Ssl root    151204 00:02:17   01:05:37 claude -p do the thing
+    const LINUX_PS: &str = "      1       0       1 S root      7040 00:00:03 5-02:07:19 /sbin/init
+      2       0       0 S root         0 00:00:00 5-02:07:19 [kthreadd]
+    904      1     904 Ssl root    151204 00:02:17   01:05:37 claude -p do the thing
 ";
-    const MAC_PS: &str = "  4212      1 Ss   zingzy   41232 0:04.31 02:44 claude --print hello
-  4213   4212 R+   zingzy  900000 12:31.07 02:43 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=renderer
+    const MAC_PS: &str = "  4212      1  4212 Ss   zingzy   41232 0:04.31 02:44 claude --print hello
+  4213   4212  4212 R+   zingzy  900000 12:31.07 02:43 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=renderer
 ";
     /// The name pass, where everything after the pid is the name however many spaces it holds.
     const MAC_PS_NAMES: &str = "  4212 claude\n  4213 Google Chrome Helper\n";
@@ -530,6 +596,7 @@ mod tests {
             PsRow {
                 pid: 1,
                 ppid: 0,
+                pgid: 1,
                 user: "root".into(),
                 state: "S".into(),
                 comm: String::new(),
@@ -557,7 +624,10 @@ mod tests {
         );
         // The argv is the only column allowed spaces here, so a Mac's own path with two of them arrives whole.
         assert_eq!(mac[1].cmdline, "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=renderer");
-        assert_eq!((mac[1].ppid, mac[1].state.as_str(), mac[1].cpu_seconds, mac[1].rss), (4212, "R", 751.07, 900_000 * 1024));
+        assert_eq!(
+            (mac[1].ppid, mac[1].pgid, mac[1].state.as_str(), mac[1].cpu_seconds, mac[1].rss),
+            (4212, 4212, "R", 751.07, 900_000 * 1024)
+        );
         assert_eq!(parse_ps("ps: nothing to see\n", AT), vec![]);
     }
 
@@ -572,7 +642,7 @@ mod tests {
 
     #[test]
     fn truncates_a_command_line_by_bytes_the_same_budget_the_guests_road_reads_out_of_proc() {
-        let row = |args: &str| parse_ps(&format!("      7       1 S root      100 00:00:01 01:00 {args}\n"), AT).remove(0);
+        let row = |args: &str| parse_ps(&format!("      7       1       7 S root      100 00:00:01 01:00 {args}\n"), AT).remove(0);
         assert_eq!(row(&"x".repeat(300)).cmdline.len(), numbers::CMDLINE_BYTES);
         // Two bytes to the character, so the same budget holds half as many of them: the cut is by bytes, not letters.
         // A character the cut lands inside decodes to one replacement, as it does on the guest's road.

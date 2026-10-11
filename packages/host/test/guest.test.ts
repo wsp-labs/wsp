@@ -259,6 +259,28 @@ describe("a guest session on the host", () => {
       expect(readFileSync(seen, "utf8").trim().split("\n").sort()).toEqual([`mcp --state ${statePath} --scoped --guest`, `mcp --state ${statePath} --scoped --guest --no-slate`]);
     });
 
+    it("names the tool server's process as its thread's to the owner ladder while the session stands", async () => {
+      const server = join(dir, "tool-server");
+      writeStub(server, "#!/bin/sh\nexec sleep 30\n");
+      const owned: { threadId: string; pid: number; kind: string; released: boolean }[] = [];
+      const own = (threadId: string, pid: number, kind: string): (() => void) => {
+        const row = { threadId, pid, kind, released: false };
+        owned.push(row);
+        return () => void (row.released = true);
+      };
+      door = guestDoor({
+        authorize: token => rt.devices.match(token).then(device => (device === undefined ? undefined : { kind: "device", device })),
+        hostUrl: () => `http://${LOOPBACK}:${handle!.port}`,
+        kinds: { ...guestKinds(statePath), mcp: guestTools(statePath, server, own) },
+      });
+      door.event(link, opened({ token: await tokenOn(workspaceId), kind: "mcp", argv: ["mcp"] }));
+      await settled(() => owned.length > 0);
+      expect(owned.map(o => [o.threadId, o.kind, o.released])).toEqual([["t1", "tool", false]]);
+      expect(() => process.kill(owned[0]!.pid, 0)).not.toThrow();
+      door.event(link, { type: "guest.closed", session: "g0" });
+      await settled(() => owned[0]!.released);
+    });
+
     it("drives this host with the thread's own token: a tool call answers off the host the session named", async () => {
       const token = await tokenOn(workspaceId);
       door.event(link, opened({ token, kind: "mcp", argv: ["mcp"] }));
