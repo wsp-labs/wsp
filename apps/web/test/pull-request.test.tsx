@@ -16,7 +16,7 @@ import { GitSplit } from "../src/pull-request/GitSplit.js";
 import { PullRequestSurface } from "../src/pull-request/PullRequestSurface.js";
 import { Face } from "../src/pull-request/parts.js";
 import { forgetHeld } from "../src/protocol/held.js";
-import { useRightPanelStore } from "../src/rightPanelStore.js";
+import { panelKeyOf, useRightPanelStore } from "../src/rightPanelStore.js";
 import { resetSurfaces, view, WS } from "./surface-harness.js";
 
 const codeViews = vi.hoisted(() => ({ last: null as null | { files: { filePath: string }[]; lineNotes?: { filePath: string; line: number; side: string; render: () => unknown }[]; renderHeaderMetadata?: () => unknown; renderHeaderPrefix?: () => unknown; unsafeCSSExtra?: string } }));
@@ -105,6 +105,8 @@ const DIFF = "diff --git a/check.sh b/check.sh\nindex 1..2 100644\n--- a/check.s
 const statusWith = (pr: WorkspaceStatus["pr"]): WorkspaceStatus =>
   ({ ...view, machineState: "running", reach: { state: "reachable" }, size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0, ...(pr !== undefined ? { pr } : {}) }) as WorkspaceStatus;
 
+const SHOWN = "t2";
+
 function withApi(pr: WorkspaceStatus["pr"], page: PullRequestPage = PAGE, o: { acts?: boolean } = {}) {
   const writes = {
     pullRequestReply: vi.fn(async (_id: string, w: { replyTo?: number; body: string }) =>
@@ -124,7 +126,16 @@ function withApi(pr: WorkspaceStatus["pr"], page: PullRequestPage = PAGE, o: { a
     merge: vi.fn(async () => ({ number: 12, method: "squash" as const, merged: true, autoArmed: false })),
     update: vi.fn(async () => ({ base: "main", merged: false, commits: 0, conflicts: ["README.md"] })),
   };
-  act(() => useStore.setState({ api: api as never, statuses: { [WS]: statusWith(pr) }, sessions: { [WS]: [{ id: "s1", workspaceId: WS, harness: "claude", status: "done", threadId: "t1", startedAt: 1 }] } as never }));
+  // Two threads share the folder's workspace, the oldest not the one on screen: every act names the one shown.
+  act(() =>
+    useStore.setState({
+      api: api as never,
+      statuses: { [WS]: statusWith(pr) },
+      sessions: { [WS]: [{ id: "s1", workspaceId: WS, harness: "claude", status: "done", threadId: "t1", startedAt: 1 }, { id: "s2", workspaceId: WS, harness: "claude", status: "done", threadId: SHOWN, startedAt: 2 }] } as never,
+      selectedId: WS,
+      selectedThreadId: SHOWN,
+    }),
+  );
   return { ...api, ...writes };
 }
 
@@ -338,7 +349,7 @@ describe("the Conversation tab", () => {
     expect(send.getAttribute("aria-label")).toBe("Send to Claude Code");
     expect(send.querySelector("[data-harness-mark='claude']")).not.toBeNull();
     fireEvent.click(send);
-    await waitFor(() => expect(api.pullRequestSend).toHaveBeenCalledWith(WS, [{ kind: "comment", id: 2 }]));
+    await waitFor(() => expect(api.pullRequestSend).toHaveBeenCalledWith(WS, [{ kind: "comment", id: 2 }], SHOWN));
     await waitFor(() => expect(container.querySelector("[data-pr-send='comment:2']")).toBeNull());
     expect(q(q(container, "[data-pr-entry='comment']:not([data-quiet])"), "[data-pr-sent]").textContent).toBe("Sent 2 m ago");
   });
@@ -394,7 +405,7 @@ describe("Status", () => {
     const fix = q(box(container), "[data-pr-fix='ci']");
     expect(fix.querySelector("[data-harness-mark='claude']")).not.toBeNull();
     fireEvent.click(fix);
-    await waitFor(() => expect(api.fix).toHaveBeenCalledWith(WS, "ci"));
+    await waitFor(() => expect(api.fix).toHaveBeenCalledWith(WS, "ci", SHOWN));
     await waitFor(() => expect(useNotices.getState().notices[0]?.text).toBe(fixAskedLine("api", "Claude Code", "ci")));
   });
 
@@ -431,7 +442,7 @@ describe("Status", () => {
       expect(api.pullRequestSend).toHaveBeenCalledWith(WS, [
         { kind: "reviewComment", id: 7 },
         { kind: "reviewComment", id: 8 },
-      ]),
+      ], SHOWN),
     );
     await waitFor(() => expect(box(container).querySelector("[data-pr-box-row='comments']")).toBeNull());
   });
@@ -448,7 +459,7 @@ describe("Status", () => {
     expect(screen.queryByText("Update from main")).toBeNull();
     expect(row(container, "hold").textContent).toBe("Held until the conflicts are fixed");
     fireEvent.click(q(row(container, "base"), "[data-pr-fix-conflicts]"));
-    await waitFor(() => expect(api.fix).toHaveBeenCalledWith(WS, undefined));
+    await waitFor(() => expect(api.fix).toHaveBeenCalledWith(WS, undefined, SHOWN));
     act(() => useStore.setState({ statuses: { [WS]: statusWith(fact({ checks: [], behindBase: 0 })) } }));
     await waitFor(() => expect(box(container).querySelector("[data-pr-box-row='base']")).toBeNull());
   });
@@ -729,7 +740,7 @@ describe("the Files tab", () => {
     expect([...opened.querySelectorAll("[data-pr-line-comment]")].map(r => r.getAttribute("data-pr-line-comment"))).toEqual(["7", "8"]);
     fireEvent.click(q(opened, "[data-pr-open-changes]"));
     expect(useDiffStore.getState().scopeByWorkspaceId[WS]).toBe("branch");
-    expect(useRightPanelStore.getState().byWorkspaceId[WS]?.activeSurfaceId).toBe("diff");
+    expect(useRightPanelStore.getState().byWorkspaceId[panelKeyOf(WS)]?.activeSurfaceId).toBe("diff");
     fireEvent.click(q(container, "[data-changed-file='check.sh']"));
     expect(container.querySelector("[data-pr-file-diff]")).toBeNull();
     fireEvent.click(q(container, "[data-changed-file='check.sh']"));
@@ -772,16 +783,18 @@ describe("the thread header's git button", () => {
     render(<GitSplit workspaceId={WS} />);
     expect(quick().textContent).toBe("View PR");
     fireEvent.click(quick());
-    expect(useRightPanelStore.getState().byWorkspaceId[WS]?.activeSurfaceId).toBe("pr");
+    expect(useRightPanelStore.getState().byWorkspaceId[panelKeyOf(WS)]?.activeSurfaceId).toBe("pr");
   });
 
-  it("commits every changed file with the agent's draft, then pushes and opens the pull request", async () => {
+  it("commits every changed file with the draft of the thread on screen, then pushes and opens the pull request", async () => {
     const api = withGit({ changed: 2 }, undefined);
+    // Two threads share the folder's workspace: the draft is asked of the one shown, never the folder's newest.
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: "thread-a" }));
     render(<GitSplit workspaceId={WS} />);
     expect(quick().textContent).toBe("Commit, push and PR");
     fireEvent.click(quick());
     await waitFor(() => expect(api.bringBack).toHaveBeenCalledWith(WS));
-    expect(api.commitDraft).toHaveBeenCalledWith(WS);
+    expect(api.commitDraft).toHaveBeenCalledWith(WS, undefined, "thread-a");
     expect(api.commit).toHaveBeenCalledWith(WS, "Round the cart once");
   });
 
@@ -789,7 +802,7 @@ describe("the thread header's git button", () => {
     const api = withGit({ changed: 2 }, undefined, null);
     render(<GitSplit workspaceId={WS} />);
     fireEvent.click(quick());
-    await waitFor(() => expect(useRightPanelStore.getState().byWorkspaceId[WS]?.activeSurfaceId).toBe("diff"));
+    await waitFor(() => expect(useRightPanelStore.getState().byWorkspaceId[panelKeyOf(WS)]?.activeSurfaceId).toBe("diff"));
     expect(useDiffStore.getState().scopeByWorkspaceId[WS]).toBe("head");
     expect(api.commit).not.toHaveBeenCalled();
     expect(api.bringBack).not.toHaveBeenCalled();

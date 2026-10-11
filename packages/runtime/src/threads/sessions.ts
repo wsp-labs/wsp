@@ -1407,11 +1407,14 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
       const tree = entry.record.worktree;
-      if (tree?.made === true && tree.gone !== true) {
-        // Every thread in it goes with the worktree, so none may be working, and none can land a checkpoint after
-        // its refs were dropped.
+      const threads = new Set([
+        ...[...sessions.values()].flatMap(s => (s.view.workspaceId === workspaceId && s.view.threadId !== undefined ? [s.view.threadId] : [])),
+        ...[...threadRecords].flatMap(([id, r]) => (r.workspaceId === workspaceId ? [id] : [])),
+      ]);
+      // A worktree goes with the last thread in it; while another thread works there it is that thread's too.
+      if (tree?.made === true && tree.gone !== true && [...threads].every(t => t === threadId)) {
+        // No turn may be working, and none can land a checkpoint after its refs were dropped.
         if (ctx.turnRuns(workspaceId)) throw Object.assign(new Error(WORKTREE_BUSY_LINE), { kind: "conflict" });
-        const threads = new Set([...sessions.values()].flatMap(s => (s.view.workspaceId === workspaceId && s.view.threadId !== undefined ? [s.view.threadId] : [])));
         for (const thread of threads) await ctx.moduleOf(entry.record.kind).endThread?.(entry, thread, { remove: true });
         await ctx.workspaces.delete(workspaceId, origin);
         return { workspaceId, worktree: tree.path, threads: threads.size };

@@ -415,6 +415,7 @@ export interface PullRequestsArea {
   readonly pollPullRequest: (entry: LiveWorkspace, from?: number) => void;
   readonly keepTree: (child: LiveWorkspace, kept: TreeRecord) => Promise<void>;
   readonly settleTree: (entry: LiveWorkspace) => Promise<void>;
+  readonly ranOnBranch: (entry: LiveWorkspace, threadId: string) => Promise<void>;
   readonly mergeSettings: (remote: string) => Promise<GitRepoReadReply>;
   readonly updateCopy: (entry: LiveWorkspace) => Promise<GitUpdateReply>;
 }
