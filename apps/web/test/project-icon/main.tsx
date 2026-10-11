@@ -10,6 +10,8 @@ import { useStore } from "../../src/protocol/store.js";
 import { followProjectIcons, useProjectIcons } from "../../src/projects/images.js";
 import { ProjectGlyph } from "../../src/projects/look.js";
 import { base64Of, fitProjectIcon } from "../../src/projects/imageFile.js";
+import "../../src/index.css";
+import "../../src/themes/index";
 
 const bytesOf = (b64: string): Uint8Array<ArrayBuffer> => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
