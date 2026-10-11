@@ -4,6 +4,7 @@
 // and Claude Code's settings.json are read for names alone: which variable is
 // exported, whether a helper command is set.
 import { CLAUDE_SETTINGS_FILE, LOGIN_ROWS, SIGN_IN_ROWS, livesOnComputer, loginRow, mintsToken, signsInByDefault } from "@wsp/catalog";
+import { GITHUB_LOGIN_NAME } from "@wsp/protocol";
 import { type Host, type Platform, expand } from "../host.js";
 import { RC_PATHS, stripExports } from "./shell-rc.js";
 import type { Default, ManifestEntry } from "../manifest.js";
@@ -68,7 +69,7 @@ async function ghRow(host: Host): Promise<ManifestEntry | undefined> {
   const f = await found(host, ["~/.config/gh/hosts.yml"]);
   if (f.paths.length === 0) return undefined;
   const paths = (await keychainHas(host, "gh:github.com")) ? [...f.paths, "Keychain: gh:github.com"] : f.paths;
-  return entry({ rung: "logins", id: "logins/gh", label: "GitHub CLI login", group: "CLI logins", paths, bytes: f.bytes, default: loginDefault("gh") });
+  return entry({ rung: "logins", id: "logins/gh", label: GITHUB_LOGIN_NAME, group: "CLI logins", paths, bytes: f.bytes, default: loginDefault("gh") });
 }
 
 export const CLAUDE_KEY_ENV = "ANTHROPIC_API_KEY";

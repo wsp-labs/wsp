@@ -977,7 +977,7 @@ export const PLACES_FIX = "Run wsp computers.";
 export async function placeNamed(client: HostClient, word: string): Promise<PlaceView> {
   const places = (await client.request<{ places: PlaceView[] }>("places.list")).places;
   const found = places.find(p => namesPlace(p, word));
-  if (found === undefined) throw usageRefusal(noSuchPlaceRefusal(word, places.map(p => p.name)), PLACES_FIX);
+  if (found === undefined) throw usageRefusal(noSuchPlaceRefusal(word, places.map(tableName)), PLACES_FIX);
   return found;
 }
 

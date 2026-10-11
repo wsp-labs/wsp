@@ -103,22 +103,47 @@ pub async fn thread_folder(client: &Client, thread: &str, tool: &str, cloud: boo
     Ok(folder.id)
 }
 
+/// A row of the host's places list, with what a line calls it: `tableName`, a cloud by its own name.
+#[derive(Deserialize)]
+pub struct ListedPlace {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+}
+
+impl ListedPlace {
+    pub fn table_name<'a>(&'a self, words: &'a Words) -> &'a str {
+        if self.kind.as_deref() == Some("provider") {
+            if let Some(name) = words.provider_names.get(&self.name) {
+                return name;
+            }
+        }
+        &self.name
+    }
+
+    /// Whether a word names this row, as `namesPlace` reads it: its id or its name, and a cloud also by its own name
+    /// in any case.
+    pub fn named(&self, words: &Words, word: &str) -> bool {
+        let folded = word.to_lowercase();
+        self.id == word
+            || self.name == word
+            || (self.kind.as_deref() == Some("provider")
+                && [self.id.as_str(), self.name.as_str(), self.table_name(words)].iter().any(|n| n.to_lowercase() == folded))
+    }
+}
+
 /// A computer by the name or the id the list carries; a word nothing holds is refused with the names there are.
 pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<String, Failure> {
     #[derive(Deserialize)]
-    struct Place {
-        id: String,
-        name: String,
-    }
-    #[derive(Deserialize)]
     struct Places {
-        places: Vec<Place>,
+        places: Vec<ListedPlace>,
     }
     let Places { places } = client.request("places.list", Map::new()).await?;
-    if let Some(place) = places.iter().find(|p| p.id == word || p.name == word) {
+    if let Some(place) = places.iter().find(|p| p.named(words, word)) {
         return Ok(place.id.clone());
     }
-    let held = places.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");
+    let held = places.iter().map(|p| p.table_name(words)).collect::<Vec<_>>().join(", ");
     Err(Failure::usage(refusal_line(&fill(&words.no_such_place, &[("word", word), ("held", &held)]), &words.places_fix)))
 }
 

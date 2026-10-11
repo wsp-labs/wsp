@@ -141,7 +141,29 @@ describe("a fork at a provider this host is not wired to", () => {
       placeLinks: wiring(hostKey, { id: "solari", rateUsdPerHour: 0.11 }),
     });
     ctx.srv = await serveRuntime(ctx.runtime, { port: 0, authToken: "host-token", devices: ctx.runtime.devices });
-    await expect(createOn(ctx.runtime, { golden: "snap_g", name: "x", on: "nowhere" })).rejects.toThrow(/no place named nowhere; you have .*solari.*box/);
+    await expect(createOn(ctx.runtime, { golden: "snap_g", name: "x", on: "nowhere" })).rejects.toThrow(/no place named nowhere; you have .*Solari, Boat$/);
+  });
+
+  it("reads a cloud by the name a person types for it, in any case, on the fork road and the image road alike", async () => {
+    const solari = stubBackend();
+    const box = stubBackend();
+    ctx.runtime = createRuntime({
+      backend: solari,
+      store: memoryStore(),
+      adapters: {},
+      places: twoProviders("solari", { solari, box }),
+      placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }),
+    });
+    ctx.srv = await serveRuntime(ctx.runtime, { port: 0, authToken: "host-token", devices: ctx.runtime.devices });
+    const places = ctx.runtime.places!;
+    for (const word of ["boat", "Boat", "BOAT", "box"]) expect(await places.placeFor(word)).toEqual({ placeId: "box" });
+    // The provider this host forks on stays the road a record with no place word stands on, by either word.
+    for (const word of ["solari", "Solari"]) expect(await places.placeFor(word)).toEqual({});
+    const boat = await ctx.runtime.golden.buildPlace("boat");
+    expect([boat.place, boat.name, boat.kind, boat.backend]).toEqual(["box", "Boat", "provider", box]);
+    expect((await ctx.runtime.golden.buildPlace("SOLARI")).place).toBe("solari");
+    await expect(places.placeFor("nowhere")).rejects.toThrow(/; you have .*Solari, Boat$/);
+    await expect(ctx.runtime.image.build({ place: "nowhere" })).rejects.toThrow(/; you have .*Solari, Boat$/);
   });
 });
 
@@ -194,7 +216,7 @@ describe("a fork on a computer you joined", () => {
     const { hostKey } = await serving({ provider: { id: "solari", rateUsdPerHour: 0.11 } });
     const { client } = await join(hostKey, { code: await code(), name: "srv", answers: c => forks(c) });
     sockets.push(client.ws);
-    await expect(createOn(ctx.runtime!, { golden: "snap_g", name: "x", on: "nowhere" })).rejects.toThrow(/no place named nowhere; you have .*srv.*solari/);
+    await expect(createOn(ctx.runtime!, { golden: "snap_g", name: "x", on: "nowhere" })).rejects.toThrow(/no place named nowhere; you have .*srv.*Solari/);
   });
 
   it("never holds a computer that forks nowhere: the join turned it down, so no word names one", async () => {

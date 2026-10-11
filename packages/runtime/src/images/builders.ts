@@ -24,14 +24,17 @@ import {
   type ReapFailure,
   type ReapedMachine,
 } from "@wsp/engine";
-import type { GoldenBuilderView, GoldenLogin, GoldenStage, GoldenStep, SealedImage, SealedVault } from "@wsp/protocol";
+import type { GoldenBuilderView, GoldenLogin, GoldenStage, GoldenStep, PlaceKind, SealedImage, SealedVault } from "@wsp/protocol";
 import {
   recipePins,
   HERE_PLACE_ID,
   forksNoMachines,
   NO_PROVIDER_LINE,
   isJoinedComputer,
+  cloudNamed,
   noSuchPlaceRefusal,
+  placeSaid,
+  providerKeyName,
   placeBuildsNoImageLine,
   placeForksNothingPickLine,
 } from "@wsp/protocol";
@@ -182,7 +185,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
   /** The backend a place id resolves to: a provider row, or a joined computer whose backend this host has heard. */
   const backendAt = (place: string): MachineBackend => {
     const at = places.backend(place) ?? placeDoor?.backendOf(place);
-    if (at === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(place, places.list())), { kind: "missing" });
+    if (at === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(place, places.list().map(providerKeyName))), { kind: "missing" });
     return at;
   };
   /** The place a word names, as the golden roads key it: a provider's id, or the id a joined computer's copies are
@@ -192,14 +195,23 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
   const placeAt = async (word: string): Promise<{ place: string; at: MachineBackend }> => {
     const own = places.backend(word);
     if (own !== undefined) return { place: word, at: own };
-    if (placeDoor === undefined) return { place: word, at: backendAt(word) };
+    if (placeDoor === undefined) {
+      const cloud = cloudNamed(places.list(), word) ?? word;
+      return { place: cloud, at: backendAt(cloud) };
+    }
     let placeId: string | undefined;
     try {
       ({ placeId } = await placeDoor.placeFor(word));
     } catch (e) {
       throw Object.assign(e instanceof Error ? e : new Error(String(e)), { kind: "missing" });
     }
-    if (placeId === undefined) throw ctx.conflict(placeBuildsNoImageLine(word));
+    if (placeId === undefined) {
+      // The fork road reads the provider this host forks on as no place word at all; here it is that provider's row.
+      const wired = cloudNamed([places.wired], word);
+      const at = wired === undefined ? undefined : places.backend(wired);
+      if (wired === undefined || at === undefined) throw ctx.conflict(placeBuildsNoImageLine(word));
+      return { place: wired, at };
+    }
     return { place: placeId, at: await placeDoor.forkingBackend(placeId) };
   };
   /** The backend a fork lands on, gated before any machine is asked for: a joined computer that forks nowhere refuses
@@ -208,7 +220,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
   const landingBackend = async (placeId: string | undefined): Promise<MachineBackend> => {
     const at = await forkingAt(placeId);
     if (at !== undefined) return at;
-    const running = (await buildPlaces()).map(r => r.name);
+    const running = (await buildPlaces()).map(placeSaid);
     throw ctx.conflict(running.length === 0 ? (opts.noMachinesLine ?? NO_PROVIDER_LINE) : placeForksNothingPickLine(placeName(placeId ?? places.wired), running));
   };
   /** The backend a fork on that place would land on, or nothing where it forks nothing, with no refusal worded: the
@@ -222,23 +234,23 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
   };
   /** What a sentence calls a place, as the computers listing names it: with no places door, this computer by its
    * hostname and any other by its id. */
-  const placeName = (place: string): string => placeDoor?.nameOf(place) ?? (place === HERE_PLACE_ID ? hostname() : place);
+  const placeName = (place: string): string => placeDoor?.nameOf(place) ?? (place === HERE_PLACE_ID ? hostname() : providerKeyName(place));
   /** Where the image's own seal stands: the place the record names, or the provider this host forks on for a record
    * sealed before places. The manifest there is the one wsp init built and updates. */
   const imagePlace = async (name: string): Promise<string> => (await ctx.recordOf(name))?.place ?? places.wired;
   /** Every place an image can be built at: the provider rows that fork, and the joined computers whose daemon runs
    * workspaces, this computer left out since it is never forked into. */
-  const buildPlaces = async (): Promise<{ place: string; name: string; backend: MachineBackend }[]> => {
-    const rows: { place: string; name: string; backend: MachineBackend }[] = [];
+  const buildPlaces = async (): Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]> => {
+    const rows: { place: string; name: string; kind: PlaceKind; backend: MachineBackend }[] = [];
     for (const id of places.list()) {
       const at = places.backend(id);
-      if (at !== undefined && !forksNoMachines(at.capabilities)) rows.push({ place: id, name: id, backend: at });
+      if (at !== undefined && !forksNoMachines(at.capabilities)) rows.push({ place: id, name: id, kind: "provider", backend: at });
     }
     if (placeDoor === undefined) return rows;
     for (const view of await placeDoor.list(clock.now())) {
       if (!isJoinedComputer(view)) continue;
       const at = await placeDoor.forkingBackend(view.id).catch(() => undefined);
-      if (at !== undefined) rows.push({ place: view.id, name: view.name, backend: at });
+      if (at !== undefined) rows.push({ place: view.id, name: view.name, kind: "computer", backend: at });
     }
     return rows;
   };

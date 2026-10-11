@@ -9,7 +9,7 @@ import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSource
 import { projectLanding, type Landed, type LandingDeps, type ProjectLanding } from "../project-landing.js";
 import { projectSource } from "../project-sources.js";
 import { projectUnsavedRefusal, refusal, scopeOf, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
-import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, noSuchPlaceRefusal } from "@wsp/protocol";
+import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, namesPlace, noSuchPlaceRefusal } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV } from "@wsp/engine";
 import { resolveThreadDefaults, withCustomModels } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
@@ -214,10 +214,11 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       const source: ProjectSource = projectSourceOf(o.source, kind, kind === "folder" ? folderNamed(o.source) : undefined);
       // No --on: a folder is worked here and so is a repo given a folder to clone into; a repo with neither is the
       // person's to place, here or on a computer that clones, which the kind table says are which.
-      const computer = o.on === undefined ? (kind === "folder" || o.into !== undefined ? HERE_PLACE_ID : undefined) : (rows.find(r => r.id === o.on || r.name === o.on)?.id ?? undefined);
+      const on = o.on;
+      const computer = on === undefined ? (kind === "folder" || o.into !== undefined ? HERE_PLACE_ID : undefined) : rows.find(r => namesPlace(r, on))?.id;
       if (computer === undefined) {
         if (o.on === undefined) throw new Error(noComputerForSourceLine(o.source, clones));
-        throw new Error(noSuchPlaceRefusal(o.on, rows.map(r => r.name)));
+        throw new Error(noSuchPlaceRefusal(o.on, rows.map(tableName)));
       }
       if (o.into !== undefined && computer !== HERE_PLACE_ID) throw new Error(intoIsHereLine(ctx.nameOfComputer(HERE_PLACE_ID, rows)));
       const place = rows.find(r => r.id === computer);

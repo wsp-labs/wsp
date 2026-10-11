@@ -10,8 +10,10 @@ import {
   placeCapOf,
   placeTurnLimit,
   absentComputer,
+  cloudNamed,
   namesPlace,
   noSuchPlaceRefusal,
+  providerKeyName,
   placeForksNowhereLine,
   BackendFacts,
   type DaemonResponse,
@@ -283,7 +285,7 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
       }
     },
 
-    nameOf: placeId => (placeId === HERE_PLACE_ID ? wiring.here().name : (kept.get(placeId)?.name ?? placeId)),
+    nameOf: placeId => (placeId === HERE_PLACE_ID ? wiring.here().name : (kept.get(placeId)?.name ?? providerKeyName(placeId))),
 
     settingsAt: placeId => settingsHeld.get(placeId) ?? {},
 
@@ -474,11 +476,12 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
       if (found[0] !== undefined) return { placeId: found[0].id };
       const here = wiring.here().name;
       const providers = providerIds();
+      const cloud = cloudNamed(providers, word);
       // The wired provider is where a record with no place word already stands, so naming it is that same road and
       // the record stays as every record before joined computers existed.
-      if (word === HERE_PLACE_ID || word === here || word === wiredProvider()) return {};
-      if (providers.includes(word)) return { placeId: word };
-      throw new Error(noSuchPlaceRefusal(word, [here, ...all.map(r => r.name), ...providers]));
+      if (word === HERE_PLACE_ID || word === here || (cloud !== undefined && cloud === wiredProvider())) return {};
+      if (cloud !== undefined) return { placeId: cloud };
+      throw new Error(noSuchPlaceRefusal(word, [here, ...all.map(r => r.name), ...providers.map(providerKeyName)]));
     },
 
     async defaultPlace() {
