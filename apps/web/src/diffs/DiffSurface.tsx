@@ -38,7 +38,7 @@ import { DiscardDialog } from "./DiscardDialog.js";
 import { FileControls } from "./FileControls.js";
 import { Checkbox } from "../components/ui/checkbox.js";
 import { addNotice } from "../notices/store.js";
-import { useStore } from "../protocol/store.js";
+import { useShownThreadId, useStore } from "../protocol/store.js";
 import { errorText } from "../lib/utils.js";
 import { sendToThread } from "./sendToThread.js";
 import { baseName, relativeTo } from "../files/entries.js";
@@ -56,7 +56,7 @@ import { repoAbsence } from "../adapt/git.js";
 import { DaemonOpError, fsWrite, gitDiff, gitTurn, gitStatus } from "../terminal/daemon-fs.js";
 import { editable, SCOPE_LABELS, SCOPE_NOUNS, SCOPES, toDiffModel, type DiffFile } from "./model.js";
 import { useDiffRevealStore } from "./reveal.js";
-import { DEFAULT_SCOPE, useDiffStore, wholeRange, type DiffRenderMode } from "./store.js";
+import { DEFAULT_SCOPE, useDiffStore, useShownTurn, wholeRange, type DiffRenderMode } from "./store.js";
 
 /** The diff read for one folder: in flight or failed with the last reply it may keep showing, or the reply itself. */
 type LoadState =
@@ -117,7 +117,7 @@ export function DiffSurface({ workspaceId, theme }: { workspaceId: string; theme
   const pin = useRootStore(s => s.pin);
   const unpin = useRootStore(s => s.unpin);
   const scope = useDiffStore(s => s.scopeByWorkspaceId[workspaceId] ?? DEFAULT_SCOPE);
-  const turn = useDiffStore(s => s.turnByWorkspaceId[workspaceId]);
+  const turn = useShownTurn(workspaceId);
   const turnCwd = turn?.cwd;
   const turnFrom = turn?.from;
   const turnTo = turn?.to;
@@ -142,6 +142,7 @@ export function DiffSurface({ workspaceId, theme }: { workspaceId: string; theme
   const takeReveal = useDiffRevealStore(s => s.take);
   const [revealNote, setRevealNote] = useState<string | null>(null);
   const api = useStore(s => s.api);
+  const threadId = useShownThreadId(workspaceId);
   const viewed = useStore(s => s.viewed[workspaceId]) ?? NO_MARKS;
   const working = useStore(s => (s.sessions[workspaceId] ?? []).some(row => row.status === "running"));
   // A file shows folded where a person folded it, or where it is viewed and nobody has opened it again since.
@@ -289,7 +290,7 @@ export function DiffSurface({ workspaceId, theme }: { workspaceId: string; theme
     const drafts = api?.commitDraft;
     setCommit({ message: "", drafting: drafts !== undefined, note: drafts === undefined ? DRAFT_NOTES.noAgent : null, ticked: new Set(paths), busy: false, error: null });
     if (drafts === undefined) return;
-    drafts(workspaceId, paths).then(
+    drafts(workspaceId, paths, threadId).then(
       draft =>
         setCommit(held =>
           held === null

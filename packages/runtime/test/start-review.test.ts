@@ -281,6 +281,22 @@ describe("reviewing a pull request", () => {
     expect(told).toEqual([started.workspace.id]);
   });
 
+  it("reads the draft off the reviewer's thread alone: another thread in the review's worktree leaves it as it was", async () => {
+    const second = { ...REVIEW, verdict: "approve", summary: "Words from another thread.", comments: [] };
+    const codex = replyingAgent([fence(REVIEW), fence(second)]);
+    const daemons = fakeDaemons();
+    const { repo } = await withProject(daemons, { codex: codex.factory });
+    answersPullRequest(daemons, repo);
+    const started = await rt!.workspaces.review({ url: `https://github.com/${repo}/pull/7` });
+    await until(async () => (await rt!.workspaces.reviewDraft({ workspaceId: started.workspace.id })).review !== undefined);
+    const other = await rt!.sessions.start(started.workspace.id, { prompt: "what does this rename touch?", harness: "codex" });
+    await other.finished;
+    expect(other.view().threadId).not.toBe(started.threadId);
+    await new Promise(r => setTimeout(r, 50));
+    const { review } = await rt!.workspaces.reviewDraft({ workspaceId: started.workspace.id });
+    expect(review).toMatchObject({ verdict: "request_changes", summary: "One unused variable.", threadId: started.threadId });
+  });
+
   it("asks the reviewer once more where its block does not read, and leaves the sentence where the second does not either", async () => {
     const codex = replyingAgent(["Looks good to me.", "Still no block."]);
     const daemons = fakeDaemons();
