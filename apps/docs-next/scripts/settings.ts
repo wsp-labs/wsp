@@ -56,6 +56,7 @@ export const LISTS: Record<string, { says: string; also?: readonly string[] }> =
   recipes: { says: "One row per recipe: its icon, what it holds and the computers that follow it. An open recipe has the same rows Add a computer ticks, and a change there reaches every computer following it." },
   projects: { says: "One row per project, with its source and the computer it lives on. Each opens the project's page: its facts, what a new task starts from, its icon and color, and Remove, which waits until no workspace uses it." },
   usage: { says: "Two tabs. Usage: what turns used over a range, split by a value you pick, with the threads that used the most. Limits: each signed-in account with what its agent last said about its plan's windows." },
+  activity: { says: "Every thread's processes on one computer, with their memory, CPU, power on a Mac, and ports. Totals carry a line of the last few minutes. Four views: Threads, Processes, Kinds and Ports; sort by a column, filter by name, port or thread, or narrow with the chips. Reading stops when you leave the page." },
   devices: { says: "Every computer and browser paired with this wsp, with when it paired and when it was last seen, and Revoke." },
 };
 

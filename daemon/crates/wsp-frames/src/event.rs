@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use ts_rs::TS;
 
 use crate::validate::http_url;
-use crate::{GuestKind, PtyMode, RelayPort};
+use crate::{GuestKind, ProcKind, ProcOwner, PtyMode, RelayPort};
 
 /// A reading is a number on the wire or nothing: serde_json writes a NaN or an infinity as null, which the
 /// protocol's number schema refuses, so a reading that is not finite travels as zero.
@@ -42,6 +42,30 @@ pub struct ProcEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cgroup: Option<String>,
+    /// The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a
+    /// Mac alone keeps one, so a row elsewhere, and a pid's first reading, carry none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub energy_mw: Option<f64>,
+    /// Whose it is, where the daemon could tell; absent for a process that is not wsp's, and on a daemon that names
+    /// no owners.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub owner: Option<ProcOwner>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub kind: Option<ProcKind>,
+}
+
+/// What one tick of the process sampler cost the daemon: the cpu time the read and the frame took, and about how many
+/// bytes of rows it holds between ticks to tell the next frame's changes by.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcCost {
+    #[serde(serialize_with = "finite")]
+    pub cpu_ms: f64,
+    pub held: u64,
 }
 
 /// Every frame the daemon pushes without being asked, keyed on `type` as the zod union is.
@@ -163,11 +187,26 @@ pub enum DaemonEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         seq: Option<u64>,
+        /// Absent on a daemon a version behind, which never measured it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cost: Option<ProcCost>,
     },
     /// What moved since frame `base`: the rows new or changed, whole, and the pids gone. A client holding any other
     /// frame than `base` applies nothing and watches again for a whole snapshot.
     #[serde(rename = "proc.changes")]
-    ProcChanges { at: i64, daemon: u32, total: u64, procs: Vec<ProcEntry>, gone: Vec<u32>, seq: u64, base: u64 },
+    ProcChanges {
+        at: i64,
+        daemon: u32,
+        total: u64,
+        procs: Vec<ProcEntry>,
+        gone: Vec<u32>,
+        seq: u64,
+        base: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cost: Option<ProcCost>,
+    },
     /// A process inside the machine opened a session; this one goes up to the watcher alone.
     #[serde(rename = "guest.opened", rename_all = "camelCase")]
     GuestOpened {
@@ -244,6 +283,9 @@ mod tests {
             started_at: 0,
             pty: None,
             cgroup: None,
+            energy_mw: None,
+            owner: None,
+            kind: None,
         };
         assert_eq!(serde_json::to_value(&proc_entry).unwrap()["cpu"], json!(0.0));
         let fine =

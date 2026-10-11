@@ -103,6 +103,9 @@ export interface SettingsState {
   /** The page under the Agents page's tab that stands in place of its list: one server or skill, or an add. Moving to
    * another page, tab or computer drops it. */
   readonly agentsLevel: AgentsLevel | null;
+  /** Activity's view and the computer it reads, kept while the window is open. Null reads the one wsp runs on. */
+  readonly activityView: ActivityView;
+  readonly activityPlace: string | null;
   go(at: SettingsAt): void;
   setSearch(search: string): void;
   setReads(patch: Partial<SettingsReads>): void;
@@ -119,10 +122,13 @@ export interface SettingsState {
   pickAgentsTab(tab: AgentsTab): void;
   pickAgentsPlace(placeId: string | null): void;
   openAgentsLevel(level: AgentsLevel | null): void;
+  pickActivityView(view: ActivityView): void;
+  pickActivityPlace(placeId: string | null): void;
 }
 
 export type UsageTab = "used" | "limits";
 export type AgentsTab = "agents" | "servers" | "skills" | "plugins";
+export type ActivityView = "threads" | "processes" | "kinds" | "ports";
 
 /** A page under the Agents page's list, by its name for the crumb: one item of the tab's kind by its key, the tab's
  * add, or one thing the add found, by its key and the search that found it. `up` is where the crumb's back goes. */
@@ -146,6 +152,8 @@ export const useSettingsStore = create<SettingsState>(set => ({
   agentsTab: "agents",
   agentsPlace: null,
   agentsLevel: null,
+  activityView: "threads",
+  activityPlace: null,
   go(at) {
     set({ at, search: "", recipeAsked: null, addAsked: null, agentsLevel: null });
     try {
@@ -171,6 +179,12 @@ export const useSettingsStore = create<SettingsState>(set => ({
   },
   openAgentsLevel(agentsLevel) {
     set({ agentsLevel });
+  },
+  pickActivityView(activityView) {
+    set({ activityView });
+  },
+  pickActivityPlace(activityPlace) {
+    set({ activityPlace });
   },
 
   setSearch(search) {

@@ -18,6 +18,7 @@ mod machine;
 pub mod numbers;
 mod place;
 mod place_paths;
+mod proc_owner;
 mod reply;
 mod request;
 mod shell;
@@ -32,7 +33,7 @@ pub use enums::{
     CheckState, DaemonErrorCode, FsEntryType, FsReadEncoding, FsSearchMode, GitDiffScope, HostItemKind, MergeMethod, Mergeable, ProcSignal,
     PtyMode, PullRequestState, ReactionContent, ReviewEvent, ReviewSide, ReviewState, TranscriptVoice, UsageLogFormat, WorkspaceKind,
 };
-pub use event::{DaemonEvent, ProcEntry, Usage};
+pub use event::{DaemonEvent, ProcCost, ProcEntry, Usage};
 pub use guest::{GuestCliMessage, GuestKind, GuestOpen, GuestOpenReply, GuestStream};
 pub use id::RequestId;
 pub use landed::{landed_files_script, outside_marks, outside_sweep_script, own_marks, OUTSIDE_MARK, OWN_MARK};
@@ -53,6 +54,7 @@ pub use place_paths::{
     place_daemon_paths, place_owned_paths, place_provision_paths, probe_path, PlaceDaemonPaths, PlaceProvisionPaths, READINGS_FOLDER,
     SSH_FOLDER,
 };
+pub use proc_owner::{ProcKind, ProcOwnedBy, ProcOwner};
 pub use reply::{
     DaemonErrorResponse, DaemonExecReply, Empty, False, FsEntry, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsReadReply,
     FsSearchHit, FsSearchReply, FsWriteReply, GitBranch, GitBranchCompareReply, GitBranchesReply, GitCheckpointDropReply,

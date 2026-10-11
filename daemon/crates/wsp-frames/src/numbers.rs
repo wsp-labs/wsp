@@ -170,10 +170,10 @@ pub const PID_MAX: u32 = 4_194_304;
 /// first sample lands, proc.watch's first snapshot among them. The protocol's DAEMON_SAMPLER_INTERVAL_MS is the same
 /// figure, held so by the contract fixture.
 pub const SAMPLER_INTERVAL_MS: u64 = 2000;
-/// How often proc.watch reads the processes after its first snapshot. A whole list every two seconds measured 180 KB
-/// a frame on a Mac with a thousand processes; after the first, a frame carries only what changed. The protocol's
-/// DAEMON_PROC_INTERVAL_MS is the same figure, held so by the contract fixture.
-pub const PROC_INTERVAL_MS: u64 = 5000;
+/// How often proc.watch reads the processes after its first snapshot, the sys sampler's cadence. A whole list measured
+/// 180 KB a frame on a Mac with a thousand processes, so after the first a frame carries only what changed. The
+/// protocol's DAEMON_PROC_INTERVAL_MS is the same figure, held so by the contract fixture.
+pub const PROC_INTERVAL_MS: u64 = 2000;
 /// The days of readings a daemon keeps, one file a day, and the most those files may hold between them on disk: the
 /// oldest day goes first past either. A minute's point is about 160 bytes, so a day is about 230 KB and the cap
 /// holds the fourteen days with room to spare.

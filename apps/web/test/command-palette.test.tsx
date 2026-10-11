@@ -312,6 +312,18 @@ describe("command palette", () => {
     act(() => closeAdd());
   });
 
+  it("carries Activity, which opens Settings on the Activity page", async () => {
+    await mountShell();
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    fireEvent.change(screen.getByPlaceholderText(/Search commands/), { target: { value: "task manager" } });
+    await waitFor(() => expect(inPalette().getByText("Activity", { selector: "[data-slot=command-item] span" })).toBeTruthy());
+    fireEvent.click(inPalette().getByText("Activity", { selector: "[data-slot=command-item] span" }));
+    await waitFor(() => expect(palette()).toBeNull());
+    expect(useStore.getState().settingsOpen).toBe(true);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "group", group: "activity" });
+  });
+
   it("carries Add a project, which opens the sheet the sidebar's own row opens, and no cloud to connect", async () => {
     await mountShell();
     mod("k");

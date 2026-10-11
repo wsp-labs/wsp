@@ -2,11 +2,11 @@
 // The sidebar's bottom-left corner: a row of icon buttons, Settings first, its
 // chord on the tooltip. Settings stands here whatever else the corner holds,
 // so it is never reachable only by a chord nobody was told about.
-import { GaugeIcon, SettingsIcon } from "lucide-react";
+import { ActivityIcon, GaugeIcon, SettingsIcon } from "lucide-react";
 import { Button } from "../components/ui/button.js";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip.js";
 import { useStore } from "../protocol/store.js";
-import { SETTINGS_WORDS, USAGE_PAGE_WORDS } from "../settings/format.js";
+import { ACTIVITY_WORDS, SETTINGS_WORDS, USAGE_PAGE_WORDS } from "../settings/format.js";
 import { openSettingsGroup } from "../settings/openAt.js";
 import { useShortcutLabel } from "../shell/useKeybindings.js";
 
@@ -29,6 +29,12 @@ export function SidebarCorner() {
           <GaugeIcon aria-hidden />
         </TooltipTrigger>
         <TooltipPopup side="top">{USAGE_PAGE_WORDS.title}</TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger render={<Button variant="ghost" size="icon" data-k="activity-row" aria-label={ACTIVITY_WORDS.title} onClick={() => openSettingsGroup("activity")} />}>
+          <ActivityIcon aria-hidden />
+        </TooltipTrigger>
+        <TooltipPopup side="top">{ACTIVITY_WORDS.title}</TooltipPopup>
       </Tooltip>
     </div>
   );
