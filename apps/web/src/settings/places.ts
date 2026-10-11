@@ -73,6 +73,15 @@ export const removeTitle = (place: PlaceView): string => `Remove ${placeName(pla
 
 export const forgetTitle = (place: PlaceView): string => `Forget ${placeName(place)}?`;
 
+/** What forgetting a cloud does once it refused its key: the key and the tasks' records leave, and nothing there is
+ * asked, so what wsp made there runs on until the cloud's own timer. */
+export function providerForgetSentence(place: PlaceView, holding: PlaceHolding, here: string): string {
+  const name = placeName(place);
+  const count = holding.workspaces.length;
+  const leaves = count === 0 ? "The key leaves" : `The key and ${count === 1 ? "its task's record" : `its ${count} tasks' records`} leave`;
+  return `${leaves} ${here}. Nothing at ${name} is touched, so what wsp made there may bill until ${name}'s own timer ends it.`;
+}
+
 /** What a forget does, in its order: why a remove cannot, then the protocol's own sentence for the forget. */
 export function forgetSentence(place: PlaceView, holds: PlaceHolds): string {
   const name = placeName(place);

@@ -633,7 +633,7 @@ async function removeProviderAt(io: CliIO, client: HostClient, place: PlaceView,
   if (!(await confirmedAt(io, flags.yes === true, forget ? providerForgetQuestion(name, tasks) : providerRemoveQuestion(name, tasks), name))) return 1;
   const answer = PlaceRemoved.parse(await client.request("places.remove", { placeId: place.id, ...(forget ? { forget: true } : {}) }));
   if (!answer.removed) throw new Error(answer.note ?? noPlaceLine(typed, []));
-  io.log(flags.json === true ? jsonLine(answer) : forget ? providerForgotLine(name, tasks) : providerRemovedLine(name, answer.deleted ?? 0));
+  io.log(flags.json === true ? jsonLine(answer) : forget ? providerForgotLine(name, tasks, answer.note) : providerRemovedLine(name, answer.deleted ?? 0, answer.note));
   return 0;
 }
 

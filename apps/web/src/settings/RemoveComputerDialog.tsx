@@ -13,12 +13,13 @@
 //
 // A computer that is not answering cannot be swept from here, so the dialog
 // hands over the line that sweeps it on the computer itself. One with forks or
-// projects on it, which go over its link, is only forgotten here. Where the login
-// it was added over runs sudo only with a password, the refusal asks for it
-// in a field under the slot, held in this dialog alone and sent with the next
-// Remove.
+// projects on it, which go over its link, is only forgotten here, and so is a
+// cloud that refused its key: the key and the records go and nothing there is
+// asked. Where the login it was added over runs sudo only with a password, the
+// refusal asks for it in a field under the slot, held in this dialog alone and
+// sent with the next Remove.
 import { useEffect, useState } from "react";
-import { PLACE_SUDO_KIND, PLACES_WORDS, placeForgetsOnly, placeUnsavedRefusal, type PlaceHolds, type PlaceView } from "@wsp/protocol";
+import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, placeUnsavedRefusal, type PlaceHolds, type PlaceView } from "@wsp/protocol";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
@@ -27,7 +28,7 @@ import { failureOf } from "../protocol/failure.js";
 import { useStore } from "../protocol/store.js";
 import { ADD_COMPUTER_WORDS, WHERE_WORDS } from "./format.js";
 import { ROW_FIELD } from "./layout.js";
-import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, removeSentence, removeTitle, type PlaceHolding } from "./places.js";
+import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, providerForgetSentence, removeSentence, removeTitle, type PlaceHolding } from "./places.js";
 import { CopyRow, RefusalSlot } from "./sheetParts.js";
 
 /** What the app says when its own client carries no remove road: the same shape the forget dialog's refusal has. */
@@ -41,8 +42,9 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
   const [asksSudo, setAsksSudo] = useState(false);
   const [password, setPassword] = useState("");
   const [holds, setHolds] = useState<PlaceHolds | null>(null);
+  const [keyRefused, setKeyRefused] = useState(false);
   const unsaved = holds?.unsaved ?? [];
-  const forgets = holds !== null && placeForgetsOnly(holds);
+  const forgets = keyRefused || (holds !== null && placeForgetsOnly(holds));
   const reading = open && api?.placeHolds !== undefined && holds === null && refusal === null;
   const projects = useStore(s => s.projects).filter(p => p.computer === place.id).map(p => p.name);
 
@@ -69,6 +71,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
       setRefusal(null);
       setAsksSudo(false);
       setPassword("");
+      setKeyRefused(false);
     }
     onOpenChange(next);
   };
@@ -95,8 +98,11 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
       const failure = failureOf(e);
       // The host's fix names the terminal and this confirm for a client with no field; here the field is the fix.
       const sudo = failure.kind === PLACE_SUDO_KIND;
+      // A cloud that refused its key cannot be read or emptied, so the confirm turns to its Forget, which asks nothing there.
+      const refusedKey = failure.kind === "auth" && isProviderPlace(place);
       setAsksSudo(sudo);
-      setRefusal({ said: failure.said, ...(sudo ? { fix: ADD_COMPUTER_WORDS.sudoFix } : failure.fix === undefined ? {} : { fix: failure.fix }) });
+      if (refusedKey) setKeyRefused(true);
+      setRefusal({ said: failure.said, ...(sudo ? { fix: ADD_COMPUTER_WORDS.sudoFix } : refusedKey ? { fix: WHERE_WORDS.keyRefusedFix(placeName(place)) } : failure.fix === undefined ? {} : { fix: failure.fix }) });
       // The link may have come or gone since the dialog opened, which moves the road the host takes.
       api.placeHolds?.(place.id).then(setHolds, () => undefined);
     } finally {
@@ -109,7 +115,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
       <AlertDialogPopup data-remove-place-dialog>
         <AlertDialogHeader>
           <AlertDialogTitle data-k="remove-title">{forgets ? forgetTitle(place) : removeTitle(place)}</AlertDialogTitle>
-          <AlertDialogDescription data-k="remove-sentence">{forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects }, hereName(places), imageBytes)}</AlertDialogDescription>
+          <AlertDialogDescription data-k="remove-sentence">{keyRefused ? providerForgetSentence(place, holding, hereName(places)) : forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects }, hereName(places), imageBytes)}</AlertDialogDescription>
         </AlertDialogHeader>
         {placeIsOffline(place) ? (
           <div className="flex flex-col gap-3 px-5 pt-2">
