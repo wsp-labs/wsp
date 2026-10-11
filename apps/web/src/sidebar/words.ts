@@ -28,7 +28,6 @@ export const FIRST_RUN_WORDS = {
  * which sends a person to the first run in the centre. */
 export const PROJECT_WORDS = {
   add: "Add a project",
-  new: "New project",
   settings: "Project settings",
   remove: "Remove project",
   noWorkspaces: "No threads yet.",
@@ -107,4 +106,6 @@ export const TREE_WORDS = {
   startedBy: (path: ReadonlyArray<string>): string => `Started by ${path.join(" / ")}`,
   fold: "Fold",
   unfold: "Unfold",
+  /** What the sidebar's polite live region says once a tree moves. */
+  moved: (title: string, place: number, of: number, pinned: boolean): string => `Moved ${title} to ${place} of ${of}${pinned ? " in Pinned" : ""}`,
 } as const;
