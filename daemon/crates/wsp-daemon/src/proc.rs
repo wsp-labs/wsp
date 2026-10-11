@@ -397,6 +397,8 @@ struct Inner {
     last_at: Option<i64>,
     last_procs: Vec<ProcEntry>,
     last_total: u64,
+    /// Whether the last tick read every process, so a list may ride it; a tick narrowed to cgroups read only theirs.
+    last_whole: bool,
     /// What the last tick said, so a watch that arrives mid-stream inherits it; None until one has finished.
     last: Option<Result<(), String>>,
     /// The list every subscriber holds, which the next frame's changes are read against; None until the first
@@ -433,6 +435,9 @@ fn held_bytes(procs: &[ProcEntry]) -> u64 {
             + p.cmdline.capacity()
             + p.pty.as_ref().map_or(0, String::capacity)
             + p.cgroup.as_ref().map_or(0, String::capacity)
+            + p.owner
+                .as_ref()
+                .map_or(0, |o| o.thread.as_ref().map_or(0, String::capacity) + o.workspace.as_ref().map_or(0, String::capacity))
     };
     procs.iter().map(|p| (size_of::<ProcEntry>() + text(p)) as u64).sum()
 }
@@ -523,7 +528,7 @@ impl ProcSampler {
         };
         match inherited {
             Some(said) => said.map_err(OpError::plain),
-            None => self.scan(0, (self.opts.now)()).await.map(|_| ()).map_err(OpError::plain),
+            None => self.scan(0, (self.opts.now)(), self.only()).await.map(|_| ()).map_err(OpError::plain),
         }
     }
 
@@ -539,18 +544,20 @@ impl ProcSampler {
         Some(union)
     }
 
-    /// The scan and the cpu milliseconds it took on the thread that ran it.
-    async fn scan(&self, elapsed_ms: i64, at: i64) -> Result<(ProcScan, f64), String> {
+    /// What the next tick reads: the subscribers' scope, every process where none subscribes.
+    fn only(&self) -> Option<Vec<String>> {
+        let inner = self.lock();
+        if inner.scopes.is_empty() {
+            None
+        } else {
+            Self::scope(&inner)
+        }
+    }
+
+    /// The scan of `only`, every process without it, and the cpu milliseconds it took on the thread that ran it.
+    async fn scan(&self, elapsed_ms: i64, at: i64, only: Option<Vec<String>>) -> Result<(ProcScan, f64), String> {
         let source = Arc::clone(&self.source);
         let pty: HashMap<u32, String> = (self.opts.ptys)().into_iter().collect();
-        let only = {
-            let inner = self.lock();
-            if inner.scopes.is_empty() {
-                None
-            } else {
-                Self::scope(&inner)
-            }
-        };
         let daemon = self.opts.self_pid;
         tokio::task::spawn_blocking(move || {
             let from = thread_cpu_ms();
@@ -564,7 +571,9 @@ impl ProcSampler {
     pub(crate) async fn poll(&self) {
         let at = (self.opts.now)();
         let elapsed = self.lock().last_at.map_or(0, |last| at - last);
-        let scanned = self.scan(elapsed, at).await;
+        let only = self.only();
+        let whole = only.is_none();
+        let scanned = self.scan(elapsed, at, only).await;
         let mut inner = self.lock();
         let framing = thread_cpu_ms();
         let (scan, scan_ms) = match scanned {
@@ -579,6 +588,7 @@ impl ProcSampler {
         inner.last_at = Some(at);
         inner.last_procs.clone_from(&scan.procs);
         inner.last_total = scan.total;
+        inner.last_whole = whole;
         if first {
             return;
         }
@@ -618,25 +628,26 @@ impl ProcSampler {
         };
         let procs = match held {
             Some(procs) => procs,
-            None => self.scan(0, (self.opts.now)()).await.map_err(OpError::plain)?.0.procs,
+            None => self.scan(0, (self.opts.now)(), self.only()).await.map_err(OpError::plain)?.0.procs,
         };
         let source = Arc::clone(&self.source);
         tokio::task::spawn_blocking(move || source.inspect(pid, &procs)).await.unwrap_or_else(|e| Err(OpError::plain(e.to_string())))
     }
 
-    /// Every process once. A running sampler's last rows stand, since a scan of its own beside the tick would leave the
-    /// module's per pid state read from two clocks; with none running, one scan, whose cpu reads 0.
+    /// Every process once. A running sampler's last rows stand where that tick read every process, since a scan of its
+    /// own beside the tick would leave the module's per pid state read from two clocks; with none running, or one
+    /// narrowed to cgroups, one scan, whose cpu reads 0, and the narrowed watch's next cpu reads low for that tick.
     pub(crate) async fn list(&self) -> Result<ProcListReply, OpError> {
         let held = {
             let inner = self.lock();
-            inner.last_at.map(|at| (at, inner.last_total, inner.last_procs.clone()))
+            inner.last_at.filter(|_| inner.last_whole).map(|at| (at, inner.last_total, inner.last_procs.clone()))
         };
         let daemon = self.opts.self_pid;
         let (at, total, procs) = match held {
             Some(held) => held,
             None => {
                 let at = (self.opts.now)();
-                let (scan, _) = self.scan(0, at).await.map_err(OpError::plain)?;
+                let (scan, _) = self.scan(0, at, None).await.map_err(OpError::plain)?;
                 (at, scan.total, scan.procs)
             }
         };
@@ -804,6 +815,35 @@ mod tests {
         assert_eq!(ProcSampler::scope(&inner), Some(vec!["/wsp-threads/a".to_string(), "/wsp-threads/b".to_string()]));
         inner.scopes.insert(3, None);
         assert_eq!(ProcSampler::scope(&inner), None);
+    }
+
+    #[test]
+    fn the_rows_held_count_the_owner_each_carries() {
+        let row = ProcEntry {
+            pid: 1,
+            ppid: 0,
+            user: String::new(),
+            state: String::new(),
+            comm: String::new(),
+            cmdline: String::new(),
+            cpu: 0.0,
+            rss: 0,
+            started_at: 0,
+            pty: None,
+            cgroup: None,
+            energy_mw: None,
+            owner: None,
+            kind: None,
+        };
+        let (thread, workspace) = (String::from("t_0123456789abcdef"), String::from("w_1"));
+        let owner = wsp_frames::ProcOwner {
+            by: wsp_frames::ProcOwnedBy::Root,
+            thread: Some(thread.clone()),
+            workspace: Some(workspace.clone()),
+            warm: false,
+        };
+        let owned = ProcEntry { owner: Some(owner), ..row.clone() };
+        assert_eq!(held_bytes(&[owned]) - held_bytes(&[row]), (thread.capacity() + workspace.capacity()) as u64);
     }
 
     #[test]
@@ -1325,7 +1365,7 @@ mod tests {
         assert_eq!(listed.procs.iter().map(|p| (p.pid, p.ppid, p.cpu)).collect::<Vec<_>>(), vec![(1, 0, 0.0), (2, 1, 0.0)]);
 
         let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false), child_ms: 0.0 });
-        let opts = ProcSamplerOptions {
+        let opts = || ProcSamplerOptions {
             self_pid: 1,
             ptys: Arc::new(Vec::new),
             first: Duration::from_secs(60),
@@ -1333,13 +1373,24 @@ mod tests {
             now: Arc::new(now_ms),
             log: quiet(),
         };
-        let s = ProcSampler::new(source.clone(), opts);
+        let s = ProcSampler::new(source.clone(), opts());
         s.list().await.unwrap();
         assert_eq!(source.scans.load(Ordering::SeqCst), 1);
         let (tx, _rx) = mpsc::unbounded_channel();
         s.subscribe(1, Outbound(tx), None);
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert_eq!(source.scans.load(Ordering::SeqCst), 2);
+        s.list().await.unwrap();
+        assert_eq!(source.scans.load(Ordering::SeqCst), 2);
+        s.unsubscribe(1);
+
+        // A watch narrowed to cgroups holds only their rows, so a list reads every process itself.
+        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false), child_ms: 0.0 });
+        let s = ProcSampler::new(source.clone(), opts());
+        let (tx, _rx) = mpsc::unbounded_channel();
+        s.subscribe(1, Outbound(tx), Some(vec!["/wsp-threads".into()]));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(source.scans.load(Ordering::SeqCst), 1);
         s.list().await.unwrap();
         assert_eq!(source.scans.load(Ordering::SeqCst), 2);
         s.unsubscribe(1);

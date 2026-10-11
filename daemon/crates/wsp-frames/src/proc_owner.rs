@@ -4,11 +4,12 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// What a process is to the person, by what they know it as: a thread's agent, a tool server, a dev server, a test
-/// run, a build, a slate's run, a terminal's shell, a browser tab, the app, wsp's own parts, or something else.
+/// What a process is to the person, the way Chrome's task manager names its rows: one list the daemon and the page
+/// share. The daemon stamps only what it knows by fact, a thread's agent, a slate's
+/// run and a tool server wsp started; the page names the rest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum ProcKind {
     Agent,
     Tool,
@@ -52,4 +53,7 @@ pub struct ProcOwner {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub workspace: Option<String>,
+    /// The thread is a warm agent's, started ahead of a send: no thread by this id exists until a send claims it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub warm: bool,
 }

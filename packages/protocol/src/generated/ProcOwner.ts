@@ -5,4 +5,8 @@ import type { ProcOwnedBy } from "./ProcOwnedBy.js";
  * The owner a row carries: a thread for the first five rungs, a workspace alone for a folder, neither for a process
  * that is wsp's with no thread known.
  */
-export type ProcOwner = { by: ProcOwnedBy, thread?: string, workspace?: string, };
+export type ProcOwner = { by: ProcOwnedBy, thread?: string, workspace?: string, 
+/**
+ * The thread is a warm agent's, started ahead of a send: no thread by this id exists until a send claims it.
+ */
+warm?: boolean, };

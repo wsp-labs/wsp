@@ -101,7 +101,43 @@ export interface ActivityRead {
 
 const KINDS: ReadonlySet<string> = new Set(PROC_KINDS);
 
-const argvName = (cmdline: string): string => (cmdline.split(" ")[0] ?? "").split("/").pop() ?? "";
+/** What a script is run by, so the script it runs names the process. */
+export const SCRIPT_RUNTIMES: ReadonlySet<string> = new Set(["node", "python", "python3", "bun", "deno", "ruby"]);
+
+/** The names a process runs by: its comm, argv[0]'s, and the script argv[0] runs where that is a runtime. A Mac names a
+ * process by the file the kernel ran, which for Claude Code's native install is its version (`2.1.296`) and for an npm
+ * install or cursor-agent is node, so the name a person knows is read off the command line beside it. */
+export function procBins(p: ProcEntry): string[] {
+  const argv = p.cmdline.split(" ").filter(w => w !== "");
+  const base = (w: string | undefined): string | undefined => w?.split("/").at(-1);
+  const first = base(argv[0]);
+  const script = first !== undefined && SCRIPT_RUNTIMES.has(first) ? base(argv.slice(1).find(w => !w.startsWith("-"))) : undefined;
+  return [p.comm, first, script].filter((b): b is string => b !== undefined && b !== "");
+}
+
+/** From a root down to the shallowest process under it that is the agent, and on through an only child that is the agent
+ * too, root first, or undefined where none is: Codex's npm launcher runs the native codex as its one child. Every
+ * process on the way is the agent's, the run script and any shell it forked: only the thread's stop ends them. */
+export function agentPath(root: number, kidsOf: (pid: number) => readonly ProcEntry[], isAgent: (p: ProcEntry) => boolean, byPid: ReadonlyMap<number, ProcEntry>): number[] | undefined {
+  const via = new Map<number, number>();
+  const queue = [root];
+  while (queue.length > 0) {
+    const pid = queue.shift()!;
+    const p = byPid.get(pid);
+    if (p !== undefined && isAgent(p)) {
+      const path = [pid];
+      for (let at = via.get(pid); at !== undefined; at = via.get(at)) path.unshift(at);
+      for (let kids = kidsOf(pid); kids.length === 1 && isAgent(kids[0]!) && !path.includes(kids[0]!.pid); kids = kidsOf(kids[0]!.pid)) path.push(kids[0]!.pid);
+      return path;
+    }
+    for (const kid of kidsOf(pid)) {
+      if (via.has(kid.pid) || kid.pid === root) continue;
+      via.set(kid.pid, pid);
+      queue.push(kid.pid);
+    }
+  }
+  return undefined;
+}
 
 interface Placed {
   byPid: ReadonlyMap<number, ProcEntry>;
@@ -125,28 +161,9 @@ function place(read: ActivityRead): Placed {
   }
   const kidsOf = (pid: number): readonly ProcEntry[] => children.get(pid) ?? [];
   const bins = new Set(read.agentBins);
-  // The comm and the name it was run by both: a native install runs as its version, cursor-agent as node.
-  const isAgentBin = (p: ProcEntry): boolean => bins.has(p.comm) || bins.has(argvName(p.cmdline));
-
+  const isAgentBin = (p: ProcEntry): boolean => procBins(p).some(b => bins.has(b));
   /** The root and every process on the way to the shallowest agent binary under it, or the root alone. */
-  const stretch = (root: number): number[] => {
-    const via = new Map<number, number>();
-    const queue = [root];
-    while (queue.length > 0) {
-      const pid = queue.shift()!;
-      const p = byPid.get(pid);
-      if (p !== undefined && isAgentBin(p)) {
-        const path = [pid];
-        for (let at = via.get(pid); at !== undefined; at = via.get(at)) path.push(at);
-        return path;
-      }
-      for (const kid of kidsOf(pid)) {
-        via.set(kid.pid, pid);
-        queue.push(kid.pid);
-      }
-    }
-    return [root];
-  };
+  const stretch = (root: number): number[] => agentPath(root, kidsOf, isAgentBin, byPid) ?? [root];
 
   const threadOf = new Map<number, ActivityScope>();
   const agentOf = new Map<number, ActivityScope>();

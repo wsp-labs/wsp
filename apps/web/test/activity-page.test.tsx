@@ -164,11 +164,11 @@ describe("Settings > Activity", () => {
     expect(document.querySelectorAll("[data-tile-line=cpu] [data-chart-line]").length).toBe(1);
   });
 
-  it("draws CPU in sky, memory in violet and Power in amber, with no dot at a line's end", async () => {
+  it("draws CPU in sky, memory in violet and Power in teal, never the warning's amber, with no dot at a line's end", async () => {
     await open();
     for (let seq = 1; seq <= 3; seq++) feed(seq);
     const ink = (k: string) => document.querySelector<HTMLElement>(`[data-tile-line=${k}] > div`)!.className;
-    expect([ink("cpu"), ink("mem"), ink("energy")]).toEqual([expect.stringContaining("text-sky-500"), expect.stringContaining("text-violet-500"), expect.stringContaining("text-amber-500")]);
+    expect([ink("cpu"), ink("mem"), ink("energy")]).toEqual([expect.stringContaining("text-sky-500"), expect.stringContaining("text-violet-500"), expect.stringContaining("text-teal-500")]);
     expect(document.querySelector<HTMLElement>("[data-k=activity-cpu] [data-tint]")!.dataset["tint"]).toBe("danger");
     expect(ink("cpu")).not.toMatch(/destructive|warning/);
     expect(document.querySelectorAll("[data-tile-line] [data-chart-end]").length).toBe(0);
@@ -204,6 +204,23 @@ describe("Settings > Activity", () => {
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
     act(() => useContextMenuStore.getState().choose(null));
+  });
+
+  it("gives a thread's head a menu with End all and Open thread, its road below 768 px, where the act cell stands down", async () => {
+    await open();
+    feed(1);
+    const head = document.querySelector<HTMLElement>("[data-group='t_one']")!;
+    expect(head.querySelector("[data-act=end-all]")!.parentElement!.className).toContain("max-md:hidden");
+    const menu = head.querySelector<HTMLElement>("[data-act=head-menu]")!;
+    expect(menu.className).toContain("md:hidden");
+    expect(menu.className).not.toContain("max-md:hidden");
+    fireEvent.click(menu);
+    await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
+    expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["End all", "Open thread"]);
+    act(() => useContextMenuStore.getState().choose("end-all"));
+    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(head.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector("[data-group='wsp'] [data-act=head-menu]")).toBeNull();
   });
 
   it("opens a port in a browser tab of its thread from the Ports view, beside End", async () => {
@@ -295,5 +312,37 @@ describe("Settings > Activity", () => {
     view.unmount();
     expect(boxWire.calls.at(-1)).toEqual(["proc.unwatch", {}]);
     provideDaemonWire("ws_box", null);
+  });
+
+  it("on a box offers Stop on the agent its cgroup holds, never End, and says a stop ends everything the thread started there", async () => {
+    const BOX: PlaceView = { id: "p_box", kind: "computer", name: "lab-box", default: false, present: true } as PlaceView;
+    const onBox: WorkspaceView = { ...workspace, id: "ws_box", kind: "place", place: "p_box" } as WorkspaceView;
+    const boxWire = fakeWire({ "proc.watch": {}, "proc.unwatch": {}, "proc.kill": {} });
+    provideDaemonWire("ws_box", boxWire);
+    getProcs("ws_box").feedStatus("live");
+    useStore.setState({ places: [HERE, BOX], workspaces: [workspace, onBox], sessions: { ws_box: [{ ...session("t_box", "Box build", 0), workspaceId: "ws_box", pid: undefined } as SessionView] } });
+    useSettingsStore.getState().pickActivityPlace("p_box");
+    await open();
+    const cg = { cgroup: "/wsp-threads/t_box" };
+    const procs = [proc(5, 1, "wsp-daemon"), proc(100, 1, "bash", { cmdline: "bash /root/.wsp/run/r1.sh", ...cg }), proc(101, 100, "claude", { cmdline: "claude -p", ...cg }), proc(102, 101, "node", { cmdline: "node /opt/wsp/mcp.js", ...cg })];
+    act(() => getProcs("ws_box").feed({ type: "proc.snapshot", at: 3_000, daemon: 5, total: procs.length, procs, seq: 1 }));
+    toggle("t_box");
+    const agent = document.querySelector<HTMLElement>("[data-proc-row='101']")!;
+    expect(agent.dataset["kind"]).toBe("agent");
+    expect(document.querySelector("[data-proc-row='100']")).toBeNull();
+    expect([...agent.querySelectorAll<HTMLElement>("[data-act]")].map(b => b.dataset["act"])).toEqual(["stop", "menu"]);
+    fireEvent.click(agent.querySelector("[data-act=stop]")!);
+    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(screen.getByText(/ends with it, its dev and tool servers included/)).toBeTruthy();
+    provideDaemonWire("ws_box", null);
+  });
+
+  it("says a stop on this computer leaves the dev and tool servers running", async () => {
+    await open();
+    feed(1);
+    toggle("t_one");
+    fireEvent.click(document.querySelector("[data-proc-row='30'] [data-act=stop]")!);
+    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(screen.getByText(/The dev server and tool servers it started keep running/)).toBeTruthy();
   });
 });

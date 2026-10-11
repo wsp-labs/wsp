@@ -7,7 +7,7 @@
 // and the host, and the parent chain under each. Sort, filter, the Kinds and Ports views and the
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
-import { APP_PROC_WORDS, inCgroup, PROC_KINDS, type AppProc, type ProcEntry, type ProcKind, type ProcSnapshot } from "@wsp/protocol";
+import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ProcEntry, type ProcKind, type ProcSnapshot } from "@wsp/protocol";
 
 export type { ProcKind };
 
@@ -104,7 +104,6 @@ function appName(part: AppProc): string {
 }
 
 const SHELLS = new Set(["sh", "bash", "zsh", "fish", "dash"]);
-const RUNTIMES = new Set(["node", "python", "python3", "bun", "deno", "ruby"]);
 /** Named with the subcommand they run: cargo test, pnpm dev. */
 const TOOLS = new Set(["cargo", "npm", "npx", "pnpm", "yarn", "uv", "go", "bunx"]);
 const GENERIC_SCRIPTS = new Set(["bin", "cli", "index", "main"]);
@@ -116,17 +115,6 @@ const DEV_LINE = /\b(vite|next dev|next-server|webpack serve|astro dev|nuxt dev|
 const SLATE_FOLDER = /(^|\/)(wsp-)?slates\/[^/\s]+\//;
 const slateFolderOf = (threadId: string): string => `slates/${threadId}/`;
 
-/** The name of the file a process runs: argv[0]'s, or the script's where argv[0] is a runtime. A Mac names a process by
- * the file the kernel ran, which for Claude Code's native install is its version (`2.1.296`) and for an npm install is
- * node, so the binary a person knows is read off the command line beside it. */
-function binsOf(p: ProcEntry): string[] {
-  const argv = p.cmdline.split(" ").filter(w => w !== "");
-  const base = (w: string | undefined): string | undefined => w?.split("/").at(-1);
-  const first = base(argv[0]);
-  const script = first !== undefined && RUNTIMES.has(first) ? base(argv.slice(1).find(w => !w.startsWith("-"))) : undefined;
-  return [p.comm, first, script].filter((b): b is string => b !== undefined && b !== "");
-}
-
 /** What a process is called: the script a runtime runs, a tool with its subcommand, or the command. */
 export function procName(p: ProcEntry): string {
   const argv = p.cmdline.split(" ").filter(w => w !== "");
@@ -136,7 +124,7 @@ export function procName(p: ProcEntry): string {
     const sub = argv.slice(1).find(w => !w.startsWith("-"));
     return sub === undefined ? comm : `${comm} ${sub}`;
   }
-  if (!RUNTIMES.has(comm) && !RUNTIMES.has(bin)) return comm;
+  if (!SCRIPT_RUNTIMES.has(comm) && !SCRIPT_RUNTIMES.has(bin)) return comm;
   const at = argv.findIndex((w, i) => i > 0 && !w.startsWith("-"));
   if (at === -1) return comm;
   const parts = argv[at]!.split("/");
@@ -173,29 +161,36 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP }: ScopeI
   const procs = snapshot.procs.filter(p => !p.state.startsWith("Z"));
   const byPid = new Map(procs.map(p => [p.pid, p]));
   const threadById = new Map(threads.map(t => [t.id, t]));
+  const kids = new Map<number, ProcEntry[]>();
+  for (const p of procs) if (p.ppid !== p.pid && byPid.has(p.ppid)) (kids.get(p.ppid) ?? kids.set(p.ppid, []).get(p.ppid)!).push(p);
+  const kidsOf = (pid: number): readonly ProcEntry[] => kids.get(pid) ?? [];
   const rootOf = new Map<number, ActivityThread>();
   for (const t of threads) if (t.pid !== undefined && byPid.has(t.pid)) rootOf.set(t.pid, t);
-  // The agent is the process the daemon names as the thread's agent, or else the one running its harness's binary: the
-  // thread's own process, or where that is the run script the host starts a turn with, its child. The script is
-  // folded into the agent's row below.
+  // The agent is the process the daemon names as the thread's agent, or else the shallowest under one of the thread's
+  // roots that runs its harness's binary, the run script and any shell on the way folded into its row. Here a thread is
+  // rooted at its own process, which stands for the agent until the binary shows; on a box, whose pids the app is never
+  // told, at the heads of its cgroup: the run script the launch records, and whatever left it.
   const agentOf = new Map<number, ActivityThread>();
-  /** Each wrapper on the way down from a thread's own process to its agent, by the next process on that way. */
+  /** Each wrapper on the way down from a thread's root to its agent, by the next process on that way. */
   const wrapperOf = new Map<number, number>();
-  for (const [pid, t] of rootOf) {
+  const findAgent = (root: number, t: ActivityThread, standsIn: boolean): void => {
     const bin = CATALOG_AGENTS.find(a => a.id === t.harness)?.bin;
-    const isAgent = (p: ProcEntry): boolean => (p.kind === "agent" && p.owner?.thread === t.id) || (bin !== undefined && binsOf(p).includes(bin));
-    // Breadth first and three deep: the run script, a subshell it forked, then the agent.
-    const up = new Map<number, number>();
-    let level = [pid];
-    let found = isAgent(byPid.get(pid)!) ? pid : undefined;
-    for (let depth = 0; found === undefined && depth < 3 && level.length > 0; depth++) {
-      const next = procs.filter(p => level.includes(p.ppid) && p.pid !== p.ppid);
-      for (const p of next) up.set(p.pid, p.ppid);
-      found = next.find(isAgent)?.pid;
-      level = next.map(p => p.pid);
+    const isAgent = (p: ProcEntry): boolean => (p.kind === "agent" && p.owner?.thread === t.id) || (bin !== undefined && procBins(p).includes(bin));
+    const path = agentPath(root, kidsOf, isAgent, byPid);
+    if (path === undefined) {
+      if (standsIn) agentOf.set(root, t);
+      return;
     }
-    agentOf.set(found ?? pid, t);
-    for (let at = found; at !== undefined && at !== pid; at = up.get(at)) wrapperOf.set(up.get(at)!, at);
+    agentOf.set(path.at(-1)!, t);
+    for (let i = 0; i + 1 < path.length; i++) wrapperOf.set(path[i]!, path[i + 1]!);
+  };
+  for (const [pid, t] of rootOf) findAgent(pid, t, true);
+  for (const t of threads) {
+    const cgroup = t.cgroup;
+    if (t.pid !== undefined || cgroup === undefined) continue;
+    const inside = procs.filter(p => inCgroup(p.cgroup, cgroup));
+    const members = new Set(inside.map(p => p.pid));
+    for (const p of inside) if (p.ppid === p.pid || !members.has(p.ppid)) findAgent(p.pid, t, false);
   }
   const wspPids = new Set<number>([snapshot.daemon, ...(host === undefined ? [] : [host])]);
 
@@ -205,24 +200,27 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP }: ScopeI
     if (held !== undefined) return held === "" ? null : held;
     let said: string | null = null;
     const stamped = p.owner?.thread;
-    if (p.owner !== undefined) said = stamped !== undefined && threadById.has(stamped) ? `t:${stamped}` : "loose";
+    if (stamped !== undefined && threadById.has(stamped)) said = `t:${stamped}`;
     else if (rootOf.has(p.pid)) said = `t:${rootOf.get(p.pid)!.id}`;
+    // Before an owner that names no thread: a Mac's daemon stamps wsp's own parts with wsp's coalition and none.
     else if (wspPids.has(p.pid) || app.has(p.pid) || p.kind === "app" || p.kind === "wsp") said = "wsp";
+    else if (p.owner !== undefined && p.owner.by !== "coalition") said = "loose";
     else {
       const cg = threads.find(t => t.cgroup !== undefined && inCgroup(p.cgroup, t.cgroup));
       const slate = SLATE_FOLDER.test(p.cmdline) ? threads.find(t => p.cmdline.includes(slateFolderOf(t.id))) : undefined;
       if (cg !== undefined) said = `t:${cg.id}`;
       else if (slate !== undefined) said = `t:${slate.id}`;
+      else if (SLATE_FOLDER.test(p.cmdline)) said = "loose";
       else if (p.pty !== undefined) said = "loose";
       else {
         const parent = p.ppid !== p.pid ? byPid.get(p.ppid) : undefined;
         if (parent !== undefined && !seen.has(parent.pid)) {
           seen.add(p.pid);
-          const up = ownerOf(parent, seen);
-          // What wsp's own parts started outside a thread is wsp's with its thread not known.
-          said = up === "wsp" ? "loose" : up;
+          // What the host and the app start outside a thread, the guest tool server among them, is wsp's own.
+          said = ownerOf(parent, seen);
         }
       }
+      if (said === null && p.owner !== undefined) said = "loose";
     }
     owner.set(p.pid, said ?? "");
     return said;
@@ -256,7 +254,7 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP }: ScopeI
     return kind;
   };
   const agentByBin = (p: ProcEntry): string | undefined => {
-    const bins = binsOf(p);
+    const bins = procBins(p);
     return CATALOG_AGENTS.find(a => bins.includes(a.bin))?.id;
   };
   const leaf = (p: ProcEntry, children: readonly ActivityProc[]): ActivityProc => {

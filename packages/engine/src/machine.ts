@@ -52,6 +52,10 @@ export interface RunOptions {
   /** The caller's cancel: the command's session is killed, pid and group, as the deadline kills it, and the result is
    * exit 130 with the output so far. A backend whose run cannot reach the session leaves it to its deadline. */
   signal?: AbortSignal;
+  /** The machine the run's launch goes through where it is not the one its polls, its kill and its cleanup go through:
+   * a computer the person joined starts a thread's slate command from a shell standing in that thread's cgroup, and
+   * only the launch joins it, so a cgroup removed while the run is polled is not made again. */
+  launchOn?: Machine;
 }
 
 
