@@ -167,6 +167,17 @@ export function requestComposerFocus(workspaceId: string): void {
   for (const listener of [...composerFocusListeners]) listener(workspaceId);
 }
 
+/** Hands the focus to the composer that mounts in this commit for the workspace, a thread switch's next one; none
+ * mounting takes it, and it is dropped rather than left for whichever composer of the workspace mounts later. */
+export function handComposerFocus(workspaceId: string): void {
+  // A request for another workspace's composer is the move itself, a chord to another project's thread: it stands.
+  if (composerFocusWanted !== null && composerFocusWanted !== workspaceId) return;
+  requestComposerFocus(workspaceId);
+  queueMicrotask(() => {
+    if (composerFocusWanted === workspaceId) composerFocusWanted = null;
+  });
+}
+
 /** Hears every request for one workspace's composer without taking it, for what stands over that composer. */
 export function onComposerFocusAsked(workspaceId: string, listener: () => void): () => void {
   const hear = (target: string): void => {

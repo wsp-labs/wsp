@@ -1121,13 +1121,7 @@ export const useStore = create<State>((set, get) => {
           if (e.requestId !== undefined) rowAwaited.set(e.threadId, { workspaceId: e.workspaceId, requestId: e.requestId });
           return;
         case "session.start": {
-          // The next send resumes this id; the runtime persists it, the view learns it here.
-          const remember = <T extends WorkspaceView>(w: T): T => (w.id === e.workspaceId ? { ...w, claudeSessionId: e.sessionId } : w);
-          set(s => ({
-            spending: { ...s.spending, [e.workspaceId]: (s.spending[e.workspaceId] ?? 0) + 1 },
-            workspaces: s.workspaces.map(remember),
-            statuses: s.statuses[e.workspaceId] ? { ...s.statuses, [e.workspaceId]: remember(s.statuses[e.workspaceId]!) } : s.statuses,
-          }));
+          set(s => ({ spending: { ...s.spending, [e.workspaceId]: (s.spending[e.workspaceId] ?? 0) + 1 } }));
           if (e.requestId !== undefined) {
             if (e.threadId === undefined) get().launched(e.workspaceId, e.requestId);
             else rowAwaited.set(e.threadId, { workspaceId: e.workspaceId, requestId: e.requestId });

@@ -64,10 +64,11 @@ export function shownThreadIdOf(s: Pick<State, "selectedId" | "selectedThreadId"
   return s.selectedId === workspaceId ? s.selectedThreadId : null;
 }
 
-/** The rule under useThreadSessions, for a reader outside React that has to agree with what the centre draws. */
-export function threadRows(sessions: ReadonlyArray<SessionView>, workspaceId: string | null, threadKey: string): ReadonlyArray<SessionView> {
+/** The rule under useThreadSessions, for a reader outside React that has to agree with what the centre draws. A new
+ * thread's page has no rows of its own until its send opens one, and never stands on another thread's. */
+export function threadRows(sessions: ReadonlyArray<SessionView>, workspaceId: string | null, threadKey: string, fresh = false): ReadonlyArray<SessionView> {
   const own = sessions.filter(row => threadKeyOf(row) === threadKey);
-  if (own.length > 0 || threadKey !== workspaceId) return own;
+  if (own.length > 0 || threadKey !== workspaceId || fresh) return own;
   const latest = sessions.at(-1);
   return latest === undefined ? NO_SESSIONS : [latest];
 }

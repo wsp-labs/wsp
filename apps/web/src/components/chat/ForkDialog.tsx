@@ -64,7 +64,7 @@ export function openForkDraft(request: ForkRequest, branch?: string): void {
 }
 
 /** Ends the workspace's fork draft, by its dismiss, its send, the view leaving it or a new thread asked for, and puts back the words and
- * files the composer held before a fork off a person's message took it over: a folder's threads share that composer. */
+ * files the New thread page held before a fork off a person's message took that page's draft over. */
 export function endForkDraft(workspaceId: string): ForkDraft | undefined {
   const draft = useForkDrafts.getState().drafts[workspaceId];
   if (draft === undefined) return undefined;
