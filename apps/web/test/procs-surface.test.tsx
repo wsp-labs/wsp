@@ -6,10 +6,12 @@
 // on this computer's own panel the whole list.
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DaemonEvent, forkProcsUnreadLine, type ProcChanges, type ProcEntry, type ProcSnapshot, type SessionView } from "@wsp/protocol";
+import { DaemonEvent, forkProcsUnreadLine, type AppProc, type ProcChanges, type ProcEntry, type ProcSnapshot, type SessionView } from "@wsp/protocol";
 import { ProcessesSurface, ROW_PX } from "../src/components/procs/ProcessesSurface.js";
 import { provideDaemonWire } from "../src/files/wire.js";
+import { wireAppProcs } from "../src/machine/appProcs.js";
 import { getProcs, resetProcs } from "../src/machine/procs.js";
+import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { HERE_KEY } from "../src/terminal/computer.js";
 import { fakeWire, resetSurfaces, view, WS, type FakeWire } from "./surface-harness.js";
@@ -529,5 +531,75 @@ describe("processes surface", () => {
     act(() => getProcs(WS).feedStatus("connecting"));
     act(() => getProcs(WS).feedStatus("live"));
     expect(calls("proc.watch")).toHaveLength(2);
+  });
+});
+
+describe("the desktop app's own processes", () => {
+  const APP: AppProc[] = [
+    { pid: 300, kind: "main" },
+    { pid: 301, kind: "gpu" },
+    { pid: 302, kind: "renderer" },
+    { pid: 303, kind: "tab", origins: ["https://github.com"] },
+  ];
+  const ELECTRON: ProcEntry[] = [...PROCS, proc(300, 1, "electron"), proc(301, 300, "electron"), proc(302, 300, "electron"), proc(303, 300, "electron")];
+
+  function appApi() {
+    const asks: string[] = [];
+    let push: ((procs: AppProc[]) => void) | null = null;
+    const api = {
+      subscribe: () => () => {},
+      watchAppProcs: async () => (asks.push("watch"), APP.slice(0, 2)),
+      unwatchAppProcs: async () => void asks.push("unwatch"),
+      onAppProcs: (fn: (procs: AppProc[]) => void) => ((push = fn), () => (push = null)),
+    } as unknown as Api;
+    return { api, asks, push: (procs: AppProc[]) => act(() => push?.(procs)) };
+  }
+
+  it("are named on a local workspace while the pane is open, and asked for no longer once it shuts", async () => {
+    const fake = appApi();
+    act(() => useStore.setState({ api: fake.api, conn: "live", workspaces: [{ ...view, kind: "local" }] }));
+    const unwire = wireAppProcs(useStore);
+    expect(fake.asks).toEqual([]);
+    const { unmount } = render(<ProcessesSurface workspaceId={WS} />);
+    await flush();
+    expect(fake.asks).toEqual(["watch"]);
+    await feed(ELECTRON);
+    const label = (pid: number) => row(pid).querySelector("[data-proc-label]")?.textContent ?? null;
+    expect([label(300), label(301), label(302)]).toEqual(["wsp app", "wsp graphics", null]);
+    await fake.push(APP);
+    expect([label(302), label(303)]).toEqual(["wsp window", "browser tab github.com"]);
+    // The figures beside a name are the daemon's, never Electron's.
+    expect(row(303).querySelector("[data-col='mem']")!.textContent).toBe("0");
+    unmount();
+    await flush();
+    expect(fake.asks).toEqual(["watch", "unwatch"]);
+    unwire();
+  });
+
+  it("are named on this computer's own panel, which has no workspace behind it", async () => {
+    const fake = appApi();
+    act(() => useStore.setState({ api: fake.api, conn: "live", workspaces: [] }));
+    const unwire = wireAppProcs(useStore);
+    const here = fakeWire({ "proc.watch": {}, "proc.unwatch": {} });
+    provideDaemonWire(HERE_KEY, here);
+    act(() => getProcs(HERE_KEY).feedStatus("live"));
+    render(<ProcessesSurface workspaceId={HERE_KEY} />);
+    await flush();
+    expect(fake.asks).toEqual(["watch"]);
+    await act(async () => getProcs(HERE_KEY).feed(snapshot(ELECTRON)));
+    expect(row(300).querySelector("[data-proc-label]")?.textContent).toBe("wsp app");
+    unwire();
+  });
+
+  it("are not asked for on a workspace on another computer", async () => {
+    const fake = appApi();
+    act(() => useStore.setState({ api: fake.api, conn: "live", workspaces: [view] }));
+    const unwire = wireAppProcs(useStore);
+    render(<ProcessesSurface workspaceId={WS} />);
+    await flush();
+    await feed(ELECTRON);
+    expect(fake.asks).toEqual([]);
+    expect(row(300).querySelector("[data-proc-label]")).toBeNull();
+    unwire();
   });
 });

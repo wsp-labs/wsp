@@ -120,7 +120,7 @@ import { signInSocket } from "./sign-in-socket.js";
 import { keyFingerprint, openFrame, verifyPlaceBytes, type Seal } from "@wsp/keys";
 import { startAt } from "./threads/answered-start.js";
 import type { HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, ProjectBundler, ProjectLander, RecipeShelf, Runtime } from "./runtime.js";
-
+import { appProcsHubOf, isAppProcsRequest } from "./serve-app-procs.js";
 import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerProject, isProjectRequest } from "./serve-projects.js";
@@ -873,6 +873,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
         try {
           if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds)) });
           if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
+          if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
           switch (msg.op) {
             case "auth":
               send({ id: msg.id, ok: true, ...released });
@@ -1502,12 +1503,11 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true });
               return;
             }
-            case "sys.unsubscribe": {
+            case "sys.unsubscribe":
               watchedSys.get(msg.workspaceId)?.();
               watchedSys.delete(msg.workspaceId);
               send({ id: msg.id, ok: true });
               return;
-            }
             case "sessions.start":
               await serveStart(rt, msg, origin, reply => send({ id: msg.id, ok: true, ...reply }));
               return;

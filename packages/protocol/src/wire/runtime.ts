@@ -22,6 +22,7 @@ import { TerminalScheme } from "../views/project-bundle.js";
 import { EditorId, HISTORY_PAGE_MAX, PreferencesPatch } from "../views/preferences.js";
 import { IMAGE_PASSPHRASE_MIN, MachineKind } from "../views/golden-image.js";
 import { PlaceSettingsAsk, PlaceSettingWord, PlaceSetupStep, SudoPassword } from "../views/place.js";
+import { AppProcList } from "../views/app-procs.js";
 import { DaemonFrame, TicketPurpose } from "./devices.js";
 import { DeviceAuthRequest, PlaceAuthRequest, PlaceJoinRequest, PlaceProveRequest, SealOpenRequest } from "./place-link.js";
 
@@ -427,6 +428,17 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("sys.subscribe"), workspaceId: z.string() }),
   /** Stops this socket's sys.subscribe for the workspace; replies `{}` whether or not it held one. */
   z.object({ id: reqId, op: z.literal("sys.unsubscribe"), workspaceId: z.string() }),
+  /** Pushes an AppProcsEvent on this socket each time the desktop app reads its processes, until appProcs.unwatch or
+   * the socket goes; replies with { procs }, the newest list, empty until the app has read one since the first watch.
+   * The host's own road alone, since a tab's address is the person's browsing. */
+  z.object({ id: reqId, op: z.literal("appProcs.watch") }),
+  /** Stops this socket's appProcs.watch; replies `{}` whether or not it held one. */
+  z.object({ id: reqId, op: z.literal("appProcs.unwatch") }),
+  /** The desktop app on this computer offers its processes on this socket; replies with { wanted } and pushes an
+   * AppProcsWantedEvent each time that turns, so the app reads Electron only while a page watches. */
+  z.object({ id: reqId, op: z.literal("appProcs.offer") }),
+  /** The app's processes as it read them just now, from a socket that offered; pushed to every socket that watches. */
+  z.object({ id: reqId, op: z.literal("appProcs.set"), procs: AppProcList }),
   /** Sends one frame down a channel this socket opened and replies with a DaemonSendReply carrying the daemon's own
    * answer, ok or not. Refused (ok false, no kind) when the channel is not this socket's or died before the daemon
    * answered. */
