@@ -181,8 +181,18 @@ export const usedAsk = (range: UsageRange, split: UsageSplit): { range: UsageRan
 /** The days a range reaches back over, today included. */
 export const RANGE_DAYS: Record<UsageRange, number> = { day: 1, week: 7, month: 30 };
 
-/** The step a computer's chart folds its readings into for each range, so an answer is a few hundred points. */
-export const READINGS_STEP_MS: Record<UsageRange, number> = { day: 5 * 60_000, week: 30 * 60_000, month: 2 * 3_600_000 };
+/** The ranges a computer's readings are read over: the last fifteen minutes the Computers list draws live, and the
+ * Usage page's own. */
+export const READINGS_RANGES = ["15m", ...USAGE_RANGES] as const;
+export const ReadingsRange = z.enum(READINGS_RANGES);
+export type ReadingsRange = z.infer<typeof ReadingsRange>;
+
+/** How far back each readings range reaches from now. */
+export const READINGS_SPAN_MS: Record<ReadingsRange, number> = { "15m": 15 * 60_000, day: RANGE_DAYS.day * 86_400_000, week: RANGE_DAYS.week * 86_400_000, month: RANGE_DAYS.month * 86_400_000 };
+
+/** The step a computer's chart folds its readings into for each range, so an answer is a few hundred points. Under a
+ * minute the daemon answers its fifteen-second reads themselves. */
+export const READINGS_STEP_MS: Record<ReadingsRange, number> = { "15m": 15_000, day: 5 * 60_000, week: 30 * 60_000, month: 2 * 3_600_000 };
 
 /** What a usage row is filed under: the day and hour in this computer's zone, and the four splits and the model. */
 export const UsageKey = z.object({
