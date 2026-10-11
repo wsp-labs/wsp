@@ -174,6 +174,33 @@ describe("the readings of the workspace that is this computer", () => {
     await until(() => sampler.listeners === 0);
   });
 
+  it("reach a page that names this computer off the same sampler the workspace's panes ride", async () => {
+    const sampler = fakeSampler();
+    const workspaceId = await served(sampler);
+    const c = await client();
+    const onPage = (): unknown[] => c.events.filter(e => e.type === "place.sys" && e["placeId"] === HERE_PLACE_ID).map(e => e["sample"]);
+
+    expect(await c.request("sys.subscribe", { placeId: HERE_PLACE_ID })).toMatchObject({ ok: true });
+    expect(await c.request("sys.subscribe", { placeId: HERE_PLACE_ID })).toMatchObject({ ok: true });
+    expect(await c.request("sys.subscribe", { workspaceId })).toMatchObject({ ok: true });
+    await until(() => sampler.listeners === 2);
+    sampler.emit(sample(8));
+    await until(() => onPage().length === 1);
+    expect(onPage()).toEqual([sample(8)]);
+    await until(() => samplesOn(c, workspaceId).length === 1);
+
+    // The computer's subscription and the workspace's are each their own: one going leaves the other.
+    expect(await c.request("sys.unsubscribe", { placeId: HERE_PLACE_ID })).toMatchObject({ ok: true });
+    await until(() => sampler.listeners === 1);
+    sampler.emit(sample(9));
+    await until(() => samplesOn(c, workspaceId).length === 2);
+    expect(onPage()).toHaveLength(1);
+    expect(await c.request("sys.subscribe", { placeId: HERE_PLACE_ID })).toMatchObject({ ok: true });
+    await until(() => sampler.listeners === 2);
+    c.close();
+    await until(() => sampler.listeners === 0);
+  });
+
   it("are refused for a machine that reads its own, which a pane asks over its daemon link", async () => {
     const sampler = fakeSampler();
     await served(sampler);
