@@ -2,7 +2,7 @@
 // A command's row and an edit's row in a turn's calls (wsp-map#2027). Closed, each is the line a work row draws:
 // the glyph slot, the heading, its facts and the chevron. Open, the same line heads a block on a reply's code block
 // surface, so the heading never moves, over the output on the terminal ground or the edit's hunks.
-import { Suspense, use, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { Suspense, use, useEffect, useLayoutEffect, useMemo, type MouseEvent, type ReactNode } from "react";
 import { CheckIcon, ChevronDownIcon, CopyIcon, FileDiffIcon, FilePlusIcon, SquarePenIcon, TerminalIcon } from "lucide-react";
 import { FileDiff } from "@pierre/diffs/react";
 import { fmtBytesOf, runEndedWords, type FilePatch } from "@wsp/protocol";
@@ -17,18 +17,27 @@ import { CODE_BLOCK_SURFACE, createHighlightCacheKey, estimateHighlightedSize, h
 import { SkipAct } from "../../../settings/add/StepRow";
 import { useCopyToClipboard } from "../../../hooks/useCopyToClipboard";
 import { DIFF_SURFACE_THEME_UNSAFE_CSS, resolveDiffThemeName, type DiffThemeName } from "../../../lib/diffRendering";
-import { formatWorkspaceRelativePath } from "../../../lib/filePathDisplay";
 import { getSyntaxHighlighterPromise, PREFERRED_HIGHLIGHTER } from "../../../lib/syntaxHighlighting";
 import { cn } from "../../../lib/utils";
-import { commandDuration, editHeading, fileDiffOf, foldedOutput, foldHunks, foldsAt, HUNKS_SHOWN, isNewFile, patchStat } from "./callFacts";
+import { commandDuration, commandText, editHeading, fileDiffOf, foldedOutput, foldHunks, foldsAt, fromFolder, HUNKS_SHOWN, isNewFile, outputText, patchStat } from "./callFacts";
 import { TimelineRowCtx, WorkGroupViewCtx, type TimelineWorkEntry } from "./context";
 import { WorkingTimer } from "./working";
 import { WORK_TONES } from "./workEntry";
+import { useRevealOpen } from "../find/store";
+import { FIND_DIFF_CSS } from "../find/highlights";
+import { COMMAND_PART, editFilePart, EDIT_HEADING_PART, OUTPUT_PART, OUTPUT_TAIL_PART } from "../find/text";
 
-/** Whether a call is open, kept in its group's view state so a row the list remounts opens as the person left it. */
-export function useEntryOpen(id: string): readonly [boolean, () => void] {
+/** Whether a call is open, kept in its group's view state so a row the list remounts opens as the person left it.
+ * Find opens it to show a match in one of the `revealed` parts, every part when none are named. */
+export function useEntryOpen(id: string, revealed?: (part: number) => boolean): readonly [boolean, () => void] {
   const groupView = use(WorkGroupViewCtx);
-  const [open, setOpen] = useState(() => groupView?.state.expandedEntries.has(id) ?? false);
+  const [open, setOpen] = useRevealOpen(id, groupView?.state.expandedEntries.has(id) ?? false, revealed);
+  // A row find opened stays open as one the person opened does, and its group grows by it the same way.
+  useLayoutEffect(() => {
+    if (!open || groupView === null || groupView.state.expandedEntries.has(id)) return;
+    groupView.onToggleEntry();
+    groupView.state.expandedEntries.add(id);
+  }, [open, groupView, id]);
   const toggle = () => {
     const next = !open;
     if (groupView) {
@@ -51,16 +60,18 @@ function CallRow(props: {
   /** Whether the open heading wraps to show itself whole, as a command does; a path stays on its line. */
   wraps?: boolean;
   label: string;
+  /** The entry find names this row by. */
+  entryId: string;
   glyph: ReactNode;
   heading: ReactNode;
   facts?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
 }) {
-  const { open, onToggle, canOpen, wraps = false, label, glyph, heading, facts, actions, children } = props;
+  const { open, onToggle, canOpen, wraps = false, label, entryId, glyph, heading, facts, actions, children } = props;
   const Line = canOpen ? "button" : "div";
   return (
-    <div data-call-row={open ? "open" : "closed"} className={cn("overflow-hidden rounded-[var(--radius)] border border-transparent transition-colors duration-150", open && CODE_BLOCK_SURFACE)}>
+    <div data-call-row={open ? "open" : "closed"} data-find-entry={entryId} data-find-tool="" className={cn("overflow-hidden rounded-[var(--radius)] border border-transparent transition-colors duration-150", open && CODE_BLOCK_SURFACE)}>
       <div className={cn("flex min-h-7 items-start gap-1.5 px-0.5 py-0.5", canOpen && "cursor-pointer hover:bg-accent/20")} onClick={canOpen ? onToggle : undefined}>
         <Line
           {...(canOpen ? { type: "button" as const, "aria-expanded": open, onClick: (e: MouseEvent) => (stop(e), onToggle()) } : {})}
@@ -128,17 +139,18 @@ function CopyIconButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function OutputBand({ output, failed, bytes }: { output: string; failed: boolean; bytes: number | undefined }) {
-  const [all, setAll] = useState(false);
+const isOutputPart = (part: number): boolean => part === OUTPUT_PART;
+
+function OutputBand({ entryId, output, failed, bytes }: { entryId: string; output: string; failed: boolean; bytes: number | undefined }) {
+  const [all, setAll] = useRevealOpen(entryId, false, isOutputPart);
   const { copyToClipboard, isCopied } = useCopyToClipboard<void>({ timeout: 1500 });
-  // Codex's output can open on blank lines, which would stand as an empty first row.
-  const text = useMemo(() => output.replace(/^\s*\n/, "").trimEnd(), [output]);
+  const text = useMemo(() => outputText(output), [output]);
   const { shown, hidden } = useMemo(() => foldedOutput(text, failed), [text, failed]);
   if (text === "") return <RunFooter words="No output" />;
   const folded = !all && hidden > 0;
   return (
     <>
-      <pre data-call-output className="m-0 max-h-72 cursor-text overflow-auto bg-[var(--terminal-background)] px-3 py-2 font-mono text-xs leading-4.5 whitespace-pre-wrap break-words text-foreground tabular-nums select-text">
+      <pre data-call-output data-find-part={folded && failed ? OUTPUT_TAIL_PART : OUTPUT_PART} className="m-0 max-h-72 cursor-text overflow-auto bg-[var(--terminal-background)] px-3 py-2 font-mono text-xs leading-4.5 whitespace-pre-wrap break-words text-foreground tabular-nums select-text">
         {folded ? shown : text}
       </pre>
       <RunFooter
@@ -162,7 +174,7 @@ const COMMAND_VERBS = { inProgress: "Running", failed: "Failed", declined: "Decl
 
 export function CommandCallRow({ workEntry }: { workEntry: TimelineWorkEntry }) {
   const [open, toggle] = useEntryOpen(workEntry.id);
-  const command = workEntry.command!.replace(/^\s*\n|\s+$/g, "");
+  const command = commandText(workEntry.command!);
   const running = workEntry.toolLifecycleStatus === "inProgress";
   const { exitCode, durationMs } = workEntry;
   const exited = exitCode !== undefined && exitCode !== 0;
@@ -191,23 +203,19 @@ export function CommandCallRow({ workEntry }: { workEntry: TimelineWorkEntry }) 
       canOpen={!running || multiline}
       wraps
       label={`${COMMAND_VERBS[workEntry.toolLifecycleStatus ?? "completed"]} ${commandFirstLine(command)}`}
+      entryId={workEntry.id}
       glyph={glyph}
       heading={
-        <span className="font-mono">
+        <span className="font-mono" data-find-part={COMMAND_PART}>
           <ShellText code={open ? command : commandFirstLine(command)} />
         </span>
       }
       facts={facts}
       actions={<CopyIconButton text={command} label="Copy command" />}
     >
-      {running ? null : <OutputBand output={workEntry.output ?? ""} failed={exited} bytes={workEntry.bytes} />}
+      {running ? null : <OutputBand entryId={workEntry.id} output={workEntry.output ?? ""} failed={exited} bytes={workEntry.bytes} />}
     </CallRow>
   );
-}
-
-/** A path as the turn's changed-files card shows it: from the thread's folder. */
-function fromFolder(path: string, root: string | undefined): string {
-  return root !== undefined && path.startsWith(`${root.replace(/\/$/, "")}/`) ? path.slice(root.replace(/\/$/, "").length + 1) : formatWorkspaceRelativePath(path, root);
 }
 
 /** Opens the file in Changes on the turn's range, or in Files at its first hunk where the turn recorded no change. */
@@ -231,9 +239,9 @@ function FileFacts({ file }: { file: FilePatch }) {
   return isNewFile(file) ? <span>{stat.additions.toLocaleString("en-US")} lines</span> : <DiffStatLabel additions={stat.additions} deletions={stat.deletions} layout="inline" className="text-xs leading-4" />;
 }
 
-function HunksBand({ file, turnId, showPath }: { file: FilePatch; turnId: string | null; showPath: boolean }) {
+function HunksBand({ entryId, at, file, turnId, showPath }: { entryId: string; at: number; file: FilePatch; turnId: string | null; showPath: boolean }) {
   const { resolvedTheme, workspaceRoot } = use(TimelineRowCtx);
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useRevealOpen(entryId, false, part => part === editFilePart(at, true));
   const total = file.hunks.reduce((n, h) => n + h.lines.length, 0);
   const folded = useMemo(() => foldHunks(file.hunks, foldsAt(total, HUNKS_SHOWN)), [file.hunks, total]);
   const hunks = all ? file.hunks : folded.hunks;
@@ -242,26 +250,30 @@ function HunksBand({ file, turnId, showPath }: { file: FilePatch; turnId: string
     <div data-call-hunks={file.path}>
       {showPath ? (
         <div className="flex min-h-8 items-center gap-3 py-1 pr-1.5 pl-3 text-xs tabular-nums text-muted-foreground">
-          <span className="min-w-0 flex-1 truncate font-mono text-foreground">{fromFolder(file.movedTo ?? file.path, workspaceRoot)}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-foreground" data-find-part={editFilePart(at, false)}>
+            {fromFolder(file.movedTo ?? file.path, workspaceRoot)}
+          </span>
           <FileFacts file={file} />
           <OpenDiff file={file} turnId={turnId} />
         </div>
       ) : null}
       {fileDiff === null ? null : (
-        <FileDiff
-          fileDiff={fileDiff}
-          options={{
-            diffStyle: "unified",
-            overflow: "wrap",
-            disableFileHeader: true,
-            lineDiffType: "none",
-            hunkSeparators: "simple",
-            theme: resolveDiffThemeName(resolvedTheme),
-            themeType: resolvedTheme,
-            preferredHighlighter: PREFERRED_HIGHLIGHTER,
-            unsafeCSS: DIFF_SURFACE_THEME_UNSAFE_CSS,
-          }}
-        />
+        <div data-find-part={editFilePart(at, true)}>
+          <FileDiff
+            fileDiff={fileDiff}
+            options={{
+              diffStyle: "unified",
+              overflow: "wrap",
+              disableFileHeader: true,
+              lineDiffType: "none",
+              hunkSeparators: "simple",
+              theme: resolveDiffThemeName(resolvedTheme),
+              themeType: resolvedTheme,
+              preferredHighlighter: PREFERRED_HIGHLIGHTER,
+              unsafeCSS: DIFF_SURFACE_THEME_UNSAFE_CSS + FIND_DIFF_CSS,
+            }}
+          />
+        </div>
       )}
       {folded.hidden > 0 ? <RunFooter words={<SkipAct bare word={all ? "Fewer lines" : `+${folded.hidden.toLocaleString("en-US")} lines`} onSkip={() => setAll(a => !a)} />} /> : null}
     </div>
@@ -281,10 +293,14 @@ export function EditCallRow({ workEntry, patch }: { workEntry: TimelineWorkEntry
       onToggle={toggle}
       canOpen
       label={`${verb} ${what}`}
+      entryId={workEntry.id}
       glyph={<Glyph className={GLYPH_INK} aria-hidden />}
       heading={
         <>
-          {verb} <span className={cn(one !== null && "font-mono", "text-foreground")}>{what}</span>
+          {verb}{" "}
+          <span className={cn(one !== null && "font-mono", "text-foreground")} {...(one !== null ? { "data-find-part": EDIT_HEADING_PART } : {})}>
+            {what}
+          </span>
         </>
       }
       facts={one !== null ? <FileFacts file={one} /> : <DiffStatLabel additions={stat.additions} deletions={stat.deletions} layout="inline" className="text-xs leading-4" />}
@@ -292,8 +308,8 @@ export function EditCallRow({ workEntry, patch }: { workEntry: TimelineWorkEntry
     >
       <DiffWorkerPoolProvider theme={resolvedTheme}>
         <div className="flex flex-col gap-2">
-          {patch.map(file => (
-            <HunksBand key={file.path} file={file} turnId={workEntry.turnId} showPath={one === null} />
+          {patch.map((file, at) => (
+            <HunksBand key={file.path} entryId={workEntry.id} at={at} file={file} turnId={workEntry.turnId} showPath={one === null} />
           ))}
         </div>
       </DiffWorkerPoolProvider>
