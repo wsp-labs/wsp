@@ -3,8 +3,9 @@
 //! read, so an edit to it asks again. A path on this computer may pass links, as the command that runs it does, and
 //! counts where it lands; a path in a workspace is read under its root with no link followed, and anything there the
 //! walk cannot read as a file or nothing (a link, a fifo, a way up) refuses the whole ask, since the host cannot pin
-//! what the command would run through it. A path that lands on a file outside the folder, or on one inside past the
-//! most one ask hashes or over the size cap, is named back, so the host can refuse an Always for a script there.
+//! what the command would run through it. A path that lands on anything but a folder outside the folder, on a file
+//! inside past the most one ask hashes or over the size cap, or on something inside that is not a regular file (a
+//! fifo, a socket, a device) is named back, so the host can refuse an Always for a script there.
 
 use std::fs::File;
 use std::io::Read;
@@ -37,11 +38,14 @@ fn under(at: &Path, top: &Path) -> Option<String> {
     at.strip_prefix(top).ok().and_then(Path::to_str).filter(|rel| !rel.is_empty()).map(str::to_owned)
 }
 
-/// A regular file into the reply, judged on the handle: hashed, or named back under past where the ask has hashed its
-/// most, the file is over the size cap, or its read failed. Anything else is left out.
+/// A file into the reply, judged on the handle: a regular one hashed, or named back under past where the ask has
+/// hashed its most, the file is over the size cap, or its read failed; anything but a folder under special.
 fn take(reply: &mut FsHashReply, rel: String, word: &str, file: File) {
     let Ok(meta) = file.metadata() else { return };
     if !meta.is_file() {
+        if !meta.is_dir() {
+            reply.special.push(word.to_owned());
+        }
         return;
     }
     let sum = (meta.len() <= numbers::FS_HASH_CAP_BYTES && reply.files.len() < numbers::FS_HASH_FILES_MAX).then(|| digest(file)).flatten();
@@ -60,16 +64,20 @@ pub(crate) fn hashed_here(root: &str, paths: &[String]) -> Result<FsHashReply, O
     let mut reply = FsHashReply::default();
     for word in paths {
         let Ok(at) = std::fs::canonicalize(Path::new(root).join(word)) else { continue };
+        let Ok(meta) = std::fs::metadata(&at) else { continue };
+        if meta.is_dir() {
+            continue;
+        }
         let Some(rel) = under(&at, &top) else {
-            if std::fs::metadata(&at).is_ok_and(|meta| meta.is_file()) {
-                reply.outside.push(word.clone());
-            }
+            reply.outside.push(word.clone());
             continue;
         };
         if reply.files.contains_key(&rel) {
             continue;
         }
-        if let Some(file) = open(&at) {
+        if !meta.is_file() {
+            reply.special.push(word.clone());
+        } else if let Some(file) = open(&at) {
             take(&mut reply, rel, word, file);
         }
     }
@@ -231,6 +239,24 @@ mod tests {
         assert_eq!(read.files.len(), numbers::FS_HASH_FILES_MAX);
         assert_eq!(read.past, [format!("s{}.sh", numbers::FS_HASH_FILES_MAX)]);
         assert!(read.outside.is_empty());
+    }
+
+    #[test]
+    fn a_fifo_or_a_socket_inside_is_special_and_a_link_out_to_one_is_outside() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("acme");
+        std::fs::create_dir_all(root.join("bin")).unwrap();
+        nix::unistd::mkfifo(&root.join("evil.sh"), nix::sys::stat::Mode::S_IRWXU).unwrap();
+        nix::unistd::mkfifo(&dir.path().join("away.sh"), nix::sys::stat::Mode::S_IRWXU).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("away.sh"), root.join("out.sh")).unwrap();
+        let _held = std::os::unix::net::UnixListener::bind(root.join("sock.sh")).unwrap();
+        std::fs::write(root.join("ok.sh"), "echo ok\n").unwrap();
+
+        let read = hashed_here(root.to_str().unwrap(), &words(&["ok.sh", "evil.sh", "out.sh", "sock.sh", "bin", "/"])).unwrap();
+        assert_eq!(read.files.keys().collect::<Vec<_>>(), ["ok.sh"]);
+        assert_eq!(read.special, ["evil.sh", "sock.sh"]);
+        assert_eq!(read.outside, ["out.sh"]);
+        assert!(read.past.is_empty());
     }
 
     #[test]
