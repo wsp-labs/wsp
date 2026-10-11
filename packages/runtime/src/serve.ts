@@ -117,6 +117,7 @@ import type { DaemonChannel } from "./daemon-channel.js";
 import { NO_DEVICE_DOOR, safeEqual, threadOf, type DeviceDoor, type HeldDevice } from "./devices.js";
 import { NO_PLACE_DOOR, type PlaceDoor } from "./places.js";
 import { signInSocket } from "./sign-in-socket.js";
+import { sysSocket } from "./sys-socket.js";
 import { keyFingerprint, openFrame, verifyPlaceBytes, type Seal } from "@wsp/keys";
 import { startAt } from "./threads/answered-start.js";
 import type { HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, ProjectBundler, ProjectLander, RecipeShelf, Runtime } from "./runtime.js";
@@ -560,14 +561,11 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
     /** The daemon links this socket holds open, by the id it was answered with. A channel is never reachable from
      * another socket, so a page cannot drive a machine by guessing an id another page was given. */
     const channels = new Map<string, DaemonChannel>();
-    /** The workspaces this socket reads this computer's own figures for, each with what stops it. */
-    const watchedSys = new Map<string, () => void>();
     const signInOps = signInSocket(rt.agents, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) });
+    const sysOps = sysSocket(rt, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) });
     detaches.push(() => {
       for (const ch of channels.values()) ch.close();
       channels.clear();
-      for (const detach of watchedSys.values()) detach();
-      watchedSys.clear();
     });
     let bound: { deviceId: string; cut: () => void } | undefined;
     ws.on("close", () => {
@@ -1476,37 +1474,11 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true });
               return;
             }
-            case "sys.subscribe": {
-              // One subscription per workspace per socket: a person opening the pane a second time reads the same
-              // stream, and the sampler behind it stays the one thing reading this computer.
-              if (watchedSys.has(msg.workspaceId)) {
-                send({ id: msg.id, ok: true });
-                return;
-              }
-              const workspaceId = msg.workspaceId;
-              let stopped = false;
-              const pending = (): void => void (stopped = true);
-              const leave = (): void => void (watchedSys.get(workspaceId) === pending && watchedSys.delete(workspaceId));
-              watchedSys.set(workspaceId, pending);
-              const detach = await rt.workspaces.watchSys(workspaceId, sample => send({ type: "workspace.sys", workspaceId, sample }), origin).catch((e: unknown) => {
-                leave();
-                throw e;
-              });
-              // The page left, or stopped watching, while the first reading was in flight: nothing keeps sampling for it.
-              if (stopped || ws.readyState !== ws.OPEN) {
-                detach();
-                leave();
-                send({ id: msg.id, ok: true });
-                return;
-              }
-              watchedSys.set(workspaceId, detach);
-              send({ id: msg.id, ok: true });
-              return;
-            }
+            case "sys.subscribe":
             case "sys.unsubscribe":
-              watchedSys.get(msg.workspaceId)?.();
-              watchedSys.delete(msg.workspaceId);
-              send({ id: msg.id, ok: true });
+              // A computer's own readings are read on the road its list is, as every other places op is.
+              if (msg.op === "sys.subscribe" && msg.placeId !== undefined && refusedOffOwnRoad()) return;
+              await sysOps(msg, send, origin);
               return;
             case "sessions.start":
               await serveStart(rt, msg, origin, reply => send({ id: msg.id, ok: true, ...reply }));
