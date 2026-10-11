@@ -113,7 +113,8 @@ describe("the agent and the access a send into an existing thread runs on", () =
     const doc = (await store.get("sessions", workspaceId)) as { sessions: unknown[] };
     await store.put("sessions", workspaceId, { ...doc, sessions: [] });
     rt = runtime();
-    expect(await rt.sessions.list(workspaceId)).toEqual([]);
+    // Listed off its record, its row gone.
+    expect((await rt.sessions.list(workspaceId)).map(s => [s.id, s.threadId])).toEqual([[thread, thread]]);
     // The other agent named on a send past the cap: refused in the thread's own words, and never launched.
     await expect(rt.sessions.start(workspaceId, { prompt: "two", thread, harness: "claude" })).rejects.toThrow(threadRunsOnLine("codex", "claude"));
     expect(claude.starts).toEqual([]);
@@ -135,7 +136,8 @@ describe("the agent and the access a send into an existing thread runs on", () =
     const doc = (await store.get("sessions", workspaceId)) as { sessions: unknown[] };
     await store.put("sessions", workspaceId, { ...doc, sessions: [] });
     rt = runtime();
-    expect(await rt.sessions.list(workspaceId)).toEqual([]);
+    // Listed off its record, its row gone.
+    expect((await rt.sessions.list(workspaceId)).map(s => [s.id, s.threadId])).toEqual([[thread, thread]]);
     expect(await rt.sessions.access(thread, "danger-full-access")).toEqual({ outcome: "set" });
     expect(await rt.sessions.access("thr_nobody", "danger-full-access")).toEqual({ outcome: "not-found" });
     await (await rt.sessions.start(workspaceId, { prompt: "two", thread })).finished;

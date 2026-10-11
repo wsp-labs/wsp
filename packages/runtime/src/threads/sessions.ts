@@ -6,9 +6,9 @@ import { CATALOG_AGENTS, serverValuesOf } from "@wsp/catalog";
 import { harnessExec } from "@wsp/engine";
 import {
   type SessionEvent, type SessionInterruptOutcome, type SessionInterruptResult, type SessionStartOutcome,
-  type SessionSearchResult, type SessionView, type TurnImage, type TurnResult, foldThreads,
-  MCP_SERVER_NAME, threadForgetRefusal, threadKeyOf, threadRan, threadWord, SCOPED_MCP_ARG, roadOf, scopeOf,
-  RUN_PERSONS_LINE, runOutputTail, type SessionRunEvent, NO_SLATE_MCP_ARG, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE,
+  type SessionView, type TurnImage, type TurnResult, foldThreads,
+  MCP_SERVER_NAME, threadForgetRefusal, threadKeyOf, threadRan, threadWord, roadOf, scopeOf,
+  RUN_PERSONS_LINE, runOutputTail, type SessionRunEvent, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE,
   asideUnsupportedLine, isLocalWorkspace, mcpServersBlocked, actionRefusal, homeShortened, EMPTY_TITLE_LINE,
   threadRunsOnLine, notFoundRefusal, NOTIFY_ME, noCwdLine,
   THREAD_WORKING_LINE, threadOnMachineLine, WORKTREE_BUSY_LINE, copiesFolder, runsInFolder, sendRefusal, startPicks, titleLine,
@@ -30,23 +30,14 @@ import type { HarnessAdapter, HarnessStartOptions } from "../types/harness.js";
 import { SESSION_TITLE_TIMEOUT_MS } from "../types/events.js";
 import type { Runtime } from "../types/api.js";
 import {
-  ATTACHMENTS, ATTACHMENT_KEYS, snippetAround, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages,
+  ATTACHMENTS, ATTACHMENT_KEYS, searchIndex, type SearchedHit, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages,
   type LiveSession, type SessionEntry, stopLogLine,
 } from "../types/internal.js";
-import { launchArea } from "./launch.js";
+import { launchArea, servedTo } from "./launch.js";
 import type { RuntimeContext, SessionsArea } from "../context.js";
 
 /** A steered message's images as an adapter that declares steersImages reads them: the bytes, as a start's inline road. */
 const inlineImages = (attachments: readonly Attachment[] | undefined): TurnImage[] => (attachments ?? []).map(({ mediaType, bytes }) => ({ mediaType, bytes }));
-
-/** The wsp server a thread's launch is handed. A thread another thread started has no slate: its launch says nothing of
- * one, and on this computer, where the server is the host's own wsp and knows the word, its server is told too. A box's
- * server is served by this host as a guest, which reads the same off the thread's token; the box's own wsp may be
- * older and never sees a word. */
-function servedTo(wsp: McpServerSpec | undefined, rootThreadId: string, threadId: string): McpServerSpec | undefined {
-  if (wsp === undefined || rootThreadId === threadId) return wsp;
-  return { ...wsp, noSlate: true as const, ...(wsp.args.includes(SCOPED_MCP_ARG) ? { args: [...wsp.args, NO_SLATE_MCP_ARG] } : {}) };
-}
 
 export function sessionsArea(ctx: RuntimeContext): SessionsArea {
   const {
@@ -113,12 +104,16 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
   const trimmedRow = (threadId: string, r: ThreadRecord & { workspaceId: string }, ended = r.ended): SessionView => {
     const resume = ctx.startedAs(r.workspaceId, threadId);
     const cwd = resume === undefined ? undefined : ctx.folderOf(r.workspaceId, resume);
+    // Its first words name it and its last place it in time, as its row did.
+    const words = transcriptIndex.get(r.workspaceId)?.words.get(threadId);
     return {
       id: threadId,
       threadId,
       workspaceId: r.workspaceId,
       harness: r.harness,
       status: ended ?? "completed",
+      ...(words?.first !== undefined ? { prompt: words.first } : {}),
+      ...(words !== undefined && words.last > 0 ? { startedAt: words.last, endedAt: words.last } : {}),
       ...(r.parentThreadId !== undefined ? { startedBy: "agent" as const, parentThreadId: r.parentThreadId } : {}),
       ...(r.rootThreadId !== undefined ? { rootThreadId: r.rootThreadId } : {}),
       ...(resume !== undefined ? { claudeSessionId: resume } : {}),
@@ -828,7 +823,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               ...(launchKey !== undefined ? { keep: true as const } : {}),
               ...(catalog?.source === "harness" && catalog.version !== null ? { version: catalog.version } : {}),
               // The thread's earlier turns as its transcript holds them, this one left out since its message follows.
-              ...(resume !== undefined ? { seed: async () => threadSeed(threadMessages((await ctx.openTranscript(workspaceId)).filter(e => e.turnId !== turnId), threadId)) } : {}),
+              ...(resume !== undefined ? { seed: async () => threadSeed(threadMessages((await ctx.openThread(workspaceId, threadId)).filter(e => e.turnId !== turnId), threadId)) } : {}),
               onEvent,
             }),
         });
@@ -925,12 +920,13 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // after a restart may answer nothing for minutes, so its rows wait for a later listing.
       const asked = ctx.titleRows(rows.filter(view => !ctx.bootWork.has(view.workspaceId))).map(view => ({ first: view.harnessTitle === undefined, done: ctx.refreshTitle(view, false) }));
       await Promise.all(asked.filter(a => a.first).map(a => a.done));
-      // A thread of the caller's tree whose rows all fell off the cap is still one it names and sends to: it is listed
-      // off its record, which the cap never drops, so a child still reaches the lead it waits on. A record kept from
+      // A thread whose rows all fell off the cap, as a host before each thread kept its newest let them, is still one
+      // the caller names and sends to: it is listed off its record, which the cap never drops, so a child still
+      // reaches the lead it waits on and the person still sees it. A record kept from
       // before it held its end reads that end off the transcript while the transcript still holds it.
       const rowed = new Set([...sessions.values()].map(s => threadKeyOf(s.view)));
       const trimmed = ctx.treeRecords(origin, "list", workspaceId).filter(([threadId]) => !rowed.has(threadId));
-      const ends = await Promise.all(trimmed.map(async ([threadId, r]) => r.ended ?? threadResult(await ctx.openTranscript(r.workspaceId), threadId)?.status));
+      const ends = await Promise.all(trimmed.map(async ([threadId, r]) => r.ended ?? threadResult(await ctx.openThread(r.workspaceId, threadId), threadId)?.status));
       const listed = [...ctx.listedRows(held).map(view => (ctx.reachesRow(view, origin) ? view : namedOnly(view))), ...trimmed.map(([threadId, r], i) => trimmedRow(threadId, r, ends[i]))];
       return ctx.placedRows(listed);
     },
@@ -943,10 +939,20 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       return (await ctx.openTranscript(workspaceId)).filter(e => ctx.drivesThread(e.threadId, origin)).map(e => ({ ...e }));
     },
 
+    async threadHistory(workspaceId, { threadId, before, limit }, origin) {
+      if (threadId === undefined || before !== undefined || limit !== undefined) throw usageRefusal("whole reads one thread's every event.", "Name the thread with threadId, and no before or limit.");
+      await ctx.ready();
+      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin);
+      if (!ctx.drivesThread(threadId, origin)) return [];
+      ctx.openedWords(workspaceId, threadId);
+      return (await ctx.openThread(workspaceId, threadId)).map(e => ({ ...e }));
+    },
+
     async page(workspaceId, window, origin) {
       await ctx.ready();
       if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin);
       if (!ctx.drivesThread(window.threadId, origin)) return { events: [], pos: transcriptIndex.get(workspaceId)?.pos ?? 0, total: 0 };
+      ctx.openedWords(workspaceId, window.threadId);
       return ctx.transcriptReader.read(workspaceId, window.threadId, {
         ...(window.before !== undefined ? { before: window.before } : {}),
         limit: window.limit ?? HISTORY_PAGE_EVENTS,
@@ -1175,18 +1181,14 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await ctx.ready();
       const words = query.trim().toLowerCase();
       if (words === "") return { hits: [] };
-      const found: { hit: SessionSearchResult["hits"][number]; last: number }[] = [];
+      const found: SearchedHit[] = [];
+      let unsearched = 0;
       for (const [workspaceId, index] of transcriptIndex) {
         // The workspaces a caller reads the transcript of, by the rule history reads them by.
         if (!ctx.treeStandsOn(workspaceId, origin) && !(await ctx.entryOf(workspaceId, origin, { now: true }).then(() => true, () => false))) continue;
-        for (const [threadId, { lines, last }] of index.words) {
-          if (lines.length === 0 || !ctx.drivesThread(threadId, origin)) continue;
-          // The snippet stays inside the one message that holds the words, so it never runs one message into the next.
-          const text = lines.find(line => line.toLowerCase().includes(words));
-          if (text !== undefined) found.push({ hit: { workspaceId, threadId, snippet: snippetAround(text, text.toLowerCase().indexOf(words), words.length) }, last });
-        }
+        unsearched += searchIndex(workspaceId, index, words, threadId => ctx.drivesThread(threadId, origin), found);
       }
-      return { hits: found.sort((a, b) => b.last - a.last).map(f => f.hit) };
+      return { hits: found.sort((a, b) => b.last - a.last).map(f => f.hit), ...(unsearched > 0 ? { unsearched } : {}) };
     },
 
     async aside(sessionId, question, origin, askId) {
@@ -1241,7 +1243,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const entry = await ctx.entryOfRow({ threadId: step.threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(step.threadId)}`);
       // Read off the transcript rather than kept beside it, so an ending recorded before a restart still holds.
-      for (const e of await ctx.openTranscript(workspaceId)) {
+      for (const e of await ctx.openThread(workspaceId, step.threadId)) {
         if (e.type === "session.run" && e.runId === step.runId && e.state !== "running") return { ...e };
       }
       const latest = ctx.latestOn(step.threadId);
@@ -1306,7 +1308,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       }
 
       // A copy, read for the turns and their checkpoints alone: the cut below takes its own copy inside the queue.
-      const events = [...(await ctx.openTranscript(workspaceId))];
+      const events = [...(await ctx.openThread(workspaceId, threadId))];
       const order: string[] = [];
       for (const e of events) if (e.threadId === threadId && e.turnId !== undefined && !order.includes(e.turnId)) order.push(e.turnId);
       const at = opts.turnId === undefined ? -1 : order.indexOf(opts.turnId);
@@ -1387,9 +1389,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         throw conflict(rewindKeptLine(keptWhy, before !== undefined));
       }
       if (cutsConversation) {
-        await ctx.dropFromTranscript(workspaceId, e => e.threadId === threadId && cut.includes(e.turnId ?? ""));
+        await ctx.dropFromTranscript(workspaceId, threadId, e => cut.includes(e.turnId ?? ""));
         // The turn now last is the thread's word: the row lists its last line and failure, never a cut turn's.
-        const now = threadResult(await ctx.openTranscript(workspaceId), threadId);
+        const now = threadResult(await ctx.openThread(workspaceId, threadId), threadId);
         if (latest !== undefined) writeLines(latest, now === undefined ? {} : turnLines(now));
       }
       await ctx.slates.rewound({ threadId, turnId: order[at]!, cut });
@@ -1429,7 +1431,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       ctx.reapKept(threadId);
       await ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, { remove: true });
       await ctx.endThreadShells(entry, threadId);
-      await ctx.openTranscript(workspaceId);
+      await ctx.openThread(workspaceId, threadId);
       await ctx.dropCheckpoints(entry, threadId);
       await ctx.dropThreadFiles(entry, [threadId]);
       await ctx.dropSentImages(workspaceId, [threadId]);
@@ -1439,7 +1441,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         ctx.rowGone(id, { workspaceId, threadId });
       }
       threadRecords.delete(threadId);
-      await ctx.dropFromTranscript(workspaceId, e => e.threadId === threadId);
+      await ctx.dropFromTranscript(workspaceId, threadId);
       await ctx.persistSessions(workspaceId);
       await ctx.slates.forget(threadId);
       return { workspaceId, threads: 1 };
@@ -1460,7 +1462,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (threadRan(held.map(([, s]) => s.view)) || (record !== undefined && record.worked !== false)) throw Object.assign(new Error(threadForgetRefusal(threadId)), { kind: "conflict" });
       if (o.check === true) return;
       // A transcript that does not read refuses here, before anything is changed.
-      await ctx.openTranscript(workspaceId);
+      await ctx.openThread(workspaceId, threadId);
       // A launch that never got going can still have landed the files its send carried.
       await ctx.dropThreadFiles(entry, [threadId]);
       await ctx.dropSentImages(workspaceId, [threadId]);
@@ -1470,7 +1472,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       }
       threadRecords.delete(threadId);
       await ctx.slates.forget(threadId);
-      await ctx.dropFromTranscript(workspaceId, e => e.threadId === threadId);
+      await ctx.dropFromTranscript(workspaceId, threadId);
       await ctx.persistSessions(workspaceId);
     },
   };

@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LocalBackend } from "@wsp/engine";
+import { LocalBackend, sqliteBinding } from "@wsp/engine";
 import { ECOSYSTEM_MODULES } from "@wsp/catalog";
 import {
   claudeProjectKey,
@@ -44,6 +44,7 @@ import { serveStart } from "../src/serve-start.js";
 import { serveRuntime } from "../src/serve.js";
 import { WsClient } from "./ws-client.js";
 import { memoryStore, type Store } from "../src/store.js";
+import { sqliteStore } from "../src/sqlite-store.js";
 import { gitCopier } from "./git-copier.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { stubBackend, testPlatform } from "./stub-backend.js";
@@ -670,6 +671,81 @@ describe("the images a thread's messages carried", () => {
     await rt.sessions.delete(first);
     await expect(rt.sessions.attachment(home.workspace.id, first, "req_a", 0)).rejects.toMatchObject({ kind: "not-found" });
     expect(await rt.sessions.attachment(home.workspace.id, second, "req_b", 0)).toEqual({ mediaType: "image/png", bytes: png.bytes });
+  });
+});
+
+describe("deleting one of two threads in a project's folder", () => {
+  it("deleting a fork keeps its source thread's session facts", async () => {
+    let n = 0;
+    const forking: HarnessAdapterFactory = () => ({
+      steers: false,
+      attachments: "inline",
+      forkSession: async () => ({ resume: "c0c0c0c0-0000-4000-8000-000000000001", drop: async () => {} }),
+      start: (s: HarnessStartOptions) => {
+        const session = s.resume ?? `50505050-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+        const result = { status: "completed" as const, text: "reply" };
+        const finished = Promise.resolve().then(() => {
+          s.onEvent({ type: "session.start", sessionId: session, model: s.model ?? "default-model" });
+          s.onEvent({ type: "turn.delta", sessionId: session, kind: "text", text: "reply" });
+          s.onEvent({ type: "turn.anchor", sessionId: session, anchor: `a${n}` });
+          s.onEvent({ type: "turn.done", sessionId: session, result });
+          s.onEvent({ type: "session.end", sessionId: session, exitCode: 0, sawResult: true });
+          return result;
+        });
+        return { localId: session, finished, interrupt: async () => {} };
+      },
+    });
+    const root = scratch();
+    mkdirSync(join(root, "state"), { recursive: true });
+    const store = sqliteStore(join(root, "state", "state.json"), { wsp: "test", daemon: DAEMON_VERSION, bin: "/usr/local/bin/wsp" });
+    const { rt } = here({}, true, { claude: forking }, { root, store });
+    const project = await rt.projects.add({ source: repo() });
+    const home = await rt.workspaces.folderFor({ project: project.id });
+    const first = await rt.sessions.start(home.workspace.id, { prompt: "Remember ALPHA.", harness: "claude", model: "claude-opus-5" });
+    await first.finished;
+    await new Promise(r => setTimeout(r, 300));
+    const fork = await rt.sessions.fork({ prompt: "what do you remember", fork: { threadId: first.view().threadId! } });
+    await fork.finished;
+    await new Promise(r => setTimeout(r, 300));
+    const factsOf = (): unknown => {
+      const d = new (sqliteBinding().DatabaseSync)(join(root, "state", "state.db"), { readOnly: true });
+      const { json } = d.prepare("select json from transcript_index where workspace = ?").get(home.workspace.id) as { json: string };
+      d.close();
+      return Object.fromEntries((JSON.parse(json) as { facts: [string, unknown][] }).facts)[first.view().claudeSessionId!];
+    };
+    const before = factsOf();
+    expect(before).toMatchObject({ model: "claude-opus-5" });
+    await rt.sessions.delete(fork.view().threadId!);
+    await new Promise(r => setTimeout(r, 300));
+    expect(factsOf()).toEqual(before);
+  });
+
+  it("drops that thread's rows alone, never reading the folder's, and the other thread keeps its events", async () => {
+    const root = scratch();
+    mkdirSync(join(root, "state"), { recursive: true });
+    const store = sqliteStore(join(root, "state", "state.json"), { wsp: "test", daemon: DAEMON_VERSION, bin: "/usr/local/bin/wsp" });
+    const rows = store.transcripts!;
+    let folderReads = 0;
+    const all = rows.all.bind(rows);
+    rows.all = workspaceId => (folderReads++, all(workspaceId));
+    const { rt } = here({}, true, {}, { root, store });
+    const project = await rt.projects.add({ source: repo() });
+    const home = await rt.workspaces.folderFor({ project: project.id });
+    const one = await rt.sessions.start(home.workspace.id, { prompt: "first thread" });
+    await one.finished;
+    const two = await rt.sessions.start(home.workspace.id, { prompt: "second thread" });
+    await two.finished;
+    const [first, second] = [one.view().threadId!, two.view().threadId!];
+    // Each turn's checkpoint lands after its end.
+    await new Promise(r => setTimeout(r, 50));
+    const kept = await rt.sessions.threadHistory(home.workspace.id, { threadId: second });
+    folderReads = 0;
+    await rt.sessions.delete(first);
+    expect(folderReads).toBe(0);
+    expect(await rt.sessions.threadHistory(home.workspace.id, { threadId: first })).toEqual([]);
+    expect(await rt.sessions.threadHistory(home.workspace.id, { threadId: second })).toEqual(kept);
+    expect((await rt.sessions.search("first thread")).hits).toEqual([]);
+    expect((await rt.sessions.search("second thread")).hits.map(h => h.threadId)).toEqual([second]);
   });
 });
 

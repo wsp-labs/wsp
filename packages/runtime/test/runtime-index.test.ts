@@ -649,17 +649,57 @@ describe("runtime session index", () => {
     }
   });
 
+  it("lists every thread of a folder past the row cap: a thread's newest row never falls off for another thread's", { timeout: 30_000 }, async () => {
+    const store = memoryStore();
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: turns().adapter } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    for (let i = 1; i <= 202; i++) await (await rt.sessions.start(ws.id, { prompt: `cap thread ${String(i).padStart(3, "0")}` })).finished;
+    const listed = (await rt.sessions.list(ws.id)).map(s => s.prompt);
+    expect(listed).toContain("cap thread 001");
+    expect(listed).toContain("cap thread 002");
+    expect(new Set(listed).size).toBe(202);
+    expect((await rt.sessions.search("cap thread 001")).hits.length).toBeGreaterThan(0);
+    await rt.close();
+    const again = createRuntime({ backend: stubBackend(), store, adapters: {} });
+    expect((await again.sessions.list(ws.id)).map(s => s.prompt)).toContain("cap thread 001");
+    await again.close();
+  });
+
+  it("lists a thread whose rows an earlier host's cap took off its record, named by its first words", async () => {
+    const store = memoryStore();
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: turns().adapter } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const gone = await rt.sessions.start(ws.id, { prompt: "cap thread 001" });
+    await gone.finished;
+    await (await rt.sessions.start(ws.id, { prompt: "cap thread 002" })).finished;
+    await rt.close();
+    const doc = (await store.get("sessions", ws.id)) as { sessions: { threadId?: string }[] };
+    await store.put("sessions", ws.id, { ...doc, sessions: doc.sessions.filter(s => s.threadId !== gone.view().threadId) });
+    const again = createRuntime({ backend: stubBackend(), store, adapters: {} });
+    const listed = await again.sessions.list(ws.id);
+    expect(listed.map(s => s.prompt).sort()).toEqual(["cap thread 001", "cap thread 002"]);
+    expect(listed.find(s => s.threadId === gone.view().threadId)).toMatchObject({ status: "completed", startedAt: expect.any(Number) });
+    await again.close();
+  });
+
   it("keeps at most 200 rows per workspace: the oldest finished row falls off first, a running row never does", { timeout: 20_000 }, async () => {
     const store = memoryStore();
-    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: turns().adapter, hung } });
+    // A session of its own per turn, so one thread holds a row per turn.
+    const fresh: HarnessAdapterFactory = (...args) => {
+      const every = turns().adapter(...args);
+      return { ...every, start: o => every.start({ ...o, resume: undefined }) };
+    };
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: fresh, hung } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
     await rt.sessions.start(ws.id, { prompt: "stuck", harness: "hung" });
     // Named: a start with no agent would take the hung one the first start left on the project.
-    for (let i = 0; i < 199; i++) await (await rt.sessions.start(ws.id, { prompt: `t${i}`, harness: "claude" })).finished;
+    const first = await rt.sessions.start(ws.id, { prompt: "t0", harness: "claude" });
+    await first.finished;
+    for (let i = 1; i < 199; i++) await (await rt.sessions.start(ws.id, { prompt: `t${i}`, thread: first.view().threadId! })).finished;
     const full = await rt.sessions.list(ws.id);
     expect(full).toHaveLength(200);
     expect(full.slice(0, 2).map(s => s.prompt)).toEqual(["stuck", "t0"]);
-    await (await rt.sessions.start(ws.id, { prompt: "t199", harness: "claude" })).finished;
+    await (await rt.sessions.start(ws.id, { prompt: "t199", thread: first.view().threadId! })).finished;
     const rows = await rt.sessions.list(ws.id);
     expect(rows.map(s => s.prompt)).toEqual(["stuck", ...Array.from({ length: 199 }, (_, i) => `t${i + 1}`)]);
     await rt.close();

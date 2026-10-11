@@ -881,11 +881,13 @@ describe("runtime session history", () => {
     expect((await stored(ws.id)).map(e => e.type)).toEqual(["session.start", "session.done", "session.end"]);
   });
 
-  it("caps the persisted transcript so a chatty workspace cannot grow the store without bound", { timeout: 20_000 }, async () => {
+  it("caps the persisted transcript so a chatty thread cannot grow the store without bound", { timeout: 20_000 }, async () => {
     const { store, stored } = countingStore();
     const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted("x") } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
-    for (let i = 0; i < 1300; i++) await (await rt.sessions.start(ws.id, { prompt: `t${i}` })).finished;
+    const first = await rt.sessions.start(ws.id, { prompt: "t0" });
+    await first.finished;
+    for (let i = 1; i < 1300; i++) await (await rt.sessions.start(ws.id, { prompt: `t${i}`, thread: first.view().threadId! })).finished;
     const history = await rt.sessions.history(ws.id);
     expect(history.length).toBeLessThanOrEqual(5000);
     expect(history[history.length - 1]).toMatchObject({ type: "session.end" });
@@ -920,11 +922,13 @@ describe("runtime session history", () => {
   });
   const jsonBytes = (events: readonly unknown[]): number => events.reduce<number>((n, e) => n + JSON.stringify(e).length, 0);
 
-  it("caps a transcript in bytes as well as in events, so one workspace's tool calls cannot fill the host's memory", async () => {
+  it("caps a thread in bytes as well as in events, so its tool calls cannot fill the host's memory", async () => {
     const { store, stored } = countingStore();
     const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: tooled("w".repeat(256 * 1024), "ok") } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
-    for (let i = 0; i < 40; i++) await (await rt.sessions.start(ws.id, { prompt: `t${i}` })).finished;
+    const first = await rt.sessions.start(ws.id, { prompt: "t0" });
+    await first.finished;
+    for (let i = 1; i < 40; i++) await (await rt.sessions.start(ws.id, { prompt: `t${i}`, thread: first.view().threadId! })).finished;
     const history = await rt.sessions.history(ws.id);
     expect(jsonBytes(history)).toBeLessThanOrEqual(TRANSCRIPT_BYTES);
     expect(history.some(e => e.type === "session.start" && e.prompt === "t39")).toBe(true);
@@ -945,6 +949,7 @@ describe("runtime session history", () => {
     // Every thread of a project's folder is one workspace: a quiet thread, then busy ones beside it.
     const quiet = await rt.sessions.start(ws.id, { prompt: "the quiet one" });
     await quiet.finished;
+    const quietHeld = (await rt.sessions.history(ws.id)).length;
     // Three busy threads, each past the byte cap on its own.
     const busy: string[] = [];
     for (let b = 0; b < 3; b++) {
@@ -957,9 +962,13 @@ describe("runtime session history", () => {
     const ofQuiet = history.filter(e => e.threadId === quiet.view().threadId);
     expect(ofQuiet.some(e => e.type === "session.start" && e.prompt === "the quiet one")).toBe(true);
     expect(ofQuiet.at(-1)).toMatchObject({ type: "session.end" });
-    // Every busy thread keeps its newest turn whole, and the workspace stays inside the one cap.
-    for (const [b, threadId] of busy.entries()) expect(history.some(e => e.threadId === threadId && e.type === "session.start" && e.prompt === `busy ${b}.19`)).toBe(true);
-    expect(jsonBytes(history)).toBeLessThanOrEqual(TRANSCRIPT_BYTES);
+    expect(ofQuiet.length).toBe(quietHeld);
+    // Every busy thread keeps its newest turn whole and stays inside its own cap.
+    for (const [b, threadId] of busy.entries()) {
+      expect(history.some(e => e.threadId === threadId && e.type === "session.start" && e.prompt === `busy ${b}.19`)).toBe(true);
+      expect(history.some(e => e.threadId === threadId && e.type === "session.start" && e.prompt === `busy ${b}.0`)).toBe(false);
+      expect(jsonBytes(history.filter(e => e.threadId === threadId))).toBeLessThanOrEqual(TRANSCRIPT_BYTES);
+    }
     await rt.close();
   });
 
