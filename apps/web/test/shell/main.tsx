@@ -189,6 +189,12 @@ const inbox: SessionView[] = inboxGlyph === null
       { id: "s16", threadId: "s16", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Build: box thread in the project", startedBy: "agent", parentThreadId: "s15", startedAt: Date.now() - 20 * 60_000, asking: "Run pnpm install?" } as SessionView,
       { id: "s17", threadId: "s17", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Probe: send latency on the relay", startedBy: "person", startedAt: Date.now() - 15 * 60_000, asking: "Which relay?" } as SessionView,
     ];
+// ?working=<n> adds n working threads to the first workspace, the first four begun 17 min, 19 min, 3 min and 42 s ago,
+// so working tiles can be photographed beside each other and a trace can hold many.
+const WORKING_AGES_MS = [17 * 60_000, 19 * 60_000, 3 * 60_000, 42_000];
+const working: SessionView[] = Array.from({ length: Number(params.get("working") ?? 0) }, (_, i) => ({
+  id: `s_w${i}`, threadId: `s_w${i}`, workspaceId: "ws_a", harness: i % 3 === 2 ? "codex" : "claude", status: "running", prompt: ["Fix the cart total rounding.", "Move the tax tables into one module.", "Retry the failed invoice webhooks.", "Shrink the hero image under 200 KB."][i % 4]!, startedBy: "person", startedAt: Date.now() - (WORKING_AGES_MS[i] ?? (i + 1) * 60_000),
+}));
 const sessions: SessionView[] = [
   // With ?projects=1 the first thread works in spoo and the second deep inside wsp, so both rows carry a project word.
   { id: "s1", threadId: "s1", workspaceId: "ws_a", harness: "claude", status: "running", prompt: "Now reply with exactly the word pong.", startedBy: "person", startedAt: Date.now() - 48 * 60_000, ...(projects ? { cwd: "/root/spoo" } : {}) },
@@ -198,6 +204,7 @@ const sessions: SessionView[] = [
   ...archived,
   ...toned,
   ...inbox,
+  ...working,
 ];
 // ?switcher=1: two more projects, one of them on this computer, and the threads on them, ten in all with the four above.
 const switcher = params.get("switcher") === "1";

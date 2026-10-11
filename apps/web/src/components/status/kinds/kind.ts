@@ -23,7 +23,7 @@ export interface StatusKind {
   readonly word?: string;
   /** A word read off the thread itself, the reset it goes on at say, standing where the fixed word would. */
   readonly wordOf?: (thread: ThreadStatusInput, now: number) => string;
-  /** The elapsed time since the latest turn began is the time its tooltip adds to its word, ticking. */
+  /** How long the latest turn has run is the slot's text and the time its tooltip adds to its word, ticking. */
   readonly timed?: boolean;
   /** The crab is its glyph. */
   readonly crab?: boolean;
