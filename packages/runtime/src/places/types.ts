@@ -22,6 +22,7 @@ import {
   type AgentSignInState,
   type MacKind,
   type DaemonEvent,
+  type SysSample,
   type PlaceAddStep,
   PLACE_LOGIN_REFUSED_KIND,
   type PlaceStageEvent,
@@ -524,6 +525,10 @@ export interface PlaceDoor {
    * own terminal. Nothing is dialled and no token is spent: only that computer can open a socket to this host,
    * and this is the one it opened. Undefined on a place that is not connected. */
   channel(placeId: string, onEvent: (event: Record<string, unknown>) => void): DaemonChannel | undefined;
+  /** A computer's live readings, off the one watch its link holds for every reader on this host: asked with the
+   * first, stopped after the last, asked again on the link that replaces a dropped one. Held while the computer is
+   * away; refused for a place that is no computer this host holds, and with the daemon's word where it refused. */
+  watchSys(placeId: string, fn: (sample: SysSample) => void): Promise<() => void>;
   /** Reads what this host holds about its places into memory, so the backend a fork on one stands on is answered
    * without a read of the store; the hydration calls it once before it reads any workspace record. */
   load(): Promise<void>;

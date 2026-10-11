@@ -4,9 +4,10 @@
 // watch of each kind per socket, and every folder there rides that one socket,
 // the host's own sign-in watch among them: so the ports a folder's threads hold
 // are a watch of its own named for the folder's record, its threads' cgroups in
-// its scope, the readings and the processes are one watch per link that every
-// pane there shares, and a terminal opens in the folder as the login the
-// computer was added with, under the environment its turns get.
+// its scope, the processes are one watch per link that every pane there
+// shares, the readings are the computer's one watch that every reader on this
+// host shares, and a terminal opens in the folder as the login the computer was
+// added with, under the environment its turns get.
 import { DAEMON_VERSION, placeBehindLine, placeDaemonBehind, threadCgroup } from "@wsp/protocol";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
@@ -18,7 +19,7 @@ type Served = (frame: Frame) => Promise<Frame>;
 const WATCH_CGROUPS_MAX = 16;
 
 /** What a pane's channel into a folder there answers itself rather than passing up as it came. */
-const PANEL_OPS: ReadonlySet<string> = new Set(["ports.watch", "sys.watch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "pty.create"]);
+const PANEL_OPS: ReadonlySet<string> = new Set(["ports.watch", "sys.watch", "sys.unwatch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "pty.create"]);
 
 export interface BoxPanels {
   answers(op: string): boolean;
@@ -36,12 +37,10 @@ export function namedWatchRefusal(name: string, daemonVersion: number | undefine
 }
 
 /** One opener per runtime, holding what every pane on one computer shares: how many panes watch processes over each
- * of its links, which of its links was already asked for its readings, which the daemon sends for as long as the link
- * stands. `watchers` is the push each channel registers under its workspace to name its ports again when a thread
- * there starts. */
+ * of its links. `watchers` is the push each channel registers under its workspace to name its ports again when a
+ * thread there starts. */
 export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<() => void>>): (entry: LiveWorkspace, placeId: string, served: Served, folder: string) => BoxPanels {
   const procWatchers = new WeakMap<object, number>();
-  const readingsAsked = new WeakSet<object>();
 
   /** The cgroups of the folder's threads, newest first, as the daemon's cap allows. */
   const cgroupsOf = (workspaceId: string): string[] => {
@@ -61,7 +60,8 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
      * nothing of its count onto the one that replaced it. */
     const link = door.link(placeId);
     let watchingProcs = false;
-    let hearingReadings = false;
+    /** This pane's hold on the computer's readings watch; the pane hears the samples on its own channel. */
+    let readingsHeld: Promise<() => void> | undefined;
     let closed = false;
     /** The roots and cgroups this pane's ports watch last named, undefined until it watches. */
     let named: { roots: number[]; cgroups: string } | undefined;
@@ -91,6 +91,11 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
       if (left <= 0 && door.link(placeId) === link) void served({ op: "proc.unwatch" }).catch(() => undefined);
     };
 
+    const unwatchReadings = (): void => {
+      void readingsHeld?.then(release => release(), () => undefined);
+      readingsHeld = undefined;
+    };
+
     const answer = async (frame: Frame): Promise<Frame> => {
       switch (frame["op"]) {
         case "ports.watch": {
@@ -100,15 +105,19 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
           return watchPorts(roots);
         }
         case "sys.watch": {
-          // The daemon keeps sending for as long as the link it was asked on stands, so a link is asked once.
-          if (link !== undefined && !readingsAsked.has(link)) {
-            const said = await served({ op: "sys.watch" });
-            if (said["ok"] !== true) return said;
-            readingsAsked.add(link);
-          }
-          hearingReadings = true;
-          return { ok: true };
+          const holding = readingsHeld ?? door.watchSys(placeId, () => {});
+          readingsHeld = holding;
+          return holding.then(
+            () => ({ ok: true }),
+            (e: unknown) => {
+              if (readingsHeld === holding) readingsHeld = undefined;
+              return { ok: false, error: e instanceof Error ? e.message : String(e) };
+            },
+          );
         }
+        case "sys.unwatch":
+          unwatchReadings();
+          return { ok: true };
         case "proc.watch": {
           if (!watchingProcs && link !== undefined) {
             watchingProcs = true;
@@ -138,7 +147,7 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
       heard: event => {
         const type = event["type"];
         if (type === "port.open" || type === "port.close") return event["watch"] === workspaceId;
-        if (type === "sys.sample") return hearingReadings;
+        if (type === "sys.sample") return readingsHeld !== undefined;
         if (type === "proc.snapshot" || type === "proc.changes") return watchingProcs;
         return false;
       },
@@ -147,6 +156,7 @@ export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<(
         closed = true;
         pushes.delete(push);
         unwatchProcs();
+        unwatchReadings();
       },
     };
   };
