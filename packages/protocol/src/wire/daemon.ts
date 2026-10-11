@@ -416,11 +416,15 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("manifest.restartScript") }),
   z.object({ id: reqId, op: z.literal("inbox.watch") }),
   z.object({ id: reqId, op: z.literal("inbox.rescan") }),
-  /** Streams sys.sample events to this socket every two seconds until it
-   * closes. One sampler serves every subscriber and stops with the last one;
-   * the first sample lands one interval after the reply, since cpu is a delta. */
+  /** Streams sys.sample events to this socket every two seconds until
+   * sys.unwatch or the socket closes. One sampler serves every subscriber and
+   * stops with the last one; a second watch on one socket is no second
+   * subscription. The first sample lands one interval after the reply, since
+   * cpu is a delta. */
   z.object({ id: reqId, op: z.literal("sys.watch") }),
-  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs.
+  z.object({ id: reqId, op: z.literal("sys.unwatch") }),
+  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs. A
+  // step under a minute answers the last fifteen minutes of reads as they were taken.
   z.object({ id: reqId, op: z.literal("sys.history"), from: z.number().int(), to: z.number().int(), stepMs: z.number().int().nonnegative() }),
   // What each agent's own store on the daemon's computer counted, for the stores the host names: counts, a model and
   // a folder per session and half hour, and the newest plan reading a store kept, never a line of a transcript.
