@@ -939,6 +939,8 @@ describe("runtime wire types", () => {
       "slates.write", "slates.read", "slates.event", "slates.approve", "slates.cancel", "slates.revoke",
       // The app's processes name the sites in the person's browser tabs, and only the app on this computer names them.
       "appProcs.watch", "appProcs.unwatch", "appProcs.offer", "appProcs.set",
+      // A computer's processes carry their command lines, and an End signals a process on this computer.
+      "activity.read", "activity.end",
     ];
     for (const op of held) {
       expect(wire.RUNTIME_OPS, op).toContain(op);

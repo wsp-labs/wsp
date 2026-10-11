@@ -3,16 +3,21 @@
 {/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
 ```text
-usage: wsp delete <thread> [--yes]
+usage: wsp delete <thread> [--processes stop|keep] [--yes]
   takes a thread away, its turns and checkpoints with it, and the worktree wsp
-  made for it with every thread in it, never the project folder
+  made for it with every thread in it, never the project folder, refused while
+  one on this computer still runs processes unless --processes says to stop or
+  keep them
 
-  --yes      go ahead without being asked
-  --json     print the raw protocol values, one JSON object per line, with
-             everything else on stderr
-  --state    the state file the host serves
-  --host     run the line against a host on your account, by the name wsp hosts
-             lists it under; WSP_HOST names one for a whole shell
+  --yes          go ahead without being asked
+  --processes    stop ends every process the thread still runs beside its agent,
+                 by identity, before it goes; keep leaves them running; refused
+                 without it while any run
+  --json         print the raw protocol values, one JSON object per line, with
+                 everything else on stderr
+  --state        the state file the host serves
+  --host         run the line against a host on your account, by the name wsp
+                 hosts lists it under; WSP_HOST names one for a whole shell
 ```
 
 MCP tool: [`delete`](/reference/mcp-tools#delete).

@@ -20,6 +20,7 @@ function sources(dir: string): string[] {
 /** Faded muted inks that draw a graphic, not words, each by the class it carries. */
 const GRAPHICS = [
   "components/machine/MachineSurface.tsx: text-muted-foreground/40", // a stale chart's line
+  "settings/LiveBand.tsx: text-muted-foreground/45", // an away computer's lanes
   "lib/diffRendering.ts: text-muted-foreground/80", // an unclassified file's collapse icon
   "components/chat/ComposerModelPicker.tsx: shrink-0 rounded p-1 text-muted-foreground/60", // the star button's icon
 ];

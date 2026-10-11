@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 71 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 73 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -14,6 +14,85 @@ The instructions the server sends when an agent connects:
 > - A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report, so nothing is polled.
 > - A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer.
 > - Start long work with your harness's own background road, which wakes you when it ends, and never with a shell &, which nothing tracks and which wakes nobody when it ends.
+
+## activity
+
+This computer's processes, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone. A thread reads itself and the threads under it alone. A box's processes are refused here, and so is a thread on one.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `thread` | string |  | the thread, by its id or a prefix of it that names one, whose processes alone to list |
+| `computer` | string |  | the computer, which must be this one; a box is refused |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `computer` | string | yes |  |
+| `at` | number | yes |  |
+| `threads` | object[] | yes |  |
+| `threads[].threadId` | string | yes |  |
+| `threads[].title` | string | yes |  |
+| `threads[].workspaceId` | string | yes |  |
+| `threads[].memory` | number | yes |  |
+| `threads[].cpu` | number | yes |  |
+| `threads[].processes` | object[] | yes |  |
+| `wsp` | object[] | yes |  |
+| `wsp[].pid` | integer | yes |  |
+| `wsp[].ppid` | integer | yes |  |
+| `wsp[].depth` | integer | yes |  |
+| `wsp[].startedAt` | number | yes |  |
+| `wsp[].kind` | `agent`, `tool`, `dev`, `test`, `build`, `slate`, `terminal`, `tab`, `app`, `wsp`, `other` | yes |  |
+| `wsp[].name` | string | yes |  |
+| `wsp[].command` | string | yes |  |
+| `wsp[].memory` | number | yes |  |
+| `wsp[].cpu` | number | yes |  |
+| `wsp[].ports` | integer[] | yes |  |
+| `unowned` | object[] | yes |  |
+| `unowned[].pid` | integer | yes |  |
+| `unowned[].ppid` | integer | yes |  |
+| `unowned[].depth` | integer | yes |  |
+| `unowned[].startedAt` | number | yes |  |
+| `unowned[].kind` | `agent`, `tool`, `dev`, `test`, `build`, `slate`, `terminal`, `tab`, `app`, `wsp`, `other` | yes |  |
+| `unowned[].name` | string | yes |  |
+| `unowned[].command` | string | yes |  |
+| `unowned[].memory` | number | yes |  |
+| `unowned[].cpu` | number | yes |  |
+| `unowned[].ports` | integer[] | yes |  |
+
+## activity_end
+
+Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after 2 s, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `pid` | integer | yes | the process's pid, as activity lists it |
+| `started` | number | yes | the start activity listed it with, its startedAt in epoch milliseconds |
+| `computer` | string |  | the computer, which must be this one; a box is refused |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `pid` | integer | yes |  |
+| `ended` | object[] | yes |  |
+| `ended[].pid` | integer | yes |  |
+| `ended[].ppid` | integer | yes |  |
+| `ended[].depth` | integer | yes |  |
+| `ended[].startedAt` | number | yes |  |
+| `ended[].kind` | `agent`, `tool`, `dev`, `test`, `build`, `slate`, `terminal`, `tab`, `app`, `wsp`, `other` | yes |  |
+| `ended[].name` | string | yes |  |
+| `ended[].command` | string | yes |  |
+| `ended[].memory` | number | yes |  |
+| `ended[].cpu` | number | yes |  |
+| `ended[].ports` | integer[] | yes |  |
+| `forced` | integer[] | yes |  |
+| `left` | integer[] | yes |  |
+| `freed` | string |  |  |
 
 ## add
 
@@ -466,13 +545,14 @@ The conversations the agents kept in a project's folder and its worktrees on the
 
 ## delete
 
-Takes a thread away, named by thread: its turns and checkpoints go, and where it ran in a worktree wsp made, that worktree goes with every thread in it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.
+Takes a thread away, named by thread: its turns and checkpoints go, and where it ran in a worktree wsp made, that worktree goes with every thread in it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.
 
 **Takes**
 
 | Field | Type | Required | What it is |
 |---|---|---|---|
 | `thread` | string |  | the thread, by its id or a prefix of it that names one |
+| `processes` | `stop`, `keep` |  | what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread |
 | `confirm` | boolean |  | true deletes it; absent or false answers with what would go and deletes nothing, so a person can be asked first |
 
 **Answers**
@@ -485,6 +565,12 @@ Takes a thread away, named by thread: its turns and checkpoints go, and where it
 | `name` | string |  |  |
 | `machineId` | string |  |  |
 | `threads` | integer | yes |  |
+| `ended` | object[] |  |  |
+| `ended[].pid` | integer | yes |  |
+| `ended[].ended` | object[] | yes |  |
+| `ended[].forced` | integer[] | yes |  |
+| `ended[].left` | integer[] | yes |  |
+| `ended[].freed` | string |  |  |
 
 ## discard
 
@@ -2028,6 +2114,7 @@ Settles each thread (by id, or a prefix of it) and every thread under it: they f
 |---|---|---|---|
 | `threads` | string[] | yes | the threads' ids, or prefixes that each name one, as threads lists them |
 | `finished` | boolean |  | settle the finished threads under each thread named, and not the thread itself |
+| `processes` | `stop`, `keep` |  | what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread |
 
 **Answers**
 
@@ -2039,6 +2126,12 @@ Settles each thread (by id, or a prefix of it) and every thread under it: they f
 | `left` | object[] | yes |  |
 | `left[].threadId` | string | yes |  |
 | `left[].why` | string | yes |  |
+| `ended` | object[] |  |  |
+| `ended[].pid` | integer | yes |  |
+| `ended[].ended` | object[] | yes |  |
+| `ended[].forced` | integer[] | yes |  |
+| `ended[].left` | integer[] | yes |  |
+| `ended[].freed` | string |  |  |
 
 ## threads
 
