@@ -118,9 +118,9 @@ export interface RefusedFile {
 const NO_REFUSALS: ReadonlyArray<RefusedFile> = [];
 
 interface FilesState {
-  /** Keyed by workspace, as the draft is: what the composer will send next. */
+  /** Keyed by the composer's thread key, as the draft is: what the composer will send next. */
   pending: Record<string, ReadonlyArray<ComposerFile>>;
-  /** Keyed by workspace: the files the last adds turned away. */
+  /** Keyed by the composer's thread key: the files the last adds turned away. */
   refused: Record<string, ReadonlyArray<RefusedFile>>;
   /** Keyed by the queued message's id: the files it goes with when its turn comes. */
   queued: Record<string, ReadonlyArray<ComposerFile>>;
@@ -129,26 +129,28 @@ interface FilesState {
   /** Adds what the person gave. A file empty or over its own cap lands in `refused` alone, a chip with its own
    * sentence; the count cap and `noImages` (the line for an agent that reads no image, which turns an image away
    * before it is read whole) turn the whole batch away. */
-  add(workspaceId: string, files: readonly File[], noImages?: string): Promise<void>;
-  remove(workspaceId: string, id: string): void;
-  /** Drops one refused chip, or every one of the workspace's when no id is named. */
-  dismiss(workspaceId: string, id?: string): void;
-  /** Moves this workspace's files onto a queued message, which the composer no longer shows. */
-  queue(workspaceId: string, rowId: string): void;
+  add(threadKey: string, files: readonly File[], noImages?: string): Promise<void>;
+  remove(threadKey: string, id: string): void;
+  /** Drops one refused chip, or every one of the thread's when no id is named. */
+  dismiss(threadKey: string, id?: string): void;
+  /** Moves this thread's files onto a queued message, which the composer no longer shows. */
+  queue(threadKey: string, rowId: string): void;
   /** Takes a queued message's files back, as its edit puts them back in the box. */
   unqueue(rowId: string): ReadonlyArray<ComposerFile>;
   /** Lets go of a removed queued message's files. */
   drop(rowId: string): void;
   /** Puts files the composer already read back in front of what it holds: a stash restored. */
-  put(workspaceId: string, files: ReadonlyArray<ComposerFile>): void;
-  /** Takes every file this workspace's composer holds, which the composer no longer shows: a stash taken. */
-  take(workspaceId: string): ReadonlyArray<ComposerFile>;
-  /** Moves this workspace's files, or a queued message's when `rowId` names one, onto the request id the send
+  put(threadKey: string, files: ReadonlyArray<ComposerFile>): void;
+  /** Takes every file this thread's composer holds, which the composer no longer shows: a stash taken. */
+  take(threadKey: string): ReadonlyArray<ComposerFile>;
+  /** Moves this thread's files, or a queued message's when `rowId` names one, onto the request id the send
    * carried; the composer opens empty. */
-  sendAs(workspaceId: string, requestId: string, rowId?: string): void;
+  sendAs(threadKey: string, requestId: string, rowId?: string): void;
+  /** Moves the files a composer holds onto the key its thread took at its first start. */
+  rekey(from: string, to: string): void;
   /** Puts back what a refused send took, onto the queued message it came off when `rowId` names one, so the person's
    * files are not lost with the request. */
-  restore(workspaceId: string, requestId: string, rowId?: string): void;
+  restore(threadKey: string, requestId: string, rowId?: string): void;
   /** The host's road to an image it kept, which the store's bind hands in; none before a host is bound. */
   kept?: (workspaceId: string, threadId: string, requestId: string, index: number) => Promise<KeptAttachment>;
   /** Reads a message's images back from the host into the bank, where this tab does not hold them. */
@@ -166,9 +168,9 @@ export const useComposerFilesStore = create<FilesState>()((set, get) => ({
   refused: {},
   queued: {},
   sent: {},
-  async add(workspaceId, files, noImages) {
+  async add(threadKey, files, noImages) {
     const refuse = (facts: ReadonlyArray<AttachmentRecord>, why: (fact: AttachmentRecord) => string): void => {
-      if (facts.length > 0) set(s => ({ refused: { ...s.refused, [workspaceId]: [...(s.refused[workspaceId] ?? NO_REFUSALS), ...facts.map(f => ({ id: newId(), name: f.name ?? "", why: why(f) }))] } }));
+      if (facts.length > 0) set(s => ({ refused: { ...s.refused, [threadKey]: [...(s.refused[threadKey] ?? NO_REFUSALS), ...facts.map(f => ({ id: newId(), name: f.name ?? "", why: why(f) }))] } }));
     };
     // The heads first, so a file over the cap is turned away before it is read whole.
     const facts = await Promise.all(files.map(fileFactsOf));
@@ -181,49 +183,49 @@ export const useComposerFilesStore = create<FilesState>()((set, get) => ({
     const fitFacts = fit.map(f => f.fact);
     // The count is the batch's: one message carries so many files, so every file of the batch that would pass it
     // is turned away together.
-    const counted = filesRefusal([...(get().pending[workspaceId] ?? NONE).map(recordOf), ...fitFacts]);
+    const counted = filesRefusal([...(get().pending[threadKey] ?? NONE).map(recordOf), ...fitFacts]);
     if (counted !== null) return refuse(fitFacts, () => counted);
     const taken = await Promise.all(fit.map(({ file, fact }) => fileOf(file, fact)));
     let dropped = false;
     set(s => {
-      const now = s.pending[workspaceId] ?? NONE;
+      const now = s.pending[threadKey] ?? NONE;
       // Two adds can be in flight (a paste while a drop is still reading); the second checks the count again against
       // what the first left, and gives its own bytes back rather than putting the composer over it.
       if (filesRefusal([...now.map(recordOf), ...fitFacts]) !== null) {
         dropped = true;
         return s;
       }
-      return { pending: { ...s.pending, [workspaceId]: [...now, ...taken] } };
+      return { pending: { ...s.pending, [threadKey]: [...now, ...taken] } };
     });
     if (!dropped) return;
     for (const file of taken) revoke(file);
-    const late = filesRefusal([...(get().pending[workspaceId] ?? NONE).map(recordOf), ...fitFacts]);
+    const late = filesRefusal([...(get().pending[threadKey] ?? NONE).map(recordOf), ...fitFacts]);
     if (late !== null) refuse(fitFacts, () => late);
   },
-  remove(workspaceId, id) {
+  remove(threadKey, id) {
     set(s => {
-      const rows = s.pending[workspaceId] ?? NONE;
+      const rows = s.pending[threadKey] ?? NONE;
       const going = rows.find(r => r.id === id);
       if (going === undefined) return s;
       revoke(going);
       const kept = rows.filter(r => r.id !== id);
-      const { [workspaceId]: _gone, ...rest } = s.pending;
-      return { pending: kept.length === 0 ? rest : { ...s.pending, [workspaceId]: kept } };
+      const { [threadKey]: _gone, ...rest } = s.pending;
+      return { pending: kept.length === 0 ? rest : { ...s.pending, [threadKey]: kept } };
     });
   },
-  dismiss(workspaceId, id) {
+  dismiss(threadKey, id) {
     set(s => {
-      const rows = s.refused[workspaceId];
+      const rows = s.refused[threadKey];
       if (rows === undefined) return s;
       const kept = id === undefined ? [] : rows.filter(r => r.id !== id);
-      return { refused: kept.length === 0 ? without(s.refused, workspaceId) : { ...s.refused, [workspaceId]: kept } };
+      return { refused: kept.length === 0 ? without(s.refused, threadKey) : { ...s.refused, [threadKey]: kept } };
     });
   },
-  queue(workspaceId, rowId) {
+  queue(threadKey, rowId) {
     set(s => {
-      const rows = s.pending[workspaceId] ?? NONE;
+      const rows = s.pending[threadKey] ?? NONE;
       if (rows.length === 0) return s;
-      return { pending: without(s.pending, workspaceId), queued: { ...s.queued, [rowId]: rows } };
+      return { pending: without(s.pending, threadKey), queued: { ...s.queued, [rowId]: rows } };
     });
   },
   unqueue(rowId) {
@@ -234,32 +236,39 @@ export const useComposerFilesStore = create<FilesState>()((set, get) => ({
   drop(rowId) {
     releaseFiles(get().unqueue(rowId));
   },
-  put(workspaceId, files) {
+  put(threadKey, files) {
     if (files.length === 0) return;
-    set(s => ({ pending: { ...s.pending, [workspaceId]: [...files, ...(s.pending[workspaceId] ?? NONE)] } }));
+    set(s => ({ pending: { ...s.pending, [threadKey]: [...files, ...(s.pending[threadKey] ?? NONE)] } }));
   },
-  take(workspaceId) {
-    const rows = get().pending[workspaceId] ?? NONE;
+  take(threadKey) {
+    const rows = get().pending[threadKey] ?? NONE;
     if (rows.length > 0) {
       set(s => {
-        const { [workspaceId]: _gone, ...rest } = s.pending;
+        const { [threadKey]: _gone, ...rest } = s.pending;
         return { pending: rest };
       });
     }
     return rows;
   },
-  sendAs(workspaceId, requestId, rowId) {
-    const rows = (rowId === undefined ? get().pending[workspaceId] : get().queued[rowId]) ?? NONE;
+  sendAs(threadKey, requestId, rowId) {
+    const rows = (rowId === undefined ? get().pending[threadKey] : get().queued[rowId]) ?? NONE;
     if (rows.length === 0) return;
-    set(s => ({ ...(rowId === undefined ? { pending: without(s.pending, workspaceId) } : { queued: without(s.queued, rowId) }), sent: banked(s.sent, requestId, rows) }));
+    set(s => ({ ...(rowId === undefined ? { pending: without(s.pending, threadKey) } : { queued: without(s.queued, rowId) }), sent: banked(s.sent, requestId, rows) }));
   },
-  restore(workspaceId, requestId, rowId) {
+  rekey(from, to) {
+    set(s => {
+      const rows = s.pending[from];
+      if (rows === undefined || from === to) return s;
+      return { pending: { ...without(s.pending, from), [to]: [...(s.pending[to] ?? NONE), ...rows] } };
+    });
+  },
+  restore(threadKey, requestId, rowId) {
     const rows = get().sent[requestId];
     if (rows === undefined) return;
     set(s => {
       const sent = without(s.sent, requestId);
       if (rowId !== undefined) return { sent, queued: { ...s.queued, [rowId]: rows } };
-      return { sent, pending: { ...s.pending, [workspaceId]: [...rows, ...(s.pending[workspaceId] ?? NONE)] } };
+      return { sent, pending: { ...s.pending, [threadKey]: [...rows, ...(s.pending[threadKey] ?? NONE)] } };
     });
   },
   async recall(sent, records) {
@@ -306,12 +315,12 @@ function banked(bank: Record<string, ReadonlyArray<ComposerFile>>, requestId: st
   return sent;
 }
 
-export function useComposerFiles(workspaceId: string): ReadonlyArray<ComposerFile> {
-  return useComposerFilesStore(s => s.pending[workspaceId] ?? NONE);
+export function useComposerFiles(threadKey: string): ReadonlyArray<ComposerFile> {
+  return useComposerFilesStore(s => s.pending[threadKey] ?? NONE);
 }
 
-export function useRefusedFiles(workspaceId: string): ReadonlyArray<RefusedFile> {
-  return useComposerFilesStore(s => s.refused[workspaceId] ?? NO_REFUSALS);
+export function useRefusedFiles(threadKey: string): ReadonlyArray<RefusedFile> {
+  return useComposerFilesStore(s => s.refused[threadKey] ?? NO_REFUSALS);
 }
 
 /** Every queued message's files, keyed by its id. */

@@ -28,7 +28,7 @@ bindSlates({
   },
   fill: (threadId, text) => {
     const workspaceId = threadWorkspace(threadId);
-    if (workspaceId !== null) insertIntoComposer(workspaceId, text);
+    if (workspaceId !== null) insertIntoComposer(workspaceId, text, threadId);
   },
 });
 
