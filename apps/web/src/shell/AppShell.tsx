@@ -29,7 +29,7 @@ import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY, sidebarMaxWidthBeside } from "..
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "./sidebarWidth.js";
 import { trackThreadHistory } from "./threadHistory.js";
 import { useShortcutLabel } from "./useKeybindings.js";
-import { keepListedPanels, selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore.js";
+import { followThreadPanels, keepListedPanels, selectPanelState, usePanelKey, useRightPanelStore } from "../rightPanelStore.js";
 import { SettingsHeaderActions } from "../settings/SettingsHeaderActions.js";
 import { SettingsPage } from "../settings/SettingsPage.js";
 import { SettingsSidebar } from "../settings/SettingsSidebar.js";
@@ -84,7 +84,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   // With no workspace on screen the terminal and the panel are this computer's own.
   const terminalKey = workspaceOrHere(workspaceId);
   const conn = useStore(s => s.conn);
-  const panel = useRightPanelStore(s => selectWorkspaceRightPanelState(s.byWorkspaceId, terminalKey));
+  const panelKey = usePanelKey(terminalKey);
+  const panel = useRightPanelStore(s => selectPanelState(s.byWorkspaceId, panelKey));
   const toggleVisibility = useRightPanelStore(s => s.toggleVisibility);
   const terminalOpen = useTerminalDrawerStore(s => selectTerminalUiState(s.byWorkspaceId, terminalKey).terminalOpen);
   const toggleTerminal = useTerminalDrawerStore(s => s.toggle);
@@ -105,6 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // The switch chord walks the threads last opened, so every selection is remembered from here on.
   useEffect(() => trackThreadHistory(), []);
   useEffect(() => keepListedPanels(), []);
+  useEffect(() => followThreadPanels(), []);
   const terminalShortcutLabel = useShortcutLabel("terminal.toggle");
   const rightPanelShortcutLabel = useShortcutLabel("rightPanel.toggle");
 

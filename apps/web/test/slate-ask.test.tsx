@@ -12,7 +12,7 @@ vi.mock("../src/components/DiffWorkerPoolProvider.js", () => ({
 
 import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
-import { useRightPanelStore } from "../src/rightPanelStore.js";
+import { selectWorkspaceRightPanelState, usePanelKey, useRightPanelStore } from "../src/rightPanelStore.js";
 import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { MountedComposer } from "../src/components/chat/testing.js";
 import { requestComposerFocus } from "../src/shell/shellRequests.js";
@@ -33,7 +33,8 @@ const slates = {
 } as unknown as SlateApi;
 
 function Panel({ workspaceId, mode, hidden = false }: { workspaceId: string; mode: "inline" | "sheet"; hidden?: boolean }) {
-  const state = useRightPanelStore(s => s.byWorkspaceId[workspaceId]);
+  const key = usePanelKey(workspaceId);
+  const state = useRightPanelStore(s => s.byWorkspaceId[key]);
   return state?.isOpen === true ? <RightPanel workspaceId={workspaceId} state={state} mode={mode} hidden={hidden} /> : null;
 }
 
@@ -72,7 +73,7 @@ describe("Ask for one", () => {
       expect(useComposerDraftStore.getState().drafts[workspace.id]).toEqual({ prompt: ASK, cursor: ASK.length });
       expect(screen.getByTestId("composer-editor").textContent).toBe(ASK);
       expect(document.activeElement).toBe(screen.getByTestId("composer-editor"));
-      expect(useRightPanelStore.getState().byWorkspaceId[workspace.id]?.isOpen).toBe(true);
+      expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, workspace.id).isOpen).toBe(true);
     });
 
     it(`on a thread in ${where} in a narrow window, shuts the sheet that covers the composer and leaves the words and the focus there`, async () => {
@@ -85,7 +86,7 @@ describe("Ask for one", () => {
       );
       await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Ask for one" })));
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-      expect(useRightPanelStore.getState().byWorkspaceId[workspace.id]?.isOpen).toBe(false);
+      expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, workspace.id).isOpen).toBe(false);
       expect(screen.getByTestId("composer-editor").textContent).toBe(ASK);
       expect(document.activeElement).toBe(screen.getByTestId("composer-editor"));
     });
@@ -96,7 +97,7 @@ describe("Ask for one", () => {
     render(<Panel workspaceId={FOLDER.id} mode="sheet" />);
     await screen.findByRole("button", { name: "Ask for one" });
     act(() => requestComposerFocus(BOX.id));
-    expect(useRightPanelStore.getState().byWorkspaceId[FOLDER.id]?.isOpen).toBe(true);
+    expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, FOLDER.id).isOpen).toBe(true);
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
@@ -104,6 +105,6 @@ describe("Ask for one", () => {
     onThread(FOLDER, "t1");
     render(<Panel workspaceId={FOLDER.id} mode="sheet" hidden />);
     act(() => requestComposerFocus(FOLDER.id));
-    expect(useRightPanelStore.getState().byWorkspaceId[FOLDER.id]?.isOpen).toBe(true);
+    expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, FOLDER.id).isOpen).toBe(true);
   });
 });
