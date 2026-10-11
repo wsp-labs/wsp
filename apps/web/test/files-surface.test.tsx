@@ -6,6 +6,7 @@
 // never settle under jsdom (see composer-pickers.test), so the root switch's
 // menu is stood in by a plain open/closed context; diff-surface.test renders
 // the real one.
+import { threadStateKey } from "../src/stateKey.js";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -240,7 +241,7 @@ describe("files surface", () => {
     fireEvent.click(screen.getByRole("button", { name: "New thread in this folder" }));
     off();
     expect(requests).toEqual([WS]);
-    expect(useRootStore.getState().byWorkspaceId[WS]!.followed).toBe("/root");
+    expect(useRootStore.getState().byWorkspaceId[threadStateKey(WS, "")]!.followed).toBe("/root");
   });
 
   it("refresh asks again for every folder the tree shows", async () => {

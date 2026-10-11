@@ -37,10 +37,11 @@ import { currentWorkspaceId } from "../adapt/workspaces.js";
 import { drawnTiles, nextNeedsYou, rootHolding, sidebarTiles, threadTree, treeSettle, type TileNode } from "../sidebar/threadTree.js";
 import { storedPicks, underPicks } from "../sidebar/picks.js";
 import { workspaceOrHere } from "../terminal/computer.js";
-import { useTerminalDrawerStore } from "../terminal/drawerStore.js";
+import { ptyThreadOf, useTerminalDrawerStore } from "../terminal/drawerStore.js";
 import { resetTerminalZoom, stepTerminalZoom } from "../terminal/fontSetting.js";
 import { MAX_TERMINALS_PER_GROUP } from "../terminal/groups.js";
-import { getTerminals, type WorkspaceTerminals } from "../terminal/link.js";
+import { getTerminals, type OpenOpts, type WorkspaceTerminals } from "../terminal/link.js";
+import { stateKeyOf } from "../stateKey.js";
 import { openNewThread } from "./NewThreadPicks.js";
 import { openThreadFind, stepThreadFind } from "../components/chat/find/store.js";
 import { requestComposerFocus } from "./shellRequests.js";
@@ -76,12 +77,13 @@ function withTerminals(workspaceId: string, fn: (terminals: WorkspaceTerminals) 
   return fn(terminals).then(() => undefined, (e: unknown) => reportTerminalRefused(workspaceId, e));
 }
 
-/** Where a fresh pty starts: the folder a thread of this workspace would start in, which is the project's own
- * rather than the daemon's home. The card says a shell in this workspace, and a shell in the person's home folder
- * is a shell in the machine and not in the work. */
-export function ptyStartFolder(workspaceId: string): { cwd?: string } {
+/** How a fresh pty opens: in the folder a thread of this workspace would start in, which is the project's own
+ * rather than the daemon's home, since a shell in the person's home folder is a shell in the machine and not in the
+ * work; and named for the thread on screen, whose drawer it then is. */
+function ptyOpenOpts(workspaceId: string): OpenOpts {
   const cwd = threadFolderOf(workspaceId);
-  return cwd === null ? {} : { cwd };
+  const thread = ptyThreadOf(stateKeyOf(workspaceId));
+  return { ...(cwd === null ? {} : { cwd }), ...(thread === undefined ? {} : { thread }) };
 }
 
 /** The drawer, shown; a workspace that never had a pty spawns one on mount. */
@@ -92,30 +94,28 @@ export function showTerminal(workspaceId: string): Promise<void> {
 
 /** A fresh pty as its own drawer tab; the drawer opens if it was closed. */
 export function openDrawerTerminal(workspaceId: string): Promise<void> {
-  return withTerminals(workspaceId, terminals =>
-    terminals.open(ptyStartFolder(workspaceId)).then(tab => useTerminalDrawerStore.getState().add(workspaceId, tab.ptyId)),
-  );
+  const key = stateKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals => terminals.open(ptyOpenOpts(workspaceId)).then(tab => useTerminalDrawerStore.getState().add(key, tab.ptyId)));
 }
 
 /** A fresh pty split into the drawer's active group. */
 export function splitDrawerTerminal(workspaceId: string, direction: SplitDirection = "horizontal"): Promise<void> {
-  return withTerminals(workspaceId, terminals =>
-    terminals.open(ptyStartFolder(workspaceId)).then(tab => useTerminalDrawerStore.getState().split(workspaceId, tab.ptyId, direction)),
-  );
+  const key = stateKeyOf(workspaceId);
+  return withTerminals(workspaceId, terminals => terminals.open(ptyOpenOpts(workspaceId)).then(tab => useTerminalDrawerStore.getState().split(key, tab.ptyId, direction)));
 }
 
 /** A fresh pty in its own right-panel surface. Each of these takes the pane it was asked from before the daemon
  * answers, so a pty landing after a switch to another thread stays in the thread that asked for it. */
 export function openPanelTerminal(workspaceId: string): Promise<void> {
   const panel = panelKeyOf(workspaceId);
-  return withTerminals(workspaceId, terminals => terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)));
+  return withTerminals(workspaceId, terminals => terminals.open(ptyOpenOpts(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)));
 }
 
 /** A fresh pty in its own right-panel surface with a line typed at its prompt and left for the person to run. */
 export function openPanelTerminalWith(workspaceId: string, line: string): Promise<void> {
   const panel = panelKeyOf(workspaceId);
   return withTerminals(workspaceId, terminals =>
-    terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)).then(tab => terminals.write(tab.ptyId, line)),
+    terminals.open(ptyOpenOpts(workspaceId), id => useRightPanelStore.getState().openTerminal(panel, id)).then(tab => terminals.write(tab.ptyId, line)),
   );
 }
 
@@ -123,7 +123,7 @@ export function openPanelTerminalWith(workspaceId: string, line: string): Promis
 export function splitPanelTerminal(workspaceId: string, surfaceId: string, direction: SplitDirection = "horizontal"): Promise<void> {
   const panel = panelKeyOf(workspaceId);
   return withTerminals(workspaceId, terminals =>
-    terminals.open(ptyStartFolder(workspaceId), id => useRightPanelStore.getState().splitTerminal(panel, surfaceId, id, direction)),
+    terminals.open(ptyOpenOpts(workspaceId), id => useRightPanelStore.getState().splitTerminal(panel, surfaceId, id, direction)),
   );
 }
 

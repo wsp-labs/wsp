@@ -755,8 +755,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         const ranIn = resume === undefined ? undefined : ctx.folderOf(workspaceId, resume);
         const cwd = ctx.runsIn(entry, ranIn, folder);
         if (o.behind !== undefined) ctx.record({ type: "session.behind", workspaceId, sessionId: resume ?? turnId, turnId, threadId, text: o.behind });
-        const setup = ctx.takeSetupLine(workspaceId);
-        if (setup !== undefined) ctx.record({ type: "session.behind", workspaceId, sessionId: resume ?? turnId, turnId, threadId, text: setup });
+        if (o.setup !== undefined) ctx.record({ type: "session.behind", workspaceId, sessionId: resume ?? turnId, turnId, threadId, text: o.setup });
         const movedFrom = ranIn ?? goneNow;
         if (movedFrom !== undefined && cwd !== movedFrom && entry.record.worktree?.gone === true) {
           const fresh = ranIn !== undefined && CATALOG_AGENTS.find(a => a.id === harness)?.projectKeyEnv === undefined;
@@ -1415,7 +1414,10 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (tree?.made === true && tree.gone !== true && [...threads].every(t => t === threadId)) {
         // No turn may be working, and none can land a checkpoint after its refs were dropped.
         if (ctx.turnRuns(workspaceId)) throw Object.assign(new Error(WORKTREE_BUSY_LINE), { kind: "conflict" });
-        for (const thread of threads) await ctx.moduleOf(entry.record.kind).endThread?.(entry, thread, { remove: true });
+        for (const thread of threads) {
+          await ctx.moduleOf(entry.record.kind).endThread?.(entry, thread, { remove: true });
+          await ctx.endThreadShells(entry, thread);
+        }
         await ctx.workspaces.delete(workspaceId, origin);
         return { workspaceId, worktree: tree.path, threads: threads.size };
       }
@@ -1426,6 +1428,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (ctx.threadRuns(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
       ctx.reapKept(threadId);
       await ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, { remove: true });
+      await ctx.endThreadShells(entry, threadId);
       await ctx.openTranscript(workspaceId);
       await ctx.dropCheckpoints(entry, threadId);
       await ctx.dropThreadFiles(entry, [threadId]);
