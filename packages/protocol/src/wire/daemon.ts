@@ -146,8 +146,15 @@ export type FsReadReply = z.infer<typeof FsReadReply>;
 export const FsImageReply = z.object({ size: z.number(), modified: z.number().optional(), inode: z.number().optional(), changed: z.number().optional(), mediaType: z.string().optional(), content: z.string().optional(), svg: z.boolean().optional() });
 export type FsImageReply = WireFsImageReply;
 type FsImageReplyHeld = Held<Same<z.infer<typeof FsImageReply>, FsImageReply>>;
-/** Each file an fs.hash found inside its root, by its path there, with the sha256 of its bytes. */
-export const FsHashReply = z.object({ files: z.record(z.string(), z.string()) });
+/** Each file an fs.hash found inside its root, by its path there, with the sha256 of its bytes, and the paths it was
+ * handed that land on anything but a folder outside the root, on a file inside past the most it hashes or over the
+ * size cap, or on something inside that is not a regular file; a daemon from before those leaves them out. */
+export const FsHashReply = z.object({
+  files: z.record(z.string(), z.string()),
+  outside: z.array(z.string()).optional(),
+  past: z.array(z.string()).optional(),
+  special: z.array(z.string()).optional(),
+});
 export type FsHashReply = WireFsHashReply;
 type FsHashReplyHeld = Held<Same<z.infer<typeof FsHashReply>, FsHashReply>>;
 

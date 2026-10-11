@@ -158,6 +158,7 @@ const DAEMON_CONTENTS = [
   "2251d179bdc717c30bf018e9e5dd800c99a0d838d4dd664bf220a4c6a92ce4bb",
   "fb4c9130d2a267071ff4628ec8f9bfb49a3c10818f6894b3b44b5dbddacddf22",
   "0a0e575d0660d41561cf0038a2bbf6db41373f3ffa4654b941702c22bed43265",
+  "2bcd6f46ae63613208d94094effd91ac33ff3d5c9d9d472a3739e756b88578ae",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -588,7 +589,11 @@ const DAEMON_CONTENTS = [
  * session's transcript from its newest last prompt back through each line's parent, subagent lines left out, and
  * answers its newest messages with how many came before them. Both open every name under the store with no link
  * followed, as the home's owner.
- * Version 148: a Mac's daemon reads processes and ports through libproc. */
+ * Version 148: a Mac's daemon reads processes and ports through libproc.
+ * Version 149: fs.hash names back each path it was handed that lands on anything but a folder outside the folder once
+ * links are followed, each that lands on a file inside past the most it hashes or over the size cap, and each that
+ * lands on something inside that is not a regular file (a fifo, a socket, a device), so the host refuses an Always for
+ * a script it cannot pin. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

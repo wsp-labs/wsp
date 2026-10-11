@@ -3,9 +3,10 @@
 //! read, so an edit to it asks again. A path on this computer may pass links, as the command that runs it does, and
 //! counts where it lands; a path in a workspace is read under its root with no link followed, and anything there the
 //! walk cannot read as a file or nothing (a link, a fifo, a way up) refuses the whole ask, since the host cannot pin
-//! what the command would run through it.
+//! what the command would run through it. A path that lands on anything but a folder outside the folder, on a file
+//! inside past the most one ask hashes or over the size cap, or on something inside that is not a regular file (a
+//! fifo, a socket, a device) is named back, so the host can refuse an Always for a script there.
 
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::os::unix::fs::OpenOptionsExt;
@@ -37,25 +38,50 @@ fn under(at: &Path, top: &Path) -> Option<String> {
     at.strip_prefix(top).ok().and_then(Path::to_str).filter(|rel| !rel.is_empty()).map(str::to_owned)
 }
 
+/// A file into the reply, judged on the handle: a regular one hashed, or named back under past where the ask has
+/// hashed its most, the file is over the size cap, or its read failed; anything but a folder under special.
+fn take(reply: &mut FsHashReply, rel: String, word: &str, file: File) {
+    let Ok(meta) = file.metadata() else { return };
+    if !meta.is_file() {
+        if !meta.is_dir() {
+            reply.special.push(word.to_owned());
+        }
+        return;
+    }
+    let sum = (meta.len() <= numbers::FS_HASH_CAP_BYTES && reply.files.len() < numbers::FS_HASH_FILES_MAX).then(|| digest(file)).flatten();
+    match sum {
+        Some(sum) => {
+            reply.files.insert(rel, sum);
+        }
+        None => reply.past.push(word.to_owned()),
+    }
+}
+
 /// The paths a frame names on this computer, each where it lands once every link is followed.
 pub(crate) fn hashed_here(root: &str, paths: &[String]) -> Result<FsHashReply, OpError> {
     let top = std::fs::canonicalize(root).map_err(|_| OpError::coded(DaemonErrorCode::NotFound, format!("{root} does not exist")))?;
-    let mut files = BTreeMap::new();
+    let open = |at: &Path| std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(at).ok();
+    let mut reply = FsHashReply::default();
     for word in paths {
-        if files.len() >= numbers::FS_HASH_FILES_MAX {
-            break;
-        }
         let Ok(at) = std::fs::canonicalize(Path::new(root).join(word)) else { continue };
-        let Some(rel) = under(&at, &top) else { continue };
-        if files.contains_key(&rel) {
+        let Ok(meta) = std::fs::metadata(&at) else { continue };
+        if meta.is_dir() {
             continue;
         }
-        let Ok(file) = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(&at) else { continue };
-        if let Some(sum) = digest(file) {
-            files.insert(rel, sum);
+        let Some(rel) = under(&at, &top) else {
+            reply.outside.push(word.clone());
+            continue;
+        };
+        if reply.files.contains_key(&rel) {
+            continue;
+        }
+        if !meta.is_file() {
+            reply.special.push(word.clone());
+        } else if let Some(file) = open(&at) {
+            take(&mut reply, rel, word, file);
         }
     }
-    Ok(FsHashReply { files })
+    Ok(reply)
 }
 
 /// A whole path's names as written, or None where one of them is a way up, which the walk below never takes.
@@ -81,28 +107,21 @@ pub(crate) fn hashed_beneath(rootfs: &Path, root: &str, paths: &[String]) -> Res
     let refused = |why: String| OpError::coded(DaemonErrorCode::NotAFile, why);
     let held = open(rootfs, crate::beneath::dir_flags(), Mode::empty()).map_err(|e| OpError::plain(e.to_string()))?;
     let top = names_of(Path::new(root)).ok_or_else(|| refused(format!("{root} takes a way up")))?;
-    let mut files = BTreeMap::new();
+    let mut reply = FsHashReply::default();
     for word in paths {
-        if files.len() >= numbers::FS_HASH_FILES_MAX {
-            break;
-        }
         let Some(at) = names_of(&Path::new(root).join(word)) else { return Err(refused(format!("{word} takes a way up"))) };
         let Some(rel) = under(&at, &top) else { continue };
-        if files.contains_key(&rel) {
+        if reply.files.contains_key(&rel) {
             continue;
         }
         let inside = at.to_str().unwrap_or_default().trim_start_matches('/').to_owned();
         match crate::beneath::file(&held, &inside) {
-            Ok(Some(file)) => {
-                if let Some(sum) = digest(file) {
-                    files.insert(rel, sum);
-                }
-            }
+            Ok(Some(file)) => take(&mut reply, rel, word, file),
             Ok(None) => {}
             Err(why) => return Err(refused(why)),
         }
     }
-    Ok(FsHashReply { files })
+    Ok(reply)
 }
 
 /// The hashes a frame asks for: on this computer, or inside the workspace it names.
@@ -135,6 +154,8 @@ async fn inside(_ctx: &Ctx, machine: &str, _root: String, _paths: Vec<String>) -
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     const SUM_ONE: &str = "046076f59b3d9fe61bc5261e95b7e9e371634206007c3a1143f9eb6f3c8c0f85";
@@ -178,6 +199,79 @@ mod tests {
         let big = format!("{root}/big.bin");
         std::fs::write(&big, vec![0u8; numbers::FS_HASH_CAP_BYTES as usize + 1]).unwrap();
         assert!(hash(&[big.as_str()]).is_empty());
+        assert_eq!(hashed_here(root, &words(&[big.as_str()])).unwrap().past, [big]);
         assert_eq!(hashed_here("/no/such/folder", &[]).unwrap_err().code, Some(DaemonErrorCode::NotFound));
+    }
+
+    /// One more script than one ask hashes, written in the folder, by the names a command would give them.
+    fn one_past_the_cap(folder: &Path) -> Vec<String> {
+        (0..=numbers::FS_HASH_FILES_MAX)
+            .map(|n| {
+                std::fs::write(folder.join(format!("s{n}.sh")), format!("echo {n}\n")).unwrap();
+                format!("s{n}.sh")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_file_outside_the_folder_or_past_the_cap_is_named_back_as_handed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("acme");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(dir.path().join("away.sh"), "echo away\n").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("away.sh"), root.join("out.sh")).unwrap();
+        let mut list = one_past_the_cap(&root);
+        list.extend(words(&["s0.sh", "out.sh", "../away.sh", "../gone.sh", "/", "0.5"]));
+
+        let read = hashed_here(root.to_str().unwrap(), &list).unwrap();
+        assert_eq!(read.files.len(), numbers::FS_HASH_FILES_MAX);
+        assert_eq!(read.past, [format!("s{}.sh", numbers::FS_HASH_FILES_MAX)]);
+        assert_eq!(read.outside, ["out.sh", "../away.sh"]);
+    }
+
+    #[test]
+    fn a_workspace_file_past_the_cap_is_named_back_as_handed() {
+        let rootfs = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(rootfs.path().join("root/acme")).unwrap();
+        let list = one_past_the_cap(&rootfs.path().join("root/acme"));
+
+        let read = hashed_beneath(rootfs.path(), "/root/acme", &list).unwrap();
+        assert_eq!(read.files.len(), numbers::FS_HASH_FILES_MAX);
+        assert_eq!(read.past, [format!("s{}.sh", numbers::FS_HASH_FILES_MAX)]);
+        assert!(read.outside.is_empty());
+    }
+
+    #[test]
+    fn a_fifo_or_a_socket_inside_is_special_and_a_link_out_to_one_is_outside() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("acme");
+        std::fs::create_dir_all(root.join("bin")).unwrap();
+        nix::unistd::mkfifo(&root.join("evil.sh"), nix::sys::stat::Mode::S_IRWXU).unwrap();
+        nix::unistd::mkfifo(&dir.path().join("away.sh"), nix::sys::stat::Mode::S_IRWXU).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("away.sh"), root.join("out.sh")).unwrap();
+        let _held = std::os::unix::net::UnixListener::bind(root.join("sock.sh")).unwrap();
+        std::fs::write(root.join("ok.sh"), "echo ok\n").unwrap();
+
+        let read = hashed_here(root.to_str().unwrap(), &words(&["ok.sh", "evil.sh", "out.sh", "sock.sh", "bin", "/"])).unwrap();
+        assert_eq!(read.files.keys().collect::<Vec<_>>(), ["ok.sh"]);
+        assert_eq!(read.special, ["evil.sh", "sock.sh"]);
+        assert_eq!(read.outside, ["out.sh"]);
+        assert!(read.past.is_empty());
+    }
+
+    #[test]
+    fn a_file_over_the_size_cap_is_named_back_as_handed_on_both_roads() {
+        let rootfs = tempfile::tempdir().unwrap();
+        let root = rootfs.path().join("root/acme");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("big.sh"), vec![b'#'; numbers::FS_HASH_CAP_BYTES as usize + 1]).unwrap();
+        std::fs::write(root.join("stats.py"), "print('one')\n").unwrap();
+        let list = words(&["big.sh", "stats.py"]);
+
+        for read in [hashed_here(root.to_str().unwrap(), &list).unwrap(), hashed_beneath(rootfs.path(), "/root/acme", &list).unwrap()] {
+            assert_eq!(read.files.keys().collect::<Vec<_>>(), ["stats.py"]);
+            assert_eq!(read.past, ["big.sh"]);
+            assert!(read.outside.is_empty());
+        }
     }
 }
