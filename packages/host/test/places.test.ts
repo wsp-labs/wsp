@@ -22,7 +22,7 @@ import { MissingKnownHostsError, missingKnownHostsLine, OWN_MARK, outsideAfterSc
 import { daemonBinaryHere } from "../src/assets.js";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noGuestDaemonLine, noPlaceSystemLine } from "../src/daemon-binary.js";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, addFound, addFoundScript, addUndoScript, apparmorStep, apparmorStoodLine, daemonFlags, joinedAddWrites, joinedLine, joinedPlace, loginFilesStep, PLACE_JOINED_LINE, placeFoundSkippedLine, placeFoundStep, profileSourceLine, sshDaemonPlace, WSP_READY_LINE } from "../src/doctor.js";
-import { BoxBackend, type KeyCheck, type MachineBackend } from "@wsp/engine";
+import { BoxBackend, checkProviderKey, type KeyCheck, type MachineBackend } from "@wsp/engine";
 import { computerLines, hostPlatform, placeLines, placeNames } from "../src/verbs.js";
 import { namesPlace, PLACE_FOUND_END, placeOutsideLeftLine, placeOwnersUnknownLine, placeStoodBeforeLine, TOOL_PREFIX, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { pinnedDroppingPort, refusedPort } from "../../runtime/test/held-port.js";
@@ -189,6 +189,54 @@ describe("a provider as a place", () => {
     expect(readFileSync(join(folder, ".env"), "utf8")).toBe("WSP_PROVIDER=box\n");
     // The wsp home's own file is another host's, and this add never touched it.
     expect(existsSync(join(home, ".env"))).toBe(false);
+  });
+
+  describe.skipIf(CLOUD_ON)("Boat with the cloud off", () => {
+    // Boat's own answer to a key it does not know, empty or wrong alike, as GET /limits replied on 2026-10-12.
+    const UNAUTHORIZED = { ok: false, type: "box.error", status: 401, code: "unauthorized", message: "unauthorized", error: { code: "unauthorized", message: "unauthorized", status: 401 } };
+    const boatTaking = (good: string): string[] => {
+      const asked: string[] = [];
+      vi.stubGlobal("fetch", async (url: string, init: { headers: Record<string, string> }) => {
+        asked.push(String(url));
+        const taken = init.headers["Authorization"] === `Bearer ${good}`;
+        return new Response(JSON.stringify(taken ? { limits: {} } : UNAUTHORIZED), { status: taken ? 200 : 401, headers: { "content-type": "application/json" } });
+      });
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      return asked;
+    };
+    const checking = { ...systemPlaceDeps, checkKey: checkProviderKey };
+
+    it("puts the key to Boat and refuses one Boat refuses, writing nothing", async () => {
+      const home = tmp("add-boat-refused");
+      const asked = boatTaking("bx_good");
+      const io = captured();
+      expect(await addCommand(io, opts(home, { BOAT_API_KEY: "bx_plainly_wrong_key" }), ["box"], {}, checking)).toBe(1);
+      expect(asked.map(u => new URL(u).pathname)).toEqual(["/api/box/v1/limits"]);
+      expect(io.errors.join("\n")).toContain("401 unauthorized");
+      expect(io.lines.join("\n")).not.toContain("place box");
+      expect(existsSync(join(home, ".env"))).toBe(false);
+    });
+
+    it("says nothing was added when no Boat key is anywhere", async () => {
+      const home = tmp("add-boat-keyless");
+      boatTaking("bx_good");
+      const io = captured();
+      expect(await addCommand(io, opts(home, {}), ["box"], {}, checking)).toBe(1);
+      expect(io.lines.join("\n")).not.toContain("place box");
+      expect(existsSync(join(home, ".env"))).toBe(false);
+    });
+
+    it("takes a key Boat takes as a place beside this computer and never names it the provider this host forks on", async () => {
+      const home = tmp("add-boat-taken");
+      boatTaking("bx_good");
+      const io = captured();
+      expect(await addCommand(io, opts(home, { BOAT_API_KEY: "bx_good" }), ["box"], {}, checking)).toBe(0);
+      expect(io.lines.join("\n")).toContain("place box");
+      expect(io.lines.join("\n")).not.toContain("forks your image");
+      expect(existsSync(join(home, ".env"))).toBe(false);
+    });
   });
 
   it("refuses the ssh road's own flags when no computer was named beside them", async () => {
