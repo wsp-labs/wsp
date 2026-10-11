@@ -17,7 +17,7 @@ use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
-use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcEntry, ProcInspectReply, ProcSignal};
+use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcCost, ProcEntry, ProcInspectReply, ProcSignal};
 
 use crate::paths::OpError;
 use crate::sys::{finite, read_named};
@@ -149,6 +149,9 @@ pub(crate) fn listening_ports_of(proc_root: &Path, pid: u32) -> Vec<u16> {
 pub(crate) struct ProcScan {
     pub(crate) total: u64,
     pub(crate) procs: Vec<ProcEntry>,
+    /// The cpu milliseconds the processes the scan ran and reaped spent, `ps` on the road that runs it, which the
+    /// thread's own clock leaves out.
+    pub(crate) child_ms: f64,
 }
 
 pub(crate) struct ProcScanInput {
@@ -158,6 +161,11 @@ pub(crate) struct ProcScanInput {
     pub(crate) elapsed_ms: i64,
     /// The daemon pty a pid's shell belongs to, for the rows that carry one.
     pub(crate) pty: HashMap<u32, String>,
+    /// Only the processes in these cgroups, and the daemon itself, where a source can list them; every process
+    /// without it.
+    pub(crate) only: Option<Vec<String>>,
+    /// The daemon's own pid, which a scan narrowed to cgroups keeps.
+    pub(crate) daemon: u32,
 }
 
 /// One kind's road to the processes on its machine, and to one of them in depth, run off the runtime thread. A
@@ -194,17 +202,52 @@ struct FsState {
     users: HashMap<u32, String>,
 }
 
+/// The most cgroup folders one narrowed scan walks: every thread's, and those it made under its own.
+const CGROUP_WALK_DIRS: usize = 4096;
+
 /// The guest's own processes, read straight from /proc: the module every machine wsp forks is served by.
 pub(crate) struct ProcFsSource {
     proc_root: PathBuf,
     passwd_path: PathBuf,
+    /// Where the cgroup v2 tree is mounted, whose cgroup.procs a narrowed scan lists its pids from.
+    cgroup_root: PathBuf,
     cap: usize,
     state: Mutex<FsState>,
 }
 
 impl ProcFsSource {
     pub(crate) fn new(proc_root: PathBuf, passwd_path: PathBuf, cap: usize) -> ProcFsSource {
-        ProcFsSource { proc_root, passwd_path, cap, state: Mutex::new(FsState::default()) }
+        ProcFsSource { proc_root, passwd_path, cgroup_root: PathBuf::from("/sys/fs/cgroup"), cap, state: Mutex::new(FsState::default()) }
+    }
+
+    #[cfg(test)]
+    fn with_cgroup_root(self, cgroup_root: PathBuf) -> ProcFsSource {
+        ProcFsSource { cgroup_root, ..self }
+    }
+
+    /// The pids standing in each cgroup and every cgroup under it, as a thread's end takes them, the daemon's own added:
+    /// a cgroup gone or never made lists none. The walk stops at CGROUP_WALK_DIRS folders, deeper than any thread's.
+    fn members(&self, cgroups: &[String], daemon: u32) -> Vec<u32> {
+        let mut pids = vec![daemon];
+        let mut folders: Vec<PathBuf> = cgroups.iter().map(|cg| self.cgroup_root.join(cg.trim_start_matches('/'))).collect();
+        let mut walked = 0;
+        while let Some(folder) = folders.pop() {
+            walked += 1;
+            if walked > CGROUP_WALK_DIRS {
+                break;
+            }
+            pids.extend(
+                std::fs::read_to_string(folder.join("cgroup.procs"))
+                    .unwrap_or_default()
+                    .lines()
+                    .filter_map(|l| l.trim().parse::<u32>().ok()),
+            );
+            let Ok(entries) = std::fs::read_dir(&folder) else { continue };
+            folders.extend(entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).map(|e| e.path()));
+        }
+        pids.sort_unstable();
+        pids.dedup();
+        pids
     }
 
     fn prime(&self, state: &mut FsState) -> Result<(), String> {
@@ -249,6 +292,9 @@ impl ProcFsSource {
             started_at: state.btime.unwrap_or(0) * 1000 + st.starttime as i64 * numbers::STAT_TICK_MS as i64,
             pty: pty.cloned(),
             cgroup: read_cgroup(&dir),
+            energy_mw: None,
+            owner: None,
+            kind: None,
         })
     }
 }
@@ -284,7 +330,8 @@ fn read_cmdline(dir: &Path) -> String {
 }
 
 impl ProcSource for ProcFsSource {
-    /// Reads every pid once; cpu is the tick delta against the last scan over the wall time between them.
+    /// Reads every pid once, or with `only` the pids its cgroups list; cpu is the tick delta against the last scan
+    /// over the wall time between them. The count is every process on the machine either way.
     fn scan(&self, input: &ProcScanInput) -> Result<ProcScan, String> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.btime.is_none() {
@@ -294,16 +341,20 @@ impl ProcSource for ProcFsSource {
         let listed = std::fs::read_dir(&self.proc_root).map_err(|e| format!("{}: {e}", self.proc_root.display()))?;
         let mut pids: Vec<u32> = listed.flatten().filter_map(|d| d.file_name().to_str().and_then(|n| n.parse().ok())).collect();
         pids.sort_unstable();
+        let read = match &input.only {
+            Some(cgroups) => self.members(cgroups, input.daemon),
+            None => pids.clone(),
+        };
         let mut procs = Vec::new();
         let mut seen = HashSet::new();
-        for pid in pids.iter().take(self.cap) {
+        for pid in read.iter().take(self.cap) {
             if let Some(entry) = self.read_one(&mut state, *pid, elapsed_ticks, input.pty.get(pid)) {
                 seen.insert(*pid);
                 procs.push(entry);
             }
         }
         state.known.retain(|pid, _| seen.contains(pid));
-        Ok(ProcScan { total: pids.len() as u64, procs })
+        Ok(ProcScan { total: pids.len() as u64, procs, child_ms: 0.0 })
     }
 
     fn inspect(&self, pid: u32, procs: &[ProcEntry]) -> Result<ProcInspectReply, OpError> {
@@ -340,6 +391,8 @@ pub(crate) struct ProcSamplerOptions {
 #[derive(Default)]
 struct Inner {
     subscribers: HashMap<u64, Outbound>,
+    /// What each subscriber reads: the cgroups it named, or None for every process.
+    scopes: HashMap<u64, Option<Vec<String>>>,
     running: Option<AbortHandle>,
     last_at: Option<i64>,
     last_procs: Vec<ProcEntry>,
@@ -359,6 +412,28 @@ struct Sent {
     at: i64,
     total: u64,
     procs: Vec<ProcEntry>,
+}
+
+/// The cpu time the calling thread has spent, in milliseconds; zero where the clock cannot be read.
+fn thread_cpu_ms() -> f64 {
+    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    if unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) } != 0 {
+        return 0.0;
+    }
+    ts.tv_sec as f64 * 1000.0 + ts.tv_nsec as f64 / 1e6
+}
+
+/// The memory one list of rows takes: each row and the text it owns.
+fn held_bytes(procs: &[ProcEntry]) -> u64 {
+    let text = |p: &ProcEntry| {
+        p.user.capacity()
+            + p.state.capacity()
+            + p.comm.capacity()
+            + p.cmdline.capacity()
+            + p.pty.as_ref().map_or(0, String::capacity)
+            + p.cgroup.as_ref().map_or(0, String::capacity)
+    };
+    procs.iter().map(|p| (size_of::<ProcEntry>() + text(p)) as u64).sum()
 }
 
 /// The rows of `now` that are new or differ from `before`, and the pids of `before` that `now` no longer lists.
@@ -393,7 +468,7 @@ impl ProcSampler {
 
     /// A socket joining a stream already under way is sent the list the others hold, so the changes after it read
     /// against the same rows for everyone.
-    pub(crate) fn subscribe(self: &Arc<Self>, key: u64, out: Outbound) {
+    pub(crate) fn subscribe(self: &Arc<Self>, key: u64, out: Outbound, scope: Option<Vec<String>>) {
         let mut inner = self.lock();
         if let Some(sent) = &inner.sent {
             let snapshot = DaemonEvent::ProcSnapshot {
@@ -402,25 +477,30 @@ impl ProcSampler {
                 total: sent.total,
                 procs: sent.procs.clone(),
                 seq: Some(sent.seq),
+                cost: None,
             };
             out.send_text(&frame_text(&snapshot));
         }
         inner.subscribers.insert(key, out);
+        inner.scopes.insert(key, scope);
         if inner.subscribers.len() == 1 {
             self.start(&mut inner);
         }
     }
 
-    /// A watcher that missed a frame watches again: its next frame is whole, and the changes after it apply on it.
-    pub(crate) fn resend(&self, key: u64) {
+    /// A subscriber that watches again, naming its set anew: the next tick reads what they all name now, and its next
+    /// frame is whole.
+    pub(crate) fn rescope(&self, key: u64, scope: Option<Vec<String>>) {
         let mut inner = self.lock();
         if inner.subscribers.contains_key(&key) {
+            inner.scopes.insert(key, scope);
             inner.owed.insert(key);
         }
     }
 
     pub(crate) fn unsubscribe(&self, key: u64) {
         let mut inner = self.lock();
+        inner.scopes.remove(&key);
         if inner.subscribers.remove(&key).is_some() && inner.subscribers.is_empty() {
             self.stop(&mut inner);
         }
@@ -446,12 +526,37 @@ impl ProcSampler {
         }
     }
 
-    async fn scan(&self, elapsed_ms: i64, at: i64) -> Result<ProcScan, String> {
+    /// What a tick reads for its subscribers together: every process where any of them names no cgroups, else the
+    /// cgroups they name between them.
+    fn scope(inner: &Inner) -> Option<Vec<String>> {
+        let mut union = Vec::new();
+        for scope in inner.scopes.values() {
+            union.extend(scope.as_ref()?.iter().cloned());
+        }
+        union.sort();
+        union.dedup();
+        Some(union)
+    }
+
+    /// The scan and the cpu milliseconds it took on the thread that ran it.
+    async fn scan(&self, elapsed_ms: i64, at: i64) -> Result<(ProcScan, f64), String> {
         let source = Arc::clone(&self.source);
         let pty: HashMap<u32, String> = (self.opts.ptys)().into_iter().collect();
-        tokio::task::spawn_blocking(move || source.scan(&ProcScanInput { at, elapsed_ms, pty }))
-            .await
-            .unwrap_or_else(|e| Err(e.to_string()))
+        let only = {
+            let inner = self.lock();
+            if inner.scopes.is_empty() {
+                None
+            } else {
+                Self::scope(&inner)
+            }
+        };
+        let daemon = self.opts.self_pid;
+        tokio::task::spawn_blocking(move || {
+            let from = thread_cpu_ms();
+            source.scan(&ProcScanInput { at, elapsed_ms, pty, only, daemon }).map(|scan| (scan, thread_cpu_ms() - from))
+        })
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()))
     }
 
     /// The first poll after a start is the cpu baseline and emits nothing; a failed read of one pid drops that pid for the tick.
@@ -460,8 +565,9 @@ impl ProcSampler {
         let elapsed = self.lock().last_at.map_or(0, |last| at - last);
         let scanned = self.scan(elapsed, at).await;
         let mut inner = self.lock();
-        let scan = match scanned {
-            Ok(scan) => scan,
+        let framing = thread_cpu_ms();
+        let (scan, scan_ms) = match scanned {
+            Ok(read) => read,
             Err(e) => {
                 inner.last = Some(Err(e));
                 return;
@@ -477,10 +583,21 @@ impl ProcSampler {
         let daemon = self.opts.self_pid;
         let seq = inner.seq + 1;
         inner.seq = seq;
-        let whole = frame_text(&DaemonEvent::ProcSnapshot { at, daemon, total: scan.total, procs: scan.procs.clone(), seq: Some(seq) });
-        let moved = inner.sent.as_ref().map(|sent| {
-            let (procs, gone) = changes(&sent.procs, &scan.procs);
-            frame_text(&DaemonEvent::ProcChanges { at, daemon, total: scan.total, procs, gone, seq, base: sent.seq })
+        // The rows are held twice between ticks, the last read and the list every watcher holds; the cpu is this tick's
+        // read, what it ran, and the changes found, the frames' text and their sends after it left out.
+        let moved_rows = inner.sent.as_ref().map(|sent| (changes(&sent.procs, &scan.procs), sent.seq));
+        let cost =
+            Some(ProcCost { cpu_ms: scan_ms + scan.child_ms + (thread_cpu_ms() - framing).max(0.0), held: 2 * held_bytes(&scan.procs) });
+        let whole = frame_text(&DaemonEvent::ProcSnapshot {
+            at,
+            daemon,
+            total: scan.total,
+            procs: scan.procs.clone(),
+            seq: Some(seq),
+            cost: cost.clone(),
+        });
+        let moved = moved_rows.map(|((procs, gone), base)| {
+            frame_text(&DaemonEvent::ProcChanges { at, daemon, total: scan.total, procs, gone, seq, base, cost: cost.clone() })
         });
         let owed = std::mem::take(&mut inner.owed);
         for (key, out) in &inner.subscribers {
@@ -499,7 +616,7 @@ impl ProcSampler {
         };
         let procs = match held {
             Some(procs) => procs,
-            None => self.scan(0, (self.opts.now)()).await.map_err(OpError::plain)?.procs,
+            None => self.scan(0, (self.opts.now)()).await.map_err(OpError::plain)?.0.procs,
         };
         let source = Arc::clone(&self.source);
         tokio::task::spawn_blocking(move || source.inspect(pid, &procs)).await.unwrap_or_else(|e| Err(OpError::plain(e.to_string())))
@@ -616,6 +733,59 @@ mod tests {
     }
 
     #[test]
+    fn a_scan_narrowed_to_cgroups_reads_their_members_and_the_daemon_and_still_counts_every_process() {
+        let procs: Vec<FakeProc> =
+            [1, 5, 70, 71, 72].into_iter().map(|pid| FakeProc { pid, comm: Some(format!("p{pid}")), ..FakeProc::default() }).collect();
+        let root = fake_proc_tree(&procs, 4096);
+        let (_passwd_dir, passwd) = fake_passwd();
+        let cgroups = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(cgroups.path().join("wsp-threads/t1")).unwrap();
+        std::fs::write(cgroups.path().join("wsp-threads/t1/cgroup.procs"), "70\n71\n").unwrap();
+        let source = ProcFsSource::new(root.path().to_path_buf(), passwd, numbers::PROC_CAP).with_cgroup_root(cgroups.path().to_path_buf());
+        let scan =
+            |only: Option<Vec<String>>| source.scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only, daemon: 5 }).unwrap();
+        let narrowed = scan(Some(vec!["/wsp-threads/t1".into(), "/wsp-threads/gone".into()]));
+        assert_eq!((narrowed.procs.iter().map(|p| p.pid).collect::<Vec<_>>(), narrowed.total), (vec![5, 70, 71], 5));
+        assert_eq!(scan(None).procs.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![1, 5, 70, 71, 72]);
+    }
+
+    #[test]
+    fn a_scan_narrowed_to_a_cgroup_reads_every_cgroup_under_it_as_a_thread_end_takes_them() {
+        let procs: Vec<FakeProc> =
+            [1, 5, 70, 71, 72, 73].into_iter().map(|pid| FakeProc { pid, comm: Some(format!("p{pid}")), ..FakeProc::default() }).collect();
+        let root = fake_proc_tree(&procs, 4096);
+        let (_passwd_dir, passwd) = fake_passwd();
+        let cgroups = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(cgroups.path().join("wsp-threads/t1/made-inside")).unwrap();
+        std::fs::create_dir_all(cgroups.path().join("wsp-threads/t2")).unwrap();
+        std::fs::write(cgroups.path().join("wsp-threads/t1/cgroup.procs"), "70\n").unwrap();
+        std::fs::write(cgroups.path().join("wsp-threads/t1/made-inside/cgroup.procs"), "71\n").unwrap();
+        std::fs::write(cgroups.path().join("wsp-threads/t2/cgroup.procs"), "72\n").unwrap();
+        let source = ProcFsSource::new(root.path().to_path_buf(), passwd, numbers::PROC_CAP).with_cgroup_root(cgroups.path().to_path_buf());
+        let pids = |only: &str| {
+            source
+                .scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only: Some(vec![only.into()]), daemon: 5 })
+                .unwrap()
+                .procs
+                .iter()
+                .map(|p| p.pid)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(pids("/wsp-threads/t1"), vec![5, 70, 71]);
+        assert_eq!(pids("/wsp-threads"), vec![5, 70, 71, 72]);
+    }
+
+    #[test]
+    fn a_tick_reads_every_process_once_any_watcher_asks_for_that_and_the_cgroups_they_name_together_otherwise() {
+        let mut inner = Inner::default();
+        inner.scopes.insert(1, Some(vec!["/wsp-threads/b".into(), "/wsp-threads/a".into()]));
+        inner.scopes.insert(2, Some(vec!["/wsp-threads/a".into()]));
+        assert_eq!(ProcSampler::scope(&inner), Some(vec!["/wsp-threads/a".to_string(), "/wsp-threads/b".to_string()]));
+        inner.scopes.insert(3, None);
+        assert_eq!(ProcSampler::scope(&inner), None);
+    }
+
+    #[test]
     fn rejects_a_stat_line_without_the_comm_parens() {
         assert!(parse_proc_pid_stat("42 broken\n").is_err());
         assert!(parse_proc_pid_stat("42 (short) R 7\n").is_err());
@@ -693,6 +863,7 @@ mod tests {
     struct Fake {
         scans: AtomicUsize,
         broken: AtomicBool,
+        child_ms: f64,
     }
 
     impl ProcSource for Fake {
@@ -701,7 +872,7 @@ mod tests {
             if self.broken.load(Ordering::SeqCst) {
                 return Err("this machine cannot be read".to_owned());
             }
-            Ok(ProcScan { total: 0, procs: vec![] })
+            Ok(ProcScan { total: 0, procs: vec![], child_ms: self.child_ms })
         }
         fn inspect(&self, pid: u32, _: &[ProcEntry]) -> Result<ProcInspectReply, OpError> {
             Ok(ProcInspectReply { pid, cwd: None, ports: vec![], threads: None, children: vec![] })
@@ -710,7 +881,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_probe_scans_once_for_the_first_watcher_and_rides_the_running_stream_for_the_next_refusal_and_all() {
-        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false) });
+        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false), child_ms: 0.0 });
         let scans = || source.scans.load(Ordering::SeqCst);
         let opts = ProcSamplerOptions {
             self_pid: 1,
@@ -724,7 +895,7 @@ mod tests {
         s.probe().await.unwrap();
         assert_eq!(scans(), 1);
         let (tx, _rx) = mpsc::unbounded_channel();
-        s.subscribe(1, Outbound(tx));
+        s.subscribe(1, Outbound(tx), None);
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert_eq!(scans(), 2);
         // Already polling, so the next watcher inherits that tick rather than scanning beside it.
@@ -741,8 +912,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_frame_counts_the_cpu_of_what_its_scan_ran_beside_its_own() {
+        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false), child_ms: 40.0 });
+        let opts = ProcSamplerOptions {
+            self_pid: 1,
+            ptys: Arc::new(Vec::new),
+            first: Duration::from_secs(60),
+            interval: Duration::from_secs(60),
+            now: Arc::new(now_ms),
+            log: quiet(),
+        };
+        let s = ProcSampler::new(source, opts);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        s.subscribe(1, Outbound(tx), None);
+        s.poll().await;
+        s.poll().await;
+        let mut costs = Vec::new();
+        while let Ok(text) = rx.try_recv() {
+            let v: Value = serde_json::from_str(text.text()).unwrap();
+            costs.push(v["cost"]["cpuMs"].as_f64().unwrap());
+        }
+        assert!(!costs.is_empty() && costs.iter().all(|ms| (40.0..1_000.0).contains(ms)), "{costs:?}");
+        s.unsubscribe(1);
+    }
+
+    #[tokio::test]
     async fn a_zero_interval_reads_as_the_shortest_tick_and_never_ends_the_daemon() {
-        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false) });
+        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false), child_ms: 0.0 });
         let opts = ProcSamplerOptions {
             self_pid: 1,
             ptys: Arc::new(Vec::new),
@@ -753,7 +949,7 @@ mod tests {
         };
         let s = ProcSampler::new(source.clone(), opts);
         let (tx, mut rx) = mpsc::unbounded_channel();
-        s.subscribe(1, Outbound(tx));
+        s.subscribe(1, Outbound(tx), None);
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert!(s.running());
         assert!(source.scans.load(Ordering::SeqCst) >= 2);
@@ -920,6 +1116,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn every_frame_says_what_its_tick_cost_the_daemon_in_cpu_and_in_rows_held() {
+        let mut b = sampler(
+            &[
+                FakeProc { pid: 1, comm: Some("init".into()), ..FakeProc::default() },
+                FakeProc {
+                    pid: 5,
+                    comm: Some("node".into()),
+                    cmdline: Some(vec!["node".into(), "server.js".into()]),
+                    ..FakeProc::default()
+                },
+            ],
+            vec![],
+            None,
+            4096,
+        );
+        b.sampler.poll().await;
+        b.advance(5_000);
+        b.sampler.poll().await;
+        b.advance(5_000);
+        b.sampler.poll().await;
+        let frames = b.got();
+        assert_eq!(frames.iter().map(|f| f["type"].clone()).collect::<Vec<_>>(), [json!("proc.snapshot"), json!("proc.changes")]);
+        for frame in &frames {
+            let cpu = frame["cost"]["cpuMs"].as_f64().unwrap();
+            assert!((0.0..1_000.0).contains(&cpu), "{cpu} ms");
+            // Two copies of two rows: each row's own size and its text, the cmdline among it.
+            let held = frame["cost"]["held"].as_u64().unwrap();
+            assert!(held >= 2 * (2 * size_of::<ProcEntry>() as u64 + "node server.js".len() as u64), "{held}");
+        }
+    }
+
+    #[tokio::test]
     async fn a_socket_joining_mid_stream_is_sent_the_whole_list_at_once_and_the_same_changes_after() {
         let mut b = sampler(
             &[
@@ -935,7 +1163,7 @@ mod tests {
         b.sampler.poll().await;
         b.got();
         let (tx, mut joined) = mpsc::unbounded_channel();
-        b.sampler.subscribe(2, Outbound(tx));
+        b.sampler.subscribe(2, Outbound(tx), None);
         let first: Value = serde_json::from_str(joined.try_recv().unwrap().text()).unwrap();
         assert_eq!(
             (&first["type"], &first["at"], first["procs"].as_array().unwrap().len()),
@@ -994,9 +1222,9 @@ mod tests {
         let (tx, _rx) = mpsc::unbounded_channel();
         let (tx2, _rx2) = mpsc::unbounded_channel();
         assert!(!b.sampler.running());
-        b.sampler.subscribe(1, Outbound(tx));
+        b.sampler.subscribe(1, Outbound(tx), None);
         assert!(b.sampler.running());
-        b.sampler.subscribe(2, Outbound(tx2));
+        b.sampler.subscribe(2, Outbound(tx2), None);
         b.sampler.unsubscribe(1);
         b.sampler.unsubscribe(1);
         assert!(b.sampler.running());

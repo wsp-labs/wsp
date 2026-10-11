@@ -199,7 +199,15 @@ pub enum DaemonOp {
         last: NonZeroU32,
     },
     #[serde(rename = "proc.watch")]
-    ProcWatch,
+    ProcWatch {
+        /// The cgroups whose processes this socket reads each tick, each with every cgroup under it, by the path
+        /// /proc/[pid]/cgroup names: a box's threads, so a busy box is not read whole every two seconds. The daemon's
+        /// own row comes with them. A watch that names none reads every process; a second watch on the socket names
+        /// the set again.
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "cgroup_paths")]
+        #[ts(optional)]
+        cgroups: Option<Vec<String>>,
+    },
     #[serde(rename = "proc.unwatch")]
     ProcUnwatch,
     #[serde(rename = "proc.inspect")]

@@ -53,7 +53,7 @@ const rgbOf = (el: Element): string => {
 
 const stillQuery = () => window.matchMedia("(prefers-reduced-motion: reduce)");
 
-type Drawn = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; dpr: number; rgb: string; stop?: () => void };
+type Drawn = { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; dpr: number; rgb: string; still: boolean; stop?: () => void };
 
 const crabs = new Set<Drawn>();
 /** One canvas per tint and dpr, drawn once a frame and copied into every crab on screen that frame. */
@@ -93,7 +93,7 @@ function walk(crab: Drawn): void {
 /** A theme switch moves the tint, so every crab reads its colour again and a still one is drawn again in it. */
 function retint(): void {
   for (const crab of crabs) crab.rgb = rgbOf(crab.canvas);
-  if (stillQuery().matches) for (const crab of crabs) paint(crab, 0);
+  for (const crab of crabs) if (crab.still || stillQuery().matches) paint(crab, 0);
 }
 
 /** Watches what moves a crab: the theme on the root and the motion preference, for as long as any crab is drawn. */
@@ -103,6 +103,7 @@ function watch(): () => void {
   const still = stillQuery();
   const motion = () => {
     for (const crab of crabs) {
+      if (crab.still) continue;
       crab.stop?.();
       crab.stop = undefined;
       if (still.matches) paint(crab, 0);
@@ -116,17 +117,17 @@ function watch(): () => void {
   };
 }
 
-function add(canvas: HTMLCanvasElement): () => void {
+function add(canvas: HTMLCanvasElement, holdStill: boolean): () => void {
   const ctx = canvas.getContext("2d");
   if (ctx === null) return () => {};
   const dpr = window.devicePixelRatio || 2;
   canvas.width = W * dpr;
   canvas.height = H * dpr;
-  const crab: Drawn = { canvas, ctx, dpr, rgb: rgbOf(canvas) };
+  const crab: Drawn = { canvas, ctx, dpr, rgb: rgbOf(canvas), still: holdStill };
   crabs.add(crab);
   watching ??= watch();
   startedAt ??= performance.now();
-  const still = stillQuery().matches;
+  const still = holdStill || stillQuery().matches;
   paint(crab, still ? 0 : performance.now() - startedAt);
   if (!still) walk(crab);
   return () => {
@@ -139,9 +140,10 @@ function add(canvas: HTMLCanvasElement): () => void {
   };
 }
 
-/** The walking crab beside a working thread, tinted with the colour it inherits. */
-export function Crab({ className }: { className?: string }) {
+/** The walking crab beside a working thread, tinted with the colour it inherits. A still one is drawn once: on a page
+ * that redraws its rows every two seconds, each walking crab cost the renderer about a point of a core. */
+export function Crab({ className, still = false }: { className?: string; still?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => add(ref.current!), []);
+  useEffect(() => add(ref.current!, still), [still]);
   return <canvas ref={ref} aria-hidden data-crab className={cn("block h-[14px] w-4 shrink-0", className)} />;
 }

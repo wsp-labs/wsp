@@ -1135,7 +1135,7 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
         DaemonOp::TranscriptsRead { root, dirs, session, last } => {
             answer(id, transcripts::serve_read(&conn.road, ctx, root, dirs, session, last.get()).await)
         }
-        DaemonOp::ProcWatch => {
+        DaemonOp::ProcWatch { cgroups } => {
             let watched = async {
                 let sampler = ctx.proc_sampler()?;
                 sampler.probe().await?;
@@ -1144,10 +1144,10 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
                     let mut watch = conn.proc_watch.lock().unwrap_or_else(|e| e.into_inner());
                     // A socket already watching that watches again missed a frame: its next one is whole.
                     if let Some((held, sampler)) = watch.as_ref() {
-                        sampler.resend(*held);
+                        sampler.rescope(*held, cgroups);
                         return None;
                     }
-                    sampler.subscribe(key, conn.out.clone());
+                    sampler.subscribe(key, conn.out.clone(), cgroups);
                     *watch = Some((key, Arc::clone(&sampler)));
                     Some(Box::new(move || sampler.unsubscribe(key)) as Detach)
                 });

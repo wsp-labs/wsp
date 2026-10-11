@@ -34,7 +34,23 @@ pub(crate) struct Identity {
 pub(crate) struct Usage {
     pub(crate) footprint: u64,
     pub(crate) cpu_seconds: f64,
+    /// Nanojoules its cpu work has drawn since it started, where the kernel answers the version that counts them.
+    pub(crate) energy_nj: Option<u64>,
 }
+
+/// RUSAGE_INFO_V6, which the libc crate does not carry: version 4 and the fields after it, in sys/resource.h's order.
+/// ri_energy_nj is the energy the process's cpu work used, the figure Activity Monitor's energy column is built on.
+#[repr(C)]
+struct RusageInfoV6 {
+    v4: libc::rusage_info_v4,
+    /// ri_flags, ri_user_ptime, ri_system_ptime, ri_pinstructions, ri_pcycles.
+    _before: [u64; 5],
+    ri_energy_nj: u64,
+    /// ri_penergy_nj, the secure and neural fields, and nine reserved.
+    _after: [u64; 15],
+}
+const RUSAGE_INFO_V6: c_int = 6;
+const _: () = assert!(size_of::<RusageInfoV6>() == 464);
 
 /// Every pid on the computer, whoever runs it.
 pub(crate) fn pids() -> Vec<u32> {
@@ -129,15 +145,22 @@ fn ns_per_tick() -> f64 {
 }
 
 /// One process's footprint and cpu time, from proc_pid_rusage, where the cpu times are in mach time units.
+/// A macOS too old for version 6 refuses it, and answers version 4 with no energy.
 pub(crate) fn usage(pid: u32) -> Option<Usage> {
-    let mut info = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
-    let rc = unsafe { libc::proc_pid_rusage(pid as c_int, libc::RUSAGE_INFO_V4, info.as_mut_ptr().cast()) };
-    if rc != 0 {
+    let spent = |info: &libc::rusage_info_v4, energy_nj: Option<u64>| {
+        let ticks = info.ri_user_time.saturating_add(info.ri_system_time);
+        Usage { footprint: info.ri_phys_footprint, cpu_seconds: ticks as f64 * ns_per_tick() / 1e9, energy_nj }
+    };
+    let mut v6 = std::mem::MaybeUninit::<RusageInfoV6>::zeroed();
+    if unsafe { libc::proc_pid_rusage(pid as c_int, RUSAGE_INFO_V6, v6.as_mut_ptr().cast()) } == 0 {
+        let info = unsafe { v6.assume_init() };
+        return Some(spent(&info.v4, Some(info.ri_energy_nj)));
+    }
+    let mut v4 = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
+    if unsafe { libc::proc_pid_rusage(pid as c_int, libc::RUSAGE_INFO_V4, v4.as_mut_ptr().cast()) } != 0 {
         return None;
     }
-    let info = unsafe { info.assume_init() };
-    let ticks = info.ri_user_time.saturating_add(info.ri_system_time);
-    Some(Usage { footprint: info.ri_phys_footprint, cpu_seconds: ticks as f64 * ns_per_tick() / 1e9 })
+    Some(spent(&unsafe { v4.assume_init() }, None))
 }
 
 /// The kernel's cap on a process's argument area, which KERN_PROCARGS2 needs room for.
@@ -317,6 +340,29 @@ mod tests {
         let usage = unsafe { usage.assume_init() };
         let seconds = |t: libc::timeval| t.tv_sec as f64 + f64::from(t.tv_usec) / 1e6;
         seconds(usage.ru_utime) + seconds(usage.ru_stime)
+    }
+
+    #[test]
+    fn reads_version_6_on_the_same_layout_as_version_4_and_an_energy_that_never_runs_back() {
+        let me = std::process::id();
+        let mut v4 = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
+        assert_eq!(unsafe { libc::proc_pid_rusage(me as c_int, libc::RUSAGE_INFO_V4, v4.as_mut_ptr().cast()) }, 0);
+        let v4 = unsafe { v4.assume_init() };
+        let read = usage(me).unwrap();
+        let before = read.energy_nj.expect("this macOS answers version 6");
+        // The fields both versions share sit at the same offsets: the footprint read twice in a row agrees.
+        let (a, b) = (v4.ri_phys_footprint as f64, read.footprint as f64);
+        assert!((a - b).abs() / a < 0.1, "v4 footprint {a}, v6 footprint {b}");
+        let mut n = 0u64;
+        let until = std::time::Instant::now() + std::time::Duration::from_millis(200);
+        while std::time::Instant::now() < until {
+            n = std::hint::black_box(n.wrapping_add(1));
+        }
+        let after = usage(me).unwrap().energy_nj.unwrap();
+        assert!(after >= before, "energy ran back from {before} to {after} nJ");
+        // A virtual machine may count no energy at all; where it counts, 200 ms of one busy core is 50 mW to 10 W.
+        let drawn = after - before;
+        assert!(drawn == 0 || (10_000_000..2_000_000_000).contains(&drawn), "{drawn} nJ over 200 ms");
     }
 
     #[test]

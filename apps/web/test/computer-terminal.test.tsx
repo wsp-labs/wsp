@@ -15,6 +15,7 @@ import { useStore } from "../src/protocol/store.js";
 import { useRightPanelStore } from "../src/rightPanelStore.js";
 import { runShellCommand } from "../src/shell/shellCommands.js";
 import { HERE_KEY } from "../src/terminal/computer.js";
+import { useDaemonWire } from "../src/files/wire.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
 import { getTerminals, provideTerminals, WorkspaceTerminals, type TerminalWire } from "../src/terminal/link.js";
 import { getLive, resetLive } from "../src/machine/live.js";
@@ -171,6 +172,30 @@ describe("the wiring", () => {
       expect(asked).toEqual([]);
       act(() => useTerminalDrawerStore.getState().setOpen(HERE_KEY, true));
       await waitFor(() => expect(asked).toEqual([{ placeId: HERE_PLACE_ID }]));
+    } finally {
+      unwire();
+    }
+  });
+
+  it("dials this computer's daemon while a page holds its wire, and hangs up once nothing holds it and no drawer is open", async () => {
+    const asked: DaemonTarget[] = [];
+    let closed = 0;
+    const daemon: DaemonApi = { ...noDaemonApi, open: async to => (asked.push(to), { channel: "c1" }), send: async () => ({ id: 1, ok: true }) as never, close: async () => void closed++, onFrame: () => () => {} };
+    const Holder = () => (useDaemonWire(HERE_KEY), null);
+    const unwire = wireTerminals(useStore, { backoffMs: () => 60_000 });
+    try {
+      useStore.getState().bind(fakeApi([], daemon));
+      await waitFor(() => expect(getTerminals(HERE_KEY)).not.toBeNull());
+      const held = render(<Holder />);
+      await waitFor(() => expect(asked).toEqual([{ placeId: HERE_PLACE_ID }]));
+      held.unmount();
+      await waitFor(() => expect(closed).toBe(1));
+      act(() => useTerminalDrawerStore.getState().setOpen(HERE_KEY, true));
+      await waitFor(() => expect(asked).toHaveLength(2));
+      const again = render(<Holder />);
+      again.unmount();
+      await new Promise(r => setTimeout(r, 20));
+      expect(closed).toBe(1);
     } finally {
       unwire();
     }

@@ -591,6 +591,11 @@ export type ReadingsAnswer = z.infer<typeof ReadingsAnswer>;
 export const WorkspaceSysEvent = z.object({ type: z.literal("workspace.sys"), workspaceId: z.string(), sample: SysSample });
 export type WorkspaceSysEvent = z.infer<typeof WorkspaceSysEvent>;
 
+/** What one tick of the daemon's process sampler cost it: the cpu milliseconds its read took, and about how many bytes
+ * of rows it holds between ticks. Absent from a daemon a version behind. */
+export const ProcCost = z.object({ cpuMs: z.number(), held: z.number().int() });
+export type ProcCost = z.infer<typeof ProcCost>;
+
 /** Every process the daemon read this tick. daemon is its own pid, so a
  * client can name it; total counts /proc entries, procs holds at most the
  * first thousand of them by pid. */
@@ -603,6 +608,7 @@ export const ProcSnapshot = z.object({
   /** Counts the daemon's process frames, so the changes after this one name it as their base. A daemon a version
    * behind names none and sends no changes, so its snapshot is a whole list held with no gap to track. */
   seq: z.number().int().optional(),
+  cost: ProcCost.optional(),
 });
 export type ProcSnapshot = z.infer<typeof ProcSnapshot>;
 
@@ -616,6 +622,7 @@ export const ProcChanges = z.object({
   gone: z.array(z.number().int()),
   seq: z.number().int(),
   base: z.number().int(),
+  cost: ProcCost.optional(),
 });
 export type ProcChanges = z.infer<typeof ProcChanges>;
 
@@ -626,5 +633,5 @@ export function applyProcChanges(snapshot: ProcSnapshot, changes: ProcChanges): 
   const rows = new Map(snapshot.procs.map(p => [p.pid, p]));
   for (const pid of changes.gone) rows.delete(pid);
   for (const p of changes.procs) rows.set(p.pid, p);
-  return { type: "proc.snapshot", at: changes.at, daemon: changes.daemon, total: changes.total, procs: [...rows.values()].sort((a, b) => a.pid - b.pid), seq: changes.seq };
+  return { type: "proc.snapshot", at: changes.at, daemon: changes.daemon, total: changes.total, procs: [...rows.values()].sort((a, b) => a.pid - b.pid), seq: changes.seq, ...(changes.cost === undefined ? {} : { cost: changes.cost }) };
 }

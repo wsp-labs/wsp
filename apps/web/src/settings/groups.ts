@@ -5,18 +5,19 @@
 // breadcrumb and Restore defaults all read this table; adding a group is one
 // id in groupIds.ts, one entry here and its page module. A group marked empty
 // is not drawn.
-import { BotIcon, FolderIcon, GaugeIcon, KeyboardIcon, ListChecksIcon, MonitorIcon, PaletteIcon, ShieldIcon, SlidersHorizontalIcon, SmartphoneIcon, UserIcon, type LucideIcon } from "lucide-react";
+import { ActivityIcon, BotIcon, FolderIcon, GaugeIcon, KeyboardIcon, ListChecksIcon, MonitorIcon, PaletteIcon, ShieldIcon, SlidersHorizontalIcon, SmartphoneIcon, UserIcon, type LucideIcon } from "lucide-react";
 import { PLACES_WORDS } from "@wsp/protocol";
 import type { ComponentType } from "react";
 import type { Preferences, PreferencesPatch } from "@wsp/protocol";
 import { versionCards, versionMeta } from "./about.js";
+import { ActivityTabs, activityCards } from "./activity/page.js";
 import { accountCards } from "./account.js";
 import { agentSubPages, agentsCards } from "./agents.js";
 import { APPEARANCE_DEFAULTS, appearanceCards, appearanceOffDefaults } from "./appearance.js";
 import { computerSubPages, computersCards } from "./computers.js";
 import { devicesCards } from "./devices.js";
 import { generalCards } from "./general.js";
-import { ACCOUNT_WORDS, AGENTS_PAGE_WORDS, DEVICES_WORDS, KEYBINDINGS_WORDS, PRIVACY_WORDS, PROJECTS_WORDS, SETTINGS_WORDS, USAGE_PAGE_WORDS } from "./format.js";
+import { ACCOUNT_WORDS, ACTIVITY_WORDS, AGENTS_PAGE_WORDS, DEVICES_WORDS, KEYBINDINGS_WORDS, PRIVACY_WORDS, PROJECTS_WORDS, SETTINGS_WORDS, USAGE_PAGE_WORDS } from "./format.js";
 import { SETTINGS_GROUP_IDS, type SettingsGroupId } from "./groupIds.js";
 import { KEYBINDING_DEFAULTS, keybindingsCards, keybindingsOffDefaults } from "./keybindings.js";
 import { PRIVACY_DEFAULTS, privacyCards, privacyOffDefaults } from "./privacy.js";
@@ -54,6 +55,7 @@ const TABLE: Record<SettingsGroupId, Omit<SettingsGroup, "id">> = {
   recipes: { name: RECIPES_WORDS.title, glyph: ListChecksIcon, cards: recipesCards },
   agents: { name: AGENTS_PAGE_WORDS.title, glyph: BotIcon, cards: agentsCards, sub: agentSubPages },
   usage: { name: USAGE_PAGE_WORDS.title, glyph: GaugeIcon, cards: usageCards, head: UsageTabs },
+  activity: { name: ACTIVITY_WORDS.title, glyph: ActivityIcon, cards: activityCards, head: ActivityTabs },
   projects: { name: PROJECTS_WORDS.title, glyph: FolderIcon, cards: projectsCards, sub: projectSubPages },
   devices: { name: DEVICES_WORDS.title, glyph: SmartphoneIcon, cards: devicesCards },
   account: { name: ACCOUNT_WORDS.title, glyph: UserIcon, cards: accountCards },

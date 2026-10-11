@@ -66,6 +66,9 @@
 //                         draws its Image card (&image=none as above; &copies=none
 //                         keeps the image with no copy anywhere, so the card reads Not here yet)
 //   settings-remove-computer  the Remove dialog over the box's page
+//   settings-activity     Activity on the Mac: wsp's parts, five threads and what each started, No thread, fed a
+//                         frame every two seconds after the first minutes (?view= processes, kinds or ports;
+//                         &energy=0 a computer with no energy counter); settings-activity-hot a build past its marks
 //   settings-agents       the Agents page on this Mac: the default agent, then Claude Code
 //                         with an update out, Codex, and OpenCode not installed
 //   settings-agent        Claude Code's own page on this Mac, with launch words and two variables
@@ -110,6 +113,8 @@
 import { createRoot } from "react-dom/client";
 import { CATALOG_AGENTS, agentName } from "@wsp/catalog";
 import { manyAgents } from "./agents";
+import { ACTIVITY_APP_PROCS, ACTIVITY_SESSIONS, feedActivity } from "./activity";
+import { wireAppProcs } from "../../src/machine/appProcs";
 import { DAEMON_VERSION, DEFAULT_PREFERENCES, copyFirstLine, hostnameSetLine, type HarnessCatalog, GOLDEN_STAGE_WORDS, MACHINE_ROW_LABEL, STOP_LEFT_MACHINE_LINE, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type InitAgent, type InitJob, type InitRow, type InitScreen, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
 import { AppShell } from "../../src/shell/AppShell";
 import { FirstRun } from "../../src/shell/FirstRun";
@@ -400,6 +405,8 @@ const SETTINGS_SCREENS: Record<string, SettingsAt> = {
   "settings-account": { kind: "group", group: "account" },
   "settings-privacy": { kind: "group", group: "privacy" },
   "settings-usage": { kind: "group", group: "usage" },
+  "settings-activity": { kind: "group", group: "activity" },
+  "settings-activity-hot": { kind: "group", group: "activity" },
   "settings-keybindings": { kind: "group", group: "keybindings" },
   "settings-version": { kind: "group", group: "general" },
   "settings-version-behind": { kind: "group", group: "general" },
@@ -553,7 +560,8 @@ const HELD: WorkspaceView[] = emptyScreen
       WORKSPACES.filter(w => w.place === undefined || computers.some(place => place.id === w.place)).filter(w => !oneProject || (w.project.id === SPOO.id && w.parentThreadId === undefined))
     : [];
 /** The threads of the workspaces this screen holds and no other. */
-const HELD_SESSIONS: Record<string, SessionView[]> = Object.fromEntries(Object.entries(SESSIONS).filter(([workspace]) => HELD.some(w => w.id === workspace)));
+const activityScreen = screen.startsWith("settings-activity");
+const HELD_SESSIONS: Record<string, SessionView[]> = Object.fromEntries(Object.entries(activityScreen ? ACTIVITY_SESSIONS : SESSIONS).filter(([workspace]) => HELD.some(w => w.id === workspace)));
 
 /** Usage in the owner's shape: Claude Code on an API key on the Mac and Boat, Codex on ChatGPT Plus with a reading,
  * OpenCode with no plan limit, and a week at his size, nearly all of it read from cache. */
@@ -701,6 +709,8 @@ const api = {
     stage("wsp", "running");
     return new Promise<never>(() => {});
   },
+  // Activity names the app's own processes from the list the desktop app hands the host.
+  ...(screen.startsWith("settings-activity") ? { watchAppProcs: async () => ACTIVITY_APP_PROCS, unwatchAppProcs: async () => {}, onAppProcs: () => () => {} } : {}),
 } as unknown as Api;
 
 // The desktop shell's bridge, on the one screen about the foot: the hosts this window can move between, which is
@@ -783,6 +793,13 @@ if (screen === "settings-add-computer-failed") {
   useAddFlow.setState({ open: true, step: "checks", address: FAILED_ADD.address, addId: FAILED_ADD.addId });
 }
 if (screen === "settings-add-cloud") useSettingsStore.getState().askAdd("cloud");
+// Activity's view by ?view=, and its computer fed as the daemon would feed it.
+if (activityScreen) {
+  const view = params.get("view");
+  if (view === "processes" || view === "kinds" || view === "ports") useSettingsStore.setState({ activityView: view });
+  feedActivity(screen === "settings-activity-hot", params.get("energy") !== "0");
+  wireAppProcs(useStore);
+}
 useStore.getState().bind(api);
 // The frames a copy build at the box sent, set after the bind, whose pull starts every place over.
 // A focus change during the build: the running stage ends and the next one starts, as the host's next view says.
