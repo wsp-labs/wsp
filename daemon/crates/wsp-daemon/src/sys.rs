@@ -164,6 +164,29 @@ struct Inner {
     last: Option<Result<(), String>>,
 }
 
+/// One socket's sys.watch: at most one subscription, which sys.unwatch or the socket's close ends.
+#[derive(Default)]
+pub(crate) struct SocketWatch(Mutex<Option<(u64, Arc<SysSampler>)>>);
+
+impl SocketWatch {
+    /// Subscribes under the key unless this socket already watches, so a second watch is no second subscription.
+    pub(crate) fn watch(&self, sampler: Arc<SysSampler>, key: u64, out: Outbound) {
+        let mut held = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if held.is_none() {
+            sampler.subscribe(key, out);
+            *held = Some((key, sampler));
+        }
+    }
+
+    /// A socket that holds no watch changes nothing.
+    pub(crate) fn unwatch(&self) {
+        let held = self.0.lock().unwrap_or_else(|e| e.into_inner()).take();
+        if let Some((key, sampler)) = held {
+            sampler.unsubscribe(key);
+        }
+    }
+}
+
 pub(crate) struct SysSampler {
     source: Arc<dyn SysSource>,
     interval: Duration,
