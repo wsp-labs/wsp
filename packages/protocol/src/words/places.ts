@@ -388,6 +388,20 @@ export const PLACES_WORDS = {
   },
 } as const;
 
+/** The one question before a provider is removed at a terminal. */
+export const providerRemoveQuestion = (name: string): string => `Remove ${name}?\nEvery machine wsp made there is deleted, and once ${name} reads them gone the key is forgotten.`;
+
+/** What removing a provider answers once every machine this host made there is gone, and its key with them. */
+export const providerRemovedLine = (name: string, deleted: number): string => `${name} removed: ${plural(deleted, "machine")} deleted, the key forgotten.`;
+
+/** What it answers when the provider would not delete some: each named with what it said, and the key kept, since
+ * a machine left there bills and only that key reaches it. */
+export function providerKeptLine(name: string, deleted: number, left: readonly { id: string; said: string }[]): string {
+  const named = left.map(l => `${l.id} (${l.said})`).join(", ");
+  const others = deleted === 0 ? "" : `; ${deleted} ${deleted === 1 ? "other machine was" : "other machines were"} deleted`;
+  return `${name} would not delete ${named}, so the key is kept until ${left.length === 1 ? "it goes" : "they go"}${others}. Remove ${name} again to ask once more.`;
+}
+
 /** Every line a computer you own can join this host by: one per address it answers on, and the relay's address
  * last, with the note that it only answers while the host is linked. The one list wsp add prints and the app draws. */
 export function joinRoads(token: string, urls: readonly string[], relayUrl: string | undefined): { url: string; line: string; note?: string }[] {

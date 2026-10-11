@@ -7,11 +7,11 @@ import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type Go
 import { CATALOG_AGENTS, GOLDEN_SETUP, GOLDEN_SMOKE } from "@wsp/catalog";
 import { PRICES_URL, PERSON_HOME_ENV, type SealedImage } from "@wsp/protocol";
 import { agentHome, type Copier, LocalBackend, providerSlot, type ProviderSlot, verbCopier } from "@wsp/engine";
-import { noMachinesLine, PROVIDER_MODULES, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
+import { noMachinesLine, PROVIDER_ENV, PROVIDER_MODULES, placeIdOf, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
 import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
-import { envFileFor, serverVault, type Keys } from "../env-keys.js";
+import { envFileFor, serverVault, writeEnvFile, type Keys } from "../env-keys.js";
 import { loginEnv } from "../login-path.js";
 import { CACHE_RULE } from "../project-bundle.js";
 import { packSeed } from "../project-seed.js";
@@ -240,6 +240,19 @@ export function swapProvider(rt: Runtime, keys: Readonly<Record<string, string |
   }
 }
 
+/** Takes the key a provider row is opened by out of the .env beside the state file, and the word wiring this host to
+ * that provider with it, since a host wired to a cloud it holds no key for forks into a refusal; the runtime then
+ * forks on what is left. */
+export function forgetProviderKey(rt: Runtime, statePath: string, placeId: string): void {
+  const pick = PROVIDER_PICKS.get(rt);
+  const env = pick?.env ?? process.env;
+  const row = (pick?.modules ?? PROVIDER_MODULES).find(m => m.keyEnv !== undefined && placeIdOf(m, env) === placeId);
+  if (row?.keyEnv === undefined) return;
+  const gone = { [row.keyEnv]: undefined, ...(env[PROVIDER_ENV] === row.id ? { [PROVIDER_ENV]: undefined } : {}) };
+  writeEnvFile(envFileFor(statePath), gone);
+  swapProvider(rt, gone);
+}
+
 /** This computer's wiring for a runtime that builds its own: a host that turns can reach writes its own wsp beside
  * the state file and puts it first on their PATH, the same command their wsp tools run. */
 export function servingWiring(
@@ -296,7 +309,7 @@ export function makeRuntime(
     local,
     // The provider row off the same pick the slot and the table stand on, so a key saved while this host serves
     // makes its provider a place on every screen at once.
-    placeLinks: { ...links, provider: () => wiredPlaceRow(pick.env, slot.current(), modules) },
+    placeLinks: { ...links, provider: () => wiredPlaceRow(pick.env, slot.current(), modules), forgetKey: async placeId => forgetProviderKey(rt, statePath, placeId) },
     // The build this host is, written into the state file at every save, so a host that meets a record it cannot
     // read says which wsp on this computer wrote it.
     store,
