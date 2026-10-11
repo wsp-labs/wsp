@@ -293,7 +293,8 @@ pub(crate) struct Ctx {
     /// file it binds, which sits in that workspace's own wsp folder and so inside that workspace alone.
     workspace_doors: Mutex<HashMap<String, WorkspaceDoor>>,
     keys: AtomicU64,
-    /// The readings this daemon keeps a minute apart for as long as it runs, which sys.history reads back.
+    /// The readings this daemon keeps a minute apart for as long as it runs and its last fifteen minutes of reads,
+    /// which sys.history reads back.
     pub(crate) history: Arc<readings_history::History>,
     /// What each agent store file came to at its last usage.logs, for as long as this daemon runs.
     pub(crate) usage_logs: Arc<usage_logs::UsageCache>,

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! This computer's own utilisation, the metrics module of the local kind: cpu, load, memory and the disk the folder
 //! turns write in is on, from the road the platform answers honestly on, one module per system below. On Linux that
-//! is the host's own /proc and one df; on a Mac the mach counters, getloadavg and statfs, with nothing spawned, since
-//! the readings kept for the Machine tab sample every fifteen seconds whether or not anyone looks.
+//! is the host's own /proc and statfs; on a Mac the mach counters, getloadavg and statfs. Neither spawns anything,
+//! since the readings kept for the Machine tab sample every fifteen seconds whether or not anyone looks.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -13,7 +13,7 @@ use crate::pty::work_argv;
 use crate::sys::{CpuTimes, SysReadings, SysSource};
 
 /// df's numbers are in 1024-byte blocks under -k.
-#[cfg_attr(target_os = "macos", cfg(test))]
+#[cfg(test)]
 const BLOCK: u64 = 1024;
 
 /// One of this computer's small readers, in the C locale: df, ps and lsof print numbers and column headers the parsers
@@ -28,7 +28,7 @@ pub(crate) fn host_command(file: &str, args: &[&str]) -> Command {
 
 /// The three counts and the capacity df -kP prints for one filesystem: blocks, used, available, then a percentage.
 /// Read from the percentage backwards, since a device name or a mount point may hold spaces and the numbers may not.
-#[cfg_attr(target_os = "macos", cfg(test))]
+#[cfg(test)]
 pub(crate) fn parse_df(text: &str) -> Result<Usage, String> {
     let tokens: Vec<&str> = text.split_whitespace().collect();
     let digits = |t: &str| !t.is_empty() && t.bytes().all(|b| b.is_ascii_digit());
@@ -52,8 +52,8 @@ pub(crate) trait HostMachine: Send + Sync {
     fn disk(&self, folder: &Path) -> Result<Usage, String>;
 }
 
-/// The Linux host reads its own /proc, which is what the guest's road reads too; the two modules differ only in
-/// the disk, which here is the volume the work folder is on.
+/// The Linux host reads its own /proc and statfs, which is what the guest's road reads too; the two modules differ
+/// only in the disk, which here is the volume the work folder is on.
 #[cfg(not(target_os = "macos"))]
 pub(crate) struct LinuxHost;
 
@@ -73,8 +73,7 @@ impl HostMachine for LinuxHost {
     }
 
     fn disk(&self, folder: &Path) -> Result<Usage, String> {
-        let df = host_command("df", &["-kP", &folder.to_string_lossy()]).output().map_err(|e| format!("df: {e}"))?;
-        parse_df(&String::from_utf8_lossy(&df.stdout))
+        crate::sys::disk_under(folder)
     }
 }
 
@@ -321,6 +320,17 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
+    fn a_linux_hosts_disk_is_what_df_prints_without_running_it() {
+        let folder = std::env::current_dir().unwrap();
+        let df = String::from_utf8(Command::new("df").args(["-kP"]).arg(&folder).output().unwrap().stdout).unwrap();
+        let (printed, disk) = (parse_df(&df).unwrap(), LinuxHost.disk(&folder).unwrap());
+        // df prints whole kilobytes; files come and go between the two reads on a runner other jobs share.
+        assert!(disk.total.abs_diff(printed.total) < BLOCK, "{disk:?} {printed:?}");
+        assert!(disk.used.abs_diff(printed.used) < 64 * 1024 * 1024, "{disk:?} {printed:?}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
     fn asks_this_platform_for_memory_the_way_it_answers_honestly_the_hosts_own_meminfo_on_linux() {
         // Memory moves between two reads, so the two agree to within a window rather than exactly.
         let read = LinuxHost.memory().unwrap();
@@ -346,10 +356,6 @@ mod tests {
     #[test]
     fn a_folder_that_is_not_there_is_refused_in_the_words_of_what_read_it() {
         let err = HostSysSource::new(PathBuf::from("/no/such/folder/anywhere")).read().unwrap_err();
-        if cfg!(target_os = "macos") {
-            assert!(err.starts_with("statfs /no/such/folder/anywhere: "), "{err}");
-        } else {
-            assert_eq!(err, "df printed no filesystem line");
-        }
+        assert!(err.starts_with("statfs /no/such/folder/anywhere: "), "{err}");
     }
 }
