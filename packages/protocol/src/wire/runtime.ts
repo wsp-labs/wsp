@@ -23,6 +23,7 @@ import { EditorId, HISTORY_PAGE_MAX, PreferencesPatch } from "../views/preferenc
 import { IMAGE_PASSPHRASE_MIN, MachineKind } from "../views/golden-image.js";
 import { PlaceSettingsAsk, PlaceSettingWord, PlaceSetupStep, SudoPassword } from "../views/place.js";
 import { AppProcList } from "../views/app-procs.js";
+import { ActivityEnded, ProcessesAsk } from "../views/activity.js";
 import { DaemonFrame, TicketPurpose } from "./devices.js";
 import { DeviceAuthRequest, PlaceAuthRequest, PlaceJoinRequest, PlaceProveRequest, SealOpenRequest } from "./place-link.js";
 
@@ -444,6 +445,14 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("appProcs.offer") }),
   /** The app's processes as it read them just now, from a socket that offered; pushed to every socket that watches. */
   z.object({ id: reqId, op: z.literal("appProcs.set"), procs: AppProcList }),
+  /** A computer's processes by the thread that started them, replied as { activity: ActivityView }: this computer's,
+   * the one a computer named must be, or one thread's alone, refused for a thread on a box. A thread reads itself and
+   * the threads under it alone. */
+  z.object({ id: reqId, op: z.literal("activity.read"), computer: z.string().optional(), thread: z.string().optional() }),
+  /** Ends one process and every process under it, by the pid and the start activity.read listed: TERM, then KILL to
+   * what is still there after END_GRACE_MS. Refuses the agent, a pid that names another process now, wsp's own, and
+   * for a thread anything outside it and the threads under it. Replied as an ActivityEnded. */
+  z.object({ id: reqId, op: z.literal("activity.end"), computer: z.string().optional(), pid: z.number().int().positive(), startedAt: z.number() }),
   /** Sends one frame down a channel this socket opened and replies with a DaemonSendReply carrying the daemon's own
    * answer, ok or not. Refused (ok false, no kind) when the channel is not this socket's or died before the daemon
    * answered. */
@@ -579,7 +588,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
   /** Takes a thread away on this computer, its turns and its checkpoints with it: a thread in the project folder goes
    * alone and the folder is never touched; a thread in a worktree wsp made takes that worktree and every thread in it,
    * refused over files no commit holds. A thread on a box goes with its machine. */
-  z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string() }),
+  /** processes reads the threads it would take as sessions.settle's does; with check nothing goes, and the answer is
+   * what would. */
+  z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string(), processes: ProcessesAsk.optional(), check: z.boolean().optional() }),
   /** A window showed the thread, or `wsp thread read` read it: its read stamp moves to now, and every window hears
    * thread.marked. Takes the thread's fold key, as ThreadView.id carries it. */
   z.object({ id: reqId, op: z.literal("sessions.read"), threadId: z.string() }),
@@ -609,7 +620,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * every window hears thread.marked; with finished, each named thread stays and the finished threads under it
    * settle. The named threads keep the settle's stamp, which a restore of them reads. Replies with a
    * SessionSettleResult. Takes fold keys. */
-  z.object({ id: reqId, op: z.literal("sessions.settle"), threadIds: z.array(z.string()).min(1), finished: z.boolean().optional() }),
+  /** With processes, the threads it would move are read for what they still run beside their agents first: ask
+   * refuses naming them, stop ends each by identity, keep leaves them; without it nothing is read. */
+  z.object({ id: reqId, op: z.literal("sessions.settle"), threadIds: z.array(z.string()).min(1), finished: z.boolean().optional(), processes: ProcessesAsk.optional() }),
   /** The person pinned, snoozed or placed these threads, or took one of those back with false or null: each moves on
    * the thread's record and every window hears thread.marked. A snooze stamps the thread read as well, since putting
    * a finish away is looking at it. Takes fold keys. */
@@ -1061,6 +1074,9 @@ export const THREAD_OPS: readonly string[] = [
   "sessions.settle",
   "sessions.restore",
   "sessions.search",
+  // A thread reads and ends the processes of itself and the threads under it; the runtime reads that rule.
+  "activity.read",
+  "activity.end",
   // A thread writes and reads its own slate, and a lead reads a child's; the window's own slate ops are not here.
   "slates.write",
   "slates.state",
@@ -1309,7 +1325,7 @@ export const SettledThread = z.object({ threadId: z.string(), title: z.string() 
 export type SettledThread = z.infer<typeof SettledThread>;
 /** What a settle moved, and each thread it was named that it left with why: a tree with a thread working or asking,
  * or a thread the fold already holds. */
-export const SessionSettleResult = z.object({ settled: z.array(SettledThread), left: z.array(z.object({ threadId: z.string(), why: z.string() })) });
+export const SessionSettleResult = z.object({ settled: z.array(SettledThread), left: z.array(z.object({ threadId: z.string(), why: z.string() })), ended: z.array(ActivityEnded).optional() });
 export type SessionSettleResult = z.infer<typeof SessionSettleResult>;
 export const SessionRestoreResult = z.object({ restored: z.array(SettledThread) });
 export type SessionRestoreResult = z.infer<typeof SessionRestoreResult>;

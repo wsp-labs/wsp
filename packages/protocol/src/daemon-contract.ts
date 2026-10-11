@@ -247,6 +247,10 @@ export const daemonListeningLine = (host: string, port: number | string): string
  * reading. */
 export const DAEMON_SAMPLER_INTERVAL_MS = 2_000;
 
+/** How often a running process sampler reads the processes after its first snapshot, so the most a list it answers
+ * can lag the processes as they are. The Rust daemon's PROC_INTERVAL_MS, held equal by the contract fixture set. */
+export const DAEMON_PROC_INTERVAL_MS = 5_000;
+
 /** The sampler lines the daemon logs: one sampler serves every watcher, starts with the first and stops with the
  * last, and these two pairs are how a test reads that without a counter inside the daemon. */
 export const SYS_SAMPLER_STARTED = "sys sampler started";

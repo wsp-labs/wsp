@@ -109,6 +109,7 @@ import {
   noProjectLine,
   READ_PROJECTS_FIX,
   refusal,
+  type ProcessesAsk,
 } from "@wsp/protocol";
 import { gitRootOf } from "../repo-root.js";
 import { type HostClient, pushedFrames, type Out, hostPlatform, flagFor, type SshAsked, type VerbContext, absolutePath, accessWordOf, under, otherVersion, threadIdOf, openedThreadSaid } from "./client.js";
@@ -579,8 +580,8 @@ export function threadForgotLine(thread: ThreadView): string {
 
 /** Settles the threads a person names and every thread under each, or with finished the finished threads under each
  * and not it, through the host, which answers what it settled and what it left with why. */
-export async function settleThreads(client: HostClient, threads: readonly ThreadView[], finished: boolean): Promise<SessionSettleResult> {
-  return SessionSettleResult.parse(await client.request("sessions.settle", { threadIds: threads.map(t => t.id), ...(finished ? { finished: true } : {}) }));
+export async function settleThreads(client: HostClient, threads: readonly ThreadView[], finished: boolean, processes?: ProcessesAsk): Promise<SessionSettleResult> {
+  return SessionSettleResult.parse(await client.request("sessions.settle", { threadIds: threads.map(t => t.id), ...(finished ? { finished: true } : {}), ...(processes !== undefined ? { processes } : {}) }));
 }
 
 /** Brings the threads a person names back out of the fold, each with what the latest settle naming it moved. */

@@ -59,6 +59,14 @@ import {
   CONVERSATION_OPEN_KIND,
   conversationOpenFix,
   conversationOpenLine,
+  BOX_ACTIVITY_FIX,
+  END_AGAIN_FIX,
+  agentEndFix,
+  agentEndLine,
+  boxActivityLine,
+  endReusedLine,
+  processesLeftRefusal,
+  type ActivityEnded,
 } from "@wsp/protocol";
 import { BASE_GROUP, FLOOR_LINE, GROUP_LABEL, tableLines, totalsLine, type TableRow } from "../src/init-table.js";
 import { GUTTER } from "../src/init-layout.js";
@@ -92,6 +100,7 @@ import {
   type Turn,
   type VerbDeps,
 } from "../src/verbs.js";
+import { activityLines, endedLines } from "../src/verbs/activity.js";
 import { SERVICE_WAIT_MS } from "../src/host-lock.js";
 
 /** The message a piece of work is refused with; a record that expected a refusal and got none is a broken record. */
@@ -231,6 +240,25 @@ function recipeTableWords(): Record<string, unknown> {
   };
 }
 
+/** Activity's sentences in the shape the Rust side fills; the columns of its rows are laid out there as activityLines
+ * lays them. */
+function activityWords(): Record<string, string> {
+  const row = { pid: 1, ppid: 0, depth: 0, startedAt: 0, kind: "other" as const, name: "{name}", command: "c", memory: 0, cpu: 0, ports: [] };
+  const named = { ...row, pid: "{pid}" as unknown as number };
+  const ended = (over: Partial<ActivityEnded>): string[] => endedLines({ pid: 1, ended: [named], forced: [], left: [], ...over }).split("\n");
+  const [wsp, , unowned] = activityLines({ computer: "c", at: 0, threads: [], wsp: [row], unowned: [row] }).split("\n");
+  return {
+    none: activityLines({ computer: "{computer}", at: 0, threads: [], wsp: [], unowned: [] }),
+    wsp: wsp!,
+    unowned: unowned!,
+    ended: ended({})[0]!,
+    endedUnder: ended({ ended: [named, row, row] })[0]!.replace(" 2 under", " {count} under"),
+    forced: ended({ forced: ["{pids}" as unknown as number] })[1]!,
+    left: ended({ left: ["{pids}" as unknown as number] })[1]!,
+    freed: endedLines({ pid: 1, ended: [], forced: [], left: [], freed: "{thread}" }),
+  };
+}
+
 export async function turnWords(): Promise<Record<string, unknown>> {
   const session = (id: string) => ({ id, workspaceId: "w", harness: "claude", status: "completed" });
   const several = await refused(() => threadOf(answering({ "sessions.list": { sessions: [session("{ref}a"), session("{ref}b")] } }), "{ref}"));
@@ -259,6 +287,7 @@ export async function turnWords(): Promise<Record<string, unknown>> {
     agents: Object.fromEntries(CATALOG_AGENTS.map(e => [e.id, e.name])),
     threadWithoutId: threadWithoutIdRefusal("{row}"),
     threadForgot: threadForgotLine({ id: "{thread}" } as ThreadView),
+    activity: activityWords(),
     threadSettled: settledLines({ settled: [{ threadId: "{thread}", title: "{title}" }], left: [] }),
     threadLeft: settledLines({ settled: [], left: [{ threadId: "{thread}", why: "{why}" }] }),
     nothingSettled: settledLines({ settled: [], left: [] }),
@@ -352,6 +381,29 @@ const SESSIONS = [
   sessionRow({ id: "sess-3", threadId: OTHER, harness: "codex", status: "completed" }),
 ];
 const listed = (rows: readonly unknown[] = SESSIONS): string => ok({ sessions: rows });
+/** One process as Activity lists it, a dev server unless the case says otherwise; fields out of the schema's order. */
+const activityProc = (over: Record<string, unknown>) => ({ ports: [], cpu: 0.25, memory: 80_000_000, command: "node /lab/node_modules/.bin/vite", name: "node", kind: "dev", startedAt: 1_760_000_001_000, depth: 1, ppid: 4100, pid: 4200, ...over });
+const ACTIVITY = {
+  computer: "lab-mac",
+  at: 1_760_000_010_000,
+  threads: [
+    {
+      threadId: THREAD,
+      title: "fix the \u0085 build",
+      workspaceId: "ws-1",
+      memory: 400_000_000,
+      cpu: 13.05,
+      processes: [
+        activityProc({ pid: 4100, ppid: 1, depth: 0, kind: "agent", name: "2.1.296", command: "claude -p --input-format stream-json", memory: 300_000_000, cpu: 3, startedAt: 1_760_000_000_000 }),
+        activityProc({ ports: [5173, 24678], cpu: 10.05 }),
+        activityProc({ pid: 4300, ppid: 4200, depth: 2, kind: "other", name: "esbuild", command: "esbuild --service=0.25.0 --ping", memory: 20_000_000, cpu: 0, startedAt: 1_760_000_002_000 }),
+      ],
+    },
+  ],
+  wsp: [activityProc({ pid: 1, ppid: 0, depth: 0, kind: "wsp", name: "wsp-daemon", command: "wsp-daemon serve", memory: 9_000_000, cpu: 0.5, startedAt: 1_759_000_000_000 })],
+  unowned: [activityProc({ pid: 5000, ppid: 1, depth: 0, kind: "other", name: "naïve", command: "naïve \"résumé\"", memory: 512, cpu: 0 })],
+};
+const ENDED = { left: [], forced: [], ended: [activityProc({}), activityProc({ pid: 4300, ppid: 4200, depth: 2, kind: "other", name: "esbuild", command: "esbuild --service", memory: 20_000_000 })], pid: 4200 };
 const resolved = (workspace: unknown = WORKSPACE): string => ok({ workspace });
 /** A thread's replies: the index THREAD is read off, on the record given, and that record. */
 const atThread = (workspace: { id: string; [field: string]: unknown } = WORKSPACE): Record<string, string> => ({ "sessions.list": listed([{ id: "s-1", workspaceId: workspace.id, harness: "claude", status: "completed", threadId: THREAD }]), "workspaces.get": resolved(workspace) });
@@ -454,7 +506,24 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "finished, nothing to settle", arguments: { threads: [THREAD], finished: true }, replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [], left: [] }) } },
     { case: "already settled", arguments: { threads: [THREAD], finished: false }, replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [], left: [{ threadId: THREAD, why: "already settled" }] }) } },
     { case: "a thread nobody holds", arguments: { threads: ["nobody"] }, replies: { "sessions.list": listed() } },
+    { case: "processes stopped first", arguments: { threads: [THREAD], processes: "stop" }, replies: { "sessions.list": listed(), "sessions.settle": ok({ ended: [ENDED, { pid: 4400, ended: [activityProc({ pid: 4400 })], forced: [4400], left: [] }], left: [], settled: [{ threadId: THREAD, title: "fix" }] }) } },
+    { case: "processes kept", arguments: { threads: [THREAD], processes: "keep" }, replies: { "sessions.list": listed(), "sessions.settle": ok({ settled: [{ threadId: THREAD, title: "fix" }], left: [] }) } },
+    { case: "refused while processes run", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed(), "sessions.settle": no(processesLeftRefusal("settle", [{ ...ACTIVITY.threads[0]!, processes: ACTIVITY.threads[0]!.processes.slice(1) }] as never).message, "usage") } },
     { case: "refused for its lead", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed(), "sessions.settle": no("thread thread-7 is not under this thread, and a thread settles and restores only itself and the threads it started. leave its lead and the threads beside it to the person.", "usage") } },
+  ],
+  activity: [
+    { case: "a thread's tree, wsp's own and what has no thread", arguments: {}, replies: { "activity.read": ok({ activity: ACTIVITY }) } },
+    { case: "one thread", arguments: { thread: "thread-7f" }, replies: { "sessions.list": listed(), "activity.read": ok({ activity: { ...ACTIVITY, wsp: [], unowned: [] } }) } },
+    { case: "nothing runs", arguments: { computer: "lab-mac" }, replies: { "activity.read": ok({ activity: { computer: "lab-mac", at: 1, threads: [], wsp: [], unowned: [] } }) } },
+    { case: "a thread nobody holds", arguments: { thread: "nobody" }, replies: { "sessions.list": listed() } },
+    { case: "a box refused", arguments: { computer: "hetzner" }, replies: { "activity.read": no(refusalLine(boxActivityLine("hetzner"), BOX_ACTIVITY_FIX), "usage") } },
+  ],
+  activity_end: [
+    { case: "ended with what was under it", arguments: { pid: 4200, started: 1_760_000_001_000 }, replies: { "activity.end": ok(ENDED) } },
+    { case: "forced, one left", arguments: { pid: 4200, started: 1_760_000_001_000, computer: "lab-mac" }, replies: { "activity.end": ok({ ...ENDED, ended: [activityProc({})], forced: [4200], left: [4200] }) } },
+    { case: "a kept agent freed", arguments: { pid: 4100, started: 1_760_000_000_000 }, replies: { "activity.end": ok({ pid: 4100, ended: [activityProc({ pid: 4100, kind: "agent" })], forced: [], left: [], freed: THREAD }) } },
+    { case: "the agent refused", arguments: { pid: 4100, started: 1_760_000_000_000 }, replies: { "activity.end": no(refusalLine(agentEndLine(4100, { threadId: THREAD, title: "fix", workspaceId: "ws-1", roots: [] }), agentEndFix({ threadId: THREAD, title: "fix", workspaceId: "ws-1", roots: [] })), "usage") } },
+    { case: "a pid that is another process now", arguments: { pid: 4200, started: 5 }, replies: { "activity.end": no(refusalLine(endReusedLine(4200, { comm: "sleep", startedAt: 1_760_000_001_000 } as never, 5), END_AGAIN_FIX), "not-found") } },
   ],
   thread_restore: [
     { case: "restored", arguments: { threads: ["thread-7f"] }, replies: { "sessions.list": listed(), "sessions.restore": ok({ restored: [{ threadId: THREAD, title: "fix the \u0085 build" }, { threadId: "thread-c4c4c4c4d5d5", title: "naïve" }] }) } },

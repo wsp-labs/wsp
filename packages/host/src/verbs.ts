@@ -376,6 +376,7 @@ import { PROJECT_VERBS } from "./verbs/projects.js";
 import { WORKSPACE_VERBS } from "./verbs/workspaces.js";
 import { THREAD_VERBS } from "./verbs/threads.js";
 import { CONVERSATION_VERBS } from "./verbs/conversations.js";
+import { ACTIVITY_VERBS } from "./verbs/activity.js";
 export * from "./verbs/client.js";
 export * from "./verbs/workspaces-help.js";
 export * from "./verbs/turns-help.js";
@@ -391,6 +392,7 @@ export const ALL_VERBS: readonly Verb[] = [
   ...WORKSPACE_VERBS,
   ...THREAD_VERBS,
   ...CONVERSATION_VERBS,
+  ...ACTIVITY_VERBS,
 ];
 
 const isCloudVerb = (v: Verb): boolean => "cloud" in v && v.cloud === true;
@@ -470,6 +472,11 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   copy: "with --resume, continue on a copy of the conversation the agent makes, the original left as it was: what a conversation open in another app needs",
   "thread deny reason": "what the agent should do instead, in your words; it reads them with the refusal, as it reads the reason typed in the app",
   "thread settle finished": "settle the finished threads under each thread named, and not the thread itself; a failed one stays for you to read",
+  "thread settle processes": "stop ends every process a thread to settle still runs beside its agent, by identity, before it settles; keep leaves them running; refused without it while any run",
+  "delete processes": "stop ends every process the thread still runs beside its agent, by identity, before it goes; keep leaves them running; refused without it while any run",
+  "activity computer": "the computer to read, which must be this one; a box's processes are in the app's Processes pane",
+  "activity end computer": "the computer the process runs on, which must be this one",
+  "activity end started": "the process's start as wsp activity --json lists it, startedAt in epoch milliseconds; a pid that started otherwise is refused",
   "stop subagent": "stop one of the agent's own subagents alone, by its id in the SUBAGENT column of wsp threads; the turn and its other subagents run on",
   effort: "how hard the agent thinks, by its own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default; on send, the thread's own",
   engine: "give it the place's Docker or podman through a socket that sees its own containers alone",

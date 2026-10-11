@@ -30,11 +30,8 @@ pub const FORGET: Tool = Tool {
     listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/thread_forget.json")),
     call: |host, args| Box::pin(forget(host, args)),
 };
-pub const SETTLE: Tool = Tool {
-    name: "thread_settle",
-    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/thread_settle.json")),
-    call: |host, args| Box::pin(settle(host, args)),
-};
+const SETTLE_LISTED: &str = include_str!(concat!(env!("OUT_DIR"), "/record/tools/thread_settle.json"));
+pub const SETTLE: Tool = Tool { name: "thread_settle", listed: SETTLE_LISTED, call: |host, args| Box::pin(settle(host, args)) };
 pub const RESTORE: Tool = Tool {
     name: "thread_restore",
     listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/thread_restore.json")),
@@ -205,6 +202,8 @@ pub struct SettleIn {
     pub threads: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finished: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub processes: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -234,6 +233,9 @@ pub struct Left {
 pub struct SettleOut {
     pub settled: Vec<Moved>,
     pub left: Vec<Left>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<Vec<serde_json::Value>>"))]
+    pub ended: Option<Box<serde_json::value::RawValue>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -248,21 +250,32 @@ async fn named_ids(client: &crate::client::Client, named: &[String]) -> Result<V
 }
 
 async fn settle(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
-    let SettleIn { threads, finished } = input("thread_settle", arguments)?;
+    let SettleIn { threads, finished, processes } = input("thread_settle", arguments)?;
     let client = host.client().await?;
     let mut asked = params([("threadIds", named_ids(&client, &threads).await?)]);
     if finished == Some(true) {
         asked.insert("finished".to_owned(), Value::Bool(true));
     }
-    let out: SettleOut = client.request("sessions.settle", asked).await?;
+    asked.insert("processes".to_owned(), Value::from(processes.unwrap_or_else(|| "ask".to_owned())));
+    let mut out: SettleOut = client.request("sessions.settle", asked).await?;
+    let ended = super::activity::ended_of(SETTLE_LISTED, host.cloud(), "ended", out.ended.take())?;
     let words = turns();
-    let lines: Vec<String> = out
-        .settled
-        .iter()
-        .map(|t| fill(&words.thread_settled, &[("thread", &thread_word(&t.thread_id)), ("title", &t.title)]))
-        .chain(out.left.iter().map(|t| fill(&words.thread_left, &[("thread", &thread_word(&t.thread_id)), ("why", &t.why)])))
+    let ended_lines = ended.as_ref().map(|e| e.lines.clone()).unwrap_or_default();
+    out.ended = ended.map(|e| e.parsed);
+    let lines: Vec<String> = ended_lines
+        .into_iter()
+        .chain(
+            out.settled
+                .iter()
+                .map(|t| fill(&words.thread_settled, &[("thread", &thread_word(&t.thread_id)), ("title", &t.title)]))
+                .chain(out.left.iter().map(|t| fill(&words.thread_left, &[("thread", &thread_word(&t.thread_id)), ("why", &t.why)]))),
+        )
         .collect();
-    let line = if lines.is_empty() { words.nothing_settled.clone() } else { lines.join("\n") };
+    let line = if out.settled.is_empty() && out.left.is_empty() {
+        lines.into_iter().chain([words.nothing_settled.clone()]).collect::<Vec<_>>().join("\n")
+    } else {
+        lines.join("\n")
+    };
     Ok(Answer::text(line, &out))
 }
 

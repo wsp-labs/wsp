@@ -2,6 +2,7 @@
 //! Every tool this server serves: its entry as the TypeScript server lists it, recorded under record/tools, and the
 //! call that answers it through the host. CONTRIBUTING.md in this crate says how one is added.
 
+mod activity;
 pub(crate) mod add;
 mod agents;
 mod changes;
@@ -129,6 +130,8 @@ pub const TOOLS: &[Tool] = &[
     agents::PLUGINS,
     projects::TOOL,
     conversations::TOOL,
+    activity::READ,
+    activity::END,
     threads::THREADS,
     threads::THREAD_READ,
     threads::THREAD_HEAD,

@@ -351,7 +351,7 @@
     "review_post": "wsp review post <thread> [--verdict comment|approve|request-changes] [--summary \"<text>\"]",
     "update": "wsp update <thread>",
     "image": "wsp image",
-    "delete": "wsp delete <thread> [--yes]",
+    "delete": "wsp delete <thread> [--processes stop|keep] [--yes]",
     "run": "wsp run [<project>] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\"",
     "worktree": "wsp worktree <project> <branch>",
     "worktree_remove": "wsp worktree remove <project> <branch> [--force] [--yes]",
@@ -359,7 +359,7 @@
     "thread_head": "wsp thread head <thread>",
     "thread_rename": "wsp thread rename <thread> \"<title>\"",
     "thread_forget": "wsp thread forget <thread> [--yes]",
-    "thread_settle": "wsp thread settle <thread>... [--finished]",
+    "thread_settle": "wsp thread settle <thread>... [--finished] [--processes stop|keep]",
     "thread_restore": "wsp thread restore <thread>...",
     "thread_allow": "wsp thread allow <thread>",
     "thread_deny": "wsp thread deny <thread> [--reason \"<words>\"]",
@@ -374,7 +374,9 @@
     "folders": "wsp folders [<folder>] [--hidden] [--repos] [--on <computer>]",
     "setup": "wsp setup",
     "terminal_config": "wsp terminal config [--scheme light|dark]",
-    "conversations": "wsp conversations [<project>] [--agent <id>]"
+    "conversations": "wsp conversations [<project>] [--agent <id>]",
+    "activity": "wsp activity [<thread>] [--computer <computer>]",
+    "activity_end": "wsp activity end <pid> --started <ms> [--computer <computer>]"
   },
   "defaults": {
     "agentSetNothing": "wsp agents set takes --model, --effort, --access, a model to --hide, --show, --add-model or --drop-model, --order or --reset. Name at least one; with none of them there is nothing to change.",

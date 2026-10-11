@@ -122,6 +122,7 @@ import { keyFingerprint, openFrame, verifyPlaceBytes, type Seal } from "@wsp/key
 import { startAt } from "./threads/answered-start.js";
 import type { HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, ProjectBundler, ProjectLander, RecipeShelf, Runtime } from "./runtime.js";
 import { appProcsHubOf, isAppProcsRequest } from "./serve-app-procs.js";
+import { answerProcesses, isProcessesRequest } from "./serve-processes.js";
 import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerProject, isProjectRequest } from "./serve-projects.js";
@@ -872,6 +873,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
           if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds)) });
           if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
           if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
+          if (isProcessesRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProcesses(rt, msg, origin)) });
           switch (msg.op) {
             case "auth":
               send({ id: msg.id, ok: true, ...released });
@@ -1526,9 +1528,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               await rt.sessions.forget(msg.threadId, origin, msg.check === true ? { check: true } : {});
               send({ id: msg.id, ok: true });
               return;
-            case "sessions.delete":
-              send({ id: msg.id, ok: true, ...(await rt.sessions.delete(msg.threadId, origin)) });
-              return;
             case "sessions.read":
               await rt.sessions.read(msg.threadId, origin);
               send({ id: msg.id, ok: true });
@@ -1536,9 +1535,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
             case "sessions.replaceable":
               await rt.sessions.replaceable(msg.threadId, origin);
               send({ id: msg.id, ok: true });
-              return;
-            case "sessions.settle":
-              send({ id: msg.id, ok: true, ...(await rt.sessions.settle(msg.threadIds, origin, msg.finished === true ? { finished: true } : {})) });
               return;
             case "sessions.mark":
               await rt.sessions.mark(msg.threadIds, msg.marks, origin);
