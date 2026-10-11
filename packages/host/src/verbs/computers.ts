@@ -20,14 +20,18 @@ import {
   USAGE_SPLITS,
   ResetAnswer,
   resetQuestion,
-  CLOUD_SIZE_WORDS,
   DELETE_AFTER_MAX_MS,
-  sizeOfWord,
+  sizeFromWord,
+  type WorkspaceSize,
 } from "@wsp/protocol";
 import { addComputer } from "../setup-follow.js";
-import { hostPlatform, computerLines, computerSetLines, recipeLines, recipeShownLines, recipeSavedLine, recipeRemovedLine, oneOf, readUsage, accountNamed, usageTableLines, readComputers, SETTING_RESETS, setComputer, cloudSizeAsked, deleteAfterAsked, napAsked, turnLimitAsked, dollarsAsked, usageIs, tool, type Verb, flag, flagList } from "./client.js";
-import { agentsAsked, countAsked } from "./workspaces-help.js";
+import { hostPlatform, computerLines, computerSetLines, recipeLines, recipeShownLines, recipeSavedLine, recipeRemovedLine, oneOf, readUsage, accountNamed, usageTableLines, readComputers, SETTING_RESETS, setComputer, placeNamed, deleteAfterAsked, napAsked, turnLimitAsked, dollarsAsked, usageIs, tool, type Verb, flag, flagList } from "./client.js";
+import { agentsAsked, countAsked, sizeChosen } from "./workspaces-help.js";
 import { confirmed, asJson } from "./io.js";
+
+/** The size a --size word names, sent for the host to hold against the kind and the sizes the row offers; a word
+ * that names no size at all is refused here, in the one size sentence over that row's sizes. */
+const sizeRead = (place: PlaceView, word: string): WorkspaceSize => sizeFromWord(word) ?? sizeChosen(place.sizes ?? [], word);
 
 export const COMPUTER_VERBS: readonly Verb[] = [
   {
@@ -73,20 +77,21 @@ export const COMPUTER_VERBS: readonly Verb[] = [
         ...(threads !== undefined ? { threads: countAsked("--threads", threads, 1, ref) } : {}),
         ...(machines !== undefined ? { machines: countAsked("--machines", machines, 1, ref) } : {}),
         ...(spend !== undefined ? { spendPerDayUsd: dollarsAsked(spend, ref) } : {}),
-        ...(size !== undefined ? { size: cloudSizeAsked(size, ref) } : {}),
         ...(deleteAfter !== undefined ? { deleteAfterMs: deleteAfterAsked(deleteAfter, ref) * 60_000 } : {}),
         ...(nap !== undefined ? { napMs: napMsOf(napAsked(nap, ref)) } : {}),
         ...(turnLimit !== undefined ? { turnLimitMs: turnLimitMsOf(turnLimitAsked(turnLimit, ref)) } : {}),
         ...(spawn !== undefined ? { spawn } : {}),
       };
       const reset = flagList(ctx.flags, "reset").map(word => oneOf("reset", SETTING_RESETS, word, ref)!);
-      const { computer, was } = await setComputer(await ctx.client(), ref, set, reset, also);
+      const client = await ctx.client();
+      const place = await placeNamed(client, ref);
+      const { computer, was } = await setComputer(client, place, { ...set, ...(size !== undefined ? { size: sizeRead(place, size) } : {}) }, reset, also);
       ctx.out.emit({ computer }, computerSetLines(computer, was, also, Object.keys(set).length > 0 || reset.length > 0).join("\n"));
       return 0;
     },
     tool: tool({
       description:
-        `Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on<!-- cloud -->, for a cloud<!-- /cloud --> and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns<!-- cloud --> and 6 on a cloud<!-- /cloud --> until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it<!-- boat -->; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of ${CLOUD_SIZE_WORDS} (2x4 until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set)<!-- /boat -->. A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.`,
+        "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on<!-- cloud -->, for a cloud<!-- /cloud --> and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns<!-- cloud --> and 6 on a cloud<!-- /cloud --> until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it<!-- boat -->; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set)<!-- /boat -->. A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
       input: {
         computer: z.string().describe("the computer, by the name computers lists or its id"),
         name: z.string().optional().describe("what to call a computer the person added from now"),
@@ -107,11 +112,13 @@ export const COMPUTER_VERBS: readonly Verb[] = [
       output: { computer: PlaceView },
       call: async ({ computer: ref, name, ssh, threads, machines, spend, size, delete_after: deleteAfter, nap, turn_limit: turnLimit, spawn: on, max_machines: maxMachines, max_depth: maxDepth, recipe, reset }, deps) => {
         const spawn = agentsAsked(on, maxMachines, maxDepth);
-        const { computer } = await setComputer(await deps.client(), ref, {
+        const client = await deps.client();
+        const place = await placeNamed(client, ref);
+        const { computer } = await setComputer(client, place, {
           ...(threads !== undefined ? { threads } : {}),
           ...(machines !== undefined ? { machines } : {}),
           ...(spend !== undefined ? { spendPerDayUsd: spend } : {}),
-          ...(size !== undefined ? { size: sizeOfWord(size)! } : {}),
+          ...(size !== undefined ? { size: sizeRead(place, size) } : {}),
           ...(deleteAfter !== undefined ? { deleteAfterMs: deleteAfter * 60_000 } : {}),
           ...(nap !== undefined ? { napMs: napMsOf(nap) } : {}),
           ...(turnLimit !== undefined ? { turnLimitMs: turnLimitMsOf(turnLimit) } : {}),

@@ -55,6 +55,13 @@ describe("threads at once", () => {
     expect(placeCapOf({ kind: "provider" }, { spendPerDayUsd: 0 })).toEqual({ machines: 3, spendPerDayUsd: 0 });
   });
 
+  it("takes a sub-thread's size only among the sizes that cloud's own row offers, refused in the one size sentence", () => {
+    const solari = { id: "solari", kind: "provider" as const, name: "solari", takesForks: true, sizes: [{ cpu: 2, memMb: 4096, rateUsdPerHour: 0.1 }] };
+    expect(placeSetRefusal(solari, { size: { cpu: 16, memMb: 32768 } })).toBe("16x32 is not a size this provider offers; the sizes are 2x4 ($0.10/hr)");
+    expect(placeSetRefusal(solari, { size: { cpu: 2, memMb: 4096 } })).toBeUndefined();
+    expect(placeSetRefusal({ ...solari, sizes: undefined }, { size: { cpu: 2, memMb: 4096 } })).toBe("2x4 is not a size this provider offers; the sizes are ");
+  });
+
   it("refuses a number the row's kind does not take, set or reset, a set with nothing in it, one key both set and reset, and counts below one", () => {
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, { machines: 2 })).toBe("spoo takes threads at once, turn limit, agents may start agents and levels deep, not machines at once");
     expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { threads: 2 })).toBe("solari takes machines at once, spend per day, size, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once");

@@ -46,14 +46,14 @@ async fn project_of(client: &Client, reference: &str) -> Result<Project, Failure
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Offer {
+pub(super) struct Offer {
     cpu: f64,
     mem_mb: f64,
     rate_usd_per_hour: f64,
 }
 
 /// The size a --size word names, or nothing when it names none: vCPUs, an x, and memory in GB.
-fn size_from_word(word: &str) -> Option<(f64, f64)> {
+pub(super) fn size_from_word(word: &str) -> Option<(f64, f64)> {
     let word = word.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}');
     let (cpu, mem) = word.split_once('x')?;
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
@@ -76,7 +76,7 @@ fn size_word(offer: &Offer) -> String {
 }
 
 /// The size refused in the one sentence every road gives, with every size on offer and its rate.
-fn size_refused(word: &str, offered: &[Offer]) -> Failure {
+pub(super) fn size_refused(word: &str, offered: &[Offer]) -> Failure {
     let sizes = offered.iter().map(|o| format!("{} ({})", size_word(o), fmt_rate(o.rate_usd_per_hour))).collect::<Vec<_>>().join(", ");
     let template = workspace::words().size_refused;
     // An empty list leaves the sentence ending where the list would start, and the fix follows its full stop.

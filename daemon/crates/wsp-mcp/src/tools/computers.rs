@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::{Map, Number, Value};
 
-use super::target::place_id;
+use super::create::{size_from_word, size_refused};
+use super::target::place_named;
 use super::workspace::agents_asked;
 use super::{entry_in, held_field, input, input_refusal, refused_field, Answer, Refused, Tool};
 use crate::host::Host;
@@ -133,16 +134,20 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
     let client = host.client().await?;
     let words = record::words();
     let mut frame = Map::new();
-    let place = place_id(&client, &words, &computer).await?;
+    let (place, offered) = place_named(&client, &words, &computer).await?;
     frame.insert("placeId".to_owned(), Value::from(place));
     for (key, value) in [("threads", threads), ("machines", machines), ("spendPerDayUsd", spend)] {
         if let Some(n) = value {
             frame.insert(key.to_owned(), Value::Number(n));
         }
     }
+    // A word that names no size at all is refused here over the row's sizes; the host holds a size against the rest.
     if let Some(word) = size {
-        let figures = size_of_word(&word).ok_or_else(|| refused_field(SET_NAME, SET_LISTED, host.cloud(), "size", Value::from(word)))?;
-        frame.insert("size".to_owned(), figures);
+        let (cpu, mem_mb) = size_from_word(&word).ok_or_else(|| size_refused(&word, &offered))?;
+        let mut figures = Map::new();
+        figures.insert("cpu".to_owned(), Value::from(cpu as u64));
+        figures.insert("memMb".to_owned(), Value::from(mem_mb as u64));
+        frame.insert("size".to_owned(), Value::Object(figures));
     }
     if let Some(minutes) = &delete_after {
         let ms = minutes
@@ -176,20 +181,6 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
     Ok(Answer::json(&SetOut { computer: place }))
 }
 
-/// The size a `<cpu>x<memGb>` word names, as the host stores it, the rule sizeOfWord keeps on the host's side; which
-/// sizes a cloud takes is the host's to refuse.
-fn size_of_word(word: &str) -> Option<Value> {
-    let (cpu, gb) = word.split_once('x')?;
-    let all_digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    if !all_digits(cpu) || !all_digits(gb) {
-        return None;
-    }
-    let mut size = Map::new();
-    size.insert("cpu".to_owned(), Value::from(cpu.parse::<u64>().ok()?));
-    size.insert("memMb".to_owned(), Value::from(gb.parse::<u64>().ok()?.checked_mul(1024)?));
-    Some(Value::Object(size))
-}
-
 /// The nap window a call names in minutes, held to the entry's range in its own words: none of them never naps, the
 /// rule napMsOf keeps on the host's side.
 fn nap_asked(entry: &str, minutes: &Number) -> Result<Value, String> {
@@ -211,7 +202,7 @@ mod tests {
     use serde_json::{json, Number, Value};
 
     use super::super::{entry_in, held_field};
-    use super::{nap_asked, size_of_word, turn_limit_asked, SET};
+    use super::{nap_asked, turn_limit_asked, SET};
 
     fn minutes(v: Value) -> Number {
         v.as_number().unwrap().clone()
@@ -243,15 +234,6 @@ mod tests {
         for given in [json!(1.5), json!(-1), json!(25)] {
             let refused = turn_limit_asked(entry, &minutes(given.clone())).expect_err(&format!("{given} was taken"));
             assert_eq!(refused, recorded(json!({ "computer": "attic", "turn_limit": given })));
-        }
-    }
-
-    #[test]
-    fn a_size_word_is_cores_and_memory_in_megabytes_and_anything_else_reads_as_none() {
-        assert_eq!(size_of_word("4x8"), Some(json!({ "cpu": 4, "memMb": 8192 })));
-        assert_eq!(size_of_word("16x32"), Some(json!({ "cpu": 16, "memMb": 32768 })));
-        for word in ["4x", "x8", "4x8x2", "four", "4X8", "-4x8"] {
-            assert_eq!(size_of_word(word), None, "{word} was read");
         }
     }
 

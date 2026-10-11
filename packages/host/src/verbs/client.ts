@@ -25,10 +25,7 @@ import {
   PlaceView,
   PlaceSettingWord,
   NAP_AFTER_MAX_MS,
-  CLOUD_SIZES,
-  CLOUD_SIZE_WORDS,
   DELETE_AFTER_MAX_MS,
-  sizeOfWord,
   TURN_LIMIT_MAX_MS,
   type PlaceSettingsAsk,
   ThreadView,
@@ -87,7 +84,6 @@ import {
 } from "@wsp/protocol";
 import type { CliIO } from "../cli.js";
 import type { RelayTerminal } from "../signin-relay.js";
-import { CLOUD_ON } from "../cloud.js";
 import { dialAddress, heldOrStarted, hostTokenFor, hostTokenPath, POLL_MS, SERVICE_WAIT_MS, servingHost } from "../host-lock.js";
 import type { HostStarter } from "../host-start.js";
 import { addressNotPairedLine, aimAddress, aimHolds, aimName, aimedHost, deviceRefusedLine, dialWindowMs, noAnswerRefusal, noAnswerWithin, READ_THE_HOSTS, wsUrlOf, wspHome, writeHost, type HostAim, type HostPick } from "../hosts.js";
@@ -518,8 +514,6 @@ export const hostPlatform = (): Platform => (platform() === "darwin" ? "darwin" 
  * since nothing about a machine exists there until one is forked. No row is marked default: which computer a
  * workspace lands on is its project's to say. The platform is handed in, since what this computer is called is
  * read where the host runs and not guessed here, and so is the spend, which is a read of its own. */
-/** Where the forks column stands in the table below. */
-const FORKS_AT = 8;
 /** The STARTS column, shown only once a cloud reads its own starts. */
 const STARTS_AT = 12;
 
@@ -558,8 +552,7 @@ export function computerLines(places: readonly PlaceView[], platform: "darwin" |
     return [p.name ?? p.address, "pending", "", "", "", "", "", "", "", "", "", "", "", word.word, "", "", "", word.sentence ?? "", ""];
   });
   const starts = places.some(p => p.starts !== undefined);
-  // The forks a computer holds of the room it has are a cloud's machines; with no cloud no computer forks one.
-  const shown = (row: readonly string[]): string[] => row.filter((_, at) => (CLOUD_ON || at !== FORKS_AT) && (starts || at !== STARTS_AT));
+  const shown = (row: readonly string[]): string[] => row.filter((_, at) => starts || at !== STARTS_AT);
   return table([["COMPUTER", "KIND", "CORES", "MEMORY", "DISK FREE", "ENGINE", "COPIES", "PRESENT", "WORKSPACES", "THREADS", "MACHINES", "SPEND", "STARTS", "STATE", "LAST SEEN", "BEHIND", "IMAGE", "TOOLS", "AGENTS"], ...rows, ...waiting].map(shown));
 }
 
@@ -671,8 +664,8 @@ export const SETTING_RESETS = PlaceSettingWord.options;
 /** One computer's settings made and reset by the host, with its name, its login and its recipe where given, answered
  * as the row it now reads and the name it was asked by: by the id off the listing, since two computers may share a
  * name and the host keys by id. One op carries every flag, so the host checks them all before it writes any. */
-export async function setComputer(client: HostClient, ref: string, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[], also: PlaceSetAlso = {}): Promise<{ computer: PlaceView; was: string }> {
-  const place = await placeNamed(client, ref);
+export async function setComputer(client: HostClient, ref: string | PlaceView, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[], also: PlaceSetAlso = {}): Promise<{ computer: PlaceView; was: string }> {
+  const place = typeof ref === "string" ? await placeNamed(client, ref) : ref;
   const asked = Object.fromEntries(Object.entries(also).filter(([, value]) => value !== undefined));
   const { place: computer } = await client.request<{ place: PlaceView }>("places.set", { placeId: place.id, ...set, ...(reset.length > 0 ? { reset } : {}), ...asked });
   return { computer, was: place.name };
@@ -708,13 +701,6 @@ export function turnLimitAsked(word: string, on: string): number {
   const hours = Number(word);
   if (!/^\d+$/.test(word) || hours < 1 || hours * 3_600_000 > TURN_LIMIT_MAX_MS) throw usageRefusal(`${flagFor("--turn-limit", on)} takes whole hours from 1 to ${TURN_LIMIT_MAX_MS / 3_600_000}, or off, and got ${JSON.stringify(word)}.`, "Write it as --turn-limit 6 or --turn-limit off.");
   return hours;
-}
-
-/** A --size word as the size it names: one of the four a cloud sells, as <cpu>x<memGb>. */
-export function cloudSizeAsked(word: string, on: string): { cpu: number; memMb: number } {
-  const size = sizeOfWord(word);
-  if (size === undefined || !CLOUD_SIZES.some(s => s.cpu === size.cpu && s.memMb === size.memMb)) throw usageRefusal(`${flagFor("--size", on)} takes ${CLOUD_SIZE_WORDS}, and got ${JSON.stringify(word)}.`, "Write it as --size 4x8.");
-  return size;
 }
 
 /** A --delete-after word as minutes: whole ones from none to a day. */

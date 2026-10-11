@@ -409,12 +409,10 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     async list() {
       const held = await records();
       const room = new Map(await Promise.all(held.map(async r => [r.id, await forksOf(r)] as const)));
-      return Promise.all(
-        (await rowsOf(held)).map(row => {
-          const forks = room.get(row.id);
-          return withLimits(forks !== undefined ? { ...row, forks } : row);
-        }),
-      );
+      return (await rowsOf(held)).map(row => {
+        const forks = room.get(row.id);
+        return withLimits(forks !== undefined ? { ...row, forks } : row);
+      });
     },
 
     rows: async () => rowsOf(await records()),
@@ -469,7 +467,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
         holdBack(moved);
       }
       if (also.recipe !== undefined) moved = (await followTo(placeId, also.recipe)) ?? moved;
-      const place = await withLimits(await withCap(moved === undefined ? row : joinedRow(moved, marked), await rowIds()));
+      const place = withLimits(await withCap(moved === undefined ? row : joinedRow(moved, marked), await rowIds()));
       emit({ type: "place.changed", place });
       return { place };
     },

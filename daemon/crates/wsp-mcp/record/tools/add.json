@@ -1024,6 +1024,22 @@
               ],
               "additionalProperties": false
             },
+            "sizeDefault": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "integer"
+                },
+                "memMb": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cpu",
+                "memMb"
+              ],
+              "additionalProperties": false
+            },
             "deleteAfterMs": {
               "type": "integer"
             }
@@ -2121,6 +2137,22 @@
               "additionalProperties": false
             },
             "size": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "integer"
+                },
+                "memMb": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cpu",
+                "memMb"
+              ],
+              "additionalProperties": false
+            },
+            "sizeDefault": {
               "type": "object",
               "properties": {
                 "cpu": {

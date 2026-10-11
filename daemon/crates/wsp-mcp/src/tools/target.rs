@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use super::create::Offer;
 use super::named::{thread_at, Aim};
 use crate::client::Client;
 use crate::failure::Failure;
@@ -106,18 +107,25 @@ pub async fn thread_folder(client: &Client, thread: &str, tool: &str, cloud: boo
 /// A computer by the name or the id the list carries, and a provider also by its own name in any case, as namesPlace
 /// reads one; a word nothing holds is refused with the names there are.
 pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<String, Failure> {
+    place_named(client, words, word).await.map(|(id, _)| id)
+}
+
+/// The same computer as place_id finds, with the sizes its row offers.
+pub async fn place_named(client: &Client, words: &Words, word: &str) -> Result<(String, Vec<Offer>), Failure> {
     #[derive(Deserialize)]
     struct Place {
         id: String,
         name: String,
         #[serde(default)]
         kind: Option<String>,
+        #[serde(default)]
+        sizes: Vec<Offer>,
     }
     #[derive(Deserialize)]
     struct Places {
         places: Vec<Place>,
     }
-    let Places { places } = client.request("places.list", Map::new()).await?;
+    let Places { mut places } = client.request("places.list", Map::new()).await?;
     let lower = word.to_lowercase();
     let names = |p: &Place| {
         p.id == word
@@ -127,8 +135,9 @@ pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<Stri
                     .iter()
                     .any(|name| name.to_lowercase() == lower))
     };
-    if let Some(place) = places.iter().find(|p| names(p)) {
-        return Ok(place.id.clone());
+    if let Some(i) = places.iter().position(names) {
+        let place = places.swap_remove(i);
+        return Ok((place.id, place.sizes));
     }
     let held = places.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");
     Err(Failure::usage(refusal_line(&fill(&words.no_such_place, &[("word", word), ("held", &held)]), &words.places_fix)))

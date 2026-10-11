@@ -65,6 +65,7 @@ import {
   workspaceStateOf,
   workspaceStaysAwakeLine,
   type Capabilities,
+  type MachineSizeOffer,
   type SessionView,
   type WorkspaceCreateResult,
   type WorkspaceCreatingEvent,
@@ -809,7 +810,7 @@ export async function createFor(
   // A folder on this computer forks nothing, so a size has nothing to act on: refused before the landing is read.
   if (copiesFolder(kindForComputer(project.computer)) && asked.size !== undefined) throw usageRefusal(copyTakesNone(project.name, ["--size"]), "Drop them.");
   const capabilities = (await client.request<{ capabilities: Capabilities }>("workspaces.landing", { project: project.id, ...(asked.size !== undefined ? { sized: true } : {}) })).capabilities;
-  const chosen = asked.size === undefined ? undefined : sizeChosen(capabilities, asked.size);
+  const chosen = asked.size === undefined ? undefined : sizeChosen(capabilities.sizes, asked.size);
   const pushed = pushedFrames(client);
   await client.events();
   pushed.follow(
@@ -875,9 +876,9 @@ export function countAsked(flagName: string, word: string | number, least: numbe
 /** The size a --size word names, read but not checked: on a joined computer what is on offer is that computer's to
  * say, and the host refuses a size it does not offer with the same sentence this one would have. */
 /** The size a --size word names, checked against what the host's provider offers before anything is minted. */
-function sizeChosen(capabilities: Capabilities, word: string): WorkspaceSize {
+export function sizeChosen(sizes: readonly MachineSizeOffer[], word: string): WorkspaceSize {
   const size = sizeFromWord(word);
-  if (size === undefined || !offeredSize(capabilities.sizes, size)) throw usageRefusal(sizeRefusal(word, capabilities.sizes), "Name one of those with --size.");
+  if (size === undefined || !offeredSize(sizes, size)) throw usageRefusal(sizeRefusal(word, sizes), "Name one of those with --size.");
   return size;
 }
 
