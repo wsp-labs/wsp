@@ -165,4 +165,40 @@ describe.skipIf(renderSkipped !== undefined)("a project's image fitted in Chromi
     const bytes = Buffer.concat([head, size, Buffer.alloc(4), Buffer.alloc(1_100_000)]).toString("base64");
     expect(await fit(bytes)).toEqual({ refusal: { said: "This image is over 4096 by 4096 pixels.", fix: "Scale it down, or pick a smaller one." } });
   });
+
+  // Last: the marks it draws stay in the page, where the hostile SVG case counts every image.
+  it("clips the icon's tile to the app icon's squircle at 12, 16, 24 and 40 px, a 2:1 picture fitted on its quiet ground", async () => {
+    const square = await page!.evaluate(() => window.source("image/png", 128, 128));
+    const wide = await fit(await page!.evaluate(() => window.source("image/png", 256, 128)));
+    if (!("png" in wide)) throw new Error(`the 2:1 picture was refused: ${wide.refusal.said}`);
+    await page!.evaluate(urls => window.marks(2, urls), { ["d".repeat(64)]: `data:image/png;base64,${square}`, ["e".repeat(64)]: `data:image/png;base64,${wide.png}` });
+    const boxes = await page!.$$eval("img[data-project-icon]", imgs =>
+      imgs.map(img => {
+        const r = img.getBoundingClientRect();
+        const style = getComputedStyle(img);
+        return { x: r.x, y: r.y, width: r.width, height: r.height, radius: style.borderTopLeftRadius, shape: style.getPropertyValue("corner-shape"), ground: style.backgroundColor };
+      }),
+    );
+    expect(boxes.map(({ width, height, radius, shape }) => ({ width, height, radius, shape }))).toEqual(
+      [12, 16, 24, 40, 12, 16, 24, 40].map(side => ({ width: side, height: side, radius: "41%", shape: "squircle" })),
+    );
+    for (const { ground } of boxes) expect(ground).not.toBe("rgba(0, 0, 0, 0)");
+    const shot = (await page!.screenshot({ type: "png" })).toString("base64");
+    const read = (at: [number, number][]) => page!.evaluate(([png, points]) => window.pixels(png, points), [shot, at] as [string, [number, number][]]).then(r => r.rgba);
+    for (const { x, y, width } of boxes.slice(0, 4)) {
+      // The corner shows the page through the clip, while a squircle keeps the top edge whole a quarter in.
+      const [corner, edge, inside] = await read([[x, y], [x + width / 4, y], [x + width / 4, y + width / 2]]);
+      expect({ side: width, corner: corner![1]! > 150, edge: edge![1]! < 40, inside: inside![1]! < 40 }).toEqual({ side: width, corner: true, edge: true, inside: true });
+    }
+    for (const { x, y, width } of boxes.slice(4)) {
+      // The fit leaves a clear band above and below a 2:1 picture: the tile's ground fills it, and the clip rounds the tile.
+      const [page_, corner, ground, side] = await read([[x - 2, y + width / 2], [x, y], [x + width / 2, y + 1], [Math.ceil(x), y + width / 2]]);
+      expect({
+        side: width,
+        corner: Math.abs(corner![1]! - page_![1]!) <= 2,
+        ground: page_![1]! - ground![1]! >= 3,
+        picture: side![1]! < 40 && side![0]! > 200,
+      }).toEqual({ side: width, corner: true, ground: true, picture: true });
+    }
+  });
 });
