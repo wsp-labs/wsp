@@ -95,6 +95,7 @@ import {
   ReadingsAnswer,
   UsedAnswer,
   type UsageRange,
+  type ReadingsRange,
   type UsageSplit,
   PlaceAddJob,
   PlaceUpdateReply,
@@ -135,6 +136,7 @@ import {
   WorkspaceCostEvent,
   type WorkspaceStatus,
   WorkspaceSysEvent,
+  PlaceSysEvent,
   AppProcList,
   AppProcsEvent,
   type AppProc,
@@ -254,6 +256,7 @@ export class ProtocolClient {
   /** Listeners for this computer's own readings, which the host pushes on this socket. Kept off #listeners for the
    * reason the daemon's frames are: a figure ticking twice a minute is not history for the store to fold. */
   #sys = new Set<(e: WorkspaceSysEvent) => void>();
+  #placeSys = new Set<(e: PlaceSysEvent) => void>();
   #appProcs = new Set<(procs: AppProc[]) => void>();
   #opts: ProtocolClientOptions;
   #Ctor: typeof WebSocket;
@@ -324,6 +327,12 @@ export class ProtocolClient {
   onSysSample(fn: (e: WorkspaceSysEvent) => void): () => void {
     this.#sys.add(fn);
     return () => this.#sys.delete(fn);
+  }
+
+  /** Readings of each computer of the person's this socket asked about by its place. */
+  onPlaceSysSample(fn: (e: PlaceSysEvent) => void): () => void {
+    this.#placeSys.add(fn);
+    return () => this.#placeSys.delete(fn);
   }
 
   subscribe(fn: (e: ProtocolEvent) => void): () => void {
@@ -444,6 +453,11 @@ export class ProtocolClient {
         // Parsed, not trusted: a row paints only figures the wire type vouches for, as a daemon's own samples are.
         const reading = WorkspaceSysEvent.safeParse(msg);
         if (reading.success) for (const fn of this.#sys) fn(reading.data);
+        return;
+      }
+      if (msg.type === "place.sys") {
+        const reading = PlaceSysEvent.safeParse(msg);
+        if (reading.success) for (const fn of this.#placeSys) fn(reading.data);
         return;
       }
       if (msg.type === "app.procs") {
@@ -876,6 +890,11 @@ export interface Api {
   unwatchSys?(workspaceId: string): Promise<void>;
   /** The readings those asks push, for every workspace this socket asked about. */
   onSysSample?(fn: (e: WorkspaceSysEvent) => void): () => void;
+  /** Asks the host to push a computer's readings on this socket, this one or a box, every two seconds until
+   * unwatchPlaceSys or the socket goes. The host holds one watch per computer however many sockets ask. */
+  watchPlaceSys?(placeId: string): Promise<void>;
+  unwatchPlaceSys?(placeId: string): Promise<void>;
+  onPlaceSysSample?(fn: (e: PlaceSysEvent) => void): () => void;
   /** Asks the host for the desktop app's processes by pid, pushed each time the app reads them again until the socket
    * goes; the app reads them only while some socket watches. Optional for a fixture and for a host that predates it. */
   watchAppProcs?(): Promise<AppProc[]>;
@@ -894,7 +913,7 @@ export interface Api {
    * the command line prints for it, and the account row as it now reads. */
   usageReset?(account: string): Promise<ResetAnswer>;
   /** A computer's readings over a range, folded into the range's step; none where its daemon kept none. */
-  placesReadings?(placeId: string, range: UsageRange): Promise<ReadingsAnswer>;
+  placesReadings?(placeId: string, range: ReadingsRange): Promise<ReadingsAnswer>;
   /** Moves head to a version in the manifest; workspaces already forked keep their image. */
   rollbackSnapshot(version: number, name?: string): Promise<SnapshotRollbackResult>;
   /** Snapshots the workspace's disk as a project golden; the runtime refuses a machine that is not first-life. Optional
@@ -1036,6 +1055,9 @@ export function makeApi(c: ProtocolClient): Api {
     watchSys: async workspaceId => void (await c.request("sys.subscribe", { workspaceId })),
     unwatchSys: async workspaceId => void (await c.request("sys.unsubscribe", { workspaceId })),
     onSysSample: fn => c.onSysSample(fn),
+    watchPlaceSys: async placeId => void (await c.request("sys.subscribe", { placeId })),
+    unwatchPlaceSys: async placeId => void (await c.request("sys.unsubscribe", { placeId })),
+    onPlaceSysSample: fn => c.onPlaceSysSample(fn),
     watchAppProcs: async () => AppProcList.parse((await c.request<{ procs?: unknown }>("appProcs.watch")).procs),
     unwatchAppProcs: async () => void (await c.request("appProcs.unwatch")),
     onAppProcs: fn => c.onAppProcs(fn),

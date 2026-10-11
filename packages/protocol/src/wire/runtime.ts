@@ -5,7 +5,7 @@ import { AgentsTarget, McpScope, PluginAsk, ServerAdd, ServerAsk } from "../agen
 import { Attachment } from "../attachments.js";
 import { threadAt } from "../format.js";
 import { InitRoad, InitScreenId, SIGN_IN_CODE_MAX } from "../init-job.js";
-import { UsageRange, UsageSplit } from "../usage.js";
+import { ReadingsRange, UsageRange, UsageSplit } from "../usage.js";
 import { ResumeAsk } from "../conversations.js";
 import { AccessChoice, AgentSetupSet } from "../thread-defaults.js";
 import { SLATE_OPS } from "../slate/wire.js";
@@ -660,7 +660,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * its login, the one named where it is one, after reading the account there. The person's own road alone. */
   z.object({ id: reqId, op: z.literal("usage.reset"), account: z.string(), creditId: z.string().optional(), on: z.string().optional() }),
   // A computer's readings over a range, off its daemon: this computer, a joined one, or a workspace's own machine.
-  z.object({ id: reqId, op: z.literal("places.readings"), placeId: z.string().optional(), workspaceId: z.string().optional(), range: UsageRange }),
+  z.object({ id: reqId, op: z.literal("places.readings"), placeId: z.string().optional(), workspaceId: z.string().optional(), range: ReadingsRange }),
   /** Moves the golden's head to a version already in its manifest; replies with a
    * SnapshotRollbackResult. A version outside the manifest fails with kind "missing". */
   z.object({ id: reqId, op: z.literal("snapshots.rollback"), version: z.number(), name: z.string().optional() }),
