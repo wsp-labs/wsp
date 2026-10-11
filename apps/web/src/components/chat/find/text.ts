@@ -3,12 +3,12 @@
 // numbered parts, the same numbers the rows stamp on what they draw (`data-find-part`), and each part into the
 // segments a match never crosses: a markdown block, a line break, a code block. A reply's markdown is parsed with the
 // renderer's own plugins and read to the text the page shows, so a count here and the highlights there agree on bold,
-// links and fences; a diagram, math, an image and a chip naming a file draw no text of their own and count nothing.
+// links and fences; a chip naming a file counts what it shows, and a diagram, math and an image count nothing.
 import { unified, type Processor } from "unified";
 import remarkParse from "remark-parse";
 import type { Nodes, Parents, Root } from "mdast";
 import { CHAT_MARKDOWN_REMARK_PLUGINS, CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS } from "../../ChatMarkdown";
-import { normalizeMarkdownLinkHrefKey } from "../../markdown/links";
+import { fileChipLabel, messageFileChips, normalizeMarkdownLinkHrefKey } from "../../markdown/links";
 import { resolveInlineCodeFileLinkMeta, resolveMarkdownFileLinkMeta, rewriteMarkdownFileUriHref } from "../../../lib/markdownLinks";
 import { stripDisplayedPlanMarkdown } from "../../../lib/proposedPlan";
 import { workEntryBody, workEntryCanExpand, workEntryDisplayLabel, workEntryIsVisibleInGroup, workEntryLabelText } from "../MessagesTimeline.logic";
@@ -86,6 +86,10 @@ export function markdownSegments(text: string, o: MarkdownOptions): string[] {
 export function parsedSegments(text: string, o: MarkdownOptions): string[] {
   const processor = processorFor(o.breaks);
   const tree = processor.runSync(processor.parse(text)) as Root;
+  const chips = messageFileChips(text, o.cwd);
+  const chip = (meta: ReturnType<typeof resolveMarkdownFileLinkMeta>): void => {
+    if (meta !== null) open += fileChipLabel(meta, chips.suffixByPath).join(" ");
+  };
   const segments: string[] = [];
   let open = "";
   const flush = (): void => {
@@ -97,10 +101,12 @@ export function parsedSegments(text: string, o: MarkdownOptions): string[] {
       case "text":
         open += node.value;
         return;
-      case "inlineCode":
-        if (!insideLink && resolveInlineCodeFileLinkMeta(node.value, o.cwd, o.cwd) !== null) return;
-        open += node.value;
+      case "inlineCode": {
+        const meta = insideLink ? null : (chips.byCode.get(node.value.trim()) ?? resolveInlineCodeFileLinkMeta(node.value, o.cwd, o.cwd));
+        if (meta !== null) chip(meta);
+        else open += node.value;
         return;
+      }
       case "html":
         open += o.rawHtml ? stripTags(node.value) : node.value;
         return;
@@ -109,7 +115,8 @@ export function parsedSegments(text: string, o: MarkdownOptions): string[] {
         return;
       case "link": {
         const href = normalizeMarkdownLinkHrefKey(rewriteMarkdownFileUriHref(node.url) ?? node.url);
-        if (resolveMarkdownFileLinkMeta(href, o.cwd, o.cwd) !== null) return;
+        const meta = chips.byHref.get(href) ?? resolveMarkdownFileLinkMeta(href, o.cwd, o.cwd);
+        if (meta !== null) return chip(meta);
         for (const child of node.children) phrasing(child, true);
         return;
       }

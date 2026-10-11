@@ -47,7 +47,7 @@ export function claudeThread(): SessionEvent[] {
     { type: "session.done", ...t2, at: at(2, 2), result: { status: "completed", durationMs: 2_000 } },
     { type: "session.end", ...t2, at: at(2, 2), exitCode: 0, sawResult: true },
     { type: "session.start", ...t3, at: at(3, 0), model: "claude-opus-5-5", prompt: "And the last replyword?", cwd: "/w" },
-    { type: "session.delta", ...t3, at: at(3, 1), kind: "text", messageId: "m3", text: "The newest replyword.\n\n`★ Insight ─────────────────`\nAn insightword aside.\n`─────────────────`" },
+    { type: "session.delta", ...t3, at: at(3, 1), kind: "text", messageId: "m3", text: "The newest replyword. Changed `src/auth/session.ts`, [the store](src/links/store.ts) and `src/api/session.ts:12`.\n\n`★ Insight ─────────────────`\nAn insightword aside.\n`─────────────────`" },
     { type: "session.done", ...t3, at: at(3, 2), result: { status: "completed", durationMs: 2_000 } },
     { type: "session.end", ...t3, at: at(3, 2), exitCode: 0, sawResult: true },
   ] as SessionEvent[];

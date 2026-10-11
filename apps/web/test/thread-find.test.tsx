@@ -122,15 +122,15 @@ describe("find in thread: the keys", () => {
 
   it("a selection in the transcript seeds the query; with none the last query shows selected; again focuses and selects", async () => {
     await open();
-    const reply = await screen.findByText("The newest replyword.");
-    window.getSelection()!.selectAllChildren(reply);
+    const asked = await screen.findByText("And the last replyword?");
+    window.getSelection()!.selectAllChildren(asked);
     pressFind();
-    expect(field().value).toBe("The newest replyword.");
+    expect(field().value).toBe("And the last replyword?");
     fireEvent.keyDown(field(), { key: "Escape" });
     window.getSelection()!.removeAllRanges();
     screen.getByLabelText("composer").focus();
     pressFind();
-    expect(field().value).toBe("The newest replyword.");
+    expect(field().value).toBe("And the last replyword?");
     expect([field().selectionStart, field().selectionEnd]).toEqual([0, field().value.length]);
     field().setSelectionRange(3, 3);
     pressFind();
@@ -210,7 +210,10 @@ describe("find in thread: searching and stepping", () => {
     if (word === "pathword") fireEvent.click(within(bar()).getByRole("button", { name: FIND_WORDS.tools }));
     typeQuery(word);
     await settled("1 of 1");
+    // Typing paints where the match stands and opens nothing; the first step shows a match not in sight.
+    fireEvent.keyDown(field(), { key: "Enter" });
     await waitFor(() => expect(shown()).toBeTruthy());
+    expect(countSays()).toBe("1 of 1");
     const ranges = collectRanges(document.body, needleOf(word, { matchCase: false, wholeWord: false, regex: false }) as Needle, word === "pathword");
     expect([...ranges.values()].flat().length).toBeGreaterThan(0);
   });
@@ -312,7 +315,7 @@ describe("find in thread: searching and stepping", () => {
 describe("find in thread: the count and the highlights", () => {
   const words = (word: string): Needle => needleOf(word, { matchCase: false, wholeWord: false, regex: false }) as Needle;
 
-  it.each(["boldword", "linkword", "fenceword", "replyword", "insight"])("a markdown reply draws as many %s highlights as the count says", async word => {
+  it.each(["boldword", "linkword", "fenceword", "replyword", "insight", "session.ts", "auth", "L12", "store.ts"])("a markdown reply draws as many %s highlights as the count says", async word => {
     await open();
     pressFind();
     typeQuery(word);
@@ -329,6 +332,7 @@ describe("find in thread: the count and the highlights", () => {
     fireEvent.click(within(bar()).getByRole("button", { name: FIND_WORDS.tools }));
     typeQuery(word);
     await settled(`${total} of ${total}`);
+    fireEvent.keyDown(field(), { key: "Enter" });
     await waitFor(() => expect([...collectRanges(document.body, words(word), true).values()].flat()).toHaveLength(total));
   });
 
@@ -390,6 +394,70 @@ describe("find in thread: the whole history", () => {
     useThreadFind.setState({ query: "promptword" });
     await waitFor(() => expect(countSays()).toBe("1 of 1"));
     expect(bar().getAttribute("aria-busy")).toBe("false");
+  });
+
+  it("typing past the cap keeps the matches nearest the reader and scrolls nothing; Enter steps from the newest", async () => {
+    const shown: string[] = [];
+    const at = { ...finder(), show: (match: { entryId: string }) => void shown.push(match.entryId) };
+    const timeline = entries(claudeThread());
+    const textOf = (id: string) => {
+      const entry = timeline.find(e => e.id === id);
+      return entry?.kind === "message" ? entry.message.text : "";
+    };
+    useThreadFind.setState({ open: true, query: "" });
+    render(<ThreadFind workspaceId={CLAUDE_WS} entries={timeline} cwd="/w" threadKey="t" finder={at} cap={2} history={{ whole: true, trimmed: false, older: async () => false }} />);
+    for (const query of ["r", "re", "replyword"]) {
+      act(() => useThreadFind.setState({ query }));
+      await waitFor(() => expect(countSays()).toMatch(/^2 of 2\+$/));
+    }
+    expect(shown).toEqual([]);
+    // Nothing is drawn under this finder, so the pick is out of sight: the first Enter shows it, the next steps older.
+    fireEvent.keyDown(field(), { key: "Enter" });
+    await waitFor(() => expect(shown).toHaveLength(1));
+    expect(countSays()).toBe("2 of 2+");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    await waitFor(() => expect(countSays()).toBe("1 of 2+"));
+    expect(shown.map(textOf)).toEqual([expect.stringContaining("The newest replyword."), "And the last replyword?"]);
+  });
+
+  it("keeps the reader's place past the cap while older pages land above it", async () => {
+    const all = claudeThread();
+    let [held, whole] = [entries(all.slice(17)), false];
+    let release: () => void = () => {};
+    const gate = new Promise<void>(resolve => (release = resolve));
+    let rerender: () => void = () => {};
+    const older = async () => {
+      await gate;
+      [held, whole] = [entries(all), true];
+      rerender();
+      return false;
+    };
+    const shown: string[] = [];
+    const at = { ...finder(), bottomEntry: () => held.length - 1, show: (match: { entryId: string }) => void shown.push(match.entryId) };
+    const draw = () => <ThreadFind workspaceId={CLAUDE_WS} entries={held} cwd="/w" threadKey="t" finder={at} cap={2} history={{ whole, trimmed: false, older }} />;
+    useThreadFind.setState({ open: true, query: "" });
+    const view = render(draw());
+    rerender = () => view.rerender(draw());
+    act(() => useThreadFind.setState({ query: "r" }));
+    await waitFor(() => expect(countSays()).toBe("2 of 2+"));
+    const newest = held.at(-1)!.id;
+    act(() => release());
+    await waitFor(() => expect(bar().getAttribute("aria-busy")).toBe("false"));
+    fireEvent.keyDown(field(), { key: "Enter" });
+    await waitFor(() => expect(shown).toEqual([newest]));
+  });
+
+  it("puts the toggles in a row of their own on a narrow screen, so the field keeps the room", () => {
+    const narrow = (matches: boolean) =>
+      vi.stubGlobal("matchMedia", (query: string) => ({ matches: matches && query.includes("max-width"), media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }));
+    for (const matches of [false, true]) {
+      narrow(matches);
+      useThreadFind.setState({ open: true, query: "replyword" });
+      const shown = render(<ThreadFind workspaceId={CLAUDE_WS} entries={entries(claudeThread())} cwd="/w" threadKey="t" finder={finder()} history={{ whole: true, trimmed: false, older: async () => false }} />);
+      const toggle = within(bar()).getByRole("button", { name: FIND_WORDS.matchCase });
+      expect([matches, toggle.closest("[data-slot='input-group']") === null]).toEqual([matches, matches]);
+      shown.unmount();
+    }
   });
 
   it("says when the host's cap dropped the thread's oldest events", async () => {

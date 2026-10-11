@@ -16,6 +16,6 @@ scope.onmessage = event => {
   if (ask.docs !== undefined) docs = ask.docs;
   const needle = needleOf(ask.query, { ...ask.options, regex: true });
   const reply: RegexReply =
-    needle === null ? { id: ask.id, result: { matches: [], capped: false } } : "invalid" in needle ? { id: ask.id, invalid: needle.invalid } : { id: ask.id, result: searchDocs(docs, needle, ask.tools) };
+    needle === null ? { id: ask.id, result: { matches: [], capped: false } } : "invalid" in needle ? { id: ask.id, invalid: needle.invalid } : { id: ask.id, result: searchDocs(docs, needle, ask.tools, ask.at) };
   scope.postMessage(reply);
 };

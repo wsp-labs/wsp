@@ -94,6 +94,11 @@ describe("find in thread: the reading of markdown", () => {
     ]);
   });
 
+  it("reads a file chip as it shows: its name, the folder that tells two of one name apart, and its line", () => {
+    const reply = "Changed `src/auth/session.ts`, [the store](src/links/store.ts) and `src/api/session.ts:12`.";
+    expect(markdownSegments(reply, { breaks: false, rawHtml: true, cwd: "/w" })).toEqual(["Changed session.ts src/auth, store.ts and session.ts src/api L12."]);
+  });
+
   it("reads a reply cut at its insight block as the row draws it, without the block's star and dashes", () => {
     const reply = "Before.\n\n`★ Insight ─────────`\nThe aside.\n`─────────`\n\nAfter.";
     expect(markdownSegments(reply, { breaks: false, rawHtml: true, cwd: undefined, reply: { streaming: false } })).toEqual(["Before.", "The aside.", "After."]);
@@ -130,6 +135,18 @@ describe("find in thread: the options and the cap", () => {
     expect(result.matches).toHaveLength(MATCH_CAP);
     expect(result.capped).toBe(true);
     expect(FIND_WORDS.count(MATCH_CAP, MATCH_CAP, result.capped)).toBe("9,999 of 9,999+");
+  });
+
+  it("keeps the matches nearest the reader when the count passes the cap, walking out from where they read", () => {
+    const docs: FindDoc[] = Array.from({ length: 10 }, (_, i) => ({ entryId: `e${i}`, parts: [{ part: 0, segments: ["a a"], tool: false }] }));
+    const named = (result: ReturnType<typeof searchDocs>) => result.matches.map(m => `${m.entryId}:${m.ordinal}`);
+    const atEnd = searchDocs(docs, needle("a"), false, { cap: 4 });
+    expect(atEnd.capped).toBe(true);
+    expect(named(atEnd)).toEqual(["e8:0", "e8:1", "e9:0", "e9:1"]);
+    // Read up to e4: what is above the reader comes before what is below.
+    expect(named(searchDocs(docs, needle("a"), false, { cap: 4, anchor: 4 }))).toEqual(["e3:0", "e3:1", "e4:0", "e4:1"]);
+    expect(named(searchDocs(docs, needle("a"), false, { cap: 5, anchor: 0 }))).toEqual(["e0:0", "e0:1", "e1:0", "e1:1", "e2:0"]);
+    expect(searchDocs(docs, needle("a"), false, { cap: 20, anchor: 4 })).toMatchObject({ capped: false, matches: { length: 20 } });
   });
 
   it("names each match by its entry, part and place in the part, which is how the page finds it again", () => {

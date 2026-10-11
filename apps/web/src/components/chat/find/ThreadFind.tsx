@@ -12,7 +12,7 @@ import type { TimelineEntry } from "../adapt";
 import type { TimelineFinder } from "../MessagesTimeline";
 import { FindBar, type FindStatus } from "./FindBar";
 import { showRange, useFindHighlights } from "./highlights";
-import { needleOf, type Needle } from "./match";
+import { MATCH_CAP, needleOf, type Needle } from "./match";
 import { regexSearch, type RegexSearch } from "./regex";
 import { searchDocs, type FindMatch, type FindResult } from "./search";
 import { closeThreadFind, findTargetIs, focusBeforeFind, useThreadFind } from "./store";
@@ -34,7 +34,18 @@ export interface ThreadHistory {
 
 type Searched = { readonly result: FindResult; readonly needle: Needle } | { readonly invalid: true } | { readonly slow: true } | null;
 
+/** Whether the part holding a match is drawn inside the transcript's box; a folded or unmounted one is not. */
+function drawnInSight(match: FindMatch, finder: TimelineFinder | null): boolean {
+  const scroller = finder?.scroller();
+  const part = finder?.viewport.querySelector(`[data-find-entry="${CSS.escape(match.entryId)}"] [data-find-part="${match.part}"], [data-find-entry="${CSS.escape(match.entryId)}"][data-find-part="${match.part}"]`);
+  if (scroller == null || part == null) return false;
+  const rect = part.getBoundingClientRect();
+  const box = scroller.getBoundingClientRect();
+  return rect.bottom > box.top && rect.top < box.bottom;
+}
+
 const sameMatch = (a: FindMatch, b: FindMatch): boolean => a.entryId === b.entryId && a.part === b.part && a.ordinal === b.ordinal;
+const indexOf = (index: ReadonlyMap<string, number>, id: string | undefined): number => (id === undefined ? -1 : (index.get(id) ?? -1));
 
 export function ThreadFind({
   workspaceId,
@@ -44,6 +55,7 @@ export function ThreadFind({
   finder,
   history,
   makeRegex = regexSearch,
+  cap = MATCH_CAP,
 }: {
   /** Whose composer takes focus back when the bar closes. */
   workspaceId: string;
@@ -55,6 +67,8 @@ export function ThreadFind({
   finder: TimelineFinder | null;
   history: ThreadHistory;
   makeRegex?: () => RegexSearch;
+  /** How many matches a search keeps; a test lowers it to reach the cap on a small thread. */
+  cap?: number;
 }): ReactNode {
   const { open, query, matchCase, wholeWord, regex, tools } = useThreadFind(
     useShallow(s => ({ open: s.open, query: s.query, matchCase: s.matchCase, wholeWord: s.wholeWord, regex: s.regex, tools: s.tools })),
@@ -89,8 +103,9 @@ export function ThreadFind({
     };
   }, [open, whole, older, threadKey]);
 
-  // Each entry's text, read once per entry object and kept for the thread shown.
-  const caches = useMemo(() => ({ text: new FindTextCache(), docs: new WeakMap<TimelineEntry, FindDoc | null>() }), [threadKey, cwd]);
+  // Each entry's text, read once per entry object and kept for the thread shown while the bar is open; closing it lets
+  // the text go.
+  const caches = useMemo(() => ({ text: new FindTextCache(), docs: new WeakMap<TimelineEntry, FindDoc | null>() }), [threadKey, cwd, open]);
   const [read, setRead] = useState<{ readonly docs: ReadonlyArray<FindDoc>; readonly whole: boolean } | null>(null);
   useEffect(() => {
     if (!open) {
@@ -124,14 +139,33 @@ export function ThreadFind({
     return () => clearTimeout(timer);
   }, [open, entries, cwd, caches]);
 
+  // Where the person is reading, read once each time the query, the toggles or the thread change: a capped search
+  // keeps the matches nearest it, and the first match picked is the newest at or above it. A new thread is read from
+  // its newest match. Typing moves nothing, so the place stays the reader's own. It is held as the entry, since older
+  // pages landing above the reader move every index.
+  const entryIndex = useMemo(() => new Map(entries.map((e, i) => [e.id, i])), [entries]);
+  const readKey = `${open}\n${query}\n${matchCase}\n${wholeWord}\n${regex}\n${tools}`;
+  const reader = useRef<{ key: string; thread: string; at: string | undefined; fresh: boolean }>({ key: "", thread: threadKey, at: undefined, fresh: true });
+  if (reader.current.key !== readKey || reader.current.thread !== threadKey) {
+    const switched = reader.current.thread !== threadKey;
+    reader.current = { key: readKey, thread: threadKey, at: switched || !open ? undefined : entries[finderRef.current?.bottomEntry() ?? -1]?.id, fresh: true };
+  }
+  const anchorIn = useCallback(
+    (docs: ReadonlyArray<FindDoc>): number | undefined => {
+      const at = indexOf(entryIndex, reader.current.at);
+      return at < 0 ? undefined : Math.max(0, docs.findLastIndex(d => (entryIndex.get(d.entryId) ?? 0) <= at));
+    },
+    [entryIndex],
+  );
+
   // The search: a literal query on this thread, a pattern in the worker.
   const options = useMemo(() => ({ matchCase, wholeWord, regex }), [matchCase, wholeWord, regex]);
   const needle = useMemo(() => needleOf(query, options), [query, options]);
   const literal = useMemo<Searched>(() => {
     if (!open || needle === null || read === null) return null;
     if ("invalid" in needle) return { invalid: true };
-    return needle.kind === "literal" ? { result: searchDocs(read.docs, needle, tools), needle } : null;
-  }, [open, needle, read, tools]);
+    return needle.kind === "literal" ? { result: searchDocs(read.docs, needle, tools, { anchor: anchorIn(read.docs), cap }), needle } : null;
+  }, [open, needle, read, tools, anchorIn, cap]);
   const [patterned, setPatterned] = useState<Searched>(null);
   const [regexer] = useState(() => ({ held: null as RegexSearch | null }));
   useEffect(() => () => regexer.held?.dispose(), [regexer]);
@@ -142,70 +176,67 @@ export function ThreadFind({
     }
     let live = true;
     regexer.held ??= makeRegex();
-    void regexer.held.search(read.docs, query, { matchCase, wholeWord }, tools).then(answer => {
+    void regexer.held.search(read.docs, query, { matchCase, wholeWord }, tools, { anchor: anchorIn(read.docs), cap }).then(answer => {
       if (!live || answer === "stale") return;
       setPatterned(answer === "slow" ? { slow: true } : "invalid" in answer ? { invalid: true } : { result: answer.result, needle });
     });
     return () => {
       live = false;
     };
-  }, [open, needle, read, query, matchCase, wholeWord, tools, regexer, makeRegex]);
+  }, [open, needle, read, query, matchCase, wholeWord, tools, regexer, makeRegex, anchorIn, cap]);
   const searched = needle !== null && !("invalid" in needle) && needle.kind === "regex" ? patterned : literal;
   const result = searched !== null && "result" in searched ? searched.result : null;
   const painted = searched !== null && "result" in searched ? searched.needle : null;
 
   // The current match: picked fresh when the query, the toggles or the thread change, kept through anything else.
+  // A fresh pick is painted where it stands and scrolls nothing; the first step shows it if it is not in sight.
   const [current, setCurrent] = useState<FindMatch | null>(null);
-  const fresh = useRef<"near" | "newest" | null>("near");
-  const shownKey = useRef(threadKey);
-  if (shownKey.current !== threadKey) {
-    shownKey.current = threadKey;
-    fresh.current = "newest";
-  }
-  useLayoutEffect(() => {
-    fresh.current ??= "near";
-  }, [query, options, tools, open]);
+  const inSight = useRef(false);
   const wantShown = useRef<FindMatch | null>(null);
   const show = useCallback((match: FindMatch) => {
     wantShown.current = match;
+    inSight.current = true;
     finderRef.current?.show(match);
   }, []);
-  const entryIndex = useMemo(() => new Map(entries.map((e, i) => [e.id, i])), [entries]);
   useLayoutEffect(() => {
     if (result === null || result.matches.length === 0) {
       if (current !== null && result !== null) setCurrent(null);
       return;
     }
     const matches = result.matches;
-    if (fresh.current !== null) {
-      const bottom = fresh.current === "near" ? (finderRef.current?.bottomEntry() ?? -1) : -1;
+    if (reader.current.fresh) {
+      const at = indexOf(entryIndex, reader.current.at);
       let pick = matches.length - 1;
-      if (bottom >= 0) {
-        const at = matches.findLastIndex(m => (entryIndex.get(m.entryId) ?? 0) <= bottom);
-        pick = at >= 0 ? at : 0;
+      if (at >= 0) {
+        const above = matches.findLastIndex(m => (entryIndex.get(m.entryId) ?? 0) <= at);
+        pick = above >= 0 ? above : 0;
       }
-      fresh.current = null;
+      reader.current.fresh = false;
+      inSight.current = false;
       setCurrent(matches[pick]!);
-      show(matches[pick]!);
       return;
     }
     if (current !== null && matches.some(m => sameMatch(m, current))) return;
     const at = current === null ? -1 : (entryIndex.get(current.entryId) ?? -1);
     const near = at < 0 ? matches.length - 1 : Math.max(0, matches.findLastIndex(m => (entryIndex.get(m.entryId) ?? 0) <= at));
     setCurrent(matches[near]!);
-  }, [result, entryIndex, current, show]);
+  }, [result, entryIndex, current]);
   const index = current === null || result === null ? -1 : result.matches.findIndex(m => sameMatch(m, current));
 
   const step = useCallback(
     (direction: -1 | 1) => {
       const matches = result?.matches ?? [];
       if (matches.length === 0) return;
+      if (current !== null && index >= 0 && !inSight.current && !drawnInSight(current, finderRef.current)) {
+        show(current);
+        return;
+      }
       const from = index < 0 ? (direction < 0 ? matches.length : -1) : index;
       const next = matches[(from + direction + matches.length) % matches.length]!;
       setCurrent(next);
       show(next);
     },
-    [result, index, show],
+    [result, index, current, show],
   );
   stepRef.current = step;
 

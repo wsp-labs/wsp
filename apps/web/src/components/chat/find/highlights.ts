@@ -16,7 +16,8 @@ export const findPartAttrs = (entryId: string, part: number | null): Record<stri
   part === null ? {} : { "data-find-entry": entryId, "data-find-part": part };
 
 const PART = "[data-find-part]";
-/** Text a row draws that no part holds: chrome, glyphs, chips standing for a file, and what math and diagrams draw. */
+/** Text a row draws that no part holds: chrome, glyphs, chips, and what math and diagrams draw. A chip's own name, marked
+ * `data-find-text`, is read all the same. */
 const SKIP = [
   "svg",
   "img",
@@ -70,7 +71,12 @@ export function rangesIn(scope: Element, needle: Needle): Range[] {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const element = node as Element;
-    if (element !== scope && (element.matches(SKIP) || element.hasAttribute("data-find-part"))) return;
+    if (element !== scope && element.hasAttribute("data-find-part")) return;
+    // Chrome is skipped whole, but a file chip's name is text the person reads: what it marks as text is walked.
+    if (element !== scope && element.matches(SKIP)) {
+      for (const text of element.querySelectorAll("[data-find-text]")) visit(text, inPre);
+      return;
+    }
     const tag = element.tagName.toLowerCase();
     const block = BLOCKS.has(tag);
     if (block) flush();

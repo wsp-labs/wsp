@@ -3,7 +3,7 @@
 // and a worker that has not answered in REGEX_LIMIT_MS ended and replaced, so a pattern that never ends costs the
 // page nothing.
 import type { FindOptions } from "./match";
-import type { FindResult } from "./search";
+import type { FindResult, SearchAt } from "./search";
 import type { FindDoc } from "./text";
 
 export const REGEX_LIMIT_MS = 250;
@@ -14,6 +14,7 @@ export interface RegexAsk {
   readonly query: string;
   readonly options: Omit<FindOptions, "regex">;
   readonly tools: boolean;
+  readonly at: SearchAt;
 }
 
 export type RegexReply = { readonly id: number; readonly result: FindResult } | { readonly id: number; readonly invalid: string };
@@ -31,7 +32,7 @@ export interface WorkerLike {
 const browserWorker = (): WorkerLike => new Worker(new URL("./regexWorker.ts", import.meta.url), { type: "module" }) as unknown as WorkerLike;
 
 export interface RegexSearch {
-  search(docs: ReadonlyArray<FindDoc>, query: string, options: Omit<FindOptions, "regex">, tools: boolean): Promise<RegexAnswer>;
+  search(docs: ReadonlyArray<FindDoc>, query: string, options: Omit<FindOptions, "regex">, tools: boolean, at?: SearchAt): Promise<RegexAnswer>;
   dispose(): void;
 }
 
@@ -55,7 +56,7 @@ export function regexSearch(make: () => WorkerLike = browserWorker, limitMs = RE
   };
 
   return {
-    search(docs, query, options, tools) {
+    search(docs, query, options, tools, at = {}) {
       // A worker still busy with an older pattern may be busy for good: it goes, and the new pattern starts fresh.
       if (waiting !== null) {
         end();
@@ -69,7 +70,7 @@ export function regexSearch(make: () => WorkerLike = browserWorker, limitMs = RE
         };
       }
       const id = ++asked;
-      const ask: RegexAsk = { id, query, options, tools, ...(sent === docs ? {} : { docs }) };
+      const ask: RegexAsk = { id, query, options, tools, at, ...(sent === docs ? {} : { docs }) };
       sent = docs;
       return new Promise<RegexAnswer>(resolve => {
         const timer = setTimeout(() => {

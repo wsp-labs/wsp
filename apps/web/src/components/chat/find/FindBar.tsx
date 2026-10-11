@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Adapted from pingdotgg/t3code apps/web/src/components/chat/ThreadFindBar.tsx at a8bdfdb5 (MIT).
 // Differs from upstream: the frame is the popover tier's own (fill, edge, shadow, radius), the four toggles stand in
-// the field's end, the count has a slot of its own with the spinner while the thread pages in, a second line says
-// what stops a search, and every key is the bar's or the keybinding rules' with its chord in a tooltip.
+// the field's end (a row of their own on a narrow screen), the count has a slot of its own with the spinner while
+// the thread pages in, a second line says what stops a search, and every key is the bar's or the keybinding rules'
+// with its chord in a tooltip.
 import { useEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { CaseSensitiveIcon, ChevronDownIcon, ChevronUpIcon, RegexIcon, WholeWordIcon, WrenchIcon, XIcon, type LucideIcon } from "lucide-react";
@@ -17,6 +18,7 @@ import { cn, isMacPlatform } from "../../../lib/utils";
 import { FACT } from "../../../settings/format";
 import { NOTE } from "../../../settings/layout";
 import { useShortcutLabel } from "../../../shell/useKeybindings";
+import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { setFindQuery, takeFocusAsk, toggleFind, useThreadFind, type FindToggle } from "./store";
 import { FIND_WORDS } from "./words";
 
@@ -61,6 +63,8 @@ export function FindBar({ status, onOlder, onNewer, onClose }: { status: FindSta
   const focusAsk = useThreadFind(s => s.focusAsk);
   const pressed = useThreadFind(useShallow(s => ({ matchCase: s.matchCase, wholeWord: s.wholeWord, regex: s.regex, tools: s.tools })));
   const input = useRef<HTMLInputElement | null>(null);
+  // On a narrow screen the toggles take a row of their own, so the field keeps room for the query.
+  const narrow = useMediaQuery("max-sm");
   const platform = navigator.platform;
   const chords = useMemo(() => TOGGLES.map(t => (t.key === null ? null : toggleChord(t.key, platform))), [platform]);
   const enter = useMemo(() => ["enter", "shift+enter"].map(key => formatShortcutLabel(parseKeybindingShortcut(key)!, platform)), [platform]);
@@ -72,6 +76,14 @@ export function FindBar({ status, onOlder, onNewer, onClose }: { status: FindSta
     input.current?.focus();
     input.current?.select();
   }, [focusAsk]);
+
+  const toggles = TOGGLES.map(({ toggle, Glyph }, i) => (
+    <Tip key={toggle} label={FIND_WORDS[toggle]} chord={chords[i] == null ? null : formatShortcutLabel(chords[i]!, platform)}>
+      <Toggle variant="ghost" size="xs" aria-label={FIND_WORDS[toggle]} pressed={pressed[toggle]} onPressedChange={() => toggleFind(toggle)} data-find-toggle={toggle}>
+        <Glyph className="size-3.5" aria-hidden />
+      </Toggle>
+    </Tip>
+  ));
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.nativeEvent.isComposing) return;
@@ -117,15 +129,11 @@ export function FindBar({ status, onOlder, onNewer, onClose }: { status: FindSta
             autoComplete="off"
             onChange={event => setFindQuery(event.target.value)}
           />
-          <InputGroupAddon align="inline-end" className="gap-0">
-            {TOGGLES.map(({ toggle, Glyph }, i) => (
-              <Tip key={toggle} label={FIND_WORDS[toggle]} chord={chords[i] == null ? null : formatShortcutLabel(chords[i]!, platform)}>
-                <Toggle variant="ghost" size="xs" aria-label={FIND_WORDS[toggle]} pressed={pressed[toggle]} onPressedChange={() => toggleFind(toggle)} data-find-toggle={toggle}>
-                  <Glyph className="size-3.5" aria-hidden />
-                </Toggle>
-              </Tip>
-            ))}
-          </InputGroupAddon>
+          {narrow ? null : (
+            <InputGroupAddon align="inline-end" className="gap-0">
+              {toggles}
+            </InputGroupAddon>
+          )}
         </InputGroup>
         <span aria-live="polite" data-find-count className={cn(FACT, "flex w-18 shrink-0 items-center justify-end gap-1.5 whitespace-nowrap sm:w-24")}>
           {status.busy && query.length > 0 ? <Spinner className="size-3.5" aria-hidden /> : null}
@@ -147,6 +155,7 @@ export function FindBar({ status, onOlder, onNewer, onClose }: { status: FindSta
           </Button>
         </Tip>
       </div>
+      {narrow ? <div className="flex items-center gap-1 px-1 pb-1">{toggles}</div> : null}
       {status.note === null ? null : <p className={cn(NOTE, "px-3 pb-2")} data-find-note>{status.note}</p>}
     </div>
   );
