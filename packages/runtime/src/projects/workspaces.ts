@@ -43,6 +43,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
 
     async create(opts, origin) {
       await ctx.ready();
+      if (opts.sub !== undefined) return ctx.spawnSub(opts, origin);
       const asked = scopeOf(origin);
       // A thread forks the image its own workspace's project runs and names none, at the size that image runs, as
       // the fork a run makes for it does: both are the person's to pick.

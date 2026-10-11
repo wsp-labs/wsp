@@ -93,6 +93,9 @@ import {
   threadOnMachineLine,
   nameOfTask,
   takenNameAfter,
+  SubStarted,
+  type SubOut,
+  type WorkspaceCreatingEvent,
   ThreadDefaults,
   capWaitLine,
   COPY_ALONE_LINE,
@@ -300,6 +303,28 @@ export async function forkFor(client: HostClient, project: ForkTarget["fork"], t
     stream: (text: string) => say(text.trimEnd()),
   };
   return (await createFor(client, out, project, takenNameAfter(nameOfTask(task), taken))).workspace;
+}
+
+/** A sub-thread's machine on a cloud, named off the task as a fork's is unless the title names it, with a number
+ * after it where a machine already has that name; its stages go to `say`. The host reads the asking thread's project
+ * off its token and every check before the cloud is asked for a start. Called last, once everything else on the line
+ * has been read, so a refusal costs no machine. */
+export async function subFor(client: HostClient, ask: { on: string; size?: string | undefined; branch?: string | undefined; harness?: string | undefined }, task: string, title: string | undefined, say: (line: string) => void): Promise<{ workspace: WorkspaceOut; sub: SubStarted }> {
+  const name = takenNameAfter(title ?? nameOfTask(task), new Set((await workspaces(client)).map(w => w.name)));
+  const pushed = pushedFrames(client);
+  await client.events();
+  pushed.follow(
+    f => f.type === "workspace.creating" && (f as unknown as WorkspaceCreatingEvent).name === name,
+    f => say((f as unknown as WorkspaceCreatingEvent).message),
+  );
+  try {
+    const sub = { on: ask.on, ...(ask.size !== undefined ? { size: ask.size } : {}), ...(ask.branch !== undefined ? { branch: ask.branch } : {}), ...(ask.harness !== undefined ? { harness: ask.harness } : {}) };
+    const made = await client.request<{ workspace: WorkspaceOut; notice?: string; sub: unknown }>("workspaces.create", { project: "", name, sub });
+    if (made.notice !== undefined) for (const line of made.notice.split("\n")) say(line);
+    return { workspace: made.workspace, sub: SubStarted.parse(made.sub) };
+  } finally {
+    pushed.stop();
+  }
 }
 
 /** The project on this computer a folder is in: the one whose folder holds it, the deepest where two do, else the one
@@ -1092,7 +1117,7 @@ export async function beforeSending<T>(client: HostClient, read: () => Promise<T
 /** The verbs' way through a detached start: the queued and joined lines on stderr as a follow prints them, then the
  * thread's id on stdout the moment the runtime names it, and nothing of the reply, which the thread's finished line
  * carries to whoever its start named. */
-export async function detachVerb(ctx: VerbContext, client: HostClient, start: Record<string, unknown>, picks: Picks = {}, opened?: (threadId: string, folder?: string) => string): Promise<void> {
+export async function detachVerb(ctx: VerbContext, client: HostClient, start: Record<string, unknown>, picks: Picks = {}, opened?: (threadId: string, folder?: string) => string, sub?: SubOut): Promise<void> {
   let waitedFor: string | undefined;
   const turn = await startDetached(client, start, "cli", e => {
     waitedFor = e.waitsFor;
@@ -1100,7 +1125,7 @@ export async function detachVerb(ctx: VerbContext, client: HostClient, start: Re
   }, () => hostBack(ctx));
   if (turn.outcome === "held" && turn.session.capped !== undefined) ctx.io.error(capWaitLine(turn.session.capped));
   else if (turn.outcome !== "started" && turn.outcome !== "held") ctx.io.error(JOINED[turn.outcome](picks, waitedFor));
-  ctx.out.emit(turnView(turn), openedThreadSaid(turn.threadId, opened, turn.session.cwd));
+  ctx.out.emit({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}) }, openedThreadSaid(turn.threadId, opened, turn.session.cwd));
 }
 
 export const turnView = (turn: Turn): z.infer<typeof TurnOut> => ({
