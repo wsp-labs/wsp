@@ -278,6 +278,25 @@
             "rewoundAt": {
               "type": "number"
             },
+            "forkedFrom": {
+              "type": "object",
+              "properties": {
+                "threadId": {
+                  "type": "string"
+                },
+                "turnId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "threadId",
+                "title"
+              ],
+              "additionalProperties": false
+            },
             "permissionMode": {
               "type": "string"
             },
@@ -339,6 +358,9 @@
                   "pos": {
                     "type": "integer",
                     "exclusiveMinimum": 0
+                  },
+                  "copiedFrom": {
+                    "type": "string"
                   },
                   "prompt": {
                     "type": "string"
@@ -461,6 +483,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "kind": {
                     "type": "string",
@@ -603,6 +628,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "result": {
                     "type": "object",
@@ -764,6 +792,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "exitCode": {
                     "type": [
                       "number",
@@ -822,6 +853,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "prompt": {
                     "type": "string"
                   },
@@ -875,6 +909,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "notify": {
                     "type": "string"
                   },
@@ -915,6 +952,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "askId": {
                     "$ref": "#/properties/facts/properties/waitingOn/properties/prompt/properties/askId"
@@ -974,6 +1014,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "askId": {
                     "type": "string"
                   },
@@ -1024,8 +1067,15 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "ref": {
                     "type": "string"
+                  },
+                  "based": {
+                    "type": "boolean",
+                    "const": true
                   },
                   "anchor": {
                     "type": "string"
@@ -1065,6 +1115,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "from": {
                     "type": "string"
@@ -1152,6 +1205,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "steps": {
                     "type": "array",
                     "items": {
@@ -1212,6 +1268,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "before": {
                     "type": "number"
                   },
@@ -1255,6 +1314,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "context": {
                     "type": "number"
                   },
@@ -1294,6 +1356,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "runId": {
                     "type": "string"
@@ -1362,6 +1427,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "from": {
                     "type": "string"
                   },
@@ -1410,6 +1478,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "text": {
                     "type": "string"
                   }
@@ -1446,6 +1517,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "who": {
                     "type": "string",
@@ -1493,6 +1567,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "placeId": {
                     "$ref": "#/properties/facts/properties/capped/properties/placeId"
@@ -1545,6 +1622,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "task": {
                     "type": "string"
@@ -1972,6 +2052,25 @@
             "rewoundAt": {
               "type": "number"
             },
+            "forkedFrom": {
+              "type": "object",
+              "properties": {
+                "threadId": {
+                  "type": "string"
+                },
+                "turnId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "threadId",
+                "title"
+              ],
+              "additionalProperties": false
+            },
             "permissionMode": {
               "type": "string"
             },
@@ -2033,6 +2132,9 @@
                   "pos": {
                     "type": "integer",
                     "exclusiveMinimum": 0
+                  },
+                  "copiedFrom": {
+                    "type": "string"
                   },
                   "prompt": {
                     "type": "string"
@@ -2155,6 +2257,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "kind": {
                     "type": "string",
@@ -2297,6 +2402,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "result": {
                     "type": "object",
@@ -2458,6 +2566,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "exitCode": {
                     "type": [
                       "number",
@@ -2516,6 +2627,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "prompt": {
                     "type": "string"
                   },
@@ -2569,6 +2683,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "notify": {
                     "type": "string"
                   },
@@ -2609,6 +2726,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "askId": {
                     "$ref": "#/properties/facts/properties/waitingOn/properties/prompt/properties/askId"
@@ -2668,6 +2788,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "askId": {
                     "type": "string"
                   },
@@ -2718,8 +2841,15 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "ref": {
                     "type": "string"
+                  },
+                  "based": {
+                    "type": "boolean",
+                    "const": true
                   },
                   "anchor": {
                     "type": "string"
@@ -2759,6 +2889,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "from": {
                     "type": "string"
@@ -2846,6 +2979,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "steps": {
                     "type": "array",
                     "items": {
@@ -2906,6 +3042,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "before": {
                     "type": "number"
                   },
@@ -2949,6 +3088,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "context": {
                     "type": "number"
                   },
@@ -2988,6 +3130,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "runId": {
                     "type": "string"
@@ -3056,6 +3201,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "from": {
                     "type": "string"
                   },
@@ -3104,6 +3252,9 @@
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
                   },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
                   "text": {
                     "type": "string"
                   }
@@ -3140,6 +3291,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "who": {
                     "type": "string",
@@ -3187,6 +3341,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "placeId": {
                     "$ref": "#/properties/facts/properties/capped/properties/placeId"
@@ -3239,6 +3396,9 @@
                   },
                   "pos": {
                     "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
                   },
                   "task": {
                     "type": "string"
