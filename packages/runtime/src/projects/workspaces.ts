@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { remoteHost } from "@wsp/catalog";
 import { NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
-import type { ProjectGolden, ProjectView, WorkspaceProject } from "@wsp/protocol";
+import type { ProjectGolden, ProjectView, WorkspaceProject, WorkspaceStatus } from "@wsp/protocol";
 import { noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, noChangeLine, GitDiffReply, GitRunLogReply, GitPrMergeReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, type TreeRecord, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, type PullRequestItem, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, AUTO_MERGE_OFF_LINE, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, agentsFrom, agentsKindRefusal, agentsMayDrive, askerOf, scopeOf, spawnGoldenRefusal, workspaceIdOf } from "@wsp/protocol";
 import { isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix } from "@wsp/protocol";
 import { harnessExec, putFiles } from "@wsp/engine";
@@ -664,7 +664,12 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     async folderFor(o, origin) {
       await ctx.ready();
       const at = await ctx.folderFor(o, origin);
-      return { workspace: ctx.view(at.entry.record), ...(at.cwd !== undefined ? { cwd: at.cwd } : {}) };
+      return { workspace: ctx.view(at.entry.record), ...(at.cwd !== undefined ? { cwd: at.cwd } : {}), ...(at.setup !== undefined ? { setup: at.setup } : {}) };
+    },
+
+    async takeSetupLine(id, origin) {
+      await ctx.ready();
+      return ctx.takeSetupLine((await ctx.entryOf(id, origin)).record.id);
     },
 
     async folder({ project: named }, origin) {
@@ -966,8 +971,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       const fact = link.kind === "pull_request" ? await ctx.pullRequestOf(project.remote, link.number) : undefined;
       const from = ctx.fromOf(link.kind, link.repo, read, fact);
       await ctx.picksHold(project, { ...(agent !== undefined ? { harness: agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}) });
-      const entry = await ctx.workspaceFrom(project, from, fact, "start", origin);
-      return ctx.openWith(entry, { prompt: fromTaskPrompt(from, read), ...(agent !== undefined ? { harness: agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}) }, origin);
+      const placed = await ctx.workspaceFrom(project, from, fact, "start", origin);
+      return ctx.openWith(placed, { prompt: fromTaskPrompt(from, read), ...(agent !== undefined ? { harness: agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}) }, origin);
     },
 
     async review({ url, workspaceId, agent, model, effort }, origin) {
@@ -998,10 +1003,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       const diff = GitPrDiffReply.parse(await ctx.onThisComputer((ask, home) => ask({ op: "git.prDiff", cwd: home, remote: project.remote, number })));
       const from = ctx.fromOf("review", repo, read, fact);
       await ctx.picksHold(project, { harness: reviewer, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: readOnly });
-      const entry = await ctx.workspaceFrom(project, from, fact, "review", origin);
-      const opened = await ctx.openWith(entry, { prompt: reviewTaskPrompt(from, read, diff), harness: reviewer, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: readOnly }, origin);
-      entry.record.reviewThread = opened.threadId;
-      await ctx.persist(entry.record);
+      const placed = await ctx.workspaceFrom(project, from, fact, "review", origin);
+      const opened = await ctx.openWith(placed, { prompt: reviewTaskPrompt(from, read, diff), harness: reviewer, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: readOnly }, origin);
+      placed.entry.record.reviewThread = opened.threadId;
+      await ctx.persist(placed.entry.record);
       return opened;
     },
 
@@ -1050,14 +1055,14 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
 
     async daemonChannel(id, onEvent, origin) {
       const entry = await ctx.entryOf(id, origin);
-      if (!ctx.moduleOf(entry.record.kind).sharedDaemon) return ctx.copyChannel(entry, onEvent, ctx.WORKSPACE_FRAMES);
+      if (!ctx.moduleOf(entry.record.kind).sharedDaemon) return ctx.threadTagged(id, await ctx.copyChannel(entry, onEvent, ctx.WORKSPACE_FRAMES));
       const ptys = ctx.portPids.get(id) ?? new Map<string, number>();
       ctx.portPids.set(id, ptys);
       const heard = (event: Record<string, unknown>): void => {
         if (event["type"] === "pty.exit" && ptys.delete(String(event["ptyId"]))) ctx.portRootsMoved(id);
         onEvent(event);
       };
-      return ctx.rootedPorts(id, ctx.checkoutOf(entry.record), ptys, ctx.heldToOwner(id, await ctx.copyChannel(entry, heard, ctx.WORKSPACE_FRAMES)));
+      return ctx.rootedPorts(id, ctx.checkoutOf(entry.record), ptys, ctx.heldToOwner(id, ctx.threadTagged(id, await ctx.copyChannel(entry, heard, ctx.WORKSPACE_FRAMES))));
     },
 
     async guestChannel(id, onEvent) {
@@ -1125,6 +1130,19 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       const thread = (event as { threadId?: unknown }).threadId;
       if (typeof thread === "string") return ctx.reachesRow({ threadId: thread, workspaceId: record.id }, origin);
       return ctx.refusalFor(record, origin) === undefined;
+    },
+
+    shownTo(event, origin) {
+      const said = event as { type?: unknown; status?: WorkspaceStatus };
+      const tree = said.type === "workspace.status" ? said.status?.tree : undefined;
+      if (tree === undefined || scopeOf(origin) === undefined) return event;
+      const children = tree.children.filter(c => {
+        const record = live.get(c.workspaceId)?.record;
+        return record !== undefined && ctx.refusalFor(record, origin) === undefined;
+      });
+      if (children.length === tree.children.length) return event;
+      const { tree: _all, ...status } = said.status!;
+      return { ...event, status: children.length === 0 ? status : { ...status, tree: { ...tree, children } } };
     },
   };
   return { workspaces };

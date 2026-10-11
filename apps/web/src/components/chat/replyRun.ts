@@ -7,6 +7,7 @@ import { PTY_RUN_DAEMON_VERSION, terminalText, type RunStep, type SessionRunEven
 import type { Api } from "../../protocol/client.js";
 import { getDaemonVersion } from "../../files/wire.js";
 import { useTerminalDrawerStore } from "../../terminal/drawerStore.js";
+import { threadStateKey } from "../../stateKey.js";
 import { getTerminals, type WorkspaceTerminals } from "../../terminal/link.js";
 
 /** Which block is run, from which reply of which thread, and where. */
@@ -72,7 +73,7 @@ export async function startRun(api: Recorder, t: RunTarget, deps: RunDeps = WIND
   const version = deps.version(t.workspaceId);
   if (version === null || version < PTY_RUN_DAEMON_VERSION) throw new Error(runDaemonBehindLine(version));
   const runId = deps.runId();
-  const ptyId = await wt.run({ command: t.command, ...(t.cwd !== undefined ? { cwd: t.cwd } : {}) });
+  const ptyId = await wt.run({ command: t.command, thread: t.threadId, ...(t.cwd !== undefined ? { cwd: t.cwd } : {}) });
   const step = stepOf(t, runId);
   // Held before the record goes: its event can reach the block, which then mounts, before the answer does.
   watching.set(runId, { ptyId, moved: false });
@@ -99,7 +100,7 @@ export async function resumeRun(api: Recorder, run: SessionRunEvent, deps: RunDe
   if (wt === null || wt.status() !== "live") return;
   const step = stepOf({ threadId: run.threadId ?? "", turnId: run.turnId ?? "", block: run.block, command: run.command }, run.runId);
   watching.set(run.runId, { ptyId: run.ptyId, moved: false });
-  if (!(await wt.resumeRun(run.ptyId))) {
+  if (!(await wt.resumeRun(run.ptyId, run.threadId))) {
     watching.delete(run.runId);
     await record({ ...step, state: "lost" }).catch(() => undefined);
     return;
@@ -116,8 +117,9 @@ export async function moveRun(api: Recorder, run: SessionRunEvent, deps: RunDeps
   if (held !== undefined) held.moved = true;
   await wt.moveToTab(run.ptyId);
   const drawer = useTerminalDrawerStore.getState();
-  drawer.add(run.workspaceId, run.ptyId);
-  drawer.setOpen(run.workspaceId, true);
+  const key = run.threadId === undefined ? run.workspaceId : threadStateKey(run.workspaceId, run.threadId);
+  drawer.add(key, run.ptyId);
+  drawer.setOpen(key, true);
   const step = stepOf({ threadId: run.threadId ?? "", turnId: run.turnId ?? "", block: run.block, command: run.command }, run.runId);
   await record({ ...step, state: "moved", ptyId: run.ptyId });
 }

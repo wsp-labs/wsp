@@ -49,8 +49,8 @@ const ALLOWED: readonly Allowed[] = [
   { text: "byWorkspace[workspaceId]", count: 1, why: "the side question, which closes when the composer leaves the thread it was asked from" },
   {
     text: "byWorkspaceId[workspaceId]",
-    count: 6,
-    why: "composer picks (stamped per thread through pickedOn), the context meter (rewritten on a switch), browser tabs and guests (the pane that shows them is the thread's), the files root, and the bottom terminal drawer, which its own ticket moves to the thread",
+    count: 4,
+    why: "composer picks (stamped per thread through pickedOn), the context meter (rewritten on a switch), and browser tabs and guests (the pane that shows them is the thread's)",
   },
   { text: "current[workspaceId]", count: 1, why: "the last machine line said for a workspace's machine" },
   { text: "drafts[workspaceId]", count: 4, why: "a fork's draft, one for the folder's new thread page the fork opens, and a project home's draft under its home key" },
@@ -81,7 +81,7 @@ const ALLOWED: readonly Allowed[] = [
   {
     text: "registry.get(workspaceId)",
     count: 5,
-    why: "what a workspace's machine serves: browser models, file listings, readings, processes, and the terminals, which move to the thread with the bottom drawer",
+    why: "what a workspace's machine serves: browser models, file listings, readings, processes, and the terminal link, one per folder, whose shells each thread's drawer takes by the host's thread tag",
   },
   { text: "rowsFrom.get(workspaceId)", count: 1, why: "the newest read of a workspace's rows, so an older reply does not replace it" },
   { text: "seen.get(workspaceId)", count: 1, why: "the newest transcript position seen for a workspace" },

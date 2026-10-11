@@ -29,13 +29,14 @@ import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY, sidebarMaxWidthBeside } from "..
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "./sidebarWidth.js";
 import { trackThreadHistory } from "./threadHistory.js";
 import { useShortcutLabel } from "./useKeybindings.js";
-import { followThreadPanels, keepListedPanels, selectPanelState, usePanelKey, useRightPanelStore } from "../rightPanelStore.js";
+import { followThreadPanels, keepListedPanels, selectPanelState, useRightPanelStore } from "../rightPanelStore.js";
 import { SettingsHeaderActions } from "../settings/SettingsHeaderActions.js";
 import { SettingsPage } from "../settings/SettingsPage.js";
 import { SettingsSidebar } from "../settings/SettingsSidebar.js";
 import { WorkspaceSidebar } from "../sidebar/WorkspaceSidebar.js";
 import { workspaceOrHere } from "../terminal/computer.js";
 import { selectTerminalUiState, useTerminalDrawerStore } from "../terminal/drawerStore.js";
+import { useStateKey } from "../stateKey.js";
 import { hostAsleep } from "../boot.js";
 import { DisconnectedBanner } from "./DisconnectedBanner.js";
 import { KeybindingDispatcher } from "./KeybindingDispatcher.js";
@@ -84,10 +85,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   // With no workspace on screen the terminal and the panel are this computer's own.
   const terminalKey = workspaceOrHere(workspaceId);
   const conn = useStore(s => s.conn);
-  const panelKey = usePanelKey(terminalKey);
-  const panel = useRightPanelStore(s => selectPanelState(s.byWorkspaceId, panelKey));
+  // The pane and the drawer of the thread on screen, which share its key.
+  const shownKey = useStateKey(terminalKey);
+  const panel = useRightPanelStore(s => selectPanelState(s.byWorkspaceId, shownKey));
   const toggleVisibility = useRightPanelStore(s => s.toggleVisibility);
-  const terminalOpen = useTerminalDrawerStore(s => selectTerminalUiState(s.byWorkspaceId, terminalKey).terminalOpen);
+  const terminalOpen = useTerminalDrawerStore(s => selectTerminalUiState(s.byWorkspaceId, shownKey).terminalOpen);
   const toggleTerminal = useTerminalDrawerStore(s => s.toggle);
   // Settings takes the window: its own sidebar in the app sidebar's place and the page in the whole region right of
   // it, with Restore defaults where the layout controls were. The panel's own record is untouched, so every
