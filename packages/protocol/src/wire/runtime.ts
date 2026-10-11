@@ -522,8 +522,10 @@ const RuntimeOp = z.discriminatedUnion("op", [
   /** Replies with the workspace's persisted SessionEvent[] (oldest first, capped by the runtime). With threadId,
    * replies with a HistoryPage of that thread instead: its newest events under `before` (every one when absent), at
    * most `limit` of them (HISTORY_PAGE_EVENTS when absent) and no more than HISTORY_PAGE_BYTES of them past the first,
-   * so a client pages back by passing the pos of the oldest event it holds. Refused as usage when before or limit
-   * comes without a thread. */
+   * so a client pages back by passing the pos of the oldest event it holds. With threadId and whole, replies with
+   * { events } of that thread alone, every one it keeps, oldest first: a reader of one thread never asks for its
+   * folder's every thread. Refused as usage when before or limit comes without a thread, or whole with either or
+   * without one. */
   z.object({
     id: reqId,
     op: z.literal("sessions.history"),
@@ -531,6 +533,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
     threadId: z.string().optional(),
     before: z.number().int().positive().optional(),
     limit: z.number().int().positive().max(HISTORY_PAGE_MAX).optional(),
+    whole: z.literal(true).optional(),
   }),
   /** Replies with the thread's ThreadHead, by its fold key as sessions.read takes it; refused as not found where the
    * caller reaches no such thread. */
@@ -1301,7 +1304,8 @@ export type SessionRestoreResult = z.infer<typeof SessionRestoreResult>;
  * around the first place they hold it, on one line. */
 export const SessionSearchHit = z.object({ workspaceId: z.string(), threadId: z.string(), snippet: z.string() });
 export type SessionSearchHit = z.infer<typeof SessionSearchHit>;
-export const SessionSearchResult = z.object({ hits: z.array(SessionSearchHit) });
+/** The hits, and how many threads the host searched none of the words of, since it let them go: opening one holds them again. */
+export const SessionSearchResult = z.object({ hits: z.array(SessionSearchHit), unsearched: z.number().int().positive().optional() });
 export type SessionSearchResult = z.infer<typeof SessionSearchResult>;
 
 /** The harness's answer to a side question, which the host keeps nowhere. */

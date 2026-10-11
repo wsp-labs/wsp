@@ -146,7 +146,7 @@ enum Waited {
 }
 
 async fn ended_of(client: &Client, workspace_id: &str, thread_id: &str, ended: TurnResult) -> Result<Waited, Failure> {
-    let result = thread_result(&history(client, workspace_id).await?, thread_id).unwrap_or(ended);
+    let result = thread_result(&history(client, workspace_id, thread_id).await?, thread_id).unwrap_or(ended);
     Ok(Waited::Ended { thread_id: thread_id.to_owned(), result })
 }
 

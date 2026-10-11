@@ -340,13 +340,15 @@ pub async fn awake(client: &Client, workspace: &Workspace, action: &str) -> Resu
     Ok(Woken { workspace: woken.workspace, woke })
 }
 
-/// The workspace's transcript as the host holds it, each event as it came.
-pub async fn history(client: &Client, workspace_id: &str) -> Result<Vec<Value>, Failure> {
+/// One thread's transcript as the host holds it, each event as it came: the host reads that thread alone, never its
+/// folder's every thread.
+pub async fn history(client: &Client, workspace_id: &str, thread_id: &str) -> Result<Vec<Value>, Failure> {
     #[derive(Deserialize)]
     struct Events {
         events: Vec<Value>,
     }
-    Ok(client.request::<Events>("sessions.history", params([("workspaceId", Value::from(workspace_id))])).await?.events)
+    let asked = params([("workspaceId", Value::from(workspace_id)), ("threadId", Value::from(thread_id)), ("whole", Value::from(true))]);
+    Ok(client.request::<Events>("sessions.history", asked).await?.events)
 }
 
 /// A folder on the machine a thread starts or a command runs in, refused unless absolute: whoever reads it works in
