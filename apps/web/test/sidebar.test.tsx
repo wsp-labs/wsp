@@ -337,7 +337,8 @@ describe("new thread", () => {
     expect(threadState(launched)).toBe("Working");
     expect(launched.querySelector('svg[data-harness-mark="claude"]')).not.toBeNull();
     expect(launched.querySelectorAll("canvas[data-crab]")).toHaveLength(1);
-    expect(statusSlot(launched)!.querySelector("canvas[data-crab]")).not.toBeNull();
+    expect(statusSlot(launched)!.querySelector("canvas[data-crab]")).toBeNull();
+    expect(statusSlot(launched)!.textContent).toBe("0s");
     expect(launched.className).toContain("h-[52px]");
     expect(document.querySelectorAll("[data-thread-launch]")).toHaveLength(1);
   });

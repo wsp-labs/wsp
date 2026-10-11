@@ -170,20 +170,76 @@ describe("a thread tile", () => {
     expect(two!.querySelector("[data-thread-title]")!.className).toContain("text-sm");
   });
 
-  it("walks one crab while working, in row one's status slot as its icon alone, and row two ends in none", () => {
-    mount();
-    expect(tile().querySelectorAll("canvas[data-crab]")).toHaveLength(1);
-    expect(slot().querySelector("canvas[data-crab]")).not.toBeNull();
-    expect(rows()[0]!.lastElementChild).toBe(slot());
-    expect(rows()[1]!.querySelector("canvas")).toBeNull();
-    expect(slot().dataset["tone"]).toBe("working");
-    expect(slot().getAttribute("aria-label")).toBe("Working");
-    expect(slot().textContent).toBe("");
+  it("a working tile says how long its turn has run at row one's right in the working ink, and walks its crab at row two's end", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-09-17T00:17:30.000Z"));
+      mount();
+      expect(rows()[0]!.lastElementChild).toBe(slot());
+      expect(slot().textContent).toBe("17m");
+      expect(slot().dataset["tone"]).toBe("working");
+      expect(slot().className).toContain("text-status-working");
+      expect(slot().getAttribute("aria-label")).toBe("Working");
+      expect(slot().querySelector("canvas")).toBeNull();
+      expect(tile().querySelectorAll("canvas[data-crab]")).toHaveLength(1);
+      const crab = rows()[1]!.querySelector<HTMLElement>("canvas[data-crab]")!;
+      expect(crab.className).toContain("text-status-working");
+      expect(rows()[1]!.querySelector("[data-thread-title]")!.nextElementSibling).toBe(crab);
+    } finally {
+      vi.useRealTimers();
+    }
     cleanup();
     for (const over of [{ status: "failed" as const }, { status: "completed" as const }, { asking: "Write out.txt" }]) {
       mount({ over });
       expect(tile().querySelector("canvas"), JSON.stringify(over)).toBeNull();
       cleanup();
+    }
+  });
+
+  it("a working tile's time counts seconds in its first minute, then moves each minute, and the tile is drawn no more while it does", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-09-17T00:00:58.000Z"));
+      const commits = vi.fn();
+      render(
+        <Profiler id="tile" onRender={commits}>
+          <SidebarProvider defaultOpen>
+            <ThreadTile thread={thread()} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+          </SidebarProvider>
+        </Profiler>,
+      );
+      const drawn = commits.mock.calls.length;
+      expect(slot().textContent).toBe("58s");
+      act(() => void vi.advanceTimersByTime(2_000));
+      expect(slot().textContent).toBe("1m");
+      act(() => void vi.advanceTimersByTime(59_000));
+      expect(slot().textContent).toBe("1m");
+      act(() => void vi.advanceTimersByTime(1_000));
+      expect(slot().textContent).toBe("2m");
+      act(() => void vi.advanceTimersByTime(60 * 60_000));
+      expect(slot().textContent).toBe("1h 2m");
+      expect(commits.mock.calls.length).toBe(drawn);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("twenty working tiles tick off one timer between them", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    try {
+      render(
+        <SidebarProvider defaultOpen>
+          {Array.from({ length: 20 }, (_, i) => (
+            <ThreadTile key={i} thread={thread({ id: `th_${i}`, threadId: `th_${i}` })} place={PLACE} model={null} time="3m" depth={0} active={false} renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+          ))}
+        </SidebarProvider>,
+      );
+      expect(document.querySelectorAll("[data-thread-status=working]")).toHaveLength(20);
+      expect(vi.getTimerCount()).toBe(1);
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
     }
   });
 
@@ -310,9 +366,9 @@ describe("a thread tile", () => {
       fireEvent.mouseMove(slot());
       await act(async () => void vi.advanceTimersByTime(1_000));
       const tip = (): string => document.querySelector("[data-slot=tooltip-popup]")?.textContent ?? "";
-      expect(tip()).toBe("Working 1m 22s");
+      expect(tip()).toBe("Working 1m 23s");
       const drawn = commits.mock.calls.length;
-      for (const want of ["Working 1m 23s", "Working 1m 24s", "Working 1m 25s"]) {
+      for (const want of ["Working 1m 24s", "Working 1m 25s", "Working 1m 26s"]) {
         act(() => vi.advanceTimersByTime(1_000));
         expect(tip()).toBe(want);
       }
