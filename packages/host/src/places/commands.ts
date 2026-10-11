@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import type { CliIO } from "../cli.js";
 import { servingHost } from "../host-lock.js";
 import { aimName, aimedHost, type HostAim, type HostPick } from "../hosts.js";
-import { PROVIDER_ENV, addedProviders, providerBackendFor, unregisteredCloud, type ProviderEnv } from "../providers.js";
+import { PROVIDER_ENV, addedProviders, cloudRoads, namedProviderBackend, unregisteredCloud, type ProviderEnv } from "../providers.js";
 import { placeLink, relaySignIn, type BoxSignIn, type BoxSignedIn, type PlaceLink } from "../place-signin.js";
 import { publicHostname } from "../relay-link.js";
 import { systemOpener } from "../relay.js";
@@ -19,7 +19,7 @@ import { confirmedAt, dialHost, hostPlatform, table, type DialOpts, type HostCli
 import type { HostStarter } from "../host-start.js";
 import { envFileFor, writeEnvFile } from "../env-keys.js";
 import { openWaits, watchSetup, type SetupWatch } from "../setup-follow.js";
-import { ADD_FLAGS_REFUSAL, SIGN_IN_FLAGS_REFUSAL, addLines, addRefusal, addableProviders, boxNotSignedInLine, boxReplacesLine, boxSignedInLine, noPlaceLine, onePlace, placeNoLoginsLine, providerPlaceLine, removeLines, removeQuestion, signInAgentRefusal, signInRowCommand, signsInOnComputer } from "./add-words.js";
+import { ADD_FLAGS_REFUSAL, SIGN_IN_FLAGS_REFUSAL, addLines, addRefusal, addableProviders, boxNotSignedInLine, providerBesideLine, boxReplacesLine, boxSignedInLine, noPlaceLine, onePlace, placeNoLoginsLine, providerPlaceLine, removeLines, removeQuestion, signInAgentRefusal, signInRowCommand, signsInOnComputer } from "./add-words.js";
 import type { AddFlags, SshWordReader } from "./add-words.js";
 import { hostKeyHere } from "./this-computer.js";
 
@@ -551,8 +551,7 @@ export function addedLines(place: PlaceView, hostKey: string | undefined): strin
  * road reads a key through, and is never written here. Every row a person can add declares one, which is what
  * addedProviders answers with. */
 async function addProvider(io: CliIO, opts: PlaceOpts, id: string, deps: PlaceDeps): Promise<number> {
-  const env: ProviderEnv = { ...(opts.providerEnv ?? process.env), [PROVIDER_ENV]: id };
-  const backend = providerBackendFor(env);
+  const backend = namedProviderBackend(opts.providerEnv ?? process.env, id);
   const check = await deps.checkKey(backend);
   const said = keyCheckLine(check, id, true);
   if (check.state === "refused" && said !== undefined) {
@@ -561,9 +560,15 @@ async function addProvider(io: CliIO, opts: PlaceOpts, id: string, deps: PlaceDe
   }
   // A check nothing answered says nothing about the key: it is taken, and the first fork says its own piece.
   if (said !== undefined) io.error(said);
-  writeEnvFile(envFileFor(opts.statePath), { [PROVIDER_ENV]: id });
   const { pricing } = backend;
-  io.log(providerPlaceLine(id, pricing.rateUsdPerHour(pricing.defaultSize)));
+  const rate = pricing.rateUsdPerHour(pricing.defaultSize);
+  // The word written here is what a host forks on from its next start, so it is written only where it would be.
+  if (!cloudRoads()) {
+    io.log(providerBesideLine(id, rate));
+    return 0;
+  }
+  writeEnvFile(envFileFor(opts.statePath), { [PROVIDER_ENV]: id });
+  io.log(providerPlaceLine(id, rate));
   if (servingHost(opts.statePath) !== undefined) io.log(`the host serving ${opts.statePath} reads that at its next start; wsp down and wsp up pick it up now.`);
   return 0;
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The skill as every bundle that inlines it reads it: the host's own build and
 // the desktop app's, which compiles the host from source. A public build
-// inlines it as a process with no cloud reads it, so its cloud sections never
-// reach a bundle.
+// inlines it as a process with the cloud off reads it, so its cloud sections
+// never reach a bundle and its Boat sections always do.
 import { readFileSync } from "node:fs";
 import type { Options } from "tsup";
 import { publicBuild } from "../wspx/scripts/build-defines.mjs";

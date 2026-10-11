@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // node scripts/public-check.mjs <folder or .tgz>...: whether a public build
-// carries a cloud provider. Every script in it is read as code, its comments
-// left out, every page, stylesheet, picture, manifest and README whole, and
-// every daemon binary for its strings. A provider module or its words is a
-// line naming the file, and the exit is 1. The release runs it on the packed
+// carries Solari, the cloud it leaves out. Every script in it is read as code,
+// its comments left out, every page, stylesheet, picture, manifest and README
+// whole, and every daemon binary for its strings. Solari's module or its words
+// is a line naming the file, and the exit is 1. The release runs it on the packed
 // tarball and on the desktop app's folder before either leaves the runner.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -12,18 +12,10 @@ import { extname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "@typescript/typescript6";
 
-/** What a provider leaves in a build: its backend classes, its API's address, its key's variable and prefix, ASCII's
- * shim marks and the providers' names, matched inside a longer word (BOAT_API_KEY, getsolari.com). Solarized is a
- * colour theme the diff viewer ships, Solaris an operating system a binary may name, and newsboat a Linux package. */
-export const PROVIDER_WORDS = [
-  /solari(?![sz])/i,
-  /(?<![a-z])boat(?![a-z])/i,
-  /\bBox(?:Backend|Machine)\b/,
-  /\bBOX_API_URL\b/,
-  /ascii\.dev/i,
-  /slr_live_/,
-  /ascii-(?:harness-shim|lazy-harness)/,
-];
+/** What Solari leaves in a build: its name, matched inside a longer word (SolariBackend, getsolari.com), and its key's
+ * prefix. Boat ships in a public build, so its words pass. Solarized is a colour theme the diff viewer ships, and
+ * Solaris an operating system a binary may name. */
+export const PROVIDER_WORDS = [/solari(?![sz])/i, /slr_live_/];
 
 const SCRIPT = new Set([".js", ".mjs", ".cjs"]);
 const TEXT = new Set([".json", ".html", ".css", ".svg", ".md"]);
@@ -49,7 +41,7 @@ export function codeOf(text, fileName = "bundle.js") {
 
 /** The content hash the bundler puts in an emitted file's name, eight letters of base64url with a digit among them
  * before its extension: a name a script imports another chunk by can spell a provider's name by chance
- * (chunk-2Q5K7J3B-BoAt6AKT.js), and a name with no digit (my-boat-pic.js) is a word, still read. */
+ * (chunk-2Q5K7J3B-sOlarI6A.js), and a name with no digit (my-solari-pic.js) is a word, still read. */
 const ASSET_HASH = /-(?=[\w-]{0,7}\d)[\w-]{8}(?=\.(?:m?js|css)\b)/g;
 
 /** Every provider word in one file's text, each once, with the code around it. */
@@ -100,8 +92,8 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   const hits = paths.flatMap(path => providerWords(path).map(hit => ({ path, ...hit })));
   for (const hit of hits) console.error(`${hit.path}: ${hit.file}: ${hit.word} in "${hit.near}"`);
   if (hits.length > 0) {
-    console.error(`a public build carries ${hits.length} cloud provider word${hits.length === 1 ? "" : "s"}: build it with PUBLIC_BUILD=1 and every package built again`);
+    console.error(`a public build carries ${hits.length} Solari word${hits.length === 1 ? "" : "s"}: build it with PUBLIC_BUILD=1 and every package built again`);
     process.exit(1);
   }
-  console.log(`no cloud provider in ${paths.join(", ")}`);
+  console.log(`no Solari word in ${paths.join(", ")}`);
 }

@@ -9,7 +9,7 @@ import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSource
 import { projectLanding, type Landed, type LandingDeps, type ProjectLanding } from "../project-landing.js";
 import { projectSource } from "../project-sources.js";
 import { projectUnsavedRefusal, refusal, scopeOf, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
-import { addedProjectOn, addingProjectLine, actionRefusal, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, noSuchPlaceRefusal } from "@wsp/protocol";
+import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, noSuchPlaceRefusal } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV } from "@wsp/engine";
 import { resolveThreadDefaults, withCustomModels } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
@@ -220,6 +220,11 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
         throw new Error(noSuchPlaceRefusal(o.on, rows.map(r => r.name)));
       }
       if (o.into !== undefined && computer !== HERE_PLACE_ID) throw new Error(intoIsHereLine(ctx.nameOfComputer(HERE_PLACE_ID, rows)));
+      const place = rows.find(r => r.id === computer);
+      if (opts.cloudProjects === false && place !== undefined && isProviderPlace(place)) {
+        const refused = cloudProjectRefusal(tableName(place));
+        throw usageRefusal(refused.happened, refused.fix);
+      }
       const computerKind = kindForComputer(computer);
       const takes = kindWords(computerKind).projectSources;
       if (!takes.includes(source.kind)) throw new Error(source.kind === "folder" ? folderOnCopyRefusal(ctx.nameOfComputer(computer, rows)) : noComputerForSourceLine(o.source, clones));
