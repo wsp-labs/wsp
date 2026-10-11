@@ -2,6 +2,9 @@
 // The copied matcher over our default rules: every default resolves on both
 // platforms, when-clauses gate the terminal chords, labels follow the platform,
 // and the Tab pair means what the sidebar body it is read in means by it.
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { compileResolvedKeybindingsConfig, DEFAULT_KEYBINDINGS, DEFAULT_RESOLVED_KEYBINDINGS, parseKeybindingShortcut, parseKeybindingWhenExpression } from "../src/keybindingDefaults.js";
 import { useNotices } from "../src/notices/store.js";
@@ -85,34 +88,31 @@ describe("default shortcuts", () => {
     expect(KEYBINDING_WORDS["thread.nextNeedsYou"]).toBe("Next thread that needs you");
   });
 
-  it("gates the terminal chords on terminalFocus and hands mod+n to chat otherwise", () => {
+  it("gates the terminal chords on terminalFocus, and mod+n is New terminal there and nothing outside it", () => {
     expect(resolve(cmd("d"), MAC)).toBeNull();
     expect(resolve(cmd("d"), MAC, { terminalFocus: true })).toBe("terminal.split");
-    expect(resolve(cmd("n"), MAC, DESKTOP_SHELL)).toBe("chat.new");
-    // A focused terminal keeps mod+n for a new terminal, and no thread starts.
+    expect(resolve(cmd("n"), MAC, DESKTOP_SHELL)).toBeNull();
+    expect(resolve(ctrl("n"), LINUX, DESKTOP_SHELL)).toBeNull();
     expect(resolve(cmd("n"), MAC, { ...DESKTOP_SHELL, terminalFocus: true })).toBe("terminal.new");
     expect(resolve(ctrl("n"), LINUX, { ...DESKTOP_SHELL, terminalFocus: true })).toBe("terminal.new");
     expect(resolve(cmd("o", { shiftKey: true }), MAC, { terminalFocus: true })).toBeNull();
   });
 
-  it("New thread is mod+n, mod+t and mod+shift+o in the desktop shell, labelled mod+n, and a focused terminal keeps all three", () => {
-    for (const chord of [cmd("n"), cmd("t"), cmd("o", { shiftKey: true }), cmd("O", { shiftKey: true })]) expect(resolve(chord, MAC, DESKTOP_SHELL)).toBe("chat.new");
-    for (const chord of [ctrl("n"), ctrl("t"), ctrl("O", { shiftKey: true })]) expect(resolve(chord, LINUX, DESKTOP_SHELL)).toBe("chat.new");
-    expect(resolve(ctrl("t"), MAC, DESKTOP_SHELL)).toBeNull();
+  it("New thread is mod+t alone in the desktop shell, labelled so, and mod+n and mod+shift+o open nothing in chat", () => {
+    expect(resolve(cmd("t"), MAC, DESKTOP_SHELL)).toBe("chat.new");
+    expect(resolve(ctrl("t"), LINUX, DESKTOP_SHELL)).toBe("chat.new");
+    for (const chord of [cmd("n"), cmd("o", { shiftKey: true }), cmd("O", { shiftKey: true }), ctrl("t")]) expect(resolve(chord, MAC, DESKTOP_SHELL)).toBeNull();
+    for (const chord of [ctrl("n"), ctrl("O", { shiftKey: true })]) expect(resolve(chord, LINUX, DESKTOP_SHELL)).toBeNull();
     // A terminal with focus keeps the chord: on Linux it is the shell's own.
     expect(resolve(ctrl("t"), LINUX, { ...DESKTOP_SHELL, terminalFocus: true })).toBeNull();
-    expect(resolve(ctrl("O", { shiftKey: true }), LINUX, { ...DESKTOP_SHELL, terminalFocus: true })).toBeNull();
-    expect(DEFAULT_KEYBINDINGS.filter(rule => rule.command === "chat.new")).toEqual([
-      { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
-      { key: "mod+t", command: "chat.new", when: "!terminalFocus" },
-      { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
-    ]);
+    expect(resolve(cmd("t"), MAC, { ...DESKTOP_SHELL, terminalFocus: true })).toBeNull();
+    expect(DEFAULT_KEYBINDINGS.filter(rule => rule.command === "chat.new")).toEqual([{ key: "mod+t", command: "chat.new", when: "!terminalFocus" }]);
     // The chord is what every surface labels the action with: the sidebar's row, the header's glyph and the palette.
-    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", { platform: MAC, context: DESKTOP_SHELL })).toBe("⌘N");
-    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", { platform: LINUX, context: DESKTOP_SHELL })).toBe("Ctrl+N");
+    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", { platform: MAC, context: DESKTOP_SHELL })).toBe("⌘T");
+    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", { platform: LINUX, context: DESKTOP_SHELL })).toBe("Ctrl+T");
   });
 
-  it("a browser tab keeps mod+n and mod+t for its own new window and tab, so there New thread is mod+shift+o and reads so", () => {
+  it("a browser tab keeps mod+n and mod+t for its own new window and tab, so there New thread has no chord and reads none", () => {
     const mod = (k: string) => parseKeybindingShortcut(`mod+${k}`)!;
     for (const platform of [MAC, LINUX]) {
       expect(browserTabClaimsShortcut(mod("n"), platform)).toBe(true);
@@ -123,10 +123,25 @@ describe("default shortcuts", () => {
     expect(resolve(cmd("t"), MAC)).toBeNull();
     expect(resolve(ctrl("n"), LINUX)).toBeNull();
     expect(resolve(ctrl("t"), LINUX)).toBeNull();
-    expect(resolve(cmd("o", { shiftKey: true }), MAC)).toBe("chat.new");
-    expect(resolve(ctrl("O", { shiftKey: true }), LINUX)).toBe("chat.new");
-    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", MAC)).toBe("⇧⌘O");
-    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", LINUX)).toBe("Ctrl+Shift+O");
+    expect(resolve(cmd("o", { shiftKey: true }), MAC)).toBeNull();
+    expect(resolve(ctrl("O", { shiftKey: true }), LINUX)).toBeNull();
+    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", MAC)).toBeNull();
+    expect(shortcutLabelForCommand(DEFAULT_RESOLVED_KEYBINDINGS, "chat.new", LINUX)).toBeNull();
+  });
+
+  it("every sentence that names New thread with a chord, in the app, the docs and the skills, names mod+t", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+    const under = (dir: string, ext: RegExp) => readdirSync(join(root, dir), { recursive: true, encoding: "utf8" }).filter(path => ext.test(path) && !path.includes("vendor")).map(path => join(dir, path));
+    const files = [...under("apps/web/src", /\.tsx?$/), ...under("apps/docs-next/content", /\.mdx$/), "skills/wsp/SKILL.md", ".claude/skills/wsp-design/SKILL.md"];
+    const chord = /⇧?⌥?⌘[A-Z]\b|\b(?:Cmd|Ctrl|mod)\+(?:(?:shift|Shift|alt|Alt)\+)*[A-Za-z]\b/g;
+    const named = files.flatMap(file =>
+      readFileSync(join(root, file), "utf8")
+        .split(/\n|(?<=\.)\s+/)
+        .filter(sentence => /new thread/i.test(sentence))
+        .flatMap(sentence => (sentence.match(chord) ?? []).map(found => `${file}: ${found}`)),
+    );
+    expect(named.length).toBeGreaterThan(3);
+    expect(named.filter(found => !/(⌘T|Cmd\+T|Ctrl\+T|mod\+t)$/.test(found))).toEqual([]);
   });
 
   it("opens the palette from a focused terminal on macOS and leaves ctrl+k to the shell elsewhere, where ctrl+shift+p opens it", () => {
@@ -527,12 +542,12 @@ describe("a person's own chords over the defaults", () => {
   it("refuses a chord another command holds where both can fire, naming it, and takes one whose rules never fire together", () => {
     const rules = DEFAULT_KEYBINDINGS;
     expect(chordRefusal(rules, "sidebar.toggle", "mod+j", read)).toBe("Taken by Toggle the terminal drawer");
-    // mod+n is the terminal's New terminal while it has focus and New thread otherwise.
+    // mod+n is the terminal's New terminal while it has focus, and free outside it.
     expect(chordRefusal(rules, "terminal.split", "mod+n", read)).toBe("Taken by New terminal");
-    expect(chordRefusal(rules, "sidebar.toggle", "mod+n", read)).toBe("Taken by New terminal and New thread");
+    expect(chordRefusal(rules, "sidebar.toggle", "mod+n", read)).toBe("Taken by New terminal");
     expect(chordRefusal(rules, "chat.new", "mod+d", read)).toBeNull();
     // The command's own chords are not a clash: they are the ones being replaced.
-    expect(chordRefusal(rules, "chat.new", "mod+n", read)).toBeNull();
+    expect(chordRefusal(rules, "chat.new", "mod+t", read)).toBeNull();
     expect(chordRefusal(rules, "sidebar.toggle", "mod+shift+b", read)).toBeNull();
     // Another command's override holds its chord the same way a default does.
     expect(chordRefusal(rulesWith(rules, { "preview.toggle": "mod+shift+b" }), "sidebar.toggle", "mod+shift+b", read)).toBe("Taken by Toggle the preview");
