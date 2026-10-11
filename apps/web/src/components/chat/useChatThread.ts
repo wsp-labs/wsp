@@ -50,6 +50,8 @@ export interface ChatThreadView {
   readonly runs: ReadonlyMap<string, SessionRunEvent>;
   /** The latest turn's step list, which the composer's edge carries while that turn runs. */
   readonly plan: TurnPlan | null;
+  /** The thread opened on a conversation kept outside wsp, whose rows come ahead of its first turn. */
+  readonly earlier: boolean;
 }
 
 export interface ChatThreadHandle {
@@ -62,6 +64,8 @@ export interface ChatThreadHandle {
   /** Asks for the thread's events before the oldest held, where the transcripts hold it; nothing otherwise. Answers
    * whether older events may be left once that read is in. */
   readonly older: () => Promise<boolean>;
+  /** The view holds the thread from its first event; false while older events are left on the host. */
+  readonly fromStart: boolean;
   /** Moves when the view takes another thread's rows, and not when a pin names the thread it already shows: the list
    * is drawn anew, at its end, for a thread it did not just show. */
   readonly drawKey: string;
@@ -662,6 +666,7 @@ export function deriveChatView(state: ThreadState, previous: ReadonlyArray<Timel
     permissionMode: model.permissionMode,
     runs: model.runs,
     plan: model.plan,
+    earlier: model.earlier,
   };
   return { view, fold };
 }
@@ -938,6 +943,7 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
     hydrated: hydratedFor === viewKey,
     facts,
     older,
+    fromStart: !held || threadId === null || transcripts.get(threadId)?.complete === true,
     drawKey: `${drawn}`,
     busy: state.sending !== null || view.running,
     sending: state.sending !== null,

@@ -311,8 +311,8 @@ export function ChatView({
   // that forks; a new branch is offered where the thread runs in a git folder on this computer, whose daemon cuts
   // worktrees at a checkpoint, and the turn kept one.
   const forkable = useMemo(
-    () => (api === null || agent === null || subagent !== null ? new Map<string, never>() : forkableMessages(view.turns, view.entries, { forks: catalog?.forks === true, byCount: catalog?.forksByCount === true })),
-    [agent, api, catalog?.forks, catalog?.forksByCount, subagent, view.turns, view.entries],
+    () => (api === null || agent === null || subagent !== null ? new Map<string, never>() : forkableMessages(view.turns, view.entries, { forks: catalog?.forks === true, byCount: catalog?.forksByCount === true }, thread.fromStart && !view.earlier)),
+    [agent, api, catalog?.forks, catalog?.forksByCount, subagent, view.turns, view.entries, thread.fromStart, view.earlier],
   );
   const forkableKey = [...forkable.keys()].join("\n");
   const forkableIds = useMemo(() => new Set(forkableKey === "" ? [] : forkableKey.split("\n")), [forkableKey]);

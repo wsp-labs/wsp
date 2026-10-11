@@ -164,9 +164,34 @@ describe("Fork from here on a thread's messages", () => {
   it("offers no fork on a steered message, which opened no turn", () => {
     const turns: TurnSummary[] = [{ turnId: "t1", sessionId: "s", state: "completed", replied: true, prompt: "a", model: null, durationMs: null, waitedMs: null, costUsd: null, tokens: null, changes: null, error: null, startedAt: null, completedAt: null, checkpoint: { ref: null, anchor: "a1" } }];
     const msg = (id: string, role: "user" | "assistant", steered = false) => ({ id, kind: "message" as const, createdAt: "", message: { id, role, text: id, turnId: "t1", streaming: false, createdAt: "", updatedAt: "", ...(steered ? { steered: true } : {}) } });
-    const picks = forkableMessages(turns, [msg("opened", "user"), msg("steer", "user", true), msg("reply", "assistant")], { forks: true, byCount: false });
+    const picks = forkableMessages(turns, [msg("opened", "user"), msg("steer", "user", true), msg("reply", "assistant")], { forks: true, byCount: false }, true);
     expect([...picks.keys()].sort()).toEqual(["opened", "reply"]);
     expect(picks.get("opened")).toMatchObject({ turnId: null });
+  });
+});
+
+describe("Fork from here on the first message the view holds", () => {
+  it("offers none on the first message of a thread opened on a conversation from outside wsp, whose agent would start with nothing", async () => {
+    const s = { workspaceId: WS, sessionId: "conv-7f3a", threadId: THREAD };
+    const earlier: SessionEvent[] = [
+      { type: "session.earlier", ...s, at: 1, who: "person", text: "Remember ALPHA." },
+      { type: "session.earlier", ...s, at: 2, who: "agent", text: "ALPHA kept." },
+    ];
+    const { api } = fixtureApi({ history: [...earlier, ...HISTORY] });
+    await mount(api);
+    await screen.findAllByText("ALPHA kept.");
+    await waitFor(() => expect(forkButtons().map(rowOf).map(t => t.match(/(ask|reply) \d/)?.[0]).sort()).toEqual(["ask 2", "reply 1", "reply 3"]));
+  });
+
+  it("offers none on the first message of a page that does not reach the thread's start, which is no first message", async () => {
+    const { api } = fixtureApi();
+    const newest = HISTORY.filter(e => e.turnId !== "turn_1").map((e, i) => ({ ...e, pos: 10 + i }));
+    api.sessionHead = async threadId => ({ facts: { id: ROW.id, threadId, workspaceId: WS, harness: "claude", startedBy: "person", status: "completed", title: "ask 1", sessionId: ROW.id, turns: 3, ran: true }, events: newest, pos: 100, total: HISTORY.length });
+    // The older page is still on its way, so the view holds turns 2 and 3 alone.
+    api.sessionPage = (_workspaceId, _threadId, window = {}) => (window.before === undefined ? Promise.resolve({ events: newest, pos: 100, total: HISTORY.length }) : new Promise(() => {}));
+    await mount(api);
+    await screen.findAllByText("reply 2");
+    await waitFor(() => expect(forkButtons().map(rowOf).map(t => t.match(/(ask|reply) \d/)?.[0]).sort()).toEqual(["reply 3"]));
   });
 });
 
@@ -322,6 +347,15 @@ describe("what the composer held before a fork off a person's message", () => {
     expect(useForkDrafts.getState().drafts[WS]).toBeUndefined();
   });
 
+  it("comes back when the person asks for a new thread on the project instead, which is no fork", async () => {
+    const started = await forkAsk2();
+    act(() => useStore.getState().newThread(WS));
+    await heldAgain();
+    await waitFor(() => expect(document.querySelector("[data-fork-banner]")).toBeNull());
+    expect(composerEditor().textContent).toBe("half a thought");
+    expect(started).toEqual([]);
+  });
+
   it("comes back on the banner's dismiss", async () => {
     await forkAsk2();
     fireEvent.click(within(await banner()).getByRole("button", { name: "Cancel the fork" }));
@@ -404,7 +438,7 @@ describe("the fork dialog", () => {
       { ...base, turnId: "t2", state: "completed", changes: { from: "a", to: "b", files: [{ path: "b.txt", status: "modified", additions: 1, deletions: 0 }] }, checkpoint: { ref: "r2", anchor: "a2" } },
     ] as unknown as TurnSummary[];
     const reply = (turnId: string) => ({ id: `m_${turnId}`, kind: "message" as const, createdAt: "", message: { id: `m_${turnId}`, role: "assistant" as const, text: "", turnId, streaming: false, createdAt: "", updatedAt: "" } });
-    const picks = forkableMessages(turns, [reply("t1"), reply("t2")], { forks: true, byCount: false });
+    const picks = forkableMessages(turns, [reply("t1"), reply("t2")], { forks: true, byCount: false }, true);
     expect(picks.get("m_t1")).toEqual({ turnId: "t1", checkpoint: "r1", based: true, laterChanged: true });
     expect(picks.get("m_t2")).toEqual({ turnId: "t2", checkpoint: "r2", based: false, laterChanged: false });
     expect(forkBranchName("main", new Set(["main"]), "1a2b3c4d5e")).toBe("main-fork");

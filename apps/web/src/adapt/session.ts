@@ -44,6 +44,8 @@ export interface SessionModel {
   readonly runs: ReadonlyMap<string, SessionRunEvent>;
   /** The latest turn's step list, whatever state the turn is in; null where that turn wrote none. */
   readonly plan: TurnPlan | null;
+  /** The thread opened on a conversation kept outside wsp, whose rows come ahead of its first turn. */
+  readonly earlier: boolean;
 }
 
 export interface DeriveSessionOptions {
@@ -761,7 +763,7 @@ export function createSessionFold(): SessionFold {
     const latestPlan = latestTurn === null ? undefined : plans.get(latestTurn.turnId);
     const plan = latestTurn === null || latestPlan === undefined ? null : { turnId: latestTurn.turnId, steps: latestPlan.steps };
     if (runsSeen.size !== runs.size || [...runs].some(([block, run]) => runsSeen.get(block) !== run)) runsSeen = new Map(runs);
-    return { turns: [...turns], messages, workEntries, timeline: [...timeline], latestTurn, running, model: modelName, harness, agent, permissionMode, cwd, shellCwd, runs: runsSeen, plan };
+    return { turns: [...turns], messages, workEntries, timeline: [...timeline], latestTurn, running, model: modelName, harness, agent, permissionMode, cwd, shellCwd, runs: runsSeen, plan, earlier: earlier > 0 };
   };
   return { add, model, size: () => taken };
 }

@@ -271,7 +271,8 @@ describe("a fork of a Claude Code thread at a finished turn", () => {
       ["person", "list every code word you remember"],
       ["agent", "reply 2"],
     ]);
-    // A fork that carries no turn carries none of it either, as its agent starts with nothing.
+    // A fork that carries no turn carries none of it either, as its agent starts with nothing; the app offers no such
+    // fork on a thread opened on an outside conversation, and only wsp run --fork --at 0 still makes one.
     const bare = await rt!.sessions.fork({ prompt: "x", fork: { threadId, at: 0 } });
     await bare.finished;
     expect((await rt!.sessions.page(ws.id, { threadId: bare.view().threadId! })).events.some(e => e.type === "session.earlier")).toBe(false);
