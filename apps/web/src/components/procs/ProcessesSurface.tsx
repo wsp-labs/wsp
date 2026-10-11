@@ -11,9 +11,11 @@ import { ChevronRightIcon } from "lucide-react";
 import { folderOnJoined, foldThreads, isLocalWorkspace, threadCgroup, workspaceKind, type ProcEntry, type ProcInspectReply, type ProcSignal } from "@wsp/protocol";
 import { cn, errorText } from "../../lib/utils.js";
 import { staleWord, type StaleWord } from "../../machine/live.js";
+import { holdAppProcs, useAppProcs } from "../../machine/appProcs.js";
 import { getProcs, useWorkspaceProcs } from "../../machine/procs.js";
 import { useAbsentComputer, useStore, useWorkspace } from "../../protocol/store.js";
 import { StartDaemonButton } from "../DaemonDown.js";
+import { HERE_KEY } from "../../terminal/computer.js";
 import { getTerminals, onTerminals } from "../../terminal/link.js";
 import { clockLabel } from "../../lib/timestampFormat.js";
 import { compactBytes } from "@wsp/protocol";
@@ -58,6 +60,10 @@ export function ProcessesSurface({ workspaceId }: { workspaceId: string }) {
   const [restOpen, setRestOpen] = useState(false);
 
   useEffect(() => getProcs(workspaceId).watch(), [workspaceId]);
+  // The app runs where the host runs, so only this computer's own panel and a local workspace list its processes.
+  const local = workspaceId === HERE_KEY || (workspace !== null && isLocalWorkspace(workspace));
+  useEffect(() => (local ? holdAppProcs() : undefined), [local]);
+  const appProcs = useAppProcs();
 
   const snapshot = procs.snapshot;
   const joined = workspace !== null && folderOnJoined(workspaceKind(workspace));
@@ -83,7 +89,7 @@ export function ProcessesSurface({ workspaceId }: { workspaceId: string }) {
   const draw = (rows: readonly ProcRow[], under = 0) =>
     rows.map(({ proc, depth }) => {
       const lit = proc.pid === selected;
-      const label = snapshot ? procLabel(proc, snapshot.daemon, titles) : null;
+      const label = snapshot ? procLabel(proc, snapshot.daemon, titles, local ? appProcs : undefined) : null;
       return (
         <div key={proc.pid}>
           <Row proc={proc} depth={depth + under} label={label} lit={lit} onSelect={() => setSelected(lit ? null : proc.pid)} />

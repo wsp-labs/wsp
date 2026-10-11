@@ -6,7 +6,7 @@
 // whose command is twenty characters of the same flags is still told apart by
 // what started it.
 import { CATALOG_AGENTS } from "@wsp/catalog";
-import { byProcColumn, inCgroup, type ProcEntry, type ProcSort } from "@wsp/protocol";
+import { appProcLine, byProcColumn, inCgroup, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
 
 export type { ProcSort };
 
@@ -122,9 +122,14 @@ export function procTable(procs: readonly ProcEntry[], sort: ProcSort, filter: s
   return { threads: trees, rest };
 }
 
-/** The harness pieces the daemon can name: itself, the shells behind its ptys (by the tab's title) and an agent by the command its catalog entry puts on PATH. */
-export function procLabel(p: ProcEntry, daemonPid: number, terminalTitles: ReadonlyMap<string, string>): string | null {
+const NO_APP: ReadonlyMap<number, AppProc> = new Map();
+
+/** The harness pieces the daemon can name: itself, the shells behind its ptys (by the tab's title) and an agent by the
+ * command its catalog entry puts on PATH; and the desktop app's own processes, which only the app can name. */
+export function procLabel(p: ProcEntry, daemonPid: number, terminalTitles: ReadonlyMap<string, string>, app: ReadonlyMap<number, AppProc> = NO_APP): string | null {
   if (p.pid === daemonPid) return "wsp";
+  const part = app.get(p.pid);
+  if (part !== undefined) return appProcLine(part);
   if (p.pty !== undefined) {
     const title = terminalTitles.get(p.pty);
     return title !== undefined ? `terminal ${title}` : "terminal";
