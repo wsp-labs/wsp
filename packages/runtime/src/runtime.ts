@@ -342,6 +342,7 @@ import { projectsArea } from "./projects/projects.js";
 
 import { usageArea } from "./account/usage.js";
 import { conversationsArea } from "./threads/conversations.js";
+import { activityDoor } from "./activity.js";
 
 import { statusArea } from "./account/status.js";
 
@@ -422,6 +423,7 @@ export {
 export function createRuntime(opts: RuntimeOptions): Runtime {
   const ctx = {} as RuntimeContext;
   Object.assign(ctx, runtimeCore(ctx, opts));
+  Object.assign(ctx, { activity: activityDoor(ctx) });
   Object.assign(ctx, kindsArea(ctx));
 
   Object.assign(ctx, rulesArea(ctx));
@@ -1006,6 +1008,7 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
     preferences: ctx.preferences,
     usage: ctx.usage,
     conversations: ctx.conversations,
+    activity: ctx.activity,
     status: {
       ...ctx.status,
       // Which workspaces this caller is served is decided here, after the probes, off the same reading the other

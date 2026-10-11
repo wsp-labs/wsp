@@ -63,6 +63,21 @@ impl ProcWatch {
     }
 }
 
+/// The ops `serve` answers.
+pub(super) fn serves(op: &DaemonOp) -> bool {
+    matches!(
+        op,
+        DaemonOp::SysWatch
+            | DaemonOp::SysUnwatch
+            | DaemonOp::SysHistory { .. }
+            | DaemonOp::ProcWatch
+            | DaemonOp::ProcUnwatch
+            | DaemonOp::ProcInspect { .. }
+            | DaemonOp::ProcList
+            | DaemonOp::ProcKill { .. }
+    )
+}
+
 pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &str, op: DaemonOp) -> String {
     match op {
         DaemonOp::SysWatch => {
@@ -127,6 +142,7 @@ pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId
             let inspected = async { ctx.proc_sampler()?.inspect(pid_in_range(pid)?).await };
             answer(id, inspected.await)
         }
+        DaemonOp::ProcList => answer(id, async { ctx.proc_sampler()?.list().await }.await),
         DaemonOp::ProcKill { pid, signal } => {
             let protected = ProtectedPids { this: std::process::id(), parent: std::os::unix::process::parent_id() };
             answer(id, pid_in_range(pid).and_then(|pid| kill_process(pid, signal, protected)).map(|()| Empty {}))

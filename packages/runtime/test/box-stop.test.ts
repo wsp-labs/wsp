@@ -308,6 +308,18 @@ describe("a stop on a running box turn while the box is away", () => {
     expect(await store.get("thread-ends", placeId)).toEqual({ threads: [threadId] });
   }, 15_000);
 
+  it("gives up no held send while a delete only checks, nor reads processes for a thread on a box", async () => {
+    const { rt, workspaceId, turn, threadId, placeId } = await running();
+    await away(placeId);
+    expect(await within(rt.sessions.interrupt(turn.id), 2000)).toEqual({ outcome: "accepted", left: threadEndAwayLine("hetzner") });
+    const { send: next } = await heldSend(workspaceId, threadId, "req_held");
+
+    expect(await within(rt.sessions.delete(threadId, undefined, { check: true, processes: "ask" }), 2000)).toEqual({ workspaceId, threads: 1 });
+    expect(await within(next, 300)).toBe("still waiting");
+    expect(await within(rt.sessions.delete(threadId, undefined, { processes: "ask" }), 2000)).toEqual({ workspaceId, threads: 1 });
+    expect(await within(next, 2000)).toBe(sendGivenUpLine("hetzner"));
+  }, 15_000);
+
   it("takes a thread off the state file before it frees the send waiting on it, so a send made while another thread's end is out launches", async () => {
     const { rt, seen, placeId, workspaceId, turn, threadId, back } = await running();
     const other = await rt.sessions.start(workspaceId, { prompt: "other", harness: "claude" });

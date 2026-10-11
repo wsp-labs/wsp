@@ -207,6 +207,8 @@ pub enum DaemonOp {
     ProcUnwatch,
     #[serde(rename = "proc.inspect")]
     ProcInspect { pid: NonZeroU32 },
+    #[serde(rename = "proc.list")]
+    ProcList,
     #[serde(rename = "proc.kill")]
     ProcKill { pid: NonZeroU32, signal: ProcSignal },
     #[serde(rename = "ping")]
@@ -896,7 +898,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 78] = [
+pub const DAEMON_OPS: [&str; 79] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -919,6 +921,7 @@ pub const DAEMON_OPS: [&str; 78] = [
     "proc.watch",
     "proc.unwatch",
     "proc.inspect",
+    "proc.list",
     "proc.kill",
     "ping",
     "fs.list",

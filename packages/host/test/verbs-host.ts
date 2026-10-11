@@ -6,13 +6,14 @@ import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { type fakeCopier, type MachineBackend } from "@wsp/engine";
 import { type AgentRow, type ProjectView, type DaemonErrorCode, HERE_PLACE_ID, type HarnessCatalogAnswer } from "@wsp/protocol";
-import { copyKey, createRuntime, memoryStore, type AgentsReader, type DaemonChannel, type HarnessAdapterFactory, type PlaceBackends, type Runtime, type Store } from "@wsp/runtime";
+import { copyKey, createRuntime, memoryStore, type AgentsReader, type DaemonChannel, type DaemonChannelOptions, type HarnessAdapterFactory, type PlaceBackends, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, beforeEach, vi } from "vitest";
 import { cli, localWiring, serve } from "../src/cli.js";
 import { placeWiring } from "../src/places.js";
 import type { HostHandle } from "../src/server.js";
 import { type RestartRoad } from "../src/restart.js";
 import { SEALED_GOLDEN } from "./sealed-golden.js";
+import { fakeProcs, type FakeProcs } from "./fake-procs.js";
 import { stubBackend, type StubBackend } from "./stub-backend.js";
 import { copyingFake, fakeDaemonStart, projectOn, PAGE, captured, scriptedAgent, type Captured } from "./verbs-fixture.js";
 
@@ -21,12 +22,16 @@ const PR_REST: Omit<import("@wsp/protocol").PullRequest, "number" | "url" | "sta
 
 /** A daemon inside a workspace that answers the two frames a bring back sends, so the verb's own line is read here
  * without a machine: the push, then the pull request or the sentence that says none was opened. */
-function fakeGitDaemon(): { open: () => Promise<DaemonChannel>; pr: { refuse?: { error: string; code?: DaemonErrorCode } } } {
+function fakeGitDaemon(): { open: (o: DaemonChannelOptions) => Promise<DaemonChannel>; pr: { refuse?: { error: string; code?: DaemonErrorCode } }; procs: FakeProcs } {
+  const procs = fakeProcs();
   const state: { refuse?: { error: string; code?: DaemonErrorCode } } = {};
   return {
     pr: state,
-    open: async () => ({
+    procs,
+    open: async ({ onEvent }: DaemonChannelOptions) => ({
       send: async (frame: { op: string; branch?: string }) => {
+        const proc = procs.answer(frame, onEvent);
+        if (proc !== undefined) return proc as never;
         // A source a fork is made from reads as on its own branch, tracked and level with the remote, and the fork's copy is
         // put on it.
         if (frame.op === "git.status") return { id: 1, ok: true, branch: { oid: "abc", head: "work", upstream: "origin/work", ahead: 0, behind: 0 }, entries: [], root: "/root/stub" };

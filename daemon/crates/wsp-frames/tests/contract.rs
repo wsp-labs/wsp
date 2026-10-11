@@ -501,6 +501,7 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("daemonDefaultHost", Value::from(numbers::DEFAULT_HOST));
     m.insert("daemonDefaultPort", Value::from(numbers::DEFAULT_PORT));
     m.insert("daemonSamplerIntervalMs", Value::from(numbers::SAMPLER_INTERVAL_MS));
+    m.insert("daemonProcIntervalMs", Value::from(numbers::PROC_INTERVAL_MS));
     m.insert("guestWspHome", Value::from(numbers::GUEST_WSP_HOME));
     m.insert("workspaceOverlaid", Value::from(numbers::OVERLAID.to_vec()));
     m.insert("homebrewHome", Value::from(numbers::HOMEBREW_HOME));

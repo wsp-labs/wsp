@@ -1,0 +1,268 @@
+{
+  "cloudOff": {
+    "name": "activity_end",
+    "description": "Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after 2 s, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "the process's pid, as activity lists it"
+        },
+        "started": {
+          "type": "number",
+          "description": "the start activity listed it with, its startedAt in epoch milliseconds"
+        },
+        "computer": {
+          "type": "string",
+          "description": "the computer, which must be this one; a box is refused"
+        }
+      },
+      "required": [
+        "pid",
+        "started"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer"
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ppid": {
+                "type": "integer"
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "startedAt": {
+                "type": "number"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "tool",
+                  "dev",
+                  "test",
+                  "build",
+                  "slate",
+                  "terminal",
+                  "tab",
+                  "app",
+                  "wsp",
+                  "other"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "number"
+              },
+              "cpu": {
+                "type": "number"
+              },
+              "ports": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "pid",
+              "ppid",
+              "depth",
+              "startedAt",
+              "kind",
+              "name",
+              "command",
+              "memory",
+              "cpu",
+              "ports"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "forced": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "left": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "freed": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pid",
+        "ended",
+        "forced",
+        "left"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  },
+  "cloudOn": {
+    "name": "activity_end",
+    "description": "Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after 2 s, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "the process's pid, as activity lists it"
+        },
+        "started": {
+          "type": "number",
+          "description": "the start activity listed it with, its startedAt in epoch milliseconds"
+        },
+        "computer": {
+          "type": "string",
+          "description": "the computer, which must be this one; a box is refused"
+        }
+      },
+      "required": [
+        "pid",
+        "started"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer"
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ppid": {
+                "type": "integer"
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "startedAt": {
+                "type": "number"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "tool",
+                  "dev",
+                  "test",
+                  "build",
+                  "slate",
+                  "terminal",
+                  "tab",
+                  "app",
+                  "wsp",
+                  "other"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "number"
+              },
+              "cpu": {
+                "type": "number"
+              },
+              "ports": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "pid",
+              "ppid",
+              "depth",
+              "startedAt",
+              "kind",
+              "name",
+              "command",
+              "memory",
+              "cpu",
+              "ports"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "forced": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "left": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "freed": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pid",
+        "ended",
+        "forced",
+        "left"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "_meta": {
+      "anthropic/alwaysLoad": false
+    }
+  }
+}
