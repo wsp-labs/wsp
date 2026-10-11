@@ -937,6 +937,8 @@ describe("runtime wire types", () => {
       // A slate's write and read are its agent's; a press, an approval, a cancel and a revoke start, stop or change what
       // runs on this computer.
       "slates.write", "slates.read", "slates.event", "slates.approve", "slates.cancel", "slates.revoke",
+      // The app's processes name the sites in the person's browser tabs, and only the app on this computer names them.
+      "appProcs.watch", "appProcs.unwatch", "appProcs.offer", "appProcs.set",
     ];
     for (const op of held) {
       expect(wire.RUNTIME_OPS, op).toContain(op);
