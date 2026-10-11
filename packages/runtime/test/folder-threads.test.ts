@@ -922,6 +922,26 @@ describe("deleting a thread that runs in a worktree wsp made", () => {
   });
 });
 
+describe("deleting one of two threads in a worktree wsp made", () => {
+  it("takes that thread alone and leaves the worktree to the other, and the last one takes the worktree", async () => {
+    const { rt, copier } = here();
+    const folder = repo();
+    const project = await rt.projects.add({ source: folder });
+    const at = await rt.workspaces.folderFor({ project: project.id, branch: "feat/two" });
+    const c = await rt.sessions.start(at.workspace.id, { prompt: "thread C" });
+    await c.finished;
+    const d = await rt.sessions.start(at.workspace.id, { prompt: "thread D" });
+    await d.finished;
+    const [first, second] = [c.view().threadId!, d.view().threadId!];
+    expect(await rt.sessions.delete(first)).toEqual({ workspaceId: at.workspace.id, threads: 1 });
+    expect(copier.worktreesRemoved).toEqual([]);
+    expect(existsSync(at.workspace.worktree!.path)).toBe(true);
+    expect((await rt.sessions.list()).map(v => v.threadId)).toEqual([second]);
+    expect(await rt.sessions.delete(second)).toEqual({ workspaceId: at.workspace.id, worktree: at.workspace.worktree!.path, threads: 1 });
+    expect(copier.worktreesRemoved.map(r => r.path)).toEqual([at.workspace.worktree!.path]);
+  });
+});
+
 describe("deleting a thread whose last checkpoint is still being written", () => {
   it("waits for the checkpoint to land before it drops the thread's refs", async () => {
     const { rt, daemon } = here();

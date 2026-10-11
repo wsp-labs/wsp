@@ -208,11 +208,11 @@ export const cwdOutsideLine = (path: string, project: string): string => `${path
 export const noCwdLine = (path: string): string => `there is no folder at ${path}; name one that exists`;
 
 /** What taking a thread away on this computer takes, the question a delete puts first: the thread's turns and
- * checkpoints, and the worktree wsp made with every thread in it where the thread ran in one. */
+ * checkpoints, and the worktree wsp made it ran in once no other thread is in it. */
 export function threadDeleteQuestion(threadId: string, worktree: string | undefined): string {
   return worktree === undefined
     ? `Delete thread ${threadId}?\nIts turns and checkpoints leave this computer; the folder it worked in is left as it is.`
-    : `Delete thread ${threadId}?\nThe worktree at ${worktree} is removed with every thread in it; the branch and the project folder are left as they are.`;
+    : `Delete thread ${threadId}?\nIts turns and checkpoints leave this computer, and the worktree at ${worktree} with it where no other thread is in it; the branch and the project folder are left as they are.`;
 }
 
 /** What a thread delete did. */

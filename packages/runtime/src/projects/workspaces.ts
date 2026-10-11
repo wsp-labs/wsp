@@ -753,12 +753,12 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       if (paths !== undefined && paths.length === 0) return { message: null, note: DRAFT_NOTES.nothing };
       const entry = await ctx.entryOf(workspaceId, origin, { act: "commit" });
       await ctx.copyBlocked(entry);
-      // The thread named drafts, else the folder's newest, on its own agent and from the message it was opened with;
-      // a folder with no thread yet drafts on the default agent from the diff alone.
-      const rows = [...sessions.values()].map(s => s.view).filter(v => v.workspaceId === workspaceId).sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
-      if (threadId !== undefined && !rows.some(v => v.threadId === threadId)) throw notFoundRefusal(threadElsewhereLine(threadId));
-      const newest = threadId === undefined ? rows.at(-1) : rows.filter(v => v.threadId === threadId).at(-1);
-      const opening = newest?.threadId === undefined ? undefined : rows.find(v => v.threadId === newest.threadId)?.prompt;
+      // The thread named drafts on its own agent and from the message it was opened with; with none named, the
+      // default agent drafts from the diff alone, since every thread of a project folder shares its workspace.
+      const rows = threadId === undefined ? [] : [...sessions.values()].map(s => s.view).filter(v => v.workspaceId === workspaceId && v.threadId === threadId).sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+      if (threadId !== undefined && rows.length === 0) throw notFoundRefusal(threadElsewhereLine(threadId));
+      const newest = rows.at(-1);
+      const opening = rows[0]?.prompt;
       const named = newest?.harness ?? ctx.defaultAgentOf(await ctx.preferences.get(), entry);
       if (adapters[named] === undefined || ctx.agentOff(entry, named)) return { message: null, note: DRAFT_NOTES.noAgent };
       const { harness, adapter } = await ctx.launchAdapterFor(entry, named);
@@ -825,13 +825,15 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       return ctx.postAsPerson(remote, number, cwd => ({ op: "git.prReact", cwd, remote, number, subject, content, on }), r => GitPrReactReply.parse(r));
     },
 
-    async pullRequestSend({ workspaceId, items }, origin) {
+    async pullRequestSend({ workspaceId, items, threadId }, origin) {
       const { entry, remote, number } = await ctx.pullRequestOn(workspaceId, origin);
+      if (threadId !== undefined && ![...sessions.values()].some(s => s.view.workspaceId === workspaceId && s.view.threadId === threadId)) throw notFoundRefusal(threadElsewhereLine(threadId));
       await ctx.copyBlocked(entry);
       const { page } = await ctx.readPage(entry, remote, number, false);
       const same = (a: PullRequestItem, b: PullRequestItem): boolean => a.kind === b.kind && a.id === b.id;
       const asked = items.filter((item, n) => items.findIndex(other => same(item, other)) === n);
-      const said = await ctx.toFirstThread(workspaceId, pullRequestSendPrompt(page, asked, number), origin);
+      const prompt = pullRequestSendPrompt(page, asked, number);
+      const said = threadId === undefined ? await ctx.toFirstThread(workspaceId, prompt, origin) : await ctx.sendDetached(workspaceId, { prompt, thread: threadId }, origin);
       const at = clock.now();
       entry.record.prSent = [...(entry.record.prSent ?? []).filter(s => !asked.some(i => same(i, s))), ...asked.map(i => ({ kind: i.kind, id: i.id, at }))];
       await ctx.persist(entry.record);
@@ -996,7 +998,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       const from = ctx.fromOf("review", repo, read, fact);
       await ctx.picksHold(project, { harness: reviewer, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: readOnly });
       const entry = await ctx.workspaceFrom(project, from, fact, "review", origin);
-      return ctx.openWith(entry, { prompt: reviewTaskPrompt(from, read, diff), harness: reviewer, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: readOnly }, origin);
+      const opened = await ctx.openWith(entry, { prompt: reviewTaskPrompt(from, read, diff), harness: reviewer, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: readOnly }, origin);
+      entry.record.reviewThread = opened.threadId;
+      await ctx.persist(entry.record);
+      return opened;
     },
 
     async reviewDraft({ workspaceId, summary, verdict, on }, origin) {

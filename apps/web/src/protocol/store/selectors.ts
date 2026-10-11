@@ -58,6 +58,12 @@ export const isCreationKey = (key: string): boolean => key.startsWith(CREATION_P
 export const catalogIn = (s: Catalogs, workspaceId: string | null, harness: string): HarnessCatalog | null =>
   catalogsIn(s, workspaceId).find(c => c.harness === harness) ?? null;
 
+/** The thread a workspace shows now, by its runtime id: null on the New thread page, on a view whose thread has no id
+ * yet and on a workspace not on screen. What an act on that workspace names, so it reaches this thread alone. */
+export function shownThreadIdOf(s: Pick<State, "selectedId" | "selectedThreadId">, workspaceId: string): string | null {
+  return s.selectedId === workspaceId ? s.selectedThreadId : null;
+}
+
 /** The rule under useThreadSessions, for a reader outside React that has to agree with what the centre draws. */
 export function threadRows(sessions: ReadonlyArray<SessionView>, workspaceId: string | null, threadKey: string): ReadonlyArray<SessionView> {
   const own = sessions.filter(row => threadKeyOf(row) === threadKey);
