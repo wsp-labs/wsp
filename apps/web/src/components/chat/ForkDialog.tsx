@@ -22,6 +22,10 @@ import { EMPTY_DRAFT, useComposerDraftStore } from "./composerDraftStore.js";
 import { fileFromStash, useComposerFilesStore } from "./composerFiles.js";
 import { useComposerOptionsStore } from "./composerOptionsStore.js";
 import { forkSourceOf, useForkDrafts, type ForkDraft } from "./forks.js";
+import { useNewThreadRequests } from "./newThreadRequests.js";
+
+/** The workspace whose fork draft is raising its own new-thread request, for the moment it takes. */
+let opening: string | null = null;
 
 /** Opens the fork's draft: a fresh composer in the thread's workspace under the fork's banner, its pickers on the
  * source's agent, model and effort, holding the person's message and its images where the fork came off one. */
@@ -31,7 +35,9 @@ export function openForkDraft(request: ForkRequest, branch?: string): void {
   const before = message === undefined ? undefined : { draft: useComposerDraftStore.getState().drafts[workspaceId] ?? EMPTY_DRAFT, files: useComposerFilesStore.getState().take(workspaceId) };
   const draft = { source: { workspaceId, threadId, title }, fork: forkSourceOf(threadId, pick), ...(branch !== undefined ? { branch } : {}), ...(before !== undefined ? { before } : {}) };
   useForkDrafts.getState().open(workspaceId, draft);
+  opening = workspaceId;
   requestNewThread({ workspaceId });
+  opening = null;
   // A fresh view's key is its workspace's, which is what these picks are stamped with.
   const options = useComposerOptionsStore.getState();
   options.pick(workspaceId, "harness", request.harness, workspaceId);
@@ -57,7 +63,7 @@ export function openForkDraft(request: ForkRequest, branch?: string): void {
   requestComposerFocus(workspaceId);
 }
 
-/** Ends the workspace's fork draft, by its dismiss, by its send or by the view leaving it, and puts back the words and
+/** Ends the workspace's fork draft, by its dismiss, its send, the view leaving it or a new thread asked for, and puts back the words and
  * files the composer held before a fork off a person's message took it over: a folder's threads share that composer. */
 export function endForkDraft(workspaceId: string): ForkDraft | undefined {
   const draft = useForkDrafts.getState().drafts[workspaceId];
@@ -78,6 +84,15 @@ export function ForkDialogHost() {
       onForkRequest(next => {
         if (next.branchFrom === null) openForkDraft(next);
         else setRequest(next);
+      }),
+    [],
+  );
+  // A new thread asked for on a workspace, other than the one its fork draft opened with, ends that draft. The view a
+  // thread is pinned in hands the draft's own request on as another, which finds it still pending and changes nothing.
+  useEffect(
+    () =>
+      useNewThreadRequests.subscribe((now, was) => {
+        for (const workspaceId of now.pending) if (!was.pending.has(workspaceId) && workspaceId !== opening) endForkDraft(workspaceId);
       }),
     [],
   );

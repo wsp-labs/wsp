@@ -26,8 +26,10 @@ export interface ForkPick {
 
 /** The messages Fork from here stands on, by message id, on an agent that forks: each finished turn's last reply, and
  * the person's message that opened a finished turn, which forks the turn before it. A turn forks where it named an
- * anchor or where its agent counts turns; the running turn, a steered message and a reply inside a turn offer none. */
-export function forkableMessages(turns: ReadonlyArray<TurnSummary>, entries: ReadonlyArray<TimelineEntry>, agent: { forks: boolean; byCount: boolean }): Map<string, ForkPick> {
+ * anchor or where its agent counts turns; the running turn, a steered message and a reply inside a turn offer none.
+ * The first turn's message forks, carrying no turn, only where `opening` says the view holds the thread's own start:
+ * a page cut short holds a later turn first, and a conversation from outside wsp ahead of it is one no fork carries. */
+export function forkableMessages(turns: ReadonlyArray<TurnSummary>, entries: ReadonlyArray<TimelineEntry>, agent: { forks: boolean; byCount: boolean }, opening: boolean): Map<string, ForkPick> {
   const out = new Map<string, ForkPick>();
   if (!agent.forks) return out;
   const at = new Map(turns.map((t, i) => [t.turnId, i] as const));
@@ -50,8 +52,8 @@ export function forkableMessages(turns: ReadonlyArray<TurnSummary>, entries: Rea
     const i = at.get(turnId);
     if (i === undefined || !finished(turns[i]!)) continue;
     const message = { text: e.message.text, attachments: e.message.attachments ?? [], ...(e.message.requestId !== undefined ? { requestId: e.message.requestId } : {}) };
-    if (i === 0) out.set(e.message.id, { turnId: null, checkpoint: null, based: false, laterChanged: false, message });
-    else if (cuts(turns[i - 1]!)) out.set(e.message.id, { ...pick(i - 1), message });
+    if (i === 0 && opening) out.set(e.message.id, { turnId: null, checkpoint: null, based: false, laterChanged: false, message });
+    else if (i > 0 && cuts(turns[i - 1]!)) out.set(e.message.id, { ...pick(i - 1), message });
   }
   return out;
 }

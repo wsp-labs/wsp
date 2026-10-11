@@ -64,6 +64,11 @@ describe("the check a public build passes", () => {
     expect(providerWords(built({ "dist/bin.js": 'import("./boat-2Q5K7J3B.js");\n' }))).toHaveLength(1);
   });
 
+  it("takes eight letters with no digit in them for a name, not a hash", () => {
+    expect(providerWords(built({ "dist/bin.js": 'import("./my-boat-pic.js");\n' }))).toHaveLength(1);
+    expect(providerWords(built({ "dist/bin.js": 'import("./chunk-2Q5K7J3B-BoAt6AKT.js");\n' }))).toEqual([]);
+  });
+
   it("reads a daemon binary's strings, and takes the operating system named Solaris for what it is", () => {
     const elf = (text: string): string => `\x7fELF\x02\x01\x01\x00${text}\x00`;
     const root = built({ "assets/daemon/x86_64-unknown-linux-musl/wsp-daemon": elf('{"providers":["box","solari"]}'), "assets/daemon/aarch64-apple-darwin/wsp-daemon": elf("target_os = solaris") });
