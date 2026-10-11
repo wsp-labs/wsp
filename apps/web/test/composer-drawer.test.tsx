@@ -34,7 +34,7 @@ import type { SlateApi } from "../src/slate/wire.js";
 import { RightPanelTabs } from "../src/components/RightPanelTabs.js";
 import { TooltipProvider } from "../src/components/ui/tooltip.js";
 import { PANE_KINDS, type RightPanelKind } from "../src/panes.js";
-import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
+import { composerKeyIn, useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { useComposerBarStore } from "../src/components/chat/composerBar.js";
 import { TABLE_CATALOG, whenAgentsAnswered } from "./agents.js";
 import { composerEditor, press, typeInto } from "./composer-harness.js";
@@ -286,7 +286,7 @@ describe("the composer's drawer", () => {
     expect(before).toBeGreaterThan(0);
     await typeInto(composerEditor(), "and then push");
     await typeInto(composerEditor(), " it");
-    expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("and then push it");
+    expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("and then push it");
     expect(rows()).toHaveLength(3);
     expect(drawn.glyphs).toBe(before);
   });
@@ -303,7 +303,7 @@ describe("the composer's drawer", () => {
     expect(onAdd.mock.calls.map(([kind]) => kind)).toEqual([]);
     await waitFor(() => expect(composer()).not.toBeNull());
     expect(bar()).toBeNull();
-    expect(useComposerDraftStore.getState().drafts[WS]?.prompt).toBe("the tests");
+    expect(useComposerDraftStore.getState().drafts[composerKeyIn(WS)]?.prompt).toBe("the tests");
     editorFocused();
   });
 

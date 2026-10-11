@@ -92,7 +92,7 @@ export function ChatView({
   const api = useStore(s => s.api);
   const listRef = useRef<LegendListRef | null>(null);
   const { view } = thread;
-  const turnRows = useThreadSessions(workspaceId, thread.threadKey);
+  const turnRows = useThreadSessions(workspaceId, thread.threadKey, thread.fresh);
   // A turn its computer's threads at once holds back has no start in the transcript yet, and still reads as working:
   // the timeline's working row says what holds it, with the setting that lets it start.
   const capped = turnRows.at(-1)?.capped;
@@ -151,7 +151,7 @@ export function ChatView({
     if (landed !== null && thread.hydrated && !empty) dropLanded(workspaceId);
   }, [landed, thread.hydrated, empty, dropLanded, workspaceId]);
   const cwd = view.cwd ?? undefined;
-  const onQuote = useCallback((quote: QuotedSelection) => insertIntoComposer(workspaceId, quoteText(quote)), [workspaceId]);
+  const onQuote = useCallback((quote: QuotedSelection) => insertIntoComposer(workspaceId, quoteText(quote), thread.threadKey), [thread.threadKey, workspaceId]);
   // A file named in the transcript opens as its own tab in the Files pane at the line it names, read against the
   // folder the thread worked in, which is what the agent wrote the path from.
   const onOpenFile = useCallback(

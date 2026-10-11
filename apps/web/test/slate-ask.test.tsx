@@ -65,12 +65,12 @@ describe("Ask for one", () => {
       onThread(workspace, "t1");
       render(
         <>
-          <MountedComposer workspaceId={workspace.id} />
+          <MountedComposer workspaceId={workspace.id} threadKey="t1" />
           <Panel workspaceId={workspace.id} mode="inline" />
         </>,
       );
       await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Ask for one" })));
-      expect(useComposerDraftStore.getState().drafts[workspace.id]).toEqual({ prompt: ASK, cursor: ASK.length });
+      expect(useComposerDraftStore.getState().drafts["t1"]).toEqual({ prompt: ASK, cursor: ASK.length });
       expect(screen.getByTestId("composer-editor").textContent).toBe(ASK);
       expect(document.activeElement).toBe(screen.getByTestId("composer-editor"));
       expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, workspace.id).isOpen).toBe(true);
@@ -80,7 +80,7 @@ describe("Ask for one", () => {
       onThread(workspace, "t1");
       render(
         <>
-          <MountedComposer workspaceId={workspace.id} />
+          <MountedComposer workspaceId={workspace.id} threadKey="t1" />
           <Panel workspaceId={workspace.id} mode="sheet" />
         </>,
       );

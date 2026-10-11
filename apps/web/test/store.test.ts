@@ -610,7 +610,7 @@ describe("store sessions", () => {
       vi.useRealTimers();
     }
   });
-  it("session.start remembers the claude session id on the workspace, and the row it moved lands with no read", async () => {
+  it("session.start stamps no session on the workspace, which its sibling threads would resume, and the row it moved lands with no read", async () => {
     const sessions: SessionView[] = [];
     const { api, emit, listCalls } = fakeApi([view("ws_a")], sessions);
     useStore.getState().bind(api);
@@ -619,7 +619,7 @@ describe("store sessions", () => {
 
     const started: SessionView = { id: "s1", workspaceId: "ws_a", harness: "claude", status: "running", claudeSessionId: "c1", threadId: "thr_1" };
     emit({ type: "session.start", workspaceId: "ws_a", sessionId: "c1", threadId: "thr_1", model: "claude-sonnet-4-5" });
-    expect(useStore.getState().workspaces[0]!.claudeSessionId).toBe("c1");
+    expect(useStore.getState().workspaces[0]!.claudeSessionId).toBeUndefined();
     emit(rowPushed(started));
     await flush();
     expect(listCalls).toEqual([]);
