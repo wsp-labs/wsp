@@ -610,6 +610,118 @@ async fn sys_history_answers_the_kept_minutes_folded_into_steps_and_refuses_a_ra
 }
 
 #[tokio::test]
+async fn sys_history_at_a_step_under_a_minute_answers_the_recorders_newest_reads() {
+    let t = tree();
+    let kept = tempfile::tempdir().unwrap();
+    let dir = kept.path().to_path_buf();
+    let d = start(|o| {
+        with_tree(&t)(o);
+        o.readings_dir = Some(dir);
+        o.readings_interval_ms = Some(20);
+    })
+    .await;
+    let mut c = Client::connect(d.addr).await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let points = loop {
+        let now = now_ms();
+        let res = c.request("sys.history", json!({ "from": now - 900_000, "to": now + 1, "stepMs": 10_000 })).await;
+        assert_eq!(res["ok"], true, "{res}");
+        let points = res["points"].as_array().unwrap().clone();
+        assert!(points.len() <= 60, "{}", points.len());
+        if points.len() == 60 {
+            break points;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "the reads never filled: {}", points.len());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let newest = points.last().unwrap();
+    assert!(now_ms() - newest["at"].as_i64().unwrap() < 15_000, "{newest}");
+    assert_eq!(newest["load1"], json!(1.25));
+    assert_eq!(newest["mem"], json!({ "used": 2000 * 1024, "total": 8000 * 1024 }));
+    c.close().await;
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64
+}
+
+#[tokio::test]
+async fn sys_unwatch_ends_this_sockets_watch_and_a_second_watch_on_one_socket_is_one_subscription() {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut a = Client::connect(d.addr).await;
+    let mut b = Client::connect(d.addr).await;
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    a.listen(Duration::from_millis(300)).await;
+    let ats: Vec<i64> = a.of("sys.sample").iter().map(|s| s["at"].as_i64().unwrap()).collect();
+    assert!(ats.len() > 2, "{ats:?}");
+    assert!(ats.windows(2).all(|w| w[0] < w[1]), "a sample arrived twice: {ats:?}");
+
+    // Another socket's watch holds the sampler past this one's unwatch, and this one hears nothing more.
+    assert_eq!(b.request("sys.watch", json!({})).await["ok"], true);
+    assert_eq!(a.request("sys.unwatch", json!({})).await["ok"], true);
+    a.listen(Duration::from_millis(60)).await;
+    let held = a.of("sys.sample").len();
+    a.listen(Duration::from_millis(200)).await;
+    assert_eq!(a.of("sys.sample").len(), held);
+    assert_eq!(d.logged(words::SYS_SAMPLER_STOPPED), 0);
+
+    // The last subscriber's unwatch stops the sampler with the socket still open; an unwatch with no watch is a no-op.
+    assert_eq!(b.request("sys.unwatch", json!({})).await["ok"], true);
+    assert_eq!(b.request("sys.unwatch", json!({})).await["ok"], true);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while d.logged(words::SYS_SAMPLER_STOPPED) == 0 {
+        assert!(tokio::time::Instant::now() < deadline, "the sampler never stopped: {:?}", d.log());
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    // A watch after the unwatch starts it again, and the socket's close stops it as before.
+    let last = a.of("sys.sample").last().unwrap()["at"].as_i64();
+    assert_eq!(a.request("sys.watch", json!({})).await["ok"], true);
+    assert!(a.wait_event("sys.sample", Duration::from_secs(10), |s| s["at"].as_i64() > last).await.is_some());
+    assert_eq!(d.logged(words::SYS_SAMPLER_STARTED), 2);
+    a.close().await;
+    b.close().await;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while d.logged(words::SYS_SAMPLER_STOPPED) < 2 {
+        assert!(tokio::time::Instant::now() < deadline, "the sampler never stopped: {:?}", d.log());
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+#[tokio::test]
+async fn an_unwatch_sent_behind_a_watch_on_one_socket_ends_it() {
+    unwatch_behind_watch("sys", words::SYS_SAMPLER_STARTED, words::SYS_SAMPLER_STOPPED, &["sys.sample"]).await;
+    unwatch_behind_watch("proc", words::PROC_SAMPLER_STARTED, words::PROC_SAMPLER_STOPPED, &["proc.snapshot", "proc.changes"]).await;
+}
+
+/// Both frames go in one write, so the unwatch lands while the watch's probe still reads.
+async fn unwatch_behind_watch(readings: &str, started: &str, stopped: &str, frames: &[&str]) {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut c = Client::connect(d.addr).await;
+    let (w, u) = (90, 91);
+    c.ws.feed(Message::text(json!({ "id": w, "op": format!("{readings}.watch") }).to_string())).await.unwrap();
+    c.ws.feed(Message::text(json!({ "id": u, "op": format!("{readings}.unwatch") }).to_string())).await.unwrap();
+    c.ws.flush().await.unwrap();
+    let mut order = Vec::new();
+    while order.len() < 2 {
+        let msg = tokio::time::timeout(Duration::from_secs(10), c.ws.next()).await.unwrap().unwrap().unwrap();
+        let v: Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+        if v.get("id") == Some(&json!(w)) || v.get("id") == Some(&json!(u)) {
+            assert_eq!(v["ok"], true);
+            order.push(v["id"].as_u64().unwrap());
+        }
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    c.listen(Duration::from_millis(300)).await;
+    // The watch may never subscribe or may subscribe and leave; either way nothing reads for this socket.
+    let (started, stopped) = (d.logged(started), d.logged(stopped));
+    let n: usize = frames.iter().map(|f| c.of(f).len()).sum();
+    assert_eq!((started - stopped, n), (0, 0), "{readings}: replies {order:?}; the sampler still runs: {:?}", d.log());
+}
+
+#[tokio::test]
 async fn usage_logs_reads_the_home_this_daemon_serves_and_refuses_a_store_it_cannot_name() {
     let home = tempfile::tempdir().unwrap();
     let rollout = home.path().join(".codex/sessions/2026/09/29/rollout-a.jsonl");

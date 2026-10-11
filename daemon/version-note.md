@@ -1,0 +1,1 @@
+sys.history at a step under a minute answers the last fifteen minutes of reads as they were taken, sys.unwatch ends a socket's readings watch, a sys.unwatch or proc.unwatch sent before its watch is answered still ends it, and a Linux computer's own disk is read as df reads it, without running df.

@@ -163,8 +163,11 @@ pub enum DaemonOp {
     InboxRescan,
     #[serde(rename = "sys.watch")]
     SysWatch,
+    #[serde(rename = "sys.unwatch")]
+    SysUnwatch,
     /// The computer's readings a minute apart between two instants, ms epoch, folded into steps of step_ms: what the
-    /// daemon kept while it ran, whether or not anybody watched.
+    /// daemon kept while it ran, whether or not anybody watched. A step under a minute answers the last fifteen
+    /// minutes of reads as they were taken.
     #[serde(rename = "sys.history", rename_all = "camelCase")]
     SysHistory { from: i64, to: i64, step_ms: u64 },
     /// What each agent's own store on this computer counted, for the stores the host names: counts, a model and a
@@ -893,7 +896,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 77] = [
+pub const DAEMON_OPS: [&str; 78] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -908,6 +911,7 @@ pub const DAEMON_OPS: [&str; 77] = [
     "inbox.watch",
     "inbox.rescan",
     "sys.watch",
+    "sys.unwatch",
     "sys.history",
     "usage.logs",
     "transcripts.list",
