@@ -80,7 +80,7 @@ jobs:
         run: |
           sudo apt-get install -y --no-install-recommends musl-tools gperf
           ./scripts/libseccomp-archive.sh musl
-      # Public: a Mac daemon's tool server embeds no cloud tool and no provider. The jobs that ship it read it for one.
+      # Public: a Mac daemon's tool server embeds no top-level cloud tool and no provider but Boat. The jobs that ship it read it for Solari.
       - name: Build
         env:
           TARGET: ${{ matrix.target }}
@@ -188,8 +188,8 @@ jobs:
         run: |
           if [ -z "$CSC_LINK" ]; then unset CSC_LINK; fi
           pnpm --filter @wsp/desktop run build:mac
-      # A public release carries no cloud provider: Boat and Solari stay in the builds wsp's own development runs on.
-      - name: The app carries no cloud provider
+      # A public release carries Boat and no Solari: Solari stays in the builds wsp's own development runs on.
+      - name: The app carries no Solari
         run: node packages/wspx/scripts/public-check.mjs apps/desktop/build/app
       # Each bundle's signature and the packaged tree, and with a certificate the check insists on a notarized,
       # stapled bundle. It reads whether one signed from WSP_SIGNED, so the certificate's bytes stay in the
@@ -264,7 +264,7 @@ jobs:
           PUBLIC_BUILD: "1"
           POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
         run: pnpm --filter @wsp/desktop run build:linux
-      - name: The app carries no cloud provider
+      - name: The app carries no Solari
         run: node packages/wspx/scripts/public-check.mjs apps/desktop/build/app
       - name: Name the AppImage after the release, and copy it to the name that never moves
         run: |
@@ -328,7 +328,7 @@ jobs:
         run: pnpm -r --filter '!./apps/www' --filter '!@wsp/desktop' build
       - name: Every target the host names is in the package
         run: node packages/wspx/scripts/daemon-binary.mjs --check
-      - name: The package carries no cloud provider
+      - name: The package carries no Solari
         run: |
           pnpm --filter @wsp-labs/wsp exec npm pack --pack-destination "$RUNNER_TEMP"
           node packages/wspx/scripts/public-check.mjs "$RUNNER_TEMP"/wsp-labs-wsp-*.tgz

@@ -199,6 +199,14 @@ export interface Lifecycle {
   quietForMs?(machine: Machine): Promise<number | undefined>;
 }
 
+/** A machine the provider lists under a name of wsp's that carries no labels. */
+export interface NamedMachine {
+  id: string;
+  name: string;
+  state: MachineState;
+  createdAt?: string;
+}
+
 export interface MachineBackend {
   readonly capabilities: Capabilities;
   readonly pricing: BackendPricing;
@@ -224,8 +232,17 @@ export interface MachineBackend {
    * provider has no computer of theirs to run anything on. Nothing of wsp is installed on the computer by it: the
    * commands are its own folders' making and taking. */
   onComputer?(cmd: string, opts?: { timeoutMs?: number }): Promise<ExecResult>;
-  /** `waiting` hears each wait the provider puts the create through, as a line for the person following it. */
-  create(spec: MachineSpec, waiting?: (line: string) => void): Promise<Machine>;
+  /** `waiting` hears each wait the provider puts the create through, as a line for the person following it. `sent`
+   * is what `createRequest` made for this attempt, sent again as it is under the same key. */
+  create(spec: MachineSpec, waiting?: (line: string) => void, sent?: string): Promise<Machine>;
+  /** Optional, the three together: only a backend whose create takes a key the provider keeps. The exact bytes a
+   * create of this spec sends, made once per attempt so a replay under its key carries the same body. */
+  createRequest?(spec: MachineSpec): Promise<string>;
+  /** Asks again under `key` with the bytes its attempt sent and answers the machine the provider made for it. */
+  replayCreate?(key: string, bytes: string): Promise<Machine>;
+  /** The provider's machines named exactly one of `names`, whatever their labels: a machine made from a named image
+   * carries the image's name until wsp names it. */
+  namedAfter?(names: ReadonlySet<string>): Promise<NamedMachine[]>;
   /** Optional: only backends the person holds a key for. One cheap authenticated read that boots nothing and touches
    * no machine's idle clock, so a key the provider refuses is known before anything is saved or billed. Rejects with
    * the provider's own WspError; `checkProviderKey` is what reads that answer. */

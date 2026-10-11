@@ -94,11 +94,11 @@ describe("the Slate tab", () => {
     render(
       <>
         <SlateSurface />
-        <MountedComposer workspaceId="ws" />
+        <MountedComposer workspaceId="ws" threadKey="t1" />
       </>,
     );
     await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Ask for one" })));
-    expect(useComposerDraftStore.getState().drafts["ws"]?.prompt).toBe("Build a slate for this thread that shows ");
+    expect(useComposerDraftStore.getState().drafts["t1"]?.prompt).toBe("Build a slate for this thread that shows ");
     expect(screen.getByTestId("composer-editor").textContent).toBe("Build a slate for this thread that shows ");
     expect(document.activeElement).toBe(screen.getByTestId("composer-editor"));
   });
@@ -110,11 +110,12 @@ describe("the Slate tab", () => {
     render(
       <>
         <SlateSurface />
-        <MountedComposer workspaceId="ws" />
+        <MountedComposer workspaceId="ws" threadKey="t2" />
       </>,
     );
     await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Draft it" })));
-    expect(useComposerDraftStore.getState().drafts["ws"]?.prompt).toBe("Look at this\n");
+    expect(useComposerDraftStore.getState().drafts["t2"]?.prompt).toBe("Look at this\n");
+    expect(useComposerDraftStore.getState().drafts["ws"]).toBeUndefined();
   });
 
   it("says a slate was cleared, and offers Undo while there is one", async () => {

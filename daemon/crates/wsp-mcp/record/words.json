@@ -355,6 +355,7 @@
     "review_post": "wsp review post <thread> [--verdict comment|approve|request-changes] [--summary \"<text>\"]",
     "update": "wsp update <thread>",
     "image": "wsp image",
+    "image_build": "wsp image build <place> [--force]",
     "delete": "wsp delete <thread> [--yes]",
     "run": "wsp run [<project>] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\"",
     "worktree": "wsp worktree <project> <branch>",

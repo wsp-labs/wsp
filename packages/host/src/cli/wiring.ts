@@ -7,7 +7,7 @@ import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type Go
 import { CATALOG_AGENTS, GOLDEN_SETUP, GOLDEN_SMOKE } from "@wsp/catalog";
 import { PRICES_URL, PERSON_HOME_ENV, type SealedImage } from "@wsp/protocol";
 import { agentHome, type Copier, LocalBackend, providerSlot, type ProviderSlot, verbCopier } from "@wsp/engine";
-import { noMachinesLine, PROVIDER_MODULES, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
+import { cloudRoads, noMachinesLine, PROVIDER_MODULES, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
 import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
@@ -280,6 +280,7 @@ export function makeRuntime(
   const tools = keptTools();
   const rt = createRuntime({
     noMachinesLine: noMachinesLine(modules),
+    cloudProjects: cloudRoads(modules),
     places: providerPlaces(
       () => pick.id,
       slot.backend,

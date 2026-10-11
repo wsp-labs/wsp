@@ -68,6 +68,8 @@ export interface PaletteItemsInput {
   readonly query: string;
   /** The threads whose messages the host found the query in, for that query. */
   readonly messageHits: ReadonlyArray<SessionSearchHit>;
+  /** How many older threads that search did not look in, since the host let their words go. */
+  readonly unsearched?: number;
   readonly canCreate: boolean;
   /** Every project this host holds, which the page New thread picks from lists. */
   readonly recorded: readonly ProjectView[];
@@ -412,11 +414,14 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItems {
     const thread = threads.find(t => t.threadId === hit.threadId && t.workspaceId === hit.workspaceId);
     return thread === undefined || byTitle.includes(thread) ? [] : [{ ...item(thread), value: `message:${thread.id}`, searchTerms: [input.query, hit.snippet], description: hit.snippet }];
   });
+  const unsearched = input.unsearched ?? 0;
+  const skipped: CommandPaletteActionItem[] =
+    unsearched === 0 ? [] : [{ kind: "action", value: "message:unsearched", title: `${unsearched} older ${unsearched === 1 ? "thread" : "threads"} not searched`, description: "Open one to search its messages", searchTerms: [input.query], icon: null, disabled: true, run: async () => {} }];
   return {
     actionItems: actionItems(input),
     workspaceItems: workspaceItems(input),
     recentThreadItems: latest.slice(0, RECENT_THREAD_LIMIT).map(item),
     threadSearchItems: byTitle.map(item),
-    messageSearchItems: byMessage,
+    messageSearchItems: [...byMessage, ...skipped],
   };
 }

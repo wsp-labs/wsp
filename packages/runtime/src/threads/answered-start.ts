@@ -23,11 +23,15 @@ export async function answeredStart(answerHeld: boolean, start: (onHeld?: OnHeld
 /** Where a sessions.start or a sessions.warm runs: the record it names, else, on this computer, the folder of the
  * project, branch or folder it names, found or made, with the agent and picks it names read against that project. */
 export async function startAt(
-  workspaces: Pick<Runtime["workspaces"], "folderFor">,
+  workspaces: Pick<Runtime["workspaces"], "folderFor" | "takeSetupLine">,
   msg: { workspaceId?: string; project?: string; branch?: string; cwd?: string; harness?: string; model?: string; effort?: string; access?: AccessChoice; permissionMode?: string; fast?: boolean },
   origin: Caller | undefined,
-): Promise<{ workspaceId: string; cwd?: string }> {
-  if (msg.workspaceId !== undefined) return { workspaceId: msg.workspaceId, ...(msg.cwd !== undefined ? { cwd: msg.cwd } : {}) };
+  o: { opens?: true } = {},
+): Promise<{ workspaceId: string; cwd?: string; setup?: string }> {
+  if (msg.workspaceId !== undefined) {
+    const setup = o.opens === true ? await workspaces.takeSetupLine(msg.workspaceId, origin) : undefined;
+    return { workspaceId: msg.workspaceId, ...(msg.cwd !== undefined ? { cwd: msg.cwd } : {}), ...(setup !== undefined ? { setup } : {}) };
+  }
   const picks = {
     ...(msg.harness !== undefined ? { harness: msg.harness } : {}),
     ...(msg.model !== undefined ? { model: msg.model } : {}),
@@ -42,8 +46,9 @@ export async function startAt(
       ...(msg.branch !== undefined ? { branch: msg.branch } : {}),
       ...(msg.cwd !== undefined ? { cwd: msg.cwd } : {}),
       ...(Object.keys(picks).length > 0 ? { picks } : {}),
+      ...o,
     },
     origin,
   );
-  return { workspaceId: found.workspace.id, ...(found.cwd !== undefined ? { cwd: found.cwd } : {}) };
+  return { workspaceId: found.workspace.id, ...(found.cwd !== undefined ? { cwd: found.cwd } : {}), ...(found.setup !== undefined ? { setup: found.setup } : {}) };
 }

@@ -43,6 +43,9 @@ export function addableProviders(): string[] {
 /** What a provider that just became a place reads as. */
 export const providerPlaceLine = (id: string, rateUsdPerHour: number): string => `place ${id}, ${fmtPrice(rateUsdPerHour)}, forks your image`;
 
+/** The same where that provider is a place beside this computer and never the one this host forks on. */
+export const providerBesideLine = (id: string, rateUsdPerHour: number): string => `place ${id}, ${fmtPrice(rateUsdPerHour)}, beside this computer; your threads still run here`;
+
 /** The refusal for a word that is neither a provider wsp holds a key for nor an ssh address, naming all three roads. */
 export function addRefusal(word: string): string {
   const ssh = "an address over ssh (user@host, or an alias your ssh config gives a HostName)";

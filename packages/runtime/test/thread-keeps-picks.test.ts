@@ -46,6 +46,8 @@ describe("the model, effort and window a start into a thread runs on", () => {
   let claude: ReturnType<typeof recording>;
   let codex: ReturnType<typeof recording>;
   let rt: Runtime;
+  let store: ReturnType<typeof memoryStore>;
+  let runtime: () => Runtime;
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "wsp-picks-"));
@@ -61,7 +63,9 @@ describe("the model, effort and window a start into a thread runs on", () => {
       platform: testPlatform(),
       copier: copyingFake(),
     };
-    rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: claude.adapter, codex: codex.adapter }, local });
+    store = memoryStore();
+    runtime = () => createRuntime({ backend: stubBackend(), store, adapters: { claude: claude.adapter, codex: codex.adapter }, local });
+    rt = runtime();
   });
   afterEach(async () => {
     await rt.close();
@@ -113,10 +117,14 @@ describe("the model, effort and window a start into a thread runs on", () => {
 
   it("a thread whose rows fell off the index still sends on its model, effort and window, read off its transcript", async () => {
     const { workspaceId, thread } = await openThread({ harness: "claude", model: "claude-opus-5", effort: "low", contextWindow: "1m" });
-    // Two hundred other threads in the same folder push the thread's one row off the workspace's 200-row index, on
-    // other picks, so a value read off the wrong turn shows.
-    for (let i = 0; i < 200; i++) await (await rt.sessions.start(workspaceId, { prompt: `other ${i}`, harness: "claude", model: "claude-sonnet-5", effort: "max" })).finished;
-    expect((await rt.sessions.list(workspaceId)).some(s => s.threadId === thread)).toBe(false);
+    // Other threads in the same folder on other picks, so a value read off the wrong turn shows.
+    for (let i = 0; i < 3; i++) await (await rt.sessions.start(workspaceId, { prompt: `other ${i}`, harness: "claude", model: "claude-sonnet-5", effort: "max" })).finished;
+    // The state a host before each thread kept its newest row left: the thread's rows gone, its record standing.
+    await rt.close();
+    const doc = (await store.get("sessions", workspaceId)) as { sessions: { threadId?: string }[] };
+    await store.put("sessions", workspaceId, { ...doc, sessions: doc.sessions.filter(s => s.threadId !== thread) });
+    rt = runtime();
+    expect((await rt.sessions.list(workspaceId)).find(s => s.threadId === thread)).toMatchObject({ id: thread, prompt: "one" });
     await (await rt.sessions.start(workspaceId, { prompt: "two", thread })).finished;
     expect(picksOf(claude.starts.at(-1))).toEqual({ model: "claude-opus-5", effort: "low", contextWindow: "1m" });
   }, 60_000);

@@ -772,16 +772,19 @@ describe("chat tab new thread mid-turn", () => {
     expect(stopButton()).toBeDefined();
     act(() => requestNewThread({ workspaceId: WS }));
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
-    expect(isEditable(editor)).toBe(true);
-    expect(document.activeElement).toBe(editor);
+    // The new thread has a composer of its own, not the one the left thread typed into.
+    const fresh = composerEditor();
+    expect(fresh).not.toBe(editor);
+    expect(isEditable(fresh)).toBe(true);
+    expect(document.activeElement).toBe(fresh);
     expect(line()).toBeNull();
     expect(sendButton().getAttribute("aria-label")).toBe("Send message");
     for (const e of FIXTURE.slice(6)) emit(e);
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
     expect(screen.queryByText(/Server is live at :3000\./)).toBeNull();
     expect(screen.queryByTestId("settled-footer")).toBeNull();
-    await typeInto(editor, "start over");
-    await press(editor, "Enter");
+    await typeInto(fresh, "start over");
+    await press(fresh, "Enter");
     await waitFor(() => expect(started.length).toBe(1));
     expect(started[0]).toEqual({ workspaceId: WS, requestId: expect.any(String), harness: "claude", prompt: "start over" });
   });
@@ -811,7 +814,8 @@ describe("chat tab new thread mid-turn", () => {
     act(() => requestNewThread({ workspaceId: WS }));
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
     expect(screen.queryByText("hello")).toBeNull();
-    expect(isEditable(editor)).toBe(true);
+    const fresh = composerEditor();
+    expect(isEditable(fresh)).toBe(true);
     expect(line()).toBeNull();
     // The sent turn's events arrive after the request, stamped with the thread the runtime opened for it.
     const first = { ...scope, threadId: "thr_first" };
@@ -819,9 +823,10 @@ describe("chat tab new thread mid-turn", () => {
     emit({ type: "session.delta", ...first, at: T0 + 300, kind: "text", text: "Creating the server file," });
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
     expect(screen.queryByText(/Creating the server file/)).toBeNull();
-    expect(isEditable(editor)).toBe(true);
-    await typeInto(editor, "start over");
-    await press(editor, "Enter");
+    expect(composerEditor()).toBe(fresh);
+    expect(isEditable(fresh)).toBe(true);
+    await typeInto(fresh, "start over");
+    await press(fresh, "Enter");
     await waitFor(() => expect(started.length).toBe(2));
     expect(started[1]).toEqual({ workspaceId: WS, requestId: expect.any(String), harness: "claude", prompt: "start over" });
     emit({ type: "session.done", ...first, at: T0 + 900, result: { status: "completed", durationMs: 900, costUsd: 0.001 } });

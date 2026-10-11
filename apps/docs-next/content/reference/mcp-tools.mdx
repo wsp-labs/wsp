@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 71 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 72 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -626,6 +626,31 @@ Nothing.
 | `projects[].createdAt` | string | yes |  |
 | `projects[].place` | string |  |  |
 | `projects[].sizeBytes` | number |  |  |
+
+## image_build
+
+Builds this host's image at a place from the record alone: a builder is forked there with the recipe the image was sealed from and every sign-in set to skip, the sign-ins the seal held are landed on it out of the vault, and the copy is sealed and recorded under that place at the record's hash. Nothing signs in again and no Keychain is read. A place that already holds a copy built from this record is answered with that copy and `built` false, so asking twice costs nothing; a place whose copy is building is answered with that build, never a second one. A joined computer builds its copy at the end of its setup; every other copy, and every copy a newer version left behind, is built only when this line asks or when a fork there finds no current copy, and that fork says so before the build starts, since a build bills where it runs. Refused in one line for a place this host does not hold, for a place that takes no copy at all, and for a record sealed without the recipe it was built from. A record holding no sign-ins is refused too, since every copy of it would ask for them again; `force` builds it anyway.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `place` | string | yes | the place to build the copy at, by the name wsp computers lists |
+| `force` | boolean |  | build even where the record holds no sign-ins, so the copy asks for every one of them again |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `copy` | object | yes |  |
+| `copy.place` | string | yes |  |
+| `copy.version` | integer | yes |  |
+| `copy.hash` | string |  |  |
+| `copy.snapshotId` | string | yes |  |
+| `copy.templateId` | string |  |  |
+| `copy.builtAt` | string | yes |  |
+| `copy.sizeBytes` | integer |  |  |
+| `built` | boolean | yes |  |
 
 ## merge
 

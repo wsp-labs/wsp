@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A public build carries no cloud provider: the check the release runs on the
-// packed tarball and on the desktop app's folder, and, with PUBLIC_BUILD=1 set
-// as the build was, that build packed and read by it.
+// A public build carries Boat and no word of Solari: the check the release runs
+// on the packed tarball and on the desktop app's folder, and, with
+// PUBLIC_BUILD=1 set as the build was, that build packed and read by it.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,8 +33,8 @@ function built(files: Record<string, string>): string {
 }
 
 describe("the check a public build passes", () => {
-  it("finds a provider's backend in a script and its name in a manifest, and the script exits 1 naming each file", () => {
-    const root = built({ "dist/bin.js": "var SolariBackend = class {};\nexport { SolariBackend };\n", "assets/web/words.json": '{"box":{"name":"Boat"}}' });
+  it("finds Solari's backend in a script and its name in a manifest, and the script exits 1 naming each file", () => {
+    const root = built({ "dist/bin.js": "var SolariBackend = class {};\nexport { SolariBackend };\n", "assets/web/words.json": '{"solari":{"name":"Solari"}}' });
     expect(providerWords(root).map(hit => hit.file).sort()).toEqual(["assets/web/words.json", "dist/bin.js"]);
     const run = spawnSync("node", [script, root], { encoding: "utf8" });
     expect(run.status).toBe(1);
@@ -43,30 +43,41 @@ describe("the check a public build passes", () => {
   });
 
   it("reads a script's code and not its comments, and takes a colour theme named Solarized for what it is", () => {
-    const root = built({ "dist/bin.js": '// Solari answers 502 here\n/** Boat restores a box slowly. */\nexport const theme = "solarized-dark";\n' });
+    const root = built({ "dist/bin.js": '// Solari answers 502 here\nexport const theme = "solarized-dark";\n' });
     expect(providerWords(root)).toEqual([]);
   });
 
   it.each([
-    ["a key's variable", 'export const BOX_KEY_ENV = "BOAT_API_KEY";'],
+    ["a key's variable", 'export const SOLARI_KEY_ENV = "SOLARI_API_KEY";'],
     ["an API's host", 'const url = "https://api.getsolari.com/v1";'],
     ["a console's host", 'const where = "console.getsolari.com";'],
     ["a key's prefix", 'const k = "slr_live_";'],
-    ["the harness shim's mark", 'if (x !== "# ascii-harness-shim") return;'],
-    ["the lazy launcher's mark", 'const lazy = "# ascii-lazy-harness ";'],
   ])("finds %s inside a longer word", (_, code) => {
     expect(providerWords(built({ "dist/bin.js": `${code}\n` }))).toHaveLength(1);
   });
 
-  it("takes the content hash in a chunk's name for what it is, and still finds a provider's name beside one", () => {
-    const root = built({ "assets/web/assets/diagram-CDSNMT55-znMX1FvI.js": 'import("./chunk-2Q5K7J3B-BoAt6AKT.js");\nexport const css = "assets/index-sOlarI9x.css";\n' });
+  it("passes Boat's words, which a public build carries", () => {
+    const code = [
+      'export const BOX_KEY_ENV = "BOAT_API_KEY";',
+      'const BOX_API_URL = "https://ascii.dev/api/box/v1";',
+      "export class BoxBackend {}",
+      'const words = { box: { name: "Boat", keyConsole: "boat.dev/dashboard" } };',
+      'if (x !== "# ascii-harness-shim") return;',
+      'const lazy = "# ascii-lazy-harness ";',
+    ].join("\n");
+    expect(providerWords(built({ "dist/bin.js": `${code}\n`, "assets/web/words.json": '{"box":{"name":"Boat"}}' }))).toEqual([]);
+    expect(spawnSync("node", [script, built({ "dist/bin.js": `${code}\n` })], { encoding: "utf8" }).status).toBe(0);
+  });
+
+  it("takes the content hash in a chunk's name for what it is, and still finds Solari's name beside one", () => {
+    const root = built({ "assets/web/assets/diagram-CDSNMT55-znMX1FvI.js": 'import("./chunk-2Q5K7J3B-sOlarI6A.js");\nexport const css = "assets/index-sOlarI9x.css";\n' });
     expect(providerWords(root)).toEqual([]);
-    expect(providerWords(built({ "dist/bin.js": 'import("./boat-2Q5K7J3B.js");\n' }))).toHaveLength(1);
+    expect(providerWords(built({ "dist/bin.js": 'import("./solari-2Q5K7J3B.js");\n' }))).toHaveLength(1);
   });
 
   it("takes eight letters with no digit in them for a name, not a hash", () => {
-    expect(providerWords(built({ "dist/bin.js": 'import("./my-boat-pic.js");\n' }))).toHaveLength(1);
-    expect(providerWords(built({ "dist/bin.js": 'import("./chunk-2Q5K7J3B-BoAt6AKT.js");\n' }))).toEqual([]);
+    expect(providerWords(built({ "dist/bin.js": 'import("./my-solari-pic.js");\n' }))).toHaveLength(1);
+    expect(providerWords(built({ "dist/bin.js": 'import("./chunk-2Q5K7J3B-sOlarI6A.js");\n' }))).toEqual([]);
   });
 
   it("reads a daemon binary's strings, and takes the operating system named Solaris for what it is", () => {
@@ -81,15 +92,15 @@ describe("the check a public build passes", () => {
   });
 
   it("reads a tarball as npm packs it", () => {
-    const root = built({ "package/dist/chunk.js": 'export const BOX_API_URL = "https://ascii.dev/api/box/v1";\n' });
+    const root = built({ "package/dist/chunk.js": 'export const SOLARI_API_URL = "https://api.getsolari.com/v1";\nconst k = "slr_live_";\n' });
     const tarball = join(root, "pkg.tgz");
     execFileSync("tar", ["-czf", tarball, "-C", root, "package"]);
-    expect(providerWords(tarball).map(hit => `${hit.file}: ${hit.word}`)).toEqual(["package/dist/chunk.js: \\bBOX_API_URL\\b", "package/dist/chunk.js: ascii\\.dev"]);
+    expect(providerWords(tarball).map(hit => `${hit.file}: ${hit.word}`)).toEqual(["package/dist/chunk.js: solari(?![sz])", "package/dist/chunk.js: slr_live_"]);
   });
 });
 
 describe.runIf(process.env["PUBLIC_BUILD"] === "1")("the public build this tree holds", () => {
-  it("packs into a tarball that carries no provider module and none of its words", () => {
+  it("packs into a tarball that carries Boat's provider and no word of Solari's", () => {
     const dir = mkdtempSync(join(tmpdir(), "wsp-public-pack-"));
     made.push(dir);
     // npm keeps its cache under the home, so the pack gets a home of its own.
@@ -99,6 +110,11 @@ describe.runIf(process.env["PUBLIC_BUILD"] === "1")("the public build this tree 
     const tarball = join(dir, readdirSync(dir).find(f => f.endsWith(".tgz")) ?? "");
     expect(execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" })).toContain("package/dist/bin.js");
     expect(providerWords(tarball)).toEqual([]);
+    const unpacked = join(dir, "unpacked");
+    mkdirSync(unpacked);
+    execFileSync("tar", ["-xzf", tarball, "-C", unpacked]);
+    const dist = join(unpacked, "package", "dist");
+    expect(readdirSync(dist, { recursive: true, encoding: "utf8" }).filter(f => f.endsWith(".js") && readFileSync(join(dist, f), "utf8").includes("BOAT_API_KEY"))).not.toEqual([]);
   }, 120_000);
 
   it("turns no cloud on for the variable a development build reads, so a cloud verb is a word it does not know", () => {
@@ -116,7 +132,7 @@ describe.runIf(process.env["PUBLIC_BUILD"] === "1")("the public build this tree 
     }
   });
 
-  it.runIf(existsSync(join(desktopApp, "main", "main.mjs")))("lays out a desktop app whose host bundle and resources carry none", () => {
+  it.runIf(existsSync(join(desktopApp, "main", "main.mjs")))("lays out a desktop app whose host bundle and resources carry no word of Solari's", () => {
     expect(providerWords(desktopApp)).toEqual([]);
   }, 120_000);
 });

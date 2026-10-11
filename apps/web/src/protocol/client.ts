@@ -644,6 +644,8 @@ export interface Api {
   /** One thread's facts and newest events, cut to a first paint. Optional so fixtures that draw a thread off the
    * workspace's whole history need not fake it; a page without it reads the whole history, as before. */
   sessionHead?(threadId: string): Promise<ThreadHead>;
+  /** One thread's every event the host keeps, oldest first, read off that thread alone. Optional with sessionHead. */
+  sessionThread?(workspaceId: string, threadId: string): Promise<SessionEvent[]>;
   /** One thread's newest events under `before`, at most `limit` of them. Optional with sessionHead. */
   sessionPage?(workspaceId: string, threadId: string, window?: { before?: number; limit?: number }): Promise<HistoryPage>;
   /** One image a person's message carried, as the host kept it. Optional so fixtures that draw no image need not fake
@@ -1027,6 +1029,7 @@ export function makeApi(c: ProtocolClient): Api {
       const { facts, events, pos, total, trimmed } = await c.request<ThreadHead>("sessions.head", { threadId });
       return { facts, events, pos, total, ...(trimmed === true ? { trimmed } : {}) };
     },
+    sessionThread: async (workspaceId, threadId) => (await c.request<{ events: SessionEvent[] }>("sessions.history", { workspaceId, threadId, whole: true })).events,
     sessionPage: async (workspaceId, threadId, window = {}) => {
       const { events, pos, total, trimmed } = await c.request<HistoryPage>("sessions.history", { workspaceId, threadId, ...window });
       return { events, pos, total, ...(trimmed === true ? { trimmed } : {}) };

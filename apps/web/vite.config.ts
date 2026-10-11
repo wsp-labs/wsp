@@ -11,7 +11,7 @@ const pkg = (path: string) => fileURLToPath(new URL(`../../packages/${path}`, im
 
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
-  // A public build (PUBLIC_BUILD=1) folds the protocol's and the catalog's cloud tables to empty and drops their words.
+  // A public build (PUBLIC_BUILD=1) folds Solari out of the protocol's and the catalog's cloud tables, its words with it.
   define: cloudDefine(),
   // The browser cannot follow a package.json main into a dist a fresh worktree may not have.
   resolve: command === "serve" ? { alias: { "@wsp/protocol/slate": pkg("protocol/src/slate/index.ts"), "@wsp/protocol": pkg("protocol/src/index.ts"), "@wsp/catalog": pkg("catalog/src/index.ts") } } : {},

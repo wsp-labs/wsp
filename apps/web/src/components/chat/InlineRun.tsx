@@ -6,6 +6,7 @@ import { createContext, use, useEffect, useState, useSyncExternalStore } from "r
 import { RUN_MOVE_AFTER_MS, RUN_WORDS, runEndedWords, runOutputMessage, type SessionRunEvent } from "@wsp/protocol";
 import { useStore } from "../../protocol/store.js";
 import { useTerminalDrawerStore } from "../../terminal/drawerStore.js";
+import { threadStateKey } from "../../stateKey.js";
 import { getTerminals, onTerminals } from "../../terminal/link.js";
 import { TerminalViewport } from "../ThreadTerminalDrawer.js";
 import { Button } from "../ui/button.js";
@@ -94,8 +95,9 @@ function EndedRun({ run }: { run: SessionRunEvent }) {
   const open = (): void => {
     if (run.ptyId === undefined) return;
     const drawer = useTerminalDrawerStore.getState();
-    drawer.setOpen(run.workspaceId, true);
-    drawer.activate(run.workspaceId, run.ptyId);
+    const key = run.threadId === undefined ? run.workspaceId : threadStateKey(run.workspaceId, run.threadId);
+    drawer.setOpen(key, true);
+    drawer.activate(key, run.ptyId);
     getTerminals(run.workspaceId)?.setActive(run.ptyId);
   };
   const send = (): void => {

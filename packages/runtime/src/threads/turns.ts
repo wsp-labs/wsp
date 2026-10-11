@@ -781,7 +781,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
     // an opened reader has no way to be let go: a file that did not read says nothing about the run, which is left as it was.
     let written: SessionEvent[];
     try {
-      written = await ctx.openTranscript(view.workspaceId);
+      written = await ctx.openThread(view.workspaceId, threadId);
     } catch (e: unknown) {
       return left(e);
     }
