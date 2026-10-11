@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, posix, relative, resolve, sep } from "node:path";
-import { FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX } from "@wsp/protocol";
+import { FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX, type FsHashReply } from "@wsp/protocol";
 import type { SlateDoc, SlateRunDecl } from "@wsp/protocol/slate";
 
 /** The files a run's cmd or then reads: every one where it names $SLATE_DIR, else the ones it names. */
@@ -46,19 +46,19 @@ const wordsAt = (folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>, t
   return pathsNamed(decl).map(word => (word.startsWith("/") ? word : `${ran === "/" ? "" : ran}/${word}`));
 };
 
-/** What a read of the files a run names found: each regular file inside the thread's folder by its path there with a
- * hash of its content, and the paths it was handed that land on a file outside the folder once links are followed or
- * on one inside past what one read hashes, by count or by size. */
-export type HashRead = { files: Record<string, string>; outside?: string[]; past?: string[] };
+/** What a read of the files a run names found, on this computer or by the daemon of the thread's own: the daemon's
+ * reply. */
+export type HashRead = FsHashReply;
 
 /** The thread's own computer as its daemon reads the files a run names there, under `root`. Throws where that daemon
  * cannot say. */
 export type HashOn = (root: string, paths: string[]) => Promise<HashRead>;
 
 /** Why an Always cannot hold to a file a run names: its computer could not read it, it is a script that lands outside
- * the thread's folder, by its path or through a link, or one past what one read hashes, by count or by size, or it
- * comes after the paths one ask on the thread's machine sends. */
-type Unpinned = { path: string; why: "unread" | "outside" | "link" | "past" | "paths" };
+ * the thread's folder, by its path, from the home folder or through a link, one past what one read hashes, by count
+ * or by size, one that is not a regular file, one whose name holds a space, an escape or a $, or it comes after the
+ * paths one ask on the thread's machine sends. */
+type Unpinned = { path: string; why: "unread" | "outside" | "link" | "past" | "special" | "built" | "paths" };
 
 /** The hashes an approval of a run binds, and the files it names that no hash can bind. */
 export type Pin = { scripts?: Record<string, string>; unpinned: Unpinned[] };
@@ -72,6 +72,8 @@ const UNPINNED = {
   outside: "is outside the thread's folder",
   link: "is a link out of the thread's folder",
   past: `is past what one command can pin (${FS_HASH_FILES_MAX} files, each up to ${FS_HASH_CAP_BYTES / 1024 / 1024} MiB)`,
+  special: "is not a regular file",
+  built: "is a script wsp cannot read by name (a space, an escape or a $ in it)",
   paths: `is past the ${FS_HASH_PATHS_MAX} paths one command can name`,
 } as const;
 
@@ -104,21 +106,60 @@ const runner = (word: string): boolean => {
   return RUNNERS.has(name) || RUNNERS.has(name.replace(/[\d.]+$/, ""));
 };
 
-/** The words a run's cmd or then may run as a script: each a runner is handed, and a relative path run as a program.
- * An absolute one run as a program is a tool of the computer, as `df` is. */
-function wordsRun(decl: Extract<SlateRunDecl, { kind: "cmd" }>): Set<string> {
-  const run = new Set<string>();
-  for (const part of [decl.cmd, decl.then ?? ""].join("\n").split(/[;|&()\n]+/)) {
-    const words = part.split(/[\s'"`<>,]+/).filter(w => w !== "" && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w));
-    let at = 0;
-    while (at < words.length && runner(words[at]!)) {
-      at += 1;
-      while (words[at]?.startsWith("-") === true) at += 1;
+/** The flags after which a runner takes code, not a script's name. */
+const INLINE = new Set(["-c", "-e", "--eval", "-m"]);
+
+/** A word of a run's command as bash reads it: its text with quotes and escapes taken off, as written, whether it
+ * holds what wsp cannot read as a name (a space, an escape, or a $ other than the slate's own folder), and whether the
+ * command runs it: a word a runner is handed, or a relative path run as a program. An absolute one run as a program
+ * is a tool of the computer, as `df` is. */
+type Word = { text: string; said: string; loose: boolean; run: boolean };
+
+/** The words of a run's cmd and then, each simple command split on ; | & ( ) and new lines outside quotes. */
+function wordsOf(decl: Extract<SlateRunDecl, { kind: "cmd" }>): Word[] {
+  const text = [decl.cmd, decl.then ?? ""].join("\n");
+  const commands: Word[][] = [[]];
+  let word: { text: string; said: string; escaped: boolean } | undefined;
+  let quote: string | undefined;
+  const end = (): void => {
+    if (word !== undefined) commands.at(-1)!.push({ text: word.text, said: word.said, loose: word.escaped || /\s/.test(word.text) || word.said.replace(/\$\{?SLATE_DIR\b\}?/g, "").includes("$"), run: false });
+    word = undefined;
+  };
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i]!;
+    if (quote === undefined && /[;|&()\n]/.test(c)) {
+      end();
+      commands.push([]);
+      continue;
     }
-    const word = words[at];
-    if (word !== undefined && (at > 0 || !word.startsWith("/"))) run.add(word);
+    if (quote === undefined && /\s/.test(c)) {
+      end();
+      continue;
+    }
+    word ??= { text: "", said: "", escaped: false };
+    word.said += c;
+    if (quote === undefined && (c === "'" || c === '"')) quote = c;
+    else if (c === quote) quote = undefined;
+    else if (c === "\\" && quote !== "'" && i + 1 < text.length) {
+      i += 1;
+      word.said += text[i];
+      word.text += text[i];
+      word.escaped = true;
+    } else word.text += c;
   }
-  return run;
+  end();
+  for (const command of commands) {
+    const words = command.filter(w => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w.text));
+    let at = 0;
+    let inline = false;
+    while (at < words.length && runner(words[at]!.text)) {
+      at += 1;
+      for (; words[at]?.text.startsWith("-") === true; at += 1) inline ||= INLINE.has(words[at]!.text);
+    }
+    const run = words[at];
+    if (run !== undefined && !inline && (at > 0 || !run.text.startsWith("/"))) run.run = true;
+  }
+  return commands.flat();
 }
 
 /** Whether a path, its ways up folded by their letters, is not under the folder; a link on the way is the read's to
@@ -126,25 +167,27 @@ function wordsRun(decl: Extract<SlateRunDecl, { kind: "cmd" }>): Set<string> {
 const beyond = (folder: string, path: string): boolean => !path.startsWith(folder.endsWith("/") ? folder : `${folder}/`);
 
 /** What an approval of a run binds, given what a read of its files found: every file inside the folder by its hash,
- * and as unpinned, once each, every path after the ones a read on the thread's machine is sent, and each script it
- * may run that lands outside the folder (where no hash is read), through a link out of it, or past what one read
- * hashes. No read at all leaves every path it names unpinned. */
+ * and as unpinned, once each, every script whose name it cannot read, every path after the ones a read on the
+ * thread's machine is sent, and each script it may run that lands outside the folder (where no hash is read), from
+ * the home folder or through a link out of it, past what one read hashes, or on something not a regular file. No read
+ * at all leaves every path it names unpinned. */
 function pinOf(folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>, read: HashRead | undefined, there: boolean): Pin {
+  const named = wordsOf(decl);
+  const run = new Set(named.flatMap(w => (w.run ? [w.text] : [])));
+  const unpinned = new Map<string, Unpinned["why"]>(named.flatMap(w => (w.loose && (w.run || SCRIPT.test(w.text)) ? [[w.said, "built"] as const] : [])));
   const words = pathsNamed(decl);
-  if (read === undefined) return { unpinned: [...new Set(words)].map(path => ({ path, why: "unread" as const })) };
+  if (read === undefined) for (const path of words) unpinned.set(path, "unread");
   const at = wordsAt(folder, decl, there);
-  const run = wordsRun(decl);
   const folded = there ? posix.normalize : resolve;
-  const outside = new Set(read.outside ?? []);
-  const past = new Set(read.past ?? []);
-  const unpinned = new Map<string, Unpinned["why"]>();
+  const [outside, past, special] = [new Set(read?.outside ?? []), new Set(read?.past ?? []), new Set(read?.special ?? [])];
   words.forEach((path, i) => {
     const full = at[i]!;
     const script = SCRIPT.test(path) || run.has(path);
-    const why = there && i >= FS_HASH_PATHS_MAX ? "paths" : !script ? undefined : past.has(full) ? "past" : beyond(folded(folder), folded(full)) ? "outside" : outside.has(full) ? "link" : undefined;
+    const why = read === undefined ? undefined : there && i >= FS_HASH_PATHS_MAX ? "paths" : !script ? undefined : past.has(full) ? "past" : special.has(full) ? "special" : path.startsWith("~") || beyond(folded(folder), folded(full)) ? "outside" : outside.has(full) ? "link" : undefined;
     if (why !== undefined && !unpinned.has(path)) unpinned.set(path, why);
   });
-  return { ...(Object.keys(read.files).length > 0 ? { scripts: read.files } : {}), unpinned: [...unpinned].map(([path, why]) => ({ path, why })) };
+  const files = read?.files ?? {};
+  return { ...(Object.keys(files).length > 0 ? { scripts: files } : {}), unpinned: [...unpinned].map(([path, why]) => ({ path, why })) };
 }
 
 /** Every file a run's cmd or then names, read on this disk as a box's daemon reads one there: each regular file under
@@ -154,29 +197,26 @@ function pinOf(folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>, rea
 function readHere(folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>): HashRead | undefined {
   let root: string;
   try { root = realpathSync(folder); } catch { return undefined; }
-  const read: Required<HashRead> = { files: {}, outside: [], past: [] };
+  const read: Required<HashRead> = { files: {}, outside: [], past: [], special: [] };
   for (const word of wordsAt(folder, decl, false)) {
     try {
       const at = realpathSync(word);
       const st = statSync(at);
       const rel = relative(root, at);
-      if (rel === "" || rel.split(sep)[0] === ".." || isAbsolute(rel)) {
-        if (rel !== "" && st.isFile()) read.outside.push(word);
-        continue;
-      }
-      if (read.files[rel] !== undefined || !st.isFile()) continue;
-      if (st.size > FS_HASH_CAP_BYTES || Object.keys(read.files).length >= FS_HASH_FILES_MAX) read.past.push(word);
+      if (st.isDirectory() || read.files[rel] !== undefined) continue;
+      if (rel.split(sep)[0] === ".." || isAbsolute(rel)) read.outside.push(word);
+      else if (!st.isFile()) read.special.push(word);
+      else if (st.size > FS_HASH_CAP_BYTES || Object.keys(read.files).length >= FS_HASH_FILES_MAX) read.past.push(word);
       else read.files[rel] = createHash("sha256").update(readFileSync(at)).digest("hex").slice(0, 16);
     } catch { continue; }
   }
   return read;
 }
 
-/** What an approval of a run on this computer binds: nothing where it names no path or the folder is not there. */
+/** What an approval of a run on this computer binds; a folder that is not there holds no file to pin. */
 export function pinHere(folder: string | undefined, decl: SlateRunDecl): Pin {
   if (folder === undefined || decl.kind !== "cmd") return { unpinned: [] };
-  const read = readHere(folder, decl);
-  return read === undefined ? { unpinned: [] } : pinOf(folder, decl, read, false);
+  return pinOf(folder, decl, readHere(folder, decl) ?? { files: {} }, false);
 }
 
 /** How long a read of the hashes waits on the thread's computer before the commands there go unpinned. */
@@ -211,10 +251,10 @@ export function boxPins(hashOn: (threadId: string) => HashOn | undefined, waitMs
       );
       if ((read.get(threadId)?.at ?? 0) < at) read.set(threadId, { at, pins });
     },
-    /** What an approval of this command binds, from the last reading: nothing where it names no path. */
+    /** What an approval of this command binds, from the last reading; one that names no path needs none. */
     pin(threadId: string, folder: string | undefined, decl: SlateRunDecl): Pin {
-      if (folder === undefined || decl.kind !== "cmd" || pathsNamed(decl).length === 0) return { unpinned: [] };
-      return pinOf(folder, decl, read.get(threadId)?.pins.get(pinKey(folder, decl)), true);
+      if (folder === undefined || decl.kind !== "cmd") return { unpinned: [] };
+      return pinOf(folder, decl, pathsNamed(decl).length === 0 ? { files: {} } : read.get(threadId)?.pins.get(pinKey(folder, decl)), true);
     },
     drop: (threadId: string): void => void read.delete(threadId),
   };

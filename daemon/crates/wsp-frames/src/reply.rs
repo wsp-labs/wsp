@@ -308,8 +308,8 @@ pub struct FsImageReply {
 }
 
 /// Each file an fs.hash found, by its path under the root, with the sha256 of its bytes in hex, and the paths it was
-/// handed, as handed, that land on a file outside the root or on one inside past the most it hashes or over the size
-/// cap: what the host cannot pin.
+/// handed, as handed, that land on anything but a folder outside the root, on a file inside past the most it hashes
+/// or over the size cap, or on something inside that is not a regular file: what the host cannot pin.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct FsHashReply {
@@ -320,6 +320,9 @@ pub struct FsHashReply {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(optional, as = "Option<Vec<String>>")]
     pub past: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<String>>")]
+    pub special: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
