@@ -74,10 +74,11 @@ export interface MarkLook {
   readonly image?: string | undefined;
 }
 
-/** The image half of a project's mark: the picture filling the glyph's own box, with no frame, radius or mask of its
- * own, so a class the row puts on the mark (its dimming, the inbox's corner) lands on it as on a glyph. */
+/** The image half of a project's mark: a tile in the glyph's own box, clipped to an app icon's squircle on the glyph
+ * frame's quiet ground, the picture fitted inside it, so a wide or clear picture still reads as a rounded icon. A class
+ * the row puts on the mark (its dimming, the inbox's corner) lands on it as on a glyph. */
 export function ProjectIconImage({ src, className, onError }: { src: string; className?: string; onError?: () => void }) {
-  return <img alt="" aria-hidden draggable={false} data-project-icon src={src} onError={onError} className={cn("size-4 shrink-0 object-contain", className)} />;
+  return <img alt="" aria-hidden draggable={false} data-project-icon src={src} onError={onError} className={cn("size-4 shrink-0 rounded-icon bg-foreground/[0.04] object-contain", className)} />;
 }
 
 /** A project's mark in every place it is named. The glyph in its hue stands while the image is read from the host and
