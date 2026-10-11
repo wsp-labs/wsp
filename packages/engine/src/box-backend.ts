@@ -22,8 +22,6 @@ type Fetch = typeof globalThis.fetch;
 
 export const BOX_API_URL = "https://ascii.dev/api/box/v1";
 
-/** The three classes the API sells without an operator allocation, with the disk each one floors at (the disk is
- * not settable and may be roomier) and the published rate. The trial allows small and default only. */
 /** One window of starts as /limits counts it. */
 interface BoxStartWindow {
   limit?: number;
@@ -38,6 +36,8 @@ interface BoxLimits {
   starts?: { unlimited?: boolean; minute?: BoxStartWindow; hour?: BoxStartWindow; day?: BoxStartWindow };
 }
 
+/** The three classes the API sells without an operator allocation, with the disk each one floors at (the disk is
+ * not settable and may be roomier) and the published rate. The trial allows small and default only. */
 export interface BoxClass {
   type: "small" | "default" | "large";
   cpu: number;

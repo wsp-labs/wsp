@@ -476,14 +476,14 @@ describe("the agent contract on the command line and the tool door", () => {
       expect(failure(refused.io).error).not.toBe("");
     }
     // A sub-thread is a child of the thread asking: a terminal's line is refused, and so is --size with no cloud and a
-    // word beside --on, each a usage refusal, exit 3, before anything is made. Boat is the cloud's until it ships.
+    // word beside --on, each a usage refusal, exit 3, before anything is made.
     const machines = (await rt.workspaces.list()).length;
-    for (const [words, said] of CLOUD_ON ? ([
+    for (const [words, said] of [
       [["--on", "boat"], subNoThreadRefusal("boat").message],
       [["--size", "4x8"], subSizeNoCloudRefusal().message],
       [["--on", "boat", "--beside", lead], subBesideRefusal("--beside").message],
       [["alpha", "--on", "boat"], subBesideRefusal("a project").message],
-    ] as const) : []) {
+    ] as const) {
       const refused = await run("run", ...words, "x", "--json");
       expect(refused.code, `wsp run ${words.join(" ")}`).toBe(EXIT_CODES.usage);
       expect(failure(refused.io).error).toBe(said);
