@@ -288,6 +288,7 @@ describe("the fixtures a lab serves", () => {
       "long-prompt": "no cloud",
       changes: "no cloud",
       "composer-drawer": "no cloud",
+      conversations: "no cloud",
       "pull-request": "no cloud",
       "pull-request-conflict": "no cloud",
       tree: "no cloud",
@@ -297,6 +298,8 @@ describe("the fixtures a lab serves", () => {
       replies: "no cloud",
       meter: "no cloud",
       usage: "no cloud",
+      "tree-drag": "no cloud",
+      "tree-drag-plain": "no cloud",
     });
     // Every fixture with a cloud machine names the cloud it is standing in for, and no fixture without one does.
     for (const name of FIXTURE_NAMES) {
@@ -457,6 +460,7 @@ describe("the provider a fixture's host runs under", () => {
       "long-prompt": "fake",
       changes: "none",
       "composer-drawer": "fake",
+      conversations: "none",
       "pull-request": "none",
       "pull-request-conflict": "none",
       tree: "none",
@@ -466,6 +470,8 @@ describe("the provider a fixture's host runs under", () => {
       replies: "fake",
       meter: "none",
       usage: "none",
+      "tree-drag": "none",
+      "tree-drag-plain": "none",
     });
   });
 

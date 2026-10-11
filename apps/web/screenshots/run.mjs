@@ -22,7 +22,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { chromium } from "playwright";
-import { fixtureAgents, fixtureChanges, fixtureClock, fixtureCloud, fixtureCompares, fixtureFiles, fixtureFleet, fixtureFolders, fixtureKeys, fixturePulls, fixtureRepos, fixtureState, fixtureStorage, HERE_AGENTS, HERE_HOST_ITEMS, HERE_PROJECT_FILES } from "./fixture-state.mjs";
+import { codexThreads, writeConversations } from "./fixture-kit.mjs";
+import { fixtureAgents, fixtureChanges, fixtureConversations, fixtureClock, fixtureCloud, fixtureCompares, fixtureFiles, fixtureFleet, fixtureFolders, fixtureKeys, fixturePulls, fixtureRepos, fixtureState, fixtureStorage, HERE_AGENTS, HERE_HOST_ITEMS, HERE_PROJECT_FILES } from "./fixture-state.mjs";
 import { BROWSER_ARGS, freePort, REPO, startHost, stopHost, whatIsNotBuilt } from "./host.mjs";
 import { leaveMidWork, writeKeys, writeStandIn, writeWorkFolder } from "./lab-home.mjs";
 import { indexMarkdown, readSurfaces, shippedSurfaces, shotPlan, surfacesIn } from "./plan.mjs";
@@ -160,6 +161,24 @@ function scrollAround(el, by) {
   throw new Error("nothing around that element scrolls");
 }
 
+/** Picks up one element and holds it over another, the pointer left down: the shot is taken mid-drag. The place it
+ * goes is read once the drag has started, since the heads a drag shows stand a frame after it starts and push the
+ * list down. */
+async function holdDrag(page, { from, to, dy }) {
+  const box = async selector => {
+    const at = await page.locator(selector).first().boundingBox({ timeout: 15_000 });
+    if (at === null) throw new Error(`${selector} has no box to drag`);
+    return at;
+  };
+  const a = await box(from);
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 + 8, { steps: 2 });
+  await page.waitForTimeout(150);
+  const b = await box(to);
+  await page.mouse.move(b.x + b.width / 2, b.y + (dy ?? b.height / 2), { steps: 8 });
+}
+
 /** One shot, in a browser that has never seen this app: the context is its own, so the sidebar width, the
  * chosen workspace and the right panel's last state are what a first launch has and not what the shot
  * before left behind. Sharing one context per width and theme is what hid the machine surface at 390,
@@ -201,6 +220,7 @@ async function shoot(context, shot, base, out, token) {
       await page.locator('[data-k="project-icon-file"]').first().setInputFiles(IMAGE_PICKS[step.image]);
       await page.locator('[data-k="project-icon-sheet"] img, [data-k="project-icon-refusal"]').first().waitFor({ state: "visible", timeout: 15_000 });
     }
+    else if (step.drag !== undefined) await holdDrag(page, step.drag);
     else await page.locator(step.click).first().click({ timeout: 15_000 });
   }
   if (shot.wait !== undefined) await page.locator(shot.wait).first().waitFor({ state: "visible", timeout: 15_000 });
@@ -234,9 +254,19 @@ function fixtureOn(home, fixture = "mac-in-use") {
     execFileSync("git", ["remote", "add", "origin", project.remote], { cwd: project.path, stdio: "ignore" });
   }
   for (const dest of fixtureChanges(fixture, state)) leaveMidWork(dest);
+  writeConversations(home, state, fixtureConversations(fixture));
   const keys = fixtureKeys(fixture);
   if (Object.keys(keys).length > 0) writeKeys(home, keys);
   return state;
+}
+
+/** A fixture's agents with what its conversations need of the stand-ins: the Claude Code sessions another app holds
+ * open, and the threads Codex's own server lists. */
+function withConversations(agents, home, state, rows) {
+  if (rows.length === 0) return agents;
+  const live = rows.filter(c => c.agent === "claude" && c.live === true).map(c => c.id);
+  const { claude, codex } = agents.agents;
+  return { ...agents, agents: { ...agents.agents, claude: { ...claude, live }, codex: { ...codex, threads: codexThreads(home, state, rows) } } };
 }
 
 /** Why a shot is not what it is named for: every failure the page shows that the surface did not wait for. */
@@ -279,13 +309,16 @@ async function main() {
     // The cloud the fixture's machines are meant to be at rides with it: without that word the stand-in stands in
     // for nothing, and the provider a fixture is about is on no row of the places table.
     const state = fixtureOn(own, fixture);
+    // A fixture's conversations sit in the agents' stores under its own home, which the host reads only as the
+    // person's home.
     const started = await startHost({
       home: own,
+      ...(fixtureConversations(fixture).length > 0 ? { personHome: own } : {}),
       state,
       port: await freePort(),
       cloud: fixtureCloud(fixture),
       records: writeStandIn(own, fixtureFleet(state)),
-      agents: fixtureAgents(fixture),
+      agents: withConversations(fixtureAgents(fixture), own, state, fixtureConversations(fixture)),
       files: fixtureFiles(fixture),
       hostItems: { ...HERE_HOST_ITEMS, pulls: fixturePulls(fixture), compares: fixtureCompares(fixture) },
     });

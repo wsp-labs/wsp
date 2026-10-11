@@ -7,6 +7,7 @@ import type { ProtocolEvent } from "../client.js";
 import type { Failure } from "../failure.js";
 import { absenceOf } from "../../settings/places.js";
 import { useStore } from "./useStore.js";
+import { withHeldThreads } from "./heldKeys.js";
 import { catalogIn, catalogsIn, NO_SESSIONS, pauseModesOf, selectedWorkspaceIdOf, threadRows } from "./selectors.js";
 import type { CostTick, Creation } from "./types.js";
 
@@ -17,8 +18,10 @@ export function useSidebarProjects(): SidebarProjectSnapshot[] {
   const workspaces = useStore(s => s.workspaces);
   const statuses = useStore(s => s.statuses);
   const sessions = useStore(s => s.sessions);
+  const held = useStore(s => s.heldKeys);
   const landings = useStore(s => s.landings);
-  return useMemo(() => deriveSidebarProjects({ workspaces, statuses, sessions, pauseModes: pauseModesOf(landings) }), [workspaces, statuses, sessions, landings]);
+  const derived = useMemo(() => deriveSidebarProjects({ workspaces, statuses, sessions, pauseModes: pauseModesOf(landings) }), [workspaces, statuses, sessions, landings]);
+  return useMemo(() => withHeldThreads(derived, held), [derived, held]);
 }
 
 /** Every workspace's send in flight, for the sidebar, which reads them beside the rows the runtime has written. */
@@ -125,4 +128,10 @@ export function useProjectsRead(): boolean { return useStore(s => s.projectsRead
  * already titling, and neither paints that screen over a host whose lists are still on their way. */
 export function useFirstRun(): boolean {
   return useStore(s => s.ready && s.projectsRead && s.projectsRefused === null && s.projects.length === 0 && s.workspaces.length === 0);
+}
+
+/** The project whose New thread page the centre shows while no workspace is picked: the one opened, else the first.
+ * The centre and the header read it here, so the page reads the same whether it was opened or fallen back to. */
+export function useHomeProject(): ProjectView | undefined {
+  return useStore(s => s.projects.find(p => p.id === s.projectHome) ?? s.projects[0]);
 }

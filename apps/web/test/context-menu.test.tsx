@@ -10,7 +10,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { cloneElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_PREFERENCES, threadForgetRefusal, type ContextMenuItem, type ProjectView, type SessionView, type WorkspaceLook, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { CONVERSATION_WORDS, DEFAULT_PREFERENCES, threadForgetRefusal, type ContextMenuItem, type ProjectView, type SessionView, type WorkspaceLook, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 
 vi.mock("../src/components/ui/tooltip.js", () => ({
   TooltipProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -287,7 +287,7 @@ describe("a tile's menu for the copy it runs on", () => {
     await mountSidebar(fakeApi([API], [statusOf(API)], [{ ...RUNNING }, child]), "fix the port list");
     rightClick(rowOf("fix the port list"));
     await screen.findByRole("menu");
-    expect(labels()).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.copyLink, THREAD_WORDS.forget, ...[
+    expect(labels()).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.moveUp, THREAD_WORDS.moveDown, THREAD_WORDS.moveTop, THREAD_WORDS.copyLink, THREAD_WORDS.forget, ...[
       "Pause api",
       WORKSPACE_WORDS.newThread,
       WORKSPACE_WORDS.openTerminal,
@@ -341,7 +341,7 @@ describe("a project's menu", () => {
     // The head stands in for the picked project's row, so its menu is that project's.
     rightClick(Array.from(document.querySelectorAll<HTMLElement>("[data-sidebar-search] button")).find(b => b.textContent?.startsWith("the-project"))!);
     await screen.findByRole("menu");
-    expect(labels()).toEqual([NEW_WORKSPACE, PROJECT_WORDS.settings, PROJECT_WORDS.remove]);
+    expect(labels()).toEqual([NEW_WORKSPACE, CONVERSATION_WORDS.menu, PROJECT_WORDS.settings, PROJECT_WORDS.remove]);
     // Two workspaces stand on it, so the removal is held back before any click, by count rather than by name.
     expect(item(PROJECT_WORDS.remove).getAttribute("aria-disabled")).toBe("true");
     expect(refusalOf(PROJECT_WORDS.remove)).toBe(PROJECTS_WORDS.inUse(2));
@@ -360,7 +360,7 @@ describe("a project's menu", () => {
     expect(document.querySelector('[data-row-id="workspace:ws_f"]')).toBeNull();
     rightClick(Array.from(document.querySelectorAll<HTMLElement>("[data-sidebar-search] button")).find(b => b.textContent?.startsWith("the-project"))!);
     await screen.findByRole("menu");
-    expect(labels().slice(0, 3)).toEqual([NEW_WORKSPACE, PROJECT_WORDS.settings, PROJECT_WORDS.remove]);
+    expect(labels().slice(0, 4)).toEqual([NEW_WORKSPACE, CONVERSATION_WORDS.menu, PROJECT_WORDS.settings, PROJECT_WORDS.remove]);
     expect(labels()).toContain(WORKSPACE_WORDS.openTerminal);
     expect(labels()).toContain(WORKSPACE_WORDS.openBrowser);
     // The project's own New thread is the one New thread on the menu.
@@ -382,7 +382,7 @@ describe("a project's menu", () => {
     await mountSidebar({ ...fakeApi([], []), projectsList: async () => [project], projectFolder }, "the-project");
     rightClick(Array.from(document.querySelectorAll<HTMLElement>("[data-sidebar-search] button")).find(b => b.textContent?.startsWith("the-project"))!);
     await screen.findByRole("menu");
-    expect(labels().slice(0, 3)).toEqual([NEW_WORKSPACE, PROJECT_WORDS.settings, PROJECT_WORDS.remove]);
+    expect(labels().slice(0, 4)).toEqual([NEW_WORKSPACE, CONVERSATION_WORDS.menu, PROJECT_WORDS.settings, PROJECT_WORDS.remove]);
     expect(labels()).toContain(WORKSPACE_WORDS.openTerminal);
     expect(labels()).toContain(WORKSPACE_WORDS.openBrowser);
     expect(labels().filter(label => label === NEW_WORKSPACE)).toHaveLength(1);
@@ -402,7 +402,7 @@ describe("a thread row's menu", () => {
     const row = rowOf("fix the port list");
     rightClick(row);
     await screen.findByRole("menu");
-    expect(labels().slice(0, 8)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
+    expect(labels().slice(0, 11)).toEqual([THREAD_WORDS.stop, THREAD_WORDS.settle, THREAD_WORDS.rename, THREAD_WORDS.copyMarkdown, THREAD_WORDS.pin, THREAD_WORDS.snooze, THREAD_WORDS.moveUp, THREAD_WORDS.moveDown, THREAD_WORDS.moveTop, THREAD_WORDS.copyLink, THREAD_WORDS.forget]);
     // The agent's own store keeps a name, and the row is the box: the rename runs.
     expect(item(THREAD_WORDS.rename).getAttribute("aria-disabled")).toBeNull();
     expect(refusalOf(THREAD_WORDS.rename)).toBeNull();
