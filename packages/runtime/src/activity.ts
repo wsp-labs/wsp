@@ -20,6 +20,7 @@ import {
   isLocalWorkspace,
   noSuchPlaceRefusal,
   notFoundRefusal,
+  ProcKillReply,
   ProcListReply,
   ProcSnapshot,
   listLateLine,
@@ -185,12 +186,19 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
       return { pid: o.pid, ended: freed, forced: [], left: [], freed: plan.kept.threadId };
     }
     const ended = plan.targets.map(p => rowOf(p.pid) ?? { pid: p.pid, ppid: p.ppid, depth: 0, startedAt: p.startedAt, kind: "other" as const, name: p.comm, command: p.cmdline === "" ? p.comm : p.cmdline, memory: p.rss, cpu: p.cpu, ports: [] });
+    // The daemon answers a TERM once its own grace is over, with what it sent KILL to, which no list after shows.
+    const killedThere = new Set<number>();
     const signal = async (pids: readonly number[], sig: "TERM" | "KILL"): Promise<void> => {
       if (ctx.opts.local?.daemonRoad === undefined) throw new Error(NO_DAEMON_HERE);
-      await ctx.overChannel(await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, () => {}), async ask => {
-        for (const pid of pids) await ask({ op: "proc.kill", pid, signal: sig }).catch((e: unknown) => {
-          if (!(e instanceof DaemonRefusal && e.code === "not-found")) throw e;
-        });
+      // Through the guard the pane's road has, so the daemon checks the host's lists at the signal too.
+      await ctx.overChannel(ctx.killGuarded(await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, () => {}), true), async ask => {
+        for (const pid of pids) {
+          const reply = await ask({ op: "proc.kill", pid, signal: sig }).catch((e: unknown) => {
+            if (!(e instanceof DaemonRefusal && e.code === "not-found")) throw e;
+            return undefined;
+          });
+          for (const f of reply === undefined ? [] : (ProcKillReply.parse(reply).forced ?? [])) killedThere.add(f);
+        }
       });
     };
     /** Rows the daemon read after `after`, never a running sampler's tick from before it: a list without one waits
@@ -227,7 +235,7 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
       await sleep(END_POLL_MS);
       left = standing(await listAfter(killAt), still).map(p => p.pid);
     }
-    return { pid: o.pid, ended, forced, left };
+    return { pid: o.pid, ended, forced: [...new Set([...killedThere, ...forced])], left };
   };
 
   return {

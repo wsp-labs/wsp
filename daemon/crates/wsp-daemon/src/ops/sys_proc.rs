@@ -4,11 +4,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use wsp_frames::{numbers, DaemonErrorCode, DaemonOp, Empty, RequestId};
+use wsp_frames::{numbers, DaemonErrorCode, DaemonOp, Empty, RequestId, WorkspaceKind};
 
 use super::{answer, not_built, ok, refuse, Conn};
 use crate::paths::OpError;
-use crate::proc::{kill_process, ProcSampler, ProtectedPids};
+use crate::proc::ProcSampler;
 use crate::{readings, Ctx, Outbound};
 
 /// Both proc ops refuse a pid above the Linux pid_max ceiling as a bad request, as the node daemon does.
@@ -145,9 +145,16 @@ pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId
             answer(id, inspected.await)
         }
         DaemonOp::ProcList => answer(id, async { ctx.proc_sampler()?.list().await }.await),
-        DaemonOp::ProcKill { pid, signal } => {
-            let protected = ProtectedPids { this: std::process::id(), parent: std::os::unix::process::parent_id() };
-            answer(id, pid_in_range(pid).and_then(|pid| kill_process(pid, signal, protected)).map(|()| Empty {}))
+        DaemonOp::ProcKill { pid, signal, mode, started_at, identity, protect, apps, agents, agent_bins } => {
+            let frame = crate::kill::Frame { signal, mode, started_at, identity, protect, apps, agents, agent_bins };
+            // A turn on this computer through the host's machine road records its root and agent in the run folder.
+            let runs = (WorkspaceKind::from_word(&ctx.options.kind) != Some(WorkspaceKind::Local)).then(|| {
+                ctx.options
+                    .run_dir
+                    .clone()
+                    .unwrap_or_else(|| wsp_frames::place_daemon_paths(&crate::place::place_home(ctx.options.home.as_deref())).run_dir)
+            });
+            answer(id, async { crate::kill::proc_kill(&ctx.options.kind, pid_in_range(pid)?, frame, runs.as_deref()).await }.await)
         }
         _ => refuse(id, DaemonErrorCode::Unsupported, not_built(name)),
     }

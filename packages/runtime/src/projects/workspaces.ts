@@ -1051,7 +1051,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
         if (event["type"] === "pty.exit" && ptys.delete(String(event["ptyId"]))) ctx.portRootsMoved(id);
         onEvent(event);
       };
-      return ctx.scopedProcs(ctx.scopesHere, ctx.rootedPorts(id, ctx.checkoutOf(entry.record), ptys, ctx.heldToOwner(id, await ctx.copyChannel(entry, heard, ctx.WORKSPACE_FRAMES))));
+      const channel = ctx.rootedPorts(id, ctx.checkoutOf(entry.record), ptys, ctx.heldToOwner(id, await ctx.copyChannel(entry, heard, ctx.WORKSPACE_FRAMES)));
+      return ctx.killGuarded(ctx.scopedProcs(ctx.scopesHere, channel), isLocalWorkspace(entry.record));
     },
 
     async guestChannel(id, onEvent) {

@@ -39,6 +39,8 @@
   "portCommandBytes": 512,
   "procCap": 1000,
   "pidMax": 4194304,
+  "killPidsMax": 256,
+  "killGraceMs": 2000,
   "sshKeyMax": 1024,
   "sshIdleMs": 300000,
   "openBodyMax": 8192,

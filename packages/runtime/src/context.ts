@@ -352,6 +352,7 @@ export interface ChannelsArea {
   readonly GUEST_ROAD_FRAMES: string[];
   readonly portPids: Map<string, Map<string, number>>;
   readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
+  readonly killGuarded: (channel: DaemonChannel, here: boolean) => DaemonChannel;
   readonly sharedDaemonReplaced: () => void;
   /** By workspace, each process group a turn led and the thread whose turn it was. */
   readonly turnGroups: Map<string, Map<number, string>>;

@@ -6,10 +6,13 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::proc_owner::scopes;
-use crate::validate::{bounded, bounded_list, bounded_opt, capped_list, cgroup_paths, exec_timeout, sha256_hex, upload_word, watch_name};
+use crate::validate::{
+    bounded, bounded_list, bounded_list_opt, bounded_opt, capped_list, capped_pids, cgroup_paths, exec_timeout, sha256_hex, upload_word,
+    watch_name,
+};
 use crate::{
-    FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, MergeMethod, ProcScope, ProcSignal, ReactionContent, RequestId, ReviewEvent,
-    ReviewSide, UsageLogFormat,
+    FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, KillMode, MergeMethod, ProcScope, ProcSignal, ReactionContent, RequestId,
+    ReviewEvent, ReviewSide, UsageLogFormat,
 };
 
 /// One request on an authed socket: the id the reply echoes and the op with its parameters.
@@ -225,8 +228,53 @@ pub enum DaemonOp {
     ProcInspect { pid: NonZeroU32 },
     #[serde(rename = "proc.list")]
     ProcList,
-    #[serde(rename = "proc.kill")]
-    ProcKill { pid: NonZeroU32, signal: ProcSignal },
+    /// TERM sends TERM and, to whatever of the targets is still there 2 s on, KILL; KILL sends KILL at once. Mode
+    /// picks the targets, the pid alone when absent. startedAt and identity (the row's id) are the row's own, so a pid reused since the row
+    /// was read is never signalled. protect, apps, agents and agentBins are the host's: pids never signalled; the app's
+    /// main processes, never signalled with everything under them; each running turn's root and recorded agent, which
+    /// no mode signals with every process between them, past a recorded launcher down to one run as a name in
+    /// agentBins, or from a root down to one run as such a name where no agent was recorded, since a thread's agent is
+    /// ended by stopping its thread. A daemon also refuses the root and agent of each turn its own run folder records. The three pid lists come only to
+    /// the daemon of the host's own computer; agentBins to every daemon, which in a thread's cgroup also refuses a
+    /// process run as one of those names and what stands above it there.
+    #[serde(rename = "proc.kill", rename_all = "camelCase")]
+    ProcKill {
+        pid: NonZeroU32,
+        signal: ProcSignal,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        mode: Option<KillMode>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        started_at: Option<i64>,
+        #[serde(default, deserialize_with = "bounded_opt::<_, 32>", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        identity: Option<String>,
+        #[serde(
+            default,
+            deserialize_with = "capped_pids::<_, { crate::numbers::KILL_PIDS_MAX }>",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[ts(optional)]
+        protect: Option<Vec<u32>>,
+        #[serde(
+            default,
+            deserialize_with = "capped_pids::<_, { crate::numbers::KILL_PIDS_MAX }>",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[ts(optional)]
+        apps: Option<Vec<u32>>,
+        #[serde(
+            default,
+            deserialize_with = "capped_pids::<_, { crate::numbers::KILL_PIDS_MAX }>",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[ts(optional)]
+        agents: Option<Vec<u32>>,
+        #[serde(default, deserialize_with = "bounded_list_opt::<_, 255, 64>", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        agent_bins: Option<Vec<String>>,
+    },
     #[serde(rename = "ping")]
     Ping,
     #[serde(rename = "fs.list", rename_all = "camelCase")]

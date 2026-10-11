@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { backgroundTasksLine, internalToolResult, LOST_SESSION_NOTE, NO_REPORT_LINE, notifyTail, signInRefusalLine, SUBAGENT_ASKED_CHARS, subagentAsked } from "@wsp/protocol";
+import { agentWord, backgroundTasksLine, internalToolResult, LOST_SESSION_NOTE, NO_REPORT_LINE, notifyTail, signInRefusalLine, SUBAGENT_ASKED_CHARS, subagentAsked } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
 import { createClaudeAdapter, type ClaudeSession } from "../src/adapter.js";
 import { CLAUDE_SCREEN_COMMANDS } from "../src/catalog.js";
@@ -814,8 +814,8 @@ describe("ClaudeAdapter over the recorded fixture", () => {
     await adapter.start({ prompt: "say ok", onEvent }).finished;
     await adapter.start({ prompt: "say ok", cwd: "/root/app", onEvent }).finished;
 
-    expect(exec.calls[0]?.command.startsWith("cd ~ && claude -p")).toBe(true);
-    expect(exec.calls[1]?.command.startsWith("cd '/root/app' && claude -p")).toBe(true);
+    expect(exec.calls[0]?.command.startsWith(`cd ~ && ${agentWord("claude", undefined)} -p`)).toBe(true);
+    expect(exec.calls[1]?.command.startsWith(`cd '/root/app' && ${agentWord("claude", undefined)} -p`)).toBe(true);
   });
 
   it("self-generates the session UUID and registers the session before any output", () => {
@@ -1959,7 +1959,7 @@ describe("a person's setup for Claude Code on a computer", () => {
   it("with no setup the line is the CLI's own", async () => {
     const exec = scriptedExec(fixtureLines());
     await createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" }).start({ prompt: "go", onEvent: () => {} }).finished;
-    expect(exec.calls[0]!.command).toContain("&& claude -p --input-format stream-json");
+    expect(exec.calls[0]!.command).toContain(`&& ${agentWord("claude", undefined)} -p --input-format stream-json`);
   });
 });
 

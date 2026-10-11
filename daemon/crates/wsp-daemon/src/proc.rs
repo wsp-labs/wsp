@@ -13,13 +13,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
-use wsp_frames::{
-    numbers, words, DaemonErrorCode, DaemonEvent, ProcCost, ProcEntry, ProcInspectReply, ProcListReply, ProcScope, ProcSignal,
-};
+use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcCost, ProcEntry, ProcInspectReply, ProcListReply, ProcScope};
 
 use crate::paths::OpError;
 use crate::proc_owner::{folder_in, mark_in, OwnerFacts, Ownership};
@@ -66,6 +62,12 @@ pub(crate) fn parse_proc_pid_stat(text: &str) -> Result<ProcStat, String> {
         starttime: n(19)?,
         rss_pages: n(21)?,
     })
+}
+
+/// A process's start in epoch milliseconds, off the boot time and its start in ticks after boot: what a row carries
+/// and what proc.kill checks a row against.
+pub(crate) fn started_ms(btime: i64, starttime: u64) -> i64 {
+    btime * 1000 + starttime as i64 * numbers::STAT_TICK_MS as i64
 }
 
 pub(crate) fn parse_btime(proc_stat: &str) -> Result<i64, String> {
@@ -297,13 +299,14 @@ impl ProcFsSource {
             cmdline: k.cmdline.clone(),
             cpu,
             rss: st.rss_pages * state.page_size,
-            started_at: state.btime.unwrap_or(0) * 1000 + st.starttime as i64 * numbers::STAT_TICK_MS as i64,
+            started_at: started_ms(state.btime.unwrap_or(0), st.starttime),
             pty: pty.cloned(),
             cgroup: read_cgroup(&dir),
             energy_mw: None,
             pgid: Some(st.pgrp),
             owner: None,
             kind: None,
+            id: Some(st.starttime.to_string()),
         })
     }
 }
@@ -735,33 +738,6 @@ impl ProcSampler {
         inner.sent = None;
         inner.owed.clear();
         self.ownership.lock().unwrap_or_else(|e| e.into_inner()).forget();
-    }
-}
-
-/// init, the daemon and whatever started the daemon: never signalled, the workspace would go with them.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ProtectedPids {
-    pub(crate) this: u32,
-    pub(crate) parent: u32,
-}
-
-/// Signals one process.
-pub(crate) fn kill_process(pid: u32, signal: ProcSignal, protected: ProtectedPids) -> Result<(), OpError> {
-    if pid == 1 || pid == protected.this || pid == protected.parent {
-        return Err(OpError::coded(
-            DaemonErrorCode::Forbidden,
-            format!("refusing to signal pid {pid}: it is init, the daemon or the daemon's parent"),
-        ));
-    }
-    let signal = match signal {
-        ProcSignal::Kill => Signal::SIGKILL,
-        ProcSignal::Term => Signal::SIGTERM,
-    };
-    match kill(Pid::from_raw(pid as i32), signal) {
-        Ok(()) => Ok(()),
-        Err(nix::errno::Errno::ESRCH) => Err(no_process(pid)),
-        Err(nix::errno::Errno::EPERM) => Err(OpError::coded(DaemonErrorCode::Forbidden, format!("no permission to signal pid {pid}"))),
-        Err(e) => Err(OpError::plain(e.to_string())),
     }
 }
 

@@ -176,6 +176,23 @@ pub(crate) fn children(pid: u32) -> Vec<u32> {
     }
 }
 
+unsafe extern "C" {
+    fn proc_signal_with_audittoken(token: *mut [u32; 8], sig: c_int) -> c_int;
+}
+
+/// Signals the process this pid and pid version name, and none other: the kernel matches both before the signal, so
+/// a pid reused or exec'd since answers ESRCH. The call returns the errno itself, and EINVAL for signal 0.
+pub(crate) fn signal_exact(pid: u32, version: i32, sig: c_int) -> Result<(), nix::errno::Errno> {
+    // audit_token_t's val[5] is the pid and val[7] the pid version; the kernel reads only those two.
+    let mut token = [0u32; 8];
+    token[5] = pid;
+    token[7] = version as u32;
+    match unsafe { proc_signal_with_audittoken(&mut token, sig) } {
+        0 => Ok(()),
+        e => Err(nix::errno::Errno::from_raw(e)),
+    }
+}
+
 /// Mach time units to nanoseconds, off the kernel's own timebase frequency: one to one on Intel, 125/3 on Apple
 /// silicon. mach_timebase_info is not that under Rosetta, where it answers one to one while the kernel still counts a
 /// process's time in its own units, and an Intel build on Apple silicon read every process at a forty-second of its
@@ -236,6 +253,12 @@ pub(crate) fn argv(pid: u32, cap: usize) -> Option<String> {
     argv_of(&procargs(pid)?, cap)
 }
 
+/// argv[0], the name a process was run by: a link's own name, where the accounting name is the file it resolves to.
+pub(crate) fn arg0(pid: u32) -> Option<String> {
+    let area = procargs(pid)?;
+    args_of(&area)?.first().map(|arg| String::from_utf8_lossy(arg).into_owned())
+}
+
 fn procargs(pid: u32) -> Option<Vec<u8>> {
     let mut buf = vec![0u8; arg_max()];
     let mut mib = [libc::CTL_KERN, libc::KERN_PROCARGS2, pid as c_int];
@@ -281,6 +304,11 @@ pub(crate) fn coalition(pid: u32) -> Option<u64> {
 }
 
 fn argv_of(area: &[u8], cap: usize) -> Option<String> {
+    let joined = args_of(area)?.join(&b' ');
+    Some(String::from_utf8_lossy(&joined[..joined.len().min(cap)]).into_owned())
+}
+
+fn args_of(area: &[u8]) -> Option<Vec<&[u8]>> {
     let argc = c_int::from_ne_bytes(area.get(..size_of::<c_int>())?.try_into().ok()?);
     let mut rest = &area[size_of::<c_int>()..];
     let path_end = rest.iter().position(|b| *b == 0)?;
@@ -291,11 +319,7 @@ fn argv_of(area: &[u8], cap: usize) -> Option<String> {
     for arg in rest.split(|b| *b == 0).take(argc.max(0) as usize) {
         args.push(arg);
     }
-    if args.is_empty() {
-        return None;
-    }
-    let joined = args.join(&b' ');
-    Some(String::from_utf8_lossy(&joined[..joined.len().min(cap)]).into_owned())
+    (!args.is_empty()).then_some(args)
 }
 
 /// The folder a process runs in, for the person's own processes.
