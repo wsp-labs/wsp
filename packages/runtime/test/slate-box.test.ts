@@ -4,15 +4,17 @@
 // reaching its machine through the runtime while one `on` the host stays here.
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExecResult, Machine, RunOptions } from "@wsp/engine";
 import type { Caller } from "@wsp/protocol";
 import { boxLauncher, boxLedger, boxRoad, boxSlateDir } from "../src/slate-box.js";
-import { boxPins, type HashOn } from "../src/slate-files.js";
-import type { RoadEnd } from "../src/slate-runs.js";
+import { FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX } from "@wsp/protocol";
+import { boxPins, type HashOn, type HashRead } from "../src/slate-files.js";
+import { createSlateRuns, type RoadEnd } from "../src/slate-runs.js";
+import { SLATES } from "../src/lazy-slates.js";
 import { createSlates } from "../src/slates.js";
 import { memoryStore } from "../src/store.js";
 
@@ -469,20 +471,27 @@ describe("an Always for a box thread's command", () => {
   }, 30_000);
 });
 
-/** A box daemon's fs.hash over this computer's disk: each path under the root where it lands, a regular file. */
+/** A box daemon's fs.hash over this computer's disk: each path under the root where it lands, a regular file, and
+ * the paths as handed that land on anything but a folder outside it, on a file inside past the 32 files or over
+ * 4 MiB, or on something inside that is not a regular file. */
 const hashHere: HashOn = async (root, paths) => {
   const top = realpathSync(root);
-  const files: Record<string, string> = {};
+  const read = { files: {} as Record<string, string>, outside: [] as string[], past: [] as string[], special: [] as string[] };
   for (const path of paths) {
     try {
       const at = realpathSync(isAbsolute(path) ? path : join(root, path));
       const rel = relative(top, at);
-      if (rel !== "" && !rel.startsWith("..") && statSync(at).isFile()) files[rel] = createHash("sha256").update(readFileSync(at)).digest("hex");
+      const st = statSync(at);
+      if (rel === "" || st.isDirectory() || read.files[rel] !== undefined) continue;
+      if (rel.startsWith("..")) read.outside.push(path);
+      else if (!st.isFile()) read.special.push(path);
+      else if (st.size > FS_HASH_CAP_BYTES || Object.keys(read.files).length >= FS_HASH_FILES_MAX) read.past.push(path);
+      else read.files[rel] = createHash("sha256").update(readFileSync(at)).digest("hex");
     } catch {
       // not there
     }
   }
-  return files;
+  return read;
 };
 
 describe("an Always for a command on the box, pinned by its daemon's hash", () => {
@@ -515,7 +524,7 @@ describe("an Always for a command on the box, pinned by its daemon's hash", () =
       done: async (run: string, runs: number) => vi.waitFor(async () => expect((await slates.get(thread))!.values[run]).toMatchObject({ state: "done", runs }), { timeout: 10_000 }),
       askOf: async (run: string) => (await slates.get(thread))!.asks.find(a => a.run === run),
     });
-    return { thread, folder, open, asThread, on };
+    return { thread, folder, store, open, asThread, on };
   };
 
   it("holds across a reopen with no second ask, and asks again once the script on the box changes", async () => {
@@ -714,20 +723,150 @@ describe("an Always for a command on the box, pinned by its daemon's hash", () =
     slates.close();
   }, 30_000);
 
+  /** A slate with one button pressing $run, whose command is cmd. */
+  const oneRun = (cmd: string, file = "") =>
+    `<slate><run name="run" cmd=${cmd.includes('"') ? `'${cmd}'` : `"${cmd}"`} timeout={20} /><column><button id="r" label="Run" onPress={start($run)} /></column>${file}</slate>`;
+  /** A unix socket left at a path, which bash cannot run and fails on at once. */
+  const socketAt = (path: string): void => void execFileSync("python3", ["-c", "import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])", path]);
+  /** Scripts s0.sh to s32.sh in the folder, one more than an Always pins, and a command that runs them all. */
+  const pastTheCap = (folder: string, write: (n: number) => boolean = () => true): string => {
+    const names = Array.from({ length: FS_HASH_FILES_MAX + 1 }, (_, n) => `s${n}.sh`);
+    names.forEach((name, n) => write(n) && writeFileSync(join(folder, name), `echo ${n}`));
+    return `cat ${names.join(" ")} | bash`;
+  };
+  const LAST = `s${FS_HASH_FILES_MAX}.sh`;
+  const CAPS = "is past what one command can pin (32 files, each up to 4 MiB), so wsp cannot pin it and it asks every time";
+  const SPECIAL = "is not a regular file, so wsp cannot pin it and it asks every time";
+  const BUILT = "is a script wsp cannot read by name (a space, an escape or a $ in it), so wsp cannot pin it and it asks every time";
+  /** A script one byte past the most one file can be and still be pinned, which bash still runs. */
+  const big = (folder: string, name: string): void => writeFileSync(join(folder, name), `echo big\n#${"x".repeat(FS_HASH_CAP_BYTES)}\n`);
+  /** A command naming 256 folders first, so the script after them is the 257th path it names. */
+  const PAST_PATHS = `true ${Array.from({ length: FS_HASH_PATHS_MAX }, (_, n) => `d${n}/`).join(" ")}; bash ./evil.sh`;
+
+  for (const where of ["box", "here"] as const) {
+    const cases: { name: string; lay: (folder: string) => string; why: string; box?: true }[] = [
+      {
+        name: "a script through a link out of the folder",
+        lay: folder => {
+          writeFileSync(join(folder, "..", `away-${where}.sh`), "echo away");
+          symlinkSync(join(folder, "..", `away-${where}.sh`), join(folder, "out.sh"));
+          return "bash ./out.sh";
+        },
+        why: "./out.sh is a link out of the thread's folder, so wsp cannot pin it and it asks every time",
+      },
+      { name: "a script named outside the folder, named twice", lay: () => "bash ../away.sh; bash ../away.sh", why: "../away.sh is outside the thread's folder, so wsp cannot pin it and it asks every time" },
+      { name: "an absolute path to a script outside the folder", lay: () => "python3 /opt/acme/stats.py", why: "/opt/acme/stats.py is outside the thread's folder, so wsp cannot pin it and it asks every time" },
+      { name: "a script past the 32 files one command pins", lay: folder => pastTheCap(folder), why: `${LAST} ${CAPS}` },
+      { name: "a script over 4 MiB", lay: folder => (big(folder, "big.sh"), "bash ./big.sh"), why: `./big.sh ${CAPS}` },
+      { name: "a script past the 256 paths one ask names", lay: () => PAST_PATHS, why: "./evil.sh is past the 256 paths one command can name, so wsp cannot pin it and it asks every time", box: true },
+      { name: "a script named from the home folder", lay: () => "bash ~/away.sh", why: "~/away.sh is outside the thread's folder, so wsp cannot pin it and it asks every time" },
+      { name: "a script that is not a regular file", lay: folder => (socketAt(join(folder, "evil.sh")), "bash ./evil.sh"), why: `./evil.sh ${SPECIAL}` },
+      { name: "a script whose name is quoted with a space", lay: () => "bash './my evil.sh'", why: `'./my evil.sh' ${BUILT}` },
+      { name: "a script whose name is escaped", lay: () => "bash my\\ evil.sh", why: `my\\ evil.sh ${BUILT}` },
+      { name: "a script whose name is built with $", lay: () => 'bash "$PWD/../away.sh"', why: `"$PWD/../away.sh" ${BUILT}` },
+    ];
+    for (const c of cases.filter(c => where === "box" || c.box === undefined)) {
+      it(`offers Don't and Run once only for ${c.name}, saying why, and refuses an Always (${where})`, async () => {
+        const box = boxThread(hashHere, where === "here" ? { here: true } : {});
+        const slates = box.open();
+        await slates.write({ text: oneRun(c.lay(box.folder)) }, box.asThread);
+        const s = box.on(slates);
+        const held = await s.press("r");
+        expect(held.ask).toMatchObject({ run: "run", noAlways: true });
+        expect(await s.askOf("run")).toMatchObject({ noAlways: true, why: c.why });
+        await expect(slates.approve({ threadId: box.thread, key: held.ask!.key, scope: "thread" })).rejects.toThrow(/names a script wsp cannot pin/);
+        await slates.approve({ threadId: box.thread, key: held.ask!.key, scope: "once" });
+        await vi.waitFor(async () => expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ runs: 1 }), { timeout: 10_000 });
+        expect((await s.press("r")).ask).toMatchObject({ noAlways: true });
+        slates.close();
+      }, 30_000);
+    }
+
+    it(`an Always given while the script was absent stops holding once it is a link out or past the cap (${where})`, async () => {
+      for (const [cmd, lay, why] of [
+        ["bash ./out.sh", (folder: string) => {
+          writeFileSync(join(folder, "..", `away-${where}.sh`), "echo evil");
+          symlinkSync(join(folder, "..", `away-${where}.sh`), join(folder, "out.sh"));
+        }, "./out.sh is a link out of the thread's folder, so wsp cannot pin it and it asks every time"],
+        [undefined, (folder: string) => writeFileSync(join(folder, LAST), "echo evil"), `${LAST} ${CAPS}`],
+        ["bash ./big.sh", (folder: string) => big(folder, "big.sh"), `./big.sh ${CAPS}`],
+        ["bash ./evil.sh", (folder: string) => void execFileSync("mkfifo", [join(folder, "evil.sh")]), `./evil.sh ${SPECIAL}`],
+      ] as const) {
+        const box = boxThread(hashHere, where === "here" ? { here: true } : {});
+        const slates = box.open();
+        await slates.write({ text: oneRun(cmd ?? pastTheCap(box.folder, n => n < FS_HASH_FILES_MAX)) }, box.asThread);
+        const s = box.on(slates);
+        const first = await s.press("r");
+        expect(first.ask).not.toHaveProperty("noAlways");
+        await slates.approve({ threadId: box.thread, key: first.ask!.key, scope: "thread" });
+        await vi.waitFor(async () => expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ runs: 1 }), { timeout: 10_000 });
+        lay(box.folder);
+        expect((await s.press("r")).ask).toMatchObject({ run: "run", noAlways: true });
+        expect(await s.askOf("run")).toMatchObject({ why });
+        expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ state: "held", runs: 1 });
+        slates.close();
+      }
+    }, 30_000);
+
+    it(`an Always stored before this change for a script outside the folder asks again, naming it (${where})`, async () => {
+      const box = boxThread(hashHere, where === "here" ? { here: true } : {});
+      writeFileSync(join(box.folder, "..", "away.sh"), "echo evil");
+      let slates = box.open();
+      await slates.write({ text: oneRun("bash ../away.sh") }, box.asThread);
+      slates.close();
+      // The key every host before this change gave the command: nothing inside the folder, so no hashes in it.
+      const before = createSlateRuns({ env: () => ({}), onRecord: () => {}, onLine: () => {}, onTimer: () => {} });
+      const key = before.key({ kind: "cmd", cmd: "bash ../away.sh", timeout: 20 });
+      before.close();
+      const stored = (await box.store.get(SLATES, box.thread)) as { approvals: Record<string, unknown> };
+      await box.store.put(SLATES, box.thread, { ...stored, approvals: { [key]: { state: "allowed", at: Date.now(), run: "run", cmd: "bash ../away.sh" } } });
+      slates = box.open();
+      const s = box.on(slates);
+      expect((await s.press("r")).ask).toMatchObject({ run: "run", noAlways: true });
+      expect(await s.askOf("run")).toMatchObject({ why: "../away.sh is outside the thread's folder, so wsp cannot pin it and it asks every time" });
+      expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ state: "held" });
+      slates.close();
+    }, 30_000);
+  }
+
+  for (const where of ["box", "here"] as const) {
+    it(`keeps an Always for tools and interpreters outside the folder, a big file it only reads, a script inside spelled with .., inline code and the slate's own files (${where})`, async () => {
+      const box = boxThread(hashHere, where === "here" ? { here: true } : {});
+      mkdirSync(join(box.folder, ".venv", "bin"), { recursive: true });
+      symlinkSync(execFileSync("bash", ["-c", "command -v python3"], { encoding: "utf8" }).trim(), join(box.folder, ".venv", "bin", "python3.12"));
+      writeFileSync(join(box.folder, "stats.py"), "print('one')");
+      mkdirSync(join(box.folder, "lib"));
+      writeFileSync(join(box.folder, "ok.sh"), "true");
+      big(box.folder, "big.log");
+      const slates = box.open();
+      const cmd = "cat /proc/loadavg; /usr/bin/env true; tail -n 1 ../notes.txt; tail -c 3 big.log; bash lib/../ok.sh; .venv/bin/python3.12 stats.py";
+      const inline = "; bash -c 'echo two words'; python3 -c 'print(1)'; echo $HOME; cat ~/.profile; bash $SLATE_DIR/x.sh";
+      await slates.write({ text: oneRun(cmd + inline, `<file name="x.sh">{\`true\`}</file>`) }, box.asThread);
+      const s = box.on(slates);
+      const held = await s.press("r");
+      expect(held.ask).not.toHaveProperty("noAlways");
+      await slates.approve({ threadId: box.thread, key: held.ask!.key, scope: "thread" });
+      await vi.waitFor(async () => expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ runs: 1 }), { timeout: 10_000 });
+      expect((await s.press("r")).ask).toBeUndefined();
+      slates.close();
+    }, 30_000);
+  }
+
   it("leaves a command unpinned where the daemon does not answer in time, and asks nothing of a napping computer", async () => {
     const decl = { kind: "cmd" as const, cmd: "bash stats.sh" };
     let calls = 0;
     const pins = boxPins(
       () => async () => {
         calls += 1;
-        return new Promise<Record<string, string>>(() => {});
+        return new Promise<HashRead>(() => {});
       },
       20,
     );
+    const unpinned = (cmd: typeof decl | { kind: "cmd"; cmd: string }) => pins.pin("t1", "/root/acme", cmd).unpinned.map(u => u.path);
     await pins.read("t1", [{ folder: "/root/acme", decl }], false);
-    expect(pins.unpinned("t1", "/root/acme", decl)).toEqual(["stats.sh"]);
+    expect(unpinned(decl)).toEqual(["stats.sh"]);
     await pins.read("t1", [{ folder: "/root/acme", decl }], true);
     expect(calls).toBe(1);
-    expect(pins.unpinned("t1", "/root/acme", { kind: "cmd", cmd: "df -h" })).toEqual([]);
+    expect(unpinned({ kind: "cmd", cmd: "df -h" })).toEqual([]);
   });
 });
