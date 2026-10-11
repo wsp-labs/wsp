@@ -4,11 +4,13 @@
 import { indicatesFailure, isToolLike, type ToolGroupSummaryKind, workEntryKind, type WorkLogTone } from "../adapt";
 import { memo, type KeyboardEvent, type ReactNode } from "react";
 import { BotIcon, BrainIcon, ChevronDownIcon, CircleAlertIcon, EyeIcon, GlobeIcon, HammerIcon, InfoIcon, type LucideIcon, Minimize2Icon, SearchIcon, SquarePenIcon, TerminalIcon, WrenchIcon, ZapIcon } from "lucide-react";
-import { workEntryDisplayLabel, workEntryLabelText, type WorkEntryLabel } from "../MessagesTimeline.logic";
+import { workEntryBody, workEntryCanExpand, workEntryDisplayLabel, workEntryLabelText, type WorkEntryLabel } from "../MessagesTimeline.logic";
 import { cn } from "../../../lib/utils";
-import { formatWorkspaceRelativePath } from "../../../lib/filePathDisplay";
 import { type TimelineWorkEntry } from "./context";
 import { CommandCallRow, EditCallRow, useEntryOpen } from "./callBlock";
+import { WORK_BODY_PART, WORK_LABEL_PART } from "../find/text";
+
+const isBodyPart = (part: number): boolean => part === WORK_BODY_PART;
 
 export function ActivityShimmerOverlay({ children }: { children: ReactNode }) {
   return (
@@ -129,25 +131,6 @@ export const WORK_TONES: Record<WorkLogTone, WorkToneStyle> = {
   compaction: { Glyph: Minimize2Icon, iconClass: "text-icon-muted", labelClass: "text-secondary-label" },
 };
 
-function buildToolCallExpandedBody(
-  workEntry: TimelineWorkEntry,
-  workspaceRoot: string | undefined,
-): string | null {
-  const blocks: string[] = [];
-  if (workEntry.detail?.trim()) {
-    blocks.push(workEntry.detail.trim());
-  }
-  const changedFiles = workEntry.changedFiles ?? [];
-  if (changedFiles.length > 0) {
-    blocks.push(
-      changedFiles
-        .map((filePath) => formatWorkspaceRelativePath(filePath, workspaceRoot))
-        .join("\n"),
-    );
-  }
-  return blocks.length > 0 ? blocks.join("\n\n") : null;
-}
-
 const toolCallExpandedBodyClassName =
   "max-h-64 cursor-text overflow-auto whitespace-pre-wrap break-words font-mono text-secondary-label text-[length:var(--font-size-code,var(--font-size-mono))] leading-relaxed select-text";
 
@@ -182,15 +165,14 @@ const PlainWorkEntryRow = memo(function PlainWorkEntryRow(props: {
   isExpandedToolGroupEntry: boolean;
 }) {
   const { workEntry, workspaceRoot, isExpandedToolGroupEntry } = props;
-  const [expanded, toggleExpanded] = useEntryOpen(workEntry.id);
+  const [expanded, toggleExpanded] = useEntryOpen(workEntry.id, isBodyPart);
   const tone = WORK_TONES[workEntry.tone];
   const showFailedIndicator = indicatesFailure(workEntry);
   const Glyph = showFailedIndicator ? WORK_TONES.error.Glyph : workEntryGlyph(workEntry);
   const preview = workEntryDisplayLabel(workEntry, workspaceRoot);
   const previewText = workEntryLabelText(preview);
-  const detailText = workEntry.detail?.trim();
-  const canExpand = Boolean((detailText && detailText !== previewText) || workEntry.changedFiles?.length);
-  const expandedBody = expanded ? buildToolCallExpandedBody(workEntry, workspaceRoot) : null;
+  const canExpand = workEntryCanExpand(workEntry, previewText);
+  const expandedBody = expanded ? workEntryBody(workEntry, workspaceRoot) : null;
   const showDestructiveRowStyle =
     showFailedIndicator &&
     (workEntry.sourceActivityKind === "runtime.error" || !isToolLike(workEntry));
@@ -229,6 +211,8 @@ const PlainWorkEntryRow = memo(function PlainWorkEntryRow(props: {
           "cursor-pointer hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
       )}
       {...rowToggleProps}
+      data-find-entry={workEntry.id}
+      data-find-tool=""
     >
       <div className={cn("flex select-none gap-1.5 transition-[opacity,translate] duration-200", showDestructiveRowStyle ? "items-start" : "items-center")}>
         <span
@@ -241,7 +225,9 @@ const PlainWorkEntryRow = memo(function PlainWorkEntryRow(props: {
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <div className="min-w-0 flex-1 overflow-hidden">
             <p className="flex min-w-0 w-full items-baseline gap-1.5 text-sm leading-relaxed">
-              <span className={cn("min-w-0 flex-1", showDestructiveRowStyle ? "break-words" : "truncate", headingClass)}><WorkEntryLabelText label={preview} /></span>
+              <span className={cn("min-w-0 flex-1", showDestructiveRowStyle ? "break-words" : "truncate", headingClass)} data-find-part={WORK_LABEL_PART}>
+                <WorkEntryLabelText label={preview} />
+              </span>
             </p>
           </div>
           <span
@@ -266,7 +252,7 @@ const PlainWorkEntryRow = memo(function PlainWorkEntryRow(props: {
           onClick={stopRowToggle}
           onPointerDown={stopRowToggle}
         >
-          <pre className={toolCallExpandedBodyClassName}>{expandedBody}</pre>
+          <pre className={toolCallExpandedBodyClassName} data-find-part={WORK_BODY_PART}>{expandedBody}</pre>
         </div>
       ) : null}
     </div>
