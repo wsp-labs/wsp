@@ -4,6 +4,7 @@ import { harnessExec } from "@wsp/engine";
 import {
   CONVERSATION_GONE_FIX,
   CONVERSATION_OPEN_KIND,
+  CONVERSATIONS_AGAIN_FIX,
   EARLIER_MESSAGES,
   NO_CONVERSATIONS_FIX,
   RESUME_WHERE_FIX,
@@ -13,6 +14,7 @@ import {
   conversationIsThreadLine,
   conversationOpenFix,
   conversationOpenLine,
+  conversationsFailedLine,
   conversationsUnreadLine,
   conversationsUpdateFix,
   copiesFolder,
@@ -112,17 +114,22 @@ export function conversationsArea(ctx: RuntimeContext): ConversationsArea {
     return { agent: harness, said: conversationsUnreadLine(ctx.agentLabel(harness), computer), fix: conversationsUpdateFix(computer) };
   };
 
-  /** One store read fresh: an agent whose store did not answer leaves the others' rows standing, logged and listed as
-   * none. A daemon too old for the read says so in a line, and it and an agent not installed fail the same way all
-   * minute, so their read is kept; any other failure (a daemon reconnecting, a server past its time) is passing. */
+  /** One store read fresh: an agent whose store did not answer leaves the others' rows standing and says so in a line,
+   * the update a daemon too old for the read needs, or the store's own error. A daemon too old and an agent not
+   * installed, which holds nothing to list, fail the same way all minute, so their read is kept; any other failure (a
+   * daemon reconnecting, a server past its time) is passing. */
   const readStore = async (entry: LiveWorkspace, cwds: string[], road: ConversationRoad, harness: string, store: ConversationStore): Promise<StoreRead> => {
     let unread: ConversationsHeld | undefined;
     let passing = false;
     const [listed, live] = await Promise.all([
       store.list(cwds, road).catch((e: unknown) => {
         unread = unreadOf(e, entry, harness);
-        passing = unread === undefined && !isLastingStoreError(e);
-        if (unread === undefined) console.warn(`the ${ctx.agentLabel(harness)} conversations on ${ctx.computerOf(entry)} were not read: ${e instanceof Error ? e.message : String(e)}`);
+        if (unread !== undefined) return [];
+        const why = e instanceof Error ? e.message : String(e);
+        console.warn(`the ${ctx.agentLabel(harness)} conversations on ${ctx.computerOf(entry)} were not read: ${why}`);
+        if (isLastingStoreError(e)) return [];
+        passing = true;
+        unread = { agent: harness, said: conversationsFailedLine(ctx.agentLabel(harness), why), fix: CONVERSATIONS_AGAIN_FIX, why };
         return [];
       }),
       store.live?.(road) ?? Promise.resolve(null),
