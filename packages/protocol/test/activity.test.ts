@@ -70,6 +70,13 @@ describe("an End's plan", () => {
     expect(refusal(() => endPlan(above, 90, START + 90, anyone))).toContain(agentUnderLine(90, LAB));
   });
 
+  it("refuses the native codex that Codex's npm launcher runs as its one child, which is the agent too", () => {
+    const codex: ActivityScope = { threadId: "codex-thread-3", title: "codex", workspaceId: "ws-1", roots: [600] };
+    const native = "/usr/local/lib/node_modules/@openai/codex/vendor/x86_64-unknown-linux-musl/bin/codex app-server";
+    const procs = [...PROCS, row(600, 50, "bash", "bash runs/r3.sh"), row(601, 600, "node", "node /usr/local/bin/codex app-server"), row(602, 601, "codex", native)];
+    expect(refusal(() => endPlan({ ...read(procs), scopes: [codex], agentBins: ["codex"] }, 602, START + 602, anyone))).toContain(agentEndLine(602, codex));
+  });
+
   it("frees a kept agent through its thread instead of a signal", () => {
     expect(endPlan(read(), 300, START + 300, anyone)).toEqual({ kept: KEPT });
   });

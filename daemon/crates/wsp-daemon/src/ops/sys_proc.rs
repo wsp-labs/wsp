@@ -34,17 +34,17 @@ impl ProcWatch {
         self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Subscribes under the key unless an unwatch came in since the watch arrived; a socket already watching that
-    /// watches again missed a frame, so its next one is whole.
-    fn watch(&self, sampler: Arc<ProcSampler>, key: u64, out: Outbound, since: u64) {
+    /// Subscribes under the key, reading the cgroups it names, unless an unwatch came in since the watch arrived; a
+    /// socket already watching that watches again names its cgroups afresh and missed a frame, so its next one is whole.
+    fn watch(&self, sampler: Arc<ProcSampler>, key: u64, out: Outbound, since: u64, cgroups: Option<Vec<String>>) {
         let mut watch = self.lock();
         if watch.unwatches != since {
             return;
         }
         match watch.held.as_ref() {
-            Some((held, sampler)) => sampler.resend(*held),
+            Some((held, sampler)) => sampler.rescope(*held, cgroups),
             None => {
-                sampler.subscribe(key, out);
+                sampler.subscribe(key, out, cgroups);
                 watch.held = Some((key, sampler));
             }
         }
@@ -70,7 +70,7 @@ pub(super) fn serves(op: &DaemonOp) -> bool {
         DaemonOp::SysWatch
             | DaemonOp::SysUnwatch
             | DaemonOp::SysHistory { .. }
-            | DaemonOp::ProcWatch
+            | DaemonOp::ProcWatch { .. }
             | DaemonOp::ProcUnwatch
             | DaemonOp::ProcInspect { .. }
             | DaemonOp::ProcList
@@ -119,7 +119,7 @@ pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId
             };
             answer(id, read.await)
         }
-        DaemonOp::ProcWatch => {
+        DaemonOp::ProcWatch { cgroups } => {
             // Read before anything awaits, as sys.watch does.
             let since = conn.proc_watch.lock().unwatches;
             let watched = async {
@@ -127,7 +127,7 @@ pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId
                 sampler.probe().await?;
                 let key = ctx.next_key();
                 conn.while_open(|| {
-                    conn.proc_watch.watch(sampler, key, conn.out.clone(), since);
+                    conn.proc_watch.watch(sampler, key, conn.out.clone(), since, cgroups);
                     None
                 });
                 Ok(Empty {})

@@ -278,17 +278,23 @@ export type PtyListReply = z.infer<typeof PtyListReply>;
 export const ProcSignal = z.enum(["TERM", "KILL"]);
 export type ProcSignal = z.infer<typeof ProcSignal>;
 
-/** Every kind a process row names, by what the person knows it as. */
+/** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. The daemon stamps
+ * agent, slate and tool, the three it knows by fact; the page names the rest. */
 export const PROC_KINDS = ["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"] as const;
-export type ProcKind = (typeof PROC_KINDS)[number];
+export const ProcKind = z.enum(PROC_KINDS);
+export type ProcKind = z.infer<typeof ProcKind>;
 
-/** The rung of the daemon's ladder that named a row's owner, first match wins: the thread's own process or a parent of
- * it, a Mac's fork tracker, a group seen under the thread, the WSP_THREAD mark, the thread's cgroup on a box, a
- * workspace's folder (no thread), wsp's own coalition on a Mac (no thread). */
+/** The rung of the daemon's ladder that named the owner, first match wins: the thread's own process or a parent of
+ * it (`root`), a process a Mac's fork tracker followed from one of those (`fork`), a group seen under the thread
+ * (`group`), the WSP_THREAD mark in its environment (`env`), the thread's
+ * cgroup on a box (`cgroup`), a workspace's folder (`folder`, no thread), wsp's own coalition on a Mac (`coalition`,
+ * no thread). */
 export const ProcOwnedBy = z.enum(["root", "fork", "group", "env", "cgroup", "folder", "coalition"]);
 export type ProcOwnedBy = z.infer<typeof ProcOwnedBy>;
 
-export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional() });
+/** The owner a row carries; `warm` says the thread is a warm agent's, started ahead of a send, and no thread has
+ * that id until a send claims it. */
+export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional(), warm: z.boolean().optional() });
 export type ProcOwner = z.infer<typeof ProcOwner>;
 
 /** One process as /proc/[pid] shows it. cpu is its busy share of one core
@@ -310,11 +316,15 @@ export const ProcEntry = z.object({
   /** The cgroup v2 path the process stands in, Linux only: what tells a thread's processes on a computer from
    * another's, a server it detached included. */
   cgroup: z.string().optional(),
-  /** Whose it is, where the daemon could tell from the threads the host named; absent for a process that is not
-   * wsp's, and on a daemon that reads no owners. */
-  owner: ProcOwner.optional(),
-  /** One of PROC_KINDS; a word this version does not know reads as other. */
-  kind: z.string().optional(),
+  /** The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a Mac
+   * alone keeps one, so a row elsewhere, and a process's first reading, carry none. */
+  energyMw: z.number().optional(),
+  /** Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's, and on a
+   * daemon from before proc.scopes. One named by a rung a newer daemon adds reads as absent, rather than dropping the
+   * frame it rides in. */
+  owner: ProcOwner.optional().catch(undefined),
+  /** A word a newer daemon adds reads as other here, rather than dropping the frame it rides in. */
+  kind: ProcKind.catch("other").optional(),
 });
 export type ProcEntry = z.infer<typeof ProcEntry>;
 
@@ -465,10 +475,13 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Streams the processes to this socket until proc.unwatch or the socket
    * closes: one whole proc.snapshot first, two seconds after the reply since
    * cpu is a delta (at once where the sampler is already running), then a
-   * proc.changes every five seconds naming the frame it follows. A socket
+   * proc.changes every two seconds naming the frame it follows. A socket
    * already watching that watches again is sent a whole snapshot next. The
-   * daemon reads /proc only while some socket watches. */
-  z.object({ id: reqId, op: z.literal("proc.watch") }),
+   * daemon reads /proc only while some socket watches. With cgroups, each
+   * tick reads only the processes in them and every cgroup under each, and
+   * the daemon's own row: a box's threads, so a busy box is not read whole;
+   * a second watch names the set again. */
+  z.object({ id: reqId, op: z.literal("proc.watch"), cgroups: z.array(cgroupPath).max(16).optional() }),
   z.object({ id: reqId, op: z.literal("proc.unwatch") }),
   /** One process in depth, replied as a ProcInspectReply; this is the only op
    * that scans /proc/net, and only for that pid's sockets. */

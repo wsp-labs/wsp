@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DAEMON_VERSION, SYS_SUBSCRIBE_ONE_OF, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { DaemonChannel } from "../src/daemon-channel.js";
-import { namedWatchRefusal } from "../src/account/box-panels.js";
+import { namedWatchRefusal, procWatchScope } from "../src/account/box-panels.js";
 import { ctx, sockets, serving, code, join, relink, placesOf, answersLeave, KEEPS_NO_IMAGE } from "./places-fixture.js";
 import { until } from "./until.js";
 import { freePort, freePorts } from "./held-port.js";
@@ -536,6 +536,31 @@ describe("the processes of a thread in a folder on a computer the person joined"
 
     expect(await first.send({ id: 3, op: "proc.kill", pid: 900, signal: "TERM" })).toMatchObject({ ok: true });
     expect(seen.frames.filter(f => f["op"] === "proc.kill")).toMatchObject([{ pid: 900, signal: "TERM" }]);
+  });
+
+  it("pass up what the panes ask a watch to read, merged: the threads' cgroups alone, every process once a pane asks for all", async () => {
+    const { rt, seen, workspaceId } = await joined({ adapters: { claude: answering([]) } });
+    const activity = await pane(rt, workspaceId, []);
+    const processes = await pane(rt, workspaceId, []);
+    const watches = () => seen.frames.filter(f => f["op"] === "proc.watch").map(f => f["cgroups"] ?? "every");
+    expect(await activity.send({ id: 1, op: "proc.watch", cgroups: ["/wsp-threads"] })).toMatchObject({ ok: true });
+    expect(watches()).toEqual([["/wsp-threads"]]);
+    expect(await activity.send({ id: 2, op: "proc.watch", cgroups: ["/wsp-threads/t1", "/wsp-threads"] })).toMatchObject({ ok: true });
+    expect(watches().at(-1)).toEqual(["/wsp-threads"]);
+    expect(await processes.send({ id: 1, op: "proc.watch" })).toMatchObject({ ok: true });
+    expect(watches().at(-1)).toEqual("every");
+    // The pane that read everything going narrows the link's one watch back to what the other still asks.
+    await processes.send({ id: 2, op: "proc.unwatch" });
+    await expect.poll(() => watches().at(-1)).toEqual(["/wsp-threads"]);
+    expect(seen.frames.filter(f => f["op"] === "proc.unwatch")).toHaveLength(0);
+    activity.close();
+    await expect.poll(() => seen.frames.filter(f => f["op"] === "proc.unwatch")).toHaveLength(1);
+  });
+
+  it("merge the panes' cgroups into one watch, and read whole past the daemon's cap", () => {
+    expect(procWatchScope([["/wsp-threads/b"], ["/wsp-threads/a", "/wsp-threads/b/x"]])).toEqual(["/wsp-threads/a", "/wsp-threads/b"]);
+    expect(procWatchScope([["/wsp-threads/a"], null])).toBeNull();
+    expect(procWatchScope([Array.from({ length: 17 }, (_, i) => `/wsp-threads/t${i}`)])).toBeNull();
   });
 
   it("are watched over a link that dropped for no pane that went with it, and the link that replaced it counts its own", async () => {

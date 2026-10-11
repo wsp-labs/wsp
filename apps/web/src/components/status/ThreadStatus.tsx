@@ -21,6 +21,7 @@ export function ThreadStatus({
   age,
   settled = false,
   kind: given,
+  still = false,
   className,
 }: {
   thread: ThreadStatusInput;
@@ -31,6 +32,8 @@ export function ThreadStatus({
   settled?: boolean;
   /** A kind no thread reads as, for a tile that holds no thread yet. */
   kind?: StatusKind;
+  /** The crab holds still, on a page whose own redraws are what it measures. */
+  still?: boolean;
   className?: string;
 }) {
   const kind = given ?? (settled ? RESTING : threadStatusOf(thread));
@@ -43,23 +46,23 @@ export function ThreadStatus({
       </span>
     );
   return kind.wordOf === undefined ? (
-    <Mark thread={thread} kind={kind} word={kind.word ?? ""} age={age} className={slot} />
+    <Mark thread={thread} kind={kind} word={kind.word ?? ""} age={age} still={still} className={slot} />
   ) : (
-    <TickingMark thread={thread} kind={kind} word={now => kind.wordOf!(thread, now)} age={age} className={slot} />
+    <TickingMark thread={thread} kind={kind} word={now => kind.wordOf!(thread, now)} age={age} still={still} className={slot} />
   );
 }
 
 /** A word read off the minute clock, so a reset's "resets in 14 min" moves while it stands. */
-function TickingMark({ word, ...mark }: { thread: ThreadStatusInput; kind: StatusKind; word: (now: number) => string; age: string | undefined; className: string }) {
+function TickingMark({ word, ...mark }: { thread: ThreadStatusInput; kind: StatusKind; word: (now: number) => string; age: string | undefined; still: boolean; className: string }) {
   return <Mark {...mark} word={word(useMinuteClock())} />;
 }
 
-function Mark({ thread, kind, word, age, className }: { thread: ThreadStatusInput; kind: StatusKind; word: string; age: string | undefined; className: string }) {
+function Mark({ thread, kind, word, age, still, className }: { thread: ThreadStatusInput; kind: StatusKind; word: string; age: string | undefined; still: boolean; className: string }) {
   const Glyph = kind.glyph;
   return (
     <Tooltip>
       <TooltipTrigger render={<span data-thread-status={kind.id} data-tone={kind.tone} role="img" aria-label={word} className={className} />}>
-        {Glyph === undefined ? <Crab /> : <Glyph aria-hidden className="size-3 shrink-0" />}
+        {Glyph === undefined ? <Crab still={still} /> : <Glyph aria-hidden className="size-3 shrink-0" />}
       </TooltipTrigger>
       <TooltipPopup side="top">
         <span className="tabular-nums">
