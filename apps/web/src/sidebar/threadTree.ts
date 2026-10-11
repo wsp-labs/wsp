@@ -13,6 +13,7 @@ import { bareFolder, DEFAULT_PREFERENCES, SETTLE_MS, ThreadSection, type Project
 import type { SidebarProjectSnapshot, SidebarThreadSnapshot } from "../adapt/index.js";
 import { leadNodes, partOf, settleTake, type Tree } from "../components/threads/leadTree.js";
 import { workspaceRowId } from "./rowGrammar.js";
+import { bySectionKey, pinKey } from "./treeOrder.js";
 import { isThreadSettleable, isThreadSettled, isThreadWorking, nestSpawnedThreads, sortSettledThreadsForSidebar, sortThreadsForSidebar, threadForest, threadSection, type ThreadNode } from "./Sidebar.logic.js";
 
 /** One project of the sidebar: the record the host holds for it, and its workspaces. */
@@ -53,9 +54,10 @@ export function inProjectOrder<T>(items: ReadonlyArray<T>, idOf: (item: T) => st
   return [...placed, ...items.filter(item => !placed.includes(item))];
 }
 
-/** The projects a new thread is picked from: the one the person is in first, then each project by the latest turn
- * started among its threads, so a new turn moves its project up; ties and projects with no thread in the dragged order. */
-export function inPickOrder(projects: ReadonlyArray<ProjectView>, rows: ReadonlyArray<SidebarProjectSnapshot>, open: string | null, order: ReadonlyArray<string>): ProjectView[] {
+/** The projects a new thread is picked from: the ones named first in the order given, then each project by the latest
+ * turn started among its threads, so a new turn moves its project up; ties and projects with no thread in the dragged
+ * order. */
+export function inPickOrder(projects: ReadonlyArray<ProjectView>, rows: ReadonlyArray<SidebarProjectSnapshot>, first: ReadonlyArray<string>, order: ReadonlyArray<string>): ProjectView[] {
   const newest = new Map<string, number>();
   for (const row of rows) {
     for (const thread of row.threads) {
@@ -64,8 +66,12 @@ export function inPickOrder(projects: ReadonlyArray<ProjectView>, rows: Readonly
       if (at > (newest.get(id) ?? Number.NEGATIVE_INFINITY)) newest.set(id, at);
     }
   }
-  const rank = (project: ProjectView): number => (project.id === open ? Number.POSITIVE_INFINITY : (newest.get(project.id) ?? Number.NEGATIVE_INFINITY));
-  return inProjectOrder(projects, project => project.id, order).sort((a, b) => (rank(a) === rank(b) ? 0 : rank(a) > rank(b) ? -1 : 1));
+  const rank = (project: ProjectView): number => newest.get(project.id) ?? Number.NEGATIVE_INFINITY;
+  const lead = (project: ProjectView): number => {
+    const at = first.indexOf(project.id);
+    return at === -1 ? first.length : at;
+  };
+  return inProjectOrder(projects, project => project.id, order).sort((a, b) => lead(a) - lead(b) || (rank(a) === rank(b) ? 0 : rank(a) > rank(b) ? -1 : 1));
 }
 
 /** A thread with the workspace it runs on, which is not always the workspace whose rows it is drawn among. */
@@ -192,7 +198,7 @@ export interface TileSection {
   readonly roots: TileNode[];
 }
 
-/** The sidebar's list: root tiles across every workspace newest first, each with the tiles its agents opened under
+/** The sidebar's list: root tiles across every workspace newest first until the person moves one, each with the tiles its agents opened under
  * it, parted into the live list and the Settled fold, which holds every root whose whole tree is settled threads.
  * The live list is drawn in sections: the pinned trees, Needs you as an inbox of every thread at any depth that needs
  * the person, each a tile with nothing under it, then every other live tree, whatever under it asks. `live` is every
@@ -220,11 +226,12 @@ export function sidebarTiles(
       if (working > 0) snoozedWorking.push({ thread: { ...node.thread, snoozedWorking: working, holds: treeThreadIds(node) }, children: [] });
       continue;
     }
-    const pins = node.thread.thread?.pinnedAt != null;
+    const pins = pinKey(node) !== null;
     if (everyTile(node, thread => isThreadSettled(thread, nowMs, pins || thread.id === open, settleMs))) settled.push(node);
     else (pins ? pinned : listed).push(node);
   }
-  pinned.sort((a, b) => b.thread.thread!.pinnedAt!.localeCompare(a.thread.thread!.pinnedAt!));
+  pinned.sort(bySectionKey("pinned"));
+  listed.sort(bySectionKey("threads"));
   const tree = tileTree({ nowMs, settleMs: settleMs === undefined ? SETTLE_MS[DEFAULT_PREFERENCES.settleAfter] : settleMs });
   const inbox = [...pinned, ...listed].flatMap(node => inboxTiles(node, [], { tree, open }));
   const tops = new Set(inbox.filter(node => node.thread.inboxOf?.parent === null).map(node => node.thread.id));

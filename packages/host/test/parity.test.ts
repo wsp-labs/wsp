@@ -354,7 +354,7 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
   it("every thread op a window sends is sent by a verb too, or is listed here with why it stays with the windows", () => {
     const verbs = verbsSource();
     const WINDOW_ONLY: Record<string, string> = {
-      "sessions.mark": "a pin, a snooze and a section are where one person's sidebar draws a thread; wsp threads lists every thread in one order and hides none",
+      "sessions.mark": "a pin, the order trees were moved into, a snooze and a section are where one person's sidebar draws a thread; wsp threads lists every thread in one order and hides none",
       "sessions.search": "the sidebar's search inside messages; an agent reads a thread whole with thread read and has no list of threads to narrow",
       "sessions.steer": "the composer's send-now on a queued row; wsp send already joins a running turn wherever its harness steers",
       "sessions.access": "the access picker moving a running turn, the person's guard on an agent; wsp run takes --access when the thread opens",
@@ -626,12 +626,14 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
     expect(flagDrift(stale, COMMAND_LINES)).toEqual([
       "wsp run reads --access, which its row does not show",
       "wsp run reads --beside, which its row does not show",
+      "wsp run reads --copy, which its row does not show",
       "wsp run reads --detach, which its row does not show",
       "wsp run reads --effort, which its row does not show",
       "wsp run reads --fast, which its row does not show",
       "wsp run reads --file, which its row does not show",
       "wsp run reads --model, which its row does not show",
       "wsp run reads --replaces, which its row does not show",
+      "wsp run reads --resume, which its row does not show",
       "wsp run reads --title, which its row does not show",
       "wsp send reads --detach, which its row does not show",
       "wsp send reads --effort, which its row does not show",

@@ -10,7 +10,7 @@ import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, BookOpenIcon, BugIcon, Chevr
 import type { ReactNode } from "react";
 import { REPO } from "../../../../../packages/protocol/src/bundles.mjs";
 import { agentName } from "@wsp/catalog";
-import { HERE_PLACE_ID, PLACES_WORDS, type PlaceView, type ProjectView, type SessionSearchHit } from "@wsp/protocol";
+import { HERE_PLACE_ID, PLACES_WORDS, type OutsideConversation, type PlaceView, type ProjectView, type SessionSearchHit } from "@wsp/protocol";
 import { THREAD_WORDS } from "../../actions/format.js";
 import { resolveActions, type ResolvedAction } from "../../actions/registry.js";
 import { workspaceActions, workspaceTarget, type WorkspaceVerbs } from "../../actions/workspaceActions.js";
@@ -35,6 +35,7 @@ import { restingAge } from "../status/restingAge.js";
 import { LINE_SLOT_CLASS, ThreadStatus } from "../status/ThreadStatus.js";
 import { CommandShortcut } from "../ui/command.js";
 import { type CommandPaletteActionItem, type CommandPaletteSubmenuItem, ITEM_ICON_CLASS, RECENT_THREAD_LIMIT } from "./CommandPalette.logic.js";
+import { conversationsPage, type ConversationsPageInput } from "./conversationsPage.js";
 
 export interface PaletteHandlers {
   readonly selectWorkspace: (workspaceId: string) => void;
@@ -60,6 +61,8 @@ export interface PaletteHandlers {
 
 export interface PaletteItemsInput {
   readonly projects: ReadonlyArray<SidebarProjectSnapshot>;
+  /** The moves of the open thread's root tree, as its tile's menu offers them; none while no thread is open. */
+  readonly threadMoves?: ReadonlyArray<ResolvedAction>;
   readonly selectedId: string | null;
   /** What the person typed; the thread search runs over it, the at-rest list ignores it. */
   readonly query: string;
@@ -77,6 +80,8 @@ export interface PaletteItemsInput {
   /** The computers and providers this host holds, for the one reading of a workspace whose computer is not
    * answering: a row that named its own state read Unreachable for the computer the app is drawn on. */
   readonly places: readonly PlaceView[];
+  /** The page of the conversations kept outside wsp in the project on screen, or the one its menu named. */
+  readonly conversations?: ConversationsPageInput;
 }
 
 export interface PaletteItems {
@@ -141,8 +146,8 @@ function projectWhere(project: ProjectView, places: readonly PlaceView[], named:
   return <Facts parts={[at, project.path]} className="overflow-hidden" />;
 }
 
-/** The page New thread picks a project from: every project in pick order, the first nine on a pick key, then New
- * project. */
+/** The page New thread picks a project from: every project in pick order, the first nine on a pick key, then Add a
+ * project. Its search names the act, since the page is the first thing New thread shows. */
 function newThreadPage(input: PaletteItemsInput): CommandPaletteSubmenuItem {
   const named = placeNames(input.places);
   const keyed = pickKeysReach();
@@ -165,20 +170,20 @@ function newThreadPage(input: PaletteItemsInput): CommandPaletteSubmenuItem {
     description: "Pick the project first",
     disabled: !input.canCreate || items.length === 0,
     addonIcon: <ArrowLeftIcon className="text-icon-muted" />,
-    placeholder: `${SWITCHER_WORDS.search}...`,
+    placeholder: `${NEW_WORKSPACE} in...`,
     emptyStateMessage: "No matching projects.",
     groups: [{ value: "projects", label: SWITCHER_WORDS.list, items: [...items, newProjectItem(input)] }],
   };
 }
 
-/** The page's last row, the sidebar's New project: the dialog it opens opens the project it records. */
+/** The page's last row, Add a project: the dialog it opens opens the project it records. */
 function newProjectItem(input: PaletteItemsInput): CommandPaletteActionItem {
   return {
     kind: "action",
     value: "action:new-project",
     searchTerms: ["new project", "add a project", "folder", "repository", "clone"],
     icon: <PlusIcon className={ITEM_ICON_CLASS} />,
-    title: PROJECT_WORDS.new,
+    title: PROJECT_WORDS.add,
     run: sync(input.handlers.addProject),
   };
 }
@@ -200,6 +205,7 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
       run: sync(handlers.newThread),
     },
     newThreadPage(input),
+    ...(input.conversations !== undefined ? [conversationsPage({ ...input.conversations, pick: row => pickOrOpen(input, row) })] : []),
     {
       kind: "action",
       value: "action:add-project",
@@ -221,6 +227,7 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
       run: handlers.copyThreadMarkdown,
     });
   }
+  items.push(...(input.threadMoves ?? []).map(action => actionItem(action, "The open thread's tree, in the sidebar")));
   if (selected !== null) {
     // The one New thread row is the one above, which opens on a project; the copy's own act stays off the palette.
     items.push(...resolveActions(workspaceActions, workspaceTarget(selected.workspace, selected.status, input.places), input.verbs).filter(action => action.id !== "new-thread").map(action => actionItem(action, selected.displayName)));
@@ -375,6 +382,14 @@ function threadItem(thread: SidebarThreadSnapshot, project: SidebarProjectSnapsh
     titleTrailingContent: <ThreadStatus thread={thread} age={restingAge(thread)} className={LINE_SLOT_CLASS} />,
     run: sync(() => handlers.selectThread(thread.workspaceId, thread.threadId)),
   };
+}
+
+/** A conversation a wsp thread already runs on opens that thread, where the sidebar holds it; any other goes to the
+ * page's own pick. */
+export function pickOrOpen(input: Pick<PaletteItemsInput, "projects" | "handlers" | "conversations">, row: OutsideConversation): void {
+  const thread = row.thread === undefined ? undefined : input.projects.flatMap(project => project.threads).find(t => t.threadId === row.thread);
+  if (thread !== undefined) input.handlers.selectThread(thread.workspaceId, thread.threadId);
+  else input.conversations?.pick(row);
 }
 
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItems {
