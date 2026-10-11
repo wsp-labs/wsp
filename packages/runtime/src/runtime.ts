@@ -1089,6 +1089,11 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
         const allFailed = failed.concat(swept.failed ?? []);
         return { reaped: reaped.concat(swept.reaped), spared: swept.spared, ...(allFailed.length > 0 ? { failed: allFailed } : {}), ...(adopted.length > 0 ? { adopted } : {}) };
       };
+      // Before the listing, so a machine a lost create made and the replay named is in it to be recorded again.
+      reaped.push(...(await ctx.replayCreates(knownIds, failed).catch((e: unknown) => {
+        failed.push({ message: `asking lost creates again: ${messageOf(e)}` });
+        return [];
+      })));
       // One listing serves both halves of the sweep: the machines recorded again, then what the engine kills or spares.
       let listing: ListedMachine[];
       try {
@@ -1124,7 +1129,12 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
       const claimed = new Set(knownIds());
       const adopted = await ctx.adoptLost(listing, claimed, failed);
       try {
-        return result(await reap({ backend, owner: ctx.state.owner, listing, stop: m => gone.stop(backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) }), adopted);
+        const swept = await reap({ backend, owner: ctx.state.owner, listing, stop: m => gone.stop(backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) });
+        const strayed = await ctx.sweepStrays(() => [...knownIds(), ...claimed], failed).catch((e: unknown) => {
+          failed.push({ message: `machines named after this host's images: ${messageOf(e)}` });
+          return [];
+        });
+        return result({ ...swept, reaped: swept.reaped.concat(strayed) }, adopted);
       } catch (e) {
         failed.push({ message: messageOf(e) });
         return result({ reaped: [], spared: [] }, adopted);
