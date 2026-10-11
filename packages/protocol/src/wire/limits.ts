@@ -14,6 +14,8 @@ export const HTTP_URL_MAX = 8192;
  * Too Large above 16 KiB (a 17,176 byte launch body was refused on 2026-09-06). Anything larger goes to the guest in
  * more than one exec or through an upload. */
 export const EXEC_BODY_MAX = 16 * 1024;
+/** The most folders, and the most cwds, one transcripts.list or transcripts.read frame carries; the daemon refuses more. */
+export const TRANSCRIPT_DIRS_MAX = 64;
 /** The thread token and the turn token a guest session opens with; the daemon relays both and reads neither. */
 export const GUEST_TOKEN_MAX = 512;
 /** Words in one guest command line, and the length of the folder it runs in. */

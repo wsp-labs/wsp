@@ -127,6 +127,13 @@ describe("the palette's page of a project's conversations", () => {
     expect([last.title, last.description, last.disabled]).toEqual([CONVERSATION_WORDS.heldRow("Claude Code"), CONVERSATION_WORDS.heldNote("studio"), true]);
   });
 
+  it("holds one quiet line for an agent whose store could not be read, saying why", () => {
+    const said = "Claude Code's conversations could not be read: the daemon connection closed";
+    const page = pageOf({ rows: [CODEX], held: [{ agent: "claude", said, fix: "Ask again in a moment.", why: "the daemon connection closed" }] });
+    const last = page.groups[0]!.items.at(-1)!;
+    expect([last.title, last.description, last.disabled]).toEqual([said, undefined, true]);
+  });
+
   it("stands on the palette's root for the project on screen, and is held there with no project on screen", () => {
     const handlers = { selectThread: vi.fn() } as never;
     const base = { projects: [], selectedId: null, query: "", messageHits: [], canCreate: true, recorded: [LAB], picks: [LAB], asks: false, handlers, verbs: {} as never, places: [HERE] };
@@ -262,6 +269,18 @@ describe("a project's New thread page with a conversation held", () => {
     await home(fakeApi(ANSWER).api);
     const offer = await waitFor(() => document.querySelector<HTMLElement>("[data-k=conversations-offer]")!);
     expect(offer.textContent).toBe(`${CONVERSATION_WORDS.row}${CONVERSATION_WORDS.inFolder(4)}`);
+  });
+
+  it("counts every agent's rows read, and says whose could not be read rather than in this folder", async () => {
+    const failed = { agent: "claude", said: "Claude Code's conversations could not be read: at most 64 entries, got 74", fix: "Ask again in a moment.", why: "at most 64 entries, got 74" };
+    await home(fakeApi({ rows: [CODEX], held: [failed] }).api);
+    const offer = await waitFor(() => document.querySelector<HTMLElement>("[data-k=conversations-offer]")!);
+    expect(offer.textContent).toBe(`${CONVERSATION_WORDS.row}${CONVERSATION_WORDS.listed(1)} ${CONVERSATION_WORDS.unreadShort("Claude Code")}`);
+    cleanup();
+    useConversationsStore.setState({ answers: {} });
+    await home(fakeApi({ rows: [], held: [failed] }).api);
+    const none = await waitFor(() => document.querySelector<HTMLElement>("[data-k=conversations-offer]")!);
+    expect(none.textContent).toBe(`${CONVERSATION_WORDS.row}${CONVERSATION_WORDS.unreadShort("Claude Code")}`);
   });
 
   it("says which conversation the send continues, lets it go with Start fresh, and sends on it under its own agent", async () => {

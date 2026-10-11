@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The one line under a project's New thread composer about the conversations kept in its folder outside wsp: with one
 // held, the conversation the next send continues and Start fresh, which lets it go; with none held, Resume a
-// conversation and how many there are, and nothing where the folder has none.
+// conversation and how many there are, whose could not be read where a store did not answer, and nothing where the
+// folder has none.
 import { useEffect } from "react";
 import { agentName } from "@wsp/catalog";
 import { CONVERSATION_WORDS } from "@wsp/protocol";
@@ -37,13 +38,18 @@ export function ConversationLine({ projectId }: { projectId: string }) {
     );
   }
   const count = isAnswer(read) ? read.rows.length : 0;
-  if (count === 0) return null;
+  const unread = isAnswer(read) ? read.held : [];
+  if (count === 0 && unread.length === 0) return null;
   return (
     <div data-k="conversations-offer" className="flex items-center gap-3">
       <Button size="xs" variant="ghost" className={BARE} data-k="resume-conversation" onClick={() => openCommandPalette({ page: "conversations", project: projectId })}>
         {CONVERSATION_WORDS.row}
       </Button>
-      <span className={FACT}>{CONVERSATION_WORDS.inFolder(count)}</span>
+      {unread.length === 0 ? (
+        <span className={FACT}>{CONVERSATION_WORDS.inFolder(count)}</span>
+      ) : (
+        <Facts parts={[count > 0 ? CONVERSATION_WORDS.listed(count) : undefined, ...unread.map(h => CONVERSATION_WORDS.unreadShort(agentName(h.agent)))]} className={FACT} />
+      )}
     </div>
   );
 }
