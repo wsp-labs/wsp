@@ -8,12 +8,13 @@ type StartOptions = Parameters<Runtime["sessions"]["start"]>[1];
 
 /** What sessions.start hands the runtime off the request: each field the client named, copied by hand so none rides
  * that the runtime does not take, in the folder the start was placed in and on the outside conversation it opens on. */
-export function startOptionsOf(msg: StartAsked, at: { cwd?: string | undefined }, outside: OutsideOpening | undefined, held: Pick<StartOptions, "onHeld">): StartOptions {
+export function startOptionsOf(msg: StartAsked, at: { cwd?: string | undefined; setup?: string | undefined }, outside: OutsideOpening | undefined, held: Pick<StartOptions, "onHeld">): StartOptions {
   return {
     prompt: msg.prompt, ...held, ...(msg.followed === true ? { followed: true } : {}),
     ...(msg.harness !== undefined ? { harness: msg.harness } : {}),
     ...(msg.thread !== undefined ? { thread: msg.thread } : {}),
     ...(at.cwd !== undefined ? { cwd: at.cwd } : {}),
+    ...(at.setup !== undefined ? { setup: at.setup } : {}),
     ...(msg.model !== undefined ? { model: msg.model } : {}),
     ...(msg.effort !== undefined ? { effort: msg.effort } : {}),
     ...(msg.permissionMode !== undefined ? { permissionMode: msg.permissionMode } : {}),
@@ -46,6 +47,6 @@ export async function serveStart(rt: Pick<Runtime, "sessions" | "workspaces" | "
   }
   // A conversation the agent kept outside wsp says where its thread runs, so it is read before the folder is.
   const resumed = msg.resume === undefined ? undefined : await rt.conversations.placed(msg, msg.resume, origin);
-  const at = resumed ?? (await startAt(rt.workspaces, msg, origin));
+  const at = resumed ?? (await startAt(rt.workspaces, msg, origin, msg.thread === undefined ? { opens: true } : {}));
   await answeredStart(msg.answerHeld === true, onHeld => rt.sessions.start(at.workspaceId, startOptionsOf(msg, at, resumed?.outside, onHeld !== undefined ? { onHeld } : {}), origin), reply);
 }

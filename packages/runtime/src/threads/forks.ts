@@ -207,8 +207,9 @@ export async function forkStart(ctx: RuntimeContext, start: (workspaceId: string
   // The fork runs where in its tree its source ran in the source's checkout.
   const from = ctx.checkoutOf(entry.record);
   const cwd = tree === undefined || plan.source.cwd === undefined || !plan.source.cwd.startsWith(`${from}/`) ? tree?.path : join(tree.path, relative(from, plan.source.cwd));
+  const setup = ctx.takeSetupLine(made.record.id);
   try {
-    return await start(made.record.id, { ...o, ...(cwd !== undefined ? { cwd } : {}) });
+    return await start(made.record.id, { ...o, ...(cwd !== undefined ? { cwd } : {}), ...(setup !== undefined ? { setup } : {}) });
   } catch (e) {
     if (!before.has(made.record.id) && tree?.made === true) {
       await ctx.removeWorktree(made, true).catch((gone: unknown) => console.warn(`the worktree a refused fork made at ${tree.path} was not removed: ${gone instanceof Error ? gone.message : String(gone)}`));

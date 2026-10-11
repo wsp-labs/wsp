@@ -40,6 +40,9 @@ import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { createRuntime, NO_COPIER_HERE, type HarnessAdapterFactory, type HarnessStartOptions, type LocalWiring, type ProjectBundler, type Runtime } from "../src/runtime.js";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import { localExecStream } from "../src/local-exec.js";
+import { serveStart } from "../src/serve-start.js";
+import { serveRuntime } from "../src/serve.js";
+import { WsClient } from "./ws-client.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { gitCopier } from "./git-copier.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -335,7 +338,9 @@ describe("a new worktree's dependencies", () => {
     const heard: EventUnion[] = [];
     rt.events.on("host.notice", e => heard.push(e as EventUnion));
     const project = await rt.projects.add({ source: repoWith(["pnpm-lock.yaml", "go.sum"]) });
-    const at = await rt.workspaces.folderFor({ project: project.id, branch: "feat/stale" });
+    let threadId: string | undefined;
+    await serveStart(rt, { id: 1, op: "sessions.start", project: project.id, branch: "feat/stale", prompt: "go" }, undefined, r => void (threadId = r.session.threadId));
+    const at = { workspace: (await rt.workspaces.list()).find(w => w.worktree?.branch === "feat/stale")! };
     const path = join(worktrees, project.id, "feat-stale");
     const [pnpm, go] = ["pnpm install --frozen-lockfile --prefer-offline", "go list -mod=readonly -deps -test ./... > /dev/null"];
     const end = { exitCode: 1, said: "pnpm could not install: lockfile out of date" };
@@ -345,13 +350,43 @@ describe("a new worktree's dependencies", () => {
       worktreeCommandRunningLine(go, path),
     ]);
     expect(t.ran()).toEqual([`go list -mod=readonly -deps -test ./... @ ${path}`]);
-    const handle = await rt.sessions.start(at.workspace.id, { prompt: "go" });
-    await handle.finished;
-    expect(starts[0]!.cwd).toBe(path);
     const lines = async (): Promise<string[]> => (await rt.sessions.history(at.workspace.id)).flatMap(e => (e.type === "session.behind" ? [e.text] : []));
-    expect(await lines()).toEqual([worktreeSetupLine([worktreeStepWords(pnpm, ".", end), worktreeStepWords(go, ".")])]);
-    await (await rt.sessions.start(at.workspace.id, { prompt: "again", thread: handle.view().threadId! })).finished;
+    await vi.waitFor(async () => expect(await lines()).toEqual([worktreeSetupLine([worktreeStepWords(pnpm, ".", end), worktreeStepWords(go, ".")])]));
+    expect(starts[0]!.cwd).toBe(path);
+    await (await rt.sessions.start(at.workspace.id, { prompt: "again", thread: threadId! })).finished;
     expect(await lines()).toHaveLength(1);
+  });
+
+  it("opens the thread whose start asked for the worktree with what ran there, and no other thread that runs there first", async () => {
+    const t = tools(["pnpm"]);
+    const { rt } = here({ backend: t.backend });
+    const project = await rt.projects.add({ source: repoWith(["pnpm-lock.yaml"]) });
+    await rt.workspaces.worktree({ project: project.id, branch: "feat/two" });
+    const tree = (await rt.workspaces.list()).find(w => w.worktree?.branch === "feat/two")!;
+    const lines = async (threadId: string): Promise<string[]> => (await rt.sessions.history(tree.id)).flatMap(e => (e.type === "session.behind" && e.threadId === threadId ? [e.text] : []));
+    const other = await rt.sessions.start(tree.id, { prompt: "b" });
+    await other.finished;
+    let asked: string | undefined;
+    await serveStart(rt, { id: 1, op: "sessions.start", project: project.id, branch: "feat/two", prompt: "a" }, undefined, r => void (asked = r.session.threadId));
+    await vi.waitFor(async () => expect(await lines(asked!)).toHaveLength(1));
+    expect(await lines(other.view().threadId!)).toEqual([]);
+  });
+
+  it("opens a thread a start names the worktree's record for with what ran there, and no thread already there that sends again", async () => {
+    const t = tools(["pnpm"]);
+    const { rt } = here({ backend: t.backend });
+    const project = await rt.projects.add({ source: repoWith(["pnpm-lock.yaml"]) });
+    await rt.workspaces.worktree({ project: project.id, branch: "feat/byid" });
+    const tree = (await rt.workspaces.list()).find(w => w.worktree?.branch === "feat/byid")!;
+    const lines = async (threadId: string): Promise<string[]> => (await rt.sessions.history(tree.id)).flatMap(e => (e.type === "session.behind" && e.threadId === threadId ? [e.text] : []));
+    const there = await rt.sessions.start(tree.id, { prompt: "already here" });
+    await there.finished;
+    const other = there.view().threadId!;
+    await serveStart(rt, { id: 1, op: "sessions.start", workspaceId: tree.id, thread: other, prompt: "again" }, undefined, () => {});
+    let opened: string | undefined;
+    await serveStart(rt, { id: 2, op: "sessions.start", workspaceId: tree.id, prompt: "by id" }, undefined, r => void (opened = r.session.threadId));
+    await vi.waitFor(async () => expect(await lines(opened!)).toHaveLength(1));
+    expect(await lines(other)).toEqual([]);
   });
 
   it("mounts a worktree wsp made again before each turn there and at the host's start, never the project folder", async () => {
@@ -818,6 +853,33 @@ describe("what a thread's own token reaches on this computer", () => {
     await expect(rt.sessions.start(theirs.id, { prompt: "theirs" }, asThread(scope))).rejects.toThrow();
     await expect(rt.workspaces.worktreeRemove({ project: project.id, branch: "feat/theirs" }, asThread(scope))).rejects.toThrow();
     expect(existsSync(theirs.worktree!.path)).toBe(true);
+  });
+
+  it("hears its folder's tree name only the worktrees made for its own tree, never another thread's of the same folder", async () => {
+    const { rt, project, home, scope } = await lead();
+    const other = await rt.sessions.start(home.id, { prompt: "another thread in the folder" });
+    await other.finished;
+    const theirs: ThreadScope = { kind: "thread", threadId: other.view().threadId!, workspaceId: home.id, rootThreadId: other.view().threadId! };
+    const srv = await serveRuntime(rt, { port: 0, authToken: "secret", devices: rt.devices });
+    try {
+      const { deviceToken } = await rt.devices.mint("thread a", scope, Date.now(), { road: "here" });
+      const mine = await WsClient.connect(srv.port, { token: deviceToken });
+      expect((await mine.request("events.subscribe")).ok).toBe(true);
+      const child = async (by: ThreadScope, branch: string): Promise<string> => {
+        const made = await rt.workspaces.folderFor({ project: project.id, branch }, asThread(by));
+        await (await rt.sessions.start(made.workspace.id, { prompt: branch }, asThread(by))).finished;
+        return made.workspace.id;
+      };
+      const ours = await child(scope, "feat/ours");
+      await child(theirs, "feat/not-ours");
+      const tree = () => mine.events.filter(e => e.type === "workspace.status" && (e["status"] as { id: string }).id === home.id).at(-1)?.["status"] as { tree?: { children: { workspaceId: string }[] } } | undefined;
+      await vi.waitFor(() => expect(tree()?.tree).toBeDefined());
+      await new Promise(r => setTimeout(r, 300));
+      expect(tree()?.tree?.children.map(c => c.workspaceId)).toEqual([ours]);
+      mine.close();
+    } finally {
+      await srv.close();
+    }
   });
 
   it("never removes a worktree over files no commit holds, which only the person may force", async () => {

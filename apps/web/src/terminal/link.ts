@@ -41,11 +41,15 @@ export interface PtyTabView {
   readonly exited: boolean;
   /** The daemon no longer holds this pty (the machine was replaced); exited is set with it. */
   readonly lost: boolean;
+  /** The thread whose pane opened it, as the host names it; `new:<id>` is the New thread page of the tab with that id. */
+  readonly thread?: string;
 }
 
 export interface OpenOpts {
   shell?: string;
   cwd?: string;
+  /** The thread whose pane opens it: the host keeps it with the pty and names it on every pty.list. */
+  thread?: string;
 }
 
 /** A reply's block run in a pty of its own: the command, the folder, and a shell only a test names. */
@@ -53,6 +57,8 @@ export interface RunOpts {
   command: string;
   cwd?: string;
   shell?: string;
+  /** The thread whose reply runs it, whose drawer the run is once it moves to a tab. */
+  thread?: string;
 }
 
 /** How a run's process ended, as the daemon reported it. */
@@ -80,6 +86,7 @@ interface PtyState {
   mode: PtyModeReport | null;
   /** A reply's run, held here for its block and never a tab until it is moved to one. */
   reply: boolean;
+  thread: string | undefined;
   /** How its process ended, once the daemon said. */
   exit: RunExit | null;
   exitFns: Set<(exit: RunExit) => void>;
@@ -91,9 +98,11 @@ interface PtyState {
 }
 
 /** A pty's local state as it is first held. */
-function held(ptyId: string, title: string, reply: boolean): PtyState {
-  return { ptyId, title, exited: false, lost: false, chunks: [], length: 0, sinks: new Set(), mode: null, reply, exit: null, exitFns: new Set(), altFns: new Set(), alt: false, altTail: "" };
+function held(ptyId: string, title: string, reply: boolean, thread?: string): PtyState {
+  return { ptyId, title, exited: false, lost: false, chunks: [], length: 0, sinks: new Set(), mode: null, reply, thread, exit: null, exitFns: new Set(), altFns: new Set(), alt: false, altTail: "" };
 }
+
+const tabOf = (p: PtyState): PtyTabView => ({ ptyId: p.ptyId, title: p.title, exited: p.exited, lost: p.lost, ...(p.thread !== undefined ? { thread: p.thread } : {}) });
 
 // A shell started at a width other than its view's redraws its prompt on the first resize and leaves zsh's
 // partial-line mark above it, so a new pty starts at the size a view last measured, kept across reloads.
@@ -126,7 +135,6 @@ export class WorkspaceTerminals {
   #statusFns = new Set<() => void>();
   #tabsFns = new Set<() => void>();
   #tabsView: PtyTabView[] = [];
-  #opening: Promise<PtyTabView> | null = null;
   #everOpened = false;
   #ios = new Map<string, TerminalIo>();
 
@@ -230,10 +238,11 @@ export class WorkspaceTerminals {
     const params: Record<string, unknown> = { ...lastSize };
     if (opts.shell !== undefined) params["shell"] = opts.shell;
     if (opts.cwd !== undefined) params["cwd"] = opts.cwd;
+    if (opts.thread !== undefined) params["thread"] = opts.thread;
     const created = await this.#wire.request("pty.create", params);
     this.#everOpened = true;
     const ptyId = String(created["ptyId"]);
-    const p = held(ptyId, "", false);
+    const p = held(ptyId, "", false, opts.thread);
     this.#ptys.set(ptyId, p);
     try {
       await this.#wire.request("pty.attach", { ptyId });
@@ -248,7 +257,7 @@ export class WorkspaceTerminals {
     this.#activeId = ptyId;
     claim?.(ptyId);
     this.#notifyTabs();
-    return { ptyId: p.ptyId, title: p.title, exited: p.exited, lost: p.lost };
+    return tabOf(p);
   }
 
   // --- a reply's block run ---------------------------------------------------------
@@ -259,18 +268,19 @@ export class WorkspaceTerminals {
     const params: Record<string, unknown> = { ...lastSize, rows: RUN_ROWS, run: opts.command };
     if (opts.shell !== undefined) params["shell"] = opts.shell;
     if (opts.cwd !== undefined) params["cwd"] = opts.cwd;
+    if (opts.thread !== undefined) params["thread"] = opts.thread;
     const created = await this.#wire.request("pty.create", params);
     const ptyId = String(created["ptyId"]);
-    this.#ptys.set(ptyId, held(ptyId, "run", true));
+    this.#ptys.set(ptyId, held(ptyId, "run", true, opts.thread));
     await this.#wire.request("pty.attach", { ptyId });
     return ptyId;
   }
 
   /** Takes back a run the thread's record names, after a reload or in another window: false where the daemon holds no
    * such pty any more. A pty this model already holds answers at once. */
-  async resumeRun(ptyId: string): Promise<boolean> {
+  async resumeRun(ptyId: string, thread?: string): Promise<boolean> {
     if (this.#ptys.has(ptyId)) return true;
-    const p = held(ptyId, "run", true);
+    const p = held(ptyId, "run", true, thread);
     this.#ptys.set(ptyId, p);
     try {
       await this.#wire.request("pty.attach", { ptyId });
@@ -344,17 +354,14 @@ export class WorkspaceTerminals {
     return this.#wasLive;
   }
 
-  /** The tab's auto-open on first mount; concurrent mounts share one create. */
-  ensureOpen(): Promise<PtyTabView> {
-    const first = this.#order[0];
-    if (first !== undefined) {
-      const p = this.#ptys.get(first)!;
-      return Promise.resolve({ ptyId: p.ptyId, title: p.title, exited: p.exited, lost: p.lost });
-    }
-    this.#opening ??= this.open().finally(() => {
-      this.#opening = null;
-    });
-    return this.#opening;
+  /** Hands a shell to another thread's drawer, here at once and on the host for every window that lists it; a host
+   * that cannot take the word leaves it with the thread that opened it. */
+  async retag(ptyId: string, thread: string): Promise<void> {
+    const p = this.#ptys.get(ptyId);
+    if (p === undefined || p.thread === thread) return;
+    p.thread = thread;
+    this.#notifyTabs();
+    await this.#wire.request("pty.thread", { ptyId, thread }).catch(() => undefined);
   }
 
   async close(ptyId: string): Promise<void> {
@@ -454,7 +461,7 @@ export class WorkspaceTerminals {
       if (this.#ptys.has(entry.id) || entry.reply === true) continue;
       // Registered before the attach, and not yet exited: the daemon replays scrollback as pty.data ahead of its
       // reply and pushes pty.exit for a dead pty, and feedEvent drops both for an unknown or already exited pty.
-      const p = held(entry.id, this.#numbered("shell"), false);
+      const p = held(entry.id, this.#numbered("shell"), false, entry.thread);
       this.#ptys.set(entry.id, p);
       this.#order.push(entry.id);
       let attached = false;
@@ -529,10 +536,7 @@ export class WorkspaceTerminals {
   }
 
   #notifyTabs(): void {
-    this.#tabsView = this.#order.map(id => {
-      const p = this.#ptys.get(id)!;
-      return { ptyId: p.ptyId, title: p.title, exited: p.exited, lost: p.lost };
-    });
+    this.#tabsView = this.#order.map(id => tabOf(this.#ptys.get(id)!));
     for (const fn of this.#tabsFns) fn();
   }
 }
