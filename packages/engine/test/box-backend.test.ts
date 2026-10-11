@@ -145,6 +145,9 @@ const detachedGuest = (exitCode: number | string = 0, out = "", err = ""): ((see
 /** Every command the fake was sent, in order. */
 const commandsSent = (api: FakeBox): string[] => api.seen.filter(s => s.path.endsWith("/commands")).map(s => (s.body as { command: string }).command);
 
+/** What fetch rejects with when the resolver cannot reach the API, as node 22 does for a name that does not resolve. */
+const offline = (): TypeError => new TypeError("fetch failed", { cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.example"), { code: "ENOTFOUND" }) });
+
 /** A clock whose sleeps cost nothing and move its own time. */
 function fakeClock(): RetryClock & { at: number } {
   const clock = {
@@ -1125,6 +1128,113 @@ describe("BoxBackend against a fake Box API", () => {
     await machine.kill();
     await backend.backstop(machine, clock.at + 6 * 60 * 60_000);
     expect(api.calls().filter(c => c.startsWith("PATCH"))).toHaveLength(2);
+  });
+
+  it("a failed backstop waits its backoff, 30 s doubling to five minutes, and every delta inside it is dropped", async () => {
+    const tries: number[] = [];
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", () => {
+      tries.push(clock.at);
+      throw offline();
+    });
+    const { backend, machine, clock } = machineOn(api);
+    // A delta every 10 s for 2000 s: every backoff is a multiple of 10 s, so each wait is exactly its window.
+    for (let delta = 0; delta < 200; delta++) {
+      await backend.backstop(machine, clock.at + 40 * 60_000).catch(() => {});
+      clock.at += 10_000;
+    }
+    const waits = tries.slice(1).map((at, i) => at - tries[i]!);
+    expect(waits.length).toBeGreaterThanOrEqual(6);
+    expect(waits).toEqual([30_000, 60_000, 120_000, 240_000, ...Array<number>(waits.length - 4).fill(300_000)]);
+  });
+
+  it("a second backstop never starts while one is in flight", async () => {
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
+    let open!: () => void;
+    const gate = new Promise<void>(r => (open = r));
+    let sent = 0;
+    const clock = fakeClock();
+    api.on("GET", "/limits", LIMITS("trial"));
+    const backend = new BoxBackend({
+      apiKey: "box_x",
+      clock,
+      fetch: async (url, init) => {
+        if (init?.method === "PATCH") {
+          sent++;
+          await gate;
+        }
+        return api.fetch(url, init);
+      },
+    });
+    const machine = new BoxMachine(backend, "bx_tumrjngm", "sandbox");
+    const calls: Promise<void>[] = [];
+    for (let delta = 0; delta < 50; delta++) {
+      calls.push(backend.backstop(machine, clock.at + 40 * 60_000));
+      // Past the slack every time, so only the call in flight can hold the next one back.
+      clock.at += BACKSTOP_SLACK_MS + 1_000;
+      await new Promise(r => setImmediate(r));
+    }
+    expect(sent).toBe(1);
+    open();
+    await Promise.all(calls);
+    await backend.backstop(machine, clock.at + 40 * 60_000);
+    expect(sent).toBe(2);
+  });
+
+  it("a backstop the provider never answers ends at its cap, frees the box and waits its backoff", async () => {
+    const api = new FakeBox().on("GET", "/limits", LIMITS("trial"));
+    let sent = 0;
+    const clock = fakeClock();
+    const backend = new BoxBackend({
+      apiKey: "box_x",
+      clock,
+      budgets: { backstopMs: 100 },
+      fetch: async (url, init) => {
+        if (init?.method !== "PATCH") return api.fetch(url, init);
+        sent++;
+        return new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+      },
+    });
+    const machine = new BoxMachine(backend, "bx_tumrjngm", "sandbox");
+    await expect(backend.backstop(machine, clock.at + 40 * 60_000)).rejects.toMatchObject({ name: "TimeoutError" });
+    clock.at += 10_000;
+    await backend.backstop(machine, clock.at + 40 * 60_000);
+    expect(sent).toBe(1);
+    clock.at += 20_000;
+    await expect(backend.backstop(machine, clock.at + 40 * 60_000)).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(sent).toBe(2);
+  });
+
+  it("a backstop that lands resets the backoff, and the minute's slack still holds after it", async () => {
+    let down = true;
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", () => {
+      if (down) throw offline();
+      return INFO("bx_tumrjngm", "idle");
+    });
+    const { backend, machine, clock } = machineOn(api);
+    const patches = (): number => api.calls().filter(c => c.startsWith("PATCH")).length;
+    const push = (): Promise<void> => backend.backstop(machine, clock.at + 40 * 60_000).catch(() => {});
+    await push();
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(2);
+    // The second failure doubled the wait.
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(2);
+    down = false;
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(3);
+    clock.at += 5_000;
+    await push();
+    expect(patches()).toBe(3);
+    // Down again past the slack: the first failure waits 30 s, not the doubled minute.
+    down = true;
+    clock.at += BACKSTOP_SLACK_MS;
+    await push();
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(5);
   });
 
   it("a desktop machine boots the same box with no stream: the desktop stays off until the seam reads it per open", async () => {
