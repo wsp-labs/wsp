@@ -106,10 +106,10 @@ export function useOpenThread(workspaceId: string | null): ThreadView | null {
  * neither. A view holding no thread of its own carries the workspace's id as its key, which no row carries: there the
  * workspace's latest row is the turn that view shows and resumes, which is what the rest of this hook's readings take
  * it to be, and rows from before the runtime stamped a thread on them are only reachable that way. Empty for a thread
- * with no turn yet. */
-export function useThreadSessions(workspaceId: string | null, threadKey: string): ReadonlyArray<SessionView> {
+ * with no turn yet, and for a new thread's page (`fresh`), which carries the same key and shows no thread. */
+export function useThreadSessions(workspaceId: string | null, threadKey: string, fresh = false): ReadonlyArray<SessionView> {
   const sessions = useStore(s => (workspaceId !== null ? s.sessions[workspaceId] : undefined) ?? NO_SESSIONS);
-  return useMemo(() => threadRows(sessions, workspaceId, threadKey), [sessions, threadKey, workspaceId]);
+  return useMemo(() => threadRows(sessions, workspaceId, threadKey, fresh), [fresh, sessions, threadKey, workspaceId]);
 }
 
 /** Subscribe a component to raw protocol events (the thread, terminal and browser surfaces use this). */
