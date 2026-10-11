@@ -3,7 +3,7 @@
 // approval binds by hash, read on this disk or, for a command on the thread's own computer, by that computer's daemon.
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, posix, relative, resolve } from "node:path";
 import { FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX } from "@wsp/protocol";
 import type { SlateDoc, SlateRunDecl } from "@wsp/protocol/slate";
 
@@ -39,6 +39,13 @@ export function pathsNamed(decl: Extract<SlateRunDecl, { kind: "cmd" }>): string
   return [decl.cmd, decl.then ?? ""].join("\n").split(/[\s'"`;|&()<>=,]+/).filter(w => w !== "" && !w.startsWith("-") && !w.includes("$") && !w.includes("://") && /[./]/.test(w));
 }
 
+/** Each word a run names, a relative one joined as text to the folder the command runs in, as slate-runs starts it
+ * (resolve here, posix.resolve on the thread's machine), so a link on the way is followed where bash follows it. */
+const wordsAt = (folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>, there: boolean): string[] => {
+  const ran = decl.cwd === undefined ? folder : there ? posix.resolve(folder, decl.cwd) : resolve(folder, decl.cwd);
+  return pathsNamed(decl).map(word => (word.startsWith("/") ? word : `${ran === "/" ? "" : ran}/${word}`));
+};
+
 /** Every file a run's cmd or then names that exists under the thread's folder, by its path there, with a hash of its
  * content: an "Always" covers the script the person read, and an edit to it asks again. A file the command reaches
  * some other way (an import, a glob, a path it builds) is out of reach, and the sheet says so. */
@@ -46,12 +53,12 @@ export function scriptsNamed(folder: string | undefined, decl: SlateRunDecl): Re
   if (folder === undefined || decl.kind !== "cmd") return undefined;
   let root: string;
   try { root = realpathSync(folder); } catch { return undefined; }
-  const words = pathsNamed(decl);
+  const words = wordsAt(folder, decl, false);
   const found: Record<string, string> = {};
   for (const word of words) {
     if (Object.keys(found).length >= FS_HASH_FILES_MAX) break;
     let at: string;
-    try { at = realpathSync(isAbsolute(word) ? word : join(folder, word)); } catch { continue; }
+    try { at = realpathSync(word); } catch { continue; }
     const rel = relative(root, at);
     if (rel === "" || rel.startsWith("..") || isAbsolute(rel) || found[rel] !== undefined) continue;
     try {
@@ -70,7 +77,7 @@ export type HashOn = (root: string, paths: string[]) => Promise<Record<string, s
 /** How long a read of the hashes waits on the thread's computer before the commands there go unpinned. */
 const HASH_WAIT_MS = 10_000;
 
-const pinKey = (folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>): string => JSON.stringify([folder, pathsNamed(decl)]);
+const pinKey = (folder: string, decl: Extract<SlateRunDecl, { kind: "cmd" }>): string => JSON.stringify([folder, wordsAt(folder, decl, true)]);
 
 /** The hashes of the scripts each command on a thread's own computer names there, read by its daemon before every
  * start and held until the next read, so the approval key, the sheet and the approval all see one reading. A command
@@ -88,7 +95,7 @@ export function boxPins(hashOn: (threadId: string) => HashOn | undefined, waitMs
       const on = asleep ? undefined : hashOn(threadId);
       const pins = new Map<string, Record<string, string>>();
       const asks = new Map<string, [string, string[]]>();
-      for (const { folder, decl } of cmds) if (folder !== undefined && decl.kind === "cmd" && pathsNamed(decl).length > 0) asks.set(pinKey(folder, decl), [folder, pathsNamed(decl).slice(0, FS_HASH_PATHS_MAX)]);
+      for (const { folder, decl } of cmds) if (folder !== undefined && decl.kind === "cmd" && pathsNamed(decl).length > 0) asks.set(pinKey(folder, decl), [folder, wordsAt(folder, decl, true).slice(0, FS_HASH_PATHS_MAX)]);
       if (asks.size === 0) return void read.delete(threadId);
       await Promise.all(
         [...asks].map(async ([key, [folder, paths]]) => {
@@ -101,10 +108,12 @@ export function boxPins(hashOn: (threadId: string) => HashOn | undefined, waitMs
       );
       if ((read.get(threadId)?.at ?? 0) < at) read.set(threadId, { at, pins });
     },
-    /** The hashes an approval of this command binds: undefined where it names none inside its folder, or no pin. */
+    /** The hashes an approval of this command binds: undefined where it names none inside its folder, and none at
+     * all where it could not be read, a key no Always is ever given under, so a failed read asks. */
     scripts(threadId: string, folder: string | undefined, decl: SlateRunDecl): Record<string, string> | undefined {
       const pin = pinOf(threadId, folder, decl);
-      return pin === undefined || Object.keys(pin).length === 0 ? undefined : pin;
+      if (pin === undefined) return decl.kind === "cmd" ? {} : undefined;
+      return Object.keys(pin).length === 0 ? undefined : pin;
     },
     /** The paths of a command its computer could not hash: what an Always cannot hold to. */
     unpinned: (threadId: string, folder: string | undefined, decl: SlateRunDecl): string[] => (decl.kind === "cmd" && pinOf(threadId, folder, decl) === undefined ? pathsNamed(decl) : []),

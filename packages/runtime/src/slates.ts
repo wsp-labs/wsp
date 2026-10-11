@@ -72,6 +72,7 @@ import { boxLedger, boxRoad, boxSlateDir } from "./slate-box.js";
 import { boxPins, scriptsNamed, withFiles, writeSlateFiles, type HashOn } from "./slate-files.js";
 import { slateImage, type ImageOn } from "./slate-images.js";
 import { cutAt, defanged, longest } from "./slate-message.js";
+import { writeBudget } from "./slate-writes.js";
 import { HELD_CONFIRM, consentKey, createSlateMcp, slateSecretMark, type McpRunDecl, type McpServerSpec } from "./slate-mcp.js";
 import { HOST_SLATE_SOURCES, resolveIn, viewSources, type SlateSourceContext } from "./slate-sources/index.js";
 
@@ -207,9 +208,6 @@ const REQUESTS_KEPT = 500;
 const EVENTS_PER_SECOND = 5;
 const PRESS_SEND_MS = 2_000;
 const REACTION_SEND_MS = 60_000 / SLATE_LIMITS.reactionSendsPerMinute;
-const WRITES_BURST = 20;
-const WRITES_PER_SECOND = 5;
-const WRITES_PER_HOUR = 600;
 const ERRORS_LISTED = SLATE_LIMITS.errorsPerPass;
 const PROBLEMS_KEPT = 20;
 const PIECES_NAMED = SLATE_LIMITS.piecesNamed;
@@ -483,23 +481,17 @@ export function createSlates(deps: SlatesDeps): Slates {
       const rec = r.values[name];
       if (isRunRecord(rec) && rec.state === "held" && (rec.why === HELD_APPROVAL || rec.why === HELD_CONFIRM)) startNow(r, name, "person", views);
     }
+    // The box is read after the load, so one that does not answer holds no start-up back.
+    if (runs.held(r.threadId).length > 0) void serial(r.threadId, async () => {
+      const moved = heldAgain(r, await startable(r));
+      if (moved.length > 0) await save(r).then(() => push(r, moved));
+    }).catch(() => {});
   }
 
-  const writes = new Map<string, { tokens: number; at: number; hour: number[] }>();
-  /** Agent writes: 5 a second sustained, a burst of 20, 600 an hour (V751). */
+  const writes = writeBudget(deps.now);
   const spendWrite = (threadId: string): void => {
-    const now = deps.now();
-    const b = writes.get(threadId) ?? { tokens: WRITES_BURST, at: now, hour: [] };
-    b.tokens = Math.min(WRITES_BURST, b.tokens + ((now - b.at) / 1000) * WRITES_PER_SECOND);
-    b.at = now;
-    b.hour = b.hour.filter(t => now - t < 3_600_000);
-    writes.set(threadId, b);
-    if (b.tokens < 1 || b.hour.length >= WRITES_PER_HOUR) {
-      const wait = b.tokens < 1 ? Math.ceil((1 - b.tokens) / WRITES_PER_SECOND) : Math.ceil((3_600_000 - (now - b.hour[0]!)) / 1000);
-      throw refused(problem("V751", "write-rate", `wait ${wait} s; a slate that rewrites itself constantly is a bug`), "conflict");
-    }
-    b.tokens -= 1;
-    b.hour.push(now);
+    const wait = writes.spend(threadId);
+    if (wait !== undefined) throw refused(problem("V751", "write-rate", `wait ${wait} s; a slate that rewrites itself constantly is a bug`), "conflict");
   };
 
   const pressSentAt = new Map<string, number>();
@@ -666,9 +658,11 @@ export function createSlates(deps: SlatesDeps): Slates {
     const declared = r.document?.runs[run];
     if (declared === undefined) return undefined;
     const now = approvalDecl(r, declared).scripts ?? {};
+    const unread = pathsThere(r.threadId, declared);
     for (const [k, a] of Object.entries(r.approvals)) {
-      if (k === key || a.state !== "allowed" || a.run !== run || a.scripts === undefined) continue;
-      const changed = Object.keys({ ...a.scripts, ...now }).filter(path => a.scripts![path] !== now[path]);
+      if (k === key || a.state !== "allowed" || a.run !== run) continue;
+      if (unread.length > 0) return `${unread.join(", ")} could not be read on ${deps.thread(r.threadId)?.computer ?? "this computer"}, so it asks again`;
+      const changed = a.scripts === undefined ? [] : Object.keys({ ...a.scripts, ...now }).filter(path => a.scripts![path] !== now[path]);
       if (changed.length > 0) return `${changed.join(", ")} changed since you allowed it, so it asks again`;
     }
     return undefined;
@@ -837,6 +831,19 @@ export function createSlates(deps: SlatesDeps): Slates {
     const there = Object.values(r.document?.runs ?? {}).flatMap(decl => (onMachine(r.threadId, decl) ? [{ folder: folderFor(r.threadId, decl), decl }] : []));
     return there.length === 0 ? viewsFor(r) : Promise.all([viewsFor(r), pins.read(r.threadId, there, deps.asleep?.(r.threadId) === true)]).then(([views]) => views);
   };
+  /** A press or the agent's start wakes a napping machine anyway: first here, so its pins are read and an Always holds. */
+  const wakeFor = async (r: SlateRecord, starts: readonly { run: string; by: RunBy }[]): Promise<void> => {
+    if (deps.asleep?.(r.threadId) !== true || !starts.some(s => s.by !== "timer" && pathsThere(r.threadId, r.document?.runs[s.run]).length > 0)) return;
+    if (await Promise.resolve(deps.wake?.(r.threadId)).then(() => true, () => false)) await startable(r);
+  };
+  /** Each start held on the sheet whose key moved (its command was rewritten, its box was read), held again as now. */
+  const heldAgain = (r: SlateRecord, views: ReadonlyMap<string, SlateJson | undefined>): string[] =>
+    runs.held(r.threadId).flatMap(a => {
+      const decl = r.document?.runs[a.run];
+      if (decl?.kind !== "cmd" || runs.key(approvalDecl(r, decl) as CmdRunDecl) === a.key) return [];
+      r.values[a.run] = asJson(startNow(r, a.run, "person", views).record);
+      return [a.run];
+    });
 
   const folderFor = (threadId: string, decl: SlateRunDecl): string | undefined => {
     const facts = deps.thread(threadId);
@@ -936,6 +943,7 @@ export function createSlates(deps: SlatesDeps): Slates {
         return record;
       },
     };
+    await wakeFor(r, o.starts ?? []);
     // A timer's or the agent's start is no step of the document: it starts here and its record goes in as a run's write.
     const timed = (o.starts ?? []).map(s => ({ path: `$${s.run}`, value: asJson(startNow(r, s.run, s.by, views).record) }));
     const result = runSlateBatch(doc, r.values, [...input, ...timed], ctx);
@@ -947,6 +955,7 @@ export function createSlates(deps: SlatesDeps): Slates {
     r.values = result.values;
     keepProblems(r, result.problems);
     for (const run of result.cancels) runs.cancel(r.threadId, run);
+    await wakeFor(r, deferred);
     for (const d of deferred) {
       const started = startNow(r, d.run, d.by, views, before[d.run]);
       if (started.ask !== undefined) asks.push(started.ask);
@@ -1083,12 +1092,7 @@ export function createSlates(deps: SlatesDeps): Slates {
     if (next !== null) {
       // A timed run the person has not allowed asks now, shown or not, so this answer and their slate both say it waits.
       const asking = await startable(r);
-      // A start held on the sheet whose command the write changed is held again as declared now, so the sheet shows
-      // the new command and Run once or Don't answers it.
-      for (const a of runs.held(r.threadId)) {
-        const decl = next.runs[a.run];
-        if (decl?.kind === "cmd" && runs.key(approvalDecl(r, decl) as CmdRunDecl) !== a.key) r.values[a.run] = asJson(startNow(r, a.run, "person", asking).record);
-      }
+      heldAgain(r, asking);
       for (const [run, decl] of Object.entries(next.runs)) {
         const rec = r.values[run];
         if (decl.every !== undefined && isRunRecord(rec) && rec.state === "idle" && provisional(r, run).state === "held") r.values[run] = asJson(startNow(r, run, "timer", asking).record);
