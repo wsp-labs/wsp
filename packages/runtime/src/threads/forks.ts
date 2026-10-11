@@ -8,7 +8,7 @@ import { join, relative } from "node:path";
 import {
   type Attachment, type Caller, type CountedTurn, type ForkSource, type ForkTurn, type ForkedFrom, type ForkedSession, type SessionEvent,
   type TurnResult, attachmentKey, copiedFromOf, copiesFolder, foldThreads, isImage, notFoundRefusal, refusal, scopeOf, threadWord,
-  usageRefusal, FORK_NO_ANCHOR_FIX, FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RUNNING_FIX,
+  usageRefusal, FORK_BESIDE_FIX, FORK_BESIDE_LINE, FORK_RESUME_FIX, FORK_RESUME_LINE, FORK_NO_ANCHOR_FIX, FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RUNNING_FIX,
   FORK_RUNNING_LINE, forkAgentFix, forkAgentLine, forkNoAnchorLine, forkNoTurnLine, forkTurnsFix, forkTurnsLine, noBranchesLine,
   placeBranchLine,
 } from "@wsp/protocol";
@@ -34,6 +34,31 @@ export interface ForkPlan {
 }
 
 const conflict = (happened: string, fix: string): Error => refusal(happened, fix, "conflict");
+
+/** A start read for the fork it names, every refusal of it before anything is written: it runs on the source's agent
+ * at the source's picks unless the start names others, since a fork is that thread's conversation, carried on. */
+export async function forkOpened(ctx: RuntimeContext, workspaceId: string, opened: StartOptions, origin: Caller | undefined): Promise<{ opened: StartOptions; plan?: ForkPlan }> {
+  if (opened.fork === undefined) return { opened };
+  if (opened.thread !== undefined || opened.replaces !== undefined) throw usageRefusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX);
+  if (opened.outside !== undefined) throw usageRefusal(FORK_RESUME_LINE, FORK_RESUME_FIX);
+  const plan = await readFork(ctx, opened.fork, origin);
+  const source = plan.source.harness;
+  if (opened.harness !== undefined && opened.harness !== source) throw refusal(forkAgentLine(ctx.agentLabel(source), ctx.agentLabel(opened.harness)), forkAgentFix(ctx.agentLabel(opened.harness)), "usage");
+  const { model, effort, contextWindow, fast, permissionMode } = plan.picks;
+  return {
+    plan,
+    opened: {
+      ...opened,
+      harness: source,
+      ...(opened.model === undefined && model !== undefined ? { model } : {}),
+      ...(opened.effort === undefined && effort !== undefined ? { effort } : {}),
+      ...(opened.contextWindow === undefined && contextWindow !== undefined ? { contextWindow } : {}),
+      ...(opened.fast === undefined && fast === true ? { fast } : {}),
+      ...(opened.permissionMode === undefined && opened.access === undefined && permissionMode !== undefined ? { permissionMode } : {}),
+      ...(opened.cwd === undefined && plan.source.cwd !== undefined && plan.source.workspaceId === workspaceId ? { cwd: plan.source.cwd } : {}),
+    },
+  };
+}
 
 /** The fork's source as it stands, read against the caller: the thread has to be one it reaches, the turn one of its
  * finished turns, and a harness that cuts at an anchor needs that turn to have named one. */

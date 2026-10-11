@@ -17,15 +17,14 @@ import {
   attachmentRecord, attachmentKey, filesBlocked, filesRefusal, steerFilesBlocked, type Attachment, isImage, sendFilesDir, attachedFilesPrompt, threadMessages,
   threadSeed, taskStopRefusedLine, taskStopUnsupportedLine, agentOffLine, HEAD_BYTES, HISTORY_PAGE_BYTES,
   HISTORY_PAGE_EVENTS, AGENT_STARTING_MS, ASIDE_EMPTY_LINE, capStoppedLine, deletedBeforeStartLine, type AsideQuestion,
-  type McpServerSpec, type SessionAsker, refusal, RESUME_A_THREAD_LINE, RESUME_A_THREAD_FIX, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, waitAcrossLine, WAIT_ACROSS_FIX,
+  type McpServerSpec, type SessionAsker, refusal, usageRefusal, RESUME_A_THREAD_LINE, RESUME_A_THREAD_FIX, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, waitAcrossLine, WAIT_ACROSS_FIX,
   TURN_STOPPED_LINE, workspacePlace, STOP_REACH_MS, sendGivenUpLine, threadResult, listedFailure, turnLines,
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
-  SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, usageRefusal, FORK_BESIDE_LINE, FORK_BESIDE_FIX, FORK_RESUME_LINE, FORK_RESUME_FIX,
-  forkAgentLine, forkAgentFix, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
+  SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
   replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
-import { copiedEvents, copyImages, forkStart, forkTurnOf, moveSession, payCutOwed, readFork, readyFork } from "./forks.js";
+import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readFork, readyFork } from "./forks.js";
 import { headShape } from "../transcript-reader.js";
 import type { HarnessAdapter, HarnessStartOptions } from "../types/harness.js";
 import { SESSION_TITLE_TIMEOUT_MS } from "../types/events.js";
@@ -291,26 +290,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         const answered = await ctx.takenTurn(workspaceId, taken);
         if (answered !== undefined) return answered;
       }
-      // A fork reads its source first, every refusal of it before anything is written, and runs on that thread's agent
-      // at its picks unless the start names others: a fork is that thread's conversation, carried on.
-      if (opened.fork !== undefined && (opened.thread !== undefined || opened.replaces !== undefined)) throw usageRefusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX);
-      if (opened.fork !== undefined && opened.outside !== undefined) throw usageRefusal(FORK_RESUME_LINE, FORK_RESUME_FIX);
-      const plan = opened.fork === undefined ? undefined : await readFork(ctx, opened.fork, origin);
-      if (plan !== undefined) {
-        const source = plan.source.harness;
-        if (opened.harness !== undefined && opened.harness !== source) throw refusal(forkAgentLine(ctx.agentLabel(source), ctx.agentLabel(opened.harness)), forkAgentFix(ctx.agentLabel(opened.harness)), "usage");
-        const { model, effort, contextWindow, fast, permissionMode } = plan.picks;
-        opened = {
-          ...opened,
-          harness: source,
-          ...(opened.model === undefined && model !== undefined ? { model } : {}),
-          ...(opened.effort === undefined && effort !== undefined ? { effort } : {}),
-          ...(opened.contextWindow === undefined && contextWindow !== undefined ? { contextWindow } : {}),
-          ...(opened.fast === undefined && fast === true ? { fast } : {}),
-          ...(opened.permissionMode === undefined && opened.access === undefined && permissionMode !== undefined ? { permissionMode } : {}),
-          ...(opened.cwd === undefined && plan.source.cwd !== undefined && plan.source.workspaceId === workspaceId ? { cwd: plan.source.cwd } : {}),
-        };
-      }
+      const forked = await forkOpened(ctx, workspaceId, opened, origin);
+      opened = forked.opened;
+      const plan = forked.plan;
       // The thread this start lands in is read before the workspace is: a send into a thread of the caller's tree
       // reaches it on whatever workspace it runs, and only a start that opens a thread is a workspace act.
       // A thread whose rows fell off the index cap, or whose index is gone, is still the thread its record or its
@@ -1162,9 +1144,12 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
 
     async mark(threadIds, marks, origin) {
       const at = clock.now();
+      // Every window sorts by these keys, so one that is not a number on the line never lands on a record.
+      for (const key of [marks.pinned, marks.order]) if (typeof key === "number" && !Number.isFinite(key)) throw usageRefusal(`a thread's place in the sidebar is a number, and ${key} is not one.`, "Send a finite number, or leave the key out.");
       if (marks.resumeAtReset !== undefined) await ctx.armResume(threadIds, marks.resumeAtReset, origin);
       const stamps = {
-        ...(marks.pinned !== undefined ? { pinnedAt: marks.pinned ? at : undefined } : {}),
+        ...(marks.pinned !== undefined ? { pinnedAt: typeof marks.pinned === "number" ? marks.pinned : marks.pinned ? at : undefined } : {}),
+        ...(marks.order !== undefined ? { order: marks.order ?? undefined } : {}),
         ...(marks.folded !== undefined ? { foldedAt: marks.folded ? at : undefined } : {}),
         ...(marks.snoozedUntil === undefined ? {} : marks.snoozedUntil === null ? { snoozedUntil: undefined } : { snoozedUntil: marks.snoozedUntil, readAt: at }),
         ...(marks.section !== undefined ? { section: marks.section ?? undefined } : {}),

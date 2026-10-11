@@ -18,7 +18,7 @@ import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { useRightPanelStore } from "../src/rightPanelStore.js";
 import { AppShell } from "../src/shell/AppShell.js";
 import { KeybindingDispatcher } from "../src/shell/KeybindingDispatcher.js";
-import { cancelWorkspaceSwitch, stepInOrder } from "../src/shell/shellCommands.js";
+import { cancelWorkspaceSwitch, openRootMoves, stepInOrder } from "../src/shell/shellCommands.js";
 import { onComposerFocusRequest, onNewThreadRequest } from "../src/shell/shellRequests.js";
 import { NEW_WORKSPACE, PROJECT_WORDS } from "../src/sidebar/words.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
@@ -37,6 +37,12 @@ vi.mock("../src/components/ui/tooltip.js", () => ({
     element === undefined ? <>{children}</> : cloneElement(element, {}, children ?? element.props.children),
   TooltipPopup: () => null,
 }));
+
+// Wrapped so a test can count how often the palette works out the open root's moves.
+vi.mock("../src/shell/shellCommands.js", async importOriginal => {
+  const real = await importOriginal<typeof import("../src/shell/shellCommands.js")>();
+  return { ...real, openRootMoves: vi.fn(real.openRootMoves) };
+});
 
 const view = (id: string, name: string, phase: WorkspaceView["phase"] = "running", over: Partial<WorkspaceView> = {}): WorkspaceView => ({
   id,
@@ -331,6 +337,25 @@ describe("command palette", () => {
     expect(useStore.getState().selectedId).toBe("ws_b");
   });
 
+  it("works out the open root's moves once per open, not on every key typed", async () => {
+    await mountShell(ONE_THREAD_EACH);
+    const moves = vi.mocked(openRootMoves);
+    const before = moves.mock.calls.length;
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    await settle();
+    const opened = moves.mock.calls.length;
+    expect(opened).toBe(before + 1);
+    for (const words of ["m", "mo", "mov", "move"]) fireEvent.change(screen.getByPlaceholderText(/Search commands/), { target: { value: words } });
+    await settle();
+    expect(moves.mock.calls.length).toBe(opened);
+    mod("k");
+    await waitFor(() => expect(palette()).toBeNull());
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    expect(moves.mock.calls.length).toBe(opened + 1);
+  });
+
   it("runs an action: pausing the selected workspace calls nap", async () => {
     const api = await mountShell();
     mod("k");
@@ -611,7 +636,9 @@ describe("default shortcuts", () => {
     expect(panel("ws_a")?.surfaces.filter(s => s.kind === "terminal") ?? []).toEqual([]);
   });
 
+  // A browser tab keeps mod+n for its own new window, so the chord reaches a terminal in the desktop shell alone.
   it("mod+d splits and mod+n opens a drawer terminal only while the terminal has focus", async () => {
+    const restore = asDesktopShell();
     await mountShell();
     provideTerminals("ws_a", fakeTerminals());
     mod("d");
@@ -633,9 +660,11 @@ describe("default shortcuts", () => {
     await waitFor(() => expect(drawer("ws_a")?.terminalGroups.map(g => g.terminalIds)).toEqual([["pty1", "pty2"], ["pty3"]]));
     expect(panel("ws_a")?.surfaces.filter(s => s.kind === "terminal") ?? []).toEqual([]);
     term.remove();
+    restore();
   });
 
   it("mod+d and mod+n act on the right panel's terminal while one of its terminals has focus", async () => {
+    const restore = asDesktopShell();
     await mountShell();
     const terms = fakeTerminals();
     provideTerminals("ws_a", terms);
@@ -663,6 +692,7 @@ describe("default shortcuts", () => {
     expect(panel("ws_a")?.surfaces.map(s => s.id)).toEqual(["terminal:pty1"]);
     expect(drawer("ws_a")).toBeUndefined();
     term.remove();
+    restore();
   });
 
   it("a ctrl+tab tap walks the sidebar's workspaces and wraps, and ctrl+shift+tab walks back", async () => {
