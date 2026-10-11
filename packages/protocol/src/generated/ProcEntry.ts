@@ -24,4 +24,9 @@ pgid?: number,
 /**
  * Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's.
  */
-owner?: ProcOwner, kind?: ProcKind, };
+owner?: ProcOwner, kind?: ProcKind, 
+/**
+ * What a kill checks the pid still holds this process by, as proc.kill's identity: the kernel's unique id on a Mac, the
+ * start in clock ticks on a box. Absent where the reader has neither, this computer's ps on Linux.
+ */
+id?: string, };

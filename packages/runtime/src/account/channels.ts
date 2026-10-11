@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
+import { readlinkSync } from "node:fs";
+import { hostname } from "node:os";
 import { join, relative } from "node:path";
-import { remoteHost } from "@wsp/catalog";
-import { runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, type Caller } from "@wsp/protocol";
-import { groupExists } from "../local-exec.js";
+import { CATALOG_AGENTS, remoteHost } from "@wsp/catalog";
+import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, type Caller } from "@wsp/protocol";
+import { agentPidOf, groupExists } from "../local-exec.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { MachineExecOptions } from "../machine-exec.js";
@@ -246,6 +248,42 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
       closed: channel.closed,
     };
   };
+  /** The desktop app's main process, off the lock Electron keeps in the app's folder beside this host's state while
+   * it runs; nothing where no app of this host's runs, or where the lock outlived an app that crashed. */
+  const appMain = (): number[] => {
+    if (ctx.opts.statePath === undefined) return [];
+    try {
+      const named = /^(.+)-(\d+)$/.exec(readlinkSync(join(ctx.stateFolder(), APP_DATA_FOLDER, APP_LOCK_FILE)));
+      if (named === null || named[1] !== hostname()) return [];
+      const pid = Number(named[2]);
+      process.kill(pid, 0);
+      return [pid];
+    } catch {
+      return [];
+    }
+  };
+  /** A channel to a computer's daemon, with every proc.kill carrying what that daemon must never signal, read at the
+   * kill and from nothing a page holds, so a page can neither drop nor stretch a list. Every daemon gets the names
+   * agents run under. The daemon of the computer this host runs on also gets this host and its parent, the app's
+   * main process with everything under it, and each running turn's root and the agent its run recorded, with every
+   * process between them, which is ended by its thread's stop; those pids are this computer's, so another computer's
+   * daemon never gets them. */
+  const killGuarded = (channel: DaemonChannel, here: boolean): DaemonChannel => ({
+    send(frame) {
+      if (frame.op !== "proc.kill") return channel.send(frame);
+      const { protect: _protect, apps: _apps, agents: _agents, ...asked } = frame;
+      const names = { agentBins: CATALOG_AGENTS.map(a => a.bin) };
+      if (!here) return channel.send({ ...asked, ...names });
+      const agents = [...ctx.sessions.values()].flatMap(s => {
+        if (s.view.status !== "running" || s.pid === undefined) return [];
+        const agent = s.run === undefined ? undefined : agentPidOf(s.run);
+        return agent === undefined ? [s.pid] : [s.pid, agent];
+      });
+      return channel.send({ ...asked, protect: [process.pid, process.ppid], apps: appMain(), agents, ...names });
+    },
+    close: () => channel.close(),
+    closed: channel.closed,
+  });
   /** Forgets whose every pty was, once the daemon the owners share is replaced and its ptys with it. */
   const sharedDaemonReplaced = (): void => {
     for (const mine of ptyOwners.values()) mine.clear();
@@ -553,7 +591,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
     withDaemon, overChannel, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
-    portPids, heldToOwner, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
+    portPids, heldToOwner, killGuarded, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };
 }

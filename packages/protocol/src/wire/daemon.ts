@@ -37,7 +37,7 @@ import type { GitBranchesReply as WireGitBranchesReply } from "../generated/GitB
 import { GitBranchCompareReply, GitMergeInReply, GitStartOnReply } from "../tree.js";
 import { GitPrReadReply, GitPrViewReply, GitPrMergeReply, GitPrReactReply, GitPrReplyReply, GitPrResolveReply, GitRepoReadReply, GitRunLogReply, GitUpdateReply, MergeMethod, PullRequest, PR_REPLY_BODY_MAX, ReactionContent } from "../pull-request.js";
 import { GitIssueReadReply, GitPrCheckoutReply, GitPrDiffReply, GitPrReviewReply } from "../start.js";
-import { SSH_KEY_MAX } from "../daemon-contract.js";
+import { KILL_PIDS_MAX, SSH_KEY_MAX } from "../daemon-contract.js";
 import type { UsageStore as WireUsageStore } from "../generated/UsageStore.js";
 import { cgroupPath, type Held, reqId, type Same, watchName } from "./helpers.js";
 import { EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, USAGE_STORES_MAX } from "./limits.js";
@@ -277,6 +277,10 @@ export type PtyListReply = z.infer<typeof PtyListReply>;
 
 export const ProcSignal = z.enum(["TERM", "KILL"]);
 export type ProcSignal = z.infer<typeof ProcSignal>;
+/** What proc.kill signals: the pid alone, every process in its group, or the pid and every process under it. The
+ * group is a one-process tool; a thread spans many groups, so no thread's end goes by one. */
+export const KillMode = z.enum(["pid", "group", "tree"]);
+export type KillMode = z.infer<typeof KillMode>;
 
 /** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. The daemon stamps
  * agent, slate and tool, the three it knows by fact; the page names the rest. */
@@ -327,6 +331,9 @@ export const ProcEntry = z.object({
   owner: ProcOwner.optional().catch(undefined),
   /** A word a newer daemon adds reads as other here, rather than dropping the frame it rides in. */
   kind: ProcKind.catch("other").optional(),
+  /** What a kill checks the pid still holds this process by, sent back as proc.kill's identity: the unique id on a Mac,
+   * the start ticks on a box; absent on this computer's ps road on Linux. */
+  id: z.string().optional(),
 });
 export type ProcEntry = z.infer<typeof ProcEntry>;
 
@@ -383,6 +390,14 @@ export const ProcListReply = z.object({
   procs: z.array(ProcEntry),
 });
 export type ProcListReply = z.infer<typeof ProcListReply>;
+/** What a proc.kill did: every pid it signalled, those KILL was sent to once TERM's grace was up, and those still
+ * there after it. Absent fields are a daemon that signals one pid and answers nothing more. */
+export const ProcKillReply = z.object({
+  signalled: z.array(z.number().int()).optional(),
+  forced: z.array(z.number().int()).optional(),
+  left: z.array(z.number().int()).optional(),
+});
+export type ProcKillReply = z.infer<typeof ProcKillReply>;
 
 /** How much of a command's output one exec op carries back, stdout and stderr together. Past it the reply says
  * truncated and the rest is dropped: the road is a WebSocket frame and a turn that cats a log would otherwise put
@@ -513,9 +528,43 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Every process once, replied as a ProcListReply, for a reader that wants no stream: the rows a running sampler
    * last read, else one scan of its own whose cpu reads 0. */
   z.object({ id: reqId, op: z.literal("proc.list") }),
-  /** Sends the signal. pid 1, the daemon and the daemon's parent are refused
-   * with code forbidden; a pid that is gone answers not-found. */
-  z.object({ id: reqId, op: z.literal("proc.kill"), pid: z.number().int().positive(), signal: ProcSignal }),
+  /** TERM sends TERM and, to whatever of the targets is still there after
+   * KILL_GRACE_MS, KILL; KILL sends KILL at once. mode picks the targets, the
+   * pid alone when absent. An identity that is not the pid's own (the
+   * row's id; the frame's own id is the request's) answers not-found; with
+   * no identity, so does a startedAt off the pid's own: exactly on a Mac or
+   * a box, by more than 2 s where the local Linux road reads starts off ps.
+   * Each target is signalled by the identity it was read with, so a pid that
+   * has since gone to another process is never signalled. On a box whose
+   * daemon is root, a target outside every /wsp-threads cgroup and not under
+   * the daemon is refused, as is a kernel thread on any Linux.
+   * pid 1, the daemon, its parent, every pid in protect, every pid in apps
+   * with everything under it short of the daemon's parent, every pid in
+   * agents (each turn's root and recorded agent) with each process from a
+   * root down to another of them, or past a recorded agent that runs as no
+   * such name (a launcher, npm's codex.js) down to one run as a name in
+   * agentBins, or with none recorded down to one run as such a name (its
+   * accounting name or argv[0]'s basename); the turns the daemon's own run
+   * folder records as held, each its root and agent; and in a /wsp-threads cgroup
+   * each process run as such a name with what stands above it in that
+   * cgroup (a box turn's run script and shell), are refused with code
+   * forbidden, in any mode that would reach them. The host writes agentBins
+   * on every frame, and protect, apps and agents, which are its own
+   * computer's pids, only on a frame for that computer. Replied as a
+   * ProcKillReply. */
+  z.object({
+    id: reqId,
+    op: z.literal("proc.kill"),
+    pid: z.number().int().positive(),
+    signal: ProcSignal,
+    mode: KillMode.optional(),
+    startedAt: z.number().int().optional(),
+    identity: z.string().max(32).optional(),
+    protect: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    apps: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    agents: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    agentBins: z.array(z.string().max(255)).max(64).optional(),
+  }),
   z.object({ id: reqId, op: z.literal("ping") }),
   /** Lists one directory's direct children, each request under its own entry
    * cap. Paths are relative to the daemon's home root (HOME unless started

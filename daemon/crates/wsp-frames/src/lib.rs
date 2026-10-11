@@ -30,8 +30,9 @@ pub use auth::DaemonAuthRequest;
 pub use checkpoint::{checkpoint_copy_part, checkpoint_id_ok, checkpoint_prefix, CHECKPOINT_REFS};
 pub use copy::{Carried, CarryModule, CopyAsk, CopyReport, CopyRoadName, FoundModule, WorktreeRemoval, WorktreeReport};
 pub use enums::{
-    CheckState, DaemonErrorCode, FsEntryType, FsReadEncoding, FsSearchMode, GitDiffScope, HostItemKind, MergeMethod, Mergeable, ProcSignal,
-    PtyMode, PullRequestState, ReactionContent, ReviewEvent, ReviewSide, ReviewState, TranscriptVoice, UsageLogFormat, WorkspaceKind,
+    CheckState, DaemonErrorCode, FsEntryType, FsReadEncoding, FsSearchMode, GitDiffScope, HostItemKind, KillMode, MergeMethod, Mergeable,
+    ProcSignal, PtyMode, PullRequestState, ReactionContent, ReviewEvent, ReviewSide, ReviewState, TranscriptVoice, UsageLogFormat,
+    WorkspaceKind,
 };
 pub use event::{DaemonEvent, ProcCost, ProcEntry, Usage};
 pub use guest::{GuestCliMessage, GuestKind, GuestOpen, GuestOpenReply, GuestStream};
@@ -63,8 +64,8 @@ pub use reply::{
     GitPrResolveReply, GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply,
     GitStartOnReply, GitStatusEntry, GitStatusReply, GitUpdateReply, GitWorktree, GitWorktreesReply, HostFolder, HostFolderListing,
     HostItem, InboxRescanReply, IssueComment, IssueRead, ListeningPort, ManifestEntry, ManifestGetReply, ManifestRecordReply,
-    ManifestRestartScriptReply, PlaceLeaveReply, PlaceUpdateReply, PortsWatchReply, ProcInspectReply, ProcListReply, PtyAttachReply,
-    PtyCreateReply, PtyListEntry, PtyListReply, PullRequest, PullRequestAutoMerge, PullRequestCheck, PullRequestCheckRun,
+    ManifestRestartScriptReply, PlaceLeaveReply, PlaceUpdateReply, PortsWatchReply, ProcInspectReply, ProcKillReply, ProcListReply,
+    PtyAttachReply, PtyCreateReply, PtyListEntry, PtyListReply, PullRequest, PullRequestAutoMerge, PullRequestCheck, PullRequestCheckRun,
     PullRequestComment, PullRequestCommit, PullRequestFile, PullRequestFork, PullRequestLabel, PullRequestPageCut, PullRequestReaction,
     PullRequestReview, PullRequestReviewComment, PullRequestReviewRequest, PullRequestVerdict, Reply, SshStartReply, SysHistoryReply,
     SysPoint, TranscriptMessage, TranscriptRow, TranscriptsListReply, TranscriptsReadReply, True, UsageLimitReading, UsageLimitWindow,

@@ -8,7 +8,7 @@
 // a pane still wants it. A daemon that refuses proc.watch leaves its reason
 // here, so the pane can say so instead of waiting.
 import { useSyncExternalStore } from "react";
-import { applyProcChanges, ProcInspectReply, type DaemonLinkStatus, type ProcChanges, type ProcSignal, type ProcSnapshot } from "@wsp/protocol";
+import { applyProcChanges, ProcInspectReply, ProcKillReply, type DaemonLinkStatus, type KillMode, type ProcChanges, type ProcSignal, type ProcSnapshot } from "@wsp/protocol";
 import { getDaemonWire } from "../files/wire.js";
 import { errorText } from "../lib/utils.js";
 
@@ -109,10 +109,11 @@ export class WorkspaceProcs {
     return ProcInspectReply.parse(await wire.request("proc.inspect", { pid }));
   }
 
-  async kill(pid: number, signal: ProcSignal): Promise<void> {
+  /** Answers once the daemon is done: after TERM's grace and the KILL behind it where anything stayed. */
+  async kill(pid: number, ask: { signal: ProcSignal; mode?: KillMode; startedAt?: number; identity?: string }): Promise<ProcKillReply> {
     const wire = getDaemonWire(this.#workspaceId);
     if (!wire) throw new Error("not answering");
-    await wire.request("proc.kill", { pid, signal });
+    return ProcKillReply.parse(await wire.request("proc.kill", { pid, ...ask }));
   }
 
   onChange(fn: () => void): () => void {

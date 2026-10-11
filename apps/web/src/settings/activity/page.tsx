@@ -239,8 +239,9 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
   const end = useCallback(
     (p: ActivityProc): void => {
       setEnding(s => new Set([...s, p.pid]));
+      // The process and everything under it, TERM then KILL in the daemon, checked against the row's identity.
       getProcs(key)
-        .kill(p.pid, "TERM")
+        .kill(p.pid, { signal: "TERM", mode: "tree", ...(p.startedAt !== undefined ? { startedAt: p.startedAt } : {}), ...(p.id !== undefined ? { identity: p.id } : {}) })
         .catch((e: unknown) => {
           setEnding(s => new Set([...s].filter(pid => pid !== p.pid)));
           addNotice({ kind: "error", text: errorText(e) });

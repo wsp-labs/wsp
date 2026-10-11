@@ -2,7 +2,7 @@
 // NOTICE; logic only) and measured behavior in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { inFolder, launchHasSlate, MCP_SERVER_NAME, programWord, shellLine, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
+import { agentWord, inFolder, launchHasSlate, MCP_SERVER_NAME, programWord, shellLine, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 import type { AgentLaunch, McpServerSpec, TurnImage } from "@wsp/protocol";
 import { PERMISSION_PROMPT_TOOL, SKIP_PROMPTS_MODE } from "./permissions.js";
 
@@ -283,7 +283,7 @@ export function buildCommand(options: BuildCommandOptions): string {
         ? `--resume ${id}`
         : `--session-id ${id}${options.copyOf === undefined ? "" : ` --resume ${options.copyOf} --fork-session`}`;
   const claude = [
-    `${programWord("claude", options.launch)} -p`,
+    `${agentWord("claude", options.launch)} -p`,
     ...person.words.map(shellQuote),
     "--input-format stream-json",
     "--output-format stream-json",

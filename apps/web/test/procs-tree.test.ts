@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ProcEntry } from "@wsp/protocol";
 import { compactBytes } from "@wsp/protocol";
 import type { AppProc } from "@wsp/protocol";
-import { procLabel, procTable, type ProcThread } from "../src/components/procs/tree.js";
+import { agentRows, procLabel, procTable, runAgentPids, type ProcThread } from "../src/components/procs/tree.js";
 
 const proc = (pid: number, ppid: number, comm: string, extra: Partial<ProcEntry> = {}): ProcEntry => ({
   pid,
@@ -170,5 +170,77 @@ describe("compactBytes", () => {
     expect(compactBytes(1.5 * 1024 ** 2)).toBe("1.5M");
     expect(compactBytes(123.4 * 1024 ** 2)).toBe("123M");
     expect(compactBytes(2.25 * 1024 ** 3)).toBe("2.3G");
+  });
+});
+
+describe("agentRows", () => {
+  // A local turn as the host launches it: the run's bash leads, a subshell runs the agent, the agent runs a tool
+  // server and a dev server.
+  const turn: ProcEntry[] = [
+    proc(1, 0, "init"),
+    proc(300, 1, "bash", { cmdline: "bash run.sh" }),
+    proc(301, 300, "bash"),
+    proc(302, 301, "claude"),
+    proc(303, 302, "node", { cmdline: "node mcp-server.js" }),
+    proc(304, 302, "vite"),
+    proc(400, 1, "claude", { cmdline: "claude in a terminal of the person's own" }),
+  ];
+
+  it("names the turn's root and every process down to the agent, never a tool server, another claude or a stopped thread", () => {
+    const running: ProcThread = { threadId: "th_a", title: "a", pid: 300, sessionId: "s_a" };
+    expect([...agentRows(turn, [running]).keys()].sort()).toEqual([300, 301, 302]);
+    expect(agentRows(turn, [{ threadId: "th_a", title: "a", pid: 300 }]).size).toBe(0);
+  });
+
+  it("takes the agent the run recorded whatever its name, and then no name under it, a claude the agent ran included", () => {
+    // A native Claude Code runs as its version; the turn's run recorded its pid. The agent ran a claude of its own.
+    const native = [...turn.map(p => (p.pid === 302 ? { ...p, comm: "2.1.296", cmdline: "claude -p --input-format stream-json" } : p)), proc(305, 302, "claude", { cmdline: "claude -p hi" })];
+    const thread: ProcThread = { threadId: "th_a", title: "a", pid: 300, sessionId: "s_a", agentPid: 302 };
+    expect([...agentRows(native, [thread]).keys()].sort()).toEqual([300, 301, 302]);
+    // A recorded pid that is not under the turn's root names nothing, and the names stand in.
+    expect([...agentRows(native, [{ ...thread, agentPid: 400 }]).keys()].sort()).toEqual([300, 301, 302, 305]);
+  });
+
+  it("takes the agent binary a recorded launcher starts, npm's codex under node, and what the agent starts stays out", () => {
+    const npm = [
+      proc(1, 0, "init"),
+      proc(300, 1, "bash", { cmdline: "bash run.sh" }),
+      proc(301, 300, "bash"),
+      proc(302, 301, "node", { cmdline: "node /usr/lib/node_modules/@openai/codex/bin/codex.js app-server" }),
+      proc(303, 302, "codex", { cmdline: "/usr/lib/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex app-server" }),
+      proc(304, 303, "node", { cmdline: "node mcp-server.js" }),
+    ];
+    const thread: ProcThread = { threadId: "th_a", title: "a", pid: 300, sessionId: "s_a", agentPid: 302 };
+    expect([...agentRows(npm, [thread]).keys()].sort()).toEqual([300, 301, 302, 303]);
+  });
+
+  it("on a computer whose turns stand in no cgroup, names every process from a run script down to its agent, and no agent's own child", () => {
+    const box = [
+      proc(1, 0, "init"),
+      proc(500, 1, "bash", { cmdline: "bash /root/.wsp/run/0123456789ab.sh" }),
+      proc(501, 500, "bash", { cmdline: "bash /root/.wsp/run/0123456789ab.sh" }),
+      proc(502, 501, "2.1.296", { cmdline: "claude -p --input-format stream-json" }),
+      proc(503, 502, "node", { cmdline: "node mcp-server.js" }),
+      proc(504, 502, "claude", { cmdline: "claude -p hi" }),
+      proc(600, 1, "claude", { cmdline: "claude in a terminal of the person's own" }),
+    ];
+    expect([...runAgentPids(box)].sort()).toEqual([500, 501, 502]);
+  });
+
+  it("where no agent was recorded, knows one by argv[0]'s basename beside its accounting name", () => {
+    // The native install through the link ~/.local/bin/claude; cursor-agent's exec -a "$0" node.
+    const running: ProcThread = { threadId: "th_a", title: "a", pid: 300, sessionId: "s_a" };
+    const native = turn.map(p => (p.pid === 302 ? { ...p, comm: "2.1.296", cmdline: "/Users/a/.local/bin/claude -p --verbose" } : p));
+    expect([...agentRows(native, [running]).keys()].sort()).toEqual([300, 301, 302]);
+    const cursor = turn.map(p => (p.pid === 302 ? { ...p, comm: "node", cmdline: "/opt/homebrew/bin/cursor-agent -p --output-format stream-json" } : p));
+    expect([...agentRows(cursor, [running]).keys()].sort()).toEqual([300, 301, 302]);
+    expect(procLabel(native.find(p => p.pid === 302)!, 0, new Map())).toBe("agent");
+  });
+
+  it("on a computer the person joined names the agent binaries in a running thread's cgroup and the run's processes above them there", () => {
+    // A box run records no agent: its bash run.sh (300) and shell (301) run the agent (302) in the thread's cgroup.
+    const boxed = turn.map(p => (p.pid >= 300 && p.pid < 400 ? { ...p, cgroup: "/wsp-threads/th_b" } : p));
+    const thread: ProcThread = { threadId: "th_b", title: "b", cgroup: "/wsp-threads/th_b", sessionId: "s_b" };
+    expect([...agentRows(boxed, [thread]).keys()].sort()).toEqual([300, 301, 302]);
   });
 });

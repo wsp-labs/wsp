@@ -45,6 +45,10 @@ export interface ActivityProc {
   readonly energy: number | null;
   readonly ports: readonly ActivityPort[];
   readonly command: string;
+  /** The start and the identity the row was read with, which an End sends so the daemon never signals a pid handed
+   * on since; absent on a heading, which is no process. */
+  readonly startedAt?: number;
+  readonly id?: string;
   /** The harness of an agent row, whose mark it draws. */
   readonly harness?: string;
   /** wsp needs it to run: no End. */
@@ -282,6 +286,8 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP }: ScopeI
       energy: p.energyMw ?? (energy ? 0 : null),
       ports: ports.get(p.pid) ?? [],
       command: p.cmdline !== "" ? p.cmdline : `[${p.comm}]`,
+      startedAt: p.startedAt,
+      ...(p.id !== undefined ? { id: p.id } : {}),
       ...(thread !== undefined ? { harness: thread.harness } : {}),
       ...(wspPids.has(p.pid) || kind === "app" || p.kind === "wsp" ? { needed: true } : {}),
       children,

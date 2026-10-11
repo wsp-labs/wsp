@@ -10,5 +10,35 @@
     "op": "proc.kill",
     "pid": 50,
     "signal": "KILL"
+  },
+  {
+    "id": 1,
+    "op": "proc.kill",
+    "pid": 50,
+    "signal": "TERM",
+    "mode": "group",
+    "startedAt": 1760140800000,
+    "identity": "675177110",
+    "protect": [
+      4100,
+      4200
+    ],
+    "agents": [
+      4300
+    ],
+    "agentBins": [
+      "claude",
+      "codex"
+    ],
+    "apps": [
+      4150
+    ]
+  },
+  {
+    "id": 1,
+    "op": "proc.kill",
+    "pid": 50,
+    "signal": "KILL",
+    "mode": "tree"
   }
 ]
