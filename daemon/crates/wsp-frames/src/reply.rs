@@ -308,8 +308,8 @@ pub struct FsImageReply {
 }
 
 /// Each file an fs.hash found, by its path under the root, with the sha256 of its bytes in hex, and the paths it was
-/// handed, as handed, that land on a file outside the root or on one inside past the most it hashes: what the host
-/// cannot pin.
+/// handed, as handed, that land on a file outside the root or on one inside past the most it hashes or over the size
+/// cap: what the host cannot pin.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct FsHashReply {
