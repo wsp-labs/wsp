@@ -554,6 +554,8 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   threads: "how many threads may run on that computer at once; a new one waits past it",
   machines: "how many machines may run on that cloud at once",
   spend: "the dollars a day that cloud may spend before it starts no new machine",
+  "computers set size": "on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>; 2x4 until it is set",
+  "delete-after": "on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, 0 to 1440; 30 until it is set",
   nap: "the minutes a quiet machine there runs before it naps, or off",
   "turn-limit": "the hours one turn there may run before it is stopped, or off; off on a computer you own<!-- cloud --> and 6 on a cloud<!-- /cloud --> until it is set",
   "computers set spawn": "on lets agents there whose folder or machine holds no switch of its own open threads and fork machines, capped; off refuses them",

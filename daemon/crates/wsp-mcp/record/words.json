@@ -165,6 +165,10 @@
   },
   "noSuchPlace": "no place named {word}; you have {held}",
   "placesFix": "Run wsp computers.",
+  "providerNames": {
+    "box": "Boat",
+    "solari": "Solari"
+  },
   "aimedUsage": "{tool} takes a thread or on, not both",
   "aimedBoth": "A thread already names its computer; give the thread or --on <computer>, not both. {usage}",
   "projectUnnamed": "--project with --on names the project: --project <name>, as wsp projects shows it. {usage}",
@@ -307,7 +311,7 @@
   },
   "usages": {
     "computers": "wsp computers",
-    "computers_set": "wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--spawn on|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...",
+    "computers_set": "wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--spawn on|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...",
     "recipes": "wsp recipes",
     "recipes_show": "wsp recipes show <name>",
     "recipes_save": "wsp recipes save <name> --from <computer>",

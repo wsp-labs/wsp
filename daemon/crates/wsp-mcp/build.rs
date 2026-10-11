@@ -53,6 +53,7 @@ fn without_cloud(path: &Path, text: &str) -> String {
         "words.json" => {
             let mut words = read(text);
             words["add"]["providers"] = Value::Array(Vec::new());
+            words["providerNames"] = Value::Object(serde_json::Map::new());
             serde_json::to_string_pretty(&words).expect("words serialize")
         }
         "server.json" => {

@@ -9,11 +9,12 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { DAEMON_UNIT, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, shellQuote, type Capabilities } from "@wsp/protocol";
+import { DAEMON_UNIT, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, shellQuote, type Capabilities, type CloudLimits } from "@wsp/protocol";
 import { GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
+import { keptPlaceLimits, PLACE_LIMITS_READ_MS, type BoxLimitsAnswer } from "./box-place-limits.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL, WSP_LABEL } from "./labels.js";
 import type { BackendPricing, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, PreviewReach, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
 import { DAEMON_PORT } from "./preview.js";
@@ -488,6 +489,10 @@ export class BoxBackend implements MachineBackend {
 
   view(id: string): Promise<BoxView> {
     return this.request<{ box: BoxView }>("GET", `/boxes/${encodeURIComponent(id)}`).then(r => r.box);
+  }
+
+  placeLimits(): Promise<CloudLimits | undefined> {
+    return keptPlaceLimits(this, this.clock.now(), () => this.request<BoxLimitsAnswer>("GET", "/limits", { once: true, capMs: PLACE_LIMITS_READ_MS }), BOX_CLASSES);
   }
 
   /** Reads the box until `done` says so, at the poll pace, inside `budgetMs`; a box the provider lost throws missing

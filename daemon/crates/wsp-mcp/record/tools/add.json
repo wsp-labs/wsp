@@ -863,6 +863,27 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "size": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "integer"
+                    },
+                    "memMb": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "cpu",
+                    "memMb"
+                  ],
+                  "additionalProperties": false
+                },
+                "deleteAfterMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 86400000
                 }
               },
               "additionalProperties": false
@@ -926,6 +947,85 @@
             "running": {
               "type": "integer",
               "minimum": 0
+            },
+            "plan": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "trial": {
+                  "type": "boolean"
+                },
+                "machinesAtOnce": {
+                  "type": "integer"
+                },
+                "sizes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "key",
+                "trial",
+                "machinesAtOnce",
+                "sizes"
+              ],
+              "additionalProperties": false
+            },
+            "starts": {
+              "type": "object",
+              "properties": {
+                "minute": {
+                  "type": "object",
+                  "properties": {
+                    "used": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "used",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                },
+                "hour": {
+                  "$ref": "#/properties/computer/properties/starts/properties/minute"
+                },
+                "day": {
+                  "$ref": "#/properties/computer/properties/starts/properties/minute"
+                }
+              },
+              "required": [
+                "minute",
+                "hour",
+                "day"
+              ],
+              "additionalProperties": false
+            },
+            "size": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "integer"
+                },
+                "memMb": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cpu",
+                "memMb"
+              ],
+              "additionalProperties": false
+            },
+            "deleteAfterMs": {
+              "type": "integer"
             }
           },
           "required": [
@@ -1875,6 +1975,27 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "size": {
+                  "type": "object",
+                  "properties": {
+                    "cpu": {
+                      "type": "integer"
+                    },
+                    "memMb": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "cpu",
+                    "memMb"
+                  ],
+                  "additionalProperties": false
+                },
+                "deleteAfterMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 86400000
                 }
               },
               "additionalProperties": false
@@ -1938,6 +2059,85 @@
             "running": {
               "type": "integer",
               "minimum": 0
+            },
+            "plan": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "trial": {
+                  "type": "boolean"
+                },
+                "machinesAtOnce": {
+                  "type": "integer"
+                },
+                "sizes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "key",
+                "trial",
+                "machinesAtOnce",
+                "sizes"
+              ],
+              "additionalProperties": false
+            },
+            "starts": {
+              "type": "object",
+              "properties": {
+                "minute": {
+                  "type": "object",
+                  "properties": {
+                    "used": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "used",
+                    "limit"
+                  ],
+                  "additionalProperties": false
+                },
+                "hour": {
+                  "$ref": "#/properties/computer/properties/starts/properties/minute"
+                },
+                "day": {
+                  "$ref": "#/properties/computer/properties/starts/properties/minute"
+                }
+              },
+              "required": [
+                "minute",
+                "hour",
+                "day"
+              ],
+              "additionalProperties": false
+            },
+            "size": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "integer"
+                },
+                "memMb": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cpu",
+                "memMb"
+              ],
+              "additionalProperties": false
+            },
+            "deleteAfterMs": {
+              "type": "integer"
             }
           },
           "required": [

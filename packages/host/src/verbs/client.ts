@@ -25,6 +25,10 @@ import {
   PlaceView,
   PlaceSettingWord,
   NAP_AFTER_MAX_MS,
+  CLOUD_SIZES,
+  CLOUD_SIZE_WORDS,
+  DELETE_AFTER_MAX_MS,
+  sizeOfWord,
   TURN_LIMIT_MAX_MS,
   type PlaceSettingsAsk,
   ThreadView,
@@ -516,6 +520,8 @@ export const hostPlatform = (): Platform => (platform() === "darwin" ? "darwin" 
  * read where the host runs and not guessed here, and so is the spend, which is a read of its own. */
 /** Where the forks column stands in the table below. */
 const FORKS_AT = 8;
+/** The STARTS column, shown only once a cloud reads its own starts. */
+const STARTS_AT = 12;
 
 export function computerLines(places: readonly PlaceView[], platform: "darwin" | "linux", spend: readonly PlaceSpend[] = [], pending: readonly PendingComputer[] = []): string[] {
   if (places.length === 0) return ["This host holds no computer. wsp add prints the join line for a computer you are sitting at."];
@@ -534,6 +540,7 @@ export function computerLines(places: readonly PlaceView[], platform: "darwin" |
     p.forks === undefined ? "" : `${p.forks.running} of ${p.forks.running + p.forks.room}`,
     ...capCells(p),
     spendCell(p, todayOf(p)),
+    p.starts === undefined ? "" : `${p.starts.day.used}/${p.starts.day.limit} today`,
     placeStateOf(p, p.present === false ? absentComputer(p.name, null) : null, todayOf(p), addOf(p)).word,
     p.kind === "provider" ? "" : (p.lastSeenAt ?? ""),
     placeDaemonBehind(p) ?? "",
@@ -548,11 +555,12 @@ export function computerLines(places: readonly PlaceView[], platform: "darwin" |
   // An add that has not reached Set up is a row of its own until it does: its word and how far it got.
   const waiting = pending.filter(p => p.placeId === undefined || !places.some(r => r.id === p.placeId)).map(p => {
     const word = pendingWord(p);
-    return [p.name ?? p.address, "pending", "", "", "", "", "", "", "", "", "", "", word.word, "", "", "", word.sentence ?? "", ""];
+    return [p.name ?? p.address, "pending", "", "", "", "", "", "", "", "", "", "", "", word.word, "", "", "", word.sentence ?? "", ""];
   });
+  const starts = places.some(p => p.starts !== undefined);
   // The forks a computer holds of the room it has are a cloud's machines; with no cloud no computer forks one.
-  const shown = (row: readonly string[]): string[] => (CLOUD_ON ? [...row] : row.filter((_, at) => at !== FORKS_AT));
-  return table([["COMPUTER", "KIND", "CORES", "MEMORY", "DISK FREE", "ENGINE", "COPIES", "PRESENT", "WORKSPACES", "THREADS", "MACHINES", "SPEND", "STATE", "LAST SEEN", "BEHIND", "IMAGE", "TOOLS", "AGENTS"], ...rows, ...waiting].map(shown));
+  const shown = (row: readonly string[]): string[] => row.filter((_, at) => (CLOUD_ON || at !== FORKS_AT) && (starts || at !== STARTS_AT));
+  return table([["COMPUTER", "KIND", "CORES", "MEMORY", "DISK FREE", "ENGINE", "COPIES", "PRESENT", "WORKSPACES", "THREADS", "MACHINES", "SPEND", "STARTS", "STATE", "LAST SEEN", "BEHIND", "IMAGE", "TOOLS", "AGENTS"], ...rows, ...waiting].map(shown));
 }
 
 /** What a computer set to follow a recipe prints: the recipe it follows now, or that it keeps what it has. */
@@ -657,9 +665,8 @@ export async function readComputers(client: HostClient): Promise<{ computers: Pl
   return { computers: listed.places, spend: spent.places, pending: listed.pending ?? [] };
 }
 
-/** The settings a reset takes in this process: a cloud's only where a cloud is registered. */
-const CLOUD_SETTINGS: readonly PlaceSettingWord[] = ["machines", "spend"];
-export const SETTING_RESETS = PlaceSettingWord.options.filter(word => CLOUD_ON || !CLOUD_SETTINGS.includes(word)) as [PlaceSettingWord, ...PlaceSettingWord[]];
+/** The settings a reset takes, by the words the flags go by. */
+export const SETTING_RESETS = PlaceSettingWord.options;
 
 /** One computer's settings made and reset by the host, with its name, its login and its recipe where given, answered
  * as the row it now reads and the name it was asked by: by the id off the listing, since two computers may share a
@@ -701,6 +708,20 @@ export function turnLimitAsked(word: string, on: string): number {
   const hours = Number(word);
   if (!/^\d+$/.test(word) || hours < 1 || hours * 3_600_000 > TURN_LIMIT_MAX_MS) throw usageRefusal(`${flagFor("--turn-limit", on)} takes whole hours from 1 to ${TURN_LIMIT_MAX_MS / 3_600_000}, or off, and got ${JSON.stringify(word)}.`, "Write it as --turn-limit 6 or --turn-limit off.");
   return hours;
+}
+
+/** A --size word as the size it names: one of the four a cloud sells, as <cpu>x<memGb>. */
+export function cloudSizeAsked(word: string, on: string): { cpu: number; memMb: number } {
+  const size = sizeOfWord(word);
+  if (size === undefined || !CLOUD_SIZES.some(s => s.cpu === size.cpu && s.memMb === size.memMb)) throw usageRefusal(`${flagFor("--size", on)} takes ${CLOUD_SIZE_WORDS}, and got ${JSON.stringify(word)}.`, "Write it as --size 4x8.");
+  return size;
+}
+
+/** A --delete-after word as minutes: whole ones from none to a day. */
+export function deleteAfterAsked(word: string, on: string): number {
+  const minutes = Number(word);
+  if (!/^\d+$/.test(word) || minutes * 60_000 > DELETE_AFTER_MAX_MS) throw usageRefusal(`${flagFor("--delete-after", on)} takes whole minutes from 0 to ${DELETE_AFTER_MAX_MS / 60_000}, and got ${JSON.stringify(word)}.`, "Write it as --delete-after 30, or 0 to delete once it is done.");
+  return minutes;
 }
 
 /** A --spend figure: dollars, zero or more. */

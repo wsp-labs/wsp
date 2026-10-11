@@ -5,6 +5,8 @@ import {
   PLACE_LINK_NONCE_BYTES,
   DAEMON_VERSION,
   NAP_AFTER_MS,
+  CLOUD_SIZE_DEFAULT,
+  DELETE_AFTER_MS,
   placeCapOf,
   PlaceSettings,
   AGENTS_ON,
@@ -107,7 +109,15 @@ export function placeRecords(ctx: PlaceDoorContext) {
       spawn: agentsFrom(undefined, settings.spawn ?? {}),
       spawnDefault: AGENTS_ON,
       running: await recording.runningOn(row.id, ids),
+      ...(placeTakes(row, "size") ? { size: settings.size ?? CLOUD_SIZE_DEFAULT } : {}),
+      ...(placeTakes(row, "delete-after") ? { deleteAfterMs: settings.deleteAfterMs ?? DELETE_AFTER_MS } : {}),
     };
+  };
+  /** A cloud's row with its plan and the starts used, off its provider's own limits read; the row as it was where
+   * the provider publishes none or the read failed. Only the list and a set read it, the two answers a person reads. */
+  const withLimits = async (row: PlaceView): Promise<PlaceView> => {
+    const limits = row.kind === "provider" ? await providerBackend(row.id)?.placeLimits?.() : undefined;
+    return limits === undefined ? row : { ...row, plan: limits.plan, ...(limits.starts !== undefined ? { starts: limits.starts } : {}) };
   };
   /** The version the place reports once it has dialled back, or what it still reads when the wait runs out. The
    * record is what a link writes its report onto, so this reads the one fact every other row reads. */
@@ -331,7 +341,7 @@ export function placeRecords(ctx: PlaceDoorContext) {
   };
 
   return {
-    records, wiredProvider, providerIds, providerBackend, providerRate, providerSizes, imageFacts, recordOf,
+    records, wiredProvider, providerIds, providerBackend, providerRate, providerSizes, imageFacts, recordOf, withLimits,
     settingsOf, settingsHeld, rowIds, withCap, untilDaemonVersion, awaiting, adds, putAdd, loginOf, rootOver,
     loginAnswers, reachedOver, holdBack, keep, defaultId, inTurn, markDefault, markHeld, challenge, signedRefusal, writeSeen,
     inRecordTurn, change, loginListed,

@@ -58,7 +58,7 @@ wsp --version
 | [`wsp agents signin`](/reference/cli/agents-signin) | signs an agent in on this computer or where a thread runs, its own sign-in run there and shown in this terminal; a box you added takes wsp add \<computer> --sign-in \<agent> |
 | [`wsp commit`](/reference/cli/commit) | commits every changed file in the folder the thread works in, other threads' changes there included, or the files named; without a message the thread's agent drafts one |
 | [`wsp computers`](/reference/cli/computers) | your computers: this Mac, each box you added, with what each has, whether it is connected, how many machines it holds and what runs there against its cap |
-| [`wsp computers set`](/reference/cli/computers-set) | what you set on one of your computers: its name, the ssh login it is reached by, how many threads run there at once, how long a quiet machine there runs before it naps, how long one turn there may run, whether agents there may start agents, the recipe it follows; --reset takes a setting back to its default |
+| [`wsp computers set`](/reference/cli/computers-set) | what you set on one of your computers: its name, the ssh login it is reached by, how many threads run there at once, how long a quiet machine there runs before it naps, how long one turn there may run, whether agents there may start agents, the recipe it follows, and on a cloud how many machines at once, how much it spends a day, the size a sub-thread's machine gets and how long a finished one stays; --reset takes a setting back to its default |
 | [`wsp conversations`](/reference/cli/conversations) | the conversations Claude Code and Codex kept in the project's folder and its worktrees outside wsp, newest first, each with its id, last change, size, branch and title, and whether another app holds it open; wsp run --resume \<id> opens a thread on one |
 | [`wsp delete`](/reference/cli/delete) | takes a thread away, its turns and checkpoints with it, and the worktree wsp made for it once no other thread is in it, never the project folder |
 | [`wsp discard`](/reference/cli/discard) | puts one changed file in the folder the thread works in back as its last commit has it, or removes it where that has none |
@@ -199,13 +199,16 @@ No MCP tool: builds your image and serves for hours; an agent runs it from a she
 the verbs an agent on this computer reaches for, and the lines you type yourself:
 up and down for the host, recipe and image for what a machine starts from.
   wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>]
-    [--nap <minutes>|off] [--turn-limit <hours>|off] [--spawn on|off]
-    [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none]
-    [--reset <setting>]...
+    [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>]
+    [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off]
+    [--spawn on|off] [--max-machines <n>] [--max-depth <n>]
+    [--recipe <name>|none] [--reset <setting>]...
       what you set on one of your computers: its name, the ssh login it is
       reached by, how many threads run there at once, how long a quiet machine
       there runs before it naps, how long one turn there may run, whether agents
-      there may start agents, the recipe it follows; --reset takes a setting
+      there may start agents, the recipe it follows, and on a cloud how many
+      machines at once, how much it spends a day, the size a sub-thread's
+      machine gets and how long a finished one stays; --reset takes a setting
       back to its default
   wsp recipes
       your saved recipes: what each puts on a computer in one line, and the

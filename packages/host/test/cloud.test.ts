@@ -35,6 +35,12 @@ const CLOUD_ALLOWED: string[] = [
   // The wire's word for a workspace on a provider's machine, in the schemas that carry a workspace: no record with the
   // cloud off holds it, and a wire value is not renamed by a flag.
   '"enum":["cloud","local","place"]',
+  // Boat's settings on wsp computers set, which every build carries now that Boat ships in every one: machines at
+  // once, spend per day, the size and the delete delay of a sub-thread's machine.
+  "and on a cloud how many",
+  "may run on that cloud at once",
+  "that cloud may spend",
+  "sub-thread's machine",
 ];
 
 /** The tool list as an agent reads it: every name, description and field description. */
