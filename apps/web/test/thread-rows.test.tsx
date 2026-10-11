@@ -117,9 +117,9 @@ describe("a thread's row", () => {
     const status = (row: HTMLElement) => row.querySelector<HTMLElement>("[data-thread-status]")!;
     expect(rows().map(row => status(row).dataset.threadStatus)).toEqual(["working", "resting", "needs-you", "failed"]);
     for (const row of rows()) expect(status(row).className).toContain("min-w-4");
-    expect(status(working!).querySelector("[data-crab]")).not.toBeNull();
+    expect(status(working!).lastElementChild!.matches("[data-crab]")).toBe(true);
     expect(status(working!).getAttribute("aria-label")).toBe("Working");
-    expect(status(working!).textContent).toBe("");
+    expect(status(working!).textContent).toBe("14m");
     expect(status(resting!).textContent).toBe("14m");
     expect(status(failed!).getAttribute("aria-label")).toBe("Failed");
     expect(status(failed!).textContent).toBe("");

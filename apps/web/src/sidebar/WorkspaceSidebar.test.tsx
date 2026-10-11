@@ -892,10 +892,12 @@ describe("the sidebar's list of thread tiles", () => {
       expect(walkIds()).toEqual(["section:pinned", "thread:th_pinned", "section:needs-you", "thread:th_asks", "thread:th_works", "thread:th_done", "thread:th_idle"]);
       expect(screen.queryByText("snoozed away")).toBeNull();
       const slot = (title: string): HTMLElement => rowOf(title).querySelector<HTMLElement>("[data-thread-status]")!;
-      // Every state is its icon alone, its word on the label: the crab while it works.
+      // A working tile says how long its turn has run, its crab at its title's end; every other state is its icon
+      // alone, its word on the label.
       expect(slot("still going").getAttribute("aria-label")).toBe("Working");
-      expect(slot("still going").querySelector("canvas[data-crab]")).not.toBeNull();
-      expect(slot("still going").textContent).toBe("");
+      expect(slot("still going").querySelector("canvas[data-crab]")).toBeNull();
+      expect(rowOf("still going").querySelectorAll("canvas[data-crab]")).toHaveLength(1);
+      expect(slot("still going").textContent).toMatch(/^\d+[sm]$|^\d+h \d+m$/);
       expect(slot("finished unseen").getAttribute("aria-label")).toBe("Done");
       expect(slot("finished unseen").textContent).toBe("");
       expect(slot("read already").textContent).toBe("11m");
