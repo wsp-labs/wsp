@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! This computer's own utilisation, the metrics module of the local kind: cpu, load, memory and the disk the folder
 //! turns write in is on, from the road the platform answers honestly on, one module per system below. On Linux that
-//! is the host's own /proc and statfs; on a Mac the mach counters, getloadavg and statfs. Neither spawns anything,
+//! is the host's own /proc and statvfs; on a Mac the mach counters, getloadavg and statfs. Neither spawns anything,
 //! since the readings kept for the Machine tab sample every fifteen seconds whether or not anyone looks.
 
 use std::path::{Path, PathBuf};
@@ -52,7 +52,7 @@ pub(crate) trait HostMachine: Send + Sync {
     fn disk(&self, folder: &Path) -> Result<Usage, String>;
 }
 
-/// The Linux host reads its own /proc and statfs, which is what the guest's road reads too; the two modules differ
+/// The Linux host reads its own /proc and statvfs, which is what the guest's road reads too; the two modules differ
 /// only in the disk, which here is the volume the work folder is on.
 #[cfg(not(target_os = "macos"))]
 pub(crate) struct LinuxHost;
@@ -356,6 +356,7 @@ mod tests {
     #[test]
     fn a_folder_that_is_not_there_is_refused_in_the_words_of_what_read_it() {
         let err = HostSysSource::new(PathBuf::from("/no/such/folder/anywhere")).read().unwrap_err();
-        assert!(err.starts_with("statfs /no/such/folder/anywhere: "), "{err}");
+        let call = if cfg!(target_os = "macos") { "statfs" } else { "statvfs" };
+        assert!(err.starts_with(&format!("{call} /no/such/folder/anywhere: ")), "{err}");
     }
 }

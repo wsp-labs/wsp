@@ -690,6 +690,38 @@ async fn sys_unwatch_ends_this_sockets_watch_and_a_second_watch_on_one_socket_is
 }
 
 #[tokio::test]
+async fn an_unwatch_sent_behind_a_watch_on_one_socket_ends_it() {
+    unwatch_behind_watch("sys", words::SYS_SAMPLER_STARTED, words::SYS_SAMPLER_STOPPED, &["sys.sample"]).await;
+    unwatch_behind_watch("proc", words::PROC_SAMPLER_STARTED, words::PROC_SAMPLER_STOPPED, &["proc.snapshot", "proc.changes"]).await;
+}
+
+/// Both frames go in one write, so the unwatch lands while the watch's probe still reads.
+async fn unwatch_behind_watch(readings: &str, started: &str, stopped: &str, frames: &[&str]) {
+    let t = tree();
+    let d = start(with_tree(&t)).await;
+    let mut c = Client::connect(d.addr).await;
+    let (w, u) = (90, 91);
+    c.ws.feed(Message::text(json!({ "id": w, "op": format!("{readings}.watch") }).to_string())).await.unwrap();
+    c.ws.feed(Message::text(json!({ "id": u, "op": format!("{readings}.unwatch") }).to_string())).await.unwrap();
+    c.ws.flush().await.unwrap();
+    let mut order = Vec::new();
+    while order.len() < 2 {
+        let msg = tokio::time::timeout(Duration::from_secs(10), c.ws.next()).await.unwrap().unwrap().unwrap();
+        let v: Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+        if v.get("id") == Some(&json!(w)) || v.get("id") == Some(&json!(u)) {
+            assert_eq!(v["ok"], true);
+            order.push(v["id"].as_u64().unwrap());
+        }
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    c.listen(Duration::from_millis(300)).await;
+    // The watch may never subscribe or may subscribe and leave; either way nothing reads for this socket.
+    let (started, stopped) = (d.logged(started), d.logged(stopped));
+    let n: usize = frames.iter().map(|f| c.of(f).len()).sum();
+    assert_eq!((started - stopped, n), (0, 0), "{readings}: replies {order:?}; the sampler still runs: {:?}", d.log());
+}
+
+#[tokio::test]
 async fn usage_logs_reads_the_home_this_daemon_serves_and_refuses_a_store_it_cannot_name() {
     let home = tempfile::tempdir().unwrap();
     let rollout = home.path().join(".codex/sessions/2026/09/29/rollout-a.jsonl");

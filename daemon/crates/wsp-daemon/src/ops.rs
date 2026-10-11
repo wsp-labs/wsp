@@ -23,7 +23,6 @@ use crate::git::Asked::{Read as Reads, Work as Works};
 use crate::guest::SESSION_TAKEN;
 use crate::manifest::RecordInput;
 use crate::paths::OpError;
-use crate::proc::ProcSampler;
 use crate::pty::{passwd_row, process_env, pump, PtyCreateOpts};
 use crate::roads::guest_road_serves;
 use crate::sys::SocketWatch;
@@ -61,10 +60,10 @@ pub(crate) struct Conn {
     detaches: Mutex<Option<Vec<Detach>>>,
     /// This socket's proc.watch, so proc.unwatch can end it before the socket does and a second watch on the same
     /// socket asks for a whole snapshot rather than a second subscription.
-    proc_watch: Mutex<Option<(u64, Arc<ProcSampler>)>>,
+    proc_watch: Arc<sys_proc::ProcWatch>,
     /// This socket's sys.watch, so sys.unwatch can end it before the socket does and a second watch on the same socket
-    /// is no second subscription. The close's undo for it is the first in the list, so a watch and unwatch every time
-    /// a page opens adds nothing to it.
+    /// is no second subscription. The close's undo for it and for proc_watch are the first two in the list, so a
+    /// watch and unwatch every time a page opens adds nothing to it.
     sys_watch: Arc<SocketWatch>,
     /// The one guest session this socket opened, which ends with it.
     guest: Mutex<Option<String>>,
@@ -74,9 +73,9 @@ pub(crate) struct Conn {
 
 impl Conn {
     pub(crate) fn new(key: u64, scope: Option<NonZeroU16>, out: Outbound, road: Road, token: Option<String>) -> Conn {
-        let sys_watch = Arc::<SocketWatch>::default();
-        let held = Arc::clone(&sys_watch);
-        let unwatch: Detach = Box::new(move || held.unwatch());
+        let (sys_watch, proc_watch) = (Arc::<SocketWatch>::default(), Arc::<sys_proc::ProcWatch>::default());
+        let (sys, procs) = (Arc::clone(&sys_watch), Arc::clone(&proc_watch));
+        let unwatch: Vec<Detach> = vec![Box::new(move || sys.unwatch()), Box::new(move || procs.unwatch())];
         Conn {
             key,
             scope,
@@ -84,8 +83,8 @@ impl Conn {
             road,
             token,
             tunnels: Tunnels::default(),
-            detaches: Mutex::new(Some(vec![unwatch])),
-            proc_watch: Mutex::new(None),
+            detaches: Mutex::new(Some(unwatch)),
+            proc_watch,
             sys_watch,
             guest: Mutex::new(None),
             port_watches: Mutex::new(HashMap::new()),

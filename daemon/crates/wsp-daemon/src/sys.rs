@@ -2,7 +2,7 @@
 //! The machine's utilisation as sys.sample events. The sampler holds the clock and the subscribers; what one
 //! kind's machine is read with is its own module behind SysSource, registered in readings.rs. The module here is
 //! the guest's: cpu from two /proc/stat readings, load from /proc/loadavg, memory from /proc/meminfo, disk from
-//! statfs on the workspace root. One sampler per daemon; the first subscriber starts it and the last one leaving
+//! statvfs on the workspace root. One sampler per daemon; the first subscriber starts it and the last one leaving
 //! stops it.
 
 use std::collections::HashMap;
@@ -99,15 +99,16 @@ pub(crate) fn read_named(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// The filesystem under a folder as statfs reads it, in bytes.
+/// The filesystem under a folder in bytes, counted in statvfs's fragment size as df counts it: a filesystem may report
+/// a statfs block size apart from it.
 pub(crate) fn disk_under(path: &Path) -> Result<Usage, String> {
-    let fs = nix::sys::statfs::statfs(path).map_err(|e| format!("statfs {}: {e}", path.display()))?;
-    #[cfg_attr(target_os = "macos", allow(clippy::unnecessary_fallible_conversions))]
-    let bsize = u64::try_from(fs.block_size()).unwrap_or(0);
-    Ok(Usage { used: fs.blocks().saturating_sub(fs.blocks_free()) * bsize, total: fs.blocks() * bsize })
+    let fs = nix::sys::statvfs::statvfs(path).map_err(|e| format!("statvfs {}: {e}", path.display()))?;
+    #[allow(clippy::useless_conversion)]
+    let (frsize, blocks, free) = (u64::from(fs.fragment_size()), u64::from(fs.blocks()), u64::from(fs.blocks_free()));
+    Ok(Usage { used: blocks.saturating_sub(free) * frsize, total: blocks * frsize })
 }
 
-/// The guest's own readings, from /proc and a statfs: the module every machine wsp forks is served by.
+/// The guest's own readings, from /proc and a statvfs: the module every machine wsp forks is served by.
 pub(crate) struct ProcSysSource {
     root: PathBuf,
     proc_root: PathBuf,
@@ -166,22 +167,39 @@ struct Inner {
 
 /// One socket's sys.watch: at most one subscription, which sys.unwatch or the socket's close ends.
 #[derive(Default)]
-pub(crate) struct SocketWatch(Mutex<Option<(u64, Arc<SysSampler>)>>);
+pub(crate) struct SocketWatch(Mutex<Held>);
+
+#[derive(Default)]
+struct Held {
+    watch: Option<(u64, Arc<SysSampler>)>,
+    /// Every unwatch this socket sent, so a watch still probing when one lands takes nothing on after it.
+    unwatches: u64,
+}
 
 impl SocketWatch {
-    /// Subscribes under the key unless this socket already watches, so a second watch is no second subscription.
-    pub(crate) fn watch(&self, sampler: Arc<SysSampler>, key: u64, out: Outbound) {
+    /// The unwatches so far, read as a watch arrives and handed back to `watch()` once its probe is done.
+    pub(crate) fn unwatches(&self) -> u64 {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).unwatches
+    }
+
+    /// Subscribes under the key unless this socket already watches, so a second watch is no second subscription, or
+    /// an unwatch came in since the watch arrived.
+    pub(crate) fn watch(&self, sampler: Arc<SysSampler>, key: u64, out: Outbound, since: u64) {
         let mut held = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        if held.is_none() {
+        if held.watch.is_none() && held.unwatches == since {
             sampler.subscribe(key, out);
-            *held = Some((key, sampler));
+            held.watch = Some((key, sampler));
         }
     }
 
     /// A socket that holds no watch changes nothing.
     pub(crate) fn unwatch(&self) {
-        let held = self.0.lock().unwrap_or_else(|e| e.into_inner()).take();
-        if let Some((key, sampler)) = held {
+        let taken = {
+            let mut held = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            held.unwatches += 1;
+            held.watch.take()
+        };
+        if let Some((key, sampler)) = taken {
             sampler.unsubscribe(key);
         }
     }
