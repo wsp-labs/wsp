@@ -716,7 +716,14 @@ export interface PendingCreate {
   body: string;
   host: string;
   pid: number;
+  /** The exact bytes the attempt sent, where the backend makes them, so every ask under the key sends the same. */
+  request?: string;
+  /** The image the attempt asked for: a machine made from it carries the image's name until wsp names it. */
+  image?: string;
 }
+
+/** How long an attempt nothing is making any more waits before the sweep asks it again: past a create's own asks. */
+export const LOST_CREATE_MS = 2 * 60_000;
 
 /** The spec minus what is minted per attempt, so the same request from two attempts reads the same. */
 export function fingerprint(spec: MachineSpec): string {
@@ -899,7 +906,7 @@ export async function readBodyUpTo(res: Response, cap: number): Promise<string> 
 
 /** The calls a backend carries only when its provider has them. One list, so a handle built out of a backend
  * forwards every one of them rather than naming the few a road happened to need. */
-export const OPTIONAL_BACKEND_CALLS = ["checkKey", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate"] as const;
+export const OPTIONAL_BACKEND_CALLS = ["checkKey", "listSnapshots", "promoteSnapshot", "getTemplate", "listTemplates", "deleteTemplate", "createRequest", "replayCreate", "namedAfter"] as const;
 
 /** Those calls bound to the backend, for a handle that stands in front of it. A backend is a module with its
  * methods on its prototype, so a spread of it carries none of them; each one is taken by name here. */

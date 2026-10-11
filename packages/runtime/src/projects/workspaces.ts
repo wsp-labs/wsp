@@ -15,7 +15,7 @@ import { TITLE_MAKE_TIMEOUT_MS } from "../types/events.js";
 import { type LiveWorkspace, settled, lastLineOf, PORT_PROBE_TIMEOUT_MS, PORT_PROBE_BODY_CAP, VAULTS } from "../types/wiring.js";
 import { loginEnvOn } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
-import { PROJECT_GOLDENS, WORKSPACE_NAMES, DELETED_REASON, type NamedWorkspace, CREATES, labelOf, readBodyUpTo, isNoHostCli, isNoGitCredential, isOnDefaultBranch, defaultBranchRefused } from "../types/internal.js";
+import { PROJECT_GOLDENS, WORKSPACE_NAMES, DELETED_REASON, type NamedWorkspace, CREATES, type PendingCreate, labelOf, readBodyUpTo, isNoHostCli, isNoGitCredential, isOnDefaultBranch, defaultBranchRefused } from "../types/internal.js";
 import type { RuntimeContext, WorkspacesArea } from "../context.js";
 
 export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
@@ -143,8 +143,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
             console.warn(`workspace ${id} failed to create and its machine ${entry.machine.id} would not stop; the record stays for wsp delete`);
           }
         }
-        // The id dies with a failed create, so nothing could ever retry under its key.
-        await store.delete(CREATES, `workspace/${id}`);
+        // The id dies with a failed create, so nothing retries under its key but the sweep, which asks again an
+        // attempt whose answer was lost and whose bytes are kept, and deletes the machine it made.
+        if (((await store.get(CREATES, `workspace/${id}`)) as PendingCreate | undefined)?.request === undefined) await store.delete(CREATES, `workspace/${id}`);
         const said = e instanceof Error ? e.message : String(e);
         report("failed", said);
         if (kept !== undefined) bus.emit({ type: "workspace.created", workspace: ctx.view(kept.record) });
