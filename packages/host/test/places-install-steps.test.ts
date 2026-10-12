@@ -350,7 +350,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
     expect(box.ran[deploy]).toContain(`join '${backUrl(4720)}' --code-file`);
     expect(box.ran[deploy]).not.toContain("192.168.1.20");
     expect(box.stages).toContain(`reach done (${dialsBackOverSshNote(urls, undefined)})`);
-    expect(dialsBackOverSshNote(urls, undefined)).toBe("cannot reach this computer at http://100.129.166.28:4720, http://192.168.1.20:4720, so it dials back over ssh");
+    expect(dialsBackOverSshNote(urls, undefined)).toBe("dials back over ssh, since this computer is not reachable at http://100.129.166.28:4720, http://192.168.1.20:4720");
     expect(box.stages).toContain("service running (it dials back over ssh (127.0.0.1:4720 on spoo))");
     expect(box.stages.join("\n")).not.toContain("dials this computer at http://127.0.0.1");
     expect(installed.back).toEqual({ boxPort: 4720 });

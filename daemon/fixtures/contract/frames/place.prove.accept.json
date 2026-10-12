@@ -55,7 +55,7 @@
       },
       "login": {},
       "runsWorkspaces": false,
-      "workspacesBlocked": "this computer's kernel has no overlay filesystem, which wsp stacks a workspace's layers on",
+      "workspacesBlocked": "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through",
       "engine": "none",
       "daemonVersion": 0,
       "wsp": [
