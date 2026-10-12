@@ -94,7 +94,9 @@ import { useShellVersionEffect } from "../../src/shell/shellVersion";
 import { openPanelTerminal } from "../../src/shell/shellCommands";
 import { WorkspaceThread } from "../../src/shell/WorkspaceThread";
 import { useComposerFilesStore } from "../../src/components/chat/composerFiles";
+import { useComposerDraftStore } from "../../src/components/chat/composerDraftStore";
 import { requestProjectTrip } from "../../src/shell/shellRequests";
+import { openForkDraft } from "../../src/components/chat/ForkDialog";
 import { GhosttyTerminalSurface } from "../../src/terminal/ghostty/surface";
 import { provideTerminals, WorkspaceTerminals, type TerminalWire } from "../../src/terminal/link";
 import { applyTheme, useTransparencyEffect } from "../../src/settings/theme";
@@ -1011,6 +1013,20 @@ if (params.get("export") === "1") {
   const ask = (): void => {
     if (document.querySelector("[data-sidebar-row]") === null) setTimeout(ask, 20);
     else requestProjectTrip({ workspaceId: "ws_a", trip: "export" });
+  };
+  ask();
+}
+// ?fork=1: Fork from here on the shown thread's reply, which opens the New thread page under the fork's banner;
+// &queued=1 adds a held message waiting its turn, so the drawer's row stands between the banner and the box.
+if (params.get("fork") === "1" && shown !== null) {
+  const ask = (): void => {
+    if (document.querySelector("[data-chat-composer]") === null) return void setTimeout(ask, 20);
+    openForkDraft({ workspaceId: shown, threadId: "s2", title: "Reply with exactly the word hi.", harness: "claude", pick: { turnId: "t1", checkpoint: null, based: false, laterChanged: false }, branchFrom: null });
+    if (params.get("queued") === "1") {
+      // The fork's fresh view goes by its workspace's key.
+      useComposerDraftStore.getState().hold(shown);
+      useComposerDraftStore.getState().enqueue(shown, "Then run the tests.");
+    }
   };
   ask();
 }
