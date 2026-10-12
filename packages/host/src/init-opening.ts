@@ -48,7 +48,10 @@ export function opening(io: Pick<InitIO, "output" | "isTTY" | "env">, o: { comma
 /** The line under the opening that names the place the image is built on, in the state line's own weight, or the
  * one saying why that is not the place --on named. */
 export function builtOn(io: Pick<InitIO, "output" | "isTTY" | "env">, place: string, kept?: string): void {
-  const out = { output: io.output };
-  const line = kept ?? imageBuiltOnLine(place);
-  log.message(io.isTTY ? muted(line, colourDepth(io.isTTY, io.env)) : line, out);
+  openingNote(io, kept ?? imageBuiltOnLine(place));
+}
+
+/** A line under the opening in the state line's own weight. */
+export function openingNote(io: Pick<InitIO, "output" | "isTTY" | "env">, line: string): void {
+  log.message(io.isTTY ? muted(line, colourDepth(io.isTTY, io.env)) : line, { output: io.output });
 }

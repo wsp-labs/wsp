@@ -1164,7 +1164,7 @@ describe("wsp up --service, wsp down and wsp status", () => {
     const lines: string[] = [];
     expect(await upServiceCommand(quietIO(lines), opts, fake.deps)).toBe(0);
     expect(lines[0]).toContain("ANTHROPIC_API_KEY is only in this shell");
-    // A public build has no cloud: the note names the threads the service runs, not workspaces it forks.
+    // With the cloud off nothing forks a workspace: the note names the threads the service runs.
     expect(lines[0]).toContain("its threads get no Claude key");
     expect(lines[0]).not.toMatch(/fork|workspace/);
     expect(lines[0]).toContain(join(home, ".wsp", ".env"));

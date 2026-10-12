@@ -16,7 +16,7 @@ import { stripVTControlCharacters } from "node:util";
 import { catalogEntry, loginSignIn, mintsToken, tokenIn } from "@wsp/catalog";
 import { keyCheckLine, type BackendPricing, type KeyCheck, type MachineBackend } from "@wsp/engine";
 import { RUNGS } from "@wsp/collect";
-import { capWaitLine, CLOUD_SETUP_WORDS, namesPlace, noSuchPlaceRefusal, FIRST_WORKSPACE, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, INIT_ROW_STATES, KEY_REFUSED, KEY_UNCHECKED, NEVER_REACHED, pasteHereLine, STOP_LEFT_MACHINE_LINE, SIGN_IN_NEVER_REACHED, LoginState, SignInFinish, startPicks, THIS_COMPUTER, initAgentNoRecipeLine, initAgentPrompt, initBuildRows, initJobBuilding, initJobOver, MACHINE_ROW_LABEL, initNeedWhat, initRowOver, initSignInOutcome, initFailedLine, initStageCount, initStoppedAt, isLocalWorkspace, isSessionEvent, noMcpServersLine, plural, takesMcpServers, threadWorkingLine, type GoldenStep, type InitJob, type InitJobEvent, type InitKeys, type InitNeedsYouEvent, type InitPhase, type InitRoad, type InitRow, type InitScreen, type InitScreenId, type InitSetup, type McpServerSpec, type TurnResult } from "@wsp/protocol";
+import { capWaitLine, subThreadsOnly, CLOUD_SETUP_WORDS, namesPlace, noSuchPlaceRefusal, tableName, FIRST_WORKSPACE, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, INIT_ROW_STATES, KEY_REFUSED, KEY_UNCHECKED, NEVER_REACHED, pasteHereLine, STOP_LEFT_MACHINE_LINE, SIGN_IN_NEVER_REACHED, LoginState, SignInFinish, startPicks, THIS_COMPUTER, initAgentNoRecipeLine, initAgentPrompt, initBuildRows, initJobBuilding, initJobOver, MACHINE_ROW_LABEL, initNeedWhat, initRowOver, initSignInOutcome, initFailedLine, initStageCount, initStoppedAt, isLocalWorkspace, isSessionEvent, noMcpServersLine, plural, takesMcpServers, threadWorkingLine, type GoldenStep, type InitJob, type InitJobEvent, type InitKeys, type InitNeedsYouEvent, type InitPhase, type InitRoad, type InitRow, type InitScreen, type InitScreenId, type InitSetup, type McpServerSpec, type PlaceKind, type SetupPlace, type TurnResult } from "@wsp/protocol";
 import { harnessCatalog, type GoldenRecipe, type InitDoor, type Runtime, type SessionHandle } from "@wsp/runtime";
 import type { AgentHere } from "./agents-here.js";
 import { vaultOf } from "./env-keys.js";
@@ -145,7 +145,7 @@ interface State {
   watching: (() => void)[];
   golden?: { version: number };
   workspace?: { id: string; name: string };
-  place?: { id: string; name: string };
+  place?: SetupPlace;
   /** Where a terminal's Ctrl-C would arrive for the run; cancel emits it. */
   signals: EventEmitter;
   handle?: SessionHandle;
@@ -278,7 +278,7 @@ export class InitJobs implements InitDoor {
     // than a nought-core machine at nought an hour, and the runtime's sentence for it rides along, so the sheet and
     // the command line say the right one. A place the ask named and this host cannot build at is that place's own
     // refusal, not a null price.
-    let built: { place: string; name: string; backend: MachineBackend } | undefined;
+    let built: { place: string; name: string; kind: PlaceKind; backend: MachineBackend } | undefined;
     let buildRefusal: string | undefined;
     try {
       built = await this.buildPlace(o.on);
@@ -293,7 +293,7 @@ export class InitJobs implements InitDoor {
       home: this.deps.home,
       agents,
       pricing: pricing === undefined ? null : { size: pricing.defaultSize, rateUsdPerHour: pricing.rateUsdPerHour(pricing.defaultSize), ...(pricing.builderDiskGb !== undefined ? { builderDiskGb: pricing.builderDiskGb } : {}) },
-      ...(built !== undefined ? { place: { id: built.place, name: built.name } } : {}),
+      ...(built !== undefined ? { place: { id: built.place, name: built.name, kind: built.kind } } : {}),
       forksOn: this.deps.forksOn(),
       ...(buildRefusal !== undefined ? { buildRefusal } : {}),
       job: this.view(),
@@ -301,16 +301,16 @@ export class InitJobs implements InitDoor {
   }
 
   /** The place a word names among those this host lists, by id and name; a word naming none is refused. */
-  private async placeNamed(word: string): Promise<{ id: string; name: string }> {
+  private async placeNamed(word: string): Promise<SetupPlace> {
     const listed = (await this.deps.rt.places?.list(Date.now())) ?? [];
     const hit = listed.find(p => namesPlace(p, word));
-    if (hit === undefined) throw new Error(noSuchPlaceRefusal(word, listed.map(p => p.name)));
-    return { id: hit.id, name: hit.name };
+    if (hit === undefined) throw new Error(noSuchPlaceRefusal(word, listed.map(tableName)));
+    return { id: hit.id, name: hit.name, kind: hit.kind };
   }
 
   /** Where the build boots and what a builder there costs, the runtime's one reading: the place named, else the
    * default place. The same call gates the build and prices the screens, so they cannot disagree. */
-  private buildPlace(on?: string): Promise<{ place: string; name: string; backend: MachineBackend }> {
+  private buildPlace(on?: string): Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }> {
     return this.deps.rt.golden.buildPlace(on);
   }
 
@@ -355,7 +355,7 @@ export class InitJobs implements InitDoor {
     if (this.starting || (this.state !== undefined && !initJobOver(this.state.phase))) throw new Error(JOB_RUNNING);
     // A job started from a computer's card is that computer's from its first view, so whatever it meets before a
     // build is said where it was started; the build still goes where buildPlace says.
-    let place: { id: string; name: string } | undefined;
+    let place: SetupPlace | undefined;
     if (o.on !== undefined) {
       this.starting = true;
       try {
@@ -508,11 +508,12 @@ export class InitJobs implements InitDoor {
     if (agents.size > 0) this.tools(s, this.deps.installTools(agents));
     s.building = true;
     s.phase = "building";
-    s.place = { id: built.place, name: built.name };
+    s.place = { id: built.place, name: built.name, kind: built.kind };
     // Every sign-in the screens chose is a row from the first frame, waiting for its turn: the handoff's own events
     // fill in the page and the outcome when they reach it, and a row the run never reaches ends as skipped, said so.
     for (const row of this.chosenSignIns(s)) s.rows.push(row);
-    const first = firstWorkspaceName(o.firstWorkspace);
+    // A cloud met through sub-threads alone gets no machine from a seal, whatever a client asked to fork.
+    const first = subThreadsOnly(built.place) ? undefined : firstWorkspaceName(o.firstWorkspace);
     // The import rides the fork, so with no name there is no folder to land either, and no row for either: a step
     // nobody was asked is not counted.
     const folder = first === undefined ? undefined : folderOf(o.importFolder);
