@@ -2,7 +2,9 @@
 // The host's events that become notices, one rule per event type. A notice is
 // for what happened away from where the person is looking: an event whose home
 // is on screen (that thread open, that computer's row showing, that build's
-// rows drawn) is the panel's to show and says nothing here. A computer going
+// rows drawn) is the panel's to show and says nothing here, except how a
+// setup ended, said once wherever the person is unless Add a computer is in
+// front of that computer, whose close says it instead. A computer going
 // quiet is the machine's life and never a notice: the thread on screen and the
 // computer's row say it where it matters. A wait (a build's
 // need, a thread's prompt) is keyed and stands until the event that closes it,
@@ -16,13 +18,13 @@
 // sound while the person keeps that switch on. The
 // dock's badge counts the threads waiting on the person. A newer release is
 // never a notice: the sidebar's update card says it.
-import { NOTIFY_ME, waitLine, setupNeedsYouLine, setupReadyLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
+import { NOTIFY_ME, waitLine, setupNeedsYouLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import type { ProtocolEvent } from "../protocol/client.js";
 import { threadOnScreen, useProtocolEvents, useStore } from "../protocol/store.js";
 import { desktopBridge } from "../lib/desktopShell.js";
 import { placeName } from "../settings/places.js";
-import { openSetup, useAddFlow } from "../settings/add/addFlow.js";
+import { openSetup, sayEnded, useAddFlow } from "../settings/add/addFlow.js";
 import { useSettingsStore } from "../settings/settingsStore.js";
 import { needsYouRoad, type NeedsYouRoad } from "../shell/needsYou.js";
 import { copyName } from "../sidebar/workspaceRows.js";
@@ -118,6 +120,9 @@ interface Held {
   /** The sign-in waits said, by computer and sign-in row, with the computer and the run they were said for: each is
    * said once while it stands. */
   waits: Map<string, { placeId: string; addId: string }>;
+  /** The setups that ended, by computer, with the record as it stood at the end: the end rides ahead of the rows it
+   * ended with, so how it ended waits for the list's next read. */
+  ready: Map<string, { addId: string; seen: PlaceView }>;
 }
 
 /** The key a sign-in's wait is said under, one per computer and sign-in, so the frames it rides say it once. */
@@ -132,6 +137,20 @@ function settleWaits(h: Held, places: readonly PlaceView[]): void {
     // A record that has not caught up with the run that said the wait says nothing about it yet.
     if (setup?.addId !== addId || setup.waiting.some(w => waitKey(placeId, w.row) === key && w.state === "waiting")) continue;
     endWait(h, key);
+  }
+}
+
+/** The read after a setup's end: how it ended, said once a run off the rows it brings, unless the dialog is in front
+ * of that computer, whose close says it. */
+function settleReady(h: Held, places: readonly PlaceView[]): void {
+  for (const [placeId, { addId, seen }] of h.ready) {
+    const place = places.find(p => p.id === placeId);
+    // The read brings the run afresh: the computer coming or going keeps the run it had, and a read asked before the
+    // end, which the client shares, can answer after it with the run still going.
+    if (place !== undefined && (place.setup === seen.setup || (place.setup?.addId === addId && place.setup.state === "running"))) continue;
+    h.ready.delete(placeId);
+    const flow = useAddFlow.getState();
+    if (place?.setup?.addId === addId && place.setup.state === "done" && place.setup.waiting.length === 0 && !(flow.open && flow.placeId === placeId)) sayEnded(place);
   }
 }
 
@@ -217,10 +236,13 @@ const RULES: { [T in ProtocolEvent["type"]]?: Rule<T> } = {
       toast({ kind: "error", text: HOST_NOTICE_WORDS.notSetUp(name, e.said ?? ""), where: name, action: open });
       sayOutside(held, open.run, lineFor({ kind: "setupFailed", computer: name, said: e.said ?? "" }));
     } else if (e.end === "needs-you") {
-      toast({ kind: "note", text: setupNeedsYouLine(name, e.said ?? ""), where: name, action: open });
+      // A sign-in still waiting is said now; a folder or GitHub that did not land waits for the read that brings it.
+      const run = place.setup?.addId === e.addId ? place.setup : undefined;
+      if (run === undefined || run.waiting.length > 0) toast({ kind: "note", text: setupNeedsYouLine(name, e.said ?? ""), where: name, action: open });
+      else held.ready.set(e.placeId, { addId: e.addId, seen: place });
       sayOutside(held, open.run, lineFor({ kind: "setupNeedsYou", computer: name, what: e.said ?? "" }));
     } else {
-      toast({ kind: "done", text: setupReadyLine(name, e.said), where: name, action: open });
+      held.ready.set(e.placeId, { addId: e.addId, seen: place });
       sayOutside(held, open.run, lineFor({ kind: "setupReady", computer: name, ...(e.said !== undefined ? { missed: e.said } : {}) }));
     }
   },
@@ -308,7 +330,7 @@ export function useHostNotices(): void {
   const needed = useStore(s => s.initJob?.needsYou !== undefined || Object.values(s.sessions).some(rows => rows.some(row => row.asking !== undefined)));
   // Counted where the rows land, so a window showing a thread, which moves its read stamp, takes it off the dock.
   const waiting = useStore(s => needsYouCount(Object.values(s.sessions).flat()));
-  const held = useRef<Held>({ road: null, need: undefined, shown: false, jobsEnded: new Set(), results: new Map(), waits: new Map() });
+  const held = useRef<Held>({ road: null, need: undefined, shown: false, jobsEnded: new Set(), results: new Map(), waits: new Map(), ready: new Map() });
   useEffect(() => {
     const h = held.current;
     const built = needsYouRoad();
@@ -329,6 +351,7 @@ export function useHostNotices(): void {
     h.shown = buildOnScreen(useStore.getState().initJob?.place?.id);
     const offStore = useStore.subscribe((s, prev) => {
       if (s.places !== prev.places && h.waits.size > 0) settleWaits(h, s.places);
+      if (s.places !== prev.places && h.ready.size > 0) settleReady(h, s.places);
       if (s.initJob !== prev.initJob && h.need !== undefined && s.initJob?.needsYou?.what !== h.need) {
         h.need = undefined;
         useNotices.getState().end(NEED_KEY);
