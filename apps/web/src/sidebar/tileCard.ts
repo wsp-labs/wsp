@@ -56,7 +56,8 @@ export function tileCardLines(o: TileCardInput): { title: string; lines: TileCar
 /** Whether a tile's second row ends in the pull request's icon: only while it is open. */
 export const tilePrIcon = (pr: { readonly state: PullRequestState } | undefined): boolean => pr?.state === "open";
 
-const minutesWord = (ms: number): string => {
+/** A stretch to come in whole minutes, past an hour in hours and minutes. */
+export const minutesWord = (ms: number): string => {
   const minutes = Math.max(1, Math.ceil(ms / 60_000));
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 === 0 ? "" : ` ${minutes % 60} min`}`;
 };

@@ -19,6 +19,9 @@ export const SubResult = z.object({
   norepo: z.literal(true).optional(),
   readFailed: z.string().optional(),
   readAt: z.string(),
+  /** Why the agent's last push of the branch was refused, as the done read found it in the branch's push log: a token
+   * that cannot write, a protected branch. Absent where no push was refused or none was tried. */
+  pushRefused: z.string().optional(),
 });
 export type SubResult = z.infer<typeof SubResult>;
 

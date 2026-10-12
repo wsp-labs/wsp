@@ -11,7 +11,8 @@ import { agentName } from "@wsp/catalog";
 import { AT_ITS_TERMINAL, GITHUB_ROW, MCP_ID_PREFIX, NO_RECIPE, agentOfRow, waitsForInstallLine, SETUP_STEP_WORDS, SETUP_WORDS, SIGNED_IN_THERE, placeWord, signInOfRow, plural, type RecipeFile, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupEvent, type PlaceSetupStep, type PlaceView, type PlaceWait } from "@wsp/protocol";
 
 /** A row's state as the marks draw it: a sign-in the person set aside reads skipped. */
-export type StepState = "waiting" | "working" | "done" | "skipped" | "needs-you" | "failed";
+/** `warned` is a line a step passed with, said and not stopped on. */
+export type StepState = "waiting" | "working" | "done" | "skipped" | "needs-you" | "failed" | "warned";
 
 /** One row of a list of steps: its state, a note, how long it took, a failure's two sentences, a sign-in's wait,
  * and whether it is an item under a step rather than a step. */

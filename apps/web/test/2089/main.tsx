@@ -11,10 +11,12 @@
 // product's own components over the wire's shapes. A switcher floats at the top
 // right; ?bar=0 hides it for a shot.
 import { createRoot } from "react-dom/client";
-import { DEFAULT_PREFERENCES, subHeldLine, subOomLine, type HarnessCatalog, type PlaceSettingWord, type PlaceSettingsAsk, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type SubRow, type ThreadCapWait, type WorkspaceView } from "@wsp/protocol";
+import { DEFAULT_PREFERENCES, SUB_SPAWN_WORDS, subHeldLine, subOomLine, subUncommittedLine, type HarnessCatalog, type InitSetup, type PlaceSettingWord, type PlaceSettingsAsk, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type SubRow, type ThreadCapWait, type WorkspaceView } from "@wsp/protocol";
 import { TooltipProvider } from "../../src/components/ui/tooltip";
 import type { Api, ProtocolEvent } from "../../src/protocol/client";
 import { getLive } from "../../src/machine/live";
+import { useSpawnLogs } from "../../src/components/chat/spawnLog";
+import type { StepLine } from "../../src/settings/add/setup";
 import { useStore } from "../../src/protocol/store";
 import { useRightPanelStore } from "../../src/rightPanelStore";
 import { AppShell } from "../../src/shell/AppShell";
@@ -32,7 +34,7 @@ const params = new URLSearchParams(window.location.search);
 const theme: "light" | "dark" = params.get("theme") === "light" ? "light" : "dark";
 const picks = { lightTheme: DEFAULT_PREFERENCES.lightTheme, darkTheme: DEFAULT_PREFERENCES.darkTheme };
 applyTheme({ theme, ...picks }, theme === "dark");
-const STATES = ["starting", "waiting-machines", "waiting-minute", "running", "not-pushed", "deleting", "released", "oom", "forgotten", "boat", "remove"] as const;
+const STATES = ["starting", "starting-failed", "waiting-machines", "waiting-minute", "running", "not-pushed", "deleting", "released", "oom", "forgotten", "computers", "boat", "remove"] as const;
 type State = (typeof STATES)[number];
 const state: State = (STATES as readonly string[]).includes(params.get("state") ?? "") ? (params.get("state") as State) : "running";
 
@@ -61,9 +63,13 @@ let boat: PlaceView = {
   cap: BOAT_DEFAULTS.cap,
   capDefault: BOAT_DEFAULTS.cap,
   settings: {},
-  running: 3,
+  // The machines holding a slot: the two running sub-threads, as the Machines column counts them; &near=1 has the
+  // day's starts and the machines at once both near their limits, to show the warning ink.
+  running: params.get("near") === "1" ? 3 : 2,
   plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
-  starts: { minute: { used: 3, limit: 12 }, hour: { used: 41, limit: 60 }, day: { used: 187, limit: 200 } },
+  starts: { minute: { used: 3, limit: 12 }, hour: { used: 14, limit: 60 }, day: { used: params.get("near") === "1" ? 187 : 62, limit: 200 } },
+  creditHours: 41.5,
+  spentTodayUsd: 1.2,
   size: SMALL,
   sizeDefault: SMALL,
   deleteAfterMs: BOAT_DEFAULTS.deleteAfterMs,
@@ -106,17 +112,20 @@ function focus(): Sub {
   const base = { key: "fix", title: FOCUS_TITLE, branch: FOCUS_BRANCH };
   switch (state) {
     case "starting":
-      return { ...base, phase: "waking", status: "running", sub: { state: "starting" }, startedAt: ago(0.2) };
+      return { ...base, phase: "waking", status: "running", sub: { state: "starting" }, startedAt: ago(0.6) };
+    case "starting-failed":
+      return { ...base, phase: "waking", status: "failed", sub: { state: "starting" }, startedAt: ago(1.2), endedAt: ago(0.1) };
     case "waiting-machines":
       return { ...base, phase: "queued", status: "running", sub: { state: "waiting" }, startedAt: ago(1), queue: { since: new Date(ago(1)).toISOString(), why: "slot" }, capped: { placeId: "box", place: "Boat", running: 3, atOnce: 3, why: "slot" } };
     case "waiting-minute":
       return { ...base, phase: "queued", status: "running", sub: { state: "waiting" }, startedAt: ago(0.4), queue: { since: new Date(ago(0.4)).toISOString(), why: "minute" }, capped: { placeId: "box", place: "Boat", running: 12, atOnce: 12, why: "minute" } };
     case "running":
+    case "computers":
     case "boat":
       return { ...base, phase: "running", status: "running", sub: { state: "running" }, startedAt: ago(13), accruedUsd: 0.004 };
     case "not-pushed":
     case "remove":
-      return { ...base, phase: "napping", status: "completed", sub: { state: "napping", held: { commits: 2, files: 3 }, result: { branch: FOCUS_BRANCH, pushedSha: null, commits: 2, unpushed: 2, changed: 3, readAt: new Date(ago(4)).toISOString() } }, startedAt: ago(31), endedAt: ago(4), unread: true, reply: "The test now waits for the upload's own done event instead of a fixed 200 ms. Two commits on the branch; I could not push them, the remote refused my token.", accruedUsd: 0.009 };
+      return { ...base, phase: "napping", status: "completed", sub: { state: "napping", held: { commits: 2, files: 3 }, result: { branch: FOCUS_BRANCH, pushedSha: null, commits: 2, unpushed: 2, changed: 3, readAt: new Date(ago(4)).toISOString(), pushRefused: "github.com answered 403, the token on Boat cannot write to acme/web" } }, startedAt: ago(31), endedAt: ago(4), unread: true, reply: "The test now waits for the upload's own done event instead of a fixed 200 ms. Two commits on the branch; I could not push them, the remote refused my token.", accruedUsd: 0.009 };
     case "deleting":
       return { ...base, phase: "napping", status: "completed", sub: { state: "napping", deleteAt: Date.now() + 18 * MIN, ...pushed(FOCUS_BRANCH) }, startedAt: ago(26), endedAt: ago(12), unread: true, reply: "Pushed wsp/fix-the-flaky-upload-test: the test waits for the upload's done event. 40 runs green in a row.", accruedUsd: 0.008 };
     case "released":
@@ -186,7 +195,8 @@ const LEAD: SessionView = { id: "s_lead", threadId: "thr_lead", workspaceId: LEA
 const historyOf = (s: Sub): SessionEvent[] => {
   const scope = { workspaceId: `ws_${s.key}`, sessionId: `s_${s.key}`, turnId: `turn_${s.key}`, threadId: threadOf(s) };
   const start: SessionEvent = { type: "session.start", ...scope, agent: "claude", model: "claude-opus-5-5", cwd: "/root/web", prompt: PROMPT_OF[s.key] ?? s.title, at: s.startedAt } as SessionEvent;
-  if (s.sub.state === "waiting" || s.sub.state === "starting") return [start];
+  if (s.sub.state === "starting") return [];
+  if (s.sub.state === "waiting") return [start];
   const work: SessionEvent = { type: "session.delta", ...scope, kind: "text", at: s.startedAt + MIN, text: "Fetched the branch and ran the upload suite 20 times: 2 failures, both in `resumes after a dropped part`, which sleeps 200 ms and then asserts the part was sent again." } as SessionEvent;
   if (s.endedAt === undefined) return [start, work];
   const reply: SessionEvent[] = s.reply === undefined ? [] : [{ type: "session.delta", ...scope, kind: "text", at: s.endedAt - 1000, text: `\n\n${s.reply}` } as SessionEvent];
@@ -256,7 +266,11 @@ const api: Api = {
   nap: async () => LEAD_WS,
   wake: async () => LEAD_WS,
   capabilities: async () => caps(),
-  startSession: async () => ({ id: "s_fix", workspaceId: "ws_fix", harness: "claude", status: "running" }),
+  // Every send the page makes stands on window.sent, so a test reads what Push again or Start again asked for.
+  startSession: async opts => {
+    ((window as unknown as { sent?: unknown[] }).sent ??= []).push(opts);
+    return { id: "s_fix", workspaceId: "ws_fix", harness: "claude", status: "running" } as SessionView;
+  },
   portReach: async (_id, port) => ({ url: `http://127.0.0.1:${port}`, expiresAt: Date.now() + 3_600_000 }),
   daemon: noDaemonApi,
   sessionHistory: async (workspaceId: string) => {
@@ -274,6 +288,8 @@ const api: Api = {
   setWorkspaceLook: async () => LEAD_WS,
   listHarnesses: async () => catalogs,
   placesList: async () => ({ places: places(), adds: [] }),
+  // The keys this host holds: Boat's until it is removed, after which Add a cloud offers it again.
+  initGet: async () => ({ keys: { box: !(removed || state === "forgotten") }, home: "/Users/dev", agents: [] }) as unknown as InitSetup,
   placesSet: async (_id: string, ask: PlaceSettingsAsk, reset?: ReadonlyArray<PlaceSettingWord>) => setBoat(ask, reset),
   placeHolds: async () => ({
     forks: [],
@@ -312,7 +328,7 @@ useStore.setState({
 useStore.getState().bind(api);
 useStore.getState().select(`ws_${focused.key}`, threadOf(focused));
 useRightPanelStore.setState({ byWorkspaceId: {} });
-useRightPanelStore.getState().open(`ws_${focused.key}`, "machine");
+if (params.get("panel") !== "0") useRightPanelStore.getState().open(`ws_${focused.key}`, "machine");
 /** Presses the first element a selector finds once the page has drawn it. */
 function pressWhenDrawn(selector: string, tries = 40): void {
   const el = document.querySelector<HTMLElement>(selector);
@@ -320,11 +336,41 @@ function pressWhenDrawn(selector: string, tries = 40): void {
   else if (tries > 0) setTimeout(() => pressWhenDrawn(selector, tries - 1), 100);
 }
 // The Finished fold opens, as a person would, so every sibling's row is on the page.
-if (state !== "boat" && state !== "remove" && params.get("fold") !== "shut") setTimeout(() => pressWhenDrawn('[data-child-fold="finished"]'), 200);
+const inSettings = state === "computers" || state === "boat" || state === "remove";
+if (!inSettings && params.get("fold") !== "shut") setTimeout(() => pressWhenDrawn('[data-child-fold="finished"]'), 200);
+if (state === "computers") openSettingsGroup("computers");
 if (state === "boat" || state === "remove") {
   openSettingsGroup("computers");
   openComputerSettings("box");
   if (state === "remove") setTimeout(() => pressWhenDrawn('[data-k="remove"]'), 200);
+}
+
+/** What the spawn has said for the open sub-thread while its machine is made: the stages with the facts they read,
+ * the line it passed with, and the raw log `wsp run --on boat` prints, as the host would hand them over. */
+if (state === "starting" || state === "starting-failed") {
+  const failed = state === "starting-failed";
+  const t0 = focused.startedAt;
+  const steps: StepLine[] = [
+    { id: "branch", name: SUB_SPAWN_WORDS.branch(true), note: SUB_SPAWN_WORDS.branchFact(FOCUS_BRANCH, "a1b2c3d4e5"), state: "done", ms: 200 },
+    failed
+      ? { id: "machine", name: SUB_SPAWN_WORDS.machine("Boat", false), note: "bx_7k2q9  provisioning, then bx_m3p8a  provisioning", state: "failed", ms: 64_000, said: "Boat gave two machines in a row that could not run commands (bx_7k2q9, bx_m3p8a; request req_8f2c41); Boat is restoring badly right now.", fix: "Start it again in a few minutes." }
+      : { id: "machine", name: SUB_SPAWN_WORDS.machine("Boat", true), note: "bx_7k2q9  provisioning, cloning, ready", state: "done", ms: 31_000 },
+    { id: "uncommitted", name: subUncommittedLine(3, "web", FOCUS_BRANCH, "a1b2c3d4e5"), state: "warned" },
+    failed ? { id: "files", name: SUB_SPAWN_WORDS.files(2, false), state: "waiting" } : { id: "files", name: SUB_SPAWN_WORDS.files(2, true), note: ".env, .env.local, 4 KB", state: "done", ms: 1_400 },
+    failed ? { id: "agent", name: SUB_SPAWN_WORDS.agent("Claude Code"), state: "waiting" } : { id: "agent", name: SUB_SPAWN_WORDS.agent("Claude Code"), note: SUB_SPAWN_WORDS.agentFact("Opus 5.5", "high"), state: "working", since: Date.now() - 4_000 },
+  ];
+  const stamp = (ms: number): string => new Date(t0 + ms).toISOString().slice(11, 19);
+  const log = [
+    `${stamp(0)} checking ${FOCUS_BRANCH} against origin: pushed at a1b2c3d`,
+    `${stamp(200)} 3 uncommitted changes in web did not travel; the sub-thread starts at ${FOCUS_BRANCH} as pushed (a1b2c3d).`,
+    `${stamp(300)} starting web-fix on Boat`,
+    `${stamp(1_400)} POST /boxes 201 bx_7k2q9 (small, 2 vCPU, 4 GB) requestId=req_3a90d1`,
+    `${stamp(2_100)} bx_7k2q9 provisioning`,
+    ...(failed
+      ? [`${stamp(31_000)} bx_7k2q9 ran nothing: exec answered 502 three times`, `${stamp(31_400)} Boat gave bx_7k2q9 with nothing able to run on it (exec 502); wsp deleted it and started another.`, `${stamp(32_000)} POST /boxes 201 bx_m3p8a (small, 2 vCPU, 4 GB) requestId=req_8f2c41`, `${stamp(33_000)} bx_m3p8a provisioning`, `${stamp(64_000)} bx_m3p8a ran nothing: exec answered 502 three times`]
+      : [`${stamp(9_800)} bx_7k2q9 cloning`, `${stamp(31_300)} bx_7k2q9 ready`, `${stamp(31_900)} Daemon answered.`, `${stamp(32_100)} copying 2 files`, `${stamp(33_500)} ready`, `${stamp(33_600)} thread e17a90c3 on boat in /root/web`]),
+  ];
+  useSpawnLogs.setState({ byWorkspace: { [`ws_${focused.key}`]: { size: "small, 2 vCPU, 4 GB, $0.018/hr", steps, log } } });
 }
 
 /** A running sub-machine's live readings, two minutes of them and one more every two seconds: a test run's load and
