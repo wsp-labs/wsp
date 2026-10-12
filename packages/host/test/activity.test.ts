@@ -256,6 +256,55 @@ describe("activity on the command line", () => {
     expect(h.daemon.procs.procs.map(p => p.pid)).toContain(4200);
   });
 
+  /** A shell the thread's pane opened, a dev server running in it, as the daemon stamps them once the host names the shell;
+   * and the shell's tag in the host's state, which a delete reads to end the thread's shells. */
+  async function withShell(threadId: string): Promise<void> {
+    const owner = { by: "root" as const, thread: threadId };
+    h.daemon.procs.procs.push(
+      procRow({ pid: 5100, comm: "zsh", cmdline: "-zsh", pty: "pty_1", kind: "terminal", owner, startedAt: STARTED + 5_000, id: "88100" }),
+      procRow({ pid: 5110, ppid: 5100, comm: "node", cmdline: "node /lab/node_modules/.bin/vite --port 5199", kind: "terminal", owner, startedAt: STARTED + 5_100, id: "88110" }),
+    );
+    const workspaceId = (await h.rt.sessions.list()).find(v => v.threadId === threadId)!.workspaceId;
+    await h.store.put("pty-threads", workspaceId, { pty_1: threadId });
+  }
+
+  it("settle asks about a shell the thread's pane opened and what runs in it, and stop ends it, the thread itself too", async () => {
+    const { threadId } = await threadWithServer();
+    await withShell(threadId);
+    const refused = await h.run("thread", "settle", threadId, "--json");
+    expect(refused.code).toBe(EXIT_CODES.usage);
+    expect(failure(refused.io).error).toContain(`5100 zsh (terminal) of ${threadId.slice(0, 8)}, 5110 node (dev) of ${threadId.slice(0, 8)}`);
+    const workspaceId = (await h.rt.sessions.list()).find(v => v.threadId === threadId)!.workspaceId;
+    const self = { origin: "here" as const, by: { kind: "thread" as const, threadId, workspaceId, rootThreadId: threadId } };
+    const ended = await h.rt.activity.meet([threadId], "stop", "settle", self);
+    expect(ended.map(e => e.pid).sort()).toEqual([4200, 5100]);
+    expect(h.daemon.procs.kills.map(k => ({ pid: k["pid"], mode: k["mode"], identity: k["identity"] }))).toContainEqual({ pid: 5100, mode: "tree", identity: "88100" });
+    expect(h.daemon.procs.procs.map(p => p.pid)).not.toContain(5110);
+  });
+
+  it("delete asks about a shell the thread's pane opened, and keep leaves it running", async () => {
+    const { threadId } = await threadWithServer();
+    await withShell(threadId);
+    const refused = await h.run("delete", threadId, "--yes", "--json");
+    expect(refused.code).toBe(EXIT_CODES.usage);
+    expect(failure(refused.io).error).toContain("the thread to delete still runs 4 processes:");
+    expect(failure(refused.io).error).toContain("5100 zsh (terminal)");
+    const kept = await h.run("delete", threadId, "--processes", "keep", "--yes", "--json");
+    expect(kept.code, kept.io.errors.join("\n")).toBe(0);
+    expect(h.daemon.procs.signals).toEqual([]);
+    expect(h.daemon.ops).not.toContain("pty.kill");
+    expect(h.daemon.procs.procs.map(p => p.pid)).toEqual(expect.arrayContaining([5100, 5110]));
+  });
+
+  it("delete with stop ends a shell the thread's pane opened with the rest", async () => {
+    const { threadId } = await threadWithServer();
+    await withShell(threadId);
+    const stopped = await h.run("delete", threadId, "--processes", "stop", "--yes", "--json");
+    expect(stopped.code, stopped.io.errors.join("\n")).toBe(0);
+    expect(h.daemon.procs.kills.map(k => k["pid"])).toEqual(expect.arrayContaining([4200, 5100]));
+    expect(h.daemon.procs.procs.map(p => p.pid)).not.toContain(5100);
+  });
+
   it("a thread beside it in the same folder keeps its own processes: the refusal carries none of them, and neither stop nor keep touches them", async () => {
     const { threadId } = await threadWithServer();
     const ran = await h.run("run", "lab", "start the docs server", "--json");

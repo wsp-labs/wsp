@@ -1422,11 +1422,11 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (o.check === true && o.processes !== undefined) await ctx.activity.meet([threadId], o.processes === "stop" ? "keep" : o.processes, "delete", origin);
       if (o.check === true) return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads: 1 };
       const ended = o.processes === undefined ? [] : await ctx.activity.meet([threadId], o.processes, "delete", origin);
-      // A box's end takes the thread's cgroup with everything in it, which keep was asked to leave running.
+      // A box's end takes the thread's cgroup with everything in it, as the shells' end takes its panes' shells: keep leaves both.
       const endThread = o.processes === "keep" ? undefined : ctx.moduleOf(entry.record.kind).endThread;
       if (worktree !== undefined) {
         await endThread?.(entry, threadId, { remove: true });
-        await ctx.endThreadShells(entry, threadId);
+        if (o.processes !== "keep") await ctx.endThreadShells(entry, threadId);
         await ctx.workspaces.delete(workspaceId, origin);
         return { workspaceId, worktree, threads: 1, ...(ended.length > 0 ? { ended } : {}) };
       }
@@ -1435,7 +1435,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (ctx.threadRuns(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
       ctx.reapKept(threadId);
       await endThread?.(entry, threadId, { remove: true });
-      await ctx.endThreadShells(entry, threadId);
+      if (o.processes !== "keep") await ctx.endThreadShells(entry, threadId);
       await ctx.openThread(workspaceId, threadId);
       await ctx.dropCheckpoints(entry, threadId);
       await ctx.dropThreadFiles(entry, [threadId]);

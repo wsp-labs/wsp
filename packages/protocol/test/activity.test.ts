@@ -193,17 +193,20 @@ describe("what a thread's pane and its slate started", () => {
     expect(view.unowned.map(p => [p.pid, p.kind])).toEqual([[602, "terminal"]]);
   });
 
-  it("lets the person end a shell its pane opened, and what runs in it, and never the thread itself", () => {
-    const person = (threadId: string | undefined): boolean => threadId === undefined;
+  it("lets the thread end a shell its pane opened, and what runs in it, as the person can, and no other thread", () => {
+    const person = (): boolean => true;
     const thread = (threadId: string | undefined): boolean => threadId === LAB.threadId;
-    expect(endPlan(read(procs), 601, START + 601, person)).toMatchObject({ targets: [{ pid: 601 }] });
-    expect(endPlan(read(procs), 600, START + 600, person)).toMatchObject({ targets: [{ pid: 600 }, { pid: 601 }] });
-    for (const pid of [600, 601]) expect(() => endPlan(read(procs), pid, START + pid, thread)).toThrow(notThreadsLine(pid));
-    expect(endPlan(read(procs), 700, START + 700, thread)).toMatchObject({ targets: [{ pid: 700 }] });
+    const other = (threadId: string | undefined): boolean => threadId === KEPT.threadId;
+    for (const may of [person, thread]) {
+      expect(endPlan(read(procs), 601, START + 601, may)).toMatchObject({ targets: [{ pid: 601 }] });
+      expect(endPlan(read(procs), 600, START + 600, may)).toMatchObject({ targets: [{ pid: 600 }, { pid: 601 }] });
+    }
+    for (const pid of [600, 601]) expect(() => endPlan(read(procs), pid, START + pid, other)).toThrow(notThreadsLine(pid));
   });
 
-  it("leaves a settle what its slate runs and not its pane's shells, which its delete ends with the pane", () => {
+  it("leaves a settle or a delete what its slate runs and its pane's shells with what runs in them, to ask about", () => {
     const left = processesLeft(activityOf(read(procs)), [LAB.threadId]);
-    expect(left[0]!.processes.map(p => p.pid)).toEqual([400, 700, 701]);
+    expect(left[0]!.processes.map(p => p.pid)).toEqual([400, 600, 601, 700, 701]);
+    expect(endHeads(left[0]!.processes).map(p => p.pid)).toEqual([400, 600, 700, 701]);
   });
 });

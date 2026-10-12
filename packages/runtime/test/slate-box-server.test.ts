@@ -3,15 +3,16 @@
 // computer's agent config and started there through the daemon's stdio.open, as the login there, its variables on
 // its own stdin, and kept running between calls; this computer's config and sign-ins are never read for it. A server
 // that computer's config does not name, and a command run on="host", are refused as the slate is written.
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { slateServerNotSetUp } from "@wsp/protocol/slate";
-import { slateServerBehindLine, STDIO_DAEMON_VERSION, type SlateView } from "@wsp/protocol";
+import { slateServerBehindLine, STDIO_DAEMON_VERSION, THREAD_ENV, threadCgroup, type ProcEntry, type SlateView } from "@wsp/protocol";
 import { SERVER_NOT_SET_UP, type AgentsOn, type AgentsReader } from "../src/agents-read.js";
+import { boxSlateDir } from "../src/slate-box.js";
 import { answering, asThread, joined, type Started, type Stdio } from "./box-fixture.js";
 
 const STUB = fileURLToPath(new URL("./fixtures/stub-mcp.mjs", import.meta.url));
@@ -77,6 +78,54 @@ async function boxThread(o: { daemonVersion?: number } = {}) {
   const caller = asThread({ kind: "thread", threadId, workspaceId: at.workspace.id, rootThreadId: threadId });
   return { rt, seen, running, asked, starts, threadId, caller };
 }
+
+/** Whether a running process's environment holds a variable as its computer's daemon reads it for the thread's mark:
+ * /proc on Linux, ps on a Mac. Only the answer leaves here, never the environment, which carries the test's own. */
+function holds(pid: number, has: (entry: string) => boolean): boolean {
+  let entries: string[];
+  try {
+    entries = readFileSync(`/proc/${pid}/environ`, "utf8").split("\0");
+  } catch {
+    entries = execFileSync("ps", ["-E", "-ww", "-o", "command=", "-p", String(pid)], { encoding: "utf8" }).trim().split(" ");
+  }
+  return entries.some(has);
+}
+
+describe("a box slate's runs and the server it keeps", () => {
+  it("carry the thread's mark, so the box's daemon names the kept server the thread's, and Activity draws both under the thread", async () => {
+    const { rt, seen, running, threadId, caller } = await boxThread();
+    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
+    await rt.slates.settled();
+    const view = async (): Promise<SlateView> => (await rt.slates.get(threadId))!;
+    const ask = await rt.slates.event({ threadId, version: (await view()).version, piece: "go", event: "press", requestId: "go-0" });
+    await rt.slates.approve({ threadId, key: ask.ask!.key, scope: "thread" });
+    await vi.waitFor(async () => expect((await view()).values["items"]).toMatchObject({ state: "done" }), { timeout: 15_000 });
+
+    // The server the daemon there runs, read as that daemon reads it: the mark the host put last on its variables.
+    const server = [...running.values()][0]!;
+    expect(holds(server.pid!, e => e.startsWith("STUB_KEY="))).toBe(true);
+    const marked = holds(server.pid!, e => e === `${THREAD_ENV}=${threadId}`);
+    expect(marked).toBe(true);
+    expect(holds(server.pid!, e => e.startsWith("SLATE_DIR=") && e.endsWith(`/${threadId}`))).toBe(true);
+    const first = Buffer.from(String(seen.frames.find(f => f["op"] === "stdio.write")!["data"]), "base64").toString("utf8");
+    expect(first.indexOf(`${THREAD_ENV}\0`)).toBeGreaterThan(first.indexOf("STUB_KEY\0"));
+
+    // The daemon's rung for that mark (proc_owner.rs): the thread, kind slate beside SLATE_DIR. A run stands in the
+    // thread's cgroup, where the slate's launcher starts it.
+    const row = (pid: number, ppid: number, comm: string, over: Partial<ProcEntry>): ProcEntry => ({ pid, ppid, user: "root", state: "S", comm, cmdline: comm, cpu: 0, rss: 10_000_000, startedAt: 1_760_000_000_000 + pid, ...over });
+    seen.procs = [
+      row(1, 0, "wsp-daemon", {}),
+      row(7300, 1, "python3", { cmdline: `python3 ${boxSlateDir(threadId)}/feed.py`, cgroup: threadCgroup(threadId) }),
+      row(server.pid!, 1, "node", { cmdline: `node ${STUB}`, ...(marked ? { owner: { by: "env" as const, thread: threadId }, kind: "slate" as const } : {}) }),
+    ];
+    const read = await rt.activity.read({ thread: threadId });
+    expect(read.threads.find(t => t.threadId === threadId)?.processes.map(p => [p.pid, p.kind])).toEqual(expect.arrayContaining([[7300, "slate"], [server.pid!, "slate"]]));
+    expect(read.unowned.map(p => p.pid)).not.toContain(server.pid);
+    await rt.slates.forget(threadId);
+    await vi.waitFor(() => expect(running.size).toBe(0), { timeout: 5_000 });
+    await rt.close();
+  }, 40_000);
+});
 
 describe("a slate's tool run from a thread on a computer you joined", () => {
   it("starts its server on that computer through the daemon with that computer's config, answers the tool, and keeps the one server between calls", async () => {
