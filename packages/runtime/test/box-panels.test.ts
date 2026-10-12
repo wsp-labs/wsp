@@ -46,6 +46,10 @@ interface BoxShape {
   endHangs?: boolean;
   /** How many readings watches there are refused before one is taken, as a daemon that cannot read its computer. */
   refusesWatch?: number;
+  /** A daemon behind this host: it refuses sys.unwatch and says it is a version behind. */
+  oldDaemon?: boolean;
+  /** A readings watch there is never answered. */
+  watchHangs?: boolean;
 }
 
 /** A joined computer as its daemon answers the host: its login, a turn's launch and polls, and the panes' frames. */
@@ -82,6 +86,8 @@ function box(client: WsClient, login: { home: string; owner: string }, listening
       shape.refusesWatch! -= 1;
       return client.say({ id: frame["id"], ok: false, error: "this computer reads no load" });
     }
+    if (op === "sys.watch" && shape.watchHangs === true) return;
+    if (op === "sys.unwatch" && shape.oldDaemon === true) return client.say({ id: frame["id"], ok: false, error: "unknown op: sys.unwatch" });
     if (op?.startsWith("tunnel.") && shape.tunnels === true) return tunnel(op, frame, say);
     if (op !== "exec") return say({});
     const cmd = String(frame["cmd"]);
@@ -182,7 +188,7 @@ async function joined(o: { login?: { home: string; owner: string }; adapters: Re
   const login = o.login ?? HETZNER;
   const { hostKey, store } = await serving({ adapters: o.adapters, ...(o.clock === undefined ? {} : { clock: o.clock }) });
   let seen!: Box;
-  const sent = report("hetzner", { login: { HOME: login.home, USER: login.owner, PATH: "/usr/bin" }, daemonVersion: DAEMON_VERSION });
+  const sent = report("hetzner", { login: { HOME: login.home, USER: login.owner, PATH: "/usr/bin" }, daemonVersion: o.shape?.oldDaemon === true ? DAEMON_VERSION - 1 : DAEMON_VERSION });
   const { client, placeId, pair } = await join(hostKey, {
     code: await code(),
     report: sent,
@@ -727,6 +733,47 @@ describe("the readings of a computer the person joined, read by its page and a f
     await expect.poll(() => asked(seen, "sys.unwatch")).toBe(1);
   });
 
+  it("ride the watch a daemon behind this host is still sending after the last reader left, and never ask it twice", async () => {
+    const { rt, seen, placeId, workspaceId } = await joined({ adapters: { claude: answering([]) }, shape: { oldDaemon: true } });
+    // That daemon sends one copy of each sample per sys.watch its socket was sent.
+    const tick = (at: number): void => {
+      for (let i = 0; i < asked(seen, "sys.watch"); i++) seen.client.say(sample(at));
+    };
+    const first = await pane(rt, workspaceId, []);
+    expect(await first.send({ id: 1, op: "sys.watch" })).toMatchObject({ ok: true });
+    first.close();
+    const heard: Record<string, unknown>[] = [];
+    const second = await pane(rt, workspaceId, heard);
+    expect(await second.send({ id: 1, op: "sys.watch" })).toMatchObject({ ok: true });
+    tick(1);
+    await expect.poll(() => heard.filter(e => e["type"] === "sys.sample")).toEqual([sample(1)]);
+    second.close();
+
+    const c = await page();
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    expect(await c.request("sys.unsubscribe", { placeId })).toMatchObject({ ok: true });
+    expect(await c.request("sys.subscribe", { placeId })).toMatchObject({ ok: true });
+    expect([asked(seen, "sys.watch"), asked(seen, "sys.unwatch")]).toEqual([1, 0]);
+    tick(2);
+    await expect.poll(() => onPage(c, placeId)).toEqual([sample(2)]);
+  });
+
+  it("keep a page whose subscribe was in flight when the link dropped, and ask for it on the link that comes back", async () => {
+    const shape: BoxShape = { watchHangs: true };
+    const { seen, placeId, back } = await joined({ adapters: { claude: answering([]) }, shape });
+    const c = await page();
+    const subscribed = c.request("sys.subscribe", { placeId });
+    await expect.poll(() => asked(seen, "sys.watch")).toBe(1);
+    seen.client.close();
+    expect(await subscribed).toMatchObject({ ok: true });
+
+    shape.watchHangs = false;
+    const again = await back();
+    await expect.poll(() => asked(again, "sys.watch")).toBe(1);
+    again.client.say(sample(1));
+    await expect.poll(() => onPage(c, placeId)).toEqual([sample(1)]);
+  });
+
   it("say the daemon's refusal of the watch, and keep nothing of it: the next reader on that link asks again", async () => {
     const shape: BoxShape = { refusesWatch: 1 };
     const { rt, seen, placeId, workspaceId, back } = await joined({ adapters: { claude: answering([]) }, shape });
@@ -756,6 +803,7 @@ describe("the readings of a computer the person joined, read by its page and a f
     expect(await c.request("sys.subscribe", { placeId: "p_nowhere" })).toMatchObject({ ok: false, error: expect.stringMatching(/no place named p_nowhere/) });
     expect(await c.request("sys.subscribe", { placeId, workspaceId })).toMatchObject({ ok: false, error: SYS_SUBSCRIBE_ONE_OF });
     expect(await c.request("sys.subscribe", {})).toMatchObject({ ok: false, error: SYS_SUBSCRIBE_ONE_OF });
+    expect(await c.request("sys.unsubscribe", { placeId, workspaceId })).toMatchObject({ ok: false, error: SYS_SUBSCRIBE_ONE_OF });
   });
 });
 
