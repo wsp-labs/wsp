@@ -548,12 +548,14 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     const setup = place === undefined ? undefined : setups.launchOf(place, harness);
     const carried = kind.serverValues === "environment" ? servers : {};
     const ofTurn = thread !== undefined && kind.endThread !== undefined ? { thread, ...(asksUntilStopped !== undefined ? { asksUntilStopped } : {}) } : asksUntilStopped !== undefined ? { asksUntilStopped } : undefined;
+    // The agent's run alone is read for a memory kill: a command run with wsp exec there keeps its own exit code.
+    const killed = entry.record.sub !== undefined ? { killedWhy: (at: number) => ctx.subKilledWhy(entry, at) } : undefined;
     return {
       harness,
       adapter: factory({
         machine: entry.machine,
         workspaceId: entry.record.id,
-        execStream: ctx.execFactoryFor(entry, ofTurn === undefined ? ctx.turnLimitOf(entry.record) : { ...ctx.turnLimitOf(entry.record), ...ofTurn }, waiting),
+        execStream: ctx.execFactoryFor(entry, ofTurn === undefined && killed === undefined ? ctx.turnLimitOf(entry.record) : { ...ctx.turnLimitOf(entry.record), ...ofTurn, ...killed }, waiting),
         home: id => agentHome(entry, id),
         // The person's variables over the computer's own and under the turn's, which only wsp sets.
         env: { ...carried, ...threadEnv(entry, harness), ...turnEnv },
