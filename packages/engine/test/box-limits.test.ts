@@ -30,9 +30,15 @@ const json = (body: unknown, status = 200): Response => new Response(JSON.string
 describe("Boat's plan and starts on its row", () => {
   it("reads the owner's plan, its machines at once, the sizes it sells and the starts used in each window", () => {
     expect(placeLimitsOf(limitsOf(OWNER_LIMITS))).toEqual({
-      plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
+      plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"], running: 11 },
       starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
+      creditHours: 81.6,
     });
+  });
+
+  it("names each size it offers by its class, one word a person reads", () => {
+    const backend = new BoxBackend({ apiKey: "box_x", clock: { now: Date.now, sleep: async () => {} } as RetryClock, fetch: (async () => json({})) as typeof fetch });
+    expect(backend.capabilities.sizes.map(s => s.name)).toEqual(["small", "default", "large", "extra large"]);
   });
 
   it("sells 16x32 from the $100 plan up, and two sizes on the trial", () => {

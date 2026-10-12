@@ -19,8 +19,43 @@ export const SubResult = z.object({
   norepo: z.literal(true).optional(),
   readFailed: z.string().optional(),
   readAt: z.string(),
+  /** Why the agent's last push of this turn was refused, read off that push's output in the transcript where it
+   * failed: the remote's words for a token that cannot write or a protected branch. Absent where it went through,
+   * none was tried, or the transcript no longer holds it. */
+  pushRefused: z.string().optional(),
 });
 export type SubResult = z.infer<typeof SubResult>;
+
+/** The steps a start of a sub-thread's machine took, as the host wrote them while it went: the lead's branch it read
+ * (absent on a resume, which reads none), the machine the cloud made with the cloud's own states for it as they
+ * changed, the picked files it landed, when the machine stood for the agent, and the step it failed on with the two
+ * halves of why. Each step's `ms` is set once it is done; `since` is when it began. The lines a start passes with
+ * ride beside them, and `log` keeps its stage lines as the command line prints them, the newest SUB_SPAWN_LOG_LINES. */
+export const SubSpawn = z.object({
+  startedAt: z.number(),
+  branch: z.object({ branch: z.string(), sha: z.string(), ms: count }).optional(),
+  machine: z.object({ since: z.number(), id: z.string().optional(), states: z.array(z.string()), ms: count.optional() }).optional(),
+  files: z.object({ since: z.number(), paths: z.array(z.string()), bytes: count, ms: count.optional() }).optional(),
+  readyAt: z.number().optional(),
+  failed: z.object({ step: z.enum(["machine", "files"]), said: z.string(), fix: z.string().optional() }).optional(),
+  /** Changes in the lead's folder nobody committed, which did not travel. */
+  uncommitted: count.optional(),
+  /** The message a send into the released sub-thread asked, kept until its machine stands: a start that fails writes
+   * no turn, so this is what Try again sends again. */
+  asked: z.string().optional(),
+  /** Why no git-ignored file went. */
+  notSent: z.string().optional(),
+  /** A machine that failed before the agent started and was replaced, in its line. */
+  replaced: z.array(z.string()).optional(),
+  log: z.array(z.string()),
+});
+export type SubSpawn = z.infer<typeof SubSpawn>;
+
+/** How many stage lines a start keeps for its log. */
+export const SUB_SPAWN_LOG_LINES = 40;
+
+/** Whether a start is still under way: begun, neither standing nor failed. */
+export const subSpawning = (spawn: SubSpawn | undefined): boolean => spawn !== undefined && spawn.readyAt === undefined && spawn.failed === undefined;
 
 /** A sub-thread's machine as its row reads it: starting before its first turn has run, running, napping (asleep, held
  * or waiting on its delete), and released once the box is deleted at the cloud with the thread kept. */
@@ -35,7 +70,8 @@ export const SubRow = z.object({
   state: SubState,
   on: z.string(),
   machine: z.string(),
-  size: z.object({ cpu: z.number().int(), memMb: z.number().int() }),
+  /** `name` is the class the cloud sold it as; absent on a record from before the name was kept. */
+  size: z.object({ cpu: z.number().int(), memMb: z.number().int(), name: z.string().optional() }),
   /** Absent on a record from before the rate was kept. */
   rateUsdPerHour: z.number().optional(),
   branch: z.string(),
@@ -48,6 +84,8 @@ export const SubRow = z.object({
   cloudGone: z.literal(true).optional(),
   /** Why the agent's session is not kept on the host, so a send after the delete goes on from the transcript. */
   sessionNotKept: z.string().optional(),
+  /** The latest start of its machine. Absent on a record from before starts were written down. */
+  spawn: SubSpawn.optional(),
 });
 export type SubRow = z.infer<typeof SubRow>;
 

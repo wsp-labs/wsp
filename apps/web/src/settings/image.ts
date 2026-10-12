@@ -69,7 +69,7 @@ export const copyCost = (rateUsdPerHour: number | undefined): string[] =>
 
 /** The clock and the date this section spells a stamp with, both in the app's own locale, as every other stamp in
  * the app reads: the shape of a stamp is the app's and not the shell's the run happens to start in. */
-const CLOCK = new Intl.DateTimeFormat(APP_LOCALE, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+export const CLOCK = new Intl.DateTimeFormat(APP_LOCALE, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const DAY = new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" });
 
 /** The record as chips: which version it is, what the image came to on disk and how many sign-ins it holds. A field

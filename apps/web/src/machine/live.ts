@@ -20,10 +20,13 @@ export const LIVE_WINDOW = 60;
  * top cannot say napping in the rows under it, and the pane of a computer whose daemon is not running cannot say
  * unreachable in the slot over a sentence that says which part is down. Null while the reading is live and the
  * slot is a value's. One rule, because the Live section and the Processes table both ask it. */
-export type StaleWord = "paused" | "unreachable" | AwayWord | null;
+export type StaleWord = "paused" | "waiting" | "deleted" | "unreachable" | AwayWord | null;
 
 export function staleWord(phase: WorkspacePhase, live: boolean): StaleWord {
   if (pausedOrPausing(workspaceState({ phase }))) return "paused";
+  // A sub-machine not made yet, or deleted once its thread was done, has nothing to read.
+  if (phase === "queued") return "waiting";
+  if (phase === "released") return "deleted";
   return live ? null : "unreachable";
 }
 
