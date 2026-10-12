@@ -6,7 +6,7 @@
 import { LogInIcon, PencilIcon, XIcon, type LucideIcon } from "lucide-react";
 import { agentName, catalogEntry, hasLogin, loginIdOf, loginThere, mintsToken, serverSignInRoad, signInRoadOf } from "@wsp/catalog";
 import { outcomeWord } from "../../settings/places.js";
-import { agentOfRow, type AgentRow, type AgentsProject, type AgentsReport, type AgentsTarget, type McpRow, type McpScope, type PageReach, type PlaceProvisionRow, type PluginRow, type PluginScope, type SealedImage, type ServerAdd, type ServerToolsAnswer, type SignInRoad, type SkillHit, type SkillPreview, type SkillRow } from "@wsp/protocol";
+import { agentOfRow, type AgentRow, type AgentsProject, type AgentsReport, type AgentsTarget, type McpRow, type McpScope, type PageReach, type PlaceProvisionRow, type PluginRow, type PluginScope, type SealedImage, type ServerAdd, type ServerToolsAnswer, type SignInRoad, type SkillHit, type SkillPreview, type SkillRow, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
 
 /** Where the report was read, which decides which acts a row offers: this computer, a joined box (its page, or a task
  * standing on it), a fork at a cloud (a copy, so every act is the image's), or a cloud's own page (the image's rows). */
@@ -33,7 +33,7 @@ export const AGENTS_LIST_WORDS = {
   noSignInNeeded: "no sign-in needed",
   keyFromEnvironment: "key from the environment",
   needsSignIn: "needs sign-in",
-  yourKey: "your key",
+  withToken: TOKEN_SIGN_IN_WORD,
   notChecked: "not checked",
   notInstalled: "not installed",
   availableToInstall: "Available to install",
