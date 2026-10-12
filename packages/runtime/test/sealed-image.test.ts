@@ -546,9 +546,9 @@ describe("where an image build goes", () => {
     const { other, places } = twoPlaces();
     const { backend, rt } = started({ places });
     const named = await rt.golden.buildPlace("solari");
-    expect([named.place, named.name, named.backend]).toEqual(["solari", "solari", other]);
+    expect([named.place, named.name, named.backend]).toEqual(["solari", "Solari", other]);
     const unnamed = await rt.golden.buildPlace();
-    expect([unnamed.place, unnamed.name, unnamed.backend]).toEqual(["box", "box", backend]);
+    expect([unnamed.place, unnamed.name, unnamed.backend]).toEqual(["box", "Boat", backend]);
     await expect(rt.golden.buildPlace("nowhere")).rejects.toMatchObject({ kind: "missing", message: expect.stringContaining("no place named nowhere") });
     await rt.close();
   });
@@ -565,8 +565,8 @@ describe("where an image build goes", () => {
     const none = new NoProviderBackend();
     const solari = stubBackend();
     const rt = createRuntime({ backend: none, store: memoryStore(), adapters: {}, goldenRecipe: recipeWith(), hostId: "h1", places: forking({ none, solari }, "none") });
-    await expect(rt.workspaces.landing({ project: (await projectOn(rt, "none")).id })).rejects.toThrow(placeForksNothingPickLine("none", ["solari"]));
-    await expect(createOn(rt, { on: "none", golden: "snap_x", name: "x" })).rejects.toThrow(placeForksNothingPickLine("none", ["solari"]));
+    await expect(rt.workspaces.landing({ project: (await projectOn(rt, "none")).id })).rejects.toThrow(placeForksNothingPickLine("none", ["Solari"]));
+    await expect(createOn(rt, { on: "none", golden: "snap_x", name: "x" })).rejects.toThrow(placeForksNothingPickLine("none", ["Solari"]));
     expect(solari.machines).toEqual([]);
     await rt.close();
     const alone = createRuntime({ backend: none, store: memoryStore(), adapters: {}, goldenRecipe: recipeWith(), hostId: "h1", places: forking({ none }, "none") });
@@ -584,7 +584,7 @@ describe("where an image build goes", () => {
     await one.close();
     const box = stubBackend();
     const two = createRuntime({ backend: none, store: memoryStore(), adapters: {}, goldenRecipe: recipeWith(), hostId: "h1", places: forking({ none, solari, box }, "none") });
-    await expect(two.golden.buildPlace()).rejects.toThrow(buildPlaceAskLine(["solari", "box"]));
+    await expect(two.golden.buildPlace()).rejects.toThrow(buildPlaceAskLine(["Solari", "Boat"]));
     await two.close();
   });
 });

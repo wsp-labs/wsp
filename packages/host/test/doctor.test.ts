@@ -1124,7 +1124,7 @@ describe("the word wsp doctor takes", () => {
 
   it("refuses a word that names no row of this host, with the rows it holds and the line that lists them", () => {
     // The same refusal every road that takes a place word gives, and the line a person runs to read the names.
-    expect(() => doctorRow(places, "nosuchbox")).toThrow(noSuchPlaceRefusal("nosuchbox", ["zingzys-macbook-pro.local", "spoo", "solari"]));
+    expect(() => doctorRow(places, "nosuchbox")).toThrow(noSuchPlaceRefusal("nosuchbox", ["zingzys-macbook-pro.local", "spoo", "Solari"]));
     expect(() => doctorRow(places, "nosuchbox")).toThrow("Run wsp computers to read the ones this host holds.");
     // A host that has joined no computer holds its own row all the same, so the names are never an empty list.
     expect(() => doctorRow([places[0]!], "spoo")).toThrow(noSuchPlaceRefusal("spoo", ["zingzys-macbook-pro.local"]));

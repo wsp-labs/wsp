@@ -20,5 +20,6 @@ export * from "./words/computer.js";
 export * from "./words/init.js";
 export * from "./words/thread.js";
 export * from "./words/image.js";
-export { PROVIDER_KEY_WORDS, providerKeyName, SOLARI_CONSOLE } from "./place-word.js";
+export * from "./words/boat.js";
+export { PROVIDER_KEY_WORDS, placeSaid, providerKeyName, SOLARI_CONSOLE, subThreadsOnly, type ProviderKeyWords } from "./place-word.js";
 export { oneLine } from "./quote.js";

@@ -25,6 +25,7 @@ import {
   joinToken,
   absentComputer,
   noSuchPlaceRefusal,
+  providerKeyName,
   placeUnsavedRefusal,
   placeAwayRefusal,
   placeForgetAnswersRefusal,
@@ -421,7 +422,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       const marked = (await markHeld()) ?? HERE_PLACE_ID;
       const record = placeId === HERE_PLACE_ID ? undefined : await recordOf(placeId);
       const row = placeId === HERE_PLACE_ID ? hereRow(marked) : record !== undefined ? joinedRow(record, marked) : providerIds().includes(placeId) ? providerRow(placeId, marked) : undefined;
-      if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, [wiring.here().name, ...(await records()).map(r => r.name), ...providerIds()])), { kind: "usage" });
+      if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, [wiring.here().name, ...(await records()).map(r => r.name), ...providerIds().map(providerKeyName)])), { kind: "usage" });
       const renamed = also.name?.trim();
       const ssh = also.ssh?.trim();
       const { spawn, ...rest } = set;
