@@ -24,6 +24,7 @@ const hetzner: PlaceView = {
   lastSeenAt: ago(3_000),
 };
 const laptop: PlaceView = { ...hetzner, id: "p_2", name: "old-macbook", default: false, takesRuntime: false, shape: { cpu: 4, memMb: 8 * 1024 }, diskFreeBytes: 91 * 1024 ** 3, engine: "none", present: false, lastSeenAt: ago(2 * 60 * 60 * 1000) };
+const SOLARI: PlaceView = { id: "solari", kind: "provider", name: "solari", default: false, rateUsdPerHour: 0.11, takesForks: true };
 const ascii: PlaceView = { id: "box", kind: "provider", name: "box", default: false, shape: { cpu: 2, memMb: 4 * 1024 }, diskFreeBytes: 40 * 1024 ** 3, rateUsdPerHour: 0.018, takesForks: true };
 
 describe("what the section computes beyond the table's own cells", () => {
@@ -85,11 +86,25 @@ describe("the remove sentence", () => {
     );
   });
 
-  it("says a provider's workspaces are deleted there and its key forgotten here, its threads kept", () => {
-    expect(removeSentence(ascii, { workspaces: [{ name: "api", state: "Running", threads: 3 }, { name: "web", state: "Running", threads: 2 }] }, MAC)).toBe(
-      "Its 2 tasks are deleted at Boat and the key is forgotten on zingzy's MacBook Pro. The 5 threads stay with their transcripts.",
+  it("says Boat's machines still standing are deleted there and its key forgotten here, its sub-threads kept to ask for it again", () => {
+    expect(removeSentence(ascii, { workspaces: [{ name: "fix", state: "Running", threads: 1 }, { name: "cap", state: "Stopped", threads: 1 }, { name: "events", state: "Deleted", threads: 1 }] }, MAC)).toBe(
+      "Its 2 machines are deleted at Boat and the key is forgotten on zingzy's MacBook Pro. The 3 sub-threads stay with their transcripts, and a message to one asks for Boat again.",
     );
-    expect(removeSentence(ascii, { workspaces: [{ name: "api", state: "Running", threads: 1 }] }, MAC)).toBe("Its task is deleted at Boat and the key is forgotten on zingzy's MacBook Pro. Its thread stays with its transcript.");
+    expect(removeSentence(ascii, { workspaces: [{ name: "events", state: "Deleted", threads: 1 }] }, MAC)).toBe("The key for Boat is forgotten on zingzy's MacBook Pro. Its sub-thread stays with its transcript, and a message to one asks for Boat again.");
+  });
+
+  it("counts no machine for a sub-thread still waiting for one", () => {
+    expect(removeSentence(ascii, { workspaces: [{ name: "fix", state: "Running", threads: 1 }, { name: "cap", state: "Waiting", threads: 1 }] }, MAC)).toBe(
+      "Its machine is deleted at Boat and the key is forgotten on zingzy's MacBook Pro. The 2 sub-threads stay with their transcripts, and a message to one asks for Boat again.",
+    );
+  });
+
+  it("says another cloud's workspaces are deleted there and its key forgotten here, its threads kept", () => {
+    const ascii = { ...SOLARI };
+    expect(removeSentence(ascii, { workspaces: [{ name: "api", state: "Running", threads: 3 }, { name: "web", state: "Running", threads: 2 }] }, MAC)).toBe(
+      "Its 2 tasks are deleted at Solari and the key is forgotten on zingzy's MacBook Pro. The 5 threads stay with their transcripts.",
+    );
+    expect(removeSentence(ascii, { workspaces: [{ name: "api", state: "Running", threads: 1 }] }, MAC)).toBe("Its task is deleted at Solari and the key is forgotten on zingzy's MacBook Pro. Its thread stays with its transcript.");
   });
 
   it("says nothing comes off an offline computer joined with a code, and hands over the line to run there", () => {

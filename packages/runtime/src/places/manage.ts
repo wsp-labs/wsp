@@ -411,9 +411,12 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     async list() {
       const held = await records();
       const room = new Map(await Promise.all(held.map(async r => [r.id, await forksOf(r)] as const)));
-      return (await rowsOf(held)).map(row => {
+      const rows = await rowsOf(held);
+      const spent = await recording.spentToday?.(rows.filter(r => r.kind === "provider")).catch(() => undefined);
+      return rows.map(row => {
         const forks = room.get(row.id);
-        return withLimits(forks !== undefined ? { ...row, forks } : row);
+        const today = spent?.find(s => s.place === row.id)?.todayUsd;
+        return withLimits({ ...row, ...(forks !== undefined ? { forks } : {}), ...(today !== undefined ? { spentTodayUsd: today } : {}) });
       });
     },
 

@@ -1784,6 +1784,15 @@ describe("thread provenance", () => {
     expect(threadNeedsYou({ status: "completed", endedAt: 2_000, readAt: 3_000, wokeAt: 4_000 })).toBe(true);
   });
 
+  it("a sub-thread whose work not pushed holds its machine needs the person, seen or not, until a turn runs or the work goes", () => {
+    const held = { held: { files: 3, commits: 2 } };
+    expect(threadNeedsYou({ status: "completed", endedAt: 2_000, readAt: 3_000, sub: held })).toBe(true);
+    expect(threadNeedsYou({ status: "running", sub: held })).toBe(false);
+    expect(threadNeedsYou({ status: "completed", endedAt: 2_000, readAt: 3_000, sub: {} })).toBe(false);
+    const sub = { state: "napping" as const, on: "box", machine: "fix", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix", ...held };
+    expect(needsYouCount([{ id: "s_1", workspaceId: "ws_a", harness: "claude", status: "completed", threadId: "thr_1", endedAt: 2_000, readAt: 3_000, sub }])).toBe(1);
+  });
+
   it("a turn the person stopped asks nothing of them, seen or not; a snooze ending on it still does", () => {
     expect(threadNeedsYou({ status: "interrupted", endedAt: 2_000, readAt: 1_000 })).toBe(false);
     expect(threadNeedsYou({ status: "interrupted", endedAt: 2_000 })).toBe(false);

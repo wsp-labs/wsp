@@ -101,12 +101,16 @@ export async function stopSubagent(api: Pick<Api, "interruptSession">, task: { s
   }
 }
 
-/** Sends a message to a thread as the composer would, a refusal said as a notice naming the thread. */
-export function sendToThread(api: Pick<Api, "startSession"> | null, thread: { workspaceId: string; threadId: string | null; harness: string; title: string }, prompt: string): void {
+/** Sends a message to a thread as the composer would, a refusal said as a notice naming the thread, unless `saidElsewhere`
+ * answers that another piece on screen already says it. */
+export function sendToThread(api: Pick<Api, "startSession"> | null, thread: { workspaceId: string; threadId: string | null; harness: string; title: string }, prompt: string, saidElsewhere?: (message: string) => boolean): void {
   if (api === null) return;
   void api
     .startSession({ workspaceId: thread.workspaceId, prompt, harness: thread.harness, requestId: crypto.randomUUID(), ...(thread.threadId !== null ? { thread: thread.threadId } : {}) })
-    .catch((e: unknown) => noticeFailure(e, said => said, { where: thread.title }));
+    .catch((e: unknown) => {
+      if (saidElsewhere?.(e instanceof Error ? e.message : String(e)) === true) return;
+      noticeFailure(e, said => said, { where: thread.title });
+    });
 }
 
 /** The verbs a lead's child takes but its message field, which its row opens itself. */

@@ -10,6 +10,7 @@ import { childActions, leadActions, type ChildTarget, type ChildVerbs } from "..
 import { resolveActions, type ResolvedAction } from "../../actions/registry.js";
 import type { SidebarThreadSnapshot } from "../../adapt/index.js";
 import { isThreadSettled, isThreadWorking } from "../../sidebar/Sidebar.logic.js";
+import { subReason } from "../../sidebar/tileCard.js";
 import { FINISHED } from "../status/kinds/finished.js";
 import type { StatusKind, ThreadStatusInput } from "../status/kinds/index.js";
 import { RESTING } from "../status/kinds/resting.js";
@@ -58,7 +59,8 @@ function ownPart<N>(node: LeadNode<N>, tree: Pick<Tree<N>, "nowMs" | "settleMs">
   const thread = node.thread;
   if (thread === null) return "live";
   if (isThreadSettled(thread, tree.nowMs, false, tree.settleMs)) return "settled";
-  return thread.asking !== null || isThreadWorking(thread) || thread.status === "failed" ? "live" : "finished";
+  // A sub-thread holding work not pushed keeps its machine until someone acts, so it stays out of the fold.
+  return thread.asking !== null || isThreadWorking(thread) || thread.status === "failed" || thread.sub?.held !== undefined ? "live" : "finished";
 }
 
 /** How pressing a child is on its own: asks or a limit, failed, works, waits, then quiet. A failed subagent is its
@@ -69,7 +71,7 @@ function ownRank<N>(node: LeadNode<N>, part: ChildPart): number {
   const thread = node.thread;
   if (thread === null) return 2;
   if (thread.asking !== null || (thread.status === "failed" && (thread.limit ?? null) !== null)) return 0;
-  if (thread.status === "failed") return 1;
+  if (thread.status === "failed" || thread.sub?.held !== undefined) return 1;
   return thread.capped !== undefined ? 3 : 2;
 }
 
@@ -159,6 +161,8 @@ export function noteOf<N>(node: LeadNode<N>, part: ChildPart): string | undefine
   if (thread === null) return undefined;
   if (thread.asking !== null) return thread.asking;
   if (thread.status === "failed") return thread.failure ?? undefined;
+  const sub = thread.sub === undefined ? undefined : subReason(thread.sub, thread.capped, thread.status === "running");
+  if (sub !== undefined) return sub;
   if (thread.capped !== undefined) return capRunningLine(thread.capped);
   const replaced = thread.replaces;
   if (replaced !== null && replaced.endedAt !== null && thread.status === "running") return CHILD_WORDS.restartOf(replaced.failed, restingAge({ startedAt: null, endedAt: replaced.endedAt }));

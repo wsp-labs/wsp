@@ -6,7 +6,7 @@
 // and Boat removed. Boat is the stub backend of the spawn's own fixture; time
 // moves by a clock the test jumps, every other timer running for real.
 import { afterEach, describe, expect, it } from "vitest";
-import { exitClassOf, subCloudGoneRefusal, subHeldDeleteRefusal, subOpening, subReleasedRefusal, type Caller, type SubResult } from "@wsp/protocol";
+import { exitClassOf, type SessionRowEvent, subCloudGoneRefusal, subHeldDeleteRefusal, subOpening, subReleasedRefusal, type Caller, type SubResult } from "@wsp/protocol";
 import type { Clock } from "../src/clock.js";
 import { SUB_SESSIONS, subResultCommand } from "../src/machines/sub-life.js";
 import type { Runtime } from "../src/runtime.js";
@@ -19,6 +19,14 @@ const BRANCH = "wsp/fix-the-flaky-upload-test";
 const BASE = "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a";
 const PUSHED_SHA = "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e";
 const MIN = 60_000;
+type Says = NonNullable<Awaited<ReturnType<typeof leadOnThisComputer>>["turns"]["says"]>;
+/** The agent's push of the branch and what the remote answered, as Claude Code reports a command that failed. */
+const pushRefused = (output: string, exitCode = 128): Says => [
+  { kind: "tool_use", toolName: "Bash", toolUseId: "push-1", text: JSON.stringify({ command: `git push -u origin ${BRANCH}` }) },
+  { kind: "tool_result", toolName: "Bash", toolUseId: "push-1", isError: true, exitCode, text: output },
+];
+/** git 2.43's answer to a push with a token that cannot write, as measured against github.com on 2026-10-12. */
+const DENIED = "remote: Permission to acme/web.git denied to wsp-bot.\nfatal: unable to access 'https://github.com/acme/web.git/': The requested URL returned error: 403";
 
 let open: Runtime[] = [];
 afterEach(async () => {
@@ -27,10 +35,13 @@ afterEach(async () => {
 });
 
 /** A lead on this computer, its sub-thread on Boat started and its first turn ended, the done steps run. */
-async function doneOnce(o: { answers?: Partial<Answers>; clock?: Clock; deleteAfterMs?: number } = {}) {
+async function doneOnce(o: { answers?: Partial<Answers>; clock?: Clock; deleteAfterMs?: number; says?: Says } = {}) {
   const answers: Answers = { read: PUSHED, session: Buffer.from("gzipped session bytes"), ...o.answers };
   const held = await leadOnThisComputer({ ...(o.clock !== undefined ? { clock: o.clock } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}) });
   open.push(held.rt);
+  if (o.says !== undefined) held.turns.says = o.says;
+  const pushed: SessionRowEvent[] = [];
+  held.rt.events.on("*", e => void (e.type === "session.row" && pushed.push(e)));
   if (o.deleteAfterMs !== undefined) await held.rt.places!.set("box", { deleteAfterMs: o.deleteAfterMs });
   answering(held.boat, answers);
   const backstops: { machine: string; until: number; exact: boolean }[] = [];
@@ -42,7 +53,7 @@ async function doneOnce(o: { answers?: Partial<Answers>; clock?: Clock; deleteAf
   await child.finished;
   const record = (): Promise<WorkspaceRecord> => held.store.get("workspaces", made.id) as Promise<WorkspaceRecord>;
   await until(async () => (await record()).sub?.result, "the done read");
-  return { ...held, answers, made, machine, threadId, record, backstops };
+  return { ...held, answers, made, machine, threadId, record, backstops, pushed };
 }
 
 /** The record once its nap has landed. */
@@ -89,6 +100,32 @@ describe("a sub-thread's done", () => {
     expect(r.sub!.result).toMatchObject({ pushedSha: null, unpushed: 2, changed: 3 });
     expect(r.phase).toBe("napping");
     expect(held.machine.paused).toBe(true);
+  });
+
+  it("tells every window the row once the done read holds the machine, so its tile reads Not pushed with no reload", async () => {
+    const held = await doneOnce({ answers: { read: UNPUSHED } });
+    await settled(held);
+    await until(async () => held.pushed.find(e => e.threadId === held.threadId && e.row?.sub?.held !== undefined), "a pushed row carrying the hold");
+  });
+
+  it("names why the push was refused off the agent's own push in the transcript, for the strip to say", async () => {
+    const held = await doneOnce({ answers: { read: UNPUSHED }, says: pushRefused(DENIED) });
+    const r = await settled(held);
+    expect(r.sub!.result!.pushRefused).toBe("Permission to acme/web.git denied to wsp-bot");
+    const row = (await held.rt.sessions.list()).find(s => s.threadId === held.threadId)!;
+    expect(row.sub!.result!.pushRefused).toBe("Permission to acme/web.git denied to wsp-bot");
+  });
+
+  it("names no cause where the last push went through, or the work is all pushed", async () => {
+    const through: Says = [
+      ...pushRefused(DENIED),
+      { kind: "tool_use", toolName: "Bash", toolUseId: "push-2", text: JSON.stringify({ command: "git push" }) },
+      { kind: "tool_result", toolName: "Bash", toolUseId: "push-2", text: "Everything up-to-date" },
+    ];
+    const held = await doneOnce({ answers: { read: UNPUSHED }, says: through });
+    expect((await settled(held)).sub!.result!.pushRefused).toBeUndefined();
+    const pushed = await doneOnce({ answers: { read: PUSHED }, says: pushRefused(DENIED) });
+    expect((await settled(pushed)).sub!.result!.pushRefused).toBeUndefined();
   });
 
   it("arms the delete for a sub-thread that never fetched the code, since nothing git holds is left", async () => {

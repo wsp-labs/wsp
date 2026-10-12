@@ -90,6 +90,8 @@ export interface ChatThreadHandle {
   readonly appendUserTurn: (prompt: string, requestId: string, attachments?: ReadonlyArray<AttachmentRecord>) => void;
   /** A send that failed before the runtime emitted anything. */
   readonly appendLocalError: (message: string) => void;
+  /** Takes the sent message off the page with no error row, for a refusal another piece says. */
+  readonly dropSent: () => void;
   readonly setSending: (sending: boolean) => void;
   /** Clears the visible thread and marks the next send as a fresh session. */
   readonly startNewThread: () => void;
@@ -993,6 +995,7 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
       })),
     [],
   );
+  const dropSent = useCallback(() => setState(s => ({ ...s, pendingPrompt: null })), []);
   const startNewThread = useCallback(() => {
     setDrawn(n => n + 1);
     setState(s => ({ ...EMPTY, fresh: true, known: knowing(s.known, s.events), stray: s.stray }));
@@ -1018,6 +1021,7 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
     handed: state.handed,
     appendUserTurn,
     appendLocalError,
+    dropSent,
     setSending,
     startNewThread,
   };
