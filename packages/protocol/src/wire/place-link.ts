@@ -307,7 +307,7 @@ export const PLACES_TICKET_REFUSAL = "a socket let in on a ticket cannot see or 
 export const DAEMON_OPEN_ONE_OF = "daemon.open opens a channel to one daemon: name workspaceId or placeId, not both";
 
 /** The same refusal for a readings subscription, which is one workspace's or one computer's. */
-export const SYS_SUBSCRIBE_ONE_OF = "sys.subscribe reads one folder's computer or one computer: name workspaceId or placeId, not both";
+export const SYS_SUBSCRIBE_ONE_OF = "sys.subscribe and sys.unsubscribe read one daemon: name workspaceId or placeId, not both";
 
 /** Where a computer you own dials this wsp: the port the door answers on and every address it can be reached at.
  * A host that already binds beyond this computer answers its own port and opens nothing. */
