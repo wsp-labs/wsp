@@ -337,7 +337,7 @@ fn a_container_goes_under_its_label_else_the_newest_compose_note_inside_its_fold
         note("t_other", "/srv/acme/lab", "other", 300),
         note("t_sibling", "/srv/acme/lab-two", "", 400),
     ];
-    let placed = |label: Option<&str>, folder: Option<&str>, project: Option<&str>| place(label, folder, project, &notes);
+    let placed = |label: Option<&str>, folder: Option<&str>, project: Option<&str>| place(label, None, folder, project, &notes);
     // The label names the thread whatever the notes say.
     assert_eq!(placed(Some("t_label"), Some("/srv/acme/lab"), Some("lab")), Some(("t_label".into(), Label)));
     // The newest note inside the folder; the newer one naming another project, and the sibling folder whose name only
@@ -352,6 +352,11 @@ fn a_container_goes_under_its_label_else_the_newest_compose_note_inside_its_fold
     assert_eq!(placed(None, None, None), None);
     // A label that is no thread's word is no label.
     assert_eq!(placed(Some("../etc"), Some("/srv/acme/lab"), Some("lab")), Some(("t_new".into(), Compose)));
+    // A fork's container, which its fence labelled with the workspace, is never a note's; its own thread label still is.
+    assert_eq!(place(None, Some("ws_fork"), Some("/srv/acme/lab"), Some("lab"), &notes), None);
+    assert_eq!(place(Some("t_label"), Some("ws_fork"), Some("/srv/acme/lab"), Some("lab"), &notes), Some(("t_label".into(), Label)));
+    #[cfg(target_os = "linux")]
+    assert_eq!(WORKSPACE_LABEL, wsp_runtime::engine::LABEL);
     assert_eq!(
         parse_notes(
             "t_a\t/srv/acme/lab\t\t1791777782\nbroken line\nt_b\trelative\t\t1\n../x\t/a\t\t1\nt_c\t/srv/acme/lab\tlab\t1791777790\n"
@@ -515,6 +520,38 @@ async fn end_refuses_a_container_no_label_or_note_places_whether_the_person_or_a
     r.stop_container(&noted).await.unwrap();
     assert_eq!(engine.count(|l| l.starts_with("POST")), 1);
     assert_eq!(engine.count(|l| l == format!("POST /containers/{noted}/stop?t=2")), 1);
+}
+
+#[tokio::test]
+async fn a_forks_container_is_never_placed_by_a_note_so_it_stands_under_no_thread_and_its_stop_is_refused() {
+    let engine = Engine::new().await;
+    let cg = Cgroups::new();
+    let notes = tempfile::tempdir().unwrap();
+    let fork = id('a');
+    // A fork's compose up on a box: the fence adds wsp.workspace and keeps compose's own labels.
+    engine.hold(inspect(
+        &fork,
+        "wsp-ws_fork-db-1",
+        true,
+        0,
+        json!({
+            "wsp.workspace": "ws_fork",
+            "com.docker.compose.project": "wsp-ws_fork",
+            "com.docker.compose.project.working_dir": "/root/proj",
+        }),
+    ));
+    // A box thread's plain compose up in the same folder, its project unnamed.
+    std::fs::write(notes.path().join("t_one"), "t_one\t/root/proj\t\t1791777782\n").unwrap();
+    let r = reader(&engine, notes.path(), &cg, false, Duration::from_secs(3600));
+    r.start();
+    until("the first list", || r.rows(1).is_some_and(|rows| rows.len() == 1)).await;
+    let row = r.rows(2).unwrap().remove(0);
+    assert_eq!((row.thread.as_deref(), row.placed_by, row.folder.as_deref()), (None, None, Some("/root/proj")));
+    let err = r.stop_container(&fork).await.unwrap_err();
+    assert_eq!(err.code, Some(DaemonErrorCode::Forbidden));
+    assert_eq!(err.message, "wsp-ws_fork-db-1 was not started by a thread, so wsp does not stop it; stop it with docker stop");
+    assert_eq!(engine.count(|l| l.starts_with("POST")), 0);
+    r.stop();
 }
 
 #[test]
