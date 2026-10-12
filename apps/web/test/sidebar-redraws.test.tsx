@@ -5,7 +5,7 @@
 // counted where the sidebar draws it.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const drawn = vi.hoisted(() => ({ tiles: 0, sidebar: 0, subagents: new Map<string, number>() }));
 vi.mock("../src/sidebar/WorkspaceSidebar.js", async importOriginal => {
@@ -65,10 +65,14 @@ beforeAll(() => {
 });
 afterAll(() => restoreLayout());
 beforeEach(() => {
+  // The sidebar draws again when its minute clock turns: each case starts as a minute begins, so none turns under it.
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(Date.parse("2026-10-12T10:00:00Z"));
   SESSIONS = [thread(1, "running"), thread(2, "completed"), thread(3, "completed")];
   window.localStorage.clear();
   useComposerDraftStore.setState({ drafts: {}, queues: {} });
 });
+afterEach(() => vi.useRealTimers());
 
 const WS = "ws_a";
 const workspace: WorkspaceView = {
@@ -109,10 +113,34 @@ const api: Api = {
   interruptSession: async () => ({ outcome: "accepted" as const }),
 };
 
-const settle = () => act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+/** The reads the page asked of the api and has not heard back from: a count taken while one is out sees its answer
+ * land after it on a loaded runner. */
+let owed = 0;
+const counted = Object.fromEntries(
+  Object.entries(api).map(([name, f]) => [
+    name,
+    typeof f !== "function"
+      ? f
+      : (...args: unknown[]) => {
+          const out: unknown = f(...args);
+          if (!(out instanceof Promise)) return out;
+          owed++;
+          return out.finally(() => owed--);
+        },
+  ]),
+) as unknown as Api;
+
+async function answered(): Promise<void> {
+  while (owed > 0) await act(() => new Promise<void>(resolve => setTimeout(resolve, 10)));
+}
+
+const settle = async () => {
+  await act(() => new Promise<void>(resolve => setTimeout(resolve, 50)));
+  await answered();
+};
 
 async function mount(): Promise<HTMLElement> {
-  useStore.getState().bind(api);
+  useStore.getState().bind(counted);
   useStore.getState().setConn("live");
   render(
     <AppShell>
@@ -123,6 +151,7 @@ async function mount(): Promise<HTMLElement> {
   act(() => useStore.getState().select(WS, "thr_1"));
   await waitFor(() => expect(document.querySelectorAll("[data-slot=sidebar] [data-thread-tile], [data-slot=sidebar] [data-row-id^='thr']").length).toBeGreaterThan(0));
   await waitFor(() => expect(screen.queryByText("loading transcript")).toBeNull());
+  await answered();
   return composerEditor();
 }
 
