@@ -55,6 +55,8 @@ describe("a computer's page after a setup", () => {
     expect(row.querySelector("[data-slot=select-trigger]")?.hasAttribute("disabled") || row.querySelector("[data-slot=select-trigger]")?.getAttribute("data-disabled") !== null).toBe(true);
     expect(document.querySelector("[data-settings-card='setup'] [data-settings-head]")?.textContent).toBe("Setup");
     expect([...document.querySelectorAll("[data-settings-card='setup'] [data-step-row]")].map(r => r.getAttribute("data-step-row")).slice(0, 4)).toEqual(["wsp", "floor", "agents", "mcp"]);
+    // A setup under way stands open, with no row folding it.
+    expect(document.querySelector("[data-settings-row='setup-summary']")).toBeNull();
   });
 
   it("opens a step of the setup on its last lines of output, and stands a failed one open", async () => {
@@ -66,9 +68,66 @@ describe("a computer's page after a setup", () => {
     await settle();
     const row = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-settings-card='setup'] [data-step-row='${id}']`)!;
     await waitFor(() => expect(row("agents").querySelector("[data-k=step-log]")?.textContent).toBe("npm ERR! code E404"));
+    expect(document.querySelector("[data-settings-row='setup-summary']")).toBeNull();
     expect(row("floor").querySelector("[data-k=step-log]")).toBeNull();
     fireEvent.click(row("floor").querySelector("[data-k=step-toggle]")!);
     await waitFor(() => expect(row("floor").querySelector("[data-k=step-log]")?.textContent).toBe("apt-get install -y curl"));
+  });
+
+  it("folds a setup that ended done into one Setup row, its log behind Show setup log", async () => {
+    const done: PlaceSetup = { ...running, state: "done", steps: running.steps.map(l => ({ ...l, state: "done" as const })) };
+    const applied = { hash: "h", at: AT, rows: [{ id: "agents/claude", label: "Claude Code", outcome: "installed" as const, step: "agents" as const }] };
+    useStore.setState({ places: [here, box("p_studio", "studio", { setup: done, applied, picks: RecipeFile.parse({ name: "studio" }) })] });
+    mountSettings({ api: settingsApi({ initGet: async () => null } as unknown as Partial<Api>).api, at: { kind: "computer", id: "p_studio" } });
+    await settle();
+    const card = document.querySelector("[data-settings-card='setup']")!;
+    const summary = card.querySelector("[data-settings-row='setup-summary']")!;
+    expect(summary.querySelector("[data-settings-title]")?.textContent).toBe("Setup");
+    expect(summary.querySelector("[data-k=setup-word]")?.textContent).toBe("Done");
+    expect(card.querySelectorAll("[data-step-row]")).toHaveLength(0);
+    const disclosure = summary.querySelector<HTMLElement>("[data-k=setup-log]")!;
+    expect([disclosure.textContent, disclosure.getAttribute("aria-expanded")]).toEqual(["Show setup log", "false"]);
+    fireEvent.click(disclosure);
+    expect([disclosure.textContent, disclosure.getAttribute("aria-expanded")]).toEqual(["Hide setup log", "true"]);
+    expect([...card.querySelectorAll("[data-step-row]")].map(r => r.getAttribute("data-step-row")).slice(0, 3)).toEqual(["wsp", "floor", "agents"]);
+  });
+
+  it("reads Done where the computer's word is Ready, naming the rows that failed after it", async () => {
+    const done: PlaceSetup = { ...running, state: "done", steps: [...running.steps.map(l => ({ ...l, state: "done" as const })), { step: "clis", state: "failed" }] };
+    const applied = { hash: "h", at: AT, rows: [{ id: "tools/brew/codex", label: "Codex CLI", outcome: "failed" as const, step: "clis" as const, note: "no bottle" }] };
+    useStore.setState({ places: [here, box("p_studio", "studio", { setup: done, applied, picks: RecipeFile.parse({ name: "studio" }) })] });
+    mountSettings({ api: settingsApi({ initGet: async () => null } as unknown as Partial<Api>).api, at: { kind: "computer", id: "p_studio" } });
+    await settle();
+    const card = document.querySelector("[data-settings-card='setup']")!;
+    const summary = card.querySelector("[data-settings-row='setup-summary']")!;
+    expect(summary.querySelector("[data-k=setup-word]")?.textContent).toBe("Done");
+    expect(summary.querySelector("[data-settings-description]")?.textContent).toBe("Codex CLI failed");
+    fireEvent.click(summary.querySelector("[data-k=setup-log]")!);
+    expect(card.querySelector("[data-step-row='tools/brew/codex'] [data-k=retry]")).not.toBeNull();
+  });
+
+  it("names the rows still waiting on the person on the one row, and a row's Retry from the log runs that row alone", async () => {
+    const done: PlaceSetup = {
+      ...running,
+      state: "done",
+      steps: [...running.steps.map(l => ({ ...l, state: "done" as const })), { step: "clis", state: "failed" }],
+      waiting: [{ row: "signins/codex", label: "Codex", expiresAt: AT, state: "waiting" }],
+    };
+    const applied = { hash: "h", at: AT, rows: [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "failed" as const, step: "clis" as const, note: "no bottle" }] };
+    const studio = box("p_studio", "studio", { setup: done, applied, picks: RecipeFile.parse({ name: "studio" }) });
+    const setups: { ref: string; o: unknown }[] = [];
+    useStore.setState({ places: [here, studio] });
+    const api = settingsApi({ initGet: async () => null, placesSetup: async (ref: string, o: unknown) => (setups.push({ ref, o }), { addId: "a_2", place: studio }) } as unknown as Partial<Api>).api;
+    mountSettings({ api, at: { kind: "computer", id: "p_studio" } });
+    await settle();
+    const card = document.querySelector("[data-settings-card='setup']")!;
+    const summary = card.querySelector("[data-settings-row='setup-summary']")!;
+    expect(summary.querySelector("[data-k=setup-word]")?.textContent).toBe("Needs you");
+    expect(summary.querySelector("[data-settings-description]")?.textContent).toBe("Codex sign-in, GitHub CLI");
+    expect(card.querySelectorAll("[data-step-row]")).toHaveLength(0);
+    fireEvent.click(summary.querySelector("[data-k=setup-log]")!);
+    fireEvent.click(card.querySelector("[data-step-row='tools/brew/gh'] [data-k=retry]")!);
+    await waitFor(() => expect(setups).toEqual([{ ref: "p_studio", o: { row: "tools/brew/gh" } }]));
   });
 
   it("moves the computer onto another recipe through the host, the answer standing on its row", async () => {
