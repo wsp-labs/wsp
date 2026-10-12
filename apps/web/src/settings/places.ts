@@ -73,6 +73,9 @@ export const removeTitle = (place: PlaceView): string => `Remove ${placeName(pla
 
 export const forgetTitle = (place: PlaceView): string => `Forget ${placeName(place)}?`;
 
+/** The title once a remove or a forget went through with something still to say, so the question does not stand over it. */
+export const removedTitle = (place: PlaceView, forgot: boolean): string => `${placeName(place)} ${forgot ? "forgotten" : "removed"}`;
+
 /** What forgetting a cloud does once it refused its key: the key and the tasks' records leave, and nothing there is
  * asked, so what wsp made there runs on until the cloud's own timer. */
 export function providerForgetSentence(place: PlaceView, holding: PlaceHolding, here: string): string {
