@@ -4,7 +4,7 @@ import { namesPlace, placeSaid } from "../place-word.js";
 import { shellLine } from "../shell-quote.js";
 import { plural } from "./base.js";
 import { threadWord } from "./computer.js";
-import { chargesNothing, fmtBytes, fmtBytesOf, fmtDuration, fmtRate, fmtSize, fmtMemGb, fmtUptime, sizeWord } from "./units.js";
+import { chargesNothing, fmtBytes, fmtBytesOf, fmtDiskBytes, fmtDuration, fmtRate, fmtSize, fmtMemGb, fmtUptime, sizeWord } from "./units.js";
 /** A limit as one unit: whole hours when it is hours, else whole minutes. */
 export function fmtLimit(ms: number): string {
   return ms >= 3_600_000 && ms % 3_600_000 === 0 ? `${ms / 3_600_000}h` : `${Math.round(ms / 60_000)}m`;
@@ -169,8 +169,8 @@ export function diskFullLine(pct: number): string {
  * line would otherwise be swept under and announced every other beat. */
 export const DISK_REARM_PCT = 85;
 
-/** The size a full disk can move to: the first one up whose measured root disk is bigger, and the thread whose line it
- * is, which wsp resize takes. */
+/** The size a full disk can move to: the first one up whose measured root disk grows the one the machine reads, and the
+ * thread whose line it is, which wsp resize takes. */
 export interface DiskMove {
   thread: string;
   name: string;
@@ -184,8 +184,8 @@ export interface DiskMove {
  * root disk is measured bigger. A stop that cannot save a full disk is refused, and Boat dropped a machine whose stops
  * kept failing with its disk (2026-10-01). */
 export function diskMarkLine(o: { machine: string; on: string; pct: number; usedBytes: number; sizeBytes: number; freedBytes: number; machineGoes: boolean; move?: DiskMove }): string {
-  const full = `The disk of ${o.machine} is ${Math.floor(o.pct * 10) / 10}% used (${fmtBytesOf(o.usedBytes, o.sizeBytes)}) and still filling. ${o.on} cannot save a stop of a full disk, and deletes one whose stops keep failing with its disk.`;
-  const cleared = o.freedBytes > 0 ? ` wsp cleared ${fmtBytes(o.freedBytes)} of its own staging and build caches there.` : " wsp found none of its own staging or build caches there to clear.";
+  const full = `The disk of ${o.machine} is ${Math.floor(o.pct * 10) / 10}% used (${fmtBytesOf(o.usedBytes, o.sizeBytes, fmtDiskBytes)}) and still filling. ${o.on} cannot save a stop of a full disk, and deletes one whose stops keep failing with its disk.`;
+  const cleared = o.freedBytes > 0 ? ` wsp cleared ${fmtDiskBytes(o.freedBytes)} of its own staging and build caches there.` : " wsp found none of its own staging or build caches there to clear.";
   const free = ` Free space on its disk${o.machineGoes ? ", or let the thread finish: its machine is deleted once it is done." : "."}`;
   const m = o.move;
   const move = m === undefined ? "" : ` Or move it to ${m.name} (${m.cpu} vCPU, ${fmtMemGb(m.memMb)}, ${m.diskGb} GB disk): ${shellLine(["wsp", "resize", m.thread, "--size", sizeWord(m)])} stops it and resumes it at that size, with its files, which ends a turn running there.`;
