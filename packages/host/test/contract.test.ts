@@ -13,7 +13,7 @@ import { type AddressInfo } from "node:net";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { FORK_RESUME_FIX, FORK_RESUME_LINE, HOST_TOKEN_ENV, HOST_URL_ENV, notAThreadLine, NAME_A_THREAD_FIX, NOT_UNDER_FIX, notUnderLine, replacesWorkingFix, replacesWorkingLine, CLOUD_ENV, DAEMON_TOKEN_PATH, deniedLine, noSuchAccountLine, PERMISSION_DENY, pushedForChildLine, EXIT_CODES, refusalLine, SCOPED_MCP_ARG, scopedNoPairLine, HERE_PLACE_ID, shellQuote, TURN_TOKEN_ENV, VerbFailure, WS_PATH } from "@wsp/protocol";
+import { FORK_RESUME_FIX, FORK_RESUME_LINE, HOST_TOKEN_ENV, HOST_URL_ENV, notAThreadLine, NAME_A_THREAD_FIX, NOT_UNDER_FIX, notUnderLine, replacesWorkingFix, replacesWorkingLine, seedSaveRefusal, fmtBytes, CLOUD_ENV, DAEMON_TOKEN_PATH, deniedLine, noSuchAccountLine, PERMISSION_DENY, pushedForChildLine, EXIT_CODES, refusalLine, SCOPED_MCP_ARG, scopedNoPairLine, HERE_PLACE_ID, shellQuote, TURN_TOKEN_ENV, VerbFailure, WS_PATH } from "@wsp/protocol";
 import { CLOUD_ON } from "../src/cloud.js";
 import { copyKey, createRuntime, DAEMON_TOKEN_SET, localExecStream, memoryStore, type Runtime, type Store } from "@wsp/runtime";
 import { fakeCopier, LocalBackend } from "@wsp/engine";
@@ -27,6 +27,7 @@ import { cli, doctorKeyAsk, jsonCliIO, serve } from "../src/cli.js";
 import type { HostStarter } from "../src/host-start.js";
 import { writeHost } from "../src/hosts.js";
 import { placeWiring } from "../src/places.js";
+import { hostSeed } from "../src/cli/wiring.js";
 import { hostTokenPath, lockPathFor } from "../src/host-lock.js";
 import { mcpServer } from "../src/mcp.js";
 import type { HostHandle } from "../src/server.js";
@@ -186,6 +187,7 @@ describe("the agent contract on the command line and the tool door", () => {
       // Claude Code here forks the way Codex does, the start making the fork, since the scripted agent names no anchors.
       adapters: { claude: ctx => ({ ...claude.adapter(ctx), forksByCount: true, forkSession: async f => ({ fork: { session: f.session, turn: "anchor" in f.turn ? f.turn.anchor : "counted" } }) }), codex: bornDeadAgent(prompt => `re: ${prompt}`).adapter },
       goneConfirmMs: 0,
+      seed: hostSeed(),
       // This computer's own daemon, which the pull request's reads and its merge go through, answered by the same
       // stand-in below as the daemon inside a workspace.
       local: {
@@ -538,6 +540,13 @@ describe("the agent contract on the command line and the tool door", () => {
     const inFolder = (await last("run", "run", "here", "hello here")) as { threadId: string };
     // The fixture's agents keep no store of their own, so the project's list is empty and says no agent went unread.
     expect(await last("conversations", "conversations", "here")).toEqual({ rows: [], held: [] });
+    // Its seed picks off git's own listing of what it ignores: nothing picked until saved, then the save.
+    writeFileSync(join(here, ".gitignore"), ".env\nnode_modules/\n");
+    writeFileSync(join(here, ".env"), "A=1\n");
+    mkdirSync(join(here, "node_modules", "left-pad"), { recursive: true });
+    writeFileSync(join(here, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
+    expect(await last("projects seed", "projects", "seed", "here")).toMatchObject({ project: "here", folder: realpathSync(here), picked: { paths: [], bytes: 0 }, saved: false });
+    expect(await last("projects seed", "projects", "seed", "here", "--keep", ".env", "--yes")).toMatchObject({ picked: { paths: [".env"] }, saved: true });
     expect(await last("delete", "delete", inFolder.threadId, "--yes")).toEqual({ threadId: inFolder.threadId, workspaceId: expect.any(String), threads: 1 });
     // A launch that never started its agent leaves a row with no turn on it, which is the one a forget takes.
     const dead = await run("run", "--beside", lead, "--agent", "codex", "never gets going", "--json");
@@ -701,6 +710,35 @@ describe("the agent contract on the command line and the tool door", () => {
     const own = await asChild("thread", "settle", childId, "--json");
     expect(own.code).toBe(0);
     expect(objects(own.io)).toEqual([{ settled: [{ threadId: childId, title: "build it" }], left: [] }]);
+  });
+
+  it("a thread's own token reads a project's seed picks and is refused the save, exit 3 with the line for the person", async () => {
+    const here = join(dir, "seed-here");
+    mkdirSync(here, { recursive: true });
+    execFileSync("git", ["init", "-q", here]);
+    writeFileSync(join(here, ".gitignore"), ".env\n");
+    writeFileSync(join(here, ".env"), "A=1\n");
+    const project = await rt.projects.add({ source: here, name: "lab" });
+    const made = await rt.workspaces.create({ project: project.id, name: "lab-lead" });
+    const scope = { kind: "thread", threadId: "lab-lead-thread", workspaceId: made.id, rootThreadId: "lab-lead-thread" } as const;
+    const minted = await rt.devices.mint("thread lab-lead", scope, Date.now(), { road: "relayed" });
+    const asThread = async (...argv: string[]) => {
+      const io = captured();
+      const code = await cli(argv, io, undefined, { [HOST_URL_ENV]: `http://127.0.0.1:${handle!.port}`, [HOST_TOKEN_ENV]: minted.deviceToken, HOME: join(dir, "agent"), WSP_HOME: join(dir, "agent", ".wsp") });
+      return { code, io };
+    };
+    const read = await asThread("projects", "seed", "lab", "--keep", ".env", "--json");
+    expect(read.code).toBe(0);
+    expect(objects(read.io).at(-1)).toMatchObject({ project: "lab", picked: { paths: [".env"] }, saved: false });
+    // The same picks as a terminal reads them: the head, the table with the pick marked, and nothing saved.
+    const text = await asThread("projects", "seed", "lab", "--keep", ".env");
+    const row = (objects(read.io).at(-1) as { rows: { bytes: number; why: string }[] }).rows[0]!;
+    const size = fmtBytes(row.bytes).padEnd(4);
+    expect(text.io.lines).toEqual([`lab, ${realpathSync(here)}: what git ignores, and what goes to a sub-thread's machine.\n\n     PATH  ${"SIZE".padEnd(size.length)}  WHY\n  x  .env  ${size}  ${row.why}\n\n1 picked, ${fmtBytes(row.bytes)}. Nothing was saved; add --yes to save these picks.`]);
+    const save = await asThread("projects", "seed", "lab", "--keep", ".env", "--yes", "--json");
+    expect(save.code).toBe(EXIT_CODES.usage);
+    expect(failure(save.io)).toEqual({ error: seedSaveRefusal("lab", { keep: [".env"] }).message, class: "usage", exit: EXIT_CODES.usage });
+    expect((await rt.projects.seed("lab", {})).picked.paths).toEqual([]);
   });
 
   it("run --replaces links a restart to the thread it replaced and settles that one; a working thread and one a token does not reach exit 3", async () => {

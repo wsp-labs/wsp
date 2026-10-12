@@ -14,7 +14,7 @@ import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { S_RADIO_ACTIVE, S_RADIO_INACTIVE } from "@clack/prompts";
 import { RUNGS, parseManifest, type Manifest, type ManifestEntry } from "@wsp/collect";
-import { BUILDER_DISK_GB, LocalBackend, SNAPSHOT_STORAGE, type BackendPricing, type ExecResult } from "@wsp/engine";
+import { BoxBackend, BUILDER_DISK_GB, LocalBackend, SNAPSHOT_STORAGE, type BackendPricing, type ExecResult } from "@wsp/engine";
 import { HERE_PLACE_ID, ALREADY_APPLIED, BUILD_NEEDS_FILE_FIX, DAEMON_TOKEN_PATH, buildNeedsFileLine, folderName, MACHINE_GONE_LINE, PORT_TAKEN_REFUSAL, Recipe, SEAL_FAILED_LINE, SIGN_IN_DEFERRED_WORD, SIGN_IN_LATER, type GoldenManifest, type ProjectImportResult, type ProjectPlan } from "@wsp/protocol";
 import { copyKey, DAEMON_TOKEN_SET, LOOPBACK, createRuntime, goldenHead, localExecStream, type GoldenRecipe, type LocalWiring, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -695,7 +695,8 @@ describe("wsp init, interactive", () => {
     expect(out).toContain("attempt 1 of 3 answered 502 Failed to snapshot sandbox (request req_1); the builder reads");
     expect(out).toContain("attempt 2 of 3 answered 502 Failed to snapshot sandbox (request req_2); the builder reads");
     expect(out).toContain("Snapshot failed");
-    expect(out).toContain("the snapshot failed 3 times: the provider answered 502 Failed to snapshot sandbox (request req_");
+    // The failure itself wraps rather than losing its end.
+    expect(out.replace(/\s*\n│\s+/g, " ")).toContain("the snapshot failed 3 times: the provider answered 502 Failed to snapshot sandbox (request req_3) while the builder read running");
     const recipe = join(dirname(f.opts.statePath), "recipe.json");
     expect(out).toContain(`Seal failed; the builder is as you left it. Builder m1 stays up at about $0.11/hr; wsp init --recipe '${recipe}' attaches to it again, and the sweep stops it once it is six hours old.`);
     expect(out).not.toContain("the builder is gone");
@@ -2139,6 +2140,47 @@ describe("wsp init, flags and no terminal", () => {
     expect(f.text()).toContain("at its machine cap");
     // The builder, then the seal's smoke fork and the first workspace.
     expect(f.backends[0]!.machines.map(m => [m.spec.fromSnapshot, m.killed])).toEqual([[undefined, false], ["snap_wsp-h1s1-default-v1", true], ["snap_wsp-h1s1-default-v1", false]]);
+  });
+
+  it("waits on Boat's machine cap alone: a start limit ends the run at once with its window's line", async () => {
+    const refuseWith = async (code: string, said: string): Promise<{ result: { code: number }; posts: number; text: string }> => {
+      const f = fake({ yes: true });
+      let posts = 0;
+      const day = { limit: 200, used: 200, remaining: 0 };
+      const boat = new BoxBackend({
+        apiKey: "box_x",
+        clock: { now: Date.now, sleep: async () => {} },
+        fetch: (async (url: string, init?: RequestInit) => {
+          const path = new URL(String(url)).pathname;
+          if (path.endsWith("/limits")) return Response.json({ accessTier: "standard", maxActiveBoxes: 100, activeBoxes: 11, boxPlanKey: "box_20", starts: { minute: { limit: 12, used: 1, remaining: 11 }, hour: { limit: 60, used: 9, remaining: 51 }, day } });
+          if (init?.method === "POST" && path.endsWith("/boxes")) posts += 1;
+          return Response.json({ ok: false, status: 429, code, message: said, requestId: "req_1" }, { status: 429 });
+        }) as typeof globalThis.fetch,
+      });
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        f.opts.runtime = recipe => {
+          const backend = stubBackend();
+          backend.create = spec => boat.create(spec);
+          f.backends.push(backend);
+          return createRuntime({ backend, store: ownedStore(), adapters: {}, goldenRecipe: recipe, hostId: "box:h1" });
+        };
+        const result = await runInit(f.opts, f.io);
+        return { result, posts, text: f.text() };
+      } finally {
+        warn.mockRestore();
+      }
+    };
+    const limited = await refuseWith("daily_limit_reached", "Rate limit hit: 200 box starts per day.");
+    expect(limited.result.code).not.toBe(0);
+    expect(limited.posts).toBe(1);
+    // The builder carries no name, so the line names the machine; the screen wraps it rather than cutting its end.
+    expect(limited.text.replace(/\s*\n│\s+/g, " ")).toContain("Boat's starts for today are used (200 of 200 on the $20 plan), so the machine was not started; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.");
+    expect(limited.text).not.toContain("machine cap");
+    // The cap is waited on, the three tries this run allows.
+    const capped = await refuseWith("limit_reached", "Concurrent box limit reached.");
+    expect(capped.posts).toBe(3);
+    expect(capped.text).toContain("at its machine cap");
   });
 
   it("a failed upload reports the stage and the detail and exits 1 with no host", async () => {

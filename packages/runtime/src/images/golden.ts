@@ -18,6 +18,7 @@ import {
   goldenName,
   splitByOwner,
   snapshotMonthlyUsd,
+  namedCount,
   templatesOf,
   applyDelta,
   applyGoldenImport,
@@ -464,7 +465,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
         snapshots: snapshots.orphans,
         templates: promoted.orphans,
         freedBytes,
-        savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing),
+        savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing, namedCount(rows)) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing, namedCount(rows) - namedCount(snapshots.orphans)),
         others: { snapshots: snapshots.foreign, templates: promoted.foreign },
       };
     },

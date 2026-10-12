@@ -470,7 +470,7 @@ export type PlaceSettingWord = z.infer<typeof PlaceSettingWord>;
 
 /** A cloud's plan as its own limits read answers it: the plan's key, whether it is the trial, how many machines the
  * account runs at once, and the sizes the plan sells as `<cpu>x<memGb>`. */
-export const CloudPlan = z.object({ key: z.string(), trial: z.boolean(), machinesAtOnce: z.number().int(), sizes: z.array(z.string()) });
+export const CloudPlan = z.object({ key: z.string().optional(), trial: z.boolean(), machinesAtOnce: z.number().int(), sizes: z.array(z.string()) });
 export type CloudPlan = z.infer<typeof CloudPlan>;
 
 /** One window of a cloud's starts: how many the account used and how many it may. */
