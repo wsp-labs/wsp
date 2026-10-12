@@ -8,7 +8,7 @@ import { lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { seedRowFor } from "@wsp/catalog";
 import { runChild, tarOf, type TarEntry } from "@wsp/engine";
-import { claudeMemoryDir, neverTravelsLine, notInTheMenuLine, SEED_MEMORY_DIR, SEED_PATCH, type SeedChoice, type SeedPlan } from "@wsp/protocol";
+import { claudeMemoryDir, SEED_MEMORY_DIR, SEED_PATCH, seedPicks, type SeedChoice, type SeedPlan } from "@wsp/protocol";
 
 /** What a pack of one seed carries and how much of it, for the record's own seeded row, and the paths it left
  * behind inside a folder somebody ticked. */
@@ -35,18 +35,11 @@ export async function packSeed(o: {
   run?: typeof runChild;
 }): Promise<PackedSeed> {
   const { plan, choice } = o;
-  const known = new Map(plan.files.map(f => [f.path, f]));
   const entries: TarEntry[] = [];
   const left: string[] = [];
   let files = 0;
   let bytes = 0;
-  for (const path of choice.files) {
-    const file = known.get(path);
-    if (file === undefined) throw new Error(notInTheMenuLine(path, [...known.keys()]));
-    if (file.kind === "never") throw new Error(neverTravelsLine(path, file.row?.name));
-    // git's own listing never names the repository's own folder; this is the wall in front of a choice that came
-    // from somewhere else, since the one thing a seed must never carry is the history the computer clones itself.
-    if (path === ".git" || path.startsWith(".git/")) throw new Error(neverGitLine(path));
+  for (const path of seedPicks(plan, [], choice.files, []).files) {
     for (const found of filesAt(join(plan.source, path))) {
       const rel = relative(plan.source, found);
       // Every file a ticked folder holds is judged by the catalogue as a menu row is: a login inside a folder
@@ -80,10 +73,6 @@ export async function packSeed(o: {
   }
   return { tar: tarOf(entries), files, bytes, commits, left };
 }
-
-/** Why the repository's own folder is refused: the computer clones the repo itself, so its history never rides a
- * seed, and a choice naming it is a choice built from something other than the menu. */
-export const neverGitLine = (path: string): string => `${path} is the repository's own folder, which a seed never carries: the computer clones the repo itself`;
 
 /** Every regular file at a path: the file itself, or every one under it where it is a directory. Read with lstat
  * and not stat, so a link is seen as the link it is and left behind: a link inside a ticked folder is how a file

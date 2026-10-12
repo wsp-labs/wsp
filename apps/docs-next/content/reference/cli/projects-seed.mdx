@@ -1,0 +1,26 @@
+# wsp projects seed
+
+{/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+
+```text
+usage: wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none]
+       [--yes]
+  what git ignores in a project's folder on this computer, and which of it goes
+  to a sub-thread's machine: the menu with each path's size and why, the picks
+  marked; --yes saves the picks, which every later sub-thread of the project
+  takes
+
+  --keep     one more path off the menu that goes to a sub-thread's machine;
+             given once per path
+  --cut      one path off the menu that stays on this computer; given once per
+             path
+  --none     send no git-ignored file to a sub-thread's machine
+  --yes      save the picks; without it the menu is printed and nothing is saved
+  --json     print the raw protocol values, one JSON object per line, with
+             everything else on stderr
+  --state    the state file the host serves
+  --host     run the line against a host on your account, by the name wsp hosts
+             lists it under; WSP_HOST names one for a whole shell
+```
+
+MCP tool: [`projects_seed`](/reference/mcp-tools#projectsseed).

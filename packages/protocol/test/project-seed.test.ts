@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { claudeMemoryDir, claudeProjectKey, defaultSeedChoice, type SeedFile, type SeedPlan, seedChoiceFrom, seedCommitsLandedLine, seedingLine, seedRowWords, seedSummaryLines } from "../src/index.js";
+import { claudeMemoryDir, claudeProjectKey, defaultSeedChoice, exitClassOf, neverGitLine, notInTheMenuLine, projectSeedLines, projectSeedOf, type SeedFile, type SeedPlan, seedChoiceFrom, seedPicks, seedCommitsLandedLine, seedingLine, seedRowWords, seedSummaryLines } from "../src/index.js";
 
 const file = (path: string, kind: SeedFile["kind"], bytes: number, row?: { id: string; name: string }): SeedFile => ({
   path,
@@ -87,6 +87,47 @@ describe("what a person's own words make of the menu", () => {
 
   it("refuses a path the menu never showed, and says what it holds", () => {
     expect(() => seedChoiceFrom(PLAN, ["app/page.tsx"], [])).toThrow(/is not on the seed menu/);
+  });
+
+  it("takes a folder named with the slash its row prints", () => {
+    expect(seedChoiceFrom(PLAN, ["node_modules/"], []).files).toContain("node_modules");
+  });
+
+  it("refuses a cut that names no row, so a typo never leaves the path it meant ticked, and the repository's own folder, as usage", () => {
+    const shown = PLAN.files.map(f => f.path);
+    for (const [keep, cut, line] of [
+      [[], [".env.locl"], notInTheMenuLine(".env.locl", shown)],
+      [[".git"], [], neverGitLine(".git")],
+      [[], [".git/config"], neverGitLine(".git/config")],
+    ] as const) {
+      const refused = (() => {
+        try {
+          return seedChoiceFrom(PLAN, keep, cut);
+        } catch (e) {
+          return e;
+        }
+      })();
+      expect(refused).toMatchObject({ message: line });
+      expect(exitClassOf(refused)).toBe("usage");
+    }
+  });
+});
+
+describe("a project's seed picks", () => {
+  it("start where they are told, and keep a start path the menu no longer shows as missing, until it is cut", () => {
+    expect(seedPicks(PLAN, [".env.local", "old.env"], ["dev.db"], [])).toEqual({ files: [".env.local", "dev.db"], missing: ["old.env"] });
+    expect(seedPicks(PLAN, [".env.local", "old.env"], [], ["old.env"])).toEqual({ files: [".env.local"], missing: [] });
+    expect(() => seedPicks(PLAN, [], ["old.env"], [])).toThrow(/is not on the seed menu/);
+    expect(() => seedPicks(PLAN, ["old.env"], ["old.env"], ["old.env"])).toThrow(/is not on the seed menu/);
+  });
+
+  it("draw the tick column one wide whether anything is picked or not, and name the missing ones under the table", () => {
+    const none = projectSeedLines(projectSeedOf("lab", PLAN, { files: [], missing: [] }, false));
+    expect(none.rows.slice(1).map(r => r[0])).toEqual(PLAN.files.map(() => " "));
+    expect(none.foot).toEqual(["0 picked. Nothing was saved; add --yes to save these picks."]);
+    const some = projectSeedLines(projectSeedOf("lab", PLAN, { files: [".env.local"], missing: ["old.env"] }, true));
+    expect(some.rows[1]![0]).toBe("x");
+    expect(some.foot).toEqual(["Picked but not in the folder now, so a sub-thread starts without: old.env.", "1 picked, 4 KB. Saved: every later sub-thread of lab gets these."]);
   });
 });
 

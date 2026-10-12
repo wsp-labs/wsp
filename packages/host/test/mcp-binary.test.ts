@@ -23,6 +23,7 @@ import { nodeHost, type Host } from "@wsp/collect";
 import { agentsReader } from "../src/agents-reader.js";
 import { hostActs } from "../src/agents-signin.js";
 import { placeWiring } from "../src/places.js";
+import { hostSeed } from "../src/cli/wiring.js";
 import { serversActs } from "../src/servers-acts.js";
 import { skillsActs } from "../src/skills-acts.js";
 import type { SkillsFetch } from "../src/skills-sh.js";
@@ -175,6 +176,22 @@ const CALLED: readonly Called[] = [
       const repo = mkdtempSync(join(tmpdir(), "wsp-conversations-lab-"));
       madeRepos.push(repo);
       execFileSync("git", ["init", "-q", repo]);
+      await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
+    },
+  },
+  { tool: "projects_seed", argv: ["projects", "seed", "nowhere"], arguments: { project: "nowhere" }, refused: true },
+  {
+    tool: "projects_seed",
+    argv: ["projects", "seed", "lab", "--keep", ".env", "--yes"],
+    arguments: { project: "lab", keep: [".env"], confirm: true },
+    given: async rt => {
+      const repo = mkdtempSync(join(tmpdir(), "wsp-seed-lab-"));
+      madeRepos.push(repo);
+      execFileSync("git", ["init", "-q", repo]);
+      writeFileSync(join(repo, ".gitignore"), ".env\nnode_modules/\n");
+      writeFileSync(join(repo, ".env"), "A=1\n");
+      mkdirSync(join(repo, "node_modules", "left-pad"), { recursive: true });
+      writeFileSync(join(repo, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
       await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
     },
   },
@@ -390,6 +407,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
         agentsActs: hostActs({ vaultFile: join(dir, ".env"), home: () => join(dir, "user"), wspServer: () => ({ command: "wsp", args: ["mcp"] }) }),
         skillsActs: skillsActs({ fetch: SKILLS_SH, here: home }),
         serversActs: serversActs({ here: home }),
+        seed: hostSeed(),
       });
       handle = await serve(captured(), { port: 0, statePath, webDir, runtime });
     });
