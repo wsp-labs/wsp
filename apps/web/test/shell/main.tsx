@@ -75,7 +75,8 @@ import { statusOf } from "../workspace-status";
 import { TooltipProvider } from "../../src/components/ui/tooltip";
 import type { Api, ProtocolEvent } from "../../src/protocol/client";
 import { getLive } from "../../src/machine/live";
-import { useStore } from "../../src/protocol/store";
+import { useHomeProject, useStore } from "../../src/protocol/store";
+import { ProjectHome } from "../../src/shell/ProjectHome";
 import { openCommandPalette } from "../../src/commandPaletteBus";
 import { openComputerSettings, openSettingsGroup } from "../../src/settings/openAt";
 import { useHostNotices } from "../../src/notices/hostNotices.js";
@@ -150,7 +151,8 @@ if (projects) Object.assign(cloud[0]!, { projects: PROJECTS });
 // label a person names, which no width bounds.
 const LONG_PROJECT = { id: "pr_long", name: "customer-billing-service-platform", path: "/Users/zingzy/customer-billing-service-platform", computer: "default" };
 const MAC: WorkspaceView = { ...view("ws_m", "zingzy-mac"), kind: "local", machineId: "local", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" }, golden: "", ...(projects ? { project: { id: "pr_api", name: "the-project", path: "/root", computer: "default" } } : {}), ...(params.get("longproject") === "1" ? { project: LONG_PROJECT } : {}) };
-const workspaces = params.get("local") === "1" ? [...cloud, MAC] : cloud;
+// ?conversations=1 holds no workspace, so nothing is selected and the centre is a project's New thread page.
+const workspaces = params.get("conversations") === "1" ? [] : params.get("local") === "1" ? [...cloud, MAC] : cloud;
 // ?look=1 gives the first two workspaces a theme and the first a glyph of its own, and leaves the rest with neither, so
 // one page holds two themed spaces, a plain one and, with ?local=1, every kind's own glyph on the bar. The
 // first theme is a preset at the default grain and opacity; the second has three colours, grain and its own side pinned.
@@ -578,9 +580,22 @@ const diagramHistory: SessionEvent[] = [
   },
 ];
 
+// ?conversations=1: the wsp project's conversations kept outside wsp, read through the resume picker, with the New thread
+// page the centre draws when nothing is selected.
+const conversationsShown = params.get("conversations") === "1";
+const outside = (id: string, title: string, minutes: number) => ({ agent: "claude", id, title, firstPrompt: title, branch: "main", cwd: "/Users/dev/wsp", lastAt: Date.now() - minutes * 60_000, bytes: 40_960, origin: "terminal" as const, live: false });
+const OUTSIDE = [outside("c1", "Resume picker plan", 12), outside("c2", "WSP website rework", 50), outside("c3", "Slate launch video scripts", 120)];
+const outsideRead = (title: string) => ({ cwd: "/Users/dev/wsp", title, rows: [{ who: "person" as const, text: `${title}: where were we?` }, { who: "agent" as const, text: `We were halfway through ${title}.` }] });
+
 // ?marks=1 lets a thread be pinned and snoozed and a project be exported, so the Snooze and Export dialogs open.
 // ?stop=1 lets a running thread be stopped, so its tile offers Stop on hover.
 const api: Api = {
+  ...(conversationsShown
+    ? {
+        conversationsList: async (project: string) => ({ rows: project === "pr_wsp" ? OUTSIDE : [], held: [] }),
+        conversationRead: async (o: { id: string }) => outsideRead(OUTSIDE.find(r => r.id === o.id)?.title ?? o.id),
+      }
+    : {}),
   ...(params.get("marks") === "1" ? { markThreads: async () => {}, exportProject: async opts => ({ dest: opts.dest, files: 0, bytes: 0, excluded: [], agents: [] }) } : {}),
   ...(params.get("stop") === "1" ? { interruptSession: async () => ({ outcome: "accepted" as const }) } : {}),
   ...(params.get("consent") === "1" ? { editorList: async () => [{ id: "vscode", name: "VS Code", remote: true }], sshInclude: async () => false } : {}),
@@ -817,6 +832,13 @@ if (params.get("pick") === "1") {
   }));
   setTimeout(() => openCommandPalette({ page: "new-thread" }), 200);
 }
+if (conversationsShown) {
+  const recorded = (id: string, name: string, path: string) => ({ id, name, computer: "here", source: { kind: "folder" as const, path }, path, remote: "", defaultBranch: "main", memoryKey: `-${name}`, memoryDir: "/m", createdAt: "t" });
+  useStore.setState({
+    places: [{ id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", default: true, present: true, mac: "macbook", home: "/Users/dev" }],
+    projects: [recorded("pr_wsp", "wsp", "/Users/dev/wsp"), recorded("pr_spoo", "spoo", "/Users/dev/spoo")],
+  });
+}
 const settingsGroup = params.get("settings");
 const settingsShown = settingsGroup === "general" || settingsGroup === "appearance";
 if (settingsShown) openSettingsGroup(settingsGroup);
@@ -954,6 +976,15 @@ function LineRule() {
   useWorkspaceLineNotices();
   return null;
 }
+/** The New thread page the centre draws with nothing selected, off the hook the centre reads. */
+function CentreHome() {
+  const project = useHomeProject();
+  return project === undefined ? null : (
+    <div className="flex min-h-0 flex-1 flex-col" data-terminal-beside>
+      <ProjectHome projectId={project.id} />
+    </div>
+  );
+}
 createRoot(document.getElementById("root")!).render(
   <TooltipProvider>
     <GlassRule />
@@ -962,7 +993,11 @@ createRoot(document.getElementById("root")!).render(
     {params.get("host") === "1" ? <HostRule /> : null}
     <AppShell>
       {shown === null ? (
-        <div />
+        conversationsShown ? (
+          <CentreHome />
+        ) : (
+          <div />
+        )
       ) : (
         <div className="flex min-h-0 flex-1 flex-col" data-terminal-beside>
           <WorkspaceThread workspaceId={shown} />

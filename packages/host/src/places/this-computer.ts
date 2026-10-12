@@ -2,7 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { hostname, platform } from "node:os";
+import { homedir, hostname, platform } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { type MacKind, macKindOf } from "@wsp/protocol";
 import { keyFingerprint } from "@wsp/engine";
@@ -101,5 +101,5 @@ export function placeHere(name: string = placeNameHere()): HerePlace {
   const report = placeFacts({ name });
   const label = placeLabelHere();
   const mac = placeMacHere();
-  return { name: report.name, ...(label !== undefined ? { label } : {}), ...(mac !== undefined ? { mac } : {}), os: report.os, shape: report.shape, engine: report.engine, ...(report.diskFreeBytes !== undefined ? { diskFreeBytes: report.diskFreeBytes } : {}) };
+  return { name: report.name, ...(label !== undefined ? { label } : {}), ...(mac !== undefined ? { mac } : {}), os: report.os, shape: report.shape, engine: report.engine, ...(report.diskFreeBytes !== undefined ? { diskFreeBytes: report.diskFreeBytes } : {}), home: homedir() };
 }

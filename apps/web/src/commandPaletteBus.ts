@@ -8,13 +8,11 @@ export interface CommandPaletteOpenDetail {
   readonly query?: string;
   /** Close instead when the palette is already open. */
   readonly toggle?: boolean;
-  /** The page it opens on in place of its root: the projects New thread picks from, or a project's conversations. */
+  /** The page it opens on in place of its root: the projects New thread picks from. */
   readonly page?: CommandPalettePage;
-  /** The project the conversations page lists, where it is not the one on screen. */
-  readonly project?: string;
 }
 
-export type CommandPalettePage = "new-thread" | "conversations";
+export type CommandPalettePage = "new-thread";
 
 export function openCommandPalette(detail?: CommandPaletteOpenDetail): void {
   window.dispatchEvent(

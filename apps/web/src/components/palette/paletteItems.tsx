@@ -6,11 +6,11 @@
 // whose title holds the typed query and every other one whose messages hold
 // it, as the host found them. Pure apart from the callbacks it is handed, so
 // the list is testable without the dialog.
-import { ActivityIcon, ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, BookOpenIcon, BugIcon, ChevronDownIcon, ChevronUpIcon, FileTextIcon, FolderOpenIcon, FolderPlusIcon, GithubIcon, MonitorIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { ActivityIcon, ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, BookOpenIcon, BugIcon, ChevronDownIcon, ChevronUpIcon, FileTextIcon, FolderOpenIcon, FolderPlusIcon, GithubIcon, HistoryIcon, MonitorIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { REPO } from "../../../../../packages/protocol/src/bundles.mjs";
 import { agentName } from "@wsp/catalog";
-import { HERE_PLACE_ID, PLACES_WORDS, runsInFolder, workspaceKind, type OutsideConversation, type PlaceView, type ProjectView, type SessionSearchHit } from "@wsp/protocol";
+import { CONVERSATION_WORDS, HERE_PLACE_ID, PLACES_WORDS, runsInFolder, workspaceKind, type PlaceView, type ProjectView, type SessionSearchHit } from "@wsp/protocol";
 import { THREAD_WORDS } from "../../actions/format.js";
 import { resolveActions, type ResolvedAction } from "../../actions/registry.js";
 import { workspaceActions, workspaceTarget, type WorkspaceVerbs } from "../../actions/workspaceActions.js";
@@ -36,7 +36,6 @@ import { restingAge } from "../status/restingAge.js";
 import { LINE_SLOT_CLASS, ThreadStatus } from "../status/ThreadStatus.js";
 import { CommandShortcut } from "../ui/command.js";
 import { type CommandPaletteActionItem, type CommandPaletteSubmenuItem, ITEM_ICON_CLASS, RECENT_THREAD_LIMIT } from "./CommandPalette.logic.js";
-import { conversationsPage, type ConversationsPageInput } from "./conversationsPage.js";
 
 export interface PaletteHandlers {
   readonly selectWorkspace: (workspaceId: string) => void;
@@ -45,6 +44,8 @@ export interface PaletteHandlers {
   readonly newThread: () => void;
   /** Opens one project's New thread page. */
   readonly openProjectHome: (projectId: string) => void;
+  /** Opens the picker of one project's conversations kept outside wsp. */
+  readonly resumeConversation: (projectId: string) => void;
   readonly toggleSidebar: () => void;
   readonly toggleRightPanel: (workspaceId: string) => void;
   /** One step down the sidebar's workspaces, and back up; both wrap. */
@@ -83,8 +84,8 @@ export interface PaletteItemsInput {
   /** The computers and providers this host holds, for the one reading of a workspace whose computer is not
    * answering: a row that named its own state read Unreachable for the computer the app is drawn on. */
   readonly places: readonly PlaceView[];
-  /** The page of the conversations kept outside wsp in the project on screen, or the one its menu named. */
-  readonly conversations?: ConversationsPageInput;
+  /** The project Resume a conversation opens the picker on: the one on screen, else none. */
+  readonly resumeProject?: ProjectView | null;
 }
 
 export interface PaletteItems {
@@ -208,7 +209,7 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
       run: sync(handlers.newThread),
     },
     newThreadPage(input),
-    ...(input.conversations !== undefined ? [conversationsPage({ ...input.conversations, pick: row => pickOrOpen(input, row) })] : []),
+    ...(input.resumeProject !== undefined ? [resumeRow(input.resumeProject, handlers)] : []),
     {
       kind: "action",
       value: "action:add-project",
@@ -402,12 +403,16 @@ function threadItem(thread: SidebarThreadSnapshot, project: SidebarProjectSnapsh
   };
 }
 
-/** A conversation a wsp thread already runs on opens that thread, where the sidebar holds it; any other goes to the
- * page's own pick. */
-export function pickOrOpen(input: Pick<PaletteItemsInput, "projects" | "handlers" | "conversations">, row: OutsideConversation): void {
-  const thread = row.thread === undefined ? undefined : input.projects.flatMap(project => project.threads).find(t => t.threadId === row.thread);
-  if (thread !== undefined) input.handlers.selectThread(thread.workspaceId, thread.threadId);
-  else input.conversations?.pick(row);
+/** Resume a conversation: the picker on the project on screen, held with the reason where none is. */
+function resumeRow(project: ProjectView | null, handlers: PaletteHandlers): CommandPaletteActionItem {
+  return {
+    kind: "action",
+    value: "action:resume-conversation",
+    searchTerms: ["resume a conversation", "pick up a conversation", "claude code", "codex"],
+    icon: <HistoryIcon className={ITEM_ICON_CLASS} />,
+    title: CONVERSATION_WORDS.row,
+    ...(project === null ? { description: CONVERSATION_WORDS.openProjectFirst, disabled: true, run: async () => {} } : { description: project.name, run: sync(() => handlers.resumeConversation(project.id)) }),
+  };
 }
 
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItems {

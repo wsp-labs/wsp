@@ -79,7 +79,7 @@ cgroups?: Array<string>,
  * A name for this watch on the socket, so one socket holds a watch per name, each with its own roots and
  * folder, and every port event it sends carries the name. Without one the watch is the socket's own.
  */
-watch?: string, } | { "op": "manifest.get" } | { "op": "manifest.record", cmd: string, cwd: string, port?: number, } | { "op": "manifest.restartScript" } | { "op": "inbox.watch" } | { "op": "inbox.rescan" } | { "op": "sys.watch" } | { "op": "sys.unwatch" } | { "op": "sys.history", from: number, to: number, stepMs: number, } | { "op": "usage.logs", stores: Array<UsageStore>, } | { "op": "transcripts.list", root: string, dirs: Array<string>, cwds: Array<string>, } | { "op": "transcripts.read", root: string, dirs: Array<string>, session: string, last: number, } | { "op": "proc.watch", 
+watch?: string, } | { "op": "manifest.get" } | { "op": "manifest.record", cmd: string, cwd: string, port?: number, } | { "op": "manifest.restartScript" } | { "op": "inbox.watch" } | { "op": "inbox.rescan" } | { "op": "sys.watch" } | { "op": "sys.unwatch" } | { "op": "sys.history", from: number, to: number, stepMs: number, } | { "op": "usage.logs", stores: Array<UsageStore>, } | { "op": "transcripts.list", root: string, dirs: Array<string>, cwds: Array<string>, } | { "op": "transcripts.read", root: string, dirs: Array<string>, session: string, last: number, tail?: number, } | { "op": "proc.watch", 
 /**
  * The cgroups whose processes this socket reads each tick, each with every cgroup under it, by the path
  * /proc/[pid]/cgroup names: a box's threads, so a busy box is not read whole every two seconds. The daemon's

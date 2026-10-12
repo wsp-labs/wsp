@@ -9,6 +9,8 @@ type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children
   readonly children: ReactNode;
   readonly escapeLabel?: ReactNode;
   readonly footerActionLabel?: ReactNode;
+  /** More keys the dialog takes, each said after Enter's. */
+  readonly footerKeys?: ReadonlyArray<{ readonly keys: string; readonly label: ReactNode }>;
   readonly footerTrailing?: ReactNode;
   readonly inputAccessory?: ReactNode;
   readonly inputProps: ComponentProps<typeof CommandInput>;
@@ -25,6 +27,7 @@ export function CommandPaletteContent({
   children,
   escapeLabel = "Close",
   footerActionLabel,
+  footerKeys = [],
   footerTrailing,
   inputAccessory,
   inputProps,
@@ -51,12 +54,12 @@ export function CommandPaletteContent({
               </Kbd>
               <span>Navigate</span>
             </KbdGroup>
-            {footerActionLabel !== undefined ? (
-              <KbdGroup className="items-center gap-1.5">
-                <Kbd>Enter</Kbd>
-                <span>{footerActionLabel}</span>
+            {[...(footerActionLabel !== undefined ? [{ keys: "Enter", label: footerActionLabel }] : []), ...footerKeys].map(key => (
+              <KbdGroup key={key.keys} className="items-center gap-1.5">
+                <Kbd>{key.keys}</Kbd>
+                <span>{key.label}</span>
               </KbdGroup>
-            ) : null}
+            ))}
             <KbdGroup className="items-center gap-1.5">
               <Kbd>Esc</Kbd>
               <span>{escapeLabel}</span>

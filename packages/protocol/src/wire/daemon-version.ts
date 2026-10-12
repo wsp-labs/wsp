@@ -162,6 +162,7 @@ const DAEMON_CONTENTS = [
   "5561b75989b87c1acfb0b1b6312d0ce49fde4f286d6c6c495205956aeb77dca1",
   "0c317e5ccfb3fc061b1ba9b28f0f8f16f41e30c0c268be5284654ad156c96686",
   "a934fd82cd94334fd628c496fa325269b1ea755531c94fd0c13d0659bc3cd9c9",
+  "43fe415ad837dda666c4f00dd0688bcc76aa139ee0f438d7e005268e71ce2bca",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -648,7 +649,9 @@ const DAEMON_CONTENTS = [
  * one-shot stats every 10 s; container.stop stops one through the engine's stop with 2 s and never removes it, and
  * refuses one no label or note places under a thread; a root daemon reads the Docker context beneath the home with no
  * link followed, the person's own daemon follows a link as their Docker CLI does, neither waits on a fifo, and a root
- * daemon dials a context's socket only where the home's account owns it and serves it. */
+ * daemon dials a context's socket only where the home's account owns it and serves it.
+ * Version 153: transcripts.read takes tail, a byte count, and reads only that much of the transcript's end, walking the
+ * branch as far up as the window holds it; a daemon before it ignores tail and reads the whole file. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

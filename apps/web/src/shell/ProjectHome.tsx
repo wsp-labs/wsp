@@ -10,8 +10,10 @@
 // at most is on screen; the computer's free room is read first, and a send it
 // has no room for is refused before any copy is made.
 import { CONVERSATION_OPEN_KIND, CONVERSATION_WORDS, HERE_PLACE_ID, START_WORDS, githubLinkOf, nameOfTask, placeRoom, plural, projectForRepo, refusalLine, type ProjectView } from "@wsp/protocol";
-import { ConversationLine } from "./ConversationLine.js";
+import { HistoryIcon } from "lucide-react";
+import { agentName } from "@wsp/catalog";
 import { sendOn, useConversationsStore, type HeldPick, type SendPicks } from "./conversations.js";
+import { ResumeDraft } from "./ResumeDraft.js";
 import { Button } from "../components/ui/button.js";
 import { RefusalSlot } from "../settings/sheetParts.js";
 import { EmptyThread } from "../components/chat/ChatView.js";
@@ -136,6 +138,30 @@ export function ProjectHome({ projectId }: { projectId: string }) {
     return null;
   };
 
+  if (held !== undefined) {
+    return (
+      <ResumeDraft projectId={project.id}>
+        <ChatComposer
+          key={key}
+          workspaceId={key}
+          thread={thread}
+          onStart={start}
+          homeProject={project.id}
+          where={<WhereItRuns project={project} />}
+          sendLabel={CONVERSATION_WORDS.send}
+          banner={{
+            k: "resume",
+            icon: <HistoryIcon />,
+            line: CONVERSATION_WORDS.continues(held.row.title, held.copy),
+            note: agentName(held.row.agent),
+            dismiss: CONVERSATION_WORDS.startFresh,
+            onDismiss: () => useConversationsStore.getState().hold(project.id, null),
+          }}
+        />
+      </ResumeDraft>
+    );
+  }
+
   return (
     <div data-k="project-home" data-chat-view className="relative isolate flex min-h-0 flex-1 flex-col justify-center gap-10 pb-[8vh]">
       <HeroField />
@@ -147,7 +173,7 @@ export function ProjectHome({ projectId }: { projectId: string }) {
         onStart={start}
         homeProject={project.id}
         where={<WhereItRuns project={project} />}
-        {...(held !== undefined ? { sendLabel: CONVERSATION_WORDS.send } : link !== undefined && linked !== undefined ? { sendLabel: START_WORDS.startOn(link.number) } : {})}
+        {...(link !== undefined && linked !== undefined ? { sendLabel: START_WORDS.startOn(link.number) } : {})}
         {...(link?.kind === "pull_request" && linked !== undefined
           ? {
               beside: (
@@ -157,7 +183,7 @@ export function ProjectHome({ projectId }: { projectId: string }) {
               ),
             }
           : {})}
-        {...(link !== undefined && linked === undefined ? { under: <RefusalSlot k="start-refusal" said={START_WORDS.noProjectForRepo(link.repo)} /> } : { under: <ConversationLine projectId={project.id} /> })}
+        {...(link !== undefined && linked === undefined ? { under: <RefusalSlot k="start-refusal" said={START_WORDS.noProjectForRepo(link.repo)} /> } : {})}
       />
     </div>
   );
