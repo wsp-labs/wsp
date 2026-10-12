@@ -9,7 +9,7 @@ import { EXEC_BODY_MAX, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS, absentComputer, 
 import { AGENT_PID_FILE_ENV, endRun, type ExecStream } from "@wsp/protocol";
 import { gateLoop } from "../../protocol/test/stub-script.js";
 import { TREE_WORK_AWK, machineExecStream } from "../src/machine-exec.js";
-import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 import { scriptGuest, type Step } from "./script-guest.js";
 import { stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
 
