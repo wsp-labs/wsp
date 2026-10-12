@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "op": "stdio.open",
+    "stdioId": "s1"
+  },
+  {
+    "id": 1,
+    "op": "stdio.open",
+    "stdioId": "s1",
+    "cmd": ""
+  }
+]

@@ -864,6 +864,21 @@ pub enum DaemonOp {
     TunnelWrite { tunnel_id: String, data: String },
     #[serde(rename = "tunnel.close", rename_all = "camelCase")]
     TunnelClose { tunnel_id: String },
+    /// A command held open with its three streams as pipes, for a client that talks to it over stdin and stdout
+    /// for as long as it stands: an MCP server a slate calls. bash -c in the daemon's root with its environment, as
+    /// exec runs one, in a process group of its own; the id is the caller's, and the socket's close kills it.
+    #[serde(rename = "stdio.open", rename_all = "camelCase")]
+    StdioOpen {
+        stdio_id: String,
+        #[serde(deserialize_with = "bounded::<_, 1, { crate::numbers::EXEC_BODY_MAX }>")]
+        cmd: String,
+    },
+    /// Bytes for that command's stdin, base64.
+    #[serde(rename = "stdio.write", rename_all = "camelCase")]
+    StdioWrite { stdio_id: String, data: String },
+    /// Kills that command's process group; stdio.exit follows.
+    #[serde(rename = "stdio.close", rename_all = "camelCase")]
+    StdioClose { stdio_id: String },
     #[serde(rename = "exec", rename_all = "camelCase")]
     Exec {
         #[serde(deserialize_with = "bounded::<_, 0, { crate::numbers::EXEC_BODY_MAX }>")]
@@ -973,7 +988,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 81] = [
+pub const DAEMON_OPS: [&str; 84] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -1055,6 +1070,9 @@ pub const DAEMON_OPS: [&str; 81] = [
     "git.branches",
     "git.switchNew",
     "git.fetchBranch",
+    "stdio.open",
+    "stdio.write",
+    "stdio.close",
 ];
 
 /// The five of those that belong to the road a client of this machine dials in on: a guest process's two and the

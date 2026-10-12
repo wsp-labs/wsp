@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpTransport, type TurnServer } from "@wsp/catalog";
 import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, type Host } from "@wsp/collect";
-import type { ServerToolsAsk } from "@wsp/runtime";
+import { SERVER_NOT_SET_UP, type ServerToolsAsk } from "@wsp/runtime";
 import { lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
 import { ownServerFiles } from "./agents-here.js";
 
@@ -324,7 +324,7 @@ async function readServer(host: Host, agentId: string, name: string, o: { projec
   const agent = MCP_AGENTS.find(a => a.id === agentId);
   if (agent === undefined) throw new Error(noMcpAgentRefusal(agentId));
   const found = await findServer(host, agent, name, o.project);
-  if (found === undefined) throw new Error(noSuchServerRefusal(name, agent.name));
+  if (found === undefined) throw Object.assign(new Error(noSuchServerRefusal(name, agent.name)), { code: SERVER_NOT_SET_UP });
   const cwd = found.scope !== "user" && o.project !== undefined ? o.project : host.home;
   const resolved = agent.mcp.format.resolve(found.server, n => o.values?.[n]);
   if ("missing" in resolved) return { agent, found, cwd, missing: resolved.missing };

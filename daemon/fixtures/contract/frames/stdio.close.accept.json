@@ -1,0 +1,7 @@
+[
+  {
+    "id": 1,
+    "op": "stdio.close",
+    "stdioId": "s1"
+  }
+]

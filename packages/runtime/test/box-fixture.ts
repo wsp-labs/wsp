@@ -11,7 +11,7 @@ import { HERE_PLACE_ID, inCgroup, unknownOpLine, type Caller, type ProcEntry, ty
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { Store } from "../src/store.js";
 import type { Clock } from "../src/clock.js";
-import type { ServersActs } from "../src/agents-read.js";
+import type { AgentsReader, ServersActs } from "../src/agents-read.js";
 import { HANDSHAKE, MCP_READ_END } from "@wsp/engine";
 import { ctx, sockets, serving, code, join, KEEPS_NO_IMAGE } from "./places-fixture.js";
 import { branchDaemons, fakeLocal } from "./stub-backend.js";
@@ -75,6 +75,10 @@ export interface AgentRun {
   log: Buffer;
   exit?: string;
 }
+
+/** How the computer answers stdio.open, stdio.write and stdio.close, for a case that runs their commands: the reply,
+ * with each event pushed up the link as the daemon there pushes them. */
+export type Stdio = (frame: Record<string, unknown>, push: (event: Record<string, unknown>) => void) => Record<string, unknown>;
 
 export interface BoxLogin {
   home: string;
@@ -155,7 +159,7 @@ function agentAnswers(seen: Box, sessions: Map<string, { session: string; cwd: s
   return undefined;
 }
 
-export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys; agent?: boolean; runs?: Map<string, AgentRun> } = {}): Box {
+export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys; agent?: boolean; runs?: Map<string, AgentRun>; stdio?: Stdio } = {}): Box {
   let ptys = 0;
   const seen: Box = { ops: [], execs: [], frames: [], taken: new Set(), kills: [], push: event => client.say(event), configs: new Map(), order: [], procs: [], ports: [], runs: o.runs ?? new Map() };
   const sessions = new Map<string, { session: string; cwd: string }>();
@@ -173,6 +177,7 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
     if (op !== "exec") {
       seen.frames.push(frame);
       if (o.ptys !== undefined && PTY_OPS.has(op)) return void o.ptys(frame).then(reply => client.say({ ...reply, id: frame["id"] }), (e: unknown) => client.say({ id: frame["id"], ok: false, error: String(e) }));
+      if (o.stdio !== undefined && op.startsWith("stdio.")) return say(o.stdio(frame, seen.push));
       if (op === "pty.create") return say({ ptyId: `p${++ptys}` });
       if (op === "proc.list" && seen.listless === true) return client.say({ id: frame["id"], ok: false, error: unknownOpLine("proc.list") });
       if (op === "proc.list") return say({ at: Date.now(), daemon: 1, total: seen.procs.length, procs: seen.procs, ...(seen.cgroups === undefined ? {} : { cgroups: seen.cgroups }) });
@@ -285,15 +290,15 @@ export async function pickSignIn(store: Store, placeId: string, agent: string, s
   await ctx.runtime!.places!.load();
 }
 
-export async function joined(o: { login?: BoxLogin; adapters?: Record<string, HarnessAdapterFactory>; taken?: string[]; store?: Store; vault?: Record<string, string>; failClone?: boolean; serversActs?: ServersActs; logins?: string; clock?: Clock; ptys?: Ptys; github?: "vault" | "machine" | "skip"; agent?: boolean; memMb?: number } = {}) {
+export async function joined(o: { login?: BoxLogin; adapters?: Record<string, HarnessAdapterFactory>; taken?: string[]; store?: Store; vault?: Record<string, string>; failClone?: boolean; serversActs?: ServersActs; agentsReader?: AgentsReader; daemonVersion?: number; stdio?: Stdio; logins?: string; clock?: Clock; ptys?: Ptys; github?: "vault" | "machine" | "skip"; agent?: boolean; memMb?: number } = {}) {
   const login = o.login ?? HETZNER;
-  const { hostKey, store } = await serving({ adapters: o.adapters ?? {}, ...(o.store !== undefined ? { store: o.store } : {}), ...(o.vault !== undefined ? { vault: o.vault } : {}), ...(o.serversActs !== undefined ? { serversActs: o.serversActs } : {}), ...(o.clock !== undefined ? { clock: o.clock } : {}) });
+  const { hostKey, store } = await serving({ adapters: o.adapters ?? {}, ...(o.store !== undefined ? { store: o.store } : {}), ...(o.vault !== undefined ? { vault: o.vault } : {}), ...(o.serversActs !== undefined ? { serversActs: o.serversActs } : {}), ...(o.agentsReader !== undefined ? { agentsReader: o.agentsReader } : {}), ...(o.clock !== undefined ? { clock: o.clock } : {}) });
   let seen!: Box;
   const { client, placeId, pair } = await join(hostKey, {
     code: await code(),
-    report: report("hetzner", { login: { HOME: login.home, USER: "root", PATH: "/usr/bin" }, ...(o.memMb !== undefined ? { shape: { cpu: 2, memMb: o.memMb } } : {}) }),
+    report: report("hetzner", { login: { HOME: login.home, USER: "root", PATH: "/usr/bin" }, ...(o.memMb !== undefined ? { shape: { cpu: 2, memMb: o.memMb } } : {}), ...(o.daemonVersion !== undefined ? { daemonVersion: o.daemonVersion } : {}) }),
     answers: c => {
-      seen = box(c, login, { ...(o.failClone === true ? { failClone: true } : {}), ...(o.logins !== undefined ? { logins: o.logins } : {}), ...(o.ptys !== undefined ? { ptys: o.ptys } : {}), ...(o.agent === true ? { agent: true } : {}) });
+      seen = box(c, login, { ...(o.failClone === true ? { failClone: true } : {}), ...(o.logins !== undefined ? { logins: o.logins } : {}), ...(o.ptys !== undefined ? { ptys: o.ptys } : {}), ...(o.agent === true ? { agent: true } : {}), ...(o.stdio !== undefined ? { stdio: o.stdio } : {}) });
       for (const path of o.taken ?? []) seen.taken.add(path);
     },
   });

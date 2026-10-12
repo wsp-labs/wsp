@@ -12,6 +12,9 @@ import { PlaceFolderMachine, type ExecResult, type Machine, type RunOptions } fr
 import type { Caller } from "@wsp/protocol";
 import { boxLauncher, boxLedger, boxRoad, boxSlateDir } from "../src/slate-box.js";
 import { cgroupJoinLine, FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX, threadCgroup } from "@wsp/protocol";
+import { slateHostAway, slateServerNotSetUp } from "@wsp/protocol/slate";
+import type { McpPipeOpen } from "../src/slate-mcp.js";
+import { pipeOn, type StdioRoad } from "../src/slate-mcp-on.js";
 import { boxPins, type HashOn, type HashRead } from "../src/slate-files.js";
 import { createSlateRuns, type RoadEnd } from "../src/slate-runs.js";
 import { SLATES } from "../src/lazy-slates.js";
@@ -464,6 +467,147 @@ describe("a box thread's slate", () => {
     expect({ woke, scripts: scripts.length }).toEqual({ woke: 1, scripts: 1 });
     slates.close();
   }, 30_000);
+});
+
+describe("a box thread's tool run", () => {
+  const TOOLS = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" every={60} /><run name="repos" resource="github:gh://repos" />
+  <column><output run={$zones} /></column></slate>`;
+  const AWAY = { computer: "hetzner", host: "studio" };
+  const CLAUDE = { id: "claude", name: "Claude Code" };
+  /** Slates for a thread on hetzner, where the agent's config there names github alone, or on this computer. */
+  const slatesOn = (where: typeof AWAY | undefined | (() => typeof AWAY | undefined), open?: McpPipeOpen) => {
+    const awayOf = typeof where === "function" ? where : () => where;
+    const away = awayOf();
+    const thread = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const asked: string[][] = [];
+    const slates = createSlates({
+      store: memoryStore(),
+      now: () => Date.now(),
+      record: () => {},
+      emit: () => {},
+      thread: () => ({ workspaceId: "w1", rootThreadId: thread, sessionId: "s1", folder: temp(), hostFolder: temp(), computer: away?.computer ?? "studio" }),
+      ...(typeof where === "function" || away !== undefined ? { machineOf: () => bashMachine(), away: awayOf, missingOn: async (_t: string, servers: string[]) => (asked.push(servers), { agent: CLAUDE, thread, missing: servers.filter(s => s !== "github") }) } : {}),
+      under: lead => [lead],
+      threadOfToken: () => thread,
+      sources: (threadId, workspaceId) => ({ threadId, workspaceId, now: Date.now(), rows: () => [] }) as never,
+      deliver: async () => ({ outcome: "started" }),
+      runEnv: () => ({ PATH: process.env["PATH"] ?? "/usr/bin:/bin" }),
+      mcpServer: async () => ({ transport: { kind: "stdio", command: "stub", args: [], env: {} }, cwd: "/", env: {}, secrets: [], ...(open !== undefined ? { open } : {}) }),
+    });
+    const asThread: Caller = { origin: "relayed", by: { kind: "thread", threadId: thread, workspaceId: "w1", rootThreadId: thread } };
+    return { slates, thread, asThread, asked };
+  };
+  const notSetUp = (thread: string): string => `slate refused: 1 error: K710 server-not-set-up ${slateServerNotSetUp("cloudflare", "hetzner", CLAUDE, thread)}`;
+
+  it("is refused as the slate is written, checked or patched in where that computer's config names no such server, and a write keeping its servers asks nothing", async () => {
+    const { slates, thread, asThread, asked } = slatesOn(AWAY);
+    expect(slateServerNotSetUp("cloudflare", "hetzner", CLAUDE, thread)).toContain(`wsp servers add cloudflare ${thread} --agent claude`);
+    await expect(slates.write({ text: TOOLS, check: true }, asThread)).rejects.toMatchObject({ kind: "invalid", message: notSetUp(thread) });
+    await expect(slates.write({ text: TOOLS }, asThread)).rejects.toMatchObject({ kind: "invalid", message: notSetUp(thread) });
+    expect(await slates.get(thread)).toBeNull();
+    // A server it has writes; a patch naming one it lacks is refused the same way; one keeping its servers asks nothing.
+    await slates.write({ text: `<slate title="Zones"><run name="repos" resource="github:gh://repos" /><column><text id="t">none yet</text></column></slate>` }, asThread);
+    await expect(slates.write({ text: `<run name="zones" tool="cloudflare.zones_list" />` }, asThread)).rejects.toMatchObject({ kind: "invalid", message: notSetUp(thread) });
+    const before = asked.length;
+    await slates.write({ text: `<text id="t">two</text>` }, asThread);
+    expect(asked.length).toBe(before);
+    expect(asked).toEqual([["cloudflare", "github"], ["cloudflare", "github"], ["github"], ["cloudflare"]]);
+    slates.close();
+  });
+
+  it("runs a command on its own computer, and one on=\"host\" is refused naming both computers, as it never is from a thread here", async () => {
+    const onHost = `<slate title="Me"><run name="me" cmd="whoami" on="host" /><column><output run={$me} /></column></slate>`;
+    const box = slatesOn(AWAY);
+    await expect(box.slates.write({ text: onHost }, box.asThread)).rejects.toMatchObject({ kind: "invalid", message: `slate refused: 1 error: K711 host-away ${slateHostAway("$me", "hetzner", "studio")}` });
+    await box.slates.write({ text: onHost.replace(' on="host"', "") }, box.asThread);
+    const here = slatesOn(undefined);
+    await here.slates.write({ text: onHost }, here.asThread);
+    await here.slates.write({ text: TOOLS }, here.asThread);
+    expect(Object.keys(((await here.slates.get(here.thread))!.document as { runs: object }).runs)).toEqual(["zones", "repos"]);
+    box.slates.close();
+    here.slates.close();
+  });
+
+  it("refuses a stored on=\"host\" run when it starts from a thread now off this computer, before anything asks the person", async () => {
+    let now: typeof AWAY | undefined;
+    const { slates, thread, asThread } = slatesOn(() => now);
+    await slates.write({ text: `<slate title="Me"><run name="me" cmd="whoami" on="host" /><column><button id="go" label="Go" onPress={start($me)} /></column></slate>` }, asThread);
+    now = AWAY;
+    const pressed = await slates.event({ threadId: thread, version: (await slates.get(thread))!.version, piece: "go", event: "press", requestId: "go-0" });
+    expect(pressed.ask).toBeUndefined();
+    await vi.waitFor(async () => expect((await slates.get(thread))!.values["me"]).toMatchObject({ state: "failed", why: slateHostAway("$me", "hetzner", "studio") }), { timeout: 5_000 });
+    expect((await slates.get(thread))!.asks).toEqual([]);
+    slates.close();
+  });
+
+  it("keeps one server per thread and server running between calls, and closes it when the machine naps or the thread goes", async () => {
+    const pipes: { killed: boolean }[] = [];
+    // A server in the test's own hands: it answers initialize, tools/list and every call, as one on the box would.
+    const open: McpPipeOpen = (_t, _spec, on) => {
+      const pipe = { killed: false };
+      pipes.push(pipe);
+      let calls = 0;
+      return {
+        write(text) {
+          for (const line of text.split("\n").filter(Boolean)) {
+            const msg = JSON.parse(line) as { id?: number; method: string };
+            if (msg.id === undefined) continue;
+            const result = msg.method === "initialize" ? { protocolVersion: "2025-06-18", capabilities: { tools: {} } } : msg.method === "tools/list" ? { tools: [{ name: "list", annotations: { readOnlyHint: true } }] } : { content: [{ type: "text", text: JSON.stringify({ call: ++calls }) }] };
+            setImmediate(() => on.out(Buffer.from(`${JSON.stringify({ jsonrpc: "2.0", id: msg.id, result })}\n`)));
+          }
+        },
+        kill() {
+          pipe.killed = true;
+          setImmediate(() => on.exit("the server was stopped"));
+        },
+      };
+    };
+    const { slates, thread, asThread } = slatesOn({ ...AWAY }, open);
+    await slates.write({ text: `<slate title="Repos"><run name="repos" tool="github.list" /><column><button id="go" label="Go" onPress={start($repos)} /></column></slate>` }, asThread);
+    const view = async () => (await slates.get(thread))!;
+    const press = async (n: number) => slates.event({ threadId: thread, version: (await view()).version, piece: "go", event: "press", requestId: `go-${n}` });
+    await slates.approve({ threadId: thread, key: (await press(0)).ask!.key, scope: "thread" });
+    await vi.waitFor(async () => expect((await view()).values["repos"]).toMatchObject({ state: "done", runs: 1, json: { call: 1 } }), { timeout: 5_000 });
+    await press(1);
+    await vi.waitFor(async () => expect((await view()).values["repos"]).toMatchObject({ state: "done", runs: 2, json: { call: 2 } }), { timeout: 5_000 });
+    expect(pipes).toEqual([{ killed: false }]);
+    // The machine naps: the server there goes, and the next call starts a new one.
+    slates.napped("w1");
+    await vi.waitFor(() => expect(pipes).toEqual([{ killed: true }]));
+    await press(2);
+    await vi.waitFor(async () => expect((await view()).values["repos"]).toMatchObject({ state: "done", runs: 3, json: { call: 1 } }), { timeout: 5_000 });
+    expect(pipes).toEqual([{ killed: true }, { killed: false }]);
+    // Another workspace's nap leaves it be; the thread's going takes it.
+    slates.napped("w2");
+    expect(pipes[1]!.killed).toBe(false);
+    await slates.forget(thread);
+    await vi.waitFor(() => expect(pipes[1]!.killed).toBe(true));
+    slates.close();
+  });
+
+  it("closes the road it opened when that computer's daemon refuses the start, and says the refusal, not the close", async () => {
+    let closes = 0;
+    let listening = 0;
+    let gone!: () => void;
+    const road: StdioRoad = {
+      send: async frame => {
+        if (frame["op"] === "stdio.open") throw new Error("unknown op: stdio.open");
+        return {};
+      },
+      listen: () => (listening++, () => void listening--),
+      closed: new Promise<void>(r => (gone = r)),
+      close: () => (closes++, gone()),
+    };
+    const stub = { kind: "stdio" as const, command: "stub", args: [], env: {} };
+    const exits: string[] = [];
+    const pipe = pipeOn("hetzner", { platform: "linux", home: "/root", user: "root" }, async () => road)(stub, { transport: stub, cwd: "/", env: {}, secrets: [] }, {
+      out: () => {},
+      err: () => {},
+      exit: why => (exits.push(why), pipe.kill()),
+    });
+    await vi.waitFor(() => expect(closes).toBe(1));
+    expect({ first: exits[0], listening }).toEqual({ first: "it could not be started on hetzner: unknown op: stdio.open", listening: 0 });
+  });
 });
 
 describe("a box thread's image", () => {
