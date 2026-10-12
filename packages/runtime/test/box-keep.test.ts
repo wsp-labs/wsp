@@ -11,15 +11,33 @@ import { box, HETZNER, joined, type Box } from "./box-fixture.js";
 import { report } from "./place-join.js";
 import { fakeClock } from "./fake-clock.js";
 import { until } from "./until.js";
+import type { HarnessAdapterFactory, HarnessSession } from "../src/types/harness.js";
 
 const ADAPTERS = { claude: HARNESS_ADAPTERS.claude };
+
+/** The shipped Claude adapter, its kept process saying it still runs work a turn left going, as a Codex server with a
+ * background command does. */
+const working: HarnessAdapterFactory = ctx => {
+  const adapter = HARNESS_ADAPTERS.claude(ctx);
+  const keptWorking = (session: HarnessSession): HarnessSession =>
+    new Proxy(session, {
+      get: (target, key) => {
+        if (key !== "kept") return Reflect.get(target, key);
+        return () => {
+          const kept = target.kept?.();
+          return kept === undefined ? undefined : { ...kept, working: () => true, next: (turn: Parameters<typeof kept.next>[0]) => keptWorking(kept.next(turn)) };
+        };
+      },
+    });
+  return new Proxy(adapter, { get: (target, key) => (key === "start" ? (o: Parameters<typeof target.start>[0]) => keptWorking(target.start(o)) : Reflect.get(target, key)) });
+};
 /** What hetzner reports of itself as it joins, its memory among it. */
 const HETZNER_SHAPE = report("hetzner").shape;
 
 /** A host holding hetzner with its folder added, every launch there an agent that stays up for the next message. */
-async function onHetzner(o: { clock?: ReturnType<typeof fakeClock>["clock"]; memMb?: number } = {}) {
+async function onHetzner(o: { clock?: ReturnType<typeof fakeClock>["clock"]; memMb?: number; adapters?: Record<string, HarnessAdapterFactory> } = {}) {
   const store = memoryStore();
-  const held = await joined({ store, adapters: ADAPTERS, agent: true, ...(o.clock !== undefined ? { clock: o.clock } : {}), ...(o.memMb !== undefined ? { memMb: o.memMb } : {}) });
+  const held = await joined({ store, adapters: o.adapters ?? ADAPTERS, agent: true, ...(o.clock !== undefined ? { clock: o.clock } : {}), ...(o.memMb !== undefined ? { memMb: o.memMb } : {}) });
   const at = await held.rt.workspaces.folderFor({ project: held.project.id });
   const workspaceId = at.workspace.id;
   const send = async (prompt: string, thread?: string): Promise<{ result: TurnResult; threadId: string }> => {
@@ -76,6 +94,16 @@ describe("a thread on a joined computer keeps its agent process between turns", 
     // Left as the last turn found it, the next send runs on the process that turn left.
     expect((await send("three", one.threadId)).result.text).toBe("three from run 2 turn 2");
     expect(launches()).toBe(2);
+  }, 20_000);
+
+  it("runs on the kept process though the session file changed there, while that process still runs work its turn left", async () => {
+    const { send, launches, seen } = await onHetzner({ adapters: { claude: working } });
+    seen.sessionBytes = 1_000;
+    const one = await send("one");
+    await until(() => seen.execs.some(e => e.cmd.includes("wc -c <")));
+    seen.sessionBytes = 1_400;
+    expect((await send("two", one.threadId)).result.text).toBe("two from run 1 turn 2");
+    expect(launches()).toBe(1);
   }, 20_000);
 
   it("closes the agent at the computer's next link when the keep runs out while it is away, and ends nothing else the thread left there", async () => {
