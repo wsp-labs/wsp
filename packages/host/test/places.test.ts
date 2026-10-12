@@ -562,6 +562,13 @@ describe("what this computer says about itself", () => {
     expect(readFileSync(read, "utf8")).toBe("read\n");
   });
 
+  it("names its own home on this computer's row, the home a path under it is written from", () => {
+    const home = tmp("here-home");
+    vi.stubEnv("HOME", home);
+    onTestFinished(() => void vi.unstubAllEnvs());
+    expect(placeHere("x").home).toBe(home);
+  });
+
   it("reads its disk off the volume wsp installs onto, not the one its home sits on", async ctx => {
     // Two volumes: the home on the disk the temp folder sits on, the computer's /opt on a tmpfs.
     const home = tmp("report-volume-home");

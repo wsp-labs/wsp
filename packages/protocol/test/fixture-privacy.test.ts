@@ -62,7 +62,7 @@ const HANDBACK = "a recorded Claude Code turn ending a subagent or a background 
 /** Every recorded id or real home the fixtures and test sources still carry, in whichever file, as many times as count
  * says, each with why it stays. */
 const ALLOWED: readonly Allowed[] = [
-  { text: "7414323d-e71b-4957-8b56-eefdf6bfa350", count: 84, why: CONVERSATION },
+  { text: "7414323d-e71b-4957-8b56-eefdf6bfa350", count: 86, why: CONVERSATION },
   { text: "e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28", count: 4, why: CONVERSATION },
   { text: "toolu_01WspFix2025Bash", count: 3, why: "the one tool call in the recorded two-writer Claude Code conversation, its id made synthetic" },
   { text: "01a12813-cd12-7a12-9b13-e76892906ff0", count: 15, why: CODEX_THREADS },

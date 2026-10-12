@@ -103,6 +103,15 @@ describe("a Codex thread's earlier messages", () => {
     expect((requests()[1]!["params"] as Json)["sortDirection"]).toBe("desc");
   });
 
+  it("for a preview read one page of turns and count nothing, the thread never taken", async () => {
+    const turns = RECORDED["turns-list"] as { result: Record<string, Json> };
+    const paged = [{ result: { ...turns.result, nextCursor: "page-2" } }, { result: { ...turns.result, nextCursor: null } }];
+    const { store, road, requests } = storeOver({ ...answered, "thread/turns/list": paged });
+    const read = await store.earlier(TUI, { cwds: [LAB], last: 1, probe: false, count: false }, road);
+    expect(read).toEqual({ cwd: LAB, title: "lab terminal thread", lines: [{ who: "agent", text: "stub reply to: second turn" }], earlier: 0 });
+    expect(requests().map(r => r["method"])).toEqual(["thread/read", "thread/turns/list", "thread/items/list"]);
+  });
+
   it("keep the newest messages and count the rest, and read the thread without taking it for a copy", async () => {
     const { store, road, requests } = storeOver(answered);
     const read = await store.earlier(TUI, { cwds: [LAB], last: 1, probe: false }, road);

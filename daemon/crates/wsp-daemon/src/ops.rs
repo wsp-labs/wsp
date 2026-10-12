@@ -1104,8 +1104,8 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
         op if sys_proc::serves(&op) => sys_proc::serve(conn, ctx, id, name, op).await,
         DaemonOp::UsageLogs { stores } => answer(id, usage_logs::serve(&conn.road, ctx, stores).await),
         DaemonOp::TranscriptsList { root, dirs, cwds } => answer(id, transcripts::serve_list(&conn.road, ctx, root, dirs, cwds).await),
-        DaemonOp::TranscriptsRead { root, dirs, session, last } => {
-            answer(id, transcripts::serve_read(&conn.road, ctx, root, dirs, session, last.get()).await)
+        DaemonOp::TranscriptsRead { root, dirs, session, last, tail } => {
+            answer(id, transcripts::serve_read(&conn.road, ctx, root, dirs, session, last.get(), tail.map(std::num::NonZeroU32::get)).await)
         }
         _ => refuse(id, DaemonErrorCode::Unsupported, not_built(name)),
     }

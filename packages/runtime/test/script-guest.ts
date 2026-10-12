@@ -22,7 +22,7 @@ export function scriptGuest(backend: StubBackend, steps: Step[], otherwise?: Stu
   let log = Buffer.alloc(0);
   let exitFile = "";
   let alive = true;
-  /** What the group's work read answers, as it only ever grows on a real guest. */
+  /** What the tree's work read answers, as it only ever grows on a real guest. */
   let work = 0;
   let child = false;
   let launch = "";
