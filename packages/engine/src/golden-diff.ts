@@ -85,7 +85,10 @@ export function diffRecipes(from: RecipeDigest, to: RecipeDigest, labelOf: (id: 
   for (const [key, f] of before) {
     if (after.has(key)) continue;
     const moved = to.files.some(t => t.id === f.id && t.path === f.path && t.dest !== f.dest);
-    diff.files.push({ id: f.id, dest: f.dest, change: !tickedAfter.has(f.id) || moved ? "removed" : "missing" });
+    const removed = !tickedAfter.has(f.id) || moved;
+    // A volatile file its row no longer carries is its tool's to rewrite on the golden, so keeping it is no change.
+    if (!removed && f.volatile === true) continue;
+    diff.files.push({ id: f.id, dest: f.dest, change: removed ? "removed" : "missing" });
   }
 
   const toolsBefore = byRung(from.ticks, "tools");

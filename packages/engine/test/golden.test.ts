@@ -11,7 +11,8 @@ import { BUILDER_DISK_GB } from "../src/tool-sizes.js";
 import { CLAUDE_INSTALL, CURL_NET, GOLDEN_SETUP, MCP_SERVERS_JSON, NEVER_IN_IMAGE, NODE_RELEASES, ROAD_STEPS, nodeInstallScript } from "@wsp/catalog";
 import { AGENTS_BIN, credentialOnBuilderLine, diskSyncFailedLine, shellQuote, type RecipeDigest } from "@wsp/protocol";
 import { NotFirstLifeError } from "../src/errors.js";
-import { AGENT_INSTALLERS, HOMEBREW, NODE_PATH_LINE, TOOLS_PATH, type ToolInstall } from "../src/golden-import.js";
+import { AGENT_INSTALLERS, HOMEBREW, NODE_PATH_LINE, PATH_LINE, TOOLS_PATH, type ToolInstall } from "../src/golden-import.js";
+import type { ImagePlugins } from "../src/plugins-install.js";
 import { PROFILE_PATH_FILE, profilePathLine } from "../src/golden-base.js";
 import { INLINE_EXEC_MS, machineAnswer } from "../src/exec-detached.js";
 import { DISK_SYNC_CMD, DiskSyncError } from "../src/disk-sync.js";
@@ -1593,6 +1594,34 @@ describe("golden import stages", () => {
     const unread = await prepareBuilder({ backend: b3, setup: "true", fetch: f3, onStage: failed.onStage, import: importOf({ tools: plan.installs, recipe }) });
     expect(unread.import?.recipe?.ticks.filter(t => t.pin !== undefined).map(t => t.id)).toEqual([]);
     expect(failed.stages).toContain("installing-tools:the versions could not be read back (bash: printf: broken): wrangler, tmux record no pin");
+  });
+
+  const imagePlugins = (agent = "agents/claude"): ImagePlugins => ({
+    agent,
+    folder: "/root/.claude-cfg/plugins",
+    installs: [
+      { id: "plugins/lint@acme", label: "lint@acme", cmd: "export CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin install 'lint@acme' --json </dev/null" },
+      { id: "plugins/gone@acme", label: "gone@acme", cmd: "export CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin install 'gone@acme' --json </dev/null" },
+    ],
+    skipped: [{ id: "plugins/far@lab", label: "far@lab", note: "this computer names no marketplace for it" }],
+  });
+
+  it("puts the image's plugins on once their agent installs, into the store emptied first, and names a plugin that fails without failing the build", async () => {
+    const { backend, cmds, fetch } = backendFor([["claude plugin install 'gone@acme'", { exitCode: 1, stdout: "", stderr: "Plugin gone not found in marketplace acme" }]]);
+    const { stages, onStage } = stageRecorder();
+    await prepareBuilder({ backend, setup: "true", fetch, onStage, import: importOf({ plugins: imagePlugins() }) });
+    const at = (needle: string): number => cmds.findIndex(c => c.includes(needle));
+    expect(at("rm -rf -- '/root/.claude-cfg/plugins'")).toBeGreaterThan(at("claude --version"));
+    expect(at("claude plugin install 'lint@acme'")).toBeGreaterThan(at("rm -rf -- '/root/.claude-cfg/plugins'"));
+    expect(cmds[at("claude plugin install 'lint@acme'")]).toContain(`${PATH_LINE}\nexport CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin install 'lint@acme'`);
+    expect(stages).toContain("installing-harness:plugin lint@acme (1/2)");
+    expect(stages).toContain("installing-harness:Claude Code, Codex installed; plugins lint@acme installed; far@lab skipped (this computer names no marketplace for it); gone@acme failed (Plugin gone not found in marketplace acme); caches swept; 2.9 GB free");
+  });
+
+  it("puts no plugin on, and empties no folder, where the agent that takes them is not on the image", async () => {
+    const { backend, cmds, fetch } = backendFor();
+    await prepareBuilder({ backend, setup: "true", fetch, import: importOf({ plugins: imagePlugins("agents/pi") }) });
+    expect(cmds.filter(c => c.includes("claude-cfg/plugins") || c.includes("claude plugin"))).toEqual([]);
   });
 
   it("the harness stage reads each installed agent's version back once its check passes, stamps the ledger, and its closing line names the pinned and the latest", async () => {

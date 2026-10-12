@@ -44,6 +44,7 @@ import type { GoldenLeftBehind, RecipeCustomRow } from "@wsp/protocol";
 import { tarPackCommand } from "./doctor.js";
 import type { ServerVault } from "./env-keys.js";
 import { keyOwner } from "./providers.js";
+import { imagePlugins } from "./plugin-installs.js";
 
 const execFileAsync = promisify(execFile);
 /** The largest file read whole here: an rc file or a login's own settings, never anything bigger. */
@@ -545,6 +546,9 @@ export interface ImportOptions {
   prefix?: string;
   /** Where the pack keeps the values the copied MCP servers read by name. */
   vault?: PackOptions["vault"];
+  /** Whether the plugins this computer switches on go with the ticked agent that takes them. Absent, they do, which
+   * is the image; a computer somebody owns puts on the plugins its picks name on a step of its own. */
+  plugins?: boolean;
 }
 
 /** What is at a laptop path: a link is followed and reports where it lands. */
@@ -677,6 +681,7 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
   const custom = opts.custom ?? [];
   const tools = toolInstallsFor(bring, brew, custom, opts.path ?? TOOLS_PATH, opts.prefix);
   const agents = agentInstallsFor(bring);
+  const plugins = opts.plugins === false ? undefined : imagePlugins(agent => bring.some(e => e.id === `agents/${agent}`), home);
   const mcp = opts.rows !== undefined ? mcpPlanFor(opts.rows, { home, guestHome: GUEST_HOME, agents: MCP_SOURCES, binDirs: MCP_BIN_DIRS }) : undefined;
   const label = (id: string) => bring.find(e => e.id === id)?.label ?? id;
   const anyFiles = plan.files.length + plan.secrets.length + plan.skipped.length > 0;
@@ -721,6 +726,7 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
     skippedTools: tools.skipped.map(s => ({ id: s.id, label: label(s.id), note: s.note })),
     baseTools: tools.base.map(b => ({ id: b.id, label: label(b.id), note: baseNote(b.entry, b.version, opts.platform) })),
     ...(mcp !== undefined ? { mcp } : {}),
+    ...(plugins !== undefined ? { plugins } : {}),
     ...(opts.onResult !== undefined ? { onResult: opts.onResult } : {}),
     ...(opts.onContext !== undefined ? { onContext: opts.onContext } : {}),
   };
