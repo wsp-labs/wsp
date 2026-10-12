@@ -122,7 +122,7 @@ const ALLOWED: readonly Allowed[] = [
   { text: "text-[12.5px]", count: 8, why: BEFORE("a size on the type scale") },
   { text: "text-[12px]", count: 7, why: BEFORE("text-xs") },
   { text: "text-[13.5px]", count: 5, why: BEFORE("text-head") },
-  { text: "text-[13px]", count: 143, why: BEFORE("text-note") },
+  { text: "text-[13px]", count: 142, why: BEFORE("text-note") },
   { text: "text-[14px]", count: 1, why: BEFORE("text-sm") },
   { text: "text-[15px]", count: 16, why: BEFORE("text-title") },
   { text: "text-[20px]", count: 1, why: BEFORE("a size on the type scale") },

@@ -2,8 +2,8 @@
 // The person's approval before a slate's command first runs: the row under
 // the header while a run is held, and the 440 px sheet that shows the host's ask: the whole command text, each
 // environment name with the value it carries now (a secret as dots), the computer and the folder, the timeout and who
-// wrote it, with Don't, Run once and Always in this thread, the last only where the host can pin what it names. A run
-// that names `confirm` asks in the destructive tier.
+// wrote it, with Not now, Run once and Always in this thread, the last only where the host can pin what it names. A
+// run that names `confirm` asks in the destructive tier.
 import { useState } from "react";
 import { SLATE_HELD_APPROVAL } from "@wsp/protocol";
 import { AlertDialog, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
@@ -12,7 +12,7 @@ import { Dialog, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTit
 import { RUNS, type SlateEngine } from "./engine.js";
 import { cn } from "../lib/utils.js";
 import { isRunRecord, type SlateApproval, type SlateAsk, type SlateDoc, type SlateRunDecl } from "./model.js";
-import { AskFiles, AskWhy, dots, ThenCommand, useAnswer } from "./mcp.js";
+import { AskFiles, AskWhy, dots, MCP_WORDS, ThenCommand, useAnswer } from "./mcp.js";
 import { usePieceVersion } from "./SlateView.js";
 
 /** The prompt before a press opens a link to a domain this thread was not allowed to open. */
@@ -22,7 +22,7 @@ export const LINK_WORDS = {
   once: "Open once",
 } as const;
 
-/** The link a press would open, its domain in the title and the whole address under it, with Don't, Always for this
+/** The link a press would open, its domain in the title and the whole address under it, with Not now, Always for this
  * domain and Open once. */
 export function LinkConsent({ link, onOpen, onAlways, onClose }: { link: { href: string; domain: string }; onOpen(): void; onAlways(): Promise<unknown>; onClose(): void }) {
   const [busy, setBusy] = useState(false);
@@ -41,7 +41,7 @@ export function LinkConsent({ link, onOpen, onAlways, onClose }: { link: { href:
         </DialogPanel>
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={onClose}>
-            {CONSENT_WORDS.dont}
+            {CONSENT_WORDS.notNow}
           </Button>
           <Button
             variant="outline"
@@ -82,7 +82,7 @@ export const CONSENT_WORDS = {
   title: "Run this command?",
   wants: "This slate wants to run",
   review: "Review",
-  dont: "Don't",
+  notNow: MCP_WORDS.notNow,
   once: "Run once",
   always: "Always in this thread",
   run: "Run",
@@ -124,7 +124,7 @@ export function heldRuns(engine: SlateEngine, asks: readonly SlateAsk[]): { run:
   });
 }
 
-/** One row per held run under the header: the command cut to one line in mono, Review and Don't. */
+/** One row per held run under the header: the command cut to one line in mono, Review and Not now. */
 export function HeldRuns({ engine, asks, review, refuse }: { engine: SlateEngine; asks: readonly SlateAsk[]; review(run: string): void; refuse(ask: SlateAsk): void }) {
   usePieceVersion(engine, RUNS);
   const held = heldRuns(engine, asks);
@@ -148,7 +148,7 @@ export function HeldRuns({ engine, asks, review, refuse }: { engine: SlateEngine
                 {CONSENT_WORDS.review}
               </Button>
               <Button variant="ghost" size="xs" onClick={() => refuse(ask)}>
-                {CONSENT_WORDS.dont}
+                {CONSENT_WORDS.notNow}
               </Button>
             </>
           )}
@@ -224,7 +224,7 @@ export function ConsentSheet({ ask, cadence, more = 0, answer, onClose }: { ask:
           <div className="px-5 pt-2">{body}</div>
           <AlertDialogFooter>
             <Button variant="outline" className={NEUTRAL_RING} disabled={busy} onClick={() => decide("refuse")}>
-              {CONSENT_WORDS.dont}
+              {CONSENT_WORDS.notNow}
             </Button>
             <Button variant="destructive" disabled={busy} onClick={() => decide("once")}>
               {CONSENT_WORDS.run}
@@ -243,7 +243,7 @@ export function ConsentSheet({ ask, cadence, more = 0, answer, onClose }: { ask:
         <DialogPanel className="pt-1 pb-0">{body}</DialogPanel>
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => decide("refuse")}>
-            {CONSENT_WORDS.dont}
+            {CONSENT_WORDS.notNow}
           </Button>
           {ask.noAlways === true ? null : (
             <Button variant="outline" disabled={busy} onClick={() => decide("thread")}>

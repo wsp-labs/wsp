@@ -215,7 +215,7 @@ export interface SlateRuns {
   start(req: RunStart): RunStartAnswer;
   /** The person's answer to a held run: "Run once" or "Always in this thread" starts it now. */
   approve(threadId: string, run: string, scope: "once" | "always"): RunStartAnswer | undefined;
-  /** "Don't": the held run ends cancelled, so its `done` reactions fire. */
+  /** "Not now": the held run ends cancelled, so its `done` reactions fire. */
   deny(threadId: string, run: string): void;
   revoke(threadId: string, key: string): void;
   allowed(threadId: string): string[];

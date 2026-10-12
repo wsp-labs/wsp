@@ -63,50 +63,31 @@ export const SlateCmdAsk = z.object({
   why: z.string(),
 });
 
-/** One tool of a server as the consent sheet lists it, its hints off the server's annotations. */
-export const SlateAskTool = z.object({
-  name: z.string(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  readOnly: z.boolean().optional(),
-  destructive: z.boolean().optional(),
-});
-
-/** The first tool or resource run on a server in a thread: one consent covers reading and calling that server. The
- * key is `mcp:<server>`; "once" lets the held run go and asks again next time. */
-export const SlateServerAsk = z.object({
-  key: z.string(),
-  run: z.string(),
-  kind: z.literal("server"),
-  server: z.string(),
-  computer: z.string(),
-  why: z.string(),
-  tools: z.array(SlateAskTool),
-  /** The tool, or a resource run's uri, the held run calls. */
-  tool: z.string().optional(),
-  /** That call's evaluated arguments, a secret as dots with its length. */
-  args: z.record(z.string(), SlateWireJson).optional(),
-  /** The run's literal reshape, fed its raw result on stdin; its consent is part of this one. */
-  then: z.string().optional(),
-  /** The text of each of the slate's files that reshape reads, by name. */
-  files: z.record(z.string(), z.string()).optional(),
-});
-
-/** A destructive tool, or a run that names confirm, asks on every start; "once" runs it, "refuse" drops the start. */
+/** A tool or resource run held for the person's word: where the thread's agent would ask before the tool, once per piece
+ * of code (the server, the tool or uri, the arguments as written, the then and the files it reads), and on every start
+ * of a run that names confirm. "thread" keeps the code allowed, "once" lets this start go, "refuse" drops it. */
 export const SlateToolAsk = z.object({
   key: z.string(),
   run: z.string(),
   kind: z.literal("tool"),
   server: z.string(),
+  /** The tool, or a resource run's uri. */
   tool: z.string(),
+  resource: z.literal(true).optional(),
   computer: z.string(),
   why: z.string(),
+  /** What the run does: the agent's own line, else the first sentence of the tool's. */
+  description: z.string().optional(),
+  /** The arguments as they will be sent, a secret as dots with its length. */
   args: z.record(z.string(), SlateWireJson),
   confirm: z.string().optional(),
+  /** The run's literal reshape, fed its raw result on stdin. */
   then: z.string().optional(),
+  /** The text of each of the slate's files that reshape reads, by name. */
+  files: z.record(z.string(), z.string()).optional(),
 });
 
-export const SlateAsk = z.discriminatedUnion("kind", [SlateCmdAsk, SlateServerAsk, SlateToolAsk]);
+export const SlateAsk = z.discriminatedUnion("kind", [SlateCmdAsk, SlateToolAsk]);
 export type SlateAsk = z.infer<typeof SlateAsk>;
 
 /** The approval key that lets a slate's reactions message the agent, listed and revoked beside the run approvals. */

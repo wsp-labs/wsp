@@ -16,6 +16,7 @@ import { AUTO_MODE } from "@wsp/adapter-opencode";
 import { CLAUDE_CODE } from "@wsp/catalog";
 import { everyModel } from "@wsp/protocol";
 import type { HarnessCatalog, HarnessCatalogProbe, HarnessModel, HarnessOption } from "@wsp/protocol";
+import type { ToolAsks } from "./slate-mcp.js";
 
 /** What one row's table was read against: what was run on the row's own binary, the version it reported and the day it
  * was read. A row served from the table carries this as its version, and the footer names the agent beside it, so the
@@ -153,6 +154,9 @@ export const HARNESS_CATALOGS: readonly HarnessCatalog[] = [
     // approval requests; no sandbox edits files without asking and runs nothing past it, so auto-edit maps to none.
     access: { ask: "workspace-write", full: "danger-full-access", plan: "read-only" },
     bypassMode: "danger-full-access",
+    // Sandboxed with on-request approvals, 0.155.1 called a tool marked readOnlyHint unasked and held one with no hints
+    // and a destructive one for approval (measured 2026-10-13); Claude Code 2.1.296 at default asked before all three.
+    readOnlyToolsFree: true,
     // A reviewer's mode: the sandbox stops every write, .git included, so the diff rides its task.
     readOnlyMode: "read-only",
     permissionModes: [
@@ -220,6 +224,15 @@ export const HARNESS_CATALOGS: readonly HarnessCatalog[] = [
 
 export function harnessCatalog(harness: string): HarnessCatalog | undefined {
   return HARNESS_CATALOGS.find(c => c.harness === harness);
+}
+
+/** When a thread's agent asks before an MCP tool at the mode its turns run at, which a slate's tool runs follow: never
+ * at its bypass. A start stamps the row's marked mode, its bypass, so a thread names none only from before that; Claude
+ * Code and Codex launch such a thread at their bypass, and it reads as bypass for every agent here. */
+export function toolAsks(harness: string | undefined, mode: string | undefined): ToolAsks {
+  const row = harness === undefined ? undefined : harnessCatalog(harness);
+  if (mode === undefined || mode === row?.bypassMode) return "never";
+  return row?.readOnlyToolsFree === true ? "unless-read-only" : "every";
 }
 
 /** Models an agent newer than its pin runs and the usage ledger meets in its logs: named, never offered at a start. */
