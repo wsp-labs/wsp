@@ -337,6 +337,7 @@
     "projects": "wsp projects",
     "projects_remove": "wsp projects remove <project> [--yes] [--force]",
     "projects_set": "wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--reset <field>]...",
+    "projects_seed": "wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]",
     "threads": "wsp threads [<project>] [--tree] [--watch]",
     "threads_wait": "wsp threads wait <thread>... [--timeout <s>] [--tail]",
     "recipe_scan": "wsp recipe scan [--project <folder>]",
