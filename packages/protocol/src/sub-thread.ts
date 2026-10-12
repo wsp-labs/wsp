@@ -62,6 +62,12 @@ export const subSizeWords = (size: Pick<SubSize, "name" | "cpu" | "memMb">): str
 
 const rateWord = (usdPerHour: number): string => `$${usdPerHour.toFixed(3)}/h`;
 
+/** Boat's classes by their figures, as a card and the Settings select name them. */
+const SIZE_NAMES: Readonly<Record<string, string>> = { "2x4": "small", "4x8": "default", "8x16": "large", "16x32": "extra large" };
+
+/** A size's class name, `small`, or its figures where no class has them. */
+export const subSizeName = (size: { cpu: number; memMb: number }): string => SIZE_NAMES[sizeWord(size)] ?? sizeWord(size);
+
 /** The folder a sub-thread works in on its machine: the repository's own name off its remote, under root's home. */
 export function subFolderOf(remote: string): string {
   const name = (ownerRepoOf(remote) ?? remote).split("/").at(-1)!.replace(/\.git$/, "");
@@ -280,6 +286,23 @@ function heldWords(held: { files: number; commits: number }): string {
   const parts = [held.commits > 0 ? `${held.commits} ${held.commits === 1 ? "commit" : "commits"}` : "", held.files > 0 ? `${held.files} changed ${held.files === 1 ? "file" : "files"}` : ""].filter(Boolean);
   return parts.length === 0 ? "work" : parts.join(" and ");
 }
+
+/** The work a done read found not pushed and the branch it is on, as the open thread's notice and a tile's card say it. */
+const heldOn = (held: { files: number; commits: number }, branch: string): string => `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed`;
+
+/** The notice above a done sub-thread's composer while its work holds its machine. */
+export const subNotPushedNotice = (held: { files: number; commits: number }, branch: string): string => `${capitalisedFirst(heldOn(held, branch))}. This machine stays until ${held.files + held.commits === 1 ? "it is" : "they are"}; ask the thread to push ${held.files + held.commits === 1 ? "it" : "them"}.`;
+
+/** A not pushed sub-thread's reason on its tile's card. */
+export const subNotPushedReason = (held: { files: number; commits: number }, branch: string): string => `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.`;
+
+/** The notice above a released sub-thread's composer, which stays open: a send makes a new machine. */
+export const subReleasedNotice = (on: string): string => `This thread's machine was deleted. A message starts a new one on ${on}, and the conversation goes on.`;
+
+/** The notice above a sub-thread whose cloud was removed from the host, named by the computer the host runs on. */
+export const subCloudGoneNotice = (on: string, here: string): string => `${on} was removed from ${here}, so a message has no machine to start. Add ${on} again in Settings > Computers, and the conversation goes on.`;
+
+const capitalisedFirst = (line: string): string => `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
 
 /** What a sub-thread holds that no remote has: the counts its last read found, or that the read did not answer. */
 export interface SubUnpushed {

@@ -346,6 +346,9 @@ export const deletedBeforeStartLine = (name: string): string => `${name} was del
  * host's memory alone. */
 export const capRestartedLine = (place: string): string => `the host restarted while this turn waited for a slot on ${place}; nothing started, so send it again`;
 
+/** The line a sub-thread's turn says while its cloud makes its machine. */
+export const subStartingLine = (on: string): string => `starting a machine on ${on}`;
+
 /** The act that ends the wait without one of those threads ending, as the app's button and a tile's card name it. */
 export const CAP_RAISE_ACT = "Raise threads at once";
 

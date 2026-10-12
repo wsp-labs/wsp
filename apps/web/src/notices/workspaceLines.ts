@@ -4,9 +4,10 @@
 // answering, a link that ended) never pops as a notice: the host mends those on
 // its own. The thread on screen says one line about its machine, in plain
 // words, and only where the person has to act: the machine lacks something wsp
-// needs, or its memory ran near full. A bring back is said once, when its
+// needs, its memory ran near full, or a sub-thread's machine is held, deleted or
+// its cloud gone. A bring back is said once, when its
 // answer arrives.
-import { capitalised, kindWords, machineLacksShort, outOfMemoryRowLine, pausedOrPausing, workspaceKind, workspaceStateOf, type BringBackResult, type MemoryReading } from "@wsp/protocol";
+import { capitalised, cloudSaid, hereName, kindWords, subCloudGoneNotice, subNotPushedNotice, subReleasedNotice, machineLacksShort, outOfMemoryRowLine, pausedOrPausing, workspaceKind, workspaceStateOf, type BringBackResult, type MemoryReading } from "@wsp/protocol";
 import { useEffect, useMemo, useRef } from "react";
 import { broughtBackRowLine } from "../actions/format.js";
 import type { SidebarProjectSnapshot } from "../adapt/index.js";
@@ -24,7 +25,14 @@ export function broughtBackLine(back: Pick<BringBackResult, "branch" | "pr" | "n
 /** The line the open thread says about its machine, or null where the person has nothing to do: a machine that
  * lacks what wsp needs to run there, in the first clause of what it said it lacks, or a drop with memory near
  * full. Nothing while it is paused or pausing, which is expected. */
-export function machineLine(project: Pick<SidebarProjectSnapshot, "status" | "workspace" | "reach">, memory: MemoryReading | undefined): string | null {
+export function machineLine(project: Pick<SidebarProjectSnapshot, "status" | "workspace" | "reach"> & { readonly threads?: SidebarProjectSnapshot["threads"] }, memory: MemoryReading | undefined, here = ""): string | null {
+  const sub = project.threads?.find(t => t.sub !== undefined);
+  if (sub?.sub !== undefined && sub.status !== "running") {
+    const on = cloudSaid(sub.sub.on);
+    if (sub.sub.cloudGone === true) return subCloudGoneNotice(on, here);
+    if (sub.sub.state === "released") return subReleasedNotice(on);
+    if (sub.sub.held !== undefined) return subNotPushedNotice(sub.sub.held, sub.sub.branch);
+  }
   if (pausedOrPausing(workspaceStateOf(project.workspace, project.status))) return null;
   const kind = kindWords(workspaceKind(project.workspace));
   const lacks = (project.status ?? project.workspace).daemonRefusedAt?.why;
@@ -38,7 +46,8 @@ export function useMachineLine(workspaceId: string): string | null {
   const project = projects.find(p => p.id === workspaceId);
   const watched = useMemo(() => (project === undefined ? [] : [project]), [project]);
   const memory = useOutOfMemoryReadings(watched);
-  return project === undefined ? null : machineLine(project, memory[workspaceId]);
+  const places = useStore(s => s.places);
+  return project === undefined ? null : machineLine(project, memory[workspaceId], hereName(places));
 }
 
 export function useWorkspaceLineNotices(): void {

@@ -35,3 +35,10 @@ function snapshot(): number {
 export function useMinuteClock(): number {
   return useSyncExternalStore(subscribe, snapshot);
 }
+
+const idle = (): (() => void) => () => undefined;
+
+/** The same clock, read only while `on`: a reader that needs minutes in one case of many holds no timer in the rest. */
+export function useMinuteClockWhen(on: boolean): number {
+  return useSyncExternalStore(on ? subscribe : idle, snapshot);
+}
