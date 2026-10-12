@@ -7,7 +7,9 @@ mod auth;
 mod beneath;
 mod bring_back;
 mod clock;
+mod containers;
 mod door;
+mod engine_http;
 mod exec;
 mod files;
 mod fs;
@@ -143,6 +145,9 @@ pub struct Options {
     pub readings_dir: Option<PathBuf>,
     /// How often the kept readings read the computer; the rule's own where unset. Only a case has use for another.
     pub readings_interval_ms: Option<u64>,
+    /// The folder a thread's docker writes its compose notes in: the host's, for this computer's daemon; the place's
+    /// own `docker-notes` where unset.
+    pub docker_notes: Option<PathBuf>,
 }
 
 impl Options {
@@ -189,6 +194,7 @@ impl Options {
             install_root: None,
             readings_dir: None,
             readings_interval_ms: None,
+            docker_notes: None,
         }
     }
 }
@@ -524,8 +530,35 @@ impl Ctx {
             log: Arc::clone(&self.log),
         };
         let sampler = proc::ProcSampler::new((kind.processes)(&self.readings_options()), opts);
+        if kind.containers {
+            sampler.read_containers(self.container_reader());
+        }
         *held = Some(Arc::clone(&sampler));
         Ok(sampler)
+    }
+
+    /// The engine's containers on this computer, read with the person's own Docker setup and the notes its threads'
+    /// docker writes.
+    fn container_reader(&self) -> Arc<containers::ContainerReader> {
+        let home = self.options.home.clone().or_else(|| std::env::var_os("HOME").map(PathBuf::from));
+        let notes = self
+            .options
+            .docker_notes
+            .clone()
+            .unwrap_or_else(|| wsp_frames::place_daemon_paths(&place::place_home(self.options.home.as_deref())).docker_notes);
+        let readings = self.readings_options();
+        containers::ContainerReader::new(containers::ReaderOptions {
+            home,
+            docker_host: std::env::var("DOCKER_HOST").ok(),
+            notes,
+            proc_root: readings.proc_root,
+            cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+            cgroups: cfg!(target_os = "linux"),
+            stats_every: containers::STATS_EVERY,
+            retry: containers::RETRY_EVERY,
+            now: Arc::new(sys::now_ms),
+            log: Arc::clone(&self.log),
+        })
     }
 
     /// A number no other socket or listener in this daemon has.

@@ -15,8 +15,11 @@ use std::time::Duration;
 
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
-use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcCost, ProcEntry, ProcInspectReply, ProcListReply, ProcScope};
+use wsp_frames::{
+    numbers, words, DaemonErrorCode, DaemonEvent, ProcContainer, ProcCost, ProcEntry, ProcInspectReply, ProcListReply, ProcScope,
+};
 
+use crate::containers::ContainerReader;
 use crate::paths::OpError;
 use crate::proc_owner::{folder_in, mark_in, OwnerFacts, Ownership};
 use crate::sys::{finite, read_named};
@@ -451,6 +454,7 @@ struct Sent {
     at: i64,
     total: u64,
     procs: Vec<ProcEntry>,
+    containers: Option<Vec<ProcContainer>>,
 }
 
 /// The cpu time the calling thread has spent, in milliseconds; zero where the clock cannot be read.
@@ -493,16 +497,33 @@ pub(crate) struct ProcSampler {
     inner: Mutex<Inner>,
     /// Read and written inside each poll's blocking scan, never beside another.
     ownership: Arc<Mutex<Ownership>>,
+    /// The engine's containers, on a computer whose kind reads them: followed while this sampler runs.
+    containers: std::sync::OnceLock<Arc<ContainerReader>>,
 }
 
 impl ProcSampler {
     pub(crate) fn new(source: Arc<dyn ProcSource>, opts: ProcSamplerOptions) -> Arc<ProcSampler> {
         let opts = ProcSamplerOptions { first: crate::sys::tick_of(opts.first), interval: crate::sys::tick_of(opts.interval), ..opts };
-        Arc::new(ProcSampler { source, opts, inner: Mutex::new(Inner::default()), ownership: Arc::default() })
+        Arc::new(ProcSampler {
+            source,
+            opts,
+            inner: Mutex::new(Inner::default()),
+            ownership: Arc::default(),
+            containers: Default::default(),
+        })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Follows the engine's containers whenever this sampler runs, each frame carrying them.
+    pub(crate) fn read_containers(&self, reader: Arc<ContainerReader>) {
+        let _ = self.containers.set(reader);
+    }
+
+    pub(crate) fn containers(&self) -> Option<&Arc<ContainerReader>> {
+        self.containers.get()
     }
 
     #[cfg(test)]
@@ -522,6 +543,7 @@ impl ProcSampler {
                 procs: sent.procs.clone(),
                 seq: Some(sent.seq),
                 cost: None,
+                containers: sent.containers.clone(),
             };
             out.send_text(&frame_text(&snapshot));
         }
@@ -602,6 +624,19 @@ impl ProcSampler {
     /// The scan of `only`, every process without it, and the cpu milliseconds it took on the thread that ran it. A
     /// stamped scan names each row's owner; a probe's or an inspect's is thrown away or read for its tree alone.
     async fn scan(&self, elapsed_ms: i64, at: i64, only: Option<Vec<String>>, stamp: bool) -> Result<(ProcScan, f64), String> {
+        Ok(self.scan_with(elapsed_ms, at, only, stamp, false).await?.0)
+    }
+
+    /// The scan, and with `containers` the containers read in the same blocking pass, their cgroup files beside /proc.
+    async fn scan_with(
+        &self,
+        elapsed_ms: i64,
+        at: i64,
+        only: Option<Vec<String>>,
+        stamp: bool,
+        containers: bool,
+    ) -> Result<((ProcScan, f64), Option<Vec<ProcContainer>>), String> {
+        let reader = self.containers.get().filter(|_| containers).cloned();
         let source = Arc::clone(&self.source);
         let pty: HashMap<u32, String> = (self.opts.ptys)().into_iter().collect();
         let daemon = self.opts.self_pid;
@@ -613,7 +648,8 @@ impl ProcSampler {
             if stamp {
                 ownership.lock().unwrap_or_else(|e| e.into_inner()).stamp(&mut scan.procs, &threads, source.as_ref(), daemon);
             }
-            Ok((scan, thread_cpu_ms() - from))
+            let containers = reader.and_then(|r| r.rows(at));
+            Ok(((scan, thread_cpu_ms() - from), containers))
         })
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
@@ -625,10 +661,10 @@ impl ProcSampler {
         let elapsed = self.lock().last_at.map_or(0, |last| at - last);
         let only = self.only();
         let whole = only.is_none();
-        let scanned = self.scan(elapsed, at, only, true).await;
+        let scanned = self.scan_with(elapsed, at, only, true, true).await;
         let mut inner = self.lock();
         let framing = thread_cpu_ms();
-        let (scan, scan_ms) = match scanned {
+        let ((scan, scan_ms), containers) = match scanned {
             Ok(read) => read,
             Err(e) => {
                 inner.last = Some(Err(e));
@@ -659,9 +695,27 @@ impl ProcSampler {
             procs: scan.procs.clone(),
             seq: Some(seq),
             cost: cost.clone(),
+            containers: containers.clone(),
         });
+        // The containers ride a changes frame whole, and only where they moved; a reader that lost the engine sends []
+        // once, so the rows it held go.
+        let moved_containers = match (&inner.sent, &containers) {
+            (Some(sent), now) if sent.containers == *now => None,
+            (_, Some(now)) => Some(now.clone()),
+            (_, None) => Some(Vec::new()),
+        };
         let moved = moved_rows.map(|((procs, gone), base)| {
-            frame_text(&DaemonEvent::ProcChanges { at, daemon, total: scan.total, procs, gone, seq, base, cost: cost.clone() })
+            frame_text(&DaemonEvent::ProcChanges {
+                at,
+                daemon,
+                total: scan.total,
+                procs,
+                gone,
+                seq,
+                base,
+                cost: cost.clone(),
+                containers: moved_containers.clone(),
+            })
         });
         let owed = std::mem::take(&mut inner.owed);
         for (key, out) in &inner.subscribers {
@@ -670,7 +724,7 @@ impl ProcSampler {
                 _ => out.send_text(&whole),
             };
         }
-        inner.sent = Some(Sent { seq, at, total: scan.total, procs: scan.procs });
+        inner.sent = Some(Sent { seq, at, total: scan.total, procs: scan.procs, containers });
     }
 
     pub(crate) async fn inspect(&self, pid: u32) -> Result<ProcInspectReply, OpError> {
@@ -725,6 +779,9 @@ impl ProcSampler {
             }
         });
         inner.running = Some(task.abort_handle());
+        if let Some(reader) = self.containers.get() {
+            reader.start();
+        }
         (self.opts.log)(words::PROC_SAMPLER_STARTED);
     }
 
@@ -732,6 +789,9 @@ impl ProcSampler {
         if let Some(task) = inner.running.take() {
             task.abort();
             (self.opts.log)(words::PROC_SAMPLER_STOPPED);
+        }
+        if let Some(reader) = self.containers.get() {
+            reader.stop();
         }
         inner.last_at = None;
         inner.last = None;

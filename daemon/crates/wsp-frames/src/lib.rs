@@ -34,7 +34,7 @@ pub use enums::{
     ProcSignal, PtyMode, PullRequestState, ReactionContent, ReviewEvent, ReviewSide, ReviewState, TranscriptVoice, UsageLogFormat,
     WorkspaceKind,
 };
-pub use event::{DaemonEvent, ProcCost, ProcEntry, Usage};
+pub use event::{ContainerPlacedBy, DaemonEvent, ProcContainer, ProcCost, ProcEntry, Usage};
 pub use guest::{GuestCliMessage, GuestKind, GuestOpen, GuestOpenReply, GuestStream};
 pub use id::RequestId;
 pub use landed::{landed_files_script, outside_marks, outside_sweep_script, own_marks, OUTSIDE_MARK, OWN_MARK};

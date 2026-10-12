@@ -58,6 +58,8 @@ import {
   scopeOf,
   sortGroups,
   spent,
+  totalSpent,
+  type ActivityContainer,
   type ActivityGroup,
   type ActivityPicks,
   type ActivityPort,
@@ -223,7 +225,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
   // costs one render and not a second one from an effect.
   const [history, setHistory] = useState<{ points: readonly HistoryPoint[]; at: number | null; interval: number }>({ points: [], at: null, interval: FIRST_INTERVAL_MS });
   if (snapshot !== null && scope !== null && snapshot.at !== history.at) {
-    const t = spent(scope.groups.flatMap(g => g.procs));
+    const t = totalSpent(scope.groups);
     setHistory(h => ({ points: pushHistory(h.points, { at: snapshot.at, mem: t.mem, cpu: t.cpu, energy: t.energy }), at: snapshot.at, interval: h.at === null ? FIRST_INTERVAL_MS : Math.max(1, snapshot.at - h.at) }));
   }
   const cost: SamplerCost | null = snapshot?.cost === undefined ? null : { cpu: (snapshot.cost.cpuMs / history.interval) * 100, held: snapshot.cost.held };
@@ -251,10 +253,32 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
     },
     [key],
   );
+  // A container's stop takes its spinner off once the frame no longer lists it, or once the stop failed.
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (snapshot === null || stopping.size === 0) return;
+    const listed = new Set((snapshot.containers ?? []).map(c => c.id));
+    const left = [...stopping].filter(id => listed.has(id));
+    if (left.length !== stopping.size) setStopping(new Set(left));
+  }, [snapshot, stopping]);
+  const endContainer = useCallback(
+    (c: ActivityContainer): void => {
+      setStopping(s => new Set([...s, c.id]));
+      getProcs(key)
+        .stopContainer(c.id)
+        .catch((e: unknown) => {
+          setStopping(s => new Set([...s].filter(id => id !== c.id)));
+          addNotice({ kind: "error", text: errorText(e) });
+        });
+    },
+    [key],
+  );
   const acts: Acts = useMemo(
     () => ({
       ending,
       end,
+      stopping,
+      endContainer,
       stop: (_p, group) => setAsking({ kind: "stop", group }),
       endAll: group => setAsking({ kind: "endAll", group }),
       workspaceOf: group => group?.thread?.workspaceId ?? computer.workspaceId ?? undefined,
@@ -267,7 +291,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
       },
       copy: text => void copyText(text).catch((e: unknown) => addNotice({ kind: "error", text: errorText(e) })),
     }),
-    [ending, end, computer.workspaceId],
+    [ending, end, stopping, endContainer, computer.workspaceId],
   );
   // A thread's slate is named by its title, read once for each thread with a slate run this window has not read.
   const slated = useMemo(() => (scope === null ? [] : scope.groups.flatMap(g => (g.thread !== undefined && g.procs.some(p => p.heading === true) && g.thread.slate === undefined ? [g.thread.id] : []))), [scope]);
@@ -363,7 +387,7 @@ const inked = (tint: Tint): string | undefined => (tint === null ? undefined : T
 
 /** wsp's totals on this computer, each figure over a line of the last minutes; the process count stands alone. */
 function Tiles({ scope, history, mem }: { scope: NonNullable<ReturnType<typeof scopeOf>>; history: readonly HistoryPoint[]; mem: { used: string; total: number } | null }) {
-  const t = spent(scope.groups.flatMap(g => g.procs));
+  const t = totalSpent(scope.groups);
   const threads = scope.groups.filter(g => g.kind === "thread").length;
   const memTint = memoryShareTint(t.mem, mem?.total ?? null);
   const tiles = [

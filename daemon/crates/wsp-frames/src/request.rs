@@ -7,8 +7,8 @@ use ts_rs::TS;
 
 use crate::proc_owner::scopes;
 use crate::validate::{
-    bounded, bounded_list, bounded_list_opt, bounded_opt, capped_list, capped_pids, cgroup_paths, exec_timeout, sha256_hex, upload_word,
-    watch_name,
+    bounded, bounded_list, bounded_list_opt, bounded_opt, capped_list, capped_pids, cgroup_paths, container_id, exec_timeout, sha256_hex,
+    upload_word, watch_name,
 };
 use crate::{
     FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, KillMode, MergeMethod, ProcScope, ProcSignal, ReactionContent, RequestId,
@@ -274,6 +274,12 @@ pub enum DaemonOp {
         #[serde(default, deserialize_with = "bounded_list_opt::<_, 255, 64>", skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         agent_bins: Option<Vec<String>>,
+    },
+    /// Stops one container through the engine, two seconds from its TERM to its KILL, and never removes it.
+    #[serde(rename = "container.stop")]
+    ContainerStop {
+        #[serde(deserialize_with = "container_id")]
+        container: String,
     },
     #[serde(rename = "ping")]
     Ping,
@@ -962,7 +968,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 80] = [
+pub const DAEMON_OPS: [&str; 81] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -988,6 +994,7 @@ pub const DAEMON_OPS: [&str; 80] = [
     "proc.inspect",
     "proc.list",
     "proc.kill",
+    "container.stop",
     "ping",
     "fs.list",
     "fs.files",

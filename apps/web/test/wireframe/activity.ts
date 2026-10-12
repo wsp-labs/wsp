@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Activity screens' computer: five threads on a Mac with what each
 // started, wsp's own parts, a terminal and an orphan, and the rest of the
-// computer, fed to the page as the daemon's frames would come, one every two
+// computer, three containers, fed to the page as the daemon's frames would come, one every two
 // seconds of the frame's own clock. The first minutes go in at once, fast, so a
 // shot's lines have a history to draw. ?energy=0 drops the energy counter, as a
 // box has none; the hot screen holds a build past its marks.
-import type { AppProc, ProcEntry, SessionView, SysSample } from "@wsp/protocol";
+import type { AppProc, ProcContainer, ProcEntry, SessionView, SysSample } from "@wsp/protocol";
 import { syncPorts } from "../../src/machine/ports";
 import { getLive } from "../../src/machine/live";
 import { getProcs } from "../../src/machine/procs";
@@ -99,6 +99,17 @@ function frame(tick: number, hot: boolean, energy: boolean): ProcEntry[] {
   }));
 }
 
+/** Three containers: the landing thread's compose project, one the sampler thread's docker labelled, and one the
+ * person started by hand in a compose folder no thread noted. */
+function containers(tick: number): ProcContainer[] {
+  const id = (c: string): string => c.repeat(64);
+  return [
+    { id: id("a"), name: "landing-db-1", image: "postgres:17", state: "running", startedAt: AT - 1_800_000, thread: "th_landing", placedBy: "compose", folder: "/srv/acme/landing", project: "landing", memory: Math.round(wave(163 * MB, tick, 11, 0.02)), cpu: Number(wave(0.6, tick, 11, 0.4).toFixed(1)) },
+    { id: id("b"), name: "redis-probe", image: "redis:8-alpine", state: "running", startedAt: AT - 240_000, thread: "th_sampler", placedBy: "label", memory: Math.round(wave(9 * MB, tick, 12, 0.02)), cpu: Number(wave(0.2, tick, 12, 0.4).toFixed(1)) },
+    { id: id("c"), name: "lab-web-1", image: "nginx:1.29-alpine", state: "running", startedAt: AT - 86_400_000, folder: "/srv/acme/lab", project: "lab", memory: 12 * MB, cpu: 0 },
+  ];
+}
+
 const BACKFILL = 150;
 
 /** The app's own processes as the desktop app names them to the host. */
@@ -115,7 +126,7 @@ export function feedActivity(hot: boolean, energy: boolean): void {
   const send = (): void => {
     tick++;
     const at = AT + tick * 2000;
-    getProcs(HERE_KEY).feed({ type: "proc.snapshot", at, daemon: DAEMON, total: 1104, procs: frame(tick, hot, energy), seq: tick, cost: { cpuMs: 1.3 + (tick % 3) * 0.2, held: 412_000 } });
+    getProcs(HERE_KEY).feed({ type: "proc.snapshot", at, daemon: DAEMON, total: 1104, procs: frame(tick, hot, energy), containers: containers(tick), seq: tick, cost: { cpuMs: 1.3 + (tick % 3) * 0.2, held: 412_000 } });
     getProcs(HERE_KEY).feedStatus("live");
     const sample: SysSample = { type: "sys.sample", cpu: 21, load1: 3.2, mem: { used: 24.1 * GB, total: 36 * GB }, disk: { used: 400 * GB, total: 1000 * GB }, at } as SysSample;
     getLive(HERE_KEY).feedSample(sample);
