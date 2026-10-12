@@ -322,7 +322,7 @@ describe("a fork at a place that holds no copy of the image", () => {
     expect(made.golden).toBe(copy.snapshotId);
     expect(box.machines.at(-1)!.spec.fromSnapshot).toBe(copy.snapshotId);
     expect(composed.count).toBe(1);
-    expect(lines.filter(l => l.name === "x")[0]!.message).toBe("building your image on box first, about ten minutes, billed at $0.11/hr while it builds, then x forks from it");
+    expect(lines.filter(l => l.name === "x")[0]!.message).toBe("building your image on Boat first, about ten minutes, billed at $0.11/hr while it builds, then x forks from it");
     await rt.close();
   });
 
@@ -332,7 +332,7 @@ describe("a fork at a place that holds no copy of the image", () => {
     await seal();
     const lines = said(rt);
     await createOn(rt, { golden: await head(), name: "x", on: "box" });
-    expect(lines.filter(l => l.name === "x")[0]!.message).toBe("building your image on box first, about ten minutes, then x forks from it");
+    expect(lines.filter(l => l.name === "x")[0]!.message).toBe("building your image on Boat first, about ten minutes, then x forks from it");
     await rt.close();
   });
 
@@ -347,7 +347,7 @@ describe("a fork at a place that holds no copy of the image", () => {
     const c = await createOn(rt, { golden: await head(), name: "c", on: "box" });
     expect([box.snapshots.length, composed.count]).toEqual([2, 2]);
     expect(c.golden).toBe((await rt.image.get()).copies.find(x => x.place === "box")!.snapshotId);
-    expect(lines.filter(l => l.name === "c")[0]!.message).toMatch(/^building your image on box first/);
+    expect(lines.filter(l => l.name === "c")[0]!.message).toMatch(/^building your image on Boat first/);
     await rt.close();
   });
 
@@ -373,7 +373,7 @@ describe("a fork at a place that holds no copy of the image", () => {
     const lines = said(rt);
     const creating = createOn(rt, { golden: await head(), name: "x", on: "box" });
     await until(() => lines.some(l => l.name === "x"));
-    expect(lines.filter(l => l.name === "x")[0]!.message).toMatch(/^building your image on box first/);
+    expect(lines.filter(l => l.name === "x")[0]!.message).toMatch(/^building your image on Boat first/);
     release();
     const made = await creating;
     expect(made.golden).toBe((await building).copy.snapshotId);

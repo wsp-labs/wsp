@@ -92,9 +92,9 @@ describe("a place's cap and what runs there", () => {
     const { store } = await serving({ provider: { id: "solari", rateUsdPerHour: 0.11 } });
     const host = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
     expect(await capOf(host, HERE_PLACE_ID, { machines: 2 })).toMatchObject({ ok: false, kind: "usage", error: `${HERE.name} takes threads at once, turn limit, agents may start agents and levels deep, not machines at once` });
-    expect(await capOf(host, "solari", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: "solari takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep, not threads at once" });
-    expect(await capOf(host, "p_nothing", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: noSuchPlaceRefusal("p_nothing", [HERE.name, "solari"]) });
-    expect(await capOf(host, "solari", {})).toMatchObject({ ok: false, kind: "usage", error: "nothing to set on solari: it takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep" });
+    expect(await capOf(host, "solari", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: "Solari takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep, not threads at once" });
+    expect(await capOf(host, "p_nothing", { threads: 2 })).toMatchObject({ ok: false, kind: "usage", error: noSuchPlaceRefusal("p_nothing", [HERE.name, "Solari"]) });
+    expect(await capOf(host, "solari", {})).toMatchObject({ ok: false, kind: "usage", error: "nothing to set on Solari: it takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep" });
     host.close();
     expect(await store.keys("caps")).toEqual([]);
   });

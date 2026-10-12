@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { homedir } from "node:os";
 import { GUEST_HOME, MCP_AGENT_IDS } from "@wsp/catalog";
-import { SCOPED_MCP_ARG, isJoinedComputer, PLACE_LEAVE_LINE, PLACE_LEAVE_VERB, DEFAULT_PORT, EXIT_CODES, LOOPBACK, portsPickedLine, namesPlace, noSuchPlaceRefusal, type PlaceView, usageRefusal } from "@wsp/protocol";
+import { SCOPED_MCP_ARG, isJoinedComputer, PLACE_LEAVE_LINE, PLACE_LEAVE_VERB, DEFAULT_PORT, EXIT_CODES, LOOPBACK, portsPickedLine, namesPlace, noSuchPlaceRefusal, tableName, type PlaceView, usageRefusal } from "@wsp/protocol";
 import { CLOUD_ON } from "../cloud.js";
 import { claudeEnvs, doctor, doctorOverHost, hostDoctor } from "../doctor.js";
 import { adoptLoginPath } from "../login-path.js";
@@ -98,7 +98,7 @@ export const doctorKeyAsk = (computer?: Pick<PlaceView, "kind">): { anthropic: b
  * reading every road that takes a place word makes, and it says nothing about which road the doctor then takes. */
 export function doctorRow(places: readonly PlaceView[], word: string): PlaceView {
   const found = places.find(place => namesPlace(place, word));
-  if (found === undefined) throw usageRefusal(noSuchPlaceRefusal(word, places.map(place => place.name)), "Run wsp computers to read the ones this host holds.");
+  if (found === undefined) throw usageRefusal(noSuchPlaceRefusal(word, places.map(tableName)), "Run wsp computers to read the ones this host holds.");
   return found;
 }
 

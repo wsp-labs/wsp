@@ -80,6 +80,8 @@ pub struct Words {
     pub release: Release,
     pub no_such_place: String,
     pub places_fix: String,
+    /// Each cloud's name by its id: what a line calls a provider's row, which the list carries under its id.
+    pub provider_names: HashMap<String, String>,
     pub aimed_usage: String,
     pub aimed_both: String,
     pub project_unnamed: String,

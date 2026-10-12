@@ -758,7 +758,7 @@ export interface BuildersArea {
   readonly forkingAt: (placeId: string | undefined) => Promise<MachineBackend | undefined>;
   readonly placeName: (place: string) => string;
   readonly imagePlace: (name: string) => Promise<string>;
-  readonly buildPlaces: () => Promise<{ place: string; name: string; backend: MachineBackend }[]>;
+  readonly buildPlaces: () => Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]>;
   readonly copyRecipeOrThrow: () => ((image: SealedImage) => Promise<GoldenRecipe> | GoldenRecipe);
   readonly recipeOrThrow: (named?: GoldenRecipe) => GoldenRecipe;
   readonly builderLabels: (extra: Record<string, string> | undefined) => Record<string, string>;

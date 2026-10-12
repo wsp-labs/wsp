@@ -14,7 +14,7 @@ import { basename, join, relative } from "node:path";
 import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { BUILDER_DISK_GB, NoProviderBackend, SMOKE_LABEL, SNAPSHOT_STORAGE, checkProviderKey, type BackendPricing, type MachineBackend } from "@wsp/engine";
-import { HERE_PLACE_ID, CLOUD_SETUP_WORDS, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, NO_BUILD_PLACE_LINE, buildPlaceAskLine, INIT_ROW_STATES, initSignInOutcome, InitJob, InitNeedsYouEvent, KEY_REFUSED, KEY_UNCHECKED, MACHINE_GONE_LINE, MACHINE_SWEEP_LINE, NETWORK_LOST_LINE, NEVER_REACHED, Recipe, savedKeyStoppedLine, SIGN_IN_NEVER_REACHED, SIGN_IN_OPEN_STATE, SIGN_IN_STAGE_ID, STOP_LEFT_MACHINE_LINE, initAgentNoRecipeLine, initAgentPrompt, initAgentStep, initBuildRows, MACHINE_ROW_LABEL, initProgressLine, initRowFailed, initRowOver, initStageCount, keyRefusedLine, SIGN_IN_DEFERRED_WORD, keyUncheckedLine, markedDefault, savedKeyRefusedLine, type InitJobEvent, type InitRoad } from "@wsp/protocol";
+import { HERE_PLACE_ID, BOAT_READY_LINE, CLOUD_SETUP_WORDS, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, NO_BUILD_PLACE_LINE, buildPlaceAskLine, INIT_ROW_STATES, initSignInOutcome, InitJob, InitNeedsYouEvent, KEY_REFUSED, KEY_UNCHECKED, MACHINE_GONE_LINE, MACHINE_SWEEP_LINE, NETWORK_LOST_LINE, NEVER_REACHED, Recipe, savedKeyStoppedLine, SIGN_IN_NEVER_REACHED, SIGN_IN_OPEN_STATE, SIGN_IN_STAGE_ID, STOP_LEFT_MACHINE_LINE, initAgentNoRecipeLine, initAgentPrompt, initAgentStep, initBuildRows, MACHINE_ROW_LABEL, initProgressLine, initRowFailed, initRowOver, initStageCount, keyRefusedLine, SIGN_IN_DEFERRED_WORD, keyUncheckedLine, markedDefault, savedKeyRefusedLine, type InitJobEvent, type InitRoad } from "@wsp/protocol";
 import { runLogPath } from "../src/init-log.js";
 import { placeWiring } from "../src/places.js";
 import { createRuntime, goldenHead, memoryStore, harnessCatalog, type HarnessAdapterFactory, type HarnessStartOptions, type PlaceBackends, type Runtime } from "@wsp/runtime";
@@ -296,7 +296,7 @@ describe("the init job, manual road", () => {
       agents: [{ id: "claude", name: "Claude Code", configured: false, takesTools: true }],
       // Priced at the place the build boots on, off that place's own backend: the stub caps no builder disk.
       pricing: { size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: expect.closeTo(0.11, 5) as unknown as number },
-      place: { id: "default", name: "default" },
+      place: { id: "default", name: "default", kind: "provider" },
       // The provider this host forks on, which the place a build boots on need not be: a terminal run beside it
       // reads this to refuse a provider of its own rather than build on one nobody named.
       forksOn: "solari",
@@ -1440,6 +1440,25 @@ describe("the init job, manual road", () => {
     expect(taken.f.jobs.view()).toMatchObject({ phase: "done" });
     expect(taken.f.jobs.view()!.keyRefused).toBeUndefined();
   });
+
+  it("a build at Boat forks no first workspace a client named, draws no row for one and ends on Boat's ready line", async () => {
+    const box = stubBackend();
+    const f = fake({ placeLinks: true, places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    await f.jobs.start({ road: "terminal" });
+    await f.settled();
+    // Typed as a person types it: the runtime keys the cloud by its id, box, and the job reads the word for it.
+    const building = await f.jobs.build({ on: "boat", firstWorkspace: "first", importFolder: f.home });
+    expect(building.rows.filter(r => r.kind === "workspace" || r.kind === "project")).toEqual([]);
+    await f.settled();
+    const done = f.jobs.view()!;
+    expect(done).toMatchObject({ phase: "done", place: { id: "box" } });
+    expect(done.workspace).toBeUndefined();
+    expect(done.log.join("\n")).toContain(BOAT_READY_LINE);
+    expect((await f.rt.workspaces.list()).map(w => w.name)).not.toContain("first");
+    // The builder and the seal's smoke fork are all that booted at Boat.
+    expect(box.machines.map(m => m.killed)).toEqual([true, true]);
+  });
 });
 
 describe("the init job, agent road", () => {
@@ -1679,13 +1698,13 @@ describe("the init job, terminal road", () => {
     const box = stubBackend();
     const f = fake({ provider: none, places: () => ({ wired: "none", backend: p => (p === "none" ? none : p === "solari" ? solari : p === "box" ? box : undefined), list: () => ["none", "solari", "box"] }) });
     const setup = await f.jobs.get();
-    expect([setup.pricing, setup.place, setup.buildRefusal]).toEqual([null, undefined, buildPlaceAskLine(["solari", "box"])]);
+    expect([setup.pricing, setup.place, setup.buildRefusal]).toEqual([null, undefined, buildPlaceAskLine(["Solari", "Boat"])]);
     await expect(f.jobs.get({ on: "none" })).rejects.toThrow(/none forks no machines/);
-    expect((await f.jobs.get({ on: "box" })).place).toEqual({ id: "box", name: "box" });
+    expect((await f.jobs.get({ on: "box" })).place).toEqual({ id: "box", name: "Boat", kind: "provider" });
     saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
     await f.jobs.start({ road: "terminal" });
     await f.settled();
-    await expect(f.jobs.build({})).rejects.toThrow(buildPlaceAskLine(["solari", "box"]));
+    await expect(f.jobs.build({})).rejects.toThrow(buildPlaceAskLine(["Solari", "Boat"]));
     expect([solari.machines, box.machines]).toEqual([[], []]);
   });
 
@@ -1759,7 +1778,7 @@ describe("the init job, terminal road", () => {
     const f = fake({ places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });
     saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
     const setup = await f.jobs.get({ on: "box" });
-    expect(setup.place).toEqual({ id: "box", name: "box" });
+    expect(setup.place).toEqual({ id: "box", name: "Boat", kind: "provider" });
     expect(setup.pricing).toMatchObject({ size: box.pricing.defaultSize });
     await expect(f.jobs.get({ on: "nowhere" })).rejects.toThrow(/no place named nowhere/);
     await f.jobs.start({ road: "terminal" });
@@ -1778,9 +1797,9 @@ describe("the init job, terminal road", () => {
     const f = fake({ placeLinks: true, places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });
     saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
     await expect(f.jobs.start({ road: "terminal", on: "nowhere" })).rejects.toThrow(/no place named nowhere/);
-    expect((await f.jobs.start({ road: "terminal", on: "box" })).place).toEqual({ id: "box", name: "box" });
+    expect((await f.jobs.start({ road: "terminal", on: "box" })).place).toEqual({ id: "box", name: "box", kind: "provider" });
     await f.settled();
-    expect(f.jobs.view()).toMatchObject({ phase: "answering", place: { id: "box", name: "box" } });
+    expect(f.jobs.view()).toMatchObject({ phase: "answering", place: { id: "box", name: "box", kind: "provider" } });
   });
 
   it("the job names the place its build was sent to, and once the image stands a build named at another place goes to the image's own", async () => {
@@ -1790,14 +1809,14 @@ describe("the init job, terminal road", () => {
     await f.jobs.start({ road: "terminal" });
     await f.settled();
     expect(f.jobs.view()!.place).toBeUndefined();
-    expect((await f.jobs.build({ on: "box" })).place).toEqual({ id: "box", name: "box" });
+    expect((await f.jobs.build({ on: "box" })).place).toEqual({ id: "box", name: "Boat", kind: "provider" });
     await f.settled();
-    expect(f.jobs.view()).toMatchObject({ phase: "done", place: { id: "box", name: "box" } });
+    expect(f.jobs.view()).toMatchObject({ phase: "done", place: { id: "box", name: "Boat", kind: "provider" } });
 
-    expect((await f.jobs.get({ on: "solari" })).place).toEqual({ id: "box", name: "box" });
+    expect((await f.jobs.get({ on: "solari" })).place).toEqual({ id: "box", name: "Boat", kind: "provider" });
     await f.jobs.start({ road: "terminal" });
     await f.settled();
-    expect((await f.jobs.build({ on: "solari", rebuild: true })).place).toEqual({ id: "box", name: "box" });
+    expect((await f.jobs.build({ on: "solari", rebuild: true })).place).toEqual({ id: "box", name: "Boat", kind: "provider" });
     await f.settled();
     expect(f.jobs.view()!.phase).toBe("done");
     expect(f.backend.machines).toEqual([]);

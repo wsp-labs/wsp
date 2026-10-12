@@ -3,7 +3,7 @@ import { homedir, platform } from "node:os";
 import { resolve } from "node:path";
 import { computeRecipe, nodeHost, scanProject } from "@wsp/collect";
 import { THREAD_AGENTS } from "@wsp/catalog";
-import { jsonLine, imageHomeKeptLine, forksNoMachines, initJobOver, InitSetup, NO_BUILD_PLACE_LINE, shellQuote, THIS_COMPUTER, usageRefusal } from "@wsp/protocol";
+import { boatForksNoFirstLine, jsonLine, imageHomeKeptLine, placeSaid, subThreadsOnly, forksNoMachines, initJobOver, InitSetup, type SetupPlace, NO_BUILD_PLACE_LINE, shellQuote, THIS_COMPUTER, usageRefusal } from "@wsp/protocol";
 import { providerBackendFor, providerKeyRow, wiredProviderId, type ProviderEnv } from "../providers.js";
 import { DAEMON_DEPLOYED_LINE, deployDaemon, missingBundleFile } from "../doctor.js";
 import { envFileFor, writeEnvFile } from "../env-keys.js";
@@ -14,7 +14,7 @@ import { runInit, type InitIO, type InitPricing, type InitResult } from "../init
 import { runMintHere } from "../init-vault.js";
 import { historyCache } from "../recipe-file.js";
 import { alsoHere } from "../scan.js";
-import { builtOn, opening } from "../init-opening.js";
+import { builtOn, opening, openingNote } from "../init-opening.js";
 import { runLocalInit } from "../init-local.js";
 import type { ServedAt } from "../init-serve.js";
 import { askFirst } from "../init-first.js";
@@ -77,7 +77,7 @@ function noGoldenThroughHost(lock: HostLock, statePath: string, why: string): st
  * the image is built on and what a builder there costs, and where the app it already serves answers. */
 interface BesideHost {
   client: HostClient;
-  place: { id: string; name: string };
+  place: SetupPlace;
   pricing: InitPricing;
   /** The provider that host forks on, which no flag of this run's can move; absent on a host of an earlier build,
    * which does not say. */
@@ -169,7 +169,8 @@ const GOLDEN_FLAGS: readonly [string, (flags: { recipe?: string; project?: strin
  * everything from the first billed machine on happens in that host's job. Its own init job forks no workspace for
  * this computer, so the tick beside the question is not offered; a thread in the folder is that road. */
 async function handOffTo(beside: BesideHost, statePath: string, screen: InitIO, interactive: boolean, flags: { yes: boolean; rebuild?: boolean; firstWorkspace?: string; importFolder?: string; on?: string }): Promise<number> {
-  const step = await askFirst({
+  // A cloud met through sub-threads alone forks nothing after the seal, so there is no workspace to ask about.
+  const step = subThreadsOnly(beside.place.id) ? undefined : await askFirst({
     interactive,
     unattended: !interactive,
     ...(flags.firstWorkspace !== undefined ? { name: flags.firstWorkspace } : {}),
@@ -179,7 +180,7 @@ async function handOffTo(beside: BesideHost, statePath: string, screen: InitIO, 
     input: screen.input,
     output: screen.output,
   });
-  const fork = typeof step === "symbol" ? undefined : step.fork;
+  const fork = step === undefined || typeof step === "symbol" ? undefined : step.fork;
   return buildBesideHost({ client: beside.client, io: screen, ...(fork !== undefined ? { fork } : {}), ...(flags.yes ? { yes: true } : {}), ...(flags.rebuild === true ? { rebuild: true } : {}), ...(flags.on !== undefined ? { on: flags.on } : {}), app: { at: beside.at, runDir: hostRunDir(statePath), interactive } });
 }
 
@@ -225,8 +226,10 @@ export async function init(
   // planner are the same on both roads below.
   const links = placeWiring(opts.statePath, opts.advertise);
   // The first screen names where the image is built: the host's place, or the provider this run itself forks on.
-  const builds = beside !== undefined ? beside.place.name : forksNoMachines(providerBackendFor(providerEnv).capabilities) ? undefined : wiredProviderId(providerEnv);
+  const builds = beside !== undefined ? placeSaid(beside.place) : forksNoMachines(providerBackendFor(providerEnv).capabilities) ? undefined : wiredProviderId(providerEnv);
   if (builds !== undefined) builtOn(screen, builds, beside === undefined ? undefined : imageHomeKeptLine(flags.on, beside.place));
+  const forkless = [...(flags.firstWorkspace !== undefined ? ["--first-workspace"] : []), ...(flags.importFolder !== undefined ? ["--import"] : [])];
+  if (subThreadsOnly(beside?.place.id ?? wiredProviderId(providerEnv)) && forkless.length > 0) openingNote(screen, boatForksNoFirstLine(forkless));
   // A provider with no size to boot a builder on has no image to build, so the run makes this computer the workspace
   // and serves the app on it. Every flag about the golden is about a road this run does not take.
   if (beside === undefined && forksNoMachines(providerBackendFor(providerEnv).capabilities)) {

@@ -6,6 +6,7 @@
 // one object; there is one job and one view of it, and its rows and progress
 // are the same numbers wherever they are shown.
 import { z } from "zod";
+import { PlaceKind } from "./views/place-kind.js";
 
 /** How the recipe gets written: the person on the screens, an agent's thread on this computer reading their usage,
  * or wsp init at a terminal, which asks its own screens and hands the build over with the recipe beside the state. */
@@ -167,6 +168,11 @@ export const KEY_UNCHECKED = "keyUnchecked";
 export const InitNeedsYou = z.object({ what: z.string(), since: z.number().int().nonnegative() });
 export type InitNeedsYou = z.infer<typeof InitNeedsYou>;
 
+/** A place a setup names: its id, the name wsp places lists and its kind, so a line names a cloud by the name its key
+ * rows give it with nothing to guess. The kind is absent from a host of an earlier build. */
+export const SetupPlace = z.object({ id: z.string(), name: z.string(), kind: PlaceKind.optional() });
+export type SetupPlace = z.infer<typeof SetupPlace>;
+
 export const InitJob = z.object({
   id: z.string(),
   road: InitRoad,
@@ -206,7 +212,7 @@ export const InitJob = z.object({
   workspace: z.object({ id: z.string(), name: z.string() }).optional(),
   /** The computer the job is for, by id and the name wsp places lists: the one a card started it from, from its start,
    * then the place the build was sent to once it starts. Absent on a job no card started, until its build starts. */
-  place: z.object({ id: z.string(), name: z.string() }).optional(),
+  place: SetupPlace.optional(),
 });
 export type InitJob = z.infer<typeof InitJob>;
 

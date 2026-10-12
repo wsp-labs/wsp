@@ -6,7 +6,7 @@
 // entry in the table below.
 import { agentsLine, fmtCost, fmtDuration, fmtLimit, plural, SPEND_LIMIT_LINE } from "./format.js";
 import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
-import { HERE_PLACE_ID } from "./place-word.js";
+import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
 
 /** Which computer a workspace stands on, by place id: a workspace forked on a joined computer carries that
@@ -234,11 +234,11 @@ export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | 
   const named = (Object.keys(SETTINGS) as PlaceSettingWord[]).filter(word => placeSettingNamed(set, word));
   // A computer the person added also takes a new name and a new ssh login, which are no settings of its kind.
   const added = place.kind === "computer" && place.id !== HERE_PLACE_ID ? ["a new name", "a new ssh login"] : [];
-  if (named.length === 0 && reset.length === 0) return `nothing to set on ${place.name}: it takes ${andList([...takes.map(word => SETTINGS[word].words), ...added])}`;
+  if (named.length === 0 && reset.length === 0) return `nothing to set on ${placeSaid(place)}: it takes ${andList([...takes.map(word => SETTINGS[word].words), ...added])}`;
   const wrong = [...new Set([...named, ...reset])].filter(word => !takes.includes(word));
-  if (wrong.length > 0) return `${place.name} takes ${said(takes)}, not ${said(wrong)}`;
+  if (wrong.length > 0) return `${placeSaid(place)} takes ${said(takes)}, not ${said(wrong)}`;
   const both = named.filter(word => reset.includes(word));
-  return both.length === 0 ? undefined : `${place.name}: ${said(both)} is both set and reset; name it once`;
+  return both.length === 0 ? undefined : `${placeSaid(place)}: ${said(both)} is both set and reset; name it once`;
 }
 
 /** The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
@@ -265,7 +265,7 @@ export function placeSettingsLine(place: Pick<PlaceView, "kind" | "name" | "sett
     const fallback = reads(place, true);
     return [fallback === undefined ? now.long : `${now.long} (${fallback.short} by default)`];
   });
-  return `${place.name}: ${parts.join(", ")}`;
+  return `${placeSaid(place)}: ${parts.join(", ")}`;
 }
 
 /** How many of what a place's cap counts run there now: threads whose latest turn is running on a workspace that

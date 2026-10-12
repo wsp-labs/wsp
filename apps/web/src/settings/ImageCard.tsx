@@ -23,7 +23,7 @@ import { Spinner } from "../components/ui/spinner.js";
 import { failureOf, type Failure } from "../protocol/failure.js";
 import { useGoldenFrames, useStore } from "../protocol/store.js";
 import { FACT, WHERE_WORDS } from "./format.js";
-import { builtWhen, copyCost, IMAGE_WORDS, recipeNames } from "./image.js";
+import { builtWhen, copyCost, IMAGE_WORDS, recipeNames, startsThreadsHere } from "./image.js";
 import { ImageBuild } from "./ImageBuild.js";
 import { ImageRecipe } from "./ImageRecipe.js";
 import { GlyphFrame, Grid, GridHead, GridName, GridRow, Num, PAGE_COLUMNS } from "./grid.js";
@@ -136,6 +136,7 @@ export function ImageCard({ place, name, state, view, ctx, row: asRow = false }:
       case "stale":
         return { title, chips: imageChips(state, ctx.now), cost, press: copyPress };
       case "ready":
+        if (!startsThreadsHere(place)) return { title, chips: imageChips(state, ctx.now) };
         return project === undefined
           ? { title, chips: imageChips(state, ctx.now), press: { word: IMAGE_WORDS.startTask, heldWhy: IMAGE_WORDS.startHeld(name) } }
           : {
