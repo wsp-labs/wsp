@@ -163,6 +163,7 @@ const DAEMON_CONTENTS = [
   "0c317e5ccfb3fc061b1ba9b28f0f8f16f41e30c0c268be5284654ad156c96686",
   "a934fd82cd94334fd628c496fa325269b1ea755531c94fd0c13d0659bc3cd9c9",
   "43fe415ad837dda666c4f00dd0688bcc76aa139ee0f438d7e005268e71ce2bca",
+  "58a118b3b52e5a1ba90c8a038df4bed85659d763ab11ca2bfcbc099353af5bce",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -651,7 +652,12 @@ const DAEMON_CONTENTS = [
  * link followed, the person's own daemon follows a link as their Docker CLI does, neither waits on a fifo, and a root
  * daemon dials a context's socket only where the home's account owns it and serves it.
  * Version 153: transcripts.read takes tail, a byte count, and reads only that much of the transcript's end, walking the
- * branch as far up as the window holds it; a daemon before it ignores tail and reads the whole file. */
+ * branch as far up as the window holds it; a daemon before it ignores tail and reads the whole file.
+ * Version 154: stdio.open runs a command under bash -c in the daemon's root, in a process group of its own, with its
+ * stdin, stdout and stderr as pipes held for the socket that opened it; stdio.write feeds its stdin, stdout and stderr
+ * come back apart as stdio.out and stdio.err, base64 and unchanged, and stdio.close or the socket's close kills the
+ * group and says stdio.exit; any of the three that names a machine is refused, so a command a machine's config chose
+ * never runs on the computer outside it. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
@@ -707,6 +713,10 @@ export function placeDaemonBehind(place: { daemonVersion?: number }): string | u
   return version === undefined || version >= DAEMON_VERSION ? undefined : `daemon ${version}, host ${DAEMON_VERSION}`;
 }
 
+/** The first daemon that holds a command open on pipes (stdio.open), which a slate's MCP server on a box or a cloud
+ * machine runs over. */
+export const STDIO_DAEMON_VERSION = 154;
+
 /** The first daemon that answers fs.folders. */
 export const FS_FOLDERS_DAEMON_VERSION = 73;
 
@@ -740,6 +750,8 @@ export const killTooOldLine = (name: string): string => `TERM went to this proce
 /** The same said away from the rows, once for a computer, naming each process TERM reached alone. */
 export const killTooOldOfLine = (name: string, procs: readonly { pid: number; command: string }[]): string =>
   `TERM went to ${procs.map(p => `${p.pid} (${p.command})`).join(" and ")} alone: ${name} runs a daemon too old to end what ${procs.length === 1 ? "it" : "they"} started; ${placeUpdateLine(name)} updates it`;
+/** Why a slate's MCP server does not start on a place whose daemon cannot hold a command open. */
+export const slateServerBehindLine = (name: string): string => `${name} runs a daemon too old to start a slate's MCP server there; ${placeUpdateLine(name)} updates it`;
 
 /** What the doctor says about one place that is behind: the word above and the line that answers it. */
 export const placeBehindLine = (name: string, word: string): string => `${name} is behind: ${word}; ${placeUpdateLine(name)} puts this wsp's daemon on it`;

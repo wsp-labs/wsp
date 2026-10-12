@@ -1,0 +1,11 @@
+[
+  {
+    "type": "stdio.exit",
+    "stdioId": "s1",
+    "code": 0
+  },
+  {
+    "type": "stdio.exit",
+    "stdioId": "s1"
+  }
+]

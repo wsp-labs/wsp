@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
 import { connect as netConnect } from "node:net";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { SEEDED_REFS, placeForgottenLine, workspaceStateOf, type PlaceReport, type ProjectView, type TurnResult } from "@wsp/protocol";
+import { SEEDED_REFS, placeForgottenLine, slateMachineOnBox, workspaceStateOf, type Caller, type PlaceReport, type ProjectView, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, wiredPlace, type CreatedWorkspace, type HarnessAdapterFactory, type PlaceBackends } from "../src/runtime.js";
 import type { MachineBackend } from "@wsp/engine";
 import { newPlaceKeyPair } from "../src/places.js";
@@ -14,6 +14,7 @@ import { serveRuntime } from "../src/serve.js";
 import { memoryStore } from "../src/store.js";
 import { stubBackend, createOn, projectOn, type CreateOn } from "./stub-backend.js";
 import { until } from "./until.js";
+import type { WsClient } from "./ws-client.js";
 import { report, wiring } from "./place-join.js";
 import { ctx, sockets, serving, code, join, relink, placesOf, ForkingPlace, KEEPS_NO_IMAGE, HOLDS_PROJECTS, SEALED, forks, asRoot, ROOT_LOGIN } from "./places-fixture.js";
 
@@ -366,7 +367,7 @@ describe("a fork on a computer you joined", () => {
   const removable = async (
     adapters?: Record<string, HarnessAdapterFactory>,
     over: Partial<PlaceReport> = {},
-  ): Promise<{ place: ForkingPlace; placeId: string; asked: string[]; leaves: Record<string, unknown>[]; client: { close(): void } }> => {
+  ): Promise<{ place: ForkingPlace; placeId: string; asked: string[]; leaves: Record<string, unknown>[]; client: WsClient }> => {
     const { hostKey } = await serving(adapters === undefined ? {} : { adapters });
     let place!: ForkingPlace;
     const { client, placeId } = await join(hostKey, { code: await code(), name: "srv", report: report("srv", over), answers: c => (place = forks(c, undefined, undefined, HOLDS_PROJECTS)) });
@@ -450,6 +451,23 @@ describe("a fork on a computer you joined", () => {
     await (await ctx.runtime!.sessions.start(fork.id, { prompt: "Fable waiting", harness: "claude" })).finished;
     place.onMachine = () => ({ exitCode: 128, stdout: "", stderr: "fatal: not a git repository (or any of the parent directories): .git\n" });
     expect((await ctx.runtime!.places!.holds(placeId)).unsaved).toEqual(["Fable waiting: could not read what is not pushed: fatal: not a git repository (or any of the parent directories): .git"]);
+  });
+
+  it("refuses a slate's tool run from a thread on a fork there, whose server would start on that computer outside the fork, and starts nothing", async () => {
+    const { client } = await removable({ claude: quietHarness });
+    const ops: string[] = [];
+    client.onFrame(raw => ops.push(String((raw as { op?: unknown }).op)));
+    const fork = await oldFork({ golden: "snap_g", name: "x", on: "srv" });
+    const turn = await ctx.runtime!.sessions.start(fork.id, { prompt: "zones", harness: "claude" });
+    await turn.finished;
+    const threadId = turn.view().threadId!;
+    const caller: Caller = { origin: "relayed", by: { kind: "thread", threadId, workspaceId: fork.id, rootThreadId: threadId } };
+    const slate = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" /><run name="dns" resource="cloudflare:cf://dns" /><column><output run={$zones} /></column></slate>`;
+    await expect(ctx.runtime!.slates.write({ text: slate }, caller)).rejects.toMatchObject({ kind: "invalid", message: `slate refused: 1 error: K712 machine-on-box ${slateMachineOnBox(["zones", "dns"], "x", "srv")}` });
+    expect(await ctx.runtime!.slates.get(threadId)).toBeNull();
+    // A command run there still writes; nothing was asked to hold a command open on that computer.
+    await ctx.runtime!.slates.write({ text: `<slate title="Me"><run name="me" cmd="whoami" /><column><output run={$me} /></column></slate>` }, caller);
+    expect(ops.filter(op => op.startsWith("stdio."))).toEqual([]);
   });
 
   it("tells the leave the folder an older wsp cloned a project into by its name, and that the host read everything it takes", async () => {

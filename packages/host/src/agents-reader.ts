@@ -9,7 +9,7 @@ import { userInfo } from "node:os";
 import { posix } from "node:path";
 import { CATALOG_AGENTS, MCP_AGENTS, TOOL_PREFIX, installsOnFirstRun, serverValuesOf, harnessLine, signInRoadOf, versionOf, type AgentEntry, type McpAgent, type McpServer, type TurnServer } from "@wsp/catalog";
 import { detectPlugins, detectSkills, nodeHost, readCheckout, readTurnServers, skillRoots, stdioLine, tilde, type Host } from "@wsp/collect";
-import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLogin } from "@wsp/engine";
+import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLogin, type TargetLogin } from "@wsp/engine";
 import { MCP_SERVER_NAME, agentVersionWord, compareVersions, controlNameRefusal, hasControlChar, shellQuote, strictVersion, takesMcpServers, type AgentRow, type AgentSignInState, type AgentsProject, type McpRow, type PlaceProvisionRow } from "@wsp/protocol";
 import { GUEST_WSP_MCP, harnessCatalog, projectOf, vaultSignIn, type AgentsOn, type AgentsRead, type AgentsReader } from "@wsp/runtime";
 import { machineHost, type MachineHost } from "./machine-host.js";
@@ -306,10 +306,10 @@ export function agentsReader(o: {
     const host = o.here?.() ?? nodeHost();
     return { ...host, exec: { ...host.exec, run: (cmd, args, opts) => host.exec.run(cmd, args, { ...opts, signal: closing.signal }) } };
   };
-  const hostOf = async (on: Exclude<AgentsOn, { kind: "here" }>): Promise<{ host: MachineHost; user: string; runAs?: string }> => {
+  const hostOf = async (on: Exclude<AgentsOn, { kind: "here" }>): Promise<{ host: MachineHost; user: string; runAs?: string; login: TargetLogin }> => {
     const login = await targetLogin(on.machine, on.kind === "box" ? on.login : {});
     const host = machineHost(on.machine, login, on.kind === "box" ? { stdin: true } : { land: on.machine });
-    return { host: on.stores === undefined ? host : { ...host, stores: on.stores }, user: login.user, ...(login.runAs !== undefined ? { runAs: login.runAs } : {}) };
+    return { host: on.stores === undefined ? host : { ...host, stores: on.stores }, user: login.user, ...(login.runAs !== undefined ? { runAs: login.runAs } : {}), login };
   };
   const readOn = async (on: AgentsOn): Promise<AgentsRead> => {
     if (on.kind === "here") {
@@ -349,6 +349,12 @@ export function agentsReader(o: {
     server: async (on, ask) => {
       refuseClosed();
       const project = projectOf(on);
+      if (on.kind !== "here") {
+        // A turn there gets the vault's values; nothing of this computer's login or its files is read for it.
+        const { host, login } = await hostOf(on);
+        const values = serverValuesOf(o.vault());
+        return { ...(await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) })), env: values, login };
+      }
       const env = (await o.loginEnv?.()) ?? {};
       const values = { ...serverValuesOf(o.vault()), ...env };
       const found = await resolveServer(here(), ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) });
