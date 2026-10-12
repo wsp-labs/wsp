@@ -47,7 +47,6 @@ import {
   slateDomainKey,
   setSlateValue,
   SLATE_LIMITS,
-  SLATE_SOURCES,
   slateStep,
   slateText,
   validateSlate,
@@ -71,9 +70,10 @@ import { createSlateRuns, HELD_APPROVAL, NO_FOLDER, lastResult, mapStrings, rest
 import { boxLedger, boxRoad, boxSlateDir } from "./slate-box.js";
 import { alwaysRefused, boxPins, cannotPin, keyed, pinHere, withFiles, writeSlateFiles, type HashOn, type Pin } from "./slate-files.js";
 import { slateImage, type ImageOn } from "./slate-images.js";
+import { isRunRecord, misread, READ_OUTPUT_CHARS, runShown } from "./slate-read.js";
 import { cutAt, defanged, longest } from "./slate-message.js";
 import { writeBudget } from "./slate-writes.js";
-import { HELD_CONFIRM, consentKey, createSlateMcp, slateSecretMark, type McpRunDecl, type McpServerSpec } from "./slate-mcp.js";
+import { HELD_CONFIRM, consentKey, createSlateMcp, slateSecretMark, hostAway, refusedAway, type Away, type McpRunDecl, type McpServerSpec } from "./slate-mcp.js";
 import { HOST_SLATE_SOURCES, resolveIn, viewSources, type SlateSourceContext } from "./slate-sources/index.js";
 
 /** The slate's content at one version: what a snapshot, the undo and a rewind keep. */
@@ -179,6 +179,10 @@ export interface SlatesDeps {
   /** One of the thread's agent's MCP servers, as that agent would start it on this computer. */
   mcpServer?(threadId: string, name: string): Promise<McpServerSpec>;
   ownProcess?(threadId: string, pid: number, kind: "slate" | "tool"): () => void;
+  /** The computer a thread runs on where that is not this one, whose own config and sign-ins its runs start with. */
+  away?(threadId: string): Away | undefined;
+  /** Of these servers, the ones the thread's agent's config on its computer does not name, with that agent. */
+  missingOn?(threadId: string, servers: string[]): Promise<{ agent: { id: string; name: string }; thread: string; missing: string[] }>;
 }
 
 /** Where a slate op names its thread: a window always, a thread's token by itself, a person's shell inside a turn by
@@ -217,36 +221,6 @@ const SOURCE_NAMES = [...HOST_SLATE_SOURCES.keys()];
 export { SLATE_SEND_KEY };
 
 const problem = (code: string, name: string, message: string, extra: Partial<SlateProblem> = {}): SlateProblem => ({ code, name, message, ...extra });
-
-/** How much of a run's output a read carries before it says where the rest is. */
-const READ_OUTPUT_CHARS = 4_000;
-
-/** A run's record as a read answers it: its summary alone when the read named paths, else the record with out left
- * out where json was parsed from it and each long output cut, saying how to read it whole. */
-function runShown(rec: SlateJson | undefined, name: string, named: boolean): SlateJson {
-  if (!isRunRecord(rec)) return rec ?? null;
-  const full = rec as unknown as Record<string, SlateJson>;
-  if (named) return Object.fromEntries(Object.entries(full).filter(([k]) => ["state", "why", "exit", "ms", "runs", "stale", "refreshing", "endedAt"].includes(k)));
-  const cut = (field: string, text: string): string => (text.length <= READ_OUTPUT_CHARS ? text : `${text.slice(0, READ_OUTPUT_CHARS)}… (${text.length} characters; values ["$${name}.${field}"] reads it whole)`);
-  const out: Record<string, SlateJson> = {};
-  for (const [k, v] of Object.entries(full)) {
-    if (k === "out" && full["json"] !== undefined) continue;
-    if ((k === "out" || k === "err") && typeof v === "string") out[k] = cut(k, v);
-    else if (k === "lines" && Array.isArray(v)) out[k] = v.slice(-50);
-    else out[k] = v;
-  }
-  return out;
-}
-
-/** A path a read named that can only read null: one of the slate's own names without its $, or no source at all. */
-function misread(doc: SlateDoc | null, path: string): SlateProblem[] {
-  if (!/^[A-Za-z_]\w*(\.\w+|\[\d+\])*$/.test(path)) return [];
-  const root = path.split(/[.[]/)[0]!;
-  if (doc?.runs[root] !== undefined) return [problem("X401", "path-unknown", `${path} is not a source: $${root} is a run, read as $${path}; its record is also under runs.$${root}`, { fix: `$${path}` })];
-  if (doc?.values[root] !== undefined || doc?.derived[root] !== undefined) return [problem("X401", "path-unknown", `${path} is not a source: $${root} is a value, read as $${path}`, { fix: `$${path}` })];
-  if (SLATE_SOURCES[root] === undefined) return [problem("X401", "path-unknown", `${root} is not a source and not this slate's; a slate's own names start with $`)];
-  return [];
-}
 
 /** A refusal for a reason other than what was written: the version moved, too fast, nothing to undo. */
 const refused = (p: SlateProblem, kind: string): Error => Object.assign(new Error(`${p.code} ${p.name}: ${p.message}`), { kind, code: p.code });
@@ -288,8 +262,6 @@ const SAID: Record<"send" | "steer" | "queue", Record<"started" | "steered" | "q
 };
 
 const sizeOf = (value: unknown): number => slateBytes(JSON.stringify(value));
-const isRunRecord = (v: SlateJson | undefined): v is SlateJson & { state: string; runs: number; why?: string } =>
-  typeof v === "object" && v !== null && !Array.isArray(v) && typeof v["state"] === "string" && typeof v["runs"] === "number";
 const asJson = (v: unknown): SlateJson => v as SlateJson;
 
 export interface Slates {
@@ -317,6 +289,8 @@ export interface Slates {
   forget(threadId: string): Promise<void>;
   /** Whether a slate in the workspace watches the pull request's checks. */
   watchesPr(workspaceId: string): boolean;
+  /** The workspace's machine napped: its threads' MCP servers there are closed, and the next run starts them again. */
+  napped(workspaceId: string): void;
   /** The stored slates loaded, runs that were running when the host stopped marked failed and their done fired. */
   ready(): Promise<void>;
   /** Every batch queued so far has run. */
@@ -373,6 +347,7 @@ export function createSlates(deps: SlatesDeps): Slates {
     now: deps.now,
     ...(deps.secretsFile !== undefined ? { secretsFile: deps.secretsFile } : {}),
     ...(deps.slatesDir !== undefined ? { dir: writeFiles } : {}),
+    hostRefused: (threadId, run) => hostAway(deps.away?.(threadId), run),
     road: (threadId, on) => {
       if (on === "host") return undefined;
       const machine = deps.machineOf?.(threadId);
@@ -411,6 +386,9 @@ export function createSlates(deps: SlatesDeps): Slates {
       await batch(r, [], "timer", { starts: [{ run, by: "timer" }] });
     }).catch(() => {});
   }
+
+  const refusedOn = (threadId: string, before: SlateDoc | null, doc: SlateDoc | null | undefined): Promise<SlateProblem[]> =>
+    refusedAway(before, doc, deps.away?.(threadId), deps.missingOn?.bind(deps, threadId));
 
   const mcp = createSlateMcp({
     server: (threadId, name) => (deps.mcpServer === undefined ? Promise.reject(new Error("this host starts no MCP servers for a slate")) : deps.mcpServer(threadId, name)),
@@ -1158,7 +1136,8 @@ export function createSlates(deps: SlatesDeps): Slates {
         }
         if (whole) {
           const checked = p.text !== undefined ? parseSlate(p.text) : validateSlate(p.document);
-          if (checked.errors.length > 0 || checked.document === undefined) throw invalid(checked.errors, checked.warnings);
+          const errors = [...checked.errors, ...(await refusedOn(threadId, r.document, checked.document))];
+          if (errors.length > 0 || checked.document === undefined) throw invalid(errors, checked.warnings);
           const doc = checked.document;
           if (rehearsal) return rehearse(r, doc, valuesFor(r, doc), p, checked.warnings);
           if (p.check === true) {
@@ -1179,7 +1158,8 @@ export function createSlates(deps: SlatesDeps): Slates {
           return undo(r, by);
         }
         const applied = applySlatePatch(r.document, r.values, parsed.patch, parsed.lines);
-        if (applied.errors.length > 0 || applied.document === undefined) throw invalid(applied.errors, applied.warnings);
+        const errors = [...applied.errors, ...(await refusedOn(threadId, r.document, applied.document))];
+        if (errors.length > 0 || applied.document === undefined) throw invalid(errors, applied.warnings);
         const next = applied.document;
         const values = next === null ? r.values : valuesFor({ threadId, document: r.document, values: applied.values ?? r.values }, next);
         if (rehearsal && next !== null) return rehearse(r, next, values, p, applied.warnings);
@@ -1581,6 +1561,10 @@ export function createSlates(deps: SlatesDeps): Slates {
         if (r.document !== null && /\bpr\.checks\b/.test(JSON.stringify(r.document))) return true;
       }
       return false;
+    },
+
+    napped(workspaceId) {
+      for (const r of records.values()) if (r.workspaceId === workspaceId) mcp.closeServers(r.threadId);
     },
   };
   return slates;

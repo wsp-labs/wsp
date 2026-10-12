@@ -28,7 +28,7 @@ at?: string,
 /**
  * The watch this is for, as on port.open.
  */
-watch?: string, } | { "type": "inbox.file", path: string, bytes: number, } | { "type": "pty.mode", ptyId: string, mode: PtyMode, echo: boolean, foreground: string, } | { "type": "browser.open", url: string, port?: RelayPort, } | { "type": "callback.port", port: RelayPort, } | { "type": "tunnel.data", tunnelId: string, data: string, machineId?: string, } | { "type": "tunnel.end", tunnelId: string, machineId?: string, } | { "type": "localhost.url", port: RelayPort, } | { "type": "sys.sample", cpu: number, load1: number, mem: Usage, disk: Usage, at: number, } | { "type": "proc.snapshot", at: number, daemon: number, total: number, procs: Array<ProcEntry>, seq?: number, 
+watch?: string, } | { "type": "inbox.file", path: string, bytes: number, } | { "type": "pty.mode", ptyId: string, mode: PtyMode, echo: boolean, foreground: string, } | { "type": "browser.open", url: string, port?: RelayPort, } | { "type": "callback.port", port: RelayPort, } | { "type": "tunnel.data", tunnelId: string, data: string, machineId?: string, } | { "type": "tunnel.end", tunnelId: string, machineId?: string, } | { "type": "stdio.out", stdioId: string, data: string, } | { "type": "stdio.err", stdioId: string, data: string, } | { "type": "stdio.exit", stdioId: string, code?: number, } | { "type": "localhost.url", port: RelayPort, } | { "type": "sys.sample", cpu: number, load1: number, mem: Usage, disk: Usage, at: number, } | { "type": "proc.snapshot", at: number, daemon: number, total: number, procs: Array<ProcEntry>, seq?: number, 
 /**
  * Absent on a daemon a version behind, which never measured it.
  */

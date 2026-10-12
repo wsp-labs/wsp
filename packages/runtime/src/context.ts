@@ -91,6 +91,7 @@ import type { DeviceDoor, ScopedRoad } from "./devices.js";
 import type { PlaceDoor } from "./places.js";
 import type { Store } from "./store.js";
 import type { Slates } from "./slates.js";
+import type { StdioRoad } from "./slate-mcp-on.js";
 import type { GitHubCache } from "./github-cache.js";
 import type { AccountsAnswer } from "@wsp/protocol";
 import type { IssueRead, PullRequest, StartResult, WorkspaceFrom } from "@wsp/protocol";
@@ -347,6 +348,7 @@ export interface ChannelsArea {
   readonly servedByItsComputer: (entry: LiveWorkspace) => ((frame: Record<string, unknown>) => Promise<Record<string, unknown>>) | undefined;
   readonly channelOver: (reach: DaemonReachView, name: string, onEvent: (event: Record<string, unknown>) => void) => Promise<DaemonChannel>;
   readonly withDaemon: <T>(entry: LiveWorkspace, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>) => Promise<T>;
+  readonly stdioRoad: (entry: LiveWorkspace) => Promise<StdioRoad>;
   readonly overChannel: <T>(channel: DaemonChannel, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>) => Promise<T>;
   readonly onThisComputer: <T>(work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>, home: string) => Promise<T>) => Promise<T>;
   readonly placeGuard: (placeId: string) => Promise<void>;

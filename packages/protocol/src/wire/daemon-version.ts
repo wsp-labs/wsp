@@ -707,6 +707,10 @@ export function placeDaemonBehind(place: { daemonVersion?: number }): string | u
   return version === undefined || version >= DAEMON_VERSION ? undefined : `daemon ${version}, host ${DAEMON_VERSION}`;
 }
 
+/** The first daemon that holds a command open on pipes (stdio.open), which a slate's MCP server on a box or a cloud
+ * machine runs over. */
+export const STDIO_DAEMON_VERSION = DAEMON_VERSION;
+
 /** The first daemon that answers fs.folders. */
 export const FS_FOLDERS_DAEMON_VERSION = 73;
 
@@ -740,6 +744,8 @@ export const killTooOldLine = (name: string): string => `TERM went to this proce
 /** The same said away from the rows, once for a computer, naming each process TERM reached alone. */
 export const killTooOldOfLine = (name: string, procs: readonly { pid: number; command: string }[]): string =>
   `TERM went to ${procs.map(p => `${p.pid} (${p.command})`).join(" and ")} alone: ${name} runs a daemon too old to end what ${procs.length === 1 ? "it" : "they"} started; ${placeUpdateLine(name)} updates it`;
+/** Why a slate's MCP server does not start on a place whose daemon cannot hold a command open. */
+export const slateServerBehindLine = (name: string): string => `${name} runs a daemon too old to start a slate's MCP server there; ${placeUpdateLine(name)} updates it`;
 
 /** What the doctor says about one place that is behind: the word above and the line that answers it. */
 export const placeBehindLine = (name: string, word: string): string => `${name} is behind: ${word}; ${placeUpdateLine(name)} puts this wsp's daemon on it`;

@@ -708,6 +708,28 @@ describe("agents spawning agents", () => {
     await rt.close();
   });
 
+  it("a thread on a machine is refused a slate's command run on the host as it writes it, naming both computers, and one on this computer is not", async () => {
+    const held = heldAdapter();
+    const rt = runtimeWith({ claude: held.factory });
+    const box = await createOn(rt, { golden: "snap_g", name: "box", agents: AGENTS_ON });
+    const mac = await createOn(rt, { on: HERE_PLACE_ID, name: "mac", agents: AGENTS_ON });
+    const onBox = await rt.sessions.start(box.id, { prompt: "lead" });
+    const onMac = await rt.sessions.start(mac.id, { prompt: "lead" });
+    const slate = `<slate title="Me"><run name="me" cmd="whoami" on="host" /><column><output run={$me} /></column></slate>`;
+    const boxThread = onBox.view().threadId!;
+    await expect(rt.slates.write({ text: slate }, asThread({ kind: "thread", threadId: boxThread, workspaceId: box.id, rootThreadId: boxThread }))).rejects.toThrow(
+      new RegExp(`^slate refused: 1 error: K711 host-away \\$me runs on="host", which is .+ with the sign-ins there, and this thread runs on ${MACHINE_WSP_FORKS}: drop on="host" and it runs on ${MACHINE_WSP_FORKS}$`),
+    );
+    expect(await rt.slates.get(boxThread)).toBeNull();
+    const macThread = onMac.view().threadId!;
+    await rt.slates.write({ text: slate }, asThread({ kind: "thread", threadId: macThread, workspaceId: mac.id, rootThreadId: macThread }));
+    expect(Object.keys(((await rt.slates.get(macThread))!.document as { runs: object }).runs)).toEqual(["me"]);
+    held.end(0);
+    held.end(1);
+    await Promise.all([onBox.finished, onMac.finished]);
+    await rt.close();
+  });
+
   it("a turn on this computer under a host that listens on no loopback address is handed no token", async () => {
     const held = heldAdapter();
     const rt = runtimeWith({ claude: held.factory }, { here: {} });
