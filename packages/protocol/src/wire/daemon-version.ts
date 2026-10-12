@@ -165,6 +165,7 @@ const DAEMON_CONTENTS = [
   "43fe415ad837dda666c4f00dd0688bcc76aa139ee0f438d7e005268e71ce2bca",
   "58a118b3b52e5a1ba90c8a038df4bed85659d763ab11ca2bfcbc099353af5bce",
   "ea7ddf9672058441f203edb34058aaa4891edf74f4491eb00ff3d7dafe27ac07",
+  "8f5ebfb509af2c03e578fbd6c091e22527d9a7eb8f8afcf87982cfe7ba3ffff7",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -662,7 +663,10 @@ const DAEMON_CONTENTS = [
  * Version 155: http.post posts one message to an http MCP server from this computer, a loopback address included, with
  * the headers the host names and, where it names a sign-in file under the home with no Authorization header given, the
  * bearer that file holds, read as the home's owner through no link and put on that request alone; it answers the
- * status, content type, session id and body, no redirect followed. */
+ * status, content type, session id and body, no redirect followed.
+ * Version 156: stdio.open takes an env, names and values the daemon puts in the environment it spawns the command with,
+ * over its own, so the thread's mark stands on that process from its first instant; a daemon from before it ignores the
+ * field. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

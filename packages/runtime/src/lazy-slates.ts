@@ -56,7 +56,8 @@ export function lazySlates(deps: SlatesDeps): Slates {
     },
     turnEnded: o => ifAny(s => s.turnEnded(o), undefined),
     rewound: o => ifAny(s => s.rewound(o), undefined),
-    forget: threadId => ifAny(s => s.forget(threadId), undefined),
+    forget: (threadId, o) => ifAny(s => s.forget(threadId, o), undefined),
+    closeServers: threadId => real?.closeServers(threadId),
     watchesPr: workspaceId => real?.watchesPr(workspaceId) ?? false,
     napped: workspaceId => real?.napped(workspaceId),
   };

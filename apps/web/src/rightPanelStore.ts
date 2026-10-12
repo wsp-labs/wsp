@@ -641,6 +641,13 @@ function panelOfTab(workspaceId: string, tabId: string): string | undefined {
   return panelsOf(useRightPanelStore.getState().byWorkspaceId, workspaceId).find(([, state]) => state.surfaces.some((surface) => surface.id === `browser:${tabId}`))?.[0];
 }
 
+/** The thread whose pane holds a browser tab; none for a workspace's own pane or the New thread page's. */
+export function threadOfTab(workspaceId: string, tabId: string): string | undefined {
+  const panel = panelOfTab(workspaceId, tabId);
+  const thread = panel === undefined ? undefined : threadOfKey(panel);
+  return thread === "" ? undefined : thread;
+}
+
 /** The cap's line: how many guests hold a page, and how many of those are in other threads than the one asking. */
 export function guestCapLine(open: number, elsewhere: number): string {
   const where = elsewhere === 0 ? "" : elsewhere === 1 ? "; 1 of them is in another thread" : `; ${elsewhere} of them are in other threads`;

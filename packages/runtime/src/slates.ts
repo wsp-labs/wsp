@@ -67,11 +67,13 @@ import { join } from "node:path";
 import type { Store } from "./store.js";
 import { SLATES } from "./lazy-slates.js";
 import { createSlateRuns, HELD_APPROVAL, NO_FOLDER, lastResult, mapStrings, restartedRecord, rewoundRecord, runningRecord, type CmdRunDecl, type RunApprovals, type RunAsk, type RunBy, type RunInput, type RunRecord, type SlateRuns, type SlateRunsDeps } from "./slate-runs.js";
-import { boxLedger, boxRoad, boxSlateDir } from "./slate-box.js";
+import { boxLedger, boxRoad } from "./slate-box.js";
+import { boxSlateDir } from "./slate-mcp-on.js";
 import { alwaysRefused, boxPins, cannotPin, keyed, pinHere, withFiles, writeSlateFiles, type HashOn, type Pin } from "./slate-files.js";
 import { slateImage, type ImageOn } from "./slate-images.js";
 import { isRunRecord, misread, READ_OUTPUT_CHARS, runShown } from "./slate-read.js";
 import { cutAt, defanged, longest } from "./slate-message.js";
+import { invalid } from "./slate-refused.js";
 import { writeBudget } from "./slate-writes.js";
 import { HELD_CONFIRM, consentKey, createSlateMcp, slateSecretMark, hostAway, refusedAway, type Away, type McpRunDecl, type McpServerSpec } from "./slate-mcp.js";
 import { HOST_SLATE_SOURCES, resolveIn, viewSources, type SlateSourceContext } from "./slate-sources/index.js";
@@ -213,7 +215,6 @@ const REQUESTS_KEPT = 500;
 const EVENTS_PER_SECOND = 5;
 const PRESS_SEND_MS = 2_000;
 const REACTION_SEND_MS = 60_000 / SLATE_LIMITS.reactionSendsPerMinute;
-const ERRORS_LISTED = SLATE_LIMITS.errorsPerPass;
 const PROBLEMS_KEPT = 20;
 const PIECES_NAMED = SLATE_LIMITS.piecesNamed;
 const SOURCE_NAMES = [...HOST_SLATE_SOURCES.keys()];
@@ -224,19 +225,6 @@ const problem = (code: string, name: string, message: string, extra: Partial<Sla
 
 /** A refusal for a reason other than what was written: the version moved, too fast, nothing to undo. */
 const refused = (p: SlateProblem, kind: string): Error => Object.assign(new Error(`${p.code} ${p.name}: ${p.message}`), { kind, code: p.code });
-
-/** A write the parser or the validator refused, with every error it found and the warnings beside them. */
-function invalid(errors: SlateProblem[], warnings: SlateProblem[]): Error {
-  const said = (p: SlateProblem): string => {
-    const where = [p.line !== undefined ? `line ${p.line}` : undefined, p.piece !== undefined ? (p.prop !== undefined ? `${p.piece}.${p.prop}` : p.piece) : undefined].filter(w => w !== undefined).join(", ");
-    return `${where === "" ? "" : `${where}: `}${p.code} ${p.name} ${p.message}${p.fix !== undefined ? `. Did you mean ${p.fix}?` : ""}`;
-  };
-  // Every error at once, so a slate with seven mistakes takes one rewrite and not seven; one line, as every refusal is.
-  const listed = errors.slice(0, ERRORS_LISTED);
-  const more = errors.length > ERRORS_LISTED ? ` And ${errors.length - ERRORS_LISTED} more.` : "";
-  const message = `slate refused: ${errors.length} error${errors.length === 1 ? "" : "s"}: ${listed.length === 1 ? said(listed[0]!) : listed.map((p, i) => `${i + 1}) ${said(p)}`).join(" ")}${more}`;
-  return Object.assign(new Error(message), { kind: "invalid", errors: errors.slice(0, ERRORS_LISTED), warnings });
-}
 
 const usage = (p: SlateProblem): Error => Object.assign(new Error(`${p.code} ${p.name}: ${p.message}`), { kind: "usage", code: p.code });
 
@@ -286,7 +274,10 @@ export interface Slates {
   turnEnded(o: { threadId: string; turnId: string }): Promise<void>;
   /** The runtime rewound a thread to the end of turnId, cutting the turns named. */
   rewound(o: { threadId: string; turnId: string; cut: readonly string[] }): Promise<void>;
-  forget(threadId: string): Promise<void>;
+  /** With `keep`, the thread's running runs and kept servers are left running. */
+  forget(threadId: string, o?: { keep?: boolean }): Promise<void>;
+  /** The thread's kept MCP servers closed, as a settle that stops what the thread left running asks. */
+  closeServers(threadId: string): void;
   /** Whether a slate in the workspace watches the pull request's checks. */
   watchesPr(workspaceId: string): boolean;
   /** The workspace's machine napped: its threads' MCP servers there are closed, and the next run starts them again. */
@@ -1534,10 +1525,10 @@ export function createSlates(deps: SlatesDeps): Slates {
       });
     },
 
-    async forget(threadId) {
+    async forget(threadId, o = {}) {
       await serial(threadId, async () => {
-        runs.drop(threadId);
-        mcp.drop(threadId);
+        runs.drop(threadId, o.keep === true);
+        mcp.drop(threadId, o.keep === true);
         pins.drop(threadId);
         records.delete(threadId);
         const dir = folderOf(threadId);
@@ -1561,6 +1552,10 @@ export function createSlates(deps: SlatesDeps): Slates {
         if (r.document !== null && /\bpr\.checks\b/.test(JSON.stringify(r.document))) return true;
       }
       return false;
+    },
+
+    closeServers(threadId) {
+      mcp.closeServers(threadId);
     },
 
     napped(workspaceId) {

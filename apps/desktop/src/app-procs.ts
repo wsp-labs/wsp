@@ -20,8 +20,10 @@ export interface PageFrame {
   url: string;
 }
 
-/** One page the app holds, the window's own or a browser tab's guest, its top frame first. */
+/** One page the app holds, the window's own or a browser tab's guest, its top frame first; id is its WebContents',
+ * which the window's page knows each tab's guest by. */
 export interface AppPage {
+  id: number;
   guest: boolean;
   frames: readonly PageFrame[];
 }
@@ -33,6 +35,7 @@ interface FrameOf {
   framesInSubtree: FrameOf[];
 }
 export interface ContentsOf {
+  id: number;
   getType(): string;
   mainFrame: FrameOf;
 }
@@ -41,7 +44,7 @@ export interface ContentsOf {
 export function pageOf(contents: ContentsOf): AppPage {
   const top = contents.mainFrame;
   const frames = [top, ...top.framesInSubtree.filter(f => f !== top)];
-  return { guest: contents.getType() === "webview", frames: frames.map(f => ({ pid: f.osProcessId, url: f.url })) };
+  return { id: contents.id, guest: contents.getType() === "webview", frames: frames.map(f => ({ pid: f.osProcessId, url: f.url })) };
 }
 
 /** Every page that can be read now: a contents whose renderer is gone throws on its frames, and is left out alone. */
@@ -69,31 +72,33 @@ function originOf(url: string): string {
   }
 }
 
-/** Each of the app's processes and what it is, in the order Electron lists them. A renderer no page names, such as
- * the one Chromium keeps spare for the next tab, is a helper. */
+/** Each of the app's processes and what it is, in the order Electron lists them, a tab's or a frame's with the guest
+ * pages it holds. A renderer no page names, such as the one Chromium keeps spare for the next tab, is a helper. */
 export function appProcLabels(metrics: readonly AppMetric[], pages: readonly AppPage[]): AppProc[] {
-  const named = new Map<number, { kind: AppProcKind; origins: string[] }>();
-  const name = (pid: number, kind: AppProcKind, url: string | undefined): void => {
+  const named = new Map<number, { kind: AppProcKind; origins: string[]; contents: number[] }>();
+  const name = (pid: number, kind: AppProcKind, url: string | undefined, guest?: number): void => {
     let held = named.get(pid);
     if (held === undefined) {
-      held = { kind, origins: [] };
+      held = { kind, origins: [], contents: [] };
       named.set(pid, held);
     }
-    if (held.kind !== kind || url === undefined) return;
+    if (held.kind !== kind) return;
+    if (guest !== undefined && !held.contents.includes(guest) && held.contents.length < APP_PROC_ORIGINS_MAX) held.contents.push(guest);
+    if (url === undefined) return;
     const origin = originOf(url);
     // The host refuses a whole list over one origin past the schema's length, so that one is left out.
     if (origin !== "" && origin.length <= APP_PROC_ORIGIN_CHARS && !held.origins.includes(origin) && held.origins.length < APP_PROC_ORIGINS_MAX) held.origins.push(origin);
   };
-  for (const page of pages) if (page.guest && page.frames[0] !== undefined) name(page.frames[0].pid, "tab", page.frames[0].url);
+  for (const page of pages) if (page.guest && page.frames[0] !== undefined) name(page.frames[0].pid, "tab", page.frames[0].url, page.id);
   for (const page of pages) if (!page.guest && page.frames[0] !== undefined) name(page.frames[0].pid, "renderer", undefined);
-  for (const page of pages) for (const frame of page.frames.slice(1)) name(frame.pid, "frame", frame.url);
+  for (const page of pages) for (const frame of page.frames.slice(1)) name(frame.pid, "frame", frame.url, page.guest ? page.id : undefined);
   return metrics.map(({ pid, type, serviceName }): AppProc => {
     if (type === "Browser") return { pid, kind: "main" };
     if (type === "GPU") return { pid, kind: "gpu" };
     if (type === "Utility" && serviceName === NETWORK_SERVICE) return { pid, kind: "network" };
     const page = type === "Tab" ? named.get(pid) : undefined;
     if (page === undefined) return { pid, kind: "helper" };
-    return page.origins.length > 0 ? { pid, kind: page.kind, origins: page.origins } : { pid, kind: page.kind };
+    return { pid, kind: page.kind, ...(page.origins.length > 0 ? { origins: page.origins } : {}), ...(page.contents.length > 0 ? { contents: page.contents } : {}) };
   });
 }
 

@@ -28,6 +28,9 @@ export const AppProc = z.object({
   /** The origin of each page a tab's or a frame's renderer holds, in the order the app found them; never a path or a
    * query, which can carry a sign-in's code. */
   origins: z.array(z.string().max(APP_PROC_ORIGIN_CHARS)).max(APP_PROC_ORIGINS_MAX).optional(),
+  /** The WebContents id of each browser tab's guest page a tab's or a frame's renderer holds, which the window's page
+   * reads the tab, and so the thread whose pane holds it, off. */
+  contents: z.array(z.number().int().nonnegative()).max(APP_PROC_ORIGINS_MAX).optional(),
 });
 export type AppProc = z.infer<typeof AppProc>;
 

@@ -44,7 +44,7 @@ describe("which subagents Activity draws", () => {
       ["t2", 0, ["a_one"]],
     ]);
     expect(filterGroups(scope.groups, "probe two", NO_PICKS).map(g => [g.id, g.procs.length, g.subagents.map(s => s.id)])).toEqual([["t1", 0, ["a_two"]]]);
-    expect(filterGroups(scope.groups, "", { ...NO_PICKS, kinds: ["agent"] }).map(g => [g.id, g.subagents.length])).toEqual([["t1", 0]]);
+    expect(filterGroups(scope.groups, "", { ...NO_PICKS, kind: "agent" }).map(g => [g.id, g.subagents.length])).toEqual([["t1", 0]]);
   });
 });
 

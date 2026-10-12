@@ -546,6 +546,7 @@ export const ACTIVITY_WORDS = {
   subagentNote: "Runs inside its agent, whose row holds its memory and CPU",
   tokens: (n: string): string => `${n} tokens`,
   needed: "wsp needs this to run",
+  shared: "Shared by the app and its tabs",
   loopback: "Local only",
   everyAddress: "Open to the network",
   oneCore: "100% is one core",
@@ -558,18 +559,18 @@ export const ACTIVITY_WORDS = {
   pending: "Reading this computer's processes.",
   paneNothing: "Nothing running for this thread",
   openInActivity: "Open in Activity",
-  chips: { threads: "Threads", kinds: "Kinds", projects: "Projects" },
+  kind: "Kind",
+  allKinds: "All kinds",
+  allThreads: "All threads",
   graph: (what: string): string => `${what} over the last minutes`,
   stopTitle: (title: string): string => `Stop the turn in ${title}?`,
   /** On a box a stop ends the thread's cgroup whole; here it ends the agent alone. */
   stopSentence: (agent: string, endsAll: boolean): string =>
     `${agent} stops where it is and the turn reads Interrupted. ${endsAll ? "Everything else the thread started on that computer ends with it, its dev and tool servers included." : "The dev server and tool servers it started keep running."}`,
   stopTurn: "Stop turn",
-  endAllTitle: (title: string): string => `End everything ${title} started?`,
-  /** `first` is what ends before them: the thread's running turn, or the agent it keeps for its next turn. */
-  endAllSentence: (procs: number, containers: number, memory: string, first: "turn" | "kept" | null): string =>
-    `${[...(procs > 0 || containers === 0 ? [procs === 1 ? "1 process" : `${procs} processes`] : []), ...(containers > 0 ? [containers === 1 ? "1 container" : `${containers} containers`] : [])].join(" and ")} holding ${memory} end${first === "turn" ? ", after its turn stops" : first === "kept" ? ", after the agent it keeps for its next turn" : ""}.`,
-  endAllLeaves: "The threads it started are left as they are.",
+  /** End all on a slate's heading, its runs and the tool servers it keeps; `slate` is its title, "" where unread. */
+  endAllTitle: (slate: string): string => `End everything ${slate === "" ? "the slate" : slate} runs?`,
+  endAllSentence: (procs: number, memory: string): string => `${procs === 1 ? "1 process" : `${procs} processes`} holding ${memory} end, and what each started.`,
   endAllPress: "End all",
   cancel: "Cancel",
   /** What a settle or a delete asks while the threads it takes still run processes beside their agents. */

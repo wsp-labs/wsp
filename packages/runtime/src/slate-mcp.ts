@@ -173,7 +173,8 @@ export interface SlateMcp {
   closeServers(threadId: string): void;
   /** slate_catalog <server>: its tools, each input schema folded to a line per property, and whether consent stands. */
   catalog(threadId: string, server: string): Promise<string>;
-  drop(threadId: string): void;
+  /** Forgets the thread's runs and servers; with `keep`, a server and a run going on are left running. */
+  drop(threadId: string, keep?: boolean): void;
   close(): void;
 }
 
@@ -993,11 +994,11 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
       return clean(threadId, conn.spec, [...head, "", ...body, ...(res.length > 0 ? ["", ...res] : [])].join("\n"));
     },
 
-    drop(threadId) {
+    drop(threadId, keep = false) {
       const t = threads.get(threadId);
       if (t === undefined) return;
-      for (const [run, l] of t.runs) stop(threadId, run, l, undefined);
-      for (const server of [...t.conns.keys()]) closeConn(t, server);
+      if (!keep) for (const [run, l] of t.runs) stop(threadId, run, l, undefined);
+      if (!keep) for (const server of [...t.conns.keys()]) closeConn(t, server);
       threads.delete(threadId);
       for (const k of [...lists.keys()]) if (k.startsWith(`${threadId}\u0000`)) lists.delete(k);
       for (const k of [...seen.keys()]) if (k.startsWith(`${threadId}\u0000`)) seen.delete(k);

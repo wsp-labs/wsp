@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// What one of Activity's rows offers, one registry: the act its row shows
-// while pointed at, and its menu, which below 768 px is the only road to the
-// acts. A working agent is stopped through its thread and never signalled; a
-// kept one between turns is freed through its thread; only a process a thread
-// or wsp started is ended, and what wsp needs never; a heading over a slate's
-// runs is no process. A thread's head has its own two, End all and Open thread.
+// What one of Activity's rows offers, one registry: its menu, where every act
+// lives, and a port's Open, which its Ports row shows too. A working agent is
+// stopped through its thread and never signalled; a kept one between turns is
+// freed through its thread; only a process a thread or wsp started is ended,
+// and what wsp needs never; a heading over a slate's runs is no process, and
+// its one act is End all on them. A thread's head offers Open thread.
 import { CircleStopIcon, ClipboardCopyIcon, Globe2Icon, MessageSquareIcon, SquareXIcon } from "lucide-react";
 import type { ActionEntry } from "../../actions/registry.js";
 import { ACTIVITY_WORDS as W } from "../format.js";
@@ -26,6 +26,8 @@ export interface ProcVerbs {
   /** Frees a thread's kept agent on the computer the host runs on, through the host, as `wsp activity end` does. */
   free(p: ActivityProc): void;
   stop(p: ActivityProc, group: ActivityGroup): void;
+  /** Ends every process a heading holds, after asking. */
+  endAll(heading: ActivityProc, group: ActivityGroup): void;
   openPort(workspaceId: string, port: number, threadId: string | null): void;
   openThread(group: ActivityGroup): void;
   copy(text: string): void;
@@ -80,6 +82,17 @@ export const procActions: ReadonlyArray<ActionEntry<ProcTarget, ProcVerbs>> = [
     run: (t, v) => v.free(t.p),
   },
   {
+    id: "end-all",
+    group: "act",
+    icon: () => SquareXIcon,
+    destructive: true,
+    applies: t => t.p.heading === true && t.group !== null && t.p.children.some(c => c.endable === true),
+    title: () => W.endAll,
+    rowLabel: () => W.endAll,
+    refusal: () => null,
+    run: (t, v) => v.endAll(t.p, t.group!),
+  },
+  {
     id: "open-thread",
     group: "go",
     icon: () => MessageSquareIcon,
@@ -109,24 +122,12 @@ export const procActions: ReadonlyArray<ActionEntry<ProcTarget, ProcVerbs>> = [
 ];
 
 export interface GroupVerbs {
-  endAll(group: ActivityGroup): void;
   openThread(group: ActivityGroup): void;
 }
 
-/** What a thread's head offers: End all, which asks first, where it holds a process, and Open thread. Below 768 px its
- * menu is the road to them. */
+/** What a thread's head offers: Open thread. Each of its processes ends from its own row's menu, and its slate's runs
+ * from the slate's. */
 export const groupActions: ReadonlyArray<ActionEntry<ActivityGroup, GroupVerbs>> = [
-  {
-    id: "end-all",
-    group: "act",
-    icon: () => SquareXIcon,
-    destructive: true,
-    applies: g => g.thread !== undefined && (g.procs.length > 0 || g.containers.some(c => c.owned)),
-    title: () => W.endAll,
-    rowLabel: () => W.endAll,
-    refusal: () => null,
-    run: (g, v) => v.endAll(g),
-  },
   {
     id: "open-thread",
     group: "go",
