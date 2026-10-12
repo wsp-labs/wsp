@@ -10,6 +10,7 @@ import { nodeHost, type Host } from "@wsp/collect";
 import type { ExecResult, Machine } from "@wsp/engine";
 import { serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine } from "@wsp/protocol";
 import { afterEach, describe, expect, it } from "vitest";
+import { SERVER_NOT_SET_UP } from "@wsp/runtime";
 import { agentsReader } from "../src/agents-reader.js";
 import { noSuchServerRefusal } from "../src/server-tools.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -498,6 +499,20 @@ describe("one MCP server's tools, on the person's ask", () => {
       expect(line).toMatch(/^runuser -u 'ada' -- /);
       expect(line).not.toContain(SECRET);
     }
+  }, 20_000);
+  it("resolves a slate's server off a box's own config, as its login there, and reads nothing of this computer's for it", async () => {
+    const f = fixture();
+    f.config({ airtable: { command: join(f.bin, "server"), args: ["--stdio"], env: { FAKE_TOKEN: SECRET } } });
+    const { machine } = box(f);
+    const read = { here: 0, login: 0 };
+    const reader = agentsReader({ vault: () => ({}), here: () => (read.here++, here(f)), loginEnv: async () => (read.login++, { HERE_ONLY: "from-this-computer" }) });
+    const on = { kind: "box" as const, machine, login: { HOME: f.home, PATH: `${f.bin}:/usr/bin:/bin` } };
+    const spec = await reader.server!(on, { agent: "claude", name: "airtable" });
+    expect(spec).toMatchObject({ transport: { kind: "stdio", command: join(f.bin, "server"), args: ["--stdio"], env: { FAKE_TOKEN: SECRET } }, login: { home: f.home, runAs: "ada" } });
+    expect(spec.secrets).toContain(SECRET);
+    expect(JSON.stringify(spec.env)).not.toContain("from-this-computer");
+    await expect(reader.server!(on, { agent: "claude", name: "cloudflare" })).rejects.toMatchObject({ code: SERVER_NOT_SET_UP });
+    expect(read).toEqual({ here: 0, login: 0 });
   }, 20_000);
   it("on a fork or a workspace on a box, hands the variables over in a private file the line reads as data and removes", async () => {
     const f = fixture();

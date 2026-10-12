@@ -5,7 +5,7 @@
 // catalog's readers live there. A read never wakes a machine.
 import { randomBytes } from "node:crypto";
 import { AgentsReport, GITHUB_CLI, HERE_PLACE_ID, installingFirstLine, refusal, toolNotInstalledFix, toolNotInstalledLine, lastLine, type McpServerSpec as LaunchServer, type PlaceProvisionRow, ptyBareOn, type AgentRow, type AgentSetupSet, type AgentSetupView, THIS_COMPUTER, noSuchAgentsProjectRefusal, sharedAgentsProjectRefusal, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview, isJoinedComputer, nappingAgentsRefusal, nappingPluginsRefusal, nappingServersRefusal, nappingSignInRefusal, nappingSkillsRefusal, nappingToolsRefusal, noSignInRefusal, noSuchPlaceRefusal, tableName, providerAgentsRefusal, type AgentSignInState, type AgentsProject, type AgentsSignInEvent, type AgentsTarget, type DaemonFrame, type PageReach, type PluginAsk, PluginRow, type ServerAdd, type ServerAsk, type WorkspacePhase, withoutControlChars, SIGN_IN_ENDED_KEPT_MS, type AgentsSignInRun, type McpScope } from "@wsp/protocol";
-import type { Machine } from "@wsp/engine";
+import type { Machine, TargetLogin } from "@wsp/engine";
 import { CATALOG_AGENTS, catalogEntry, mintsToken } from "@wsp/catalog";
 import type { DaemonChannel } from "./daemon-channel.js";
 import type { McpServerSpec } from "./slate-mcp.js";
@@ -51,6 +51,10 @@ export interface ServerToolsAsk {
   refresh?: boolean;
 }
 
+/** The code a server's resolve is thrown with where the agent's config there names no server by that name. */
+export const SERVER_NOT_SET_UP = "server-not-set-up";
+export const isServerNotSetUp = (e: unknown): boolean => typeof e === "object" && e !== null && (e as { code?: unknown }).code === SERVER_NOT_SET_UP;
+
 /** How the host reads the agents off a target, and asks one server there for its tools. Absent on a runtime wired
  * without it, where every read is refused. */
 export interface AgentsReader {
@@ -59,8 +63,9 @@ export interface AgentsReader {
   /** Drops what was kept for the target, which a sign-in there has just changed. */
   forget?(key: string): void;
   tools(on: AgentsOn, ask: ServerToolsAsk): Promise<ServerToolsAnswer>;
-  /** One server of the agent's config on this computer, resolved for a client that keeps it running. */
-  server?(on: Extract<AgentsOn, { kind: "here" }>, ask: { agent: string; name: string }): Promise<McpServerSpec>;
+  /** One server of the agent's config on a target, resolved for a client that keeps it running, with the login a
+   * command there runs as on any computer but this one. */
+  server?(on: AgentsOn, ask: { agent: string; name: string }): Promise<McpServerSpec & { login?: TargetLogin }>;
   /** Ends every command a read or a tools ask started on this computer and is still waiting on. */
   close?(): void;
 }
@@ -235,6 +240,7 @@ interface Napping {
 export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
   read(target: AgentsTarget, origin?: Caller): Promise<AgentsReport>;
   tools(target: AgentsTarget, ask: { agent: string; name: string; refresh?: boolean }, origin?: Caller): Promise<ServerToolsAnswer>;
+  server(target: AgentsTarget, ask: { agent: string; name: string }, origin?: Caller): Promise<McpServerSpec & { login?: TargetLogin }>;
   forget(workspaceId: string): void;
   signIn(target: AgentsTarget, ask: SignInAsk, emit: (event: AgentsSignInEvent) => void, origin?: Caller): Promise<{ signInId: string; leave(): void }>;
   signIns(): AgentsSignInRun[];
@@ -449,6 +455,13 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       const on = await onOf(target, origin);
       if ("napping" in on) throw usage(nappingToolsRefusal(on.napping));
       return ServerToolsAnswer.parse(await reader.tools(on, { key: JSON.stringify(target), ...ask }));
+    },
+    async server(target, ask, origin) {
+      const reader = readerOf();
+      if (reader.server === undefined) throw new Error(NO_AGENTS_READER);
+      const on = await onOf(target, origin);
+      if ("napping" in on) throw usage(nappingToolsRefusal(on.napping));
+      return reader.server(on, ask);
     },
     /** A removed workspace's last report goes with it. */
     forget: workspaceId => void last.delete(workspaceId),

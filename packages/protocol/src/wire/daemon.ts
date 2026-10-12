@@ -845,6 +845,11 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("ssh.start"), authorizedKey: z.string().min(1).max(SSH_KEY_MAX), machineId: z.string().optional() }),
   z.object({ id: reqId, op: z.literal("tunnel.write"), tunnelId: z.string(), data: z.string() }),
   z.object({ id: reqId, op: z.literal("tunnel.close"), tunnelId: z.string() }),
+  /** A command held open on pipes for the socket that opened it, an MCP server a slate calls: bash -c in the daemon's
+   * root, a process group of its own, killed at stdio.close or the socket's close. data is base64. */
+  z.object({ id: reqId, op: z.literal("stdio.open"), stdioId: z.string(), cmd: z.string().min(1).max(EXEC_BODY_MAX) }),
+  z.object({ id: reqId, op: z.literal("stdio.write"), stdioId: z.string(), data: z.string() }),
+  z.object({ id: reqId, op: z.literal("stdio.close"), stdioId: z.string() }),
   DaemonExecRequest,
   /** Sweeps wsp off this computer and answers what it took, then the agent exits: the one op whose handler belongs
    * to the link a place opened and not to the daemon's own switch. */
