@@ -5,7 +5,7 @@ import { remoteHost } from "@wsp/catalog";
 import { NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
 import type { ProjectGolden, ProjectView, WorkspaceProject, WorkspaceStatus } from "@wsp/protocol";
 import { noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, noChangeLine, GitDiffReply, GitRunLogReply, GitPrMergeReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, type TreeRecord, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, type PullRequestItem, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, AUTO_MERGE_OFF_LINE, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, agentsFrom, agentsKindRefusal, agentsMayDrive, askerOf, scopeOf, spawnGoldenRefusal, workspaceIdOf } from "@wsp/protocol";
-import { isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix } from "@wsp/protocol";
+import { isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
 import { harnessExec, putFiles } from "@wsp/engine";
 import { ownerRepoOf, WorkspaceTalked } from "@wsp/protocol";
 import { providerSaid } from "../status.js";
@@ -17,6 +17,10 @@ import { loginEnvOn } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
 import { PROJECT_GOLDENS, WORKSPACE_NAMES, DELETED_REASON, type NamedWorkspace, CREATES, type PendingCreate, labelOf, readBodyUpTo, isNoHostCli, isNoGitCredential, isOnDefaultBranch, defaultBranchRefused } from "../types/internal.js";
 import type { RuntimeContext, WorkspacesArea } from "../context.js";
+
+/** How long the stop before a move to another size waits on the provider: a disk near full archives slowly, 14 minutes
+ * for 67 GB on Boat (measured 2026-10-01), past the ordinary pause budget. */
+export const RESIZE_NAP_MS = 30 * 60_000;
 
 export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
   const {
@@ -343,6 +347,57 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
         }
       })();
       return entry.waking;
+    },
+
+    async resize(id, size, origin) {
+      const entry = await ctx.entryOf(id, origin, { act: "wake" });
+      ctx.spawnGuard("resize", origin);
+      ctx.refusePauseless(entry, "be moved to another size");
+      ctx.refuseSubWake(entry);
+      const at = ctx.backendFor(entry.record);
+      if (entry.machine.resumeAt === undefined) throw Object.assign(new Error(refusalLine(resizeNoMoveLine(providerKeyName(ctx.providerOf(entry.record) ?? "the provider")), RESIZE_NO_MOVE_FIX)), { kind: "invalid" });
+      await at.limits?.().catch(() => undefined);
+      const offer = at.capabilities.sizes.find(s => s.cpu === size.cpu && s.memMb === size.memMb);
+      if (offer === undefined) throw Object.assign(new Error(refusalLine(sizeRefusal(sizeWord(size), at.capabilities.sizes), SIZE_PICK_FIX)), { kind: "invalid" });
+      if (entry.record.size.cpu === size.cpu && entry.record.size.memMb === size.memMb) return ctx.view(entry.record);
+      const threads = new Set([...ctx.sessions.values()].filter(s => s.view.workspaceId === id && s.view.threadId !== undefined).map(s => s.view.threadId!));
+      if ([...threads].some(t => ctx.threadRuns(t))) throw Object.assign(new Error(refusalLine(resizeBusyLine(entry.record.name), RESIZE_BUSY_FIX)), { kind: "conflict" });
+      const before = entry.record.size;
+      entry.napWaitMs = RESIZE_NAP_MS;
+      try {
+        await ctx.napWith(id);
+      } finally {
+        delete entry.napWaitMs;
+      }
+      entry.resizeTo = { cpu: size.cpu, memMb: size.memMb };
+      entry.record.size = { ...entry.record.size, cpu: size.cpu, memMb: size.memMb };
+      // The wake checks the machine against the shape it was made at, which a move changes on purpose.
+      delete entry.record.shape;
+      // The record takes the size the provider reports: a resume can land at the new size before the wake fails, and
+      // every plain resume after keeps it. A shape nobody read stays unset, since a stale one fails every later wake.
+      const follow = async (asked: { cpu: number; memMb: number }): Promise<{ cpu: number; memMb: number }> => {
+        const shape = await ctx.shapeOf(entry.machine);
+        if (shape !== undefined) entry.record.shape = shape;
+        const landed = ctx.sizeBuilt(shape, asked);
+        entry.record.size = { ...entry.record.size, cpu: landed.cpu, memMb: landed.memMb };
+        const rate = at.capabilities.sizes.find(s => s.cpu === landed.cpu && s.memMb === landed.memMb)?.rateUsdPerHour;
+        if (entry.record.sub !== undefined && rate !== undefined) entry.record.sub.rateUsdPerHour = rate;
+        await ctx.persist(entry.record);
+        return landed;
+      };
+      try {
+        await workspaces.wake(id, origin);
+      } catch (e) {
+        await follow(before);
+        throw e;
+      } finally {
+        delete entry.resizeTo;
+      }
+      const landed = await follow(size);
+      const moved = landed.cpu === size.cpu && landed.memMb === size.memMb;
+      await ctx.statusNow(entry);
+      if (!moved) throw Object.assign(new Error(refusalLine(resizeLandedLine(entry.record.name, landed, size), RESIZE_AGAIN_FIX)), { kind: "conflict" });
+      return ctx.view(entry.record);
     },
 
     async stopWake(id, origin) {

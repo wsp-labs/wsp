@@ -1199,6 +1199,7 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
       ctx.state.sweepStopped = true;
       ctx.state.sweepTimer?.();
       await ctx.state.sweeping;
+      await ctx.stopDiskWatch();
       ctx.idle.close();
       ctx.alerts.close();
       ctx.slates.close();

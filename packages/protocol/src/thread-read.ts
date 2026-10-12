@@ -92,6 +92,7 @@ export function threadMessages(events: ReadonlyArray<SessionEvent>, threadId: st
         say("turn", event.at, threadMovedLine(event.from, event.to, event.fresh === true));
         continue;
       case "session.behind":
+      case "session.notice":
         say("turn", event.at, event.text);
         continue;
       case "session.earlier":

@@ -104,6 +104,55 @@ describe("deriveSession: a harness's note about itself", () => {
   });
 });
 
+describe("deriveSession: the host's notice about the machine under the thread", () => {
+  const scoped = { workspaceId: "ws_t", sessionId: "sess_t", turnId: "turn_d" };
+  const full = "The disk of web is 92% full (67.7 of 73.6 GB). Boat cannot save a stop of a full disk.";
+
+  it("is a notice on the turn it was written under, after the turn ended, and ends no message of the agent's", () => {
+    const model = deriveSession([
+      { type: "session.start", ...scoped, at: 1_000, prompt: "build it" },
+      { type: "session.delta", ...scoped, at: 2_000, kind: "text", text: "built", messageId: "msg_a" },
+      { type: "session.done", ...scoped, at: 2_500, result: { status: "completed", text: "built" } },
+      { type: "session.end", ...scoped, at: 2_600, exitCode: 0, sawResult: true },
+      { type: "session.notice", ...scoped, at: 120_000, text: full },
+    ]);
+    expect(model.messages.map(m => [m.role, m.text])).toEqual([["user", "build it"], ["assistant", "built"]]);
+    const notices = model.timeline.filter(row => row.kind === "work" && row.entry.label === full);
+    expect(notices.map(row => (row.kind === "work" ? [row.entry.tone, row.entry.sourceActivityKind, row.entry.turnId] : []))).toEqual([["notice", "runtime.notice", "turn_d"]]);
+    expect(model.turns).toHaveLength(1);
+  });
+
+  /** The rows a person sees: kinds, a message's text, a work row's labels. */
+  const seen = (events: SessionEvent[], working: boolean) =>
+    deriveMessagesTimelineRows({ timelineEntries: deriveSession(events).timeline, turns: deriveSession(events).turns, isWorking: working, activeTurnStartedAt: null }).map(r =>
+      r.kind === "message" ? [r.kind, r.message.text] : r.kind === "work" ? [r.kind, r.groupedEntries.map(e => e.label)] : [r.kind],
+    );
+  const bash = (id: string, at: number): SessionEvent[] => [
+    { type: "session.delta", ...scoped, at, kind: "tool_use", toolName: "Bash", toolUseId: id, text: JSON.stringify({ command: "pnpm build" }) },
+    { type: "session.delta", ...scoped, at: at + 100, kind: "tool_result", toolUseId: id, text: "ok" },
+  ];
+
+  it("stands on its own row under a settled turn, outside the Worked for fold", () => {
+    const rows = seen(
+      [
+        { type: "session.start", ...scoped, at: 1_000, prompt: "build it" },
+        ...bash("toolu_a", 1_100),
+        { type: "session.delta", ...scoped, at: 2_000, kind: "text", text: "built", messageId: "msg_a" },
+        { type: "session.done", ...scoped, at: 2_500, result: { status: "completed", durationMs: 1500, text: "built" } },
+        { type: "session.end", ...scoped, at: 2_600, exitCode: 0, sawResult: true },
+        { type: "session.notice", ...scoped, at: 120_000, text: full },
+      ],
+      false,
+    );
+    expect(rows).toContainEqual(["work", [full]]);
+  });
+
+  it("stands on its own row in a running turn, never folded into the live tool row", () => {
+    const rows = seen([{ type: "session.start", ...scoped, at: 1_000, prompt: "build it" }, ...bash("toolu_a", 1_100), { type: "session.notice", ...scoped, at: 1_500, text: full }, ...bash("toolu_b", 1_600)], true);
+    expect(rows).toContainEqual(["work", [full]]);
+  });
+});
+
 describe("deriveSession: the chat fixture", () => {
   const model = deriveSession(CHAT_STREAM);
 

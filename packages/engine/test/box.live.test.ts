@@ -12,7 +12,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { DAEMON_TOKEN_PATH } from "@wsp/protocol";
 import { afterAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { BOX_API_URL, BOX_BUDGETS, BOX_CREATE_MS, BOX_PAUSE_MS, BOX_RESUME_MS, BoxBackend, BoxMachine, boxName } from "../src/box-backend.js";
+import { BOX_API_URL, BOX_BUDGETS, BOX_CLASSES, BOX_CREATE_MS, BOX_PAUSE_MS, BOX_RESUME_MS, BoxBackend, BoxMachine, boxName } from "../src/box-backend.js";
+import { DISK_USE_CMD, diskUseOf } from "../src/disk-sync.js";
 import { isMissing, PROVIDER_READ_CAP_MS, type WspError } from "../src/errors.js";
 import { CREATED_AT_LABEL, OWNER_LABEL, WSP_LABEL } from "../src/labels.js";
 import { landBytes } from "../src/land-bytes.js";
@@ -34,13 +35,13 @@ const ASK_DAEMON_MS = 5_000;
 /** A Claude Code session file read about 536 KB gzipped, and a kept one comes off the box through GET /files. */
 const READ_BYTES = 600 * 1024;
 const RUNNING = new Set(["ready", "idle", "running"]);
-const STARTS_NEEDED = 2; // the create and the resume
+const STARTS_NEEDED = 3; // the create, the resume and the resume a size up
 const GONE_MS = 120_000;
 const MINUTE = 60_000;
 
 const secs = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
 const startedLine = (starts: number): string => (starts === 0 ? "" : `, after wsp started it${starts > 1 ? ` (${starts} starts)` : ""}`);
-interface BoxView { id?: string; state?: string; name?: string | null; archiveAfter?: string | null; hydrated?: boolean }
+interface BoxView { id?: string; state?: string; name?: string | null; archiveAfter?: string | null; hydrated?: boolean; type?: string }
 interface BoxReply { status?: string; code?: string; box?: BoxView }
 const reply = (e: Exchange): BoxReply => JSON.parse(e.text || "{}") as BoxReply;
 
@@ -339,11 +340,41 @@ describe.runIf(LIVE)("Boat canary, live", () => {
     note("daemon's first answer after resume", `${secs(answer.at - began)} after the resume was sent${startedLine(answer.starts)}`);
   }, BOX_PAUSE_MS + BOX_RESUME_MS + BOX_BUDGETS.daemonAnswersMs + 2 * MINUTE);
 
+  it("reads its disk where Boat's own agent does, and moves it a size up as one stop and one resume naming the class", async () => {
+    const disk = async (): Promise<string> => {
+      const res = await step("disk", () => box().exec(DISK_USE_CMD));
+      const use = diskUseOf(res.stdout);
+      if (use === undefined) throw new Error(`df on ${box().id} answered ${JSON.stringify(res.stdout)} (exit ${res.exitCode})`);
+      return `${use.pct.toFixed(1)}% of ${((use.usedBytes + use.freeBytes) / 1e9).toFixed(1)} GB used`;
+    };
+    /** Cores, memory and the root disk as the box itself reads them: the disk Boat's size names is not the one that fills. */
+    const hardware = async (): Promise<string> => {
+      const res = await step("hardware", () => box().exec("nproc; grep MemTotal /proc/meminfo; lsblk -b -d -n -o SIZE /dev/vda"));
+      return res.stdout.trim().split("\n").join(", ");
+    };
+    const was = (await view()).type;
+    note(`disk on ${was}`, await disk());
+    note(`hardware on ${was}`, await hardware());
+    const at = BOX_CLASSES.findIndex(c => c.type === was);
+    const sold = (await backend.limits()).sizes;
+    const next = BOX_CLASSES.slice(at + 1).find(c => sold.includes(c.type));
+    if (next === undefined) throw new Error(`the account sells no size above ${was} to move to`);
+    let began = Date.now();
+    await step("stop", () => box().pause());
+    note("stop before the move", secs(Date.now() - began));
+    began = Date.now();
+    await step(`resume at ${next.type}`, () => box().resumeAt(next));
+    note(`resume at ${next.type}`, secs(Date.now() - began));
+    expect((await view()).type).toBe(next.type);
+    note(`disk on ${next.type}`, await disk());
+    note(`hardware on ${next.type}`, await hardware());
+  }, BOX_PAUSE_MS + BOX_RESUME_MS + 3 * MINUTE);
+
   it("deletes it by id and reads it gone", async () => {
     const id = box().id;
     await step("DELETE", () => box().kill());
     note("delete", `operation ${box().deletion ?? "none"}, read gone ${secs(await readGone(id))} after`);
     const after = await step("GET /limits", () => backend.request<Limits>("GET", "/limits"));
-    if (startsBefore !== undefined) note("starts counted today", `${after.starts!.day.used - startsBefore} (${STARTS_NEEDED} are the create and the resume; more is a replay or another client)`);
+    if (startsBefore !== undefined) note("starts counted today", `${after.starts!.day.used - startsBefore} (${STARTS_NEEDED} are the create and the two resumes; more is a replay or another client)`);
   }, 4 * MINUTE);
 });

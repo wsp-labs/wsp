@@ -439,6 +439,10 @@ export interface LiveWorkspace {
    * it ends the provider call under it, so nothing is left running behind a wake that is over. Absent when no wake
    * is running. */
   wakeStop?: AbortController;
+  /** The size the wake in flight resumes the machine at, set by a move to another size for that one wake. */
+  resizeTo?: { cpu: number; memMb: number };
+  /** How long the nap in flight waits on the provider's stop, set by a move to another size for that one nap. */
+  napWaitMs?: number;
   /** What the row says about the wake in flight, for as long as it is in flight: every status the poll builds carries
    * it, since a line pushed once would be wiped by the next tick and the row would fall silent between two asks. */
   wakeSaid?: string;

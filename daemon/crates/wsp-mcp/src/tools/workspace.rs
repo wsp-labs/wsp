@@ -56,6 +56,7 @@ pub struct Words {
     pub here_place_id: String,
     pub copy_takes_none: String,
     pub size_refused: String,
+    pub resize_word: String,
     pub cwd_not_absolute: String,
     pub committed_one: String,
     pub committed_many: String,

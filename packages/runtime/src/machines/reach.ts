@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { remoteHost } from "@wsp/catalog";
-import { INLINE_EXEC_MS, DISK_USE_CMD, diskUsePct } from "@wsp/engine";
-import { type DaemonEvent, type ReachState, GitStatusReply, GitBranchCompareReply, DETACHED_HEAD, type TreeChild, type TreeFact, type Checkout, napRefusedLine, WAKE_STOPPED, DISK_FULL_PCT, diskFullLine, stopRefusedLine } from "@wsp/protocol";
+import { INLINE_EXEC_MS, DISK_USE_CMD, diskUseOf, sweepLeftovers } from "@wsp/engine";
+import { type DaemonEvent, type ReachState, GitStatusReply, GitBranchCompareReply, DETACHED_HEAD, type TreeChild, type TreeFact, type Checkout, napRefusedLine, WAKE_STOPPED, DISK_FULL_PCT, DISK_REARM_PCT, diskFullLine, diskMarkLine, providerKeyName, stopRefusedLine, type DiskMove } from "@wsp/protocol";
 import { connectDaemon, type DaemonReach } from "../reach.js";
 import { machineStateOf } from "../status.js";
 import { CHECKOUT_TTL_MS } from "../types/events.js";
 import { type LiveWorkspace, until } from "../types/wiring.js";
+import type { SessionEntry } from "../types/internal.js";
 import type { RuntimeContext, ReachArea } from "../context.js";
+
+/** How often a running machine whose stop snapshots its disk has it read between turn ends: one long turn's build can
+ * fill the last tenth of a disk, and a read is one command at the provider, which moves no stop timer of Boat's ("your
+ * own jobs do not move the deadline", docs.boat.dev, auto-stop). */
+export const DISK_READ_MS = 2 * 60_000;
+
+/** How long a host closing waits on a disk read still out: a read that crossed the mark holds the cache sweep for up to
+ * its five minute guard, and the next host reads the disk again anyway. */
+export const DISK_CLOSE_WAIT_MS = 2_000;
 
 export function reachArea(ctx: RuntimeContext): ReachArea {
   const { bus, clock, daemonHelloTimeoutMs, live, sessions } = ctx;
@@ -40,23 +50,110 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
     const refused = stopRefusals.get(entry.record.id);
     return refused === undefined || refused.machineId !== entry.machine.id ? undefined : stopRefusedLine(refused.said);
   };
-  /** How full the disk of a machine whose stop snapshots it read at its last turn's end, by workspace and machine. */
-  const disks = new Map<string, { machineId: string; pct: number }>();
+  /** How full the disk of a machine whose stop snapshots it last read, by workspace and machine, and whether its last
+   * crossing was said and not yet taken back by a fall to DISK_REARM_PCT. */
+  const disks = new Map<string, { machineId: string; pct: number; told: boolean }>();
   const diskReason = (entry: LiveWorkspace): string | undefined => {
     const read = disks.get(entry.record.id);
     return read === undefined || read.machineId !== entry.machine.id || !(read.pct > DISK_FULL_PCT) ? undefined : diskFullLine(read.pct);
   };
-  /** Reads the disk at a turn's end, where the stop snapshots it: what a turn wrote is what fills it, and the nap that
-   * may fail on a full one comes a window after. A row crossing the line either way is pushed at once. */
-  const readDisk = async (entry: LiveWorkspace): Promise<void> => {
-    if (!ctx.pauseKeepsDisk(ctx.backendFor(entry.record)) || entry.record.phase !== "running") return;
+  const watchesDisk = (entry: LiveWorkspace): boolean => ctx.pauseKeepsDisk(ctx.backendFor(entry.record)) && entry.record.phase === "running";
+  /** One reading of the disk where the stop snapshots it, onto the row: a row crossing the line either way is pushed at
+   * once. Answers the reading and whether this one crossed the line with no crossing said since the last fall. */
+  const diskRead = async (entry: LiveWorkspace): Promise<{ use: NonNullable<ReturnType<typeof diskUseOf>>; crossed: boolean } | undefined> => {
     const res = await entry.machine.exec(DISK_USE_CMD, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
-    const pct = res?.exitCode === 0 ? diskUsePct(res.stdout) : undefined;
-    if (pct === undefined) return;
+    const use = res?.exitCode === 0 ? diskUseOf(res.stdout) : undefined;
+    if (use === undefined || !watchesDisk(entry)) return undefined;
     const was = diskReason(entry);
-    disks.set(entry.record.id, { machineId: entry.machine.id, pct });
-    const now = diskReason(entry);
-    if (now !== was && entry.record.phase === "running") await emitStatus(entry, reachOf(entry), ctx.rowReason(entry));
+    const held = disks.get(entry.record.id);
+    const told = held !== undefined && held.machineId === entry.machine.id && held.told && use.pct > DISK_REARM_PCT;
+    const crossed = !told && use.pct > DISK_FULL_PCT;
+    disks.set(entry.record.id, { machineId: entry.machine.id, pct: use.pct, told: told || crossed });
+    if (diskReason(entry) !== was) await emitStatus(entry, reachOf(entry), ctx.rowReason(entry));
+    return { use, crossed };
+  };
+  /** The disk read at a turn's end and on the watch's beat. Past the line, once per crossing: what wsp made there is
+   * cleared, the disk read again, and every thread on the machine told how full it is, what was cleared and what the
+   * person can do. */
+  const readDisk = (entry: LiveWorkspace): Promise<void> => {
+    if (!watchesDisk(entry)) return Promise.resolve();
+    armDiskWatch();
+    const id = entry.record.id;
+    const held = diskReads.get(id);
+    if (held !== undefined) return held;
+    const read = readDiskNow(entry).finally(() => diskReads.delete(id));
+    diskReads.set(id, read);
+    return read;
+  };
+  const readDiskNow = async (entry: LiveWorkspace): Promise<void> => {
+    const first = await diskRead(entry);
+    if (first?.crossed !== true || ctx.state.closing) return;
+    await sweepLeftovers(entry.machine).catch((e: unknown) => console.warn(`what wsp made on ${entry.record.name} was not cleared: ${e instanceof Error ? e.message : String(e)}`));
+    const after = (await diskRead(entry))?.use ?? first.use;
+    const to = await moveFor(entry);
+    const words = {
+      machine: entry.record.name,
+      on: providerKeyName(ctx.providerOf(entry.record) ?? "the provider"),
+      pct: after.pct,
+      usedBytes: after.usedBytes,
+      sizeBytes: after.usedBytes + after.freeBytes,
+      freedBytes: Math.max(0, first.use.usedBytes - after.usedBytes),
+      machineGoes: entry.record.sub !== undefined,
+    };
+    console.warn(`${entry.record.name}: ${diskMarkLine(words)}`);
+    // Each thread's line names that thread, which is what wsp resize takes.
+    for (const s of lastTurns(entry.record.id)) {
+      const thread = s.view.threadId ?? s.view.id;
+      const text = diskMarkLine({ ...words, ...(to !== undefined ? { move: { ...to, thread } } : {}) });
+      ctx.record({ type: "session.notice", workspaceId: entry.record.id, sessionId: s.view.claudeSessionId ?? s.turnId, turnId: s.turnId, threadId: thread, text });
+    }
+  };
+  /** The first size up the plan sells whose measured root disk is bigger than this machine's; nothing where either
+   * disk was never measured. */
+  const moveFor = async (entry: LiveWorkspace): Promise<Omit<DiskMove, "thread"> | undefined> => {
+    const at = ctx.backendFor(entry.record);
+    const here = at.rootDiskOf?.(entry.record.size);
+    if (here === undefined) return undefined;
+    await at.limits?.().catch(() => undefined);
+    const up = at.capabilities.sizes.filter(s => s.memMb > entry.record.size.memMb).sort((a, b) => a.memMb - b.memMb);
+    for (const s of up) {
+      const disk = at.rootDiskOf?.(s);
+      if (disk !== undefined && disk.diskGb > here.diskGb) return { name: disk.name, cpu: s.cpu, memMb: s.memMb, diskGb: disk.diskGb };
+    }
+    return undefined;
+  };
+  /** The latest turn of each thread on a workspace, which a line about its machine is written under. */
+  const lastTurns = (workspaceId: string): SessionEntry[] => {
+    const latest = new Map<string, SessionEntry>();
+    for (const s of sessions.values()) {
+      if (s.view.workspaceId !== workspaceId) continue;
+      const key = s.view.threadId ?? s.view.id;
+      const held = latest.get(key);
+      if (held === undefined || (s.view.startedAt ?? 0) >= (held.view.startedAt ?? 0)) latest.set(key, s);
+    }
+    return [...latest.values()];
+  };
+  /** The read in flight per workspace, which a turn's end and the beat share: one machine's minutes of clearing never
+   * hold back the beat of another. */
+  const diskReads = new Map<string, Promise<void>>();
+  /** Armed only while a running machine whose stop snapshots its disk stands. */
+  let diskTimer: (() => void) | undefined;
+  const armDiskWatch = (): void => {
+    if (diskTimer !== undefined || ctx.state.closing || ![...live.values()].some(watchesDisk)) return;
+    diskTimer = clock.schedule(
+      () => {
+        diskTimer = undefined;
+        for (const entry of live.values()) void readDisk(entry).catch((e: unknown) => console.warn(`disk of ${entry.record.id} not read on the watch: ${e instanceof Error ? e.message : String(e)}`));
+        armDiskWatch();
+      },
+      DISK_READ_MS,
+      { unref: true },
+    );
+  };
+  const stopDiskWatch = async (): Promise<void> => {
+    diskTimer?.();
+    diskTimer = undefined;
+    await Promise.race([Promise.allSettled([...diskReads.values()]), new Promise(resolve => setTimeout(resolve, DISK_CLOSE_WAIT_MS).unref())]);
   };
 
   /** The reach a status pushed for a running machine carries: what the poll last measured, and where it has
@@ -341,6 +438,6 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
   return {
     polledReach, napRefusals, napRefusedOf, napRefusedReason, stopRefusals, stopRefusedReason, diskReason, readDisk,
     reachOf, emitStatus, saysWaking, pingDaemon, helloVersion, pushStatus, readCheckout, readTree, readLeadOf,
-    statusNow,
+    statusNow, armDiskWatch, stopDiskWatch,
   };
 }
