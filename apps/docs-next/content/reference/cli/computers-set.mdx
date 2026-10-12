@@ -4,14 +4,16 @@
 
 ```text
 usage: wsp computers set <computer> [--name <new>] [--ssh <login>]
-       [--threads <n>] [--nap <minutes>|off] [--turn-limit <hours>|off]
-       [--spawn on|off] [--max-machines <n>] [--max-depth <n>]
-       [--recipe <name>|none] [--reset <setting>]...
+       [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>]
+       [--delete-after <minutes>] [--nap <minutes>|off]
+       [--turn-limit <hours>|off] [--spawn on|off] [--max-machines <n>]
+       [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...
   what you set on one of your computers: its name, the ssh login it is reached
   by, how many threads run there at once, how long a quiet machine there runs
   before it naps, how long one turn there may run, whether agents there may
-  start agents, the recipe it follows; --reset takes a setting back to its
-  default
+  start agents, the recipe it follows, and on a cloud how many machines at once,
+  how much it spends a day, the size a sub-thread's machine gets and how long a
+  finished one stays; --reset takes a setting back to its default
 
   --name            what to call a computer you added from now, which every
                     listing then shows; its id, its projects and its machines
@@ -21,6 +23,14 @@ usage: wsp computers set <computer> [--name <new>] [--ssh <login>]
                     reads as that same one
   --threads         how many threads may run on that computer at once; a new one
                     waits past it
+  --machines        how many machines may run on that cloud at once
+  --spend           the dollars a day that cloud may spend before it starts no
+                    new machine
+  --size            on a cloud, the size a sub-thread's machine gets when the
+                    thread starting it names none, as <cpu>x<memGb>; 2x4 until
+                    it is set
+  --delete-after    on a cloud, the minutes a finished sub-thread's machine
+                    stays before it is deleted, 0 to 1440; 30 until it is set
   --nap             the minutes a quiet machine there runs before it naps, or
                     off
   --turn-limit      the hours one turn there may run before it is stopped, or

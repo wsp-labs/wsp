@@ -107,7 +107,7 @@ const runtimeProjectOf = (checkout: string | undefined): string | undefined => {
 export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "add" | "dial" | "road" | "exec" | "adds" | "reportOf" | "homeOf" | "list" | "rows" | "set" | "update" | "holds" | "remove" | "find" | "pending" | "choose" | "setUp" | "follow" | "recipeChanged" | "followers" | "skip" | "estimate" | "setupLog" | "unfollow" | "picksOf" | "on" | "close"> {
   const { opts, store, devices, wiring, recording, clockNow, dialWaitMs, live, kept, forwards, watchers, emit } = ctx;
   const {
-    records, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, rowIds, withCap, untilDaemonVersion, awaiting, adds,
+    records, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, rowIds, withCap, withLimits, untilDaemonVersion, awaiting, adds,
     putAdd, loginOf, rootOver, loginAnswers, reachedOver, holdBack, defaultId, inTurn, markHeld, change,
   } = recordArea;
   const {
@@ -413,7 +413,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       const room = new Map(await Promise.all(held.map(async r => [r.id, await forksOf(r)] as const)));
       return (await rowsOf(held)).map(row => {
         const forks = room.get(row.id);
-        return forks !== undefined ? { ...row, forks } : row;
+        return withLimits(forks !== undefined ? { ...row, forks } : row);
       });
     },
 
@@ -469,7 +469,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
         holdBack(moved);
       }
       if (also.recipe !== undefined) moved = (await followTo(placeId, also.recipe)) ?? moved;
-      const place = await withCap(moved === undefined ? row : joinedRow(moved, marked), await rowIds());
+      const place = withLimits(await withCap(moved === undefined ? row : joinedRow(moved, marked), await rowIds()));
       emit({ type: "place.changed", place });
       return { place };
     },
