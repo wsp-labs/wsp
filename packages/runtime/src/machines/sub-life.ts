@@ -6,9 +6,9 @@
 // thread, transcript, result and session. The timer is the record's deleteAt,
 // so a restarted host arms it again.
 import { INLINE_EXEC_MS, isMissing } from "@wsp/engine";
-import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
+import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subSessionNotKeptLine, subSessionTooLargeLine, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
 import { GONE_REASON, deadMachine } from "../types/internal.js";
-import type { GoneOutcome, LiveWorkspace, WorkspaceRecord } from "../types/wiring.js";
+import type { GoneOutcome, LiveWorkspace, SubSession, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubLifeArea } from "../context.js";
 
 /** The host blobs a sub-thread's kept session goes under, by thread id, gzipped. */
@@ -67,12 +67,24 @@ export function subResultOf(stdout: string, branch: string, readAt: string): Sub
 }
 
 /** One command that finds a session's file under its folder and packs it where the cloud's file read reaches, then
- * says its packed size; `nofile` where the agent wrote none. */
+ * says where it found it and its packed size; `nofile` where the agent wrote none. */
 export function subSessionPackCommand(file: { folder: string; name: string; depth: number }, to: string): string {
   return [
     `f=$(find ${shellQuote(file.folder)} -maxdepth ${file.depth + 1} -type f -name ${shellQuote(`*${file.name}`)} 2>/dev/null | head -n 1)`,
     `[ -n "$f" ] || { echo nofile; exit 0; }`,
+    `echo "path $f"`,
     `gzip -c "$f" > ${shellQuote(to)} && chmod 0644 ${shellQuote(to)} && echo "size $(stat -c %s ${shellQuote(to)})"`,
+  ].join("\n");
+}
+
+/** One command that lands a kept session at the path it was kept from, unpacked from where the cloud's file write put
+ * it, after taking away any other file of the same name under the agent's folder, so a resume reads the one kept. */
+export function subSessionLandCommand(file: { folder: string; name: string; depth: number }, path: string, from: string): string {
+  const dir = path.slice(0, path.lastIndexOf("/"));
+  return [
+    `install -d -m 0700 ${shellQuote(dir)}`,
+    `find ${shellQuote(file.folder)} -maxdepth ${file.depth + 1} -type f -name ${shellQuote(`*${file.name}`)} ! -path ${shellQuote(path)} -delete 2>/dev/null`,
+    `gunzip -c ${shellQuote(from)} > ${shellQuote(path)}; s=$?; rm -f ${shellQuote(from)}; exit $s`,
   ].join("\n");
 }
 
@@ -93,7 +105,15 @@ export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
     ...(sub.deleteAt !== undefined ? { deleteAt: sub.deleteAt } : {}),
     ...(sub.releasedAt !== undefined ? { releasedAt: sub.releasedAt } : {}),
     ...(sub.cloudGone === true ? { cloudGone: true as const } : {}),
+    ...(sessionNotKept(sub.session) !== undefined ? { sessionNotKept: sessionNotKept(sub.session)! } : {}),
   };
+}
+
+/** What the row says of a session the host holds no copy of; nothing where one is kept or none was asked for yet. */
+function sessionNotKept(session: SubSession | undefined): string | undefined {
+  if (session === undefined || session.kept !== null) return undefined;
+  if (session.bytes !== undefined && session.bytes > SUB_SESSION_MAX_BYTES) return subSessionTooLargeLine(fmtBytes(session.bytes));
+  return subSessionNotKeptLine(session.why ?? "no reason was given");
 }
 
 export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
@@ -160,14 +180,15 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
         return;
       }
       const size = Number(/^size (\d+)$/m.exec(packed.stdout)?.[1]);
-      if (packed.exitCode !== 0 || !Number.isInteger(size)) throw new Error(`the pack exited ${packed.exitCode}: ${(packed.stderr.trim() || packed.stdout.trim()).slice(-200)}`);
+      const path = /^path (.+)$/m.exec(packed.stdout)?.[1];
+      if (packed.exitCode !== 0 || !Number.isInteger(size) || path === undefined) throw new Error(`the pack exited ${packed.exitCode}: ${(packed.stderr.trim() || packed.stdout.trim()).slice(-200)}`);
       if (size > SUB_SESSION_MAX_BYTES) {
         await store.deleteBlob(SUB_SESSIONS, threadId);
         sub.session = { agent: row.harness, id, kept: null, bytes: size, why: `the agent's session was too large to keep (${fmtBytes(size)})` };
         return;
       }
       await store.putBlob(SUB_SESSIONS, threadId, await read(at, { size }));
-      sub.session = { agent: row.harness, id, kept: clock.now(), bytes: size };
+      sub.session = { agent: row.harness, id, kept: clock.now(), bytes: size, path };
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
       console.warn(`the session of sub-thread ${threadId} was not kept: ${why}`);
@@ -409,9 +430,12 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       return { workspaceId, threads: 1, machine: "deleted" as const, on };
     },
     refuseSubSend: entry => {
+      if (entry.record.sub?.cloudGone === true) throw subCloudGoneRefusal(cloudOf(entry));
+    },
+    refuseSubWake: entry => {
       const sub = entry.record.sub;
-      if (sub === undefined || (entry.record.phase !== "released" && sub.cloudGone !== true)) return;
-      throw sub.cloudGone === true ? subCloudGoneRefusal(cloudOf(entry)) : subReleasedRefusal(threadOf(entry.record.id) ?? entry.record.name, cloudOf(entry), sub.branch);
+      if (sub?.cloudGone === true) throw subCloudGoneRefusal(cloudOf(entry));
+      if (sub !== undefined && entry.record.phase === "released") throw subReleasedRefusal(threadOf(entry.record.id) ?? entry.record.name, cloudOf(entry));
     },
     leadOfSub: (workspaceId, origin) => {
       const lead = workspaceId === undefined ? undefined : live.get(workspaceId)?.record.lead;

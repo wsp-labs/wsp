@@ -13,9 +13,10 @@ import {
   providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
-  subSizeWord, subTwiceRefusal, subUncommittedLine, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
+  subSizeWord, subTwiceRefusal, subUncommittedLine, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
-import { SEED_CHOICES, CREATES } from "../types/internal.js";
+import { SEED_CHOICES, CREATES, deadMachine } from "../types/internal.js";
+import { SUB_SESSIONS, subSessionLandCommand } from "./sub-life.js";
 import { folderNamed, type CreateWorkspaceOptions, type CreatedWorkspace, type LiveWorkspace, type StageReport, type WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubSpawnArea } from "../context.js";
 
@@ -50,6 +51,57 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   const settingOf = (placeId: string, key: "size"): unknown => {
     const held = placeDoor?.settingsAt(placeId);
     return held !== undefined && key in held ? (held as Record<string, unknown>)[key] : undefined;
+  };
+
+  /** S6: the setup image's head on the cloud, holding the sign-in of the remote's git host. */
+  const imageAt = async (place: string, on: string, host: GitHost, remote: string) => {
+    const head = goldenHead(await ctx.copyOf(place, SETUP_IMAGE));
+    if (head === undefined) throw subNoImageRefusal(on);
+    const record = await ctx.recordOf(SETUP_IMAGE);
+    const label = HOST_WORDS[host.id];
+    const logins = head.logins ?? record?.logins ?? [];
+    if (!logins.some(l => (l.name === host.cli || l.name.startsWith(`${label} CLI`)) && LOGIN_HELD.has(l.state))) {
+      throw subNoSignInRefusal(on, { label, cli: host.cli, login: `${label} CLI login` }, ownerRepoOf(remote)!);
+    }
+    return { head, record };
+  };
+
+  /** S11: the agent on the image, where the image says which it carries. */
+  const agentOn = (record: Awaited<ReturnType<RuntimeContext["recordOf"]>>, on: string, harness: string): void => {
+    const carried = (record?.recipe?.rows ?? []).filter(r => r.kind === "agent" && r.on).map(r => r.id);
+    if (carried.length > 0 && !carried.includes(harness)) throw subNoAgentRefusal(on, harness, carried);
+  };
+
+  /** S13: the hour's and the day's starts. */
+  const startsLeft = (limits: BoxLimits | undefined, name: string): void => {
+    const starts = limits?.starts;
+    const spent = (["day", "hour"] as const).find(w => starts !== undefined && starts[w].used >= starts[w].limit);
+    if (spent !== undefined) throw new Error(startsUsedLine(spent, starts![spent].used, starts![spent].limit, boatPlanWords(limits!.trial, limits!.planUsd), `sub-thread ${name}`));
+  };
+
+  /** H0: one machine stood up for the record, and one more where the first failed before any turn in a way a fresh
+   * machine cures; the lines a replacement says. */
+  const standUpOnce = async (at: MachineBackend, record: WorkspaceRecord, on: string, seed: { tar?: Buffer; files: number }, report: StageReport, landed: () => void): Promise<string[]> => {
+    let first: SubFault | undefined;
+    const said: string[] = [];
+    for (;;) {
+      try {
+        await standUp(record, on, seed, report, landed);
+        return said;
+      } catch (e) {
+        const fault = faultOf(e);
+        await dropMachine(at, record, fault?.box);
+        if (fault === undefined) throw e;
+        if (first !== undefined) throw subTwiceRefusal(first, fault, record.name, on);
+        first = fault;
+        const line = subReplacedLine(fault, record.name, on);
+        said.push(line);
+        report("fork-requested", line, { notice: line });
+        console.warn(`workspace ${record.id}: ${line}`);
+        // A fresh key, so the next create is a new machine and not a replay of the one deleted.
+        await store.delete(CREATES, `workspace/${record.id}`);
+      }
+    }
   };
 
   const spawnSub = async (opts: CreateWorkspaceOptions, origin: Caller | undefined): Promise<CreatedWorkspace> => {
@@ -100,14 +152,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const base = { branch, sha: read.branch.oid };
       const uncommitted = read.entries.filter(e => e.xy !== "!!").length;
       // S6: the image on the cloud, holding the sign-in of the remote's host.
-      const head = goldenHead(await ctx.copyOf(place, SETUP_IMAGE));
-      if (head === undefined) throw subNoImageRefusal(on);
-      const record = await ctx.recordOf(SETUP_IMAGE);
-      const label = HOST_WORDS[host.id];
-      const logins = head.logins ?? record?.logins ?? [];
-      if (!logins.some(l => (l.name === host.cli || l.name.startsWith(`${label} CLI`)) && LOGIN_HELD.has(l.state))) {
-        throw subNoSignInRefusal(on, { label, cli: host.cli, login: `${label} CLI login` }, ownerRepoOf(project.remote)!);
-      }
+      const { head, record } = await imageAt(place, on, host, project.remote);
       // S7: a size the plan sells, read off the cloud now.
       const limits = at.limits === undefined ? undefined : await at.limits();
       const sold = soldBy(at, limits);
@@ -124,14 +169,11 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       await ctx.placeGuard(place);
       // S11: the agent on the image, where the image says which it carries.
       const harness = ask.harness ?? ctx.defaultAgentOf(ctx.state.preferencesHeld ?? (await ctx.preferences.get()), lead);
-      const carried = (record?.recipe?.rows ?? []).filter(r => r.kind === "agent" && r.on).map(r => r.id);
-      if (carried.length > 0 && !carried.includes(harness)) throw subNoAgentRefusal(on, harness, carried);
+      agentOn(record, on, harness);
       // S12: the picked files, packed fresh from the lead's folder on this computer.
       const seed = await seedOf(project);
       // S13: the hour's and the day's starts.
-      const starts = limits?.starts;
-      const spent = (["day", "hour"] as const).find(w => starts !== undefined && starts[w].used >= starts[w].limit);
-      if (spent !== undefined) throw new Error(startsUsedLine(spent, starts![spent].used, starts![spent].limit, boatPlanWords(limits!.trial, limits!.planUsd), `sub-thread ${name}`));
+      startsLeft(limits, name);
 
       const nameTaken = ctx.nameRefusal(name);
       if (nameTaken !== undefined) throw Object.assign(new Error(nameTaken), { kind: "conflict" });
@@ -161,25 +203,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       ctx.forking.add(name);
       ctx.supersedeFailed(name);
       try {
-        let first: SubFault | undefined;
-        for (;;) {
-          try {
-            await standUp(machineRecord, on, seed, report, freePlace);
-            break;
-          } catch (e) {
-            const fault = faultOf(e);
-            await dropMachine(at, machineRecord, fault?.box);
-            if (fault === undefined) throw e;
-            if (first !== undefined) throw subTwiceRefusal(first, fault, name, on);
-            first = fault;
-            const line = subReplacedLine(fault, name, on);
-            notices.push(line);
-            report("fork-requested", line, { notice: line });
-            console.warn(`workspace ${id}: ${line}`);
-            // A fresh key, so the next create is a new machine and not a replay of the one deleted.
-            await store.delete(CREATES, `workspace/${id}`);
-          }
-        }
+        notices.push(...(await standUpOnce(at, machineRecord, on, seed, report, freePlace)));
       } catch (e) {
         report("failed", e instanceof Error ? e.message : String(e));
         throw e;
@@ -281,7 +305,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     await ctx.persist(record);
     delete entry.creating;
     report("ready", CREATE_READY);
-    bus.emit({ type: "workspace.created", workspace: ctx.view(record) });
+    if (record.sub!.releasedAt === undefined) bus.emit({ type: "workspace.created", workspace: ctx.view(record) });
+    else await ctx.emitStatus(entry, "reachable");
   };
 
   /** The machine a failed attempt made goes: the record's own where it bound one, else the box the fault names, which
@@ -305,6 +330,92 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     record.machineId = "";
   };
 
+  const resuming = new Map<string, Promise<unknown>>();
+  /** A send into a released sub-thread: the checks that still apply (the cloud held, the image and its sign-in, the
+   * spend, the agent, the picked files, the starts), then the same record on a machine forked from the image head as
+   * it stands now, at its size, the picked files and the kept session landed before the turn. The lead's branch is
+   * not read again: the thread goes on from its own result branch. */
+  const resumeSub: SubSpawnArea["resumeSub"] = async (asked, threadId, harness) => {
+    const id = asked.record.id;
+    const ahead = resuming.get(id);
+    if (ahead !== undefined) {
+      await ahead;
+      return { entry: live.get(id)!, notices: [] };
+    }
+    const work = resumeOnce(asked, threadId, harness);
+    resuming.set(id, work);
+    try {
+      return await work;
+    } finally {
+      resuming.delete(id);
+    }
+  };
+
+  const resumeOnce = async (asked: LiveWorkspace, threadId: string, harness: string) => {
+    const record = asked.record;
+    const sub = record.sub!;
+    const row = (await ctx.computerRows()).find(r => r.kind === "provider" && namesPlace(r, sub.on));
+    const at = row === undefined ? undefined : providerAt(row.id);
+    if (row === undefined || at === undefined) throw subCloudGoneRefusal(cloudSaid(sub.on));
+    const on = providerKeyName(row.name);
+    const place = record.place ?? row.id;
+    const project = ctx.projectHeld(record.project);
+    const host = gitHostOf(sub.repo);
+    if (host === undefined) throw subOtherHostRefusal(project.name, remoteHost(sub.repo) ?? sub.repo, on);
+    const { head, record: image } = await imageAt(place, on, host, sub.repo);
+    await ctx.placeGuard(place);
+    agentOn(image, on, harness);
+    const seed = await seedOf(project);
+    const limits = at.limits === undefined ? undefined : await at.limits();
+    startsLeft(limits, record.name);
+    const size = soldBy(at, limits).find(s => s.cpu === record.size.cpu && s.memMb === record.size.memMb) ?? { name: subSizeWord(record.size), ...record.size };
+    record.golden = head.snapshotId;
+    record.phase = "running";
+    record.firstLife = true;
+    delete sub.lost;
+    const report = ctx.stageReporter(record.id, record.name, clock.now(), undefined);
+    ctx.forking.add(record.name);
+    let notices: string[];
+    try {
+      notices = await standUpOnce(at, record, on, seed, report, () => {});
+    } catch (e) {
+      report("failed", e instanceof Error ? e.message : String(e));
+      record.phase = "released";
+      record.machineId = "";
+      ctx.attach(record, deadMachine(""));
+      await ctx.persist(record);
+      throw e;
+    } finally {
+      ctx.forking.delete(record.name);
+    }
+    const entry = live.get(record.id)!;
+    await landSession(entry, threadId);
+    if (seed.why !== undefined) notices.push(subNotSentLine(seed.why, project.name));
+    const deleteAfterMinutes = Math.round((ctx.settingsAt(place)?.deleteAfterMs ?? DELETE_AFTER_MS) / 60_000);
+    const pushed = sub.result?.pushedSha != null;
+    const preamble = subResumePreamble({ on, size, folder: sub.folder, sent: seed.paths, setupGit: host.setupGit, repo: sub.repo, base: sub.base, branch: sub.branch, pushed, deleteAfterMinutes });
+    return { entry, preamble, notices };
+  };
+
+  /** The session the host kept, landed where it stood on the machine it was kept from and nowhere else under the
+   * agent's folder. A landing that fails leaves the turn to go on from the transcript, which the agent's own fallback
+   * hands it. */
+  const landSession = async (entry: LiveWorkspace, threadId: string): Promise<void> => {
+    const kept = entry.record.sub!.session;
+    if (kept?.kept == null || kept.path === undefined) return;
+    const file = ctx.adapterFor(entry, kept.agent).adapter.sessionFile?.(kept.id);
+    const bytes = await store.getBlob(SUB_SESSIONS, threadId);
+    if (file === undefined || bytes === undefined || entry.machine.putBytes === undefined || !kept.path.startsWith(`${file.folder}/`)) return;
+    const at = `/tmp/wsp-session-${threadId}.gz`;
+    try {
+      await entry.machine.putBytes(at, bytes);
+      const landed = await entry.machine.exec(subSessionLandCommand(file, kept.path, at), { timeoutMs: INLINE_EXEC_MS });
+      if (landed.exitCode !== 0) throw new Error(`exit ${landed.exitCode}: ${(landed.stderr.trim() || landed.stdout.trim()).slice(-200)}`);
+    } catch (e) {
+      console.warn(`the kept session of sub-thread ${threadId} did not land on ${entry.machine.id}, so its turn goes on from the transcript: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   /** What a sub-machine's run the kernel killed for memory fails with, off one reading of its kernel log since the
    * turn started: the memory killer writes "Out of memory: Killed process" for the machine and "Memory cgroup out of
    * memory: Killed process" for a cgroup. A reading that fails or counts none keeps the agent's own exit line. */
@@ -323,5 +434,5 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     return subOomLine(record.name, row === undefined ? record.sub!.on : providerKeyName(row.name), size, bigger === undefined ? undefined : subSizeWord(bigger));
   };
 
-  return { spawnSub, subKilledWhy };
+  return { spawnSub, subKilledWhy, resumeSub };
 }

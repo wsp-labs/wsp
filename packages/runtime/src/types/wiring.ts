@@ -411,6 +411,8 @@ export interface SubSession {
   id: string;
   kept: number | null;
   bytes?: number;
+  /** Where the file stood on the machine it was kept from, which a new machine lands it at. */
+  path?: string;
   why?: string;
 }
 

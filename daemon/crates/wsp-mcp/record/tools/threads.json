@@ -289,6 +289,9 @@
                   "cloudGone": {
                     "type": "boolean",
                     "const": true
+                  },
+                  "sessionNotKept": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -815,6 +818,9 @@
                   "cloudGone": {
                     "type": "boolean",
                     "const": true
+                  },
+                  "sessionNotKept": {
+                    "type": "string"
                   }
                 },
                 "required": [

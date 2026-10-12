@@ -230,7 +230,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     async wake(id, origin) {
       if (ctx.talksToTreeOn(id, origin)) return WorkspaceTalked.parse(await workspaces.wake(id));
       const entry = await ctx.entryOf(id, origin, { act: "wake" });
-      ctx.refuseSubSend(entry);
+      ctx.refuseSubWake(entry);
       await ctx.copyBlocked(entry);
       if (entry.waking) return entry.waking;
       if (entry.record.phase === "gone") {
