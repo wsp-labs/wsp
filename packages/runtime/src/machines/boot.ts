@@ -830,6 +830,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         return;
       case "session.held":
       case "session.capped":
+      case "session.uncapped":
       case "session.subagent":
         if (e.threadId !== undefined) rowMoved(e.workspaceId, e.threadId);
         return;

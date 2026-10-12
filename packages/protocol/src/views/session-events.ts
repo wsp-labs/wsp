@@ -547,8 +547,20 @@ export const SessionCappedEvent = z.object({
   ...ThreadCapWait.shape,
   /** The id the client minted for the sessions.start that waits. */
   requestId: z.string().optional(),
+  /** The words the waiting turn was sent, on the first line of its wait alone, so the transcript shows what waits. */
+  prompt: z.string().optional(),
 });
 export type SessionCappedEvent = z.infer<typeof SessionCappedEvent>;
+
+/** A turn its computer's threads at once held is let through, written just before it launches: a slot freed, the
+ * person raised the number to `atOnce`, or a running thread waiting on it lent it its slot. */
+export const SessionUncappedEvent = z.object({
+  type: z.literal("session.uncapped"),
+  ...sessionScope,
+  why: z.enum(["freed", "raised", "lent"]),
+  atOnce: z.number().int(),
+});
+export type SessionUncappedEvent = z.infer<typeof SessionUncappedEvent>;
 
 /** Where a reply's block run stands: running in its own pty, exited with its code and output, moved to a terminal
  * tab still running, or lost, its pty gone before anybody saw it end. */
@@ -604,6 +616,7 @@ export const SessionEvent = z.discriminatedUnion("type", [
   SessionBehindEvent,
   SessionEarlierEvent,
   SessionCappedEvent,
+  SessionUncappedEvent,
   SessionSubagentEvent,
   SessionSlateEvent,
 ]);
