@@ -186,6 +186,8 @@ export interface Setup {
   remoteHeads?: string[];
   /** The host's clock, for a test that moves time on. */
   clock?: Clock;
+  /** The agent a turn on a Boat machine runs, where it is not the stub that answers at once. */
+  subAdapter?: HarnessAdapterFactory;
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -209,7 +211,10 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts, leadTurn), codex: harness(starts, leadTurn) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
+  const claude = harness(starts, leadTurn);
+  const onBoat = o.subAdapter;
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn) };
+  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
   if (o.served === true) {
     ctx.runtime = rt;

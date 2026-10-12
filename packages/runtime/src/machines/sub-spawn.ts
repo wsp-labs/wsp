@@ -12,7 +12,7 @@ import {
   DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
   providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
-  subNotSentLine, subNothingPickedWhy, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
+  subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   subSizeWord, subTwiceRefusal, subUncommittedLine, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES } from "../types/internal.js";
@@ -305,5 +305,23 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     record.machineId = "";
   };
 
-  return { spawnSub };
+  /** What a sub-machine's run the kernel killed for memory fails with, off one reading of its kernel log since the
+   * turn started: the memory killer writes "Out of memory: Killed process" for the machine and "Memory cgroup out of
+   * memory: Killed process" for a cgroup. A reading that fails or counts none keeps the agent's own exit line. */
+  const subKilledWhy = async (entry: LiveWorkspace, startedAt: number): Promise<string | undefined> => {
+    const { record } = entry;
+    const read = await entry.machine.exec(`journalctl -k --since @${Math.floor(startedAt / 1000)} --no-pager | grep -ci 'out of memory'`, { timeoutMs: INLINE_EXEC_MS }).catch((e: unknown) => {
+      console.warn(`the kernel log of ${record.name} was not read after its agent was killed: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    });
+    if (read === undefined || !(Number.parseInt(read.stdout, 10) > 0)) return undefined;
+    const at = ctx.backendFor(record);
+    const sold = soldBy(at, at.limits === undefined ? undefined : await at.limits().catch(() => undefined));
+    const size = sold.find(s => s.cpu === record.size.cpu && s.memMb === record.size.memMb) ?? { name: subSizeWord(record.size), ...record.size };
+    const bigger = sold.filter(s => s.memMb > record.size.memMb).sort((a, b) => a.memMb - b.memMb)[0];
+    const row = (await ctx.computerRows().catch(() => [])).find(r => r.kind === "provider" && namesPlace(r, record.sub!.on));
+    return subOomLine(record.name, row === undefined ? record.sub!.on : providerKeyName(row.name), size, bigger === undefined ? undefined : subSizeWord(bigger));
+  };
+
+  return { spawnSub, subKilledWhy };
 }
