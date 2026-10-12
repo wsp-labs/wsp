@@ -77,7 +77,7 @@ import type {
   ThreadWaitingOn,
   ThreadCapWait,
 } from "@wsp/protocol";
-import type { CopyBuild, GoneSeenBy, WorktreeSettled } from "@wsp/protocol";
+import type { CopyBuild, GoneSeenBy, SubUnpushed, WorktreeSettled } from "@wsp/protocol";
 import type { agentsReads } from "./agents-read.js";
 import type { DaemonChannel, DaemonChannelOptions } from "./daemon-channel.js";
 import type { MachineExecOptions, TurnWaiting } from "./machine-exec.js";
@@ -514,6 +514,29 @@ export interface CreateArea {
   readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;
 }
 
+export interface SubLifeArea {
+  /** A sub-thread's turn ended: read what it pushed, keep its session, arm the delete or hold the machine, nap it. */
+  readonly subDone: (workspaceId: string) => Promise<void>;
+  /** The delete a sub-machine's deleteAt arms, run now. */
+  readonly subExpire: (workspaceId: string) => Promise<void>;
+  /** Every delete a record holds, armed; one already past runs at once. */
+  readonly armSubs: () => void;
+  /** The cloud lost a sub-machine: the record is released, the thread kept. */
+  readonly subLost: (entry: LiveWorkspace, reason: string) => Promise<GoneOutcome>;
+  /** The cloud left this host: every sub-machine it held is released and says so. */
+  readonly releaseSubsOn: (placeId: string) => Promise<void>;
+  /** The work a sub-machine's last read found not pushed; nothing where it holds none. */
+  readonly subUnpushed: (entry: LiveWorkspace) => SubUnpushed | undefined;
+  /** A sub-thread and its machine taken away, refused under a turn and to a thread's own token over work not pushed;
+   * with check, the question a person is put and nothing deleted. */
+  readonly subDelete: (entry: LiveWorkspace, threadId: string, origin: Caller | undefined, o: { check?: boolean }) => Promise<{ workspaceId: string; threads: number; machine?: "deleted"; on: string; question?: string }>;
+  /** Refuses a send into a released sub-thread, and the wake a send asks first, saying why. */
+  readonly refuseSubSend: (entry: LiveWorkspace) => void;
+  /** Whether the caller is the lead that started the sub-thread on this record: a lead deletes its own sub-threads, as
+   * the person does, and no thread deletes anything else. */
+  readonly leadOfSub: (workspaceId: string | undefined, origin: Caller | undefined) => boolean;
+}
+
 export interface SubSpawnArea {
   /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
@@ -827,4 +850,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;

@@ -26,6 +26,7 @@ import {
   type BoxBudgets,
   BoxMachine,
   BOX_WORK_DIR,
+  FILE_GET_MAX,
   FILE_PUT_MAX,
   FIREWALL_HOLD_MS,
   FIREWALL_WATCH_MS,
@@ -959,6 +960,26 @@ describe("BoxBackend against a fake Box API", () => {
     await expect(machine.putBytes("/root/x", new Uint8Array(FILE_PUT_MAX + 1))).rejects.toThrow(/\/root\/x did not land on bx_tumrjngm \(exit 1\): WSP_SHORT 5242880/);
   });
 
+  it("reads a file off the box through GET /files, one past the read's cap in pieces under it, the whole checked against its size", async () => {
+    const small = Buffer.from("gzipped session");
+    const head = Buffer.alloc(FILE_GET_MAX, 1);
+    const api = new FakeBox()
+      .on("GET", "/boxes/bx_tumrjngm/files", { status: 200, body: { ok: true, type: "file.read", path: "/tmp/s.gz", encoding: "base64", size: small.length, content: small.toString("base64") } }, { status: 200, body: { ok: true, content: head.toString("base64") } }, { status: 200, body: { ok: true, content: Buffer.from("abc").toString("base64") } })
+      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""), COMMAND(""));
+    const { machine } = machineOn(api);
+    expect(await machine.readBytes("/tmp/s.gz", { size: small.length })).toEqual(small);
+    expect([...api.seen[0]!.query]).toEqual([["path", "/tmp/s.gz"], ["encoding", "base64"]]);
+    const big = await machine.readBytes("/root/big.gz", { size: FILE_GET_MAX + 3 });
+    expect(big.length).toBe(FILE_GET_MAX + 3);
+    const reads = api.seen.filter(s => s.method === "GET").slice(1).map(s => s.query.get("path")!.replace(/wsp-get-[0-9a-f]{12}/, "wsp-get-X"));
+    expect(reads).toEqual(["/tmp/wsp-get-X.0000", "/tmp/wsp-get-X.0001"]);
+    const commands = api.seen.filter(s => s.method === "POST").map(s => inner((s.body as { command: string }).command).split("\n").at(-1)!.replace(/wsp-get-[0-9a-f]{12}/g, "wsp-get-X"));
+    expect(commands).toEqual([
+      `split -b ${FILE_GET_MAX} -d -a 4 '/root/big.gz' '/tmp/wsp-get-X.' && chmod 0644 '/tmp/wsp-get-X.0000' '/tmp/wsp-get-X.0001'`,
+      "rm -f '/tmp/wsp-get-X.0000' '/tmp/wsp-get-X.0001'",
+    ]);
+  });
+
   it("a snapshot is a named snapshot from any life of the box, answered with its name once the provider reads it ready", async () => {
     const api = new FakeBox()
       .on("POST", "/named-snapshots", { status: 202, body: { ok: true, type: "snapshot.named.saving", status: "saving", snapshot: NAMED("wsp-mac-default-v1", "saving") } })
@@ -1155,6 +1176,16 @@ describe("BoxBackend against a fake Box API", () => {
     clock.at += BACKSTOP_SLACK_MS;
     await backend.lifecycle.backstop!(machine, clock.at + 6 * 60 * 60_000);
     expect(api.seen.at(-1)!.body).toEqual({ ttlSeconds: TRIAL_TTL_S });
+  });
+
+  it("an exact backstop goes as it is, earlier than the last one sent", async () => {
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
+    const { backend, machine, clock } = machineOn(api);
+    await backend.lifecycle.backstop!(machine, clock.at + 40 * 60_000);
+    await backend.lifecycle.backstop!(machine, clock.at + 12 * 60_000);
+    expect(api.calls().filter(c => c.startsWith("PATCH"))).toHaveLength(1);
+    await backend.lifecycle.backstop!(machine, clock.at + 12 * 60_000, { exact: true });
+    expect(api.seen.at(-1)!.body).toEqual({ ttlSeconds: 12 * 60 });
   });
 
   it("off the trial the backstop is the runtime's instant whole, and a killed box's instant is forgotten", async () => {

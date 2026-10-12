@@ -120,6 +120,7 @@ function indicatorTone(state: WorkspaceState): StatusIndicator["tone"] {
     case "waking":
     case "unreachable":
     case "gone":
+    case "released":
       return "neutral";
     default: {
       const _exhaustive: never = state;
@@ -145,6 +146,8 @@ export function turnWait(state: WorkspaceState, workspace: { readonly name: stri
       return { label: `waiting for ${workspace.name} to answer`, wake: false, elapsed: false };
     case "gone":
       return { label: `${workspace.name} is gone`, wake: false, elapsed: false };
+    case "released":
+      return { label: `${workspace.name}'s computer was deleted`, wake: false, elapsed: false };
     default: {
       const _exhaustive: never = state;
       return null;

@@ -18,6 +18,7 @@ import { loginEnvOn, PLACE_LOGIN_ENV } from "../types/harness.js";
 import { secretEnvOf } from "../adapters.js";
 import { type ProjectImportOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, CLONE_MS, folderNamed, lastLineOf } from "../types/wiring.js";
 import type { KindModule, ImportReport, ImportLanded } from "../types/internal.js";
+import { RELEASED_BACKEND } from "../types/internal.js";
 import type { RuntimeContext, KindsArea } from "../context.js";
 
 export function kindsArea(ctx: RuntimeContext): KindsArea {
@@ -445,7 +446,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
     if (found === undefined) throw new Error(noKindLine(kind));
     return found;
   };
-  const backendFor = (record: WorkspaceRecord): MachineBackend => moduleOf(record.kind).backend(record);
+  const backendFor = (record: WorkspaceRecord): MachineBackend => (record.phase === "released" ? RELEASED_BACKEND : moduleOf(record.kind).backend(record));
   const openChannel = opts.daemonChannel ?? openDaemonChannel;
   /** The backend a kind's machines live on where no record is in hand yet: the create that is about to write one,
    * and the roads that ask what this host can do at all. The same reading a record gets, off the two facts a record

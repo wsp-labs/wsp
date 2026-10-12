@@ -43,7 +43,7 @@ describe("workspaceState", () => {
   });
 
   it("every state has a capitalised word, and a caller holding no pause mode reads the stopping words", () => {
-    const words: Record<WorkspaceState, string> = { running: "Running", pausing: "Stopping", paused: "Stopped", waking: "Waking", unreachable: "Unreachable", gone: "Gone" };
+    const words: Record<WorkspaceState, string> = { running: "Running", pausing: "Stopping", paused: "Stopped", waking: "Waking", unreachable: "Unreachable", gone: "Gone", released: "Released" };
     for (const [state, word] of Object.entries(words)) expect(workspaceWord(state as WorkspaceState)).toBe(word);
   });
 

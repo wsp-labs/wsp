@@ -96,7 +96,8 @@
                 "pausing",
                 "napping",
                 "waking",
-                "gone"
+                "gone",
+                "released"
               ]
             },
             "kind": {

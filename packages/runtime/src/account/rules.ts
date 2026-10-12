@@ -311,12 +311,12 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     const policy = { maxDepth: deepest.policy!.maxDepth, maxMachines: Math.min(...over.map(o => o.policy!.maxMachines)) };
     if (depth >= policy.maxDepth) throw new Error(spawnDepthRefusal(scope.threadId, depth, policy.maxDepth, agentsHeldAt(deepest.record)));
     if (act !== "fork") return free;
-    // Counted off the records rather than kept as a number, so a machine deleted, forgotten or gone frees its place
+    // Counted off the records rather than kept as a number, so a machine deleted, forgotten, gone or released frees its place
     // without anything having to remember to give it back, plus the slots forks still landing hold. A record
     // enters the live map only after the provider has answered, so two forks asked for in one tick would both read
     // the same count and both pass; the place is taken here, in the same step the count is read, and handed back by
     // the caller's own finally, the way the name a fork is landing under already is.
-    const standing = [...live.values()].filter(e => e.record.rootThreadId === scope.rootThreadId && workspaceState({ phase: e.record.phase }) !== "gone").length;
+    const standing = [...live.values()].filter(e => e.record.rootThreadId === scope.rootThreadId && !["gone", "released"].includes(workspaceState({ phase: e.record.phase }))).length;
     const held = landing.get(scope.rootThreadId) ?? 0;
     if (standing + held >= policy.maxMachines) throw new Error(spawnCapRefusal(scope.rootThreadId, standing + held, policy.maxMachines));
     landing.set(scope.rootThreadId, held + 1);

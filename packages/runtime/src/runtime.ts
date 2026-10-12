@@ -318,6 +318,7 @@ import { bootArea } from "./machines/boot.js";
 
 import { createArea } from "./machines/create.js";
 import { subSpawnArea } from "./machines/sub-spawn.js";
+import { subLifeArea } from "./machines/sub-life.js";
 
 import { foldersArea } from "./projects/folders.js";
 
@@ -447,6 +448,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
 
   Object.assign(ctx, createArea(ctx));
   Object.assign(ctx, subSpawnArea(ctx));
+  Object.assign(ctx, subLifeArea(ctx));
 
   Object.assign(ctx, foldersArea(ctx));
 
@@ -674,10 +676,15 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
         },
         forgetRecordsOn: async placeId => {
           await ctx.ready();
-          for (const entry of [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId)) {
+          for (const entry of [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId && e.record.sub === undefined)) {
             ctx.endSessions(entry.record.id, DELETED_REASON);
             await ctx.drop(entry.record.id);
           }
+          await ctx.releaseSubsOn(placeId);
+        },
+        releaseRecordsOn: async placeId => {
+          await ctx.ready();
+          await ctx.releaseSubsOn(placeId);
         },
         signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
         storesOn: (placeId, home) => ctx.placeStores(placeId, home),

@@ -224,6 +224,8 @@ export const ENV_LANDING_MS = 60_000;
 
 /** PUT /files decodes at most this many bytes (measured 2026-09-11: 8 MB answered 400 box_direct_failed). */
 export const FILE_PUT_MAX = 5 * 1024 * 1024;
+/** GET /files reads files up to 5 MiB (docs.boat.dev, read-sandbox-file); a bigger one is read in pieces this size. */
+export const FILE_GET_MAX = 4 * 1024 * 1024;
 /** The longest one command may ask the sync endpoint for. The edge in front of it cuts a request at about 70 s
  * (`Request timeout after 69998ms`, three sightings, 2026-09-11) whatever timeoutSeconds says, and the fetch cap
  * adds 30 s of room for the round trip on top, so a command that stays inline is bounded here and anything longer
@@ -520,7 +522,7 @@ export class BoxBackend implements MachineBackend {
 
   readonly lifecycle: Lifecycle = {
     budgets: BOX_BUDGETS,
-    backstop: (machine, until) => this.backstop(machine, until),
+    backstop: (machine, until, o) => this.backstop(machine, until, o),
   };
 
   readonly baseTemplates: Readonly<Record<MachineKind, string>> = { sandbox: BOX_BASE_TEMPLATE, desktop: BOX_BASE_TEMPLATE };
@@ -952,16 +954,16 @@ export class BoxBackend implements MachineBackend {
   /** The provider's own stop timer pushed out to the runtime's backstop instant, capped at what the account takes.
    * The timer counts from the PATCH (measured 2026-09-11), so an instant the runtime hands over on activity is
    * what a host that died leaves the box to stop at. */
-  async backstop(machine: Machine, until: number): Promise<void> {
+  async backstop(machine: Machine, until: number, o: { exact?: true } = {}): Promise<void> {
     const failed = this.backstopFailures.get(machine.id);
-    if (this.backstopsSending.has(machine.id) || (failed !== undefined && this.clock.now() - failed.at < failed.waitMs)) return;
+    if (o.exact !== true && (this.backstopsSending.has(machine.id) || (failed !== undefined && this.clock.now() - failed.at < failed.waitMs))) return;
     this.backstopsSending.add(machine.id);
     try {
       const cap = await this.ttlCap();
       const now = this.clock.now();
       const instant = cap === null ? until : Math.min(until, now + cap * 1000);
       const last = this.backstops.get(machine.id);
-      if (last !== undefined && instant - last.until < BACKSTOP_SLACK_MS) return;
+      if (o.exact !== true && last !== undefined && instant - last.until < BACKSTOP_SLACK_MS) return;
       await this.request("PATCH", `/boxes/${encodeURIComponent(machine.id)}`, { body: { ttlSeconds: Math.max(1, Math.ceil((instant - now) / 1000)) }, capMs: this.budgets.backstopMs, once: true });
       this.backstops.set(machine.id, { until: instant, spanMs: instant - now });
       this.backstopFailures.delete(machine.id);
@@ -1261,6 +1263,39 @@ export class BoxMachine implements Machine {
       `[ "$(stat -c %s ${shellQuote(path)})" = ${bytes.byteLength} ] || { echo "WSP_SHORT $(stat -c %s ${shellQuote(path)})"; exit 1; }`,
     ].join("\n"));
     if (joined.exitCode !== 0) throw new Error(`${path} did not land on ${this.id} (exit ${joined.exitCode}): ${joined.stderr.trim() || joined.stdout.trim()}`);
+  }
+
+  /** Bytes off the box through GET /files, which reads under /home/user or /tmp and up to 5 MiB a call: a file that
+   * fits under those two is read straight, and anything else is cut into pieces under /tmp as root, each read, the
+   * whole checked against the size, and the pieces removed. */
+  async readBytes(path: string, opts: { size?: number; timeoutMs?: number } = {}): Promise<Buffer> {
+    const get = async (at: string): Promise<Buffer> => {
+      const read = await this.backend.whileRestoring(() =>
+        this.backend.request<{ content?: string }>("GET", this.path(`/files?path=${encodeURIComponent(at)}&encoding=base64`), opts.timeoutMs !== undefined ? { capMs: opts.timeoutMs } : {}),
+      );
+      return Buffer.from(read.content ?? "", "base64");
+    };
+    let size = opts.size;
+    if (size === undefined) {
+      const said = await this.exec(`stat -c %s ${shellQuote(path)}`);
+      size = Number(said.stdout.trim());
+      if (said.exitCode !== 0 || !Number.isInteger(size)) throw new Error(`${path} on ${this.id} could not be read (exit ${said.exitCode}): ${said.stderr.trim() || said.stdout.trim()}`);
+    }
+    if (size <= FILE_GET_MAX && (path.startsWith("/tmp/") || path.startsWith("/home/user/"))) return get(path);
+    const base = `/tmp/wsp-get-${randomBytes(6).toString("hex")}`;
+    const pieces = Math.max(1, Math.ceil(size / FILE_GET_MAX));
+    const names = Array.from({ length: pieces }, (_, i) => `${base}.${String(i).padStart(4, "0")}`);
+    try {
+      const cut = await this.exec(`split -b ${FILE_GET_MAX} -d -a 4 ${shellQuote(path)} ${shellQuote(`${base}.`)} && chmod 0644 ${names.map(shellQuote).join(" ")}`);
+      if (cut.exitCode !== 0) throw new Error(`${path} on ${this.id} was not cut for reading (exit ${cut.exitCode}): ${cut.stderr.trim() || cut.stdout.trim()}`);
+      const parts: Buffer[] = [];
+      for (const name of names) parts.push(await get(name));
+      const whole = Buffer.concat(parts);
+      if (whole.byteLength !== size) throw new Error(`${path} on ${this.id} read ${whole.byteLength} bytes of ${size}`);
+      return whole;
+    } finally {
+      await this.exec(`rm -f ${names.map(shellQuote).join(" ")}`).catch(() => undefined);
+    }
   }
 
   async downloadUrl(): Promise<string> {

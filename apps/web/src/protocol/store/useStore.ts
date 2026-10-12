@@ -1097,6 +1097,9 @@ export const useStore = create<State>((set, get) => {
         case "workspace.gone":
           setPhase(e.workspaceId, "gone", undefined, e.reason);
           return;
+        case "workspace.released":
+          setPhase(e.workspaceId, "released", "");
+          return;
         case "workspace.woken":
         case "workspace.upgraded":
           setPhase(e.workspaceId, "running", e.machineId);
