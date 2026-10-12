@@ -190,6 +190,8 @@ export interface PlaceThread {
   bin?: string;
   /** The agent's pids its turns' runs recorded as they started it, the agent whatever it runs as. */
   agents?: readonly number[];
+  /** The renderers of the browser tabs its pane holds, as the desktop app names them on the computer it runs on. */
+  tabs?: readonly number[];
 }
 
 export interface PlaceInput {
@@ -229,7 +231,8 @@ export interface Placement {
   /** Whether End reaches it: a process a thread or wsp started, never an agent or what wsp needs. */
   endable: (pid: number) => boolean;
   /** The thread whose End may reach it: its thread, but never by the WSP_THREAD mark alone, which any process can carry
-   * with any id; there its agent's stretch, its thread's cgroup or its parent's reach, or none. */
+   * with any id; there its agent's stretch, its thread's cgroup or its parent's reach, or none. A shell a pane opened,
+   * and what runs in it, is the person's alone. */
   reachOf: (pid: number) => string | undefined;
 }
 
@@ -242,6 +245,8 @@ export function placeProcs(input: PlaceInput): Placement {
   const threadById = new Map(input.threads.map(t => [t.id, t]));
   const app = input.app ?? new Map<number, "tab" | "app">();
   const bins = new Set(input.agentBins);
+  const tabbed = new Map<number, string>();
+  for (const t of input.threads) for (const pid of t.tabs ?? []) if (app.get(pid) === "tab" && !tabbed.has(pid)) tabbed.set(pid, t.id);
 
   const agent = new Map<number, string>();
   const foldsInto = new Map<number, number>();
@@ -311,6 +316,7 @@ export function placeProcs(input: PlaceInput): Placement {
     const stretch = agent.get(p.pid) ?? agent.get(foldsInto.get(p.pid) ?? -1);
     if (stamped !== undefined && threadById.has(stamped)) said = { thread: stamped };
     else if (stretch !== undefined) said = { thread: stretch };
+    else if (tabbed.has(p.pid)) said = { thread: tabbed.get(p.pid)! };
     else if (wspPart(p)) said = "wsp";
     else if (startedByWsp(p)) said = "loose";
     else {
@@ -346,7 +352,8 @@ export function placeProcs(input: PlaceInput): Placement {
     if (part !== undefined) kind = part;
     else if (agent.has(pid) || foldsInto.has(pid)) kind = "agent";
     else if ((pid === input.daemon || pid === input.host) && p.kind === undefined) kind = "wsp";
-    else if (p.kind !== undefined) kind = p.kind;
+    // A shell the pane opened is named terminal to the daemon, which passes the kind down; what runs in it keeps its own.
+    else if (p.kind !== undefined && (p.kind !== "terminal" || p.pty !== undefined)) kind = p.kind;
     else if (p.pty !== undefined) kind = "terminal";
     else if (SLATE_FOLDER.test(p.cmdline)) kind = "slate";
     else if (TEST_LINE.test(p.cmdline)) kind = "test";
@@ -362,15 +369,23 @@ export function placeProcs(input: PlaceInput): Placement {
     const p = byPid.get(pid);
     return p !== undefined && wspPart(p) && app.get(pid) !== "tab";
   };
+  /** A tab's renderer is the app's to end with its tab, and the daemon refuses a signal to anything under the app. */
   const endable = (pid: number): boolean => {
     const p = byPid.get(pid);
     const w = whose.get(pid);
-    return p !== undefined && w !== undefined && kindOf(pid) !== "agent" && !needed(pid) && (typeof w === "object" || startedByWsp(p));
+    return p !== undefined && w !== undefined && kindOf(pid) !== "agent" && !needed(pid) && !app.has(pid) && (typeof w === "object" || startedByWsp(p));
+  };
+  /** Whether it is a shell a pane opened or runs in one: the person's, whichever thread's pane holds it. */
+  const inShell = (pid: number): boolean => {
+    for (let at = byPid.get(pid), steps = 0; at !== undefined && steps <= procs.length; at = at.ppid === at.pid ? undefined : byPid.get(at.ppid), steps++) {
+      if (at.pty !== undefined) return true;
+    }
+    return false;
   };
   const reachOf = (pid: number, seen = new Set<number>()): string | undefined => {
     const w = whose.get(pid);
     const p = byPid.get(pid);
-    if (typeof w !== "object" || p === undefined) return undefined;
+    if (typeof w !== "object" || p === undefined || inShell(pid)) return undefined;
     if (p.owner?.by !== "env") return w.thread;
     const stretch = agent.get(pid) ?? agent.get(foldsInto.get(pid) ?? -1);
     if (stretch !== undefined) return stretch;
@@ -509,19 +524,20 @@ export function endPlan(read: ActivityRead, pid: number, startedAt: number, may:
 
 /** Each thread's processes a settle, a delete or End all would leave running: what outlives its agent. The agent and
  * everything under it, its tool servers among them, end with the agent, which the thread ends itself; so do the
- * turn's run script and input pump, which stand under pid 1 once the script's own shell is gone. */
+ * turn's run script and input pump, which stand under pid 1 once the script's own shell is gone. A shell its pane
+ * opened, and what runs in it, is the pane's: a delete ends it with the thread's shells and a settle leaves it. */
 export function processesLeft(view: ActivityView, threadIds: readonly string[]): ActivityThread[] {
   const asked = new Set(threadIds);
   return view.threads.flatMap(t => {
     if (!asked.has(t.threadId)) return [];
     const byPid = new Map(t.processes.map(p => [p.pid, p]));
-    const underAgent = (p: ActivityProc): boolean => {
+    const endsOnItsOwn = (p: ActivityProc): boolean => {
       for (let at: ActivityProc | undefined = p, steps = 0; at !== undefined && steps <= t.processes.length; at = byPid.get(at.ppid), steps++) {
-        if (at.kind === "agent" || isTurnPlumbing(at.command)) return true;
+        if (at.kind === "agent" || at.kind === "terminal" || isTurnPlumbing(at.command)) return true;
       }
       return false;
     };
-    const processes = t.processes.filter(p => !underAgent(p));
+    const processes = t.processes.filter(p => !endsOnItsOwn(p));
     return processes.length === 0 ? [] : [{ ...t, processes }];
   });
 }

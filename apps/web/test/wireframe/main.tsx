@@ -120,7 +120,7 @@
 import { createRoot } from "react-dom/client";
 import { CATALOG_AGENTS, agentName } from "@wsp/catalog";
 import { manyAgents } from "./agents";
-import { ACTIVITY_APP_PROCS, ACTIVITY_SESSIONS, feedActivity } from "./activity";
+import { ACTIVITY_APP_PROCS, ACTIVITY_SESSIONS, feedActivity, holdDesignTab } from "./activity";
 import { wireAppProcs } from "../../src/machine/appProcs";
 import { DAEMON_VERSION, DEFAULT_PREFERENCES, copyFirstLine, hostnameSetLine, type HarnessCatalog, GOLDEN_STAGE_WORDS, MACHINE_ROW_LABEL, STOP_LEFT_MACHINE_LINE, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type InitAgent, type InitJob, type InitRow, type InitScreen, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
 import { AppShell } from "../../src/shell/AppShell";
@@ -848,6 +848,7 @@ const agentsPanel = { isOpen: true, activeSurfaceId: "agents", surfaces: [{ id: 
 useRightPanelStore.setState({
   byWorkspaceId: Object.fromEntries([...HELD.map(w => w.id), CREATED_ID].map(id => [id, screen === "settings-over-panel" && id === "ws_copy" ? openPanel : screen === "panel-agents" && id === "ws_box" ? agentsPanel : shutPanel])),
 });
+if (activityScreen && !processesScreen) holdDesignTab();
 
 /** The panel's widths: the one it opens at, the 400 the design draws it at, and its floor. */
 const PANEL_WIDTHS = [480, 400, 360] as const;

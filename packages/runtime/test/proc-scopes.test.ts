@@ -6,7 +6,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 import { threadCgroup, type DaemonFrame, type DaemonResponse } from "@wsp/protocol";
+import { channelsArea } from "../src/account/channels.js";
 import { procScopesArea } from "../src/account/proc-scopes.js";
+import { memoryStore } from "../src/store.js";
+import { eventBus } from "../src/types/events.js";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import type { RuntimeContext } from "../src/context.js";
 
@@ -35,6 +38,7 @@ function context(o: { local: string[]; box?: { workspace: string; place: string 
     latestOn: (threadId: string) => (threadId === "t_tree" ? { workspaceId: "ws_a", cwd: "/work/ws_a/.wsp/t_tree" } : undefined),
     checkoutOf: (record: { path: string }) => record.path,
     moduleOf: (kind: string) => ({ sharedDaemon: kind === "local" }),
+    threadTerminals: () => [],
     ...(o.here !== undefined ? { localRoad: async () => ({ url: "ws://here" }), channelOver: async () => o.here!() } : {}),
   };
   const area = procScopesArea(ctx as unknown as RuntimeContext);
@@ -158,5 +162,57 @@ describe("the threads named to a box's daemon", () => {
       { thread: "t_new", workspace: "ws_box", folder: "/box/ws_box", cgroup: threadCgroup("t_new") },
       { thread: "t_quiet", workspace: "ws_box", folder: "/box/ws_box", cgroup: threadCgroup("t_quiet") },
     ]);
+  });
+});
+
+describe("a shell a thread's pane opened", () => {
+  /** Both areas on one host, as the runtime wires them: the channels keep whose each shell is, the scopes name it. */
+  function host() {
+    const { ctx } = context({ local: ["ws_a"], box: { workspace: "ws_box", place: "pl_1" } });
+    const { checkoutOf, latestOn } = ctx;
+    Object.assign(ctx, { bus: eventBus(), store: memoryStore(), state: {} });
+    Object.assign(ctx, channelsArea(ctx as unknown as RuntimeContext), { checkoutOf, latestOn });
+    Object.assign(ctx, procScopesArea(ctx as unknown as RuntimeContext));
+    return ctx as unknown as RuntimeContext;
+  }
+  /** A daemon whose shells lead the pids it hands out in turn. */
+  function shells(...pids: number[]): DaemonChannel {
+    let n = 0;
+    return {
+      send: async frame => (frame.op === "pty.create" ? { id: frame.id, ok: true, ptyId: `pty_${n + 1}`, pid: pids[n++] } : { id: frame.id, ok: true }) as never,
+      close: () => {},
+      closed: new Promise(() => {}),
+    };
+  }
+  const opened = (ctx: RuntimeContext, workspaceId: string, daemon: DaemonChannel): DaemonChannel => {
+    const ptys = new Map<string, number>();
+    ctx.portPids.set(workspaceId, ptys);
+    return ctx.rootedPorts(workspaceId, `/work/${workspaceId}`, ptys, ctx.heldToOwner(workspaceId, ctx.threadTagged(workspaceId, daemon)));
+  };
+  const terminalsOf = (scopes: readonly { thread: string; pids?: readonly { pid: number; kind: string }[] }[], thread: string) =>
+    scopes.find(s => s.thread === thread)?.pids?.filter(p => p.kind === "terminal").map(p => p.pid) ?? [];
+
+  it("is named its thread's terminal on this computer, follows the thread it is handed to, and a watching channel hears each move", async () => {
+    const ctx = host();
+    const { channel, sent } = fakeChannel();
+    await ctx.scopedProcs(ctx.scopesHere, channel).send({ id: 1, op: "proc.watch" } as DaemonFrame);
+    const pane = opened(ctx, "ws_a", shells(4242, 4343));
+    await pane.send({ id: 2, op: "pty.create", thread: "th_a" } as never);
+    await pane.send({ id: 3, op: "pty.create" } as never);
+    expect(terminalsOf(ctx.scopesHere(), "th_a")).toEqual([4242]);
+    expect(ctx.scopesHere().flatMap(s => s.pids ?? []).map(p => p.pid)).not.toContain(4343);
+    await pane.send({ id: 4, op: "pty.thread", ptyId: "pty_1", thread: "th_b" } as never);
+    await settled();
+    expect([terminalsOf(ctx.scopesHere(), "th_a"), terminalsOf(ctx.scopesHere(), "th_b")]).toEqual([[], [4242]]);
+    const told = sent.filter(f => f.op === "proc.scopes").at(-1) as unknown as { scopes: { thread: string; pids?: { pid: number; kind: string }[] }[] };
+    expect(terminalsOf(told.scopes, "th_b")).toEqual([4242]);
+  });
+
+  it("is named to the box's daemon, never to this computer's, when the folder is on a box", async () => {
+    const ctx = host();
+    const pane = opened(ctx, "ws_box", shells(77));
+    await pane.send({ id: 1, op: "pty.create", thread: "th_box" } as never);
+    expect(terminalsOf(ctx.scopesOn("pl_1"), "th_box")).toEqual([77]);
+    expect(ctx.scopesHere().flatMap(s => s.pids ?? []).map(p => p.pid)).not.toContain(77);
   });
 });
