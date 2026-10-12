@@ -33,6 +33,7 @@ pub struct ActivityWords {
     pub unowned: String,
     pub ended: String,
     pub ended_under: String,
+    pub gone: String,
     pub forced: String,
     pub left: String,
     pub freed: String,
@@ -175,7 +176,7 @@ pub fn ended_lines(e: &Ended) -> String {
     }
     let pids = |list: &[f64]| list.iter().map(|n| js_number(*n)).collect::<Vec<_>>().join(" ");
     let mut lines = vec![match e.ended.split_first() {
-        None => format!("ended {}", js_number(e.pid)),
+        None => return fill(&words.gone, &[("pid", &js_number(e.pid))]),
         Some((first, under)) => {
             let pid = js_number(first.pid);
             if under.is_empty() {

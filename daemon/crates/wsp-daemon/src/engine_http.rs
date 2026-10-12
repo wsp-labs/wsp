@@ -58,21 +58,30 @@ fn login_of(home: &Path) -> Option<u32> {
 /// requests to any root service's socket.
 fn context_socket(home: &Path, owner: Option<u32>) -> Option<PathBuf> {
     use std::os::unix::fs::MetadataExt;
-    let sock = PathBuf::from(context_host(home)?.strip_prefix("unix://")?);
+    let sock = PathBuf::from(context_host(home, owner)?.strip_prefix("unix://")?);
     let meta = std::fs::symlink_metadata(&sock).ok()?;
     let theirs = owner.is_none_or(|uid| meta.uid() == uid && std::os::unix::fs::FileTypeExt::is_socket(&meta.file_type()));
     theirs.then_some(sock)
 }
 
 /// The host the person's current Docker context names, off `~/.docker/config.json` and the context's meta file, which
-/// the Docker CLI files under the sha256 of the context's name. None for the default context. Both are read beneath
-/// the home through `beneath::file()`, so a link, a fifo or a file past the cap names no context and nothing waits.
-fn context_host(home: &Path) -> Option<String> {
+/// the Docker CLI files under the sha256 of the context's name. None for the default context. A root daemon (an owner
+/// named) reads both beneath the home through `beneath::file()`, so a link the login planted names no context. The
+/// person's own daemon follows a link as their Docker CLI does, a dotfiles checkout's config among them, since it can
+/// read nothing they could not. Either way a fifo or a file past the cap names no context and nothing waits.
+fn context_host(home: &Path, owner: Option<u32>) -> Option<String> {
     use std::io::Read;
-    let held = nix::fcntl::open(home, crate::beneath::dir_flags(), nix::sys::stat::Mode::empty()).ok()?;
+    let held = match owner {
+        Some(_) => Some(nix::fcntl::open(home, crate::beneath::dir_flags(), nix::sys::stat::Mode::empty()).ok()?),
+        None => None,
+    };
     let read = |rel: &str| {
+        let file = match &held {
+            Some(held) => crate::beneath::file(held, rel).ok()??,
+            None => followed(&home.join(rel))?,
+        };
         let mut bytes = Vec::new();
-        crate::beneath::file(&held, rel).ok()??.take(CONFIG_CAP).read_to_end(&mut bytes).ok()?;
+        file.take(CONFIG_CAP).read_to_end(&mut bytes).ok()?;
         serde_json::from_slice::<serde_json::Value>(&bytes).ok()
     };
     let config = read(".docker/config.json")?;
@@ -81,6 +90,13 @@ fn context_host(home: &Path) -> Option<String> {
     let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
     let meta = read(&format!(".docker/contexts/meta/{hex}/meta.json"))?;
     meta.pointer("/Endpoints/docker/Host")?.as_str().map(str::to_owned)
+}
+
+/// A regular file opened where its path leads, links followed, without waiting on a fifo the path may name.
+fn followed(path: &Path) -> Option<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let file = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(path).ok()?;
+    file.metadata().ok()?.is_file().then_some(file)
 }
 
 /// A response's status, whether its body is chunked, and the bytes read past its head.
@@ -291,7 +307,7 @@ mod tests {
         let fifo = |p: &Path| nix::unistd::mkfifo(p, nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap();
         fifo(&docker.join("config.json"));
         let at = home.path().to_path_buf();
-        assert_eq!(crate::kill::tests::within("a fifo at config.json", move || context_host(&at)), None);
+        assert_eq!(crate::kill::tests::within("a fifo at config.json", move || context_host(&at, Some(0))), None);
         std::fs::remove_file(docker.join("config.json")).unwrap();
         std::fs::write(docker.join("config.json"), r#"{"currentContext":"colima"}"#).unwrap();
         let digest: String = Sha256::digest(b"colima").iter().map(|b| format!("{b:02x}")).collect();
@@ -299,15 +315,39 @@ mod tests {
         std::fs::create_dir_all(&meta).unwrap();
         fifo(&meta.join("meta.json"));
         let at = home.path().to_path_buf();
-        assert_eq!(crate::kill::tests::within("a fifo at meta.json", move || context_host(&at)), None);
+        assert_eq!(crate::kill::tests::within("a fifo at meta.json", move || context_host(&at, Some(0))), None);
         // A link where the meta file goes names nothing either.
         std::fs::remove_file(meta.join("meta.json")).unwrap();
         std::fs::write(home.path().join("meta.json"), r#"{"Endpoints":{"docker":{"Host":"unix:///x.sock"}}}"#).unwrap();
         std::os::unix::fs::symlink(home.path().join("meta.json"), meta.join("meta.json")).unwrap();
-        assert_eq!(context_host(home.path()), None);
+        assert_eq!(context_host(home.path(), Some(0)), None);
         std::fs::remove_file(meta.join("meta.json")).unwrap();
         std::fs::rename(home.path().join("meta.json"), meta.join("meta.json")).unwrap();
-        assert_eq!(context_host(home.path()).as_deref(), Some("unix:///x.sock"));
+        assert_eq!(context_host(home.path(), Some(0)).as_deref(), Some("unix:///x.sock"));
+    }
+
+    #[test]
+    fn the_persons_own_daemon_follows_a_linked_docker_config_as_their_cli_does_and_a_fifo_still_never_holds_it() {
+        let home = tempfile::tempdir().unwrap();
+        let dotfiles = home.path().join("dotfiles");
+        let docker = home.path().join(".docker");
+        std::fs::create_dir_all(&dotfiles).unwrap();
+        std::fs::create_dir_all(&docker).unwrap();
+        std::fs::write(dotfiles.join("config.json"), r#"{"currentContext":"colima"}"#).unwrap();
+        std::os::unix::fs::symlink(dotfiles.join("config.json"), docker.join("config.json")).unwrap();
+        let digest: String = Sha256::digest(b"colima").iter().map(|b| format!("{b:02x}")).collect();
+        let meta = docker.join("contexts/meta").join(digest);
+        std::fs::create_dir_all(&meta).unwrap();
+        std::fs::write(dotfiles.join("meta.json"), r#"{"Endpoints":{"docker":{"Host":"unix:///x.sock"}}}"#).unwrap();
+        std::os::unix::fs::symlink(dotfiles.join("meta.json"), meta.join("meta.json")).unwrap();
+        assert_eq!(context_host(home.path(), None).as_deref(), Some("unix:///x.sock"));
+        // A root daemon reads the same links as no context.
+        assert_eq!(context_host(home.path(), Some(0)), None);
+        // A link to a fifo names nothing and never holds the read.
+        std::fs::remove_file(dotfiles.join("config.json")).unwrap();
+        nix::unistd::mkfifo(&dotfiles.join("config.json"), nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap();
+        let at = home.path().to_path_buf();
+        assert_eq!(crate::kill::tests::within("a link to a fifo at config.json", move || context_host(&at, None)), None);
     }
 
     #[test]

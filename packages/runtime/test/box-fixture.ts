@@ -54,6 +54,8 @@ export interface Box {
   ports: { port: number; pid: number }[];
   /** Its daemon predates proc.list and refuses it as an op it does not know. */
   listless?: boolean;
+  /** Each thread cgroup's memory as the daemon reads it, beside the rows proc.list answers. */
+  cgroups?: { cgroup: string; memory: number }[];
   /** The branches the folders' remote holds, as git ls-remote --heads lists them there. */
   remoteHeads?: string[];
 }
@@ -93,7 +95,7 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
       if (o.ptys !== undefined && PTY_OPS.has(op)) return void o.ptys(frame).then(reply => client.say({ ...reply, id: frame["id"] }), (e: unknown) => client.say({ id: frame["id"], ok: false, error: String(e) }));
       if (op === "pty.create") return say({ ptyId: `p${++ptys}` });
       if (op === "proc.list" && seen.listless === true) return client.say({ id: frame["id"], ok: false, error: unknownOpLine("proc.list") });
-      if (op === "proc.list") return say({ at: Date.now(), daemon: 1, total: seen.procs.length, procs: seen.procs });
+      if (op === "proc.list") return say({ at: Date.now(), daemon: 1, total: seen.procs.length, procs: seen.procs, ...(seen.cgroups === undefined ? {} : { cgroups: seen.cgroups }) });
       if (op === "ports.watch") return say({ ports: seen.ports });
       if (op === "git.status") return say({ branch: { oid: "abc", head: "main", upstream: "origin/main", ahead: 0, behind: 0 }, entries: [], root: String(frame["cwd"]) });
       return say({});
