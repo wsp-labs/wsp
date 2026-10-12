@@ -203,6 +203,19 @@ export function setupCount(rows: readonly StepLine[]): { done: number; of: numbe
   return { done: steps.filter(r => r.state === "done" || r.state === "skipped").length, of: steps.length };
 }
 
+/** The rows still waiting on the person, a sign-in's wait or a row that did not land: an item by its own name, and a
+ * step only where no item under it is named. */
+export function rowsLeft(rows: readonly StepLine[]): StepLine[] {
+  const asks = (row: StepLine): boolean => row.state === "needs-you" || row.state === "failed";
+  const named = new Set<StepLine>();
+  let step: StepLine | undefined;
+  for (const row of rows) {
+    if (row.sub !== true) step = row;
+    else if (asks(row) && step !== undefined) named.add(step);
+  }
+  return rows.filter(row => asks(row) && !named.has(row));
+}
+
 /** How a setup stands as one of the dialog's headers reads it. */
 export type SetupStanding = "running" | "needs-you" | "failed" | "ready";
 

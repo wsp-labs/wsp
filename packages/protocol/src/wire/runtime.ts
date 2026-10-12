@@ -168,9 +168,10 @@ const RuntimeOp = z.discriminatedUnion("op", [
   }),
   /** Sets a computer up from picks: a pending add that joined and waits on its choices, or a computer already set
    * up, run again for whatever is missing. `ref` names the computer or the pending add; `recipe` names the saved
-   * recipe to set it up from, `choices` the picks themselves, else the choices it holds. Answers `{ addId, place: PlaceView, setup?, said? }`; the
+   * recipe to set it up from, `choices` the picks themselves, else the choices it holds; `row`, on a setup that
+   * ended, runs that row's step again alone, a step by its name or an item by its row id. Answers `{ addId, place: PlaceView, setup?, said? }`; the
    * frames ride place.setup events carrying `addId`. */
-  z.object({ id: reqId, op: z.literal("places.setup"), ref: z.string().max(200), recipe: z.string().max(200).optional(), choices: z.lazy(() => RecipeFile).optional(), addId: z.string().max(64).optional() }),
+  z.object({ id: reqId, op: z.literal("places.setup"), ref: z.string().max(200), recipe: z.string().max(200).optional(), choices: z.lazy(() => RecipeFile).optional(), addId: z.string().max(64).optional(), row: z.string().max(400).optional() }),
   /** Keeps the person's picks so far on a pending add, and the saved recipe they started from, so the add resumes
    * where it was left. Answers `{ pending: PendingComputer }`. Refused for a ref no pending add answers to. */
   z.object({ id: reqId, op: z.literal("places.choose"), ref: z.string().max(200), choices: z.lazy(() => RecipeFile), recipe: z.string().max(200).optional() }),
