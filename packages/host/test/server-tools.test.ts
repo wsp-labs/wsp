@@ -514,6 +514,34 @@ describe("one MCP server's tools, on the person's ask", () => {
     await expect(reader.server!(on, { agent: "claude", name: "cloudflare" })).rejects.toMatchObject({ code: SERVER_NOT_SET_UP });
     expect(read).toEqual({ here: 0, login: 0 });
   }, 20_000);
+  it("hands a box's http server the place of the sign-in Claude Code keeps there, never the token, and renews it with the agent's own word as its login there", async () => {
+    const f = fixture();
+    f.config({ cloudflare: { type: "http", url: "https://mcp.cloudflare.com/mcp" }, keyed: { type: "http", url: "https://mcp.example.com/mcp", headers: { Authorization: "Bearer from-config" } } });
+    writeStub(join(f.bin, "claude"), `#!/bin/bash\n[ "$1 $2 $3" = "mcp get cloudflare" ] || exit 9\necho "$* $CLAUDE_CONFIG_DIR" >> "$HOME/claude-asks"\nprintf 'cloudflare:\\n  Status: %s\\n' "$(cat "$HOME/status")"\n`);
+    writeFileSync(join(f.home, "status"), "✔ Connected");
+    const { machine, lines } = box(f);
+    const read = { here: 0 };
+    const reader = agentsReader({ vault: () => ({}), here: () => (read.here++, here(f)) });
+    const on = { kind: "box" as const, machine, login: { HOME: f.home, PATH: `${f.bin}:/usr/bin:/bin` } };
+    const spec = await reader.server!(on, { agent: "claude", name: "cloudflare" });
+    // The key Claude Code 2.1.296 wrote for this server in a real store: its name and the head of a sha256 of its config.
+    expect(spec.signIn).toMatchObject({ bearer: { file: "~/.claude/.credentials.json", at: ["mcpOAuth", "cloudflare|2e40c71145c8b601"], field: "accessToken" }, line: "claude mcp login 'cloudflare'" });
+    expect(await spec.signIn!.renew()).toBe(true);
+    expect(readFileSync(join(f.home, "claude-asks"), "utf8")).toBe("mcp get cloudflare \n");
+    expect(lines.filter(l => l.includes("claude mcp get")).every(l => l.startsWith("runuser -u 'ada' -- bash -c"))).toBe(true);
+    writeFileSync(join(f.home, "status"), "! Needs authentication");
+    expect(await spec.signIn!.renew()).toBe(false);
+    // A store wsp points its threads at there is the one read and renewed.
+    mkdirSync(join(f.home, ".wsp/claude"), { recursive: true });
+    writeFileSync(join(f.home, ".wsp/claude/.claude.json"), readFileSync(join(f.home, ".claude.json")));
+    const stored = await reader.server!({ ...on, stores: { claude: join(f.home, ".wsp/claude") } }, { agent: "claude", name: "cloudflare" });
+    expect(stored.signIn?.bearer.file).toBe("~/.wsp/claude/.credentials.json");
+    await stored.signIn!.renew();
+    expect(readFileSync(join(f.home, "claude-asks"), "utf8").trim().split("\n").at(-1)).toBe(`mcp get cloudflare ${join(f.home, ".wsp/claude")}`);
+    // A server that carries its own Authorization header uses it, and the agent's store is not named for it.
+    expect((await reader.server!(on, { agent: "claude", name: "keyed" })).signIn).toBeUndefined();
+    expect(read).toEqual({ here: 0 });
+  }, 20_000);
   it("on a fork or a workspace on a box, hands the variables over in a private file the line reads as data and removes", async () => {
     const f = fixture();
     f.config({ airtable: { command: join(f.bin, "server"), args: [], env: { FAKE_TOKEN: SECRET } } });

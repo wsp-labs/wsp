@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "op": "http.post",
+    "url": "https://mcp.example.com/mcp",
+    "headers": { "Accept": "application/json, text/event-stream", "Content-Type": "application/json" },
+    "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+    "bearer": { "file": "~/.claude/.credentials.json", "at": ["mcpOAuth", "acme|0123456789abcdef"], "field": "accessToken" },
+    "timeoutMs": 60000
+  },
+  {
+    "id": 1,
+    "op": "http.post",
+    "url": "http://127.0.0.1:8931/mcp",
+    "headers": {},
+    "body": ""
+  }
+]

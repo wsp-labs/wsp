@@ -3,12 +3,14 @@
 // computer's daemon (stdio.open), as the login its lines run as, never on this computer with the sign-ins here. Its
 // variables are written first on its own stdin as NUL-separated pairs ended by an empty name, which bash reads one
 // byte at a time into its environment before it becomes the server, so none is on a command line and the server
-// reads the rest of the stream as it was sent. The daemon kills it with the road it was opened on.
+// reads the rest of the stream as it was sent. The daemon kills it with the road it was opened on. An http server
+// is asked from there too (http.post), so an address on that computer's own loopback answers, and a sign-in the
+// agent keeps there is read there by the daemon and never comes here.
 import { randomBytes } from "node:crypto";
 import type { McpTransport } from "@wsp/catalog";
 import { asLogin, type TargetLogin } from "@wsp/engine";
-import { shellQuote } from "@wsp/protocol";
-import type { McpPipeOpen } from "./slate-mcp.js";
+import { EXEC_TIMEOUT_MAX_MS, HttpPostReply, shellQuote } from "@wsp/protocol";
+import type { McpPipeOpen, McpPost, McpSignIn } from "./slate-mcp.js";
 
 /** One computer's daemon for one server: its frames, its events, and its end. */
 export interface StdioRoad {
@@ -71,6 +73,44 @@ export function pipeOn(computer: string, login: TargetLogin, road: () => Promise
         if (killed) return;
         killed = true;
         if (opened !== undefined) end(opened);
+      },
+    };
+  };
+}
+
+/** Why a run on a server whose sign-in the agent there no longer holds failed, and what the person runs there. */
+export const signInGoneLine = (computer: string, line: string): string => `its address wants a sign-in that ${computer} does not hold now; run ${line} there, then start the run again`;
+
+/** An http server asked through `road`, one per connection, opened at the first message. Where the agent keeps its
+ * sign-in there, a refusal for want of one asks the agent's own word again, which renews a token near its end, once
+ * at a time however many messages were refused, and sends the message once more. */
+export function postOn(computer: string, road: () => Promise<StdioRoad>, signIn: McpSignIn | undefined): () => McpPost {
+  return () => {
+    let opened: Promise<StdioRoad> | undefined;
+    let renewing: Promise<boolean> | undefined;
+    let closed = false;
+    const ask = async (t: Extract<McpTransport, { kind: "http" }>, req: { headers: Record<string, string>; body: string; ms: number }) => {
+      opened ??= road();
+      const r = await opened;
+      if (closed) throw new Error("the server's connection is closed");
+      const frame = { op: "http.post", url: t.url, headers: req.headers, body: req.body, timeoutMs: Math.min(req.ms, EXEC_TIMEOUT_MAX_MS), ...(signIn !== undefined ? { bearer: signIn.bearer } : {}) };
+      return HttpPostReply.parse(await r.send(frame));
+    };
+    const refused = (status: number): boolean => status === 401 || status === 403;
+    return {
+      async send(t, req) {
+        if (closed) throw new Error("the server's connection is closed");
+        const first = await ask(t, req);
+        if (signIn === undefined || !refused(first.status)) return first;
+        renewing ??= signIn.renew().finally(() => (renewing = undefined));
+        if (!(await renewing)) throw new Error(signInGoneLine(computer, signIn.line));
+        const again = await ask(t, req);
+        if (refused(again.status)) throw new Error(signInGoneLine(computer, signIn.line));
+        return again;
+      },
+      close() {
+        closed = true;
+        void opened?.then(r => r.close(), () => {});
       },
     };
   };
