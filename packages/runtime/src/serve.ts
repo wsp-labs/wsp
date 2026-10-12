@@ -1075,7 +1075,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               if (refusedOffOwnRoad()) return;
               const picked = msg.recipe === undefined ? undefined : await recipeNamed(msg.recipe);
               const given = picked !== undefined ? { choices: picked.file, recipe: picked.slug } : msg.choices !== undefined ? { choices: msg.choices } : {};
-              send({ id: msg.id, ok: true, ...(await places().setUp(msg.ref, { ...given, ...(msg.addId !== undefined ? { addId: msg.addId } : {}) })) });
+              send({ id: msg.id, ok: true, ...(await places().setUp(msg.ref, { ...given, ...(msg.addId !== undefined ? { addId: msg.addId } : {}), ...(msg.row !== undefined ? { row: msg.row } : {}) })) });
               return;
             }
             case "places.choose": {

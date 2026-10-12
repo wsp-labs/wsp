@@ -719,7 +719,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       if (choices === undefined && record.picks === undefined) throw usageRefusal(placeNoPicksLine(record.name), CHOOSE_FIX);
       if (pend !== undefined) await dropPending(pend.id);
       const recipe = o.recipe ?? (o.choices === undefined ? pend?.recipe : undefined);
-      const started = await startSetup(record.id, addId, choices === undefined ? undefined : { picks: choices, ...(recipe !== undefined ? { recipe } : {}) });
+      const started = await startSetup(record.id, addId, choices === undefined ? undefined : { picks: choices, ...(recipe !== undefined ? { recipe } : {}) }, o.row);
       return { addId, place: viewOf((await recordOf(record.id)) ?? record, await defaultId()), ...started };
     },
 
