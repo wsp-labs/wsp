@@ -444,6 +444,7 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
       "workspaces.viewed": "a viewed mark is one person's place in a review; an agent reads the diff whole with git and marks nothing",
       "fs.write": "the pane's save of an edit made inside the diff; the command line reaches a file through wsp exec",
       "places.readings": "a computer's chart over a day, a week or a month; wsp computers prints its cores and memory now",
+      "sys.subscribe": "with placeId, a computer's live CPU and memory band on the Computers list, off the one watch the host holds of that computer for every reader; wsp computers prints its cores and memory now",
       "workspaces.bringBack": "the Changes pane's Open pull request, a plain git action beside Commit and Push; an agent pushes and opens its pull request with git push and gh pr create",
     };
     // The workspace ops a window sends that are no pane's: a row's buttons and a window's own bookkeeping.
@@ -456,6 +457,8 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
       "workspaces.portReach": "the Ports pane's road to one port for its preview; an agent reaches its own ports from inside the workspace",
       "workspaces.portProbe": "the Ports pane's one fetch of a port's route to show what answers; an agent fetches its own ports from inside the workspace",
     };
+    expect(RuntimeRequest.parse({ id: 1, op: "sys.subscribe", placeId: "p_lab" }), "sys.subscribe takes the computer form").toMatchObject({ placeId: "p_lab" });
+    expect(RuntimeRequest.parse({ id: 1, op: "sys.unsubscribe", placeId: "p_lab" }), "sys.unsubscribe takes the computer form").toMatchObject({ placeId: "p_lab" });
     for (const [op, why] of Object.entries({ ...PANE_ONLY, ...ROW_ONLY })) {
       expect([...RUNTIME_OPS, ...DAEMON_FRAME_OPS], `${op} is served`).toContain(op);
       expect(verbs.includes(`"${op}"`), `${op} is sent by a verb, so it is no longer a window's alone`).toBe(false);

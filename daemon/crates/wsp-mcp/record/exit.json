@@ -9,6 +9,7 @@
     "usage": "usage",
     "invalid": "usage",
     "auth": "auth",
-    "not-found": "usage"
+    "not-found": "usage",
+    "processes-left": "usage"
   }
 }

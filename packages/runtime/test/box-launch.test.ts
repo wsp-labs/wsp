@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PlaceFolderMachine, spawnSyncFed } from "@wsp/engine";
-import { DaemonExecRequest, cgroupJoinLine, placeDaemonPaths, threadCgroup } from "@wsp/protocol";
+import { DaemonExecRequest, cgroupJoinLine, dockerShim, placeDaemonPaths, threadCgroup } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { machineExecStream } from "../src/machine-exec.js";
 import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
@@ -68,6 +68,8 @@ const box = (): string => {
   writeStub(join(at.guestBin, "wsp"), "#!/bin/sh\necho thread\n");
   mkdirSync(join(home, ".local", "bin"), { recursive: true });
   writeStub(join(home, ".local", "bin", "wsp"), "#!/bin/sh\necho older\n");
+  writeStub(join(at.guestBin, "docker"), dockerShim(at.guestBin, at.dockerNotes));
+  writeStub(join(home, ".local", "bin", "docker"), '#!/bin/sh\necho "docker $*"\n');
   const profile = 'export PATH="$HOME/.local/bin:/usr/bin:/bin"; export PROFILE_RAN=1\n';
   for (const file of [".bash_profile", ".zprofile"]) writeFileSync(join(home, file), profile);
   writeFileSync(join(home, ".zshenv"), "export ZSHENV_RAN=1\n");
@@ -78,6 +80,13 @@ describe("a login shell inside a box thread's turn", () => {
   it("finds the box's own wsp first under bash -lc, as Codex runs every command, and under bash -c", async () => {
     const wsp = box();
     expect(await turn(`bash -lc 'command -v wsp; echo "$PROFILE_RAN"'; bash -c 'command -v wsp'`)).toEqual([wsp, "1", wsp]);
+  });
+
+  it("finds the box's docker first, which labels the thread's run and hands it to the login's own docker", async () => {
+    box();
+    const docker = join(placeDaemonPaths(home).guestBin, "docker");
+    // A login shell alone: without the profile the next docker on PATH would be this computer's own.
+    expect(await turn(`bash -lc 'command -v docker; WSP_THREAD=thread-1 docker run busybox'`)).toEqual([docker, "docker run --label wsp.thread=thread-1 busybox"]);
   });
 
   it.skipIf(onPath("zsh") === undefined)("finds the box's own wsp first under zsh -lc, after the login's own zsh files ran", async () => {

@@ -2,7 +2,7 @@
 //! The numbers and paths the protocol and the node daemon own, as the contract fixture pins them.
 
 /// The daemon's protocol version, carried in its hello: the length of the protocol's DAEMON_CONTENTS record.
-pub const DAEMON_VERSION: u32 = 151;
+pub const DAEMON_VERSION: u32 = 152;
 
 pub const DEFAULT_HOST: &str = "0.0.0.0";
 pub const DEFAULT_PORT: u16 = 7070;
@@ -166,21 +166,30 @@ pub const PORT_CMDLINE_CAP_BYTES: usize = 512;
 pub const PROC_CAP: usize = 1000;
 /// Linux pid_max ceiling; both proc ops refuse anything above it.
 pub const PID_MAX: u32 = 4_194_304;
+/// How many pids the host's protect and agents lists on proc.kill may each name.
+pub const KILL_PIDS_MAX: usize = 256;
+/// How long proc.kill waits after TERM before it sends KILL to whatever of its targets is still there.
+pub const KILL_GRACE_MS: u64 = 2000;
 /// How often a daemon samples the computer it runs on for sys.watch, and how long after the reply to a watch its
 /// first sample lands, proc.watch's first snapshot among them. The protocol's DAEMON_SAMPLER_INTERVAL_MS is the same
 /// figure, held so by the contract fixture.
 pub const SAMPLER_INTERVAL_MS: u64 = 2000;
-/// How often proc.watch reads the processes after its first snapshot. A whole list every two seconds measured 180 KB
-/// a frame on a Mac with a thousand processes; after the first, a frame carries only what changed.
-pub const PROC_INTERVAL_MS: u64 = 5000;
+/// How often proc.watch reads the processes after its first snapshot, the sys sampler's cadence. A whole list measured
+/// 180 KB a frame on a Mac with a thousand processes, so after the first a frame carries only what changed. The
+/// protocol's DAEMON_PROC_INTERVAL_MS is the same figure, held so by the contract fixture.
+pub const PROC_INTERVAL_MS: u64 = 2000;
 /// The days of readings a daemon keeps, one file a day, and the most those files may hold between them on disk: the
-/// oldest day goes first past either. A minute's point is about 130 bytes, so a day is about 190 KB and the cap
+/// oldest day goes first past either. A minute's point is about 160 bytes, so a day is about 230 KB and the cap
 /// holds the fourteen days with room to spare.
 pub const READINGS_KEPT_DAYS: u32 = 14;
 pub const READINGS_CAP_BYTES: u64 = 8 * 1024 * 1024;
 /// How often the kept readings read the computer: four reads fold into each minute's point, an eighth of what a
 /// watch reads, since nobody is waiting on them.
 pub const READINGS_EVERY_MS: u64 = 15_000;
+/// How far back a daemon holds its own reads in memory as they were taken, and the most of them it holds whatever
+/// the pace: a sys.history at a step under a minute answers them, so a chart opens full with its newest point fresh.
+pub const READINGS_RECENT_MS: i64 = 15 * 60_000;
+pub const READINGS_RECENT_CAP: usize = 60;
 /// The most steps one sys.history answers with; a range that holds more answers the first ones and says so.
 pub const READINGS_POINTS_CAP: usize = 2000;
 /// One tick of the stat files under /proc in milliseconds: the kernel reports those fields at 100 Hz whatever its

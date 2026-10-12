@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { agentWord } from "@wsp/protocol";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +11,7 @@ import { AUTO_MODE, buildCommand, buildEnv } from "../src/command.js";
 describe("the opencode run line", () => {
   it("runs one JSON turn in the folder, resumes by session, and takes the model, the variant and the title", () => {
     const line = buildCommand({ prompt: "list the files", cwd: "/root/app", resume: "ses_f1d55cde0ffe2JZqKKpAnaa1c3", model: "openrouter/anthropic/claude-sonnet-4.5", effort: "high", title: "Largest files", permissionMode: AUTO_MODE });
-    expect(line.startsWith("cd '/root/app' && opencode run --format json --print-logs --log-level ERROR --dir '/root/app'")).toBe(true);
+    expect(line.startsWith(`cd '/root/app' && ${agentWord("opencode", undefined)} run --format json --print-logs --log-level ERROR --dir '/root/app'`)).toBe(true);
     expect(line).toContain(" -s ses_f1d55cde0ffe2JZqKKpAnaa1c3");
     expect(line).toContain(" -m openrouter/anthropic/claude-sonnet-4.5");
     expect(line).toContain(" --variant high");

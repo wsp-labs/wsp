@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, userMessageLine } from "../src/landmines.js";
-import { shellQuote, SLATE_BRIEF } from "@wsp/protocol";
+import { agentWord, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -142,7 +142,7 @@ describe("buildCommand", () => {
 
   it("prefixes cd when a cwd is given", () => {
     const cmd = buildCommand({ sessionId, cwd: "/root/app" });
-    expect(cmd.startsWith("cd '/root/app' && claude -p")).toBe(true);
+    expect(cmd.startsWith(`cd '/root/app' && ${agentWord("claude", undefined)} -p`)).toBe(true);
   });
 
   it("maps the picked model, effort and permission mode to the CLI's flags", () => {

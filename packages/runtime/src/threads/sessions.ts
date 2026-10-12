@@ -6,13 +6,11 @@ import { CATALOG_AGENTS, serverValuesOf } from "@wsp/catalog";
 import { harnessExec } from "@wsp/engine";
 import {
   type SessionEvent, type SessionInterruptOutcome, type SessionInterruptResult, type SessionStartOutcome,
-  type SessionView, type TurnImage, type TurnResult, foldThreads,
-  MCP_SERVER_NAME, threadForgetRefusal, threadKeyOf, threadRan, threadWord, roadOf, scopeOf,
+  type SessionView, type TurnImage, type TurnResult, foldThreads, MCP_SERVER_NAME, threadForgetRefusal, threadKeyOf, threadRan, threadWord, roadOf, scopeOf,
   RUN_PERSONS_LINE, runOutputTail, type SessionRunEvent, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE,
-  asideUnsupportedLine, isLocalWorkspace, mcpServersBlocked, actionRefusal, homeShortened, EMPTY_TITLE_LINE,
-  threadRunsOnLine, notFoundRefusal, NOTIFY_ME, noCwdLine,
+  asideUnsupportedLine, isLocalWorkspace, mcpServersBlocked, actionRefusal, homeShortened, EMPTY_TITLE_LINE, threadRunsOnLine, notFoundRefusal, NOTIFY_ME, noCwdLine,
   THREAD_WORKING_LINE, threadOnMachineLine, WORKTREE_BUSY_LINE, copiesFolder, runsInFolder, sendRefusal, startPicks, titleLine,
-  TURN_TOKEN_ENV, turnImagesDir, workspaceState, REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE,
+  THREAD_ENV, TURN_TOKEN_ENV, turnImagesDir, workspaceState, REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE,
   REWIND_SHARED_LINE, REWIND_WORKING_LINE, rewindBesideLine, rewindChildrenLine, rewindKeptLine, rewindNoAnchorLine,
   attachmentRecord, attachmentKey, filesBlocked, filesRefusal, steerFilesBlocked, type Attachment, isImage, sendFilesDir, attachedFilesPrompt, threadMessages,
   threadSeed, taskStopRefusedLine, taskStopUnsupportedLine, agentOffLine, HEAD_BYTES, HISTORY_PAGE_BYTES,
@@ -21,11 +19,8 @@ import {
   TURN_STOPPED_LINE, workspacePlace, STOP_REACH_MS, sendGivenUpLine, threadResult, listedFailure, turnLines,
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
-  replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX,
-  subMachineTakenRefusal,
-  subOpening,
-  SUB_TURN_GONE_LINE,
-  subTurnGone,
+  replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX, subMachineTakenRefusal,
+  subOpening, SUB_TURN_GONE_LINE, subTurnGone,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readyFork } from "./forks.js";
@@ -34,8 +29,7 @@ import type { HarnessAdapter, HarnessStartOptions } from "../types/harness.js";
 import { SESSION_TITLE_TIMEOUT_MS } from "../types/events.js";
 import type { Runtime } from "../types/api.js";
 import {
-  ATTACHMENTS, ATTACHMENT_KEYS, searchIndex, type SearchedHit, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages,
-  type LiveSession, type SessionEntry, stopLogLine,
+  ATTACHMENTS, ATTACHMENT_KEYS, searchIndex, type SearchedHit, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages, type LiveSession, type SessionEntry, stopLogLine,
 } from "../types/internal.js";
 import { launchArea, servedTo } from "./launch.js";
 import { trimmedRow } from "./trimmed-row.js";
@@ -439,7 +433,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         built = ctx.adapterFor(
           entry,
           o.harness,
-          { [TURN_TOKEN_ENV]: turnToken, ...launchEnv },
+          { [TURN_TOKEN_ENV]: turnToken, [THREAD_ENV]: threadId, ...launchEnv },
           () => waiting.on,
           // A name no catalog row declares is one an MCP server's definition reads; the kind decides whether the
           // environment is what carries it.
@@ -1134,6 +1128,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           add(one, tree.filter(id => !settled(id)));
         }
       }
+      const ended = o.processes === undefined ? [] : await ctx.activity.meet(take, o.processes, "settle", origin);
       // The one stamp a settle writes is its mark: a restore takes back the threads that carry it and nothing else.
       const at = (lastSettleAt = Math.max(clock.now(), lastSettleAt + 1));
       if (take.length > 0) {
@@ -1141,7 +1136,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         const marked = [...new Set([...take, ...named])];
         await ctx.mark(marked, id => ({ ...(moved.has(id) ? { readAt: at, settledAt: at } : {}), ...(named.includes(id) ? { settleNamedAt: at } : {}) }), origin);
       }
-      return { settled: titled(take), left };
+      return { settled: titled(take), left, ...(ended.length > 0 ? { ended } : {}) };
     },
 
     async mark(threadIds, marks, origin) {
@@ -1408,7 +1403,6 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       if (entry.record.sub !== undefined) return ctx.subDelete(entry, threadId, origin, o);
-      if (o.check === true) throw Object.assign(new Error(`thread ${threadWord(threadId)} is no sub-thread, so a delete's check reads nothing for it`), { kind: "usage" });
       if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
       const tree = entry.record.worktree;
       const threads = new Set([
@@ -1416,23 +1410,29 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         ...[...threadRecords].flatMap(([id, r]) => (r.workspaceId === workspaceId ? [id] : [])),
       ]);
       // A worktree goes with the last thread in it; while another thread works there it is that thread's too.
-      if (tree?.made === true && tree.gone !== true && [...threads].every(t => t === threadId)) {
-        // No turn may be working, and none can land a checkpoint after its refs were dropped.
-        if (ctx.turnRuns(workspaceId)) throw Object.assign(new Error(WORKTREE_BUSY_LINE), { kind: "conflict" });
-        for (const thread of threads) {
-          await ctx.moduleOf(entry.record.kind).endThread?.(entry, thread, { remove: true });
-          await ctx.endThreadShells(entry, thread);
-        }
-        await ctx.workspaces.delete(workspaceId, origin);
-        return { workspaceId, worktree: tree.path, threads: threads.size };
-      }
-      // A send waiting on an end owed to a computer that is away has done no work, and goes with the thread.
+      const worktree = tree?.made === true && tree.gone !== true && [...threads].every(t => t === threadId) ? tree.path : undefined;
+      // No turn may be working in a worktree that goes, and none can land a checkpoint after its refs were dropped.
+      if (worktree !== undefined && ctx.turnRuns(workspaceId)) throw Object.assign(new Error(WORKTREE_BUSY_LINE), { kind: "conflict" });
+      // A send waiting on an end owed to a computer that is away has done no work, and goes with the thread, but only
+      // once the delete is decided: a check, or a refusal on its processes, leaves it waiting.
       const held = [...heldSends].filter(([, h]) => h.threadId === threadId);
+      if ([...sessions].some(([id, s]) => s.view.threadId === threadId && s.view.status === "running" && !heldSends.has(id))) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
+      if (o.check === true && o.processes !== undefined) await ctx.activity.meet([threadId], o.processes === "stop" ? "keep" : o.processes, "delete", origin);
+      if (o.check === true) return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads: 1 };
+      const ended = o.processes === undefined ? [] : await ctx.activity.meet([threadId], o.processes, "delete", origin);
+      // A box's end takes the thread's cgroup with everything in it, which keep was asked to leave running.
+      const endThread = o.processes === "keep" ? undefined : ctx.moduleOf(entry.record.kind).endThread;
+      if (worktree !== undefined) {
+        await endThread?.(entry, threadId, { remove: true });
+        await ctx.endThreadShells(entry, threadId);
+        await ctx.workspaces.delete(workspaceId, origin);
+        return { workspaceId, worktree, threads: 1, ...(ended.length > 0 ? { ended } : {}) };
+      }
       for (const [, h] of held) h.giveUp();
       await Promise.all(held.map(([id]) => sessions.get(id)?.launch));
       if (ctx.threadRuns(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
       ctx.reapKept(threadId);
-      await ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, { remove: true });
+      await endThread?.(entry, threadId, { remove: true });
       await ctx.endThreadShells(entry, threadId);
       await ctx.openThread(workspaceId, threadId);
       await ctx.dropCheckpoints(entry, threadId);
@@ -1447,7 +1447,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await ctx.dropFromTranscript(workspaceId, threadId);
       await ctx.persistSessions(workspaceId);
       await ctx.slates.forget(threadId);
-      return { workspaceId, threads: 1 };
+      return { workspaceId, threads: 1, ...(ended.length > 0 ? { ended } : {}) };
     },
 
     async forget(threadId, origin, o = {}) {

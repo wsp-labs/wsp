@@ -809,9 +809,10 @@ async fn answers_place_leave_with_what_the_sweep_took_and_then_ends_the_daemon()
         );
     }
     // The sweep is the real one over that home: the place file, its key, the add's record, the token, and the door
-    // and the wsp the daemon wrote for this computer's threads are gone and named, and wsp's own folder goes last and
-    // whole, so nothing of wsp's is left under the home.
+    // and the wsp and docker the daemon wrote for this computer's threads are gone and named, and wsp's own folder goes
+    // last and whole, so nothing of wsp's is left under the home.
     let shim = at.guest_bin.join("wsp");
+    let docker = at.guest_bin.join("docker");
     let runtime = place.home.path().join("runtime");
     let mut swept = vec![
         at.place_file.to_string_lossy(),
@@ -820,6 +821,7 @@ async fn answers_place_leave_with_what_the_sweep_took_and_then_ends_the_daemon()
         at.token_path.to_string_lossy(),
         at.guest_socket.to_string_lossy(),
         shim.to_string_lossy(),
+        docker.to_string_lossy(),
         at.guest_bin.to_string_lossy(),
         at.wsp.to_string_lossy(),
     ];
@@ -827,7 +829,7 @@ async fn answers_place_leave_with_what_the_sweep_took_and_then_ends_the_daemon()
         swept.push(runtime.to_string_lossy());
     }
     assert_eq!(answer, json!({"id": 21, "ok": true, "swept": swept}));
-    for path in [&at.place_file, &at.place_key, &at.token_path, &at.guest_socket, &shim, &at.wsp] {
+    for path in [&at.place_file, &at.place_key, &at.token_path, &at.guest_socket, &shim, &docker, &at.wsp] {
         assert!(!path.exists(), "{}", path.display());
     }
     assert_eq!(std::fs::read(machines).ok(), machines_before, "the leave touched this machine's own profile");
@@ -940,6 +942,10 @@ async fn a_thread_on_this_computer_opens_its_session_on_the_door_under_the_home_
     let shim = std::fs::read_to_string(at.guest_bin.join("wsp")).unwrap();
     assert_eq!(std::fs::metadata(at.guest_bin.join("wsp")).unwrap().permissions().mode() & 0o777, 0o755);
     assert_eq!(std::fs::symlink_metadata(&at.guest_socket).unwrap().permissions().mode() & 0o777, 0o600);
+    // The docker beside it, which labels what this computer's threads run.
+    let docker = std::fs::read_to_string(at.guest_bin.join("docker")).unwrap();
+    assert_eq!(docker, wsp_frames::docker_shim(&at.guest_bin.to_string_lossy(), &at.docker_notes.to_string_lossy()));
+    assert_eq!(std::fs::metadata(at.guest_bin.join("docker")).unwrap().permissions().mode() & 0o777, 0o755);
 
     // A thread's wsp opens its session and sends before the host has asked to watch anything.
     let stream = tokio::net::UnixStream::connect(&at.guest_socket).await.unwrap();
@@ -996,4 +1002,6 @@ async fn a_door_this_computer_could_not_bind_is_said_in_the_report_the_host_read
     let why = proof.report.wsp_door_blocked.unwrap();
     assert!(why.starts_with(&at.guest_socket.to_string_lossy().into_owned()), "{why}");
     assert!(!at.guest_bin.join("wsp").exists(), "a wsp was written for a door that is not there");
+    // Docker needs no door, so its labels go on. Written on Linux alone, as the wsp beside it is.
+    assert_eq!(at.guest_bin.join("docker").is_file(), cfg!(target_os = "linux"), "the docker is written on Linux alone");
 }

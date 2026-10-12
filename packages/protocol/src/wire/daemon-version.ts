@@ -161,6 +161,7 @@ const DAEMON_CONTENTS = [
   "2bcd6f46ae63613208d94094effd91ac33ff3d5c9d9d472a3739e756b88578ae",
   "5561b75989b87c1acfb0b1b6312d0ce49fde4f286d6c6c495205956aeb77dca1",
   "0c317e5ccfb3fc061b1ba9b28f0f8f16f41e30c0c268be5284654ad156c96686",
+  "a934fd82cd94334fd628c496fa325269b1ea755531c94fd0c13d0659bc3cd9c9",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -604,7 +605,50 @@ const DAEMON_CONTENTS = [
  * index left at the start, and refuses a branch that exists or that a worktree holds.
  * Version 151: A box's doctor loads the overlay module with modprobe where the kernel does not list overlay yet and
  * reads /proc/filesystems again, so a box rebooted onto a new kernel runs workspaces; it refuses only a kernel with no
- * overlay module to load or one whose module would not load, naming which, the second in modprobe's own last line. */
+ * overlay module to load or one whose module would not load, naming which, the second in modprobe's own last line.
+ * Version 152: Process rows carry the power a Mac's process drew in milliwatts, the thread that owns them and what they
+ * are, and each process frame says what its tick cost the daemon in cpu, the ps it ran included, and held rows; a
+ * process watch narrowed to a cgroup reads every cgroup under it, and proc.list reads every process itself while that
+ * watch is narrowed; a row's owner can name a warm agent's thread. sys.history at a step under a minute answers the
+ * last fifteen minutes of reads as they were taken, sys.unwatch ends a socket's readings watch, a sys.unwatch or
+ * proc.unwatch sent before its watch is answered still ends it, and a Linux computer's own disk is read as df reads it,
+ * without running df. proc.list answers every process at once for a reader that wants no stream: the rows a running
+ * process watch last read, or one scan of its own with cpu at 0 where none runs. proc.scopes names each thread's roots,
+ * and every proc.watch row carries its group, its owner by the ladder (root, fork, group, the WSP_THREAD mark, cgroup,
+ * folder, coalition) and, where the daemon knows it by fact, its kind (agent, slate or tool, of the eleven words the
+ * page shares; a slate's run the host did not start reads slate off SLATE_DIR beside its WSP_THREAD), and says so when
+ * the thread is a warm agent's that no send has claimed; on a Mac the daemon follows every fork of a named root through
+ * kqueue from the moment the host names it, watched or not, and keys what it followed by the kernel's unique id; the
+ * folder rung reads a workspace's folder by device and inode, never through a link; a box reads its thread cgroups'
+ * members ahead of the 1,000-row cap and counts no kernel thread toward it, and this computer reads each thread's
+ * roots, its turns' groups, what the fork tracker followed and everything under them ahead of that cap. A row read off
+ * /proc carries its private memory (statm's resident less shared), and on a box every process frame and proc.list carry
+ * each thread cgroup's memory, anon and kernel off its memory.stat. proc.kill takes a mode (the pid, or the pid and
+ * everything under it, never a process group), the row's start time and its identity, and the host's lists of its own
+ * pids, the app's main process, each running turn's root and recorded agent, and the names agents run under; it signals
+ * each target through the identity it was read with, an audit token on a Mac and a pidfd on Linux, sends KILL to what
+ * TERM left after the grace, refuses a turn's root, its agent and every process between (past a recorded launcher down
+ * to the agent's binary, and for the turns its own run folder records), a kernel thread, in a thread cgroup a process
+ * run as an agent's name and what stands above it there, and on a box whose daemon is root and has cgroup v2 anything
+ * outside the thread cgroups and the daemon's own children; with an identity the start time is not checked; each proc
+ * row carries that identity as id; the run folder's pid files are read beneath the folder held open, no link followed
+ * and never waiting on a fifo; while TERM's grace runs it reads only the pids it signalled, and the whole table once
+ * when the grace is up. A box's place-bin holds a docker beside its wsp, written at every start whether or not the door
+ * opens, which labels a thread's run and create with wsp.thread and notes its compose up in docker-notes, with the
+ * folder compose takes for the project (--project-directory's, else the first compose file's from -f, COMPOSE_FILE or
+ * the COMPOSE_FILE line of the env file compose reads, else the working folder; what escapes it, noted as the working
+ * folder, is an env file's `COMPOSE_FILE: <path>` line, the colon form compose also takes, and a COMPOSE_FILE that only
+ * an earlier of several --env-file names, since the shim reads the last), and passes over any PATH folder that is one
+ * it came through however PATH spells it; a leave takes both. On a computer the person owns, every process frame
+ * carries the engine's running containers while a process watch runs: one events subscription, one list when the watch
+ * starts and an inspect on each create, start, die and destroy, never a list on a tick; each is placed by its
+ * wsp.thread label, else by the newest compose note in the docker-notes folder (the host names this computer's with
+ * --docker-notes) whose folder sits inside its compose folder, never a note for one a fork's fence labelled with
+ * wsp.workspace, and its memory (anon and kernel) and cpu come from its own cgroup on Linux, else from the engine's
+ * one-shot stats every 10 s; container.stop stops one through the engine's stop with 2 s and never removes it, and
+ * refuses one no label or note places under a thread; a root daemon reads the Docker context beneath the home with no
+ * link followed, the person's own daemon follows a link as their Docker CLI does, neither waits on a fifo, and a root
+ * daemon dials a context's socket only where the home's account owns it and serves it. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
@@ -685,6 +729,14 @@ export const leaveTakes = (report: { wspDaemonVersion?: number }): boolean => (r
 /** The line that moves a place onto this wsp's daemon, which is the fix half of every sentence about a place that
  * is behind. */
 export const placeUpdateLine = (name: string): string => `wsp add ${name} --update`;
+
+/** What a process's row says where its computer's daemon is older than a kill that ends what the process started:
+ * TERM reached the process alone, and the fix. */
+export const killTooOldLine = (name: string): string => `TERM went to this process alone: ${name} runs a daemon too old to end what it started; ${placeUpdateLine(name)} updates it`;
+
+/** The same said away from the rows, once for a computer, naming each process TERM reached alone. */
+export const killTooOldOfLine = (name: string, procs: readonly { pid: number; command: string }[]): string =>
+  `TERM went to ${procs.map(p => `${p.pid} (${p.command})`).join(" and ")} alone: ${name} runs a daemon too old to end what ${procs.length === 1 ? "it" : "they"} started; ${placeUpdateLine(name)} updates it`;
 
 /** What the doctor says about one place that is behind: the word above and the line that answers it. */
 export const placeBehindLine = (name: string, word: string): string => `${name} is behind: ${word}; ${placeUpdateLine(name)} puts this wsp's daemon on it`;

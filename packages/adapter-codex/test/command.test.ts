@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LAUNCH_ENV, TURN_TOKEN_ENV, WSP_TOOL_TIMEOUT_SEC } from "@wsp/protocol";
+import { agentWord, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LAUNCH_ENV, THREAD_ENV, TURN_TOKEN_ENV, WSP_TOOL_TIMEOUT_SEC } from "@wsp/protocol";
 import { describe, expect, it } from "vitest";
 import { accessParams, buildCommand, buildEnv } from "../src/command.js";
 import { threadResumeLine, threadStartLine } from "../src/rpc.js";
@@ -30,7 +30,7 @@ describe("buildEnv", () => {
 describe("buildCommand", () => {
   it("runs the app server on stdio in the guest home, with no prompt and no turn flags on the line", () => {
     // The plan tool is off in a headless 0.155.1 unless its config turns it on, and its updates are the steps card.
-    expect(buildCommand({})).toBe("cd ~ && codex app-server -c tools.update_plan.enabled='true'");
+    expect(buildCommand({})).toBe(`cd ~ && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
   });
 
   it("never names a listener: the server speaks on the process's own stdio and nothing else", () => {
@@ -43,7 +43,8 @@ describe("buildCommand", () => {
       expect(line).not.toContain("--listen");
       expect(line).not.toContain("ws://");
       expect(line).not.toContain("unix://");
-      expect(line).not.toContain("exec");
+      // The exec in agentWord's prefix is the sh becoming codex, no codex subcommand.
+      expect(line.replace(agentWord("codex", undefined), "codex")).not.toContain("exec");
     }
   });
 
@@ -55,13 +56,13 @@ describe("buildCommand", () => {
     expect(command).toContain(`-c mcp_servers.wsp.args='["mcp"]'`);
     // Codex clears a server's environment down to its own short list, so the pair is named for it to pass through.
     expect(command).toContain(`-c mcp_servers.wsp.env_vars='${JSON.stringify(LAUNCH_ENV)}'`);
-    expect([...LAUNCH_ENV].sort()).toEqual([HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV].sort());
+    expect([...LAUNCH_ENV].sort()).toEqual([HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, THREAD_ENV].sort());
     expect(command).toContain(`-c mcp_servers.docs.args='["-y","docs-mcp"]'`);
     expect(command).not.toContain("mcp_servers.docs.env_vars");
     // Codex ends a tool call past its own limit, and a send can wait through a paused Boat's wake before its turn.
     expect(command).toContain(`-c mcp_servers.wsp.tool_timeout_sec='${WSP_TOOL_TIMEOUT_SEC}'`);
     expect(command).not.toContain("mcp_servers.docs.tool_timeout_sec");
-    expect(command.startsWith("cd ~ && codex app-server -c tools.update_plan.enabled='true' -c ")).toBe(true);
+    expect(command.startsWith(`cd ~ && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true' -c `)).toBe(true);
   });
 
   it("serves the slate tools again as a server of their own that codex lists up front, and keeps them off the deferred wsp one", () => {
@@ -101,7 +102,7 @@ describe("buildCommand", () => {
   });
 
   it("starts in the folder named, quoted", () => {
-    expect(buildCommand({ cwd: "/root/my project" })).toBe("cd '/root/my project' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(buildCommand({ cwd: "/root/my project" })).toBe(`cd '/root/my project' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
   });
 });
 
@@ -134,8 +135,8 @@ describe("a person's setup for Codex on a computer", () => {
   const launch = { program: "/opt/codex", args: ["-c", "model_provider=\"ollama\""] };
 
   it("runs the program in place of codex on the server line, the launch words after app-server", () => {
-    expect(buildCommand({ launch })).toContain(`&& '/opt/codex' app-server '-c' 'model_provider="ollama"' -c tools.update_plan.enabled=`);
-    expect(buildCommand({})).toContain("&& codex app-server -c tools.update_plan.enabled=");
+    expect(buildCommand({ launch })).toContain(`&& ${agentWord("codex", launch)} app-server '-c' 'model_provider="ollama"' -c tools.update_plan.enabled=`);
+    expect(buildCommand({})).toContain(`&& ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled=`);
   });
 
   it("the probe, a title and a draft run the program and none of the launch words", () => {

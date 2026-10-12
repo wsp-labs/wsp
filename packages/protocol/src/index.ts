@@ -84,6 +84,8 @@ export * from "./views/workspace-events.js";
 export * from "./views/project-bundle.js";
 export * from "./views/preferences.js";
 export * from "./views/desktop-bridge.js";
+export * from "./views/app-procs.js";
+export * from "./views/activity.js";
 export * from "./views/golden-image.js";
 export * from "./views/place.js";
 export * from "./wire/events-union.js";
@@ -116,7 +118,8 @@ export { accruedAt, accruedPast, appendCostPoint, COST_HISTORY_CAP, dayStart, mo
 export { leadAsk, openAsk, THREAD_SEED_CHARS, ThreadMessage, threadMarkdown, threadMessages, threadReplyRows, threadResult, threadSeed, ThreadVoice } from "./thread-read.js";
 export { escapeRegExp } from "./regexp.js";
 export { ENV_FROM_INPUT, inFolder, shellLine, shellQuote } from "./shell-quote.js";
-export { cgroupEndScript, cgroupJoinLine, inCgroup, threadCgroup, threadCgroupsEndScript } from "./thread-cgroup.js";
+export { DOCKER_NOTES_CAP_BYTES, DOCKER_NOTES_FOLDER, DOCKER_THREAD_LABEL, dockerShim } from "./docker-shim.js";
+export { cgroupEndScript, cgroupJoinLine, cgroupMemory, inCgroup, threadCgroup, threadCgroupsEndScript } from "./thread-cgroup.js";
 export { threadShellFiles, threadShellVars } from "./thread-shell.js";
 export {
   DEFAULT_THEME,
@@ -182,9 +185,9 @@ export { addressFromHash, addressFromLink, appHash, linkFromHash, linkHash, open
 export * from "./app-ports.js";
 export * from "./release.js";
 export * from "./init-job.js";
-export { catalogRefused, endAfterResult, endRun, launchWords, PERMISSION_ALLOW, PERMISSION_DENY, programWord } from "./adapter-port.js";
+export { AGENT_PID_FILE_ENV, agentWord, catalogRefused, endAfterResult, endRun, launchWords, PERMISSION_ALLOW, PERMISSION_DENY, programWord } from "./adapter-port.js";
 export { keepRun } from "./kept-run.js";
 export type { KeptAgent, KeptRun, KeptTurn } from "./kept-run.js";
-export { ANALYTICS_ENV, CLOUD_ENV, HOME_ENV, HOST_ENV, PUBLIC_ENV, LAUNCH_ENV, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LABS_ENV, PERSON_HOME_ENV, RELEASE_API_ENV, TURN_TOKEN_ENV, UPDATE_CHECK_ENV, WEB_DIR_ENV, STATE_STORE_ENV } from "./env.js";
+export { ANALYTICS_ENV, CLOUD_ENV, HOME_ENV, HOST_ENV, PUBLIC_ENV, LAUNCH_ENV, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LABS_ENV, PERSON_HOME_ENV, RELEASE_API_ENV, TURN_TOKEN_ENV, THREAD_ENV, UPDATE_CHECK_ENV, WEB_DIR_ENV, STATE_STORE_ENV } from "./env.js";
 export type { AdapterAttachOptions, AdapterEvent, AgentLaunch, AsideAnswer, AsideQuestion, AttachmentRoad, CommitDrafter, DraftAsk, ExecStream, ExecStreamFactory, HarnessCatalogAnswer, HarnessExec, HarnessCatalogModelProbe, HarnessCatalogProbe, HarnessCatalogRefusal, PermissionAsk, PlanResets, ResetReading, ResetRoad, ResetSpend, SessionAsker, SessionRenameWrite, SessionRenamer, SessionTitleMaker, SessionTitleReader, TaskStop, TitleTurn, TurnImage, SessionReverter, CountedTurn, ForkTurn, ForkedSession, SessionForker } from "./adapter-port.js";
 export * from "./slate/wire.js";

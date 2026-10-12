@@ -13,13 +13,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use nix::sys::signal::{kill, Signal};
-use nix::unistd::Pid;
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
-use wsp_frames::{numbers, words, DaemonErrorCode, DaemonEvent, ProcEntry, ProcInspectReply, ProcSignal};
+use wsp_frames::{
+    numbers, words, CgroupMemory, DaemonErrorCode, DaemonEvent, ProcContainer, ProcCost, ProcEntry, ProcInspectReply, ProcListReply,
+    ProcScope,
+};
 
+use crate::containers::ContainerReader;
 use crate::paths::OpError;
+use crate::proc_owner::{folder_in, mark_in, OwnerFacts, Ownership};
 use crate::sys::{finite, read_named};
 use crate::{frame_text, Outbound, SharedLog};
 
@@ -41,7 +44,6 @@ pub(crate) struct ProcStat {
     pub(crate) threads: u32,
     /// Ticks after boot.
     pub(crate) starttime: u64,
-    pub(crate) rss_pages: u64,
 }
 
 /// The comm sits in parens and may hold anything, so the split runs from the last one.
@@ -61,8 +63,13 @@ pub(crate) fn parse_proc_pid_stat(text: &str) -> Result<ProcStat, String> {
         ticks: n(11)? + n(12)?,
         threads: u32::try_from(n(17)?).map_err(|_| malformed())?,
         starttime: n(19)?,
-        rss_pages: n(21)?,
     })
+}
+
+/// A process's start in epoch milliseconds, off the boot time and its start in ticks after boot: what a row carries
+/// and what proc.kill checks a row against.
+pub(crate) fn started_ms(btime: i64, starttime: u64) -> i64 {
+    btime * 1000 + starttime as i64 * numbers::STAT_TICK_MS as i64
 }
 
 pub(crate) fn parse_btime(proc_stat: &str) -> Result<i64, String> {
@@ -149,6 +156,11 @@ pub(crate) fn listening_ports_of(proc_root: &Path, pid: u32) -> Vec<u16> {
 pub(crate) struct ProcScan {
     pub(crate) total: u64,
     pub(crate) procs: Vec<ProcEntry>,
+    /// The cpu milliseconds the processes the scan ran and reaped spent, `ps` on the road that runs it, which the
+    /// thread's own clock leaves out.
+    pub(crate) child_ms: f64,
+    /// Every thread cgroup's memory, where the computer puts its threads in cgroups.
+    pub(crate) cgroups: Option<Vec<CgroupMemory>>,
 }
 
 pub(crate) struct ProcScanInput {
@@ -158,12 +170,19 @@ pub(crate) struct ProcScanInput {
     pub(crate) elapsed_ms: i64,
     /// The daemon pty a pid's shell belongs to, for the rows that carry one.
     pub(crate) pty: HashMap<u32, String>,
+    /// Only the processes in these cgroups, and the daemon itself, where a source can list them; every process
+    /// without it.
+    pub(crate) only: Option<Vec<String>>,
+    /// The daemon's own pid, which a scan narrowed to cgroups keeps.
+    pub(crate) daemon: u32,
+    /// The threads the host named, whose own processes a read past its cap keeps ahead of the rest.
+    pub(crate) scopes: Arc<Vec<ProcScope>>,
 }
 
 /// One kind's road to the processes on its machine, and to one of them in depth, run off the runtime thread. A
 /// machine wsp forks reads its own /proc (ProcFsSource); this computer reads its own host with ps. Adding a kind is
 /// its module and the row in readings.rs, nothing here.
-pub(crate) trait ProcSource: Send + Sync {
+pub(crate) trait ProcSource: OwnerFacts + Send + Sync {
     fn scan(&self, input: &ProcScanInput) -> Result<ProcScan, String>;
     /// One process in depth. `procs` is the newest scan, which is where the children column comes from.
     fn inspect(&self, pid: u32, procs: &[ProcEntry]) -> Result<ProcInspectReply, OpError>;
@@ -194,17 +213,79 @@ struct FsState {
     users: HashMap<u32, String>,
 }
 
+/// The most cgroup folders one narrowed scan walks: every thread's, and those it made under its own.
+const CGROUP_WALK_DIRS: usize = 4096;
+
 /// The guest's own processes, read straight from /proc: the module every machine wsp forks is served by.
 pub(crate) struct ProcFsSource {
     proc_root: PathBuf,
     passwd_path: PathBuf,
+    /// Where the cgroup v2 tree is mounted, whose cgroup.procs a narrowed scan lists its pids from.
+    cgroup_root: PathBuf,
     cap: usize,
     state: Mutex<FsState>,
 }
 
+/// A kernel thread: kthreadd, or a child of it. Neither counts toward the cap, since a 2 vCPU box runs 84 of them.
+fn kernel_thread(p: &ProcEntry) -> bool {
+    p.ppid == 2 || (p.ppid == 0 && p.comm == "kthreadd")
+}
+
 impl ProcFsSource {
     pub(crate) fn new(proc_root: PathBuf, passwd_path: PathBuf, cap: usize) -> ProcFsSource {
-        ProcFsSource { proc_root, passwd_path, cap, state: Mutex::new(FsState::default()) }
+        ProcFsSource { proc_root, passwd_path, cgroup_root: PathBuf::from("/sys/fs/cgroup"), cap, state: Mutex::new(FsState::default()) }
+    }
+
+    #[cfg(test)]
+    fn with_cgroup_root(self, cgroup_root: PathBuf) -> ProcFsSource {
+        ProcFsSource { cgroup_root, ..self }
+    }
+
+    /// The pids standing in each cgroup and every cgroup under it, as a thread's end takes them, the daemon's own added:
+    /// a cgroup gone or never made lists none. The walk stops at CGROUP_WALK_DIRS folders, deeper than any thread's.
+    fn members(&self, cgroups: &[String], daemon: u32) -> Vec<u32> {
+        let mut pids = vec![daemon];
+        let mut folders: Vec<PathBuf> = cgroups.iter().map(|cg| self.cgroup_root.join(cg.trim_start_matches('/'))).collect();
+        let mut walked = 0;
+        while let Some(folder) = folders.pop() {
+            walked += 1;
+            if walked > CGROUP_WALK_DIRS {
+                break;
+            }
+            pids.extend(
+                std::fs::read_to_string(folder.join("cgroup.procs"))
+                    .unwrap_or_default()
+                    .lines()
+                    .filter_map(|l| l.trim().parse::<u32>().ok()),
+            );
+            let Ok(entries) = std::fs::read_dir(&folder) else { continue };
+            folders.extend(entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).map(|e| e.path()));
+        }
+        pids.sort_unstable();
+        pids.dedup();
+        pids
+    }
+
+    /// Every thread cgroup's memory, `anon + kernel` off its memory.stat, which holds every cgroup under it; one whose
+    /// memory controller is off has no memory.stat and is left out. None where the computer has no thread cgroups.
+    fn thread_memory(&self) -> Option<Vec<CgroupMemory>> {
+        let under = self.cgroup_root.join(numbers::THREAD_CGROUPS.trim_start_matches('/'));
+        let mut read: Vec<CgroupMemory> = std::fs::read_dir(under)
+            .ok()?
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+            .filter_map(|e| {
+                let name = e.file_name().into_string().ok()?;
+                let mut stat = String::new();
+                std::fs::File::open(e.path().join("memory.stat")).ok()?.take(MEMORY_STAT_BYTES).read_to_string(&mut stat).ok()?;
+                Some(CgroupMemory {
+                    cgroup: format!("{}/{name}", numbers::THREAD_CGROUPS),
+                    memory: crate::containers::cgroup_memory(&stat)?,
+                })
+            })
+            .collect();
+        read.sort_unstable_by(|a, b| a.cgroup.cmp(&b.cgroup));
+        Some(read)
     }
 
     fn prime(&self, state: &mut FsState) -> Result<(), String> {
@@ -218,6 +299,7 @@ impl ProcFsSource {
     fn read_one(&self, state: &mut FsState, pid: u32, elapsed_ticks: f64, pty: Option<&String>) -> Option<ProcEntry> {
         let dir = self.proc_root.join(pid.to_string());
         let st = parse_proc_pid_stat(&std::fs::read_to_string(dir.join("stat")).ok()?).ok()?;
+        let private = parse_statm_private(&std::fs::read_to_string(dir.join("statm")).ok()?)?;
         let mut cpu = 0.0;
         let same_image = state.known.get(&pid).is_some_and(|k| k.starttime == st.starttime && k.comm == st.comm);
         if let Some(k) = state.known.get(&pid) {
@@ -245,13 +327,30 @@ impl ProcFsSource {
             comm: st.comm,
             cmdline: k.cmdline.clone(),
             cpu,
-            rss: st.rss_pages * state.page_size,
-            started_at: state.btime.unwrap_or(0) * 1000 + st.starttime as i64 * numbers::STAT_TICK_MS as i64,
+            rss: private * state.page_size,
+            started_at: started_ms(state.btime.unwrap_or(0), st.starttime),
             pty: pty.cloned(),
             cgroup: read_cgroup(&dir),
+            energy_mw: None,
+            pgid: Some(st.pgrp),
+            owner: None,
+            kind: None,
+            id: Some(st.starttime.to_string()),
         })
     }
 }
+
+/// A process's private resident pages off /proc/[pid]/statm, `resident - shared`: what RssAnon counts, since shared is
+/// the file and shmem pages. Resident memory counts each shared binary and library in every process that maps it, so
+/// one idle node read 41.6 MB resident against 6.2 MB private on a box.
+pub(crate) fn parse_statm_private(text: &str) -> Option<u64> {
+    let mut fields = text.split_ascii_whitespace().skip(1).map(|f| f.parse::<u64>().ok());
+    let (resident, shared) = (fields.next()??, fields.next()??);
+    Some(resident.saturating_sub(shared))
+}
+
+/// The most of a thread cgroup's memory.stat read: the kernel writes about 1.5 KB.
+const MEMORY_STAT_BYTES: u64 = 16 << 10;
 
 /// The longest cgroup path a row carries; a deeper one is left off rather than cut, since a cut path names
 /// another cgroup.
@@ -283,8 +382,19 @@ fn read_cmdline(dir: &Path) -> String {
     String::from_utf8_lossy(&buf[..end]).replace('\0', " ")
 }
 
+impl OwnerFacts for ProcFsSource {
+    fn thread_mark(&self, pid: u32) -> Option<crate::proc_owner::Mark> {
+        mark_in(&self.proc_root, pid)
+    }
+    fn folder(&self, pid: u32) -> Option<PathBuf> {
+        folder_in(&self.proc_root, pid)
+    }
+}
+
 impl ProcSource for ProcFsSource {
-    /// Reads every pid once; cpu is the tick delta against the last scan over the wall time between them.
+    /// Reads every pid once, or with `only` the pids its cgroups list; cpu is the tick delta against the last scan
+    /// over the wall time between them. The count is every process on the machine either way. Reading every pid, the
+    /// cap takes the threads' cgroups' members first, then the rest by pid, and kernel threads never count toward it.
     fn scan(&self, input: &ProcScanInput) -> Result<ProcScan, String> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.btime.is_none() {
@@ -294,16 +404,32 @@ impl ProcSource for ProcFsSource {
         let listed = std::fs::read_dir(&self.proc_root).map_err(|e| format!("{}: {e}", self.proc_root.display()))?;
         let mut pids: Vec<u32> = listed.flatten().filter_map(|d| d.file_name().to_str().and_then(|n| n.parse().ok())).collect();
         pids.sort_unstable();
+        let read = match &input.only {
+            Some(cgroups) => self.members(cgroups, input.daemon),
+            None => {
+                let threads: HashSet<u32> = self.members(&[numbers::THREAD_CGROUPS.to_owned()], input.daemon).into_iter().collect();
+                let (first, rest): (Vec<u32>, Vec<u32>) = pids.iter().partition(|pid| threads.contains(pid));
+                first.into_iter().chain(rest).collect()
+            }
+        };
         let mut procs = Vec::new();
         let mut seen = HashSet::new();
-        for pid in pids.iter().take(self.cap) {
+        let mut counted = 0;
+        for pid in &read {
+            if counted >= self.cap {
+                break;
+            }
             if let Some(entry) = self.read_one(&mut state, *pid, elapsed_ticks, input.pty.get(pid)) {
+                if !kernel_thread(&entry) {
+                    counted += 1;
+                }
                 seen.insert(*pid);
                 procs.push(entry);
             }
         }
+        procs.sort_unstable_by_key(|p| p.pid);
         state.known.retain(|pid, _| seen.contains(pid));
-        Ok(ProcScan { total: pids.len() as u64, procs })
+        Ok(ProcScan { total: pids.len() as u64, procs, child_ms: 0.0, cgroups: self.thread_memory() })
     }
 
     fn inspect(&self, pid: u32, procs: &[ProcEntry]) -> Result<ProcInspectReply, OpError> {
@@ -340,9 +466,15 @@ pub(crate) struct ProcSamplerOptions {
 #[derive(Default)]
 struct Inner {
     subscribers: HashMap<u64, Outbound>,
+    /// What each subscriber reads: the cgroups it named, or None for every process.
+    scopes: HashMap<u64, Option<Vec<String>>>,
     running: Option<AbortHandle>,
     last_at: Option<i64>,
     last_procs: Vec<ProcEntry>,
+    last_total: u64,
+    last_cgroups: Option<Vec<CgroupMemory>>,
+    /// Whether the last tick read every process, so a list may ride it; a tick narrowed to cgroups read only theirs.
+    last_whole: bool,
     /// What the last tick said, so a watch that arrives mid-stream inherits it; None until one has finished.
     last: Option<Result<(), String>>,
     /// The list every subscriber holds, which the next frame's changes are read against; None until the first
@@ -352,6 +484,8 @@ struct Inner {
     seq: u64,
     /// The subscribers that watched again, each of which is sent a whole snapshot in place of the next changes.
     owed: HashSet<u64>,
+    /// The threads the host last named, which every stamped scan reads its rows' owners off.
+    threads: Arc<Vec<ProcScope>>,
 }
 
 struct Sent {
@@ -359,6 +493,33 @@ struct Sent {
     at: i64,
     total: u64,
     procs: Vec<ProcEntry>,
+    containers: Option<Vec<ProcContainer>>,
+    cgroups: Option<Vec<CgroupMemory>>,
+}
+
+/// The cpu time the calling thread has spent, in milliseconds; zero where the clock cannot be read.
+fn thread_cpu_ms() -> f64 {
+    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    if unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) } != 0 {
+        return 0.0;
+    }
+    ts.tv_sec as f64 * 1000.0 + ts.tv_nsec as f64 / 1e6
+}
+
+/// The memory one list of rows takes: each row and the text it owns.
+fn held_bytes(procs: &[ProcEntry]) -> u64 {
+    let text = |p: &ProcEntry| {
+        p.user.capacity()
+            + p.state.capacity()
+            + p.comm.capacity()
+            + p.cmdline.capacity()
+            + p.pty.as_ref().map_or(0, String::capacity)
+            + p.cgroup.as_ref().map_or(0, String::capacity)
+            + p.owner
+                .as_ref()
+                .map_or(0, |o| o.thread.as_ref().map_or(0, String::capacity) + o.workspace.as_ref().map_or(0, String::capacity))
+    };
+    procs.iter().map(|p| (size_of::<ProcEntry>() + text(p)) as u64).sum()
 }
 
 /// The rows of `now` that are new or differ from `before`, and the pids of `before` that `now` no longer lists.
@@ -374,16 +535,35 @@ pub(crate) struct ProcSampler {
     source: Arc<dyn ProcSource>,
     opts: ProcSamplerOptions,
     inner: Mutex<Inner>,
+    /// Read and written inside each poll's blocking scan, never beside another.
+    ownership: Arc<Mutex<Ownership>>,
+    /// The engine's containers, on a computer whose kind reads them: followed while this sampler runs.
+    containers: std::sync::OnceLock<Arc<ContainerReader>>,
 }
 
 impl ProcSampler {
     pub(crate) fn new(source: Arc<dyn ProcSource>, opts: ProcSamplerOptions) -> Arc<ProcSampler> {
         let opts = ProcSamplerOptions { first: crate::sys::tick_of(opts.first), interval: crate::sys::tick_of(opts.interval), ..opts };
-        Arc::new(ProcSampler { source, opts, inner: Mutex::new(Inner::default()) })
+        Arc::new(ProcSampler {
+            source,
+            opts,
+            inner: Mutex::new(Inner::default()),
+            ownership: Arc::default(),
+            containers: Default::default(),
+        })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Follows the engine's containers whenever this sampler runs, each frame carrying them.
+    pub(crate) fn read_containers(&self, reader: Arc<ContainerReader>) {
+        let _ = self.containers.set(reader);
+    }
+
+    pub(crate) fn containers(&self) -> Option<&Arc<ContainerReader>> {
+        self.containers.get()
     }
 
     #[cfg(test)]
@@ -393,7 +573,7 @@ impl ProcSampler {
 
     /// A socket joining a stream already under way is sent the list the others hold, so the changes after it read
     /// against the same rows for everyone.
-    pub(crate) fn subscribe(self: &Arc<Self>, key: u64, out: Outbound) {
+    pub(crate) fn subscribe(self: &Arc<Self>, key: u64, out: Outbound, scope: Option<Vec<String>>) {
         let mut inner = self.lock();
         if let Some(sent) = &inner.sent {
             let snapshot = DaemonEvent::ProcSnapshot {
@@ -402,25 +582,39 @@ impl ProcSampler {
                 total: sent.total,
                 procs: sent.procs.clone(),
                 seq: Some(sent.seq),
+                cost: None,
+                containers: sent.containers.clone(),
+                cgroups: sent.cgroups.clone(),
             };
             out.send_text(&frame_text(&snapshot));
         }
         inner.subscribers.insert(key, out);
+        inner.scopes.insert(key, scope);
         if inner.subscribers.len() == 1 {
             self.start(&mut inner);
         }
     }
 
-    /// A watcher that missed a frame watches again: its next frame is whole, and the changes after it apply on it.
-    pub(crate) fn resend(&self, key: u64) {
+    /// A subscriber that watches again, naming its set anew: the next tick reads what they all name now, and its next
+    /// frame is whole.
+    pub(crate) fn rescope(&self, key: u64, scope: Option<Vec<String>>) {
         let mut inner = self.lock();
         if inner.subscribers.contains_key(&key) {
+            inner.scopes.insert(key, scope);
             inner.owed.insert(key);
         }
     }
 
+    /// The threads every stamped scan reads owners off, the whole list each time, whose roots a Mac's tracker follows
+    /// from now on.
+    pub(crate) fn set_scopes(&self, scopes: Vec<ProcScope>) {
+        self.source.scopes_moved(&scopes);
+        self.lock().threads = Arc::new(scopes);
+    }
+
     pub(crate) fn unsubscribe(&self, key: u64) {
         let mut inner = self.lock();
+        inner.scopes.remove(&key);
         if inner.subscribers.remove(&key).is_some() && inner.subscribers.is_empty() {
             self.stop(&mut inner);
         }
@@ -442,26 +636,77 @@ impl ProcSampler {
         };
         match inherited {
             Some(said) => said.map_err(OpError::plain),
-            None => self.scan(0, (self.opts.now)()).await.map(|_| ()).map_err(OpError::plain),
+            None => self.scan(0, (self.opts.now)(), self.only(), false).await.map(|_| ()).map_err(OpError::plain),
         }
     }
 
-    async fn scan(&self, elapsed_ms: i64, at: i64) -> Result<ProcScan, String> {
+    /// What a tick reads for its subscribers together: every process where any of them names no cgroups, else the
+    /// cgroups they name between them.
+    fn scope(inner: &Inner) -> Option<Vec<String>> {
+        let mut union = Vec::new();
+        for scope in inner.scopes.values() {
+            union.extend(scope.as_ref()?.iter().cloned());
+        }
+        union.sort();
+        union.dedup();
+        Some(union)
+    }
+
+    /// What the next tick reads: the subscribers' scope, every process where none subscribes.
+    fn only(&self) -> Option<Vec<String>> {
+        let inner = self.lock();
+        if inner.scopes.is_empty() {
+            None
+        } else {
+            Self::scope(&inner)
+        }
+    }
+
+    /// The scan of `only`, every process without it, and the cpu milliseconds it took on the thread that ran it. A
+    /// stamped scan names each row's owner; a probe's or an inspect's is thrown away or read for its tree alone.
+    async fn scan(&self, elapsed_ms: i64, at: i64, only: Option<Vec<String>>, stamp: bool) -> Result<(ProcScan, f64), String> {
+        Ok(self.scan_with(elapsed_ms, at, only, stamp, false).await?.0)
+    }
+
+    /// The scan, and with `containers` the containers read in the same blocking pass, their cgroup files beside /proc.
+    async fn scan_with(
+        &self,
+        elapsed_ms: i64,
+        at: i64,
+        only: Option<Vec<String>>,
+        stamp: bool,
+        containers: bool,
+    ) -> Result<((ProcScan, f64), Option<Vec<ProcContainer>>), String> {
+        let reader = self.containers.get().filter(|_| containers).cloned();
         let source = Arc::clone(&self.source);
         let pty: HashMap<u32, String> = (self.opts.ptys)().into_iter().collect();
-        tokio::task::spawn_blocking(move || source.scan(&ProcScanInput { at, elapsed_ms, pty }))
-            .await
-            .unwrap_or_else(|e| Err(e.to_string()))
+        let daemon = self.opts.self_pid;
+        let threads = Arc::clone(&self.lock().threads);
+        let ownership = Arc::clone(&self.ownership);
+        tokio::task::spawn_blocking(move || {
+            let from = thread_cpu_ms();
+            let mut scan = source.scan(&ProcScanInput { at, elapsed_ms, pty, only, daemon, scopes: Arc::clone(&threads) })?;
+            if stamp {
+                ownership.lock().unwrap_or_else(|e| e.into_inner()).stamp(&mut scan.procs, &threads, source.as_ref(), daemon);
+            }
+            let containers = reader.and_then(|r| r.rows(at));
+            Ok(((scan, thread_cpu_ms() - from), containers))
+        })
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()))
     }
 
     /// The first poll after a start is the cpu baseline and emits nothing; a failed read of one pid drops that pid for the tick.
     pub(crate) async fn poll(&self) {
         let at = (self.opts.now)();
         let elapsed = self.lock().last_at.map_or(0, |last| at - last);
-        let scanned = self.scan(elapsed, at).await;
+        let only = self.only();
+        let whole = only.is_none();
+        let scanned = self.scan_with(elapsed, at, only, true, true).await;
         let mut inner = self.lock();
-        let scan = match scanned {
-            Ok(scan) => scan,
+        let framing = thread_cpu_ms();
+        let ((scan, scan_ms), containers) = match scanned {
+            Ok(read) => read,
             Err(e) => {
                 inner.last = Some(Err(e));
                 return;
@@ -471,16 +716,50 @@ impl ProcSampler {
         let first = inner.last_at.is_none();
         inner.last_at = Some(at);
         inner.last_procs.clone_from(&scan.procs);
+        inner.last_total = scan.total;
+        inner.last_cgroups.clone_from(&scan.cgroups);
+        inner.last_whole = whole;
         if first {
             return;
         }
         let daemon = self.opts.self_pid;
         let seq = inner.seq + 1;
         inner.seq = seq;
-        let whole = frame_text(&DaemonEvent::ProcSnapshot { at, daemon, total: scan.total, procs: scan.procs.clone(), seq: Some(seq) });
-        let moved = inner.sent.as_ref().map(|sent| {
-            let (procs, gone) = changes(&sent.procs, &scan.procs);
-            frame_text(&DaemonEvent::ProcChanges { at, daemon, total: scan.total, procs, gone, seq, base: sent.seq })
+        // The rows are held twice between ticks, the last read and the list every watcher holds; the cpu is this tick's
+        // read, what it ran, and the changes found, the frames' text and their sends after it left out.
+        let moved_rows = inner.sent.as_ref().map(|sent| (changes(&sent.procs, &scan.procs), sent.seq));
+        let cost =
+            Some(ProcCost { cpu_ms: scan_ms + scan.child_ms + (thread_cpu_ms() - framing).max(0.0), held: 2 * held_bytes(&scan.procs) });
+        let whole = frame_text(&DaemonEvent::ProcSnapshot {
+            at,
+            daemon,
+            total: scan.total,
+            procs: scan.procs.clone(),
+            seq: Some(seq),
+            cost: cost.clone(),
+            containers: containers.clone(),
+            cgroups: scan.cgroups.clone(),
+        });
+        // The containers ride a changes frame whole, and only where they moved; a reader that lost the engine sends []
+        // once, so the rows it held go.
+        let moved_containers = match (&inner.sent, &containers) {
+            (Some(sent), now) if sent.containers == *now => None,
+            (_, Some(now)) => Some(now.clone()),
+            (_, None) => Some(Vec::new()),
+        };
+        let moved = moved_rows.map(|((procs, gone), base)| {
+            frame_text(&DaemonEvent::ProcChanges {
+                at,
+                daemon,
+                total: scan.total,
+                procs,
+                gone,
+                seq,
+                base,
+                cost: cost.clone(),
+                containers: moved_containers.clone(),
+                cgroups: scan.cgroups.clone(),
+            })
         });
         let owed = std::mem::take(&mut inner.owed);
         for (key, out) in &inner.subscribers {
@@ -489,7 +768,7 @@ impl ProcSampler {
                 _ => out.send_text(&whole),
             };
         }
-        inner.sent = Some(Sent { seq, at, total: scan.total, procs: scan.procs });
+        inner.sent = Some(Sent { seq, at, total: scan.total, procs: scan.procs, containers, cgroups: scan.cgroups });
     }
 
     pub(crate) async fn inspect(&self, pid: u32) -> Result<ProcInspectReply, OpError> {
@@ -499,10 +778,34 @@ impl ProcSampler {
         };
         let procs = match held {
             Some(procs) => procs,
-            None => self.scan(0, (self.opts.now)()).await.map_err(OpError::plain)?.procs,
+            None => self.scan(0, (self.opts.now)(), self.only(), false).await.map_err(OpError::plain)?.0.procs,
         };
         let source = Arc::clone(&self.source);
         tokio::task::spawn_blocking(move || source.inspect(pid, &procs)).await.unwrap_or_else(|e| Err(OpError::plain(e.to_string())))
+    }
+
+    /// Every process once, each row's owner named, since settle and delete read their thread's processes off it with
+    /// nobody watching. A running sampler's last rows stand where that tick read every process, since a scan of its
+    /// own beside the tick would leave the module's per pid state read from two clocks; with none running, or one
+    /// narrowed to cgroups, one scan, whose cpu reads 0, and the narrowed watch's next cpu reads low for that tick.
+    pub(crate) async fn list(&self) -> Result<ProcListReply, OpError> {
+        let held = {
+            let inner = self.lock();
+            inner
+                .last_at
+                .filter(|_| inner.last_whole)
+                .map(|at| (at, inner.last_total, inner.last_procs.clone(), inner.last_cgroups.clone()))
+        };
+        let daemon = self.opts.self_pid;
+        let (at, total, procs, cgroups) = match held {
+            Some(held) => held,
+            None => {
+                let at = (self.opts.now)();
+                let (scan, _) = self.scan(0, at, None, true).await.map_err(OpError::plain)?;
+                (at, scan.total, scan.procs, scan.cgroups)
+            }
+        };
+        Ok(ProcListReply { at, daemon, total, procs, cgroups })
     }
 
     fn start(self: &Arc<Self>, inner: &mut Inner) {
@@ -523,6 +826,9 @@ impl ProcSampler {
             }
         });
         inner.running = Some(task.abort_handle());
+        if let Some(reader) = self.containers.get() {
+            reader.start();
+        }
         (self.opts.log)(words::PROC_SAMPLER_STARTED);
     }
 
@@ -531,37 +837,14 @@ impl ProcSampler {
             task.abort();
             (self.opts.log)(words::PROC_SAMPLER_STOPPED);
         }
+        if let Some(reader) = self.containers.get() {
+            reader.stop();
+        }
         inner.last_at = None;
         inner.last = None;
         inner.sent = None;
         inner.owed.clear();
-    }
-}
-
-/// init, the daemon and whatever started the daemon: never signalled, the workspace would go with them.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ProtectedPids {
-    pub(crate) this: u32,
-    pub(crate) parent: u32,
-}
-
-/// Signals one process.
-pub(crate) fn kill_process(pid: u32, signal: ProcSignal, protected: ProtectedPids) -> Result<(), OpError> {
-    if pid == 1 || pid == protected.this || pid == protected.parent {
-        return Err(OpError::coded(
-            DaemonErrorCode::Forbidden,
-            format!("refusing to signal pid {pid}: it is init, the daemon or the daemon's parent"),
-        ));
-    }
-    let signal = match signal {
-        ProcSignal::Kill => Signal::SIGKILL,
-        ProcSignal::Term => Signal::SIGTERM,
-    };
-    match kill(Pid::from_raw(pid as i32), signal) {
-        Ok(()) => Ok(()),
-        Err(nix::errno::Errno::ESRCH) => Err(no_process(pid)),
-        Err(nix::errno::Errno::EPERM) => Err(OpError::coded(DaemonErrorCode::Forbidden, format!("no permission to signal pid {pid}"))),
-        Err(e) => Err(OpError::plain(e.to_string())),
+        self.ownership.lock().unwrap_or_else(|e| e.into_inner()).forget();
     }
 }
 
@@ -570,557 +853,5 @@ pub(crate) fn kill_process(pid: u32, signal: ProcSignal, protected: ProtectedPid
 pub(crate) mod fake_proc;
 
 #[cfg(test)]
-mod tests {
-    use super::fake_proc::{auxv, fake_passwd, fake_proc_tree, write_proc, FakeProc, BTIME};
-    use super::*;
-    use crate::sys::now_ms;
-    use crate::Outgoing;
-    use serde_json::{json, Value};
-    use std::process::Stdio;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use tokio::io::{AsyncBufReadExt, BufReader};
-    use tokio::sync::mpsc;
-
-    #[test]
-    fn a_rows_cgroup_is_the_v2_line_of_its_cgroup_file_and_nothing_where_there_is_none() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("cgroup"), "12:pids:/legacy\n0::/wsp-threads/t_abc\n").unwrap();
-        assert_eq!(read_cgroup(dir.path()).as_deref(), Some("/wsp-threads/t_abc"));
-        std::fs::write(dir.path().join("cgroup"), "1:name=systemd:/\n").unwrap();
-        assert_eq!(read_cgroup(dir.path()), None);
-        std::fs::remove_file(dir.path().join("cgroup")).unwrap();
-        assert_eq!(read_cgroup(dir.path()), None);
-    }
-
-    #[test]
-    fn reads_proc_pid_stat_around_a_comm_that_holds_spaces_and_parens() {
-        let zeros = vec!["0"; 28].join(" ");
-        let st = parse_proc_pid_stat(&format!(
-            "42 (my (odd) proc) R 7 42 42 0 -1 4194560 10 0 0 0 150 50 0 0 20 0 3 0 12345 1000000 256 {zeros}\n"
-        ))
-        .unwrap();
-        assert_eq!(
-            st,
-            ProcStat {
-                pid: 42,
-                comm: "my (odd) proc".into(),
-                state: "R".into(),
-                ppid: 7,
-                pgrp: 42,
-                ticks: 200,
-                threads: 3,
-                starttime: 12345,
-                rss_pages: 256
-            }
-        );
-    }
-
-    #[test]
-    fn rejects_a_stat_line_without_the_comm_parens() {
-        assert!(parse_proc_pid_stat("42 broken\n").is_err());
-        assert!(parse_proc_pid_stat("42 (short) R 7\n").is_err());
-    }
-
-    #[test]
-    fn btime_the_page_size_from_auxv_and_users_from_passwd() {
-        assert_eq!(parse_btime(&format!("cpu 1 2 3\nbtime {BTIME}\n")).unwrap(), BTIME);
-        assert!(parse_btime("cpu 1 2 3\n").is_err());
-        assert_eq!(parse_auxv_page_size(&auxv(16384)), Some(16384));
-        assert_eq!(parse_auxv_page_size(&[0u8; 16]), None);
-        let users = parse_passwd_users("root:x:0:0:root:/root:/bin/bash\nnobody:x:65534:65534::/:/bin/false\nbad line\n");
-        assert_eq!(users, HashMap::from([(0, "root".to_owned()), (65534, "nobody".to_owned())]));
-    }
-
-    #[test]
-    fn listening_rows_keep_the_listen_state_only() {
-        let text = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/proc-net-tcp.txt")).unwrap();
-        assert_eq!(listening_rows(&text), vec![(8080, 45678), (3000, 45700)]);
-        assert_eq!(listening_rows(""), vec![]);
-    }
-
-    fn quiet() -> SharedLog {
-        Arc::new(|_| {})
-    }
-
-    struct Clock(Mutex<i64>);
-
-    struct Bench {
-        sampler: Arc<ProcSampler>,
-        rx: mpsc::UnboundedReceiver<Outgoing>,
-        root: tempfile::TempDir,
-        _passwd: tempfile::TempDir,
-        clock: Arc<Clock>,
-    }
-
-    impl Bench {
-        fn got(&mut self) -> Vec<Value> {
-            let mut out = Vec::new();
-            while let Ok(text) = self.rx.try_recv() {
-                let v: Value = serde_json::from_str(text.text()).unwrap();
-                assert!(serde_json::from_value::<DaemonEvent>(v.clone()).is_ok(), "the protocol parses {v}");
-                out.push(v);
-            }
-            out
-        }
-
-        fn advance(&self, ms: i64) {
-            *self.clock.0.lock().unwrap() += ms;
-        }
-    }
-
-    fn sampler(procs: &[FakeProc], ptys: Vec<(u32, String)>, cap: Option<usize>, page_size: u64) -> Bench {
-        let root = fake_proc_tree(procs, page_size);
-        let (passwd_dir, passwd) = fake_passwd();
-        let clock = Arc::new(Clock(Mutex::new(1_000_000)));
-        let now = Arc::clone(&clock);
-        let source = Arc::new(ProcFsSource::new(root.path().to_path_buf(), passwd, cap.unwrap_or(numbers::PROC_CAP)));
-        let sampler = ProcSampler::new(
-            source,
-            ProcSamplerOptions {
-                self_pid: 4242,
-                ptys: Arc::new(move || ptys.clone()),
-                first: Duration::from_secs(60),
-                interval: Duration::from_secs(60),
-                now: Arc::new(move || *now.0.lock().unwrap()),
-                log: quiet(),
-            },
-        );
-        let (tx, rx) = mpsc::unbounded_channel();
-        sampler.lock().subscribers.insert(1, Outbound(tx));
-        Bench { sampler, rx, root, _passwd: passwd_dir, clock }
-    }
-
-    struct Fake {
-        scans: AtomicUsize,
-        broken: AtomicBool,
-    }
-
-    impl ProcSource for Fake {
-        fn scan(&self, _: &ProcScanInput) -> Result<ProcScan, String> {
-            self.scans.fetch_add(1, Ordering::SeqCst);
-            if self.broken.load(Ordering::SeqCst) {
-                return Err("this machine cannot be read".to_owned());
-            }
-            Ok(ProcScan { total: 0, procs: vec![] })
-        }
-        fn inspect(&self, pid: u32, _: &[ProcEntry]) -> Result<ProcInspectReply, OpError> {
-            Ok(ProcInspectReply { pid, cwd: None, ports: vec![], threads: None, children: vec![] })
-        }
-    }
-
-    #[tokio::test]
-    async fn a_probe_scans_once_for_the_first_watcher_and_rides_the_running_stream_for_the_next_refusal_and_all() {
-        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false) });
-        let scans = || source.scans.load(Ordering::SeqCst);
-        let opts = ProcSamplerOptions {
-            self_pid: 1,
-            ptys: Arc::new(Vec::new),
-            first: Duration::from_secs(60),
-            interval: Duration::from_secs(60),
-            now: Arc::new(now_ms),
-            log: quiet(),
-        };
-        let s = ProcSampler::new(source.clone(), opts);
-        s.probe().await.unwrap();
-        assert_eq!(scans(), 1);
-        let (tx, _rx) = mpsc::unbounded_channel();
-        s.subscribe(1, Outbound(tx));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        assert_eq!(scans(), 2);
-        // Already polling, so the next watcher inherits that tick rather than scanning beside it.
-        s.probe().await.unwrap();
-        assert_eq!(scans(), 2);
-        source.broken.store(true, Ordering::SeqCst);
-        s.poll().await;
-        assert_eq!(s.probe().await.unwrap_err().message, "this machine cannot be read");
-        assert_eq!(scans(), 3);
-        s.unsubscribe(1);
-        source.broken.store(false, Ordering::SeqCst);
-        s.probe().await.unwrap();
-        assert_eq!(scans(), 4);
-    }
-
-    #[tokio::test]
-    async fn a_zero_interval_reads_as_the_shortest_tick_and_never_ends_the_daemon() {
-        let source = Arc::new(Fake { scans: AtomicUsize::new(0), broken: AtomicBool::new(false) });
-        let opts = ProcSamplerOptions {
-            self_pid: 1,
-            ptys: Arc::new(Vec::new),
-            first: Duration::ZERO,
-            interval: Duration::ZERO,
-            now: Arc::new(now_ms),
-            log: quiet(),
-        };
-        let s = ProcSampler::new(source.clone(), opts);
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        s.subscribe(1, Outbound(tx));
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        assert!(s.running());
-        assert!(source.scans.load(Ordering::SeqCst) >= 2);
-        assert!(rx.try_recv().is_ok());
-        s.unsubscribe(1);
-    }
-
-    #[tokio::test]
-    async fn emits_nothing_on_the_first_poll_and_a_snapshot_of_every_process_with_cpu_over_the_interval_on_the_next() {
-        let mut b = sampler(
-            &[
-                FakeProc {
-                    pid: 1,
-                    comm: Some("init".into()),
-                    cmdline: Some(vec!["/sbin/init".into(), "splash".into()]),
-                    starttime: Some(100),
-                    rss: Some(300),
-                    ..FakeProc::default()
-                },
-                FakeProc {
-                    pid: 4242,
-                    ppid: Some(1),
-                    comm: Some("node".into()),
-                    cmdline: Some(vec!["node".into(), "/opt/wsp/daemon.js".into()]),
-                    ticks: Some((100, 50)),
-                    starttime: Some(500),
-                    rss: Some(12_000),
-                    ..FakeProc::default()
-                },
-                FakeProc {
-                    pid: 77,
-                    ppid: Some(4242),
-                    comm: Some("bash".into()),
-                    cmdline: Some(vec!["bash".into(), "-l".into()]),
-                    state: Some("R".into()),
-                    threads: Some(2),
-                    ..FakeProc::default()
-                },
-                FakeProc { pid: 2, comm: Some("kthreadd".into()), cmdline: Some(vec![]), ..FakeProc::default() },
-            ],
-            vec![(77, "pty_1".to_owned())],
-            None,
-            4096,
-        );
-        b.sampler.poll().await;
-        assert!(b.got().is_empty());
-        // Two seconds later the daemon used 100 more ticks: one core's worth at 100 ticks a second is 50 percent.
-        write_proc(
-            b.root.path(),
-            &FakeProc {
-                pid: 4242,
-                ppid: Some(1),
-                comm: Some("node".into()),
-                cmdline: Some(vec!["node".into(), "/opt/wsp/daemon.js".into()]),
-                ticks: Some((180, 70)),
-                starttime: Some(500),
-                rss: Some(12_500),
-                ..FakeProc::default()
-            },
-        );
-        b.advance(2_000);
-        b.sampler.poll().await;
-        let got = b.got();
-        assert_eq!(got.len(), 1);
-        let snap = &got[0];
-        assert_eq!(
-            (&snap["type"], &snap["at"], &snap["daemon"], &snap["total"]),
-            (&json!("proc.snapshot"), &json!(1_002_000), &json!(4242), &json!(4))
-        );
-        let procs = snap["procs"].as_array().unwrap();
-        assert_eq!(procs.iter().map(|p| p["pid"].as_u64().unwrap()).collect::<Vec<_>>(), vec![1, 2, 77, 4242]);
-        let by_pid = |pid: u64| procs.iter().find(|p| p["pid"] == json!(pid)).unwrap().clone();
-        assert_eq!(
-            by_pid(4242),
-            json!({"pid": 4242, "ppid": 1, "user": "tester", "state": "S", "comm": "node", "cmdline": "node /opt/wsp/daemon.js", "cpu": 50.0, "rss": 12_500 * 4096, "startedAt": (BTIME + 5) * 1000})
-        );
-        let p77 = by_pid(77);
-        assert_eq!(
-            (&p77["ppid"], &p77["state"], &p77["cmdline"], &p77["cpu"], &p77["pty"]),
-            (&json!(4242), &json!("R"), &json!("bash -l"), &json!(0.0), &json!("pty_1"))
-        );
-        assert_eq!((&by_pid(2)["comm"], &by_pid(2)["cmdline"]), (&json!("kthreadd"), &json!("")));
-        assert_eq!(
-            (&by_pid(1)["cmdline"], &by_pid(1)["startedAt"], &by_pid(1)["rss"]),
-            (&json!("/sbin/init splash"), &json!((BTIME + 1) * 1000), &json!(300 * 4096))
-        );
-        assert!(by_pid(1).get("pty").is_none());
-    }
-
-    #[tokio::test]
-    async fn caps_cmdline_at_200_bytes_reads_it_again_only_after_an_exec_changed_the_comm_and_takes_the_page_size_from_auxv() {
-        let long = "x".repeat(500);
-        let mut b = sampler(
-            &[FakeProc { pid: 9, comm: Some("sh".into()), cmdline: Some(vec!["sh".into(), "-c".into(), long]), ..FakeProc::default() }],
-            vec![],
-            None,
-            16384,
-        );
-        b.sampler.poll().await;
-        b.advance(2_000);
-        b.sampler.poll().await;
-        let first = b.got().remove(0);
-        assert_eq!(first["procs"][0]["cmdline"].as_str().unwrap().len(), 200);
-        assert!(first["procs"][0]["cmdline"].as_str().unwrap().starts_with("sh -c xxx"));
-        assert_eq!(first["procs"][0]["rss"], json!(10 * 16384));
-        // The same pid, comm and start time: the cached cmdline stands even though the file changed underneath, so
-        // the row has not changed.
-        std::fs::write(b.root.path().join("9/cmdline"), b"ignored\0").unwrap();
-        b.advance(2_000);
-        b.sampler.poll().await;
-        assert_eq!(b.got().remove(0)["procs"], json!([]));
-        // An exec changes the comm; the cmdline is read afresh.
-        write_proc(
-            b.root.path(),
-            &FakeProc { pid: 9, comm: Some("node".into()), cmdline: Some(vec!["node".into(), "app.js".into()]), ..FakeProc::default() },
-        );
-        b.advance(2_000);
-        b.sampler.poll().await;
-        let third = b.got().remove(0);
-        assert_eq!((&third["procs"][0]["comm"], &third["procs"][0]["cmdline"]), (&json!("node"), &json!("node app.js")));
-    }
-
-    #[tokio::test]
-    async fn a_snapshot_after_one_changed_process_carries_only_that_change() {
-        let mut b = sampler(
-            &[
-                FakeProc { pid: 1, comm: Some("init".into()), rss: Some(300), ..FakeProc::default() },
-                FakeProc { pid: 77, ppid: Some(1), comm: Some("bash".into()), rss: Some(500), ..FakeProc::default() },
-                FakeProc { pid: 78, ppid: Some(1), comm: Some("sleep".into()), rss: Some(100), ..FakeProc::default() },
-            ],
-            vec![],
-            None,
-            4096,
-        );
-        b.sampler.poll().await;
-        b.advance(5_000);
-        b.sampler.poll().await;
-        let first = b.got();
-        assert_eq!((first.len(), &first[0]["type"]), (1, &json!("proc.snapshot")));
-        assert_eq!(first[0]["procs"].as_array().unwrap().len(), 3);
-
-        write_proc(b.root.path(), &FakeProc { pid: 77, ppid: Some(1), comm: Some("bash".into()), rss: Some(900), ..FakeProc::default() });
-        b.advance(5_000);
-        b.sampler.poll().await;
-        let changed = b.got();
-        assert_eq!(changed.len(), 1);
-        assert_eq!(
-            (&changed[0]["type"], &changed[0]["at"], &changed[0]["total"], &changed[0]["gone"]),
-            (&json!("proc.changes"), &json!(1_010_000), &json!(3), &json!([]))
-        );
-        assert_eq!(
-            changed[0]["procs"].as_array().unwrap().iter().map(|p| (p["pid"].clone(), p["rss"].clone())).collect::<Vec<_>>(),
-            [(json!(77), json!(900 * 4096))]
-        );
-
-        std::fs::remove_dir_all(b.root.path().join("78")).unwrap();
-        b.advance(5_000);
-        b.sampler.poll().await;
-        let gone = b.got();
-        assert_eq!(
-            (&gone[0]["type"], &gone[0]["procs"], &gone[0]["gone"], &gone[0]["total"]),
-            (&json!("proc.changes"), &json!([]), &json!([78]), &json!(2))
-        );
-    }
-
-    #[tokio::test]
-    async fn a_socket_joining_mid_stream_is_sent_the_whole_list_at_once_and_the_same_changes_after() {
-        let mut b = sampler(
-            &[
-                FakeProc { pid: 1, comm: Some("init".into()), ..FakeProc::default() },
-                FakeProc { pid: 5, rss: Some(10), ..FakeProc::default() },
-            ],
-            vec![],
-            None,
-            4096,
-        );
-        b.sampler.poll().await;
-        b.advance(5_000);
-        b.sampler.poll().await;
-        b.got();
-        let (tx, mut joined) = mpsc::unbounded_channel();
-        b.sampler.subscribe(2, Outbound(tx));
-        let first: Value = serde_json::from_str(joined.try_recv().unwrap().text()).unwrap();
-        assert_eq!(
-            (&first["type"], &first["at"], first["procs"].as_array().unwrap().len()),
-            (&json!("proc.snapshot"), &json!(1_005_000), 2)
-        );
-        write_proc(b.root.path(), &FakeProc { pid: 5, rss: Some(20), ..FakeProc::default() });
-        b.advance(5_000);
-        b.sampler.poll().await;
-        let after: Value = serde_json::from_str(joined.try_recv().unwrap().text()).unwrap();
-        assert_eq!(b.got(), std::slice::from_ref(&after));
-        assert_eq!(
-            (&after["type"], &after["procs"][0]["pid"], after["procs"].as_array().unwrap().len()),
-            (&json!("proc.changes"), &json!(5), 1)
-        );
-    }
-
-    #[tokio::test]
-    async fn drops_a_process_that_went_away_reads_a_new_one_with_cpu_0_and_never_counts_a_returned_pid_against_the_old_ticks() {
-        let mut b = sampler(
-            &[
-                FakeProc { pid: 5, ticks: Some((100, 0)), starttime: Some(10), ..FakeProc::default() },
-                FakeProc { pid: 6, ticks: Some((0, 0)), ..FakeProc::default() },
-            ],
-            vec![],
-            None,
-            4096,
-        );
-        b.sampler.poll().await;
-        std::fs::remove_dir_all(b.root.path().join("6")).unwrap();
-        write_proc(b.root.path(), &FakeProc { pid: 7, ticks: Some((900, 900)), ..FakeProc::default() });
-        write_proc(b.root.path(), &FakeProc { pid: 5, ticks: Some((10, 0)), starttime: Some(900), ..FakeProc::default() });
-        b.advance(2_000);
-        b.sampler.poll().await;
-        let snap = b.got().remove(0);
-        let rows: Vec<(u64, f64)> =
-            snap["procs"].as_array().unwrap().iter().map(|p| (p["pid"].as_u64().unwrap(), p["cpu"].as_f64().unwrap())).collect();
-        assert_eq!(rows, vec![(5, 0.0), (7, 0.0)]);
-    }
-
-    #[tokio::test]
-    async fn stops_at_the_cap_and_says_how_many_there_were() {
-        let procs: Vec<FakeProc> = (1..=12).map(|pid| FakeProc { pid, ..FakeProc::default() }).collect();
-        let mut b = sampler(&procs, vec![], Some(5), 4096);
-        b.sampler.poll().await;
-        b.advance(2_000);
-        b.sampler.poll().await;
-        let snap = b.got().remove(0);
-        assert_eq!(snap["total"], json!(12));
-        assert_eq!(snap["procs"].as_array().unwrap().iter().map(|p| p["pid"].as_u64().unwrap()).collect::<Vec<_>>(), vec![1, 2, 3, 4, 5]);
-    }
-
-    #[tokio::test]
-    async fn runs_from_the_first_subscriber_to_the_last_and_reads_nothing_in_between_polls() {
-        let b = sampler(&[FakeProc { pid: 1, ..FakeProc::default() }], vec![], None, 4096);
-        b.sampler.lock().subscribers.clear();
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let (tx2, _rx2) = mpsc::unbounded_channel();
-        assert!(!b.sampler.running());
-        b.sampler.subscribe(1, Outbound(tx));
-        assert!(b.sampler.running());
-        b.sampler.subscribe(2, Outbound(tx2));
-        b.sampler.unsubscribe(1);
-        b.sampler.unsubscribe(1);
-        assert!(b.sampler.running());
-        b.sampler.unsubscribe(2);
-        assert!(!b.sampler.running());
-    }
-
-    #[tokio::test]
-    async fn inspect_reads_cwd_listening_ports_by_socket_inode_threads_and_children_for_one_pid() {
-        let b = sampler(
-            &[
-                FakeProc { pid: 1, comm: Some("init".into()), ..FakeProc::default() },
-                FakeProc {
-                    pid: 30,
-                    ppid: Some(1),
-                    comm: Some("node".into()),
-                    threads: Some(7),
-                    cwd: Some("/root/app".into()),
-                    socket_inodes: Some(vec![111_111, 222_222]),
-                    ..FakeProc::default()
-                },
-                FakeProc { pid: 31, ppid: Some(30), comm: Some("sh".into()), ..FakeProc::default() },
-                FakeProc { pid: 32, ppid: Some(30), comm: Some("sh".into()), ..FakeProc::default() },
-                FakeProc { pid: 40, ppid: Some(1), comm: Some("nginx".into()), socket_inodes: Some(vec![333_333]), ..FakeProc::default() },
-            ],
-            vec![],
-            None,
-            4096,
-        );
-        std::fs::write(
-            b.root.path().join("net/tcp"),
-            [
-                "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
-                "   0: 00000000:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 111111 1 0000000000000000 100 0 0 10 0",
-                "   1: 0100007F:0BB8 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 333333 1 0000000000000000 100 0 0 10 0",
-                "   2: 0100007F:C350 0100007F:1F90 01 00000000:00000000 00:00000000 00000000     0        0 222222 1 0000000000000000 100 0 0 10 0",
-                "",
-            ]
-            .join("\n"),
-        )
-        .unwrap();
-        b.sampler.poll().await;
-        b.advance(2_000);
-        b.sampler.poll().await;
-        assert_eq!(
-            b.sampler.inspect(30).await.unwrap(),
-            ProcInspectReply { pid: 30, cwd: Some("/root/app".into()), ports: vec![8080], threads: Some(7), children: vec![31, 32] }
-        );
-        assert_eq!(
-            b.sampler.inspect(40).await.unwrap(),
-            ProcInspectReply { pid: 40, cwd: None, ports: vec![3000], threads: Some(1), children: vec![] }
-        );
-        assert_eq!(b.sampler.inspect(999).await.unwrap_err().code, Some(DaemonErrorCode::NotFound));
-    }
-
-    #[tokio::test]
-    async fn inspect_without_a_running_watch_scans_once_for_the_children() {
-        let b = sampler(
-            &[FakeProc { pid: 1, ..FakeProc::default() }, FakeProc { pid: 2, ppid: Some(1), ..FakeProc::default() }],
-            vec![],
-            None,
-            4096,
-        );
-        assert_eq!(b.sampler.inspect(1).await.unwrap().children, vec![2]);
-    }
-
-    const PROTECTED: ProtectedPids = ProtectedPids { this: 5000, parent: 4000 };
-
-    #[test]
-    fn refuses_init_the_daemon_and_the_daemons_parent_with_code_forbidden() {
-        for pid in [1, 5000, 4000] {
-            assert_eq!(kill_process(pid, ProcSignal::Term, PROTECTED).unwrap_err().code, Some(DaemonErrorCode::Forbidden));
-        }
-    }
-
-    #[test]
-    fn a_pid_that_is_gone_answers_not_found() {
-        // 2^22 - 1 is above every Linux pid_max default and no macOS pid.
-        let err = kill_process(4_194_303, ProcSignal::Term, PROTECTED).unwrap_err();
-        assert_eq!((err.code, err.message.as_str()), (Some(DaemonErrorCode::NotFound), "no process 4194303"));
-    }
-
-    /// Waits for one line on a child's stdout; a child that ends first fails the wait by name.
-    async fn line(lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>, want: &str) {
-        loop {
-            let next = tokio::time::timeout(Duration::from_secs(10), lines.next_line()).await.unwrap().unwrap();
-            match next {
-                Some(l) if l == want => return,
-                Some(_) => continue,
-                None => panic!("the child ended without printing {want}"),
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn sends_term_then_kill_to_a_child_this_test_started() {
-        let mut child =
-            tokio::process::Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).kill_on_drop(true).spawn().unwrap();
-        kill_process(child.id().unwrap(), ProcSignal::Term, PROTECTED).unwrap();
-        let status = child.wait().await.unwrap();
-        assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(15));
-
-        // One process that ignores TERM, so nothing is left behind when KILL takes it. It speaks once its handlers are
-        // in place, again when the TERM lands and again when asked: the case waits for those lines, since kill_process
-        // sends one signal and returns and there is no grace anywhere in the kill road to read.
-        let script = "trap 'echo termed' TERM; trap 'echo alive' USR1; echo ready; while :; do sleep 0.05; done";
-        let mut stubborn = tokio::process::Command::new("bash")
-            .args(["-c", script])
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .unwrap();
-        let pid = stubborn.id().unwrap();
-        let mut lines = BufReader::new(stubborn.stdout.take().unwrap()).lines();
-        line(&mut lines, "ready").await;
-        kill_process(pid, ProcSignal::Term, PROTECTED).unwrap();
-        line(&mut lines, "termed").await;
-        // A process that exited but has not been reaped answers signal 0 too, so the child is also asked to speak again.
-        kill(Pid::from_raw(pid as i32), Signal::SIGUSR1).unwrap();
-        line(&mut lines, "alive").await;
-        assert!(stubborn.try_wait().unwrap().is_none());
-        kill_process(pid, ProcSignal::Kill, PROTECTED).unwrap();
-        let status = stubborn.wait().await.unwrap();
-        assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(9));
-    }
-}
+#[path = "../tests/proc/mod.rs"]
+mod tests;

@@ -42,6 +42,10 @@
 //   settings-light-picked the Light segment picked on the dark side
 //   settings-computers    the Computers list: this Mac, three boxes joined and
 //                         the cloud whose key this host holds
+//   settings-computers-live  the Computers list with a live CPU and memory band under each computer of the
+//                         person's own (this Mac building, hetzner idle, lab away) and none for the cloud, fed
+//                         every two seconds, with a switch between the two themes; &computers=5 adds two boxes
+//                         and has lab answering, &bands=0 draws the same list with no band
 //   settings-computer     the box whose recipe is done, its own page
 //   settings-computer-failed  the box whose recipe lost rows
 //   settings-this-mac     this Mac's page, the agents found here
@@ -66,6 +70,9 @@
 //                         draws its Image card (&image=none as above; &copies=none
 //                         keeps the image with no copy anywhere, so the card reads Not here yet)
 //   settings-remove-computer  the Remove dialog over the box's page
+//   settings-activity     Activity on the Mac: wsp's parts, five threads and what each started, No thread, fed a
+//                         frame every two seconds after the first minutes (?view= processes, kinds or ports;
+//                         &energy=0 a computer with no energy counter); settings-activity-hot a build past its marks
 //   settings-agents       the Agents page on this Mac: the default agent, then Claude Code
 //                         with an update out, Codex, and OpenCode not installed
 //   settings-agent        Claude Code's own page on this Mac, with launch words and two variables
@@ -100,6 +107,9 @@
 //                    and Pi to install, every server state a connect answers
 //                    (&signin=unset: a server's sign-in fails at once, its harness
 //                    having no server of that name)
+//   processes-widths the Processes pane of Activity's design thread on this Mac at
+//                    540, 480, 400 and its 360 floor: its agent, tool servers, dev
+//                    server and slate, and its child thread folded under it
 //   panel-agents     the task on the box selected, its panel open on Agents
 //                    (&fork=solari: the same task a fork at Solari, whose one
 //                    act is Edit image)
@@ -110,10 +120,14 @@
 import { createRoot } from "react-dom/client";
 import { CATALOG_AGENTS, agentName } from "@wsp/catalog";
 import { manyAgents } from "./agents";
+import { ACTIVITY_APP_PROCS, ACTIVITY_SESSIONS, feedActivity } from "./activity";
+import { wireAppProcs } from "../../src/machine/appProcs";
 import { DAEMON_VERSION, DEFAULT_PREFERENCES, copyFirstLine, hostnameSetLine, type HarnessCatalog, GOLDEN_STAGE_WORDS, MACHINE_ROW_LABEL, STOP_LEFT_MACHINE_LINE, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type InitAgent, type InitJob, type InitRow, type InitScreen, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
 import { AppShell } from "../../src/shell/AppShell";
 import { FirstRun } from "../../src/shell/FirstRun";
 import { AgentsSurface } from "../../src/components/agents/AgentsSurface";
+import { ProcessesSurface } from "../../src/components/procs/ProcessesSurface";
+import { HERE_KEY } from "../../src/terminal/computer";
 import { HARNESS_DEFAULTS, HARNESSES } from "../fixtures/harnesses";
 import { AGENTS_PAGE_REPORT, AGENTS_REPORT, AGENTS_SETUP_REPORT, AGENTS_TOOLS_REPORT, HOSTILE_SKILL_MD, SERVER_TOOLS, SKILL_HITS, SKILL_PREVIEWS } from "../fixtures/agents-report";
 import { useSettingsStore, type SettingsAt } from "../../src/settings/settingsStore";
@@ -129,6 +143,8 @@ import { KEY_REFUSED_LINE, KEY_REFUSED_ROWS } from "../fixtures/keyRefusedJob";
 import "../../src/index.css";
 import { imageBuildLine } from "../../src/shell/creationLog";
 import { WorkspaceThread } from "../../src/shell/WorkspaceThread";
+import { Button } from "../../src/components/ui/button";
+import { LAB_AWAY_MS, liveHost } from "./liveReadings";
 
 const params = new URLSearchParams(window.location.search);
 const screen = params.get("screen") ?? "sidebar";
@@ -390,6 +406,7 @@ const SETTINGS_SCREENS: Record<string, SettingsAt> = {
   "settings-appearance": { kind: "group", group: "appearance" },
   "settings-light-picked": { kind: "group", group: "appearance" },
   "settings-computers": { kind: "group", group: "computers" },
+  "settings-computers-live": { kind: "group", group: "computers" },
   "settings-computer": { kind: "computer", id: "p_spoo" },
   "settings-computer-failed": { kind: "computer", id: "p_lab" },
   "settings-this-mac": { kind: "computer", id: "here" },
@@ -400,6 +417,8 @@ const SETTINGS_SCREENS: Record<string, SettingsAt> = {
   "settings-account": { kind: "group", group: "account" },
   "settings-privacy": { kind: "group", group: "privacy" },
   "settings-usage": { kind: "group", group: "usage" },
+  "settings-activity": { kind: "group", group: "activity" },
+  "settings-activity-hot": { kind: "group", group: "activity" },
   "settings-keybindings": { kind: "group", group: "keybindings" },
   "settings-version": { kind: "group", group: "general" },
   "settings-version-behind": { kind: "group", group: "general" },
@@ -454,7 +473,23 @@ const FAILED_ADD: PlaceAddJob = {
 };
 const settings = settingsAt !== undefined;
 /** Every computer this host holds on a settings screen: this Mac, three boxes and the cloud whose key it holds. */
-const computers = settings || params.get("fork") === "solari" ? COMPUTERS : places;
+const live = screen === "settings-computers-live";
+/** The five-computer measure has every computer answering, lab too. */
+const labLive = params.get("computers") === "5";
+/** The computers the live screen draws: this Mac, a box at rest, a box that stopped answering, and a cloud. */
+const LIVE_COMPUTERS: PlaceView[] = [
+  { ...COMPUTERS[0]!, name: "zingzy's MacBook Pro" } as PlaceView,
+  box("p_hetzner", "hetzner", { ...setUp(), default: true, daemonVersion: DAEMON_VERSION, shape: { cpu: 8, memMb: 16384 } }),
+  box("p_lab", "lab", { ...setUp(), daemonVersion: DAEMON_VERSION, ...(labLive ? {} : { present: false, lastSeenAt: new Date(Date.now() - LAB_AWAY_MS).toISOString() }) }),
+  ...(params.get("computers") === "5"
+    ? [box("p_ci", "ci", { ...setUp(), daemonVersion: DAEMON_VERSION, shape: { cpu: 16, memMb: 32768 } }), box("p_gpu", "gpu", { ...setUp(), daemonVersion: DAEMON_VERSION, shape: { cpu: 32, memMb: 65536 } })]
+    : []),
+  COMPUTERS.find(place => place.id === "solari")!,
+];
+/** The host behind the live screen's bands, on window so a measure can count the watches it holds. */
+const liveAt = live && params.get("bands") !== "0" ? liveHost(Date.now(), labLive) : null;
+if (liveAt !== null) (window as unknown as { liveWatching: () => string[] }).liveWatching = liveAt.watching;
+const computers = live ? LIVE_COMPUTERS : settings || params.get("fork") === "solari" ? COMPUTERS : places;
 /** The image this host sealed and where it stands, on the cloud's page. */
 const IMAGE: SealedImage = {
   name: "default",
@@ -553,7 +588,9 @@ const HELD: WorkspaceView[] = emptyScreen
       WORKSPACES.filter(w => w.place === undefined || computers.some(place => place.id === w.place)).filter(w => !oneProject || (w.project.id === SPOO.id && w.parentThreadId === undefined))
     : [];
 /** The threads of the workspaces this screen holds and no other. */
-const HELD_SESSIONS: Record<string, SessionView[]> = Object.fromEntries(Object.entries(SESSIONS).filter(([workspace]) => HELD.some(w => w.id === workspace)));
+const processesScreen = screen === "processes-widths";
+const activityScreen = screen.startsWith("settings-activity") || processesScreen;
+const HELD_SESSIONS: Record<string, SessionView[]> = Object.fromEntries(Object.entries(activityScreen ? ACTIVITY_SESSIONS : SESSIONS).filter(([workspace]) => HELD.some(w => w.id === workspace)));
 
 /** Usage in the owner's shape: Claude Code on an API key on the Mac and Boat, Codex on ChatGPT Plus with a reading,
  * OpenCode with no plan limit, and a week at his size, nearly all of it read from cache. */
@@ -591,6 +628,7 @@ const USAGE_ANSWERS = {
 const api = {
   subscribe: () => () => {},
   ...(screen === "settings-usage" ? USAGE_ANSWERS : {}),
+  ...(liveAt === null ? {} : liveAt.api),
   listWorkspaces: async () => HELD,
   listSessions: async () => (drawsSidebar ? Object.values(HELD_SESSIONS).flat() : []),
   watchStatuses: async () => [],
@@ -701,6 +739,8 @@ const api = {
     stage("wsp", "running");
     return new Promise<never>(() => {});
   },
+  // Activity names the app's own processes from the list the desktop app hands the host.
+  ...(activityScreen ? { watchAppProcs: async () => ACTIVITY_APP_PROCS, unwatchAppProcs: async () => {}, onAppProcs: () => () => {} } : {}),
 } as unknown as Api;
 
 // The desktop shell's bridge, on the one screen about the foot: the hosts this window can move between, which is
@@ -745,7 +785,7 @@ useStore.setState({
   conn: "live",
   ready: true,
   projectsRead: true,
-  preferences: { ...DEFAULT_PREFERENCES, ...picks, ...OVERRIDES, ...(sidebarWidth !== null ? { sidebarWidth: Number(sidebarWidth) } : {}), ...(screen === "settings-light-picked" ? { theme: "light" as const } : {}) },
+  preferences: { ...DEFAULT_PREFERENCES, ...picks, ...OVERRIDES, ...(sidebarWidth !== null ? { sidebarWidth: Number(sidebarWidth) } : {}), ...(screen === "settings-light-picked" ? { theme: "light" as const } : {}), ...(live ? { theme: params.get("theme") === "light" ? ("light" as const) : ("dark" as const) } : {}) },
   ...(agentScreen || toolsScreen ? { harnesses: HARNESSES } : {}),
   places: computers,
   settingsOpen: settings,
@@ -762,8 +802,8 @@ useStore.setState({
   creations: creatingScreen ? [creation] : [],
   sessions: drawsSidebar ? HELD_SESSIONS : {},
   // The screen about Settings over a workspace's panel has that workspace selected; every other opens on none.
-  selectedId: screen === "settings-over-panel" ? "ws_copy" : screen === "panel-agents" ? "ws_box" : creatingScreen ? creation.key : null,
-  selectedThreadId: null,
+  selectedId: screen === "settings-over-panel" ? "ws_copy" : screen === "panel-agents" ? "ws_box" : processesScreen ? "ws_here" : creatingScreen ? creation.key : null,
+  selectedThreadId: processesScreen ? "th_design" : null,
 } as never);
 /** The workspace the create lands as: a copy on the box at the project's own path, where a box mounts it. */
 function landed(): WorkspaceView {
@@ -783,6 +823,13 @@ if (screen === "settings-add-computer-failed") {
   useAddFlow.setState({ open: true, step: "checks", address: FAILED_ADD.address, addId: FAILED_ADD.addId });
 }
 if (screen === "settings-add-cloud") useSettingsStore.getState().askAdd("cloud");
+// Activity's view by ?view=, and its computer fed as the daemon would feed it.
+if (activityScreen) {
+  const view = params.get("view");
+  if (view === "processes" || view === "kinds" || view === "ports") useSettingsStore.setState({ activityView: view });
+  feedActivity(screen === "settings-activity-hot", params.get("energy") !== "0", processesScreen ? "ws_here" : HERE_KEY);
+  wireAppProcs(useStore);
+}
 useStore.getState().bind(api);
 // The frames a copy build at the box sent, set after the bind, whose pull starts every place over.
 // A focus change during the build: the running stage ends and the next one starts, as the host's next view says.
@@ -818,6 +865,19 @@ function AgentsWidths() {
   );
 }
 
+/** The Processes pane of one thread at the panel's widths, the one it opens at first. */
+function ProcessesWidths() {
+  return (
+    <div className="flex h-dvh items-start gap-10 bg-background p-4">
+      {[540, ...PANEL_WIDTHS.slice(1)].map(width => (
+        <div key={width} data-processes-width={width} style={{ width }} className="flex h-full flex-col border-x border-border/50">
+          <ProcessesSurface workspaceId="ws_here" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** The app's own theme rule, mounted on the settings screens so the Theme row's pick moves the page it stands on. */
 function ThemeRule() {
   useThemeEffect();
@@ -842,6 +902,19 @@ function SettingsTheme() {
   return settings || settingsOpen ? <ThemeRule /> : null;
 }
 
+/** The live screen's one control the app has no place for: Graphite and Paper, side by side in one window. */
+function ThemeSwitch() {
+  const theme = useStore(s => s.preferences.theme);
+  const next = theme === "light" ? "dark" : "light";
+  return (
+    <div className="fixed right-4 bottom-4 z-50">
+      <Button data-k="theme-switch" size="xs" variant="outline" onClick={() => useStore.setState(s => ({ preferences: { ...s.preferences, theme: next } }))}>
+        {next === "light" ? "Paper" : "Graphite"}
+      </Button>
+    </div>
+  );
+}
+
 function Centre() {
   if (creatingScreen) return <CreatingCentre />;
   // With no project the first run is the whole centre, as the app draws it, beside the sidebar's one row.
@@ -858,6 +931,8 @@ createRoot(document.getElementById("root")!).render(
   <>
     {screen === "agents-widths" || screen === "skill-preview" ? (
       <AgentsWidths />
+    ) : processesScreen ? (
+      <ProcessesWidths />
     ) : firstRunScreens.includes(screen) ? (
       <div className="flex h-dvh flex-col">
         <FirstRun />
@@ -867,6 +942,7 @@ createRoot(document.getElementById("root")!).render(
         {/* The shell draws Settings, over the centre it keeps hidden, and the theme rule stands outside that centre as
             App's does, since a hidden tree runs no effect. */}
         <SettingsTheme />
+        {live ? <ThemeSwitch /> : null}
         <AppShell>
           {params.get("notices") === "1" ? <HostNotices /> : null}
           <Centre />

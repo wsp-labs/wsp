@@ -2,21 +2,22 @@
 // A slate's command on the thread's own machine: the launcher run by this computer's bash as a machine's would run
 // it, the road over a machine whose exec and run are this computer's bash (putFiles and all), and a box thread's run
 // reaching its machine through the runtime while one `on` the host stays here.
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ExecResult, Machine, RunOptions } from "@wsp/engine";
+import { PlaceFolderMachine, type ExecResult, type Machine, type RunOptions } from "@wsp/engine";
 import type { Caller } from "@wsp/protocol";
 import { boxLauncher, boxLedger, boxRoad, boxSlateDir } from "../src/slate-box.js";
-import { FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX } from "@wsp/protocol";
+import { cgroupJoinLine, FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX, threadCgroup } from "@wsp/protocol";
 import { boxPins, type HashOn, type HashRead } from "../src/slate-files.js";
 import { createSlateRuns, type RoadEnd } from "../src/slate-runs.js";
 import { SLATES } from "../src/lazy-slates.js";
 import { createSlates } from "../src/slates.js";
 import { memoryStore } from "../src/store.js";
+import { writeStub } from "../../protocol/test/stub-script.js";
 
 const made: string[] = [];
 afterEach(() => {
@@ -154,6 +155,90 @@ describe("the road to a thread's machine", () => {
     const end = await ended(done => boxRoad(machine, thread, () => ({})).start({ cmd: "true", args: [], cwd: temp(), env: { TOKEN: "s" }, stdin: "", timeoutS: 20, stream: false }, { line: () => {}, end: done }));
     expect(end).toMatchObject({ code: 0 });
     expect(modes).toEqual([0o700]);
+  });
+
+  it("hands the launch alone to the machine standing in the thread's cgroup, and runs and writes through the machine itself", async () => {
+    const base = bashMachine();
+    const handed: (Machine | undefined)[] = [];
+    const grouped: string[] = [];
+    const machine: Machine = { ...base, run: (script, opts) => (handed.push(opts.launchOn), base.run(script, opts)) };
+    const launchOn: Machine = { ...base, run: (script, opts) => (grouped.push(script), base.run(script, opts)) };
+    const thread = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    made.push(boxSlateDir(thread));
+    const end = await ended(done => boxRoad(machine, thread, () => ({ "a.sh": "echo a" }), async () => {}, boxLedger(), launchOn).start({ cmd: "true", args: [], cwd: temp(), env: {}, stdin: "", timeoutS: 20, stream: false }, { line: () => {}, end: done }));
+    expect(end).toMatchObject({ code: 0 });
+    expect([handed, grouped]).toEqual([[launchOn], []]);
+    expect(readFileSync(join(boxSlateDir(thread), "a.sh"), "utf8")).toBe("echo a");
+  });
+
+  it("on a computer the person joined, launches the command from a shell standing in the thread's own cgroup", async () => {
+    const base = bashMachine();
+    const asked: string[] = [];
+    const handed: (Machine | undefined)[] = [];
+    const launchOn: Machine = { ...base };
+    const joined = Object.assign(Object.create(PlaceFolderMachine.prototype) as PlaceFolderMachine, base, {
+      run: (script: string, opts: RunOptions) => (handed.push(opts.launchOn), base.run(script, opts)),
+      inCgroup: (cgroup: string) => (asked.push(cgroup), launchOn),
+      framed: async () => undefined,
+    });
+    const thread = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    made.push(boxSlateDir(thread));
+    const end = await ended(done => boxRoad(joined, thread, () => ({})).start({ cmd: "true", args: [], cwd: temp(), env: {}, stdin: "", timeoutS: 20, stream: false }, { line: () => {}, end: done }));
+    expect(end).toMatchObject({ code: 0 });
+    expect([asked, handed]).toEqual([[threadCgroup(thread)], [launchOn]]);
+  });
+
+  it("on a computer the person joined, joins the thread's cgroup for the launch alone, never for its polls, its kill or its cleanup", async () => {
+    // The real road: a PlaceFolderMachine whose daemon answers each exec frame by running it in a local bash as the
+    // login it reads, its inCgroup, execDetached and boxRoad.
+    const home = realpathSync(mkdtempSync(join(tmpdir(), "wsp-slate-place-")));
+    made.push(home);
+    const cgroup = threadCgroup(`t-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const thread = cgroup.slice(cgroup.lastIndexOf("/") + 1);
+    made.push(boxSlateDir(thread));
+    // A Mac has no setsid and its base64 takes no -w0: shims where there is no /proc, as the engine's own run tests do.
+    const shims = join(home, ".shims");
+    mkdirSync(shims);
+    if (!existsSync("/proc/1/stat")) {
+      writeStub(join(shims, "setsid"), "#!/bin/sh\nexec perl -e 'setpgrp(0, 0); exec @ARGV or die $!' -- \"$@\"\n");
+      writeStub(join(shims, "base64"), '#!/bin/sh\nargs=""\nfor a in "$@"; do [ "$a" = "-w0" ] || args="$args $a"; done\nexec /usr/bin/base64 $args\n');
+    }
+    const frames: string[] = [];
+    const road = {
+      request: async (_op: string, params: Record<string, unknown> = {}) => {
+        const cmd = String(params["cmd"] ?? "");
+        frames.push(cmd);
+        const stdin = typeof params["stdin"] === "string" ? Buffer.from(params["stdin"], "base64") : undefined;
+        const ran = spawnSync("bash", ["-c", cmd], { input: stdin, encoding: "utf8", timeout: 20_000, env: { ...process.env, PATH: `${shims}:${process.env["PATH"] ?? ""}` } });
+        return { exitCode: ran.status ?? 1, stdout: ran.stdout, stderr: ran.stderr, truncated: false };
+      },
+    };
+    // Root on cgroup v2 may make the cgroup; anywhere else the join stands down and the run goes on where it is.
+    const makesCgroups = process.getuid?.() === 0 && existsSync("/sys/fs/cgroup/cgroup.controllers");
+    try {
+      const end = await ended(done =>
+        boxRoad(new PlaceFolderMachine(road, { id: "spoo", home }), thread, () => ({})).start(
+          { cmd: "sleep 1; echo ran; sed -n 's/^0:://p' /proc/self/cgroup 2>/dev/null; true", args: [], cwd: home, env: {}, stdin: "", timeoutS: 20, stream: false },
+          { line: () => {}, end: done },
+        ),
+      );
+      expect(end, end.err).toMatchObject({ code: 0 });
+      expect(end.out.split("\n")[0]).toBe("ran");
+      const join = cgroupJoinLine(cgroup);
+      const launched = frames.findIndex(cmd => cmd.includes("setsid nohup"));
+      // The launch is the frames that write the run's script and start it; every frame after it reads, ends or cleans.
+      expect(frames.some(cmd => cmd.includes(join))).toBe(true);
+      expect(frames.every((cmd, at) => !cmd.includes(join) || at <= launched)).toBe(true);
+      if (makesCgroups) expect(end.out.split("\n")[1]).toBe(cgroup);
+    } finally {
+      for (const at of makesCgroups ? [cgroup, cgroup.slice(0, cgroup.lastIndexOf("/"))] : []) {
+        try {
+          rmdirSync(`/sys/fs/cgroup${at}`);
+        } catch {
+          // gone already, or another thread's cgroup still stands under it
+        }
+      }
+    }
   });
 
   it("values a box left when it stopped answering go once it answers, and every contact sweeps stale values but a run's in flight", async () => {

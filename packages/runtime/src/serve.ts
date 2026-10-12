@@ -111,16 +111,18 @@ import {
   type ThreadScope,
   type WorkspaceOrigin,
   type WorkspaceView,
-  problemListsOf,
+  refusalFields,
 } from "@wsp/protocol";
 import type { DaemonChannel } from "./daemon-channel.js";
 import { NO_DEVICE_DOOR, safeEqual, threadOf, type DeviceDoor, type HeldDevice } from "./devices.js";
 import { NO_PLACE_DOOR, type PlaceDoor } from "./places.js";
 import { signInSocket } from "./sign-in-socket.js";
+import { sysSocket } from "./sys-socket.js";
 import { keyFingerprint, openFrame, verifyPlaceBytes, type Seal } from "@wsp/keys";
 import { startAt } from "./threads/answered-start.js";
 import type { HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, ProjectBundler, ProjectLander, RecipeShelf, Runtime } from "./runtime.js";
-
+import { appProcsHubOf, isAppProcsRequest } from "./serve-app-procs.js";
+import { answerProcesses, isProcessesRequest } from "./serve-processes.js";
 import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerProject, isProjectRequest } from "./serve-projects.js";
@@ -560,14 +562,11 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
     /** The daemon links this socket holds open, by the id it was answered with. A channel is never reachable from
      * another socket, so a page cannot drive a machine by guessing an id another page was given. */
     const channels = new Map<string, DaemonChannel>();
-    /** The workspaces this socket reads this computer's own figures for, each with what stops it. */
-    const watchedSys = new Map<string, () => void>();
     const signInOps = signInSocket(rt.agents, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) });
+    const sysOps = sysSocket(rt, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) });
     detaches.push(() => {
       for (const ch of channels.values()) ch.close();
       channels.clear();
-      for (const detach of watchedSys.values()) detach();
-      watchedSys.clear();
     });
     let bound: { deviceId: string; cut: () => void } | undefined;
     ws.on("close", () => {
@@ -873,6 +872,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
         try {
           if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds)) });
           if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
+          if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
+          if (isProcessesRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProcesses(rt, msg, origin)) });
           switch (msg.op) {
             case "auth":
               send({ id: msg.id, ok: true, ...released });
@@ -1434,7 +1435,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
                 else {
                   const onLink = places().channel(msg.placeId, onEvent);
                   if (onLink === undefined) throw new Error(absentComputer(places().nameOf(msg.placeId), null).sentence);
-                  ch = onLink;
+                  ch = rt.placeKills(onLink);
                 }
               } else {
                 if (msg.workspaceId === undefined) throw new Error(DAEMON_OPEN_ONE_OF);
@@ -1475,39 +1476,12 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true });
               return;
             }
-            case "sys.subscribe": {
-              // One subscription per workspace per socket: a person opening the pane a second time reads the same
-              // stream, and the sampler behind it stays the one thing reading this computer.
-              if (watchedSys.has(msg.workspaceId)) {
-                send({ id: msg.id, ok: true });
-                return;
-              }
-              const workspaceId = msg.workspaceId;
-              let stopped = false;
-              const pending = (): void => void (stopped = true);
-              const leave = (): void => void (watchedSys.get(workspaceId) === pending && watchedSys.delete(workspaceId));
-              watchedSys.set(workspaceId, pending);
-              const detach = await rt.workspaces.watchSys(workspaceId, sample => send({ type: "workspace.sys", workspaceId, sample }), origin).catch((e: unknown) => {
-                leave();
-                throw e;
-              });
-              // The page left, or stopped watching, while the first reading was in flight: nothing keeps sampling for it.
-              if (stopped || ws.readyState !== ws.OPEN) {
-                detach();
-                leave();
-                send({ id: msg.id, ok: true });
-                return;
-              }
-              watchedSys.set(workspaceId, detach);
-              send({ id: msg.id, ok: true });
+            case "sys.subscribe":
+            case "sys.unsubscribe":
+              // A computer's own readings are read on the road its list is, as every other places op is.
+              if (msg.op === "sys.subscribe" && msg.placeId !== undefined && refusedOffOwnRoad()) return;
+              await sysOps(msg, send, origin);
               return;
-            }
-            case "sys.unsubscribe": {
-              watchedSys.get(msg.workspaceId)?.();
-              watchedSys.delete(msg.workspaceId);
-              send({ id: msg.id, ok: true });
-              return;
-            }
             case "sessions.start":
               await serveStart(rt, msg, origin, reply => send({ id: msg.id, ok: true, ...reply }));
               return;
@@ -1554,9 +1528,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               await rt.sessions.forget(msg.threadId, origin, msg.check === true ? { check: true } : {});
               send({ id: msg.id, ok: true });
               return;
-            case "sessions.delete":
-              send({ id: msg.id, ok: true, ...(await rt.sessions.delete(msg.threadId, origin, msg.check === true ? { check: true } : {})) });
-              return;
             case "sessions.read":
               await rt.sessions.read(msg.threadId, origin);
               send({ id: msg.id, ok: true });
@@ -1564,9 +1535,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
             case "sessions.replaceable":
               await rt.sessions.replaceable(msg.threadId, origin);
               send({ id: msg.id, ok: true });
-              return;
-            case "sessions.settle":
-              send({ id: msg.id, ok: true, ...(await rt.sessions.settle(msg.threadIds, origin, msg.finished === true ? { finished: true } : {})) });
               return;
             case "sessions.mark":
               await rt.sessions.mark(msg.threadIds, msg.marks, origin);
@@ -1972,7 +1940,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
             error: e instanceof Error ? e.message : String(e),
             ...(typeof kind === "string" ? { kind } : {}),
             ...(typeof fix === "string" ? { fix } : {}),
-            ...problemListsOf(e),
+            ...refusalFields(e),
           });
           opts.failed?.(msg.op, e);
         }

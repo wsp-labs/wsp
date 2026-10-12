@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { backgroundTasksLine, internalToolResult, LOST_SESSION_NOTE, NO_REPORT_LINE, notifyTail, signInRefusalLine, SUBAGENT_ASKED_CHARS, subagentAsked } from "@wsp/protocol";
+import { agentWord, backgroundTasksLine, internalToolResult, LOST_SESSION_NOTE, NO_REPORT_LINE, notifyTail, signInRefusalLine, SUBAGENT_ASKED_CHARS, subagentAsked } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
 import { createClaudeAdapter, type ClaudeSession } from "../src/adapter.js";
 import { CLAUDE_SCREEN_COMMANDS } from "../src/catalog.js";
@@ -419,7 +419,7 @@ describe("ClaudeAdapter over the recorded fixture", () => {
     expect(deltas.some(d => d.text.includes("task_started"))).toBe(false);
   });
 
-  it("says each subagent's start with what its call asked, its model once on its first line, and its end, once each, and nothing for its progress", async () => {
+  it("says each subagent's start with what its call asked, its model once on its first line, what it spent at each progress line, and its end, once each", async () => {
     const exec = scriptedExec(subagentFixtureLines());
     const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" });
     const { events, onEvent } = collect();
@@ -436,11 +436,55 @@ describe("ClaudeAdapter over the recorded fixture", () => {
       // Each child's first line names the model it runs on; the lines after it say nothing more.
       { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_A_ID, parentToolUseId: AGENT_A_CALL, state: "running", model: "claude-haiku-4-5" },
       { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_B_ID, parentToolUseId: AGENT_B_CALL, state: "running", model: "claude-sonnet-4-5" },
-      { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_A_ID, parentToolUseId: AGENT_A_CALL, state: "done", summary: "acpi, adduser.conf, alsa" },
-      // The kill's task_updated is the end; the notification after it says the same thing again and adds nothing.
-      { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_B_ID, parentToolUseId: AGENT_B_CALL, state: "stopped" },
+      // This synthesized stream's lines carry no usage, so a row says the tool uses and run time and no tokens.
+      { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_A_ID, parentToolUseId: AGENT_A_CALL, state: "running", usage: { toolUses: 1, durationMs: 3_228 } },
+      { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_B_ID, parentToolUseId: AGENT_B_CALL, state: "running", usage: { toolUses: 1, durationMs: 3_228 } },
+      { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_A_ID, parentToolUseId: AGENT_A_CALL, state: "done", summary: "acpi, adduser.conf, alsa", usage: { toolUses: 1, durationMs: 4_120 } },
+      // The kill's task_updated is the end; the notification after it says the same thing again and adds nothing. The
+      // kill names no run time, and the progress line's 3,228 ms is from before it, so the row says none.
+      { type: "subagent", sessionId: FIXTURE_SESSION_ID, task: AGENT_B_ID, parentToolUseId: AGENT_B_CALL, state: "stopped", usage: { toolUses: 1 } },
     ]);
     expect(events.filter(e => e.type === "turn.delta").some(d => d.text.includes("task_progress") || d.text.includes("Running "))).toBe(false);
+  });
+
+  describe("what each subagent spent, on a recorded 2.1.296 turn whose two background subagents outlive the lead's first result", () => {
+    const spendLines = (): string[] => readFileSync(new URL("./fixtures/subagent-spend-2.1.296.jsonl", import.meta.url), "utf8").split("\n").filter(line => line.trim() !== "");
+    const ONE = "ac063c143bb6a84b3";
+    const TWO = "a0046736e356b5076";
+    const spentRows = async (lines: string[]) => {
+      const exec = scriptedExec(lines);
+      const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" });
+      const { events, onEvent } = collect();
+      await adapter.start({ prompt: "two in the background", onEvent }).finished;
+      return events.flatMap(e => (e.type === "subagent" && e.usage !== undefined ? [{ task: e.task, state: e.state, usage: e.usage }] : []));
+    };
+    // Each subagent's own two calls, by message id: input counts the fresh, the written and the cached part. The
+    // progress and end lines' total_tokens (10,331, then 10,983) is the size of what it holds and is read nowhere.
+    const oneFirst = { input: 2 + 10_308, output: 16, cached: 0, cacheWrite: 10_308, reasoning: 0 };
+    const oneAll = { input: 2 + 10_308 + 2 + 654 + 10_308, output: 19, cached: 10_308, cacheWrite: 10_308 + 654, reasoning: 0 };
+    const twoFirst = { input: 2 + 3_913 + 6_395, output: 16, cached: 6_395, cacheWrite: 3_913, reasoning: 0 };
+    const twoAll = { input: 2 + 3_913 + 6_395 + 2 + 654 + 10_308, output: 19, cached: 6_395 + 10_308, cacheWrite: 3_913 + 654, reasoning: 0 };
+    const expected = [
+      { task: ONE, state: "running", usage: { tokens: oneFirst, toolUses: 1, durationMs: 1_085 } },
+      { task: TWO, state: "running", usage: { tokens: twoFirst, toolUses: 1, durationMs: 1_129 } },
+      { task: ONE, state: "done", usage: { tokens: oneAll, toolUses: 1, durationMs: 14_370 } },
+      { task: TWO, state: "done", usage: { tokens: twoAll, toolUses: 1, durationMs: 13_748 } },
+    ];
+
+    it("sums a subagent's own calls into a row at each progress line and at its end, with the tool uses and run time those lines name", async () => {
+      expect(await spentRows(spendLines())).toEqual(expected);
+    });
+
+    it("counts a call once however many of its blocks the CLI writes, at the largest output any of them showed", async () => {
+      const lines = spendLines();
+      const at = lines.findIndex(line => line.includes(`"agent_id":"${ONE}"`) && line.includes('"type":"assistant"'));
+      const block = JSON.parse(lines[at]!) as { message: { usage: { output_tokens: number } } };
+      const early = structuredClone(block);
+      early.message.usage.output_tokens = 4;
+      lines.splice(at, 0, JSON.stringify(early));
+      lines.splice(at + 2, 0, lines[at + 1]!);
+      expect(await spentRows(lines)).toEqual(expected);
+    });
   });
 
   it("forwards a subagent's own text only from a CLI that takes the flag, and shows the children either way", async () => {
@@ -451,13 +495,13 @@ describe("ClaudeAdapter over the recorded fixture", () => {
       await adapter.start({ prompt: "fan out", ...(version !== undefined ? { version } : {}), onEvent }).finished;
       return { command: exec.calls[0]!.command, children: events.filter(e => e.type === "subagent").length };
     };
-    expect(await launched("2.1.288")).toEqual({ command: expect.stringContaining("--forward-subagent-text"), children: 6 });
-    expect(await launched("2.1.270")).toEqual({ command: expect.stringContaining("--forward-subagent-text"), children: 6 });
+    expect(await launched("2.1.288")).toEqual({ command: expect.stringContaining("--forward-subagent-text"), children: 8 });
+    expect(await launched("2.1.270")).toEqual({ command: expect.stringContaining("--forward-subagent-text"), children: 8 });
     // An older CLI exits on a flag it does not know, and a version nobody read could be one.
     for (const older of ["2.1.269", undefined]) {
       const { command, children } = await launched(older);
       expect(command).not.toContain("--forward-subagent-text");
-      expect(children).toBe(6);
+      expect(children).toBe(8);
     }
   });
 
@@ -521,7 +565,9 @@ describe("ClaudeAdapter over the recorded fixture", () => {
       // The hand-back reads as the subagent's own last words, as an older CLI's forwarded text did.
       expect(fold.filter(d => d.parentToolUseId === "toolu_01WspFixHandBg").map(d => [d.kind, d.text])).toEqual([["thinking", ""], ["text", REPORT]]);
       expect(handedBack(events, "toolu_01WspFixHandBgCall")).toEqual([]);
-      expect(events.filter(e => e.type === "subagent" && e.state === "done")).toEqual([{ type: "subagent", sessionId: sid, task: "aafea93324a2f8ca1", parentToolUseId: "toolu_01WspFixHandBg", state: "done", summary: REPORT }]);
+      // The subagent's one call is written twice, a line per block, and counts once.
+      const usage = { tokens: { input: 2 + 21_895, output: 5, cached: 0, cacheWrite: 21_895, reasoning: 0 }, toolUses: 1, durationMs: 2_000 };
+      expect(events.filter(e => e.type === "subagent" && e.state === "done")).toEqual([{ type: "subagent", sessionId: sid, task: "aafea93324a2f8ca1", parentToolUseId: "toolu_01WspFixHandBg", state: "done", summary: REPORT, usage }]);
     });
 
     it("answers a launch it waited on with the report once, never the note that stands in its place", async () => {
@@ -814,8 +860,8 @@ describe("ClaudeAdapter over the recorded fixture", () => {
     await adapter.start({ prompt: "say ok", onEvent }).finished;
     await adapter.start({ prompt: "say ok", cwd: "/root/app", onEvent }).finished;
 
-    expect(exec.calls[0]?.command.startsWith("cd ~ && claude -p")).toBe(true);
-    expect(exec.calls[1]?.command.startsWith("cd '/root/app' && claude -p")).toBe(true);
+    expect(exec.calls[0]?.command.startsWith(`cd ~ && ${agentWord("claude", undefined)} -p`)).toBe(true);
+    expect(exec.calls[1]?.command.startsWith(`cd '/root/app' && ${agentWord("claude", undefined)} -p`)).toBe(true);
   });
 
   it("self-generates the session UUID and registers the session before any output", () => {
@@ -1959,7 +2005,7 @@ describe("a person's setup for Claude Code on a computer", () => {
   it("with no setup the line is the CLI's own", async () => {
     const exec = scriptedExec(fixtureLines());
     await createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" }).start({ prompt: "go", onEvent: () => {} }).finished;
-    expect(exec.calls[0]!.command).toContain("&& claude -p --input-format stream-json");
+    expect(exec.calls[0]!.command).toContain(`&& ${agentWord("claude", undefined)} -p --input-format stream-json`);
   });
 });
 

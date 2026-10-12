@@ -1,0 +1,33 @@
+[
+  {
+    "id": 1,
+    "op": "proc.scopes",
+    "scopes": []
+  },
+  {
+    "id": 1,
+    "op": "proc.scopes",
+    "scopes": [
+      {
+        "thread": "t_1",
+        "workspace": "ws_1",
+        "agents": [4212],
+        "groups": [4212],
+        "folder": "/home/tester/acme",
+        "pids": [
+          { "pid": 4300, "kind": "slate" },
+          { "pid": 4301, "kind": "tool" }
+        ]
+      },
+      {
+        "thread": "t_2",
+        "cgroup": "/wsp-threads/t_2"
+      },
+      {
+        "thread": "t_3",
+        "workspace": "ws_1",
+        "warm": true
+      }
+    ]
+  }
+]

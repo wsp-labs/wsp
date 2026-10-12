@@ -11,6 +11,7 @@ import type { WorkspaceRecord, LiveWorkspace, FoundMachine } from "../types/wiri
 import { subRowOf } from "./sub-life.js";
 import { WORKSPACES, PROJECTS, TRANSCRIPTS, SESSIONS, HELD_STARTS, type HeldStartRecord, READS, READS_ID, RESTARTED_REASON, goneLogLine, labelOf, restartCutLine, turnWritten, type TranscriptRecord, type TurnLive, type TurnAsked, readAsked, readScope, readRoad, readSteered, type ThreadRecord, type ThreadStamps, type TreeTalk, type SessionIndexRecord, BUILDERS, OWNER, HELD_TTL_MS, pidAlive, type BuilderRecord, type LiveBuilder, deadMachine, isAbsentMachine, absentMachine, type StoredBuilder } from "../types/internal.js";
 import type { RuntimeContext, BootArea } from "../context.js";
+import { agentPidOf } from "../local-exec.js";
 
 /** How long the load waits on the provider's reads of its records' machines, all of them together. A host answers
  * its app off its records: twenty reads one after another at a slow provider held a start past the app's wait. */
@@ -661,10 +662,12 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       const restart = replacedBy.get(threadKeyOf(s.view));
       // A restart names the thread it replaced while that thread stands; once it is deleted there is nothing to open.
       const replaces = marks?.replaces ?? s.replaces;
+      const agentPid = s.view.status === "running" && s.pid !== undefined && s.run !== undefined ? agentPidOf(s.run) : undefined;
       const children = latest.get(threadKeyOf(s.view)) === s && s.view.threadId !== undefined ? transcriptIndex.get(s.view.workspaceId)?.children.get(s.view.threadId) : undefined;
       return {
         ...s.view,
         ...(s.view.status === "running" && s.pid !== undefined ? { pid: s.pid } : {}),
+        ...(agentPid !== undefined ? { agentPid } : {}),
         ...(behind !== undefined ? { waitingOn: behind } : {}),
         ...(capped !== undefined ? { capped } : {}),
         ...(children !== undefined && children.size > 0 ? { subagents: [...children.values()].map(({ turnId: _turn, startRow: _row, ...child }) => child) } : {}),

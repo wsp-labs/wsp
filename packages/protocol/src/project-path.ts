@@ -9,6 +9,7 @@
 // browser and imports nothing outside itself.
 
 import { TOOLS_PATH } from "./daemon-contract.js";
+import { DOCKER_NOTES_FOLDER } from "./docker-shim.js";
 import { shellQuote } from "./shell-quote.js";
 
 /** Whether path is the folder itself or sits inside it; a sibling that shares the prefix is not. */
@@ -159,6 +160,8 @@ export function placeDaemonPaths(home: string): {
    * which dial the socket above for that thread's sessions and nothing else. The place's own folder, never
    * `~/.wsp/bin`, where the app and the install line keep the person's wsp on the same login. */
   guestBin: string;
+  /** Where the docker beside that wsp appends a thread's compose notes, one file per thread (`dockerShim`). */
+  dockerNotes: string;
   manifestPath: string;
   profileFile: string;
   unitDir: string;
@@ -199,6 +202,7 @@ export function placeDaemonPaths(home: string): {
     openSocket: `${wsp}/open.sock`,
     guestSocket: `${wsp}/daemon.sock`,
     guestBin: `${wsp}/place-bin`,
+    dockerNotes: `${wsp}/${DOCKER_NOTES_FOLDER}`,
     manifestPath: `${wsp}/manifest.json`,
     profileFile: `${wsp}/profile.sh`,
     unitDir: `${at}/.config/systemd/user`,
@@ -266,7 +270,9 @@ export function placeOwnedPaths(home: string): string[] {
     at.openSocket,
     at.guestSocket,
     `${at.guestBin}/wsp`,
+    `${at.guestBin}/docker`,
     at.guestBin,
+    at.dockerNotes,
     at.runDir,
     at.portFile,
     at.manifestPath,
