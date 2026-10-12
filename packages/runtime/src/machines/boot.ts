@@ -175,10 +175,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
 
   /** Whether this host holds that workspace by a stand-in for a machine it could not ask anything about: the one
    * reading of "nothing is known about this one yet", which is what a place dialling in is the moment to fix. A
-   * record with no live entry at all reads the same, since a hydration that never ran holds nothing either. */
+   * record with no live entry at all reads the same, since a hydration that never ran holds nothing either. A queued
+   * spawn's stand-in is no such thing: it has no machine yet. */
   const isHeldAway = (id: string): boolean => {
     const entry = live.get(id);
-    return entry === undefined || isAbsentMachine(entry.machine);
+    return entry === undefined || (isAbsentMachine(entry.machine) && entry.record.phase !== "queued");
   };
 
   /** What the provider said to the load's one read of a record now held, quoted when the record settles gone. */
@@ -188,7 +189,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
    * read that fails leaves the record held for the next sweep. */
   const rereadHeld = async (id: string, by: GoneSeenBy): Promise<void> => {
     const entry = live.get(id);
-    if (entry === undefined || !isAbsentMachine(entry.machine) || ctx.rereading.has(id)) return;
+    if (entry === undefined || !isHeldAway(id) || ctx.rereading.has(id)) return;
     ctx.rereading.add(id);
     try {
       const machineId = entry.record.machineId;
@@ -218,6 +219,10 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const hydrateWorkspace = async (raw: unknown, seen?: FoundMachine, load?: LoadReads, asked?: Promise<Machine>): Promise<LiveWorkspace | undefined> => {
     const stored = raw as WorkspaceRecord;
     const kind = stored.kind;
+    // A spawn waiting for a machine has none to read: it waits on as it was, and the queue reads its cloud again. A
+    // released sub-machine's machine is deleted, and nothing asks after it.
+    if (stored.phase === "queued") return void ctx.attachQueued(stored, undefined);
+    if (stored.phase === "released") return void ctx.attach(stored, deadMachine(stored.machineId));
     // A record whose kind this host wired no module for, or whose place forks nothing any more, is left as it
     // was: only the host that owns that machine can serve it.
     let at: MachineBackend;
@@ -537,6 +542,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         })();
         ctx.bootWork.set(id, work.catch((e: unknown) => console.warn(`the turns and runs on ${id} were not settled: ${e instanceof Error ? e.message : String(e)}`)).finally(() => ctx.bootWork.delete(id)));
       }
+      await ctx.resumeQueue();
       // A start a computer's threads at once held back lived in the old host's memory alone, so each ends here with the
       // restart named: a follower reads its end off the transcript, and the thread it was to report to is told.
       for (const raw of await store.list(HELD_STARTS)) {

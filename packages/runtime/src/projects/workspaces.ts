@@ -508,12 +508,14 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           if (takes) await ctx.removeWorktree(entry, false, { ending: true });
           // Before the machine goes: on a computer somebody owns the folders the files landed in outlive the workspace.
           await ctx.dropThreadFiles(entry, [...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
-          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back.
-          if (!kindWords(entry.record.kind).driven) {
+          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back. A spawn
+          // still waiting for its machine has none to delete.
+          const machineless = entry.record.phase === "queued" && entry.record.queue !== undefined;
+          if (!machineless && !kindWords(entry.record.kind).driven) {
             await entry.machine.kill().catch((e: unknown) => {
               if (!isMissing(e)) throw e;
             });
-          } else {
+          } else if (!machineless) {
             await ctx.unfork(entry).catch((e: unknown) => {
               if (!(e instanceof MachineAliveError)) throw e;
               const line = deleteRefusedLine(entry.record.name, e.machineId, e.state);

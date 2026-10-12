@@ -172,6 +172,11 @@ export const subLeadBranchRefusal = (name: string): Error => usage(`the sub-thre
 /** S9: a sub-machine runs its sub-thread alone. */
 export const subMachineTakenRefusal = (machine: string, thread: string): Error =>
   usage(`${machine} is the machine of sub-thread ${thread.slice(0, 8)} and runs that thread alone`, `Send to ${thread.slice(0, 8)} to continue it.`);
+/** A second message into a sub-thread whose first is still waiting for its machine. */
+export const subWaitingRefusal = (machine: string): Error =>
+  usage(`${machine} is waiting for a machine, and its sub-thread's first message waits with it`, "Send again once it starts.");
+/** Why a held spawn went with no start spent: its row, or the thread above it, was stopped while it waited. */
+export const SUB_DROPPED_LINE = "stopped while it waited for a machine, so no machine was started";
 /** S11: the agent named is not on the image. */
 export const subNoAgentRefusal = (on: string, agent: string, carried: readonly string[]): Error =>
   usage(`the image on ${on} carries no ${agent}`, `Add it to the recipe and build the image again, or name one it carries: ${carried.join(", ")}.`);

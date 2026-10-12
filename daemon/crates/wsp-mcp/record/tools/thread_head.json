@@ -192,6 +192,13 @@
                 },
                 "atOnce": {
                   "type": "integer"
+                },
+                "why": {
+                  "type": "string",
+                  "enum": [
+                    "slot",
+                    "minute"
+                  ]
                 }
               },
               "required": [
@@ -1582,6 +1589,9 @@
                   },
                   "atOnce": {
                     "$ref": "#/properties/facts/properties/capped/properties/atOnce"
+                  },
+                  "why": {
+                    "$ref": "#/properties/facts/properties/capped/properties/why"
                   },
                   "requestId": {
                     "type": "string"
@@ -1970,6 +1980,13 @@
                 },
                 "atOnce": {
                   "type": "integer"
+                },
+                "why": {
+                  "type": "string",
+                  "enum": [
+                    "slot",
+                    "minute"
+                  ]
                 }
               },
               "required": [
@@ -3360,6 +3377,9 @@
                   },
                   "atOnce": {
                     "$ref": "#/properties/facts/properties/capped/properties/atOnce"
+                  },
+                  "why": {
+                    "$ref": "#/properties/facts/properties/capped/properties/why"
                   },
                   "requestId": {
                     "type": "string"

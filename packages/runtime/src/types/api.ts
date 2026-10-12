@@ -387,6 +387,8 @@ export interface Runtime {
         fast?: boolean;
         /** Absent means a person asked. */
         startedBy?: SessionOrigin;
+        /** The thread and turn ids a held sub-thread's start was answered under, which the queue starts it with. */
+        as?: { threadId: string; turnId: string };
         /** The client's id for this send, stamped on the turn's session.start as sent. */
         requestId?: string;
         /** Set where a press in the thread's slate sent this message; stamped on the turn's start or steer. */

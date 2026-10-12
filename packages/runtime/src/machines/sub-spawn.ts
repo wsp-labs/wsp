@@ -10,12 +10,12 @@ import { gitHostOf, remoteHost, type GitHost } from "@wsp/catalog";
 import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type BoxLimits, type MachineBackend } from "@wsp/engine";
 import {
   DETACHED_HEAD, GitStatusReply, SUB_DELETE_AFTER_MIN, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
-  providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
+  providerKeyName, scopeOf, shellLine, capWaitLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   subSizeWord, subTwiceRefusal, subUncommittedLine, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
-import { SEED_CHOICES, CREATES } from "../types/internal.js";
+import { SEED_CHOICES, CREATES, isAbsentMachine, isCapRefusal } from "../types/internal.js";
 import { folderNamed, type CreateWorkspaceOptions, type CreatedWorkspace, type LiveWorkspace, type StageReport, type WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubSpawnArea } from "../context.js";
 
@@ -159,27 +159,25 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         lead: { threadId: scope.threadId, workspaceId: lead.record.id },
         sub: { on: on.toLowerCase(), repo, base, branch: result, folder },
       };
+      // Past the machines at once or the minute's starts the spawn waits its turn, its record queued with no machine
+      // (05, Q4); the queue makes the machine and starts the thread when its turn comes.
+      const wait = ctx.queueWait(place, limits);
       ctx.forking.add(name);
       ctx.supersedeFailed(name);
       try {
-        let first: SubFault | undefined;
-        for (;;) {
-          try {
-            await standUp(machineRecord, on, seed, report, freePlace);
-            break;
-          } catch (e) {
-            const fault = faultOf(e);
-            await dropMachine(at, machineRecord, fault?.box);
-            if (fault === undefined) throw e;
-            if (first !== undefined) throw subTwiceRefusal(first, fault, name, on);
-            first = fault;
-            const line = subReplacedLine(fault, name, on);
-            notices.push(line);
-            report("fork-requested", line, { notice: line });
-            console.warn(`workspace ${id}: ${line}`);
-            // A fresh key, so the next create is a new machine and not a replay of the one deleted.
-            await store.delete(CREATES, `workspace/${id}`);
-          }
+        if (wait !== undefined) {
+          report("fork-requested", capWaitLine(wait), { waiting: true });
+          await ctx.enqueue(machineRecord, wait);
+        } else {
+          // Another client took the last slot between the read and the create: the spawn waits at the head (Q9).
+          const made = await machineFor(machineRecord, at, on, seed, report, freePlace).catch(async (e: unknown) => {
+            if (!isCapRefusal(e)) throw e;
+            const full = ctx.cloudFull(place, limits);
+            report("fork-requested", capWaitLine(full), { waiting: true });
+            await ctx.enqueue(machineRecord, full, true);
+            return [];
+          });
+          notices.push(...made);
         }
       } catch (e) {
         report("failed", e instanceof Error ? e.message : String(e));
@@ -206,6 +204,52 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       return { ...view, ...(notices.length > 0 ? { notice: notices.join("\n") } : {}), sub: { out, folder, preamble, harness } };
     } finally {
       freePlace();
+    }
+  };
+
+  /** A machine for the record, deleted and replaced once where it fails before the first turn in a way a fresh one
+   * cures; the lines of a replacement, which the spawn's answer carries. */
+  const machineFor = async (record: WorkspaceRecord, at: MachineBackend, on: string, seed: { tar?: Buffer; files: number }, report: StageReport, landed: () => void): Promise<string[]> => {
+    const notices: string[] = [];
+    let first: SubFault | undefined;
+    for (;;) {
+      try {
+        await standUp(record, on, seed, report, landed);
+        return notices;
+      } catch (e) {
+        const fault = faultOf(e);
+        await dropMachine(at, record, fault?.box);
+        if (fault === undefined) throw e;
+        if (first !== undefined) throw subTwiceRefusal(first, fault, record.name, on);
+        first = fault;
+        const line = subReplacedLine(fault, record.name, on);
+        notices.push(line);
+        report("fork-requested", line, { notice: line });
+        console.warn(`workspace ${record.id}: ${line}`);
+        // A fresh key, so the next create is a new machine and not a replay of the one deleted.
+        await store.delete(CREATES, `workspace/${record.id}`);
+      }
+    }
+  };
+
+  /** The machine of a spawn the queue let through: the cloud and the picked files read again now, since the files
+   * are packed fresh at each start (S21), and the stages said under the lead that asked. */
+  const standUpQueued = async (record: WorkspaceRecord): Promise<void> => {
+    const placeId = ctx.placeIdOf(record)!;
+    const row = (await ctx.computerRows()).find(r => r.id === placeId || r.id === record.provider);
+    const on = row === undefined ? record.sub!.on : providerKeyName(row.name);
+    const at = ctx.backendFor(record);
+    const seed = await seedOf(ctx.projectHeld(record.project));
+    const lead = record.lead!;
+    const report = ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId });
+    ctx.forking.add(record.name);
+    try {
+      await machineFor(record, at, on, seed, report, () => {});
+    } catch (e) {
+      report("failed", e instanceof Error ? e.message : String(e));
+      throw e;
+    } finally {
+      ctx.forking.delete(record.name);
     }
   };
 
@@ -256,6 +300,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       record,
       m => {
         record.machineId = m.id;
+        record.phase = "running";
         ctx.attach(record, m).creating = true;
         landed();
       },
@@ -290,7 +335,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
    * the provider made under a replayed key and so did not delete itself. A machine already gone is gone. */
   const dropMachine = async (at: MachineBackend, record: WorkspaceRecord, box: string | undefined): Promise<void> => {
     const entry = live.get(record.id);
-    if (entry !== undefined) {
+    // A queued record's stand-in has no machine to delete.
+    if (entry !== undefined && !isAbsentMachine(entry.machine)) {
       await ctx.unfork(entry).catch((e: unknown) => {
         if (!isMissing(e)) console.warn(`workspace ${record.id}: ${entry.machine.id} was not deleted: ${e instanceof Error ? e.message : String(e)}`);
       });
@@ -307,5 +353,5 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     record.machineId = "";
   };
 
-  return { spawnSub };
+  return { spawnSub, standUpQueued };
 }

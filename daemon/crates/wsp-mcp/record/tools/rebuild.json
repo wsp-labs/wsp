@@ -39,7 +39,9 @@
                 "pausing",
                 "napping",
                 "waking",
-                "gone"
+                "gone",
+                "queued",
+                "released"
               ]
             },
             "kind": {

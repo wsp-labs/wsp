@@ -43,7 +43,7 @@ describe("workspaceState", () => {
   });
 
   it("every state has a capitalised word, and a caller holding no pause mode reads the stopping words", () => {
-    const words: Record<WorkspaceState, string> = { running: "Running", pausing: "Stopping", paused: "Stopped", waking: "Waking", unreachable: "Unreachable", gone: "Gone" };
+    const words: Record<WorkspaceState, string> = { running: "Running", pausing: "Stopping", paused: "Stopped", waking: "Waking", unreachable: "Unreachable", gone: "Gone", waiting: "Waiting", released: "Deleted" };
     for (const [state, word] of Object.entries(words)) expect(workspaceWord(state as WorkspaceState)).toBe(word);
   });
 
@@ -65,6 +65,15 @@ describe("workspaceState", () => {
     expect(sendRefusal("waking")).toBe("Workspace is waking; sends open when it is running");
     expect(sendRefusal("unreachable")).toBe("Workspace is unreachable; sends open when the machine answers");
     expect(sendRefusal("gone")).toBe("This workspace's machine is gone with its disk, so work that was not pushed is lost; rebuild it to send, which brings back its home folder from the last saved nap");
+    // A send into a sub-thread waiting for its machine waits with it; an export has nothing to read yet.
+    expect(sendRefusal("waiting")).toBeNull();
+    expect(actionRefusal("waiting", "export")).toBe("Workspace is waiting for a machine; exports open when it is running");
+  });
+
+  it("a sub-machine's record reads waiting while its spawn is queued and released once its machine is deleted (04, L3)", () => {
+    expect(workspaceState({ phase: "queued" })).toBe("waiting");
+    expect(workspaceState({ phase: "released" })).toBe("released");
+    expect(workspaceWord("released")).toBe("Deleted");
   });
 
   it("sendRefusal is one table over everything that refuses a send: the socket, the lookup, the transcript, the agents, the thread, then the states", () => {

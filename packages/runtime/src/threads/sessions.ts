@@ -154,6 +154,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     const held = ctx.capHeld.get(sessionId);
     if (held !== undefined) ctx.capStop(sessionId, capStoppedLine(held.waiting?.wait));
     marked();
+    if (await ctx.dropQueued(s.turnId)) return { outcome: "accepted" };
     // A thread's agents spawned a tree under it, and a stop on the thread is a stop on the tree: the children go
     // first, so nothing under a stopped lead is left working for a thread that is no longer reading. The lead
     // itself may already be over, which is an answer and not a reason to leave its builders running. A child
@@ -311,7 +312,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           ? ctx.claimWarm(workspaceId, opened.harness)
           : undefined;
       if (warmed !== undefined) claimedBy.set(opened, warmed);
-      const threadId = opened.thread ?? warmed ?? randomUUID();
+      const threadId = opened.thread ?? opened.as?.threadId ?? warmed ?? randomUUID();
       // A message into a thread that already has turns is a send; anything else opens one, and only one of those
       // two is what a thread's own token is capped on. Read before the machine is asked for anything. The thread's
       // record answers before its rows, since the rows are capped and the record is not.
@@ -430,6 +431,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // registration did, so a road that may not start a process on the target's workspace does not get one
       // started for it a turn later.
       const notifyRoad = asked === undefined ? registered?.road : roadOf(origin);
+      if (entry.record.queue !== undefined) return ctx.holdQueued({ workspaceId, threadId, tree, o: { ...o, ...(title !== undefined ? { title } : {}) }, notify: asked }, origin);
       const turnToken = randomBytes(16).toString("hex");
       const { scoped, env: launchEnv, wsp } = await threadLaunch(entry, threadId, tree.rootThreadId ?? threadId);
       const dropScope = (): void => {
@@ -484,7 +486,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         dropScope();
         throw new Error(blocked);
       }
-      const turnId = randomUUID();
+      const turnId = o.as?.turnId ?? randomUUID();
       // The thread's row is written here, before anything is asked of the machine: the harness's own lists, the
       // folder and the images all sit between this line and the launch, and they are seconds. A thread no row holds
       // is a thread nothing can be waited on, so a wait fired the moment after a detached start would find nothing
