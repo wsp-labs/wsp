@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Activity as the command line and the tools read it: one computer's processes
-// grouped under the thread that started them, off one snapshot of the daemon
-// and the threads the host names, and the rules an End meets before anything
-// is signalled. A row is a thread's when the daemon names that thread as its
-// owner, or when it stands under one of the thread's roots: its running turn's
-// process and the agent it keeps. From a root down to the agent's own binary
-// is the agent, which only the thread's stop ends; a kept agent is freed
-// through the thread. Nothing here is aimed by a pid alone: an End names the
-// start it read, and a pid that now names another process is refused.
+// Activity's one reading of a computer's processes: who each is (a thread's,
+// wsp's own, or wsp's with no thread known), what it is, and the rules an End
+// meets before anything is signalled. The page, the Processes pane, the command
+// line, the tools, settle and delete all read placeProcs(). A row is a thread's
+// when the daemon names that thread as its owner, when it is the thread's
+// agent, when it stands in the thread's cgroup or slate folder, or when its
+// parent is. From a root down to the agent's own binary, and the input pump
+// left in its group, is the agent, which only the thread's stop ends; a kept
+// agent is freed through the thread. Nothing here is aimed by a pid alone: an
+// End names the start it read, and a pid that now names another process is
+// refused.
 import { z } from "zod";
 import { byProcColumn, PROC_KINDS, type ProcEntry, type ProcKind } from "../wire/daemon.js";
 import { PROCESSES_LEFT_KIND, refusal } from "../exit.js";
@@ -41,8 +43,9 @@ export const ActivityThread = z.object({
 });
 export type ActivityThread = z.infer<typeof ActivityThread>;
 
-/** A computer's processes: each thread with any, wsp's own (the host and the daemon), and what the daemon names as
- * wsp's with no thread, a folder's or the app's. What the person started outside wsp is not listed. */
+/** A computer's processes: each thread with any, wsp's own (the host, the daemon and what they started outside a
+ * thread), and what wsp started with no thread known. What the person started outside wsp, one only a workspace's
+ * folder places included, is not listed. */
 export const ActivityView = z.object({
   computer: z.string(),
   at: z.number(),
@@ -92,6 +95,8 @@ export interface ActivityScope {
   kept?: number;
   /** On a box, the cgroup every process the thread started stands in. */
   cgroup?: string;
+  /** The command its agent puts on PATH, where the read knows the thread's agent. */
+  bin?: string;
 }
 
 export interface ActivityRead {
@@ -106,8 +111,6 @@ export interface ActivityRead {
   agentBins: readonly string[];
   ports?: ReadonlyMap<number, readonly number[]>;
 }
-
-const KINDS: ReadonlySet<string> = new Set(PROC_KINDS);
 
 /** What a script is run by, so the script it runs names the process. */
 export const SCRIPT_RUNTIMES: ReadonlySet<string> = new Set(["node", "python", "python3", "bun", "deno", "ruby"]);
@@ -153,85 +156,220 @@ export function agentPath(root: number, kidsOf: (pid: number) => readonly ProcEn
 export const RUN_SCRIPT = /^bash \S*\/[0-9a-f]{12}\.sh$/;
 const RUN_PUMP = /^tail -n \+1 -f \S*\/[0-9a-f]{12}\.in$/;
 
-interface Placed {
-  byPid: ReadonlyMap<number, ProcEntry>;
-  kidsOf: (pid: number) => readonly ProcEntry[];
-  /** Each process's thread, where one claims it. */
-  threadOf: ReadonlyMap<number, ActivityScope>;
-  /** Every process from a root down to the agent's binary, by the thread it is the agent of, and the root it is under. */
-  agentOf: ReadonlyMap<number, ActivityScope>;
-  rootOf: ReadonlyMap<number, number>;
-  kindOf: (p: ProcEntry) => ProcKind;
+const SHELLS = new Set(["sh", "bash", "zsh", "fish", "dash"]);
+const TEST_LINE = /\b(vitest|jest|mocha|pytest|playwright test|cargo test|cargo nextest|go test|bun test|node --test)\b/;
+const BUILD_LINE = /\b(rustc|cargo build|cargo check|cc1|cc1plus|clang|ld|tsc|go build|webpack(?! serve)|swiftc)\b/;
+const DEV_LINE = /\b(vite|next dev|next-server|webpack serve|astro dev|nuxt dev|remix dev|wrangler dev|electron-vite|http\.server|flask run|uvicorn|rails server)\b/;
+/** A slate's runs read their files from the slate's folder, the host's `slates/<thread>` or a box's `wsp-slates/<thread>`. */
+export const SLATE_FOLDER = /(^|\/)(wsp-)?slates\/[^/\s]+\//;
+
+/** The rungs that name a process a thread started. The folder names only where it runs, which the person's own
+ * terminal shares, so a row it alone places is not wsp's; the coalition names wsp's own launch on a Mac, so a row it
+ * places is wsp's, with no thread and no End. */
+const STARTED_BY = new Set<string>(["root", "fork", "group", "env", "cgroup"]);
+const startedByWsp = (p: ProcEntry): boolean => p.owner !== undefined && STARTED_BY.has(p.owner.by);
+
+/** A thread as the placement reads it. */
+export interface PlaceThread {
+  id: string;
+  /** Its turn's process, the groups its turns led and the agent it keeps: each the top of a stretch down to its agent. */
+  roots: readonly number[];
+  /** On a box, the cgroup everything it started stands in; where it names no root, the heads there are its roots. */
+  cgroup?: string;
+  /** The command its agent puts on PATH; any agent's where left out. */
+  bin?: string;
+  /** The agent's pids its turns' runs recorded as they started it, the agent whatever it runs as. */
+  agents?: readonly number[];
 }
 
-function place(read: ActivityRead): Placed {
-  const byPid = new Map(read.procs.map(p => [p.pid, p]));
-  const children = new Map<number, ProcEntry[]>();
-  for (const p of read.procs) {
-    if (p.ppid === p.pid || !byPid.has(p.ppid)) continue;
-    const list = children.get(p.ppid);
-    if (list) list.push(p);
-    else children.set(p.ppid, [p]);
-  }
-  const kidsOf = (pid: number): readonly ProcEntry[] => children.get(pid) ?? [];
-  const bins = new Set(read.agentBins);
-  const isAgentBin = (p: ProcEntry): boolean => procBins(p).some(b => bins.has(b));
-  /** The root and every process on the way to the shallowest agent binary under it, or the root alone. */
-  const stretch = (root: number): number[] => agentPath(root, kidsOf, isAgentBin, byPid) ?? [root];
+export interface PlaceInput {
+  procs: readonly ProcEntry[];
+  daemon: number;
+  /** The host's pid, on the computer it runs on. */
+  host?: number;
+  threads: readonly PlaceThread[];
+  agentBins: readonly string[];
+  /** Whether a process listens on a port. */
+  listens: (pid: number) => boolean;
+  /** The desktop app's own processes, each a browser tab or frame, or another part of the app. */
+  app?: ReadonlyMap<number, "tab" | "app">;
+}
 
-  const threadOf = new Map<number, ActivityScope>();
-  const agentOf = new Map<number, ActivityScope>();
+/** Whose a process is: a thread's, wsp's own parts', or wsp's with no thread known. */
+export type Whose = { thread: string } | "wsp" | "loose";
+
+/** One computer's processes placed, the one rule Activity, `wsp activity`, settle and delete read. */
+export interface Placement {
+  /** Every live process: a zombie holds no memory and takes no signal. */
+  procs: readonly ProcEntry[];
+  byPid: ReadonlyMap<number, ProcEntry>;
+  kidsOf: (pid: number) => readonly ProcEntry[];
+  /** Absent for a process that is not wsp's. */
+  whose: ReadonlyMap<number, Whose>;
+  /** The process each thread's agent runs as, or the root that stands for it until it shows, by its thread. */
+  agent: ReadonlyMap<number, string>;
+  /** Every other process the agent's row holds, by that agent's pid: the run script and any shell from a root down to
+   * it, and the input pump and the script's shells left in its group. */
+  foldsInto: ReadonlyMap<number, number>;
+  /** The root each of those stands under. */
+  rootOf: ReadonlyMap<number, number>;
+  kindOf: (pid: number) => ProcKind;
+  /** wsp's own: the daemon, the host, and the app's parts other than its tabs. */
+  needed: (pid: number) => boolean;
+  /** Whether End reaches it: a process a thread or wsp started, never an agent or what wsp needs. */
+  endable: (pid: number) => boolean;
+}
+
+export function placeProcs(input: PlaceInput): Placement {
+  const procs = input.procs.filter(p => !p.state.startsWith("Z"));
+  const byPid = new Map(procs.map(p => [p.pid, p]));
+  const children = new Map<number, ProcEntry[]>();
+  for (const p of procs) if (p.ppid !== p.pid && byPid.has(p.ppid)) (children.get(p.ppid) ?? children.set(p.ppid, []).get(p.ppid)!).push(p);
+  const kidsOf = (pid: number): readonly ProcEntry[] => children.get(pid) ?? [];
+  const threadById = new Map(input.threads.map(t => [t.id, t]));
+  const app = input.app ?? new Map<number, "tab" | "app">();
+  const bins = new Set(input.agentBins);
+
+  const agent = new Map<number, string>();
+  const foldsInto = new Map<number, number>();
   const rootOf = new Map<number, number>();
-  const byId = new Map(read.scopes.map(s => [s.threadId, s]));
-  for (const p of read.procs) {
-    const owner = p.owner?.thread === undefined ? undefined : byId.get(p.owner.thread);
-    if (owner !== undefined) threadOf.set(p.pid, owner);
-  }
-  for (const p of read.procs) {
-    const scope = threadOf.has(p.pid) ? undefined : read.scopes.find(s => s.cgroup !== undefined && inCgroup(p.cgroup, s.cgroup));
-    if (scope !== undefined) threadOf.set(p.pid, scope);
-  }
-  const claim = (pid: number, scope: ActivityScope): void => {
-    if (threadOf.has(pid) && threadOf.get(pid) !== scope) return;
-    threadOf.set(pid, scope);
-    for (const kid of kidsOf(pid)) claim(kid.pid, scope);
-  };
-  for (const scope of read.scopes) {
-    for (const root of scope.roots) {
-      if (!byPid.has(root)) continue;
-      claim(root, scope);
-      for (const pid of stretch(root)) {
-        agentOf.set(pid, scope);
+  const standIns: [number, PlaceThread][] = [];
+  for (const t of input.threads) {
+    const isAgent = (p: ProcEntry): boolean => t.agents?.includes(p.pid) === true || (p.kind === "agent" && p.owner?.thread === t.id) || procBins(p).some(b => (t.bin !== undefined ? b === t.bin : bins.has(b)));
+    let roots = t.roots.filter(r => byPid.has(r));
+    const cgroup = t.cgroup;
+    if (roots.length === 0 && cgroup !== undefined) {
+      const inside = new Set(procs.filter(p => inCgroup(p.cgroup, cgroup)).map(p => p.pid));
+      roots = [...inside].filter(pid => !inside.has(byPid.get(pid)!.ppid));
+    } else standIns.push(...roots.map((r): [number, PlaceThread] => [r, t]));
+    for (const root of roots) {
+      const path = agentPath(root, kidsOf, isAgent, byPid);
+      if (path === undefined) continue;
+      const at = path.at(-1)!;
+      agent.set(at, t.id);
+      foldsInto.delete(at);
+      rootOf.set(at, root);
+      for (const pid of path.slice(0, -1)) {
+        if (agent.has(pid)) continue;
+        foldsInto.set(pid, at);
         rootOf.set(pid, root);
       }
     }
   }
-  for (const p of read.procs) {
-    if (p.pgid === undefined || agentOf.has(p.pid) || !(RUN_SCRIPT.test(p.cmdline) || RUN_PUMP.test(p.cmdline))) continue;
-    const scope = read.scopes.find(s => s.roots.includes(p.pgid!));
-    if (scope === undefined || (threadOf.has(p.pid) && threadOf.get(p.pid) !== scope)) continue;
-    threadOf.set(p.pid, scope);
-    agentOf.set(p.pid, scope);
-    rootOf.set(p.pid, p.pgid);
+  for (const [root, t] of standIns) {
+    if (agent.has(root) || foldsInto.has(root)) continue;
+    agent.set(root, t.id);
+    rootOf.set(root, root);
   }
-  const kindOf = (p: ProcEntry): ProcKind => {
-    if (agentOf.has(p.pid) || p.kind === "agent") return "agent";
-    if (p.pid === read.daemon || p.pid === read.host) return "wsp";
-    if (p.kind !== undefined) return KINDS.has(p.kind) ? (p.kind as ProcKind) : "other";
-    if (p.pty !== undefined) return "terminal";
-    return "other";
+  // The pump and the script's shells stand in the group of the agent's run, under pid 1 once the script's shell is gone.
+  const groupAgent = new Map<number, number>();
+  for (const pid of [...agent.keys(), ...foldsInto.keys()]) {
+    const at = agent.has(pid) ? pid : foldsInto.get(pid)!;
+    const pgid = byPid.get(pid)?.pgid;
+    if (pgid !== undefined && !groupAgent.has(pgid)) groupAgent.set(pgid, at);
+    const root = rootOf.get(pid);
+    if (root !== undefined && !groupAgent.has(root)) groupAgent.set(root, at);
+  }
+  for (const p of procs) {
+    if (p.pgid === undefined || agent.has(p.pid) || foldsInto.has(p.pid) || !(RUN_SCRIPT.test(p.cmdline) || RUN_PUMP.test(p.cmdline))) continue;
+    const at = groupAgent.get(p.pgid);
+    const stamped = p.owner?.thread;
+    if (at === undefined || (stamped !== undefined && threadById.has(stamped) && stamped !== agent.get(at))) continue;
+    foldsInto.set(p.pid, at);
+    rootOf.set(p.pid, rootOf.get(at)!);
+  }
+
+  const wspPart = (p: ProcEntry): boolean => p.pid === input.daemon || p.pid === input.host || app.has(p.pid) || p.kind === "app" || p.kind === "wsp";
+  const whose = new Map<number, Whose>();
+  const nobody = new Set<number>();
+  const place = (p: ProcEntry, seen: Set<number>): Whose | undefined => {
+    const held = whose.get(p.pid);
+    if (held !== undefined || nobody.has(p.pid)) return held;
+    let said: Whose | undefined;
+    const stamped = p.owner?.thread;
+    const stretch = agent.get(p.pid) ?? agent.get(foldsInto.get(p.pid) ?? -1);
+    if (stamped !== undefined && threadById.has(stamped)) said = { thread: stamped };
+    else if (stretch !== undefined) said = { thread: stretch };
+    else if (wspPart(p)) said = "wsp";
+    else if (startedByWsp(p)) said = "loose";
+    else {
+      const cg = input.threads.find(t => t.cgroup !== undefined && inCgroup(p.cgroup, t.cgroup));
+      const slate = SLATE_FOLDER.test(p.cmdline) ? (input.threads.find(t => p.cmdline.includes(`slates/${t.id}/`)) ?? null) : undefined;
+      if (cg !== undefined) said = { thread: cg.id };
+      else if (slate !== undefined) said = slate === null ? "loose" : { thread: slate.id };
+      else if (p.pty !== undefined) said = "loose";
+      else {
+        const parent = p.ppid !== p.pid ? byPid.get(p.ppid) : undefined;
+        // What the host and the app start outside a thread, the guest tool server among them, is wsp's own.
+        if (parent !== undefined && !seen.has(parent.pid)) said = place(parent, seen.add(p.pid));
+        if (said === undefined && p.owner?.by === "coalition") said = "loose";
+      }
+    }
+    if (said === undefined) nobody.add(p.pid);
+    else whose.set(p.pid, said);
+    return said;
   };
-  return { byPid, kidsOf, threadOf, agentOf, rootOf, kindOf };
+  for (const p of procs) place(p, new Set());
+
+  const kinds = new Map<number, ProcKind>();
+  const kindOf = (pid: number): ProcKind => {
+    const held = kinds.get(pid);
+    if (held !== undefined) return held;
+    const p = byPid.get(pid);
+    if (p === undefined) return "other";
+    kinds.set(pid, "other");
+    const part = app.get(pid);
+    const parent = p.ppid !== p.pid ? byPid.get(p.ppid) : undefined;
+    const above = parent === undefined ? null : kindOf(parent.pid);
+    let kind: ProcKind;
+    if (part !== undefined) kind = part;
+    else if (agent.has(pid) || foldsInto.has(pid)) kind = "agent";
+    else if ((pid === input.daemon || pid === input.host) && p.kind === undefined) kind = "wsp";
+    else if (p.kind !== undefined) kind = p.kind;
+    else if (p.pty !== undefined) kind = "terminal";
+    else if (SLATE_FOLDER.test(p.cmdline)) kind = "slate";
+    else if (TEST_LINE.test(p.cmdline)) kind = "test";
+    else if (BUILD_LINE.test(p.cmdline)) kind = "build";
+    else if (input.listens(pid) || DEV_LINE.test(p.cmdline)) kind = "dev";
+    else if (above === "dev" || above === "test" || above === "build") kind = above;
+    else if (above === "agent" && !foldsInto.has(parent!.pid) && !SHELLS.has(p.comm)) kind = "tool";
+    else kind = "other";
+    kinds.set(pid, kind);
+    return kind;
+  };
+  const needed = (pid: number): boolean => {
+    const p = byPid.get(pid);
+    return p !== undefined && wspPart(p) && app.get(pid) !== "tab";
+  };
+  const endable = (pid: number): boolean => {
+    const p = byPid.get(pid);
+    const w = whose.get(pid);
+    return p !== undefined && w !== undefined && kindOf(pid) !== "agent" && !needed(pid) && (typeof w === "object" || startedByWsp(p));
+  };
+  return { procs, byPid, kidsOf, whose, agent, foldsInto, rootOf, kindOf, needed, endable };
 }
 
+/** The read's threads as the placement takes them. */
+const readPlaced = (read: ActivityRead): Placement =>
+  placeProcs({
+    procs: read.procs,
+    daemon: read.daemon,
+    host: read.host,
+    threads: read.scopes.map(s => ({ id: s.threadId, roots: s.roots, ...(s.cgroup !== undefined ? { cgroup: s.cgroup } : {}), ...(s.bin !== undefined ? { bin: s.bin } : {}) })),
+    agentBins: read.agentBins,
+    listens: pid => (read.ports?.get(pid)?.length ?? 0) > 0,
+  });
+
+const threadIdOf = (w: Whose | undefined): string | undefined => (typeof w === "object" ? w.thread : undefined);
+
 /** A group's rows as a tree: each process under the first of its parents the group holds, siblings busiest first. */
-function treeRows(placed: Placed, members: readonly ProcEntry[], ports: ReadonlyMap<number, readonly number[]> | undefined): ActivityProc[] {
+function treeRows(placed: Placement, members: readonly ProcEntry[], ports: ReadonlyMap<number, readonly number[]> | undefined): ActivityProc[] {
   const inside = new Set(members.map(p => p.pid));
   const heads = members.filter(p => p.ppid === p.pid || !inside.has(p.ppid));
   const out: ActivityProc[] = [];
   const walk = (list: readonly ProcEntry[], depth: number): void => {
     for (const p of [...list].sort(byProcColumn("cpu"))) {
-      out.push({ pid: p.pid, ppid: p.ppid, depth, startedAt: p.startedAt, kind: placed.kindOf(p), name: p.comm, command: p.cmdline === "" ? p.comm : p.cmdline, memory: p.rss, cpu: p.cpu, ports: [...(ports?.get(p.pid) ?? [])] });
+      out.push({ pid: p.pid, ppid: p.ppid, depth, startedAt: p.startedAt, kind: placed.kindOf(p.pid), name: p.comm, command: p.cmdline === "" ? p.comm : p.cmdline, memory: p.rss, cpu: p.cpu, ports: [...(ports?.get(p.pid) ?? [])] });
       walk(placed.kidsOf(p.pid).filter(k => inside.has(k.pid)), depth + 1);
     }
   };
@@ -239,17 +377,12 @@ function treeRows(placed: Placed, members: readonly ProcEntry[], ports: Readonly
   return out;
 }
 
-/** The rungs that name a process a thread started; the folder and the coalition name only where it runs, which the
- * person's own terminal shares, so a row they alone own is not wsp's to list or end. */
-const STARTED_BY = new Set<string>(["root", "fork", "group", "env", "cgroup"]);
-const startedByWsp = (p: ProcEntry): boolean => p.owner !== undefined && STARTED_BY.has(p.owner.by);
-
 /** The computer's processes by thread, each thread in the order the host named it and only where it has any. */
 export function activityOf(read: ActivityRead): ActivityView {
-  const placed = place(read);
+  const placed = readPlaced(read);
   const threads: ActivityThread[] = [];
   for (const scope of read.scopes) {
-    const members = read.procs.filter(p => placed.threadOf.get(p.pid) === scope);
+    const members = placed.procs.filter(p => threadIdOf(placed.whose.get(p.pid)) === scope.threadId);
     if (members.length === 0) continue;
     let memory = 0;
     let cpu = 0;
@@ -259,10 +392,8 @@ export function activityOf(read: ActivityRead): ActivityView {
     }
     threads.push({ threadId: scope.threadId, title: scope.title, workspaceId: scope.workspaceId, memory, cpu, processes: treeRows(placed, members, read.ports) });
   }
-  const free = read.procs.filter(p => !placed.threadOf.has(p.pid));
-  const wsp = free.filter(p => placed.kindOf(p) === "wsp");
-  const unowned = free.filter(p => startedByWsp(p) && placed.kindOf(p) !== "wsp");
-  return { computer: read.computer, at: read.at, threads, wsp: treeRows(placed, wsp, read.ports), unowned: treeRows(placed, unowned, read.ports) };
+  const of = (w: "wsp" | "loose"): ProcEntry[] => placed.procs.filter(p => placed.whose.get(p.pid) === w);
+  return { computer: read.computer, at: read.at, threads, wsp: treeRows(placed, of("wsp"), read.ports), unowned: treeRows(placed, of("loose"), read.ports) };
 }
 
 /** What an End signals, read before the first signal: the process and every process under it, each by the start it
@@ -298,28 +429,31 @@ export const NOT_THREADS_FIX = "a thread ends only what it and the threads under
  * wsp did not start is refused. `may` is whether the caller may end a process of that thread, or of no thread when
  * it is undefined. */
 export function endPlan(read: ActivityRead, pid: number, startedAt: number, may: (threadId: string | undefined) => boolean): EndPlan {
-  const placed = place(read);
+  const placed = readPlaced(read);
   const p = placed.byPid.get(pid);
   if (p === undefined) throw refusal(endGoneLine(pid), END_AGAIN_FIX, "not-found");
+  const scopeOf = (threadId: string | undefined): ActivityScope | undefined => read.scopes.find(s => s.threadId === threadId);
   // Reach before the start, so a caller learns nothing of a process it may not end, not even its name.
-  const owner = placed.threadOf.get(pid);
-  if (!may(owner?.threadId)) throw refusal(notThreadsLine(pid), NOT_THREADS_FIX, "usage");
+  const owner = threadIdOf(placed.whose.get(pid));
+  if (!may(owner)) throw refusal(notThreadsLine(pid), NOT_THREADS_FIX, "usage");
   if (pid === read.daemon || pid === read.host) throw refusal(wspOwnLine(pid), WSP_OWN_FIX, "usage");
   if (owner === undefined && !startedByWsp(p)) throw refusal(notStartedLine(pid), NOT_STARTED_FIX, "usage");
   if (Math.abs(p.startedAt - startedAt) > SAME_START_MS) throw refusal(endReusedLine(pid, p, startedAt), END_AGAIN_FIX, "not-found");
-  const agent = placed.agentOf.get(pid);
+  const agentOf = (q: number): ActivityScope | undefined => scopeOf(placed.agent.get(q) ?? placed.agent.get(placed.foldsInto.get(q) ?? -1));
+  const agent = agentOf(pid);
   if (agent !== undefined) {
     if (agent.kept !== undefined && placed.rootOf.get(pid) === agent.kept) return { kept: agent };
     throw refusal(agentEndLine(pid, agent), agentEndFix(agent), "usage");
   }
-  if (p.kind === "agent") {
-    const scope = placed.threadOf.get(pid);
+  if (placed.kindOf(pid) === "agent") {
+    const scope = scopeOf(owner);
     if (scope !== undefined) throw refusal(agentEndLine(pid, scope), agentEndFix(scope), "usage");
     throw refusal(`${pid} is an agent, which only its thread's stop ends:`, "stop its thread's turn with wsp stop.", "usage");
   }
+  if (!placed.endable(pid)) throw refusal(notStartedLine(pid), NOT_STARTED_FIX, "usage");
   const targets: ProcEntry[] = [];
   const take = (q: ProcEntry): void => {
-    const under = placed.agentOf.get(q.pid);
+    const under = agentOf(q.pid);
     if (under !== undefined) throw refusal(agentUnderLine(pid, under), agentEndFix(under), "usage");
     if (q.pid === read.daemon || q.pid === read.host) throw refusal(wspOwnLine(q.pid), WSP_OWN_FIX, "usage");
     targets.push(q);

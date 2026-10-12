@@ -4,7 +4,7 @@
 // shown under its parents, so a row whose command is twenty characters of the
 // same flags is still told apart by what started it.
 import { CATALOG_AGENTS } from "@wsp/catalog";
-import { appProcLine, byProcColumn, RUN_SCRIPT, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
+import { appProcLine, byProcColumn, placeProcs, procBins, RUN_SCRIPT, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
 
 export type { ProcSort };
 
@@ -66,42 +66,18 @@ export function procTable(procs: readonly ProcEntry[], sort: ProcSort, filter: s
 
 const NO_APP: ReadonlyMap<number, AppProc> = new Map();
 
-/** argv[0]'s basename off the row's command line, the name a process was run by: a native Claude Code runs as comm
- * `2.1.296` through the link named claude, cursor-agent as node under argv[0] cursor-agent. */
-const runAs = (p: ProcEntry): string => p.cmdline.split(" ", 1)[0]!.split("/").pop()!;
+const AGENT_BINS = CATALOG_AGENTS.map(a => a.bin);
+const isAgent = (p: ProcEntry): boolean => procBins(p).some(b => AGENT_BINS.includes(b));
 
-const isAgent = (p: ProcEntry): boolean => CATALOG_AGENTS.some(a => a.bin === p.comm || a.bin === runAs(p));
-
-/** The pids from p up to the one under root, or null where root is not above p. */
-function pathUp(byPid: ReadonlyMap<number, ProcEntry>, p: ProcEntry, root: number): number[] | null {
-  const path: number[] = [];
-  for (let at: ProcEntry | undefined = p; at !== undefined; at = byPid.get(at.ppid)) {
-    if (at.pid === root) return path;
-    if (path.includes(at.pid)) return null;
-    path.push(at.pid);
-  }
-  return null;
-}
-
-/** The rows that are a running turn's agent, each with its thread: the process the host started for the turn and
- * every process from it down to the agent its run recorded, or where none was recorded down to each process run as an
- * agent's binary. A signal to any of them
- * ends the turn as failed, so the pane stops the thread instead. A tool server under the agent is none of them. */
+/** The rows that are a running turn's agent, each with its thread, as `placeProcs` reads them: the process the host
+ * started for the turn and every process from it down to the agent its run recorded, or the agent's binary. A signal to any of them ends the turn as
+ * failed, so the pane stops the thread instead. A tool server under the agent is none of them. */
 export function agentRows(procs: readonly ProcEntry[], threads: readonly ProcThread[]): Map<number, ProcThread> {
-  const byPid = new Map(procs.map(p => [p.pid, p]));
+  const running = new Map(threads.filter(t => t.sessionId !== undefined).map(t => [t.threadId, t]));
+  const placed = placeProcs({ procs, daemon: -1, threads: [...running.values()].map(t => ({ id: t.threadId, roots: [t.pid], ...(t.agentPid !== undefined ? { agents: [t.agentPid] } : {}) })), agentBins: AGENT_BINS, listens: () => false });
   const rows = new Map<number, ProcThread>();
-  for (const thread of threads) {
-    if (thread.sessionId === undefined) continue;
-    if (!byPid.has(thread.pid)) continue;
-    rows.set(thread.pid, thread);
-    const recorded = thread.agentPid === undefined ? undefined : byPid.get(thread.agentPid);
-    const known = recorded === undefined ? null : pathUp(byPid, recorded, thread.pid);
-    // A recorded process that runs as no agent's name is a launcher, npm's codex.js under node: the agent's own binary
-    // it starts is the agent too.
-    const launched = known === null || isAgent(recorded!) ? [] : procs.filter(p => isAgent(p) && pathUp(byPid, p, recorded!.pid) !== null);
-    const agents = known !== null ? [recorded!, ...launched] : procs.filter(isAgent);
-    for (const p of agents) for (const pid of pathUp(byPid, p, thread.pid) ?? []) rows.set(pid, thread);
-  }
+  for (const [pid, id] of placed.agent) rows.set(pid, running.get(id)!);
+  for (const [pid, at] of placed.foldsInto) rows.set(pid, running.get(placed.agent.get(at)!)!);
   return rows;
 }
 

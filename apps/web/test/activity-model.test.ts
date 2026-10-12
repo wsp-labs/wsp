@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { ProcSnapshot, type ProcEntry } from "@wsp/protocol";
+import { CATALOG_AGENTS } from "@wsp/catalog";
+import { ProcSnapshot, activityOf, endPlan, type ProcEntry } from "@wsp/protocol";
 import { resolveActions } from "../src/actions/registry.js";
 import { procActions, type ProcVerbs } from "../src/settings/activity/actions.js";
 import {
@@ -129,7 +130,7 @@ describe("scopeOf", () => {
     expect(shape(s.groups.filter(g => g.id === "loose"))).toEqual([["loose", [[21, "terminal", "zsh"]]]]);
   });
 
-  it("reads the owner a daemon stamps as an object: the thread it names, No thread for one that names none", () => {
+  it("reads the owner a daemon stamps as an object: the thread it names, No thread for wsp's launch on a Mac, and not wsp's for a folder alone", () => {
     const owned = [
       proc(10, 1, "node", { cmdline: "node wsp host" }),
       proc(20, 10, "wsp-daemon"),
@@ -144,8 +145,10 @@ describe("scopeOf", () => {
     expect(shape(s.groups)).toEqual([
       ["wsp", [[10, "wsp", "Host"], [20, "wsp", "Daemon"]]],
       ["t1", [[61, "tool", "server"], [60, "slate", "python3 run.py"]]],
-      ["loose", [[62, "other", "dev"], [63, "other", "helper"]]],
+      ["loose", [[63, "other", "helper"]]],
     ]);
+    expect(s.rest.map(p => p.pid)).toEqual([62]);
+    expect(s.groups.at(-1)!.procs[0]!.endable).toBeUndefined();
   });
 
   it("keeps a frame whose row carries a kind or an owner a newer daemon added, reading them as other and no owner", () => {
@@ -278,6 +281,57 @@ describe("scopeOf", () => {
     expect(s.energy).toBe(true);
     expect(spent(s.groups[1]!.procs).energy).toBe(94);
     expect(spent(here().groups[1]!.procs).energy).toBeNull();
+  });
+});
+
+describe("one model for the page, the pane and wsp activity", () => {
+  // The review's frame (#2031): a turn here with the wsp bridge under its agent and its input pump left under pid 1 in
+  // the turn's group; vite on :5199 that the Bash tool detached, and a vitest run; the person's own next dev that only
+  // the project's folder places; and a helper only wsp's launch on a Mac places.
+  const START = 1_760_000_000_000;
+  const frame = [
+    proc(1, 0, "launchd"),
+    proc(10, 1, "node", { cmdline: "node wsp host" }),
+    proc(20, 10, "wsp-daemon"),
+    proc(30, 10, "bash", { cmdline: "bash /state/runs/3d518f162d41.sh", pgid: 30, rss: 2 * MB }),
+    proc(31, 30, "claude", { cmdline: "claude -p --input-format stream-json", pgid: 30, rss: 500 * MB }),
+    proc(32, 31, "node", { cmdline: "node /opt/wsp/mcp.js --thread t1", pgid: 30 }),
+    proc(33, 1, "tail", { cmdline: "tail -n +1 -f /state/runs/3d518f162d41.in", pgid: 30, rss: 1 * MB, owner: { by: "group", thread: "t1" } }),
+    proc(40, 1, "node", { cmdline: "node /lab/node_modules/.bin/vite --port 5199", pgid: 40, owner: { by: "fork", thread: "t1" } }),
+    proc(41, 40, "esbuild", { cmdline: "esbuild --service", pgid: 40, owner: { by: "fork", thread: "t1" } }),
+    proc(50, 31, "node", { cmdline: "node /lab/node_modules/.bin/vitest run", pgid: 50 }),
+    proc(60, 1, "node", { cmdline: "node /lab/node_modules/.bin/next dev", owner: { by: "folder", workspace: "ws_lab" } }),
+    proc(70, 1, "node", { cmdline: "node helper.js", owner: { by: "coalition" } }),
+  ].map(p => ({ ...p, startedAt: START + p.pid }));
+  const page = scopeOf({ snapshot: snap(frame), threads: [thread("t1", { pid: 30 })], ports: new Map([[40, [{ port: 5199, loopback: true }]]]), host: 10 });
+  const read = { computer: "lab", at: START, procs: frame, daemon: 20, host: 10, scopes: [{ threadId: "t1", title: "Thread t1", workspaceId: "ws_lab", roots: [30], bin: "claude" }], agentBins: CATALOG_AGENTS.map(a => a.bin), ports: new Map([[40, [5199]]]) };
+  const cli = activityOf(read);
+  const rows = (id: string) => page.groups.find(g => g.id === id)!.procs.flatMap(flat);
+
+  it("places every process with one owner and one kind in both", () => {
+    const kinds = new Map(cli.threads[0]!.processes.map(p => [p.pid, p.kind]));
+    expect(Object.fromEntries(kinds)).toEqual({ 30: "agent", 31: "agent", 32: "tool", 33: "agent", 40: "dev", 41: "dev", 50: "test" });
+    expect(rows("t1").map(p => [p.pid, p.kind]).sort((a, b) => Number(a[0]) - Number(b[0]))).toEqual([[31, "agent"], [32, "tool"], [40, "dev"], [41, "dev"], [50, "test"]]);
+    // The run script and the pump are the agent's row on the page: its figures hold theirs.
+    expect(rows("t1").find(p => p.pid === 31)!.mem).toBe(503 * MB);
+    expect([cli.wsp.map(p => p.pid), rows("wsp").map(p => p.pid)]).toEqual([[10, 20], [10, 20]]);
+    expect([cli.unowned.map(p => p.pid), rows("loose").map(p => p.pid)]).toEqual([[70], [70]]);
+    expect(page.rest.map(p => p.pid)).toEqual([1, 60]);
+    expect(JSON.stringify(cli)).not.toContain("next dev");
+  });
+
+  it("offers End on the page exactly where wsp activity end would signal", () => {
+    const ends = (pid: number): boolean => {
+      try {
+        return "targets" in endPlan(read, pid, START + pid, () => true);
+      } catch {
+        return false;
+      }
+    };
+    const offered = [...page.groups.flatMap(g => g.procs.flatMap(flat)), ...page.rest];
+    for (const p of offered) expect(p.endable === true, `${p.pid} ${p.name}`).toBe(ends(p.pid));
+    expect(offered.filter(p => p.endable === true).map(p => p.pid).sort()).toEqual([32, 40, 41, 50]);
+    expect([30, 33].map(ends)).toEqual([false, false]);
   });
 });
 

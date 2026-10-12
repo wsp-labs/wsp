@@ -2,7 +2,7 @@
 // Activity's four views over one computer's groups, in the Settings grid: a
 // group row folds open onto its processes, each with its kind's glyph, its
 // figures inked only past their marks, and its one act while pointed at.
-import { memo, useCallback, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { ActivityIcon, AppWindowIcon, ArrowDownIcon, BotIcon, ChevronRightIcon, CircleDashedIcon, CogIcon, ContainerIcon, EllipsisIcon, EthernetPortIcon, FlaskConicalIcon, Globe2Icon, GaugeIcon, HammerIcon, PanelsTopLeftIcon, ServerIcon, TerminalSquareIcon, type LucideIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
 import { fmtBytes, fmtDuration, fmtTokens, fmtUptime } from "@wsp/protocol";
@@ -33,6 +33,7 @@ import {
   memoryTint,
   portsWord,
   spent,
+  totalSpent,
   type ActivityContainer,
   type ActivityGroup,
   type ActivityPort,
@@ -40,6 +41,7 @@ import {
   type ActivitySort,
   type ActivitySubagent,
   type PlacedProc,
+  type Spent,
   type ProcKind,
   type Tint,
 } from "./model.js";
@@ -186,8 +188,24 @@ function RowMenu({ target, acts }: { target: ProcTarget; acts: Acts }) {
   );
 }
 
-/** One process under a group: its glyph, its name in the sub row's ink, its kind and ports as tags, then its figures. */
-function ProcRow({ p, depth, group, acts, look }: { p: ActivityProc; depth: number; group: ActivityGroup | null; acts: Acts; look: Look }) {
+/** What a process row draws and acts on, as one string: the figures as their words, so a reading that moves none of
+ * them draws nothing again, and the start and identity an End sends. */
+const procSig = (p: ActivityProc): string =>
+  `${p.pid}:${p.startedAt ?? ""}:${p.id ?? ""}:${p.name}:${p.kind}:${fmtBytes(p.mem)}:${cpuWord(p.cpu)}:${energyWord(p.energy)}:${portsWord(p.ports)}:${p.command}:${p.harness ?? ""}:${p.needed === true}:${p.endable === true}:${p.heading === true}`;
+
+interface ProcRowProps {
+  readonly p: ActivityProc;
+  readonly depth: number;
+  readonly group: ActivityGroup | null;
+  readonly acts: Acts;
+  readonly look: Look;
+}
+
+/** One process under a group: its glyph, its name in the sub row's ink, its kind and ports as tags, then its figures.
+ * Drawn again only when its words, its acts or its thread moved. */
+const ProcRow = memo(ProcRowView, (a, b) => procSig(a.p) === procSig(b.p) && a.depth === b.depth && a.acts === b.acts && a.look === b.look && a.group?.id === b.group?.id && a.group?.thread === b.group?.thread);
+
+function ProcRowView({ p, depth, group, acts, look }: ProcRowProps) {
   const ending = acts.ending.has(p.pid);
   const heading = p.heading === true;
   const tag = ending ? W.ending : UNTAGGED.has(p.kind) || heading ? undefined : KIND_WORDS[p.kind];
@@ -228,7 +246,7 @@ function ActivitySubagentRow({ s, harness, workspaceId }: { s: ActivitySubagent;
   const tags = [W.subagentStates[s.state], fmtDuration(s.ms), ...(s.tokens === null ? [] : [W.tokens(fmtTokens(s.tokens))]), ...(s.model === null || model === null ? [] : [model])];
   return (
     <div data-subagent-row={s.id} data-state={s.state} title={W.subagentNote} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
+      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--nest)*1.25rem)] narrow:ps-[calc(0.75rem+var(--nest)*0.75rem)]">
         <BotIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{s.title}</span>
@@ -260,7 +278,7 @@ function ContainerRow({ c, loose, acts }: { c: ActivityContainer; loose: boolean
   const note = !loose ? (c.placedBy === "compose" ? W.containerNotes.compose : W.containerNotes.label) : c.placedBy === "label" ? W.containerNotes.gone : c.placedBy === "compose" ? W.containerNotes.goneCompose : W.containerNotes.loose;
   return (
     <div data-container-row={c.id} title={note} onContextMenu={menu} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
+      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--nest)*1.25rem)] narrow:ps-[calc(0.75rem+var(--nest)*0.75rem)]">
         <ContainerIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{c.name}</span>
@@ -331,12 +349,12 @@ interface HeadMenu {
 
 const openHeadMenu = (event: MouseEvent<HTMLElement>, menu: HeadMenu): void => void openContextMenu(event, resolveActions(groupActions, menu.group, menu.acts));
 
-function GroupHead({ glyph, name, status, note, procs, containers = [], memory, open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; containers?: readonly ActivityContainer[]; memory?: number | undefined; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
-  const t = groupSpent({ procs, containers, ...(memory === undefined ? {} : { memory }) });
+/** A group's head: its name and note, and `total`, the figures it draws, a lead's holding the threads folded under it. */
+function GroupHead({ glyph, name, status, note, total: t, open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; total: Spent; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
   return (
     <div className="group/row">
       <GridRow columns={TREE} open={onOpen} {...(menu === undefined ? {} : { onContextMenu: e => openHeadMenu(e, menu) })} attrs={{ "aria-expanded": String(open), "data-group": id }}>
-        <span className="flex min-w-0 items-center gap-3">
+        <span className="flex min-w-0 items-center gap-3 ps-[calc(var(--nest)*1.25rem)] narrow:ps-[calc(var(--nest)*0.75rem)]">
           <GlyphFrame>{glyph}</GlyphFrame>
           <span className="flex min-w-0 flex-col">
             <span className="flex min-w-0 items-center gap-2">
@@ -375,14 +393,24 @@ export interface ThreadsProps {
   readonly opened?: readonly string[];
 }
 
-/** What a group draws, as one string: a frame that moved none of it leaves the group's block as it was. */
-const groupSig = (g: ActivityGroup): string =>
-  g.procs.flatMap(flat).map(p => `${p.pid}:${p.name}:${p.kind}:${p.mem}:${p.cpu}:${p.energy}:${portsWord(p.ports)}`).join("|") +
-  `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}|${g.memory ?? ""}` +
-  `|${g.containers.map(c => `${c.id}:${c.name}:${c.image}:${c.upMs === null ? "" : fmtUptime(c.upMs)}:${c.mem}:${c.cpu}:${c.folder}:${c.placedBy}`).join("|")}`;
+/** What a group draws, as one string of the words it draws: a frame that moved none of them leaves the group's block as
+ * it was. The head's totals are over `under` too, the threads folded under it, each group by its own figures. */
+const groupSig = (g: ActivityGroup, under: readonly ActivityGroup[]): string => {
+  const t = totalSpent([g, ...under]);
+  return (
+    `${fmtBytes(t.mem)}:${cpuWord(t.cpu)}:${energyWord(t.energy)}|${g.memory === undefined ? "" : fmtBytes(g.memory)}|` +
+    g.procs.flatMap(flat).map(procSig).join("|") +
+    `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.sessionId ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}` +
+    `|${g.containers.map(c => `${c.id}:${c.name}:${c.image}:${c.upMs === null ? "" : fmtUptime(c.upMs)}:${c.mem === null ? "" : fmtBytes(c.mem)}:${c.cpu === null ? "" : cpuWord(c.cpu)}:${c.folder}:${c.placedBy}:${c.owned}`).join("|")}`
+  );
+};
 
 interface BlockProps {
   readonly g: ActivityGroup;
+  /** The threads folded under it, at every depth, whose figures its head's totals hold. */
+  readonly under: readonly ActivityGroup[];
+  /** How many leads it stands under. */
+  readonly nest: number;
   readonly sig: string;
   readonly opened: boolean;
   readonly toggle: (id: string) => void;
@@ -397,35 +425,33 @@ interface BlockProps {
 
 /** One group and, folded open, its rows; drawn again only when what it shows moved. */
 const GroupBlock = memo(
-  function GroupBlock({ g, opened, toggle, status, age, box, cost, filtering, acts, look }: BlockProps) {
+  function GroupBlock({ g, under, nest, opened, toggle, status, age, box, cost, filtering, acts, look }: BlockProps) {
     if (g.kind === "wsp")
       return (
-        <div data-activity-group="wsp">
-          <GroupHead id={g.id} glyph={<ActivityIcon aria-hidden className={GLYPH} />} name={W.wsp} note={box ? W.wspNoteBox : W.wspNote} procs={g.procs} open={opened} onOpen={() => toggle(g.id)} look={look} />
+        <div data-activity-group="wsp" style={{ "--nest": 0 } as CSSProperties}>
+          <GroupHead id={g.id} glyph={<ActivityIcon aria-hidden className={GLYPH} />} name={W.wsp} note={box ? W.wspNoteBox : W.wspNote} total={groupSpent(g)} open={opened} onOpen={() => toggle(g.id)} look={look} />
           {opened ? procRows(g.procs, 0, g, acts, look) : null}
           {opened && cost !== null && !filtering ? <SamplerRow cost={cost} look={look} /> : null}
         </div>
       );
     if (g.kind === "loose")
       return (
-        <div data-activity-group="loose">
-          <GroupHead id={g.id} glyph={<CircleDashedIcon aria-hidden className={GLYPH} />} name={W.loose} note={W.looseNote} procs={g.procs} containers={g.containers} open={opened} onOpen={() => toggle(g.id)} look={look} />
+        <div data-activity-group="loose" style={{ "--nest": 0 } as CSSProperties}>
+          <GroupHead id={g.id} glyph={<CircleDashedIcon aria-hidden className={GLYPH} />} name={W.loose} note={W.looseNote} total={groupSpent(g)} open={opened} onOpen={() => toggle(g.id)} look={look} />
           {opened ? procRows(g.procs, 0, g, acts, look) : null}
           {opened ? g.containers.map(c => <ContainerRow key={c.id} c={c} loose acts={acts} />) : null}
         </div>
       );
     const t = g.thread!;
     return (
-      <div data-activity-group={t.id}>
+      <div data-activity-group={t.id} style={{ "--nest": nest } as CSSProperties}>
         <GroupHead
           id={g.id}
           glyph={<HarnessMark harness={t.harness} label={agentName(t.harness)} className="size-4" />}
           name={t.title}
           {...(status === undefined ? {} : { status: <ThreadStatus thread={status} {...(age === undefined ? {} : { age })} still className={LINE_SLOT_CLASS} /> })}
           note={t.project}
-          procs={g.procs}
-          containers={g.containers}
-          memory={g.memory}
+          total={totalSpent([g, ...under])}
           open={opened}
           onOpen={() => toggle(g.id)}
           act={
@@ -438,7 +464,7 @@ const GroupBlock = memo(
           menu={{ group: g, acts }}
           look={look}
         />
-        {opened ? procRows(g.procs, 0, g, acts, look) : null}
+        {opened ? procRows(g.procs, nest, g, acts, look) : null}
         {opened ? g.subagents.map(s => <ActivitySubagentRow key={s.id} s={s} harness={t.harness} workspaceId={t.workspaceId} />) : null}
         {opened ? g.containers.map(c => <ContainerRow key={c.id} c={c} loose={false} acts={acts} />) : null}
       </div>
@@ -446,6 +472,7 @@ const GroupBlock = memo(
   },
   (a, b) =>
     a.sig === b.sig &&
+    a.nest === b.nest &&
     a.opened === b.opened &&
     a.acts === b.acts &&
     a.look === b.look &&
@@ -458,10 +485,67 @@ const GroupBlock = memo(
 
 const NONE_OPEN: readonly string[] = [];
 
-/** The Threads view: wsp's own parts, each thread heaviest first, then No thread. A filter opens every group it left. */
+/** Each thread group under the lead that started it, where the lead has a group too; the rest stand at the top. */
+function nestGroups(groups: readonly ActivityGroup[]): { tops: ActivityGroup[]; kids: ReadonlyMap<string, ActivityGroup[]> } {
+  const shown = new Set(groups.map(g => g.id));
+  const leadOf = (g: ActivityGroup): string | undefined => {
+    const lead = g.thread?.parent;
+    return lead !== undefined && shown.has(lead) && lead !== g.id ? lead : undefined;
+  };
+  const tops: ActivityGroup[] = [];
+  const kids = new Map<string, ActivityGroup[]>();
+  for (const g of groups) {
+    const lead = leadOf(g);
+    // A lead whose chain comes back to it stands at the top, so no group hides under itself.
+    const seen = new Set([g.id]);
+    let up = lead;
+    while (up !== undefined && !seen.has(up)) {
+      seen.add(up);
+      up = leadOf(groups.find(x => x.id === up)!);
+    }
+    if (lead === undefined || up !== undefined) tops.push(g);
+    else (kids.get(lead) ?? kids.set(lead, []).get(lead)!).push(g);
+  }
+  return { tops, kids };
+}
+
+/** The Threads view: wsp's own parts, each thread heaviest first with the threads it started folded under it, then No
+ * thread. A filter opens every group it left. */
 export function ThreadsTable({ name, groups, statusOf, ageOf, box, cost, filtering, acts, look, opened = NONE_OPEN }: ThreadsProps) {
   const [open, setOpen] = useState<readonly string[]>(opened);
   const toggle = useCallback((id: string) => setOpen(o => (o.includes(id) ? o.filter(x => x !== id) : [...o, id])), []);
+  const { tops, kids } = useMemo(() => nestGroups(groups), [groups]);
+  const below = (id: string): ActivityGroup[] => (kids.get(id) ?? []).flatMap(k => [k, ...below(k.id)]);
+  const block = (g: ActivityGroup, nest: number): ReactNode => {
+    const under = below(g.id);
+    const isOpen = filtering || open.includes(g.id);
+    const drawn = (
+      <GroupBlock
+        key={g.id}
+        g={g}
+        under={under}
+        nest={nest}
+        sig={groupSig(g, under)}
+        opened={isOpen}
+        toggle={toggle}
+        status={g.thread === undefined ? undefined : statusOf(g.thread.id)}
+        age={g.thread === undefined ? undefined : ageOf(g.thread.id)}
+        box={box}
+        cost={cost}
+        filtering={filtering}
+        acts={acts}
+        look={look}
+      />
+    );
+    const mine = kids.get(g.id);
+    if (mine === undefined) return drawn;
+    return (
+      <div key={g.id} data-activity-lead={g.id}>
+        {drawn}
+        {isOpen ? mine.map(k => block(k, nest + 1)) : null}
+      </div>
+    );
+  };
   return (
     <div data-grid="activity" className="flex flex-col">
       <div data-grid-head className={cn(HEAD, TREE)}>
@@ -473,22 +557,7 @@ export function ThreadsTable({ name, groups, statusOf, ageOf, box, cost, filteri
         <span />
       </div>
       <div className={LIST}>
-        {groups.map(g => (
-          <GroupBlock
-            key={g.id}
-            g={g}
-            sig={groupSig(g)}
-            opened={filtering || open.includes(g.id)}
-            toggle={toggle}
-            status={g.thread === undefined ? undefined : statusOf(g.thread.id)}
-            age={g.thread === undefined ? undefined : ageOf(g.thread.id)}
-            box={box}
-            cost={cost}
-            filtering={filtering}
-            acts={acts}
-            look={look}
-          />
-        ))}
+        {tops.map(g => block(g, 0))}
         {groups.length === 0 ? (
           <div className={cn("flex min-h-12 items-center", CARD_INSET)}>
             <span className={NOTE}>{filtering ? W.nothingMatches : W.nothing}</span>
@@ -593,7 +662,7 @@ export function KindsTable({ name, kinds, acts, look, filtering }: { name: strin
           const opened = filtering || open.includes(kind);
           return (
             <div key={kind} data-activity-kind={kind}>
-              <GroupHead id={kind} glyph={<Glyph aria-hidden className={GLYPH} />} name={KIND_HEADS[kind]} note={W.processCount(rows.length)} procs={rows.map(r => r.p)} open={opened} onOpen={() => toggle(kind)} look={look} tinted={false} />
+              <GroupHead id={kind} glyph={<Glyph aria-hidden className={GLYPH} />} name={KIND_HEADS[kind]} note={W.processCount(rows.length)} total={spent(rows.map(r => r.p))} open={opened} onOpen={() => toggle(kind)} look={look} tinted={false} />
               {opened ? rows.map(row => <KindRow key={row.p.pid} row={row} acts={acts} look={look} />) : null}
             </div>
           );

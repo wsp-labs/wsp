@@ -53,7 +53,8 @@ export function useActivityThreads(placeId: string, here: boolean, on: ThreadsOn
           workspaceId: w.id,
           sessionId: t.sessionId,
           working: t.status === "running",
-          ...(here ? (t.pid === undefined ? {} : { pid: t.pid }) : { cgroup: threadCgroup(t.id) }),
+          ...(here ? { ...(t.pid === undefined ? {} : { pid: t.pid }), ...(t.agentPid === undefined ? {} : { agentPid: t.agentPid }) } : { cgroup: threadCgroup(t.id) }),
+          ...(t.parentThreadId === undefined ? {} : { parent: t.parentThreadId }),
           ...(slate === undefined ? {} : { slate }),
           ...(t.subagents === undefined ? {} : { subagents: t.subagents }),
         });
