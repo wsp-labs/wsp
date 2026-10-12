@@ -9,14 +9,18 @@
 // rather than leaving it dialling something that will never answer, except
 // where the shell is the one that gave it: the host mints a fresh token at
 // every start, so a refusal right after a host restart is answered by asking
-// the shell again. Each refused token is asked about once, so a host that will
-// not take anything ends on the code screen rather than in a loop.
+// the shell again. A token the shell answers again after one refusal is dialled
+// once more, since a refusal the host does not repeat leaves it good; its second
+// refusal in a row is final, so a host that will not take anything ends on the
+// code screen rather than in a loop. The code screen asks the shell again each
+// time the window comes forward.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BootPayload } from "@wsp/protocol";
 import { AppRoot } from "./AppRoot.js";
 import { desktopBridge } from "./lib/desktopShell.js";
 import { PairScreen } from "./PairScreen.js";
 import { takePairingCode } from "./protocol/address.js";
+import { useStore } from "./protocol/store.js";
 import { deviceName, forgetDeviceToken, redeemPairingCode, rememberDeviceToken, runtimeUrl, storedDeviceToken, type PageLocation } from "./protocol/pairing.js";
 
 export interface BootGateProps {
@@ -29,7 +33,8 @@ export interface BootGateProps {
 export function BootGate({ boot, at, agent, storage }: BootGateProps) {
   const url = runtimeUrl(boot, at);
   const askShell = desktopBridge()?.hostToken;
-  const refused = useRef(new Set<string>());
+  /** How many times in a row the host refused each token, cleared once a socket goes live. */
+  const refused = useRef(new Map<string, number>());
   // Taken out of the address before anything is drawn, so the app never reads it and a second look finds none.
   const [code] = useState(() => (askShell === undefined ? takePairingCode() : undefined));
   const [token, setToken] = useState<string | undefined>(() => (askShell === undefined && code === undefined ? storedDeviceToken(storage) : undefined));
@@ -40,7 +45,7 @@ export function BootGate({ boot, at, agent, storage }: BootGateProps) {
   useEffect(() => {
     if (askShell === undefined) return;
     let live = true;
-    const usable = (held: string | undefined): string | undefined => (held !== undefined && !refused.current.has(held) ? held : undefined);
+    const usable = (held: string | undefined): string | undefined => (held !== undefined && (refused.current.get(held) ?? 0) < 2 ? held : undefined);
     const settle = (held: string | undefined): void => {
       if (!live) return;
       setToken(usable(held) ?? usable(storedDeviceToken(storage)));
@@ -51,6 +56,17 @@ export function BootGate({ boot, at, agent, storage }: BootGateProps) {
       live = false;
     };
   }, [askShell, storage, asks]);
+  const wentLive = useStore(s => s.conn === "live");
+  useEffect(() => {
+    if (wentLive) refused.current.clear();
+  }, [wentLive]);
+  const onCodeScreen = askShell !== undefined && !asking && token === undefined;
+  useEffect(() => {
+    if (!onCodeScreen) return;
+    const again = (): void => setAsks(n => n + 1);
+    window.addEventListener("focus", again);
+    return () => window.removeEventListener("focus", again);
+  }, [onCodeScreen]);
   const redeem = useCallback(
     async (typed: string) => {
       const minted = await redeemPairingCode(url, typed, deviceName(at, agent));
@@ -78,7 +94,7 @@ export function BootGate({ boot, at, agent, storage }: BootGateProps) {
   // the shell can be asked, it is asked once more, since a restarted host has a token for this computer already.
   const onUnauthorized = useCallback(() => {
     if (token !== undefined) {
-      refused.current.add(token);
+      refused.current.set(token, (refused.current.get(token) ?? 0) + 1);
       if (storedDeviceToken(storage) === token) forgetDeviceToken(storage);
     }
     if (askShell === undefined) {

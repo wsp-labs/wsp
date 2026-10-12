@@ -21,7 +21,7 @@ let procRoot: string | undefined;
 
 // The machine the daemon reads is a fake /proc tree and a folder of this test's own: darwin has neither
 // /proc/net/tcp nor /root/.wsp/inbox, and a listener here is a row written into that tree.
-async function startTestDaemon(): Promise<DaemonUnderTest> {
+async function startTestDaemon(authDeadlineMs?: number): Promise<DaemonUnderTest> {
   inboxDir = mkdtempSync(join(tmpdir(), "wsp-reach-inbox-"));
   procRoot = fakeProcTree([]);
   return daemonUnderTest({
@@ -33,6 +33,7 @@ async function startTestDaemon(): Promise<DaemonUnderTest> {
     inboxPollMs: 25,
     procRoot,
     portsIntervalMs: 25,
+    ...(authDeadlineMs !== undefined ? { authDeadlineMs } : {}),
   });
 }
 
@@ -165,6 +166,26 @@ describe("connectDaemon", () => {
     });
     await expect(reach.ready).rejects.toThrow("4401");
     expect(statuses).toEqual(["connecting", "reauth-needed"]);
+  });
+
+  it("dials again when the daemon's auth deadline passed while this host's loop stood still, and goes live", async () => {
+    daemon = await startTestDaemon(100);
+    proxy = await startTcpProxy(daemon.port);
+    // The daemon's 101 reaches this host, which then stands still past the daemon's deadline before its auth frame
+    // leaves: the daemon closes on the deadline, and the token it never read was not refused.
+    proxy.freezeAfterNextReply(400);
+    const statuses: DaemonLinkStatus[] = [];
+    reach = connectDaemon({
+      previewUrl: `ws://127.0.0.1:${proxy.port}`,
+      token: TOKEN,
+      onEvent: () => {},
+      backoffMs: () => 25,
+      onStatus: s => statuses.push(s),
+    });
+    await reach.ready;
+    expect(statuses).not.toContain("reauth-needed");
+    expect(reach.status()).toBe("live");
+    expect(reach.stats().reconnects).toBe(0);
   });
 
   it("surfaces a post-establishment 4401 as reauth-needed and stops retrying", async () => {
