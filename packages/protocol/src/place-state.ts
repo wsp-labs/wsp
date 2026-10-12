@@ -4,7 +4,7 @@
 // fold its own live rows through the same function, so the two cannot count
 // one computer two ways. One rule per kind of place, so a third kind is one
 // entry in the table below.
-import { agentsLine, fmtCost, fmtDuration, fmtLimit, plural, SPEND_LIMIT_LINE } from "./format.js";
+import { agentsLine, fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
 import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
 import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
@@ -59,6 +59,11 @@ export const NAP_AFTER_MAX_MS = 3 * 60 * 60_000;
 /** The nap window a person names in minutes: none of them never naps. */
 export const napMsOf = (minutes: number): number | null => (minutes === 0 ? null : minutes * 60_000);
 
+/** How long a finished sub-thread's machine stays before it is deleted until the person sets another delay. */
+export const DELETE_AFTER_MS = 30 * 60_000;
+/** The longest delete delay a person may set: a day. */
+export const DELETE_AFTER_MAX_MS = 24 * 60 * 60_000;
+
 /** The turn limit on a cloud account until the person sets one: what a forgotten turn there can bill by the hour. A
  * computer the person owns has none by default, since TURN_IDLE_MS already ends a stuck turn and nothing there bills. */
 export const TURN_WALL_MS = 6 * 60 * 60_000;
@@ -95,7 +100,7 @@ const dollars = (usd: number): string => (Number.isInteger(usd) ? `$${usd}` : fm
 const capNumber = (cap: PlaceCap | undefined, key: "threads" | "machines" | "spendPerDayUsd"): number | undefined =>
   cap !== undefined && key in cap ? (cap as Record<string, number>)[key] : undefined;
 
-type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault">;
+type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault" | "size" | "sizeDefault" | "deleteAfterMs">;
 /** What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes. */
 type SettingSaid = { long: string; short: string };
 
@@ -110,6 +115,23 @@ const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: rea
     reads: (p, fallback) => {
       const usd = capNumber(fallback ? p.capDefault : p.cap, "spendPerDayUsd");
       return usd === undefined ? undefined : { long: `${dollars(usd)} a day`, short: dollars(usd) };
+    },
+  },
+  size: {
+    key: "size",
+    words: "size",
+    reads: (p, fallback) => {
+      const size = fallback ? p.sizeDefault : p.size;
+      return size === undefined ? undefined : { long: `size ${fmtSize(size)}`, short: sizeWord(size) };
+    },
+  },
+  "delete-after": {
+    key: "deleteAfterMs",
+    words: "delete after",
+    reads: (p, fallback) => {
+      const ms = fallback ? DELETE_AFTER_MS : p.deleteAfterMs;
+      if (ms === undefined) return undefined;
+      return ms === 0 ? { long: "deleted once done", short: "at once" } : { long: `deleted after ${ms / 60_000} min`, short: `${ms / 60_000} min` };
     },
   },
   nap: {
@@ -205,7 +227,7 @@ const PLACE_CAPS: Record<PlaceKind, PlaceCapRule> = {
     },
   },
   provider: {
-    keys: ["machines", "spend", "nap", "turn-limit", "spawn", "max-depth"],
+    keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"],
     turnLimit: TURN_WALL_MS,
     capOf: (_place, set) => ({ machines: set.machines ?? CLOUD_CAP_DEFAULT.machines, spendPerDayUsd: set.spendPerDayUsd ?? CLOUD_CAP_DEFAULT.spendPerDayUsd }),
     atOnce: cap => ("machines" in cap ? cap.machines : 0),
@@ -228,7 +250,7 @@ export function placeTurnLimit(kind: PlaceKind, settings: PlaceSettings): number
 
 /** Why a set is refused on this place: nothing set or reset at all, a setting its kind does not take, or one both
  * set and reset. Nothing when every key fits. */
-export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
+export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks" | "sizes">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
   const takes = settingsOn(place);
   const said = (words: readonly PlaceSettingWord[]): string => andList(words.map(word => SETTINGS[word].words));
   const named = (Object.keys(SETTINGS) as PlaceSettingWord[]).filter(word => placeSettingNamed(set, word));
@@ -238,18 +260,24 @@ export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | 
   const wrong = [...new Set([...named, ...reset])].filter(word => !takes.includes(word));
   if (wrong.length > 0) return `${placeSaid(place)} takes ${said(takes)}, not ${said(wrong)}`;
   const both = named.filter(word => reset.includes(word));
-  return both.length === 0 ? undefined : `${placeSaid(place)}: ${said(both)} is both set and reset; name it once`;
+  if (both.length > 0) return `${placeSaid(place)}: ${said(both)} is both set and reset; name it once`;
+  const size = set.size;
+  if (size !== undefined && sizeOffer(place.sizes ?? [], size) === undefined) return refusalLine(sizeRefusal(sizeWord(size), place.sizes ?? []), SIZE_PICK_FIX);
+  return undefined;
 }
 
 /** The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
  * folders on the computer itself and never nap. */
-function settingsOn(place: Pick<PlaceView, "kind" | "takesForks">): readonly PlaceSettingWord[] {
+function settingsOn(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">): readonly PlaceSettingWord[] {
   return PLACE_CAPS[place.kind].keys.filter(word => placeTakes(place, word));
 }
 
-/** Whether a place takes one setting: its kind's, less the nap where it forks nothing. */
-export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks">, word: PlaceSettingWord): boolean {
-  return PLACE_CAPS[place.kind].keys.includes(word) && (word !== "nap" || place.takesForks === true);
+/** Whether a place takes one setting: its kind's, less the nap where it forks nothing and the size where its row
+ * offers none. */
+export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">, word: PlaceSettingWord): boolean {
+  if (!PLACE_CAPS[place.kind].keys.includes(word)) return false;
+  if (word === "nap") return place.takesForks === true;
+  return word !== "size" || (place.sizes ?? []).length > 0;
 }
 
 const andList = (words: readonly string[]): string => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);

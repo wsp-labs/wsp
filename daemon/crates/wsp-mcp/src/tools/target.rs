@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use super::create::Offer;
 use super::named::{thread_at, Aim};
 use crate::client::Client;
 use crate::failure::Failure;
@@ -110,6 +111,9 @@ pub struct ListedPlace {
     pub name: String,
     #[serde(default)]
     pub kind: Option<String>,
+    /// The sizes the row offers, which only a cloud's row carries.
+    #[serde(default)]
+    pub(super) sizes: Vec<Offer>,
 }
 
 impl ListedPlace {
@@ -135,13 +139,19 @@ impl ListedPlace {
 
 /// A computer by the name or the id the list carries; a word nothing holds is refused with the names there are.
 pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<String, Failure> {
+    place_named(client, words, word).await.map(|(id, _)| id)
+}
+
+/// The same computer as place_id finds, with the sizes its row offers.
+pub async fn place_named(client: &Client, words: &Words, word: &str) -> Result<(String, Vec<Offer>), Failure> {
     #[derive(Deserialize)]
     struct Places {
         places: Vec<ListedPlace>,
     }
-    let Places { places } = client.request("places.list", Map::new()).await?;
-    if let Some(place) = places.iter().find(|p| p.named(words, word)) {
-        return Ok(place.id.clone());
+    let Places { mut places } = client.request("places.list", Map::new()).await?;
+    if let Some(i) = places.iter().position(|p| p.named(words, word)) {
+        let place = places.swap_remove(i);
+        return Ok((place.id, place.sizes));
     }
     let held = places.iter().map(|p| p.table_name(words)).collect::<Vec<_>>().join(", ");
     Err(Failure::usage(refusal_line(&fill(&words.no_such_place, &[("word", word), ("held", &held)]), &words.places_fix)))

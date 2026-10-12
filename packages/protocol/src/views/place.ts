@@ -6,7 +6,7 @@ import { KNOWN_HOSTS, PLACE_INSTALL, plural, thisComputer } from "../format.js";
 import { RecipeFile } from "../recipe-file.js";
 import { PlaceKind } from "./place-kind.js";
 import { HERE_PLACE_ID, cloudNamed, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves } from "../place-word.js";
-import { NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS } from "../place-state.js";
+import { DELETE_AFTER_MAX_MS, NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS } from "../place-state.js";
 import { isPlainPath, PortForward, RelayPort } from "../wire/limits.js";
 import { MachineSizeOffer, WorkspaceSize } from "../wire/capabilities.js";
 import { ProjectAddStage, ProjectView, WorkspaceAgents } from "./workspace.js";
@@ -448,6 +448,10 @@ export const PlaceSettings = PlaceCapSet.extend({
   /** What the agents on a workspace there may ask of this host where the workspace holds no switch of its own: only
    * the parts the person set, so every other part follows AGENTS_ON as it reads now. */
   spawn: WorkspaceAgents.partial().optional(),
+  /** On a cloud, the size a sub-thread's machine gets when the thread starting it names none. */
+  size: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
+  /** On a cloud, how long a finished sub-thread's machine stays before it is deleted; 0 deletes it once it is done. */
+  deleteAfterMs: z.number().int().min(0).max(DELETE_AFTER_MAX_MS).optional(),
 });
 export type PlaceSettings = z.infer<typeof PlaceSettings>;
 /** What a set asks for: the settings, with the agents switch as a patch over the parts the place holds. */
@@ -461,8 +465,25 @@ export interface PlaceSetAlso {
   recipe?: string | undefined;
 }
 /** A setting on a place by the word the command line and the tool name it with, which a reset takes. */
-export const PlaceSettingWord = z.enum(["threads", "machines", "spend", "nap", "turn-limit", "spawn", "max-depth"]);
+export const PlaceSettingWord = z.enum(["threads", "machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"]);
 export type PlaceSettingWord = z.infer<typeof PlaceSettingWord>;
+
+/** A cloud's plan as its own limits read answers it: the plan's key, whether it is the trial, how many machines the
+ * account runs at once, and the sizes the plan sells as `<cpu>x<memGb>`. */
+export const CloudPlan = z.object({ key: z.string().optional(), trial: z.boolean(), machinesAtOnce: z.number().int(), sizes: z.array(z.string()) });
+export type CloudPlan = z.infer<typeof CloudPlan>;
+
+/** One window of a cloud's starts: how many the account used and how many it may. */
+export const StartsWindow = z.object({ used: z.number().int(), limit: z.number().int() });
+export type StartsWindow = z.infer<typeof StartsWindow>;
+
+/** A cloud's starts this minute, this hour and today, as its limits read answered them. */
+export const CloudStarts = z.object({ minute: StartsWindow, hour: StartsWindow, day: StartsWindow });
+export type CloudStarts = z.infer<typeof CloudStarts>;
+
+/** What a cloud's own limits read answers, for its row: the starts absent where the plan counts none. */
+export const CloudLimits = z.object({ plan: CloudPlan, starts: CloudStarts.optional() });
+export type CloudLimits = z.infer<typeof CloudLimits>;
 
 /** The Macs a computer's icon tells apart. */
 export const MacKind = z.enum(["macbook", "imac", "mac-mini", "mac-studio", "mac-pro"]);
@@ -610,6 +631,16 @@ export const PlaceView = z.object({
   spawnDefault: WorkspaceAgents.optional(),
   /** What its cap counts, at list time: threads running on a computer, machines holding a slot on a cloud. */
   running: z.number().int().nonnegative().optional(),
+  /** A cloud that reads its own limits: its plan, read when the list was. Absent where the read failed. */
+  plan: CloudPlan.optional(),
+  /** A cloud that reads its own limits: the starts used of its plan's this minute, this hour and today. */
+  starts: CloudStarts.optional(),
+  /** On a cloud, the size a sub-thread's machine gets when its start names none, the person's or the default. */
+  size: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
+  /** The size a reset of `size` goes back to: the default size that cloud's own pricing names. */
+  sizeDefault: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
+  /** On a cloud, how long a finished sub-thread's machine stays before it is deleted, the person's or the default. */
+  deleteAfterMs: z.number().int().optional(),
 });
 export type PlaceView = z.infer<typeof PlaceView>;
 
