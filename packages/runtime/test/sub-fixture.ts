@@ -107,6 +107,7 @@ function leadDaemon(git: LeadGit) {
     send: async (frame: unknown): Promise<DaemonResponse> => {
       const f = frame as Record<string, unknown>;
       frames.push(f);
+      if (f["op"] === "git.mergeIn") return { id: 1, ok: true, branch: String(f["branch"]), merged: true, commits: 3, oid: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", conflicts: [] } as unknown as DaemonResponse;
       if (f["op"] === "git.status") {
         const entries = Array.from({ length: git.uncommitted }, (_, i) => ({ path: `f${i}`, xy: " M" }));
         return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]), ...(git.countsUnknown === true ? { countsUnknown: true } : {}) } as unknown as DaemonResponse;
@@ -119,9 +120,12 @@ function leadDaemon(git: LeadGit) {
   return { frames, open };
 }
 
+type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLater?: boolean; exit?: () => void };
+
 /** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
- * but for one started while `hold` is set, which runs until `release` ends it. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: { end?: () => void; hold?: boolean; release?: () => void }): HarnessAdapterFactory {
+ * but for one started while `hold` is set, which runs until `release` ends it; with `exitLater` its process exits only
+ * at `exit`, as a real one does a moment after its result. */
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
     sessionFile: id => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 }),
@@ -136,8 +140,11 @@ function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, 
         const finished = new Promise<TurnResult>(resolve => {
           lead[first ? "end" : "release"] = () => {
             o.onEvent({ type: "turn.done", sessionId, result });
-            o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
-            resolve(result);
+            lead.exit = () => {
+              o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+              resolve(result);
+            };
+            if (lead.exitLater !== true) lead.exit();
           };
         });
         return { localId: sessionId, finished, interrupt: async () => {} };
@@ -206,7 +213,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const git: LeadGit = { head: "feat/upload", upstream: "origin/feat/upload", ahead: 0, uncommitted: 0, ...o.git };
   const daemon = leadDaemon(git);
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
-  const leadTurn: { end?: () => void; hold?: boolean; release?: () => void } = {};
+  const leadTurn: LeadTurn = {};
   const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
   const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
@@ -271,3 +278,41 @@ export function answering(boat: Boat, answers: Answers): void {
   };
 }
 
+/** Real timers, and a now the test can move on: a jump fires every timer it passes at once. */
+export function jumpClock(): { clock: Clock; jump(ms: number): void } {
+  let offset = 0;
+  const pending = new Set<{ at: number; fn: () => void; timer: ReturnType<typeof setTimeout> }>();
+  const clock: Clock = {
+    now: () => Date.now() + offset,
+    schedule: (fn, ms, o) => {
+      const p = { at: Date.now() + offset + ms, fn, timer: setTimeout(() => (pending.delete(p), fn()), ms) };
+      if (o?.unref === true) p.timer.unref();
+      pending.add(p);
+      return () => {
+        clearTimeout(p.timer);
+        pending.delete(p);
+      };
+    },
+  };
+  const jump = (ms: number): void => {
+    offset += ms;
+    for (const p of [...pending].sort((a, b) => a.at - b.at)) {
+      if (p.at > Date.now() + offset) continue;
+      clearTimeout(p.timer);
+      pending.delete(p);
+      p.fn();
+    }
+  };
+  return { clock, jump };
+}
+
+/** Waits for a condition with a time limit, polling. */
+export async function until<T>(read: () => Promise<T | undefined> | T | undefined, what: string, ms = 5_000): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const got = await read();
+    if (got !== undefined && got !== false) return got;
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await new Promise(r => setTimeout(r, 10));
+  }
+}

@@ -10,7 +10,7 @@ import { homeShortened, refusalLine, noProjectLine, READ_PROJECTS_FIX, localWork
 import { harnessCatalog } from "@wsp/runtime";
 import { describe, expect, it, vi } from "vitest";
 import { cli } from "../src/cli.js";
-import { CLI_VERBS, dialHost, threadRows } from "../src/verbs.js";
+import { CLI_VERBS, dialHost, threadLines, threadRows, type ThreadRow } from "../src/verbs.js";
 import { hostPlatform } from "../src/verbs.js";
 import { guestAnswer, withDaemonRoads } from "./stub-backend.js";
 import { projectOn, UNREACHED_LINE, bornDeadAgent, captured, heldAgent, projectBundler } from "./verbs-fixture.js";
@@ -645,5 +645,19 @@ describe("wsp verbs over the host: threads, projects and agent defaults", () => 
     const asJson = await h.run("threads", "--json");
     const [{ threads }] = h.json(asJson.io) as [{ threads: ThreadView[] }];
     expect(threads[0]!.title).toBe("You are a builder for the wsp repo, which is at…");
+  });
+});
+
+describe("a sub-thread's state cell", () => {
+  it("says what its machine is doing where that says more than the turn: Waiting, Starting, Not pushed", () => {
+    const row = (sub: Partial<NonNullable<ThreadRow["sub"]>>, status: ThreadRow["status"] = "completed"): ThreadRow =>
+      ({ id: "t-1", workspaceId: "w", harness: "claude", status, startedBy: "agent", title: "Fix it", turns: 1, projectName: "web", folder: "/root/web", branch: "", computerName: "Boat", sub: { state: "napping", on: "boat", machine: "Fix it", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix-it", ...sub } }) as ThreadRow;
+    const state = (t: ThreadRow): string => threadLines(t)[0]![6]!;
+    expect(state(row({ state: "waiting" }, "running"))).toBe("Waiting");
+    expect(state(row({ state: "starting" }, "running"))).toBe("Starting");
+    expect(state(row({ state: "running" }, "running"))).toBe("Working");
+    expect(state(row({ held: { files: 3, commits: 2 } }))).toBe("Not pushed");
+    expect(state(row({ deleteAt: 1 }))).toBe("Idle");
+    expect(state({ ...row({ held: { files: 3, commits: 2 } }), asking: "ask-1" })).toBe("Needs you");
   });
 });

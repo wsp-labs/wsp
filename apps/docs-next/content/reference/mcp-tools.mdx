@@ -679,7 +679,7 @@ Merges the pull request of the branch the thread's folder is on as the person, b
 
 ## merge_in
 
-Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.
+Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.
 
 **Takes**
 
@@ -698,6 +698,7 @@ Merges a child thread's branch into the folder its lead works in with a merge co
 | `merged` | boolean | yes |  |
 | `commits` | integer | yes |  |
 | `conflicts` | string[] | yes |  |
+| `unpushed` | integer |  |  |
 
 ## plugins
 
@@ -2199,7 +2200,7 @@ Every thread as the sidebar lists it: its project, the folder it works in (the p
 
 ## threads_wait
 
-Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.
+Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, and on a sub-thread result, what its machine was read to hold, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.
 
 **Takes**
 
@@ -2218,6 +2219,7 @@ Blocks until one of the named threads leaves running and answers with that threa
 | `finished.durationMs` | number |  |  |
 | `finished.costUsd` | number |  |  |
 | `finished.reply` | string |  | the last non-empty line of the reply, or the error when there is no reply |
+| `finished.result` | object |  | on a sub-thread, what its machine was read to hold at the end: the branch, the sha pushed, the commits it brings and the work not pushed |
 | `timedOut` | `true` |  | set when the timeout passed with every named thread still running |
 
 ## update

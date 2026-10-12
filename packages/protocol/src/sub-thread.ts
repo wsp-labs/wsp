@@ -9,7 +9,9 @@ import { refusal, refusalParts } from "./exit.js";
 import { seedNotHereRefusal } from "./project-seed.js";
 import { ownerRepoOf } from "./start.js";
 import { cloudNamed, PROVIDER_KEY_WORDS, providerKeyName } from "./place-word.js";
+import { plural } from "./words/base.js";
 import { fmtMemGb, sizeFromWord, sizeWord } from "./words/units.js";
+import { subAllPushed, type SubResult } from "./views/sub-row.js";
 
 /** The most a sub-thread's picked files may come to, packed: the files worth picking are a few KB of `.env` style
  * configs, so anything past this is a data folder picked by mistake. */
@@ -294,3 +296,22 @@ export function cloudSaid(on: string): string {
 
 /** What a sub-thread's delete did. */
 export const subDeletedLine = (threadId: string, on: string): string => `deleted sub-thread ${threadId.slice(0, 8)} and its machine on ${on}`;
+
+/** The line a sub-thread's finished line to its lead ends with, off the done's read: the branch pushed and the merge
+ * that takes it, the work not pushed that keeps the machine, or nothing to merge. `deleteInMs` is how long the machine
+ * stays, absent where it goes at once; a span, never a clock time, since an agent and a person read it in any zone. */
+export function subResultLine(o: { threadId: string; lead: string; result: SubResult; base: string; deleteInMs?: number }): string {
+  const { result: r } = o;
+  const id8 = o.threadId.slice(0, 8);
+  const minutes = o.deleteInMs === undefined ? 0 : Math.round(o.deleteInMs / 60_000);
+  const goes = minutes > 0 ? `Its machine naps now and is deleted in ${plural(minutes, "minute")} unless you send to ${id8} first.` : `Its machine is deleted now; a send to ${id8} starts a new one with the conversation kept.`;
+  if (r.readFailed !== undefined) return `its machine could not be read (${r.readFailed}), so work on ${r.branch} may not be pushed and its machine is kept, napping at no cost. Send to ${id8} to have it pushed, or ask the person to delete it.`;
+  if (!subAllPushed(r)) {
+    const parts = [r.unpushed > 0 ? plural(r.unpushed, "commit") : "", r.changed > 0 ? plural(r.changed, "changed file") : ""].filter(Boolean);
+    const one = r.unpushed + r.changed === 1;
+    return `${parts.join(" and ")} on ${r.branch} ${one ? "is" : "are"} not pushed, so its machine is kept, napping at no cost. Send to ${id8} to have ${one ? "it" : "them"} pushed, or ask the person to delete it.`;
+  }
+  if (r.pushedSha === null || r.commits === 0) return `no commits on ${r.branch}, so there is nothing to merge. ${goes}`;
+  return `branch ${r.branch} pushed at ${r.pushedSha.slice(0, 7)}, ${plural(r.commits, "commit")} on ${o.base}; merge it with wsp merge in ${o.lead.slice(0, 8)} ${id8}. ${goes}`;
+}
+

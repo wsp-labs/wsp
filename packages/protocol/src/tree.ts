@@ -52,7 +52,16 @@ export const TreeFact = z.object({ leadBranch: text, children: z.array(TreeChild
 export type TreeFact = z.infer<typeof TreeFact>;
 
 /** What a merge into the lead answers: merged with the commits it brought, merged nothing, or the files it stopped on. */
-export const MergeInResult = z.object({ lead: text, child: text, branch: text, merged: z.boolean(), commits: count, conflicts: z.array(text) });
+export const MergeInResult = z.object({
+  lead: text,
+  child: text,
+  branch: text,
+  merged: z.boolean(),
+  commits: count,
+  conflicts: z.array(text),
+  /** A sub-thread's commits its machine holds and no remote does, by its last read; they are not in the merge. */
+  unpushed: count.optional(),
+});
 export type MergeInResult = z.infer<typeof MergeInResult>;
 
 /** One word table for the tree, on a child's card, the command line and the fork's reply. */
@@ -99,10 +108,15 @@ export function fixMergeChildLine(lead: string, agent: string, child: string): s
   return `${lead}: asked ${agent} to merge ${child}`;
 }
 
-/** The one line a merge into the lead reads as, on the command line and in the tool's answer. */
-export function mergeInLine(done: MergeInResult): string {
-  if (!done.merged) return mergeConflictsLine(done.lead, done.branch, done.conflicts);
-  return done.commits > 0 ? mergedInLine(done.lead, done.branch, done.child, done.commits) : nothingToMergeLine(done.lead, done.child);
+/** What a merge of a sub-thread adds when its machine holds commits no remote has: the merge took what was pushed. */
+export const notInMergeLine = (threadId: string, commits: number): string =>
+  `${threadId.slice(0, 8)} holds ${commits} ${commits === 1 ? "commit" : "commits"} not pushed on its machine; ${commits === 1 ? "it is" : "they are"} not in this merge.`;
+
+/** The line a merge into the lead reads as, on the command line and in the tool's answer, and under it what a
+ * sub-thread's machine holds that the merge could not take. */
+export function mergeInLine(done: MergeInResult, childThreadId?: string): string {
+  const line = !done.merged ? mergeConflictsLine(done.lead, done.branch, done.conflicts) : done.commits > 0 ? mergedInLine(done.lead, done.branch, done.child, done.commits) : nothingToMergeLine(done.lead, done.child);
+  return done.unpushed !== undefined && done.unpushed > 0 ? `${line}\n${notInMergeLine(childThreadId ?? done.child, done.unpushed)}` : line;
 }
 
 /** What it says where the child has nothing the lead lacks. */
