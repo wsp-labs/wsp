@@ -182,7 +182,7 @@ describe("scopeOf", () => {
     expect(s.groups.find(g => g.id === "t1")!.procs.map(tree)).toEqual([[31, "Claude Code", "agent", [[32, "mcp", "tool"]]]]);
     expect(s.groups.find(g => g.id === "t2")!.procs.map(p => [p.pid, p.kind])).toEqual([[41, "agent"]]);
     const t1 = s.groups.find(g => g.id === "t1")!;
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
     expect(resolveActions(procActions, { p: t1.procs[0]!, group: t1 }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
     expect(resolveActions(procActions, { p: t1.procs[0]!.children[0]!, group: t1 }, verbs).map(a => a.id)).toContain("end");
   });
@@ -240,7 +240,7 @@ describe("scopeOf", () => {
       [110, "dev", "http.server"],
     ]);
     expect(group.procs[0]!.mem).toBe(302 * MB);
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
     expect(resolveActions(procActions, { p: group.procs[0]!, group }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
     expect(resolveActions(procActions, { p: group.procs[1]!, group }, verbs).map(a => a.id)).toContain("end");
   });
@@ -258,8 +258,18 @@ describe("scopeOf", () => {
     const group = s.groups.find(g => g.id === "t1")!;
     expect(group.procs.flatMap(flat).map(p => [p.pid, p.kind, p.name])).toEqual([[32, "agent", "Codex"], [33, "tool", "mcp"]]);
     expect(group.procs[0]!.mem).toBe(242 * MB);
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
     expect(resolveActions(procActions, { p: group.procs[0]!, group }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
+  });
+
+  it("frees a kept agent between turns here through its thread, and never one on a box, whose end takes the cgroup", () => {
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const kept = [proc(10, 1, "node", { cmdline: "node wsp host" }), proc(20, 10, "wsp-daemon"), proc(30, 10, "claude", { kind: "agent", owner: { by: "root", thread: "t1" } })];
+    const here = scopeOf({ snapshot: snap(kept), threads: [thread("t1", { working: false })], ports: new Map(), host: 10 }).groups.find(g => g.id === "t1")!;
+    expect(resolveActions(procActions, { p: here.procs[0]!, group: here }, verbs).map(a => a.id)).toEqual(["free", "open-thread", "copy-command", "copy-pid"]);
+    const box = [proc(1, 0, "systemd"), proc(5, 1, "wsp-daemon"), proc(70, 1, "claude", { cgroup: "/wsp-threads/t1" })];
+    const there = scopeOf({ snapshot: snap(box, 5), threads: [thread("t1", { working: false, cgroup: "/wsp-threads/t1" })], ports: new Map() }).groups.find(g => g.id === "t1")!;
+    expect(resolveActions(procActions, { p: there.procs[0]!, group: there }, verbs).map(a => a.id)).toEqual(["open-thread", "copy-command", "copy-pid"]);
   });
 
   it("carries energy where the computer counts it, and none on one that does not", () => {
