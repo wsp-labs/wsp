@@ -20,6 +20,7 @@ import { CLOUD_ON } from "../cloud.js";
 import { cloudText } from "../cloud-text.js";
 import { threadOf } from "./workspaces-help.js";
 import { asText } from "./io.js";
+import { activityTable } from "./activity-table.js";
 
 /** What each verb says the start is, which `wsp activity --json` lists as startedAt. */
 const STARTED_WORDS = "the start activity listed it with, its startedAt in epoch milliseconds";
@@ -37,7 +38,8 @@ const cpuWord = (cpu: number): string => `${cpu.toFixed(1)}%`;
 const procLine = (p: ActivityProc): string =>
   `${"  ".repeat(p.depth + 1)}${p.pid}  ${p.kind}  ${p.command}${p.ports.length > 0 ? `  :${p.ports.join(" :")}` : ""}  ${fmtBytes(p.memory)}  ${cpuWord(p.cpu)}`;
 
-/** A read as a person reads it: each thread with its totals and its tree, then wsp's own and what has no thread. */
+/** A read as the tool answers it: each thread with its totals and its tree, then wsp's own and what has no thread; the
+ * Rust tool server lays its rows out the same way. */
 export function activityLines(view: ActivityView): string {
   const lines: string[] = [];
   for (const t of view.threads) lines.push(`thread ${threadWord(t.threadId)} ${t.title}  ${fmtBytes(t.memory)}  ${cpuWord(t.cpu)}`, ...t.processes.map(procLine));
@@ -68,14 +70,14 @@ export const ProcessesIn = z.enum(PROCESSES_CHOICES).optional().describe(cloudTe
 export const ACTIVITY_VERBS: readonly CliVerb[] = [
   {
     name: "activity",
-    usage: "wsp activity [<thread>] [--computer <computer>]",
-    about: "this computer's processes, or a box's, by the thread that started them, each with its kind, memory, CPU and ports, then wsp's own; a thread named shows its own alone, on this computer or the box it runs on",
+    usage: "wsp activity [<thread>] [--computer <computer>] [--wide]",
+    about: "this computer's processes, or a box's, as Settings > Activity lists them: wsp's own, then each thread heaviest first with what it started, then what has no thread, each with its kind, ports, memory and CPU; a thread named shows its own alone, on this computer or the box it runs on",
     page: "agent",
-    options: { computer: { type: "string" } },
+    options: { computer: { type: "string" }, wide: { type: "boolean" } },
     run: async ctx => {
       if (ctx.args.length > 1) throw usageRefusal("wsp activity takes one thread at most.", usageIs(ctx));
       const view = await readFor(await ctx.client(), flag(ctx.flags, "computer"), ctx.args[0]);
-      ctx.out.emit(view, activityLines(view));
+      ctx.out.emit(view, activityTable(view, { width: ctx.io.redraw?.columns() ?? Infinity, wide: ctx.flags["wide"] === true }));
       return 0;
     },
     tool: tool({

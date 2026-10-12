@@ -382,7 +382,7 @@
     "setup": "wsp setup",
     "terminal_config": "wsp terminal config [--scheme light|dark]",
     "conversations": "wsp conversations [<project>] [--agent <id>]",
-    "activity": "wsp activity [<thread>] [--computer <computer>]",
+    "activity": "wsp activity [<thread>] [--computer <computer>] [--wide]",
     "activity_end": "wsp activity end <pid> --started <ms> [--computer <computer>]"
   },
   "defaults": {
