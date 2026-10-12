@@ -807,8 +807,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * terminal runs there over its daemon channel. */
   z.object({ id: reqId, op: z.literal("agents.signInLine"), target: AgentsTarget, agent: z.string(), name: z.string().optional() }),
   /** Writes the agent's token or key into this host's vault, the variable its row names, checked against the shape
-   * the row says the tool prints; only on the host's own socket. Replies with nothing of it. */
-  z.object({ id: reqId, op: z.literal("agents.key"), agent: z.string(), key: z.string().min(1) }),
+   * the row says the tool prints; `way` "key" saves an agent that mints a token its API key instead. Only on the
+   * host's own socket. Replies with nothing of it. */
+  z.object({ id: reqId, op: z.literal("agents.key"), agent: z.string(), key: z.string().min(1), way: z.enum(["token", "key"]).optional() }),
   /** Replies with { file }: the wsp server written into that agent's own config on this computer, the entry an
    * install writes, with the wsp skill beside it. Refused on any other computer. */
   z.object({ id: reqId, op: z.literal("agents.addTools"), target: AgentsTarget, agent: z.string() }),
