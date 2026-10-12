@@ -632,7 +632,7 @@ describe("Keybindings", () => {
     expect(label("commandPalette.toggle")).toEqual([["⇧⌘P"], ["⌘K"]]);
     expect(label("settings.toggle")).toEqual([["⌘,"]]);
     expect(label("editor.open")).toEqual([["⌘O"]]);
-    expect(label("chat.new")).toEqual([["⇧⌘O"], ["⌘T"], ["⌘N"]]);
+    expect(label("chat.new")).toEqual([["⌘T"]]);
     expect(label("workspace.next")).toEqual([["⌥⌘Right"], ["⌃Tab"]]);
     expect(label("rightPanel.nextTab")).toEqual([["⌃Tab"]]);
     expect(label("rightPanel.previousTab")).toEqual([["⌃⇧Tab"]]);
@@ -640,10 +640,10 @@ describe("Keybindings", () => {
     expect(label("workspace.select.1")).toEqual([["⌘1"], ["⌘9"]]);
     // On another platform the same rules read Ctrl.
     expect(label("commandPalette.toggle", { platform: "Linux x86_64", desktopShell: true })).toEqual([["Ctrl+Shift+P"], ["Ctrl+K"]]);
-    // In a browser tab the chords the tab keeps are not drawn: New thread reads the one chord a tab hands the page, the
-    // workspace switch on a Mac has none left and the thread switch keeps its arrows.
+    // In a browser tab the chords the tab keeps are not drawn: New thread and the workspace switch on a Mac have none
+    // left and the thread switch keeps its arrows.
     const tab = { platform: "MacIntel", desktopShell: false };
-    expect(label("chat.new", tab)).toEqual([["⇧⌘O"]]);
+    expect(label("chat.new", tab)).toEqual([]);
     expect(label("workspace.next", tab)).toEqual([]);
     expect(label("rightPanel.nextTab", tab)).toEqual([]);
     expect(label("thread.next", tab)).toEqual([["⌥⌘Down"]]);
@@ -651,7 +651,9 @@ describe("Keybindings", () => {
     const cards = keybindingCards(DEFAULT_KEYBINDINGS, mac);
     expect(cards.map(card => card.head)).toEqual([KEYBINDINGS_WORDS.windowAndPanels, KEYBINDINGS_WORDS.workspacesAndThreads, KEYBINDINGS_WORDS.terminal, KEYBINDINGS_WORDS.fixed]);
     expect(cards[0]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["Search", "Find a file", "Search in files", "Settings", "Toggle the sidebar", "Toggle the terminal drawer", "Toggle the right panel", "Next panel tab", "Previous panel tab", "Toggle the preview"]);
-    expect(cards[1]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["New thread", "Next task", "Previous task", "Next thread", "Previous thread", "Settle thread", "Next thread that needs you", "Open in editor", JUMP_WORD]);
+    expect(cards[1]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["New thread", "Next task", "Previous task", "Next thread", "Previous thread", "Settle thread", "Next thread that needs you", "Find in thread", "Step to the older match", "Step to the newer match", "Open in editor", JUMP_WORD]);
+    expect(label("thread.find")).toEqual([["⌘F"]]);
+    expect(label("thread.findOlder")).toEqual([["⌘G"], ["F3"]]);
     expect(cards[3]!.items.map(item => (item.kind === "line" ? [item.label, item.keys] : []))).toEqual([
       [KEYBINDINGS_WORDS.sendMessage, [["Enter"]]],
       [KEYBINDINGS_WORDS.submitComment, [["⌘Enter"]]],
@@ -669,7 +671,7 @@ describe("Keybindings", () => {
     expect(rowTitles()).toEqual([]);
     expect(lineLabels()).toContain("Search");
     expect(document.querySelectorAll("[data-settings-page] [data-slot=kbd]").length).toBeGreaterThan(10);
-    expect(document.querySelector("[data-settings-page] [data-command='chat.new'] [data-settings-keys]")?.textContent).toMatch(/N.*T$|N$/);
+    expect(document.querySelector("[data-settings-page] [data-command='chat.new'] [data-settings-keys]")?.textContent).toMatch(/^(⌘T|Ctrl\+T)$/);
   });
 
   const chordOf = (command: string): HTMLElement => document.querySelector<HTMLElement>(`[data-chord='${command}']`)!;

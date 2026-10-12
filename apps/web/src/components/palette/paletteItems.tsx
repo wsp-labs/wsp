@@ -10,7 +10,7 @@ import { ActivityIcon, ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, BookOpenIcon, 
 import type { ReactNode } from "react";
 import { REPO } from "../../../../../packages/protocol/src/bundles.mjs";
 import { agentName } from "@wsp/catalog";
-import { HERE_PLACE_ID, PLACES_WORDS, type OutsideConversation, type PlaceView, type ProjectView, type SessionSearchHit } from "@wsp/protocol";
+import { HERE_PLACE_ID, PLACES_WORDS, runsInFolder, workspaceKind, type OutsideConversation, type PlaceView, type ProjectView, type SessionSearchHit } from "@wsp/protocol";
 import { THREAD_WORDS } from "../../actions/format.js";
 import { resolveActions, type ResolvedAction } from "../../actions/registry.js";
 import { workspaceActions, workspaceTarget, type WorkspaceVerbs } from "../../actions/workspaceActions.js";
@@ -69,6 +69,8 @@ export interface PaletteItemsInput {
   readonly query: string;
   /** The threads whose messages the host found the query in, for that query. */
   readonly messageHits: ReadonlyArray<SessionSearchHit>;
+  /** How many older threads that search did not look in, since the host let their words go. */
+  readonly unsearched?: number;
   readonly canCreate: boolean;
   /** Every project this host holds, which the page New thread picks from lists. */
   readonly recorded: readonly ProjectView[];
@@ -230,8 +232,14 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
   }
   items.push(...(input.threadMoves ?? []).map(action => actionItem(action, "The open thread's tree, in the sidebar")));
   if (selected !== null) {
-    // The one New thread row is the one above, which opens on a project; the copy's own act stays off the palette.
-    items.push(...resolveActions(workspaceActions, workspaceTarget(selected.workspace, selected.status, input.places), input.verbs).filter(action => action.id !== "new-thread").map(action => actionItem(action, selected.displayName)));
+    // The one New thread row is the one above, which opens on a project; the copy's own act stays off the palette. A
+    // project folder's record is every thread's of the folder, so deleting or forgetting it is no act of the palette's.
+    const folder = runsInFolder(workspaceKind(selected.workspace));
+    items.push(
+      ...resolveActions(workspaceActions, workspaceTarget(selected.workspace, selected.status, input.places), input.verbs)
+        .filter(action => action.id !== "new-thread" && !(folder && action.group === "remove"))
+        .map(action => actionItem(action, selected.displayName)),
+    );
   }
 
   const oneWorkspace = input.projects.length < 2;
@@ -416,11 +424,14 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItems {
     const thread = threads.find(t => t.threadId === hit.threadId && t.workspaceId === hit.workspaceId);
     return thread === undefined || byTitle.includes(thread) ? [] : [{ ...item(thread), value: `message:${thread.id}`, searchTerms: [input.query, hit.snippet], description: hit.snippet }];
   });
+  const unsearched = input.unsearched ?? 0;
+  const skipped: CommandPaletteActionItem[] =
+    unsearched === 0 ? [] : [{ kind: "action", value: "message:unsearched", title: `${unsearched} older ${unsearched === 1 ? "thread" : "threads"} not searched`, description: "Open one to search its messages", searchTerms: [input.query], icon: null, disabled: true, run: async () => {} }];
   return {
     actionItems: actionItems(input),
     workspaceItems: workspaceItems(input),
     recentThreadItems: latest.slice(0, RECENT_THREAD_LIMIT).map(item),
     threadSearchItems: byTitle.map(item),
-    messageSearchItems: byMessage,
+    messageSearchItems: [...byMessage, ...skipped],
   };
 }

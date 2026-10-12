@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "delete",
-    "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it ran in a worktree wsp made, that worktree goes with every thread in it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.",
+    "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -164,7 +164,7 @@
   },
   "cloudOn": {
     "name": "delete",
-    "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it ran in a worktree wsp made, that worktree goes with every thread in it, refused over files no commit holds; the project folder is never touched. Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.",
+    "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.",
     "inputSchema": {
       "type": "object",
       "properties": {

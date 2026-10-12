@@ -37,11 +37,16 @@ import {
   FORK_RESUME_FIX,
   RESUME_HERE_LINE,
   RESUME_HERE_FIX,
+  subBesideRefusal,
+  subOpenedLine,
+  subOpening,
+  subSizeNoCloudRefusal,
+  type SubOut,
 } from "@wsp/protocol";
 import { hostBack, type VerbDeps, type VerbContext, usageIs, tool, type CliVerb, type Verb, PICK_OPTIONS, SEND_OPTIONS, flag, flagList, absolutePath, absoluteFolder } from "./client.js";
 import { workspaceOf, threadOf, threadCwd, SSH_PIPES_HERE_LINE, sshWorkspaceOf, pipeBytes, awake, napAfterDeadLaunch, withLine, stop, stopLine, forgetThread, threadForgotLine, rename, renameLine, threadsOf, settleThreads, restoreThreads, settledLines, restoredLines } from "./workspaces-help.js";
-import { type Turn, threadAt, pickFlags, checkedStart, runTarget, forkFor, worktreeFor, openingOf, threadFork, notifyOf, replacedOf, messageTo, startDetached, follow, hostRestartedLine, restartHost, readThread, readLine, threadHead, headLine, resumeAsked, type AnswerRoad, ANSWER_ROADS, answerOpenAsk, followVerb, beforeSending, detachVerb, turnView } from "./turns-help.js";
-import { confirmed, execOn, type ExportRequest, exportProject, withReplaceHint, agentsFlag, QUIET_LINE, QUIET_TURN, SEND_MEETS, CAP_MEETS, TurnOut, Argv, asJson, asText, turnText, detachedOut, turnOut, WorkspaceIn, ThreadIn, AgentIn, NotifyIn, RunProjectIn, BesideIn, BranchIn, RunCwdIn, ExecCwdIn, DetachIn, TitleIn, ReplacesIn, ForkIn, AtIn, FilesIn, FastIn, ResumeIn, CopyIn, PICK_INPUTS, SEND_INPUTS, schemeFlag, hostFolders, initSetup, folderLines, REASON_FLAG } from "./io.js";
+import { type Turn, threadAt, pickFlags, checkedStart, runTarget, forkFor, subFor, worktreeFor, openingOf, threadFork, notifyOf, replacedOf, messageTo, startDetached, follow, hostRestartedLine, restartHost, readThread, readLine, threadHead, headLine, resumeAsked, type AnswerRoad, ANSWER_ROADS, answerOpenAsk, followVerb, beforeSending, detachVerb, turnView } from "./turns-help.js";
+import { confirmed, execOn, type ExportRequest, exportProject, withReplaceHint, agentsFlag, QUIET_LINE, QUIET_TURN, SEND_MEETS, CAP_MEETS, TurnOut, RunOut, Argv, asJson, asText, turnText, detachedOut, turnOut, WorkspaceIn, ThreadIn, AgentIn, NotifyIn, RunProjectIn, BesideIn, BranchIn, OnIn, SubSizeIn, RunCwdIn, ExecCwdIn, DetachIn, TitleIn, ReplacesIn, ForkIn, AtIn, FilesIn, FastIn, ResumeIn, CopyIn, PICK_INPUTS, SEND_INPUTS, schemeFlag, hostFolders, initSetup, folderLines, REASON_FLAG } from "./io.js";
 import { SLATE_VERBS } from "./slate.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
 
@@ -74,14 +79,33 @@ const ANSWER_VERBS: readonly CliVerb[] = ANSWER_ROADS.filter((road): road is Ans
   }),
 }));
 
+/** The first word beside --on a sub-thread takes none of, as the line or the tool named it; nothing where none was. */
+const besideOn = (given: readonly [string, unknown][]): string | undefined => given.find(([, v]) => v !== undefined && v !== false)?.[0];
+
+/** A sub-thread's start: the picks read against the catalog, the machine made with every check behind it, and the
+ * opening that starts the thread in its folder there, the preamble above the task, named as the machine is. */
+async function subStart(
+  client: Awaited<ReturnType<VerbDeps["client"]>>,
+  env: VerbDeps["env"],
+  ask: { on: string; size?: string | undefined; branch?: string | undefined },
+  message: string,
+  o: { harness?: string | undefined; picks: Parameters<typeof checkedStart>[3]; notify?: readonly string[] | undefined; title?: string | undefined; files?: readonly string[] | undefined; elsewhere?: boolean | undefined },
+  say: (line: string) => void,
+): Promise<{ opening: Record<string, unknown>; sub: SubOut; opened: (threadId: string) => string }> {
+  await checkedStart(client, message, o.harness, o.picks);
+  const made = await subFor(client, { ...ask, harness: o.harness }, message, o.title, say);
+  const opening = openingOf(env, { id: made.workspace.id }, subOpening(made.sub.preamble, message), { harness: made.sub.harness, ...o.picks, ...(o.notify !== undefined ? { notify: o.notify } : {}), title: made.workspace.name, files: o.files ?? [], elsewhere: o.elsewhere, cwd: made.sub.folder });
+  return { opening, sub: made.sub.out, opened: threadId => subOpenedLine(threadId, made.sub.out.on, made.sub.folder) };
+}
+
 export const THREAD_VERBS: readonly Verb[] = [
   {
     name: "run",
-    usage: 'wsp run [<project>] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] "<message>"',
+    usage: 'wsp run [<project>] [--on boat [--size <cpu>x<memGb>]] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] "<message>"',
     about:
-      "an agent works in the project's folder and you read its reply: a thread with the agent, model, effort and access the app offers; a project on a box runs in its folder there as the login the box was added with<!-- cloud -->, and a project on a cloud gets a new machine forked from the image, named off the message as the app's New thread names one<!-- /cloud -->; --beside runs it in the folder another thread works in, on that thread's computer; --branch runs it in a worktree of the project's repo on that branch, made under wsp's folder unless one already holds it, and --cwd in a folder inside the project or one of its worktrees; --fork starts it from another thread's conversation through its latest finished turn, or the one --at counts from 1, on that thread's agent in its folder, or with --branch in a new worktree whose files are that turn's; with no project, run from inside one of your project folders, or from a thread, beside it; follows its first turn, or with --detach prints the id and returns",
+      "an agent works in the project's folder and you read its reply: a thread with the agent, model, effort and access the app offers; a project on a box runs in its folder there as the login the box was added with<!-- cloud -->, and a project on a cloud gets a new machine forked from the image, named off the message as the app's New thread names one<!-- /cloud -->; --on boat starts it as a sub-thread of the thread asking, on a machine of its own on Boat forked from your image at --size or Boat's own size, which fetches your pushed branch and pushes --branch or wsp/<slug>; --beside runs it in the folder another thread works in, on that thread's computer; --branch runs it in a worktree of the project's repo on that branch, made under wsp's folder unless one already holds it, and --cwd in a folder inside the project or one of its worktrees; --fork starts it from another thread's conversation through its latest finished turn, or the one --at counts from 1, on that thread's agent in its folder, or with --branch in a new worktree whose files are that turn's; with no project, run from inside one of your project folders, or from a thread, beside it; follows its first turn, or with --detach prints the id and returns",
     page: "front",
-    options: { beside: { type: "string" }, fork: { type: "string" }, at: { type: "string" }, branch: { type: "string" }, cwd: { type: "string" }, agent: { type: "string" }, ...PICK_OPTIONS, fast: { type: "boolean" }, notify: { type: "string", multiple: true }, title: { type: "string" }, replaces: { type: "string" }, file: { type: "string", multiple: true }, resume: { type: "string" }, copy: { type: "boolean" }, detach: { type: "boolean" } },
+    options: { on: { type: "string" }, size: { type: "string" }, beside: { type: "string" }, fork: { type: "string" }, at: { type: "string" }, branch: { type: "string" }, cwd: { type: "string" }, agent: { type: "string" }, ...PICK_OPTIONS, fast: { type: "boolean" }, notify: { type: "string", multiple: true }, title: { type: "string" }, replaces: { type: "string" }, file: { type: "string", multiple: true }, resume: { type: "string" }, copy: { type: "boolean" }, detach: { type: "boolean" } },
     run: async ctx => {
       if (ctx.args.length === 0) throw usageRefusal(EMPTY_MESSAGE_LINE, 'Put the message in quotes: wsp run <project> "say hi".');
       if (ctx.args.length > 2) throw usageRefusal(`wsp run takes a project and a message; ${ctx.args[2]!} reads as a third word.`, usageIs(ctx));
@@ -90,6 +114,18 @@ export const THREAD_VERBS: readonly Verb[] = [
       const picks = pickFlags(ctx.flags);
       const [ref, message] = ctx.args.length === 2 ? [ctx.args[0], ctx.args[1]!] : [undefined, ctx.args[0]!];
       const where = { branch: flag(ctx.flags, "branch"), cwd: flag(ctx.flags, "cwd") };
+      const on = flag(ctx.flags, "on");
+      if (flag(ctx.flags, "size") !== undefined && on === undefined) throw subSizeNoCloudRefusal();
+      if (on !== undefined) {
+        const word = besideOn([["a project", ref], ...["beside", "fork", "at", "cwd", "resume", "copy", "replaces"].map((f): [string, unknown] => [`--${f}`, ctx.flags[f]])]);
+        if (word !== undefined) throw subBesideRefusal(word);
+        const { opening, sub, opened } = await beforeSending(client, async () =>
+          subStart(client, ctx.env, { on, size: flag(ctx.flags, "size"), branch: where.branch }, message, { harness, picks, notify: await notifyOf(client, flagList(ctx.flags, "notify")), title: flag(ctx.flags, "title"), files: flagList(ctx.flags, "file"), elsewhere: ctx.elsewhere }, line => ctx.io.error(line)),
+        );
+        if (ctx.flags["detach"] === true) await detachVerb(ctx, client, opening, {}, opened, sub);
+        else ctx.out.emit({ ...turnView(await followVerb(ctx, client, opening, true, {}, { opened, spend: turnSpendWord({ kind: "cloud" }) })), sub });
+        return 0;
+      }
       const beside = flag(ctx.flags, "beside");
       if (beside !== undefined && (ref !== undefined || where.branch !== undefined)) throw usageRefusal(BESIDE_ALONE_LINE, usageIs(ctx));
       const forks = flag(ctx.flags, "fork");
@@ -122,9 +158,19 @@ export const THREAD_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description: `Opens a thread under the named agent, on the model, effort and access mode named or the catalog's defaults (a cheaper model for a review, say), and follows its first turn; returns the reply text as soon as it is complete, with the thread id for send. It runs in the project's folder, on a box in its folder there as the login the box was added with<!-- cloud -->, and on a project on a cloud in a new machine forked from the image, named off the message as the app's New thread names one<!-- /cloud -->; with beside, in the folder that thread works in, on its computer, which is how a fresh thread picks up where a long one stands; with branch, in a worktree of the project's repo on that branch (one that already holds the branch, wherever it is, else one wsp makes under its own folder with the dependencies carried in); with cwd, in that folder, which must be inside the project or one of its worktrees. With no project, from a thread, it runs beside that thread in its folder. With detach true it returns the thread id the moment the turn is started, without the reply: the road for a turn that runs for minutes or an hour. ${TURN_END_WORDS}. With notify, each turn of the thread sends one line (outcome, duration, cost, and the reply whole into a thread or its last line to the person) to every target named, so a caller need not wait here or poll. ${NOTIFY_WORDS}. ${NOTIFY_CALLER}. With replaces, the thread restarts a stopped or failed one, which settles once it starts, so the person sees one row. With fork, the thread starts from another thread's conversation through one of its finished turns, the latest or the one at counts, and nothing after, on that thread's agent and in its folder, or with branch in a new worktree whose files are that turn's checkpoint, leaving that thread as it was. ${CAP_MEETS}. ${ANOTHER_AGENT_WORDS}.`,
-      input: { project: RunProjectIn, beside: BesideIn, fork: ForkIn, at: AtIn, branch: BranchIn, cwd: RunCwdIn, message: z.string(), agent: AgentIn, ...PICK_INPUTS, fast: FastIn, notify: NotifyIn, title: TitleIn, replaces: ReplacesIn, files: FilesIn, resume: ResumeIn, copy: CopyIn, detach: DetachIn },
-      output: TurnOut.shape,
-      call: async ({ project: ref, beside, fork: forks, at, branch, cwd, message, agent: harness, notify: tell, title, replaces, files, resume: conversation, copy, detach, ...input }, deps) => {
+      input: { project: RunProjectIn, beside: BesideIn, fork: ForkIn, at: AtIn, branch: BranchIn, on: OnIn, size: SubSizeIn, cwd: RunCwdIn, message: z.string(), agent: AgentIn, ...PICK_INPUTS, fast: FastIn, notify: NotifyIn, title: TitleIn, replaces: ReplacesIn, files: FilesIn, resume: ResumeIn, copy: CopyIn, detach: DetachIn },
+      output: RunOut.shape,
+      call: async ({ project: ref, beside, fork: forks, at, branch, on, size, cwd, message, agent: harness, notify: tell, title, replaces, files, resume: conversation, copy, detach, ...input }, deps) => {
+        if (size !== undefined && on === undefined) throw subSizeNoCloudRefusal();
+        if (on !== undefined) {
+          const word = besideOn([["project", ref], ["beside", beside], ["fork", forks], ["at", at], ["cwd", cwd], ["resume", conversation], ["copy", copy], ["replaces", replaces]]);
+          if (word !== undefined) throw subBesideRefusal(word);
+          const client = await deps.client();
+          const { opening, sub, opened } = await beforeSending(client, async () => subStart(client, deps.env, { on, size, branch }, message, { harness, picks: input, notify: await notifyOf(client, tell ?? []), title, files, elsewhere: deps.elsewhere }, QUIET_LINE));
+          if (detach === true) return detachedOut(await startDetached(client, opening, "agent", undefined, () => hostBack(deps)), opened, sub);
+          const out = { ...turnOut(await follow(client, opening, "agent", QUIET_TURN, () => hostBack(deps))), sub };
+          return asText(`${opened(out.threadId)}\n${turnText(out)}`, out);
+        }
         if (beside !== undefined && (ref !== undefined || branch !== undefined)) throw usageRefusal(BESIDE_ALONE_LINE, BESIDE_ALONE_FIX);
         if (at !== undefined && forks === undefined) throw usageRefusal(AT_WITHOUT_FORK_LINE, AT_WITHOUT_FORK_FIX);
         if (forks !== undefined && (ref !== undefined || beside !== undefined || cwd !== undefined || replaces !== undefined)) throw usageRefusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX);

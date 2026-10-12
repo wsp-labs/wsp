@@ -221,6 +221,7 @@ describe("Rewind to here on a thread's replies", () => {
 
 describe("Undo rewind", () => {
   const target = (rewound?: boolean): ThreadTarget => ({
+    inFolder: false,
     id: THREAD,
     threadId: THREAD,
     sessionId: "sess_1",

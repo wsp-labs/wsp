@@ -18,6 +18,7 @@ import {
   goldenName,
   splitByOwner,
   snapshotMonthlyUsd,
+  namedCount,
   templatesOf,
   applyDelta,
   applyGoldenImport,
@@ -35,12 +36,13 @@ import {
   rollback as rollbackGolden,
   snapshotStorage,
 } from "@wsp/engine";
-import type { GoldenBuilderView } from "@wsp/protocol";
+import type { GoldenBuilderView, PlaceKind } from "@wsp/protocol";
 import {
   forksNoMachines,
   ALREADY_APPLIED,
   notFoundRefusal,
   buildPlaceAskLine,
+  placeSaid,
   NO_BUILD_PLACE_LINE,
   noProjectImageLine,
   projectImageInUseRefusal,
@@ -89,10 +91,10 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
 
     async buildPlace(word) {
       await ctx.ready();
-      const runs = (place: string, at: MachineBackend): { place: string; name: string; backend: MachineBackend } => {
+      const runs = (place: string, at: MachineBackend): { place: string; name: string; kind: PlaceKind; backend: MachineBackend } => {
         const name = ctx.placeName(place);
         if (forksNoMachines(at.capabilities)) throw Object.assign(new PlaceForksNowhereError(`${name} forks no machines, so your image cannot be built there`), { kind: "conflict" });
-        return { place, name, backend: at };
+        return { place, name, kind: places.list().includes(place) ? "provider" : "computer", backend: at };
       };
       // A rebuild seals over the record, so building it anywhere else would move the image's home.
       const target = (await ctx.recordOf("default")) !== undefined ? await ctx.imagePlace("default") : word;
@@ -112,7 +114,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       }
       const running = await ctx.buildPlaces();
       if (running.length === 0) throw ctx.conflict(NO_BUILD_PLACE_LINE);
-      if (running.length > 1) throw ctx.conflict(buildPlaceAskLine(running.map(r => r.name)));
+      if (running.length > 1) throw ctx.conflict(buildPlaceAskLine(running.map(placeSaid)));
       return running[0]!;
     },
 
@@ -464,7 +466,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
         snapshots: snapshots.orphans,
         templates: promoted.orphans,
         freedBytes,
-        savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing),
+        savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing, namedCount(rows)) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing, namedCount(rows) - namedCount(snapshots.orphans)),
         others: { snapshots: snapshots.foreign, templates: promoted.foreign },
       };
     },

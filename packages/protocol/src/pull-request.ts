@@ -79,13 +79,14 @@ export const PullRequestUnread = z.object({ why: z.string(), readAt: z.number() 
 export type PullRequestUnread = z.infer<typeof PullRequestUnread>;
 
 /** What a workspace's record keeps of its pull request, so a merged one still reads merged after the host restarts
- * and is never read again: the number, the link, where it stands and its base, when the host saw it settle, and the
- * checks the read that saw it settle found on its head. */
+ * and is never read again: the number, the link, where it stands, its base and the branch it was opened from, when
+ * the host saw it settle, and the checks the read that saw it settle found on its head. */
 export const PullRequestRecord = z.object({
   number: count,
   url: z.string(),
   state: PullRequestState,
   base: z.string(),
+  branch: z.string().optional(),
   mergedAt: z.number().optional(),
   closedAt: z.number().optional(),
   checks: z.array(PullRequestCheck).optional(),

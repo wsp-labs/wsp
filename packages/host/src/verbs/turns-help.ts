@@ -93,6 +93,9 @@ import {
   threadOnMachineLine,
   nameOfTask,
   takenNameAfter,
+  SubStarted,
+  type SubOut,
+  type WorkspaceCreatingEvent,
   ThreadDefaults,
   capWaitLine,
   COPY_ALONE_LINE,
@@ -302,6 +305,28 @@ export async function forkFor(client: HostClient, project: ForkTarget["fork"], t
     stream: (text: string) => say(text.trimEnd()),
   };
   return (await createFor(client, out, project, takenNameAfter(nameOfTask(task), taken))).workspace;
+}
+
+/** A sub-thread's machine on a cloud, named off the task as a fork's is unless the title names it, with a number
+ * after it where a machine already has that name; its stages go to `say`. The host reads the asking thread's project
+ * off its token and every check before the cloud is asked for a start. Called last, once everything else on the line
+ * has been read, so a refusal costs no machine. */
+export async function subFor(client: HostClient, ask: { on: string; size?: string | undefined; branch?: string | undefined; harness?: string | undefined }, task: string, title: string | undefined, say: (line: string) => void): Promise<{ workspace: WorkspaceOut; sub: SubStarted }> {
+  const name = takenNameAfter(title ?? nameOfTask(task), new Set((await workspaces(client)).map(w => w.name)));
+  const pushed = pushedFrames(client);
+  await client.events();
+  pushed.follow(
+    f => f.type === "workspace.creating" && (f as unknown as WorkspaceCreatingEvent).name === name,
+    f => say((f as unknown as WorkspaceCreatingEvent).message),
+  );
+  try {
+    const sub = { on: ask.on, ...(ask.size !== undefined ? { size: ask.size } : {}), ...(ask.branch !== undefined ? { branch: ask.branch } : {}), ...(ask.harness !== undefined ? { harness: ask.harness } : {}) };
+    const made = await client.request<{ workspace: WorkspaceOut; notice?: string; sub: unknown }>("workspaces.create", { project: "", name, sub });
+    if (made.notice !== undefined) for (const line of made.notice.split("\n")) say(line);
+    return { workspace: made.workspace, sub: SubStarted.parse(made.sub) };
+  } finally {
+    pushed.stop();
+  }
 }
 
 /** The project on this computer a folder is in: the one whose folder holds it, the deepest where two do, else the one
@@ -618,7 +643,7 @@ export async function follow(
         );
       });
       if (socket !== client) {
-        for (const e of await history(socket, turn.session.workspaceId)) {
+        for (const e of await history(socket, turn.session.workspaceId, turn.threadId)) {
           if (e.turnId === turnId && (e.type === "session.done" || e.type === "session.end")) take(e as unknown as Frame, turn);
         }
         if (over) return turn;
@@ -699,19 +724,20 @@ export type Waited = { ended: Ended } | { timedOutMs: number };
  * gave up before it opened is the case with no rows behind it: it never wrote any, since it never ran, and the
  * reason it did not is on that end and nowhere else. */
 async function endedOf(client: HostClient, workspaceId: string, threadId: string, ended: TurnResult): Promise<Ended> {
-  return { threadId, result: threadResult(await history(client, workspaceId), threadId) ?? ended };
+  return { threadId, result: threadResult(await history(client, workspaceId, threadId), threadId) ?? ended };
 }
 
-/** The workspace's transcript as the host holds it, the rows every read and every wait folds. */
-async function history(client: HostClient, workspaceId: string): Promise<SessionEvent[]> {
-  return (await client.request<{ events: SessionEvent[] }>("sessions.history", { workspaceId })).events;
+/** One thread's transcript as the host holds it, the rows every read and every wait folds; the host reads that thread
+ * alone, never its folder's every thread. */
+async function history(client: HostClient, workspaceId: string, threadId: string): Promise<SessionEvent[]> {
+  return (await client.request<{ events: SessionEvent[] }>("sessions.history", { workspaceId, threadId, whole: true })).events;
 }
 
 /** A thread's messages as the app lists them, or its final reply alone: the transcript is the host's, so nothing is
  * woken for a read and a napping machine reads the same as a running one. */
 export async function readThread(client: HostClient, thread: ThreadView, last: boolean): Promise<{ threadId: string; messages: ThreadMessage[] }> {
   const threadId = threadIdOf(thread);
-  const events = await history(client, thread.workspaceId);
+  const events = await history(client, thread.workspaceId, threadId);
   // A read is a showing, as a window's is: the stamp moves, so the thread stops reading Done here and in every window.
   await client.request("sessions.read", { threadId: thread.id });
   return { threadId, messages: last ? threadReplyRows(events, threadId) : threadMessages(events, threadId) };
@@ -936,7 +962,7 @@ async function answerAsk(client: HostClient, sessionId: string, askId: string, o
 export async function answerOpenAsk(client: HostClient, ref: string, road: AnswerRoad & { answer: NonNullable<AnswerRoad["answer"]> }, reason?: string): Promise<{ threadId: string; askId: string; optionId: string; line: string }> {
   const thread = await threadOf(client, ref);
   const threadId = threadIdOf(thread);
-  const ask = openAsk(await history(client, thread.workspaceId), threadId);
+  const ask = openAsk(await history(client, thread.workspaceId, threadId), threadId);
   if (ask === undefined) throw new Error(noOpenAskLine(threadId));
   const option = ask.options.find((o: PermissionOption) => o.effect === road.effect);
   if (option === undefined) throw new Error(noSuchAnswerLine(threadId, road.answer.verb));
@@ -1094,7 +1120,7 @@ export async function beforeSending<T>(client: HostClient, read: () => Promise<T
 /** The verbs' way through a detached start: the queued and joined lines on stderr as a follow prints them, then the
  * thread's id on stdout the moment the runtime names it, and nothing of the reply, which the thread's finished line
  * carries to whoever its start named. */
-export async function detachVerb(ctx: VerbContext, client: HostClient, start: Record<string, unknown>, picks: Picks = {}, opened?: (threadId: string, folder?: string) => string): Promise<void> {
+export async function detachVerb(ctx: VerbContext, client: HostClient, start: Record<string, unknown>, picks: Picks = {}, opened?: (threadId: string, folder?: string) => string, sub?: SubOut): Promise<void> {
   let waitedFor: string | undefined;
   const turn = await startDetached(client, start, "cli", e => {
     waitedFor = e.waitsFor;
@@ -1102,7 +1128,7 @@ export async function detachVerb(ctx: VerbContext, client: HostClient, start: Re
   }, () => hostBack(ctx));
   if (turn.outcome === "held" && turn.session.capped !== undefined) ctx.io.error(capWaitLine(turn.session.capped));
   else if (turn.outcome !== "started" && turn.outcome !== "held") ctx.io.error(JOINED[turn.outcome](picks, waitedFor));
-  ctx.out.emit(turnView(turn), openedThreadSaid(turn.threadId, opened, turn.session.cwd));
+  ctx.out.emit({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}) }, openedThreadSaid(turn.threadId, opened, turn.session.cwd));
 }
 
 export const turnView = (turn: Turn): z.infer<typeof TurnOut> => ({

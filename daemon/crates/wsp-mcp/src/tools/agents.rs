@@ -205,24 +205,18 @@ struct Report {
 }
 
 #[derive(Deserialize)]
-struct Place {
-    id: String,
-    name: String,
-}
-
-#[derive(Deserialize)]
 struct Places {
-    places: Vec<Place>,
+    places: Vec<super::target::ListedPlace>,
 }
 
 /// The place a word names, by its name or its id; a word naming none is refused with the names there are: `placeNamed`.
 pub async fn place_named(client: &Client, word: &str) -> Result<(String, String), Failure> {
     let listed = client.request::<Places>("places.list", Map::new()).await?;
-    let names: Vec<&str> = listed.places.iter().map(|p| p.name.as_str()).collect();
-    match listed.places.iter().find(|p| p.id == word || p.name == word) {
+    let words = record::words();
+    let names: Vec<&str> = listed.places.iter().map(|p| p.table_name(&words)).collect();
+    match listed.places.iter().find(|p| p.named(&words, word)) {
         Some(place) => Ok((place.id.clone(), place.name.clone())),
         None => {
-            let words = record::words();
             let said = fill(&words.no_such_place, &[("word", word), ("held", &names.join(", "))]);
             Err(Failure::usage(super::target::refusal_line(&said, &words.places_fix)))
         }

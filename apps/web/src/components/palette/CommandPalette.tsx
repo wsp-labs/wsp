@@ -98,7 +98,7 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
   useEffect(() => {
     if (onConversations && listed !== null) void useConversationsStore.getState().read(listed);
   }, [listed, onConversations]);
-  const [found, setFound] = useState<{ query: string; hits: ReadonlyArray<SessionSearchHit> } | null>(null);
+  const [found, setFound] = useState<{ query: string; hits: ReadonlyArray<SessionSearchHit>; unsearched?: number } | null>(null);
   const words = pages.length > 0 || query.startsWith(">") ? "" : query.trim();
   useEffect(() => {
     const search = api?.searchMessages;
@@ -106,8 +106,8 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
     let current = true;
     const wait = setTimeout(() => {
       search(words).then(
-        ({ hits }) => {
-          if (current) setFound({ query: words, hits });
+        ({ hits, unsearched }) => {
+          if (current) setFound({ query: words, hits, ...(unsearched !== undefined ? { unsearched } : {}) });
         },
         () => {},
       );
@@ -118,6 +118,7 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
     };
   }, [api, open, words]);
   const messageHits = found?.query === words ? found.hits : NO_HITS;
+  const unsearched = found?.query === words ? found.unsearched : undefined;
   const handlers = useMemo<PaletteHandlers>(
     () => ({
       selectWorkspace: goToWorkspace,
@@ -136,7 +137,7 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
       copyThreadMarkdown:
         api === null || selectedId === null || selectedThreadId === null
           ? null
-          : async () => await copyText(threadMarkdown(threadMessages(await api.sessionHistory(selectedId), selectedThreadId))),
+          : async () => await copyText(threadMarkdown(threadMessages(await (api.sessionThread?.(selectedId, selectedThreadId) ?? api.sessionHistory(selectedId)), selectedThreadId))),
     }),
     [api, openAddComputer, openProjectHome, openSettings, select, selectedId, selectedThreadId, toggleRightPanel, toggleSidebar],
   );
@@ -149,10 +150,10 @@ export function CommandPalette({ keybindings: given }: { keybindings?: ResolvedK
     if (open) {
       const project = listed === null ? null : (recorded.find(p => p.id === listed) ?? null);
       const conversations = { project, computer: project === null ? "" : (placeNames(places).get(project.computer) ?? project.computer), read: conversationsRead, pick: (row: Parameters<typeof pickConversation>[1]) => project !== null && pickConversation(project.id, row) };
-      built.current = buildPaletteItems({ projects, threadMoves, selectedId, query, messageHits, canCreate: api !== null, recorded, picks, asks, handlers, verbs, places, conversations });
+      built.current = buildPaletteItems({ projects, threadMoves, selectedId, query, messageHits, ...(unsearched !== undefined ? { unsearched } : {}), canCreate: api !== null, recorded, picks, asks, handlers, verbs, places, conversations });
     }
     return built.current;
-  }, [api, asks, conversationsRead, handlers, listed, messageHits, open, picks, places, projects, query, recorded, selectedId, threadMoves, verbs]);
+  }, [api, asks, conversationsRead, handlers, listed, messageHits, open, picks, places, projects, query, recorded, selectedId, threadMoves, unsearched, verbs]);
   // A page whose row is gone or held, as the last project's removal leaves it, reads as the root.
   const page = useMemo(() => {
     const at = pages.at(-1);

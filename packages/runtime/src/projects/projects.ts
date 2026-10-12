@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CATALOG_AGENTS, DEFAULT_AGENT } from "@wsp/catalog";
 import { INLINE_EXEC_MS, BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, WSP_LABEL, destExists, exportFolder, exportPathsInto, importInto, landBundle, landBytes, plural, agentsOnMachine, guestAgentHomes, guestTmpPath, parseStateListing, stateListing, type MachineBackend, type MachineSpec, GUEST_TMP, syncDisk } from "@wsp/engine";
-import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSource, ProjectView, ProjectPlan, SeedChoice, SeedPlan, Caller } from "@wsp/protocol";
+import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSeed, ProjectSource, ProjectView, ProjectPlan, SeedChoice, SeedPlan, Caller } from "@wsp/protocol";
 import { projectLanding, type Landed, type LandingDeps, type ProjectLanding } from "../project-landing.js";
 import { projectSource } from "../project-sources.js";
-import { projectUnsavedRefusal, refusal, scopeOf, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
-import { addedProjectOn, addingProjectLine, actionRefusal, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, noSuchPlaceRefusal } from "@wsp/protocol";
+import { projectSeedOf, projectUnsavedRefusal, refusal, scopeOf, seedNotHereRefusal, seedPicks, seedSaveRefusal, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
+import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, namesPlace, noSuchPlaceRefusal } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV } from "@wsp/engine";
 import { resolveThreadDefaults, withCustomModels } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
@@ -199,6 +199,23 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       return { ...plan, remembered: true, files: plan.files.map(f => ({ ...f, ticked: f.kind !== "never" && remembered.files.includes(f.path) })) };
     },
 
+    /** The seed picks of a project whose folder is on this computer, moved by the person's words and, with `save`,
+     * kept as the folder's remembered choice: the record an add with remember writes and the next add reads. */
+    async seed(ref: string, o: { keep?: readonly string[]; cut?: readonly string[]; none?: boolean; save?: boolean }, origin?: Caller): Promise<ProjectSeed> {
+      const project = await projectsDoor.resolve(ref, origin);
+      if (project.computer !== HERE_PLACE_ID || project.source.kind !== "folder") throw seedNotHereRefusal(project.name, ctx.nameOfComputer(project.computer, await ctx.computerRows()));
+      if (o.save === true && scopeOf(origin) !== undefined) throw seedSaveRefusal(project.name, o);
+      const folder = folderNamed(project.source.path);
+      const plan = await projectsDoor.seedPlan(folder);
+      const prior = (await store.get(SEED_CHOICES, folder)) as SeedChoice | undefined;
+      // The saved picks, else nothing: nothing git ignores goes to a sub-thread's machine before the person picked it.
+      const picks = seedPicks(plan, o.none === true ? [] : (prior?.files ?? []), o.keep ?? [], o.cut ?? []);
+      if (o.save === true) {
+        await store.put(SEED_CHOICES, folder, { files: [...picks.files, ...picks.missing], memory: prior?.memory ?? false, commits: prior?.commits ?? false, remember: true } satisfies SeedChoice);
+      }
+      return projectSeedOf(project.name, plan, picks, o.save === true);
+    },
+
     /** `report` hears each line the add says as it goes, beside the stream every client watches: a caller that
      * keeps its own log of the add, as a computer's setup does. */
     async add(o: { source: string; on?: string; name?: string; base?: string; into?: string; seed?: SeedChoice; id?: string; createdAt?: string; report?: (line: string) => void }, origin?: Caller): Promise<ProjectView & { notice?: string }> {
@@ -214,12 +231,18 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       const source: ProjectSource = projectSourceOf(o.source, kind, kind === "folder" ? folderNamed(o.source) : undefined);
       // No --on: a folder is worked here and so is a repo given a folder to clone into; a repo with neither is the
       // person's to place, here or on a computer that clones, which the kind table says are which.
-      const computer = o.on === undefined ? (kind === "folder" || o.into !== undefined ? HERE_PLACE_ID : undefined) : (rows.find(r => r.id === o.on || r.name === o.on)?.id ?? undefined);
+      const on = o.on;
+      const computer = on === undefined ? (kind === "folder" || o.into !== undefined ? HERE_PLACE_ID : undefined) : rows.find(r => namesPlace(r, on))?.id;
       if (computer === undefined) {
         if (o.on === undefined) throw new Error(noComputerForSourceLine(o.source, clones));
-        throw new Error(noSuchPlaceRefusal(o.on, rows.map(r => r.name)));
+        throw new Error(noSuchPlaceRefusal(o.on, rows.map(tableName)));
       }
       if (o.into !== undefined && computer !== HERE_PLACE_ID) throw new Error(intoIsHereLine(ctx.nameOfComputer(HERE_PLACE_ID, rows)));
+      const place = rows.find(r => r.id === computer);
+      if (opts.cloudProjects === false && place !== undefined && isProviderPlace(place)) {
+        const refused = cloudProjectRefusal(tableName(place));
+        throw usageRefusal(refused.happened, refused.fix);
+      }
       const computerKind = kindForComputer(computer);
       const takes = kindWords(computerKind).projectSources;
       if (!takes.includes(source.kind)) throw new Error(source.kind === "folder" ? folderOnCopyRefusal(ctx.nameOfComputer(computer, rows)) : noComputerForSourceLine(o.source, clones));
@@ -432,6 +455,7 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
   const projects: Runtime["projects"] = {
     add: projectsDoor.add,
     seedPlan: projectsDoor.seedPlan,
+    seed: projectsDoor.seed,
     list: projectsDoor.list,
     icon: (projectId, png) => ctx.projectIcons.set(projectId, png),
     icons: hashes => ctx.projectIcons.read(hashes),

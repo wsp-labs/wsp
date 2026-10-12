@@ -4,7 +4,8 @@ import { z } from "zod";
 import { AgentSignInState } from "../agents-report.js";
 import { KNOWN_HOSTS, PLACE_INSTALL, plural, thisComputer } from "../format.js";
 import { RecipeFile } from "../recipe-file.js";
-import { HERE_PLACE_ID, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves } from "../place-word.js";
+import { PlaceKind } from "./place-kind.js";
+import { HERE_PLACE_ID, cloudNamed, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves } from "../place-word.js";
 import { NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS } from "../place-state.js";
 import { isPlainPath, PortForward, RelayPort } from "../wire/limits.js";
 import { MachineSizeOffer, WorkspaceSize } from "../wire/capabilities.js";
@@ -131,8 +132,7 @@ export const DoctorLineEvent = z.object({
 });
 export type DoctorLineEvent = z.infer<typeof DoctorLineEvent>;
 
-export const PlaceKind = z.enum(["computer", "provider"]);
-export type PlaceKind = z.infer<typeof PlaceKind>;
+export { PlaceKind };
 
 /** What the computers table calls one row's kind, which is finer than PlaceKind by one: the computer the host runs
  * on is named as its owner names it, a computer somebody joined is a box, and a provider account is a cloud. The
@@ -652,11 +652,13 @@ export type PlaceHolds = z.infer<typeof PlaceHolds>;
 export const placeForgetsOnly = (holds: PlaceHolds): boolean => holds.away === true && (holds.forks.length > 0 || holds.projects.length > 0);
 
 /** What places.remove answers: whether a computer of that id was there, the forks and projects that went with it,
- * every line of what the sweep took off it, and the one line for a computer that was not connected to sweep. */
-export const PlaceRemoved = z.object({ removed: z.boolean(), took: PlaceHolds.omit({ unsaved: true }).optional(), swept: z.array(z.string()), note: z.string().optional() });
+ * every line of what the sweep took off it, and the one line for a computer that was not connected to sweep. A
+ * provider answers how many machines it deleted there; `removed` false with a note is one it would not delete all
+ * of, its key kept, and `removed` true with a note names where its key still is. */
+export const PlaceRemoved = z.object({ removed: z.boolean(), took: PlaceHolds.omit({ unsaved: true }).optional(), swept: z.array(z.string()), note: z.string().optional(), deleted: z.number().int().optional() });
 export type PlaceRemoved = z.infer<typeof PlaceRemoved>;
 
-export { HERE_PLACE_ID, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves };
+export { HERE_PLACE_ID, cloudNamed, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves };
 
 /** What one row of the places list holds of the person's money: the spend it has taken since midnight and since
  * the first of the month, over every workspace that stood on it then, deleted ones included, and what it is burning

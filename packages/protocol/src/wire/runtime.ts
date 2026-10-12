@@ -220,7 +220,8 @@ const RuntimeOp = z.discriminatedUnion("op", [
      * thread asked for names none and is refused where it does: it takes the image its own workspace's project
      * runs, which is the only image a thread reaches. */
     golden: z.string().optional(),
-    /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. */
+    /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. Empty
+     * beside `sub`, whose project is the asking thread's own, read off its token. */
     project: z.string(),
     name: z.string(),
     cpu: z.number().optional(),
@@ -240,6 +241,11 @@ const RuntimeOp = z.discriminatedUnion("op", [
     parent: z.string().optional(),
     /** The workspace gets the place's container engine through the fenced socket; absent takes the image's recipe. */
     engine: z.boolean().optional(),
+    /** A sub-thread of the asking thread on the cloud `on` names: a machine of its own forked from the image, at
+     * `size` or the cloud's own size, whose thread pushes `branch` or wsp/<slug>. The project is the asking thread's;
+     * the reply carries `sub`, what the thread's start opens with. Refused, before the cloud is asked for a start,
+     * by every check run --on names. */
+    sub: z.object({ on: z.string(), size: z.string().optional(), branch: z.string().optional(), harness: z.string().optional() }).optional(),
   }),
   /** Where a workspace of this project would land and what that computer offers. Replies with
    * { place?, name, capabilities }, `place` absent where the landing is the provider this host forks on. Refused
@@ -320,9 +326,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("workspaces.pullRequestDiff"), workspaceId: z.string() }),
   /** Sends items of the workspace's pull request page to its agent as one message, each with its author, its words
    * and, for a comment on a line, its file, line and the diff's lines above it, numbered where there are several;
-   * the message joins the workspace's first thread as a fix's does. The host keeps what was sent, with when, and the
+   * the message joins the thread named, else the workspace's first thread, as a fix's does. The host keeps what was sent, with when, and the
    * page answers it. Answered as a PullRequestSendResult. */
-  z.object({ id: reqId, op: z.literal("workspaces.pullRequestSend"), workspaceId: z.string(), items: z.array(PullRequestItem).min(1) }),
+  z.object({ id: reqId, op: z.literal("workspaces.pullRequestSend"), workspaceId: z.string(), items: z.array(PullRequestItem).min(1), threadId: z.string().optional() }),
   /** Posts a reply as the person through this computer's signed-in command line, never a copy's: under the comment on
    * a line replyTo names, in the thread threadId names, or a new comment in the conversation where it names none.
    * Answered as a GitPrReplyReply with the new comment. */
@@ -548,8 +554,10 @@ const RuntimeOp = z.discriminatedUnion("op", [
   /** Replies with the workspace's persisted SessionEvent[] (oldest first, capped by the runtime). With threadId,
    * replies with a HistoryPage of that thread instead: its newest events under `before` (every one when absent), at
    * most `limit` of them (HISTORY_PAGE_EVENTS when absent) and no more than HISTORY_PAGE_BYTES of them past the first,
-   * so a client pages back by passing the pos of the oldest event it holds. Refused as usage when before or limit
-   * comes without a thread. */
+   * so a client pages back by passing the pos of the oldest event it holds. With threadId and whole, replies with
+   * { events } of that thread alone, every one it keeps, oldest first: a reader of one thread never asks for its
+   * folder's every thread. Refused as usage when before or limit comes without a thread, or whole with either or
+   * without one. */
   z.object({
     id: reqId,
     op: z.literal("sessions.history"),
@@ -557,6 +565,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
     threadId: z.string().optional(),
     before: z.number().int().positive().optional(),
     limit: z.number().int().positive().max(HISTORY_PAGE_MAX).optional(),
+    whole: z.literal(true).optional(),
   }),
   /** Replies with the thread's ThreadHead, by its fold key as sessions.read takes it; refused as not found where the
    * caller reaches no such thread. */
@@ -586,8 +595,8 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * sentence once a turn reached the agent. */
   z.object({ id: reqId, op: z.literal("sessions.forget"), threadId: z.string(), check: z.boolean().optional() }),
   /** Takes a thread away on this computer, its turns and its checkpoints with it: a thread in the project folder goes
-   * alone and the folder is never touched; a thread in a worktree wsp made takes that worktree and every thread in it,
-   * refused over files no commit holds. A thread on a box goes with its machine. */
+   * alone and the folder is never touched; so does a thread in a worktree wsp made while another thread is in it, and
+   * the last one there takes that worktree, refused over files no commit holds. A thread on a box goes with its machine. */
   /** processes reads the threads it would take as sessions.settle's does; with check nothing goes, and the answer is
    * what would. */
   z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string(), processes: ProcessesAsk.optional(), check: z.boolean().optional() }),
@@ -909,6 +918,11 @@ const RuntimeOp = z.discriminatedUnion("op", [
   /** Replies with { plan: SeedPlan } for a folder on this computer: what a seed of it would carry, read off git's
    * own ignore listing and one size pass. No file's content is read and nothing leaves this computer. */
   z.object({ id: reqId, op: z.literal("project.seed.plan"), source: z.string() }),
+  /** The seed picks of a project whose folder is on this computer: the menu with the folder's remembered choice on
+   * it, else nothing picked, then `none`, `keep` and `cut` in that order. `save` writes the picks as the folder's
+   * remembered choice, the record an add with remember writes; a thread's token is refused it. Replies with a
+   * ProjectSeed. */
+  z.object({ id: reqId, op: z.literal("projects.seed"), project: z.string(), keep: z.array(z.string()).optional(), cut: z.array(z.string()).optional(), none: z.boolean().optional(), save: z.boolean().optional() }),
   /** Every project this host holds. Replies with { projects }. */
   z.object({ id: reqId, op: z.literal("projects.list") }),
   /** The conversations the agents kept on a project's computer outside wsp, in its folder and its worktrees, newest
@@ -1033,6 +1047,9 @@ export const THREAD_OPS: readonly string[] = [
   "conversations.list",
   "projects.defaults",
   "projects.resolve",
+  // The seed menu of a project the thread may name, read here; its save is refused by the runtime, with the line
+  // to hand the person, since what leaves this computer is theirs to pick.
+  "projects.seed",
   "workspaces.list",
   // Every verb a thread runs names its workspace as a person does, so the door that reads a name is open to the
   // same tokens the list is: the tree rule refuses the names outside it here exactly as it hides them there.
@@ -1334,7 +1351,8 @@ export type SessionRestoreResult = z.infer<typeof SessionRestoreResult>;
  * around the first place they hold it, on one line. */
 export const SessionSearchHit = z.object({ workspaceId: z.string(), threadId: z.string(), snippet: z.string() });
 export type SessionSearchHit = z.infer<typeof SessionSearchHit>;
-export const SessionSearchResult = z.object({ hits: z.array(SessionSearchHit) });
+/** The hits, and how many threads the host searched none of the words of, since it let them go: opening one holds them again. */
+export const SessionSearchResult = z.object({ hits: z.array(SessionSearchHit), unsearched: z.number().int().positive().optional() });
 export type SessionSearchResult = z.infer<typeof SessionSearchResult>;
 
 /** The harness's answer to a side question, which the host keeps nowhere. */

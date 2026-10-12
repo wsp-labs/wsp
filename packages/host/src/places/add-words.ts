@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { ALREADY_JOINED_LINE, CODE_FROM_ROW, GITHUB_CLI, signInOfRow, waitsForInstallLine, type PlaceProvisionRow, isHttpUrl, PLACE_LEAVE_LINE, fmtPrice, joinRoads, PlaceView, type PlaceFile, fmtBytes, fmtDuration, shellQuote, BACK_OVER_SSH, backUrl, dialsBackWord, PLACE_SUDO_KIND, refusal, twoPlacesRefusal, relayUrlOf, TOOL_PREFIX, placeHoldsLine, pluginOffLine, type PlaceHolds, type PlaceRemoved } from "@wsp/protocol";
+import { ALREADY_JOINED_LINE, CODE_FROM_ROW, GITHUB_CLI, signInOfRow, waitsForInstallLine, type PlaceProvisionRow, isHttpUrl, PLACE_LEAVE_LINE, fmtPrice, joinRoads, PlaceView, type PlaceFile, fmtBytes, fmtDuration, shellQuote, BACK_OVER_SSH, backUrl, dialsBackWord, PLACE_SUDO_KIND, refusal, twoPlacesRefusal, relayUrlOf, providerKeyName, TOOL_PREFIX, placeHoldsLine, pluginOffLine, type PlaceHolds, type PlaceRemoved } from "@wsp/protocol";
 import { prefixVolume, SSH_LINE_CAP, boxWord, keyFingerprint, type SshReach, type SshSudo } from "@wsp/engine";
 import { CATALOG_AGENTS, agentName, keyEnvOf, loginThere, mintsToken, sharedOn } from "@wsp/catalog";
 import { cappedLine } from "../doctor.js";
@@ -30,7 +30,7 @@ export function addLines(token: string, expiresAt: number, now: number, urls: re
     ...joinRoads(token, urls, publicAt === undefined ? undefined : relayUrlOf(publicAt)).map(road => `  ${road.line}${road.note === undefined ? "" : `      (${road.note})`}`),
     `The code is spent by the first join and stops working in ${fmtDuration(Math.max(0, expiresAt - now))}. The computer shows in wsp computers within a minute of joining.`,
     "Over ssh instead: wsp add user@host --name <name> installs the daemon there and joins it for you, and an alias from your ssh config works in place of user@host.",
-    ...(addableProviders().length === 0 ? [] : [`A provider instead: ${addableProviders().map(id => `wsp add ${id}`).join(", ")}.`]),
+    ...(addableProviders().length === 0 ? [] : [`A provider instead: ${addableProviders().map(id => `wsp add ${addWord(id)}`).join(", ")}.`]),
   ];
 }
 
@@ -40,13 +40,22 @@ export function addableProviders(): string[] {
   return addedProviders().map(m => m.id);
 }
 
-/** What a provider that just became a place reads as. */
-export const providerPlaceLine = (id: string, rateUsdPerHour: number): string => `place ${id}, ${fmtPrice(rateUsdPerHour)}, forks your image`;
+/** The word wsp add takes for a provider as a person types it: the name its key rows give it, in lower case. */
+export const addWord = (id: string): string => providerKeyName(id).toLowerCase();
+
+/** The provider a word wsp add takes names, in any case: its own id or the name its key rows give it. */
+export function addedProviderId(word: string): string | undefined {
+  const typed = word.toLowerCase();
+  return addableProviders().find(id => id === typed || addWord(id) === typed);
+}
+
+/** What a provider that just became a place beside this computer reads as, where its row says nothing of its own. */
+export const providerBesideLine = (id: string, rateUsdPerHour: number): string => `place ${id}, ${fmtPrice(rateUsdPerHour)}, beside this computer; your threads still run here`;
 
 /** The refusal for a word that is neither a provider wsp holds a key for nor an ssh address, naming all three roads. */
 export function addRefusal(word: string): string {
   const ssh = "an address over ssh (user@host, or an alias your ssh config gives a HostName)";
-  const what = addableProviders().length === 0 ? `that is not ${ssh}` : `that is neither a provider this wsp can be set up for (${addableProviders().join(", ")}) nor ${ssh}`;
+  const what = addableProviders().length === 0 ? `that is not ${ssh}` : `that is neither a provider this wsp can be set up for (${addableProviders().map(addWord).join(", ")}) nor ${ssh}`;
   return `wsp add ${word}: ${what}, and wsp add with no argument prints the line to type on a computer you are sitting at.`;
 }
 

@@ -3,13 +3,22 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
-import { MCP_SERVER_NAME, THREAD_ENV, TURN_TOKEN_ENV, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
+import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
 import { launchesAs, type KeptLaunch } from "../types/internal.js";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
+
+/** The wsp server a thread's launch is handed. A thread another thread started has no slate: its launch says nothing of
+ * one, and on this computer, where the server is the host's own wsp and knows the word, its server is told too. A box's
+ * server is served by this host as a guest, which reads the same off the thread's token; the box's own wsp may be
+ * older and never sees a word. */
+export function servedTo(wsp: McpServerSpec | undefined, rootThreadId: string, threadId: string): McpServerSpec | undefined {
+  if (wsp === undefined || rootThreadId === threadId) return wsp;
+  return { ...wsp, noSlate: true as const, ...(wsp.args.includes(SCOPED_MCP_ARG) ? { args: [...wsp.args, NO_SLATE_MCP_ARG] } : {}) };
+}
 
 /** The picks a launch names, each left to the thread's own or the defaults where absent. */
 export type LaunchAsked = { model?: string; effort?: string; permissionMode?: string; access?: AccessChoice; contextWindow?: string; fast?: boolean };

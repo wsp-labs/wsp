@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { connect, type Socket } from "node:net";
 import WebSocket from "ws";
 import { keyFingerprint } from "@wsp/engine";
-import { DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type InitJob, type PortForward, type TurnResult } from "@wsp/protocol";
+import { DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type InitJob, type PortForward, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type HarnessSession, type HarnessStartOptions, type InitDoor, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair, verifyPlaceBytes, type PlaceKeyPair, type PlaceRecord } from "../src/places.js";
 import { freshEphemeral, makeSeal, sealKeys, sharedSecret } from "@wsp/keys";
@@ -420,6 +420,40 @@ describe("serveRuntime session history", () => {
     expect(await c.request("sessions.head", { threadId: "no-such-thread" })).toMatchObject({ ok: false, kind: "not-found" });
 
     expect(await c.request("sessions.history", { workspaceId, limit: 3 })).toMatchObject({ ok: false, kind: "usage", error: "before and limit page one thread's events. Name the thread with threadId." });
+    c.close();
+  });
+
+  it("answers one thread's every event with whole, and refuses whole with no thread or with a window", async () => {
+    const said: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: o => {
+        const sessionId = randomUUID();
+        const result: TurnResult = { status: "completed", text: o.prompt };
+        const finished = Promise.resolve().then(() => {
+          o.onEvent({ type: "session.start", sessionId });
+          o.onEvent({ type: "turn.done", sessionId, result });
+          o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+          return result;
+        });
+        return { localId: sessionId, finished, interrupt: async () => {} };
+      },
+    });
+    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: said } });
+    srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
+    const c = await WsClient.connect(srv.port, { token: "secret" });
+    const workspaceId = ((await createOverWire(c, "x", { golden: "snap_g" }))["workspace"] as { id: string }).id;
+    const one = await runtime.sessions.start(workspaceId, { prompt: "one" });
+    await one.finished;
+    await (await runtime.sessions.start(workspaceId, { prompt: "two" })).finished;
+    const threadId = one.view().threadId!;
+    const folder = (await c.request("sessions.history", { workspaceId }))["events"] as { threadId?: string }[];
+    expect(new Set(folder.map(e => e.threadId)).size).toBe(2);
+    const read = await c.request("sessions.history", { workspaceId, threadId, whole: true });
+    expect(read).toMatchObject({ ok: true });
+    expect(read["events"]).toEqual(folder.filter(e => e.threadId === threadId));
+    const refused = { ok: false, kind: "usage", error: "whole reads one thread's every event. Name the thread with threadId, and no before or limit." };
+    expect(await c.request("sessions.history", { workspaceId, whole: true })).toMatchObject(refused);
+    expect(await c.request("sessions.history", { workspaceId, threadId, whole: true, limit: 3 })).toMatchObject(refused);
     c.close();
   });
 });
@@ -913,10 +947,11 @@ describe("serveRuntime thread provenance", () => {
     expect(byCli["session"]).toMatchObject({ startedBy: "cli" });
     expect(await rows()).toEqual(["cli"]);
     h.complete();
-    // The stoppable harness reuses one local id, so the second start replaces the first row.
+    // The stoppable harness reuses one local id, so the second start replaces the first row; the first thread is
+    // listed off its record.
     const byPerson = await c.request("sessions.start", { workspaceId, prompt: "go on" });
     expect(byPerson["session"]).toMatchObject({ startedBy: "person" });
-    expect(await rows()).toEqual(["person"]);
+    expect(await rows()).toEqual(["person", undefined]);
     const refused = await c.request("sessions.start", { workspaceId, prompt: "go", startedBy: "app" });
     expect(refused.ok).toBe(false);
     c.close();
@@ -1348,9 +1383,9 @@ describe("serveRuntime the doctor's computer road", () => {
     const rows = (await c.request("places.list"))["places"] as { id: string; name: string; kind: string }[];
     const here = rows.find(p => p.id === HERE_PLACE_ID)!;
     const cloud = rows.find(p => p.kind === "provider")!;
-    expect(await c.request("places.doctor", { placeId: "p_nope", doctorId: "d_1" })).toMatchObject({ ok: false, kind: "usage", error: noSuchPlaceRefusal("p_nope", rows.map(p => p.name)) });
+    expect(await c.request("places.doctor", { placeId: "p_nope", doctorId: "d_1" })).toMatchObject({ ok: false, kind: "usage", error: noSuchPlaceRefusal("p_nope", rows.map(tableName)) });
     expect(await c.request("places.doctor", { placeId: here.id, doctorId: "d_1" })).toMatchObject({ ok: false, kind: "usage", error: doctorRowRefusal(here.name) });
-    expect(await c.request("places.doctor", { placeId: cloud.id, doctorId: "d_1" })).toMatchObject({ ok: false, kind: "usage", error: doctorRowRefusal(cloud.name) });
+    expect(await c.request("places.doctor", { placeId: cloud.id, doctorId: "d_1" })).toMatchObject({ ok: false, kind: "usage", error: doctorRowRefusal(tableName(cloud)) });
     expect(asked).toEqual([]);
     c.close();
   });

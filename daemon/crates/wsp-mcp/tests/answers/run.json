@@ -2,6 +2,134 @@
   "tool": "run",
   "cases": [
     {
+      "case": "a sub-thread on Boat, detached",
+      "arguments": {
+        "on": "boat",
+        "size": "4x8",
+        "message": "fix it",
+        "notify": [
+          "me"
+        ],
+        "detach": true
+      },
+      "env": {
+        "WSP_TURN": "turn-token-1"
+      },
+      "replies": {
+        "harnesses.list": "{\"id\":1,\"ok\":true,\"harnesses\":[{\"harness\":\"claude\",\"label\":\"Claude Code\",\"source\":\"harness\",\"version\":\"2.1.0\",\"models\":[{\"value\":\"claude-sonnet-5\",\"label\":\"Sonnet 5\",\"isDefault\":true},{\"value\":\"claude-opus-5-5\",\"label\":\"Opus 5.5\",\"efforts\":[\"high\",\"max\"]},{\"value\":\"claude-haiku\",\"label\":\"Haiku\",\"efforts\":[]}],\"legacyModels\":[{\"value\":\"claude-3\",\"label\":\"Claude 3\"}],\"efforts\":[{\"value\":\"low\",\"label\":\"Low\"},{\"value\":\"high\",\"label\":\"High\",\"isDefault\":true},{\"value\":\"max\",\"label\":\"Max\"}],\"contextWindows\":[],\"permissionModes\":[{\"value\":\"acceptEdits\",\"label\":\"Accept edits\"},{\"value\":\"bypassPermissions\",\"label\":\"Bypass \u0085\",\"isDefault\":true}],\"access\":{\"auto-edit\":\"acceptEdits\",\"full\":\"bypassPermissions\"},\"steers\":true,\"renames\":true,\"images\":true,\"isDefault\":true},{\"harness\":\"codex\",\"label\":\"Codex\",\"source\":\"table\",\"version\":\"2.1.0\",\"models\":[{\"value\":\"gpt-5\",\"label\":\"GPT-5\",\"isDefault\":true}],\"efforts\":[{\"value\":\"low\",\"label\":\"Low\"},{\"value\":\"high\",\"label\":\"High\",\"isDefault\":true},{\"value\":\"max\",\"label\":\"Max\"}],\"contextWindows\":[],\"permissionModes\":[{\"value\":\"acceptEdits\",\"label\":\"Accept edits\"},{\"value\":\"bypassPermissions\",\"label\":\"Bypass \u0085\",\"isDefault\":true}],\"access\":{\"auto-edit\":\"acceptEdits\",\"full\":\"bypassPermissions\"},\"steers\":true,\"renames\":true,\"images\":true,\"isDefault\":false}]}",
+        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}]}",
+        "events.subscribe": "{\"id\":1,\"ok\":true}",
+        "workspaces.create": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-sub\",\"name\":\"fix it\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"web\",\"path\":\"/Users/me/web\",\"computer\":\"here\"},\"home\":\"/root\"},\"notice\":\"no git-ignored files were sent \u0085\",\"sub\":{\"out\":{\"on\":\"boat\",\"machine\":\"fix it\",\"size\":{\"cpu\":4,\"memMb\":8192},\"rateUsdPerHour\":0.036,\"repo\":\"https://github.com/acme/web.git\",\"base\":{\"branch\":\"feat/upload\",\"sha\":\"4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a\"},\"branch\":\"wsp/fix-it\",\"sent\":{\"paths\":[\".env\"],\"bytes\":1100,\"missing\":[]},\"notSent\":{\"uncommitted\":0},\"deleteAfterMinutes\":30},\"folder\":\"/root/web\",\"preamble\":\"This thread runs on a machine of its own on Boat \\\"x\\\" \u0085\",\"harness\":\"claude\"}}",
+        "sessions.start": "{\"id\":1,\"ok\":true,\"session\":{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-9\",\"threadId\":\"thread-9d8c7b6a5f4e\",\"startedBy\":\"agent\",\"cwd\":\"/root/web\"},\"outcome\":\"started\",\"turnId\":\"turn-9\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread thread-9 on boat in /root/web\"}],\"structuredContent\":{\"threadId\":\"thread-9d8c7b6a5f4e\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"outcome\":\"started\",\"sub\":{\"on\":\"boat\",\"machine\":\"fix it\",\"size\":{\"cpu\":4,\"memMb\":8192},\"rateUsdPerHour\":0.036,\"repo\":\"https://github.com/acme/web.git\",\"base\":{\"branch\":\"feat/upload\",\"sha\":\"4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a\"},\"branch\":\"wsp/fix-it\",\"sent\":{\"paths\":[\".env\"],\"bytes\":1100,\"missing\":[]},\"notSent\":{\"uncommitted\":0},\"deleteAfterMinutes\":30}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "harnesses.list"
+        },
+        {
+          "op": "workspaces.list"
+        },
+        {
+          "op": "workspaces.create",
+          "project": "",
+          "name": "fix it",
+          "sub": {
+            "on": "boat",
+            "size": "4x8"
+          }
+        },
+        {
+          "op": "sessions.start",
+          "workspaceId": "ws-sub",
+          "prompt": "This thread runs on a machine of its own on Boat \"x\" \u0085\n\nfix it",
+          "cwd": "/root/web",
+          "harness": "claude",
+          "notify": [
+            "me"
+          ],
+          "turnToken": "turn-token-1",
+          "title": "fix it",
+          "startedBy": "agent",
+          "requestId": "<request id>",
+          "answerHeld": true
+        }
+      ]
+    },
+    {
+      "case": "a sub-thread on Boat followed to its reply",
+      "arguments": {
+        "on": "boat",
+        "message": "fix it",
+        "title": "the upload test"
+      },
+      "replies": {
+        "harnesses.list": "{\"id\":1,\"ok\":true,\"harnesses\":[{\"harness\":\"claude\",\"label\":\"Claude Code\",\"source\":\"harness\",\"version\":\"2.1.0\",\"models\":[{\"value\":\"claude-sonnet-5\",\"label\":\"Sonnet 5\",\"isDefault\":true},{\"value\":\"claude-opus-5-5\",\"label\":\"Opus 5.5\",\"efforts\":[\"high\",\"max\"]},{\"value\":\"claude-haiku\",\"label\":\"Haiku\",\"efforts\":[]}],\"legacyModels\":[{\"value\":\"claude-3\",\"label\":\"Claude 3\"}],\"efforts\":[{\"value\":\"low\",\"label\":\"Low\"},{\"value\":\"high\",\"label\":\"High\",\"isDefault\":true},{\"value\":\"max\",\"label\":\"Max\"}],\"contextWindows\":[],\"permissionModes\":[{\"value\":\"acceptEdits\",\"label\":\"Accept edits\"},{\"value\":\"bypassPermissions\",\"label\":\"Bypass \u0085\",\"isDefault\":true}],\"access\":{\"auto-edit\":\"acceptEdits\",\"full\":\"bypassPermissions\"},\"steers\":true,\"renames\":true,\"images\":true,\"isDefault\":true},{\"harness\":\"codex\",\"label\":\"Codex\",\"source\":\"table\",\"version\":\"2.1.0\",\"models\":[{\"value\":\"gpt-5\",\"label\":\"GPT-5\",\"isDefault\":true}],\"efforts\":[{\"value\":\"low\",\"label\":\"Low\"},{\"value\":\"high\",\"label\":\"High\",\"isDefault\":true},{\"value\":\"max\",\"label\":\"Max\"}],\"contextWindows\":[],\"permissionModes\":[{\"value\":\"acceptEdits\",\"label\":\"Accept edits\"},{\"value\":\"bypassPermissions\",\"label\":\"Bypass \u0085\",\"isDefault\":true}],\"access\":{\"auto-edit\":\"acceptEdits\",\"full\":\"bypassPermissions\"},\"steers\":true,\"renames\":true,\"images\":true,\"isDefault\":false}]}",
+        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"id\":\"ws-1\",\"name\":\"attic-work\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"wsp\",\"path\":\"/root/wsp\",\"computer\":\"here\"},\"home\":\"/root\"}]}",
+        "events.subscribe": "{\"id\":1,\"ok\":true}",
+        "workspaces.create": "{\"id\":1,\"ok\":true,\"workspace\":{\"id\":\"ws-sub\",\"name\":\"fix it\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"default\",\"createdAt\":\"2026-09-27T00:00:00.000Z\",\"project\":{\"id\":\"p-1\",\"name\":\"web\",\"path\":\"/Users/me/web\",\"computer\":\"here\"},\"home\":\"/root\"},\"notice\":\"no git-ignored files were sent \u0085\",\"sub\":{\"out\":{\"on\":\"boat\",\"machine\":\"fix it\",\"size\":{\"cpu\":4,\"memMb\":8192},\"rateUsdPerHour\":0.036,\"repo\":\"https://github.com/acme/web.git\",\"base\":{\"branch\":\"feat/upload\",\"sha\":\"4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a\"},\"branch\":\"wsp/fix-it\",\"sent\":{\"paths\":[\".env\"],\"bytes\":1100,\"missing\":[]},\"notSent\":{\"uncommitted\":0},\"deleteAfterMinutes\":30},\"folder\":\"/root/web\",\"preamble\":\"This thread runs on a machine of its own on Boat \\\"x\\\" \u0085\",\"harness\":\"claude\"}}",
+        "sessions.start": "{\"id\":1,\"ok\":true,\"session\":{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-9\",\"threadId\":\"thread-9d8c7b6a5f4e\",\"startedBy\":\"agent\",\"cwd\":\"/root/web\"},\"outcome\":\"started\",\"turnId\":\"turn-9\"}"
+      },
+      "pushed": {
+        "sessions.start": [
+          "{\"type\":\"session.start\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-9\",\"threadId\":\"thread-9d8c7b6a5f4e\",\"turnId\":\"turn-9\",\"afterCut\":true}",
+          "{\"type\":\"session.done\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-9\",\"threadId\":\"thread-9d8c7b6a5f4e\",\"turnId\":\"turn-8\",\"result\":{\"status\":\"failed\",\"error\":\"an older turn's end\"}}",
+          "{\"type\":\"session.delta\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-9\",\"threadId\":\"thread-9d8c7b6a5f4e\",\"turnId\":\"turn-9\",\"kind\":\"text\",\"text\":\"Fixed\"}",
+          "{\"type\":\"session.done\",\"workspaceId\":\"ws-1\",\"sessionId\":\"sess-9\",\"threadId\":\"thread-9d8c7b6a5f4e\",\"turnId\":\"turn-9\",\"result\":{\"status\":\"completed\",\"durationMs\":83456,\"waitedMs\":2000,\"costUsd\":0.30000000000000004,\"text\":\"Fixed \\\"it\\\" \u0085 é\\n\\nlast   line of the reply  \\n\"}}"
+        ]
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread thread-9 on boat in /root/web\\nprevious turn was cut; resuming\\nFixed \\\"it\\\" \\u0085 é\\n\\nlast   line of the reply  \\n\"}],\"structuredContent\":{\"threadId\":\"thread-9d8c7b6a5f4e\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"text\":\"Fixed \\\"it\\\" \\u0085 é\\n\\nlast   line of the reply  \\n\",\"outcome\":\"started\",\"afterCut\":true,\"sub\":{\"on\":\"boat\",\"machine\":\"fix it\",\"size\":{\"cpu\":4,\"memMb\":8192},\"rateUsdPerHour\":0.036,\"repo\":\"https://github.com/acme/web.git\",\"base\":{\"branch\":\"feat/upload\",\"sha\":\"4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a\"},\"branch\":\"wsp/fix-it\",\"sent\":{\"paths\":[\".env\"],\"bytes\":1100,\"missing\":[]},\"notSent\":{\"uncommitted\":0},\"deleteAfterMinutes\":30}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "harnesses.list"
+        },
+        {
+          "op": "workspaces.list"
+        },
+        {
+          "op": "workspaces.create",
+          "project": "",
+          "name": "the upload test",
+          "sub": {
+            "on": "boat"
+          }
+        },
+        {
+          "op": "sessions.start",
+          "workspaceId": "ws-sub",
+          "prompt": "This thread runs on a machine of its own on Boat \"x\" \u0085\n\nfix it",
+          "cwd": "/root/web",
+          "harness": "claude",
+          "title": "fix it",
+          "followed": true,
+          "startedBy": "agent",
+          "requestId": "<request id>",
+          "answerHeld": true
+        }
+      ]
+    },
+    {
+      "case": "a size with no cloud",
+      "arguments": {
+        "size": "4x8",
+        "message": "t"
+      },
+      "replies": {},
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"--size sizes a sub-thread's machine, and this line starts none. Add --on boat.\"}],\"structuredContent\":{\"error\":\"--size sizes a sub-thread's machine, and this line starts none. Add --on boat.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": []
+    },
+    {
+      "case": "a cloud beside a project",
+      "arguments": {
+        "on": "boat",
+        "project": "attic-work",
+        "message": "t"
+      },
+      "replies": {},
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it takes no project. Drop project, or run the work without --on.\"}],\"structuredContent\":{\"error\":\"--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it takes no project. Drop project, or run the work without --on.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": []
+    },
+    {
       "case": "followed to its reply",
       "arguments": {
         "project": "attic-work",

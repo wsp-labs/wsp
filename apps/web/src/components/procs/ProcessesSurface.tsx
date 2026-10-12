@@ -43,19 +43,19 @@ const NO_THREADS: readonly ProcThread[] = [];
  * the person joined, every thread, by the cgroup what it started stands in, a server it left running included. This
  * computer's own panel lists every process here, so it reads every local workspace's threads. */
 function useThreadRoots(workspaceId: string, byCgroup: boolean): readonly ProcThread[] {
-  const all = useStore(s => s.sessions);
+  const sessions = useStore(s => s.sessions);
   const workspaces = useStore(s => s.workspaces);
-  const sessions = useMemo(
-    () => (workspaceId === HERE_KEY ? workspaces.filter(isLocalWorkspace).flatMap(w => all[w.id] ?? []) : all[workspaceId]),
-    [workspaceId, all, workspaces],
+  const rows = useMemo(
+    () => (workspaceId === HERE_KEY ? workspaces.filter(isLocalWorkspace).flatMap(w => sessions[w.id] ?? []) : sessions[workspaceId]),
+    [workspaceId, sessions, workspaces],
   );
   return useMemo(() => {
-    if (sessions === undefined) return NO_THREADS;
-    const threads = foldThreads(sessions);
+    if (rows === undefined) return NO_THREADS;
+    const threads = foldThreads(rows);
     const running = (t: (typeof threads)[number]) => (t.status === "running" ? { sessionId: t.sessionId } : {});
     if (byCgroup) return threads.map(t => ({ threadId: t.id, title: t.title, cgroup: threadCgroup(t.id), ...running(t) }));
     return threads.filter(t => t.pid !== undefined).map(t => ({ threadId: t.id, title: t.title, pid: t.pid!, ...running(t), ...(t.agentPid !== undefined ? { agentPid: t.agentPid } : {}) }));
-  }, [sessions, byCgroup]);
+  }, [rows, byCgroup]);
 }
 
 function useTerminalTitles(workspaceId: string): ReadonlyMap<string, string> {

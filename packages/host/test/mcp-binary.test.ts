@@ -23,6 +23,7 @@ import { nodeHost, type Host } from "@wsp/collect";
 import { agentsReader } from "../src/agents-reader.js";
 import { hostActs } from "../src/agents-signin.js";
 import { placeWiring } from "../src/places.js";
+import { hostSeed } from "../src/cli/wiring.js";
 import { serversActs } from "../src/servers-acts.js";
 import { skillsActs } from "../src/skills-acts.js";
 import type { SkillsFetch } from "../src/skills-sh.js";
@@ -175,6 +176,22 @@ const CALLED: readonly Called[] = [
       const repo = mkdtempSync(join(tmpdir(), "wsp-conversations-lab-"));
       madeRepos.push(repo);
       execFileSync("git", ["init", "-q", repo]);
+      await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
+    },
+  },
+  { tool: "projects_seed", argv: ["projects", "seed", "nowhere"], arguments: { project: "nowhere" }, refused: true },
+  {
+    tool: "projects_seed",
+    argv: ["projects", "seed", "lab", "--keep", ".env", "--yes"],
+    arguments: { project: "lab", keep: [".env"], confirm: true },
+    given: async rt => {
+      const repo = mkdtempSync(join(tmpdir(), "wsp-seed-lab-"));
+      madeRepos.push(repo);
+      execFileSync("git", ["init", "-q", repo]);
+      writeFileSync(join(repo, ".gitignore"), ".env\nnode_modules/\n");
+      writeFileSync(join(repo, ".env"), "A=1\n");
+      mkdirSync(join(repo, "node_modules", "left-pad"), { recursive: true });
+      writeFileSync(join(repo, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
       await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
     },
   },
@@ -390,6 +407,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
         agentsActs: hostActs({ vaultFile: join(dir, ".env"), home: () => join(dir, "user"), wspServer: () => ({ command: "wsp", args: ["mcp"] }) }),
         skillsActs: skillsActs({ fetch: SKILLS_SH, here: home }),
         serversActs: serversActs({ here: home }),
+        seed: hostSeed(),
       });
       handle = await serve(captured(), { port: 0, statePath, webDir, runtime });
     });
@@ -539,7 +557,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
       await turn.finished;
     });
 
-    it("lists and sends to the lead and a sibling whose rows all fell off the folder's cap", { timeout: 240_000 }, async () => {
+    it("lists and sends to the lead and a sibling once the folder passed its row cap, their rows kept", { timeout: 240_000 }, async () => {
       const repo = join(dir, "repo");
       mkdirSync(repo, { recursive: true });
       execFileSync("git", ["init", "-q", "-b", "main", repo]);
@@ -560,7 +578,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
         held.release(3 + i, "done");
         await person.finished;
       }
-      expect((await runtime.sessions.list()).filter(r => r.threadId === lead || r.threadId === sibling)).toEqual([]);
+      expect((await runtime.sessions.list()).filter(r => r.threadId === lead || r.threadId === sibling)).toHaveLength(2);
       const launch = held.envs[1]!;
       const pair = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_TOKEN_ENV]: launch[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: launch[TURN_TOKEN_ENV]! };
       const { out, code } = await served([MCP_BIN!, "mcp", "--state", statePath], { ...env, ...pair }, [
@@ -579,7 +597,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
   });
 
   describe("a child on a computer the person joined whose tool server is the binary", () => {
-    it("lists and sends to its lead once the lead's rows all fell off the cap of its folder here", { timeout: 240_000 }, async () => {
+    it("lists and sends to its lead once its folder here passed its row cap, the lead's row kept", { timeout: 240_000 }, async () => {
       const { rt, folder, starts, threadId, launch, turn } = await leadAndBox(dir, { reach: true });
       const asLead = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_KEY_ENV]: launch[HOST_KEY_ENV]!, [HOST_TOKEN_ENV]: launch[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: launch[TURN_TOKEN_ENV]! };
       const ran = await served([MCP_BIN!, "mcp", "--state", statePath], { ...env, ...asLead }, [callOf(1, "run", { project: "lab-box", message: `${HOLD}build it`, detach: true })]);
@@ -588,7 +606,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
       starts[0]!.answer("waiting on the child");
       await turn.finished;
       for (let i = 0; i < 205; i++) await (await rt.sessions.start(folder.id, { prompt: `the person's ${i}`, harness: "claude" })).finished;
-      expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toEqual([]);
+      expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toHaveLength(1);
       const child = starts[1]!.env;
       const pair = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_KEY_ENV]: launch[HOST_KEY_ENV]!, [HOST_TOKEN_ENV]: child[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: child[TURN_TOKEN_ENV]! };
       const { out, code } = await served([MCP_BIN!, "mcp", "--state", statePath], { ...env, ...pair }, [callOf(1, "threads"), callOf(2, "send", { thread: threadId, message: "which branch do I push to?", detach: true })]);

@@ -18,7 +18,7 @@ import { failureOf } from "../protocol/failure.js";
 import { keepHeld, useHeld } from "../protocol/held.js";
 import { GlyphFrame } from "../settings/grid.js";
 import { useAppDark } from "../settings/theme.js";
-import { useProjects, useStatus, useStore, useWorkspace } from "../protocol/store.js";
+import { shownThreadIdOf, useProjects, useStatus, useStore, useWorkspace } from "../protocol/store.js";
 import { Commits } from "./Commits.js";
 import { Skeleton } from "../components/ui/skeleton.js";
 import { Timeline, sendRoad } from "./Conversation.js";
@@ -121,7 +121,7 @@ function PullRequestPane({ workspaceId }: { workspaceId: string }) {
       if (send === undefined || items.length === 0) return;
       setSending(held => [...held, ...items]);
       const done = (): void => setSending(held => held.filter(h => !items.some(i => i.kind === h.kind && i.id === h.id)));
-      send(workspaceId, items).then(
+      send(workspaceId, items, shownThreadIdOf(useStore.getState(), workspaceId)).then(
         sent => {
           setPage(p => (p === null ? p : { ...p, sent: sent.sent }));
           done();

@@ -23,6 +23,7 @@ import type {
   ProjectBranch,
   SeedChoice,
   SeedPlan,
+  ProjectSeed,
   SessionEvent,
   SessionAccessResult,
   SessionAnswerResult,
@@ -48,7 +49,7 @@ import type {
   WorkspaceCreatingEvent,
 } from "@wsp/protocol";
 import type { BringBackResult, GitCommitReply, GitDiscardReply, GitUpdateReply, MergeInResult, PullRequestPage, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, ReactionContent, PullRequestItem, PullRequestSendResult, FixResult, MergeMethod, MergeResult, CheckoutReply, CommitDraft, ViewedMarks, RunStep, SessionRunEvent } from "@wsp/protocol";
-import type { WorktreeMade, KeptAttachment, WorkspaceKind, ForkSource, ConversationsAnswer, ResumeAsk, SessionEarlierEvent } from "@wsp/protocol";
+import type { PlaceKind, WorktreeMade, KeptAttachment, WorkspaceKind, ForkSource, ConversationsAnswer, ResumeAsk, SessionEarlierEvent } from "@wsp/protocol";
 import type { CallbackForwards, SignInAsk, SkillAsk } from "../agents-read.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { AccessChoice, AgentRow, AgentSetupSet, ThreadDefaults } from "@wsp/protocol";
@@ -220,7 +221,10 @@ export interface Runtime {
      * caller's own folder when a thread asks naming nothing, the worktree holding a branch, or the folder a cwd
      * names inside the project or a worktree of its repo. cwd is the folder the start runs in where it named one.
      * picks, where given, are read against the agent's lists on this computer before any folder is made or found. */
-    folderFor(o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked }, origin?: Caller): Promise<{ workspace: WorkspaceView; cwd?: string }>;
+    folderFor(o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked; opens?: true }, origin?: Caller): Promise<{ workspace: WorkspaceView; cwd?: string; setup?: string }>;
+    /** What a new worktree ran when it was made, once, for the start that names its record and opens a thread there;
+     * refused as any start naming that record is. */
+    takeSetupLine(workspaceId: string, origin?: Caller): Promise<string | undefined>;
     /** The record of a project's folder on this computer, made where no thread has made it yet: what the folder's
      * own acts name before its first thread. */
     folder(o: { project: string }, origin?: Caller): Promise<WorkspaceView>;
@@ -251,9 +255,9 @@ export interface Runtime {
     pullRequestView(o: { workspaceId: string; fresh?: boolean }, origin?: Caller): Promise<PullRequestPage>;
     /** The workspace's pull request's diff against its base, read as the page is and cut at GIT_DIFF_CAP_BYTES. */
     pullRequestDiff(o: { workspaceId: string }, origin?: Caller): Promise<GitPrDiffReply>;
-    /** Sends items of the page to the workspace's agent as one message, read off the page anew, into the thread a fix
-     * goes to; keeps each item sent with when. Answers once the message is on its way. */
-    pullRequestSend(o: { workspaceId: string; items: readonly PullRequestItem[] }, origin?: Caller): Promise<PullRequestSendResult>;
+    /** Sends items of the page to the workspace's agent as one message, read off the page anew, into the thread named
+     * or else the thread a fix goes to; keeps each item sent with when. Answers once the message is on its way. */
+    pullRequestSend(o: { workspaceId: string; items: readonly PullRequestItem[]; threadId?: string }, origin?: Caller): Promise<PullRequestSendResult>;
     /** Posts a reply as the person through this computer's signed-in command line alone: under the comment on a line
      * replyTo names, in the thread threadId names, or a new comment in the conversation. */
     pullRequestReply(o: { workspaceId: string; replyTo?: number; threadId?: string; body: string }, origin?: Caller): Promise<GitPrReplyReply>;
@@ -325,6 +329,9 @@ export interface Runtime {
      * landing under somebody else is. An event naming the thread it was asked for by is that thread's and its
      * tree's whatever the records say, which is what a fork's own stages are before its record exists. */
     seenBy(event: unknown, origin?: Caller): boolean;
+    /** An event this caller sees, as it is shown to them: a folder's status names only the children of its tree the
+     * caller may reach, since every thread of the folder shares that record and a thread's tree is its own. */
+    shownTo<E>(event: E, origin?: Caller): E;
     /** The last stage of every create this host is making and of every refused one it still holds, oldest first:
      * a window that connects after a create began hears nothing else of it. */
     creating(): WorkspaceCreatingEvent[];
@@ -337,6 +344,10 @@ export interface Runtime {
     /** What a seed of a folder on this computer would carry, with the ticks a remembered choice for that folder
      * leaves on it. Nothing of the folder is read whole and nothing leaves this computer. */
     seedPlan(source: string): Promise<SeedPlan>;
+    /** The seed picks of a project whose folder is on this computer: its remembered choice, else nothing, moved by
+     * `none`, `keep` and `cut`; `save` keeps them as the folder's remembered choice, and a thread's token is refused
+     * that. A project on another computer is refused. */
+    seed(ref: string, o: { keep?: readonly string[]; cut?: readonly string[]; none?: boolean; save?: boolean }, origin?: Caller): Promise<ProjectSeed>;
     /** Every project this host holds, oldest first. */
     list(origin?: Caller): Promise<ProjectView[]>;
     /** What a new thread on each of those projects starts on, by project id, off the runtime's table. */
@@ -423,6 +434,8 @@ export interface Runtime {
         mcpServers?: Readonly<Record<string, McpServerSpec>>;
         /** The line a thread opened on a pull request is told first: the worktree holding the branch was left behind it. */
         behind?: string;
+        /** What the worktree this start asked for ran when it was made, which its new thread is told first. */
+        setup?: string;
         /** Set by Resume at reset alone: the reset this turn goes on at, stamped on its session.start. */
         afterLimit?: number;
         /** Set by a child's finished line into its lead alone: no computer's threads at once holds it, since it is
@@ -455,6 +468,9 @@ export interface Runtime {
     list(workspaceId?: string, origin?: Caller): Promise<SessionView[]>;
     /** The workspace's persisted session events, oldest first; a chat replays these on mount. */
     history(workspaceId: string, origin?: Caller): Promise<SessionEvent[]>;
+    /** One thread's every kept event, oldest first, read off that thread alone; nothing for a thread the caller does
+     * not reach, as history leaves its events out. Refused as usage with no thread, or with a page's window. */
+    threadHistory(workspaceId: string, asked: { threadId?: string | undefined; before?: number | undefined; limit?: number | undefined }, origin?: Caller): Promise<SessionEvent[]>;
     /** One thread's newest events under `before`, as sessions.history answers a page; nothing for a thread the caller
      * does not reach, as history leaves its events out. */
     page(workspaceId: string, window: { threadId: string; before?: number; limit?: number }, origin?: Caller): Promise<HistoryPage>;
@@ -557,7 +573,7 @@ export interface Runtime {
      * reads and the backend a builder there is made on. Refused with the place's own reason where it runs none, with
      * NO_BUILD_PLACE_LINE where no place here does, and with buildPlaceAskLine where more than one does and none is the
      * default. */
-    buildPlace(word?: string): Promise<{ place: string; name: string; backend: MachineBackend }>;
+    buildPlace(word?: string): Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }>;
     /** Boots a first-life builder from the recipe; a person sets it up on its live screen, then seals it.
      * Once `signal` aborts the call rejects with PrepareStoppedError: a machine this prepare made is killed by its
      * recorded id and its record dropped (a create still in flight is killed as it lands); a builder it attached to

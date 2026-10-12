@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The record this server serves from, copied into the build's own folder, which every tool embeds it from. A public
-//! build (PUBLIC_BUILD=1, which the release sets) carries no cloud: no tool's cloud-on entry, the greetings with the
-//! cloud on said as the ones with it off, and no provider the add tool refuses as a computer, since the public host
-//! registers none. Any other build copies the record as it stands.
+//! build (PUBLIC_BUILD=1, which the release sets) carries Boat and not the rest of the cloud: no tool's cloud-on entry,
+//! the greetings with the cloud on said as the ones with it off, and Boat alone among the providers the add tool
+//! refuses as a computer, since it is the one the public host registers. Any other build copies the record as it
+//! stands.
 
 use std::collections::BTreeMap;
 use std::env;
@@ -11,6 +12,9 @@ use std::path::Path;
 
 use serde_json::value::RawValue;
 use serde_json::Value;
+
+/// The id of the one provider a public build registers.
+const BOAT: &str = "box";
 
 fn main() {
     println!("cargo::rerun-if-env-changed=PUBLIC_BUILD");
@@ -52,7 +56,9 @@ fn without_cloud(path: &Path, text: &str) -> String {
     match file {
         "words.json" => {
             let mut words = read(text);
-            words["add"]["providers"] = Value::Array(Vec::new());
+            words["add"]["providers"] = Value::Array(vec![Value::from(BOAT)]);
+            let boat = words["providerNames"][BOAT].clone();
+            words["providerNames"] = Value::Object([(BOAT.to_owned(), boat)].into_iter().collect());
             serde_json::to_string_pretty(&words).expect("words serialize")
         }
         "server.json" => {

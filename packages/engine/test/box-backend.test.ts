@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { DAEMON_UNIT, stopRefusedLine } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
+import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS } from "../src/exec-detached.js";
 import { EXEC_ENV } from "../src/golden-import.js";
 import { GONE_READS, killUntilGone } from "../src/golden.js";
@@ -40,6 +40,8 @@ import {
   stopRefusalOf,
 } from "../src/box-backend.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL } from "../src/labels.js";
+import type { SnapshotRow } from "../src/machine.js";
+import { snapshotStorage } from "../src/snapshot-storage.js";
 import { goldenName, nameOwner } from "../src/snapshot-names.js";
 
 interface Seen {
@@ -48,6 +50,8 @@ interface Seen {
   query: URLSearchParams;
   headers: Record<string, string>;
   body: unknown;
+  /** The body as the bytes it went out as. */
+  raw?: string;
 }
 
 type Reply = { status: number; body: unknown };
@@ -68,7 +72,7 @@ class FakeBox {
     const method = init?.method ?? "GET";
     const headers = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]));
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-    const seen: Seen = { method, path: u.pathname.replace(/^\/api\/box\/v1/, ""), query: u.searchParams, headers, body };
+    const seen: Seen = { method, path: u.pathname.replace(/^\/api\/box\/v1/, ""), query: u.searchParams, headers, body, ...(typeof init?.body === "string" ? { raw: init.body } : {}) };
     this.seen.push(seen);
     const queue = this.routes.get(`${method} ${seen.path}`);
     if (queue === undefined || queue.length === 0) return new Response(JSON.stringify(ERROR(404, "not_found", "not_found")), { status: 404 });
@@ -145,6 +149,9 @@ const detachedGuest = (exitCode: number | string = 0, out = "", err = ""): ((see
 /** Every command the fake was sent, in order. */
 const commandsSent = (api: FakeBox): string[] => api.seen.filter(s => s.path.endsWith("/commands")).map(s => (s.body as { command: string }).command);
 
+/** What fetch rejects with when the resolver cannot reach the API, as node 22 does for a name that does not resolve. */
+const offline = (): TypeError => new TypeError("fetch failed", { cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.example"), { code: "ENOTFOUND" }) });
+
 /** A clock whose sleeps cost nothing and move its own time. */
 function fakeClock(): RetryClock & { at: number } {
   const clock = {
@@ -195,18 +202,20 @@ describe("BoxBackend declarations", () => {
         { cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
         { cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
         { cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+        { cpu: 16, memMb: 32768, rateUsdPerHour: 0.2 },
       ],
     });
     expect(backend.baseTemplates).toEqual({ sandbox: BOX_BASE_TEMPLATE, desktop: BOX_BASE_TEMPLATE });
   });
 
-  it("prices by class: small, default and large an hour, a stopped box nothing, no snapshot storage price", () => {
+  it("prices by class: small to xlarge an hour, a stopped box nothing, named snapshots past the free ten", () => {
     expect(BOX_PRICING.rateUsdPerHour({ cpu: 2, memMb: 4096 })).toBe(0.018);
     expect(BOX_PRICING.rateUsdPerHour({ cpu: 4, memMb: 8192 })).toBe(0.036);
     expect(BOX_PRICING.rateUsdPerHour({ cpu: 8, memMb: 16384 })).toBe(0.072);
     expect(BOX_PRICING.defaultSize).toEqual({ cpu: 2, memMb: 4096 });
     expect(BOX_PRICING.defaultSize).toEqual({ cpu: BOX_CLASSES[0]!.cpu, memMb: BOX_CLASSES[0]!.memMb });
-    expect(BOX_PRICING.snapshotStorage).toEqual({ freeGb: 0, usdPerGbMonth: 0, billedFrom: "" });
+    expect(BOX_PRICING.rateUsdPerHour({ cpu: 16, memMb: 32768 })).toBe(0.2);
+    expect(BOX_PRICING.snapshotStorage).toEqual({ freeGb: 0, usdPerGbMonth: 0, billedFrom: "", freeNamed: 10, usdPerNamedMonth: 1.7 });
     expect(BOX_PRICING.builderDiskGb).toBeUndefined();
     for (const c of BOX_CLASSES) expect(BOX_PRICING.rateUsdPerHour(c)).toBe(c.rateUsdPerHour);
   });
@@ -216,7 +225,8 @@ describe("BoxBackend declarations", () => {
     expect(boxClassFor({ cpu: 4, memMb: 8192 }).type).toBe("default");
     expect(boxClassFor({ cpu: 2, memMb: 8192 }).type).toBe("default");
     expect(boxClassFor({ cpu: 3, memMb: 1024 }).type).toBe("default");
-    expect(boxClassFor({ cpu: 32, memMb: 65536 }).type).toBe("large");
+    expect(boxClassFor({ cpu: 16, memMb: 16384 }).type).toBe("xlarge");
+    expect(boxClassFor({ cpu: 32, memMb: 65536 }).type).toBe("xlarge");
     expect(boxClassFor({}).type).toBe("small");
   });
 
@@ -378,6 +388,32 @@ describe("BoxBackend against a fake Box API", () => {
     expect(api.calls().filter(c => c.startsWith("DELETE"))).toHaveLength(3);
   });
 
+  it("a create Boat cancels ends on the first read with its reason, typed, and the box it made is deleted", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", box: BOX("bx_c1", "provisioning") } })
+      .on("GET", "/boxes/bx_c1", INFO("bx_c1", "cancelled", { error: "no capacity" }))
+      .on("DELETE", "/boxes/bx_c1", { status: 202, body: { ok: true, operation: { id: "bdop_c" } } });
+    const { backend } = backendOn(api);
+    const failed = await backend.create({ kind: "sandbox" }).catch((e: unknown) => e);
+    expect(failed).toBeInstanceOf(CreateCancelledError);
+    expect(failed).toMatchObject({ machineId: "bx_c1", why: "no capacity" });
+    expect(api.calls().filter(c => c === "GET /boxes/bx_c1")).toHaveLength(1);
+    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /boxes/bx_c1"]);
+  });
+
+  it("an environment still not landed at the restore budget is typed with its box and its exit, which a sub-thread's start replaces", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_t1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/boxes/bx_t1", INFO("bx_t1", "ready", { name: "wsp" }))
+      .on("POST", "/boxes/bx_t1/commands", COMMAND(""), detachedGuest(DEADLINE_EXIT))
+      .on("DELETE", "/boxes/bx_t1", { status: 202, body: { ok: true, operation: { id: "bdop_t" } } });
+    const { backend } = backendOn(api, "trial", { restoreMs: 0 });
+    const failed = await backend.create({ kind: "sandbox", envs: { A: "1" } }).catch((e: unknown) => e);
+    expect(failed).toBeInstanceOf(EnvNotLandedError);
+    expect(failed).toMatchObject({ machineId: "bx_t1", exitCode: DEADLINE_EXIT });
+    expect((failed as Error).message).toMatch(/^environment did not land on bx_t1 \(exit 124\)/);
+  });
+
   it("a landing of the environment runs detached and one that times out on a box still taking its disk in is launched again inside the budget", async () => {
     const api = new FakeBox()
       .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_l1", "provisioning", { name: "wsp" }) } })
@@ -450,7 +486,8 @@ describe("BoxBackend against a fake Box API", () => {
     const api = new FakeBox().on("POST", "/boxes", { status: 429, body: ERROR(429, "rate_limited", "Too many machine starts this minute.") });
     const { backend } = backendOn(api);
     const e = await backend.create({ kind: "sandbox" }).catch((err: unknown) => err) as { kind: string; code: string; message: string; requestId: string; status: number };
-    expect(e).toMatchObject({ kind: "concurrency", status: 429, code: "rate_limited", message: "Too many machine starts this minute.", requestId: "req_b603629401be48d082e623575a1b9111" });
+    // The trial's answer here numbers no window, so the refusal keeps Boat's words, read by its code all the same.
+    expect(e).toMatchObject({ kind: "startLimit", status: 429, code: "rate_limited", message: "Too many machine starts this minute.", requestId: "req_b603629401be48d082e623575a1b9111" });
     const bad = new FakeBox().on("GET", "/limits", { status: 401, body: ERROR(401, "unauthorized", "invalid api key") });
     const refused = new BoxBackend({ apiKey: "box_wrong", fetch: bad.fetch });
     await expect(refused.checkKey()).rejects.toMatchObject({ kind: "auth", status: 401 });
@@ -463,7 +500,11 @@ describe("BoxBackend against a fake Box API", () => {
     await expect(backendOn(plan).backend.create({ kind: "sandbox" })).rejects.toMatchObject({ kind: "concurrency", code: "limit_reached" });
     // A refusal about something else keeps its own kind.
     const forbidden = new FakeBox().on("POST", "/boxes", { status: 403, body: ERROR(403, "trial_machine_class_not_allowed", "large was requested on a trial account.") });
-    await expect(backendOn(forbidden).backend.create({ kind: "sandbox", cpu: 8, memMb: 16384 })).rejects.toMatchObject({ kind: "plan", code: "trial_machine_class_not_allowed" });
+    await expect(backendOn(forbidden).backend.create({ kind: "sandbox" })).rejects.toMatchObject({ kind: "plan", code: "trial_machine_class_not_allowed" });
+    // A size the trial does not sell is refused before Boat is asked.
+    const large = new FakeBox();
+    await expect(backendOn(large).backend.create({ kind: "sandbox", cpu: 8, memMb: 16384 })).rejects.toMatchObject({ kind: "invalid" });
+    expect(large.calls()).toEqual(["GET /limits"]);
   });
 
   it("checks the key against the account's limits and nothing else", async () => {
@@ -839,8 +880,11 @@ describe("BoxBackend against a fake Box API", () => {
       const { machine: stuck } = machineOn(never);
       expect((await stuck.previewUrl(3000)).token).toBe("t3");
       expect(never.calls().filter(c => c.endsWith("/commands")).length).toBeGreaterThan(2);
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(String(warn.mock.calls[0]![0])).toMatch(/firewall did not hold a rule for port 3000 \(Box machine is not running\.\)/);
+      // The refusal is logged once however often the watch meets it, and the rule that never held is said once.
+      const lines = warn.mock.calls.map(c => String(c[0]));
+      expect(lines.filter(l => l.startsWith("Boat refused POST /boxes/bx_tumrjngm/commands: 409 code=machine_not_running"))).toHaveLength(1);
+      expect(lines.filter(l => !l.startsWith("Boat refused"))).toHaveLength(1);
+      expect(lines.find(l => !l.startsWith("Boat refused"))).toMatch(/firewall did not hold a rule for port 3000 \(Box machine is not running\.\)/);
     } finally {
       warn.mockRestore();
     }
@@ -1053,7 +1097,7 @@ describe("BoxBackend against a fake Box API", () => {
   it("describes the class the box runs as, its disk the class floor, and its creation time", async () => {
     const api = new FakeBox().on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle", { type: "default", vcpu: 4, memoryGB: 8 }));
     const { machine } = machineOn(api);
-    expect(await machine.describe()).toEqual({ cpu: 4, memMb: 8192, diskGb: 80, createdAt: "2026-09-11T06:28:06.053Z" });
+    expect(await machine.describe()).toEqual({ cpu: 4, memMb: 8192, diskGb: 50, createdAt: "2026-09-11T06:28:06.053Z" });
   });
 
   it("get() reads the labels off the name and what the provider saw", async () => {
@@ -1127,6 +1171,113 @@ describe("BoxBackend against a fake Box API", () => {
     expect(api.calls().filter(c => c.startsWith("PATCH"))).toHaveLength(2);
   });
 
+  it("a failed backstop waits its backoff, 30 s doubling to five minutes, and every delta inside it is dropped", async () => {
+    const tries: number[] = [];
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", () => {
+      tries.push(clock.at);
+      throw offline();
+    });
+    const { backend, machine, clock } = machineOn(api);
+    // A delta every 10 s for 2000 s: every backoff is a multiple of 10 s, so each wait is exactly its window.
+    for (let delta = 0; delta < 200; delta++) {
+      await backend.backstop(machine, clock.at + 40 * 60_000).catch(() => {});
+      clock.at += 10_000;
+    }
+    const waits = tries.slice(1).map((at, i) => at - tries[i]!);
+    expect(waits.length).toBeGreaterThanOrEqual(6);
+    expect(waits).toEqual([30_000, 60_000, 120_000, 240_000, ...Array<number>(waits.length - 4).fill(300_000)]);
+  });
+
+  it("a second backstop never starts while one is in flight", async () => {
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
+    let open!: () => void;
+    const gate = new Promise<void>(r => (open = r));
+    let sent = 0;
+    const clock = fakeClock();
+    api.on("GET", "/limits", LIMITS("trial"));
+    const backend = new BoxBackend({
+      apiKey: "box_x",
+      clock,
+      fetch: async (url, init) => {
+        if (init?.method === "PATCH") {
+          sent++;
+          await gate;
+        }
+        return api.fetch(url, init);
+      },
+    });
+    const machine = new BoxMachine(backend, "bx_tumrjngm", "sandbox");
+    const calls: Promise<void>[] = [];
+    for (let delta = 0; delta < 50; delta++) {
+      calls.push(backend.backstop(machine, clock.at + 40 * 60_000));
+      // Past the slack every time, so only the call in flight can hold the next one back.
+      clock.at += BACKSTOP_SLACK_MS + 1_000;
+      await new Promise(r => setImmediate(r));
+    }
+    expect(sent).toBe(1);
+    open();
+    await Promise.all(calls);
+    await backend.backstop(machine, clock.at + 40 * 60_000);
+    expect(sent).toBe(2);
+  });
+
+  it("a backstop the provider never answers ends at its cap, frees the box and waits its backoff", async () => {
+    const api = new FakeBox().on("GET", "/limits", LIMITS("trial"));
+    let sent = 0;
+    const clock = fakeClock();
+    const backend = new BoxBackend({
+      apiKey: "box_x",
+      clock,
+      budgets: { backstopMs: 100 },
+      fetch: async (url, init) => {
+        if (init?.method !== "PATCH") return api.fetch(url, init);
+        sent++;
+        return new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+      },
+    });
+    const machine = new BoxMachine(backend, "bx_tumrjngm", "sandbox");
+    await expect(backend.backstop(machine, clock.at + 40 * 60_000)).rejects.toMatchObject({ name: "TimeoutError" });
+    clock.at += 10_000;
+    await backend.backstop(machine, clock.at + 40 * 60_000);
+    expect(sent).toBe(1);
+    clock.at += 20_000;
+    await expect(backend.backstop(machine, clock.at + 40 * 60_000)).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(sent).toBe(2);
+  });
+
+  it("a backstop that lands resets the backoff, and the minute's slack still holds after it", async () => {
+    let down = true;
+    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", () => {
+      if (down) throw offline();
+      return INFO("bx_tumrjngm", "idle");
+    });
+    const { backend, machine, clock } = machineOn(api);
+    const patches = (): number => api.calls().filter(c => c.startsWith("PATCH")).length;
+    const push = (): Promise<void> => backend.backstop(machine, clock.at + 40 * 60_000).catch(() => {});
+    await push();
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(2);
+    // The second failure doubled the wait.
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(2);
+    down = false;
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(3);
+    clock.at += 5_000;
+    await push();
+    expect(patches()).toBe(3);
+    // Down again past the slack: the first failure waits 30 s, not the doubled minute.
+    down = true;
+    clock.at += BACKSTOP_SLACK_MS;
+    await push();
+    clock.at += 30_000;
+    await push();
+    expect(patches()).toBe(5);
+  });
+
   it("a desktop machine boots the same box with no stream: the desktop stays off until the seam reads it per open", async () => {
     const api = new FakeBox()
       .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_d1", "provisioning", { name: "wsp" }) } })
@@ -1143,5 +1294,444 @@ describe("BoxBackend against a fake Box API", () => {
     const { machine } = machineOn(new FakeBox());
     await expect(machine.downloadUrl()).rejects.toThrow(/GET \/files/);
     await expect(machine.uploadUrl()).rejects.toThrow(/PUT \/files/);
+  });
+});
+
+/** The owner's account read with `GET /limits` on 2026-10-11 17:06 UTC as wsp's base spells it. */
+const OWNER_LIMITS = {
+  accessTier: "standard",
+  maxActiveBoxes: 100,
+  activeBoxes: 11,
+  startLimits: { perMinute: 12, perHour: 60, perDay: 200 },
+  starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
+  activeStates: ["provisioned", "cloning", "ready", "idle", "running"],
+  canStart: true,
+  startBlockedReason: null,
+  creditBalanceHours: 81.6,
+  boxPlanKey: "box_20",
+};
+/** The same answer as boat.dev's base spells it: Sandboxes where wsp's base says Boxes. */
+const OWNER_LIMITS_BOAT = Object.fromEntries(Object.entries(OWNER_LIMITS).map(([k, v]) => [k.replace("Boxes", "Sandboxes").replace("boxPlan", "sandboxPlan"), v]));
+/** A trial account, in the documented shape with the trial's own numbers (2 machines, 5, 25 and 75
+ * starts, 25 h, small and default). */
+const TRIAL_LIMITS = {
+  accessTier: "trial",
+  maxActiveSandboxes: 2,
+  activeSandboxes: 0,
+  startLimits: { perMinute: 5, perHour: 25, perDay: 75 },
+  starts: { unlimited: false, minute: { limit: 5, used: 0, remaining: 5 }, hour: { limit: 25, used: 0, remaining: 25 }, day: { limit: 75, used: 0, remaining: 75 } },
+  trialLimits: { activeSandboxes: 2, creationRatePerMinute: 5, creationRequestsPerHour: 25, creationRequestsPerDay: 75 },
+  canStart: true,
+  startBlockedReason: null,
+  billingStatus: "trial",
+  creditBalanceHours: 25,
+  sandboxPlanKey: "trial",
+};
+const limitsReply = (body: Record<string, unknown>): Reply => ({ status: 200, body: { ok: true, type: "limits.info", ...body } });
+/** The owner's answer with one window spent. */
+const spent = (window: "minute" | "hour" | "day"): Reply => {
+  const starts = structuredClone(OWNER_LIMITS.starts);
+  starts[window].used = starts[window].limit;
+  starts[window].remaining = 0;
+  return limitsReply({ ...OWNER_LIMITS, starts });
+};
+
+const NAMED_SPEC = { kind: "sandbox" as const, labels: { [NAME_LABEL]: "Fix the flaky upload test" } };
+
+describe("Boat's limits, read from Boat", () => {
+  it("the class table is Boat's: four sizes with their disks and rates, xlarge at $0.200; named snapshots past 10 cost $1.70 a month", () => {
+    expect(BOX_CLASSES).toEqual([
+      { type: "small", cpu: 2, memMb: 4096, diskGb: 12, rateUsdPerHour: 0.018 },
+      { type: "default", cpu: 4, memMb: 8192, diskGb: 50, rateUsdPerHour: 0.036 },
+      { type: "large", cpu: 8, memMb: 16384, diskGb: 125, rateUsdPerHour: 0.072 },
+      { type: "xlarge", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
+    ]);
+    expect(BOX_PRICING.rateUsdPerHour({ cpu: 16, memMb: 32768 })).toBe(0.2);
+    expect(BOX_PRICING.snapshotStorage).toMatchObject({ freeNamed: 10, usdPerNamedMonth: 1.7 });
+    const named = (n: number): SnapshotRow[] => Array.from({ length: n }, (_, i) => ({ id: `wsp-v${i}`, name: `wsp-v${i}`, sizeBytes: 0 }));
+    const history: SnapshotRow[] = [{ id: "dc8cd70e-d16b-472a-b5d7-070bc84db7a7", sizeBytes: 7e9 }];
+    const read = { hostId: "h1", recorded: new Set<string>(), now: 0 };
+    expect(snapshotStorage([...named(10), ...history], BOX_PRICING.snapshotStorage, read).monthlyUsd).toBe(0);
+    expect(snapshotStorage([...named(13), ...history], BOX_PRICING.snapshotStorage, read).monthlyUsd).toBeCloseTo(3 * 1.7);
+  });
+
+  it("reads the owner's answer of 17:06 UTC on either base's spelling: the $20 plan, 100 machines, the three windows, small to large", async () => {
+    for (const body of [OWNER_LIMITS, OWNER_LIMITS_BOAT]) {
+      const api = new FakeBox().on("GET", "/limits", limitsReply(body));
+      const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
+      expect(await backend.limits()).toEqual({
+        trial: false,
+        planKey: "box_20",
+        planUsd: 20,
+        machinesAtOnce: 100,
+        activeBoxes: 11,
+        starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
+        sizes: ["small", "default", "large"],
+        canStart: true,
+        creditBalanceHours: 81.6,
+      });
+      expect(backend.capabilities.sizes).toEqual([
+        { cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+        { cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+        { cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+      ]);
+    }
+  });
+
+  it("a trial offers small and default and reads 2 machines; a $100 plan adds xlarge", async () => {
+    const api = new FakeBox().on("GET", "/limits", limitsReply(TRIAL_LIMITS));
+    const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
+    expect(await backend.limits()).toMatchObject({ trial: true, machinesAtOnce: 2, sizes: ["small", "default"], starts: { minute: { limit: 5 }, hour: { limit: 25 }, day: { limit: 75 } }, creditBalanceHours: 25 });
+    expect(backend.capabilities.sizes.map(s => s.cpu)).toEqual([2, 4]);
+    const big = new FakeBox().on("GET", "/limits", limitsReply({ ...OWNER_LIMITS, boxPlanKey: "box_100", maxActiveBoxes: 300 }));
+    const bigger = new BoxBackend({ apiKey: "box_x", fetch: big.fetch, clock: fakeClock() });
+    expect((await bigger.limits()).sizes).toEqual(["small", "default", "large", "xlarge"]);
+  });
+
+  it("keeps a read 10 s, reads before every create and resume past that, and counts each start it made up without a read", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_c1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/boxes/bx_c1", INFO("bx_c1", "ready", { name: "wsp" }))
+      .on("POST", "/boxes/bx_c1/commands", COMMAND(""))
+      .on("POST", "/boxes/bx_c1/resume", { status: 202, body: { ok: true, box: BOX("bx_c1", "provisioning") } });
+    const { backend, clock } = backendOn(api, "standard");
+    api.on("GET", "/limits", limitsReply(OWNER_LIMITS));
+    await backend.create({ kind: "sandbox" });
+    await backend.create({ kind: "sandbox" });
+    expect(api.calls().filter(c => c === "GET /limits")).toHaveLength(1);
+    expect((await backend.limits()).starts).toEqual({ minute: { used: 2, limit: 12 }, hour: { used: 11, limit: 60 }, day: { used: 189, limit: 200 } });
+    clock.at += 10_000;
+    await new BoxMachine(backend, "bx_c1", "sandbox").resume();
+    expect(api.calls().filter(c => c === "GET /limits")).toHaveLength(2);
+    expect(api.calls().indexOf("POST /boxes/bx_c1/resume")).toBeGreaterThan(api.calls().lastIndexOf("GET /limits"));
+    expect((await backend.limits()).starts?.day).toEqual({ used: 188, limit: 200 });
+  });
+});
+
+describe("Boat's refusals, each naming the limit it met", () => {
+  const refusedOn = async (answer: Reply, limits: Reply = limitsReply(OWNER_LIMITS)): Promise<{ e: Record<string, unknown> & Error; api: FakeBox }> => {
+    const api = new FakeBox().on("POST", "/boxes", answer);
+    const { backend } = backendOn(api, "standard");
+    api.on("GET", "/limits", limits);
+    const e = (await backend.create(NAMED_SPEC).catch((err: unknown) => err)) as Record<string, unknown> & Error;
+    return { e, api };
+  };
+
+  it("limit_reached and member_limit_reached are the machine cap", async () => {
+    for (const code of ["limit_reached", "member_limit_reached"]) {
+      const { e } = await refusedOn({ status: 429, body: ERROR(429, code, "Concurrent box limit reached.") });
+      expect(e).toMatchObject({ kind: "concurrency", code, message: "Concurrent box limit reached." });
+    }
+  });
+
+  it("daily_limit_reached is the day, in Boat's line with the account's own numbers and plan", async () => {
+    const said = "Rate limit hit: 200 box starts per day (create, fork and resume each count as one start). Your plan allows 12/min, 60/hour and 200/day.";
+    const { e, api } = await refusedOn({ status: 429, body: ERROR(429, "daily_limit_reached", said) }, spent("day"));
+    expect(e.kind).not.toBe("concurrency");
+    expect(e).toMatchObject({ kind: "startLimit", window: "day", code: "daily_limit_reached", requestId: "req_b603629401be48d082e623575a1b9111" });
+    expect(e.message).toBe("Boat's starts for today are used (200 of 200 on the $20 plan), so Fix the flaky upload test was not started; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.");
+    // The window's numbers come off a fresh read, never the kept one.
+    expect(api.calls().filter(c => c === "GET /limits")).toHaveLength(2);
+  });
+
+  it("rate_limited is the hour or the minute, told apart by a read of /limits", async () => {
+    const hour = await refusedOn({ status: 429, body: ERROR(429, "rate_limited", "Too many machine starts.") }, spent("hour"));
+    expect(hour.e).toMatchObject({ kind: "startLimit", window: "hour" });
+    expect(hour.e.message).toBe("Boat's starts for this hour are used (60 of 60 on the $20 plan), so Fix the flaky upload test was not started; start it again later in the hour, or move to a plan with more at boat.dev/dashboard.");
+    const minute = await refusedOn({ status: 429, body: ERROR(429, "rate_limited", "Too many machine starts.") }, spent("minute"));
+    expect(minute.e).toMatchObject({ kind: "startLimit", window: "minute" });
+    expect(minute.e.message).toBe("Boat's starts for this minute are used (12 of 12 on the $20 plan), so Fix the flaky upload test was not started; start it again in a minute.");
+    // A trial names itself rather than a price.
+    const trial = await refusedOn({ status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") }, limitsReply({ ...TRIAL_LIMITS, starts: { ...TRIAL_LIMITS.starts, day: { limit: 75, used: 75, remaining: 0 } } }));
+    expect(trial.e.message).toMatch(/^Boat's starts for today are used \(75 of 75 on the trial\), so/);
+  });
+
+  it("a start with no name, such as a builder, names the machine in the line", async () => {
+    const api = new FakeBox().on("POST", "/boxes", { status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") });
+    const { backend } = backendOn(api, "standard");
+    api.on("GET", "/limits", spent("day"));
+    const e = (await backend.create({ kind: "sandbox", labels: { [BUILDER_LABEL]: "1" } }).catch((err: unknown) => err)) as Error;
+    expect(e.message).toBe("Boat's starts for today are used (200 of 200 on the $20 plan), so the machine was not started; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.");
+  });
+
+  it("rate_limited keeps Boat's words when the fresh read shows neither the minute nor the hour spent", async () => {
+    const { e } = await refusedOn({ status: 429, body: ERROR(429, "rate_limited", "Too many machine starts.") });
+    expect(e).toMatchObject({ kind: "startLimit", code: "rate_limited", message: "Too many machine starts." });
+  });
+
+  it("the first create after a host start checks the size against the plan's sizes and refuses one it does not sell", async () => {
+    const api = new FakeBox().on("GET", "/limits", limitsReply(OWNER_LIMITS));
+    const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
+    // Nothing read yet, so the sizes offered are every class.
+    expect(backend.capabilities.sizes.map(s => s.cpu)).toEqual([2, 4, 8, 16]);
+    const e = (await backend.create({ kind: "sandbox", cpu: 16, memMb: 32768 }).catch((err: unknown) => err)) as Record<string, unknown> & Error;
+    expect(e).toMatchObject({ kind: "invalid" });
+    expect(e.message).toBe("16x32 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.");
+    expect(api.calls()).toEqual(["GET /limits"]);
+  });
+
+  it("a trial is read off the plan key too, which reads trial before any payment", async () => {
+    const { accessTier: _, ...noTier } = TRIAL_LIMITS;
+    const api = new FakeBox().on("GET", "/limits", limitsReply(noTier));
+    const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
+    expect(await backend.limits()).toMatchObject({ trial: true, sizes: ["small", "default"] });
+  });
+
+  it("two boxes refused in turn each keep their own quiet minute in the log", async () => {
+    const api = new FakeBox()
+      .on("GET", "/boxes/bx_a", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") })
+      .on("GET", "/boxes/bx_b", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") });
+    const { backend, clock } = backendOn(api, "standard");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // 60 s of polls every 2 s, the two boxes in turn.
+      for (let t = 0; t < 30; t++) {
+        await backend.view("bx_a").catch(() => {});
+        await backend.view("bx_b").catch(() => {});
+        clock.at += 2_000;
+      }
+      const lines = warn.mock.calls.map(c => String(c[0])).filter(l => l.startsWith("Boat refused"));
+      expect(lines).toEqual([
+        "Boat refused GET /boxes/bx_a: 409 code=box_restoring requestId=req_b603629401be48d082e623575a1b9111: Box is restoring.",
+        "Boat refused GET /boxes/bx_b: 409 code=box_restoring requestId=req_b603629401be48d082e623575a1b9111: Box is restoring.",
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("a resume that meets a start limit says so too", async () => {
+    const api = new FakeBox().on("POST", "/boxes/bx_w1/resume", { status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") });
+    const { backend } = backendOn(api, "standard");
+    api.on("GET", "/limits", spent("day"));
+    const machine = new BoxMachine(backend, "bx_w1", "sandbox", { [NAME_LABEL]: "Write the upload docs" });
+    await expect(machine.resume()).rejects.toMatchObject({ kind: "startLimit", window: "day", message: expect.stringMatching(/^Boat's starts for today are used \(200 of 200 on the \$20 plan\), so Write the upload docs was not started;/) });
+  });
+
+  it("a 429 with a code Boat never listed keeps today's reading and Boat's own words", async () => {
+    const { e } = await refusedOn({ status: 429, body: ERROR(429, "slow_down", "Please slow down.") });
+    expect(e).toMatchObject({ kind: "concurrency", code: "slow_down", message: "Please slow down.", said: "Please slow down." });
+  });
+
+  it("402 and 503 out_of_capacity print Boat's lines; 503 only once the create's asks run out", async () => {
+    const billing = await refusedOn({ status: 402, body: ERROR(402, "billing_required", "Add credits to continue.") });
+    expect(billing.e).toMatchObject({ kind: "plan", code: "billing_required" });
+    expect(billing.e.message).toBe("Boat's balance is used up, so no machine starts; add time at boat.dev/dashboard. Boat stops running machines 24 hours after the balance ran out.");
+    const capped = await refusedOn({ status: 402, body: ERROR(402, "team_member_cap_reached", "Member usage cap reached.") });
+    expect(capped.e.message).toBe("this Boat organization caps your usage; ask its owner to raise your cap.");
+    const full = await refusedOn({ status: 503, body: ERROR(503, "out_of_capacity", "No capacity.") });
+    expect(full.e).toMatchObject({ kind: "transient", code: "out_of_capacity" });
+    expect(full.e.message).toBe("Boat has no free machines of this size right now; try again in a few minutes, or a smaller size.");
+    // A 5xx on a create may come after Boat made the box, so it is asked again inside the lost-answer window first:
+    // 16 asks of 3 tries each on the fake clock before the 120 s window ends.
+    expect(full.api.calls().filter(c => c === "POST /boxes")).toHaveLength(48);
+  });
+
+  it("cancelled reads as gone and ends a create's wait on the first read, with Boat's reason", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_x1", "provisioning") } })
+      .on("GET", "/boxes/bx_x1", INFO("bx_x1", "cancelled", { error: "no machine available" }))
+      .on("DELETE", "/boxes/bx_x1", { status: 404, body: ERROR(404, "not_found", "not_found") });
+    const { backend } = backendOn(api, "standard", { createMs: 60_000 });
+    await expect(backend.create(NAMED_SPEC)).rejects.toThrow("Boat could not get a machine for Fix the flaky upload test and cancelled the create (no machine available); start it again.");
+    expect(api.calls().filter(c => c === "GET /boxes/bx_x1")).toHaveLength(1);
+    expect(await (await backend.get("bx_x1")).state()).toBe("gone");
+  });
+
+  it("every refused call goes in the host log with Boat's code and request id", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await refusedOn({ status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") }, spent("day"));
+      await refusedOn({ status: 402, body: ERROR(402, "billing_required", "Add credits.") });
+      const lines = warn.mock.calls.map(c => String(c[0]));
+      expect(lines).toContain("Boat refused POST /boxes: 429 code=daily_limit_reached requestId=req_b603629401be48d082e623575a1b9111: Rate limit hit.");
+      expect(lines).toContain("Boat refused POST /boxes: 402 code=billing_required requestId=req_b603629401be48d082e623575a1b9111: Add credits.");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("a create whose answer is lost", () => {
+  /** What fetch rejects with when the connection drops after the request left: the far end may have acted on it. */
+  const dropped = (): TypeError => new TypeError("fetch failed", { cause: Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }) });
+  /** The fake's fetch with the answers to its first `lost` creates dropped on the way back: Boat made the box, and
+   * the reply never arrived. */
+  const losing = (api: FakeBox, lost: number): typeof globalThis.fetch => {
+    let left = lost;
+    return async (url, init) => {
+      const res = await api.fetch(url as RequestInfo, init);
+      if (init?.method === "POST" && new URL(String(url)).pathname.endsWith("/boxes") && left-- > 0) throw dropped();
+      return res;
+    };
+  };
+  const backendLosing = (api: FakeBox, lost: number): { backend: BoxBackend; clock: RetryClock & { at: number } } => {
+    api.on("GET", "/limits", LIMITS("standard"));
+    const clock = fakeClock();
+    return { backend: new BoxBackend({ apiKey: "box_x", fetch: losing(api, lost), clock, budgets: { pollMs: 10, createMs: 100, restoreMs: 100 } }), clock };
+  };
+  const MADE = (id: string, status = "provisioning"): Reply => ({ status: 202, body: { ok: true, type: "box.created", status, box: BOX(id, status === "provisioning" ? "provisioning" : "ready", { name: "wsp-mac-default-v4" }) } });
+  const SPEC = { kind: "sandbox" as const, fromSnapshot: "wsp-mac-default-v4", cpu: 2, memMb: 4096, labels: { [OWNER_LABEL]: "h_1" }, idleTimeoutMs: 20 * 60_000, idempotencyKey: "workspace/ws_1:0011223344556677" };
+  const creates = (api: FakeBox): Seen[] => api.seen.filter(s => s.method === "POST" && s.path === "/boxes");
+
+  it("is asked again at once with the same key and the same bytes, and the box Boat made is the one the create goes on with", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", MADE("bx_ca2bqxuk", "ready"))
+      .on("GET", "/boxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4" }))
+      .on("PATCH", "/boxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_ca2bqxuk/commands", COMMAND(""));
+    const { backend } = backendLosing(api, 1);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const machine = await backend.create(SPEC);
+      expect(machine.id).toBe("bx_ca2bqxuk");
+      // Asked again by this create, so the box is this attempt's own and not a replay of an earlier one.
+      expect(machine.replayed).toBe(false);
+      const [first, again] = creates(api);
+      expect(creates(api)).toHaveLength(2);
+      expect(again!.raw).toBe(first!.raw);
+      expect(again!.headers["idempotency-key"]).toBe(SPEC.idempotencyKey);
+      expect(first!.headers["idempotency-key"]).toBe(SPEC.idempotencyKey);
+      // Adopted: named back, and nothing deleted.
+      expect(api.took("PATCH", "/boxes/bx_ca2bqxuk")!.body).toEqual({ name: "wsp;o=h_1" });
+      expect(api.calls().some(c => c.startsWith("DELETE"))).toBe(false);
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (fetch failed: ECONNRESET); wsp asked again and found bx_ca2bqxuk, which this create goes on with.");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("waits two seconds on idempotency_in_progress and every five between lost answers, the bytes the same on every ask", async () => {
+    const asked: number[] = [];
+    const api = new FakeBox();
+    const { backend, clock } = backendLosing(api, 2);
+    const at = (reply: Reply) => () => {
+      asked.push(clock.at);
+      return reply;
+    };
+    api
+      .on("POST", "/boxes", at(MADE("bx_1")), at(MADE("bx_1")), at({ status: 409, body: ERROR(409, "idempotency_in_progress", "A request with this key is still being processed") }), at(MADE("bx_1", "ready")))
+      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await backend.create(SPEC)).id).toBe("bx_1");
+    } finally {
+      vi.mocked(console.warn).mockRestore();
+    }
+    const raws = creates(api).map(s => s.raw);
+    expect(raws).toHaveLength(4);
+    expect(new Set(raws).size).toBe(1);
+    expect(asked.slice(1).map((t, i) => t - asked[i]!)).toEqual([0, 5_000, 2_000]);
+  });
+
+  it("a 500 is an answer Boat may give after it made the box, so it is asked again the same way, and a refusal below 500 is not", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 500, body: ERROR(500, "http_500", "Internal error") }, MADE("bx_1", "ready"))
+      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const { backend } = backendLosing(api, 0);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await backend.create(SPEC)).id).toBe("bx_1");
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (500 Internal error); wsp asked again and found bx_1, which this create goes on with.");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(new Set(creates(api).map(s => s.raw)).size).toBe(1);
+    expect(creates(api)).toHaveLength(2);
+
+    const refused = new FakeBox().on("POST", "/boxes", { status: 409, body: ERROR(409, "idempotency_key_reused", "This key was used with another body") });
+    await expect(backendLosing(refused, 0).backend.create(SPEC)).rejects.toThrow("This key was used with another body");
+    expect(creates(refused)).toHaveLength(1);
+  });
+
+  it("an ask that hears nothing inside a read's cap is a lost answer, asked again at once under the same key with the same bytes", async () => {
+    const api = new FakeBox().on("GET", "/limits", LIMITS("standard")).on("POST", "/boxes", MADE("bx_1", "ready")).on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" })).on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const silent: string[] = [];
+    const fetch: typeof globalThis.fetch = (url, init) => {
+      if (init?.method !== "POST" || !String(url).endsWith("/boxes") || silent.length > 0) return api.fetch(url as RequestInfo, init);
+      silent.push(String(init.body));
+      return new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+    };
+    const backend = new BoxBackend({ apiKey: "box_x", fetch, clock: fakeClock(), budgets: { pollMs: 10, createMs: 100, restoreMs: 100, readMs: 50 } });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await backend.create(SPEC)).id).toBe("bx_1");
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (The operation was aborted due to timeout); wsp asked again and found bx_1, which this create goes on with.");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(creates(api).map(s => [s.raw, s.headers["idempotency-key"]])).toEqual([[silent[0], SPEC.idempotencyKey]]);
+  });
+
+  it("an answer still lost after two minutes fails the create with the road's words and deletes nothing, so the sweep can ask again", async () => {
+    const api = new FakeBox().on("POST", "/boxes", MADE("bx_1"));
+    const { backend, clock } = backendLosing(api, 1_000);
+    const began = clock.at;
+    await expect(backend.create(SPEC)).rejects.toThrow("fetch failed");
+    expect(clock.at - began).toBeLessThanOrEqual(120_000);
+    expect(clock.at - began).toBeGreaterThanOrEqual(115_000);
+    expect(new Set(creates(api).map(s => s.raw)).size).toBe(1);
+    expect(api.calls().some(c => c.startsWith("DELETE") || c.startsWith("GET /boxes/"))).toBe(false);
+  });
+
+  it("an attempt's bytes are made once: a create handed them sends them as they are, though the same spec now reads otherwise", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", MADE("bx_1"))
+      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const { backend, clock } = backendLosing(api, 0);
+    // The first read of the account's cap takes a second and a half, between the instant the timer is set for and
+    // the clock the seconds to it are read off.
+    api.on("GET", "/limits", () => {
+      clock.at += 1_500;
+      return LIMITS("standard");
+    });
+    const sent = await backend.createRequest(SPEC);
+    expect(JSON.parse(sent)).toEqual({ type: "small", ttlSeconds: 1199, noEnv: true, name: "wsp;o=h_1", from: "wsp-mac-default-v4" });
+    // Read again with the cap held, the same spec asks another stop timer: the body a replay must not send.
+    expect(JSON.parse(await backend.createRequest(SPEC))).toMatchObject({ ttlSeconds: 1200 });
+    await backend.create(SPEC, undefined, sent);
+    expect(creates(api)[0]!.raw).toBe(sent);
+  });
+
+  it("a replay sends the attempt's bytes under its key, names the box Boat made back to what the bytes asked, and hands it back", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes", { status: 200, body: { ok: true, type: "box.created", status: "ready", box: BOX("bx_sxtfdf4c", "ready", { name: "wsp-mac-default-v4" }) } })
+      .on("PATCH", "/boxes/bx_sxtfdf4c", INFO("bx_sxtfdf4c", "ready", { name: "wsp;o=h_1" }));
+    const { backend } = backendLosing(api, 0);
+    const sent = await backend.createRequest({ ...SPEC, labels: { [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" } });
+    const machine = await backend.replayCreate("workspace/ws_1:0011223344556677", sent);
+    expect(machine.id).toBe("bx_sxtfdf4c");
+    expect(machine.labels).toEqual({ [WSP_LABEL]: "1", [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" });
+    expect(creates(api)[0]!.raw).toBe(sent);
+    expect(creates(api)[0]!.headers["idempotency-key"]).toBe("workspace/ws_1:0011223344556677");
+    expect(api.took("PATCH", "/boxes/bx_sxtfdf4c")!.body).toEqual({ name: JSON.parse(sent).name });
+  });
+
+  it("lists the boxes named exactly one of the names asked, running or archived, and no other", async () => {
+    const api = new FakeBox()
+      .on("GET", "/boxes", ({ query }) => ({
+        status: 200,
+        body: {
+          ok: true,
+          boxes: query.get("state") === "archived"
+            ? [BOX("bx_old", "archived", { name: "wsp-mac-default-v3", createdAt: "2026-10-11T09:00:00.000Z" })]
+            : [
+                BOX("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4", createdAt: "2026-10-11T09:48:00.000Z" }),
+                BOX("bx_copy", "ready", { name: "wsp-mac-default-v4-copy" }),
+                BOX("bx_other", "ready", { name: "wsp-otherhost-default-v4" }),
+                BOX("bx_person", "ready", { name: "my box" }),
+                BOX("bx_ours", "ready", { name: "wsp;o=h_1" }),
+              ],
+          pageInfo: { nextCursor: null },
+        },
+      }));
+    const { backend } = backendLosing(api, 0);
+    expect(await backend.namedAfter(new Set(["wsp-mac-default-v4", "wsp-mac-default-v3"]))).toEqual([
+      { id: "bx_ca2bqxuk", name: "wsp-mac-default-v4", state: "running", createdAt: "2026-10-11T09:48:00.000Z" },
+      { id: "bx_old", name: "wsp-mac-default-v3", state: "paused", createdAt: "2026-10-11T09:00:00.000Z" },
+    ]);
   });
 });

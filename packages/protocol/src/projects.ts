@@ -208,11 +208,11 @@ export const cwdOutsideLine = (path: string, project: string): string => `${path
 export const noCwdLine = (path: string): string => `there is no folder at ${path}; name one that exists`;
 
 /** What taking a thread away on this computer takes, the question a delete puts first: the thread's turns and
- * checkpoints, and the worktree wsp made with every thread in it where the thread ran in one. */
+ * checkpoints, and the worktree wsp made it ran in once no other thread is in it. */
 export function threadDeleteQuestion(threadId: string, worktree: string | undefined): string {
   return worktree === undefined
     ? `Delete thread ${threadId}?\nIts turns and checkpoints leave this computer; the folder it worked in is left as it is.`
-    : `Delete thread ${threadId}?\nThe worktree at ${worktree} is removed with every thread in it; the branch and the project folder are left as they are.`;
+    : `Delete thread ${threadId}?\nIts turns and checkpoints leave this computer, and the worktree at ${worktree} with it where no other thread is in it; the branch and the project folder are left as they are.`;
 }
 
 /** What a thread delete did. */
@@ -315,6 +315,13 @@ export const noBranchesLine = (project: string): string => `${project} is not a 
  * project is the repo that computer can clone. */
 export const folderOnCopyRefusal = (computer: string): string =>
   `${computer} takes a repo it can clone, not a folder on this computer; give the repo's url, or add the folder here with no --on`;
+
+/** Why a cloud records no project with the cloud off: a project and its threads on a cloud's machines are the cloud's
+ * top-level road, which only a host started with the cloud on takes. */
+export const cloudProjectRefusal = (cloud: string): { happened: string; fix: string } => ({
+  happened: `${cloud} holds no project of its own on this host`,
+  fix: "Record the project on this computer or on a computer you added.",
+});
 
 /** What a remove says on the computer the app runs on: the folder is the project, so nothing of it moves. */
 export const projectRemovedHereLine = (name: string): string => `${name} is no longer a project here; its code is where it was`;

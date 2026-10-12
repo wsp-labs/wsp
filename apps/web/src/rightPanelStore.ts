@@ -9,14 +9,19 @@
  * tree and one surface per open file, and the diff, the workspace's own
  * readings, its processes and the agents are singleton surfaces.
  *
- * Keyed by workspace id: a wsp workspace is one machine, and every surface
- * here belongs to the machine, not to one conversation on it.
+ * Keyed by the pane on screen: a thread's own, under its workspace's id, so
+ * the threads of one project folder, which share its workspace record, each
+ * keep what they opened. A workspace with no thread on screen keeps its own.
+ * Every action takes the workspace id and acts on the pane it shows now, or
+ * on the pane a key from threadPanelKey names.
  */
 import { useBrowserTabs } from "./browser/tabs.js";
-import { GUEST_CAP, useGuests } from "./browser/guests.js";
+import { dropGuests, GUEST_CAP, useGuests } from "./browser/guests.js";
 import type { Place } from "./browser/url.js";
 import { addNotice } from "./notices/store.js";
+import { lastOpen } from "./protocol/lastWorkspace.js";
 import { useStore } from "./protocol/store.js";
+import { isThreadKey, onNewThreadPage, stateKeyIn, stateKeyOf, threadOfKey, threadStateKey, useStateKey, workspaceOfKey } from "./stateKey.js";
 import { HERE_KEY } from "./terminal/computer.js";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -54,7 +59,7 @@ export type RightPanelSurface =
   | { [K in SingletonKind]: { id: K; kind: K } }[SingletonKind];
 
 const RIGHT_PANEL_STORAGE_KEY = "wsp:right-panel-state:v1";
-const RIGHT_PANEL_STORAGE_VERSION = 1;
+const RIGHT_PANEL_STORAGE_VERSION = 2;
 export const RIGHT_PANEL_WIDTH_STORAGE_KEY = "wsp:right-panel-width";
 
 export interface WorkspaceRightPanelState {
@@ -104,7 +109,22 @@ const EMPTY_WORKSPACE_STATE: WorkspaceRightPanelState = {
 };
 // This computer's panel stands behind the default thread and the first run, where nothing asked for it yet.
 const EMPTY_HERE_STATE: WorkspaceRightPanelState = { ...EMPTY_WORKSPACE_STATE, isOpen: false };
-const emptyFor = (key: string): WorkspaceRightPanelState => (key === HERE_KEY ? EMPTY_HERE_STATE : EMPTY_WORKSPACE_STATE);
+const emptyFor = (key: string): WorkspaceRightPanelState => (key === HERE_KEY || isThreadKey(key) ? EMPTY_HERE_STATE : EMPTY_WORKSPACE_STATE);
+
+/** Thread panes kept on this browser: a thread forgotten on another client leaves no word here to drop its pane. */
+export const KEPT_THREAD_PANELS = 100;
+
+/** A thread's pane is under the thread's state key; the empty thread id is the New thread page's. */
+export const threadPanelKey = threadStateKey;
+const workspaceOfPanel = workspaceOfKey;
+type Selection = Parameters<typeof stateKeyIn>[0];
+/** The pane a workspace shows: the selected thread's, the New thread page's, else the workspace's own. */
+const panelKeyIn = stateKeyIn;
+export const panelKeyOf = stateKeyOf;
+export const usePanelKey = useStateKey;
+
+const panelsOf = (byWorkspaceId: Record<string, WorkspaceRightPanelState>, workspaceId: string): [string, WorkspaceRightPanelState][] =>
+  Object.entries(byWorkspaceId).filter(([key]) => workspaceOfPanel(key) === workspaceId);
 
 const isSingleton = (kind: RightPanelKind): kind is SingletonKind => kind !== "preview" && kind !== "terminal" && kind !== "files";
 /** Whether the store's open takes this kind; a terminal surface opens only onto a pty that exists. */
@@ -159,21 +179,31 @@ const isEmptyState = (key: string, state: WorkspaceRightPanelState): boolean =>
   state.activeSurfaceId === null &&
   state.surfaces.length === 0;
 
+const updatePanel = (
+  byWorkspaceId: Record<string, WorkspaceRightPanelState>,
+  key: string,
+  updater: (current: WorkspaceRightPanelState) => WorkspaceRightPanelState,
+): Record<string, WorkspaceRightPanelState> => {
+  const current = byWorkspaceId[key] ?? emptyFor(key);
+  const next = updater(current);
+  if (isEmptyState(key, next)) {
+    if (!(key in byWorkspaceId)) return byWorkspaceId;
+    const { [key]: _removed, ...rest } = byWorkspaceId;
+    return rest;
+  }
+  if (next === current) return byWorkspaceId;
+  // Written last goes last, so the thread panes past the cap that go are the ones touched longest ago.
+  const { [key]: _was, ...rest } = byWorkspaceId;
+  const threads = Object.keys(rest).filter((k) => isThreadKey(k));
+  for (const old of threads.slice(0, Math.max(0, threads.length + 1 - KEPT_THREAD_PANELS))) delete rest[old];
+  return { ...rest, [key]: next };
+};
+
 const updateWorkspace = (
   byWorkspaceId: Record<string, WorkspaceRightPanelState>,
   workspaceId: string,
   updater: (current: WorkspaceRightPanelState) => WorkspaceRightPanelState,
-): Record<string, WorkspaceRightPanelState> => {
-  const current = byWorkspaceId[workspaceId] ?? emptyFor(workspaceId);
-  const next = updater(current);
-  if (isEmptyState(workspaceId, next)) {
-    if (!(workspaceId in byWorkspaceId)) return byWorkspaceId;
-    const { [workspaceId]: _removed, ...rest } = byWorkspaceId;
-    return rest;
-  }
-  if (next === current) return byWorkspaceId;
-  return { ...byWorkspaceId, [workspaceId]: next };
-};
+): Record<string, WorkspaceRightPanelState> => updatePanel(byWorkspaceId, panelKeyOf(workspaceId), updater);
 
 const isKnownKind = (kind: unknown): kind is RightPanelKind =>
   typeof kind === "string" && (PANE_KINDS as readonly string[]).includes(kind);
@@ -219,6 +249,18 @@ function usableSurface(raw: unknown): RightPanelSurface | null {
       };
     }
   }
+}
+
+/** A build that kept one pane per workspace: the thread that was open last takes its workspace's pane, this
+ * computer's own pane stays, and every other pane starts shut, since none of a folder's threads shows the folder's
+ * own pane and a pty it kept would never reach the drawer. */
+function toThreadPanels(persistedState: unknown): unknown {
+  const open = lastOpen();
+  const raw = (persistedState as { byWorkspaceId?: unknown } | null)?.byWorkspaceId;
+  if (!raw || typeof raw !== "object") return persistedState;
+  const kept = raw as Record<string, unknown>;
+  const moved = open?.threadId !== undefined && open.workspaceId in kept ? { [threadPanelKey(open.workspaceId, open.threadId)]: kept[open.workspaceId] } : {};
+  return { byWorkspaceId: { ...(HERE_KEY in kept ? { [HERE_KEY]: kept[HERE_KEY] } : {}), ...moved } };
 }
 
 /** Drops anything persisted under a kind or shape this build does not know. */
@@ -453,9 +495,10 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             };
           }),
         })),
+      // A pty the daemon no longer holds leaves every thread's pane, the ones off screen too.
       reconcileTerminalSurfaces: (workspaceId, ptyIds) =>
         set((state) => ({
-          byWorkspaceId: updateWorkspace(state.byWorkspaceId, workspaceId, (current) => {
+          byWorkspaceId: panelsOf(state.byWorkspaceId, workspaceOfPanel(workspaceId)).reduce((byWorkspaceId, [key]) => updatePanel(byWorkspaceId, key, (current) => {
             const live = new Set(ptyIds);
             let changed = false;
             const surfaces: RightPanelSurface[] = [];
@@ -486,7 +529,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               surfaces,
               activeSurfaceId: activeStillExists ? current.activeSurfaceId : (surfaces[0]?.id ?? null),
             };
-          }),
+          }), state.byWorkspaceId),
         })),
       show: (workspaceId) =>
         set((state) => ({
@@ -521,9 +564,9 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         })),
       removeWorkspace: (workspaceId) =>
         set((state) => {
-          if (!(workspaceId in state.byWorkspaceId)) return state;
-          const { [workspaceId]: _removed, ...rest } = state.byWorkspaceId;
-          return { byWorkspaceId: rest };
+          const gone = panelsOf(state.byWorkspaceId, workspaceId);
+          if (gone.length === 0) return state;
+          return { byWorkspaceId: Object.fromEntries(Object.entries(state.byWorkspaceId).filter(([key]) => workspaceOfPanel(key) !== workspaceId)) };
         }),
     }),
     {
@@ -531,19 +574,30 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       version: RIGHT_PANEL_STORAGE_VERSION,
       storage: createJSONStorage(() => window.localStorage),
       partialize: (state) => ({ byWorkspaceId: state.byWorkspaceId }),
-      migrate: migratePersistedRightPanelState,
+      migrate: (persisted, version) => migratePersistedRightPanelState(version < 2 ? toThreadPanels(persisted) : persisted),
       // migrate runs only on a version change; a bad shape stored at this version must be caught on every hydrate.
       merge: (persisted, current) => ({ ...current, ...migratePersistedRightPanelState(persisted) }),
     },
   ),
 );
 
+export function selectPanelState(byWorkspaceId: Record<string, WorkspaceRightPanelState>, key: string): WorkspaceRightPanelState {
+  return byWorkspaceId[key] ?? emptyFor(key);
+}
+
+/** The pane a workspace shows now. It reads the selection without following it: a component drawing the pane takes
+ * its key from usePanelKey and reads selectPanelState. */
 export function selectWorkspaceRightPanelState(
   byWorkspaceId: Record<string, WorkspaceRightPanelState>,
   workspaceId: string | null | undefined,
 ): WorkspaceRightPanelState {
   if (!workspaceId) return EMPTY_WORKSPACE_STATE;
-  return byWorkspaceId[workspaceId] ?? emptyFor(workspaceId);
+  return selectPanelState(byWorkspaceId, panelKeyOf(workspaceId));
+}
+
+/** Whether any pane of the workspace stands open, its threads' off screen too. */
+export function anyPanelOpen(byWorkspaceId: Record<string, WorkspaceRightPanelState>, workspaceId: string): boolean {
+  return panelsOf(byWorkspaceId, workspaceId).some(([, state]) => state.isOpen);
 }
 
 export function selectActiveRightPanel(
@@ -564,13 +618,27 @@ export function selectSelectedRightPanelSurface(
   return state.surfaces.find((surface) => surface.id === state.activeSurfaceId) ?? null;
 }
 
-/** Every pty the workspace's right-panel terminal surfaces hold; the drawer arranges the rest. */
+/** Every pty the terminal surfaces of the workspace's panes hold, its threads' off screen too; the drawer arranges
+ * the rest. */
 export function selectPanelTerminalIds(
   byWorkspaceId: Record<string, WorkspaceRightPanelState>,
   workspaceId: string | null | undefined,
 ): string[] {
-  const state = selectWorkspaceRightPanelState(byWorkspaceId, workspaceId);
-  return state.surfaces.flatMap((surface) => (surface.kind === "terminal" ? surface.terminalIds : []));
+  if (!workspaceId) return [];
+  return panelsOf(byWorkspaceId, workspaceId).flatMap(([, state]) => state.surfaces.flatMap((surface) => (surface.kind === "terminal" ? surface.terminalIds : [])));
+}
+
+/** Every browser tab the workspace's panes hold, its threads' off screen too: a tab no pane holds is dropped. */
+export function selectPanelBrowserTabIds(
+  byWorkspaceId: Record<string, WorkspaceRightPanelState>,
+  workspaceId: string,
+): string[] {
+  return panelsOf(byWorkspaceId, workspaceId).flatMap(([, state]) => state.surfaces.flatMap((surface) => (surface.kind === "preview" && surface.resourceId !== null ? [surface.resourceId] : [])));
+}
+
+/** The pane whose tab strip holds a browser tab. */
+function panelOfTab(workspaceId: string, tabId: string): string | undefined {
+  return panelsOf(useRightPanelStore.getState().byWorkspaceId, workspaceId).find(([, state]) => state.surfaces.some((surface) => surface.id === `browser:${tabId}`))?.[0];
 }
 
 /** The cap's line: how many guests hold a page, and how many of those are in other threads than the one asking. */
@@ -584,7 +652,12 @@ export function guestCapLine(open: number, elsewhere: number): string {
 export function roomForBrowserTab(workspaceId: string): boolean {
   const guests = Object.values(useGuests.getState().guests);
   if (guests.length < GUEST_CAP) return true;
-  addNotice({ kind: "note", text: guestCapLine(guests.length, guests.filter((guest) => guest.workspaceId !== workspaceId).length) });
+  const here = panelKeyOf(workspaceId);
+  const elsewhere = guests.filter((guest) => {
+    const panel = panelOfTab(guest.workspaceId, guest.tabId);
+    return panel === undefined ? guest.workspaceId !== workspaceId : panel !== here;
+  });
+  addNotice({ kind: "note", text: guestCapLine(guests.length, elsewhere.length) });
   return false;
 }
 
@@ -599,7 +672,7 @@ export function keepListedPanels(): () => void {
   const prune = (s: ReturnType<typeof useStore.getState>): void => {
     if (!s.ready) return;
     const kept = new Set<string>([HERE_KEY, ...s.workspaces.map((w) => w.id), ...s.creations.flatMap((c) => (c.workspaceId === null ? [c.key] : [c.key, c.workspaceId]))]);
-    for (const workspaceId of Object.keys(useRightPanelStore.getState().byWorkspaceId)) {
+    for (const workspaceId of new Set(Object.keys(useRightPanelStore.getState().byWorkspaceId).map(workspaceOfPanel))) {
       if (kept.has(workspaceId)) continue;
       useRightPanelStore.getState().removeWorkspace(workspaceId);
       useBrowserTabs.getState().prune(workspaceId, []);
@@ -608,5 +681,53 @@ export function keepListedPanels(): () => void {
   prune(useStore.getState());
   return useStore.subscribe((s, prev) => {
     if (s.ready !== prev.ready || s.workspaces !== prev.workspaces || s.creations !== prev.creations) prune(s);
+  });
+}
+
+/** Browser guests stay loaded for the pane on screen and the panes of this many threads shown last: each is a renderer
+ * process, and a thread further back loads its tab's place again when it is shown. */
+const LOADED_PANELS = 3;
+
+/** The New thread page's pane goes to the thread its first send made, which the page goes on showing. A click from
+ * the page to another thread leaves it behind, so this is asked where the send's thread is taken, not on a selection. */
+export function carryNewThreadPanel(workspaceId: string, threadId: string): void {
+  const draft = threadPanelKey(workspaceId, "");
+  const panels = useRightPanelStore.getState().byWorkspaceId;
+  if (!onNewThreadPage(workspaceId) || !(draft in panels)) return;
+  const { [draft]: carried, ...rest } = panels;
+  const key = threadPanelKey(workspaceId, threadId);
+  useRightPanelStore.setState({ byWorkspaceId: key in rest ? rest : { ...rest, [key]: carried! } });
+}
+
+/** Follows the pane on screen, run once by the shell: the New thread page opens shut, and the guests of a thread past
+ * the last few shown are unloaded. */
+export function followThreadPanels(): () => void {
+  const shownLast: string[] = [];
+  const keyOf = (s: Selection): string => (s.selectedId === null ? HERE_KEY : panelKeyIn(s, s.selectedId));
+  const shown = (key: string): void => {
+    // Only a thread takes one of the places: the New thread page, a project's home and a folder's own pane take none.
+    if (isThreadKey(key) && threadOfKey(key) !== "") {
+      const at = shownLast.indexOf(key);
+      if (at >= 0) shownLast.splice(at, 1);
+      shownLast.unshift(key);
+      shownLast.length = Math.min(shownLast.length, LOADED_PANELS);
+    }
+    const keep = new Set([key, ...shownLast]);
+    const past = Object.entries(useGuests.getState().guests).flatMap(([id, guest]) => {
+      const panel = panelOfTab(guest.workspaceId, guest.tabId);
+      return panel !== undefined && !keep.has(panel) ? [id] : [];
+    });
+    dropGuests(past);
+  };
+  shown(keyOf(useStore.getState()));
+  return useStore.subscribe((s, prev) => {
+    const key = keyOf(s);
+    if (key === keyOf(prev)) return;
+    const panels = useRightPanelStore.getState().byWorkspaceId;
+    if (s.selectedId !== null && key === threadPanelKey(s.selectedId, "") && key in panels) {
+      const { [key]: _stale, ...rest } = panels;
+      useRightPanelStore.setState({ byWorkspaceId: rest });
+    }
+    shown(key);
   });
 }

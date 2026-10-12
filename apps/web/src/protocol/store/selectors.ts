@@ -58,10 +58,17 @@ export const isCreationKey = (key: string): boolean => key.startsWith(CREATION_P
 export const catalogIn = (s: Catalogs, workspaceId: string | null, harness: string): HarnessCatalog | null =>
   catalogsIn(s, workspaceId).find(c => c.harness === harness) ?? null;
 
-/** The rule under useThreadSessions, for a reader outside React that has to agree with what the centre draws. */
-export function threadRows(sessions: ReadonlyArray<SessionView>, workspaceId: string | null, threadKey: string): ReadonlyArray<SessionView> {
+/** The thread a workspace shows now, by its runtime id: null on the New thread page, on a view whose thread has no id
+ * yet and on a workspace not on screen. What an act on that workspace names, so it reaches this thread alone. */
+export function shownThreadIdOf(s: Pick<State, "selectedId" | "selectedThreadId">, workspaceId: string): string | null {
+  return s.selectedId === workspaceId ? s.selectedThreadId : null;
+}
+
+/** The rule under useThreadSessions, for a reader outside React that has to agree with what the centre draws. A new
+ * thread's page has no rows of its own until its send opens one, and never stands on another thread's. */
+export function threadRows(sessions: ReadonlyArray<SessionView>, workspaceId: string | null, threadKey: string, fresh = false): ReadonlyArray<SessionView> {
   const own = sessions.filter(row => threadKeyOf(row) === threadKey);
-  if (own.length > 0 || threadKey !== workspaceId) return own;
+  if (own.length > 0 || threadKey !== workspaceId || fresh) return own;
   const latest = sessions.at(-1);
   return latest === undefined ? NO_SESSIONS : [latest];
 }

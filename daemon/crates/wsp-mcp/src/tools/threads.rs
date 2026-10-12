@@ -297,6 +297,8 @@ pub struct HeadOut {
     pub pos: Box<RawValue>,
     #[cfg_attr(test, schemars(with = "u64"))]
     pub total: Box<RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trimmed: Option<bool>,
 }
 
 /// As much of a head's facts as its text reads.
@@ -557,6 +559,8 @@ async fn thread_read(host: Arc<Host>, arguments: Value) -> Result<Answer, Refuse
     let thread_id = thread.thread_id.clone().unwrap_or_else(|| thread.id.clone());
     let mut params = Map::new();
     params.insert("workspaceId".to_owned(), Value::from(thread.workspace_id.as_str()));
+    params.insert("threadId".to_owned(), Value::from(thread_id.as_str()));
+    params.insert("whole".to_owned(), Value::from(true));
     let events = client.request::<History>("sessions.history", params).await?.events;
     let mut params = Map::new();
     params.insert("threadId".to_owned(), Value::from(thread.id.as_str()));

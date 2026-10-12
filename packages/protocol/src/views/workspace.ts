@@ -137,6 +137,23 @@ export const SeedChoice = z.object({
 });
 export type SeedChoice = z.infer<typeof SeedChoice>;
 
+/** One row of a project's seed picks: a path git ignores in its folder, its size, how the catalog judged it, the
+ * words its row ends in, and whether a sub-thread's machine gets it. */
+export const SeedPickRow = z.object({ path: z.string(), dir: z.boolean(), bytes: z.number().int(), kind: SeedKind, why: z.string(), picked: z.boolean() });
+export type SeedPickRow = z.infer<typeof SeedPickRow>;
+
+/** What the seed picks of a project's folder on this computer come to: every row of the menu, the paths picked with
+ * their bytes and the saved ones no longer in the folder, and whether the picks were saved as the folder's
+ * remembered choice. */
+export const ProjectSeed = z.object({
+  project: z.string(),
+  folder: z.string(),
+  rows: z.array(SeedPickRow),
+  picked: z.object({ paths: z.array(z.string()), bytes: z.number().int(), missing: z.array(z.string()) }),
+  saved: z.boolean(),
+});
+export type ProjectSeed = z.infer<typeof ProjectSeed>;
+
 /** How far an add has got. In order: planned, the folder read or the remote resolved; cloning, on the computer;
  * seeding, the chosen files landed there; installing, the lockfile's own install run once; imaging, the machine
  * snapshotted as the project's image, which only a provider computer does; done. failed ends one that threw. */

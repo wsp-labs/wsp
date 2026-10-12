@@ -58,7 +58,7 @@ import {
   PLACE_DOOR_REFUSAL,
   PLACE_DOOR_UNSERVED,
   PLACE_UNKNOWN_REFUSAL,
-  noSuchPlaceRefusal,
+  noSuchPlaceRefusal, tableName,
   RELAY_TICKET_REFUSAL,
   REQUEST_NOT_AN_OBJECT,
   RuntimeRequest,
@@ -425,8 +425,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
   const placeFolders = async (placeId: string, asked: { dir?: string; hidden?: boolean; repos?: boolean }, origin: Caller | undefined): Promise<HostFolderListing> => {
     const rows = await places().list(now());
     const row = rows.find(place => place.id === placeId);
-    if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, rows.map(place => place.name))), { kind: "usage" });
-    if (!isJoinedComputer(row)) throw Object.assign(new Error(providerFoldersRefusal(row.name)), { kind: "usage" });
+    if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, rows.map(tableName))), { kind: "usage" });
+    if (!isJoinedComputer(row)) throw Object.assign(new Error(providerFoldersRefusal(tableName(row))), { kind: "usage" });
     // A daemon older than 60 cannot seal the link this rides, so only one from 60 to 72 is here without fs.folders.
     const version = (await places().reportOf(row.id))?.daemonVersion;
     if (version !== undefined && version < FS_FOLDERS_DAEMON_VERSION) throw new Error(placeBehindLine(row.name, placeDaemonBehind({ daemonVersion: version })!));
@@ -979,14 +979,14 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               const rows = await places().list(now());
               const row = rows.find(place => place.id === msg.placeId);
               if (row === undefined) {
-                send({ id: msg.id, ok: false, error: noSuchPlaceRefusal(msg.placeId, rows.map(place => place.name)), kind: "usage" });
+                send({ id: msg.id, ok: false, error: noSuchPlaceRefusal(msg.placeId, rows.map(tableName)), kind: "usage" });
                 return;
               }
               // The road makes a workspace on a computer somebody joined and reads the tools inside it: the row for
               // the computer this host runs on and a provider's row are proved where the line was typed, so they
               // are refused here rather than failing at the first step of a road they were never for.
               if (!isJoinedComputer(row)) {
-                send({ id: msg.id, ok: false, error: doctorRowRefusal(row.name), kind: "usage" });
+                send({ id: msg.id, ok: false, error: doctorRowRefusal(tableName(row)), kind: "usage" });
                 return;
               }
               if (doctoring.has(row.id)) {
@@ -1172,7 +1172,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               // runtime's one rule, so what a listing hides and what the stream hides cannot come apart.
               const moved = costMoved();
               const pass = (e: unknown): void => {
-                if (rt.workspaces.seenBy(e, origin) && moved(e)) send(e as Record<string, unknown>);
+                if (rt.workspaces.seenBy(e, origin) && moved(e)) send(rt.workspaces.shownTo(e, origin) as Record<string, unknown>);
               };
               detaches.push(rt.events.on("*", pass));
               detaches.push(forwards.on(pass));
@@ -1205,8 +1205,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
             case "workspaces.create": {
               const { id, op, origin: _sent, ...rest } = msg;
               void op;
-              const { notice, ...workspace } = await rt.workspaces.create(rest, origin);
-              send({ id, ok: true, workspace: handed(workspace), ...(notice !== undefined ? { notice } : {}) });
+              const { notice, sub, ...workspace } = await rt.workspaces.create(rest, origin);
+              send({ id, ok: true, workspace: handed(workspace), ...(notice !== undefined ? { notice } : {}), ...(sub !== undefined ? { sub } : {}) });
               return;
             }
             case "workspaces.landing":
@@ -1306,7 +1306,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true, ...(await rt.workspaces.pullRequestReact({ workspaceId: msg.workspaceId, subject: msg.subject, content: msg.content, on: msg.on }, origin)) });
               return;
             case "workspaces.pullRequestSend":
-              send({ id: msg.id, ok: true, ...(await rt.workspaces.pullRequestSend({ workspaceId: msg.workspaceId, items: msg.items }, origin)) });
+              send({ id: msg.id, ok: true, ...(await rt.workspaces.pullRequestSend({ workspaceId: msg.workspaceId, items: msg.items, ...(msg.threadId !== undefined ? { threadId: msg.threadId } : {}) }, origin)) });
               return;
             case "workspaces.fix":
               send({
@@ -1498,13 +1498,13 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true, sessions: await rt.sessions.list(msg.workspaceId, origin) });
               return;
             case "sessions.history":
-              if (msg.threadId !== undefined) {
+              if (msg.threadId !== undefined && msg.whole !== true) {
                 const window = { threadId: msg.threadId, ...(msg.before !== undefined ? { before: msg.before } : {}), ...(msg.limit !== undefined ? { limit: msg.limit } : {}) };
                 send({ id: msg.id, ok: true, ...(await rt.sessions.page(msg.workspaceId, window, origin)) });
                 return;
               }
-              if (msg.before !== undefined || msg.limit !== undefined) throw usageRefusal("before and limit page one thread's events.", "Name the thread with threadId.");
-              send({ id: msg.id, ok: true, events: await rt.sessions.history(msg.workspaceId, origin) });
+              if (msg.whole !== true && (msg.before !== undefined || msg.limit !== undefined)) throw usageRefusal("before and limit page one thread's events.", "Name the thread with threadId.");
+              send({ id: msg.id, ok: true, events: await (msg.whole === true ? rt.sessions.threadHistory(msg.workspaceId, msg, origin) : rt.sessions.history(msg.workspaceId, origin)) });
               return;
             case "sessions.head":
               send({ id: msg.id, ok: true, ...(await rt.sessions.head(msg.threadId, origin)) });

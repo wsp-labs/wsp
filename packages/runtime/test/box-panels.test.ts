@@ -265,6 +265,52 @@ describe("the ports of a thread in a folder on a computer the person joined", ()
     expect((await rt.workspaces.portReach(workspaceId, port)).url).toBe(`http://localhost:${port}/`);
   });
 
+  it("name every thread of the folder past the daemon's cap of a watch, so the oldest thread's server still shows", async () => {
+    const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
+    const { rt, seen, workspaceId } = await joined({ adapters: { claude: answering(starts) } });
+    const threads: string[] = [];
+    for (let n = 0; n < 17; n += 1) {
+      const turn = await rt.sessions.start(workspaceId, { prompt: `thread ${n}`, harness: "claude" });
+      await turn.finished;
+      threads.push(turn.view().threadId!);
+    }
+    const heard: Record<string, unknown>[] = [];
+    const channel = await pane(rt, workspaceId, heard);
+    expect(await channel.send({ id: 1, op: "ports.watch" })).toMatchObject({ ok: true });
+    const latest = new Map<string, Record<string, unknown>>();
+    for (const f of seen.frames) if (f["op"] === "ports.watch" && typeof f["watch"] === "string") latest.set(f["watch"], f);
+    const named = [...latest.values()].flatMap(f => f["cgroups"] as string[]);
+    expect([...latest.values()].every(f => (f["cgroups"] as string[]).length <= 16)).toBe(true);
+    expect(named.sort()).toEqual(threads.map(threadCgroup).sort());
+    const oldest = [...latest.entries()].find(([, f]) => (f["cgroups"] as string[]).includes(threadCgroup(threads[0]!)))![0];
+    seen.client.say({ type: "port.open", port: 4321, pid: 901, watch: oldest });
+    await expect.poll(() => heard.filter(e => e["type"] === "port.open").map(e => e["port"])).toEqual([4321]);
+    // A server in the folder that stands in an older thread's cgroup is in two of the folder's watches: heard once.
+    seen.client.say({ type: "port.open", port: 4321, pid: 901, watch: workspaceId });
+    seen.client.say({ type: "port.close", port: 4321, watch: oldest });
+    seen.client.say({ type: "port.close", port: 4321, watch: workspaceId });
+    await expect.poll(() => heard.filter(e => e["type"] === "port.close").length).toBe(1);
+    expect(heard.filter(e => e["type"] === "port.open")).toHaveLength(1);
+    // A thread that starts later takes room where there is some, and no thread's cgroup moves to another watch, which
+    // would close its server in one and open it in another that only says so in a reply nobody reads.
+    const before = new Map([...latest.values()].flatMap(f => (f["cgroups"] as string[]).map(c => [c, f["watch"]] as const)));
+    const late = await rt.sessions.start(workspaceId, { prompt: "late", harness: "claude" });
+    await late.finished;
+    await expect.poll(() => seen.frames.filter(f => f["op"] === "ports.watch" && (f["cgroups"] as string[] | undefined)?.includes(threadCgroup(late.view().threadId!))).length).toBe(1);
+    const now = new Map<string, Record<string, unknown>>();
+    for (const f of seen.frames) if (f["op"] === "ports.watch" && typeof f["watch"] === "string") now.set(f["watch"], f);
+    const after = new Map([...now.values()].flatMap(f => (f["cgroups"] as string[]).map(c => [c, f["watch"]] as const)));
+    for (const [cgroup, watch] of before) expect(after.get(cgroup), cgroup).toBe(watch);
+    expect([...now.values()].every(f => (f["cgroups"] as string[]).length <= 16)).toBe(true);
+    // A second window over the same folder names each thread under the same watch the first does.
+    const from = seen.frames.length;
+    const other = await pane(rt, workspaceId, []);
+    expect(await other.send({ id: 2, op: "ports.watch" })).toMatchObject({ ok: true });
+    const second = new Map(seen.frames.slice(from).flatMap(f => (f["op"] === "ports.watch" && typeof f["watch"] === "string" ? (f["cgroups"] as string[]).map(c => [c, f["watch"]] as const) : [])));
+    expect(second.size).toBe(after.size);
+    for (const [cgroup, watch] of after) expect(second.get(cgroup), cgroup).toBe(watch);
+  });
+
   it("opens on the first free number above one this computer already uses", async () => {
     const port = await freePort();
     const taken = createServer();

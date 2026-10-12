@@ -16,6 +16,7 @@ use serde_json::{Map, Value};
 
 use super::named::{absolute_folder, awake, history, params, thread_at, thread_of, threads, workspace_of, Aim, Thread, Woken, Workspace};
 use super::said::{fmt_bytes, fmt_uptime, js_space, js_trim, turns};
+use super::sub::{sub_run, SubAsk};
 use super::wait::TurnResult;
 use super::{input, Answer, Refused, Tool};
 use crate::client::Client;
@@ -48,6 +49,10 @@ pub struct RunIn {
     pub at: Option<NonZeroU64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
     pub message: String,
@@ -633,7 +638,7 @@ async fn threads_in_folder(client: &Client, project: &str) -> bool {
 }
 
 /// The names of every workspace the caller can see.
-async fn workspace_names(client: &Client) -> Result<Vec<String>, Failure> {
+pub(super) async fn workspace_names(client: &Client) -> Result<Vec<String>, Failure> {
     #[derive(Deserialize)]
     struct Named {
         name: String,
@@ -648,7 +653,7 @@ async fn workspace_names(client: &Client) -> Result<Vec<String>, Failure> {
 
 /// A workspace's name off the task, as packages/protocol's `nameOfTask` cuts it: the first five words of its first
 /// line, cut at 40 UTF-16 units, never ending in a space.
-fn name_of_task(task: &str) -> String {
+pub(super) fn name_of_task(task: &str) -> String {
     let first = js_trim(task).split('\n').next().unwrap_or_default();
     let words: Vec<&str> = first.split(js_space).filter(|w| !w.is_empty()).take(5).collect();
     let mut name = String::new();
@@ -664,7 +669,7 @@ fn name_of_task(task: &str) -> String {
 }
 
 /// The name itself where no workspace has it, else the name with the first number after it none has.
-fn taken_name_after(name: &str, taken: &[String]) -> String {
+pub(super) fn taken_name_after(name: &str, taken: &[String]) -> String {
     if !taken.iter().any(|t| t == name) {
         return name.to_owned();
     }
@@ -684,7 +689,7 @@ async fn fork_for(client: &Client, project: &ProjectRow, task: &str) -> Result<W
 /// The files a call names, read off this computer and carried as bytes, so nothing on the machine reaches back for the
 /// person's files: an image told by its own first bytes and carried as one, any other file under its own name, and
 /// the caps checked against what the files weigh before any of them is read whole.
-fn files_from(paths: &[String], guest: bool) -> Result<Vec<Value>, Failure> {
+pub(super) fn files_from(paths: &[String], guest: bool) -> Result<Vec<Value>, Failure> {
     let words = &turns().files;
     // Before a path is resolved: a guest would otherwise learn from the refusals which paths exist on the person's
     // disk, and a file that does exist would be read and sent.
@@ -868,7 +873,7 @@ async fn redial_unanswered(host: &Host, socket: &Client, failure: Failure) -> Re
 
 /// A start whose caller does not stay for the reply, sent again to the host that comes back when one stops before it
 /// answers.
-async fn begin_through(host: &Host, client: Arc<Client>, start: &Map<String, Value>) -> Result<Turn, Failure> {
+pub(super) async fn begin_through(host: &Host, client: Arc<Client>, start: &Map<String, Value>) -> Result<Turn, Failure> {
     let id = request_id();
     let mut socket = client;
     loop {
@@ -915,7 +920,7 @@ pub(super) async fn follow(
             };
             if !Arc::ptr_eq(&socket, &client) {
                 let mut over = false;
-                for event in history(&socket, &turn.workspace_id).await? {
+                for event in history(&socket, &turn.workspace_id, &turn.thread_id).await? {
                     let Ok(event) = serde_json::from_value::<Event>(event) else { continue };
                     if !over
                         && event.turn_id.as_deref() == Some(turn.turn_id.as_str())
@@ -976,7 +981,7 @@ pub(super) fn turn_out(turn: &Turn) -> TurnOut {
 }
 
 /// The reply as the tool's text, the cut line first where the thread's previous turn did not finish.
-fn turn_text(out: &TurnOut) -> String {
+pub(super) fn turn_text(out: &TurnOut) -> String {
     let text = out.text.clone().unwrap_or_default();
     if out.after_cut == Some(true) {
         format!("{}\n{text}", turns().after_cut)
@@ -1072,7 +1077,7 @@ impl Opened {
 }
 
 /// A detached start's line, with the wait under it where the start is held: `detachedOut`.
-fn held_line(line: String, turn: &Turn) -> String {
+pub(super) fn held_line(line: String, turn: &Turn) -> String {
     match &turn.capped {
         Some(capped) => format!("{line}\n{}", capped.line()),
         None => line,
@@ -1091,6 +1096,8 @@ async fn run(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         fork,
         at,
         branch,
+        on,
+        size,
         cwd,
         message,
         agent,
@@ -1106,6 +1113,28 @@ async fn run(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         copy,
         detach,
     } = input("run", arguments)?;
+    // A sub-thread of the thread asking, on a machine of its own: the words beside it are refused before anything is read.
+    let sub = &turns().sub;
+    if size.is_some() && on.is_none() {
+        return Err(Failure::usage(sub.size_no_cloud.clone()).into());
+    }
+    if let Some(on) = on {
+        let given = [
+            ("project", project.is_some()),
+            ("beside", beside.is_some()),
+            ("fork", fork.is_some()),
+            ("at", at.is_some()),
+            ("cwd", cwd.is_some()),
+            ("resume", resume.is_some()),
+            ("copy", copy == Some(true)),
+            ("replaces", replaces.is_some()),
+        ];
+        if let Some((word, _)) = given.iter().find(|(_, named)| *named) {
+            return Err(Failure::usage(fill(&sub.beside, &[("word", word)])).into());
+        }
+        let picks = Picks { model, effort, access, fast };
+        return sub_run(host, SubAsk { on, size, branch, agent }, message, picks, notify, title, files, detach).await;
+    }
     let words = super::workspace::words();
     if beside.is_some() && (project.is_some() || branch.is_some()) {
         return Err(Failure::usage(words.beside_alone.clone()).into());
@@ -1328,10 +1357,11 @@ async fn send(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
 mod tests {
     use super::*;
     use crate::tools::held::to_the_record;
+    use crate::tools::sub::RunOut;
 
     #[test]
     fn its_structs_are_the_recorded_schemas() {
-        to_the_record::<RunIn, TurnOut>(RUN.listed);
+        to_the_record::<RunIn, RunOut>(RUN.listed);
         to_the_record::<SendIn, TurnOut>(SEND.listed);
     }
 

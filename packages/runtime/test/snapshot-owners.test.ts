@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { copyKey, createRuntime } from "../src/runtime.js";
 import type { Store } from "../src/store.js";
-import { OWN_GRACE_MS } from "@wsp/engine";
+import { BOX_PRICING, OWN_GRACE_MS } from "@wsp/engine";
 import { fakeClock } from "./fake-clock.js";
 import { ownedStore, stubBackend, type StubBackend, createOn, projectOn } from "./stub-backend.js";
 
@@ -66,6 +66,21 @@ describe("who owns what on the account", () => {
     expect(plan.freedBytes).toBe(20 * GB);
     // 60 GB on the account, 40 GB once the orphan goes, both past the free 10 GB.
     expect(plan.savesUsdPerMonth).toBeCloseTo(20 * 0.05, 6);
+  });
+
+  it("on Boat, which bills named snapshots by count, the orphan plan saves $1.70 a month for each one past the free 10", async () => {
+    const store = ownedStore();
+    const backend = stubBackend();
+    Object.assign(backend, { pricing: { ...backend.pricing, snapshotStorage: BOX_PRICING.snapshotStorage } });
+    await store.put("goldens", copyKey("default", "default"), { head: 1, versions: [{ ...version(1), snapshotId: "wsp-h1s1-default-v1" }] });
+    backend.snapshots.push({ id: "wsp-h1s1-default-v1", name: "wsp-h1s1-default-v1", sizeBytes: 0, createdAt: OLD });
+    for (let n = 2; n <= 14; n++) backend.snapshots.push({ id: `wsp-h1s1-default-v${n}`, name: `wsp-h1s1-default-v${n}`, sizeBytes: 0, createdAt: OLD });
+    const rt = createRuntime({ backend, store, adapters: {}, hostId: HOST, clock: fakeClock(NOW).clock });
+    const plan = (await rt.golden.orphans())!;
+    expect(plan.snapshots).toHaveLength(13);
+    // 14 named on the account, 1 once the orphans go: the 4 past the free 10 stop costing.
+    expect(plan.savesUsdPerMonth).toBeCloseTo(4 * 1.7, 6);
+    await rt.close();
   });
 
   it("deletes this host's orphans and nothing else: the snapshot from before the mark and another host's both stay", async () => {

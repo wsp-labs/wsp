@@ -3,6 +3,7 @@
 // another's machines and two copies would drift the day a field is added on
 // one side; what stays here is the interfaces with methods, which no wire
 // carries.
+import type { BoxLimits } from "./box-backend.js";
 import type {
   Capabilities,
   DaemonSupervisor,
@@ -18,9 +19,13 @@ import type {
   PlaceCapacity,
   PreviewReach,
   SnapshotRow,
-  SnapshotStoragePricing,
+  SnapshotStoragePricing as WireSnapshotStoragePricing,
   TemplateRow,
 } from "@wsp/protocol";
+
+/** Storage as the provider bills it, and for a provider that bills named snapshots by count (Boat) the free count
+ * and the price of each past it. No link carries the count: a computer's own daemon bills nothing. */
+export type SnapshotStoragePricing = WireSnapshotStoragePricing & { freeNamed?: number; usdPerNamedMonth?: number };
 
 export type {
   DaemonSupervisor,
@@ -34,7 +39,6 @@ export type {
   MachineState,
   PreviewReach,
   SnapshotRow,
-  SnapshotStoragePricing,
   TemplateRow,
 };
 
@@ -202,6 +206,14 @@ export interface Lifecycle {
   quietForMs?(machine: Machine): Promise<number | undefined>;
 }
 
+/** A machine the provider lists under a name of wsp's that carries no labels. */
+export interface NamedMachine {
+  id: string;
+  name: string;
+  state: MachineState;
+  createdAt?: string;
+}
+
 export interface MachineBackend {
   readonly capabilities: Capabilities;
   readonly pricing: BackendPricing;
@@ -227,12 +239,22 @@ export interface MachineBackend {
    * provider has no computer of theirs to run anything on. Nothing of wsp is installed on the computer by it: the
    * commands are its own folders' making and taking. */
   onComputer?(cmd: string, opts?: { timeoutMs?: number }): Promise<ExecResult>;
-  /** `waiting` hears each wait the provider puts the create through, as a line for the person following it. */
-  create(spec: MachineSpec, waiting?: (line: string) => void): Promise<Machine>;
+  /** `waiting` hears each wait the provider puts the create through, as a line for the person following it. `sent`
+   * is what `createRequest` made for this attempt, sent again as it is under the same key. */
+  create(spec: MachineSpec, waiting?: (line: string) => void, sent?: string): Promise<Machine>;
+  /** Optional, the three together: only a backend whose create takes a key the provider keeps. The exact bytes a
+   * create of this spec sends, made once per attempt so a replay under its key carries the same body. */
+  createRequest?(spec: MachineSpec): Promise<string>;
+  /** Asks again under `key` with the bytes its attempt sent and answers the machine the provider made for it. */
+  replayCreate?(key: string, bytes: string): Promise<Machine>;
+  /** The provider's machines named exactly one of `names`, whatever their labels: a machine made from a named image
+   * carries the image's name until wsp names it. */
+  namedAfter?(names: ReadonlySet<string>): Promise<NamedMachine[]>;
   /** Optional: only backends the person holds a key for. One cheap authenticated read that boots nothing and touches
    * no machine's idle clock, so a key the provider refuses is known before anything is saved or billed. Rejects with
-   * the provider's own WspError; `checkProviderKey` is what reads that answer. */
-  checkKey?(): Promise<void>;
+   * the provider's own WspError; `checkProviderKey` is what reads that answer. Resolves with what the read answered,
+   * which says what the key holds where the provider's answer does. */
+  checkKey?(): Promise<unknown>;
   get(id: string): Promise<Machine>;
   /** size comes off the listing itself; a per-machine GET would reset that machine's idle timer. */
   list(labels?: Record<string, string>): Promise<MachineListRow[]>;
@@ -240,6 +262,9 @@ export interface MachineBackend {
   /** Optional: what the computer holding this backend has left for one more machine. Only a backend on a computer
    * the person owns answers; a provider's room is its own cap and its own refusal. */
   capacity?(): Promise<PlaceCapacity>;
+  /** Optional: a provider that sells sizes by plan and counts starts (Boat). The account's plan, the classes it sells
+   * and the starts used in each window, as the provider's own read keeps them. */
+  limits?(): Promise<BoxLimits>;
   /** Optional: only backends whose capabilities include snapshotListing have it. Every snapshot on the account, with its size. */
   listSnapshots?(): Promise<SnapshotRow[]>;
   /** Optional, the four together: only backends whose capabilities include templates have them. Promotes a snapshot

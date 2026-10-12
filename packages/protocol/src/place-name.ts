@@ -3,7 +3,7 @@
 // on: the Computers pages, the sidebar's tiles and the desktop's menu bar all
 // read these, so one machine is never named two ways.
 import type { PlaceView, WorkspaceView } from "./index.js";
-import { HERE_PLACE_ID } from "./place-word.js";
+import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
 import { workspacePlaceId } from "./place-state.js";
 import { providerKeyName } from "./format.js";
 import { isLocalWorkspace, whereWord } from "./workspace-state.js";
@@ -12,11 +12,11 @@ import { isLocalWorkspace, whereWord } from "./workspace-state.js";
 export const isHere = (place: PlaceView | undefined): boolean => place?.id === HERE_PLACE_ID;
 
 /** Whether this row is the provider this host forks on rather than a computer somebody owns. */
-export const isProviderPlace = (place: PlaceView): boolean => place.kind === "provider";
+export const isProviderPlace = (place: Pick<PlaceView, "kind">): boolean => place.kind === "provider";
 
 /** What a table calls a computer: the name a person types for it, and a provider by the name the app gives it, never
  * the id stored state holds; either one names it after --on. */
-export const tableName = (place: Pick<PlaceView, "kind" | "name">): string => (place.kind === "provider" ? providerKeyName(place.name) : place.name);
+export const tableName = (place: { kind?: string; name: string }): string => placeSaid(place);
 
 /** What a person reads a row as: the name its owner gave the computer where it keeps one, a Mac's own "zingzy's
  * MacBook Pro"; a provider carries the name its own row in the provider table gives it, since the host words it by

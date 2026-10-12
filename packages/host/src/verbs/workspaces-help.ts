@@ -253,10 +253,10 @@ export async function imageView(client: HostClient): Promise<SealedImageView> {
  * the same words the creation log prints. The record is read back after it, so the copy is said in the words `wsp
  * image` says it in; every refusal is the host's. */
 export async function buildImageAt(client: HostClient, out: Out, word: string, force?: boolean): Promise<{ image: SealedImage; built: SealedImageBuilt }> {
-  // The build's frames carry the place's id, whichever word the person typed for it, and the lines read its name. A
-  // word the list does not hold goes to the host as typed: the host is the one judge of what it names.
+  // The word goes to the host as typed, the one judge of what it names. The build's frames carry the place's id, so
+  // the list is read only to follow them and say the place's name.
   const listed = (await client.request<{ places: PlaceView[] }>("places.list")).places.find(p => namesPlace(p, word));
-  const place = listed ?? { id: word, name: word };
+  const place = listed === undefined ? { id: word, name: word } : { id: listed.id, name: tableName(listed) };
   const pushed = pushedFrames(client);
   await client.events();
   pushed.follow(
@@ -268,7 +268,7 @@ export async function buildImageAt(client: HostClient, out: Out, word: string, f
     },
   );
   try {
-    const { build } = await client.request<{ build: unknown }>("image.build", { place: place.id, ...(force === true ? { force } : {}) });
+    const { build } = await client.request<{ build: unknown }>("image.build", { place: word, ...(force === true ? { force } : {}) });
     const view = await imageView(client);
     if (view.image === null) throw new Error(NO_SEALED_IMAGE);
     return { image: view.image, built: SealedImageBuilt.parse(build) };

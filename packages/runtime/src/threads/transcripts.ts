@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomBytes } from "node:crypto";
 import type { Machine } from "@wsp/engine";
-import { type SessionEvent, type Attachment, type RanPicks, isLocalWorkspace, attachmentKey, isImage, keptPatch, modelPicks, recordedPicks, threadRan } from "@wsp/protocol";
+import { type SessionEvent, type Attachment, type RanPicks, isLocalWorkspace, attachmentKey, copiedFromOf, isImage, keptPatch, modelPicks, recordedPicks, threadKeyOf, threadRan } from "@wsp/protocol";
 import { assertTokenShape, daemonTokenFor, daemonTokenPathOf, rotateDaemonToken } from "../daemon-token.js";
 import type { EventSize, TranscriptRows } from "../sqlite-transcripts.js";
 import { eventBytes, numbered, pickNewest, readThread, type TranscriptReader } from "../transcript-reader.js";
@@ -9,8 +9,8 @@ import type { LiveWorkspace } from "../types/wiring.js";
 import {
   TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, ATTACHMENTS, ATTACHMENT_KEYS, SESSIONS, DAEMON_TOKEN_MISS_TTL_MS,
   TRANSCRIPT_CAP, TRANSCRIPT_BYTES, TOOL_RESULT_KEPT, TRANSCRIPTS_HELD, PENDING_FLUSH_BYTES, type TranscriptIndex,
-  transcriptUnreadLine, emptyIndex, forgetChild, foldEvent, indexOf, indexBytes, indexRead, SESSION_INDEX_CAP,
-  TRANSCRIPT_FLUSH_MS, type TranscriptRecord, type ThreadRecord, type SessionIndexRecord, type KeptImages,
+  transcriptUnreadLine, emptyIndex, forgetChild, foldEvent, indexOf, reindexThreads, threadWordsOf, coldWords, WORDS_HELD, type ThreadWords, indexBytes, indexRead, SESSION_INDEX_CAP,
+  TRANSCRIPT_FLUSH_MS, type TranscriptRecord, type ThreadRecord, type SessionIndexRecord, type KeptImages, type SessionEntry,
 } from "../types/internal.js";
 import type { RuntimeContext, TranscriptsArea } from "../context.js";
 
@@ -91,57 +91,48 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
       return { threads: Object.fromEntries(Object.entries(held.threads).filter(([id]) => !going.includes(id))) };
     });
 
-  /** Drops events until the rest are inside both caps, in place, and answers the bytes left; each dropped event goes
-   * to `gone`. Every thread of a project's folder shares one transcript, and trimming it oldest first let a busy
-   * thread take a quiet thread's every event while its row stayed, so that thread opened on a blank page. So what
-   * goes first is the oldest event of the thread holding the most, outside each thread's newest turn, which no
-   * other thread's traffic takes; only a transcript still over its caps with nothing else left loses the oldest of
-   * what remains. The newest event stays. */
+  /** Drops events until each thread's are inside both caps, in place, and answers the bytes left; each dropped event
+   * goes to `gone`. The caps are each thread's own: every thread of a project's folder shares one transcript, and
+   * caps over the whole of it let a busy thread take a quiet thread's oldest turns, prompt and all. A thread over a
+   * cap loses its oldest events outside its newest turn first, then the oldest of that turn; its newest event stays. */
   const dropOldest = (events: SessionEvent[], bytes: number = events.reduce((n, e) => n + eventBytes(e), 0), gone?: (e: SessionEvent) => void): number =>
     // Sizes are read only where the bytes are what is over: a transcript over its count alone is trimmed by count.
     dropOldestOf(events, bytes, bytes > TRANSCRIPT_BYTES ? sizeOf : eventBytes, gone);
   /** dropOldest over anything that names a thread and a type, each weighed by `weigh`. */
   const dropOldestOf = <E extends { threadId?: string; type: string }>(events: E[], bytes: number, weigh: (e: E) => number, gone?: (e: E) => void): number => {
+    // No thread holds more than the whole.
     if (events.length <= TRANSCRIPT_CAP && bytes <= TRANSCRIPT_BYTES) return bytes;
-    // Each thread's newest turn starts at its last start, or is its last event where it has none.
-    const lastStart = new Map<string, number>();
-    const lastEvent = new Map<string, number>();
-    events.forEach((e, i) => {
-      const key = e.threadId ?? "";
-      lastEvent.set(key, i);
-      if (e.type === "session.start") lastStart.set(key, i);
-    });
     const byteBound = bytes > TRANSCRIPT_BYTES;
-    const threads = new Map<string, { at: number[]; next: number; bytes: number }>();
+    const held = new Map<string, { count: number; bytes: number }>();
+    for (const e of events) {
+      const t = held.get(e.threadId ?? "") ?? { count: 0, bytes: 0 };
+      t.count++;
+      if (byteBound) t.bytes += weigh(e);
+      held.set(e.threadId ?? "", t);
+    }
+    const isOver = (t: { count: number; bytes: number }): boolean => t.count > TRANSCRIPT_CAP || t.bytes > TRANSCRIPT_BYTES;
+    const over = new Map<string, { at: number[]; lastStart: number }>();
+    for (const [key, t] of held) if (isOver(t)) over.set(key, { at: [], lastStart: 0 });
+    if (over.size === 0) return bytes;
     events.forEach((e, i) => {
-      const key = e.threadId ?? "";
-      if (i >= (lastStart.get(key) ?? lastEvent.get(key)!)) return;
-      const held = threads.get(key) ?? { at: [], next: 0, bytes: 0 };
-      held.at.push(i);
-      if (byteBound) held.bytes += weigh(e);
-      threads.set(key, held);
+      const t = over.get(e.threadId ?? "");
+      if (t === undefined) return;
+      if (e.type === "session.start") t.lastStart = t.at.length;
+      t.at.push(i);
     });
     const dropped = new Set<number>();
-    let count = events.length;
-    const drop = (i: number): void => {
-      dropped.add(i);
-      bytes -= weigh(events[i]!);
-      count--;
-    };
-    while (count > TRANSCRIPT_CAP || bytes > TRANSCRIPT_BYTES) {
-      const byBytes = bytes > TRANSCRIPT_BYTES;
-      let most: { at: number[]; next: number; bytes: number } | undefined;
-      for (const held of threads.values()) {
-        if (held.next >= held.at.length) continue;
-        if (most === undefined || (byBytes ? held.bytes > most.bytes : held.at.length - held.next > most.at.length - most.next)) most = held;
+    for (const [key, { at, lastStart }] of over) {
+      const t = held.get(key)!;
+      // Outside the newest turn first, then the oldest of that turn, never the newest event.
+      for (const i of [...at.slice(0, lastStart), ...at.slice(lastStart, -1)]) {
+        if (!isOver(t)) break;
+        const w = weigh(events[i]!);
+        dropped.add(i);
+        t.count--;
+        if (byteBound) t.bytes -= w;
+        bytes -= w;
       }
-      if (most === undefined) break;
-      const i = most.at[most.next++]!;
-      if (byteBound) most.bytes -= weigh(events[i]!);
-      drop(i);
     }
-    for (let i = 0; i < events.length - 1 && (count > TRANSCRIPT_CAP || bytes > TRANSCRIPT_BYTES); i++) if (!dropped.has(i)) drop(i);
-    if (dropped.size === 0) return bytes;
     let kept = 0;
     for (let i = 0; i < events.length; i++) {
       if (dropped.has(i)) gone?.(events[i]!);
@@ -157,8 +148,16 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     trim.done();
     return left;
   };
+  /** Notes that the caps took an event of its thread, which a reader then says has lost its older events. */
+  const markTrimmed = (index: TranscriptIndex | undefined, e: { threadId?: string }): void => {
+    if (e.threadId !== undefined) index?.trimmed.add(e.threadId);
+  };
+  const trimmedOf = (workspaceId: string, threadId: string): { trimmed?: true } => (transcriptIndex.get(workspaceId)?.trimmed.has(threadId) === true ? { trimmed: true } : {});
   const trimTranscript = (workspaceId: string, events: SessionEvent[]): void =>
-    void transcriptBytes.set(workspaceId, trimmed(workspaceId, events, transcriptBytes.get(workspaceId), e => forgetChild(indexFor(workspaceId), e)));
+    void transcriptBytes.set(workspaceId, trimmed(workspaceId, events, transcriptBytes.get(workspaceId), e => {
+      forgetChild(indexFor(workspaceId), e);
+      markTrimmed(indexFor(workspaceId), e);
+    }));
   /** A transcript held as the one opened last, the oldest of the others let go past the cap. */
   const holdTranscript = (workspaceId: string, events: SessionEvent[]): void => {
     transcripts.delete(workspaceId);
@@ -229,6 +228,7 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     if (head.length > 0) await store.putBlob(TRANSCRIPT_HEADS, id, transcriptBlob({ workspaceId: id, events: head }));
     await store.putBlob(TRANSCRIPTS, id, transcriptBlob({ workspaceId: id, events: held }));
     const index = indexOf(held);
+    for (const e of head) markTrimmed(index, e);
     transcriptIndex.set(id, index);
     await writeIndex(id, index);
   };
@@ -262,12 +262,16 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
       newest = rows.newestPos(workspaceId);
       const json = rows.index(workspaceId);
       const kept = json === undefined ? undefined : indexRead(Buffer.from(json));
-      if (kept !== undefined) return void transcriptIndex.set(workspaceId, kept.index);
+      if (kept !== undefined) {
+        transcriptIndex.set(workspaceId, kept.index);
+        return balanceWords();
+      }
       const { events } = rows.all(workspaceId);
       if (events.length === 0) return;
       const index = indexOf(events);
-      rows.putIndex(workspaceId, indexBytes(index, undefined).toString("utf8"));
+      rows.putIndex(workspaceId, indexBytes(index, undefined, false).toString("utf8"));
       transcriptIndex.set(workspaceId, index);
+      balanceWords();
     } catch (e) {
       console.warn(`${transcriptUnreadLine(workspaceId, e instanceof Error ? e.message : String(e))}, so search and a send leave it out until it reads`);
       // Positions go on after the newest row: issued again from one, the next flush would meet rows already kept and
@@ -310,7 +314,7 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     if (landed !== undefined) return landed;
     const read = await readTranscript(workspaceId);
     const events = [...(read ?? []), ...(pendingEvents.get(workspaceId) ?? [])];
-    const bytes = trimmed(workspaceId, events);
+    const bytes = trimmed(workspaceId, events, undefined, e => markTrimmed(transcriptIndex.get(workspaceId), e));
     if (events.length > 0 && transcriptIndex.has(workspaceId)) {
       holdTranscript(workspaceId, events);
       transcriptBytes.set(workspaceId, bytes);
@@ -327,18 +331,31 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     dropOldest(events, kept.size + (pendingBytes.get(workspaceId) ?? 0));
     return events;
   };
+  /** One thread's events as openTranscript holds them. On rows only that thread's are read: each thread keeps up to
+   * its own caps, so a folder of many threads holds many times what one does. */
+  const openThread = async (workspaceId: string, threadId: string): Promise<SessionEvent[]> => {
+    if (rows === undefined) return (await openTranscript(workspaceId)).filter(e => e.threadId === threadId);
+    const kept = rows.thread(workspaceId, threadId);
+    const pending = (pendingEvents.get(workspaceId) ?? []).filter(e => e.threadId === threadId);
+    const events = [...kept.events, ...pending];
+    dropOldest(events, kept.size + pending.reduce((n, e) => n + eventBytes(e), 0));
+    return events;
+  };
   /** One thread's events read off the transcript as openTranscript answers it, or on rows off the thread's index, the
    * events written since the last flush first. */
   const transcriptReader: TranscriptReader = {
     read: async (workspaceId, threadId, o) => {
       const pos = transcriptIndex.get(workspaceId)?.pos ?? 0;
-      if (rows === undefined) return { ...readThread(await openTranscript(workspaceId), threadId, o), pos };
+      if (rows === undefined) {
+        const events = await openTranscript(workspaceId);
+        return { ...readThread(events, threadId, o), pos, ...trimmedOf(workspaceId, threadId) };
+      }
       const pending = (pendingEvents.get(workspaceId) ?? []).filter(e => e.threadId === threadId);
       const newest = function* (): Generator<SessionEvent> {
         for (let i = pending.length - 1; i >= 0; i--) yield pending[i]!;
         yield* rows.newest(workspaceId, threadId, o.before);
       };
-      return { events: pickNewest(newest(), o), total: rows.count(workspaceId, threadId) + pending.length, pos };
+      return { events: pickNewest(newest(), o), total: rows.count(workspaceId, threadId) + pending.length, pos, ...trimmedOf(workspaceId, threadId) };
     },
   };
   /** Inside the queue: `events` written as the transcript, the first `took` events written since the last flush
@@ -354,61 +371,133 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     } else if (pending !== undefined) pendingBytes.set(workspaceId, pending.reduce((n, e) => n + eventBytes(e), 0));
     const index = indexOf(events);
     index.pos = Math.max(index.pos, transcriptIndex.get(workspaceId)?.pos ?? 0);
+    index.trimmed = transcriptIndex.get(workspaceId)?.trimmed ?? index.trimmed;
     // An index that did not land keeps its old mark, and boot reads that transcript again.
     await writeIndex(workspaceId, index).catch((e: unknown) => console.warn(`the transcript index of ${workspaceId} was not written: ${e instanceof Error ? e.message : String(e)}`));
     // What arrived during the writes is folded on after them, as record folded it on the index this replaces.
     for (const e of pendingEvents.get(workspaceId) ?? []) foldEvent(index, e);
     if (transcriptIndex.has(workspaceId)) transcriptIndex.set(workspaceId, index);
+    balanceWords();
   };
-  /** Takes the events `drops` names out of a transcript, the file and what was written since alike, and writes it: one
-   * turn of the queue on the copy the open answered, so nothing can let that copy go between the change and the
-   * write, and no flush runs between them. */
-  const dropFromTranscript = (workspaceId: string, drops: (e: SessionEvent) => boolean): Promise<void> =>
-    onTranscriptQueue(workspaceId, async () => {
-      if (rows !== undefined) return settleRows(rows, workspaceId, drops);
+  /** Takes the events of one thread that `drops` names (all of them where it names none) out of a transcript, the file
+   * and what was written since alike, and writes it: one turn of the queue on the copy the open answered, so nothing
+   * can let that copy go between the change and the write, and no flush runs between them. */
+  const dropFromTranscript = (workspaceId: string, threadId: string, drops: (e: SessionEvent) => boolean = () => true): Promise<void> => {
+    const going = (e: SessionEvent): boolean => e.threadId === threadId && drops(e);
+    return onTranscriptQueue(workspaceId, async () => {
+      if (rows !== undefined) return settleRows(rows, workspaceId, { threadId, drops: going });
       const events = await openInQueue(workspaceId);
-      for (let i = events.length - 1; i >= 0; i--) if (drops(events[i]!)) events.splice(i, 1);
+      for (let i = events.length - 1; i >= 0; i--) if (going(events[i]!)) events.splice(i, 1);
       transcriptBytes.delete(workspaceId);
       const pending = pendingEvents.get(workspaceId) ?? [];
-      for (let i = pending.length - 1; i >= 0; i--) if (drops(pending[i]!)) pending.splice(i, 1);
+      for (let i = pending.length - 1; i >= 0; i--) if (going(pending[i]!)) pending.splice(i, 1);
       await writeTranscript(workspaceId, [...events], pending.length);
     });
-  /** Inside the queue, on rows: what was written since the last flush appended, the events `drops` names taken out
-   * and the oldest past the caps dropped, in one transaction with the index beside them. The rows are read again for
-   * the index only where events went, since record folded every event that came. */
-  const settleRows = (rows: TranscriptRows, workspaceId: string, drops?: (e: SessionEvent) => boolean): void => {
+  };
+  /** Inside the queue, on rows: what was written since the last flush appended, the events of one thread `cut` names
+   * taken out and the oldest past the caps dropped, in one transaction with the index beside them. Only the threads
+   * events went from are read again for the index, since record folded every event that came, and a folder holds
+   * every thread's caps. */
+  const settleRows = (rows: TranscriptRows, workspaceId: string, cut?: { threadId: string; drops: (e: SessionEvent) => boolean }): void => {
     const pending = pendingEvents.get(workspaceId) ?? [];
     const trim = trimming(workspaceId);
     let index = transcriptIndex.get(workspaceId) ?? emptyIndex();
     rows.atomically(() => {
-      rows.append(workspaceId, drops === undefined ? pending : pending.filter(e => !drops(e)));
-      let lost = drops !== undefined && pending.some(drops);
-      if (drops !== undefined) {
-        const going = rows.all(workspaceId).events.filter(drops);
-        rows.remove(workspaceId, going.map(e => e.pos!));
-        lost ||= going.length > 0;
+      rows.append(workspaceId, cut === undefined ? pending : pending.filter(e => !cut.drops(e)));
+      const reindex = new Set<string>();
+      if (cut !== undefined) {
+        const written = rows.thread(workspaceId, cut.threadId).events.filter(cut.drops);
+        rows.remove(workspaceId, written.map(e => e.pos!));
+        const cutting = [...written, ...pending.filter(cut.drops)];
+        if (cutting.length > 0) reindex.add(cut.threadId);
+        // A session's facts are read again off the starts left, so a session only the dropped starts named loses its own.
+        // A fork's copied starts name its source's session, whose facts no fold of the fork reads back.
+        for (const e of cutting) if (e.type === "session.start" && copiedFromOf(e) === undefined) index.facts.delete(e.sessionId);
       }
-      const { count, size } = rows.total(workspaceId);
-      if (count > TRANSCRIPT_CAP || size > TRANSCRIPT_BYTES) {
-        const going: EventSize[] = [];
-        dropOldestOf(rows.sizes(workspaceId), size, e => e.size, e => void going.push(e));
+      // Only the threads this flush wrote to can have passed their caps.
+      const going: EventSize[] = [];
+      for (const thread of new Set(pending.map(e => e.threadId ?? ""))) {
+        const { count, size } = rows.total(workspaceId, thread);
+        if (count > TRANSCRIPT_CAP || size > TRANSCRIPT_BYTES) dropOldestOf(rows.sizes(workspaceId, thread), size, e => e.size, e => void going.push(e));
+      }
+      if (going.length > 0) {
+        for (const g of going) markTrimmed(index, g);
         // Only a start carries images, so only starts are read before they go.
         for (const e of rows.at(workspaceId, going.filter(g => g.type === "session.start").map(g => g.pos))) trim.gone(e);
         rows.remove(workspaceId, going.map(g => g.pos));
-        lost ||= going.length > 0;
+        for (const g of going) reindex.add(g.threadId ?? "");
       }
-      if (lost) {
+      if (reindex.size > 0 && !unreadIndexes.has(workspaceId)) reindexThreads(index, reindex, thread => rows.thread(workspaceId, thread).events);
+      else if (reindex.size > 0) {
         const issued = index.pos;
+        const { trimmed } = index;
         index = indexOf(rows.all(workspaceId).events);
         index.pos = Math.max(index.pos, issued);
+        index.trimmed = trimmed;
         unreadIndexes.delete(workspaceId);
       }
-      if (!unreadIndexes.has(workspaceId)) rows.putIndex(workspaceId, indexBytes(index, undefined).toString("utf8"));
+      if (!unreadIndexes.has(workspaceId)) rows.putIndex(workspaceId, indexBytes(index, undefined, false).toString("utf8"));
     });
     trim.done();
     pendingEvents.delete(workspaceId);
     pendingBytes.delete(workspaceId);
     if (transcriptIndex.has(workspaceId)) transcriptIndex.set(workspaceId, index);
+    balanceWords();
+  };
+  /** Every thread's words across every folder, the one spoken in or opened last first. */
+  const rankedWords = (): { workspaceId: string; threadId: string; w: ThreadWords; index: TranscriptIndex }[] =>
+    [...transcriptIndex]
+      .flatMap(([workspaceId, index]) => [...index.words].map(([threadId, w]) => ({ workspaceId, index, threadId, w })))
+      .sort((a, b) => rankOf(b.w) - rankOf(a.w));
+  const rankOf = (w: ThreadWords): number => Math.max(w.last, w.opened ?? 0);
+  /** One thread's words read off its rows and what was written since. */
+  const wordsOf = (rows: TranscriptRows, workspaceId: string, threadId: string, had: ThreadWords | undefined): ThreadWords => {
+    const back = threadWordsOf([...rows.wordEvents(workspaceId, threadId), ...(pendingEvents.get(workspaceId) ?? [])], threadId);
+    return { ...back, last: Math.max(back.last, had?.last ?? 0), ...(had?.opened !== undefined ? { opened: had.opened } : {}) };
+  };
+  /** Holds the words of the threads spoken in or opened last, across every folder, inside WORDS_HELD: an older thread's
+   * lines are let go, and one let go that ranks among them again is read back off its rows one thread a tick, so no
+   * pass blocks the host for more than one thread. A thread whose turn runs is never let go, since each of its events
+   * would read it back. A store with no rows holds every thread's words, as it did before, since it can read one back
+   * only by reading its folder's whole file. */
+  const balanceWords = (): void => {
+    if (rows === undefined) return;
+    const running = new Set([...sessions.values()].flatMap(s => (s.view.status === "running" && s.view.threadId !== undefined ? [s.view.threadId] : [])));
+    let held = 0;
+    for (const { index, threadId, w } of rankedWords()) {
+      if (held + w.size <= WORDS_HELD || (w.cold !== true && running.has(threadId))) held += w.size;
+      else if (w.cold !== true) index.words.set(threadId, coldWords(w));
+    }
+    warmSoon();
+  };
+  let warming = false;
+  const warmSoon = (): void => {
+    if (warming) return;
+    warming = true;
+    // Not unref'd: an unref'd immediate leaves the loop blocked in its poll, so an idle host warmed a thread a second.
+    setImmediate(() => {
+      warming = false;
+      if (!ctx.state.closed && warmOne()) warmSoon();
+    });
+  };
+  /** Reads back the let-go thread that ranks first among those that fit; false when none does. */
+  const warmOne = (): boolean => {
+    if (rows === undefined) return false;
+    const ranked = rankedWords();
+    const room = WORDS_HELD - ranked.reduce((n, { w }) => (w.cold === true ? n : n + w.size), 0);
+    const next = ranked.find(({ w }) => w.cold === true && w.size <= room);
+    if (next === undefined) return false;
+    const back = wordsOf(rows, next.workspaceId, next.threadId, next.w);
+    // A thread that grew past the room since it was let go stays let go, under its size now, so it is not read again.
+    next.index.words.set(next.threadId, back.size <= room ? back : { ...next.w, size: back.size });
+    return true;
+  };
+  /** A thread a person or an agent opened ranks as if it had just spoken, and is read back if it was let go. */
+  const openedWords = (workspaceId: string, threadId: string): void => {
+    const w = transcriptIndex.get(workspaceId)?.words.get(threadId);
+    if (rows === undefined || w === undefined) return;
+    w.opened = clock.now();
+    if (w.cold === true) balanceWords();
   };
   const transcriptTimers = new Map<string, () => void>();
   // One token per machine, written to a guest the first time a client asks to reach its daemon; the file the
@@ -470,7 +559,7 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
           return;
         }
         events = [...(read ?? []), ...(pendingEvents.get(workspaceId) ?? [])];
-        trimmed(workspaceId, events);
+        trimmed(workspaceId, events, undefined, e => markTrimmed(transcriptIndex.get(workspaceId), e));
       }
       unreadSaid.delete(workspaceId);
       await writeTranscript(workspaceId, events, pendingEvents.get(workspaceId)?.length ?? 0);
@@ -484,7 +573,16 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     const rows = [...sessions].filter(([, s]) => s.view.workspaceId === workspaceId);
     const excess = rows.length - SESSION_INDEX_CAP;
     if (excess <= 0) return;
-    const finished = rows.filter(([, s]) => s.view.status !== "running").sort(([, a], [, b]) => (a.view.startedAt ?? 0) - (b.view.startedAt ?? 0));
+    // A thread's newest row stays: every thread of a project's folder shares this cap, and one thread's turns pushed a
+    // quiet thread's only row off, so the thread left the sidebar and search.
+    const newest = new Map<string, SessionEntry>();
+    for (const [, s] of rows) {
+      const had = newest.get(threadKeyOf(s.view));
+      if (had === undefined || (s.view.startedAt ?? 0) >= (had.view.startedAt ?? 0)) newest.set(threadKeyOf(s.view), s);
+    }
+    const finished = rows
+      .filter(([, s]) => s.view.status !== "running" && newest.get(threadKeyOf(s.view)) !== s)
+      .sort(([, a], [, b]) => (a.view.startedAt ?? 0) - (b.view.startedAt ?? 0));
     for (const [id, s] of finished.slice(0, excess)) {
       sessions.delete(id);
       const record = s.view.threadId === undefined ? undefined : threadRecords.get(s.view.threadId);
@@ -569,6 +667,9 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
   };
   const append = (event: SessionEvent): void => {
     const id = event.workspaceId;
+    // Before this event is among what was written since, so the read back holds it once, when it is folded below.
+    const had = event.threadId === undefined ? undefined : transcriptIndex.get(id)?.words.get(event.threadId);
+    if (rows !== undefined && had?.cold === true) indexFor(id).words.set(event.threadId!, wordsOf(rows, id, event.threadId!, had));
     const kept = keptEvent(event);
     const size = eventBytes(kept);
     const held = transcripts.get(id);
@@ -612,7 +713,7 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
   };
   return {
     keptWrites, keepSentImages, dropSentImages, moveTranscript, loadIndex, moveBlobs, transcriptQueue, openTranscript,
-    transcriptReader, dropFromTranscript, transcriptTimers, daemonTokens, daemonTokenOf, cancelFlush, flushTranscript,
+    openThread, openedWords, transcriptReader, dropFromTranscript, transcriptTimers, daemonTokens, daemonTokenOf, cancelFlush, flushTranscript,
     viewedMarks, persistSessions, record, recordCopies, accrued, ranOn, boxOf,
   };
 }

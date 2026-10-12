@@ -173,9 +173,8 @@ describe("WorkspaceTerminals", () => {
     const dead: string[] = [];
     wt.bind("p2", { data: d => dead.push(d), reset: () => {} })();
     expect(dead.join("")).toBe("replay:p2\r\n[process exited]\r\n");
-    // The first tab is what ensureOpen hands out, so a first-open consumer creates nothing; and adoption counts as
-    // having opened, so the center tab never auto-opens after the last adopted pty is closed.
-    await expect(wt.ensureOpen()).resolves.toMatchObject({ ptyId: "p1" });
+    // Adoption creates nothing, and counts as having opened, so the center tab never auto-opens after the last
+    // adopted pty is closed.
     expect(ops.some(o => o.op === "pty.create")).toBe(false);
     expect(wt.everOpened()).toBe(true);
   });
@@ -237,7 +236,6 @@ describe("WorkspaceTerminals", () => {
     await waitFor(() => expect(wt.status()).toBe("live"));
     expect(attaches).toEqual(["p1"]);
     expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1"]);
-    await expect(wt.ensureOpen()).resolves.toMatchObject({ ptyId: "p1" });
   });
 
   it("a refused pty.list still reports live; a pty gone between list and attach is not adopted", async () => {

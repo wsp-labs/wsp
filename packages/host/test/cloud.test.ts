@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The cloud behind one flag. Off, nothing a person or an agent reads names a
-// cloud, and every line that only means something on one refuses in one
-// sentence naming the flag; on, every one of them is there as it always was.
-// The file runs in both: the node project has the flag off and the cloud
-// project in vitest.workspace.ts has it on.
+// Solari and the cloud's top-level roads behind one flag, Boat on either way.
+// Off, nothing a person or an agent reads names Solari, and every line that
+// only means something with the cloud on refuses in one sentence naming the
+// flag; on, every one of them is there as it always was. The file runs in both:
+// the node project has the flag off and the cloud project in
+// vitest.workspace.ts has it on.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
@@ -12,9 +13,9 @@ import { agentPage, cli, HELP, type CliIO } from "../src/cli.js";
 import type { RunningWsp } from "../src/mcp-install.js";
 import { mcpServer } from "../src/mcp.js";
 import { CLOUD_ON } from "../src/cloud.js";
-import { PROVIDER_MODULES } from "../src/providers.js";
-import { CLOUD_MARK, CLOUD_SPAN_END, instructions, NO_CLOUD_MARK, NO_CLOUD_SPAN_END, skillFor, wspSkill } from "../src/skill.js";
-import { CLI_VERBS, VERBS, verbPage } from "../src/verbs.js";
+import { PROVIDER_ENV, PROVIDER_MODULES, providerModule } from "../src/providers.js";
+import { BOAT_MARK, BOAT_SPAN_END, CLOUD_MARK, CLOUD_SPAN_END, instructions, NO_CLOUD_MARK, NO_CLOUD_SPAN_END, skillFor, wspSkill } from "../src/skill.js";
+import { CLI_VERBS, cloudLineOf, VERBS, verbPage } from "../src/verbs.js";
 
 const noPrompt = (q: string): Promise<string> => Promise.reject(new Error(`unexpected prompt: ${q}`));
 const captured = (): CliIO & { lines: string[]; errors: string[] } => {
@@ -23,8 +24,8 @@ const captured = (): CliIO & { lines: string[]; errors: string[] } => {
   return { lines, errors, log: l => lines.push(l), error: l => errors.push(l), ask: noPrompt, askSecret: noPrompt };
 };
 
-/** Every word a cloud goes by: the two providers, the one's product and the other's company. */
-const CLOUD_WORDS = ["Solari", "ASCII", "Boat"];
+/** The word nothing says with the cloud off: Boat ships in every build, Solari only with the cloud on. */
+const CLOUD_WORDS = ["Solari"];
 
 /** Where the word cloud stands with the cloud off, each with why. */
 const CLOUD_ALLOWED: string[] = [
@@ -69,21 +70,29 @@ const CLOUD_LINES = [
   ["snapshot", "w"],
   ["fork", "w"],
   ["rebuild", "w"],
-  ["image", "build", "somewhere"],
+  ["pause", "w"],
+  ["wake", "w"],
   ["image", "remove", "snap-1"],
   ["image", "export", "/tmp/image.wsp"],
   ["add", "solari"],
-  ["add", "box"],
   ["init", "--provider", "solari"],
   ["up", "--provider", "box"],
 ];
 
 /** The tools those lines are served as. */
-const CLOUD_TOOLS = ["snapshot", "fork", "rebuild", "image_build", "image_remove"];
+const CLOUD_TOOLS = ["snapshot", "fork", "rebuild", "pause", "wake", "image_remove"];
 
 describe.runIf(!CLOUD_ON)("with the cloud off", () => {
-  it("registers neither cloud", () => {
-    expect(PROVIDER_MODULES.map(m => m.id)).toEqual(["fake", "none"]);
+  it("registers Boat alone, which no word makes the provider this host forks on", () => {
+    expect(PROVIDER_MODULES.map(m => m.id)).toEqual(["fake", "box", "none"]);
+    expect(providerModule({ [PROVIDER_ENV]: "box", BOAT_API_KEY: "bx-test" }).id).toBe("none");
+  });
+
+  it("serves the image and its build at a place, and takes wsp add box", async () => {
+    const tools = await toolList();
+    expect(tools.names).toEqual(expect.arrayContaining(["image", "image_build"]));
+    expect(CLI_VERBS.map(v => v.name)).toEqual(expect.arrayContaining(["image", "image build"]));
+    for (const argv of [["image", "build", "box"], ["add", "box"]]) expect(cloudLineOf(argv), argv.join(" ")).toBeUndefined();
   });
 
   it("refuses on the row with no machine by what is missing, naming no line the flag refuses", async () => {
@@ -92,7 +101,7 @@ describe.runIf(!CLOUD_ON)("with the cloud off", () => {
     expect(refused).toContain("wsp add user@host");
   });
 
-  it("no page, tool, skill line or instruction names a cloud", async () => {
+  it("no page, tool, skill line or instruction names Solari", async () => {
     const tools = await toolList();
     const read = { "wsp --help": HELP, "wsp --help agent": agentPage(), "wsp computers set --help": verbPage(CLI_VERBS.find(v => v.name === "computers set")!, ""), "the tool list": tools.text, "the skill": wspSkill(), "the instructions": instructions() };
     const named = Object.entries(read).flatMap(([where, text]) => CLOUD_WORDS.filter(word => text.includes(word)).map(word => `${where}: ${word}`));
@@ -115,7 +124,7 @@ describe.runIf(!CLOUD_ON)("with the cloud off", () => {
 
   it("prints none of the provider's lines on a page", () => {
     const page = agentPage();
-    for (const words of ["snapshot", "fork", "rebuild", "image build", "image remove", "image export"]) expect(page).not.toContain(`wsp ${words}`);
+    for (const words of ["snapshot", "fork", "rebuild", "pause", "wake", "image remove", "image export"]) expect(page).not.toContain(`wsp ${words}`);
     expect(page).not.toContain("--from <project image>");
     expect(HELP).not.toContain("cloud");
   });
@@ -129,8 +138,9 @@ describe.runIf(!CLOUD_ON)("with the cloud off", () => {
 });
 
 describe.runIf(CLOUD_ON)("with the cloud on", () => {
-  it("registers both clouds", () => {
+  it("registers both clouds, and WSP_PROVIDER=box makes Boat the provider this host forks on", () => {
     expect(PROVIDER_MODULES.map(m => m.id)).toEqual(["fake", "box", "solari", "none"]);
+    expect(providerModule({ [PROVIDER_ENV]: "box", BOAT_API_KEY: "bx-test" }).id).toBe("box");
   });
 
   it("serves every one of the provider's tools", async () => {
@@ -139,7 +149,7 @@ describe.runIf(CLOUD_ON)("with the cloud on", () => {
   });
 
   it("answers every one of the provider's lines", () => {
-    for (const words of ["snapshot", "fork", "rebuild", "image build", "image remove", "image export"]) expect(CLI_VERBS.map(v => v.name)).toContain(words);
+    for (const words of ["snapshot", "fork", "rebuild", "pause", "wake", "image build", "image remove", "image export"]) expect(CLI_VERBS.map(v => v.name)).toContain(words);
     expect(agentPage()).toContain("wsp snapshot");
     expect(HELP).toContain("each cloud account");
   });
@@ -162,6 +172,18 @@ describe("the skill's cloud marks", () => {
 
   it("drops a marked line, a marked span and a marked heading's whole section with it off", () => {
     expect(skillFor(skill, false)).toBe(["# t", "a line", "both local ways", "## next", "kept"].join("\n"));
+  });
+
+  it("keeps Boat's line, span and heading's section with the cloud on and off, the marks gone", () => {
+    const boat = ["# t", `sub-threads ${BOAT_MARK}`, `run ${BOAT_MARK}--on boat ${BOAT_SPAN_END}here`, `## Sub-threads on Boat ${BOAT_MARK}`, "under it"].join("\n");
+    const read = ["# t", "sub-threads", "run --on boat here", "## Sub-threads on Boat", "under it"].join("\n");
+    expect(skillFor(boat, false)).toBe(read);
+    expect(skillFor(boat, true)).toBe(read);
+  });
+
+  it("says what wsp remove boat does with the cloud off, since Boat ships in every build", () => {
+    expect(skillFor(wspSkill(), false)).toContain("`wsp remove boat` deletes every machine this host made on Boat");
+    expect(skillFor(wspSkill(), false)).toContain("`wsp remove boat --forget` takes the key");
   });
 
   it("marks every cloud verb's row, so the rows and the table go together", () => {

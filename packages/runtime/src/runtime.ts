@@ -318,6 +318,7 @@ import { machinesArea } from "./machines/machines.js";
 import { bootArea } from "./machines/boot.js";
 
 import { createArea } from "./machines/create.js";
+import { subSpawnArea } from "./machines/sub-spawn.js";
 
 import { foldersArea } from "./projects/folders.js";
 
@@ -449,6 +450,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
   Object.assign(ctx, bootArea(ctx));
 
   Object.assign(ctx, createArea(ctx));
+  Object.assign(ctx, subSpawnArea(ctx));
 
   Object.assign(ctx, foldersArea(ctx));
 
@@ -591,6 +593,11 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
       onSetup: event => bus.emit(event),
       copyBuild: placeId => copyRows.get(placeId),
       napMs: defaultIdleWindowMs,
+      owner: async () => {
+        await ctx.ready();
+        return ctx.state.owner;
+      },
+      ...(opts.killConfirm !== undefined ? { killConfirm: opts.killConfirm } : {}),
       ...(opts.local?.hereDaemon !== undefined ? { hereDaemon: opts.local.hereDaemon } : {}),
       // Armed from now under the new window, on every workspace there whose window is its place's.
       napChanged: placeId => {
@@ -664,6 +671,17 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           const standing = [...live.values()].map(e => ({ ...e.record, provider: ctx.providerOf(e.record) }));
           // A turn the cap holds back is no thread running there, so the row says the count it waits on.
           return runningOnPlace(placeId, rows, standing, foldThreads([...sessions.values()].filter(s => !ctx.capHeld.has(s.turnId)).map(s => s.view)));
+        },
+        machinesOn: async placeId => {
+          await ctx.ready();
+          return [...live.values()].filter(e => e.record.machineId !== "" && ctx.placeIdOf(e.record) === placeId).map(e => e.record.machineId);
+        },
+        forgetRecordsOn: async placeId => {
+          await ctx.ready();
+          for (const entry of [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId)) {
+            ctx.endSessions(entry.record.id, DELETED_REASON);
+            await ctx.drop(entry.record.id);
+          }
         },
         signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
         storesOn: (placeId, home) => ctx.placeStores(placeId, home),
@@ -1104,6 +1122,11 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
         const allFailed = failed.concat(swept.failed ?? []);
         return { reaped: reaped.concat(swept.reaped), spared: swept.spared, ...(allFailed.length > 0 ? { failed: allFailed } : {}), ...(adopted.length > 0 ? { adopted } : {}) };
       };
+      // Before the listing, so a machine a lost create made and the replay named is in it to be recorded again.
+      reaped.push(...(await ctx.replayCreates(knownIds, failed).catch((e: unknown) => {
+        failed.push({ message: `asking lost creates again: ${messageOf(e)}` });
+        return [];
+      })));
       // One listing serves both halves of the sweep: the machines recorded again, then what the engine kills or spares.
       let listing: ListedMachine[];
       try {
@@ -1139,7 +1162,12 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
       const claimed = new Set(knownIds());
       const adopted = await ctx.adoptLost(listing, claimed, failed);
       try {
-        return result(await reap({ backend, owner: ctx.state.owner, listing, stop: m => gone.stop(backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) }), adopted);
+        const swept = await reap({ backend, owner: ctx.state.owner, listing, stop: m => gone.stop(backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) });
+        const strayed = await ctx.sweepStrays(() => [...knownIds(), ...claimed], failed).catch((e: unknown) => {
+          failed.push({ message: `machines named after this host's images: ${messageOf(e)}` });
+          return [];
+        });
+        return result({ ...swept, reaped: swept.reaped.concat(strayed) }, adopted);
       } catch (e) {
         failed.push({ message: messageOf(e) });
         return result({ reaped: [], spared: [] }, adopted);

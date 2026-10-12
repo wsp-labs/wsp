@@ -7,7 +7,8 @@
 // made. The Add a project sheet mounts at page level and stands over whichever
 // page is open.
 import { PAGE_GAP } from "./layout.js";
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
+import type { PlaceView } from "@wsp/protocol";
 import { ScrollArea } from "../components/ui/scroll-area.js";
 import { cn } from "../lib/utils.js";
 import { useIsMobile } from "../hooks/useMediaQuery.js";
@@ -64,12 +65,17 @@ function SearchPage({ ctx, query }: { ctx: SettingsContext; query: string }) {
 }
 
 function Page({ at, ctx }: { at: SettingsAt; ctx: SettingsContext }) {
+  const parting = useSettingsStore(s => s.parting);
+  const lastSeen = useRef<PlaceView | null>(null);
   if (at.kind === "group") {
     const group = groupById(at.group);
     return <Cards cards={group.cards(ctx)} />;
   }
   if (at.kind === "computer") {
-    const place = ctx.places.find(p => p.id === at.id);
+    const listed = ctx.places.find(p => p.id === at.id);
+    if (listed !== undefined) lastSeen.current = listed;
+    // A remove whose dialog still has something to say keeps the page it stands on after the host drops the place.
+    const place = listed ?? (parting === at.id && lastSeen.current?.id === at.id ? lastSeen.current : undefined);
     return place === undefined ? null : <ComputerPage place={place} ctx={ctx} />;
   }
   if (at.kind === "agent") return <AgentPage id={at.id} ctx={ctx} />;

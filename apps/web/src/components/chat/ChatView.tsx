@@ -27,17 +27,19 @@ import { childNodesOf, TreeRows } from "../../tree/TreeRows.js";
 import { Facts } from "../Facts.js";
 import { useMachineLine } from "../../notices/workspaceLines.js";
 import { openNamedFile } from "../../files/open";
-import { threadFolderOf } from "../../files/root";
+import { carryNewThreadRoot, threadFolderOf } from "../../files/root";
 import { cn } from "../../lib/utils";
 import { DEFAULT_TIMESTAMP_FORMAT, launchIn, subagentEntries, subagentRunOf, turnWait, type MessageId, type TimestampFormat, type TurnDiffSummary, type TurnSummary } from "./adapt";
 import { changedPathOf, onlyOf, useDiffStore } from "../../diffs/store";
-import { openBrowserAt, useRightPanelStore } from "../../rightPanelStore";
+import { carryNewThreadPanel, openBrowserAt, useRightPanelStore } from "../../rightPanelStore";
+import { carryNewThreadDrawer } from "../../terminal/drawerStore";
 import { useReadStamp } from "./useReadStamp";
 import { threadsOpenedBy } from "../../sidebar/threadTree";
 import { computerName, useComputerName } from "../../sidebar/workspaceRows";
 import { TimelineRuleLine } from "./TimelineRuleLine";
 import { LoopbackLinks, openInBrowser } from "../../browser/loopbackLinks";
-import { MessagesTimeline, type MachineWait, type ReplyRuns } from "./MessagesTimeline";
+import { MessagesTimeline, type MachineWait, type ReplyRuns, type TimelineFinder } from "./MessagesTimeline";
+import { ThreadFind } from "./find/ThreadFind";
 import { useNewThreadRequests } from "./newThreadRequests";
 import { useChatThread, type ChatThreadHandle } from "./useChatThread";
 import { useOpenSubagentRun } from "./openSubagent";
@@ -91,7 +93,7 @@ export function ChatView({
   const api = useStore(s => s.api);
   const listRef = useRef<LegendListRef | null>(null);
   const { view } = thread;
-  const turnRows = useThreadSessions(workspaceId, thread.threadKey);
+  const turnRows = useThreadSessions(workspaceId, thread.threadKey, thread.fresh);
   // A turn its computer's threads at once holds back has no start in the transcript yet, and still reads as working:
   // the timeline's working row says what holds it, with the setting that lets it start.
   const capped = turnRows.at(-1)?.capped;
@@ -150,7 +152,7 @@ export function ChatView({
     if (landed !== null && thread.hydrated && !empty) dropLanded(workspaceId);
   }, [landed, thread.hydrated, empty, dropLanded, workspaceId]);
   const cwd = view.cwd ?? undefined;
-  const onQuote = useCallback((quote: QuotedSelection) => insertIntoComposer(workspaceId, quoteText(quote)), [workspaceId]);
+  const onQuote = useCallback((quote: QuotedSelection) => insertIntoComposer(workspaceId, quoteText(quote), thread.threadKey), [thread.threadKey, workspaceId]);
   // A file named in the transcript opens as its own tab in the Files pane at the line it names, read against the
   // folder the thread worked in, which is what the agent wrote the path from.
   const onOpenFile = useCallback(
@@ -223,10 +225,10 @@ export function ChatView({
         return;
       }
       const only = onlyOf(changes, path);
-      useDiffStore.getState().openTurn(workspaceId, { turnId, cwd: at, from: changes.from, to: changes.to, ...(path === undefined ? {} : { path }), ...(only === undefined ? {} : { only }) });
+      useDiffStore.getState().openTurn(workspaceId, { threadId: threadKey, turnId, cwd: at, from: changes.from, to: changes.to, ...(path === undefined ? {} : { path }), ...(only === undefined ? {} : { only }) });
       useRightPanelStore.getState().open(workspaceId, "diff");
     },
-    [cwd, onOpenFile, workspaceId],
+    [cwd, onOpenFile, threadKey, workspaceId],
   );
   const asked = useNewThreadRequests(s => s.pending.has(workspaceId));
   useEffect(() => {
@@ -246,6 +248,9 @@ export function ChatView({
   // session.start gives it one, and a view about to clear itself for a new thread still holds the one it is leaving.
   useEffect(() => {
     if (!hydrated || asked || threadId !== null || threadKey === workspaceId) return;
+    carryNewThreadPanel(workspaceId, threadKey);
+    carryNewThreadDrawer(workspaceId, threadKey);
+    carryNewThreadRoot(workspaceId, threadKey);
     readingThread(workspaceId, threadKey);
   }, [asked, hydrated, readingThread, threadId, threadKey, workspaceId]);
 
@@ -279,6 +284,9 @@ export function ChatView({
     return scroller == null || content == null ? undefined : holdEndOnFooterShrink(node, scroller, content);
   }, []);
   const showTranscript = thread.hydrated && !empty;
+  const [finder, setFinder] = useState<TimelineFinder | null>(null);
+  const onFinder = useCallback((handle: TimelineFinder, live: boolean) => setFinder(held => (live ? handle : held === handle ? null : held)), []);
+  const findHistory = useMemo(() => ({ whole: thread.fromStart, trimmed: thread.trimmed, older: thread.older }), [thread.fromStart, thread.trimmed, thread.older]);
   // Rewind to here stands on each earlier reply that kept something to go back to, and opens the one dialog.
   const cutsConversation = catalog?.rewindsConversation === true;
   const byCount = catalog?.rewindsByCount === true;
@@ -408,6 +416,7 @@ export function ChatView({
               forkedFrom={pageEntries === null ? forkedFrom : null}
               replyRuns={pageEntries === null ? replyRuns : null}
               {...(pageEntries === null ? { onReachTop: thread.older } : {})}
+              onFinder={onFinder}
             />
           ),
         };
@@ -462,6 +471,7 @@ export function ChatView({
         <ScrollToEnd hidden={!showTranscript || atEnd} onClick={() => void listRef.current?.scrollToEnd({ animated: true })} />
         {children?.(thread)}
       </div>
+      <ThreadFind workspaceId={workspaceId} entries={pageEntries ?? view.entries} cwd={cwd} threadKey={`${thread.threadKey}/${subagent ?? ""}`} finder={drawn === null ? null : finder} history={findHistory} />
     </div>
   );
 }

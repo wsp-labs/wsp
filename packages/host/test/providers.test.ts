@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV } from "@wsp/protocol";
-import { BoxBackend, FakeBackend, LocalBackend, NoProviderBackend, SolariBackend, landsBytes, type MachineBackend } from "@wsp/engine";
-import { goldenRecipe, makeRuntime, optsFor, providerSlotOf, swapProvider } from "../src/cli.js";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, HERE_PLACE_ID, cloudProjectRefusal } from "@wsp/protocol";
+import { BoxBackend, FakeBackend, LocalBackend, NoProviderBackend, SolariBackend, landsBytes, limitsOf, type MachineBackend } from "@wsp/engine";
+import { goldenRecipe, makeRuntime, optsFor, providerSlotOf, servingWiring, swapProvider } from "../src/cli.js";
 import { keysOf } from "../src/env-keys.js";
-import { BOX_KEY_ENV, PROVIDER_ENV, PROVIDER_MODULES, SOLARI_KEY_ENV, isPlace, placeIdOf, placeProviders, providerBackendFor, providerEnvNames, providerEnvWith, providerEnvWithKey, providerKeyEnvs, providerKeyRow, providerKeyRows, providerKeySet, providerModule, providerPlaces, wiredProviderId, type ProviderModule } from "../src/providers.js";
+import { placeWiring } from "../src/places.js";
+import { BOX_KEY_ENV, PROVIDER_ENV, PROVIDER_MODULES, cloudRoads, namedProviderBackend, providerTable, SOLARI_KEY_ENV, isPlace, placeIdOf, placeProviders, providerBackendFor, providerEnvNames, providerEnvWith, providerEnvWithKey, providerKeyCheck, providerKeyEnvs, providerKeyRow, providerKeyRows, providerKeySet, providerModule, providerPlaces, wiredProviderId, type ProviderModule } from "../src/providers.js";
 import { CLOUD_ON } from "../src/cloud.js";
 
 /** A computer's environment as the rows read it: the provider key rides in it under the row's own variable, which
@@ -310,5 +311,66 @@ describe("provider modules", () => {
     expect(wiredProviderId({})).toBe("none");
     // It travels with the row, so a host a service starts carries it the way it carries the provider's own word.
     expect(providerEnvNames()).toContain(FAKE_AS_ENV);
+  });
+});
+describe("Boat with the cloud off, as a public build registers it", () => {
+  const OFF = providerTable(false);
+
+  it("puts a key typed for Boat to Boat, so the keys step refuses a key Boat refuses", async () => {
+    const asked: string[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: { headers: Record<string, string> }) => {
+      asked.push(new URL(url).pathname);
+      const taken = init.headers["Authorization"] === "Bearer bx_good";
+      const body = taken ? { limits: {} } : { ok: false, status: 401, code: "unauthorized", message: "unauthorized" };
+      return new Response(JSON.stringify(body), { status: taken ? 200 : 401, headers: { "content-type": "application/json" } });
+    });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    expect(await providerKeyCheck({}, "bx_plainly_wrong_key", "box", OFF)).toEqual({ state: "refused", said: "401 unauthorized" });
+    expect(await providerKeyCheck({}, "bx_good", "box", OFF)).toEqual({ state: "taken", answer: limitsOf({}) });
+    expect(asked).toEqual(["/api/box/v1/limits", "/api/box/v1/limits"]);
+  });
+
+  it("builds the row a person named, the wired row only where none was named, and refuses a name no row has", () => {
+    expect(namedProviderBackend({ [BOX_KEY_ENV]: "box_fake" }, "box", OFF)).toBeInstanceOf(BoxBackend);
+    expect(namedProviderBackend({}, undefined, OFF)).toBeInstanceOf(NoProviderBackend);
+    expect(() => namedProviderBackend({}, "boxx", OFF)).toThrow("boxx is not a provider this wsp knows");
+    // The key check reads it too, so a name with a typo is refused rather than answered taken by no provider at all.
+    expect(() => providerKeyCheck({}, "bx_good", "solari", OFF)).toThrow("solari is not a provider this wsp knows");
+  });
+
+  it("takes a Boat key alone as a place beside this computer and forks nothing on it, WSP_PROVIDER=box or not", () => {
+    for (const env of [{ [BOX_KEY_ENV]: "box_fake" }, { [BOX_KEY_ENV]: "box_fake", [PROVIDER_ENV]: "box" }]) {
+      expect(wiredProviderId(env, OFF)).toBe("none");
+      expect(providerBackendFor(env, OFF)).toBeInstanceOf(NoProviderBackend);
+      expect(placeProviders(env, OFF).map(m => m.id)).toEqual(["box"]);
+      expect(providerPlaces(() => wiredProviderId(env, OFF), providerBackendFor(env, OFF), () => env, OFF).backend("box")).toBeInstanceOf(BoxBackend);
+    }
+    expect(placeProviders({}, OFF)).toEqual([]);
+    expect(cloudRoads(OFF)).toBe(false);
+    expect(cloudRoads(providerTable(true))).toBe(true);
+  });
+
+  it("lists Boat beside this computer on a host holding its key, records a folder here, and refuses a project on Boat", async () => {
+    const home = mkdtempSync(join(tmpdir(), "wsp-boat-place-"));
+    const statePath = join(home, "state.json");
+    const rt = makeRuntime({}, statePath, goldenRecipe({}), { [BOX_KEY_ENV]: "box_fake" }, undefined, servingWiring(statePath, undefined, home, {}), placeWiring(statePath), undefined, undefined, OFF);
+    try {
+      const rows = await rt.places!.list(0);
+      expect(rows.map(p => [p.id, p.kind])).toEqual([
+        [HERE_PLACE_ID, "computer"],
+        ["box", "provider"],
+      ]);
+      expect(providerSlotOf(rt)!.current()).toBeInstanceOf(NoProviderBackend);
+      const folder = join(home, "lab");
+      mkdirSync(folder);
+      expect((await rt.projects.add({ source: folder })).computer).toBe(HERE_PLACE_ID);
+      const refused = cloudProjectRefusal("Boat");
+      await expect(rt.projects.add({ source: "https://github.com/acme/lab.git", on: "box" })).rejects.toThrow(`${refused.happened}. ${refused.fix}`);
+    } finally {
+      await rt.close();
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });

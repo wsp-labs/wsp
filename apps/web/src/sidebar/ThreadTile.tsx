@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // A thread in the sidebar as one tile of two rows: the project and the
-// computer it runs on with the thread's status at the right, the crab there
-// while it works, then the agent's mark and the title, with an open pull
-// request's icon at the row's end. Everything else, the branch, the model, the
-// pull request's number and what holds the thread, is on the card that opens to
-// the tile's right when the pointer rests on it, as T3 Code's sidebar. Every tile the sidebar draws
+// computer it runs on with the thread's status at the right, how long its turn
+// has run while it works, then the agent's mark and the title, with an open
+// pull request's icon and the crab while it works at the row's end. Everything
+// else, the branch, the model, the pull request's number and what holds the
+// thread, is on the card that opens to the tile's right when the pointer rests
+// on it, as T3 Code's sidebar. Every tile the sidebar draws
 // takes this shape: a thread, a workspace that holds no thread yet, a send in
 // flight and a workspace being made. A resting title takes the muted ink, so the
 // tiles a person is waiting on stand out. Renaming turns the title into the
@@ -19,6 +20,7 @@ import type { PlaceView, ThreadCapWait } from "@wsp/protocol";
 import { THREAD_WORDS, WORKSPACE_WORDS } from "../actions/format.js";
 import type { Launch, SidebarThreadSnapshot } from "../adapt/index.js";
 import { HarnessMark } from "../components/chat/HarnessMark.js";
+import { Crab } from "../components/status/Crab.js";
 import type { StatusKind, ThreadStatusInput } from "../components/status/kinds/index.js";
 import { StatusLine } from "../components/status/StatusLine.js";
 import { noteOf } from "../components/threads/leadTree.js";
@@ -105,9 +107,9 @@ function TileFrame({ card, place, harness, renaming, status, children, ...button
 }
 
 /** The two rows every tile draws. Row one is the project's glyph and where the thread runs, or in the inbox the thread
- * that started it, then the status. Row two is the agent's mark and the title, then an open pull request's icon and
- * the fold's control. */
-function TileRows({ place, status, title, harness, pr, startedBy, end }: { place: TilePlace; status: ReactNode; title: ReactNode; harness: string | null; pr?: TileCheckout["pr"]; startedBy?: string | undefined; end?: ReactNode }) {
+ * that started it, then the status. Row two is the agent's mark and the title, then an open pull request's icon, the
+ * crab while the thread works and the fold's control. */
+function TileRows({ place, status, title, harness, pr, crab = false, startedBy, end }: { place: TilePlace; status: ReactNode; title: ReactNode; harness: string | null; pr?: TileCheckout["pr"]; crab?: boolean; startedBy?: string | undefined; end?: ReactNode }) {
   return (
     <>
       <span className={TILE_ROW_ONE_CLASS}>
@@ -129,6 +131,7 @@ function TileRows({ place, status, title, harness, pr, startedBy, end }: { place
         {harness === null ? null : <HarnessMark harness={harness} label={agentName(harness)} className="size-3" />}
         {title}
         {tilePrIcon(pr) ? <GitPullRequestIcon aria-hidden data-tile-pr className="size-3 shrink-0 text-[var(--top-row-meta)]" /> : null}
+        {crab ? <Crab className="text-status-working" /> : null}
         {end}
       </span>
     </>
@@ -388,7 +391,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
       {LINK_DOWN_WORDS.refused}
     </span>
   ) : (
-    <ThreadStatus thread={thread} age={time} settled={settled} />
+    <ThreadStatus thread={thread} age={time} settled={settled} crab={false} />
   );
   if (slim)
     return item(
@@ -413,6 +416,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
         title={titleOrBox ?? <Title text={label ?? thread.title} idle={recede} active={active} onDoubleClick={onRenameOpen} />}
         harness={thread.harness}
         pr={checkout.pr}
+        crab={status.timed === true}
         end={fold === undefined ? null : <FoldControl fold={fold} onFold={onFold} />}
       />
     </TileFrame>,
@@ -484,7 +488,7 @@ export function ThreadLaunchTile({ launch, place, checkout }: { launch: Launch; 
   const card = tileCardLines({ title: launch.title, place, folder: checkout.folder, branch: checkout.branch, harness: launch.harness, model: null, pr: checkout.pr, changed: checkout.changed, notes: [] });
   return (
     <TileFrame card={card} place={place} harness={launch.harness} renaming={false} render={<div />} data-thread-launch data-depth={0} className={TILE_CLASS}>
-      <TileRows place={place} status={<ThreadStatus thread={LAUNCHED} />} title={<Title text={launch.title} idle={false} active={false} />} harness={launch.harness} pr={checkout.pr} />
+      <TileRows place={place} status={<ThreadStatus thread={LAUNCHED} crab={false} />} title={<Title text={launch.title} idle={false} active={false} />} harness={launch.harness} pr={checkout.pr} crab />
     </TileFrame>
   );
 }

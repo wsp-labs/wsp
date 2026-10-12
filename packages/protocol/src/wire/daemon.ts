@@ -40,7 +40,7 @@ import { GitIssueReadReply, GitPrCheckoutReply, GitPrDiffReply, GitPrReviewReply
 import { KILL_PIDS_MAX, SSH_KEY_MAX } from "../daemon-contract.js";
 import type { UsageStore as WireUsageStore } from "../generated/UsageStore.js";
 import { cgroupPath, type Held, reqId, type Same, watchName } from "./helpers.js";
-import { EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, USAGE_STORES_MAX } from "./limits.js";
+import { EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX } from "./limits.js";
 
 // --- daemon wire protocol (ws://0.0.0.0:7070, auth frame first, 4401 on anything else) ---
 
@@ -270,6 +270,8 @@ export const PtyListEntry = z.object({
   exited: z.boolean(),
   /** Set on a pty that runs a reply's command and still belongs to that reply: no pane adopts it until pty.tab. */
   reply: z.boolean().optional(),
+  /** Set by the host on a client's channel: the thread whose pane opened the pty, which a folder's threads share. */
+  thread: z.string().optional(),
 });
 export type PtyListEntry = z.infer<typeof PtyListEntry>;
 export const PtyListReply = z.object({ ptys: z.array(PtyListEntry) });
@@ -504,10 +506,10 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("usage.logs"), stores: z.array(UsageStore).max(USAGE_STORES_MAX) }),
   /** Claude Code's transcripts under a store root, one row each: under each folder of dirs, every session whose first
    * recorded cwd is one of cwds, read off the first and last 64 KB of its file, never the conversation. */
-  z.object({ id: reqId, op: z.literal("transcripts.list"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(64), cwds: z.array(z.string().max(4096)).max(64) }),
+  z.object({ id: reqId, op: z.literal("transcripts.list"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), cwds: z.array(z.string().max(4096)).max(TRANSCRIPT_DIRS_MAX) }),
   /** One Claude Code session's conversation along the branch the CLI resumes: its newest `last` messages, each tool
    * call one row, and how many messages came before them. */
-  z.object({ id: reqId, op: z.literal("transcripts.read"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(64), session: z.string().min(1).max(64), last: z.number().int().positive() }),
+  z.object({ id: reqId, op: z.literal("transcripts.read"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), session: z.string().min(1).max(64), last: z.number().int().positive() }),
   /** Streams the processes to this socket until proc.unwatch or the socket
    * closes: one whole proc.snapshot first, two seconds after the reply since
    * cpu is a delta (at once where the sampler is already running), then a

@@ -17,9 +17,10 @@ import { PrepareStoppedError, type GoldenBuilderView, type GoldenImport, type Go
 import { S_BAR, S_STEP_CANCEL, S_STEP_ERROR, S_STEP_SUBMIT, cancel, isCancel, log, outro } from "@clack/prompts";
 import type { Keys } from "./cli.js";
 import { writeFileSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
 import { agentInstallsFor, brewfileFor, estimateDisk, isMcpRow, PACK_BUDGET_BYTES, plural, shownOf, toolInstallsFor, TOOLS_DISK_FLOOR, type BrewTable, type ImportResult } from "@wsp/engine";
-import { ALREADY_APPLIED, BREW_ID_PREFIX, BUILD_NEEDS_FILE_FIX, buildNeedsFileLine, builderStaysLine, customRows, fmtBytes, fmtDuration, fmtElapsed, fmtMemGb, initStageWhile, initStoppedAt, INIT_ROW_STATES, MACHINE_GONE_LINE, notHereLine, packageOf, savedKeyStoppedLine, SEAL_FAILED_BUILDER_GONE_LINE, SEAL_FAILED_LINE, SIGN_IN_ANSWERS, sealFailedBuilderStaysLine, sealFailedBuilderUnreadLine, shellQuote, type AppPorts, type PortsAsked, GOLDEN_STAGE_WORDS } from "@wsp/protocol";
+import { ALREADY_APPLIED, subThreadsOnly, BREW_ID_PREFIX, BUILD_NEEDS_FILE_FIX, buildNeedsFileLine, builderStaysLine, customRows, fmtBytes, fmtDuration, fmtElapsed, fmtMemGb, initStageWhile, initStoppedAt, INIT_ROW_STATES, MACHINE_GONE_LINE, notHereLine, packageOf, savedKeyStoppedLine, SEAL_FAILED_BUILDER_GONE_LINE, SEAL_FAILED_LINE, SIGN_IN_ANSWERS, sealFailedBuilderStaysLine, sealFailedBuilderUnreadLine, shellQuote, type AppPorts, type PortsAsked, GOLDEN_STAGE_WORDS } from "@wsp/protocol";
 import { serverVault } from "./env-keys.js";
 import { importResultPath, keychainLogins, readSecrets, refusedIsDir, type SecretReader } from "./init-import.js";
 import { planGoldenRecipe, planImport, wantsBrew, type BuildContext } from "./image-recipe.js";
@@ -63,7 +64,7 @@ import { secretsStage, type SecretOutcome } from "./init-secrets.js";
 import { buildTakes, buildTimes, readBuildTimes } from "./init-times.js";
 import { keptBuilder, stopKeptBuilder, updateRoad } from "./init-upgrade.js";
 import { retentionOffer } from "./storage.js";
-import { DONE_LINE, appUrl, askFirst, checkImportFolder, firstWorkspaceName, runFirst, runLocal, type FirstResult } from "./init-first.js";
+import { DONE_LINE, appUrl, askFirst, checkImportFolder, firstWorkspaceName, runFirst, runLocal, subThreadsReady, type FirstResult } from "./init-first.js";
 import type { Tone } from "./init-select.js";
 import { diskLine, diskTone } from "./init-weight.js";
 import { SIGN_IN_CAP_MS, builderLink, flowHooks, noteOutcomes, signInStage, stageLogins, type BuilderLink, type HostHooks, type LoginOutcome, type SignInCodes, type SignInFlow } from "./init-signin.js";
@@ -581,7 +582,7 @@ export class StageStream {
   private lines(final: boolean, stopped: boolean): string[] {
     const out: string[] = [];
     const width = this.width;
-    const failure = final && this.view.failure !== undefined ? this.view.failure.split("\n") : [];
+    const failure = final && this.view.failure !== undefined ? this.view.failure.split("\n").flatMap(l => (width === undefined ? [l] : wrap(l, width - 3))) : [];
     // The block must fit the screen it redraws over, so a failed step's tail gives up its oldest lines first.
     const budget = this.animate ? Math.max(0, rowsOf(this.output) - 1 - this.view.steps.length - failure.length) : Infinity;
     for (const s of this.view.steps) {
@@ -603,7 +604,7 @@ export class StageStream {
         }
       }
     }
-    for (const l of failure) out.push(`${dim(S_BAR)}  ${this.cut(l)}`);
+    for (const l of failure) out.push(`${dim(S_BAR)}  ${l}`);
     return out;
   }
 
@@ -823,21 +824,7 @@ export function exitCodeOf(sig: "SIGINT" | "SIGTERM" | "SIGHUP"): number {
 }
 
 /** Resolves after ms, or at once when the signal aborts. */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise(resolve => {
-    if (signal.aborted) {
-      resolve();
-      return;
-    }
-    const done = (): void => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", done);
-      resolve();
-    };
-    const timer = setTimeout(done, ms);
-    signal.addEventListener("abort", done, { once: true });
-  });
-}
+const sleep = (ms: number, signal: AbortSignal): Promise<void> => delay(ms, undefined, { signal }).catch(() => undefined);
 
 // --- the command -------------------------------------------------------------
 
@@ -1641,7 +1628,8 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const existing = await rt.workspaces.list();
   let first: FirstResult | undefined;
   let local: WorkspaceView | undefined;
-  if (named === undefined && existing.length > 0) {
+  if (subThreadsOnly(opts.place ?? opts.provider ?? "")) subThreadsReady(logins, io.output);
+  else if (named === undefined && existing.length > 0) {
     log.step(`Your ${existing.length} workspace${existing.length === 1 ? " stays" : "s stay"} on the image version ${existing.length === 1 ? "it was" : "they were"} forked from; upgrade ${existing.length === 1 ? "it" : "them"} from the app. New workspaces fork v${version}.`, out);
   } else {
     const ask = await askFirst({
