@@ -98,14 +98,15 @@ export interface GroupVerbs {
   openThread(group: ActivityGroup): void;
 }
 
-/** What a thread's head offers: End all, which asks first, and Open thread. Below 768 px its menu is the road to them. */
+/** What a thread's head offers: End all, which asks first, where it holds a process, and Open thread. Below 768 px its
+ * menu is the road to them. */
 export const groupActions: ReadonlyArray<ActionEntry<ActivityGroup, GroupVerbs>> = [
   {
     id: "end-all",
     group: "act",
     icon: () => SquareXIcon,
     destructive: true,
-    applies: g => g.thread !== undefined,
+    applies: g => g.thread !== undefined && g.procs.length > 0,
     title: () => W.endAll,
     rowLabel: () => W.endAll,
     refusal: () => null,

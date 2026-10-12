@@ -246,8 +246,9 @@ export type SessionFacts = Partial<Record<(typeof SESSION_FACTS)[number], string
 export const emptyIndex = (): TranscriptIndex => ({ words: new Map(), starts: new Map(), cut: new Map(), facts: new Map(), taken: new Map(), children: new Map(), pos: 0 });
 
 /** One session.subagent row into a thread's children: a start makes the child, or runs a resumed one again, a later
- * running row adds the model it named, and an end moves one the index holds, with the last line of what it said or
- * the first of why it failed. An end whose start has left the ring finds none, so the child stays gone with it. */
+ * running row adds the model it named or what it has spent so far, and an end moves one the index holds, with the last
+ * line of what it said or the first of why it failed and what it spent in all. An end whose start has left the ring
+ * finds none, so the child stays gone with it. */
 export function foldChild(index: TranscriptIndex, e: Extract<SessionEvent, { type: "session.subagent" }>): void {
   if (e.threadId === undefined) return;
   const held = index.children.get(e.threadId) ?? new Map<string, Child>();
@@ -261,6 +262,7 @@ export function foldChild(index: TranscriptIndex, e: Extract<SessionEvent, { typ
       ...((e.depth ?? child?.depth) !== undefined ? { depth: e.depth ?? child?.depth } : {}),
       ...((e.model ?? child?.model) !== undefined ? { model: e.model ?? child?.model } : {}),
       ...((e.asked ?? child?.asked) !== undefined ? { asked: e.asked ?? child?.asked } : {}),
+      ...((e.usage ?? child?.usage) !== undefined ? { usage: e.usage ?? child?.usage } : {}),
       startedAt: child?.startedAt ?? e.at ?? 0,
       ...(e.turnId !== undefined ? { turnId: e.turnId } : {}),
       ...(e.at !== undefined ? { startRow: e.at } : {}),
@@ -272,6 +274,7 @@ export function foldChild(index: TranscriptIndex, e: Extract<SessionEvent, { typ
     const last = e.state === "done" ? listedLastLine(e.summary) : undefined;
     if (last !== undefined) child.lastLine = last;
     if (e.state === "failed" && e.summary !== undefined) child.failure = listedFailure(e.summary);
+    if (e.usage !== undefined) child.usage = e.usage;
   }
 }
 
@@ -297,6 +300,11 @@ export function endChildren(index: TranscriptIndex, threadId: string, turnId: st
     if (child.state !== "running" || child.turnId !== turnId) continue;
     child.state = "stopped";
     child.endedAt = at ?? child.startedAt;
+    // Its agent never said how long it ran in all, and a progress row's run time is from before its end.
+    if (child.usage?.durationMs !== undefined) {
+      const { durationMs: _progressMs, ...usage } = child.usage;
+      child.usage = usage;
+    }
   }
 }
 

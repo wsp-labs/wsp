@@ -6,7 +6,7 @@ import { AttachmentRecord } from "../attachments.js";
 import { TurnLimit, UsageTokens } from "../usage.js";
 import { SessionSlateEvent } from "../slate/wire.js";
 import { permissionPrompt } from "../wire/helpers.js";
-import { PermissionOutcome, SessionOrigin, SessionView, SubagentState, ThreadCapWait, TurnRefusal } from "./session.js";
+import { PermissionOutcome, SessionOrigin, SessionView, SubagentState, SubagentUsage, ThreadCapWait, TurnRefusal } from "./session.js";
 
 // --- session events (the wire form of adapter-port.ts's AdapterEvent) ------
 
@@ -425,6 +425,8 @@ export const SessionSubagentEvent = z.object({
    * arrives on a running row of its own once the subagent's first line names it. */
   model: z.string().optional(),
   asked: z.string().optional(),
+  /** What it has spent so far, on a running row each time its agent reports progress and on its end row. */
+  usage: SubagentUsage.optional(),
   /** Where this row sits among its turn's subagent rows, counting from one, as a delta's line does among the deltas:
    * what a host re-opening the run reads past. */
   line: z.number().int().positive().optional(),

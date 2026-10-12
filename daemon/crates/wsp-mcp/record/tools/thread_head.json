@@ -1660,6 +1660,23 @@
                   "asked": {
                     "type": "string"
                   },
+                  "usage": {
+                    "type": "object",
+                    "properties": {
+                      "tokens": {
+                        "$ref": "#/properties/events/items/anyOf/2/properties/result/properties/models/items/properties/tokens"
+                      },
+                      "toolUses": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "durationMs": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "additionalProperties": false
+                  },
                   "line": {
                     "type": "integer",
                     "exclusiveMinimum": 0
@@ -3436,6 +3453,23 @@
                   },
                   "asked": {
                     "type": "string"
+                  },
+                  "usage": {
+                    "type": "object",
+                    "properties": {
+                      "tokens": {
+                        "$ref": "#/properties/events/items/anyOf/2/properties/result/properties/models/items/properties/tokens"
+                      },
+                      "toolUses": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "durationMs": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "additionalProperties": false
                   },
                   "line": {
                     "type": "integer",

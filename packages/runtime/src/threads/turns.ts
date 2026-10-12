@@ -459,6 +459,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
             ...(event.depth !== undefined ? { depth: event.depth } : {}),
             ...(event.model !== undefined ? { model: event.model } : {}),
             ...(event.asked !== undefined ? { asked: event.asked } : {}),
+            ...(event.usage !== undefined ? { usage: event.usage } : {}),
           });
           return;
         case "limit": {

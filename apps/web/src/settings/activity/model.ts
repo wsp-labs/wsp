@@ -7,7 +7,7 @@
 // and the host, and the parent chain under each. Sort, filter, the Kinds and Ports views and the
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
-import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ProcEntry, type ProcKind, type ProcSnapshot } from "@wsp/protocol";
+import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
 
 export type { ProcKind };
 
@@ -33,6 +33,37 @@ export interface ActivityThread {
   readonly cgroup?: string;
   /** Its slate's title, where this window has read the slate. */
   readonly slate?: string;
+  /** Its agent's own subagents of every turn, as its listing carries them. */
+  readonly subagents?: readonly SubagentView[];
+}
+
+/** One of a thread's subagents as Activity draws it: it runs inside the agent's own process, so it has no figures and
+ * no act of its own. */
+export interface ActivitySubagent {
+  readonly id: string;
+  readonly title: string;
+  readonly state: SubagentState;
+  /** How long it ran, or has run so far. */
+  readonly ms: number;
+  /** What its own calls read and wrote; null where its agent named none. */
+  readonly tokens: number | null;
+  readonly model: string | null;
+}
+
+/** How long a subagent that ended stays drawn. */
+export const SUBAGENT_SHOWN_MS = 60_000;
+
+/** The subagents Activity draws for a thread at `now`: those running and those that ended in the last minute, whichever
+ * of its turns started them, since an agent's background subagents outlive the turn. An ended one's time is the run
+ * time its agent said where it said one. */
+export function subagentsOf(subagents: readonly SubagentView[], now: number): ActivitySubagent[] {
+  return subagents.flatMap(s => {
+    const end = s.state === "running" ? now : s.endedAt;
+    if (end === undefined || now - end > SUBAGENT_SHOWN_MS) return [];
+    const tokens = s.usage?.tokens;
+    const ms = s.state === "running" ? end - s.startedAt : (s.usage?.durationMs ?? end - s.startedAt);
+    return [{ id: s.id, title: s.title, state: s.state, ms: Math.max(0, ms), tokens: tokens === undefined ? null : tokens.input + tokens.output, model: s.model ?? null }];
+  });
 }
 
 export interface ActivityProc {
@@ -67,6 +98,8 @@ export interface ActivityGroup {
   readonly thread?: ActivityThread;
   /** The heads of the group's trees. */
   readonly procs: readonly ActivityProc[];
+  /** A thread's subagents drawn now; none for any other group. */
+  readonly subagents: readonly ActivitySubagent[];
 }
 
 export interface ActivityScope {
@@ -87,6 +120,8 @@ export interface ScopeInput {
   readonly host?: number;
   /** The desktop app's own processes by pid, as the app names them, on the computer the host runs on. */
   readonly app?: ReadonlyMap<number, AppProc>;
+  /** The time the subagents are drawn at; now where left out. */
+  readonly now?: number;
 }
 
 const NO_APP: ReadonlyMap<number, AppProc> = new Map();
@@ -160,7 +195,7 @@ export function kindOf(p: ProcEntry, ports: readonly ActivityPort[], parent: Pro
  * that names no thread is No thread), the thread whose process it is or descends from, wsp's parts (the daemon and the
  * host, the processes themselves), the thread whose cgroup it stands in, the thread whose slate folder its command
  * names, and what the daemon, the host or a terminal started with no thread known. */
-export function scopeOf({ snapshot, threads, ports, host, app = NO_APP }: ScopeInput): ActivityScope {
+export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Date.now() }: ScopeInput): ActivityScope {
   // A zombie holds no memory and takes no signal: it waits on its parent and goes with it.
   const procs = snapshot.procs.filter(p => !p.state.startsWith("Z"));
   const byPid = new Map(procs.map(p => [p.pid, p]));
@@ -324,13 +359,14 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP }: ScopeI
 
   const groups: ActivityGroup[] = [];
   const wsp = members.get("wsp");
-  if (wsp !== undefined) groups.push({ id: "wsp", kind: "wsp", procs: forest(wsp) });
+  if (wsp !== undefined) groups.push({ id: "wsp", kind: "wsp", procs: forest(wsp), subagents: [] });
   for (const t of threads) {
     const mine = members.get(`t:${t.id}`);
-    if (mine !== undefined) groups.push({ id: t.id, kind: "thread", thread: t, procs: withSlate(forest(mine), t) });
+    const subagents = subagentsOf(t.subagents ?? [], now);
+    if (mine !== undefined || subagents.length > 0) groups.push({ id: t.id, kind: "thread", thread: t, procs: mine === undefined ? [] : withSlate(forest(mine), t), subagents });
   }
   const loose = members.get("loose");
-  if (loose !== undefined) groups.push({ id: "loose", kind: "loose", procs: forest(loose) });
+  if (loose !== undefined) groups.push({ id: "loose", kind: "loose", procs: forest(loose), subagents: [] });
   return { groups, rest: rest.map(p => leaf(p, [])), energy };
 }
 
@@ -408,19 +444,23 @@ export interface ActivityPicks {
 
 export const NO_PICKS: ActivityPicks = { threads: [], kinds: [], projects: [] };
 
-/** The groups a filter and the chips leave. The text matches a process or its thread's title; a match stays under its
- * group with its parents. A thread or project chip keeps only those threads, and drops wsp's parts and No thread; a
- * kind chip keeps only processes of those kinds. */
+/** The groups a filter and the chips leave. The text matches a process, a subagent's title or its thread's title; a
+ * match stays under its group with its parents. A thread or project chip keeps only those threads, and drops wsp's
+ * parts and No thread; a kind chip keeps only processes of those kinds, and no subagent, which is no process. */
 export function filterGroups(groups: readonly ActivityGroup[], text: string, picks: ActivityPicks): ActivityGroup[] {
   const needle = text.trim().toLowerCase();
   const narrowed = picks.threads.length > 0 || picks.projects.length > 0;
   return groups.flatMap(g => {
     if (narrowed && (g.thread === undefined || (picks.threads.length > 0 && !picks.threads.includes(g.id)) || (picks.projects.length > 0 && !picks.projects.includes(g.thread.project)))) return [];
     let procs: readonly ActivityProc[] = g.procs;
+    let subagents = picks.kinds.length > 0 ? [] : g.subagents;
     if (picks.kinds.length > 0) procs = prune(procs, p => picks.kinds.includes(p.kind));
     const titled = needle !== "" && g.thread !== undefined && g.thread.title.toLowerCase().includes(needle);
-    if (needle !== "" && !titled) procs = prune(procs, p => procHit(p, needle));
-    return procs.length > 0 || (titled && picks.kinds.length === 0) ? [{ ...g, procs }] : [];
+    if (needle !== "" && !titled) {
+      procs = prune(procs, p => procHit(p, needle));
+      subagents = subagents.filter(s => s.title.toLowerCase().includes(needle));
+    }
+    return procs.length > 0 || subagents.length > 0 || (titled && picks.kinds.length === 0) ? [{ ...g, procs, subagents }] : [];
   });
 }
 
