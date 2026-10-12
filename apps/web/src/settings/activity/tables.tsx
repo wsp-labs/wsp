@@ -81,19 +81,19 @@ const inked = (tint: Tint): string | undefined => (tint === null ? undefined : T
 const TREE = ACTIVITY_COLUMNS;
 const FLAT = ACTIVITY_FLAT_COLUMNS;
 const PORTS = ACTIVITY_PORT_COLUMNS;
-const WIDE = "max-md:hidden";
+const WIDE = "narrow:hidden";
 const NUM = cn(VALUE, "min-w-0 truncate text-right");
 const LIST = cn(CARD_SURFACE, "flex flex-col [&>*+*]:border-t [&>*+*]:border-border/50");
 const HEAD = cn("mb-4 grid min-h-7 items-end gap-x-4 border-x border-transparent text-sm leading-5", CARD_INSET);
 const HEAD_NAME = "-ml-[calc(var(--settings-inset,20px)+1px)] min-w-0 truncate whitespace-nowrap font-normal text-foreground/70";
 const SUB_ROW = cn("group/row grid items-center gap-x-4 py-2.5 transition-colors duration-150 hover:bg-accent/60", CARD_INSET);
 /** A row's act stands while the row is pointed at or focused. */
-const ACT = "flex justify-end gap-1.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 max-md:hidden";
+const ACT = "flex justify-end gap-1.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 narrow:hidden";
 /** The row's menu: shown while the row is pointed at, and always below 768 px, where it is the only road to the acts. */
-const MENU = "flex justify-end opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 max-md:opacity-100";
+const MENU = "flex justify-end opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 narrow:opacity-100";
 const MENU_BUTTON = "-mx-1 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-/** The acts a row shows inline: a process's End, or an agent's Stop; a port's Open beside its End. */
-const TREE_ACTS: readonly string[] = ["stop", "end"];
+/** The acts a row shows inline: a process's End, a working agent's Stop or a kept one's End; a port's Open beside its End. */
+const TREE_ACTS: readonly string[] = ["stop", "end", "free"];
 const PORT_ACTS: readonly string[] = ["open-port", "end"];
 
 /** Kinds whose word says nothing beside the name or the group: an agent is named, wsp's parts stand under wsp. */
@@ -200,7 +200,7 @@ function ProcRow({ p, depth, group, acts, look }: { p: ActivityProc; depth: numb
       onContextMenu={heading ? undefined : e => openMenu(e, target, acts)}
       className={cn(SUB_ROW, TREE)}
     >
-      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--depth)*1.25rem)] max-md:ps-[calc(0.75rem+var(--depth)*0.75rem)]" style={{ "--depth": depth } as CSSProperties}>
+      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--depth)*1.25rem)] narrow:ps-[calc(0.75rem+var(--depth)*0.75rem)]" style={{ "--depth": depth } as CSSProperties}>
         <ProcGlyph p={p} />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{heading ? W.slate(p.name) : p.name}</span>
@@ -228,7 +228,7 @@ function ActivitySubagentRow({ s, harness, workspaceId }: { s: ActivitySubagent;
   const tags = [W.subagentStates[s.state], fmtDuration(s.ms), ...(s.tokens === null ? [] : [W.tokens(fmtTokens(s.tokens))]), ...(s.model === null || model === null ? [] : [model])];
   return (
     <div data-subagent-row={s.id} data-state={s.state} title={W.subagentNote} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 max-md:ps-3">
+      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
         <BotIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{s.title}</span>
@@ -257,17 +257,17 @@ function ContainerRow({ c, loose, acts }: { c: ActivityContainer; loose: boolean
   const stopping = acts.stopping.has(c.id);
   const facts = [c.image, ...(c.upMs === null ? [] : [W.up(fmtUptime(c.upMs))]), ...(loose && c.folder !== null ? [c.folder] : [])].filter(f => f !== "");
   const menu = (e: MouseEvent<HTMLElement>): void => void openContextMenu(e, resolveActions(containerActions, c, acts));
-  const note = loose ? W.containerNotes.loose : c.placedBy === "compose" ? W.containerNotes.compose : W.containerNotes.label;
+  const note = !loose ? (c.placedBy === "compose" ? W.containerNotes.compose : W.containerNotes.label) : c.placedBy === "label" ? W.containerNotes.gone : c.placedBy === "compose" ? W.containerNotes.goneCompose : W.containerNotes.loose;
   return (
     <div data-container-row={c.id} title={note} onContextMenu={menu} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 max-md:ps-3">
+      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
         <ContainerIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{c.name}</span>
           <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{stopping ? W.ending : W.container}</span>
           <span data-container-facts className="flex min-w-0 shrink-[3] items-baseline gap-2 overflow-hidden text-xs tabular-nums text-muted-foreground">
             {facts.map((fact, i) => (
-              <span key={fact} className={cn("shrink-0 whitespace-nowrap", i > 0 && "max-sm:hidden")}>
+              <span key={fact} className={cn("min-w-0 truncate", i > 0 && "narrow:hidden")}>
                 {fact}
               </span>
             ))}
@@ -284,11 +284,11 @@ function ContainerRow({ c, loose, acts }: { c: ActivityContainer; loose: boolean
       <span className={stopping ? cn("flex justify-end", WIDE) : ACT}>
         {stopping ? (
           <Spinner className="size-3.5 text-muted-foreground" />
-        ) : (
+        ) : c.owned ? (
           <Button variant="outline" size="xs" data-act="end-container" className={DANGER_BUTTON} onClick={() => acts.endContainer(c)}>
             {W.end}
           </Button>
-        )}
+        ) : null}
       </span>
       <span className={MENU}>
         <button type="button" aria-label={W.more} data-act="menu" onClick={menu} className={MENU_BUTTON}>
@@ -308,7 +308,7 @@ export interface SamplerCost {
 function SamplerRow({ cost, look }: { cost: SamplerCost; look: Look }) {
   return (
     <div data-proc-row="sampler" title={W.samplerNote} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 max-md:ps-3">
+      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
         <GaugeIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{W.sampler}</span>
@@ -345,7 +345,7 @@ function GroupHead({ glyph, name, status, note, procs, containers = [], open, on
               </span>
               {status}
               {menu === undefined ? null : (
-                <button type="button" aria-label={W.more} data-act="head-menu" onClick={e => openHeadMenu(e, menu)} className={cn(MENU_BUTTON, "mx-0 shrink-0 md:hidden")}>
+                <button type="button" aria-label={W.more} data-act="head-menu" onClick={e => openHeadMenu(e, menu)} className={cn(MENU_BUTTON, "mx-0 hidden shrink-0 narrow:flex")}>
                   <EllipsisIcon aria-hidden className="size-3.5" />
                 </button>
               )}
@@ -371,6 +371,8 @@ export interface ThreadsProps {
   readonly filtering: boolean;
   readonly acts: Acts;
   readonly look: Look;
+  /** The groups drawn open before any press; none on the page. */
+  readonly opened?: readonly string[];
 }
 
 /** What a group draws, as one string: a frame that moved none of it leaves the group's block as it was. */
@@ -426,7 +428,7 @@ const GroupBlock = memo(
           open={opened}
           onOpen={() => toggle(g.id)}
           act={
-            g.procs.length === 0 ? undefined : (
+            g.procs.length === 0 && !g.containers.some(c => c.owned) ? undefined : (
               <Button variant="outline" size="xs" data-act="end-all" className={DANGER_BUTTON} onClick={() => acts.endAll(g)}>
                 {W.endAll}
               </Button>
@@ -453,9 +455,11 @@ const GroupBlock = memo(
     (a.g.kind !== "wsp" || (a.cost?.cpu === b.cost?.cpu && a.cost?.held === b.cost?.held)),
 );
 
+const NONE_OPEN: readonly string[] = [];
+
 /** The Threads view: wsp's own parts, each thread heaviest first, then No thread. A filter opens every group it left. */
-export function ThreadsTable({ name, groups, statusOf, ageOf, box, cost, filtering, acts, look }: ThreadsProps) {
-  const [open, setOpen] = useState<readonly string[]>([]);
+export function ThreadsTable({ name, groups, statusOf, ageOf, box, cost, filtering, acts, look, opened = NONE_OPEN }: ThreadsProps) {
+  const [open, setOpen] = useState<readonly string[]>(opened);
   const toggle = useCallback((id: string) => setOpen(o => (o.includes(id) ? o.filter(x => x !== id) : [...o, id])), []);
   return (
     <div data-grid="activity" className="flex flex-col">
@@ -510,7 +514,7 @@ function FlatRowView({ row, acts, look, sub = false }: { row: PlacedProc; acts: 
   const target = targetOf(p, group, acts);
   return (
     <div data-proc-row={p.pid} data-kind={p.kind} title={p.command} onContextMenu={e => openMenu(e, target, acts)} className={cn(SUB_ROW, FLAT)}>
-      <span className={cn("flex min-w-0 items-start gap-2", sub && "ps-11 max-md:ps-3")}>
+      <span className={cn("flex min-w-0 items-start gap-2", sub && "ps-11 narrow:ps-3")}>
         <ProcGlyph p={p} />
         <span className="flex min-w-0 flex-col">
           <span className="flex min-w-0 items-baseline gap-2">
@@ -605,7 +609,7 @@ function KindRow({ row, acts, look }: { row: PlacedProc; acts: Acts; look: Look 
   const target = targetOf(p, group, acts);
   return (
     <div data-proc-row={p.pid} data-kind={p.kind} title={p.command} onContextMenu={e => openMenu(e, target, acts)} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 max-md:ps-3">
+      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
         <ProcGlyph p={p} />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{p.name}</span>

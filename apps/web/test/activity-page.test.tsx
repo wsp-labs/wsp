@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { PlaceView, ProcEntry, SessionView, WorkspaceView } from "@wsp/protocol";
+import { fmtBytes, type PlaceView, type ProcEntry, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { provideDaemonWire } from "../src/files/wire.js";
 import { wireAppProcs } from "../src/machine/appProcs.js";
 import { syncPorts } from "../src/machine/ports.js";
@@ -190,10 +190,10 @@ describe("Settings > Activity", () => {
     feed(1);
     toggle("t_one");
     const row = document.querySelector<HTMLElement>("[data-proc-row='32']")!;
-    expect(row.querySelector("[data-act=end]")!.parentElement!.className).toContain("max-md:hidden");
+    expect(row.querySelector("[data-act=end]")!.parentElement!.className).toContain("narrow:hidden");
     const menu = row.querySelector<HTMLElement>("[data-act=menu]")!;
-    expect(menu.parentElement!.className).toContain("max-md:opacity-100");
-    expect(menu.parentElement!.className).not.toContain("max-md:hidden");
+    expect(menu.parentElement!.className).toContain("narrow:opacity-100");
+    expect(menu.parentElement!.className).not.toContain("narrow:hidden");
     fireEvent.click(menu);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["Open :5173 in a browser tab", "End", "Open thread", "Copy command", "Copy PID"]);
@@ -210,10 +210,10 @@ describe("Settings > Activity", () => {
     await open();
     feed(1);
     const head = document.querySelector<HTMLElement>("[data-group='t_one']")!;
-    expect(head.querySelector("[data-act=end-all]")!.parentElement!.className).toContain("max-md:hidden");
+    expect(head.querySelector("[data-act=end-all]")!.parentElement!.className).toContain("narrow:hidden");
     const menu = head.querySelector<HTMLElement>("[data-act=head-menu]")!;
-    expect(menu.className).toContain("md:hidden");
-    expect(menu.className).not.toContain("max-md:hidden");
+    expect(menu.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "narrow:flex"]));
+    expect(menu.className).not.toContain("narrow:hidden");
     fireEvent.click(menu);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["End all", "Open thread"]);
@@ -247,6 +247,59 @@ describe("Settings > Activity", () => {
     const agent = document.querySelector<HTMLElement>("[data-proc-row='40']")!;
     for (const col of ["mem", "cpu", "energy"]) expect(agent.querySelector(`[data-col=${col}]`)!.className).not.toMatch(/warning-foreground|destructive-foreground/);
     expect(document.querySelector<HTMLElement>("[data-k=activity-cpu] [data-tint]")!.dataset["tint"]).toBe("danger");
+  });
+
+  describe("with containers", () => {
+    const ID = (c: string): string => c.repeat(64);
+    const CONTAINERS = [
+      { id: ID("a"), name: "build-db-1", image: "postgres:17", state: "running", thread: "t_two", placedBy: "compose" as const, folder: "/srv/acme/lab", project: "lab", memory: 170 * MB, cpu: 0.4 },
+      // Started by hand: no label and no compose folder.
+      { id: ID("b"), name: "scratch", image: "busybox:1.37", state: "running", memory: MB },
+      // A fork's own container on a box: its engine labels it wsp.workspace, never wsp.thread, so nothing places it.
+      { id: ID("c"), name: "wsp-ws_fork-db", image: "postgres:17", state: "running", memory: 2 * MB },
+      // Its label names a thread this host no longer knows.
+      { id: ID("d"), name: "left-over", image: "busybox:1.37", state: "running", thread: "t_gone", placedBy: "label" as const, memory: MB },
+      { id: ID("e"), name: "old-db-1", image: "postgres:17", state: "running", thread: "t_gone", placedBy: "compose" as const, folder: "/srv/acme/old", project: "old", memory: MB },
+    ];
+    const feedWith = (seq: number) => act(() => getProcs(HERE_KEY).feed({ ...frame(seq), containers: CONTAINERS }));
+
+    it("offers End only on a container a label or note placed, and says why the rest under No thread have none", async () => {
+      await open();
+      feedWith(1);
+      toggle("loose");
+      const row = (c: string) => document.querySelector<HTMLElement>(`[data-container-row="${ID(c)}"]`)!;
+      for (const c of ["b", "c", "d", "e"]) {
+        expect(row(c).closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("loose");
+        expect(row(c).querySelector("[data-act=end-container]")).toBeNull();
+      }
+      expect(row("b").title).toBe("No thread started it, so wsp leaves it to whoever did");
+      expect(row("c").title).toBe("No thread started it, so wsp leaves it to whoever did");
+      expect(row("d").title).toBe("Its label names a thread wsp no longer knows");
+      expect(row("e").title).toBe("Its compose project was last started from a thread wsp no longer knows");
+      expect(document.querySelector("[data-group='loose']")!.textContent).toContain("Started with no thread wsp knows of");
+      // Its menu holds the copies alone.
+      fireEvent.click(row("b").querySelector("[data-act=menu]")!);
+      await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
+      expect(useContextMenuStore.getState().menu!.items.map(i => i.id)).toEqual(["copy-name", "copy-id"]);
+      act(() => useContextMenuStore.getState().choose(null));
+      toggle("t_two");
+      expect(row("a").querySelector("[data-act=end-container]")).not.toBeNull();
+    });
+
+    it("End all names the thread's containers with its processes, and stops them as it ends the processes", async () => {
+      wire = fakeWire({ "proc.watch": {}, "proc.unwatch": {}, "proc.kill": {}, "container.stop": {} });
+      provideDaemonWire(HERE_KEY, wire);
+      await open();
+      feedWith(1);
+      fireEvent.click(document.querySelector("[data-group=t_two] [data-act=end-all]")!);
+      await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+      // rustc's 9 GB and the database's 170 MB: the agent itself is the thread's Stop, never End all's.
+      expect(screen.getByText(`1 process and 1 container holding ${fmtBytes(9 * GB + 170 * MB)} end, and a turn running stops first.`)).toBeTruthy();
+      fireEvent.click(document.querySelector("[data-k=activity-confirm]")!);
+      await settle();
+      expect(wire.calls.filter(([op]) => op === "proc.kill").map(([, p]) => (p as { pid: number }).pid)).toEqual([41]);
+      expect(wire.calls.filter(([op]) => op === "container.stop")).toEqual([["container.stop", { container: ID("a") }]]);
+    });
   });
 
   it("ends a process with TERM and keeps its spinner until it leaves the frame", async () => {

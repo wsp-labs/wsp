@@ -4,12 +4,11 @@
 // sortable by cpu or memory, filtered by a box. The selected row is the only
 // lit one and opens into the daemon's inspect fields with the kill controls;
 // a running turn's agent row offers its thread's stop instead, asked first.
-// On a local workspace the computer is the person's own: this workspace's
-// running threads come first, each under its own name, and the rest waits
-// behind a toggle. The count is the rows on the screen, never the machine's total.
+// A thread on this computer or on a box the person joined draws its own tree
+// instead (ThreadProcesses.tsx); this table is this computer's own panel and a
+// machine wsp forks. The count is the rows on the screen, never the machine's total.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ChevronRightIcon } from "lucide-react";
-import { folderOnJoined, foldThreads, hereName, isLocalWorkspace, killTooOldLine, threadCgroup, workspaceComputerName, workspaceKind, type ProcEntry, type ProcInspectReply, type ProcKillReply } from "@wsp/protocol";
+import { folderOnJoined, foldThreads, hereName, isLocalWorkspace, killTooOldLine, workspaceComputerName, workspaceKind, type ProcEntry, type ProcInspectReply, type ProcKillReply } from "@wsp/protocol";
 import { cn, errorText } from "../../lib/utils.js";
 import { staleWord, type StaleWord } from "../../machine/live.js";
 import { holdAppProcs, useAppProcs } from "../../machine/appProcs.js";
@@ -26,6 +25,7 @@ import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFoote
 import { Button, NEUTRAL_RING } from "../ui/button.js";
 import { IDLE, offered, press, settle, termed, type KillState } from "./kill.js";
 import { agentRows, procLabel, procTable, runAgentPids, type ProcRow, type ProcSort, type ProcThread } from "./tree.js";
+import { ThreadProcesses } from "./ThreadProcesses.js";
 
 /** What a turn's agent row says where its thread cannot be named, and so offers no stop of its own. */
 const AGENT_UNNAMED_LINE = "a thread's agent: stop its thread to end it";
@@ -39,10 +39,9 @@ const COLUMNS = "grid grid-cols-[3.5rem_3.25rem_3.75rem_minmax(0,1fr)] items-cen
 const NO_TABS: readonly never[] = [];
 const NO_THREADS: readonly ProcThread[] = [];
 
-/** The threads of this workspace with a turn running, each with the process the host started for it; on a computer
- * the person joined, every thread, by the cgroup what it started stands in, a server it left running included. This
- * computer's own panel lists every process here, so it reads every local workspace's threads. */
-function useThreadRoots(workspaceId: string, byCgroup: boolean): readonly ProcThread[] {
+/** The threads with a turn running, each with the process the host started for it, so a turn's agent row offers its
+ * thread's stop. This computer's own panel lists every process here, so it reads every local workspace's threads. */
+function useThreadRoots(workspaceId: string): readonly ProcThread[] {
   const sessions = useStore(s => s.sessions);
   const workspaces = useStore(s => s.workspaces);
   const rows = useMemo(
@@ -53,9 +52,8 @@ function useThreadRoots(workspaceId: string, byCgroup: boolean): readonly ProcTh
     if (rows === undefined) return NO_THREADS;
     const threads = foldThreads(rows);
     const running = (t: (typeof threads)[number]) => (t.status === "running" ? { sessionId: t.sessionId } : {});
-    if (byCgroup) return threads.map(t => ({ threadId: t.id, title: t.title, cgroup: threadCgroup(t.id), ...running(t) }));
     return threads.filter(t => t.pid !== undefined).map(t => ({ threadId: t.id, title: t.title, pid: t.pid!, ...running(t), ...(t.agentPid !== undefined ? { agentPid: t.agentPid } : {}) }));
-  }, [rows, byCgroup]);
+  }, [rows]);
 }
 
 function useTerminalTitles(workspaceId: string): ReadonlyMap<string, string> {
@@ -67,32 +65,30 @@ function useTerminalTitles(workspaceId: string): ReadonlyMap<string, string> {
 
 export function ProcessesSurface({ workspaceId }: { workspaceId: string }) {
   const workspace = useWorkspace(workspaceId);
+  if (workspace !== null && (isLocalWorkspace(workspace) || folderOnJoined(workspaceKind(workspace)))) return <ThreadProcesses workspaceId={workspaceId} workspace={workspace} />;
+  return <ComputerProcesses workspaceId={workspaceId} />;
+}
+
+function ComputerProcesses({ workspaceId }: { workspaceId: string }) {
+  const workspace = useWorkspace(workspaceId);
   const absent = useAbsentComputer(workspaceId);
   const procs = useWorkspaceProcs(workspaceId);
   const titles = useTerminalTitles(workspaceId);
   const [sort, setSort] = useState<ProcSort>("cpu");
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
-  const [restOpen, setRestOpen] = useState(false);
 
   useEffect(() => getProcs(workspaceId).watch(), [workspaceId]);
-  // The app runs where the host runs, so only this computer's own panel and a local workspace list its processes.
-  const local = workspaceId === HERE_KEY || (workspace !== null && isLocalWorkspace(workspace));
+  // The app runs where the host runs, so only this computer's own panel lists its processes.
+  const local = workspaceId === HERE_KEY;
   useEffect(() => (local ? holdAppProcs() : undefined), [local]);
   const appProcs = useAppProcs();
 
   const snapshot = procs.snapshot;
-  const joined = workspace !== null && folderOnJoined(workspaceKind(workspace));
-  const threads = useThreadRoots(workspaceId, joined);
-  // A local workspace, and a folder on a computer the person joined, share that computer with everything else the
-  // person runs; this computer's own panel is that whole computer, and a machine wsp forks runs only what this
-  // workspace put on it.
-  const own = workspace !== null && (isLocalWorkspace(workspace) || joined);
-  const table = useMemo(() => procTable(snapshot?.procs ?? [], sort, filter, own ? threads : NO_THREADS), [snapshot, sort, filter, own, threads]);
+  const threads = useThreadRoots(workspaceId);
+  const table = useMemo(() => procTable(snapshot?.procs ?? [], sort, filter), [snapshot, sort, filter]);
   const agents = useMemo(() => agentRows(snapshot?.procs ?? [], threads), [snapshot, threads]);
   const runAgents = useMemo(() => runAgentPids(snapshot?.procs ?? []), [snapshot]);
-  const sectioned = own && table.threads.length > 0;
-  const showRest = !sectioned || restOpen;
   // This computer never reads unreachable: its panes say pending until the first frame.
   const stale = workspace === null ? null : (absent?.away ?? staleWord(workspace.phase, procs.reach === "live"));
 
@@ -101,16 +97,16 @@ export function ProcessesSurface({ workspaceId }: { workspaceId: string }) {
     if (selected !== null && snapshot !== null && !snapshot.procs.some(p => p.pid === selected)) setSelected(null);
   }, [snapshot, selected]);
 
-  const shown = table.threads.reduce((n, t) => n + t.rows.length, 0) + (showRest ? table.rest.length : 0);
+  const shown = table.length;
   const count = snapshot === null ? "pending" : shown < snapshot.total ? `${shown} of ${snapshot.total}` : `${shown} processes`;
   const unavailable = stale === null && snapshot === null ? procs.unavailable : null;
-  const draw = (rows: readonly ProcRow[], under = 0) =>
+  const draw = (rows: readonly ProcRow[]) =>
     rows.map(({ proc, depth }) => {
       const lit = proc.pid === selected;
       const label = snapshot ? procLabel(proc, snapshot.daemon, titles, local ? appProcs : undefined) : null;
       return (
         <div key={proc.pid}>
-          <Row proc={proc} depth={depth + under} label={label} lit={lit} onSelect={() => setSelected(lit ? null : proc.pid)} />
+          <Row proc={proc} depth={depth} label={label} lit={lit} onSelect={() => setSelected(lit ? null : proc.pid)} />
           {lit && <Details workspaceId={workspaceId} proc={proc} stale={stale} agent={agents.get(proc.pid)} runAgent={runAgents.has(proc.pid)} here={local} />}
         </div>
       );
@@ -155,45 +151,7 @@ export function ProcessesSurface({ workspaceId }: { workspaceId: string }) {
               </p>
             )
           )}
-          {sectioned &&
-            table.threads.map(({ thread, rows, spent }) => (
-              <div key={thread.threadId}>
-                {spent === undefined ? (
-                  <p className="truncate px-2 font-sans text-xs text-foreground" style={{ lineHeight: `${ROW_PX}px` }} title={thread.title} data-procs-thread={thread.threadId}>
-                    {thread.title}
-                  </p>
-                ) : (
-                  <div className={COLUMNS} style={{ height: ROW_PX }} data-procs-thread={thread.threadId}>
-                    <span />
-                    <span className="text-right tabular-nums text-muted-foreground" data-procs-thread-cpu>
-                      {spent.cpu.toFixed(1)}
-                    </span>
-                    <span className="text-right tabular-nums text-muted-foreground" data-procs-thread-mem>
-                      {compactBytes(spent.rss)}
-                    </span>
-                    <span className="truncate pl-2 font-sans text-xs text-foreground" title={thread.title}>
-                      {thread.title}
-                    </span>
-                  </div>
-                )}
-                {draw(rows, 1)}
-              </div>
-            ))}
-          {sectioned && (
-            <button
-              type="button"
-              aria-expanded={restOpen}
-              onClick={() => setRestOpen(o => !o)}
-              data-procs-rest
-              style={{ height: ROW_PX }}
-              className="flex w-full cursor-pointer items-center gap-1 px-2 text-left text-muted-foreground hover:text-foreground"
-            >
-              <ChevronRightIcon aria-hidden className={cn("size-3 shrink-0 transition-transform duration-150", restOpen && "rotate-90")} />
-              <span className="truncate font-sans text-xs">Everything else</span>
-              <span className="tabular-nums">{table.rest.length}</span>
-            </button>
-          )}
-          {showRest && draw(table.rest)}
+          {draw(table)}
         </div>
       </ScrollArea>
     </div>

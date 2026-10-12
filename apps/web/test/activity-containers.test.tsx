@@ -37,7 +37,7 @@ describe("where Activity puts a container", () => {
       ["t2", ["scratch"]],
       ["loose", ["other-web-1", "left-over"]],
     ]);
-    expect(byId.get("loose")!.containers[0]).toEqual<ActivityContainer>({ id: id("c"), name: "other-web-1", image: "nginx:1.29-alpine", upMs: null, mem: 12 * MIB, cpu: 0.1, folder: "/srv/other", placedBy: null });
+    expect(byId.get("loose")!.containers[0]).toEqual<ActivityContainer>({ id: id("c"), name: "other-web-1", image: "nginx:1.29-alpine", upMs: null, mem: 12 * MIB, cpu: 0.1, folder: "/srv/other", placedBy: null, owned: false });
     expect(byId.get("t1")!.containers[0]!.upMs).toBe(180_000);
   });
 
@@ -66,7 +66,7 @@ describe("where Activity puts a container", () => {
 
 describe("a container's row", () => {
   const look: Look = { sort: "mem", onSort: () => {}, energy: true };
-  const acts = (endContainer: (c: ActivityContainer) => void, stopping: ReadonlySet<string> = new Set()): Acts => ({ ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {}, workspaceOf: () => "ws_lab", stopping, endContainer });
+  const acts = (endContainer: (c: ActivityContainer) => void, stopping: ReadonlySet<string> = new Set()): Acts => ({ ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {}, workspaceOf: () => "ws_lab", stopping, endContainer, free: () => {} });
   const scope = scopeOf({ snapshot: snap(PROCS, CONTAINERS), threads: [thread("t1", { pid: 30 }), thread("t2")], ports: new Map(), now: NOW });
 
   it("names its image and time up, under No thread its folder, carries its own figures, and End asks for its stop", () => {

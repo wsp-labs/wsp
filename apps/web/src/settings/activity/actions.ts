@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What one of Activity's rows offers, one registry: the act its row shows
 // while pointed at, and its menu, which below 768 px is the only road to the
-// acts. An agent is stopped through its thread and never ended; what wsp
-// needs takes no act; a heading over a slate's runs is no process. A
+// acts. A working agent is stopped through its thread and never signalled; a
+// kept one between turns is freed through its thread; what wsp needs takes no act; a heading over a slate's runs is no process. A
 // thread's head has its own two, End all and Open thread.
 import { CircleStopIcon, ClipboardCopyIcon, Globe2Icon, MessageSquareIcon, SquareXIcon } from "lucide-react";
 import type { ActionEntry } from "../../actions/registry.js";
@@ -22,6 +22,8 @@ export interface ProcTarget {
 export interface ProcVerbs {
   readonly ending: ReadonlySet<number>;
   end(p: ActivityProc): void;
+  /** Frees a thread's kept agent on the computer the host runs on, through the host, as `wsp activity end` does. */
+  free(p: ActivityProc): void;
   stop(p: ActivityProc, group: ActivityGroup): void;
   openPort(workspaceId: string, port: number, threadId: string | null): void;
   openThread(group: ActivityGroup): void;
@@ -65,6 +67,18 @@ export const procActions: ReadonlyArray<ActionEntry<ProcTarget, ProcVerbs>> = [
     run: (t, v) => v.end(t.p),
   },
   {
+    id: "free",
+    group: "act",
+    icon: () => SquareXIcon,
+    destructive: true,
+    // A box's host ends a thread's cgroup whole, so only an agent here is freed alone.
+    applies: t => isProc(t) && t.p.kind === "agent" && t.p.needed !== true && t.group?.thread !== undefined && !t.group.thread.working && t.group.thread.cgroup === undefined,
+    title: () => W.end,
+    rowLabel: () => W.end,
+    refusal: busy,
+    run: (t, v) => v.free(t.p),
+  },
+  {
     id: "open-thread",
     group: "go",
     icon: () => MessageSquareIcon,
@@ -106,7 +120,7 @@ export const groupActions: ReadonlyArray<ActionEntry<ActivityGroup, GroupVerbs>>
     group: "act",
     icon: () => SquareXIcon,
     destructive: true,
-    applies: g => g.thread !== undefined && g.procs.length > 0,
+    applies: g => g.thread !== undefined && (g.procs.length > 0 || g.containers.some(c => c.owned)),
     title: () => W.endAll,
     rowLabel: () => W.endAll,
     refusal: () => null,
@@ -130,15 +144,15 @@ export interface ContainerVerbs {
   copy(text: string): void;
 }
 
-/** What a container's row offers: End, which stops it through the engine and never removes it, and its name and id to
- * copy. */
+/** What a container's row offers: End, which stops it through the engine and never removes it, only on one a label or
+ * note placed under its thread; and its name and id to copy. */
 export const containerActions: ReadonlyArray<ActionEntry<ActivityContainer, ContainerVerbs>> = [
   {
     id: "end",
     group: "act",
     icon: () => SquareXIcon,
     destructive: true,
-    applies: () => true,
+    applies: c => c.owned,
     title: () => W.endContainer,
     rowLabel: () => W.end,
     refusal: (c, v) => (v.stopping.has(c.id) ? W.ending : null),

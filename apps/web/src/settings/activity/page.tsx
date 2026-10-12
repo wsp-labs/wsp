@@ -6,14 +6,8 @@
 // kept here for as long as the page stands and dropped with it.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { SearchIcon } from "lucide-react";
-import { agentName } from "@wsp/catalog";
-import { fmtBytes, folderOnJoined, THREAD_CGROUPS, foldThreads, HERE_PLACE_ID, isProviderPlace, placeOf, threadCgroup, threadUnread, waitingLine, workspaceKind, type PlaceView, type ThreadView, type WorkspaceView } from "@wsp/protocol";
-import { useThreadVerbs } from "../../actions/verbs.js";
+import { fmtBytes, folderOnJoined, THREAD_CGROUPS, HERE_PLACE_ID, isProviderPlace, placeOf, workspaceKind, type PlaceView, type WorkspaceView } from "@wsp/protocol";
 import { ChartPlot, spanPoints } from "../../components/machine/MachineSurface.js";
-import { restingAge } from "../../components/status/restingAge.js";
-import type { ThreadStatusInput } from "../../components/status/kinds/index.js";
-import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../../components/ui/alert-dialog.js";
-import { Button, NEUTRAL_RING } from "../../components/ui/button.js";
 import { CHIP } from "../../components/ui/chips.js";
 import { Input } from "../../components/ui/input.js";
 import { SegmentedControl } from "../../components/ui/segmented-control.js";
@@ -21,16 +15,10 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Skeleton } from "../../components/ui/skeleton.js";
 import { Switch } from "../../components/ui/switch.js";
 import { useDaemonWire } from "../../files/wire.js";
-import { errorText, cn } from "../../lib/utils.js";
-import { holdAppProcs, useAppProcs } from "../../machine/appProcs.js";
-import { usePortsOf } from "../../machine/ports.js";
+import { cn } from "../../lib/utils.js";
 import { getLive, watchLive } from "../../machine/live.js";
-import { getProcs, useWorkspaceProcs, type WorkspaceProcs } from "../../machine/procs.js";
-import { copyText } from "../../actions/clipboard.js";
-import { addNotice } from "../../notices/store.js";
-import { useAbsentComputer, useStore } from "../../protocol/store.js";
-import { openBrowserAt } from "../../rightPanelStore.js";
-import { loadSlate, useSlateStore } from "../../slate/store.js";
+import { getProcs, type WorkspaceProcs } from "../../machine/procs.js";
+import { useAbsentComputer } from "../../protocol/store.js";
 import { HERE_KEY } from "../../terminal/computer.js";
 import { ComputerGlyph } from "../ComputerGlyph.js";
 import { ACTIVITY_WORDS as W } from "../format.js";
@@ -41,6 +29,7 @@ import { CARD_SURFACE } from "../rows.js";
 import type { SettingsContext } from "../settingsContext.js";
 import { useSettingsStore, type ActivityView } from "../settingsStore.js";
 import { SPLIT_INKS, STAT } from "../usage.js";
+import { threadLooks, useActivityActs, useActivityScope, useActivityThreads } from "./live.js";
 import {
   cpuTint,
   energyTint,
@@ -55,22 +44,17 @@ import {
   NO_PICKS,
   portRows,
   pushHistory,
-  scopeOf,
   sortGroups,
   spent,
   totalSpent,
-  type ActivityContainer,
-  type ActivityGroup,
   type ActivityPicks,
-  type ActivityPort,
-  type ActivityProc,
+  type ActivityScope,
   type ActivitySort,
-  type ActivityThread,
   type HistoryPoint,
   type ProcKind,
   type Tint,
 } from "./model.js";
-import { groupProcs, KindsTable, PortsTable, ProcessesTable, ThreadsTable, TINT_INK, type Acts, type Look, type SamplerCost } from "./tables.js";
+import { KindsTable, PortsTable, ProcessesTable, ThreadsTable, TINT_INK, type Look, type SamplerCost } from "./tables.js";
 
 const VIEWS: ReadonlyArray<{ value: ActivityView; label: ReactNode }> = (["threads", "processes", "kinds", "ports"] as const).map(value => ({ value, label: W.views[value] }));
 
@@ -127,48 +111,6 @@ function ActivityPage({ ctx }: { ctx: SettingsContext }) {
   return <Scoped key={computer.key} computer={computer} computers={computers} ctx={ctx} />;
 }
 
-const statusInputOf = (t: ThreadView): ThreadStatusInput => ({
-  status: t.status,
-  asking: waitingLine(t) ?? null,
-  ...(t.capped !== undefined ? { capped: t.capped } : {}),
-  startedAt: t.startedAt !== undefined ? new Date(t.startedAt).toISOString() : null,
-  unread: threadUnread(t),
-  limit: t.limit ?? null,
-  resumeAt: t.resumeAt ?? null,
-});
-
-/** The threads on one computer, each as the page groups by: its own process where it runs here, its cgroup on a box. */
-function useThreads(computer: ActivityComputer, ctx: SettingsContext): { threads: ActivityThread[]; views: ReadonlyMap<string, ThreadView> } {
-  // The slates' titles alone, as one string: a slate's values move every run, its title seldom.
-  const titled = useSlateStore(s => JSON.stringify(Object.entries(s.byThread).flatMap(([id, e]) => (e?.record?.document?.title === undefined ? [] : [[id, e.record.document.title]]))));
-  return useMemo(() => {
-    const slates = new Map<string, string>(JSON.parse(titled) as [string, string][]);
-    const here = computer.place.id === HERE_PLACE_ID;
-    const views = new Map<string, ThreadView>();
-    const threads: ActivityThread[] = [];
-    for (const w of ctx.workspaces) {
-      if (placeOf(ctx.places, w)?.id !== computer.place.id) continue;
-      for (const t of foldThreads(ctx.sessions[w.id] ?? [])) {
-        views.set(t.id, t);
-        const slate = slates.get(t.id);
-        threads.push({
-          id: t.id,
-          title: t.title,
-          harness: t.harness,
-          project: w.project.name,
-          workspaceId: w.id,
-          sessionId: t.sessionId,
-          working: t.status === "running",
-          ...(here ? (t.pid === undefined ? {} : { pid: t.pid }) : { cgroup: threadCgroup(t.id) }),
-          ...(slate === undefined ? {} : { slate }),
-          ...(t.subagents === undefined ? {} : { subagents: t.subagents }),
-        });
-      }
-    }
-    return { threads, views };
-  }, [computer.place.id, ctx.workspaces, ctx.sessions, ctx.places, titled]);
-}
-
 /** Two seconds, the sampler's cadence, until two frames say what it is. */
 const FIRST_INTERVAL_MS = 2000;
 
@@ -187,28 +129,11 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
       held.release();
     };
   }, [key]);
-  const procs = useWorkspaceProcs(key);
   const mem = useMemoryInUse(key);
   const absent = useAbsentComputer(computer.workspaceId);
-  const known = usePortsOf(key);
-  const ports = useMemo(() => {
-    const byPid = new Map<number, ActivityPort[]>();
-    for (const k of known) if (k.pid !== null) (byPid.get(k.pid) ?? byPid.set(k.pid, []).get(k.pid)!).push({ port: k.port, loopback: k.loopback ?? null });
-    return byPid;
-  }, [known]);
-  const { threads, views } = useThreads(computer, ctx);
-  // The app runs where the host runs, so only this computer's page names its processes.
-  useEffect(() => (here ? holdAppProcs() : undefined), [here]);
-  const appProcs = useAppProcs();
-  const app = here ? appProcs : undefined;
+  const { threads, views } = useActivityThreads(computer.place.id, here, ctx);
+  const { procs, scope } = useActivityScope(key, here, threads);
   const snapshot = procs.snapshot;
-  const host = useMemo(() => {
-    if (!here || snapshot === null) return undefined;
-    const ppid = snapshot.procs.find(p => p.pid === snapshot.daemon)?.ppid;
-    return ppid === undefined || ppid <= 1 ? undefined : ppid;
-  }, [here, snapshot]);
-  // Read again each frame, so a running subagent's time moves with the figures and an ended one leaves after its minute.
-  const scope = useMemo(() => (snapshot === null ? null : scopeOf({ snapshot, threads, ports, now: Date.now(), ...(host === undefined ? {} : { host }), ...(app === undefined ? {} : { app }) })), [snapshot, threads, ports, host, app]);
 
   const view = useSettingsStore(s => s.activityView);
   const [sort, setSort] = useState<ActivitySort>("mem");
@@ -230,86 +155,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
   }
   const cost: SamplerCost | null = snapshot?.cost === undefined ? null : { cpu: (snapshot.cost.cpuMs / history.interval) * 100, held: snapshot.cost.held };
 
-  // A process that left the frame takes its spinner with it.
-  const [ending, setEnding] = useState<ReadonlySet<number>>(new Set());
-  useEffect(() => {
-    if (snapshot === null || ending.size === 0) return;
-    const listed = new Set(snapshot.procs.map(p => p.pid));
-    const left = [...ending].filter(pid => listed.has(pid));
-    if (left.length !== ending.size) setEnding(new Set(left));
-  }, [snapshot, ending]);
-  const verbs = useThreadVerbs();
-  const [asking, setAsking] = useState<{ kind: "stop" | "endAll"; group: ActivityGroup } | null>(null);
-  const end = useCallback(
-    (p: ActivityProc): void => {
-      setEnding(s => new Set([...s, p.pid]));
-      // The process and everything under it, TERM then KILL in the daemon, checked against the row's identity.
-      getProcs(key)
-        .kill(p.pid, { signal: "TERM", mode: "tree", ...(p.startedAt !== undefined ? { startedAt: p.startedAt } : {}), ...(p.id !== undefined ? { identity: p.id } : {}) })
-        .catch((e: unknown) => {
-          setEnding(s => new Set([...s].filter(pid => pid !== p.pid)));
-          addNotice({ kind: "error", text: errorText(e) });
-        });
-    },
-    [key],
-  );
-  // A container's stop takes its spinner off once the frame no longer lists it, or once the stop failed.
-  const [stopping, setStopping] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => {
-    if (snapshot === null || stopping.size === 0) return;
-    const listed = new Set((snapshot.containers ?? []).map(c => c.id));
-    const left = [...stopping].filter(id => listed.has(id));
-    if (left.length !== stopping.size) setStopping(new Set(left));
-  }, [snapshot, stopping]);
-  const endContainer = useCallback(
-    (c: ActivityContainer): void => {
-      setStopping(s => new Set([...s, c.id]));
-      getProcs(key)
-        .stopContainer(c.id)
-        .catch((e: unknown) => {
-          setStopping(s => new Set([...s].filter(id => id !== c.id)));
-          addNotice({ kind: "error", text: errorText(e) });
-        });
-    },
-    [key],
-  );
-  const acts: Acts = useMemo(
-    () => ({
-      ending,
-      end,
-      stopping,
-      endContainer,
-      stop: (_p, group) => setAsking({ kind: "stop", group }),
-      endAll: group => setAsking({ kind: "endAll", group }),
-      workspaceOf: group => group?.thread?.workspaceId ?? computer.workspaceId ?? undefined,
-      openPort: (workspaceId, port, threadId) => {
-        useStore.getState().select(workspaceId, threadId);
-        openBrowserAt(workspaceId, { port, path: "/" });
-      },
-      openThread: group => {
-        if (group.thread !== undefined) useStore.getState().select(group.thread.workspaceId, group.thread.id);
-      },
-      copy: text => void copyText(text).catch((e: unknown) => addNotice({ kind: "error", text: errorText(e) })),
-    }),
-    [ending, end, stopping, endContainer, computer.workspaceId],
-  );
-  // A thread's slate is named by its title, read once for each thread with a slate run this window has not read.
-  const slated = useMemo(() => (scope === null ? [] : scope.groups.flatMap(g => (g.thread !== undefined && g.procs.some(p => p.heading === true) && g.thread.slate === undefined ? [g.thread.id] : []))), [scope]);
-  const asked = useRef(new Set<string>());
-  useEffect(() => {
-    for (const id of slated) {
-      if (asked.current.has(id) || useSlateStore.getState().byThread[id] !== undefined) continue;
-      asked.current.add(id);
-      void loadSlate(id).catch(() => undefined);
-    }
-  }, [slated]);
-  const confirm = (): void => {
-    if (asking === null) return;
-    const t = asking.group.thread;
-    if (t?.working === true) void verbs.stop?.(t.sessionId);
-    if (asking.kind === "endAll") for (const p of groupProcs(asking.group)) if (p.kind !== "agent" && p.needed !== true) end(p);
-    setAsking(null);
-  };
+  const { acts, dialog } = useActivityActs(key, computer.workspaceId, snapshot);
 
   const energy = scope?.energy ?? false;
   const look: Look = useMemo(() => ({ sort, onSort: setSort, energy }), [sort, energy]);
@@ -338,14 +184,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
         <ThreadsTable
           name={name}
           groups={groups}
-          statusOf={id => {
-            const t = views.get(id);
-            return t === undefined ? undefined : statusInputOf(t);
-          }}
-          ageOf={id => {
-            const t = views.get(id);
-            return t === undefined || t.status === "running" ? undefined : restingAge({ startedAt: t.startedAt !== undefined ? new Date(t.startedAt).toISOString() : null, endedAt: t.endedAt !== undefined ? new Date(t.endedAt).toISOString() : null });
-          }}
+          {...threadLooks(views)}
           box={!here}
           cost={cost}
           filtering={filtering}
@@ -359,7 +198,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
       ) : (
         <PortsTable rows={portRows(groups)} acts={acts} filtering={filtering} />
       )}
-      <AskDialog asking={asking} onClose={() => setAsking(null)} onConfirm={confirm} />
+      {dialog}
     </div>
   );
 }
@@ -386,7 +225,7 @@ const TILE_COLUMNS: Record<number, string> = { 3: "grid-cols-3", 4: "grid-cols-4
 const inked = (tint: Tint): string | undefined => (tint === null ? undefined : TINT_INK[tint]);
 
 /** wsp's totals on this computer, each figure over a line of the last minutes; the process count stands alone. */
-function Tiles({ scope, history, mem }: { scope: NonNullable<ReturnType<typeof scopeOf>>; history: readonly HistoryPoint[]; mem: { used: string; total: number } | null }) {
+function Tiles({ scope, history, mem }: { scope: ActivityScope; history: readonly HistoryPoint[]; mem: { used: string; total: number } | null }) {
   const t = totalSpent(scope.groups);
   const threads = scope.groups.filter(g => g.kind === "thread").length;
   const memTint = memoryShareTint(t.mem, mem?.total ?? null);
@@ -514,7 +353,7 @@ function Controls({ computer, computers, filter, onFilter, every }: { computer: 
 
 /** The thread, kind and project chips: each a press that narrows the view to it, pressed again to let it go. A set with
  * one choice says nothing and is not drawn. */
-function Chips({ scope, picks, onPicks }: { scope: NonNullable<ReturnType<typeof scopeOf>>; picks: ActivityPicks; onPicks: (p: ActivityPicks) => void }) {
+function Chips({ scope, picks, onPicks }: { scope: ActivityScope; picks: ActivityPicks; onPicks: (p: ActivityPicks) => void }) {
   const owned = scope.groups.flatMap(g => g.procs.flatMap(flat));
   const kinds = [...new Set(owned.map(p => p.kind))];
   const threadGroups = scope.groups.filter(g => g.thread !== undefined);
@@ -555,27 +394,3 @@ function Chips({ scope, picks, onPicks }: { scope: NonNullable<ReturnType<typeof
     </div>
   );
 }
-
-/** Stop asks before a running turn ends; End all asks naming what it takes. */
-function AskDialog({ asking, onClose, onConfirm }: { asking: { kind: "stop" | "endAll"; group: ActivityGroup } | null; onClose: () => void; onConfirm: () => void }) {
-  const t = asking?.group.thread;
-  const procs = asking === null ? [] : groupProcs(asking.group);
-  const title = t?.title ?? W.loose;
-  return (
-    <AlertDialog open={asking !== null} onOpenChange={o => (o ? undefined : onClose())}>
-      <AlertDialogPopup>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{asking?.kind === "endAll" ? W.endAllTitle(title) : W.stopTitle(title)}</AlertDialogTitle>
-          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(procs.filter(p => p.kind !== "agent").length, fmtBytes(spent(procs.filter(p => p.kind !== "agent")).mem)) : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{W.cancel}</AlertDialogClose>
-          <Button variant="destructive" data-k="activity-confirm" onClick={onConfirm}>
-            {asking?.kind === "endAll" ? W.endAllPress : W.stopTurn}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogPopup>
-    </AlertDialog>
-  );
-}
-

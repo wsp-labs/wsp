@@ -275,7 +275,8 @@ pub enum DaemonOp {
         #[ts(optional)]
         agent_bins: Option<Vec<String>>,
     },
-    /// Stops one container through the engine, two seconds from its TERM to its KILL, and never removes it.
+    /// Stops one container through the engine, two seconds from its TERM to its KILL, and never removes it; one no label
+    /// or compose note places under a thread is refused as forbidden.
     #[serde(rename = "container.stop")]
     ContainerStop {
         #[serde(deserialize_with = "container_id")]
