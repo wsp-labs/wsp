@@ -16,7 +16,7 @@
         },
         "computer": {
           "type": "string",
-          "description": "the computer, which must be this one; a box is refused"
+          "description": "the computer, which must be this one; a box ends a thread's processes when its thread settles with processes stop"
         }
       },
       "required": [
@@ -149,7 +149,7 @@
         },
         "computer": {
           "type": "string",
-          "description": "the computer, which must be this one; a box is refused"
+          "description": "the computer, which must be this one; a box ends a thread's processes when its thread settles with processes stop"
         }
       },
       "required": [

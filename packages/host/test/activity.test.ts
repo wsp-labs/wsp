@@ -2,15 +2,18 @@
 // wsp activity, wsp activity end and --processes on settle and delete, against a host whose daemon lists a table
 // the case writes: a thread's agent with a dev server under it, read as the thread's tree, never ended by pid alone.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ActivityEnded, ActivityView, EXIT_CODES, END_AGAIN_FIX, HERE_PLACE_ID, PROCESSES_LEFT_KIND, VerbFailure, agentEndFix, agentEndLine, endReusedLine, NOT_STARTED_FIX, notStartedLine, processesLeft, processesLeftFix, processesLeftLine, processesLeftOf, refusalLine } from "@wsp/protocol";
+import { ActivityEnded, ActivityView, EXIT_CODES, END_AGAIN_FIX, END_GRACE_MS, endGraceWord, HERE_PLACE_ID, PROCESSES_LEFT_KIND, VerbFailure, agentEndFix, agentEndLine, endReusedLine, NOT_STARTED_FIX, endGoneSaid, notStartedLine, notThreadsLine, processesLeft, processesLeftFix, processesLeftLine, processesLeftOf, refusalLine } from "@wsp/protocol";
 import { projectOn } from "./verbs-fixture.js";
 import { FAKE_DAEMON_PID, procRow } from "./fake-procs.js";
 import { verbsHost } from "./verbs-host.js";
+import { ACTIVITY_VERBS, endedLines } from "../src/verbs/activity.js";
 
 const STARTED = 1_760_000_000_000;
+/** The unique id the daemon read vite's process by, which an End sends back. */
+const VITE_ID = "88000";
 
 describe("activity on the command line", () => {
   const h = verbsHost();
@@ -30,8 +33,8 @@ describe("activity on the command line", () => {
       procRow({ pid: FAKE_DAEMON_PID, ppid: 0, comm: "wsp-daemon", cmdline: "wsp-daemon serve", rss: 9_000_000 }),
       procRow({ pid: 4100, comm: "2.1.296", cmdline: "claude -p --input-format stream-json", rss: 300_000_000, cpu: 3, kind: "agent", owner, startedAt: STARTED }),
       procRow({ pid: 4150, ppid: 4100, comm: "node", cmdline: "node wsp mcp --scoped", rss: 70_000_000, owner, startedAt: STARTED + 500 }),
-      procRow({ pid: 4200, comm: "node", cmdline: "node /lab/node_modules/.bin/vite", rss: 80_000_000, cpu: 10, kind: "dev", owner, startedAt: STARTED + 1_000 }),
-      procRow({ pid: 4300, ppid: 4200, comm: "esbuild", cmdline: "/lab/node_modules/esbuild/bin/esbuild --service", rss: 20_000_000, owner, startedAt: STARTED + 2_000 }),
+      procRow({ pid: 4200, comm: "node", cmdline: "node /lab/node_modules/.bin/vite", rss: 80_000_000, cpu: 10, kind: "dev", owner, startedAt: STARTED + 1_000, id: VITE_ID }),
+      procRow({ pid: 4300, ppid: 4200, comm: "esbuild", cmdline: "/lab/node_modules/esbuild/bin/esbuild --service", rss: 20_000_000, owner, startedAt: STARTED + 2_000, id: "88001" }),
       // The person's own shell, its terminal app not listed: the daemon's children are wsp's.
       procRow({ pid: 5000, ppid: 4999, comm: "zsh", cmdline: "-zsh", rss: 4_000_000 }),
     ];
@@ -111,13 +114,15 @@ describe("activity on the command line", () => {
     expect(h.daemon.procs.signals).toEqual([]);
   });
 
-  it("end takes the process listed and everything under it, TERM first", async () => {
+  it("end takes the process listed and everything under it in one tree kill, by the start and identity it was listed with", async () => {
     await threadWithServer();
     const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
     expect(ended.code, ended.io.errors.join("\n")).toBe(0);
     const answer = ActivityEnded.parse(h.json(ended.io).at(-1));
     expect(answer.ended.map(p => p.pid)).toEqual([4200, 4300]);
     expect(answer).toMatchObject({ forced: [], left: [] });
+    expect(h.daemon.procs.kills).toHaveLength(1);
+    expect(h.daemon.procs.kills[0]).toMatchObject({ op: "proc.kill", pid: 4200, signal: "TERM", mode: "tree", startedAt: STARTED + 1_000, identity: VITE_ID });
     expect(h.daemon.procs.signals).toEqual([
       { pid: 4200, signal: "TERM" },
       { pid: 4300, signal: "TERM" },
@@ -128,39 +133,92 @@ describe("activity on the command line", () => {
     await threadWithServer();
     const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
     expect(ended.code, ended.io.errors.join("\n")).toBe(0);
-    expect(h.daemon.procs.kills).toHaveLength(2);
+    expect(h.daemon.procs.kills).toHaveLength(1);
     for (const frame of h.daemon.procs.kills) {
       expect(frame).toMatchObject({ op: "proc.kill", signal: "TERM", protect: [process.pid, process.ppid], agentBins: expect.arrayContaining(["claude"]) });
       expect(Array.isArray(frame["agents"]) && Array.isArray(frame["apps"])).toBe(true);
     }
   });
 
-  it("end reads what TERM left off a list read after it, never a sampler's older tick, and sends KILL only to what is still there", async () => {
+  it("end leaves TERM's grace and the KILL after it to the daemon, naming what it sent KILL to, and sends nothing more itself", async () => {
     await threadWithServer();
     h.daemon.procs.stubborn.add(4300);
-    // A sampler ticked just before the End: its rows stand past TERM's grace, until the next tick.
-    h.daemon.procs.hold(3_000);
     const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
     expect(ended.code, ended.io.errors.join("\n")).toBe(0);
     expect(ActivityEnded.parse(h.json(ended.io).at(-1))).toMatchObject({ forced: [4300], left: [] });
+    expect(h.daemon.procs.kills).toHaveLength(1);
     expect(h.daemon.procs.signals).toEqual([
       { pid: 4200, signal: "TERM" },
       { pid: 4300, signal: "TERM" },
       { pid: 4300, signal: "KILL" },
     ]);
-  }, 15_000);
+  });
 
-  it("end names a process the daemon sent KILL itself after TERM's grace as forced, though no list after shows it", async () => {
+  it("end signals nothing when the pid holds another process by the signal: the daemon checks the identity it was sent", async () => {
     await threadWithServer();
-    h.daemon.procs.stubborn.add(4300);
-    h.daemon.procs.escalates = true;
+    // Between the host's read and its signal, vite exits and its pid goes to another process.
+    h.daemon.procs.afterRead = () => {
+      h.daemon.procs.procs = h.daemon.procs.procs.map(p => (p.pid === 4200 ? { ...p, comm: "sleep", cmdline: "sleep 600", id: "99999" } : p));
+    };
     const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
     expect(ended.code, ended.io.errors.join("\n")).toBe(0);
-    expect(ActivityEnded.parse(h.json(ended.io).at(-1))).toMatchObject({ forced: [4300], left: [] });
-    expect(h.daemon.procs.signals).toEqual([
-      { pid: 4200, signal: "TERM" },
-      { pid: 4300, signal: "TERM" },
-    ]);
+    expect(ActivityEnded.parse(h.json(ended.io).at(-1))).toMatchObject({ ended: [], forced: [], left: [] });
+    expect(h.daemon.procs.signals).toEqual([]);
+    expect(h.daemon.procs.procs.map(p => p.pid)).toContain(4200);
+  });
+
+  it("end says nothing was signalled when the pid holds another process by the signal", async () => {
+    await threadWithServer();
+    h.daemon.procs.afterRead = () => {
+      h.daemon.procs.procs = h.daemon.procs.procs.map(p => (p.pid === 4200 ? { ...p, comm: "sleep", cmdline: "sleep 600", id: "99999" } : p));
+    };
+    const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000));
+    expect(ended.code, ended.io.errors.join("\n")).toBe(0);
+    expect(ended.io.lines).toEqual([endGoneSaid(4200)]);
+    expect(h.daemon.procs.signals).toEqual([]);
+  });
+
+  it("a thread settling itself hears at the first ask which processes only the person can end, and stop refuses them before any signal", async () => {
+    const { threadId } = await threadWithServer();
+    // A server the thread's turn detached with setsid, placed by its mark alone, which gives a thread no reach.
+    h.daemon.procs.procs.push(procRow({ pid: 4800, comm: "python3", cmdline: "python3 -m http.server", owner: { by: "env", thread: threadId }, startedAt: STARTED + 8_000 }));
+    const workspaceId = (await h.rt.sessions.list()).find(v => v.threadId === threadId)!.workspaceId;
+    const self = { origin: "here" as const, by: { kind: "thread" as const, threadId, workspaceId, rootThreadId: threadId } };
+    const said = async (processes: "ask" | "stop"): Promise<string> =>
+      h.rt.activity.meet([threadId], processes, "settle", self).then(
+        () => "",
+        (e: unknown) => (e as Error).message,
+      );
+    const asked = await said("ask");
+    expect(asked).toContain(`4800 python3 (dev, the person's to end) of ${threadId.slice(0, 8)}`);
+    expect(asked).toContain("ask the person to end 4800");
+    expect(await said("stop")).toContain(notThreadsLine(4800));
+    expect(h.daemon.procs.signals).toEqual([]);
+  });
+
+  it("end on a daemon from before kill modes names only the pid it signalled", async () => {
+    await threadWithServer();
+    h.daemon.procs.modes = false;
+    const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
+    expect(ended.code, ended.io.errors.join("\n")).toBe(0);
+    expect(ActivityEnded.parse(h.json(ended.io).at(-1)).ended.map(p => p.pid)).toEqual([4200]);
+    expect(h.daemon.procs.signals).toEqual([{ pid: 4200, signal: "TERM" }]);
+    h.daemon.procs.modes = true;
+  });
+
+  it("settle with processes stop ends each tree the thread left in one kill at once, every head by its identity", async () => {
+    const { threadId } = await threadWithServer();
+    h.daemon.procs.procs.push(procRow({ pid: 4400, comm: "node", cmdline: "node /lab/node_modules/.bin/vitest", kind: "test", owner: { by: "fork", thread: threadId }, startedAt: STARTED + 3_000, id: "88002" }));
+    const stopped = await h.run("thread", "settle", threadId, "--processes", "stop", "--json");
+    expect(stopped.code, stopped.io.errors.join("\n")).toBe(0);
+    expect(h.daemon.procs.kills.map(k => ({ pid: k["pid"], mode: k["mode"], startedAt: k["startedAt"], identity: k["identity"] }))).toEqual(
+      expect.arrayContaining([
+        { pid: 4200, mode: "tree", startedAt: STARTED + 1_000, identity: VITE_ID },
+        { pid: 4400, mode: "tree", startedAt: STARTED + 3_000, identity: "88002" },
+      ]),
+    );
+    expect(h.daemon.procs.kills).toHaveLength(2);
+    expect(h.daemon.procs.procs.map(p => p.pid)).toEqual([FAKE_DAEMON_PID, 4100, 4150, 5000]);
   });
 
   it("settle with processes left and no --processes refuses, naming what outlives the agent; stop ends those and settles", async () => {
@@ -246,6 +304,27 @@ describe("activity on the command line", () => {
     expect(failure(refused.io).error).toContain("a thread to settle still runs 2 processes");
     expect(h.daemon.procs.asked).toEqual(["proc.list", "proc.watch"]);
     h.daemon.procs.lists = true;
+  });
+
+  it("a request relayed from a machine reads no process outside a thread and ends none, by the workspace rule's own road check", async () => {
+    await threadWithServer();
+    h.daemon.procs.procs.push(procRow({ pid: 4700, comm: "node", cmdline: "node watch.js", owner: { by: "env", thread: "t-gone" }, startedAt: STARTED + 7_000 }));
+    expect((await h.rt.activity.read({})).unowned.map(p => p.pid)).toEqual([4700]);
+    const relayed = await h.rt.activity.read({}, "relayed");
+    expect(relayed.unowned).toEqual([]);
+    expect(relayed.wsp).toEqual([]);
+    await expect(h.rt.activity.end({ pid: 4700, startedAt: STARTED + 7_000 }, "relayed")).rejects.toThrow(notThreadsLine(4700));
+    expect(h.daemon.procs.signals).toEqual([]);
+  });
+
+  it("says TERM's grace as the daemon's own, in the answer, the verb's words and the skill's row", () => {
+    expect(endGraceWord).toBe(`${END_GRACE_MS / 1000} s`);
+    const proc = { pid: 1, ppid: 0, depth: 0, startedAt: 0, kind: "other" as const, name: "node", command: "node", memory: 0, cpu: 0, ports: [] };
+    expect(endedLines({ pid: 1, ended: [proc], forced: [2], left: [] })).toBe(`ended 1 node\nKILL after TERM's ${endGraceWord}: 2`);
+    const end = ACTIVITY_VERBS.find(v => v.name === "activity end")!;
+    expect(end.about).toContain(`KILL after ${endGraceWord}`);
+    const row = readFileSync(new URL("../../../skills/wsp/SKILL.md", import.meta.url), "utf8").split("\n").find(l => l.includes("`activity_end` (pid, started, computer)"))!;
+    expect(row).toContain(`KILL after ${endGraceWord}`);
   });
 
   it("a computer this host does not hold is refused", async () => {

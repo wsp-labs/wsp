@@ -1,29 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Activity for the command line and the tools: this computer's processes by
-// the thread that started them, and the End of one by the pid and start it was
-// listed with. Each read opens its own socket to this computer's daemon, takes
-// one whole snapshot and the listeners, and closes it, so nothing is read while
-// nobody asks. A thread here is named to the read by its running turn's process
-// and the agent it keeps; the daemon's own owner on a row, where it names one,
-// places the rest.
+// Activity for the command line and the tools: this computer's processes and a
+// box's by the thread that started them, and the End of one here by the pid,
+// start and identity it was listed with. Each read opens its own socket to the
+// computer's daemon, or a channel over a box's link, takes one whole snapshot
+// and the listeners, and closes it, so nothing is read while nobody asks. A
+// thread here is named to the read by its running turn's process and the agent
+// it keeps, a box's by its cgroup there; the daemon's own owner on a row, where
+// it names one, places the rest.
 import { CATALOG_AGENTS } from "@wsp/catalog";
 import {
-  BOX_ACTIVITY_FIX,
-  DAEMON_PROC_INTERVAL_MS,
-  END_GRACE_MS,
-  boxActivityLine,
-  elsewhereActivityLine,
+  BOX_BEHIND_ACTIVITY_FIX,
+  BOX_END_FIX,
+  CLOUD_ACTIVITY_FIX,
+  boxBehindActivityLine,
+  notJoinedActivityFix,
+  notJoinedActivityLine,
+  NOT_READ_FIX,
+  boxEndLine,
+  cloudActivityLine,
+  notReadLine,
+  endHeads,
   HERE_PLACE_ID,
   THIS_COMPUTER,
   activityOf,
   endPlan,
+  folderOnJoined,
   isLocalWorkspace,
   noSuchPlaceRefusal,
   notFoundRefusal,
   ProcKillReply,
   ProcListReply,
   ProcSnapshot,
-  listLateLine,
   SAME_START_MS,
   scopeOf,
   threadWord,
@@ -38,6 +45,7 @@ import {
   type Caller,
   type ProcessesAsk,
   type ProcEntry,
+  type WorkspaceKind,
   processesLeft,
   processesLeftRefusal,
   threadCgroup,
@@ -51,13 +59,12 @@ import type { RuntimeContext } from "./context.js";
 
 /** How long a read waits for the daemon's first snapshot, which comes one sampling interval after the watch. */
 const SNAPSHOT_WAIT_MS = 10_000;
-/** How often an End looks again for what TERM has not ended yet. */
-const END_POLL_MS = 250;
 
 export const NO_DAEMON_HERE = "this host runs no daemon on this computer, so it reads no processes";
 
 export interface ActivityDoor {
-  /** The computer's threads, one thread's alone, or those of threadIds this computer runs. */
+  /** A computer's threads, this one's or a box's, one thread's alone wherever it runs, or those of threadIds this
+   * computer runs. */
   read(o: { computer?: string; thread?: string; threadIds?: readonly string[] }, caller?: Caller): Promise<ActivityView>;
   end(o: { computer?: string; pid: number; startedAt: number }, caller?: Caller): Promise<ActivityEnded>;
   /** Before a settle or a delete takes these threads: ask refuses while one runs a process that outlives its agent,
@@ -71,17 +78,33 @@ export interface ActivityArea {
   readonly activity: ActivityDoor;
 }
 
-const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+/** What one proc.kill of a tree answered: every pid it signalled, those KILL went to after TERM's grace, and those still
+ * there after that. */
+interface Killed {
+  signalled: number[];
+  forced: number[];
+  left: number[];
+}
+
+/** The computer a read or an End is on: this one, or a box the person joined, by its place id. */
+type Where = { name: string; placeId?: string };
 
 export function activityDoor(ctx: RuntimeContext): ActivityDoor {
-  /** A computer named must be this one: a box's processes ride its link, which this read does not take yet. */
-  const here = async (computer: string | undefined): Promise<string> => {
+  /** The computer named: this one where none is, else a box the person joined. */
+  const where = async (computer: string | undefined): Promise<Where> => {
     const name = ctx.placeDoor?.nameOf(HERE_PLACE_ID) ?? THIS_COMPUTER;
-    if (computer === undefined || computer === HERE_PLACE_ID || computer.toLowerCase() === name.toLowerCase() || computer === THIS_COMPUTER) return name;
+    if (computer === undefined || computer === HERE_PLACE_ID || computer.toLowerCase() === name.toLowerCase() || computer === THIS_COMPUTER) return { name };
     const rows = ctx.placeDoor === undefined ? [] : await ctx.placeDoor.rows();
     const row = rows.find(r => r.id === computer || r.name.toLowerCase() === computer.toLowerCase());
     if (row === undefined) throw usageRefusal(noSuchPlaceRefusal(computer, rows.map(r => r.name)), "Name one wsp computers lists.");
-    throw usageRefusal(boxActivityLine(row.name), BOX_ACTIVITY_FIX);
+    if (ctx.placeDoor?.joined(row.id) !== true) throw usageRefusal(notReadLine(row.name), NOT_READ_FIX);
+    return { name: row.name, placeId: row.id };
+  };
+  /** An End is on this computer only: a box ends a thread's processes through its cgroup there. */
+  const here = async (computer: string | undefined): Promise<string> => {
+    const at = await where(computer);
+    if (at.placeId !== undefined) throw usageRefusal(boxEndLine(at.name), BOX_END_FIX);
+    return at.name;
   };
 
   type Open = (onEvent: (event: Record<string, unknown>) => void) => Promise<DaemonChannel>;
@@ -172,8 +195,15 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     return { computer, at: snap.at, procs: snap.procs, daemon: snap.daemon, host: process.pid, scopes: scopesHere(), agentBins: CATALOG_AGENTS.map(a => a.bin), ports };
   };
 
-  /** Whether a caller may read or end what a thread runs: a person any thread's, a thread its own and those under it. */
-  const reaches = (threadId: string | undefined, caller: Caller | undefined): boolean => scopeOf(caller) === undefined || (threadId !== undefined && ctx.settlesThread(threadId, caller));
+  /** Whether a caller may read or end what a thread runs, by the one rule for a workspace (`refusalFor`) and a thread's
+   * reach under it: a person any thread's, a thread its own and those under it. What runs with no thread is the
+   * person's alone, on a computer they drive, which a relayed caller's road may not. */
+  const reaches = (threadId: string | undefined, caller: Caller | undefined, kind: WorkspaceKind = "local"): boolean => {
+    if (threadId === undefined) return scopeOf(caller) === undefined && ctx.drives({ kind }, caller);
+    const record = ctx.live.get(ctx.threadRecords.get(threadId)?.workspaceId ?? ctx.latestOn(threadId)?.workspaceId ?? "")?.record;
+    const driven = record === undefined ? ctx.drives({ kind }, caller) : ctx.refusalFor(record, caller) === undefined;
+    return driven && ctx.settlesThread(threadId, caller);
+  };
 
   /** The box a thread runs on, where its processes stand in its cgroup there; a cloud machine's thread has none. */
   const boxOf = (id: string): { placeId: string; entry: LiveWorkspace } | undefined => {
@@ -182,28 +212,44 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     return entry === undefined || isLocalWorkspace(entry.record) || placeId === undefined || ctx.placeDoor?.joined(placeId) !== true ? undefined : { placeId, entry };
   };
 
-  /** One read of a box's processes by its threads' cgroups, once; nothing while the box is away or its daemon fails the
-   * read, since nothing there can be read or ended then, and a box's fault never holds a settle here. */
-  const boxRead = async (placeId: string, threadIds: readonly string[]): Promise<{ read: ActivityRead; view: ActivityView } | undefined> => {
+  /** One read of a box's processes by its threads' cgroups, once, over the link the host holds; refused while the box
+   * is away, and in the usage class on a box one version behind, whose daemon has no one-shot list. */
+  const boxRead = async (placeId: string, threadIds: readonly string[]): Promise<{ read: ActivityRead; view: ActivityView }> => {
     const door = ctx.placeDoor;
-    if (door === undefined || door.link(placeId) === undefined) return undefined;
+    const away = (): Error => new Error(`${door?.nameOf(placeId) ?? placeId} is away`);
+    if (door === undefined || door.link(placeId) === undefined) throw away();
     // The box's link is one socket with one process watch its panes share, which closing this channel would not end.
-    const taken = await snapshot({ once: true, watch: false }, async onEvent => door.channel(placeId, onEvent) ?? Promise.reject(new Error(`${door.nameOf(placeId)} is away`))).catch((e: unknown) => {
-      console.warn(`${door.nameOf(placeId)}'s processes were not read for a settle or a delete: ${e instanceof Error ? e.message : String(e)}`);
+    const { snap, ports } = await snapshot({ once: true, watch: false }, async onEvent => door.channel(placeId, onEvent) ?? Promise.reject(away())).catch((e: unknown) => {
+      if (e instanceof Error && e.message === unknownOpLine("proc.list")) throw usageRefusal(boxBehindActivityLine(door.nameOf(placeId)), BOX_BEHIND_ACTIVITY_FIX);
+      throw e;
+    });
+    const scopes = threadIds.map(id => ({ threadId: id, title: ctx.threadFacts(id)?.title ?? threadWord(id), workspaceId: boxOf(id)?.entry.record.id ?? "", roots: [], cgroup: threadCgroup(id), ...binOf(id) }));
+    const read: ActivityRead = { computer: door.nameOf(placeId), at: snap.at, procs: snap.procs, daemon: snap.daemon, host: 0, scopes, agentBins: CATALOG_AGENTS.map(a => a.bin), ports, ...(snap.cgroups === undefined ? {} : { cgroups: snap.cgroups }) };
+    return { read, view: activityOf(read) };
+  };
+  /** The same for a settle or a delete: nothing while the box is away or its daemon fails the read, since nothing there
+   * can be read or ended then, and a box's fault never holds a settle here. */
+  const boxReadQuiet = (placeId: string, threadIds: readonly string[]): Promise<{ read: ActivityRead; view: ActivityView } | undefined> =>
+    boxRead(placeId, threadIds).catch((e: unknown) => {
+      console.warn(`${ctx.placeDoor?.nameOf(placeId) ?? placeId}'s processes were not read for a settle or a delete: ${e instanceof Error ? e.message : String(e)}`);
       return undefined;
     });
-    if (taken === undefined) return undefined;
-    const { snap, ports } = taken;
-    const scopes = threadIds.map(id => ({ threadId: id, title: ctx.threadFacts(id)?.title ?? threadWord(id), workspaceId: boxOf(id)?.entry.record.id ?? "", roots: [], cgroup: threadCgroup(id), ...binOf(id) }));
-    const read: ActivityRead = { computer: door.nameOf(placeId), at: snap.at, procs: snap.procs, daemon: snap.daemon, host: 0, scopes, agentBins: CATALOG_AGENTS.map(a => a.bin), ports };
-    return { read, view: activityOf(read) };
+
+  /** Every thread a box runs, newest first. */
+  const threadsOn = (placeId: string): string[] => {
+    const latest = new Map<string, number>();
+    for (const { view } of ctx.sessions.values()) {
+      if (view.threadId === undefined || boxOf(view.threadId)?.placeId !== placeId) continue;
+      latest.set(view.threadId, Math.max(latest.get(view.threadId) ?? 0, view.startedAt ?? 0));
+    }
+    return [...latest].sort((a, b) => b[1] - a[1]).map(([id]) => id);
   };
 
   /** Ends a box thread's cgroup through the end that box already runs, then reads again what is still there, each
    * process by the start it was listed with. */
   const endOnBox = async (placeId: string, entry: LiveWorkspace, t: ActivityThread): Promise<ActivityEnded> => {
     await ctx.moduleOf(entry.record.kind).endThread?.(entry, t.threadId, {});
-    const after = await boxRead(placeId, [t.threadId]).catch(() => undefined);
+    const after = await boxReadQuiet(placeId, [t.threadId]);
     const left = t.processes.filter(p => after === undefined || after.read.procs.some(q => q.pid === p.pid && Math.abs(q.startedAt - p.startedAt) <= SAME_START_MS)).map(p => p.pid);
     return { pid: t.processes[0]!.pid, ended: t.processes, forced: [], left };
   };
@@ -212,86 +258,84 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     const record = ctx.live.get(ctx.threadRecords.get(id)?.workspaceId ?? ctx.latestOn(id)?.workspaceId ?? "")?.record;
     return record !== undefined && !isLocalWorkspace(record);
   };
+  /** The box a thread runs on that this host no longer has joined, by its place id. A machine on any provider but the
+   * one this host forks on names that provider's place too, which is never joined. */
+  const unjoinedBoxOf = (id: string): string | undefined => {
+    const record = ctx.live.get(ctx.threadRecords.get(id)?.workspaceId ?? ctx.latestOn(id)?.workspaceId ?? "")?.record;
+    return record === undefined || !folderOnJoined(record.kind) || record.place === undefined || ctx.placeDoor?.joined(record.place) === true ? undefined : record.place;
+  };
 
-  /** What read answers, off a read already taken or a fresh one. */
+  /** What read answers, off a read already taken or a fresh one: this computer's, or a box's when the computer or the
+   * one thread asked for is there. */
   const viewOf = async (o: { computer?: string; thread?: string; threadIds?: readonly string[] }, caller: Caller | undefined, once: boolean): Promise<{ view: ActivityView; read: ActivityRead }> => {
     await ctx.ready();
-    const computer = await here(o.computer);
     const asked = o.thread !== undefined ? [o.thread] : o.threadIds;
     for (const id of asked ?? []) {
       if ((ctx.threadRecords.get(id) === undefined && ctx.threadFacts(id) === undefined) || !reaches(id, caller)) throw notFoundRefusal(`no thread ${threadWord(id)}`);
     }
-    if (o.thread !== undefined && elsewhere(o.thread)) throw usageRefusal(elsewhereActivityLine(o.thread), BOX_ACTIVITY_FIX);
-    const wanted = asked === undefined ? undefined : new Set(asked.filter(id => !elsewhere(id)));
-    const read = await readOf(computer, once);
-    const view = activityOf(read);
-    const threads = view.threads.filter(t => (wanted === undefined || wanted.has(t.threadId)) && reaches(t.threadId, caller));
+    const box = o.thread === undefined ? undefined : boxOf(o.thread);
+    const unjoined = o.thread === undefined || box !== undefined ? undefined : unjoinedBoxOf(o.thread);
+    if (o.thread !== undefined && unjoined !== undefined) {
+      const name = ctx.placeDoor?.nameOf(unjoined) ?? unjoined;
+      throw usageRefusal(notJoinedActivityLine(o.thread, name), notJoinedActivityFix(name));
+    }
+    if (o.thread !== undefined && box === undefined && elsewhere(o.thread)) throw usageRefusal(cloudActivityLine(o.thread), CLOUD_ACTIVITY_FIX);
+    const named = await where(o.computer);
+    const at: Where = o.computer === undefined && box !== undefined ? { name: ctx.placeDoor?.nameOf(box.placeId) ?? box.placeId, placeId: box.placeId } : named;
+    if (o.thread !== undefined && at.placeId !== box?.placeId) throw notFoundRefusal(`no thread ${threadWord(o.thread)} on ${at.name}`);
+    const onBox = at.placeId !== undefined;
+    const wanted = asked === undefined ? undefined : new Set(asked.filter(id => (onBox ? boxOf(id)?.placeId === at.placeId : !elsewhere(id))));
+    const { read, view } = onBox ? await boxRead(at.placeId!, [...(wanted ?? threadsOn(at.placeId!))]) : await (async () => {
+      const r = await readOf(at.name, once);
+      return { read: r, view: activityOf(r) };
+    })();
+    const kind = onBox ? "place" : "local";
+    const threads = view.threads.filter(t => (wanted === undefined || wanted.has(t.threadId)) && reaches(t.threadId, caller, kind));
     // What runs outside the asked threads is the person's to read: a thread sees no command line but its tree's.
-    const whole = wanted === undefined && scopeOf(caller) === undefined;
+    const whole = wanted === undefined && reaches(undefined, caller, kind);
     return { view: { ...view, threads, wsp: whole ? view.wsp : [], unowned: whole ? view.unowned : [] }, read };
+  };
+
+  /** Ends each head and everything under it, one proc.kill each, by the start and the identity it was read with, so a
+   * pid handed on since is never signalled. The daemon gives TERM its grace and sends KILL itself, all heads at once. */
+  const killTrees = async (heads: readonly ProcEntry[]): Promise<Killed[]> => {
+    if (ctx.opts.local?.daemonRoad === undefined) throw new Error(NO_DAEMON_HERE);
+    // Through the guard the pane's road has, so the daemon checks the host's lists at the signal too.
+    return ctx.overChannel(ctx.killGuarded(await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, () => {}), true), ask =>
+      Promise.all(
+        heads.map(async (p): Promise<Killed> => {
+          const reply = await ask({ op: "proc.kill", pid: p.pid, signal: "TERM", mode: "tree", startedAt: p.startedAt, ...(p.id !== undefined ? { identity: p.id } : {}) }).catch((e: unknown) => {
+            // Gone on its own since the read: the end wanted.
+            if (!(e instanceof DaemonRefusal && e.code === "not-found")) throw e;
+            return undefined;
+          });
+          const r = reply === undefined ? {} : ProcKillReply.parse(reply);
+          // A daemon from before kill modes signals the pid alone and answers nothing more.
+          return { signalled: r.signalled ?? (reply === undefined ? [] : [p.pid]), forced: r.forced ?? [], left: r.left ?? [] };
+        }),
+      ),
+    );
+  };
+
+  /** What an End did, said by the rows it was read with. */
+  const endedOf = (view: ActivityView, plan: readonly ProcEntry[], pid: number, done: Killed): ActivityEnded => {
+    const rows = [...view.threads.flatMap(t => t.processes), ...view.unowned];
+    const rowOf = (q: ProcEntry): ActivityProc => rows.find(r => r.pid === q.pid) ?? { pid: q.pid, ppid: q.ppid, depth: 0, startedAt: q.startedAt, kind: "other" as const, name: q.comm, command: q.cmdline === "" ? q.comm : q.cmdline, memory: q.rss, cpu: q.cpu, ports: [] };
+    const signalled = new Set(done.signalled);
+    return { pid, ended: plan.filter(q => signalled.has(q.pid)).map(rowOf), forced: [...new Set(done.forced)], left: [...new Set(done.left)] };
   };
 
   /** An End off a read already taken: the plan is made on it, before any signal. */
   const endOn = async (read: ActivityRead, o: { pid: number; startedAt: number }, caller: Caller | undefined): Promise<ActivityEnded> => {
     const plan = endPlan(read, o.pid, o.startedAt, threadId => reaches(threadId, caller));
     const view = activityOf(read);
-    const rowOf = (pid: number): ActivityProc | undefined => [...view.threads.flatMap(t => t.processes), ...view.unowned].find(p => p.pid === pid);
     if ("kept" in plan) {
       ctx.reapKept(plan.kept.threadId, { now: true });
       const freed = view.threads.find(t => t.threadId === plan.kept.threadId)?.processes.filter(p => p.kind === "agent") ?? [];
       return { pid: o.pid, ended: freed, forced: [], left: [], freed: plan.kept.threadId };
     }
-    const ended = plan.targets.map(p => rowOf(p.pid) ?? { pid: p.pid, ppid: p.ppid, depth: 0, startedAt: p.startedAt, kind: "other" as const, name: p.comm, command: p.cmdline === "" ? p.comm : p.cmdline, memory: p.rss, cpu: p.cpu, ports: [] });
-    // The daemon answers a TERM once its own grace is over, with what it sent KILL to, which no list after shows.
-    const killedThere = new Set<number>();
-    const signal = async (pids: readonly number[], sig: "TERM" | "KILL"): Promise<void> => {
-      if (ctx.opts.local?.daemonRoad === undefined) throw new Error(NO_DAEMON_HERE);
-      // Through the guard the pane's road has, so the daemon checks the host's lists at the signal too.
-      await ctx.overChannel(ctx.killGuarded(await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, () => {}), true), async ask => {
-        for (const pid of pids) {
-          const reply = await ask({ op: "proc.kill", pid, signal: sig }).catch((e: unknown) => {
-            if (!(e instanceof DaemonRefusal && e.code === "not-found")) throw e;
-            return undefined;
-          });
-          for (const f of reply === undefined ? [] : (ProcKillReply.parse(reply).forced ?? [])) killedThere.add(f);
-        }
-      });
-    };
-    /** Rows the daemon read after `after`, never a running sampler's tick from before it: a list without one waits
-     * for the next tick, which comes within the sampler's interval. */
-    const listAfter = async (after: number): Promise<ProcSnapshot> => {
-      const until = Date.now() + DAEMON_PROC_INTERVAL_MS + END_GRACE_MS;
-      for (;;) {
-        const { snap } = await snapshot({ once: true, ports: false });
-        if (snap.at > after) return snap;
-        if (Date.now() > until) throw new Error(listLateLine(after));
-        await sleep(END_POLL_MS);
-      }
-    };
-    /** The targets a list still holds, each by its pid and the start it was listed with: a pid handed out again is not one. */
-    const standing = (snap: ProcSnapshot, targets: readonly ProcEntry[]): ProcEntry[] =>
-      targets.filter(t => snap.procs.some(p => p.pid === t.pid && Math.abs(p.startedAt - t.startedAt) <= SAME_START_MS));
-    const termAt = Date.now();
-    await signal(plan.targets.map(p => p.pid), "TERM");
-    const graceEnd = termAt + END_GRACE_MS;
-    let still: ProcEntry[] = plan.targets;
-    let readAt = termAt;
-    while (still.length > 0 && readAt < graceEnd) {
-      await sleep(END_POLL_MS);
-      const snap = await listAfter(readAt);
-      readAt = snap.at;
-      still = standing(snap, still);
-    }
-    // What is still standing was read at the grace's end or after it, so KILL goes only to a process there then.
-    const forced = still.map(p => p.pid);
-    let left: number[] = [];
-    if (forced.length > 0) {
-      const killAt = Date.now();
-      await signal(forced, "KILL");
-      await sleep(END_POLL_MS);
-      left = standing(await listAfter(killAt), still).map(p => p.pid);
-    }
-    return { pid: o.pid, ended, forced: [...new Set([...killedThere, ...forced])], left };
+    const [done] = await killTrees(plan.targets.slice(0, 1));
+    return endedOf(view, plan.targets, o.pid, done!);
   };
 
   return {
@@ -318,20 +362,43 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
       }
       const onBoxes: { placeId: string; t: ActivityThread }[] = [];
       for (const [placeId, ids] of boxes) {
-        const there = await boxRead(placeId, ids);
+        const there = await boxReadQuiet(placeId, ids);
         for (const t of there === undefined ? [] : processesLeft(there.view, ids)) {
           onBoxes.push({ placeId, t });
           left.push({ ...t, on: there!.read.computer });
         }
       }
       if (left.length === 0) return [];
-      if (processes === "ask") throw processesLeftRefusal(verb, left);
+      // Every head's plan is made before the ask is answered or anything signalled: a head the caller may not end is
+      // the person's, which the ask names and a stop refuses before its first signal.
+      const theirs = new Set<number>();
+      let reach: unknown;
+      const plans = (here === undefined ? [] : processesLeft(here.view, local)).flatMap(t =>
+        endHeads(t.processes).flatMap(p => {
+          let unreached = false;
+          const may = (threadId: string | undefined): boolean => {
+            const ok = reaches(threadId, caller);
+            if (!ok) unreached = true;
+            return ok;
+          };
+          try {
+            const plan = endPlan(here!.read, p.pid, p.startedAt, may);
+            if ("kept" in plan) throw new Error(`${p.pid} is the agent thread ${threadWord(plan.kept.threadId)} keeps, which a settle frees itself`);
+            return [{ pid: p.pid, targets: plan.targets }];
+          } catch (e) {
+            if (!unreached) throw e;
+            theirs.add(p.pid);
+            reach ??= e;
+            return [];
+          }
+        }),
+      );
+      if (processes === "ask") throw processesLeftRefusal(verb, left, theirs);
+      if (reach !== undefined) throw reach;
       const ended: ActivityEnded[] = [];
-      if (here !== undefined) {
-        for (const t of processesLeft(here.view, local)) {
-          const ending = new Set(t.processes.map(p => p.pid));
-          for (const p of t.processes) if (!ending.has(p.ppid)) ended.push(await endOn(here.read, { pid: p.pid, startedAt: p.startedAt }, caller));
-        }
+      if (here !== undefined && plans.length > 0) {
+        const done = await killTrees(plans.map(x => x.targets[0]!));
+        plans.forEach((x, i) => ended.push(endedOf(here.view, x.targets, x.pid, done[i]!)));
       }
       for (const { placeId, t } of onBoxes) ended.push(await endOnBox(placeId, boxOf(t.threadId)!.entry, t));
       return ended;

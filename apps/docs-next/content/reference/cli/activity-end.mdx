@@ -4,14 +4,15 @@
 
 ```text
 usage: wsp activity end <pid> --started <ms> [--computer <computer>]
-  ends one process and everything under it, by the pid and the start wsp
-  activity --json listed: TERM, then KILL after 2 s; refuses a process wsp did
-  not start, an agent, which wsp stop ends, and a pid that names another process
-  now
+  ends one process on this computer and everything under it, by the pid and the
+  start wsp activity --json listed: TERM, then KILL after 2 s; refuses a process
+  wsp did not start, an agent, which wsp stop ends, and a pid that names another
+  process now
 
   --started     the process's start as wsp activity --json lists it, startedAt
                 in epoch milliseconds; a pid that started otherwise is refused
-  --computer    the computer the process runs on, which must be this one
+  --computer    the computer the process runs on, which must be this one; a
+                box's go with its thread's settle and --processes stop
   --json        print the raw protocol values, one JSON object per line, with
                 everything else on stderr
   --state       the state file the host serves

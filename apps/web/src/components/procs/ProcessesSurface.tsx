@@ -8,7 +8,7 @@
 // instead (ThreadProcesses.tsx); this table is this computer's own panel and a
 // machine wsp forks. The count is the rows on the screen, never the machine's total.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { folderOnJoined, foldThreads, hereName, isLocalWorkspace, killTooOldLine, workspaceComputerName, workspaceKind, type ProcEntry, type ProcInspectReply, type ProcKillReply } from "@wsp/protocol";
+import { endGraceWord, folderOnJoined, foldThreads, hereName, isLocalWorkspace, killTooOldLine, workspaceComputerName, workspaceKind, type ProcEntry, type ProcInspectReply, type ProcKillReply } from "@wsp/protocol";
 import { cn, errorText } from "../../lib/utils.js";
 import { staleWord, type StaleWord } from "../../machine/live.js";
 import { holdAppProcs, useAppProcs } from "../../machine/appProcs.js";
@@ -293,7 +293,7 @@ function PaneButton({ disabled, onPress, confirm, children }: { disabled: boolea
 /** What the daemon's answer to a kill says on the row. */
 function killedWord(reply: ProcKillReply): string {
   if ((reply.left?.length ?? 0) > 0) return "still running after a forced end";
-  if ((reply.forced?.length ?? 0) > 0) return "ended by KILL after TERM's 2 s";
+  if ((reply.forced?.length ?? 0) > 0) return `ended by KILL after TERM's ${endGraceWord}`;
   return "ended";
 }
 

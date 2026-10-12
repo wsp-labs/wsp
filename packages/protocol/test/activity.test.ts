@@ -2,7 +2,7 @@
 // Activity's reading of one snapshot: a thread's tree from its roots and the daemon's owners, the stretch from a root
 // to the agent's binary, and the rules an End meets before anything is signalled.
 import { describe, expect, it } from "vitest";
-import { activityOf, agentEndLine, agentUnderLine, endGoneLine, endPlan, endReusedLine, notStartedLine, notThreadsLine, processesLeft, processesLeftLine, wspOwnLine, type ActivityRead, type ActivityScope, type ProcEntry } from "../src/index.js";
+import { activityOf, agentEndLine, agentUnderLine, endGoneLine, endHeads, endPlan, endReusedLine, notStartedLine, notThreadsLine, processesLeft, processesLeftLine, wspOwnLine, type ActivityProc, type ActivityRead, type ActivityScope, type ActivityView, type ProcEntry } from "../src/index.js";
 
 const START = 1_760_000_000_000;
 const row = (pid: number, ppid: number, comm: string, cmdline: string, over: Partial<ProcEntry> = {}): ProcEntry => ({ pid, ppid, user: "ada", state: "S", comm, cmdline, cpu: 1, rss: 1_000, startedAt: START + pid, ...over });
@@ -131,5 +131,41 @@ describe("an End's plan", () => {
     const marked = read([...PROCS, row(500, 1, "node", "node vite.js", { owner: { by: "env", thread: "t-gone" } })]);
     expect(endPlan(marked, 500, START + 500, anyone)).toEqual({ targets: [marked.procs.at(-1)] });
     expect(activityOf(marked).unowned.map(p => p.pid)).toEqual([500]);
+  });
+
+  it("lets no thread end a process by the WSP_THREAD mark alone, which any process can carry with any thread's id; the person still can", () => {
+    const lab = (threadId: string | undefined): boolean => threadId === LAB.threadId;
+    const marked = read([...PROCS, row(500, 1, "node", "node lookalike.js", { owner: { by: "env", thread: LAB.threadId } })]);
+    // Drawn under the thread it names, and ended by nobody but the person.
+    expect(activityOf(marked).threads[0]!.processes.map(p => p.pid)).toContain(500);
+    expect(refusal(() => endPlan(marked, 500, START + 500, lab))).toContain(notThreadsLine(500));
+    expect(endPlan(marked, 500, START + 500, anyone)).toEqual({ targets: [marked.procs.at(-1)] });
+    // The same process placed by the fork tracker, or standing in the thread's cgroup on a box, is the thread's to end.
+    const forked = read([...PROCS, row(500, 1, "node", "node vite.js", { owner: { by: "fork", thread: LAB.threadId } })]);
+    expect(endPlan(forked, 500, START + 500, lab)).toEqual({ targets: [forked.procs.at(-1)] });
+    const boxed: ActivityRead = { ...read([row(500, 1, "node", "node vite.js", { owner: { by: "env", thread: LAB.threadId }, cgroup: "/wsp-threads/lab-thread-1" })]), scopes: [{ ...LAB, roots: [], cgroup: "/wsp-threads/lab-thread-1" }] };
+    expect(endPlan(boxed, 500, START + 500, lab)).toEqual({ targets: [boxed.procs[0]] });
+  });
+});
+
+describe("what a thread leaves running", () => {
+  const proc = (pid: number, ppid: number, kind: ActivityProc["kind"], command: string): ActivityProc => ({ pid, ppid, depth: 0, startedAt: START + pid, kind, name: command.split(" ")[0]!, command, memory: 1_000, cpu: 0, ports: [] });
+  const view = (processes: ActivityProc[]): ActivityView => ({ computer: "lab-mac", at: START, threads: [{ threadId: LAB.threadId, title: "lab", workspaceId: "ws-1", memory: 0, cpu: 0, processes }], wsp: [], unowned: [] });
+
+  it("keeps the turn's input pump and run script with the agent, however a reader kinds them, and the agent's tool servers under it", () => {
+    const left = processesLeft(
+      view([
+        proc(100, 1, "agent", "claude -p --input-format stream-json"),
+        proc(110, 100, "tool", "node wsp mcp --scoped"),
+        proc(120, 1, "other", "tail -n +1 -f /tmp/lab/runs/3d518f162d41.in"),
+        proc(121, 1, "other", "bash /tmp/lab/runs/3d518f162d41.sh"),
+        proc(200, 1, "dev", "node node_modules/.bin/vite"),
+        proc(201, 200, "other", "esbuild --service"),
+        proc(300, 1, "test", "node node_modules/.bin/vitest"),
+      ]),
+      [LAB.threadId],
+    );
+    expect(left[0]!.processes.map(p => p.pid)).toEqual([200, 201, 300]);
+    expect(endHeads(left[0]!.processes).map(p => p.pid)).toEqual([200, 300]);
   });
 });

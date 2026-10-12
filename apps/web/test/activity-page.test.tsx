@@ -295,11 +295,11 @@ describe("Settings > Activity", () => {
       feedWith(1);
       fireEvent.click(document.querySelector("[data-group=t_two] [data-act=end-all]")!);
       await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
-      // rustc's 9 GB and the database's 170 MB: the agent itself is the thread's Stop, never End all's.
-      expect(screen.getByText(`1 process and 1 container holding ${fmtBytes(9 * GB + 170 * MB)} end, and a turn running stops first.`)).toBeTruthy();
+      // The database's 170 MB: rustc runs under the agent and ends with its turn's stop, never by End all's own kill.
+      expect(screen.getByText(`1 container holding ${fmtBytes(170 * MB)} end, after its turn stops.`)).toBeTruthy();
       fireEvent.click(document.querySelector("[data-k=activity-confirm]")!);
       await settle();
-      expect(wire.calls.filter(([op]) => op === "proc.kill").map(([, p]) => (p as { pid: number }).pid)).toEqual([41]);
+      expect(wire.calls.filter(([op]) => op === "proc.kill")).toEqual([]);
       expect(wire.calls.filter(([op]) => op === "container.stop")).toEqual([["container.stop", { container: ID("a") }]]);
     });
   });
