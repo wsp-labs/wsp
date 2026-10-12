@@ -2,7 +2,7 @@
 // The wsp skill for agents on this computer: one file in the repo, read as
 // text at build time, that names every verb and tool and gives the MCP server
 // its instructions.
-import { CLOUD_ENV, DELETE_AFTER_MS, RUN_BLOCK_WORDS, thisComputerLine } from "@wsp/protocol";
+import { CLOUD_CAP_DEFAULT, CLOUD_ENV, DELETE_AFTER_MS, RUN_BLOCK_WORDS, thisComputerLine } from "@wsp/protocol";
 import { BOX_CLASSES } from "@wsp/engine";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
@@ -55,8 +55,9 @@ describe("the wsp skill", () => {
     expect(boat).toContain(`deleted ${DELETE_AFTER_MS / 60_000} minutes after it is done`);
     expect(boat).toContain("12 a minute and 200 a day on the $20 plan");
     const costs = section("## Costs and limits");
-    for (const c of BOX_CLASSES) expect(costs).toContain(`\`${c.type}\` (${c.cpu} vCPU, ${c.memMb / 1024} GB, ${c.diskGb} GB${c.type === "small" ? " for files" : ""}) $${c.rateUsdPerHour.toFixed(3)}`);
-    expect(costs).toContain("The trial, until the first payment, runs 2 machines at once, sells `small` and `default` only, and takes 5 starts a minute, 25 an hour and 75 a day.");
+    for (const c of BOX_CLASSES) expect(costs).toContain(`\`${c.cpu}x${c.memMb / 1024}\` (\`${c.type}\`, ${c.diskGb} GB) $${c.rateUsdPerHour.toFixed(3)}`);
+    expect(costs).toContain("The trial, until the first payment, runs 2 machines at once, sells `2x4` and `4x8` only, and takes 5 starts a minute, 25 an hour and 75 a day.");
+    expect(costs).toContain(`wsp holds Boat to ${CLOUD_CAP_DEFAULT.machines} machines at once`);
   });
 
   it("is the repo's skills/wsp/SKILL.md as this process reads it, with the frontmatter name and a one-line description without a colon or a quote", () => {
