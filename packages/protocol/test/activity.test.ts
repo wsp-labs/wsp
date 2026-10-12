@@ -47,6 +47,21 @@ describe("a snapshot read by thread", () => {
     expect(left.map(t => [t.threadId, t.processes.map(p => p.pid)])).toEqual([[LAB.threadId, [400]]]);
     expect(processesLeftLine("settle", left)).toBe("a thread to settle still runs a process: 400 node (other) of lab-thre:");
   });
+
+  it("counts a kept agent's input pump and the script's shell it runs in, left under pid 1 in the turn's group, as the agent's, and a dev server left in that group as what outlives it", () => {
+    const kept: ActivityScope = { threadId: "kept-thread-3", title: "kept on linux", workspaceId: "ws-1", roots: [500], kept: 500 };
+    const procs = [
+      row(500, 50, "bash", "bash /tmp/lab/runs/3d518f162d41.sh", { pgid: 500 }),
+      row(501, 500, "claude", "claude -p --input-format stream-json", { pgid: 500 }),
+      row(502, 1, "tail", "tail -n +1 -f /tmp/lab/runs/3d518f162d41.in", { pgid: 500, owner: { by: "group", thread: kept.threadId } }),
+      row(503, 1, "bash", "bash /tmp/lab/runs/3d518f162d41.sh", { pgid: 500, owner: { by: "group", thread: kept.threadId } }),
+      row(504, 1, "node", "node node_modules/.bin/vite", { pgid: 500, owner: { by: "group", thread: kept.threadId } }),
+      row(505, 1, "tail", "tail -n +1 -f /tmp/notes.in", { pgid: 500, owner: { by: "group", thread: kept.threadId } }),
+    ];
+    const view = activityOf({ ...read(procs), scopes: [kept] });
+    expect(view.threads[0]!.processes.map(p => [p.pid, p.kind])).toEqual(expect.arrayContaining([[502, "agent"], [503, "agent"], [504, "other"], [505, "other"]]));
+    expect(processesLeft(view, [kept.threadId])[0]!.processes.map(p => p.pid)).toEqual([504, 505]);
+  });
 });
 
 describe("an End's plan", () => {

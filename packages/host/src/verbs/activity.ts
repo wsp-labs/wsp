@@ -14,6 +14,8 @@ import {
   type ProcessesChoice,
 } from "@wsp/protocol";
 import { usageIs, tool, type CliVerb, type HostClient, flag, oneOf } from "./client.js";
+import { CLOUD_ON } from "../cloud.js";
+import { cloudText } from "../cloud-text.js";
 import { threadOf } from "./workspaces-help.js";
 import { asText } from "./io.js";
 
@@ -58,7 +60,7 @@ async function readFor(client: HostClient, computer: string | undefined, ref: st
 
 export const processesAsked = (value: string | undefined, on?: string): ProcessesChoice | undefined => oneOf("processes", PROCESSES_CHOICES, value, on);
 
-export const ProcessesIn = z.enum(PROCESSES_CHOICES).optional().describe("what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread");
+export const ProcessesIn = z.enum(PROCESSES_CHOICES).optional().describe(cloudText("what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run<!-- cloud -->. A thread on a cloud machine is not read and goes as before<!-- /cloud -->", CLOUD_ON));
 
 export const ACTIVITY_VERBS: readonly CliVerb[] = [
   {

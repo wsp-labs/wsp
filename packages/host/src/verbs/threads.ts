@@ -377,7 +377,7 @@ export const THREAD_VERBS: readonly Verb[] = [
   {
     name: "thread settle",
     usage: "wsp thread settle <thread>... [--finished] [--processes stop|keep]",
-    about: "folds each thread and every thread under it into the sidebar's Settled, leaving a tree with a thread still working or asking in it; a thread settles itself and the threads it started, never its lead; refused while one on this computer still runs processes, unless --processes says to stop or keep them",
+    about: "folds each thread and every thread under it into the sidebar's Settled, leaving a tree with a thread still working or asking in it; a thread settles itself and the threads it started, never its lead; refused while one still runs processes, on this computer or a box, unless --processes says to stop or keep them",
     page: "agent",
     options: { finished: { type: "boolean" }, processes: { type: "string" } },
     run: async ctx => {

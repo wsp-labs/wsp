@@ -23,7 +23,7 @@
             "stop",
             "keep"
           ],
-          "description": "what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread"
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run"
         }
       },
       "required": [
@@ -213,7 +213,7 @@
             "stop",
             "keep"
           ],
-          "description": "what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread"
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run. A thread on a cloud machine is not read and goes as before"
         }
       },
       "required": [
