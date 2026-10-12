@@ -5,6 +5,7 @@
 // thread's cgroup on the same box is never read or ended.
 import { describe, expect, it } from "vitest";
 import { PROCESSES_LEFT_KIND, processesLeftOf, threadCgroup, type ProcEntry } from "@wsp/protocol";
+import { memoryStore } from "../src/store.js";
 import { answering, joined, type Started } from "./box-fixture.js";
 import { until } from "./until.js";
 
@@ -106,5 +107,69 @@ describe("a thread on a box with a dev server left running", () => {
     const answer = await b.rt.sessions.settle([b.threadId], undefined, { processes: "ask" });
     expect(answer.settled.map(t => t.threadId)).toEqual([b.threadId]);
     expect(b.ends()).toEqual([]);
+  });
+});
+
+describe("a thread on a box whose pane opened a shell with a dev server in it", () => {
+  /** The shell and its vite, outside the thread's cgroup as the box daemon's pty.create leaves them, stamped the
+   * thread's as that daemon does once the host names the shell; the shell's tag in the host's state; and a daemon
+   * whose pty.kill takes the shell and what runs in it. */
+  async function withShell() {
+    const store = memoryStore();
+    const starts: Started[] = [];
+    const killed: string[] = [];
+    let held: Awaited<ReturnType<typeof joined>> | undefined;
+    const ptys = async (frame: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      if (frame["op"] === "pty.kill") {
+        killed.push(String(frame["ptyId"]));
+        held!.seen.procs = held!.seen.procs.filter(p => p.pid !== 9100 && p.pid !== 9110);
+      }
+      return { ok: true };
+    };
+    held = await joined({ adapters: { claude: answering(starts) }, store, ptys });
+    const at = await held.rt.workspaces.folderFor({ project: held.project.id });
+    const turn = await held.rt.sessions.start(at.workspace.id, { prompt: "start the dev server", harness: "claude" });
+    const threadId = turn.view().threadId!;
+    await until(async () => (await held!.rt.sessions.list(at.workspace.id)).every(s => s.status !== "running"));
+    const owner = { by: "root" as const, thread: threadId };
+    held.seen.procs = [
+      row(7100, 1, "node", "node /root/spoo-ts/node_modules/.bin/vite", threadCgroup(threadId)),
+      { ...row(9100, 1, "bash", "-bash", "/user.slice"), pty: "pty_1", kind: "terminal", owner },
+      { ...row(9110, 9100, "node", "node /root/spoo-ts/node_modules/.bin/vite --port 5199", "/user.slice"), kind: "terminal", owner },
+    ];
+    await store.put("pty-threads", at.workspace.id, { pty_1: threadId });
+    return { ...held, threadId, killed };
+  }
+
+  it("settle asks about the shell, and stop ends it over pty.kill with the cgroup, leaving nothing standing", async () => {
+    const b = await withShell();
+    const refused = await b.rt.sessions.settle([b.threadId], undefined, { processes: "ask" }).then(() => "", (e: unknown) => (e as Error).message);
+    expect(refused).toContain(`9100 bash (terminal) of ${b.threadId.slice(0, 8)} on hetzner`);
+    const answer = await b.rt.sessions.settle([b.threadId], undefined, { processes: "stop" });
+    expect(answer.ended).toEqual([expect.objectContaining({ left: [] })]);
+    expect(b.killed).toEqual(["pty_1"]);
+    expect(pids(b.seen.procs)).toEqual([]);
+  });
+
+  it("settle with keep leaves the shell running", async () => {
+    const b = await withShell();
+    await b.rt.sessions.settle([b.threadId], undefined, { processes: "keep" });
+    expect(b.killed).toEqual([]);
+    expect(pids(b.seen.procs)).toEqual([7100, 9100, 9110]);
+  });
+
+  it("delete with stop ends the shell, and its answer names nothing still standing", async () => {
+    const b = await withShell();
+    const answer = await b.rt.sessions.delete(b.threadId, undefined, { processes: "stop" });
+    expect(answer.ended).toEqual([expect.objectContaining({ left: [] })]);
+    expect(b.killed).toContain("pty_1");
+    expect(pids(b.seen.procs)).toEqual([]);
+  });
+
+  it("delete with keep leaves the shell and what runs in it", async () => {
+    const b = await withShell();
+    await b.rt.sessions.delete(b.threadId, undefined, { processes: "keep" });
+    expect(b.killed).toEqual([]);
+    expect(pids(b.seen.procs)).toEqual([7100, 9100, 9110]);
   });
 });

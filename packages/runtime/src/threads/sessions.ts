@@ -1448,7 +1448,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       threadRecords.delete(threadId);
       await ctx.dropFromTranscript(workspaceId, threadId);
       await ctx.persistSessions(workspaceId);
-      await ctx.slates.forget(threadId);
+      await ctx.slates.forget(threadId, { keep: o.processes === "keep" });
       return { workspaceId, threads: 1, ...(ended.length > 0 ? { ended } : {}) };
     },
 

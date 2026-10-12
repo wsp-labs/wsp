@@ -12,7 +12,6 @@ import { EXEC_OUTPUT_MAX, shellQuote, threadCgroup } from "@wsp/protocol";
 import { BOX_SLATES, boxSlateDir } from "./slate-mcp-on.js";
 import { reshapeAnswer, type Reshape, type RoadEnd, type RunRoad } from "./slate-runs.js";
 
-export { BOX_SLATES, boxSlateDir };
 
 /** How long a removal a box did not answer waits before it is tried again. */
 const OWED_RETRY_MS = 60_000;
