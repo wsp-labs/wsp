@@ -195,8 +195,7 @@ const LEAD: SessionView = { id: "s_lead", threadId: "thr_lead", workspaceId: LEA
 const historyOf = (s: Sub): SessionEvent[] => {
   const scope = { workspaceId: `ws_${s.key}`, sessionId: `s_${s.key}`, turnId: `turn_${s.key}`, threadId: threadOf(s) };
   const start: SessionEvent = { type: "session.start", ...scope, agent: "claude", model: "claude-opus-5-5", cwd: "/root/web", prompt: PROMPT_OF[s.key] ?? s.title, at: s.startedAt } as SessionEvent;
-  if (s.sub.state === "starting") return [];
-  if (s.sub.state === "waiting") return [start];
+  if (s.sub.state === "waiting" || s.sub.state === "starting") return [start];
   const work: SessionEvent = { type: "session.delta", ...scope, kind: "text", at: s.startedAt + MIN, text: "Fetched the branch and ran the upload suite 20 times: 2 failures, both in `resumes after a dropped part`, which sleeps 200 ms and then asserts the part was sent again." } as SessionEvent;
   if (s.endedAt === undefined) return [start, work];
   const reply: SessionEvent[] = s.reply === undefined ? [] : [{ type: "session.delta", ...scope, kind: "text", at: s.endedAt - 1000, text: `\n\n${s.reply}` } as SessionEvent];
@@ -345,19 +344,24 @@ if (state === "boat" || state === "remove") {
   if (state === "remove") setTimeout(() => pressWhenDrawn('[data-k="remove"]'), 200);
 }
 
-/** What the spawn has said for the open sub-thread while its machine is made: the stages with the facts they read,
- * the line it passed with, and the raw log `wsp run --on boat` prints, as the host would hand them over. */
-if (state === "starting" || state === "starting-failed") {
+/** What the spawn said for the open sub-thread, as the host would hand it over: the stages with the facts they read,
+ * the line it passed with and the raw log `wsp run --on boat` prints. Live while it starts, failed on the failed page,
+ * and done, 49 seconds to the agent's first answer, on every page past the start; a spawn still waiting has none. */
+if (focused.sub.state !== "waiting") {
   const failed = state === "starting-failed";
-  const t0 = focused.startedAt;
+  const live = state === "starting";
+  const t0 = live ? Date.now() - 38_000 : focused.startedAt;
+  const agent: StepLine = failed
+    ? { id: "agent", name: SUB_SPAWN_WORDS.agent("Claude Code"), state: "waiting" }
+    : { id: "agent", name: SUB_SPAWN_WORDS.agent("Claude Code"), note: SUB_SPAWN_WORDS.agentFact("Opus 5.5", "high"), state: live ? "working" : "done", ...(live ? { since: Date.now() - 4_000 } : { ms: 15_600 }) };
   const steps: StepLine[] = [
     { id: "branch", name: SUB_SPAWN_WORDS.branch(true), note: SUB_SPAWN_WORDS.branchFact(FOCUS_BRANCH, "a1b2c3d4e5"), state: "done", ms: 200 },
     failed
-      ? { id: "machine", name: SUB_SPAWN_WORDS.machine("Boat", false), note: "bx_7k2q9  provisioning, then bx_m3p8a  provisioning", state: "failed", ms: 64_000, said: "Boat gave two machines in a row that could not run commands (bx_7k2q9, bx_m3p8a; request req_8f2c41); Boat is restoring badly right now.", fix: "Start it again in a few minutes." }
-      : { id: "machine", name: SUB_SPAWN_WORDS.machine("Boat", true), note: "bx_7k2q9  provisioning, cloning, ready", state: "done", ms: 31_000 },
+      ? { id: "machine", name: SUB_SPAWN_WORDS.machine("Boat", false), note: "bx_7k2q9, provisioning, then bx_m3p8a, provisioning", state: "failed", ms: 64_000, said: "Boat gave two machines in a row that could not run commands (bx_7k2q9, bx_m3p8a; request req_8f2c41); Boat is restoring badly right now.", fix: "Start it again in a few minutes." }
+      : { id: "machine", name: SUB_SPAWN_WORDS.machine("Boat", true), note: "bx_7k2q9, provisioning, cloning, ready", state: "done", ms: 31_000 },
     { id: "uncommitted", name: subUncommittedLine(3, "web", FOCUS_BRANCH, "a1b2c3d4e5"), state: "warned" },
     failed ? { id: "files", name: SUB_SPAWN_WORDS.files(2, false), state: "waiting" } : { id: "files", name: SUB_SPAWN_WORDS.files(2, true), note: ".env, .env.local, 4 KB", state: "done", ms: 1_400 },
-    failed ? { id: "agent", name: SUB_SPAWN_WORDS.agent("Claude Code"), state: "waiting" } : { id: "agent", name: SUB_SPAWN_WORDS.agent("Claude Code"), note: SUB_SPAWN_WORDS.agentFact("Opus 5.5", "high"), state: "working", since: Date.now() - 4_000 },
+    agent,
   ];
   const stamp = (ms: number): string => new Date(t0 + ms).toISOString().slice(11, 19);
   const log = [
@@ -368,9 +372,9 @@ if (state === "starting" || state === "starting-failed") {
     `${stamp(2_100)} bx_7k2q9 provisioning`,
     ...(failed
       ? [`${stamp(31_000)} bx_7k2q9 ran nothing: exec answered 502 three times`, `${stamp(31_400)} Boat gave bx_7k2q9 with nothing able to run on it (exec 502); wsp deleted it and started another.`, `${stamp(32_000)} POST /boxes 201 bx_m3p8a (small, 2 vCPU, 4 GB) requestId=req_8f2c41`, `${stamp(33_000)} bx_m3p8a provisioning`, `${stamp(64_000)} bx_m3p8a ran nothing: exec answered 502 three times`]
-      : [`${stamp(9_800)} bx_7k2q9 cloning`, `${stamp(31_300)} bx_7k2q9 ready`, `${stamp(31_900)} Daemon answered.`, `${stamp(32_100)} copying 2 files`, `${stamp(33_500)} ready`, `${stamp(33_600)} thread e17a90c3 on boat in /root/web`]),
+      : [`${stamp(9_800)} bx_7k2q9 cloning`, `${stamp(31_300)} bx_7k2q9 ready`, `${stamp(31_900)} Daemon answered.`, `${stamp(32_100)} copying 2 files`, `${stamp(33_500)} ready`, `${stamp(33_600)} thread e17a90c3 on boat in /root/web`, ...(live ? [] : [`${stamp(49_000)} Claude Code answered`])]),
   ];
-  useSpawnLogs.setState({ byWorkspace: { [`ws_${focused.key}`]: { size: "small, 2 vCPU, 4 GB, $0.018/hr", steps, log } } });
+  useSpawnLogs.setState({ byWorkspace: { [`ws_${focused.key}`]: { on: "Boat", since: t0, ...(live || failed ? {} : { tookMs: 49_000 }), steps, log } } });
 }
 
 /** A running sub-machine's live readings, two minutes of them and one more every two seconds: a test run's load and

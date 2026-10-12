@@ -321,7 +321,9 @@ export type MessagesTimelineRow =
     }
   | { readonly kind: "thinking"; readonly id: string; readonly createdAt: string | null }
   /** Where a fork's own history starts, after the turns it was handed. */
-  | { readonly kind: "fork"; readonly id: string; readonly createdAt: string | null };
+  | { readonly kind: "fork"; readonly id: string; readonly createdAt: string | null }
+  /** A sub-thread's machine being made, or made, under its brief. */
+  | { readonly kind: "machine-start"; readonly id: string; readonly createdAt: string | null };
 
 // --- composer prompts ---------------------------------------------------------
 

@@ -73,6 +73,8 @@ export interface MessagesTimelineProps {
   onFork?: (messageId: MessageId) => void;
   /** On a fork's page, the thread it came from, drawn as the rule line after the turns it was handed. */
   forkedFrom?: ForkedFromLine | null;
+  /** A sub-thread whose machine was made for it, which the line under its brief says. */
+  machineStart?: boolean;
   /** Answers a relayed permission prompt; the turn it blocks runs or is refused as the option says. */
   onAnswerPermission?: AnswerPrompt;
   /** The prompt answered where the composer stands, by its ask id: its row here keeps the record and offers
@@ -178,6 +180,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   forkableMessageIds = EMPTY_REWINDABLE,
   onFork = NOOP_REWIND,
   forkedFrom = null,
+  machineStart = false,
   onAnswerPermission = NOOP_ANSWER_PERMISSION,
   dockedAskId = null,
   onImageExpand,
@@ -345,9 +348,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         waitingOn,
         openRun,
         forked: forkedFrom !== null,
+        machineStart,
         ...(spawned !== undefined ? { children: spawned } : {}),
       }),
-    [timelineEntries, turns, expandedTurnIds, expandedWorkGroupIds, isWorking, activeTurnStartedAt, waitingOn, openRun, forkedFrom, spawned],
+    [timelineEntries, turns, expandedTurnIds, expandedWorkGroupIds, isWorking, activeTurnStartedAt, waitingOn, openRun, forkedFrom, machineStart, spawned],
   );
   const rows = useStableRows(rawRows);
   const deriveInput = useRef<DeriveRowsInput | null>(null);
