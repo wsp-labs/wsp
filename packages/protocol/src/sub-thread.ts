@@ -99,8 +99,8 @@ export function subPreamble(o: {
   deleteAfterMinutes: number;
 }): string {
   const lead = o.lead.slice(0, 8);
-  const folder = o.sent.length === 0 ? `The folder you are in, ${o.folder}, is empty.` : `The folder you are in, ${o.folder}, holds only the git-ignored files the person picked: ${o.sent.join(", ")}.`;
-  const deleted = o.deleteAfterMinutes === 0 ? "as soon as your last turn ends" : `${o.deleteAfterMinutes} minutes after your last turn ends`;
+  const folder = folderWords(o.folder, o.sent);
+  const deleted = deletedWords(o.deleteAfterMinutes);
   return [
     `This thread runs on a machine of its own on ${o.on} (${subSizeWords(o.size)}), started by thread ${lead}. The code is not here yet. ${folder} Get the code first, in this folder:`,
     "",
@@ -115,6 +115,52 @@ export function subPreamble(o: {
     "The task:",
   ].join("\n");
 }
+
+/** The folder a sub-thread's machine opens in, as its preamble says it: empty, or holding the files picked. */
+const folderWords = (folder: string, sent: readonly string[]): string =>
+  sent.length === 0 ? `The folder you are in, ${folder}, is empty.` : `The folder you are in, ${folder}, holds only the git-ignored files the person picked: ${sent.join(", ")}.`;
+
+/** When a sub-thread's machine goes, as its preamble says it. */
+const deletedWords = (minutes: number): string => (minutes === 0 ? "as soon as your last turn ends" : `${minutes} minutes after your last turn ends`);
+
+/** The head of a send into a sub-thread whose machine was deleted, on the new machine it runs on now: the conversation
+ * came and the code did not, so the git lines get its pushed branch back, or start it again from the lead's commit
+ * where it pushed nothing. The message follows it after a blank line. */
+export function subResumePreamble(o: {
+  on: string;
+  size: Pick<SubSize, "name" | "cpu" | "memMb">;
+  folder: string;
+  sent: readonly string[];
+  setupGit: string;
+  repo: string;
+  base: { branch: string; sha: string };
+  branch: string;
+  pushed: boolean;
+  deleteAfterMinutes: number;
+}): string {
+  const fetch = o.pushed ? [`git fetch -q --filter=blob:none origin ${o.branch}`, `git checkout -q -b ${o.branch} FETCH_HEAD`] : [`git fetch -q --filter=blob:none origin ${o.base.branch}`, `git checkout -q -b ${o.branch} ${o.base.sha}`];
+  const push = o.pushed ? `Push to ${o.branch} as before.` : `Work on ${o.branch}, then commit and run git push -u origin ${o.branch} before your turn ends.`;
+  return [
+    `This thread's machine was deleted after its last turn, and the thread goes on here, on a new machine on ${o.on} (${subSizeWords(o.size)}). Your conversation came with it; the code did not. ${folderWords(o.folder, o.sent)} Get your branch back first, in this folder:`,
+    "",
+    o.setupGit,
+    "git init -q",
+    `git remote add origin ${o.repo}`,
+    ...fetch,
+    "",
+    `${push} This machine is deleted ${deletedWords(o.deleteAfterMinutes)}.`,
+    "",
+    "The message:",
+  ].join("\n");
+}
+
+/** A sub-thread's session past what the host keeps, as its row says it. */
+export const subSessionTooLargeLine = (size: string): string => `the agent's session was too large to keep (${size}); a send continues from the transcript`;
+/** A sub-thread's session the host could not keep, as its row says it. */
+export const subSessionNotKeptLine = (why: string): string => `the agent's session was not kept (${why}); a send continues from the transcript`;
+
+/** A rewind or a fork asked of a turn that ran on a sub-thread's machine since deleted: its checkpoints went with it. */
+export const SUB_TURN_GONE_LINE = "that turn ran on a machine since deleted, so its files cannot be rewound; send to the thread to go on from where it stands.";
 
 /** The first message whole: the preamble, a blank line, and the lead's task as given. */
 export const subOpening = (preamble: string, task: string): string => `${preamble}\n\n${task}`;
@@ -277,9 +323,9 @@ export const subCloudGoneLine = (on: string): string => `${on} is no longer on t
 /** A send into a sub-thread whose cloud this host no longer holds. */
 export const subCloudGoneRefusal = (on: string): Error => usage(subCloudGoneLine(on), `Add it with wsp add ${on.toLowerCase()} and send again.`);
 
-/** A send into a sub-thread whose machine was deleted after it was done, before a new machine can be made for it. */
-export const subReleasedRefusal = (threadId: string, on: string, branch: string): Error =>
-  usage(`sub-thread ${threadId.slice(0, 8)}'s machine on ${on} was deleted after it was done; its work is on ${branch}`, `Merge ${branch} into its lead, or start a new sub-thread with wsp run --on ${on.toLowerCase()}.`);
+/** A wake of a sub-thread whose machine was deleted after it was done: there is none to wake, and a send makes one. */
+export const subReleasedRefusal = (threadId: string, on: string): Error =>
+  usage(`sub-thread ${threadId.slice(0, 8)}'s machine on ${on} was deleted after it was done, so there is none to wake`, `Send to it with wsp send ${threadId.slice(0, 8)} "<message>", which starts a new one.`);
 
 /** What a delete Boat refused says, and when it is asked again. */
 export const subDeleteRefusedLine = (on: string, machine: string, said: string, retryMinutes: number): string =>
