@@ -35,3 +35,12 @@ function snapshot(): number {
 export function useMinuteClock(): number {
   return useSyncExternalStore(subscribe, snapshot);
 }
+
+const idle = (): (() => void) => () => undefined;
+const still = (): number => 0;
+
+/** The same clock, read only while `on`: a reader that needs minutes in one case of many holds no timer in the rest,
+ * and reads 0 there, since the timerless snapshot moves each second and would draw every such reader again. */
+export function useMinuteClockWhen(on: boolean): number {
+  return useSyncExternalStore(on ? subscribe : idle, on ? snapshot : still);
+}

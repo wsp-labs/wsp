@@ -225,6 +225,12 @@ export interface NamedMachine {
   createdAt?: string;
 }
 
+/** A provider's machine by its own id, in the provider's own word for its state. */
+export interface ProviderBoxState {
+  id: string;
+  state: string;
+}
+
 export interface MachineBackend {
   readonly capabilities: Capabilities;
   readonly pricing: BackendPricing;
@@ -250,9 +256,10 @@ export interface MachineBackend {
    * provider has no computer of theirs to run anything on. Nothing of wsp is installed on the computer by it: the
    * commands are its own folders' making and taking. */
   onComputer?(cmd: string, opts?: { timeoutMs?: number }): Promise<ExecResult>;
-  /** `waiting` hears each wait the provider puts the create through, as a line for the person following it. `sent`
-   * is what `createRequest` made for this attempt, sent again as it is under the same key. */
-  create(spec: MachineSpec, waiting?: (line: string) => void, sent?: string): Promise<Machine>;
+  /** `waiting` hears each wait the provider puts the create through, as a line for the person following it, with
+   * the provider's own machine and its state where the line says one. `sent` is what `createRequest` made for this
+   * attempt, sent again as it is under the same key. */
+  create(spec: MachineSpec, waiting?: (line: string, box?: ProviderBoxState) => void, sent?: string): Promise<Machine>;
   /** Optional, the three together: only a backend whose create takes a key the provider keeps. The exact bytes a
    * create of this spec sends, made once per attempt so a replay under its key carries the same body. */
   createRequest?(spec: MachineSpec): Promise<string>;

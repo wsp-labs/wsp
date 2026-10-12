@@ -7,7 +7,7 @@
 // in the refusal slot's two inks; a step that ran opens on a click to its last
 // lines of output, its chevron turning. An item under a step (one sign-in, one
 // skill that did not land) steps in by the mark's width.
-import { ChevronRightIcon, CircleIcon, CircleMinusIcon } from "lucide-react";
+import { ChevronRightIcon, CircleIcon, CircleMinusIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { COPY_KEYS_WORD, fmtDuration, fmtElapsed } from "@wsp/protocol";
 import { Crab } from "../../components/status/Crab.js";
@@ -64,6 +64,8 @@ export function StepRow({ row, why, acts, toggle, agent = false, children }: { r
       <span className="flex size-4 items-center justify-center">
         {quiet ? (
           <CircleIcon data-state-mark="waiting" role="img" aria-label="Not started" className="size-3.5 text-muted-foreground/60" />
+        ) : row.state === "warned" ? (
+          <TriangleAlertIcon data-state-mark="warned" role="img" aria-label="Passed with a warning" className="size-3.5 text-warning" />
         ) : row.state === "skipped" ? (
           <CircleMinusIcon data-state-mark="skipped" role="img" aria-label="Skipped" className="size-3.5 text-muted-foreground" />
         ) : agent && row.state === "working" ? (

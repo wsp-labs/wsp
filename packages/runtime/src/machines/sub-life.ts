@@ -6,7 +6,7 @@
 // thread, transcript, result and session. The timer is the record's deleteAt,
 // so a restarted host arms it again.
 import { INLINE_EXEC_MS, isMissing } from "@wsp/engine";
-import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subResultLine, subSessionNotKeptLine, subSessionTooLargeLine, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
+import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subResultLine, isGitPush, pushRefusedOf, subSessionNotKeptLine, subSessionTooLargeLine, subSpawning, type SessionEvent, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
 import { GONE_REASON, deadMachine } from "../types/internal.js";
 import type { GoneOutcome, LiveWorkspace, SubSession, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubLifeArea } from "../context.js";
@@ -22,6 +22,9 @@ export const SUB_STOP_AFTER_DELETE_MS = 10 * 60_000;
 export const SUB_DELETE_RETRY_MS = 10 * 60_000;
 /** The longest a lead's line waits on the done read after its sub-thread's turn; past it the line goes without. */
 export const SUB_LINE_WAIT_MS = 5 * 60_000;
+/** How far back the done looks for the agent's last push: the newest events of the thread, and their bytes. */
+const PUSH_READ_EVENTS = 400;
+const PUSH_READ_BYTES = 2_000_000;
 /** The row's reason for the nap a done takes. */
 const DONE_NAP = "its sub-thread is done";
 
@@ -95,12 +98,22 @@ export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
   const sub = record.sub;
   if (sub === undefined) return undefined;
   const state: SubState =
-    record.phase === "released" || record.phase === "gone" ? "released" : record.phase === "queued" ? (record.queue !== undefined ? "waiting" : "starting") : record.phase === "running" ? "running" : "napping";
+    record.phase === "released" || record.phase === "gone"
+      ? "released"
+      : record.phase === "queued"
+        ? record.queue !== undefined
+          ? "waiting"
+          : "starting"
+        : record.phase === "running"
+          ? subSpawning(sub.spawn)
+            ? "starting"
+            : "running"
+          : "napping";
   return {
     state,
     on: sub.on,
     machine: record.name,
-    size: { cpu: record.size.cpu, memMb: record.size.memMb },
+    size: { cpu: record.size.cpu, memMb: record.size.memMb, ...(sub.sizeName !== undefined ? { name: sub.sizeName } : {}) },
     ...(sub.rateUsdPerHour !== undefined ? { rateUsdPerHour: sub.rateUsdPerHour } : {}),
     branch: sub.branch,
     ...(sub.result !== undefined ? { result: sub.result } : {}),
@@ -109,6 +122,7 @@ export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
     ...(sub.releasedAt !== undefined ? { releasedAt: sub.releasedAt } : {}),
     ...(sub.cloudGone === true ? { cloudGone: true as const } : {}),
     ...(sessionNotKept(sub.session) !== undefined ? { sessionNotKept: sessionNotKept(sub.session)! } : {}),
+    ...(sub.spawn !== undefined ? { spawn: sub.spawn } : {}),
   };
 }
 
@@ -175,6 +189,22 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     } catch (e) {
       return failed(e instanceof Error ? e.message : String(e));
     }
+  };
+
+  /** Why the thread's newest git push was refused, off that push's own output in the transcript; nothing where it went
+   * through, none is held, or no push failed. */
+  const pushRefusedIn = async (workspaceId: string, threadId: string): Promise<string | undefined> => {
+    const { events } = await ctx.transcriptReader.read(workspaceId, threadId, { limit: PUSH_READ_EVENTS, bytes: PUSH_READ_BYTES });
+    const results = new Map<string, Extract<SessionEvent, { type: "session.delta" }>>();
+    for (const e of events) if (e.type === "session.delta" && e.kind === "tool_result" && e.toolUseId !== undefined) results.set(e.toolUseId, e);
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i]!;
+      if (e.type !== "session.delta" || e.kind !== "tool_use" || e.toolUseId === undefined || !isGitPush(e.text)) continue;
+      const out = results.get(e.toolUseId);
+      const failed = out !== undefined && (out.isError === true || (out.exitCode ?? 0) !== 0);
+      return failed ? pushRefusedOf(out.text) : undefined;
+    }
+    return undefined;
   };
 
   /** The agent's one session file, packed on the machine and kept on the host, so a machine lost later still leaves a
@@ -288,7 +318,9 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     // An end with no turn run since the last read, on a machine no longer running (a start a restart failed), leaves
     // that read's word standing: a read of the stopped machine would hold work it already found pushed.
     if (entry.record.phase !== "running" && sub.result !== undefined && (ctx.latestOn(threadId)?.startedAt ?? 0) <= Date.parse(sub.result.readAt)) return;
-    const result = await readResult(entry);
+    const read = await readResult(entry);
+    const refused = subAllPushed(read) ? undefined : await pushRefusedIn(id, threadId).catch(() => undefined);
+    const result = refused === undefined ? read : { ...read, pushRefused: refused };
     await keepSession(entry, threadId);
     // A release re-attaches the record, so an entry no longer the live one was released meanwhile.
     if (busy(threadId) || live.get(id) !== entry) return;
@@ -301,6 +333,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       delete sub.deleteAt;
     }
     await ctx.persist(entry.record);
+    // No event of the done carries the row, so every window is told it here: its tile reads Not pushed or Done.
+    ctx.pushHead(threadId);
     arm(entry);
     // The lead's line goes on the read, not after the nap: a stop at the cloud takes minutes.
     readDone(id, clock.now());

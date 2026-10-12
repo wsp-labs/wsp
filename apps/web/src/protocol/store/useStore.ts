@@ -998,12 +998,16 @@ export const useStore = create<State>((set, get) => {
             places: s.places.map(p => (p.id === e.placeId ? { ...p, present: e.type === "place.present", lastSeenAt: new Date().toISOString() } : p)),
           }));
           return;
-        case "place.removed":
+        case "place.removed": {
+          // A cloud's remove releases every sub-machine on it with no event of their own, so the rows are read again.
+          const held = get().workspaces.some(w => w.place === e.placeId || w.provider === e.placeId);
           set(s => {
             const { [e.placeId]: _gone, ...goldenFrames } = s.goldenFrames;
             return { places: s.places.filter(p => p.id !== e.placeId), goldenFrames };
           });
+          if (held) void get().refresh();
           return;
+        }
         case "project.added":
           // In the host's own order, so a project a recipe moved under its id and age lands back where it stood.
           set(s => ({ projects: [...s.projects.filter(p => p.id !== e.project.id), e.project].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) }));

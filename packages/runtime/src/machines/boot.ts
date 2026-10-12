@@ -806,6 +806,12 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     rowsQueued = true;
     queueMicrotask(pushRows);
   };
+  /** Sends the rows that moved now and answers once they are on the bus: a caller that answers a request after them
+   * puts them ahead of its answer on every socket. */
+  const rowsSent = async (): Promise<void> => {
+    if (rowsQueued) pushRows();
+    await rowsOut;
+  };
   const rowMoved = (workspaceId: string, threadId: string): void => {
     queueRows();
     rowsMoved.set(threadId, workspaceId);
@@ -1011,7 +1017,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   };
   return {
     refreshBuilders, isHeldAway, rereadHeld, hydrateWorkspace, ready, entryOf, childOf, reachesRow, entryOfRow,
-    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, factsAfterRead, settledNow, pushHead, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
+    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, factsAfterRead, settledNow, pushHead, rowsSent, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
     imageHead, landingPlace,
   };
 }

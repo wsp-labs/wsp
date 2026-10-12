@@ -470,7 +470,14 @@ export type PlaceSettingWord = z.infer<typeof PlaceSettingWord>;
 
 /** A cloud's plan as its own limits read answers it: the plan's key, whether it is the trial, how many machines the
  * account runs at once, and the sizes the plan sells as `<cpu>x<memGb>`. */
-export const CloudPlan = z.object({ key: z.string().optional(), trial: z.boolean(), machinesAtOnce: z.number().int(), sizes: z.array(z.string()) });
+export const CloudPlan = z.object({
+  key: z.string().optional(),
+  trial: z.boolean(),
+  machinesAtOnce: z.number().int(),
+  sizes: z.array(z.string()),
+  /** Every machine the account runs now, wsp's or not, which the plan's machines at once counts. */
+  running: z.number().int().optional(),
+});
 export type CloudPlan = z.infer<typeof CloudPlan>;
 
 /** One window of a cloud's starts: how many the account used and how many it may. */
@@ -481,8 +488,9 @@ export type StartsWindow = z.infer<typeof StartsWindow>;
 export const CloudStarts = z.object({ minute: StartsWindow, hour: StartsWindow, day: StartsWindow });
 export type CloudStarts = z.infer<typeof CloudStarts>;
 
-/** What a cloud's own limits read answers, for its row: the starts absent where the plan counts none. */
-export const CloudLimits = z.object({ plan: CloudPlan, starts: CloudStarts.optional() });
+/** What a cloud's own limits read answers, for its row: the starts absent where the plan counts none, and the machine
+ * hours the account's credit buys where the read said. */
+export const CloudLimits = z.object({ plan: CloudPlan, starts: CloudStarts.optional(), creditHours: z.number().optional() });
 export type CloudLimits = z.infer<typeof CloudLimits>;
 
 /** The Macs a computer's icon tells apart. */
@@ -641,6 +649,10 @@ export const PlaceView = z.object({
   sizeDefault: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
   /** On a cloud, how long a finished sub-thread's machine stays before it is deleted, the person's or the default. */
   deleteAfterMs: z.number().int().optional(),
+  /** A cloud that reads its own limits: the machine hours its account's credit buys, as that read answered. */
+  creditHours: z.number().optional(),
+  /** On a cloud, what it has spent since midnight, the figure `wsp computers` carries as its spend row's todayUsd. */
+  spentTodayUsd: z.number().optional(),
 });
 export type PlaceView = z.infer<typeof PlaceView>;
 

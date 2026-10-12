@@ -321,6 +321,9 @@ export function boatCancelledLine(what: string | undefined, said: string | undef
   return `Boat could not get a machine${what === undefined ? "" : ` for ${what}`} and cancelled the create${said === undefined || said === "" ? "" : ` (${said})`}; start it again.`;
 }
 
+/** A create's line as the box Boat made for it moves through Boat's own states. */
+export const boatBoxStateLine = (id: string, state: string): string => `Boat's machine ${id} is ${state}`;
+
 /** The host log's line for a call Boat refused: the status, Boat's code and request id, and the first line of its words. */
 export function boatRefusedLogLine(call: string, status: number, code: string | undefined, requestId: string | undefined, said: string): string {
   const end = said.indexOf("\n");
