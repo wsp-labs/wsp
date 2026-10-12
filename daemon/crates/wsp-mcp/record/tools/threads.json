@@ -177,6 +177,129 @@
               "setupRefusal": {
                 "type": "string"
               },
+              "sub": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "waiting",
+                      "starting",
+                      "running",
+                      "napping",
+                      "released"
+                    ]
+                  },
+                  "on": {
+                    "type": "string"
+                  },
+                  "machine": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "object",
+                    "properties": {
+                      "cpu": {
+                        "type": "integer"
+                      },
+                      "memMb": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "cpu",
+                      "memMb"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "rateUsdPerHour": {
+                    "type": "number"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "object",
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      },
+                      "pushedSha": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "commits": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "unpushed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "changed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "onBranch": {
+                        "type": "string"
+                      },
+                      "norepo": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "readFailed": {
+                        "type": "string"
+                      },
+                      "readAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "branch",
+                      "pushedSha",
+                      "commits",
+                      "unpushed",
+                      "changed",
+                      "readAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "held": {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "commits": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      }
+                    },
+                    "required": [
+                      "files",
+                      "commits"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "deleteAt": {
+                    "type": "number"
+                  },
+                  "releasedAt": {
+                    "type": "number"
+                  },
+                  "cloudGone": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "state",
+                  "on",
+                  "machine",
+                  "size",
+                  "branch"
+                ],
+                "additionalProperties": false
+              },
               "capped": {
                 "type": "object",
                 "properties": {
@@ -579,6 +702,129 @@
               },
               "setupRefusal": {
                 "type": "string"
+              },
+              "sub": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "waiting",
+                      "starting",
+                      "running",
+                      "napping",
+                      "released"
+                    ]
+                  },
+                  "on": {
+                    "type": "string"
+                  },
+                  "machine": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "object",
+                    "properties": {
+                      "cpu": {
+                        "type": "integer"
+                      },
+                      "memMb": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "cpu",
+                      "memMb"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "rateUsdPerHour": {
+                    "type": "number"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "result": {
+                    "type": "object",
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      },
+                      "pushedSha": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "commits": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "unpushed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "changed": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "onBranch": {
+                        "type": "string"
+                      },
+                      "norepo": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "readFailed": {
+                        "type": "string"
+                      },
+                      "readAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "branch",
+                      "pushedSha",
+                      "commits",
+                      "unpushed",
+                      "changed",
+                      "readAt"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "held": {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "commits": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      }
+                    },
+                    "required": [
+                      "files",
+                      "commits"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "deleteAt": {
+                    "type": "number"
+                  },
+                  "releasedAt": {
+                    "type": "number"
+                  },
+                  "cloudGone": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "state",
+                  "on",
+                  "machine",
+                  "size",
+                  "branch"
+                ],
+                "additionalProperties": false
               },
               "capped": {
                 "type": "object",

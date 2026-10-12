@@ -570,8 +570,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("sessions.forget"), threadId: z.string(), check: z.boolean().optional() }),
   /** Takes a thread away on this computer, its turns and its checkpoints with it: a thread in the project folder goes
    * alone and the folder is never touched; so does a thread in a worktree wsp made while another thread is in it, and
-   * the last one there takes that worktree, refused over files no commit holds. A thread on a box goes with its machine. */
-  z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string() }),
+   * the last one there takes that worktree, refused over files no commit holds. A thread on a box goes with its machine.
+   * A sub-thread takes its machine with it; with check it answers the question a person is put first and deletes nothing. */
+  z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string(), check: z.boolean().optional() }),
   /** A window showed the thread, or `wsp thread read` read it: its read stamp moves to now, and every window hears
    * thread.marked. Takes the thread's fold key, as ThreadView.id carries it. */
   z.object({ id: reqId, op: z.literal("sessions.read"), threadId: z.string() }),
@@ -1060,6 +1061,9 @@ export const THREAD_OPS: readonly string[] = [
   // reads that rule beside the tree rule.
   "sessions.settle",
   "sessions.restore",
+  // A lead deletes a sub-thread it started, never over work its machine holds that no remote has; the guard refuses
+  // every other delete a thread asks for.
+  "sessions.delete",
   "sessions.search",
   // A thread writes and reads its own slate, and a lead reads a child's; the window's own slate ops are not here.
   "slates.write",

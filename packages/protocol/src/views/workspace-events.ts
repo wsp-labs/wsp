@@ -78,6 +78,9 @@ export const WorkspaceGoneEvent = z.object({
   reason: z.string(),
 });
 
+/** A sub-thread's machine was deleted at its cloud, or lost there: the record stays with its thread, released. */
+export const WorkspaceReleasedEvent = z.object({ type: z.literal("workspace.released"), workspaceId: z.string() });
+
 export const WorkspaceStatusEvent = z.object({ type: z.literal("workspace.status"), status: WorkspaceStatus });
 /** A review workspace's draft moved: read off the reviewer's reply, edited by a person, or posted. */
 export const WorkspaceReviewEvent = z.object({ type: z.literal("workspace.review"), workspaceId: z.string() });
