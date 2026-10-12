@@ -20,9 +20,10 @@ import { WorkspaceSize } from "../wire/capabilities.js";
 /** pausing: the runtime is stashing the vault and asking the provider to pause; a send is refused from here on.
  * gone: the provider no longer knows the machine (deleted behind wsp, or expired); nothing bills and nothing
  * runs until a rebuild puts a fresh fork under the record or the workspace is deleted.
+ * queued: a sub-machine's record before its machine is made, waiting with `queue` for a slot or a start.
  * released: a sub-thread's machine was deleted at its cloud once the thread was done, or lost there; the record, its
  * thread and its transcript stay, and no machine stands under it. */
-export const WorkspacePhase = z.enum(["running", "pausing", "napping", "waking", "gone", "released"]);
+export const WorkspacePhase = z.enum(["running", "pausing", "napping", "waking", "gone", "queued", "released"]);
 export type WorkspacePhase = z.infer<typeof WorkspacePhase>;
 
 /** Backend vocabulary: a napping workspace's machine reads "paused" here.
@@ -461,6 +462,9 @@ export const WorkspaceView = z.object({
   home: z.string().optional(),
   /** Claude session id of the last session, so the next send can --resume it. */
   claudeSessionId: z.string().optional(),
+  /** With phase queued: since when its spawn waits, ISO, and for what, a machine slot or the cloud's next minute of
+   * starts. Spawns start in `since` order across the host. */
+  queue: z.object({ since: z.string(), why: z.enum(["slot", "minute"]) }).optional(),
   /** Present when the machine streams a display (desktop kind); sandbox machines are headless. */
   screen: z.object({ streamUrl: z.string() }).optional(),
   /** With phase gone: the provider's words when it stopped knowing the machine; every refusal quotes them. */

@@ -28,7 +28,7 @@ const workspace = (state: WorkspaceState, over: Partial<WorkspaceTarget> = {}): 
   displayName: "api",
   machineId: "m_a",
   kind: "cloud",
-  phase: state === "paused" ? "napping" : state === "unreachable" ? "running" : state,
+  phase: state === "paused" ? "napping" : state === "unreachable" ? "running" : state === "waiting" ? "queued" : state,
   machineState: state === "gone" ? "gone" : null,
   reach: state === "gone" ? "gone" : state === "paused" ? "napping" : state === "unreachable" ? "unreachable" : "reachable",
   reason: null,
@@ -100,6 +100,9 @@ describe("workspace actions", () => {
     expect(paused.title).toBe("Wake api");
     expect(paused.refusal).toBeNull();
     expect(actionById(resolveActions(workspaceActions, workspace("pausing"), verbs), "phase").refusal).toBe("Task is pausing; it can be woken once it is paused");
+    // A held spawn says what it waits for: a free computer, or its cloud's next start (Q18).
+    expect(actionById(resolveActions(workspaceActions, workspace("waiting", { queue: { since: "2026-10-12T00:00:00.000Z", why: "slot" } }), verbs), "phase").refusal).toBe("Task is waiting for a free computer on its cloud; it starts on its own when one frees");
+    expect(actionById(resolveActions(workspaceActions, workspace("waiting", { queue: { since: "2026-10-12T00:00:00.000Z", why: "minute" } }), verbs), "phase").refusal).toBe("Task is waiting for its cloud's next start; it starts on its own when one is free");
     // A waking workspace is the one moving state with something to offer: the stop on the host's own asking again.
     const waking = actionById(resolveActions(workspaceActions, workspace("waking"), verbs), "phase");
     expect(waking.title).toBe(WORKSPACE_WORDS.stopWake);

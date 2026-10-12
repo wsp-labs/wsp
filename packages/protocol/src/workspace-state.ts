@@ -8,7 +8,7 @@ import type { HarnessCatalog, MachineFacts, MachineState, PauseMode, PlaceBack, 
 import { LOOPBACK, authority } from "./app-ports.js";
 import type { Checkout } from "./changes.js";
 
-export type WorkspaceState = "running" | "pausing" | "paused" | "waking" | "unreachable" | "gone" | "released";
+export type WorkspaceState = "running" | "pausing" | "paused" | "waking" | "unreachable" | "gone" | "waiting" | "released";
 
 /** A workspace's kind as every client must read it: a record written before local workspaces existed carries none
  * and is a provider fork. The one place an absent kind is resolved. */
@@ -250,6 +250,8 @@ export function workspaceState(input: WorkspaceStateInput): WorkspaceState {
       return "waking";
     case "gone":
       return "gone";
+    case "queued":
+      return "waiting";
     case "released":
       return "released";
     case "running":
@@ -283,6 +285,7 @@ const WORDS: Record<WorkspaceState, string> = {
   waking: "Waking",
   unreachable: "Unreachable",
   gone: "Gone",
+  waiting: "Waiting",
   released: "Released",
 };
 
@@ -525,6 +528,9 @@ export function actionRefusal(state: WorkspaceState, action: string, goneWords?:
       return `Workspace is unreachable; ${action}s open when the machine answers`;
     case "gone":
       return goneRefusal(name, action, goneWords);
+    // A send into a sub-thread waiting for its machine waits with it; nothing else has a machine to act on yet.
+    case "waiting":
+      return action === "send" ? null : `Workspace is waiting for a machine; ${action}s open when it is running`;
     case "released":
       return `${name ?? "This workspace"}'s machine was deleted once its sub-thread was done, so there is none to ${action} on`;
     default: {

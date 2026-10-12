@@ -142,6 +142,13 @@
             },
             "atOnce": {
               "type": "integer"
+            },
+            "why": {
+              "type": "string",
+              "enum": [
+                "slot",
+                "minute"
+              ]
             }
           },
           "required": [
@@ -428,6 +435,13 @@
             },
             "atOnce": {
               "type": "integer"
+            },
+            "why": {
+              "type": "string",
+              "enum": [
+                "slot",
+                "minute"
+              ]
             }
           },
           "required": [

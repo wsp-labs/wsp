@@ -154,6 +154,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     const held = ctx.capHeld.get(sessionId);
     if (held !== undefined) ctx.capStop(sessionId, capStoppedLine(held.waiting?.wait));
     marked();
+    if (await ctx.dropQueued(s.turnId)) return { outcome: "accepted" };
     // A thread's agents spawned a tree under it, and a stop on the thread is a stop on the tree: the children go
     // first, so nothing under a stopped lead is left working for a thread that is no longer reading. The lead
     // itself may already be over, which is an answer and not a reason to leave its builders running. A child
@@ -291,8 +292,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const plan = forked.plan;
       // The thread this start lands in is read before the workspace is: a send into a thread of the caller's tree
       // reaches it on whatever workspace it runs, and only a start that opens a thread is a workspace act.
-      // A thread whose rows fell off the index cap, or whose index is gone, is still the thread its record or its
-      // transcript says it is.
+      // A thread whose rows fell off the index cap or whose index is gone is the thread its record or transcript says.
       const named = opened.thread === undefined ? undefined : ctx.latestOn(opened.thread);
       const fromTranscript = opened.thread === undefined ? undefined : ctx.startedAs(workspaceId, opened.thread);
       const heldOn = opened.thread === undefined ? undefined : (named?.workspaceId ?? threadRecords.get(opened.thread)?.workspaceId ?? (fromTranscript !== undefined ? workspaceId : undefined));
@@ -311,7 +311,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           ? ctx.claimWarm(workspaceId, opened.harness)
           : undefined;
       if (warmed !== undefined) claimedBy.set(opened, warmed);
-      const threadId = opened.thread ?? warmed ?? randomUUID();
+      const threadId = opened.thread ?? opened.as?.threadId ?? warmed ?? randomUUID();
       // A message into a thread that already has turns is a send; anything else opens one, and only one of those
       // two is what a thread's own token is capped on. Read before the machine is asked for anything. The thread's
       // record answers before its rows, since the rows are capped and the record is not.
@@ -431,6 +431,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // registration did, so a road that may not start a process on the target's workspace does not get one
       // started for it a turn later.
       const notifyRoad = asked === undefined ? registered?.road : roadOf(origin);
+      if (entry.record.queue !== undefined) return ctx.holdQueued({ workspaceId, threadId, tree, o: { ...o, ...(title !== undefined ? { title } : {}) }, notify: asked }, origin);
       const turnToken = randomBytes(16).toString("hex");
       const { scoped, env: launchEnv, wsp } = await threadLaunch(entry, threadId, tree.rootThreadId ?? threadId);
       const dropScope = (): void => {
@@ -485,7 +486,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         dropScope();
         throw new Error(blocked);
       }
-      const turnId = randomUUID();
+      const turnId = o.as?.turnId ?? randomUUID();
       // The thread's row is written here, before anything is asked of the machine: the harness's own lists, the
       // folder and the images all sit between this line and the launch, and they are seconds. A thread no row holds
       // is a thread nothing can be waited on, so a wait fired the moment after a detached start would find nothing
@@ -572,9 +573,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const minted = randomUUID();
       // Every road out of the window between the row above and runTurn is in here, since the row that says this
       // thread is working and the images this send put on the machine both belong to a turn that does not exist on
-      // any of them: a refusal after a trip, a start that never opened. A steer leaves by returning and holds
-      // neither: a send steers only a turn that was running when it looked, before it held the thread or landed a
-      // thing.
+      // any of them: a refusal after a trip, a start that never opened. A steer leaves by returning and holds neither:
+      // a send steers only a turn that was running when it looked, before it held the thread or landed a thing.
       let handedOver = false;
       let failure: string | undefined;
       let keptTaken: KeptProcess | undefined;
