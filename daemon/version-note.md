@@ -1,0 +1,1 @@
+stdio.open takes an env, names and values the daemon puts in the environment it spawns the command with, over its own, so the thread's mark stands on that process from its first instant; a daemon from before it ignores the field.

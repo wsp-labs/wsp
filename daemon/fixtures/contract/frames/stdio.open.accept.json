@@ -4,5 +4,15 @@
     "op": "stdio.open",
     "stdioId": "s1",
     "cmd": "exec cat"
+  },
+  {
+    "id": 2,
+    "op": "stdio.open",
+    "stdioId": "s2",
+    "cmd": "exec cat",
+    "env": {
+      "WSP_THREAD": "th_1",
+      "SLATE_DIR": "/tmp/wsp-slates/th_1"
+    }
   }
 ]

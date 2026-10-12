@@ -45,6 +45,7 @@ import {
   type ActivityView,
   type Caller,
   type ProcessesAsk,
+  type DaemonFrame,
   type ProcEntry,
   type WorkspaceKind,
   processesLeft,
@@ -250,11 +251,15 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
   };
 
   /** Ends a box thread's cgroup through the end that box already runs, and what stands outside it through that box's
-   * daemon: the shells its panes opened by pty.kill, the servers its slate keeps by their stdio close. Then reads again
-   * what is still there, each process by the start it was listed with, until all is gone or the grace is out. */
-  const endOnBox = async (placeId: string, entry: LiveWorkspace, t: ActivityThread): Promise<ActivityEnded> => {
+   * daemon: each pane's shell the list named by pty.kill, never one it left out, and the servers its slate keeps by
+   * their stdio close. Then reads again what is still there, each process by the start it was listed with, until all
+   * is gone or the grace is out. `read` is the box's read the list came from, whose rows name each shell's pty. */
+  const endOnBox = async (placeId: string, entry: LiveWorkspace, t: ActivityThread, read: ActivityRead): Promise<ActivityEnded> => {
     await ctx.moduleOf(entry.record.kind).endThread?.(entry, t.threadId, {});
-    await ctx.endThreadShells(entry, t.threadId);
+    const listed = (q: ProcEntry): boolean => t.processes.some(p => p.pid === q.pid && Math.abs(q.startedAt - p.startedAt) <= SAME_START_MS);
+    for (const ptyId of read.procs.flatMap(q => (q.pty !== undefined && listed(q) ? [q.pty] : []))) {
+      await ctx.withDaemon(entry, ask => ask({ op: "pty.kill", ptyId } as DaemonFrame)).catch((e: unknown) => console.warn(`shell ${ptyId} of thread ${threadWord(t.threadId)} was not ended: ${e instanceof Error ? e.message : String(e)}`));
+    }
     ctx.slates.closeServers(t.threadId);
     const standing = async (): Promise<number[]> => {
       const after = await boxReadQuiet(placeId, [t.threadId]);
@@ -371,11 +376,11 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
         if (!reaches(id, caller)) throw notFoundRefusal(`no thread ${threadWord(id)}`);
         boxes.set(box.placeId, [...(boxes.get(box.placeId) ?? []), id]);
       }
-      const onBoxes: { placeId: string; t: ActivityThread }[] = [];
+      const onBoxes: { placeId: string; t: ActivityThread; read: ActivityRead }[] = [];
       for (const [placeId, ids] of boxes) {
         const there = await boxReadQuiet(placeId, ids);
         for (const t of there === undefined ? [] : processesLeft(there.view, ids)) {
-          onBoxes.push({ placeId, t });
+          onBoxes.push({ placeId, t, read: there!.read });
           left.push({ ...t, on: there!.read.computer });
         }
       }
@@ -411,7 +416,7 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
         const done = await killTrees(plans.map(x => x.targets[0]!));
         plans.forEach((x, i) => ended.push(endedOf(here.view, x.targets, x.pid, done[i]!)));
       }
-      for (const { placeId, t } of onBoxes) ended.push(await endOnBox(placeId, boxOf(t.threadId)!.entry, t));
+      for (const { placeId, t, read } of onBoxes) ended.push(await endOnBox(placeId, boxOf(t.threadId)!.entry, t, read));
       return ended;
     },
 
