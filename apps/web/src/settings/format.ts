@@ -172,6 +172,7 @@ export const ADD_COMPUTER_WORDS = {
     `${nameList(left.slice(0, LEFT_NAMED))}${left.length > LEFT_NAMED ? ` and ${left.length - LEFT_NAMED} more` : ""}. Finish ${left.length === 1 ? "it" : "them"} from ${box}'s page in Settings.`,
   /** The act a sign-in that was skipped or failed offers: its own sign-in, run on the computer. */
   signInOn: (box: string): string => `Sign in on ${box}`,
+  stillSettingUp: (box: string): string => `${box} is still being set up; press again once it is done.`,
   signInLater: "You can sign in later in Settings.",
   /** An agent ticked with nothing here to copy and no sign-in to run there: the token or key it takes, pasted on its
    * row once the setup reaches it. */

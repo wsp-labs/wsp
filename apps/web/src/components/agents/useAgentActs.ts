@@ -157,10 +157,18 @@ export function useAgentActs(target: AgentsTarget | null): AgentActs | undefined
       if (targetKey === null) return;
       if (begin.kind === "terminal") return;
       if (begin.kind === "copy") return put(rowId, () => ({ kind: "copy", line: begin.line, ...(begin.why !== undefined ? { why: begin.why } : {}) }));
-      if (begin.kind === "vault") return put(rowId, () => ({ kind: "vault", agent: begin.agent, word: begin.word, ...(begin.mint !== undefined ? { mint: begin.mint } : {}) }));
-      if (api?.agentsSignIn === undefined) return;
       const key = watchKey(targetKey, rowId);
       const was = watched.get(key);
+      if (begin.kind === "vault") {
+        // The field takes the row from a sign-in started there before, which would otherwise stand in front of it.
+        if (was !== undefined) {
+          end(was);
+          watched.delete(key);
+          changed();
+        }
+        return put(rowId, () => ({ kind: "vault", agent: begin.agent, word: begin.word, ...(begin.mint !== undefined ? { mint: begin.mint } : {}) }));
+      }
+      if (api?.agentsSignIn === undefined) return;
       if (was !== undefined) end(was);
       put(rowId, undefined);
       const run: Watched = { flow: { kind: "run", state: "running" } };
@@ -217,7 +225,7 @@ export function useAgentActs(target: AgentsTarget | null): AgentActs | undefined
       const flow = shown[rowId];
       if (flow?.kind !== "vault" || api?.agentsKey === undefined) return;
       put(rowId, () => ({ ...flow, saving: true }));
-      api.agentsKey(flow.agent, key).then(
+      api.agentsKey(flow.agent, key, flow.word).then(
         () => put(rowId, undefined),
         (e: unknown) => {
           const { saving: _saving, ...rest } = flow;

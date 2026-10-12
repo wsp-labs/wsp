@@ -2146,6 +2146,41 @@ describe("a step the person skips for now", () => {
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
   });
 
+  it("lands a row that failed for want of the key once the key is put in the vault, the same row a run again would only draw again", async () => {
+    const vault: Record<string, string> = {};
+    const acts: AgentsActs = { ...signIns().acts, key: async (_agent, key, way) => void (vault[way === "key" ? "ANTHROPIC_API_KEY" : "CLAUDE_CODE_OAUTH_TOKEN"] = key) };
+    await hosting({ provision: provisioner().wired, acts, vault });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "key" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    const failed = (await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude");
+    expect(failed).toMatchObject({ outcome: "failed", note: noKeyLine("ANTHROPIC_API_KEY", "zingzys-mac") });
+    await runtime!.places!.setUp(place.id, { choices: picks });
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toEqual(failed);
+    await runtime!.agents.key("claude", "sk-ant-api03-x", "key");
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+  });
+
+  it("lands a row that failed for want of the key while the setup still runs, and keeps it through the run's end", async () => {
+    const vault: Record<string, string> = {};
+    const acts: AgentsActs = { ...signIns().acts, key: async (_agent, key, way) => void (vault[way === "key" ? "ANTHROPIC_API_KEY" : "CLAUDE_CODE_OAUTH_TOKEN"] = key) };
+    const p = provisioner({ hold: "clis" });
+    await hosting({ provision: p.wired, acts, vault });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "key" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    const claude = async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude");
+    await until(async () => (await claude())?.outcome === "failed");
+    expect(await claude()).toMatchObject({ note: noKeyLine("ANTHROPIC_API_KEY", "zingzys-mac") });
+    expect((await rowOf(place.id)).setup?.state).toBe("running");
+    await runtime!.agents.key("claude", "sk-ant-api03-x", "key");
+    expect(await claude()).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect((await rowOf(place.id)).setup?.state).toBe("running");
+    p.release();
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    expect(await claude()).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+  });
+
   it("makes a token picked for Claude Code on this computer where the vault holds none, the row waiting on the person until it lands", async () => {
     const vault: Record<string, string> = {};
     const s = signIns();

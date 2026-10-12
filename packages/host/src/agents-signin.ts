@@ -342,10 +342,10 @@ export function hostActs(o: HostActsOptions): AgentsActs {
       const plan = await planSignIn(on, ask, { terminal: ask.terminal === true, keep: (name, value) => writeEnvFile(o.vaultFile, { [name]: value }) });
       return run => (ask.terminal === true ? terminalSignIn(plan, run) : watchSignIn(plan, run));
     },
-    key: async (agent, key) => {
+    key: async (agent, key, way) => {
       const entry = agentOf(agent);
       const row = entry.signIn;
-      if (mintsToken(row)) {
+      if (mintsToken(row) && way !== "key") {
         const token = tokenIn(row, key);
         if (token === undefined) throw new Error(notTokenRefusal(entry.name));
         return writeEnvFile(o.vaultFile, { [row.tokenEnv]: token });

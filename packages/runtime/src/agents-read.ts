@@ -122,8 +122,8 @@ export interface AgentsActs {
   signInLine(on: AgentsOn, ask: SignInAsk): Promise<SignInLine>;
   /** Plans the sign-in, refusing what cannot run in a watched pty, and answers the run. */
   signIn(on: AgentsOn, ask: SignInAsk): Promise<(run: SignInRun) => Promise<void>>;
-  /** Writes an agent's token or key into this host's vault. */
-  key(agent: string, key: string): Promise<void>;
+  /** Writes an agent's token or key into this host's vault; `way` "key" is the API key of one that mints a token. */
+  key(agent: string, key: string, way?: "token" | "key"): Promise<void>;
   /** Writes the wsp server into that agent's own config there. */
   addTools(on: AgentsOn, agent: string): Promise<{ file: string }>;
 }
@@ -242,7 +242,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
   signInCode(signInId: string, code: string): Promise<void>;
   signInStop(signInId: string): void;
   signInLine(target: AgentsTarget, ask: SignInAsk, origin?: Caller): Promise<SignInLine>;
-  key(agent: string, key: string): Promise<void>;
+  key(agent: string, key: string, way?: "token" | "key"): Promise<void>;
   addTools(target: AgentsTarget, agent: string, origin?: Caller): Promise<{ file: string }>;
   forwards(relay: CallbackForwards): () => void;
   skillsSearch(q: string, limit?: number): Promise<SkillHit[]>;
@@ -571,8 +571,8 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       if (failed !== undefined) throw refusal(toolNotInstalledLine(gh, failed), toolNotInstalledFix(gh));
       return SignInLine.parse(await acts.signInLine(on, ask));
     },
-    async key(agent, key) {
-      await actsOf().key(agent, key);
+    async key(agent, key, way) {
+      await actsOf().key(agent, key, way);
       changed();
       await o.places()?.keyLanded(agent);
     },
