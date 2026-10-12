@@ -230,8 +230,11 @@ export interface ThreadWords {
   first?: string;
   /** When it was last opened, which ranks it as a thread spoken in then. */
   opened?: number;
-  /** Its lines were let go to keep the host inside WORDS_HELD; search skips it until it is read back. */
+  /** Its lines were let go to keep the host inside WORDS_HELD, all but the newest that fit in `room`; search reads
+   * those alone until it is read back. */
   cold?: true;
+  /** The characters of its newest lines it was let keep: it is read back once more room than this opens. */
+  room?: number;
 }
 
 const FIRST_KEPT = 200;
@@ -417,6 +420,15 @@ export const threadWordsOf = (events: readonly SessionEvent[], threadId: string)
 
 /** A thread's words with its lines let go. */
 export const coldWords = (w: ThreadWords): ThreadWords => ({ lines: [], open: undefined, last: w.last, size: w.size, ...(w.first !== undefined ? { first: w.first } : {}), ...(w.opened !== undefined ? { opened: w.opened } : {}), cold: true });
+/** A thread's words with its oldest lines let go, its newest kept while they fit in `room` characters. */
+export const newestOf = (w: ThreadWords, room: number): ThreadWords => {
+  if (w.cold !== true && w.size <= room) return w;
+  let from = w.lines.length;
+  for (let kept = 0; from > 0 && kept + w.lines[from - 1]!.length <= room; ) kept += w.lines[--from]!.length;
+  return { ...coldWords(w), lines: w.lines.slice(from), room };
+};
+/** The characters of words a thread holds now. */
+export const heldOf = (w: ThreadWords): number => (w.cold === true ? w.lines.reduce((n, line) => n + line.length, 0) : w.size);
 
 export const indexOf = (events: readonly SessionEvent[]): TranscriptIndex => {
   const index = emptyIndex();
@@ -490,13 +502,13 @@ export const indexRead = (bytes: Buffer): { index: TranscriptIndex; of?: BlobMar
 
 export type SearchedHit = { hit: { workspaceId: string; threadId: string; snippet: string }; last: number };
 /** One folder's hits of `words` (lowercased) into `found`, for the threads `drives` lets the caller see; answers how many
- * of those it did not search, since their words were let go: they are counted, never read back, and opening one holds
- * its words again. */
+ * of those it did not search, since every line of theirs was let go: they are counted, never read back, and opening
+ * one holds its words again. */
 export function searchIndex(workspaceId: string, index: TranscriptIndex, words: string, drives: (threadId: string) => boolean, found: SearchedHit[]): number {
   let unsearched = 0;
-  for (const [threadId, { lines, last, cold }] of index.words) {
+  for (const [threadId, { lines, last, cold, size }] of index.words) {
     if (!drives(threadId)) continue;
-    if (cold === true) unsearched++;
+    if (cold === true && lines.length === 0 && size > 0) unsearched++;
     // The snippet stays inside the one message that holds the words, so it never runs one message into the next.
     const text = lines.find(line => line.toLowerCase().includes(words));
     if (text !== undefined) found.push({ hit: { workspaceId, threadId, snippet: snippetAround(text, text.toLowerCase().indexOf(words), words.length) }, last });

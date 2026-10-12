@@ -9,7 +9,7 @@ import type { LiveWorkspace } from "../types/wiring.js";
 import {
   TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, ATTACHMENTS, ATTACHMENT_KEYS, SESSIONS, DAEMON_TOKEN_MISS_TTL_MS,
   TRANSCRIPT_CAP, TRANSCRIPT_BYTES, TOOL_RESULT_KEPT, TRANSCRIPTS_HELD, PENDING_FLUSH_BYTES, type TranscriptIndex,
-  transcriptUnreadLine, emptyIndex, forgetChild, foldEvent, indexOf, reindexThreads, threadWordsOf, coldWords, WORDS_HELD, type ThreadWords, indexBytes, indexRead, SESSION_INDEX_CAP,
+  transcriptUnreadLine, emptyIndex, forgetChild, foldEvent, indexOf, reindexThreads, threadWordsOf, newestOf, heldOf, WORDS_HELD, type ThreadWords, indexBytes, indexRead, SESSION_INDEX_CAP,
   TRANSCRIPT_FLUSH_MS, type TranscriptRecord, type ThreadRecord, type SessionIndexRecord, type KeptImages, type SessionEntry,
 } from "../types/internal.js";
 import type { RuntimeContext, TranscriptsArea } from "../context.js";
@@ -455,19 +455,30 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
     const back = threadWordsOf([...rows.wordEvents(workspaceId, threadId), ...(pendingEvents.get(workspaceId) ?? [])], threadId);
     return { ...back, last: Math.max(back.last, had?.last ?? 0), ...(had?.opened !== undefined ? { opened: had.opened } : {}) };
   };
-  /** Holds the words of the threads spoken in or opened last, across every folder, inside WORDS_HELD: an older thread's
-   * lines are let go, and one let go that ranks among them again is read back off its rows one thread a tick, so no
-   * pass blocks the host for more than one thread. A thread whose turn runs is never let go, since each of its events
-   * would read it back. A store with no rows holds every thread's words, as it did before, since it can read one back
-   * only by reading its folder's whole file. */
-  const balanceWords = (): void => {
-    if (rows === undefined) return;
+  /** Each thread across every folder with the characters of words it may hold, the one spoken in or opened last
+   * first: all of its words while they fit in what is left of WORDS_HELD, then what is left, so a thread that alone
+   * passes it holds its newest lines. A thread whose turn runs holds all of its own, since each of its events would
+   * read it back. `visit` answering true stops the walk. */
+  const eachShare = (visit: (t: ReturnType<typeof rankedWords>[number], share: number) => boolean): void => {
     const running = new Set([...sessions.values()].flatMap(s => (s.view.status === "running" && s.view.threadId !== undefined ? [s.view.threadId] : [])));
     let held = 0;
-    for (const { index, threadId, w } of rankedWords()) {
-      if (held + w.size <= WORDS_HELD || (w.cold !== true && running.has(threadId))) held += w.size;
-      else if (w.cold !== true) index.words.set(threadId, coldWords(w));
+    for (const t of rankedWords()) {
+      const left = Math.max(0, WORDS_HELD - held);
+      const share = t.w.cold !== true && running.has(t.threadId) ? t.w.size : Math.min(t.w.size, left);
+      held += share;
+      if (visit(t, share)) return;
     }
+  };
+  /** Holds the words of the threads spoken in or opened last inside WORDS_HELD: an older thread's lines are let go,
+   * its oldest first, and one let go that has room again is read back off its rows one thread a tick, so no pass
+   * blocks the host for more than one thread. A store with no rows holds every thread's words, as it did before,
+   * since it can read one back only by reading its folder's whole file. */
+  const balanceWords = (): void => {
+    if (rows === undefined) return;
+    eachShare(({ index, threadId, w }, share) => {
+      if (heldOf(w) > share) index.words.set(threadId, newestOf(w, share));
+      return false;
+    });
     warmSoon();
   };
   let warming = false;
@@ -480,17 +491,17 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
       if (!ctx.state.closed && warmOne()) warmSoon();
     });
   };
-  /** Reads back the let-go thread that ranks first among those that fit; false when none does. */
+  /** Reads back the first let-go thread that has more room than it was let keep; false when none has. */
   const warmOne = (): boolean => {
     if (rows === undefined) return false;
-    const ranked = rankedWords();
-    const room = WORDS_HELD - ranked.reduce((n, { w }) => (w.cold === true ? n : n + w.size), 0);
-    const next = ranked.find(({ w }) => w.cold === true && w.size <= room);
-    if (next === undefined) return false;
-    const back = wordsOf(rows, next.workspaceId, next.threadId, next.w);
-    // A thread that grew past the room since it was let go stays let go, under its size now, so it is not read again.
-    next.index.words.set(next.threadId, back.size <= room ? back : { ...next.w, size: back.size });
-    return true;
+    let warmed = false;
+    eachShare(({ index, workspaceId, threadId, w }, share) => {
+      if (w.cold !== true || (w.room ?? 0) >= share) return false;
+      // A thread that grew since it was let go keeps its newest lines that fit, under its size now.
+      index.words.set(threadId, newestOf(wordsOf(rows, workspaceId, threadId, w), share));
+      return (warmed = true);
+    });
+    return warmed;
   };
   /** A thread a person or an agent opened ranks as if it had just spoken, and is read back if it was let go. */
   const openedWords = (workspaceId: string, threadId: string): void => {
