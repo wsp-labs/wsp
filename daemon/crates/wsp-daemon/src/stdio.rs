@@ -25,7 +25,7 @@ use crate::paths::OpError;
 use crate::Ctx;
 
 /// The three ops, typed and refused as every other frame the daemon serves. A command runs in the daemon's root with
-/// the daemon's environment, as exec runs one.
+/// the daemon's environment, as exec runs one, and the env its open names over it.
 pub(crate) fn serve(conn: &Arc<Conn>, ctx: &Ctx, id: Option<RequestId>, name: &str, frame: &Value) -> String {
     // Read off the raw frame, since the typed one has no such field and would drop it: a command a machine's own
     // config chose never runs here, outside that machine, whatever the host sent.
@@ -33,8 +33,9 @@ pub(crate) fn serve(conn: &Arc<Conn>, ctx: &Ctx, id: Option<RequestId>, name: &s
         return refuse(id, DaemonErrorCode::Forbidden, IN_A_MACHINE);
     }
     match serde_json::from_value::<DaemonOp>(frame.clone()) {
-        Ok(DaemonOp::StdioOpen { stdio_id, cmd }) => {
-            let env: Vec<_> = std::env::vars_os().collect();
+        Ok(DaemonOp::StdioOpen { stdio_id, cmd, env: named }) => {
+            // Command keeps the last value a name is given, so the open's own names stand over the daemon's.
+            let env: Vec<_> = std::env::vars_os().chain(named.into_iter().flatten().map(|(k, v)| (k.into(), v.into()))).collect();
             answer(id, Stdios::open(conn, stdio_id, Path::new(&ctx.root), &env, &cmd).map(|()| Empty {}))
         }
         Ok(DaemonOp::StdioWrite { stdio_id, data }) => {
@@ -236,6 +237,31 @@ mod tests {
         assert_eq!(exit, json!({"type": "stdio.exit", "stdioId": "s1", "code": 3}));
         let gone = reply(&b, &c, json!({"id": 3, "op": "stdio.write", "stdioId": "s1", "data": "eA=="})).await;
         assert_eq!(gone["code"], "not-found");
+    }
+
+    /// The env a stdio.open names stands in the environment the command is spawned with, over the daemon's own, so a
+    /// read of that process before anything reaches its stdin finds it: the thread's mark the owner ladder reads.
+    #[tokio::test]
+    async fn spawns_the_command_with_the_env_it_names_before_anything_is_written() {
+        let b = bench();
+        let (c, mut rx) = conn(None);
+        let cmd = "printf '%s|%s' \"$WSP_THREAD\" \"$PATH\"; cat";
+        let opened =
+            reply(&b, &c, json!({"id": 1, "op": "stdio.open", "stdioId": "s1", "cmd": cmd, "env": {"WSP_THREAD": "th_probe"}})).await;
+        assert_eq!(opened, json!({"id": 1, "ok": true}));
+        let mut out = Vec::new();
+        while !out.contains(&b'|') || out.ends_with(b"|") {
+            let said = tokio::time::timeout(Duration::from_secs(5), rx.recv()).await.unwrap().unwrap();
+            let v: Value = serde_json::from_str(said.text()).unwrap();
+            if v["type"] == "stdio.out" {
+                out.extend(unb64(&v["data"]));
+            }
+        }
+        let text = String::from_utf8(out).unwrap();
+        let (mark, path) = text.split_once('|').unwrap();
+        assert_eq!(mark, "th_probe");
+        assert!(!path.is_empty(), "the daemon's own environment stands beside it");
+        reply(&b, &c, json!({"id": 2, "op": "stdio.close", "stdioId": "s1"})).await;
     }
 
     /// A server left running is the socket's: its close, or stdio.close, kills the server and what it started.

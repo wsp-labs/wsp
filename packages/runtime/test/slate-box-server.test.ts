@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { slateServerNotSetUp } from "@wsp/protocol/slate";
 import { slateServerBehindLine, STDIO_DAEMON_VERSION, THREAD_ENV, threadCgroup, type ProcEntry, type SlateView } from "@wsp/protocol";
 import { SERVER_NOT_SET_UP, type AgentsOn, type AgentsReader } from "../src/agents-read.js";
-import { boxSlateDir } from "../src/slate-box.js";
+import { boxSlateDir } from "../src/slate-mcp-on.js";
 import { answering, asThread, joined, type Started, type Stdio } from "./box-fixture.js";
 
 const STUB = fileURLToPath(new URL("./fixtures/stub-mcp.mjs", import.meta.url));
@@ -22,17 +22,26 @@ afterEach(() => {
   for (const at of roots.splice(0)) rmSync(at, { recursive: true, force: true });
 });
 
-/** The daemon there as stdio.open runs a command: bash -c in a process group of its own, stdout and stderr pushed up
- * the link apart, base64, and its exit; stdio.close kills the group. */
-function commands(): { stdio: Stdio; running: Map<string, ChildProcess> } {
+/** The daemon there as stdio.open runs a command: bash -c in a process group of its own, with the frame's env over
+ * the daemon's own, stdout and stderr pushed up the link apart, base64, and its exit; stdio.close kills the group.
+ * `marked` says, for each command, whether the thread's mark stood in its environment as it was spawned, before any
+ * write reached it; `closing` hears each close. */
+function commands(): { stdio: Stdio; running: Map<string, ChildProcess>; marked: Map<string, boolean>; closing: { hear: () => void } } {
   const running = new Map<string, ChildProcess>();
+  const marked = new Map<string, boolean>();
+  const closing = { hear: (): void => {} };
   const stdio: Stdio = (frame, push) => {
     const stdioId = String(frame["stdioId"]);
     const child = running.get(stdioId);
     if (frame["op"] === "stdio.write") child?.stdin?.write(Buffer.from(String(frame["data"]), "base64"));
+    if (frame["op"] === "stdio.close") closing.hear();
     if (frame["op"] === "stdio.close" && child?.pid !== undefined) process.kill(-child.pid, "SIGKILL");
     if (frame["op"] !== "stdio.open") return {};
-    const started = spawn("bash", ["-c", String(frame["cmd"])], { detached: true, stdio: ["pipe", "pipe", "pipe"] });
+    const env = typeof frame["env"] === "object" && frame["env"] !== null ? (frame["env"] as Record<string, string>) : {};
+    const started = spawn("bash", ["-c", String(frame["cmd"])], { detached: true, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, ...env } });
+    // What it was spawned with, read here: a Mac shows no environment of a platform binary such as /bin/bash, and the
+    // daemon's own test reads the mark off the spawned bash itself.
+    marked.set(stdioId, env[THREAD_ENV] !== undefined);
     running.set(stdioId, started);
     started.stdin.on("error", () => {});
     started.stdout.on("data", (b: Buffer) => push({ type: "stdio.out", stdioId, data: b.toString("base64") }));
@@ -43,7 +52,7 @@ function commands(): { stdio: Stdio; running: Map<string, ChildProcess> } {
     });
     return {};
   };
-  return { stdio, running };
+  return { stdio, running, marked, closing };
 }
 
 /** A thread on hetzner, and an agents reader that answers that computer's config with the stub server alone. */
@@ -69,14 +78,14 @@ async function boxThread(o: { daemonVersion?: number } = {}) {
     },
   };
   const started: Started[] = [];
-  const { stdio, running } = commands();
+  const { stdio, running, marked, closing } = commands();
   const { rt, project, seen } = await joined({ adapters: { claude: answering(started) }, agentsReader, stdio, daemonVersion: o.daemonVersion ?? STDIO_DAEMON_VERSION });
   const at = await rt.workspaces.folderFor({ project: project.id });
   const first = await rt.sessions.start(at.workspace.id, { prompt: "show my zones", harness: "claude" });
   await first.finished;
   const threadId = first.view().threadId!;
   const caller = asThread({ kind: "thread", threadId, workspaceId: at.workspace.id, rootThreadId: threadId });
-  return { rt, seen, running, asked, starts, threadId, caller };
+  return { rt, seen, running, marked, closing, asked, starts, threadId, caller };
 }
 
 /** Whether a running process's environment holds a variable as its computer's daemon reads it for the thread's mark:
@@ -93,7 +102,7 @@ function holds(pid: number, has: (entry: string) => boolean): boolean {
 
 describe("a box slate's runs and the server it keeps", () => {
   it("carry the thread's mark, so the box's daemon names the kept server the thread's, and Activity draws both under the thread", async () => {
-    const { rt, seen, running, threadId, caller } = await boxThread();
+    const { rt, seen, running, marked: atSpawn, threadId, caller } = await boxThread();
     await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
     await rt.slates.settled();
     const view = async (): Promise<SlateView> => (await rt.slates.get(threadId))!;
@@ -109,6 +118,11 @@ describe("a box slate's runs and the server it keeps", () => {
     expect(holds(server.pid!, e => e.startsWith("SLATE_DIR=") && e.endsWith(`/${threadId}`))).toBe(true);
     const first = Buffer.from(String(seen.frames.find(f => f["op"] === "stdio.write")!["data"]), "base64").toString("utf8");
     expect(first.indexOf(`${THREAD_ENV}\0`)).toBeGreaterThan(first.indexOf("STUB_KEY\0"));
+    // And from the server line's own start, before its pairs arrive: a sample then would otherwise read no mark and
+    // keep that read for as long as the box's sampler runs.
+    const opened = seen.frames.find(f => f["op"] === "stdio.open")!;
+    expect(opened["env"]).toEqual({ [THREAD_ENV]: threadId, SLATE_DIR: boxSlateDir(threadId) });
+    expect(atSpawn.get(String(opened["stdioId"]))).toBe(true);
 
     // The daemon's rung for that mark (proc_owner.rs): the thread, kind slate beside SLATE_DIR. A run stands in the
     // thread's cgroup, where the slate's launcher starts it.
@@ -125,6 +139,57 @@ describe("a box slate's runs and the server it keeps", () => {
     await vi.waitFor(() => expect(running.size).toBe(0), { timeout: 5_000 });
     await rt.close();
   }, 40_000);
+});
+
+describe("a settle or a delete of a box thread whose slate keeps a server there", () => {
+  /** The thread's slate with its server started there, a run of it in the thread's cgroup, and the server outside it,
+   * stamped as the box's daemon stamps it off its mark; a close takes the server's row. */
+  async function keeping() {
+    const b = await boxThread();
+    await b.rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, b.caller);
+    await b.rt.slates.settled();
+    const view = async (): Promise<SlateView> => (await b.rt.slates.get(b.threadId))!;
+    const ask = await b.rt.slates.event({ threadId: b.threadId, version: (await view()).version, piece: "go", event: "press", requestId: "go-0" });
+    await b.rt.slates.approve({ threadId: b.threadId, key: ask.ask!.key, scope: "thread" });
+    await vi.waitFor(async () => expect((await view()).values["items"]).toMatchObject({ state: "done" }), { timeout: 15_000 });
+    const server = [...b.running.values()][0]!.pid!;
+    const row = (pid: number, comm: string, over: Partial<ProcEntry>): ProcEntry => ({ pid, ppid: 1, user: "root", state: "S", comm, cmdline: comm, cpu: 0, rss: 10_000_000, startedAt: 1_760_000_000_000 + pid, ...over });
+    b.seen.procs = [
+      row(7300, "python3", { cmdline: `python3 ${boxSlateDir(b.threadId)}/feed.py`, cgroup: threadCgroup(b.threadId), owner: { by: "env", thread: b.threadId }, kind: "slate" }),
+      row(server, "node", { cmdline: `node ${STUB}`, owner: { by: "env", thread: b.threadId }, kind: "slate" }),
+    ];
+    b.closing.hear = () => void (b.seen.procs = b.seen.procs.filter(p => p.pid !== server));
+    const closes = (): number => b.seen.frames.filter(f => f["op"] === "stdio.close").length;
+    return { ...b, server, closes };
+  }
+
+  it("settle asks about the kept server, and stop closes it with the cgroup's end, leaving nothing standing", async () => {
+    const k = await keeping();
+    const refused = await k.rt.sessions.settle([k.threadId], undefined, { processes: "ask" }).then(() => "", (e: unknown) => (e as Error).message);
+    expect(refused).toContain(`${k.server} node (slate) of ${k.threadId.slice(0, 8)} on hetzner`);
+    const answer = await k.rt.sessions.settle([k.threadId], undefined, { processes: "stop" });
+    expect(answer.ended).toEqual([expect.objectContaining({ left: [] })]);
+    expect(k.closes()).toBe(1);
+    await vi.waitFor(() => expect(k.running.size).toBe(0), { timeout: 5_000 });
+    await k.rt.close();
+  }, 40_000);
+
+  it("delete with keep leaves the kept server running, and with stop closes it and names nothing still standing", async () => {
+    const k = await keeping();
+    await k.rt.sessions.delete(k.threadId, undefined, { processes: "keep" });
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect([k.closes(), k.running.size]).toEqual([0, 1]);
+    for (const child of k.running.values()) process.kill(-child.pid!, "SIGKILL");
+    await vi.waitFor(() => expect(k.running.size).toBe(0), { timeout: 5_000 });
+    await k.rt.close();
+
+    const s = await keeping();
+    const answer = await s.rt.sessions.delete(s.threadId, undefined, { processes: "stop" });
+    expect(answer.ended).toEqual([expect.objectContaining({ left: [] })]);
+    expect(s.closes()).toBe(1);
+    await vi.waitFor(() => expect(s.running.size).toBe(0), { timeout: 5_000 });
+    await s.rt.close();
+  }, 60_000);
 });
 
 describe("a slate's tool run from a thread on a computer you joined", () => {

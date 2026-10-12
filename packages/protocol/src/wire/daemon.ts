@@ -859,7 +859,9 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("tunnel.close"), tunnelId: z.string() }),
   /** A command held open on pipes for the socket that opened it, an MCP server a slate calls: bash -c in the daemon's
    * root, a process group of its own, killed at stdio.close or the socket's close. data is base64. */
-  z.object({ id: reqId, op: z.literal("stdio.open"), stdioId: z.string(), cmd: z.string().min(1).max(EXEC_BODY_MAX) }),
+  /** env stands in the environment the command is spawned with, over the daemon's own: the thread's mark, which the
+   * owner ladder reads off the process from its first instant. A daemon from before it leaves it out. */
+  z.object({ id: reqId, op: z.literal("stdio.open"), stdioId: z.string(), cmd: z.string().min(1).max(EXEC_BODY_MAX), env: z.record(z.string()).optional() }),
   z.object({ id: reqId, op: z.literal("stdio.write"), stdioId: z.string(), data: z.string() }),
   z.object({ id: reqId, op: z.literal("stdio.close"), stdioId: z.string() }),
   /** One POST to an http MCP server made from that computer, with the bearer of a sign-in the agent keeps there read

@@ -32,6 +32,7 @@ import {
   ProcListReply,
   ProcSnapshot,
   SAME_START_MS,
+  END_GRACE_MS,
   scopeOf,
   threadWord,
   usageRefusal,
@@ -56,6 +57,9 @@ import { DaemonRefusal } from "./types/internal.js";
 import type { LiveWorkspace } from "./types/wiring.js";
 import type { DaemonChannel } from "./daemon-channel.js";
 import type { RuntimeContext } from "./context.js";
+
+/** How often a box thread's end reads again what it has not seen go: a pty.kill and a stdio close land a moment on. */
+const BOX_END_POLL_MS = 200;
 
 /** How long a read waits for the daemon's first snapshot, which comes one sampling interval after the watch. */
 const SNAPSHOT_WAIT_MS = 10_000;
@@ -245,12 +249,19 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     return [...latest].sort((a, b) => b[1] - a[1]).map(([id]) => id);
   };
 
-  /** Ends a box thread's cgroup through the end that box already runs, then reads again what is still there, each
-   * process by the start it was listed with. */
+  /** Ends a box thread's cgroup through the end that box already runs, and what stands outside it through that box's
+   * daemon: the shells its panes opened by pty.kill, the servers its slate keeps by their stdio close. Then reads again
+   * what is still there, each process by the start it was listed with, until all is gone or the grace is out. */
   const endOnBox = async (placeId: string, entry: LiveWorkspace, t: ActivityThread): Promise<ActivityEnded> => {
     await ctx.moduleOf(entry.record.kind).endThread?.(entry, t.threadId, {});
-    const after = await boxReadQuiet(placeId, [t.threadId]);
-    const left = t.processes.filter(p => after === undefined || after.read.procs.some(q => q.pid === p.pid && Math.abs(q.startedAt - p.startedAt) <= SAME_START_MS)).map(p => p.pid);
+    await ctx.endThreadShells(entry, t.threadId);
+    ctx.slates.closeServers(t.threadId);
+    const standing = async (): Promise<number[]> => {
+      const after = await boxReadQuiet(placeId, [t.threadId]);
+      return t.processes.filter(p => after === undefined || after.read.procs.some(q => q.pid === p.pid && Math.abs(q.startedAt - p.startedAt) <= SAME_START_MS)).map(p => p.pid);
+    };
+    let left = await standing();
+    for (const by = Date.now() + END_GRACE_MS; left.length > 0 && Date.now() < by; left = await standing()) await new Promise(resolve => setTimeout(resolve, BOX_END_POLL_MS));
     return { pid: t.processes[0]!.pid, ended: t.processes, forced: [], left };
   };
 

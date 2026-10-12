@@ -40,8 +40,9 @@ export const envPairs = (env: Readonly<Record<string, string>>): string => `${Ob
 const base64 = (text: string): string => Buffer.from(text).toString("base64");
 
 /** Starts a server through `road`, the writes before the start answers held and sent after the variables. `mark` goes
- * last, over anything the server's config names: the daemon there starts the server in a group of its own, outside
- * the thread's cgroup, and reads its thread off this mark. */
+ * in the environment the daemon spawns the line with, so its first instant carries it, and last in the variables, over
+ * anything the server's config names: the daemon there starts the server in a group of its own, outside the thread's
+ * cgroup, and reads its thread off this mark. */
 export function pipeOn(computer: string, login: TargetLogin, road: () => Promise<StdioRoad>, mark: Readonly<Record<string, string>> = {}): McpPipeOpen {
   return (t, spec, on) => {
     const stdioId = randomBytes(8).toString("hex");
@@ -66,7 +67,7 @@ export function pipeOn(computer: string, login: TargetLogin, road: () => Promise
           else if (e["type"] === "stdio.exit") on.exit(typeof e["code"] === "number" ? `the server exited with ${e["code"]}` : "the server was stopped");
         });
         void r.closed.then(() => on.exit(`the link to ${computer} closed`));
-        await r.send({ op: "stdio.open", stdioId, cmd: serverLine(login, t, spec.cwd) });
+        await r.send({ op: "stdio.open", stdioId, cmd: serverLine(login, t, spec.cwd), ...(Object.keys(mark).length > 0 ? { env: { ...mark } } : {}) });
         if (killed) return end(r);
         opened = r;
         for (const text of held.splice(0)) write(r, text);

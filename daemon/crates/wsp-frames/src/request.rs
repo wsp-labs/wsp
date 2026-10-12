@@ -872,6 +872,11 @@ pub enum DaemonOp {
         stdio_id: String,
         #[serde(deserialize_with = "bounded::<_, 1, { crate::numbers::EXEC_BODY_MAX }>")]
         cmd: String,
+        /// Over the daemon's own environment, in the one the command is spawned with: the thread's mark, which the
+        /// owner ladder reads off the process from its first instant.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        env: Option<BTreeMap<String, String>>,
     },
     /// Bytes for that command's stdin, base64.
     #[serde(rename = "stdio.write", rename_all = "camelCase")]
