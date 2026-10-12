@@ -208,6 +208,7 @@ const EVENTS = [
   { type: "session.delta", threadId: "t-other", kind: "text", text: "not this thread" },
   { type: "session.done", threadId: "t-1111aaaa", turnId: "u1", at: at(6000), result: { status: "completed", durationMs: 125_400, waitedMs: 70_000, costUsd: 0.125, text: "Done: fixed it." } },
   { type: "session.end", threadId: "t-1111aaaa", turnId: "u1", at: at(6100) },
+  { type: "session.notice", threadId: "t-1111aaaa", turnId: "u1", sessionId: "s", workspaceId: "w", text: "The disk of web \u0085 is 92% full (67.7 of 73.6 GB).", at: at(6500) },
   { type: "session.start", threadId: "t-1111aaaa", turnId: "u2", prompt: "and the other", at: at(7000) },
   { type: "session.end", threadId: "t-1111aaaa", turnId: "u2", reason: "the machine went away", at: at(8000) },
   { type: "session.start", threadId: "t-1111aaaa", turnId: "u3", at: at(9000) },

@@ -415,6 +415,8 @@ export interface ReachArea {
   readonly stopRefusedReason: (entry: LiveWorkspace) => string | undefined;
   readonly diskReason: (entry: LiveWorkspace) => string | undefined;
   readonly readDisk: (entry: LiveWorkspace) => Promise<void>;
+  readonly armDiskWatch: () => void;
+  readonly stopDiskWatch: () => Promise<void>;
   readonly reachOf: (entry: LiveWorkspace) => ReachState;
   readonly emitStatus: (entry: LiveWorkspace, reach: ReachState, reason?: string) => Promise<void>;
   readonly saysWaking: (entry: LiveWorkspace, words: string) => Promise<void>;

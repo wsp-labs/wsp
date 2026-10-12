@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The tools that change one workspace's machine or its record and answer with the record after: pause, wake,
-//! snapshot, rename and rebuild.
+//! The tools that change one workspace's machine or its record and answer with the record after: pause, resize,
+//! wake, snapshot, rename and rebuild.
 
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Value;
 
+use super::create::size_from_word;
+use super::named::thread_of;
 use super::workspace::{self, awake, params, read, rebuilt_line, state_of, workspace_of, Phase};
 use super::{input, Answer, Refused, Tool};
 use crate::failure::Failure;
@@ -61,6 +63,36 @@ pub const PAUSE: Tool = Tool {
 async fn pause(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let WorkspaceIn { workspace } = input(PAUSE_NAME, arguments)?;
     Ok(Answer::json(&WorkspaceOut { workspace: acted(&host, &workspace, "workspaces.nap").await? }))
+}
+
+const RESIZE_NAME: &str = "resize";
+
+pub const RESIZE: Tool = Tool {
+    name: RESIZE_NAME,
+    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/resize.json")),
+    call: |host, args| Box::pin(resize(host, args)),
+};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
+pub struct ResizeIn {
+    pub thread: String,
+    pub size: String,
+}
+
+/// The input's pattern holds the word to digits, an x and digits; one with a 0 in it still names no size.
+async fn resize(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
+    let ResizeIn { thread, size } = input(RESIZE_NAME, arguments)?;
+    let (cpu, mem_mb) = size_from_word(&size).ok_or_else(|| Failure::usage(fill(&workspace::words().resize_word, &[("word", &size)])))?;
+    let client = host.client().await?;
+    let thread = thread_of(&client, &thread).await?;
+    let mut figures = serde_json::Map::new();
+    figures.insert("cpu".to_owned(), Value::from(cpu as u64));
+    figures.insert("memMb".to_owned(), Value::from(mem_mb as u64));
+    let reply: Reply = client
+        .request("workspaces.resize", params([("workspaceId", Value::from(thread.workspace_id)), ("size", Value::Object(figures))]))
+        .await?;
+    Ok(Answer::json(&WorkspaceOut { workspace: reply.workspace }))
 }
 
 const WAKE_NAME: &str = "wake";

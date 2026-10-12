@@ -426,8 +426,9 @@ function expandedGroupRow(id: string, createdAt: string, grouped: ReadonlyArray<
   return { kind: "work", id: `${id}:details`, createdAt, groupedEntries: grouped, isExpandedToolGroup: true };
 }
 
-/** A row no group folds and no settled turn hides: an error, and a compaction of the agent's context. */
-const standsAlone = (entry: WorkLogEntry): boolean => entry.tone === "error" || entry.tone === "compaction";
+/** A row no group folds and no settled turn hides: an error, a compaction of the agent's context, and the host's own
+ * notice about the machine under the thread, which is written between turns and would otherwise sit in a closed fold. */
+const standsAlone = (entry: WorkLogEntry): boolean => entry.tone === "error" || entry.tone === "compaction" || entry.sourceActivityKind === "runtime.notice";
 
 export function isToolLike(entry: WorkLogEntry): boolean {
   if (entry.tone === "tool" || entry.tone === "thinking" || entry.tone === "error") return true;

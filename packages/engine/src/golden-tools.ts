@@ -244,6 +244,18 @@ export async function sweepCaches(machine: Machine, path: string = TOOLS_PATH): 
   return before.kind === "free" && after.kind === "free" && after.bytes > before.bytes ? `caches swept, ${fmtBytes(after.bytes - before.bytes)} back` : "caches swept";
 }
 
+/** The staging wsp's own roads make under /tmp on a machine and take away as they end, which a road cut short leaves
+ * behind; one untouched for an hour is no road's still in flight. Named one by one, since /tmp/wsp-slates is live. */
+const STAGED_PREFIXES = ["wsp-put-", "wsp-get-", "wsp-seed-", "wsp-session-", "wsp-vault-", "wsp-land-", "wsp-road-", "wsp-cask-", "wsp-draft-"];
+export const SWEEP_STAGED_CMD = `find /tmp -maxdepth 1 \\( ${STAGED_PREFIXES.map(p => `-name '${p}*'`).join(" -o ")} \\) -mmin +60 -exec rm -rf -- {} +`;
+
+/** What wsp made on a machine that it can take back when the disk runs short: its stale staging, then the build
+ * caches, each rebuilt on use. Work in a folder is never touched. */
+export async function sweepLeftovers(machine: Machine): Promise<void> {
+  await machine.exec(SWEEP_STAGED_CMD, { timeoutMs: INLINE_EXEC_MS });
+  await sweepCaches(machine);
+}
+
 // Descendants of $1 by parent pid from /proc, widened until no new pid turns up: su -c
 // starts its command in a fresh session, so the session's process group alone misses it.
 const TREE_FN = [
