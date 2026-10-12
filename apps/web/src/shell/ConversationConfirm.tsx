@@ -3,14 +3,14 @@
 // it (Claude Code takes a second writer without a word and its next resume drops one branch), so the answer offered
 // first is a copy the agent makes. An agent that refuses a second writer and lets go of a closed one is offered Try
 // again too. A refusal of the send lands in the note's place and moves nothing.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CONVERSATION_OPEN_KIND, CONVERSATION_WORDS } from "@wsp/protocol";
 import { AlertDialog, AlertDialogClose, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
 import { RefusalSlot, type Refusal } from "../settings/sheetParts.js";
 import { useStore } from "../protocol/store.js";
 import { placeNames } from "../sidebar/workspaceRows.js";
-import { sendOn, useConversationsStore, type OpenConfirm } from "./conversations.js";
+import { openDraft, sendOn, useConversationsStore, type OpenConfirm } from "./conversations.js";
 
 export function ConversationConfirm() {
   const confirm = useConversationsStore(s => s.confirm);
@@ -24,13 +24,15 @@ function Confirm({ confirm }: { confirm: OpenConfirm }) {
     return at === undefined ? "" : (placeNames(s.places).get(at) ?? at);
   });
   const [busy, setBusy] = useState(false);
+  // A confirm that opened the draft leaves the focus where the draft put it, in its composer.
+  const drafted = useRef(false);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
   const close = (): void => useConversationsStore.getState().ask(null);
   /** A send waiting on this answer goes now; a pick off the page is held on its project's New thread page. */
   const go = async (copy: boolean): Promise<void> => {
     if (send === undefined) {
-      useConversationsStore.getState().hold(project, { row, copy });
-      useStore.getState().openProjectHome(project);
+      drafted.current = true;
+      openDraft(project, { row, copy });
       close();
       return;
     }
@@ -44,7 +46,7 @@ function Confirm({ confirm }: { confirm: OpenConfirm }) {
   };
   return (
     <AlertDialog open onOpenChange={open => (open ? undefined : close())}>
-      <AlertDialogPopup data-k="conversation-open">
+      <AlertDialogPopup data-k="conversation-open" finalFocus={() => !drafted.current}>
         <AlertDialogHeader>
           <AlertDialogTitle>{CONVERSATION_WORDS.openTitle(row.title, computer)}</AlertDialogTitle>
         </AlertDialogHeader>

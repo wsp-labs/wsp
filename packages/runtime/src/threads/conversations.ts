@@ -7,6 +7,8 @@ import {
   CONVERSATIONS_AGAIN_FIX,
   EARLIER_MESSAGES,
   NO_CONVERSATIONS_FIX,
+  PREVIEW_MESSAGES,
+  PREVIEW_TAIL_BYTES,
   RESUME_WHERE_FIX,
   RESUME_WHERE_LINE,
   conversationGoneLine,
@@ -26,6 +28,7 @@ import {
   toolDoneLine,
   unknownOpLine,
   type Caller,
+  type ConversationRead,
   type ConversationRoad,
   type ConversationStore,
   type ConversationsAnswer,
@@ -200,6 +203,23 @@ export function conversationsArea(ctx: RuntimeContext): ConversationsArea {
     ...lines.map(l => (l.who === "tool" ? { who: "tool" as const, text: toolDoneLine(l.tool, l.text) ?? toolActivityLine(l.tool, l.text) } : { who: l.who, text: l.text })),
   ];
 
+  /** One conversation read for the picker, before any thread: its newest rows as a thread on it would open with them,
+   * or the few its preview shows off the end of the agent's file alone. Read only: nothing takes it as a writer. */
+  const read = async (o: { project?: string; agent: string; id: string; preview?: boolean }, origin?: Caller): Promise<ConversationRead> => {
+    const { entry } = await ctx.folderFor(o.project !== undefined ? { project: o.project } : {}, origin);
+    const label = ctx.agentLabel(o.agent);
+    const store = storesOn(entry, o.agent)[0]?.store;
+    if (store === undefined) throw refusal(noConversationsLine(label), NO_CONVERSATIONS_FIX, "usage");
+    const preview = o.preview === true;
+    const ask = { cwds: await foldersOf(entry), last: preview ? PREVIEW_MESSAGES : EARLIER_MESSAGES, probe: false, ...(preview ? { tail: PREVIEW_TAIL_BYTES, count: false as const } : {}) };
+    const got = await store.earlier(o.id, ask, roadOf(entry)).catch((e: unknown) => {
+      const held = unreadOf(e, entry, o.agent);
+      throw held === undefined ? e : refusal(held.said, held.fix, "usage");
+    });
+    if (typeof got !== "object") throw refusal(conversationGoneLine(label, o.id, ctx.computerOf(entry)), CONVERSATION_GONE_FIX, "not-found");
+    return { ...(got.cwd !== undefined ? { cwd: got.cwd } : {}), title: got.title ?? o.id, rows: earlierRows(got.lines, preview ? 0 : got.earlier, o.agent) };
+  };
+
   const opening = async (workspaceId: string, o: { harness?: string; resume: ResumeAsk }, origin?: Caller): Promise<OutsideOpening> => {
     const entry = await ctx.entryOf(workspaceId, origin);
     const prefs = ctx.state.preferencesHeld ?? (await ctx.preferences.get());
@@ -244,5 +264,5 @@ export function conversationsArea(ctx: RuntimeContext): ConversationsArea {
     return { workspaceId: at.entry.record.id, ...(at.cwd !== undefined ? { cwd: at.cwd } : {}), outside };
   };
 
-  return { conversations: { list, opening, placed } };
+  return { conversations: { list, read, opening, placed } };
 }

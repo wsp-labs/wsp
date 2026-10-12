@@ -49,7 +49,7 @@ import type {
   WorkspaceCreatingEvent,
 } from "@wsp/protocol";
 import type { BringBackResult, GitCommitReply, GitDiscardReply, GitUpdateReply, MergeInResult, PullRequestPage, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, ReactionContent, PullRequestItem, PullRequestSendResult, FixResult, MergeMethod, MergeResult, CheckoutReply, CommitDraft, ViewedMarks, RunStep, SessionRunEvent } from "@wsp/protocol";
-import type { PlaceKind, WorktreeMade, KeptAttachment, WorkspaceKind, ForkSource, ConversationsAnswer, ResumeAsk, SessionEarlierEvent } from "@wsp/protocol";
+import type { PlaceKind, WorktreeMade, KeptAttachment, WorkspaceKind, ForkSource, ConversationsAnswer, ConversationRead, ResumeAsk, SessionEarlierEvent } from "@wsp/protocol";
 import type { CallbackForwards, SignInAsk, SkillAsk } from "../agents-read.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { AccessChoice, AgentRow, AgentSetupSet, ThreadDefaults } from "@wsp/protocol";
@@ -671,6 +671,8 @@ export interface Runtime {
    * that computer before the thread exists, refused where it is gone, already a thread, or open in another app. */
   readonly conversations: {
     list(o: { project?: string; agent?: string }, origin?: Caller): Promise<ConversationsAnswer>;
+    /** One conversation's newest rows read before any thread, for the picker's preview or the draft it opens. */
+    read(o: { project?: string; agent: string; id: string; preview?: boolean }, origin?: Caller): Promise<ConversationRead>;
     opening(workspaceId: string, o: { harness?: string; resume: ResumeAsk }, origin?: Caller): Promise<OutsideOpening>;
     /** Where a start on one runs: read on the project's computer, then the record of the folder it ran in, which a
      * thread, a branch or a folder named beside it is refused for. */

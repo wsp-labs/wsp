@@ -94,7 +94,7 @@ export function claudeConversations(deps: { configDir: string; projectDirName?: 
     live: road => road.exec(liveCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), env).then(parseLive, () => null),
     earlier: async (id, o, road) => {
       const dirs = await presentKeys(root, keysFor(o.cwds, deps.projectDirName), road, `${id}.jsonl`);
-      const replies = await Promise.all(runsOf(dirs).map(async d => TranscriptsReadReply.parse(await road.ask({ op: "transcripts.read", root, dirs: d, session: id, last: o.last }))));
+      const replies = await Promise.all(runsOf(dirs).map(async d => TranscriptsReadReply.parse(await road.ask({ op: "transcripts.read", root, dirs: d, session: id, last: o.last, ...(o.tail !== undefined ? { tail: o.tail } : {}) }))));
       const reply = replies.find(r => r.found);
       if (reply === undefined) return "gone";
       return {

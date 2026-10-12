@@ -149,6 +149,8 @@ export interface HerePlace {
   shape?: WorkspaceSize;
   engine?: "none" | "docker" | "podman";
   diskFreeBytes?: number;
+  /** The person's home here, which a path under it is written from, as a joined computer's report names its own. */
+  home?: string;
 }
 
 /** What a host wires for the places it holds: its own key pair, what it is set up to fork on, and this computer's
