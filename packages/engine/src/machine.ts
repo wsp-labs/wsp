@@ -124,10 +124,15 @@ export interface Machine {
    * NotFirstLifeError before any call; one whose snapshot copies the disk from any life ignores `life`. A backend
    * that writes the snapshot as a job tells `onProgress` how far it has got; the rest say nothing until done. */
   snapshot(name: string, life: MachineLife, opts?: SnapshotOptions): Promise<string>;
-  pause(): Promise<void>;
+  /** `waitMs` is how long a backend that reads its stop until it lands waits on it, past its own budget where a caller
+   * knows the stop is a long one; a backend whose pause answers at once ignores it. */
+  pause(o?: { waitMs?: number }): Promise<void>;
   /** `signal` ends the call where the caller has stopped waiting on it, so a resume nobody is waiting on is not left
    * running behind them; the backend's own cap on how long it waits for an answer is its business, not the caller's. */
   resume(signal?: AbortSignal): Promise<void>;
+  /** Optional: a provider that changes a machine's size only across a stop resumes a stopped one at another size, and
+   * answers as resume does. */
+  resumeAt?(size: { cpu: number; memMb: number }, signal?: AbortSignal): Promise<void>;
   kill(): Promise<void>;
   state(): Promise<MachineState>;
   downloadUrl(path: string): Promise<string>;
@@ -271,6 +276,9 @@ export interface MachineBackend {
   /** Optional: what the computer holding this backend has left for one more machine. Only a backend on a computer
    * the person owns answers; a provider's room is its own cap and its own refusal. */
   capacity?(): Promise<PlaceCapacity>;
+  /** Optional: a provider whose sizes come with root disks of their own (Boat): its name for a size and the root disk a
+   * machine of it reads, in GB as measured; nothing for a size nobody measured. */
+  rootDiskOf?(size: { cpu: number; memMb: number }): { name: string; diskGb: number } | undefined;
   /** Optional: a provider that sells sizes by plan and counts starts (Boat). The account's plan, the classes it sells
    * and the starts used in each window, as the provider's own read keeps them. */
   limits?(): Promise<BoxLimits>;

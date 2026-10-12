@@ -196,6 +196,8 @@ function ownPlace(e: SessionEvent): string | undefined {
       return `session.moved:${e.turnId}`;
     case "session.behind":
       return `session.behind:${e.turnId}`;
+    case "session.notice":
+      return e.pos === undefined ? undefined : `session.notice:${e.pos}`;
     case "session.capped":
       return `session.capped:${e.turnId}`;
     case "session.uncapped":

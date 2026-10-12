@@ -164,6 +164,10 @@ export interface Runtime {
     resolve(ref: string, origin?: Caller): Promise<WorkspaceView>;
     nap(id: string, origin?: Caller): Promise<WorkspaceView>;
     wake(id: string, origin?: Caller): Promise<WorkspaceView>;
+    /** Moves the workspace's machine to another size its provider sells, on a provider that changes a size only across
+     * a stop: the nap, then a wake that resumes it at that size. Refused while a turn runs on it, which the stop would
+     * end. A machine already at that size comes back unchanged. */
+    resize(id: string, size: { cpu: number; memMb: number }, origin?: Caller): Promise<WorkspaceView>;
     /** Stops a wake that is asking the provider again on its own, and answers with the record it leaves behind. The
      * wake itself ends with WAKE_STOPPED; a workspace with no wake in flight is answered with as it stands. */
     stopWake(id: string, origin?: Caller): Promise<WorkspaceView>;

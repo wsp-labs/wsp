@@ -227,6 +227,11 @@ export function stubBackend(): StubBackend {
           if (m.killed) throw Object.assign(new Error("gone"), { kind: "missing", status: 404 });
           m.paused = false;
         },
+        async resumeAt(size: { cpu: number; memMb: number }): Promise<void> {
+          if (m.killed) throw Object.assign(new Error("gone"), { kind: "missing", status: 404 });
+          m.paused = false;
+          m.spec = { ...m.spec, cpu: size.cpu, memMb: size.memMb };
+        },
         async kill(): Promise<void> {
           m.killed = true;
         },

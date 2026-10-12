@@ -529,6 +529,15 @@ export const SessionBehindEvent = z.object({
 });
 export type SessionBehindEvent = z.infer<typeof SessionBehindEvent>;
 
+/** One line the host writes on a thread at any time, about the machine the thread runs on: a disk past the mark, what
+ * wsp cleared there and the size to move to. It is no turn's output, so a turn re-opened after a restart counts none. */
+export const SessionNoticeEvent = z.object({
+  type: z.literal("session.notice"),
+  ...sessionScope,
+  text: z.string(),
+});
+export type SessionNoticeEvent = z.infer<typeof SessionNoticeEvent>;
+
 /** One row of a conversation the thread was opened on, which ran outside wsp before it: written once, ahead of the
  * thread's first prompt, oldest first. A tool row's text is the call's one line; the note says how many earlier
  * messages stay in the agent's own history. */
@@ -616,6 +625,7 @@ export const SessionEvent = z.discriminatedUnion("type", [
   SessionRunEvent,
   SessionMovedEvent,
   SessionBehindEvent,
+  SessionNoticeEvent,
   SessionEarlierEvent,
   SessionCappedEvent,
   SessionUncappedEvent,
