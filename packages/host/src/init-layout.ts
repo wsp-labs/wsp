@@ -15,12 +15,39 @@ export const GUTTER = "  ";
 export const S_BAR_FOCUS = unicode ? "┃" : "|";
 export const S_BAR_FOCUS_END = unicode ? "┗" : "+";
 
-/** The text cut to fit width, ending in an ellipsis when anything was dropped. */
+const GRAPHEMES = new Intl.Segmenter();
+/** Code points a terminal draws two cells wide: Hangul, CJK, kana, fullwidth forms and the emoji blocks. */
+const WIDE = /^[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6\u{1F300}-\u{1F64F}\u{1F900}-\u{1F9FF}\u{20000}-\u{3FFFD}]/u;
+const graphemeCells = (g: string): number => (WIDE.test(g) || /\p{Emoji_Presentation}|\uFE0F/u.test(g) ? 2 : /^[\p{Mn}\p{Me}\p{Cf}]/u.test(g) ? 0 : 1);
+
+/** The cells a terminal gives text: a wide character or an emoji two, a combining mark none. */
+export function cellWidth(text: string): number {
+  let n = 0;
+  for (const { segment } of GRAPHEMES.segment(text)) n += graphemeCells(segment);
+  return n;
+}
+
+/** The text cut to fit width cells, ending in an ellipsis when anything was dropped; a character is kept or dropped
+ * whole, never torn. */
 export function ellipsize(text: string, width: number): string {
   if (width <= 0) return "";
-  if (text.length <= width) return text;
-  return width === 1 ? "…" : `${text.slice(0, width - 1)}…`;
+  if (cellWidth(text) <= width) return text;
+  let kept = "";
+  let used = 0;
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    const n = graphemeCells(segment);
+    if (used + n > width - 1) break;
+    kept += segment;
+    used += n;
+  }
+  return `${kept}…`;
 }
+
+/** The text padded with spaces to width cells. */
+export const padCells = (text: string, width: number, align: Align = "left"): string => {
+  const pad = " ".repeat(Math.max(0, width - cellWidth(text)));
+  return align === "right" ? `${pad}${text}` : `${text}${pad}`;
+};
 
 /** A line of program output as one terminal row would leave it: each carriage-return segment overprints the one before
  * from the first cell, a CRLF ends the row the same way, escape sequences and other control characters take no cell,

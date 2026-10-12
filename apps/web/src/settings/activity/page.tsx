@@ -6,7 +6,7 @@
 // kept here for as long as the page stands and dropped with it.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { SearchIcon } from "lucide-react";
-import { fmtBytes, folderOnJoined, THREAD_CGROUPS, HERE_PLACE_ID, isProviderPlace, placeOf, workspaceKind, type PlaceView, type WorkspaceView } from "@wsp/protocol";
+import { ACTIVITY_KIND_WORDS, fmtBytes, folderOnJoined, THREAD_CGROUPS, HERE_PLACE_ID, isProviderPlace, placeOf, workspaceKind, type PlaceView, type WorkspaceView } from "@wsp/protocol";
 import { ChartPlot, spanPoints } from "../../components/machine/MachineSurface.js";
 import { Input } from "../../components/ui/input.js";
 import { SegmentedControl } from "../../components/ui/segmented-control.js";
@@ -36,7 +36,6 @@ import {
   filterGroups,
   flatRows,
   HISTORY_POINTS,
-  KIND_WORDS,
   kindGroups,
   memoryShareTint,
   NO_PICKS,
@@ -349,13 +348,13 @@ function Controls({ computer, computers, filter, onFilter, picks, onPicks, choic
         </Select>
         <Select value={picks.kind ?? ALL} onValueChange={v => onPicks({ ...picks, kind: v === ALL ? null : (v as ProcKind) })}>
           <SelectTrigger size="sm" aria-label={W.kind} data-k="activity-kind" className={cn(BAR_SELECT, "w-40 max-sm:w-full")}>
-            <SelectValue>{(v: string) => <span className="truncate">{v === ALL ? W.allKinds : KIND_WORDS[v as ProcKind]}</span>}</SelectValue>
+            <SelectValue>{(v: string) => <span className="truncate">{v === ALL ? W.allKinds : ACTIVITY_KIND_WORDS[v as ProcKind]}</span>}</SelectValue>
           </SelectTrigger>
           <SelectPopup>
             <SelectItem value={ALL}>{W.allKinds}</SelectItem>
             {choices.kinds.map(k => (
               <SelectItem key={k} value={k}>
-                {KIND_WORDS[k]}
+                {ACTIVITY_KIND_WORDS[k]}
               </SelectItem>
             ))}
           </SelectPopup>
