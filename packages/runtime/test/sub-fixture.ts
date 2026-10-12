@@ -11,6 +11,8 @@ import { afterEach } from "vitest";
 import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
 import { boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
 import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
+// The key the picks are kept under, as the seed verb writes it and the spawn reads it: through the folder's links.
+import { folderNamed } from "../src/types/wiring.js";
 import type { DaemonChannelOptions } from "../src/daemon-channel.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { newPlaceKeyPair } from "../src/places.js";
@@ -215,7 +217,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
     for (const head of o.remoteHeads ?? []) execFileSync("git", ["-C", repo, "push", "-q", bare, `HEAD:refs/heads/${head}`]);
     execFileSync("git", ["-C", repo, "config", `url.${bare}.insteadOf`, "git@github.com:acme/web.git"]);
   }
-  if (o.picks !== undefined) await store.put("seed-choices", repo, { files: o.picks, memory: false, commits: false, remember: true });
+  if (o.picks !== undefined) await store.put("seed-choices", folderNamed(repo), { files: o.picks, memory: false, commits: false, remember: true });
   const folder = await rt.workspaces.create({ project: project.id, name: "web", agents: { spawn: true, ...(o.agents ?? {}) } });
   const turn = await rt.sessions.start(folder.id, { prompt: "coordinate", harness: "claude" });
   const threadId = turn.view().threadId!;
