@@ -5,7 +5,7 @@
 // the doctor's socket) keep a machine warm and re-dial it, which is a
 // different concern and stays where it is.
 
-import type { DaemonFrame, DaemonResponse } from "@wsp/protocol";
+import { daemonRefusedToken, type DaemonFrame, type DaemonResponse } from "@wsp/protocol";
 import WebSocket from "ws";
 import { daemonWsUrl } from "./reach.js";
 
@@ -162,7 +162,7 @@ export function openDaemonChannel(o: DaemonChannelOptions): Promise<DaemonChanne
       if (settled) return;
       settled = true;
       if (refusal !== undefined) reject(refusal);
-      else if (code === 4401) reject(new DaemonTokenError(reason));
+      else if (daemonRefusedToken(code, reason)) reject(new DaemonTokenError(reason));
       // The close code is for the log, never for the person's eyes.
       else reject(daemonUnanswered("the link to the computer ended before it opened", { code, reason }));
     });

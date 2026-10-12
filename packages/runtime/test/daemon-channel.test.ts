@@ -22,10 +22,10 @@ let door: RefusingDoor | undefined;
 let inboxDir: string | undefined;
 let procRoot: string | undefined;
 
-async function startTestDaemon(): Promise<DaemonUnderTest> {
+async function startTestDaemon(authDeadlineMs?: number): Promise<DaemonUnderTest> {
   inboxDir = mkdtempSync(join(tmpdir(), "wsp-channel-inbox-"));
   procRoot = fakeProcTree([]);
-  return daemonUnderTest({ host: "127.0.0.1", port: 0, token: TOKEN, inbox: inboxDir, rootsPath: rootsPathIn(inboxDir), procRoot, portsIntervalMs: 1000 });
+  return daemonUnderTest({ host: "127.0.0.1", port: 0, token: TOKEN, inbox: inboxDir, rootsPath: rootsPathIn(inboxDir), procRoot, portsIntervalMs: 1000, ...(authDeadlineMs !== undefined ? { authDeadlineMs } : {}) });
 }
 
 afterEach(async () => {
@@ -75,6 +75,17 @@ describe("openDaemonChannel", () => {
     expect(failed).toBeInstanceOf(DaemonTokenError);
     expect((failed as DaemonTokenError).kind).toBe("reauth");
     expect((failed as DaemonTokenError).message).toContain("4401");
+  });
+
+  it("an auth deadline that passed while this host's loop stood still is a link that ended, never a refused token", async () => {
+    daemon = await startTestDaemon(100);
+    proxy = await startTcpProxy(daemon.port);
+    proxy.freezeAfterNextReply(400);
+    const failed = await openDaemonChannel({ url: `ws://127.0.0.1:${proxy.port}`, token: TOKEN, onEvent: () => {} }).catch((e: unknown) => e);
+    expect(failed).not.toBeInstanceOf(DaemonTokenError);
+    expect((failed as { kind?: unknown }).kind).not.toBe("reauth");
+    // The same token on the next dial is let in: nothing about it was refused.
+    channel = await openDaemonChannel({ url: `ws://127.0.0.1:${proxy.port}`, token: TOKEN, onEvent: () => {} });
   });
 
   it("a door that answers the upgrade with a status rejects as a door error carrying the status and the body's first line", async () => {
