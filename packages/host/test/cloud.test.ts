@@ -181,6 +181,11 @@ describe("the skill's cloud marks", () => {
     expect(skillFor(boat, true)).toBe(read);
   });
 
+  it("says what wsp remove boat does with the cloud off, since Boat ships in every build", () => {
+    expect(skillFor(wspSkill(), false)).toContain("`wsp remove boat` deletes every machine this host made on Boat");
+    expect(skillFor(wspSkill(), false)).toContain("`wsp remove boat --forget` takes the key");
+  });
+
   it("marks every cloud verb's row, so the rows and the table go together", () => {
     const rows = wspSkill().split("\n").filter(line => line.startsWith("| `wsp "));
     const verbs = VERBS.map(v => v.name);

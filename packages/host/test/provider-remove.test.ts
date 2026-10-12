@@ -78,7 +78,7 @@ describe("removing Boat", () => {
   it("says where the key still is when the start folder's .env holds it too, and leaves that file alone", async () => {
     const { rt, envFile, statePath, cwd } = hostOn({ ANTHROPIC_API_KEY: "kept", [BOX_KEY_ENV]: "ascii_live_fake" }, CLOUD, { folder: { [BOX_KEY_ENV]: "ascii_live_fake" } });
     expect(await providers(rt)).toEqual(["box"]);
-    const still = providerKeyStillLine({ file: join(cwd, ".env") });
+    const still = providerKeyStillLine([{ file: join(cwd, ".env") }]);
     expect(await rt.places!.remove("box")).toMatchObject({ removed: true, deleted: 0, note: still });
     expect(still).toBe(`Its key is still in ${join(cwd, ".env")}, which a host started in that folder reads first; take it out there.`);
     expect(readFileSync(envFile, "utf8")).toBe("ANTHROPIC_API_KEY=kept\n");
@@ -90,12 +90,18 @@ describe("removing Boat", () => {
 
   it("says the same on a forget, and names the shell's environment when the key is there", async () => {
     const { rt } = hostOn({ [BOX_KEY_ENV]: "ascii_live_fake" }, REFUSED, { shell: { [BOX_KEY_ENV]: "ascii_live_fake" } });
-    expect(await rt.places!.remove("box", { forget: true })).toMatchObject({ removed: true, note: providerKeyStillLine({ env: BOX_KEY_ENV }) });
+    expect(await rt.places!.remove("box", { forget: true })).toMatchObject({ removed: true, note: providerKeyStillLine([{ env: BOX_KEY_ENV }]) });
     expect(await providers(rt)).toEqual([]);
   });
 
   it("answers no note when the file beside the state was the only place holding the key", async () => {
     const { rt } = hostOn({ [BOX_KEY_ENV]: "ascii_live_fake" });
     expect(await rt.places!.remove("box")).not.toHaveProperty("note");
+  });
+  it("names both places when the shell and the start folder's .env each hold the key", async () => {
+    const { rt, cwd } = hostOn({ [BOX_KEY_ENV]: "ascii_live_fake" }, CLOUD, { shell: { [BOX_KEY_ENV]: "ascii_live_fake" }, folder: { [BOX_KEY_ENV]: "ascii_live_fake" } });
+    const answer = await rt.places!.remove("box");
+    expect(answer).toMatchObject({ removed: true, note: providerKeyStillLine([{ env: BOX_KEY_ENV }, { file: join(cwd, ".env") }]) });
+    expect(answer.note).toBe(`Its key is still in the environment this host started with (BOAT_API_KEY) and in ${join(cwd, ".env")}, which a host started from that shell or in that folder reads first; take it out of both.`);
   });
 });

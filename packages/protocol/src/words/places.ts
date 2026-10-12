@@ -398,11 +398,15 @@ export const providerRemoveQuestion = (name: string, tasks: number): string =>
  * the start folder's .env before that file, and wsp edits neither. */
 export type KeyStill = { file: string } | { env: string };
 
-/** The sentence naming where a forgotten key still is, for the person to take it out there. */
-export const providerKeyStillLine = (still: KeyStill): string =>
-  "file" in still
-    ? `Its key is still in ${still.file}, which a host started in that folder reads first; take it out there.`
-    : `Its key is still in the environment this host started with (${still.env}), which a host started from that shell reads first; take it out there.`;
+const stillWhere = (still: KeyStill): string => ("file" in still ? still.file : `the environment this host started with (${still.env})`);
+const stillReader = (still: KeyStill): string => ("file" in still ? "in that folder" : "from that shell");
+
+/** The sentence naming every place a forgotten key still is, for the person to take it out of each: a key left in
+ * one of them is read back by the next host started there. */
+export const providerKeyStillLine = (still: readonly KeyStill[]): string => {
+  const one = still.length === 1;
+  return `Its key is still in ${still.map(stillWhere).join(" and in ")}, which a host started ${still.map(stillReader).join(" or ")} reads first; take it out ${one ? "there" : still.length === 2 ? "of both" : "of each"}.`;
+};
 
 /** What removing a provider answers once every machine this host made there is gone: the key forgotten with them, or
  * where it still is. */
@@ -447,7 +451,7 @@ export function providerKeptLine(name: string, deleted: number, left: readonly {
 /** What it answers when the listing read again after the deletes failed: a machine a create made meanwhile may be
  * there, so the key is kept. */
 export const providerUnlistedLine = (name: string, deleted: number, said: string): string =>
-  `${name}'s machines could not be listed again after ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted (${said}), so one made meanwhile may still be there and the key is kept. Remove ${name} again to finish.`;
+  `${name}'s machines could not be listed again${deleted === 0 ? "" : ` after ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted`} (${said}), so one made meanwhile may still be there and the key is kept. Remove ${name} again to finish.`;
 
 /** --force on a provider's remove: it takes work no remote has off a computer, and a provider is no computer. */
 export const providerForceRefusal = (name: string, typed: string): { said: string; fix: string } => ({

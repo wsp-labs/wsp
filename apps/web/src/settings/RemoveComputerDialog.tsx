@@ -19,6 +19,7 @@
 // refusal asks for it in a field under the slot, held in this dialog alone and
 // sent with the next Remove.
 import { useEffect, useState } from "react";
+import { useSettingsStore } from "./settingsStore.js";
 import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, placeUnsavedRefusal, type PlaceHolds, type PlaceView } from "@wsp/protocol";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
@@ -43,6 +44,8 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
   const [password, setPassword] = useState("");
   const [holds, setHolds] = useState<PlaceHolds | null>(null);
   const [keyRefused, setKeyRefused] = useState(false);
+  const [madeNote, setMadeNote] = useState<string | null>(null);
+  const holdParting = useSettingsStore(s => s.holdParting);
   const unsaved = holds?.unsaved ?? [];
   const forgets = keyRefused || (holds !== null && placeForgetsOnly(holds));
   const reading = open && api?.placeHolds !== undefined && holds === null && refusal === null;
@@ -66,7 +69,13 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
     };
   }, [open, api, place.id]);
 
+  useEffect(() => () => holdParting(null), [holdParting]);
+
   const change = (next: boolean): void => {
+    if (!next && madeNote !== null) {
+      holdParting(null);
+      onRemoved?.();
+    }
     if (!next) {
       setRefusal(null);
       setAsksSudo(false);
@@ -85,8 +94,16 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
     setPassword("");
     setBusy(true);
     setRefusal(null);
+    // Held from the ask on: the host drops the place from the list before its answer lands.
+    holdParting(place.id);
     try {
       const answer = await api.removePlace(place.id, typed, unsaved.length > 0, forgets);
+      // A remove made with something still to say, where the key still is, stays open on it until Done.
+      if (answer.removed && answer.note !== undefined) {
+        setMadeNote(answer.note);
+        return;
+      }
+      holdParting(null);
       // A remove the host did not make stays on screen with its reason: a provider that would not delete a machine
       // keeps its key, and a dialog that closed read as done while that machine billed on.
       if (!answer.removed) setRefusal({ said: answer.note ?? WHERE_WORDS.removeUnmade(placeName(place)) });
@@ -95,6 +112,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
         change(false);
       }
     } catch (e) {
+      holdParting(null);
       const failure = failureOf(e);
       // The host's fix names the terminal and this confirm for a client with no field; here the field is the fix.
       const sudo = failure.kind === PLACE_SUDO_KIND;
@@ -126,20 +144,30 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
         <div className="flex flex-col gap-2 px-5 pt-2">
           <RefusalSlot
             k="remove-refusal"
-            {...(refusal ??
-              (reading
-                ? { waiting: WHERE_WORDS.readingHolds }
-                : unsaved.length > 0
-                  ? { note: <span data-k="unsaved" className="block max-h-9 overflow-y-auto">{`${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
-                  : {}))}
+            {...(madeNote !== null
+              ? { note: <span data-k="remove-made-note">{madeNote}</span> }
+              : (refusal ??
+                (reading
+                  ? { waiting: WHERE_WORDS.readingHolds }
+                  : unsaved.length > 0
+                    ? { note: <span data-k="unsaved" className="block max-h-9 overflow-y-auto">{`${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
+                    : {})))}
           />
           {asksSudo ? <Input data-k="sudo-password" aria-label="Password for sudo" type="password" autoFocus autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && password !== "" && void remove()} className={cn(ROW_FIELD, "w-44")} /> : null}
         </div>
         <AlertDialogFooter>
-          <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{WHERE_WORDS.cancel}</AlertDialogClose>
-          <Button data-k="remove-confirm" variant="destructive" disabled={busy || reading || (asksSudo && password === "")} onClick={() => void remove()}>
-            {busy ? (forgets ? WHERE_WORDS.forgetting : WHERE_WORDS.removing) : forgets ? WHERE_WORDS.forget : unsaved.length > 0 ? WHERE_WORDS.removeAnyway : WHERE_WORDS.remove}
-          </Button>
+          {madeNote !== null ? (
+            <Button data-k="remove-done" variant="outline" className={NEUTRAL_RING} onClick={() => change(false)}>
+              {WHERE_WORDS.done}
+            </Button>
+          ) : (
+            <>
+              <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{WHERE_WORDS.cancel}</AlertDialogClose>
+              <Button data-k="remove-confirm" variant="destructive" disabled={busy || reading || (asksSudo && password === "")} onClick={() => void remove()}>
+                {busy ? (forgets ? WHERE_WORDS.forgetting : WHERE_WORDS.removing) : forgets ? WHERE_WORDS.forget : unsaved.length > 0 ? WHERE_WORDS.removeAnyway : WHERE_WORDS.remove}
+              </Button>
+            </>
+          )}
         </AlertDialogFooter>
       </AlertDialogPopup>
     </AlertDialog>

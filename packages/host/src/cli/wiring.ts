@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { collect, expand, nodeHost, seedMenu, type Manifest, type Rung } from "@wsp/collect";
 import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type GoldenRecipe, type GoldenVersion, type HarnessAdapterFactory, type LocalWiring, type Machine, type PlaceWiring, type Runtime, type SeedWiring, type Store } from "@wsp/runtime";
 import { CATALOG_AGENTS, GOLDEN_SETUP, GOLDEN_SMOKE } from "@wsp/catalog";
-import { PRICES_URL, PERSON_HOME_ENV, providerKeyStillLine, type SealedImage } from "@wsp/protocol";
+import { PRICES_URL, PERSON_HOME_ENV, providerKeyStillLine, type KeyStill, type SealedImage } from "@wsp/protocol";
 import { agentHome, type Copier, LocalBackend, providerSlot, type ProviderSlot, verbCopier } from "@wsp/engine";
 import { cloudRoads, noMachinesLine, PROVIDER_ENV, PROVIDER_MODULES, placeIdOf, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
 import { daemonBinaryHere } from "../assets.js";
@@ -248,7 +248,7 @@ export type KeyReads = Pick<KeySources, "env" | "cwd">;
  * that provider with it, since a host wired to a cloud it holds no key for forks into a refusal; the runtime then
  * forks on what is left. The shell's environment and the start folder's .env are the person's, which wsp never
  * edits, so a key still there is answered as the sentence saying where, since the next host started there reads it. */
-export function forgetProviderKey(rt: Runtime, statePath: string, placeId: string, reads: KeyReads = { env: process.env, cwd: process.cwd() }): string | undefined {
+export function forgetProviderKey(rt: Runtime, statePath: string, placeId: string, reads: KeyReads): string | undefined {
   const pick = PROVIDER_PICKS.get(rt);
   const env = pick?.env ?? process.env;
   const row = (pick?.modules ?? PROVIDER_MODULES).find(m => m.keyEnv !== undefined && placeIdOf(m, env) === placeId);
@@ -257,9 +257,8 @@ export function forgetProviderKey(rt: Runtime, statePath: string, placeId: strin
   writeEnvFile(envFileFor(statePath), gone);
   swapProvider(rt, gone);
   const [shell = {}, folder = {}] = keyLayers({ ...reads, statePath });
-  if (keyIn(shell, row.keyEnv) !== undefined) return providerKeyStillLine({ env: row.keyEnv });
-  if (keyIn(folder, row.keyEnv) !== undefined) return providerKeyStillLine({ file: join(reads.cwd, ".env") });
-  return undefined;
+  const still: KeyStill[] = [...(keyIn(shell, row.keyEnv) !== undefined ? [{ env: row.keyEnv }] : []), ...(keyIn(folder, row.keyEnv) !== undefined ? [{ file: join(reads.cwd, ".env") }] : [])];
+  return still.length === 0 ? undefined : providerKeyStillLine(still);
 }
 
 /** This computer's wiring for a runtime that builds its own: a host that turns can reach writes its own wsp beside
