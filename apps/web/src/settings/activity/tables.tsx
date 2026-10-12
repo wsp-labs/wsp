@@ -5,8 +5,9 @@
 import { memo, useCallback, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { ActivityIcon, AppWindowIcon, ArrowDownIcon, BotIcon, ChevronRightIcon, CircleDashedIcon, CogIcon, EllipsisIcon, EthernetPortIcon, FlaskConicalIcon, Globe2Icon, GaugeIcon, HammerIcon, PanelsTopLeftIcon, ServerIcon, TerminalSquareIcon, type LucideIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
-import { fmtBytes } from "@wsp/protocol";
+import { fmtBytes, fmtDuration, fmtTokens } from "@wsp/protocol";
 import { HarnessMark } from "../../components/chat/HarnessMark.js";
+import { useSubagentModel } from "../../components/threads/SubagentCard.js";
 import { LINE_SLOT_CLASS, ThreadStatus } from "../../components/status/ThreadStatus.js";
 import type { ThreadStatusInput } from "../../components/status/kinds/index.js";
 import { openContextMenu, runAction } from "../../actions/contextMenu.js";
@@ -35,6 +36,7 @@ import {
   type ActivityPort,
   type ActivityProc,
   type ActivitySort,
+  type ActivitySubagent,
   type PlacedProc,
   type ProcKind,
   type Tint,
@@ -217,6 +219,36 @@ function procRows(procs: readonly ActivityProc[], depth: number, group: Activity
   return procs.flatMap(p => [<ProcRow key={p.heading === true ? `${p.kind}-heading` : p.pid} p={p} depth={depth} group={group} acts={acts} look={look} />, ...procRows(p.children, depth + 1, group, acts, look)]);
 }
 
+/** One of a thread's subagents under it, beside its agent and not under it: its title, then its state, how long it ran,
+ * what it spent and its model as tags. It holds no memory or CPU of its own and takes no act. */
+function ActivitySubagentRow({ s, harness, workspaceId }: { s: ActivitySubagent; harness: string; workspaceId: string }) {
+  const model = useSubagentModel(s.model ?? undefined, harness, workspaceId);
+  const tags = [W.subagentStates[s.state], fmtDuration(s.ms), ...(s.tokens === null ? [] : [W.tokens(fmtTokens(s.tokens))]), ...(s.model === null || model === null ? [] : [model])];
+  return (
+    <div data-subagent-row={s.id} data-state={s.state} title={W.subagentNote} className={cn(SUB_ROW, TREE)}>
+      <span className="flex min-w-0 items-start gap-2 ps-11 max-md:ps-3">
+        <BotIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{s.title}</span>
+          <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{W.subagent}</span>
+          <span data-subagent-facts className="flex min-w-0 shrink-[3] items-baseline gap-2 overflow-hidden text-xs tabular-nums text-muted-foreground">
+            {tags.map(tag => (
+              <span key={tag} className="shrink-0 whitespace-nowrap">
+                {tag}
+              </span>
+            ))}
+          </span>
+        </span>
+      </span>
+      <span data-col="mem" />
+      <span data-col="cpu" className={WIDE} />
+      <span data-col="energy" className={WIDE} />
+      <span className={WIDE} />
+      <span />
+    </div>
+  );
+}
+
 /** The sampler's own row, last under wsp: what reading this page costs the daemon. */
 export interface SamplerCost {
   readonly cpu: number;
@@ -292,7 +324,9 @@ export interface ThreadsProps {
 }
 
 /** What a group draws, as one string: a frame that moved none of it leaves the group's block as it was. */
-const groupSig = (g: ActivityGroup): string => g.procs.flatMap(flat).map(p => `${p.pid}:${p.name}:${p.kind}:${p.mem}:${p.cpu}:${p.energy}:${portsWord(p.ports)}`).join("|") + `|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}`;
+const groupSig = (g: ActivityGroup): string =>
+  g.procs.flatMap(flat).map(p => `${p.pid}:${p.name}:${p.kind}:${p.mem}:${p.cpu}:${p.energy}:${portsWord(p.ports)}`).join("|") +
+  `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}`;
 
 interface BlockProps {
   readonly g: ActivityGroup;
@@ -339,14 +373,17 @@ const GroupBlock = memo(
           open={opened}
           onOpen={() => toggle(g.id)}
           act={
-            <Button variant="outline" size="xs" data-act="end-all" className={DANGER_BUTTON} onClick={() => acts.endAll(g)}>
-              {W.endAll}
-            </Button>
+            g.procs.length === 0 ? undefined : (
+              <Button variant="outline" size="xs" data-act="end-all" className={DANGER_BUTTON} onClick={() => acts.endAll(g)}>
+                {W.endAll}
+              </Button>
+            )
           }
           menu={{ group: g, acts }}
           look={look}
         />
         {opened ? procRows(g.procs, 0, g, acts, look) : null}
+        {opened ? g.subagents.map(s => <ActivitySubagentRow key={s.id} s={s} harness={t.harness} workspaceId={t.workspaceId} />) : null}
       </div>
     );
   },
