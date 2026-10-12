@@ -5,7 +5,7 @@
 // CODEX_HOME.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { agentWord, conversationWrittenElsewhereLine, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
+import { agentWord, conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
 import { createCodexAdapter, creditsOf, type CodexSession } from "../src/adapter.js";
 import { LETS_GO } from "../src/conversations.js";
@@ -673,6 +673,44 @@ describe("a Codex turn that does not complete", () => {
     expect(result).toEqual({ status: "failed", error: "codex could not open the thread: no rollout found for thread id 01a0" });
     expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
     expect(events.at(-1)).toMatchObject({ type: "session.end", sawResult: true });
+  });
+
+  it("a resume whose rollout is gone starts a new thread handed the thread so far, as Claude's does, and says so", async () => {
+    const FRESH = "01a0e2c1-5d10-7b42-9a6e-0000000000f5";
+    // The first server has no rollout for the thread, as 0.162.1 answers one; the second opens a new thread and answers.
+    const launch = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/resume") self.push(opened()[0]!, `{"error":{"code":-32600,"message":"no rollout found for thread id ${THREAD_ID}"},"id":"wsp-thread"}`);
+          if (message.method === "thread/start") self.push(...opened(FRESH));
+          if (message.method === "turn/start") {
+            self.push(
+              `{"method":"turn/started","params":{"threadId":"${FRESH}","turn":{"id":"${TURN_ID}","items":[],"status":"inProgress"}}}`,
+              `{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m1","text":"lantern"},"threadId":"${FRESH}","turnId":"${TURN_ID}"}}`,
+              `{"method":"turn/completed","params":{"threadId":"${FRESH}","turn":{"id":"${TURN_ID}","items":[],"status":"completed"}}}`,
+            );
+          }
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const seed = "person: remember the word lantern\nagent: remembered";
+    const session = adapterOver(launch).start({ prompt: "what was the word?", resume: THREAD_ID, seed: async () => seed, onEvent });
+    const result = await session.finished;
+    expect(result).toMatchObject({ status: "completed", text: "lantern" });
+    expect(launch.wires).toHaveLength(2);
+    expect(launch.wires[1]!.written.some(m => m.method === "thread/resume")).toBe(false);
+    const turn = launch.wires[1]!.written.find(m => m.method === "turn/start") as { params: { input: { text: string }[] } };
+    expect(turn.params.input.at(-1)!.text).toBe(lostSessionPrompt(seed, "what was the word?"));
+    // The failed resume is no turn of the thread's: one turn ends, one session ends, the new thread's.
+    expect(events.filter(e => e.type === "turn.done")).toHaveLength(1);
+    expect(events.filter(e => e.type === "session.end")).toHaveLength(1);
+    const started = events.findIndex(e => e.type === "session.start");
+    expect(events[started]).toMatchObject({ sessionId: FRESH });
+    expect(session.threadId).toBe(FRESH);
+    expect(events.slice(started).find(e => e.type === "turn.delta" && e.kind === "note")).toMatchObject({ text: LOST_SESSION_NOTE });
   });
 
   it("a process that dies mid-turn fails under the thread's id with its last stderr lines", async () => {

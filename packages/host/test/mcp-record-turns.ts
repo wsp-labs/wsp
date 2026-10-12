@@ -409,6 +409,10 @@ const ACTIVITY = {
   unowned: [activityProc({ pid: 5000, ppid: 1, depth: 0, kind: "other", name: "naïve", command: "naïve \"résumé\"", memory: 512, cpu: 0 })],
 };
 const ENDED = { left: [], forced: [], ended: [activityProc({}), activityProc({ pid: 4300, ppid: 4200, depth: 2, kind: "other", name: "esbuild", command: "esbuild --service", memory: 20_000_000 })], pid: 4200 };
+/** A sub-thread on Boat, its machine napping until its delete, and what the done after its turn read off it. */
+const SUB = "thread-e17a90c34f2b";
+const SUB_RESULT = { branch: "wsp/fix-it", pushedSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", commits: 3, unpushed: 0, changed: 0, onBranch: "wsp/fix-it", readAt: "2026-10-12T09:44:10.512Z" };
+const SUB_ROW = { state: "napping", on: "boat", machine: "Fix it \u0085", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", deleteAt: 1_790_000_000_000 };
 const resolved = (workspace: unknown = WORKSPACE): string => ok({ workspace });
 /** A thread's replies: the index THREAD is read off, on the record given, and that record. */
 const atThread = (workspace: { id: string; [field: string]: unknown } = WORKSPACE): Record<string, string> => ({ "sessions.list": listed([{ id: "s-1", workspaceId: workspace.id, harness: "claude", status: "completed", threadId: THREAD }]), "workspaces.get": resolved(workspace) });
@@ -612,6 +616,15 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "an end pushed", arguments: { threads: [THREAD] }, replies: { "sessions.list": listed([SESSIONS[1]]), "sessions.history": history(frame({ type: "session.start", ...scope, threadId: THREAD, turnId: "t2" }), frame({ type: "session.end", ...scope, threadId: THREAD, turnId: "t2", reason: "the harness exited \u0085" })) }, pushed: { "sessions.list": [frame({ type: "session.end", workspaceId: "ws-1", sessionId: "sess-2", threadId: THREAD, turnId: "t2", reason: "cut" })] } },
     { case: "timed out on one", arguments: { threads: [THREAD], timeout: 0.05 }, replies: { "sessions.list": listed([SESSIONS[1]]) } },
     { case: "timed out on two", arguments: { threads: [THREAD, OTHER], timeout: 0.25 }, replies: { "sessions.list": listed([SESSIONS[1], sessionRow({ id: "sess-3", threadId: OTHER, status: "running" })]) } },
+    {
+      case: "a sub-thread over, with what its machine was read to hold",
+      arguments: { threads: [SUB] },
+      replies: {
+        "sessions.list": listed([sessionRow({ id: "sess-5", threadId: SUB, sub: SUB_ROW })]),
+        "sessions.history": history(frame({ type: "session.start", workspaceId: "ws-1", sessionId: "sess-5", threadId: SUB, turnId: "t5" }), frame({ type: "session.done", workspaceId: "ws-1", sessionId: "sess-5", threadId: SUB, turnId: "t5", result: REPLY })),
+        "sessions.head": ok({ facts: { id: SUB, threadId: SUB, workspaceId: "ws-1", harness: "claude", startedBy: "agent", status: "completed", turns: 1, ran: true, sub: { ...SUB_ROW, result: SUB_RESULT } }, events: [], pos: 0, total: 0 }),
+      },
+    },
     { case: "no such thread", arguments: { threads: ["nope"] }, replies: { "sessions.list": listed() } },
   ],
   restart: [

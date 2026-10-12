@@ -24,6 +24,7 @@ import {
   workspaceKind,
   workspaceState,
   threadDeleteQuestion,
+  subDeletedLine,
   threadDeletedLine,
   turnSpendWord,
   GitCommitReply,
@@ -43,8 +44,8 @@ import {
   StartResult,
 } from "@wsp/protocol";
 import { hostBack, usageIs, tool, type Verb, PICK_FLAGS, PICK_OPTIONS, flag, flagList, absoluteFolder, openedThreadLine, threadIdOf } from "./client.js";
-import { workspaceOf, pauseModeOf, stateLine, wokeLine, nap, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
-import { pickFlags, checkedStart, threadHere, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
+import { workspaceOf, threadOf, pauseModeOf, stateLine, wokeLine, nap, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
+import { pickFlags, checkedStart, threadHere, subDeleting, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
 import { confirmed, QUIET, QUIET_LINE, QUIET_TURN, Created, TurnOut, asJson, asText, WorkspaceIn, ThreadIn, SHARED_WITH, AgentIn, NotifyIn, CwdIn, ConfirmIn, PICK_INPUTS, SizeIn, SpawnIn, MaxMachinesIn, MaxDepthIn } from "./io.js";
 
@@ -287,12 +288,12 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       const at = await threadAt(client, lead, "wsp merge in");
       const kid = await childOf(client, at, child, "wsp merge in");
       const done = await mergedIn(client, { workspace: at.workspace, threadId: threadIdOf(at.thread) }, { workspaceId: kid.workspace.id, threadId: threadIdOf(kid.thread) }, line => ctx.io.error(line));
-      ctx.out.emit({ ...done }, mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }));
+      ctx.out.emit({ ...done }, mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }, threadIdOf(kid.thread)));
       return 0;
     },
     tool: tool({
       description:
-        "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
+        "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
       input: {
         lead: ThreadIn,
         child: z.string().describe("the child thread whose branch is merged in, by its id or a prefix of it"),
@@ -303,7 +304,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
         const at = await threadAt(client, lead, "wsp merge in");
         const kid = await childOf(client, at, child, "wsp merge in");
         const done = await mergedIn(client, { workspace: at.workspace, threadId: threadIdOf(at.thread) }, { workspaceId: kid.workspace.id, threadId: threadIdOf(kid.thread) }, QUIET_LINE);
-        return asText(mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }), { ...done });
+        return asText(mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }, threadIdOf(kid.thread)), { ...done });
       },
     }),
   },
@@ -688,7 +689,15 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       if (ref === undefined || ctx.args.length !== 1) throw usageRefusal(cloudText("wsp delete takes one thread<!-- cloud -->, or one workspace<!-- /cloud -->.", CLOUD_ON), usageIs(ctx));
       const choice = processesAsked(flag(ctx.flags, "processes"));
       const client = await ctx.client();
-      const here = await threadHere(client, ref);
+      const thread = await threadOf(client, ref).catch(() => undefined);
+      const subbed = await subDeleting(client, thread);
+      if (subbed !== undefined) {
+        if (!(await confirmed(ctx, subbed.question, subbed.id))) return 1;
+        const { on, ...gone } = await threadDeleted(client, subbed.id);
+        ctx.out.emit({ threadId: subbed.id, ...gone }, subDeletedLine(subbed.id, on ?? ""));
+        return 0;
+      }
+      const here = await threadHere(client, thread);
       if (here !== undefined) {
         const processes = choice ?? "ask";
         await threadDeleted(client, here.id, { processes, check: true });
@@ -711,13 +720,23 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.",
+        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.",
       input: { thread: z.string().optional().describe("the thread, by its id or a prefix of it that names one"), workspace: WorkspaceIn.optional(), processes: ProcessesIn, confirm: ConfirmIn },
-      output: { threadId: z.string().optional(), workspaceId: z.string(), worktree: z.string().optional(), name: z.string().optional(), machineId: z.string().optional(), threads: z.number().int(), ended: z.array(ActivityEnded).optional() },
+      output: { threadId: z.string().optional(), workspaceId: z.string(), worktree: z.string().optional(), name: z.string().optional(), machineId: z.string().optional(), threads: z.number().int(), ended: z.array(ActivityEnded).optional(), machine: z.literal("deleted").optional().describe("on a sub-thread: its machine on Boat was deleted with it") },
       call: async ({ thread: threadRef, workspace: ref, processes, confirm }, deps) => {
         const client = await deps.client();
         if (threadRef !== undefined) {
-          const here = await threadHere(client, threadRef);
+          const thread = await threadOf(client, threadRef).catch(() => undefined);
+          if (thread?.sub !== undefined) {
+            const id = threadIdOf(thread);
+            if (confirm !== true) {
+              const { question } = (await subDeleting(client, thread))!;
+              return { ...asText(`thread ${id} kept. ${question.split("\n")[1]} Ask the person, then call delete again with confirm true.`, { threadId: id, workspaceId: thread.workspaceId, threads: 1 }), isError: true };
+            }
+            const { on, ...gone } = await threadDeleted(client, id);
+            return asText(subDeletedLine(id, on ?? ""), { threadId: id, ...gone });
+          }
+          const here = await threadHere(client, thread);
           if (here === undefined) {
             if (CLOUD_ON) await refuseMachineThread(client, threadRef);
             throw usageRefusal(`no thread ${threadRef}`, NO_THREAD_FIX);

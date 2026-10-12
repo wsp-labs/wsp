@@ -20,6 +20,7 @@ import { WorkspaceThread } from "../src/shell/WorkspaceThread.js";
 import { ForkDialogHost } from "../src/components/chat/ForkDialog.js";
 import { RewindDialogHost } from "../src/components/chat/RewindDialog.js";
 import { forkableMessages, useForkDrafts } from "../src/components/chat/forks.js";
+import { composerSendBlock } from "../src/components/chat/ChatComposer.js";
 import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { useComposerFilesStore } from "../src/components/chat/composerFiles.js";
 import { tileCardLines } from "../src/sidebar/tileCard.js";
@@ -168,6 +169,28 @@ describe("Fork from here on a thread's messages", () => {
     const picks = forkableMessages(turns, [msg("opened", "user"), msg("steer", "user", true), msg("reply", "assistant")], { forks: true, byCount: false }, true);
     expect([...picks.keys()].sort()).toEqual(["opened", "reply"]);
     expect(picks.get("opened")).toMatchObject({ turnId: null });
+  });
+});
+
+describe("Fork from here and Rewind on a sub-thread whose machine was deleted", () => {
+  const sub = (releasedAt: number) => ({ state: "running" as const, on: "boat", machine: "api", size: { cpu: 2, memMb: 4096 }, branch: "wsp/api", releasedAt });
+  const rewindButtons = () => screen.queryAllByRole("button", { name: "Rewind to here" });
+  const words = (buttons: HTMLElement[]) => buttons.map(rowOf).map(t => t.match(/(ask|reply) \d/)?.[0]).sort();
+
+  it("offers neither on a turn that ran on the deleted machine, and both on a turn the new machine ran", async () => {
+    // Turns 1 and 2 ran before the delete, turn 3 on the machine the next send made.
+    const { api } = fixtureApi({ rows: [{ ...ROW, sub: sub(2.5 * 60_000) }] });
+    await mount(api);
+    await waitFor(() => expect(words(forkButtons())).toEqual(["ask 1", "reply 3"]));
+    expect(words(rewindButtons())).toEqual([]);
+  });
+
+  it("offers none on any turn while the thread has no machine, and the composer still takes a message", async () => {
+    const { api } = fixtureApi({ rows: [{ ...ROW, sub: { ...sub(4 * 60_000), state: "released" } }], workspace: { ...cloud, phase: "released" } });
+    await mount(api);
+    await waitFor(() => expect(words(forkButtons())).toEqual(["ask 1"]));
+    expect(words(rewindButtons())).toEqual([]);
+    expect(composerSendBlock({ conn: "live", hasApi: true, state: "released", hydrated: true, agents: true })).toBeNull();
   });
 });
 

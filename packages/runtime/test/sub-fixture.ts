@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { afterEach } from "vitest";
 import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
 import { boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
+import type { Clock } from "../src/clock.js";
 import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 // The key the picks are kept under, as the seed verb writes it and the spawn reads it: through the folder's links.
 import { folderNamed } from "../src/types/wiring.js";
@@ -106,6 +107,7 @@ function leadDaemon(git: LeadGit) {
     send: async (frame: unknown): Promise<DaemonResponse> => {
       const f = frame as Record<string, unknown>;
       frames.push(f);
+      if (f["op"] === "git.mergeIn") return { id: 1, ok: true, branch: String(f["branch"]), merged: true, commits: 3, oid: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", conflicts: [] } as unknown as DaemonResponse;
       if (f["op"] === "git.status") {
         const entries = Array.from({ length: git.uncommitted }, (_, i) => ({ path: `f${i}`, xy: " M" }));
         return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]), ...(git.countsUnknown === true ? { countsUnknown: true } : {}) } as unknown as DaemonResponse;
@@ -118,21 +120,42 @@ function leadDaemon(git: LeadGit) {
   return { frames, open };
 }
 
-/** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: { end?: () => void }): HarnessAdapterFactory {
+/** Where each agent keeps a session's one file on a machine, as their adapters say: Claude Code under its config dir by
+ * folder, Codex under its home by date. */
+export const CLAUDE_SESSION_FILE = (id: string) => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 });
+export const CODEX_SESSION_FILE = (id: string) => ({ folder: "/root/.codex/sessions", name: `-${id}.jsonl`, depth: 3 });
+
+/** The file a session's pack finds on a machine: Claude Code's under the folder of the turn's cwd, /root/web, and
+ * Codex's rollout under the day it started. */
+export function sessionPathOf(folder: string, name: string): string {
+  return folder.endsWith("/sessions") ? `${folder}/2026/10/12/rollout-2026-10-12T06-00-00${name}` : `${folder}/-root-web/${name}`;
+}
+
+type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLater?: boolean; exit?: () => void };
+
+/** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
+ * but for one started while `hold` is set, which runs until `release` ends it; with `exitLater` its process exits only
+ * at `exit`, as a real one does a moment after its result. */
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn, sessionFile: (id: string) => { folder: string; name: string; depth: number }): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
+    sessionFile,
     start: o => {
       starts.push({ o, env: hctx.env });
       const sessionId = `s${starts.length}`;
       o.onEvent({ type: "session.start", sessionId });
       const result: TurnResult = { status: "completed", text: "done" };
-      if (starts.length === 1) {
+      if (starts.length === 1 || lead.hold === true) {
+        const first = starts.length === 1;
+        lead.hold = false;
         const finished = new Promise<TurnResult>(resolve => {
-          lead.end = () => {
+          lead[first ? "end" : "release"] = () => {
             o.onEvent({ type: "turn.done", sessionId, result });
-            o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
-            resolve(result);
+            lead.exit = () => {
+              o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+              resolve(result);
+            };
+            if (lead.exitLater !== true) lead.exit();
           };
         });
         return { localId: sessionId, finished, interrupt: async () => {} };
@@ -179,6 +202,12 @@ export interface Setup {
   served?: true;
   /** Branches the remote holds already. */
   remoteHeads?: string[];
+  /** Boat's machines at once as the person set it, which wires the place door that keeps it. */
+  machines?: number;
+  /** The host's clock, for a test that moves time on. */
+  clock?: Clock;
+  /** The agent a turn on a Boat machine runs, where it is not the stub that answers at once. */
+  subAdapter?: HarnessAdapterFactory;
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -197,18 +226,24 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const git: LeadGit = { head: "feat/upload", upstream: "origin/feat/upload", ahead: 0, uncommitted: 0, ...o.git };
   const daemon = leadDaemon(git);
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
-  const leadTurn: { end?: () => void } = {};
+  const leadTurn: LeadTurn = {};
   const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
-  const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
+  const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const rt: Runtime = createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts, leadTurn), codex: harness(starts, leadTurn) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents });
+  const claude = harness(starts, leadTurn, CLAUDE_SESSION_FILE);
+  const onBoat = o.subAdapter;
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE) };
+  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
+  const rt: Runtime = createRuntime(options);
+  const make = (): Runtime => createRuntime(options);
   if (o.served === true) {
     ctx.runtime = rt;
     ctx.srv = await serveRuntime(rt, { port: 0, authToken: "host-token", devices: rt.devices });
     here.url = `ws://127.0.0.1:${ctx.srv.port}`;
   }
   if (o.spendPerDayUsd !== undefined) await rt.places!.set("box", { spendPerDayUsd: o.spendPerDayUsd });
+  if (o.machines !== undefined) await rt.places!.set("box", { machines: o.machines });
   const project = await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "web" });
   // The remote, recorded on the project as GitHub's, answers from a bare repo here, so no read leaves this computer.
   if (o.remote === undefined) {
@@ -222,6 +257,85 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const turn = await rt.sessions.start(folder.id, { prompt: "coordinate", harness: "claude" });
   const threadId = turn.view().threadId!;
   const lead: Caller = { origin: "here", by: { kind: "thread", threadId, workspaceId: folder.id, rootThreadId: threadId } };
-  return { rt, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo };
+  // The same host started again on the same state, as a restart leaves it, on a clock of its own where one is given.
+  const restart = (clock?: Clock): Runtime => createRuntime(clock === undefined ? options : { ...options, clock });
+  return { rt, make, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo, restart, turns: leadTurn };
 }
 
+/** What the result read prints on a machine whose branch is pushed, three commits on the lead's. */
+export const PUSHED = `branch wsp/fix-the-flaky-upload-test\npushed 9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\nunpushed 0\nchanged 0\ncommits 3\n`;
+/** Two commits nobody pushed and three files changed. */
+export const UNPUSHED = `branch wsp/fix-the-flaky-upload-test\npushed none\nunpushed 2\nchanged 3\n`;
+
+export interface Answers {
+  read: string | { exitCode: number; stderr: string };
+  /** The packed session, or only its packed size, where the host is not to read it. */
+  session: Buffer | number | null;
+}
+
+/** Boat answering the result read, the session's pack and its read as `answers` says, on every machine it makes. */
+export function answering(boat: Boat, answers: Answers): void {
+  const base = boat.execImpl;
+  boat.execImpl = (m, cmd, stdin) => {
+    if (cmd.includes("git rev-list --count --branches --not --remotes")) {
+      return typeof answers.read === "string" ? { exitCode: 0, stdout: answers.read, stderr: "" } : { exitCode: answers.read.exitCode, stdout: "", stderr: answers.read.stderr };
+    }
+    if (cmd.includes("gzip -c")) {
+      if (answers.session === null) return { exitCode: 0, stdout: "nofile\n", stderr: "" };
+      const [, folder, name] = /find '([^']+)' .* -name '\*([^']+)'/.exec(cmd)!;
+      const size = typeof answers.session === "number" ? answers.session : answers.session.length;
+      return { exitCode: 0, stdout: `path ${sessionPathOf(folder!, name!)}\nsize ${size}\n`, stderr: "" };
+    }
+    return base(m, cmd, stdin);
+  };
+  const create = boat.create.bind(boat);
+  boat.create = async spec => {
+    const m = (await create(spec)) as StubMachine;
+    m.readBytes = async (path: string, o?: { size?: number }) => {
+      const packed = answers.session;
+      if (!Buffer.isBuffer(packed) || !path.startsWith("/tmp/wsp-session-") || o?.size !== packed.length) throw new Error(`nothing packed at ${path}`);
+      return packed;
+    };
+    return m;
+  };
+}
+
+
+/** Real timers, and a now the test can move on: a jump fires every timer it passes at once. */
+export function jumpClock(): { clock: Clock; jump(ms: number): void } {
+  let offset = 0;
+  const pending = new Set<{ at: number; fn: () => void; timer: ReturnType<typeof setTimeout> }>();
+  const clock: Clock = {
+    now: () => Date.now() + offset,
+    schedule: (fn, ms, o) => {
+      const p = { at: Date.now() + offset + ms, fn, timer: setTimeout(() => (pending.delete(p), fn()), ms) };
+      if (o?.unref === true) p.timer.unref();
+      pending.add(p);
+      return () => {
+        clearTimeout(p.timer);
+        pending.delete(p);
+      };
+    },
+  };
+  const jump = (ms: number): void => {
+    offset += ms;
+    for (const p of [...pending].sort((a, b) => a.at - b.at)) {
+      if (p.at > Date.now() + offset) continue;
+      clearTimeout(p.timer);
+      pending.delete(p);
+      p.fn();
+    }
+  };
+  return { clock, jump };
+}
+
+/** Waits for a condition with a time limit, polling. */
+export async function until<T>(read: () => Promise<T | undefined> | T | undefined, what: string, ms = 5_000): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const got = await read();
+    if (got !== undefined && got !== false) return got;
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await new Promise(r => setTimeout(r, 10));
+  }
+}

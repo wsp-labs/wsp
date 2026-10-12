@@ -65,6 +65,7 @@ import {
   workspaceStateOf,
   workspaceStaysAwakeLine,
   type Capabilities,
+  type MachineSizeOffer,
   type SessionView,
   type WorkspaceCreateResult,
   type WorkspaceCreatingEvent,
@@ -385,6 +386,8 @@ const MACHINE_DOWN: ReadonlySet<WorkspaceState> = new Set<WorkspaceState>(["paus
 export async function awake(client: HostClient, workspace: WorkspaceView, action: string, tell: (line: string) => void): Promise<Woken> {
   const before = workspaceState({ phase: workspace.phase });
   if (before === "gone") throw new Error(goneRefusal(workspace.name, action, workspace.gone));
+  // A released sub-thread has no machine to wake: its send makes a new one.
+  if (before === "released" && action === "send") return { workspace, woke: false };
   if (before !== "running") tell(`waking ${workspace.name}`);
   const woken = (await client.request<{ workspace: WorkspaceOut }>("workspaces.wake", { workspaceId: workspace.id })).workspace;
   return { workspace: woken, woke: MACHINE_DOWN.has(before) && workspaceState({ phase: woken.phase }) === "running" };
@@ -726,9 +729,18 @@ export const THREAD_HEAD = ["PROJECT", "FOLDER", "BRANCH", "THREAD", "SUBAGENT",
  * the two words `wsp stop <thread> --subagent <id>` takes, and BY is the agent that started it. */
 export function threadLines(t: ThreadRow, indent = ""): string[][] {
   const folder = shortenedFront(homeShortened(t.folder, homedir()), FOLDER_WIDTH);
-  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
+  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, subThreadWord(t) ?? threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
   const under = (t.subagents ?? []).map(c => [t.projectName, folder, t.branch, `${indent}  ${t.id}`, c.id, t.harness, subagentStateWord(c.state), "agent", t.computerName, shortenedEnd(c.title, TITLE_WIDTH)]);
   return [own, ...under];
+}
+
+/** A sub-thread's state where its machine says more than its turn: waiting for a slot on its cloud, its machine being
+ * made, or done with work no remote has; a question it asks still reads first. */
+function subThreadWord(t: ThreadRow): string | undefined {
+  if (t.sub === undefined || t.asking !== undefined || t.waitingOn !== undefined) return undefined;
+  if (t.sub.state === "waiting") return "Waiting";
+  if (t.sub.state === "starting") return "Starting";
+  return t.status !== "running" && t.sub.held !== undefined ? "Not pushed" : undefined;
 }
 
 /** The rows a --tree listing prints: every thread a person or the command line opened, each followed by the ones
@@ -810,7 +822,7 @@ export async function createFor(
   // A folder on this computer forks nothing, so a size has nothing to act on: refused before the landing is read.
   if (copiesFolder(kindForComputer(project.computer)) && asked.size !== undefined) throw usageRefusal(copyTakesNone(project.name, ["--size"]), "Drop them.");
   const capabilities = (await client.request<{ capabilities: Capabilities }>("workspaces.landing", { project: project.id, ...(asked.size !== undefined ? { sized: true } : {}) })).capabilities;
-  const chosen = asked.size === undefined ? undefined : sizeChosen(capabilities, asked.size);
+  const chosen = asked.size === undefined ? undefined : sizeChosen(capabilities.sizes, asked.size);
   const pushed = pushedFrames(client);
   await client.events();
   pushed.follow(
@@ -876,9 +888,9 @@ export function countAsked(flagName: string, word: string | number, least: numbe
 /** The size a --size word names, read but not checked: on a joined computer what is on offer is that computer's to
  * say, and the host refuses a size it does not offer with the same sentence this one would have. */
 /** The size a --size word names, checked against what the host's provider offers before anything is minted. */
-function sizeChosen(capabilities: Capabilities, word: string): WorkspaceSize {
+export function sizeChosen(sizes: readonly MachineSizeOffer[], word: string): WorkspaceSize {
   const size = sizeFromWord(word);
-  if (size === undefined || !offeredSize(capabilities.sizes, size)) throw usageRefusal(sizeRefusal(word, capabilities.sizes), "Name one of those with --size.");
+  if (size === undefined || !offeredSize(sizes, size)) throw usageRefusal(sizeRefusal(word, sizes), "Name one of those with --size.");
   return size;
 }
 

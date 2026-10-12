@@ -19,7 +19,7 @@ import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { CAP_RAISE_ACT, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { openComputerSettings } from "../../settings/openAt";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
@@ -45,7 +45,7 @@ import { useChatThread, type ChatThreadHandle } from "./useChatThread";
 import { useOpenSubagentRun } from "./openSubagent";
 import { lastReplies, rewindableReplies, type RewindableReply } from "./RewindDialog";
 import { requestFork, requestRewind } from "../../shell/shellRequests";
-import { forkableMessages } from "./forks";
+import { forkableMessages, goneTurns } from "./forks";
 import type { ForkedFromLine } from "./timeline/context";
 import { TRANSCRIPT_LOADING } from "../../transcript-words";
 import { useAppDark } from "../../settings/theme";
@@ -177,7 +177,8 @@ export function ChatView({
     const wait = turnWait(state, runs);
     if (wait !== null) return { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
     if (capped === undefined) return null;
-    return { label: capWaitLine(capped), elapsed: true, act: { label: CAP_RAISE_ACT, run: () => openComputerSettings(capped.placeId) } };
+    const raise = capRaiseAct(capped);
+    return { label: capWaitLine(capped), elapsed: true, act: raise === undefined ? null : { label: raise, run: () => openComputerSettings(capped.placeId) } };
   }, [state, working, wake, workspaceId, runs, capped]);
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.
@@ -290,12 +291,14 @@ export function ChatView({
   // Rewind to here stands on each earlier reply that kept something to go back to, and opens the one dialog.
   const cutsConversation = catalog?.rewindsConversation === true;
   const byCount = catalog?.rewindsByCount === true;
+  const releasedAt = turnRows.at(-1)?.sub?.releasedAt;
+  const gone = useMemo(() => goneTurns(view.turns, releasedAt === undefined ? undefined : { releasedAt }), [view.turns, releasedAt]);
   // A turn a fork was handed rewinds nothing: the fork's own history starts after it.
   const rewindable = useMemo(() => {
     if (api?.rewindThread === undefined || agent === null) return new Map<string, RewindableReply>();
     const copied = new Set(view.turns.filter(t => t.copied === true).map(t => t.turnId));
-    return new Map([...rewindableReplies(view.turns, view.entries, cutsConversation, byCount)].filter(([, reply]) => !copied.has(reply.turnId)));
-  }, [agent, api, view.turns, view.entries, cutsConversation, byCount]);
+    return new Map([...rewindableReplies(view.turns, view.entries, cutsConversation, byCount)].filter(([, reply]) => !copied.has(reply.turnId) && !gone.has(reply.turnId)));
+  }, [agent, api, view.turns, view.entries, cutsConversation, byCount, gone]);
   // The set and the handler reach every row through the timeline's shared context, so they move only when which
   // replies can be rewound moves, never on a streamed chunk: a settled reply would redraw on every one.
   const rewindableKey = [...rewindable.keys()].join("\n");
@@ -319,8 +322,11 @@ export function ChatView({
   // that forks; a new branch is offered where the thread runs in a git folder on this computer, whose daemon cuts
   // worktrees at a checkpoint, and the turn kept one.
   const forkable = useMemo(
-    () => (api === null || agent === null || subagent !== null ? new Map<string, never>() : forkableMessages(view.turns, view.entries, { forks: catalog?.forks === true, byCount: catalog?.forksByCount === true }, thread.fromStart && !view.earlier)),
-    [agent, api, catalog?.forks, catalog?.forksByCount, subagent, view.turns, view.entries, thread.fromStart, view.earlier],
+    () =>
+      api === null || agent === null || subagent !== null
+        ? new Map<string, never>()
+        : new Map([...forkableMessages(view.turns, view.entries, { forks: catalog?.forks === true, byCount: catalog?.forksByCount === true }, thread.fromStart && !view.earlier)].filter(([, pick]) => pick.turnId === null || !gone.has(pick.turnId))),
+    [agent, api, catalog?.forks, catalog?.forksByCount, subagent, view.turns, view.entries, thread.fromStart, view.earlier, gone],
   );
   const forkableKey = [...forkable.keys()].join("\n");
   const forkableIds = useMemo(() => new Set(forkableKey === "" ? [] : forkableKey.split("\n")), [forkableKey]);

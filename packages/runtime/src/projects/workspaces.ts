@@ -230,6 +230,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     async wake(id, origin) {
       if (ctx.talksToTreeOn(id, origin)) return WorkspaceTalked.parse(await workspaces.wake(id));
       const entry = await ctx.entryOf(id, origin, { act: "wake" });
+      ctx.refuseSubWake(entry);
       await ctx.copyBlocked(entry);
       if (entry.waking) return entry.waking;
       if (entry.record.phase === "gone") {
@@ -493,6 +494,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       }
       const entry = await ctx.entryOf(id, origin);
       if (entry.deleting) return entry.deleting;
+      // A held spawn is stopped as a stop does, its machine going as it lands where one is being made.
+      const held = entry.record.phase === "queued" ? ctx.deleteQueued(id) : undefined;
+      if (held !== undefined) return held;
       // A worktree wsp made goes with its record, never over files no commit holds; the project folder, and a
       // worktree somebody else made, are never touched.
       const tree = entry.record.worktree;
@@ -508,12 +512,15 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           if (takes) await ctx.removeWorktree(entry, false, { ending: true });
           // Before the machine goes: on a computer somebody owns the folders the files landed in outlive the workspace.
           await ctx.dropThreadFiles(entry, [...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
-          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back.
-          if (!kindWords(entry.record.kind).driven) {
+          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back; a spawn
+          // still waiting has none, a released record's box is gone already, and a record whose cloud left this host
+          // has nobody to ask.
+          const standing = entry.record.phase !== "released" && entry.record.phase !== "queued" && entry.record.sub?.cloudGone !== true;
+          if (standing && !kindWords(entry.record.kind).driven) {
             await entry.machine.kill().catch((e: unknown) => {
               if (!isMissing(e)) throw e;
             });
-          } else {
+          } else if (standing) {
             await ctx.unfork(entry).catch((e: unknown) => {
               if (!(e instanceof MachineAliveError)) throw e;
               const line = deleteRefusedLine(entry.record.name, e.machineId, e.state);
@@ -939,7 +946,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
         .filter(v => v.workspaceId === lead.record.id && v.status === "running" && v.threadId !== undefined && v.threadId !== asked?.threadId);
       if (busy.length > 0) throw new Error(leadBusyRefusal(labelOf(lead, threadId), busy.map(v => v.threadId!)));
       await ctx.copyBlocked(lead);
-      const branch = (await ctx.readCheckout(kid, true))?.branch ?? kid.record.worktree?.branch ?? "";
+      // A sub-thread's branch is its record's, so a napping machine is not woken and a released one still merges.
+      const sub = kid.record.sub;
+      const branch = sub?.branch ?? (await ctx.readCheckout(kid, true))?.branch ?? kid.record.worktree?.branch ?? "";
       if (branch === "" || branch === DETACHED_HEAD) throw new Error(childOnNoBranchRefusal(labelOf(kid, childThreadId)));
       const project = ctx.projectHeld(lead.record.project);
       // Through the remote, the one place both copies always reach; with none, from the child's folder only where
@@ -959,7 +968,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       } else kept.conflicts = done.conflicts;
       await ctx.readCheckout(lead, true);
       await ctx.keepTree(kid, kept);
-      return { lead: lead.record.name, child: kid.record.name, branch, merged: done.merged, commits: done.commits, conflicts: done.conflicts };
+      const unpushed = sub?.result?.unpushed ?? 0;
+      return { lead: lead.record.name, child: kid.record.name, branch, merged: done.merged, commits: done.commits, conflicts: done.conflicts, ...(unpushed > 0 ? { unpushed } : {}) };
     },
 
     async start({ url, project: named, agent, model, effort, access }, origin) {

@@ -568,8 +568,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
     whole: z.literal(true).optional(),
   }),
   /** Replies with the thread's ThreadHead, by its fold key as sessions.read takes it; refused as not found where the
-   * caller reaches no such thread. */
-  z.object({ id: reqId, op: z.literal("sessions.head"), threadId: z.string() }),
+   * caller reaches no such thread. With afterRead, a sub-thread's once the done after its latest turn has read its
+   * machine, so facts.sub.result is that turn's. */
+  z.object({ id: reqId, op: z.literal("sessions.head"), threadId: z.string(), afterRead: z.literal(true).optional() }),
   /** Replies with { attachment: KeptAttachment }: one image a person's message carried, by the thread, the request id
    * its start carries and its place in the message, which the host keeps until the thread or its workspace goes. */
   z.object({ id: reqId, op: z.literal("sessions.attachment"), workspaceId: z.string(), threadId: z.string(), requestId: z.string(), index: z.number().int().nonnegative() }),
@@ -596,7 +597,8 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("sessions.forget"), threadId: z.string(), check: z.boolean().optional() }),
   /** Takes a thread away on this computer, its turns and its checkpoints with it: a thread in the project folder goes
    * alone and the folder is never touched; so does a thread in a worktree wsp made while another thread is in it, and
-   * the last one there takes that worktree, refused over files no commit holds. A thread on a box goes with its machine. */
+   * the last one there takes that worktree, refused over files no commit holds. A thread on a box goes with its machine.
+   * A sub-thread takes its machine with it; with check it answers the question a person is put first and deletes nothing. */
   /** processes reads the threads it would take as sessions.settle's does; with check nothing goes, and the answer is
    * what would. */
   z.object({ id: reqId, op: z.literal("sessions.delete"), threadId: z.string(), processes: ProcessesAsk.optional(), check: z.boolean().optional() }),
@@ -1090,6 +1092,9 @@ export const THREAD_OPS: readonly string[] = [
   // reads that rule beside the tree rule.
   "sessions.settle",
   "sessions.restore",
+  // A lead deletes a sub-thread it started, never over work its machine holds that no remote has; the guard refuses
+  // every other delete a thread asks for.
+  "sessions.delete",
   "sessions.search",
   // A thread reads and ends the processes of itself and the threads under it; the runtime reads that rule.
   "activity.read",
@@ -1375,7 +1380,8 @@ export type SessionRewindResult = z.infer<typeof SessionRewindResult>;
  * session row. */
 export const SessionStartOutcome = z.enum(["started", "steered", "queued", "held"]);
 export type SessionStartOutcome = z.infer<typeof SessionStartOutcome>;
-export const SessionStartResult = z.object({ session: SessionView, outcome: SessionStartOutcome, turnId: z.string() });
+/** notice: what making the turn's machine said beside it, a line each, as a sub-thread's new machine after its delete. */
+export const SessionStartResult = z.object({ session: SessionView, outcome: SessionStartOutcome, turnId: z.string(), notice: z.string().optional() });
 export type SessionStartResult = z.infer<typeof SessionStartResult>;
 /** What a sessions.warm did: started a process, found one launched as asked standing and gave it its window again, or
  * nothing, where the workspace's computer or the agent keeps no process ahead of a send. */

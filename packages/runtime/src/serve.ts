@@ -1507,7 +1507,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true, events: await (msg.whole === true ? rt.sessions.threadHistory(msg.workspaceId, msg, origin) : rt.sessions.history(msg.workspaceId, origin)) });
               return;
             case "sessions.head":
-              send({ id: msg.id, ok: true, ...(await rt.sessions.head(msg.threadId, origin)) });
+              send({ id: msg.id, ok: true, ...(await rt.sessions.head(msg.threadId, origin, msg.afterRead === true ? { afterRead: true } : {})) });
               return;
             case "sessions.attachment":
               send({ id: msg.id, ok: true, attachment: await rt.sessions.attachment(msg.workspaceId, msg.threadId, msg.requestId, msg.index, origin) });

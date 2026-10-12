@@ -26,8 +26,9 @@ type PersonRow = { workspaceId: string; sessionId: string; turnId: string; text:
 /** A line into one thread, as the store keeps it until that thread takes it: a child's finished line, or a message
  * steered into the thread's turn that its agent never read, which goes as whoever opened it. `since` is the wall time
  * it became owed and `requestId` the one request every try of it goes under, on any host; `tries` is how many of those
- * failed on a computer that did not answer and `next` when the next may go, so a restart keeps the spacing. */
-type Owed = { id: string; from: string; notify: string; text: string; by?: ThreadScope; road?: WorkspaceOrigin; startedBy?: SessionOrigin; toPerson?: PersonRow; since?: number; requestId?: string; tries?: number; next?: number; images?: OwedImages };
+ * failed on a computer that did not answer and `next` when the next may go, so a restart keeps the spacing.
+ * `awaitsResult` is the sub-machine whose done read the line ends with, until that read is on it. */
+type Owed = { id: string; from: string; notify: string; text: string; by?: ThreadScope; road?: WorkspaceOrigin; startedBy?: SessionOrigin; toPerson?: PersonRow; since?: number; requestId?: string; tries?: number; next?: number; images?: OwedImages; awaitsResult?: string };
 /** The images a steered message carried, which its send-back reads from the host's keep under the steer's request. */
 type OwedImages = { under: string; records: AttachmentRecord[] };
 const readOwedImages = (raw: unknown): OwedImages | undefined => {
@@ -56,6 +57,7 @@ const readOwed = (raw: unknown): Owed | undefined => {
     ...(typeof r.since === "number" ? { since: r.since } : {}), ...(typeof r.requestId === "string" ? { requestId: r.requestId } : {}),
     ...(typeof r.tries === "number" ? { tries: r.tries } : {}), ...(typeof r.next === "number" ? { next: r.next } : {}),
     ...(images !== undefined ? { images } : {}),
+    ...(typeof r.awaitsResult === "string" ? { awaitsResult: r.awaitsResult } : {}),
   };
 };
 
@@ -594,7 +596,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
    * the turn carrying the line. A line held for the parent's wake gets a try at the wake, past its hour or not: the
    * hour bounds tries while the computer answers. The child's end must not fail on any of it. */
   const deliver = (line: Owed, o: { woke?: true } = {}): void => {
-    const { from, notify, text, by, road } = line;
+    const { from, notify, by, road } = line;
     // Written before the first try, so the next host sends the same request and can tell whether a turn took it.
     const sent: Owed = { ...line, since: line.since ?? clock.now(), requestId: line.requestId ?? randomUUID() };
     sending.set(line.id, sent);
@@ -708,6 +710,13 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     };
     void (async () => {
       await kept;
+      if (sent.awaitsResult !== undefined) {
+        const tail = await ctx.subLine(sent.awaitsResult, sent.since!);
+        if (!carried()) return;
+        if (tail !== undefined) sent.text = `${sent.text}\n${tail}`;
+        delete sent.awaitsResult;
+        await keepOwed(sent);
+      }
       if (line.requestId !== undefined) {
         // A next host reads the try only once its re-open of the parent's turns answered or failed: a row with no
         // handle before then says nothing about its computer.
@@ -743,7 +752,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
       }
       try {
         const attachments = line.images === undefined ? [] : await keptImages(parent.workspaceId, notify, line.images);
-        const handle = await ctx.sessionsApi.start(parent.workspaceId, { prompt: text, ...(attachments.length > 0 ? { attachments } : {}), harness: parent.harness, thread: notify, startedBy: line.startedBy ?? "agent", requestId, owed: true, ...(deadline > clock.now() ? { asksUntilStopped: true as const } : {}), ...(line.startedBy === undefined ? { wakesLead: true as const } : {}) }, asWho);
+        const handle = await ctx.sessionsApi.start(parent.workspaceId, { prompt: sent.text, ...(attachments.length > 0 ? { attachments } : {}), harness: parent.harness, thread: notify, startedBy: line.startedBy ?? "agent", requestId, owed: true, ...(deadline > clock.now() ? { asksUntilStopped: true as const } : {}), ...(line.startedBy === undefined ? { wakesLead: true as const } : {}) }, asWho);
         if (handle.outcome === "steered") return taken();
         await settleTry(handle);
       } catch (e: unknown) {
@@ -814,12 +823,15 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
    * own row for a line that falls is the exception, since that answer comes after the start it made. A target whose
    * thread has gone by now cannot be told, and its report must not go with it: the person is told instead, once,
    * however many targets fell away, and each line keeps the person's row so a next host can do the same. */
-  const notifyEnd = (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult): void => {
+  const notifyEnd = (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult, o: { open?: true } = {}): void => {
     const threadId = s.view.threadId;
     if (threadId === undefined) return;
     const reachable = notify.filter(target => target === NOTIFY_ME || tellable(latestOn(target)));
     const targets = reachable.length === notify.length ? notify : [...new Set([...reachable, NOTIFY_ME])];
     const toPerson: PersonRow = { workspaceId: s.view.workspaceId, sessionId: s.view.claudeSessionId ?? s.view.id, turnId: s.turnId, text: notifyLine(threadId, result, "tail") };
+    // A sub-thread's line to a thread ends with what its done reads off the machine, which follows this end; a reply
+    // given over work still running has no done behind it yet.
+    const sub = o.open !== true && live.get(s.view.workspaceId)?.record.sub !== undefined ? { awaitsResult: s.view.workspaceId } : {};
     for (const target of targets) {
       // A thread reads its child's line as a message and acts on it, so it gets the report whole; the person reads
       // it as a row beside every other, so theirs stays one line.
@@ -827,7 +839,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
       ctx.record({ type: "session.notify", workspaceId: s.view.workspaceId, sessionId: s.view.claudeSessionId ?? s.view.id, turnId: s.turnId, threadId, notify: target, text });
       if (target === NOTIFY_ME) continue;
       // A turn whose agent replied over background work sends a line per reply, each kept apart.
-      deliver({ id: `${s.turnId}:${s.turnLive?.told ?? 0}:${target}`, from: threadId, notify: target, text, ...named, ...(targets.includes(NOTIFY_ME) ? {} : { toPerson }) });
+      deliver({ id: `${s.turnId}:${s.turnLive?.told ?? 0}:${target}`, from: threadId, notify: target, text, ...named, ...(targets.includes(NOTIFY_ME) ? {} : { toPerson }), ...sub });
     }
   };
   /** Every line a host that stopped had not seen taken, sent again once this one has read its rows. */

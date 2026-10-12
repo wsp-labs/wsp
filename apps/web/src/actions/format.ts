@@ -111,8 +111,10 @@ const PHASE_SLOT: Record<WorkspaceState, { button: string; cannot: string }> = {
   unreachable: { button: "Pause", cannot: "be paused" },
   paused: { button: "Wake", cannot: "be woken" },
   gone: { button: "Wake", cannot: "be woken" },
+  released: { button: "Wake", cannot: "be woken" },
   pausing: { button: "Pausing…", cannot: "be paused" },
   waking: { button: "Stop", cannot: "be woken" },
+  waiting: { button: "Waiting…", cannot: "be woken" },
 };
 
 /** The word the phase button on the machine's own surface shows: the verb, or the moving state while it moves. */
@@ -135,7 +137,7 @@ export const REBUILD_HINT = "The task answers nothing; rebuild it from your imag
  * in whatever threw, and the line used to begin with the workspace's name and a colon. */
 export const rebuildRefusedLine = (name: string): string => `${name} was not rebuilt. Its row says what it is doing.`;
 
-export function phaseRefusal(state: WorkspaceState): string | null {
+export function phaseRefusal(state: WorkspaceState, why?: "slot" | "minute"): string | null {
   switch (state) {
     case "running":
     case "unreachable":
@@ -148,6 +150,11 @@ export function phaseRefusal(state: WorkspaceState): string | null {
       return null;
     case "gone":
       return goneRefusal(undefined, "wake");
+    // A spawn held by its cloud's computers at once and one held by its starts a minute are two different waits.
+    case "waiting":
+      return why === "minute" ? "Task is waiting for its cloud's next start; it starts on its own when one is free" : "Task is waiting for a free computer on its cloud; it starts on its own when one frees";
+    case "released":
+      return "This sub-thread's computer was deleted once it was done";
     default: {
       const _exhaustive: never = state;
       return null;

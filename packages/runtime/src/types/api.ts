@@ -398,6 +398,8 @@ export interface Runtime {
         fast?: boolean;
         /** Absent means a person asked. */
         startedBy?: SessionOrigin;
+        /** The thread and turn ids a held sub-thread's start was answered under, which the queue starts it with. */
+        as?: { threadId: string; turnId: string };
         /** The client's id for this send, stamped on the turn's session.start as sent. */
         requestId?: string;
         /** Set where a press in the thread's slate sent this message; stamped on the turn's start or steer. */
@@ -475,7 +477,8 @@ export interface Runtime {
      * does not reach, as history leaves its events out. */
     page(workspaceId: string, window: { threadId: string; before?: number; limit?: number }, origin?: Caller): Promise<HistoryPage>;
     /** The thread's head, by its fold key; refused as not found where the caller reaches no row of it. */
-    head(threadId: string, origin?: Caller): Promise<ThreadHead>;
+    /** With afterRead, a sub-thread's head once the done after its latest turn has read its machine. */
+    head(threadId: string, origin?: Caller, o?: { afterRead?: boolean }): Promise<ThreadHead>;
     /** One image a person's message carried on that workspace's thread, by the request id its start carries and its
      * place in the message; refused as not found where the host keeps none. */
     attachment(workspaceId: string, threadId: string, requestId: string, index: number, origin?: Caller): Promise<KeptAttachment>;
@@ -553,8 +556,11 @@ export interface Runtime {
      * absence a name nothing holds reads, before any of that. With check, refuses as it would and drops nothing. */
     forget(threadId: string, origin?: Caller, o?: { check?: boolean }): Promise<void>;
     /** Takes a thread on this computer away with its turns and checkpoints, and a worktree wsp made with the thread
-     * when the thread ran in one, every thread in it going too. Never the project folder. */
-    delete(threadId: string, origin?: Caller, o?: { processes?: ProcessesAsk; check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }>;
+     * when the thread ran in one, every thread in it going too. Never the project folder. A sub-thread takes its
+     * machine at the cloud with it, and its kept session, answering `machine` deleted and the cloud it was on; a
+     * thread's own token is refused it over work the sub-thread's last read found not pushed. With check, a
+     * sub-thread's delete refuses as it would and answers the question a person is put first, deleting nothing. */
+    delete(threadId: string, origin?: Caller, o?: { processes?: ProcessesAsk; check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[]; machine?: "deleted"; on?: string; question?: string }>;
   };
   readonly harnesses: {
     /** What each harness with an adapter takes at launch; the composer's pickers render from this. With a running

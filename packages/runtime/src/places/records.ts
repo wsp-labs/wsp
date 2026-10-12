@@ -5,6 +5,7 @@ import {
   PLACE_LINK_NONCE_BYTES,
   DAEMON_VERSION,
   NAP_AFTER_MS,
+  DELETE_AFTER_MS,
   placeCapOf,
   PlaceSettings,
   AGENTS_ON,
@@ -20,6 +21,7 @@ import {
   placeFileNames,
   lastLine,
   refusalParts,
+  type CloudLimits,
   type MachineSizeOffer,
   type PlaceAddJob,
   type PlaceAuthRefusal,
@@ -107,7 +109,39 @@ export function placeRecords(ctx: PlaceDoorContext) {
       spawn: agentsFrom(undefined, settings.spawn ?? {}),
       spawnDefault: AGENTS_ON,
       running: await recording.runningOn(row.id, ids),
+      ...(placeTakes(row, "size") ? sizeFacts(row.id, settings) : {}),
+      ...(placeTakes(row, "delete-after") ? { deleteAfterMs: settings.deleteAfterMs ?? DELETE_AFTER_MS } : {}),
     };
+  };
+  /** The last plan and starts each cloud's limits read answered, and the clouds a read is out for now: one entry a
+   * cloud, replaced in place. A row carries the kept answer and never waits on Boat; each ask starts a read behind it. */
+  const limitsKept = new Map<string, CloudLimits>();
+  const limitsAsking = new Set<string>();
+  /** A cloud's row with the plan and starts its last limits read answered, the row as it was until one has; the list
+   * and a set read it, and each starts a read behind the row it answers. */
+  const withLimits = (row: PlaceView): PlaceView => {
+    const at = row.kind === "provider" ? providerBackend(row.id) : undefined;
+    if (at?.placeLimits !== undefined && !limitsAsking.has(row.id)) {
+      limitsAsking.add(row.id);
+      void at
+        .placeLimits()
+        .catch(() => undefined)
+        .then(limits => {
+          // A failed read leaves the fields out rather than an answer nobody can say is still true.
+          if (limits === undefined) limitsKept.delete(row.id);
+          else limitsKept.set(row.id, limits);
+        })
+        .finally(() => limitsAsking.delete(row.id));
+    }
+    const limits = limitsKept.get(row.id);
+    return limits === undefined ? row : { ...row, plan: limits.plan, ...(limits.starts !== undefined ? { starts: limits.starts } : {}) };
+  };
+  /** The size a sub-thread's machine there gets, the person's or the one that cloud's pricing names, and that default
+   * beside it; nothing of either where this host holds no backend for the row and nobody set one. */
+  const sizeFacts = (placeId: string, settings: PlaceSettings): Pick<PlaceView, "size" | "sizeDefault"> => {
+    const fallback = providerBackend(placeId)?.pricing.defaultSize;
+    const size = settings.size ?? fallback;
+    return { ...(size !== undefined ? { size } : {}), ...(fallback !== undefined ? { sizeDefault: fallback } : {}) };
   };
   /** The version the place reports once it has dialled back, or what it still reads when the wait runs out. The
    * record is what a link writes its report onto, so this reads the one fact every other row reads. */
@@ -331,7 +365,7 @@ export function placeRecords(ctx: PlaceDoorContext) {
   };
 
   return {
-    records, wiredProvider, providerIds, providerBackend, providerRate, providerSizes, imageFacts, recordOf,
+    records, wiredProvider, providerIds, providerBackend, providerRate, providerSizes, imageFacts, recordOf, withLimits,
     settingsOf, settingsHeld, rowIds, withCap, untilDaemonVersion, awaiting, adds, putAdd, loginOf, rootOver,
     loginAnswers, reachedOver, holdBack, keep, defaultId, inTurn, markDefault, markHeld, challenge, signedRefusal, writeSeen,
     inRecordTurn, change, loginListed,

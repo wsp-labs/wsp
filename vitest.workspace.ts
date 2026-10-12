@@ -77,6 +77,7 @@ export default [
         "guest-spawn",
         "box-lead",
         "sub-run",
+        "sub-delete",
       ].map(name => `packages/host/test/${name}.test.ts`),
       // The globs take in the files verbs.test.ts and places.test.ts were cut into; places-add predates them and stays out.
       exclude: ["packages/host/test/places-add.test.ts"],

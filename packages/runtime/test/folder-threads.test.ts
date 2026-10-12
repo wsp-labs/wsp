@@ -1071,6 +1071,8 @@ describe("deleting one of two threads in a worktree wsp made", () => {
     const d = await rt.sessions.start(at.workspace.id, { prompt: "thread D" });
     await d.finished;
     const [first, second] = [c.view().threadId!, d.view().threadId!];
+    expect(await rt.sessions.delete(second, undefined, { check: true })).toEqual({ workspaceId: at.workspace.id, threads: 1 });
+    expect((await rt.sessions.list()).map(v => v.threadId).sort()).toEqual([first, second].sort());
     expect(await rt.sessions.delete(first)).toEqual({ workspaceId: at.workspace.id, threads: 1 });
     expect(copier.worktreesRemoved).toEqual([]);
     expect(existsSync(at.workspace.worktree!.path)).toBe(true);

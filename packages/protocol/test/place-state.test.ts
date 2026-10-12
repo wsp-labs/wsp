@@ -2,7 +2,12 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENTS_ON,
+  CAP_RAISE_ACT,
   CLOUD_CAP_DEFAULT,
+  capRaiseAct,
+  capRunningLine,
+  capWaitLine,
+  phaseHoldsSlot,
   DAEMON_VERSION,
   HERE_PLACE_ID,
   NAP_AFTER_MS,
@@ -12,6 +17,7 @@ import {
   placeCapOf,
   placeSetRefusal,
   placeSettingsLine,
+  fmtSize,
   placeTakes,
   settingFor,
   napMsOf,
@@ -55,9 +61,23 @@ describe("threads at once", () => {
     expect(placeCapOf({ kind: "provider" }, { spendPerDayUsd: 0 })).toEqual({ machines: 3, spendPerDayUsd: 0 });
   });
 
+  it("takes a sub-thread's size only among the sizes that cloud's own row offers, refused in the one size sentence", () => {
+    const solari = { id: "solari", kind: "provider" as const, name: "solari", takesForks: true, sizes: [{ cpu: 2, memMb: 4096, rateUsdPerHour: 0.1 }] };
+    expect(placeSetRefusal(solari, { size: { cpu: 16, memMb: 32768 } })).toBe("16x32 is not a size this provider offers; the sizes are 2x4 ($0.10/hr). Ask for one of those instead.");
+    expect(placeSetRefusal(solari, { size: { cpu: 2, memMb: 4096 } })).toBeUndefined();
+    // A cloud whose row offers no size, one this host holds no backend for, takes no size: the kind's refusal says so.
+    expect(placeSetRefusal({ ...solari, sizes: undefined }, { size: { cpu: 2, memMb: 4096 } })).toBe("Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not size");
+    expect(placeSetRefusal({ ...solari, sizes: [] }, { size: { cpu: 2, memMb: 4096 } })).toContain(", not size");
+  });
+
+  it("says a sub-thread's size in the size words the rest of wsp prints", () => {
+    const row = { kind: "provider" as const, name: "box", takesForks: true, sizes: [{ cpu: 1, memMb: 512, rateUsdPerHour: 0.01 }], size: { cpu: 1, memMb: 512 }, sizeDefault: { cpu: 1, memMb: 512 } };
+    expect(placeSettingsLine(row)).toContain(`size ${fmtSize({ cpu: 1, memMb: 512 })} (the default)`);
+  });
+
   it("refuses a number the row's kind does not take, set or reset, a set with nothing in it, one key both set and reset, and counts below one", () => {
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, { machines: 2 })).toBe("spoo takes threads at once, turn limit, agents may start agents and levels deep, not machines at once");
-    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { threads: 2 })).toBe("Solari takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep, not threads at once");
+    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { threads: 2 })).toBe("Solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once");
     expect(placeSetRefusal({ id: HERE_PLACE_ID, kind: "computer", name: "mac", takesForks: false }, { napMs: null })).toBe("mac takes threads at once, turn limit, agents may start agents and levels deep, not nap after");
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo", takesForks: true }, { napMs: null })).toBeUndefined();
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo", takesForks: false }, {}, ["spend"])).toBe("spoo takes threads at once, turn limit, agents may start agents and levels deep, not spend per day");
@@ -66,7 +86,7 @@ describe("threads at once", () => {
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, {}, ["threads"])).toBeUndefined();
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo", takesForks: true }, {})).toBe("nothing to set on spoo: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login");
     expect(placeSetRefusal({ id: HERE_PLACE_ID, kind: "computer", name: "mac", takesForks: false }, {})).toBe("nothing to set on mac: it takes threads at once, turn limit, agents may start agents and levels deep");
-    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { machines: undefined }, [])).toBe("nothing to set on Solari: it takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep");
+    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { machines: undefined }, [])).toBe("nothing to set on Solari: it takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep");
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, { threads: 2 }, ["threads"])).toBe("spoo: threads at once is both set and reset; name it once");
     expect(() => PlaceView.shape.cap.parse({ threads: 0 })).toThrow();
     expect(() => PlaceView.shape.cap.parse({ machines: 0, spendPerDayUsd: 10 })).toThrow();
@@ -246,5 +266,33 @@ describe("the word a place's row says", () => {
     expect(placeStateOf({ ...unblocked, setup: { ...running, state: "failed", said: "no agent installed" } }, null, 20)).toEqual({ word: "Setup failed", sentence: "no agent installed" });
     const { setup: _s, ...settled } = unblocked;
     expect(placeStateOf({ ...settled, running: 0 }, null).word).toBe(`daemon ${DAEMON_VERSION - 1}, host ${DAEMON_VERSION}`);
+  });
+});
+
+describe("a held spawn's words and the slots a cloud counts", () => {
+  const threads = { placeId: "here", place: "this computer", running: 4, atOnce: 4 };
+  const slot = { placeId: "box", place: "Boat", running: 3, atOnce: 3, why: "slot" as const };
+  const minute = { placeId: "box", place: "Boat", running: 12, atOnce: 12, why: "minute" as const };
+
+  it("says a machine slot and a minute of starts apart, as 05 words them, and threads at once as before", () => {
+    expect(capWaitLine(slot)).toBe("waiting for a machine on Boat: 3 of 3 running");
+    expect(capWaitLine(minute)).toBe("waiting for Boat's next minute of starts: 12 of 12 used");
+    expect(capWaitLine(threads)).toBe("waiting while this computer is running 4 of 4 threads");
+    expect(capRunningLine(slot)).toBe("Boat is running 3 of 3 machines");
+    expect(capRunningLine(minute)).toBe("Boat's starts this minute are used: 12 of 12");
+  });
+
+  it("offers Raise machines at once beside a slot, Raise threads at once beside threads, and nothing beside a minute (Q10)", () => {
+    expect(capRaiseAct(slot)).toBe("Raise machines at once");
+    expect(capRaiseAct(threads)).toBe(CAP_RAISE_ACT);
+    expect(capRaiseAct(minute)).toBeUndefined();
+  });
+
+  it("a queued spawn waiting holds no slot until its machine is being made, and a released one holds none (04, L1)", () => {
+    expect(phaseHoldsSlot({ phase: "queued", queue: { since: "2026-10-12T00:00:00.000Z", why: "slot" } })).toBe(false);
+    expect(phaseHoldsSlot({ phase: "queued" })).toBe(true);
+    expect(phaseHoldsSlot({ phase: "released" })).toBe(false);
+    expect(phaseHoldsSlot({ phase: "napping" })).toBe(false);
+    expect(phaseHoldsSlot({ phase: "running" })).toBe(true);
   });
 });
