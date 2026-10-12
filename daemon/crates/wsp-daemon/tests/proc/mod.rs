@@ -26,17 +26,7 @@ fn reads_proc_pid_stat_around_a_comm_that_holds_spaces_and_parens() {
             .unwrap();
     assert_eq!(
         st,
-        ProcStat {
-            pid: 42,
-            comm: "my (odd) proc".into(),
-            state: "R".into(),
-            ppid: 7,
-            pgrp: 42,
-            ticks: 200,
-            threads: 3,
-            starttime: 12345,
-            rss_pages: 256
-        }
+        ProcStat { pid: 42, comm: "my (odd) proc".into(), state: "R".into(), ppid: 7, pgrp: 42, ticks: 200, threads: 3, starttime: 12345 }
     );
 }
 
@@ -50,11 +40,51 @@ fn a_scan_narrowed_to_cgroups_reads_their_members_and_the_daemon_and_still_count
     std::fs::create_dir_all(cgroups.path().join("wsp-threads/t1")).unwrap();
     std::fs::write(cgroups.path().join("wsp-threads/t1/cgroup.procs"), "70\n71\n").unwrap();
     let source = ProcFsSource::new(root.path().to_path_buf(), passwd, numbers::PROC_CAP).with_cgroup_root(cgroups.path().to_path_buf());
-    let scan =
-        |only: Option<Vec<String>>| source.scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only, daemon: 5 }).unwrap();
+    let scan = |only: Option<Vec<String>>| {
+        source.scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only, daemon: 5, scopes: Default::default() }).unwrap()
+    };
     let narrowed = scan(Some(vec!["/wsp-threads/t1".into(), "/wsp-threads/gone".into()]));
     assert_eq!((narrowed.procs.iter().map(|p| p.pid).collect::<Vec<_>>(), narrowed.total), (vec![5, 70, 71], 5));
     assert_eq!(scan(None).procs.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![1, 5, 70, 71, 72]);
+}
+
+#[test]
+fn a_rows_memory_is_its_private_pages_and_a_thread_cgroups_is_its_anon_and_kernel_never_resident_or_page_cache() {
+    // An idle node on a box: 10,150 resident pages, 8,640 of them its binary and libraries mapped from files.
+    let procs = [FakeProc { pid: 70, rss: Some(10_150), shared: Some(8_640), ..FakeProc::default() }];
+    let root = fake_proc_tree(&procs, 4096);
+    let (_passwd_dir, passwd) = fake_passwd();
+    let cgroups = tempfile::tempdir().unwrap();
+    let thread = cgroups.path().join("wsp-threads/t1");
+    std::fs::create_dir_all(thread.join("made-inside")).unwrap();
+    std::fs::write(thread.join("cgroup.procs"), "70\n").unwrap();
+    // 680 MB current, of it 435 MB page cache a grep read: the thread holds its anon and kernel bytes.
+    std::fs::write(thread.join("memory.current"), "713031680\n").unwrap();
+    std::fs::write(thread.join("memory.stat"), "anon 231735296\nfile 456130560\nkernel 27262976\nkernel_stack 1048576\nslab 20971520\n")
+        .unwrap();
+    // A thread cgroup made before its folder turned the memory controller on has no memory.stat, and no figure.
+    std::fs::create_dir_all(cgroups.path().join("wsp-threads/t2")).unwrap();
+    let source = ProcFsSource::new(root.path().to_path_buf(), passwd, numbers::PROC_CAP).with_cgroup_root(cgroups.path().to_path_buf());
+    let scan = source
+        .scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 5, scopes: Default::default() })
+        .unwrap();
+    assert_eq!(scan.procs.iter().find(|p| p.pid == 70).map(|p| p.rss), Some(1_510 * 4096));
+    assert_eq!(scan.cgroups, Some(vec![CgroupMemory { cgroup: "/wsp-threads/t1".into(), memory: 231_735_296 + 27_262_976 }]));
+    // A computer with no thread cgroups names none.
+    let bare = tempfile::tempdir().unwrap();
+    let (_passwd_dir, passwd) = fake_passwd();
+    let source = ProcFsSource::new(root.path().to_path_buf(), passwd, numbers::PROC_CAP).with_cgroup_root(bare.path().to_path_buf());
+    let scan = source
+        .scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 5, scopes: Default::default() })
+        .unwrap();
+    assert_eq!(scan.cgroups, None);
+}
+
+#[test]
+fn statm_private_pages_are_resident_less_shared() {
+    assert_eq!(parse_statm_private("40600 10150 8640 1200 0 9000 0\n"), Some(1_510));
+    assert_eq!(parse_statm_private("1 2 5 0 0 0 0"), Some(0));
+    assert_eq!(parse_statm_private("40600"), None);
 }
 
 #[test]
@@ -72,7 +102,14 @@ fn a_scan_narrowed_to_a_cgroup_reads_every_cgroup_under_it_as_a_thread_end_takes
     let source = ProcFsSource::new(root.path().to_path_buf(), passwd, numbers::PROC_CAP).with_cgroup_root(cgroups.path().to_path_buf());
     let pids = |only: &str| {
         source
-            .scan(&ProcScanInput { at: 1, elapsed_ms: 0, pty: HashMap::new(), only: Some(vec![only.into()]), daemon: 5 })
+            .scan(&ProcScanInput {
+                at: 1,
+                elapsed_ms: 0,
+                pty: HashMap::new(),
+                only: Some(vec![only.into()]),
+                daemon: 5,
+                scopes: Default::default(),
+            })
             .unwrap()
             .procs
             .iter()
@@ -213,7 +250,7 @@ impl ProcSource for Fake {
         if self.broken.load(Ordering::SeqCst) {
             return Err("this machine cannot be read".to_owned());
         }
-        Ok(ProcScan { total: 0, procs: vec![], child_ms: self.child_ms })
+        Ok(ProcScan { total: 0, procs: vec![], child_ms: self.child_ms, cgroups: None })
     }
     fn inspect(&self, pid: u32, _: &[ProcEntry]) -> Result<ProcInspectReply, OpError> {
         Ok(ProcInspectReply { pid, cwd: None, ports: vec![], threads: None, children: vec![] })
@@ -645,7 +682,9 @@ fn the_cap_reads_the_threads_cgroups_first_counts_no_kernel_thread_and_the_total
     std::fs::write(threads.join("t1/run/cgroup.procs"), "1480\n").unwrap();
     std::fs::write(threads.join("t2/cgroup.procs"), "1499\n").unwrap();
     let read = |source: &ProcFsSource| {
-        source.scan(&ProcScanInput { at: 0, elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 4242 }).unwrap()
+        source
+            .scan(&ProcScanInput { at: 0, elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 4242, scopes: Default::default() })
+            .unwrap()
     };
     let source =
         ProcFsSource::new(root.path().to_path_buf(), passwd.clone(), numbers::PROC_CAP).with_cgroup_root(cgroups.path().to_path_buf());

@@ -276,7 +276,7 @@ struct NoProcs;
 impl crate::proc_owner::OwnerFacts for NoProcs {}
 impl crate::proc::ProcSource for NoProcs {
     fn scan(&self, _: &crate::proc::ProcScanInput) -> Result<crate::proc::ProcScan, String> {
-        Ok(crate::proc::ProcScan { total: 0, procs: vec![], child_ms: 0.0 })
+        Ok(crate::proc::ProcScan { total: 0, procs: vec![], child_ms: 0.0, cgroups: None })
     }
     fn inspect(&self, pid: u32, _: &[wsp_frames::ProcEntry]) -> Result<wsp_frames::ProcInspectReply, OpError> {
         Err(crate::proc::no_process(pid))
@@ -355,8 +355,6 @@ fn a_container_goes_under_its_label_else_the_newest_compose_note_inside_its_fold
     // A fork's container, which its fence labelled with the workspace, is never a note's; its own thread label still is.
     assert_eq!(place(None, Some("ws_fork"), Some("/srv/acme/lab"), Some("lab"), &notes), None);
     assert_eq!(place(Some("t_label"), Some("ws_fork"), Some("/srv/acme/lab"), Some("lab"), &notes), Some(("t_label".into(), Label)));
-    #[cfg(target_os = "linux")]
-    assert_eq!(WORKSPACE_LABEL, wsp_runtime::engine::LABEL);
     assert_eq!(
         parse_notes(
             "t_a\t/srv/acme/lab\t\t1791777782\nbroken line\nt_b\trelative\t\t1\n../x\t/a\t\t1\nt_c\t/srv/acme/lab\tlab\t1791777790\n"

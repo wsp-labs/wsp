@@ -16,17 +16,15 @@ use std::time::Duration;
 use serde_json::Value;
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
-use wsp_frames::{ContainerPlacedBy, DaemonErrorCode, ProcContainer};
+use wsp_frames::{ContainerPlacedBy, DaemonErrorCode, ProcContainer, WORKSPACE_LABEL};
 
-use crate::engine_http::{ask, engine_socket, Events};
+use crate::engine_http::{ask, engine_socket, Engine, Events};
 use crate::paths::OpError;
 use crate::proc::Clock;
 use crate::SharedLog;
 
 /// The label the docker shim puts on a container a thread makes, its value the thread's id.
 const THREAD_LABEL: &str = "wsp.thread";
-/// The label a fork's engine fence puts on every container it makes; `wsp_runtime::engine::LABEL` is Linux only.
-const WORKSPACE_LABEL: &str = "wsp.workspace";
 const COMPOSE_FOLDER: &str = "com.docker.compose.project.working_dir";
 const COMPOSE_PROJECT: &str = "com.docker.compose.project";
 /// The four events that change what the reader holds; the engine filters out every other.
@@ -239,7 +237,7 @@ impl ContainerReader {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn socket(&self) -> Option<PathBuf> {
+    fn socket(&self) -> Option<Engine> {
         engine_socket(self.opts.home.as_deref(), self.opts.docker_host.as_deref())
     }
 
@@ -283,7 +281,7 @@ impl ContainerReader {
     /// The events first, so nothing made between the list and the subscription is missed; then the list once, each
     /// container in it inspected for the pid its cgroup is found by; then only the events, and the stats pass where a
     /// cgroup is out of reach.
-    async fn follow(&self, sock: &Path) -> Result<(), String> {
+    async fn follow(&self, sock: &Engine) -> Result<(), String> {
         let mut events = Events::open(sock, EVENTS_QUERY).await?;
         let (status, list) = ask(sock, "GET", "/containers/json").await?;
         if status != 200 {
@@ -319,7 +317,7 @@ impl ContainerReader {
     }
 
     /// Inspects one container and holds it while it runs; one that stopped or went is let go.
-    async fn look(&self, sock: &Path, id: &str) -> Result<(), String> {
+    async fn look(&self, sock: &Engine, id: &str) -> Result<(), String> {
         if id.len() != 64 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Ok(());
         }
@@ -377,7 +375,7 @@ impl ContainerReader {
     }
 
     /// One-shot stats for each running container whose cgroup is out of reach; nothing is asked where none is.
-    async fn stats_pass(&self, sock: &Path) {
+    async fn stats_pass(&self, sock: &Engine) {
         let ids: Vec<String> =
             self.lock().known.iter().filter(|(_, k)| k.cgroup.is_none() && k.state == "running").map(|(id, _)| id.clone()).collect();
         for id in ids {

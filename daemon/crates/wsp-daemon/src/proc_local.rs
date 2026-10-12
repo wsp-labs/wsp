@@ -445,7 +445,12 @@ impl ProcSource for LocalProcSource {
         let mut spent = self.spent.lock().unwrap_or_else(|e| e.into_inner());
         let mut seen = HashSet::new();
         let mut procs = Vec::with_capacity(rows.len().min(self.cap));
-        for row in rows.iter().take(self.cap) {
+        let mut order: Vec<&PsRow> = rows.iter().collect();
+        if rows.len() > self.cap {
+            let first = threads_first(&rows, &input.scopes, |pid| self.forked(pid).is_some());
+            order.sort_by_key(|r| !first.contains(&r.pid));
+        }
+        for row in order.into_iter().take(self.cap) {
             seen.insert(row.pid);
             let (cpu, energy_mw, started_at) = self.share(&mut spent, row, input.elapsed_ms);
             procs.push(ProcEntry {
@@ -468,7 +473,8 @@ impl ProcSource for LocalProcSource {
             });
         }
         spent.retain(|pid, _| seen.contains(pid));
-        Ok(ProcScan { total: rows.len() as u64, procs, child_ms })
+        procs.sort_unstable_by_key(|p| p.pid);
+        Ok(ProcScan { total: rows.len() as u64, procs, child_ms, cgroups: None })
     }
 
     /// What this computer can say about one process beyond its row: the ports it listens on, its folder, and its
@@ -481,6 +487,29 @@ impl ProcSource for LocalProcSource {
         let ports = (self.road.ports)(pid).map_err(OpError::plain)?;
         Ok(ProcInspectReply { pid, cwd: (self.road.folder)(pid), ports, threads: None, children: children_of(pid, procs) })
     }
+}
+
+/// The pids a read past its cap keeps ahead of the rest, as a box keeps its thread cgroups' members: each thread's agents
+/// and the pids the host started for it, every process in one of its turns' groups, what a Mac's fork tracker followed
+/// from them, and every process under any of those.
+fn threads_first(rows: &[PsRow], scopes: &[ProcScope], forked: impl Fn(u32) -> bool) -> HashSet<u32> {
+    let roots: HashSet<u32> = scopes.iter().flat_map(|s| s.agents.iter().copied().chain(s.pids.iter().map(|p| p.pid))).collect();
+    let groups: HashSet<u32> = scopes.iter().flat_map(|s| s.groups.iter().copied()).collect();
+    let mut first: HashSet<u32> =
+        rows.iter().filter(|r| roots.contains(&r.pid) || groups.contains(&r.pgid) || forked(r.pid)).map(|r| r.pid).collect();
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for r in rows.iter().filter(|r| r.ppid != r.pid) {
+        children.entry(r.ppid).or_default().push(r.pid);
+    }
+    let mut stack: Vec<u32> = first.iter().copied().collect();
+    while let Some(pid) = stack.pop() {
+        for kid in children.get(&pid).into_iter().flatten() {
+            if first.insert(*kid) {
+                stack.push(*kid);
+            }
+        }
+    }
+    first
 }
 
 /// The folder a process is in, as lsof names it. None where lsof is absent or the process is out of reach, which is
@@ -561,7 +590,7 @@ mod tests {
     }
 
     fn scan_at(source: &LocalProcSource, at: i64, elapsed_ms: i64, pty: HashMap<u32, String>) -> ProcScan {
-        source.scan(&ProcScanInput { at, elapsed_ms, pty, only: None, daemon: 0 }).unwrap()
+        source.scan(&ProcScanInput { at, elapsed_ms, pty, only: None, daemon: 0, scopes: Arc::default() }).unwrap()
     }
 
     /// Scans until a reading answers, since what a scan reports is what the test is waiting for. Each scan is handed
@@ -711,9 +740,59 @@ mod tests {
     }
 
     #[test]
+    fn past_the_cap_the_threads_processes_are_read_first_and_the_rest_by_pid() {
+        let row = |pid: u32, ppid: u32, pgid: u32| PsRow {
+            pid,
+            ppid,
+            pgid,
+            user: "ana".into(),
+            state: "S".into(),
+            comm: "p".into(),
+            cmdline: "p".into(),
+            cpu_seconds: 0.0,
+            rss: 1,
+            started_at: AT,
+            energy_nj: None,
+            id: None,
+        };
+        // 900 is a thread's agent and 901 its dev server; 950 left the agent's tree but stands in its turn's group, and
+        // 960 is a slate run the host started. The person's own 100 to 103 come first by pid.
+        let rows = vec![
+            row(100, 1, 100),
+            row(101, 1, 101),
+            row(102, 1, 102),
+            row(103, 1, 103),
+            row(900, 1, 900),
+            row(901, 900, 901),
+            row(950, 1, 940),
+            row(960, 1, 960),
+        ];
+        let mut road = road_for("linux");
+        road.rows = Box::new(move |_, _| Ok((rows.clone(), 0.0)));
+        let source = LocalProcSource::new(Some("ana".into()), road, 5);
+        let scope = ProcScope {
+            thread: "t_1".into(),
+            agents: vec![900],
+            groups: vec![940],
+            pids: vec![wsp_frames::ProcScopePid { pid: 960, kind: wsp_frames::ProcKind::Slate }],
+            workspace: None,
+            folder: None,
+            warm: false,
+            cgroup: None,
+        };
+        let scan = source
+            .scan(&ProcScanInput { at: AT, elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0, scopes: Arc::new(vec![scope]) })
+            .unwrap();
+        assert_eq!(scan.procs.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![100, 900, 901, 950, 960]);
+        assert_eq!(scan.total, 8);
+    }
+
+    #[test]
     fn a_machine_whose_ps_says_nothing_at_all_is_refused_so_no_pane_reads_an_empty_table_as_a_fact() {
         let source = LocalProcSource::new(Some("no-such-person-here".into()), road_for("linux"), numbers::PROC_CAP);
-        let err = source.scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0 }).unwrap_err();
+        let err = source
+            .scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0, scopes: Arc::default() })
+            .unwrap_err();
         assert!(err.starts_with("ps -U no-such-person-here printed nothing"), "{err}");
     }
 
@@ -721,7 +800,9 @@ mod tests {
     #[test]
     fn a_mac_refuses_a_person_it_has_no_account_for_rather_than_reading_an_empty_table() {
         let source = LocalProcSource::new(Some("no-such-person-here".into()), road_for("macos"), numbers::PROC_CAP);
-        let err = source.scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0 }).unwrap_err();
+        let err = source
+            .scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0, scopes: Arc::default() })
+            .unwrap_err();
         assert_eq!(err, "no account named no-such-person-here on this computer");
     }
 

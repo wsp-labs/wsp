@@ -8,7 +8,7 @@
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
 import { ACTIVITY_WORDS } from "../format.js";
-import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
+import { agentPath, APP_PROC_WORDS, cgroupMemory, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
 
 export type { ProcKind };
 
@@ -121,6 +121,8 @@ export interface ActivityGroup {
   readonly subagents: readonly ActivitySubagent[];
   /** The containers a thread's docker started, or under No thread those no thread's did. */
   readonly containers: readonly ActivityContainer[];
+  /** A box thread's processes' memory as its cgroup counts it, which stands for its rows' sum (`cgroupMemory`). */
+  readonly memory?: number;
 }
 
 export interface ActivityScope {
@@ -392,7 +394,8 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
     const mine = members.get(`t:${t.id}`);
     const subagents = subagentsOf(t.subagents ?? [], now);
     const held = containers.get(`t:${t.id}`) ?? [];
-    if (mine !== undefined || subagents.length > 0 || held.length > 0) groups.push({ id: t.id, kind: "thread", thread: t, procs: mine === undefined ? [] : withSlate(forest(mine), t), subagents, containers: held });
+    const memory = cgroupMemory(snapshot.cgroups, t.cgroup);
+    if (mine !== undefined || subagents.length > 0 || held.length > 0) groups.push({ id: t.id, kind: "thread", thread: t, procs: mine === undefined ? [] : withSlate(forest(mine), t), subagents, containers: held, ...(memory === undefined ? {} : { memory }) });
   }
   const loose = members.get("loose");
   const looseContainers = containers.get("loose") ?? [];
@@ -433,16 +436,18 @@ export function spent(procs: readonly ActivityProc[]): Spent {
   return { mem: all.reduce((n, p) => n + p.mem, 0), cpu: all.reduce((n, p) => n + p.cpu, 0), energy: energies.length === 0 ? null : energies.reduce((n, e) => n + e, 0), count: all.length };
 }
 
-/** A group's figures: its processes' and its containers', whose memory and CPU are their own and no process's. The
- * count stays its processes'. */
-export function groupSpent(g: Pick<ActivityGroup, "procs" | "containers">): Spent {
+/** A group's figures: its processes' and its containers', whose memory and CPU are their own and no process's. A box
+ * thread's processes hold the memory its cgroup counts, where the daemon read it. The count stays its processes'. */
+export function groupSpent(g: Pick<ActivityGroup, "procs" | "containers" | "memory">): Spent {
   const p = spent(g.procs);
-  return { ...p, mem: g.containers.reduce((n, c) => n + (c.mem ?? 0), p.mem), cpu: g.containers.reduce((n, c) => n + (c.cpu ?? 0), p.cpu) };
+  return { ...p, mem: g.containers.reduce((n, c) => n + (c.mem ?? 0), g.memory ?? p.mem), cpu: g.containers.reduce((n, c) => n + (c.cpu ?? 0), p.cpu) };
 }
 
 /** Every group's figures together, what the page's totals read. */
 export function totalSpent(groups: readonly ActivityGroup[]): Spent {
-  return groupSpent({ procs: groups.flatMap(g => g.procs), containers: groups.flatMap(g => g.containers) });
+  const each = groups.map(groupSpent);
+  const energies = each.flatMap(s => (s.energy === null ? [] : [s.energy]));
+  return { mem: each.reduce((n, s) => n + s.mem, 0), cpu: each.reduce((n, s) => n + s.cpu, 0), energy: energies.length === 0 ? null : energies.reduce((n, e) => n + e, 0), count: each.reduce((n, s) => n + s.count, 0) };
 }
 
 export type ActivitySort = "mem" | "cpu" | "energy";

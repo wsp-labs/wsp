@@ -331,8 +331,8 @@ interface HeadMenu {
 
 const openHeadMenu = (event: MouseEvent<HTMLElement>, menu: HeadMenu): void => void openContextMenu(event, resolveActions(groupActions, menu.group, menu.acts));
 
-function GroupHead({ glyph, name, status, note, procs, containers = [], open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; containers?: readonly ActivityContainer[]; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
-  const t = groupSpent({ procs, containers });
+function GroupHead({ glyph, name, status, note, procs, containers = [], memory, open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; containers?: readonly ActivityContainer[]; memory?: number | undefined; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
+  const t = groupSpent({ procs, containers, ...(memory === undefined ? {} : { memory }) });
   return (
     <div className="group/row">
       <GridRow columns={TREE} open={onOpen} {...(menu === undefined ? {} : { onContextMenu: e => openHeadMenu(e, menu) })} attrs={{ "aria-expanded": String(open), "data-group": id }}>
@@ -378,7 +378,7 @@ export interface ThreadsProps {
 /** What a group draws, as one string: a frame that moved none of it leaves the group's block as it was. */
 const groupSig = (g: ActivityGroup): string =>
   g.procs.flatMap(flat).map(p => `${p.pid}:${p.name}:${p.kind}:${p.mem}:${p.cpu}:${p.energy}:${portsWord(p.ports)}`).join("|") +
-  `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}` +
+  `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}|${g.memory ?? ""}` +
   `|${g.containers.map(c => `${c.id}:${c.name}:${c.image}:${c.upMs === null ? "" : fmtUptime(c.upMs)}:${c.mem}:${c.cpu}:${c.folder}:${c.placedBy}`).join("|")}`;
 
 interface BlockProps {
@@ -425,6 +425,7 @@ const GroupBlock = memo(
           note={t.project}
           procs={g.procs}
           containers={g.containers}
+          memory={g.memory}
           open={opened}
           onOpen={() => toggle(g.id)}
           act={

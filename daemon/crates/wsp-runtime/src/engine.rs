@@ -36,7 +36,7 @@ use tokio::net::{UnixListener, UnixStream};
 use crate::doctor::{Engine, Facts};
 
 /// The label every container, network and volume a workspace makes wears, with the workspace's id as its value.
-pub const LABEL: &str = "wsp.workspace";
+pub const LABEL: &str = wsp_frames::WORKSPACE_LABEL;
 /// The ports a container's create asked for on the workspace's loopback, `80/tcp=18080,...`, kept on the container
 /// since the engine binds an ephemeral port on the box instead and the two are joined after the start.
 pub const PORTS_LABEL: &str = "wsp.ports";
