@@ -431,7 +431,8 @@
       "paused": "{name} stopped",
       "waking": "{name} waking",
       "unreachable": "{name} is up and not answering yet",
-      "gone": "{name} gone"
+      "gone": "{name} gone",
+      "released": "{name} released"
     },
     "rebuildRefused": {
       "running": "This one is running, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
@@ -439,7 +440,8 @@
       "paused": "This one is stopped, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
       "waking": "This one is waking, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
       "unreachable": "This one is not answering yet; the rebuild is offered once it is gone",
-      "gone": "This one is gone, so nothing needs rebuilding; the rebuild is offered once a workspace is gone"
+      "gone": "This one is gone, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
+      "released": "This one is released, so nothing needs rebuilding; the rebuild is offered once a workspace is gone"
     },
     "onMachine": "{state} on {machine}",
     "renamed": "{was} is now {name} {id}",
@@ -620,6 +622,8 @@
     "firstTurnFailed": "created {name} {id}; first turn failed: {failure}",
     "threadKeptFolder": "thread {thread} kept. Its turns and checkpoints leave this computer; the folder it worked in is left as it is. Ask the person, then call delete again with confirm true.",
     "threadKeptWorktree": "thread {thread} kept. Its turns and checkpoints leave this computer, and the worktree at {path} with it where no other thread is in it; the branch and the project folder are left as they are. Ask the person, then call delete again with confirm true.",
+    "subKept": "thread {thread} kept. {second} Ask the person, then call delete again with confirm true.",
+    "subDeleted": "deleted sub-thread {thread} and its machine on {on}",
     "noThreadHere": "no thread {ref}. Name a thread wsp threads lists.",
     "threadOnMachine": "a thread on {name} goes with its machine; wsp delete {name} takes both",
     "deleteNamesNothing": "delete takes a thread. Name one.",

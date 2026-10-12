@@ -305,13 +305,13 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     if (own.lead !== undefined && own.agents?.spawn !== true && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
     // The depth cap counts what a thread starts under itself; a send and a bring back start nothing, so a thread
     // at the cap still talks to its tree and still gets its work out.
-    if (act === "send" || act === "bring_back") return free;
+    if (act === "send" || act === "bring_back" || act === "delete_sub") return free;
     const depth = depthUnderRoot(scope.threadId);
     const deepest = over.reduce((a, b) => (b.policy!.maxDepth < a.policy!.maxDepth ? b : a));
     const policy = { maxDepth: deepest.policy!.maxDepth, maxMachines: Math.min(...over.map(o => o.policy!.maxMachines)) };
     if (depth >= policy.maxDepth) throw new Error(spawnDepthRefusal(scope.threadId, depth, policy.maxDepth, agentsHeldAt(deepest.record)));
     if (act !== "fork") return free;
-    // Counted off the records rather than kept as a number, so a machine deleted, forgotten or gone frees its place
+    // Counted off the records rather than kept as a number, so a machine deleted, forgotten, gone or released frees its place
     // without anything having to remember to give it back, plus the slots forks still landing hold. A record
     // enters the live map only after the provider has answered, so two forks asked for in one tick would both read
     // the same count and both pass; the place is taken here, in the same step the count is read, and handed back by

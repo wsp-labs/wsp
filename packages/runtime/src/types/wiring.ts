@@ -60,7 +60,7 @@ import type {
   WorkspaceStatus,
   WorkspaceView,
 } from "@wsp/protocol";
-import type { SubStarted, TreeFact, TreeRecord, PullRequestSent, PullRequestRecord, PullRequestSeen, Checkout } from "@wsp/protocol";
+import type { SubHeld, SubResult, SubStarted, TreeFact, TreeRecord, PullRequestSent, PullRequestRecord, PullRequestSeen, Checkout } from "@wsp/protocol";
 import { shellQuote } from "@wsp/protocol";
 import type { AgentsActs, AgentsReader, PluginsActs, ServerIcons, ServersActs, SkillsActs } from "../agents-read.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../daemon-channel.js";
@@ -382,8 +382,36 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
    * names the lead's project for the repository, and runs at its place, never on that project's computer. */
   lead?: { threadId: string; workspaceId: string };
   /** What its one sub-thread was started on: the cloud's word, the remote it fetches, the lead's pushed commit, the
-   * branch it pushes and the folder it works in. Kept on the record, which outlives its machine. */
-  sub?: { on: string; repo: string; base: { branch: string; sha: string }; branch: string; folder: string };
+   * branch it pushes, the folder it works in and the machine's rate. Then what its last done read off the machine, the
+   * work that read found not pushed, when the machine is deleted, when it was, and the agent's session kept on the
+   * host. Kept on the record, which outlives its machine. */
+  sub?: {
+    on: string;
+    repo: string;
+    base: { branch: string; sha: string };
+    branch: string;
+    folder: string;
+    /** Absent on a record from before the rate was kept. */
+    rateUsdPerHour?: number;
+    result?: SubResult;
+    held?: SubHeld & { at: number };
+    deleteAt?: number;
+    releasedAt?: number;
+    /** The cloud lost the machine: what it answered when the host met the loss. */
+    lost?: string;
+    cloudGone?: true;
+    session?: SubSession;
+  };
+}
+
+/** A sub-thread's agent session as the host keeps it beside the transcript: the agent and the session's id, when its
+ * file was last kept and how big it was packed, or why it was not. */
+export interface SubSession {
+  agent: string;
+  id: string;
+  kept: number | null;
+  bytes?: number;
+  why?: string;
 }
 
 export interface LiveWorkspace {

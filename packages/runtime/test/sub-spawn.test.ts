@@ -94,7 +94,7 @@ describe("run --on boat from a thread on this computer", () => {
     // The record names the lead's project and the lead, and stands in its root's tree.
     const record = (await store.get("workspaces", made.id)) as Record<string, unknown>;
     expect(record).toMatchObject({ kind: "cloud", project: project.id, lead: { threadId, workspaceId: folder.id }, rootThreadId: threadId, parentThreadId: threadId, agents: { spawn: false }, golden: "wsp-host-default-v1", size: { cpu: 2, memMb: 4096 } });
-    expect(record["sub"]).toEqual({ on: "boat", repo: "https://github.com/acme/web.git", base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" }, branch: "wsp/fix-the-flaky-upload-test", folder: "/root/web" });
+    expect(record["sub"]).toEqual({ on: "boat", repo: "https://github.com/acme/web.git", base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" }, branch: "wsp/fix-the-flaky-upload-test", folder: "/root/web", rateUsdPerHour: 0.018 });
     // The thread opens in that folder, the preamble above the task, and is the lead's child.
     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
     await child.finished;
@@ -336,5 +336,20 @@ describe("a lead off this computer", () => {
     expect(made.notice).toBe(subNotSentLine(subPickedElsewhereWhy("lab-box", "hetzner"), "lab-box"));
     expect(made.notice).toBe("no git-ignored files were sent: lab-box lives on hetzner, and picks are read from folders on this computer only.");
     expect(made.sub!.folder).toBe("/root/lab");
+  });
+
+  it("numbers the default branch past the branches the remote holds, read in the lead's folder on its box", async () => {
+    root = mkdtempSync(join(tmpdir(), "wsp-sub-box-"));
+    const held = await leadAndBox(root);
+    held.seen.remoteHeads = ["main", "wsp/fix-the-flaky-upload-test"];
+    await held.store.put("goldens", copyKey("default", "default"), { head: 1, versions: [{ version: 1, snapshotId: "snap_image-v1", baseTemplate: "base", setupSha: "abc", createdAt: "2026-09-01T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins: [{ name: "GitHub CLI login", state: "copied" }] }] });
+    const at = await held.rt.workspaces.folderFor({ project: held.onBox.id }, held.lead);
+    const child = await held.rt.sessions.start(at.workspace.id, { prompt: "build it", harness: "claude", turnToken: held.launch[TURN_TOKEN_ENV]! }, held.lead);
+    await child.finished;
+    const onBox: Caller = { origin: "relayed", by: { kind: "thread", threadId: child.view().threadId!, workspaceId: at.workspace.id, rootThreadId: held.threadId } };
+    const made = await held.rt.workspaces.create({ project: "", name: NAME, sub: { on: "default" } }, onBox);
+    expect(made.sub!.out.branch).toBe("wsp/fix-the-flaky-upload-test-2");
+    // Read in the lead's own folder there, as root through the box's road, with no prompt.
+    expect(held.seen.execs.map(e => e.cmd).filter(c => c.includes("ls-remote"))).toEqual([expect.stringContaining("GIT_TERMINAL_PROMPT=0 git -C /root/lab-box ls-remote --heads origin")]);
   });
 });

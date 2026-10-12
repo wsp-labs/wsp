@@ -230,6 +230,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     async wake(id, origin) {
       if (ctx.talksToTreeOn(id, origin)) return WorkspaceTalked.parse(await workspaces.wake(id));
       const entry = await ctx.entryOf(id, origin, { act: "wake" });
+      ctx.refuseSubSend(entry);
       await ctx.copyBlocked(entry);
       if (entry.waking) return entry.waking;
       if (entry.record.phase === "gone") {
@@ -511,14 +512,15 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           if (takes) await ctx.removeWorktree(entry, false, { ending: true });
           // Before the machine goes: on a computer somebody owns the folders the files landed in outlive the workspace.
           await ctx.dropThreadFiles(entry, [...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
-          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back. A spawn
-          // still waiting for its machine has none to delete.
-          const machineless = entry.record.phase === "queued";
-          if (!machineless && !kindWords(entry.record.kind).driven) {
+          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back; a spawn
+          // still waiting has none, a released record's box is gone already, and a record whose cloud left this host
+          // has nobody to ask.
+          const standing = entry.record.phase !== "released" && entry.record.phase !== "queued" && entry.record.sub?.cloudGone !== true;
+          if (standing && !kindWords(entry.record.kind).driven) {
             await entry.machine.kill().catch((e: unknown) => {
               if (!isMissing(e)) throw e;
             });
-          } else if (!machineless) {
+          } else if (standing) {
             await ctx.unfork(entry).catch((e: unknown) => {
               if (!(e instanceof MachineAliveError)) throw e;
               const line = deleteRefusedLine(entry.record.name, e.machineId, e.state);

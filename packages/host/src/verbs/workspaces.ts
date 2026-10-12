@@ -23,6 +23,7 @@ import {
   workspaceKind,
   workspaceState,
   threadDeleteQuestion,
+  subDeletedLine,
   threadDeletedLine,
   turnSpendWord,
   GitCommitReply,
@@ -42,8 +43,8 @@ import {
   StartResult,
 } from "@wsp/protocol";
 import { hostBack, usageIs, tool, type Verb, PICK_FLAGS, PICK_OPTIONS, flag, flagList, absoluteFolder, openedThreadLine, threadIdOf } from "./client.js";
-import { workspaceOf, pauseModeOf, stateLine, wokeLine, nap, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
-import { pickFlags, checkedStart, threadHere, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
+import { workspaceOf, threadOf, pauseModeOf, stateLine, wokeLine, nap, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
+import { pickFlags, checkedStart, threadHere, subDeleting, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
 import { confirmed, QUIET, QUIET_LINE, QUIET_TURN, Created, TurnOut, asJson, asText, WorkspaceIn, ThreadIn, SHARED_WITH, AgentIn, NotifyIn, CwdIn, ConfirmIn, PICK_INPUTS, SizeIn, SpawnIn, MaxMachinesIn, MaxDepthIn } from "./io.js";
 
 /** What a delete naming no thread says to do instead, on the line and on the tool. */
@@ -685,7 +686,15 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       const [ref] = ctx.args;
       if (ref === undefined || ctx.args.length !== 1) throw usageRefusal(cloudText("wsp delete takes one thread<!-- cloud -->, or one workspace<!-- /cloud -->.", CLOUD_ON), usageIs(ctx));
       const client = await ctx.client();
-      const here = await threadHere(client, ref);
+      const thread = await threadOf(client, ref).catch(() => undefined);
+      const subbed = await subDeleting(client, thread);
+      if (subbed !== undefined) {
+        if (!(await confirmed(ctx, subbed.question, subbed.id))) return 1;
+        const { on, ...gone } = await threadDeleted(client, subbed.id);
+        ctx.out.emit({ threadId: subbed.id, ...gone }, subDeletedLine(subbed.id, on ?? ""));
+        return 0;
+      }
+      const here = await threadHere(client, thread);
       if (here !== undefined) {
         if (!(await confirmed(ctx, threadDeleteQuestion(here.id, here.worktree), here.id))) return 1;
         const gone = await threadDeleted(client, here.id);
@@ -706,13 +715,23 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.",
+        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.",
       input: { thread: z.string().optional().describe("the thread, by its id or a prefix of it that names one"), workspace: WorkspaceIn.optional(), confirm: ConfirmIn },
-      output: { threadId: z.string().optional(), workspaceId: z.string(), worktree: z.string().optional(), name: z.string().optional(), machineId: z.string().optional(), threads: z.number().int() },
+      output: { threadId: z.string().optional(), workspaceId: z.string(), worktree: z.string().optional(), name: z.string().optional(), machineId: z.string().optional(), threads: z.number().int(), machine: z.literal("deleted").optional().describe("on a sub-thread: its machine on Boat was deleted with it") },
       call: async ({ thread: threadRef, workspace: ref, confirm }, deps) => {
         const client = await deps.client();
         if (threadRef !== undefined) {
-          const here = await threadHere(client, threadRef);
+          const thread = await threadOf(client, threadRef).catch(() => undefined);
+          if (thread?.sub !== undefined) {
+            const id = threadIdOf(thread);
+            if (confirm !== true) {
+              const { question } = (await subDeleting(client, thread))!;
+              return { ...asText(`thread ${id} kept. ${question.split("\n")[1]} Ask the person, then call delete again with confirm true.`, { threadId: id, workspaceId: thread.workspaceId, threads: 1 }), isError: true };
+            }
+            const { on, ...gone } = await threadDeleted(client, id);
+            return asText(subDeletedLine(id, on ?? ""), { threadId: id, ...gone });
+          }
+          const here = await threadHere(client, thread);
           if (here === undefined) {
             if (CLOUD_ON) await refuseMachineThread(client, threadRef);
             throw usageRefusal(`no thread ${threadRef}`, NO_THREAD_FIX);

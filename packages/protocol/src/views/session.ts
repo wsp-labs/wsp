@@ -5,6 +5,7 @@ import { openingTitle, titleLine } from "../format.js";
 import { threadNeedsYou } from "../thread-state.js";
 import { TurnLimit } from "../usage.js";
 import { permissionPrompt } from "../wire/helpers.js";
+import { SubRow } from "./sub-row.js";
 
 export const SessionStatus = z.enum(["running", "completed", "interrupted", "failed"]);
 export type SessionStatus = z.infer<typeof SessionStatus>;
@@ -216,6 +217,8 @@ export const SessionView = z.object({
    * workspace its tree does not reach. */
   project: z.object({ id: z.string(), name: z.string() }).optional(),
   computerName: z.string().optional(),
+  /** A sub-thread's machine on its cloud, stamped on the answer off its record as project is; absent on every other row. */
+  sub: SubRow.optional(),
   /** The computer's threads at once this turn waits on before it starts; absent on every turn that is not held. */
   capped: ThreadCapWait.optional(),
   /** The computer this send waits on to connect, by name, while a stop that could not reach it owes it the end of
@@ -298,6 +301,8 @@ export const ThreadView = z.object({
   waitingOn: ThreadWaitingOn.optional(),
   /** Why the latest turn's agent cannot start or read its own store there now, as SessionView.setupRefusal carries it. */
   setupRefusal: z.string().optional(),
+  /** A sub-thread's machine on its cloud, as SessionView.sub carries it. */
+  sub: SubRow.optional(),
   /** The cap the latest turn waits on before it starts, as SessionView.capped carries it. */
   capped: ThreadCapWait.optional(),
   /** The usage limit that stopped the latest turn, and the reset it is armed to go on at, as SessionView carries them. */
@@ -378,6 +383,7 @@ export function foldThreads(sessions: ReadonlyArray<SessionView>): ThreadView[] 
       ...(latest.asking !== undefined ? { asking: latest.asking } : {}),
       ...(latest.waitingOn !== undefined ? { waitingOn: latest.waitingOn } : {}),
       ...(latest.setupRefusal !== undefined ? { setupRefusal: latest.setupRefusal } : {}),
+      ...(latest.sub !== undefined ? { sub: latest.sub } : {}),
       ...(latest.capped !== undefined ? { capped: latest.capped } : {}),
       ...(latest.limit !== undefined ? { limit: latest.limit } : {}),
       ...(latest.resumeAt !== undefined ? { resumeAt: latest.resumeAt } : {}),

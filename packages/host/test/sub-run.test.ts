@@ -100,9 +100,11 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
     expect(boat.creates.at(-1)).toMatchObject({ cpu: 4, memMb: 8192 });
   });
 
-  it("past Boat's machines at once answers held with capped, says the wait on stderr, and starts the sub-thread once a machine naps", async () => {
-    const { rt, boat, starts, launch } = await leadOnThisComputer({ served: true, machines: 1, agents: { spawn: true, maxMachines: 5 } });
-    const first = JSON.parse((await wsp(launch, "run", "--on", "boat", "--detach", "--notify", "me", TASK, "--json")).io.lines[0]!) as { workspaceId: string };
+  it("past Boat's machines at once answers held with capped, says the wait on stderr, and starts the sub-thread once the first is done", async () => {
+    const { rt, boat, starts, launch, turns } = await leadOnThisComputer({ served: true, machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    // The first sub-thread works on, holding its slot, until it is ended; a done one naps its machine at once.
+    turns.hold = true;
+    await wsp(launch, "run", "--on", "boat", "--detach", "--notify", "me", TASK, "--json");
     await expect.poll(() => starts.length).toBe(2);
     const ran = await wsp(launch, "run", "--on", "boat", "--title", "Run the suite", "--detach", "--notify", "me", "Run the whole upload suite.", "--json");
     expect(ran.code, ran.io.errors.join("\n")).toBe(0);
@@ -110,7 +112,7 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
     expect(out).toMatchObject({ outcome: "held", capped: { placeId: "box", place: "Boat", running: 1, atOnce: 1, why: "slot" }, sub: { machine: "Run the suite" } });
     expect(ran.io.errors).toContain("waiting for a machine on Boat: 1 of 1 running");
     expect(boat.creates).toHaveLength(1);
-    await rt.workspaces.nap(first.workspaceId);
+    turns.release!();
     await expect.poll(() => boat.creates.length).toBe(2);
     await expect.poll(() => starts.length).toBe(3);
     expect(starts[2]!.o.prompt.endsWith("Run the whole upload suite.")).toBe(true);

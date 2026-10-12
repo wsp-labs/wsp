@@ -6,6 +6,7 @@ import { templateHost } from "../host-id.js";
 import { backstopMs, createIdlePolicy } from "../idle.js";
 import { POLL_INTERVAL_MS, phaseLeavingGone, providerSaid } from "../status.js";
 import { loginEnvOn } from "../types/harness.js";
+import { SUB_SESSIONS } from "./sub-life.js";
 import { type WorkspaceSpec, type WorkspaceRecord, type LiveWorkspace, type StageReport, type GoldenExec, type GoneOutcome, settled, VAULTS, shapeFault, setHostname } from "../types/wiring.js";
 import { AGENT_LISTS, WORKSPACES, TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, SESSIONS, WORKSPACE_NAMES, DROPPED, PAUSED_REASON, GONE_REASON, goneLogLine, type DroppedMachine, type NamedWorkspace, CREATES, KEY_PURPOSE_MAX, LOST_CREATE_MS, type PendingCreate, fingerprint, pidAlive, forwardedCalls } from "../types/internal.js";
 import type { RuntimeContext, MachinesArea } from "../context.js";
@@ -499,6 +500,8 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
     for (const [threadId, kept] of ctx.keptAgents) if (kept.workspaceId === id) ctx.reapKept(threadId);
     for (const [threadId, held] of threadRecords) if (held.workspaceId === id) threadRecords.delete(threadId);
     for (const threadId of dropped) await ctx.slates.forget(threadId);
+    // A sub-thread's kept session goes with its thread, and never otherwise.
+    if (going?.record.sub !== undefined) for (const threadId of dropped) await store.deleteBlob(SUB_SESSIONS, threadId);
     ctx.viewedMarks.delete(id);
     live.get(id)?.prPoll?.();
     ctx.cancelFlush(id);
@@ -648,6 +651,8 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
   const markGone = async (entry: LiveWorkspace, machineId: string, reason: string): Promise<GoneOutcome> => {
     if (entry.record.phase === "gone" || entry.record.machineId !== machineId) return "moot";
     if (live.get(entry.record.id) !== entry || entry.deleting !== undefined) return "moot";
+    // A sub-thread outlives its machine: the record is released with the thread kept, and a send starts anew.
+    if (entry.record.sub !== undefined) return ctx.subLost(entry, reason);
     entry.record.phase = "gone";
     delete entry.unchecked;
     entry.record.gone = reason;
@@ -761,7 +766,8 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
     // window. A touch on a napped or gone workspace arms a window too, but its machine needs no stop timer.
     onBackstop: (id, until) => {
       const entry = live.get(id);
-      if (entry === undefined || entry.record.phase !== "running") return;
+      // A done sub-machine's stop timer is its delete's, set where the nap did not land.
+      if (entry === undefined || entry.record.phase !== "running" || entry.record.sub?.deleteAt !== undefined) return;
       void ctx.backendFor(entry.record)
         .lifecycle?.backstop?.(entry.machine, until)
         .catch((e: unknown) => console.warn(`backstop of ${id} on ${entry.machine.id} not set: ${e instanceof Error ? e.message : String(e)}`));

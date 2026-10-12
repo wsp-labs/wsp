@@ -544,8 +544,11 @@ export interface Runtime {
      * absence a name nothing holds reads, before any of that. With check, refuses as it would and drops nothing. */
     forget(threadId: string, origin?: Caller, o?: { check?: boolean }): Promise<void>;
     /** Takes a thread on this computer away with its turns and checkpoints, and a worktree wsp made with the thread
-     * when the thread ran in one, every thread in it going too. Never the project folder. */
-    delete(threadId: string, origin?: Caller): Promise<{ workspaceId: string; worktree?: string; threads: number }>;
+     * when the thread ran in one, every thread in it going too. Never the project folder. A sub-thread takes its
+     * machine at the cloud with it, and its kept session, answering `machine` deleted and the cloud it was on; a
+     * thread's own token is refused it over work the sub-thread's last read found not pushed. With check, a
+     * sub-thread's delete refuses as it would and answers the question a person is put first, deleting nothing. */
+    delete(threadId: string, origin?: Caller, o?: { check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; machine?: "deleted"; on?: string; question?: string }>;
   };
   readonly harnesses: {
     /** What each harness with an adapter takes at launch; the composer's pickers render from this. With a running

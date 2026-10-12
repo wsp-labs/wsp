@@ -111,10 +111,10 @@ const PHASE_SLOT: Record<WorkspaceState, { button: string; cannot: string }> = {
   unreachable: { button: "Pause", cannot: "be paused" },
   paused: { button: "Wake", cannot: "be woken" },
   gone: { button: "Wake", cannot: "be woken" },
+  released: { button: "Wake", cannot: "be woken" },
   pausing: { button: "Pausing…", cannot: "be paused" },
   waking: { button: "Stop", cannot: "be woken" },
   waiting: { button: "Waiting…", cannot: "be woken" },
-  released: { button: "Wake", cannot: "be woken" },
 };
 
 /** The word the phase button on the machine's own surface shows: the verb, or the moving state while it moves. */
@@ -154,7 +154,7 @@ export function phaseRefusal(state: WorkspaceState, why?: "slot" | "minute"): st
     case "waiting":
       return why === "minute" ? "Task is waiting for its cloud's next start; it starts on its own when one is free" : "Task is waiting for a free computer on its cloud; it starts on its own when one frees";
     case "released":
-      return "This task's computer was deleted";
+      return "This sub-thread's computer was deleted once it was done";
     default: {
       const _exhaustive: never = state;
       return null;

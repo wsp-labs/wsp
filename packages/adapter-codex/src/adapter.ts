@@ -211,6 +211,8 @@ export interface CodexAdapter {
   probeVersion(exec: HarnessExec): Promise<string | null>;
   /** What the CLI's thread index calls a thread: the name the person gave it, or the title it derived. */
   sessionTitle: SessionTitleReader;
+  /** The thread's rollout file, under the home's sessions folder by date. */
+  sessionFile(threadId: string): { folder: string; name: string; depth: number };
   /** Names the thread through the app server's own rename, which writes the column that read takes. */
   renameSession: SessionRenamer;
   /** Asks the CLI itself, in one read-only turn, for a name for a thread it has just replied in. */
@@ -549,6 +551,9 @@ const isTurnStart = (line: string): boolean => {
     return false;
   }
 };
+
+/** A thread's rollout: `<home>/sessions/YYYY/MM/DD/rollout-<stamp>-<thread id>.jsonl`. */
+const rolloutIn = (home: string, threadId: string): { folder: string; name: string; depth: number } => ({ folder: `${home}/sessions`, name: `-${threadId}.jsonl`, depth: 3 });
 
 export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
   const sessions = new Map<string, CodexSession>();
@@ -1231,7 +1236,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           next: turn => nextOn(keeper, threadId, thread, turn, o.threadOptions),
           close: c => keeper.close(c?.now === true ? 0 : (deps.resultExitMs ?? RUN_EXIT_MS), graceMs),
           exited: keeper.exited,
-          sessionFile: { folder: `${deps.home}/sessions`, name: `-${threadId}.jsonl`, depth: 3 },
+          sessionFile: rolloutIn(deps.home, threadId),
         };
       },
       ...(o.from !== undefined ? { from: o.from } : {}),
@@ -1432,6 +1437,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     probeCatalog,
     probeVersion: (exec: HarnessExec) => exec(versionProbeCommand(launch), questionEnv()).then(parseVersion),
     sessionTitle: (threadId, exec) => exec(sessionTitleCommand({ home: deps.home, threadId })).then(parseSessionTitle),
+    sessionFile: threadId => rolloutIn(deps.home, threadId),
     renameSession: (threadId, title, exec) =>
       exec(renameCommand({ threadId, title, ...launch }), questionEnv()).then(parseRename),
     titleFor: (turn, exec) =>

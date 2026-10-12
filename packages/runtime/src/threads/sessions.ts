@@ -292,8 +292,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const plan = forked.plan;
       // The thread this start lands in is read before the workspace is: a send into a thread of the caller's tree
       // reaches it on whatever workspace it runs, and only a start that opens a thread is a workspace act.
-      // A thread whose rows fell off the index cap, or whose index is gone, is still the thread its record or its
-      // transcript says it is.
+      // A thread whose rows fell off the index cap or whose index is gone is the thread its record or transcript says.
       const named = opened.thread === undefined ? undefined : ctx.latestOn(opened.thread);
       const fromTranscript = opened.thread === undefined ? undefined : ctx.startedAs(workspaceId, opened.thread);
       const heldOn = opened.thread === undefined ? undefined : (named?.workspaceId ?? threadRecords.get(opened.thread)?.workspaceId ?? (fromTranscript !== undefined ? workspaceId : undefined));
@@ -373,6 +372,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await ctx.confineSetup(entry, o.harness);
       const refuse = (): void => {
         if (!live.has(workspaceId)) throw new Error(deletedBeforeStartLine(entry.record.name));
+        ctx.refuseSubSend(live.get(workspaceId)!);
         const refusal = sendRefusal(workspaceState({ phase: entry.record.phase }), entry.record.gone, entry.record.name);
         if (refusal !== null) throw new Error(refusal);
       };
@@ -573,9 +573,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const minted = randomUUID();
       // Every road out of the window between the row above and runTurn is in here, since the row that says this
       // thread is working and the images this send put on the machine both belong to a turn that does not exist on
-      // any of them: a refusal after a trip, a start that never opened. A steer leaves by returning and holds
-      // neither: a send steers only a turn that was running when it looked, before it held the thread or landed a
-      // thing.
+      // any of them: a refusal after a trip, a start that never opened. A steer leaves by returning and holds neither:
+      // a send steers only a turn that was running when it looked, before it held the thread or landed a thing.
       let handedOver = false;
       let failure: string | undefined;
       let keptTaken: KeptProcess | undefined;
@@ -1405,13 +1404,15 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       return { turns: cutsConversation ? cut.length : 0, ...(moved !== undefined ? { files: Number(moved["files"] ?? 0) } : {}), ...(shared ? { kept: REWIND_SHARED_LINE } : {}) };
     },
 
-    async delete(threadId, origin) {
+    async delete(threadId, origin, o = {}) {
       await ctx.ready();
-      ctx.spawnGuard("delete", origin);
       const workspaceId = [...sessions.values()].find(s => s.view.threadId === threadId)?.view.workspaceId ?? threadRecords.get(threadId)?.workspaceId;
+      ctx.spawnGuard(ctx.leadOfSub(workspaceId, origin) ? "delete_sub" : "delete", origin);
       if (workspaceId === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
+      if (entry.record.sub !== undefined) return ctx.subDelete(entry, threadId, origin, o);
+      if (o.check === true) throw Object.assign(new Error(`thread ${threadWord(threadId)} is no sub-thread, so a delete's check reads nothing for it`), { kind: "usage" });
       if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
       const tree = entry.record.worktree;
       const threads = new Set([

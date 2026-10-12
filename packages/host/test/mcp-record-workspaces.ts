@@ -103,7 +103,7 @@ async function thrown(run: () => unknown): Promise<string> {
 
 const textOf = ({ line }: { line: string }): string => (JSON.parse(line) as { result: { content: { text: string }[] } }).result.content[0]!.text;
 
-const STATES: readonly WorkspaceState[] = ["running", "pausing", "paused", "waking", "unreachable", "gone"];
+const STATES: readonly WorkspaceState[] = ["running", "pausing", "paused", "waking", "unreachable", "gone", "released"];
 
 /** Every sentence the workspace and image tools say, recorded under `workspaces` in record/words.json. */
 export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record<string, unknown>> {
@@ -121,6 +121,9 @@ export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record
   const threadKeptFolder = textOf(await line("delete", { thread: "{thread}" }, here()));
   const threadKeptWorktree = textOf(await line("delete", { thread: "{thread}" }, here({ path: "{path}", branch: "b", made: true })));
   const noThreadHere = textOf(await line("delete", { thread: "{ref}" }, { "sessions.list": reply({ sessions: [] }) }));
+  const subRows = { "sessions.list": reply({ sessions: [{ id: "s", workspaceId: "w", harness: "claude", status: "completed", threadId: "{thread}", sub: SUB_ROW }] }) };
+  const subKept = textOf(await line("delete", { thread: "{thread}" }, { ...subRows, "sessions.delete": reply({ workspaceId: "w", threads: 1, on: "Boat", question: "first\n{second}" }) }));
+  const subDeleted = textOf(await line("delete", { thread: "{thread}", confirm: true }, { ...subRows, "sessions.delete": reply({ workspaceId: "w", threads: 1, machine: "deleted", on: "{on}" }) }));
   const deleteNamesNothing = textOf(await line("delete", {}, {}));
   const deleteNamesNothingCloud = textOf(await line("delete", {}, {}, { cloud: true }));
   const localFolder = textOf(await line("forget", { workspace: "w" }, { "workspaces.resolve": reply({ workspace: ws({ kind: "local", machineId: "here" }) }) }, { cloud: true }));
@@ -204,6 +207,8 @@ export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record
     firstTurnFailed,
     threadKeptFolder,
     threadKeptWorktree,
+    subKept,
+    subDeleted,
     noThreadHere,
     threadOnMachine: threadOnMachineLine("{name}"),
     deleteNamesNothing,
@@ -297,6 +302,9 @@ const forkedWith = (over: Replies): Replies => ({
 });
 const GONE = { ...WORKSPACE, phase: "gone", gone: "the provider has no machine m-1 \u009b" };
 const LOCAL = { ...WORKSPACE, id: "ws-2", name: "here", kind: "local", machineId: "here", worktree: { path: "/Users/me/.wsp/worktrees/proj-1/work \u0085", branch: "work", made: true } };
+/** A sub-thread's row on Boat, its machine napping until its delete. */
+const SUB_ROW = { state: "napping", on: "boat", machine: "Fix it \u0085", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", deleteAt: 1_790_000_000_000 };
+const SUB_SESSIONS = [{ id: "s-9", workspaceId: "ws-9", harness: "claude", status: "completed", threadId: "t-9 \u0085", sub: SUB_ROW }];
 /** Threads on this computer and one on a box: t-2 in a worktree wsp made, t-3 in the project folder. */
 const HERE_SESSIONS = [
   { id: "s-1", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1" },
@@ -413,6 +421,9 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
     { case: "thread on a box", arguments: { thread: "t-1" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }) }, cloud: true },
     { case: "thread on a machine, no cloud", arguments: { thread: "t-1" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }) } },
     { case: "no such thread", arguments: { thread: "zz" }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }) } },
+    { case: "sub-thread unconfirmed", arguments: { thread: "t-9" }, replies: { "sessions.list": reply({ sessions: SUB_SESSIONS }), "sessions.delete": reply({ workspaceId: "ws-9", threads: 1, on: "Boat", question: "Delete sub-thread t-9 \u0085 (Fix it) and its machine on Boat?\n2 commits on wsp/fix-it are not pushed and go with it." }) } },
+    { case: "sub-thread deleted", arguments: { thread: "t-9", confirm: true }, replies: { "sessions.list": reply({ sessions: SUB_SESSIONS }), "sessions.delete": reply({ workspaceId: "ws-9", threads: 1, machine: "deleted", on: "Boat", extra: 1 }) } },
+    { case: "sub-thread refused over work not pushed", arguments: { thread: "t-9", confirm: true }, replies: { "sessions.list": reply({ sessions: SUB_SESSIONS }), "sessions.delete": refused("sub-thread t-9 \u0085 holds 2 commits not pushed on wsp/fix-it. Send it a push, or ask the person to delete it.", "usage") } },
     { case: "thread refused", arguments: { thread: "t-2", confirm: true }, replies: { "sessions.list": reply({ sessions: HERE_SESSIONS }), "workspaces.list": reply({ workspaces: [LOCAL, WORKSPACE] }), "sessions.delete": refused("that worktree has 2 files not committed; commit them, or remove it with --force to lose them", "usage") } },
     { case: "nothing named", arguments: {}, replies: {} },
     { case: "nothing named, with a cloud", arguments: {}, replies: {}, cloud: true },
