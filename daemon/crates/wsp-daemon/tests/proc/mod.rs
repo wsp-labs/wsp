@@ -4,9 +4,7 @@ use super::*;
 use crate::sys::now_ms;
 use crate::Outgoing;
 use serde_json::{json, Value};
-use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 
 #[test]
@@ -113,6 +111,7 @@ fn the_rows_held_count_the_owner_each_carries() {
         pgid: None,
         owner: None,
         kind: None,
+        id: None,
     };
     let (thread, workspace) = (String::from("t_0123456789abcdef"), String::from("w_1"));
     let owner = wsp_frames::ProcOwner {
@@ -366,7 +365,7 @@ async fn emits_nothing_on_the_first_poll_and_a_snapshot_of_every_process_with_cp
     let by_pid = |pid: u64| procs.iter().find(|p| p["pid"] == json!(pid)).unwrap().clone();
     assert_eq!(
         by_pid(4242),
-        json!({"pid": 4242, "ppid": 1, "user": "tester", "state": "S", "comm": "node", "cmdline": "node /opt/wsp/daemon.js", "cpu": 50.0, "rss": 12_500 * 4096, "startedAt": (BTIME + 5) * 1000, "pgid": 1})
+        json!({"pid": 4242, "ppid": 1, "user": "tester", "state": "S", "comm": "node", "cmdline": "node /opt/wsp/daemon.js", "cpu": 50.0, "rss": 12_500 * 4096, "startedAt": (BTIME + 5) * 1000, "pgid": 1, "id": "500"})
     );
     let p77 = by_pid(77);
     assert_eq!(
@@ -781,65 +780,4 @@ async fn a_list_answers_every_process_at_once_and_rides_a_running_sampler_rather
     s.list().await.unwrap();
     assert_eq!(source.scans.load(Ordering::SeqCst), 2);
     s.unsubscribe(1);
-}
-
-const PROTECTED: ProtectedPids = ProtectedPids { this: 5000, parent: 4000 };
-
-#[test]
-fn refuses_init_the_daemon_and_the_daemons_parent_with_code_forbidden() {
-    for pid in [1, 5000, 4000] {
-        assert_eq!(kill_process(pid, ProcSignal::Term, PROTECTED).unwrap_err().code, Some(DaemonErrorCode::Forbidden));
-    }
-}
-
-#[test]
-fn a_pid_that_is_gone_answers_not_found() {
-    // 2^22 - 1 is above every Linux pid_max default and no macOS pid.
-    let err = kill_process(4_194_303, ProcSignal::Term, PROTECTED).unwrap_err();
-    assert_eq!((err.code, err.message.as_str()), (Some(DaemonErrorCode::NotFound), "no process 4194303"));
-}
-
-/// Waits for one line on a child's stdout; a child that ends first fails the wait by name.
-async fn line(lines: &mut tokio::io::Lines<BufReader<tokio::process::ChildStdout>>, want: &str) {
-    loop {
-        let next = tokio::time::timeout(Duration::from_secs(10), lines.next_line()).await.unwrap().unwrap();
-        match next {
-            Some(l) if l == want => return,
-            Some(_) => continue,
-            None => panic!("the child ended without printing {want}"),
-        }
-    }
-}
-
-#[tokio::test]
-async fn sends_term_then_kill_to_a_child_this_test_started() {
-    let mut child =
-        tokio::process::Command::new("sleep").arg("30").stdin(Stdio::null()).stdout(Stdio::null()).kill_on_drop(true).spawn().unwrap();
-    kill_process(child.id().unwrap(), ProcSignal::Term, PROTECTED).unwrap();
-    let status = child.wait().await.unwrap();
-    assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(15));
-
-    // One process that ignores TERM, so nothing is left behind when KILL takes it. It speaks once its handlers are
-    // in place, again when the TERM lands and again when asked: the case waits for those lines, since kill_process
-    // sends one signal and returns and there is no grace anywhere in the kill road to read.
-    let script = "trap 'echo termed' TERM; trap 'echo alive' USR1; echo ready; while :; do sleep 0.05; done";
-    let mut stubborn = tokio::process::Command::new("bash")
-        .args(["-c", script])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap();
-    let pid = stubborn.id().unwrap();
-    let mut lines = BufReader::new(stubborn.stdout.take().unwrap()).lines();
-    line(&mut lines, "ready").await;
-    kill_process(pid, ProcSignal::Term, PROTECTED).unwrap();
-    line(&mut lines, "termed").await;
-    // A process that exited but has not been reaped answers signal 0 too, so the child is also asked to speak again.
-    kill(Pid::from_raw(pid as i32), Signal::SIGUSR1).unwrap();
-    line(&mut lines, "alive").await;
-    assert!(stubborn.try_wait().unwrap().is_none());
-    kill_process(pid, ProcSignal::Kill, PROTECTED).unwrap();
-    let status = stubborn.wait().await.unwrap();
-    assert_eq!(std::os::unix::process::ExitStatusExt::signal(&status), Some(9));
 }

@@ -40,7 +40,7 @@ import { randomBytes } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
-import { EXEC_CHUNK_BYTES, psCpuSeconds, RUN_STOP_MS, shellQuote, TURN_IDLE_MS, TURN_WALL_MS } from "@wsp/protocol";
+import { AGENT_PID_FILE_ENV, EXEC_CHUNK_BYTES, psCpuSeconds, RUN_STOP_MS, shellQuote, TURN_IDLE_MS, TURN_WALL_MS } from "@wsp/protocol";
 import type { ExecStream, ExecStreamFactory } from "@wsp/protocol";
 import { readsWork, turnActivity, turnCut, type MachineExecOptions, type TurnWaiting } from "./machine-exec.js";
 
@@ -220,6 +220,14 @@ function writeOwned(path: string, text: string): void {
   writeFileSync(path, text, { mode: OWNER_FILE, flag: "wx" });
 }
 
+/** The pid the run's agent wrote as it started (agentWord in @wsp/protocol), while it lives; none before it starts or
+ * on a run whose command starts no agent. Read for a running turn alone, and taken by the pane only under the turn's
+ * own root, so a number the kernel handed on after the agent went names nothing. */
+export function agentPidOf(run: string): number | undefined {
+  const pid = Number(readFile(`${run}.agent`)?.trim() ?? "");
+  return Number.isSafeInteger(pid) && pid > 0 && alive(pid) ? pid : undefined;
+}
+
 /** Whether a process group with this id exists at all: signal 0 asks the kernel and sends nothing, and a group
  * whose last member is gone answers ESRCH. EPERM is a group under another login, which exists. */
 export function groupExists(pid: number): boolean {
@@ -295,7 +303,7 @@ async function reapRun(base: string, lastRead: (end: number) => Promise<void> = 
     signalGroup(pid, "SIGKILL");
   }
   await lastRead(logSize(base));
-  for (const suffix of ["sh", "log", "pid", "exit", "in", "held", "late", "fifo", "tail"]) rmSync(`${base}.${suffix}`, { force: true });
+  for (const suffix of ["sh", "log", "pid", "agent", "exit", "in", "held", "late", "fifo", "tail"]) rmSync(`${base}.${suffix}`, { force: true });
   rmSync(`${base}.d`, { recursive: true, force: true });
 }
 
@@ -654,7 +662,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     try {
       const child = spawn("bash", [`${base}.sh`], {
         cwd: opts.root,
-        env: { ...env },
+        env: { ...env, [AGENT_PID_FILE_ENV]: `${base}.agent` },
         // No pipe of this process's is handed to the run: its output is the log, and its stdin the pump the script
         // starts, so nothing it holds dies with the host that launched it.
         stdio: ["ignore", log, log],

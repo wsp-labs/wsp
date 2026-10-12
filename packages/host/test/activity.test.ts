@@ -123,6 +123,17 @@ describe("activity on the command line", () => {
     ]);
   });
 
+  it("end signals through the host's guard, so each kill carries this computer's lists for the daemon to check at the signal", async () => {
+    await threadWithServer();
+    const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
+    expect(ended.code, ended.io.errors.join("\n")).toBe(0);
+    expect(h.daemon.procs.kills).toHaveLength(2);
+    for (const frame of h.daemon.procs.kills) {
+      expect(frame).toMatchObject({ op: "proc.kill", signal: "TERM", protect: [process.pid, process.ppid], agentBins: expect.arrayContaining(["claude"]) });
+      expect(Array.isArray(frame["agents"]) && Array.isArray(frame["apps"])).toBe(true);
+    }
+  });
+
   it("end reads what TERM left off a list read after it, never a sampler's older tick, and sends KILL only to what is still there", async () => {
     await threadWithServer();
     h.daemon.procs.stubborn.add(4300);
@@ -137,6 +148,19 @@ describe("activity on the command line", () => {
       { pid: 4300, signal: "KILL" },
     ]);
   }, 15_000);
+
+  it("end names a process the daemon sent KILL itself after TERM's grace as forced, though no list after shows it", async () => {
+    await threadWithServer();
+    h.daemon.procs.stubborn.add(4300);
+    h.daemon.procs.escalates = true;
+    const ended = await h.run("activity", "end", "4200", "--started", String(STARTED + 1_000), "--json");
+    expect(ended.code, ended.io.errors.join("\n")).toBe(0);
+    expect(ActivityEnded.parse(h.json(ended.io).at(-1))).toMatchObject({ forced: [4300], left: [] });
+    expect(h.daemon.procs.signals).toEqual([
+      { pid: 4200, signal: "TERM" },
+      { pid: 4300, signal: "TERM" },
+    ]);
+  });
 
   it("settle with processes left and no --processes refuses, naming what outlives the agent; stop ends those and settles", async () => {
     const { threadId } = await threadWithServer();

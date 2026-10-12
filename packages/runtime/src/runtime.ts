@@ -998,7 +998,8 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
         }
       : {}),
     ownProcess: (threadId, pid, kind) => ctx.ownProcess(threadId, pid, kind),
-    hereChannel: async onEvent => ctx.scopedProcs(ctx.scopesHere, ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent))),
+    hereChannel: async onEvent => ctx.killGuarded(ctx.scopedProcs(ctx.scopesHere, ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent))), true),
+    placeKills: channel => ctx.killGuarded(channel, false),
     watchPlaceSys: async (placeId, fn) => {
       if (placeId !== HERE_PLACE_ID) {
         if (ctx.placeDoor === undefined) throw new Error(noSuchPlaceRefusal(placeId, []));

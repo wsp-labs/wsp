@@ -229,6 +229,16 @@ pub struct ProcInspectReply {
     pub children: Vec<u32>,
 }
 
+/// What a proc.kill did: every pid it signalled, those of them KILL was sent to once TERM's 2 s were up, and those
+/// still there after that KILL. A zombie counts as gone: it holds no memory and no port.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ProcKillReply {
+    pub signalled: Vec<u32>,
+    pub forced: Vec<u32>,
+    pub left: Vec<u32>,
+}
+
 /// name is the entry's own name in the listed directory; size is 0 for anything but a file; mtime is epoch ms.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]

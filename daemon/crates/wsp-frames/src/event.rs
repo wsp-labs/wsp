@@ -58,6 +58,11 @@ pub struct ProcEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub kind: Option<ProcKind>,
+    /// What a kill checks the pid still holds this process by, as proc.kill's identity: the kernel's unique id on a Mac, the
+    /// start in clock ticks on a box. Absent where the reader has neither, this computer's ps on Linux.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub id: Option<String>,
 }
 
 /// What one tick of the process sampler cost the daemon: the cpu time the read and the frame took, and about how many
@@ -290,6 +295,7 @@ mod tests {
             pgid: None,
             owner: None,
             kind: None,
+            id: None,
         };
         assert_eq!(serde_json::to_value(&proc_entry).unwrap()["cpu"], json!(0.0));
         let fine =

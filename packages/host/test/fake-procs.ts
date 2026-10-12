@@ -11,12 +11,16 @@ export interface FakeProcs {
   procs: ProcEntry[];
   ports: { port: number; pid: number }[];
   signals: { pid: number; signal: string }[];
+  /** Every proc.kill frame whole, as it reached the daemon. */
+  kills: Record<string, unknown>[];
   /** Every process op asked, in order. */
   asked: string[];
   /** False plays a daemon a version behind, which has no proc.list. */
   lists: boolean;
   /** Pids a TERM leaves running. */
   stubborn: Set<number>;
+  /** Plays a daemon that sends KILL itself to a stubborn pid once TERM's grace runs out, and names it in forced. */
+  escalates: boolean;
   /** Plays a running sampler between its ticks: proc.list and proc.inspect answer the rows and the clock of this
    * moment for ms, whatever a signal did since. */
   hold(ms: number): void;
@@ -31,9 +35,11 @@ export function fakeProcs(): FakeProcs {
     procs: [],
     ports: [],
     signals: [],
+    kills: [],
     asked: [],
     lists: true,
     stubborn: new Set(),
+    escalates: false,
     hold(ms) {
       const held = { at: Date.now(), procs: f.procs.map(p => ({ ...p })) };
       tick = held;
@@ -59,9 +65,11 @@ export function fakeProcs(): FakeProcs {
           return listed().procs.some(p => p.pid === pid) ? { id: 1, ok: true, pid, cwd: null, ports: [], children: [] } : gone;
         case "proc.kill": {
           f.signals.push({ pid: Number(pid), signal: String(frame["signal"]) });
+          f.kills.push(frame);
           const had = f.procs.some(p => p.pid === pid);
-          if (frame["signal"] === "KILL" || !f.stubborn.has(Number(pid))) f.procs = f.procs.filter(p => p.pid !== pid);
-          return had ? { id: 1, ok: true } : gone;
+          const forced = had && f.escalates && frame["signal"] === "TERM" && f.stubborn.has(Number(pid));
+          if (frame["signal"] === "KILL" || forced || !f.stubborn.has(Number(pid))) f.procs = f.procs.filter(p => p.pid !== pid);
+          return had ? { id: 1, ok: true, ...(forced ? { signalled: [pid], forced: [pid], left: [] } : {}) } : gone;
         }
         default:
           return undefined;

@@ -199,7 +199,7 @@ describe("Settings > Activity", () => {
     expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["Open :5173 in a browser tab", "End", "Open thread", "Copy command", "Copy PID"]);
     act(() => useContextMenuStore.getState().choose("end"));
     await settle();
-    expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM" }]);
+    expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM", mode: "tree", startedAt: 0 }]);
     fireEvent.click(document.querySelector<HTMLElement>("[data-proc-row='30'] [data-act=menu]")!);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
@@ -255,7 +255,8 @@ describe("Settings > Activity", () => {
     toggle("t_one");
     fireEvent.click(document.querySelector("[data-proc-row='32'] [data-act=end]")!);
     await settle();
-    expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM" }]);
+    // The process and everything under it, checked against the start its row was read with.
+    expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM", mode: "tree", startedAt: 0 }]);
     expect(document.querySelector("[data-proc-row='32']")!.textContent).toContain("Ending");
     feed(2, PROCS(2).filter(p => p.pid !== 32));
     expect(document.querySelector("[data-proc-row='32']")).toBeNull();

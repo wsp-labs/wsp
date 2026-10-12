@@ -225,6 +225,9 @@
               "pid": {
                 "type": "integer"
               },
+              "agentPid": {
+                "type": "integer"
+              },
               "readAt": {
                 "type": "number"
               },
@@ -626,6 +629,9 @@
                 "type": "string"
               },
               "pid": {
+                "type": "integer"
+              },
+              "agentPid": {
                 "type": "integer"
               },
               "readAt": {

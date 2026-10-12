@@ -104,9 +104,10 @@ describe("a cloud turn after its agent's final reply", () => {
     const path = process.env["PATH"] ?? "/usr/bin:/bin";
     // Read by every bash the run starts, and gives this computer the machine's setsid. The machine's project folder is not on this computer, so the launch's cd lands
     // in the test's own folder; and the launch exports the turn's own PATH, so the stand-in is named by a function,
-    // which wins over any claude on that PATH.
+    // which wins over any claude on that PATH. agentWord's sh execs the agent off PATH, which no function reaches, so
+    // that sh is handed the stand-in's folder first.
     const shim = join(dir, "env.sh");
-    writeFileSync(shim, `${LINUX_SHELL_PRELUDE}cd() { builtin cd ${dir}; }\nclaude() { ${join(bin, "claude")} "$@"; }\n`);
+    writeFileSync(shim, `${LINUX_SHELL_PRELUDE}cd() { builtin cd ${dir}; }\nclaude() { ${join(bin, "claude")} "$@"; }\nsh() { PATH=${bin}:$PATH command sh "$@"; }\n`);
     backend.execImpl = (m, cmd, stdin) => (cmd.includes(runDir) ? bash(cmd, path, shim, stdin) : answer(m, cmd, stdin));
     store = memoryStore();
     // The idle limit short, so a turn nothing holds is cut in seconds, as it is at TURN_IDLE_MS on a real machine.

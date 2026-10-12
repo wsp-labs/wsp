@@ -12,7 +12,17 @@ export type { ProcSort };
 
 /** One thread of this workspace: the process the host started for it, which that thread's tree is rooted at, or on a
  * computer the person joined, the cgroup every process it started stands in. */
-export type ProcThread = { threadId: string; title: string } & ({ pid: number; cgroup?: never } | { cgroup: string; pid?: never });
+export type ProcThread = {
+  threadId: string;
+  title: string;
+  /** The running turn's, which its stop names; absent while none runs. */
+  sessionId?: string;
+  /** The agent the turn's run recorded as it started it, under pid. */
+  agentPid?: number;
+} & (
+  | { pid: number; cgroup?: never }
+  | { cgroup: string; pid?: never }
+);
 
 export interface ProcRow {
   proc: ProcEntry;
@@ -124,6 +134,83 @@ export function procTable(procs: readonly ProcEntry[], sort: ProcSort, filter: s
 
 const NO_APP: ReadonlyMap<number, AppProc> = new Map();
 
+/** argv[0]'s basename off the row's command line, the name a process was run by: a native Claude Code runs as comm
+ * `2.1.296` through the link named claude, cursor-agent as node under argv[0] cursor-agent. */
+const runAs = (p: ProcEntry): string => p.cmdline.split(" ", 1)[0]!.split("/").pop()!;
+
+const isAgent = (p: ProcEntry): boolean => CATALOG_AGENTS.some(a => a.bin === p.comm || a.bin === runAs(p));
+
+/** The pids from p up to the one under root, or null where root is not above p. */
+function pathUp(byPid: ReadonlyMap<number, ProcEntry>, p: ProcEntry, root: number): number[] | null {
+  const path: number[] = [];
+  for (let at: ProcEntry | undefined = p; at !== undefined; at = byPid.get(at.ppid)) {
+    if (at.pid === root) return path;
+    if (path.includes(at.pid)) return null;
+    path.push(at.pid);
+  }
+  return null;
+}
+
+/** The rows that are a running turn's agent, each with its thread: the process the host started for the turn and
+ * every process from it down to the agent its run recorded, or where none was recorded down to each process run as an
+ * agent's binary; on a computer the person joined each agent binary in the thread's cgroup and what stands above it there. A signal to any of them
+ * ends the turn as failed, so the pane stops the thread instead. A tool server under the agent is none of them. */
+export function agentRows(procs: readonly ProcEntry[], threads: readonly ProcThread[]): Map<number, ProcThread> {
+  const byPid = new Map(procs.map(p => [p.pid, p]));
+  const rows = new Map<number, ProcThread>();
+  for (const thread of threads) {
+    if (thread.sessionId === undefined) continue;
+    if (thread.cgroup !== undefined) {
+      // A box run records no agent: its run script and shell stand above the agent binary in the thread's cgroup.
+      for (const p of procs) {
+        if (!isAgent(p) || !inCgroup(p.cgroup, thread.cgroup)) continue;
+        let at: ProcEntry | undefined = p;
+        while (at !== undefined && inCgroup(at.cgroup, thread.cgroup) && !rows.has(at.pid)) {
+          rows.set(at.pid, thread);
+          at = byPid.get(at.ppid);
+        }
+      }
+      continue;
+    }
+    if (!byPid.has(thread.pid)) continue;
+    rows.set(thread.pid, thread);
+    const recorded = thread.agentPid === undefined ? undefined : byPid.get(thread.agentPid);
+    const known = recorded === undefined ? null : pathUp(byPid, recorded, thread.pid);
+    // A recorded process that runs as no agent's name is a launcher, npm's codex.js under node: the agent's own binary
+    // it starts is the agent too.
+    const launched = known === null || isAgent(recorded!) ? [] : procs.filter(p => isAgent(p) && pathUp(byPid, p, recorded!.pid) !== null);
+    const agents = known !== null ? [recorded!, ...launched] : procs.filter(isAgent);
+    for (const p of agents) for (const pid of pathUp(byPid, p, thread.pid) ?? []) rows.set(pid, thread);
+  }
+  return rows;
+}
+
+/** A turn's run script as either road starts it: `bash <run folder>/<12 hex>.sh`. */
+const RUN_SCRIPT = /^bash \S*\/[0-9a-f]{12}\.sh$/;
+
+/** Every process from a turn's run script down to the first process under it run as an agent's binary, whatever
+ * thread it is: on a computer whose turns stand in no cgroup a row there cannot be tied to its thread, and a signal
+ * to any of them still ends the turn as failed, so none of them is offered kill. */
+export function runAgentPids(procs: readonly ProcEntry[]): Set<number> {
+  const byPid = new Map(procs.map(p => [p.pid, p]));
+  const pids = new Set<number>();
+  for (const p of procs) {
+    if (!isAgent(p)) continue;
+    const path: number[] = [];
+    for (let at = byPid.get(p.ppid); at !== undefined && !path.includes(at.pid); at = byPid.get(at.ppid)) {
+      // An agent under another agent below the run is that agent's own child, killable as any tool is.
+      if (isAgent(at)) break;
+      path.push(at.pid);
+      // The run's shell is a fork of the script and reads as it, so the run is every such process up the chain.
+      if (RUN_SCRIPT.test(at.cmdline) && !RUN_SCRIPT.test(byPid.get(at.ppid)?.cmdline ?? "")) {
+        for (const pid of [p.pid, ...path]) pids.add(pid);
+        break;
+      }
+    }
+  }
+  return pids;
+}
+
 /** The harness pieces the daemon can name: itself, the shells behind its ptys (by the tab's title) and an agent by the
  * command its catalog entry puts on PATH; and the desktop app's own processes, which only the app can name. */
 export function procLabel(p: ProcEntry, daemonPid: number, terminalTitles: ReadonlyMap<string, string>, app: ReadonlyMap<number, AppProc> = NO_APP): string | null {
@@ -134,6 +221,6 @@ export function procLabel(p: ProcEntry, daemonPid: number, terminalTitles: Reado
     const title = terminalTitles.get(p.pty);
     return title !== undefined ? `terminal ${title}` : "terminal";
   }
-  if (CATALOG_AGENTS.some(a => a.bin === p.comm)) return "agent";
+  if (isAgent(p)) return "agent";
   return null;
 }

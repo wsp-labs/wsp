@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { once } from "node:events";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { hostname, tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { CATALOG_AGENTS } from "@wsp/catalog";
 import { LocalBackend } from "@wsp/engine";
-import { HERE_PLACE_ID, folderForkFix, folderForkRefusal, refusalLine, inFolder, machineWord, undrivenRefusal, NO_SUCH_TURN, NOTIFY_ME, noWorkspaceRefusal, deviceHeldRefusal, registeredLine, REGISTERING_LINE, RELAY_TICKET_REFUSAL, relayedRecordRefusal, relayedRefusal, RUN_GONE_LINE, THIS_COMPUTER, TICKET_ORIGIN, TURN_TOKEN_ENV, HOST_TOKEN_ENV, type AdapterAttachOptions, type AdapterEvent, type EventUnion, type ExecStream, type PortForward, type ProjectImportEvent, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
+import { APP_DATA_FOLDER, APP_LOCK_FILE, HERE_PLACE_ID, folderForkFix, folderForkRefusal, refusalLine, inFolder, machineWord, undrivenRefusal, NO_SUCH_TURN, NOTIFY_ME, noWorkspaceRefusal, deviceHeldRefusal, registeredLine, REGISTERING_LINE, RELAY_TICKET_REFUSAL, relayedRecordRefusal, relayedRefusal, RUN_GONE_LINE, THIS_COMPUTER, TICKET_ORIGIN, TURN_TOKEN_ENV, HOST_TOKEN_ENV, type AdapterAttachOptions, type AdapterEvent, type EventUnion, type ExecStream, type PortForward, type ProjectImportEvent, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import type { MachineExecOptions } from "../src/machine-exec.js";
 import { createRuntime, type HarnessAdapterContext, type HarnessAdapterFactory, type HarnessSession, type LocalWiring, type ProjectExportOptions, type ProjectImportOptions, type Runtime } from "../src/runtime.js";
@@ -540,6 +542,71 @@ describe("local workspace", () => {
     channel.close();
     await rt.close();
   }, 30_000);
+
+  it("every proc.kill to this computer's daemon carries the host, the app's main process off its lock, each running turn's root and recorded agent and the agents' binaries, over what the page sent", async () => {
+    // A turn that runs until it is stopped, led by a pid nothing else on this computer holds, whose run recorded its
+    // agent's pid in the file agentWord writes.
+    const AGENT = 4_194_000;
+    const run = join(root, "runs", "0123456789ab");
+    mkdirSync(dirname(run), { recursive: true });
+    const agent = spawn("sleep", ["30"], { stdio: "ignore" });
+    onTestFinished(() => void agent.kill("SIGKILL"));
+    writeFileSync(`${run}.agent`, `${agent.pid}\n`);
+    let stop = (): void => {};
+    const factory: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: ({ onEvent }) => {
+        const sessionId = randomUUID();
+        onEvent({ type: "session.start", sessionId });
+        const result: TurnResult = { status: "interrupted", text: "" };
+        const finished = new Promise<TurnResult>(resolve => {
+          stop = () => {
+            onEvent({ type: "turn.done", sessionId, result });
+            onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+            resolve(result);
+          };
+        });
+        return { localId: sessionId, finished, interrupt: async () => stop(), pid: AGENT, run };
+      },
+    });
+    const sent: Record<string, unknown>[] = [];
+    const daemonChannel = async (): Promise<DaemonChannel> => ({
+      send: async frame => {
+        sent.push(frame as Record<string, unknown>);
+        return { id: null, ok: true, signalled: [], forced: [], left: [] } as never;
+      },
+      close: () => {},
+      closed: new Promise(() => {}),
+    });
+    const token = "cafef00d".repeat(3);
+    const daemonRoad = async () => ({ url: "http://127.0.0.1:7070", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: token });
+    const statePath = join(root, "state", "state.json");
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: factory }, local: { ...localWiring, daemonRoad }, daemonToken: token, daemonChannel, statePath });
+    const ws = await rt.workspaces.create({ project: (await projectOn(rt, HERE_PLACE_ID, repoIn(root, "served"))).id, name: "served" });
+    // The lock Electron keeps while the app runs, as it names it: this computer and the main pid.
+    const app = spawn("sleep", ["30"], { stdio: "ignore" });
+    const lock = join(root, "state", APP_DATA_FOLDER, APP_LOCK_FILE);
+    mkdirSync(dirname(lock), { recursive: true });
+    symlinkSync(`${hostname()}-${app.pid}`, lock);
+    const turn = await rt.sessions.start(ws.id, { prompt: "work" });
+    const kills = (): Record<string, unknown>[] => sent.filter(f => f["op"] === "proc.kill");
+    const asked = { id: null, op: "proc.kill", pid: 50, signal: "TERM", mode: "group", startedAt: 1, protect: [], agents: [], agentBins: [] };
+    for (const channel of [await rt.workspaces.daemonChannel(ws.id, () => {}), await rt.hereChannel(() => {})]) await channel.send(asked as never);
+    const guarded = { ...asked, protect: [process.pid, process.ppid], apps: [app.pid], agents: [AGENT, agent.pid], agentBins: CATALOG_AGENTS.map(a => a.bin) };
+    expect(guarded.agentBins).toContain("claude");
+    expect(kills()).toEqual([guarded, guarded]);
+    expect((await rt.sessions.list(ws.id))[0]).toMatchObject({ pid: AGENT, agentPid: agent.pid });
+    await rt.sessions.interrupt(turn.id);
+    await turn.finished;
+    await (await rt.hereChannel(() => {})).send(asked as never);
+    expect(kills().at(-1), "a stopped turn's agent is no longer named").toEqual({ ...guarded, agents: [] });
+    // A lock an app that crashed left behind names nothing.
+    app.kill("SIGKILL");
+    await once(app, "exit");
+    await (await rt.hereChannel(() => {})).send(asked as never);
+    expect(kills().at(-1)).toEqual({ ...guarded, apps: [], agents: [] });
+    await rt.close();
+  });
 
   it("a host with no daemon binary still takes threads in the project folder, one record per project", async () => {
     const { copier: _none, ...bare } = localWiring;
