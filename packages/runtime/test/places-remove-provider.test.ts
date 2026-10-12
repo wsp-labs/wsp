@@ -269,10 +269,24 @@ describe("removing a provider", () => {
 
   it("answers where the key still is when the host also reads it from beyond its own file", async () => {
     const box = stubBackend();
-    const still = providerKeyStillLine({ file: "/work/acme/.env" });
+    const still = providerKeyStillLine([{ file: "/work/acme/.env" }]);
     const held = await holdingBoat(box, still);
     await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
     expect(await remove("box")).toMatchObject({ removed: true, deleted: 1, note: still });
     expect(held.forgot).toEqual(["box"]);
+  });
+  it("drops the count from a failed relist when nothing was deleted", async () => {
+    const box = stubBackend();
+    const held = await holdingBoat(box);
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
+    box.machines[0]!.killed = true;
+    const list = box.list.bind(box);
+    let lists = 0;
+    box.list = async labels => (++lists === 2 ? Promise.reject(Object.assign(new Error("Too Many Requests"), { kind: "concurrency", status: 429 })) : list(labels));
+
+    const answer = await remove("box");
+    expect(answer).toMatchObject({ removed: false, deleted: 0, note: providerUnlistedLine("Boat", 0, "Too Many Requests") });
+    expect(answer["note"]).toBe("Boat's machines could not be listed again (Too Many Requests), so one made meanwhile may still be there and the key is kept. Remove Boat again to finish.");
+    expect(held.forgot).toEqual([]);
   });
 });

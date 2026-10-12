@@ -89,7 +89,7 @@ describe("wsp remove boat", () => {
     expect(io.lines[0]).toBe("Boat forgotten: the key and 2 tasks' records left this host. Nothing at Boat was touched, so machines wsp made there may bill until Boat's own timer ends them.");
   });
   it("says where the key still is in place of the key forgotten, on a remove and on a forget", async () => {
-    const still = providerKeyStillLine({ file: "/work/acme/.env" });
+    const still = providerKeyStillLine([{ file: "/work/acme/.env" }]);
     const removed = captured();
     expect(await removeCommand(removed, opts, ["boat"], { yes: true }, deps(boatHost({ removed: true, swept: [], deleted: 2, note: still }).dial))).toBe(0);
     expect(removed.lines).toEqual(["Boat removed: 2 machines deleted. Its key is still in /work/acme/.env, which a host started in that folder reads first; take it out there."]);
