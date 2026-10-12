@@ -65,27 +65,71 @@ fn sorted(mut v: Vec<u32>) -> Vec<u32> {
 }
 
 #[tokio::test]
-async fn a_group_kill_takes_every_member_and_a_tree_kill_takes_what_left_the_group() {
+async fn a_tree_kill_takes_what_left_the_group() {
     // set -m puts each background job in a group of its own, as a dev server that called setsid would be.
-    let mut p = start("sleep 60 & echo $!; set -m; sleep 60 & echo $!; wait");
-    let (same, own) = (p.line().await.parse::<u32>().unwrap(), p.line().await.parse::<u32>().unwrap());
-    let t = table().unwrap();
-    assert_ne!(t.one(own).unwrap().pgid, p.pid());
-
-    let reply = kill_processes(t.as_ref(), ask(p.pid(), KillMode::Group), &Guard::default(), SHORT).await.unwrap();
-    assert_eq!(sorted(reply.signalled), sorted(vec![p.pid(), same]));
-    assert_eq!((reply.forced, reply.left), (vec![], vec![]));
-    assert_eq!(p.signal().await, Some(15));
-    assert!(!running(same));
-    assert!(running(own), "a process in another group is no member of this one");
-
     let mut q = start("set -m; sleep 60 & echo $!; sleep 60 & echo $!; wait");
     let kids = [q.line().await.parse::<u32>().unwrap(), q.line().await.parse::<u32>().unwrap()];
+    let t = table().unwrap();
     let reply = kill_processes(t.as_ref(), ask(q.pid(), KillMode::Tree), &Guard::default(), SHORT).await.unwrap();
     assert_eq!(sorted(reply.signalled), sorted(vec![q.pid(), kids[0], kids[1]]));
+    assert_eq!((reply.forced, reply.left), (vec![], vec![]));
     assert_eq!(q.signal().await, Some(15));
     assert!(kids.iter().all(|k| !running(*k)));
-    nix::sys::signal::kill(Pid::from_raw(own as i32), Signal::SIGKILL).unwrap();
+}
+
+/// The platform's table, counting its whole reads.
+struct Counting {
+    t: Box<dyn Table>,
+    all: std::sync::atomic::AtomicUsize,
+}
+
+impl Table for Counting {
+    fn one(&self, pid: u32) -> Option<Seen> {
+        self.t.one(pid)
+    }
+    fn all(&self) -> Vec<Seen> {
+        self.all.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.t.all()
+    }
+    fn signal(&self, seen: &Seen, signal: Signal) -> nix::Result<()> {
+        self.t.signal(seen, signal)
+    }
+    fn arg0(&self, pid: u32) -> Option<String> {
+        self.t.arg0(pid)
+    }
+    fn cgroup(&self, pid: u32) -> Option<String> {
+        self.t.cgroup(pid)
+    }
+}
+
+#[tokio::test]
+async fn a_tree_kill_reads_the_whole_table_once_to_list_it_and_once_when_the_grace_is_up_never_each_poll() {
+    // TERM is ignored by the script and by what it starts, so the grace runs out and every poll finds them there.
+    let mut p = start("trap '' TERM; sleep 60 & echo $!; while :; do sleep 0.05; done");
+    let kid = p.line().await.parse::<u32>().unwrap();
+    let t = Counting { t: table().unwrap(), all: Default::default() };
+    let reply = kill_processes(&t, ask(p.pid(), KillMode::Tree), &Guard::default(), SHORT).await.unwrap();
+    assert_eq!(t.all.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert!(reply.forced.contains(&p.pid()) && reply.forced.contains(&kid), "{reply:?}");
+    assert_eq!(p.signal().await, Some(9));
+    assert!(!running(kid));
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn argv0_is_read_no_further_than_a_path_can_run() {
+    let mut p = start(&format!("echo ready; exec -a {} sleep 60", "x".repeat(6000)));
+    p.line().await;
+    let t = ProcTable::new().unwrap();
+    let mut arg0 = String::new();
+    for _ in 0..100 {
+        arg0 = t.arg0(p.pid()).unwrap_or_default();
+        if arg0.starts_with('x') {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!((arg0.len(), arg0.bytes().all(|b| b == b'x')), (4096, true));
 }
 
 #[tokio::test]
@@ -166,7 +210,7 @@ async fn init_the_daemon_its_parent_and_the_hosts_pids_are_refused_in_every_mode
     let kid = p.line().await.parse::<u32>().unwrap();
     let t = table().unwrap();
     let guard = Guard { this: 5000, parent: 4000, protect: HashSet::from([kid]), ..Guard::default() };
-    for (pid, mode) in [(kid, KillMode::Pid), (p.pid(), KillMode::Group), (p.pid(), KillMode::Tree)] {
+    for (pid, mode) in [(kid, KillMode::Pid), (p.pid(), KillMode::Tree)] {
         let err = kill_processes(t.as_ref(), ask(pid, mode), &guard, SHORT).await.unwrap_err();
         assert_eq!(err.code, Some(DaemonErrorCode::Forbidden), "{mode:?}");
         assert!(err.message.ends_with("it is part of wsp or the system"), "{}", err.message);
@@ -203,8 +247,6 @@ async fn a_tree_holding_a_turns_root_is_refused_with_the_root_named_while_what_s
         assert_eq!(err.code, Some(DaemonErrorCode::Forbidden));
         assert!(err.message.ends_with("it is a thread's agent; stop the thread instead"), "{}", err.message);
     }
-    let err = kill_processes(t.as_ref(), ask(tool, KillMode::Group), &guard, SHORT).await.unwrap_err();
-    assert!(err.message.contains(&format!("pid {}, which its process group takes with pid {tool}: it", root.pid())), "{}", err.message);
     assert!(running(root.pid()) && running(tool));
 
     let reply = kill_processes(t.as_ref(), ask(server, KillMode::Tree), &guard, SHORT).await.unwrap();
@@ -231,7 +273,7 @@ async fn everything_under_the_apps_main_process_is_refused_short_of_what_stands_
     }
     let t = table().unwrap();
     let guard = Guard { parent: said["host"], apps: HashSet::from([app.pid()]), ..Guard::default() };
-    for (pid, mode) in [(said["helper"], KillMode::Pid), (app.pid(), KillMode::Pid), (said["helper"], KillMode::Group)] {
+    for (pid, mode) in [(said["helper"], KillMode::Pid), (app.pid(), KillMode::Pid), (said["helper"], KillMode::Tree)] {
         let err = kill_processes(t.as_ref(), ask(pid, mode), &guard, SHORT).await.unwrap_err();
         assert_eq!(err.code, Some(DaemonErrorCode::Forbidden), "{pid} {mode:?}");
         assert!(err.message.ends_with("it is part of wsp or the system"), "{}", err.message);
@@ -400,7 +442,7 @@ fn row(pid: u32, ppid: u32) -> Seen {
 }
 
 fn named(pid: u32, ppid: u32, comm: &str) -> Seen {
-    Seen { pid, ppid, pgid: pid, started_at: 0, zombie: false, comm: comm.to_owned(), id: u64::from(pid), version: 0 }
+    Seen { pid, ppid, started_at: 0, zombie: false, comm: comm.to_owned(), id: u64::from(pid), version: 0 }
 }
 
 #[tokio::test]
@@ -461,6 +503,41 @@ fn a_run_folder_names_the_root_and_agent_of_each_run_still_held_and_nothing_a_li
     pids.sort_unstable();
     assert_eq!(pids, vec![4100, 4103, 4400]);
     assert!(recorded_runs(&at("none")).is_empty());
+}
+
+/// What `f` answers, or a panic naming the wait where it does not answer within two seconds: a read that blocks
+/// would hold the test, and the daemon's one runtime thread with it, forever.
+pub(crate) fn within<T: Send + 'static>(what: &str, f: impl FnOnce() -> T + Send + 'static) -> T {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    rx.recv_timeout(Duration::from_secs(2)).unwrap_or_else(|_| panic!("{what} did not answer in 2 s"))
+}
+
+#[test]
+fn a_fifo_or_a_file_past_the_cap_in_a_run_folder_names_nothing_and_never_holds_the_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let at = |name: &str| dir.path().join(name);
+    let fifo = |name: &str| nix::unistd::mkfifo(&at(name), nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap();
+    std::fs::create_dir(at("aaaaaaaaaaaa.d")).unwrap();
+    fifo("aaaaaaaaaaaa.pid");
+    fifo("aaaaaaaaaaaa.agent");
+    std::fs::create_dir(at("bbbbbbbbbbbb.d")).unwrap();
+    std::fs::write(at("bbbbbbbbbbbb.pid"), "4200\n").unwrap();
+    std::fs::write(at("bbbbbbbbbbbb.agent"), format!("{}4203\n", " ".repeat(64))).unwrap();
+    // A fifo where the exit code goes holds nothing: the run is ended.
+    std::fs::create_dir(at("cccccccccccc.d")).unwrap();
+    std::fs::write(at("cccccccccccc.pid"), "4300\n").unwrap();
+    std::fs::write(at("cccccccccccc.agent"), "4303\n").unwrap();
+    fifo("cccccccccccc.exit");
+    let path = dir.path().to_path_buf();
+    let pids = within("a run folder holding fifos", move || recorded_runs(&path));
+    assert_eq!(pids, vec![4200]);
+    // The run folder itself a link names nothing.
+    let linked = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink(dir.path(), linked.path().join("run")).unwrap();
+    assert!(recorded_runs(&linked.path().join("run")).is_empty());
 }
 
 #[tokio::test]

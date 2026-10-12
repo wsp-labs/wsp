@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! proc.kill: what a kill takes, what it never touches, and TERM then KILL. The targets are the pid alone, the members
-//! of its process group (a one-process tool: a group TERM took 6 of 16 of a thread's processes on a Mac, so no
-//! thread's end goes by one), or the pid and everything under it, each read once with what makes it that process and
-//! not another, and signalled through it: a Mac's audit token, whose pid version the kernel matches at the signal, or a
-//! Linux pidfd, whose start is checked once it is open. A pid that holds another process by then is never signalled.
-//! Before any signal the pid must still be the process the row was read from, by its identity and its start time, and
-//! no target may be init, a kernel thread, the daemon, the daemon's parent, a pid the host names as its own or the
-//! app's, or a thread's agent: the turn's root, the agent its run recorded and every process between, since a signal
-//! there reads as a failed turn and an agent is ended by stopping its thread. On a box whose daemon is root, a target
-//! must also stand in a thread's cgroup or under the daemon, so a page never ends the box's own services. TERM goes
-//! first; whatever is still there after KILL_GRACE_MS gets KILL, and the reply names what stayed.
+//! proc.kill: what a kill takes, what it never touches, and TERM then KILL. The targets are the pid alone or the pid
+//! and everything under it, never a process group (a group TERM took 6 of 16 of a thread's processes on a Mac), each
+//! read once with what makes it that process and not another, and signalled through it: a Mac's audit token, whose pid
+//! version the kernel matches at the signal, or a Linux pidfd, whose start is checked once it is open. A pid that holds
+//! another process by then is never signalled. Before any signal the pid must still be the process the row was read
+//! from, by its identity and its start time, and no target may be init, a kernel thread, the daemon, the daemon's
+//! parent, a pid the host names as its own or the app's, or a thread's agent: the turn's root, the agent its run
+//! recorded and every process between, since a signal there reads as a failed turn and an agent is ended by stopping
+//! its thread. On a box whose daemon is root, a target must also stand in a thread's cgroup or under the daemon, so a
+//! page never ends the box's own services. TERM goes first; whatever is still there after KILL_GRACE_MS gets KILL, and
+//! the reply names what stayed.
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -31,7 +31,6 @@ const AFTER_KILL_MS: u64 = 500;
 pub(crate) struct Seen {
     pub(crate) pid: u32,
     pub(crate) ppid: u32,
-    pub(crate) pgid: u32,
     pub(crate) started_at: i64,
     pub(crate) zombie: bool,
     pub(crate) comm: String,
@@ -239,7 +238,6 @@ fn forbidden(ask: Ask, target: u32, why: &str) -> OpError {
 fn mode_word(mode: KillMode) -> &'static str {
     match mode {
         KillMode::Pid => "the kill",
-        KillMode::Group => "its process group",
         KillMode::Tree => "the kill of everything under it",
     }
 }
@@ -252,7 +250,6 @@ fn alive(s: &Seen) -> bool {
 fn targets(table: &[Seen], root: &Seen, mode: KillMode) -> Vec<Seen> {
     match mode {
         KillMode::Pid => vec![root.clone()],
-        KillMode::Group => table.iter().filter(|s| s.pgid == root.pgid && alive(s)).cloned().collect(),
         KillMode::Tree => with_descendants(table, vec![root.clone()]),
     }
 }
@@ -289,6 +286,10 @@ pub(crate) trait Table: Send + Sync {
     fn cgroup(&self, pid: u32) -> Option<String>;
 }
 
+/// The most of a cmdline read for its argv[0], a path no longer than PATH_MAX.
+#[cfg(target_os = "linux")]
+const ARG0_BYTES: u64 = 4096;
+
 /// /proc, read as the processes pane reads it; the start time off the same boot clock the pane's rows carry.
 #[cfg(target_os = "linux")]
 pub(crate) struct ProcTable {
@@ -310,7 +311,6 @@ impl Table for ProcTable {
         Some(Seen {
             pid: st.pid,
             ppid: st.ppid,
-            pgid: st.pgrp,
             started_at: crate::proc::started_ms(self.btime, st.starttime),
             zombie: st.state == "Z" || st.state == "X",
             comm: st.comm,
@@ -352,7 +352,9 @@ impl Table for ProcTable {
     }
 
     fn arg0(&self, pid: u32) -> Option<String> {
-        let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+        use std::io::Read;
+        let mut cmdline = Vec::new();
+        std::fs::File::open(format!("/proc/{pid}/cmdline")).ok()?.take(ARG0_BYTES).read_to_end(&mut cmdline).ok()?;
         let first = cmdline.split(|b| *b == 0).next().filter(|a| !a.is_empty())?;
         Some(String::from_utf8_lossy(first).into_owned())
     }
@@ -381,7 +383,6 @@ impl Table for ProcTable {
         Some(Seen {
             pid: id.pid,
             ppid: id.ppid,
-            pgid: id.pgid,
             started_at: id.started_ms,
             zombie: id.state == 'Z',
             comm: id.comm,
@@ -458,7 +459,7 @@ pub(crate) async fn kill_processes(t: &dyn Table, ask: Ask, guard: &Guard, grace
         ask.mode == KillMode::Pid && guard.apps.is_empty() && guard.agents.is_empty() && guard.agent_bins.is_empty() && !guard.boxed;
     let table = if alone { vec![root.clone()] } else { t.all() };
     let taken = targets(&table, &root, ask.mode);
-    // A group or a tree holding an agent is refused whole, the agent named, even where the agent is not the pid asked for.
+    // A tree holding an agent is refused whole, the agent named, even where the agent is not the pid asked for.
     guard.check(t, &table, ask, &taken)?;
     let first = match ask.signal {
         ProcSignal::Term => Signal::SIGTERM,
@@ -466,17 +467,22 @@ pub(crate) async fn kill_processes(t: &dyn Table, ask: Ask, guard: &Guard, grace
     };
     send(t, ask, &taken, first)?;
     let mut forced = Vec::new();
-    let mut here = still_here(t, &taken, &root, ask.mode);
+    let mut here = still_here(t, &taken);
     if first == Signal::SIGTERM && !here.is_empty() {
-        here = wait_for(t, &taken, &root, ask.mode, grace).await;
+        here = wait_for(t, &taken, grace).await;
         if !here.is_empty() {
-            // A process that joined the group or the tree during the grace is taken too, behind the same guard.
-            guard.check(t, &t.all(), ask, &here)?;
+            // One reading of the whole table: what a tree's live processes started during the grace is taken too,
+            // behind the same guard.
+            let table = t.all();
+            if ask.mode == KillMode::Tree {
+                here = with_descendants(&table, here);
+            }
+            guard.check(t, &table, ask, &here)?;
             send(t, ask, &here, Signal::SIGKILL)?;
             forced = pids(&here);
         }
     }
-    let left = if here.is_empty() { here } else { wait_for(t, &taken, &root, ask.mode, Duration::from_millis(AFTER_KILL_MS)).await };
+    let left = if here.is_empty() { here } else { wait_for(t, &here, Duration::from_millis(AFTER_KILL_MS)).await };
     Ok(ProcKillReply { signalled: pids(&taken), forced, left: pids(&left) })
 }
 
@@ -502,24 +508,16 @@ fn signal_result(pid: u32, sent: nix::Result<()>) -> Result<(), OpError> {
     }
 }
 
-/// The targets still there: each one signalled that is the same process and not a zombie, and in a group or a tree
-/// what has joined it since.
-fn still_here(t: &dyn Table, signalled: &[Seen], root: &Seen, mode: KillMode) -> Vec<Seen> {
-    match mode {
-        KillMode::Pid => signalled.iter().filter_map(|s| t.one(s.pid).filter(|now| now.same(s) && alive(now))).collect(),
-        KillMode::Group => t.all().into_iter().filter(|s| s.pgid == root.pgid && alive(s)).collect(),
-        KillMode::Tree => {
-            let table = t.all();
-            let here = table.iter().filter(|now| alive(now) && signalled.iter().any(|s| now.same(s))).cloned().collect();
-            with_descendants(&table, here)
-        }
-    }
+/// The signalled processes still there: each the same process and not a zombie, read by its own pid alone, since
+/// the daemon runs every op on one thread and a whole table each poll would hold them all.
+fn still_here(t: &dyn Table, signalled: &[Seen]) -> Vec<Seen> {
+    signalled.iter().filter_map(|s| t.one(s.pid).filter(|now| now.same(s) && alive(now))).collect()
 }
 
-async fn wait_for(t: &dyn Table, signalled: &[Seen], root: &Seen, mode: KillMode, span: Duration) -> Vec<Seen> {
+async fn wait_for(t: &dyn Table, signalled: &[Seen], span: Duration) -> Vec<Seen> {
     let until = tokio::time::Instant::now() + span;
     loop {
-        let here = still_here(t, signalled, root, mode);
+        let here = still_here(t, signalled);
         if here.is_empty() || tokio::time::Instant::now() >= until {
             return here;
         }
@@ -543,31 +541,35 @@ const PID_FILE_BYTES: u64 = 32;
 /// The pids the turns this computer runs for a host recorded in its run folder: for each run still held (its claim
 /// folder there and no exit code yet), the run's root (`<run>.pid`) and the agent agentWord started (`<run>.agent`).
 /// A turn the host launched here through its machine road carries no pid the host knows, so this computer's daemon
-/// reads them itself. The folder is the login's; a file that is a link, or holds no pid, names nothing.
+/// reads them itself. The folder is the login's and the daemon may be root: it is held open with no link followed,
+/// each name is looked at beneath it, and a pid file is read through `beneath::file()`, so a link, a fifo or a file
+/// past the cap names nothing and nothing waits on a writer.
 pub(crate) fn recorded_runs(dir: &std::path::Path) -> Vec<u32> {
-    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
-    let held = |id: &str| dir.join(format!("{id}.d")).is_dir() && !dir.join(format!("{id}.exit")).exists();
-    entries
-        .flatten()
-        .filter_map(|e| e.file_name().to_str()?.strip_suffix(".agent").map(str::to_owned))
-        .filter(|id| held(id))
-        .flat_map(|id| [read_pid(&dir.join(format!("{id}.pid"))), read_pid(&dir.join(format!("{id}.agent")))])
+    use nix::fcntl::AtFlags;
+    use nix::sys::stat::{fstatat, Mode, SFlag};
+    let Ok(held) = nix::fcntl::open(dir, crate::beneath::dir_flags(), Mode::empty()) else { return Vec::new() };
+    let Ok(listed) = held.try_clone().map_err(|_| ()).and_then(|fd| nix::dir::Dir::from_fd(fd).map_err(|_| ())) else {
+        return Vec::new();
+    };
+    let names: Vec<String> =
+        listed.into_iter().filter_map(Result::ok).filter_map(|e| e.file_name().to_str().ok().map(str::to_owned)).collect();
+    let kind = |name: &str| {
+        fstatat(&held, name, AtFlags::AT_SYMLINK_NOFOLLOW).ok().map(|m| SFlag::from_bits_truncate(m.st_mode & SFlag::S_IFMT.bits()))
+    };
+    let held_run = |id: &str| kind(&format!("{id}.d")) == Some(SFlag::S_IFDIR) && kind(&format!("{id}.exit")).is_none();
+    names
+        .iter()
+        .filter_map(|name| name.strip_suffix(".agent"))
+        .filter(|id| held_run(id))
+        .flat_map(|id| [read_pid(&held, &format!("{id}.pid")), read_pid(&held, &format!("{id}.agent"))])
         .flatten()
         .collect()
 }
 
-fn read_pid(path: &std::path::Path) -> Option<u32> {
+fn read_pid(held: &std::os::fd::OwnedFd, name: &str) -> Option<u32> {
     use std::io::Read;
-    use std::os::unix::fs::OpenOptionsExt;
     let mut text = String::new();
-    std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(path)
-        .ok()?
-        .take(PID_FILE_BYTES)
-        .read_to_string(&mut text)
-        .ok()?;
+    crate::beneath::file(held, name).ok()??.take(PID_FILE_BYTES).read_to_string(&mut text).ok()?;
     text.trim().parse::<u32>().ok().filter(|pid| *pid > 1)
 }
 
@@ -587,4 +589,4 @@ pub(crate) async fn proc_kill(kind: &str, pid: u32, frame: Frame, runs: Option<&
 
 #[cfg(test)]
 #[path = "../tests/kill/mod.rs"]
-mod tests;
+pub(crate) mod tests;

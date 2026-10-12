@@ -20,6 +20,13 @@ import type { GitPrCheckoutReply as WireGitPrCheckoutReply } from "../generated/
 import type { GitPrDiffReply as WireGitPrDiffReply } from "../generated/GitPrDiffReply.js";
 import type { GitPrReviewReply as WireGitPrReviewReply } from "../generated/GitPrReviewReply.js";
 import type { GitPrViewReply as WireGitPrViewReply } from "../generated/GitPrViewReply.js";
+import type { CgroupMemory as WireCgroupMemory } from "../generated/CgroupMemory.js";
+import type { KillMode as WireKillMode } from "../generated/KillMode.js";
+import type { ProcKillReply as WireProcKillReply } from "../generated/ProcKillReply.js";
+import type { ProcKind as WireProcKind } from "../generated/ProcKind.js";
+import type { ProcListReply as WireProcListReply } from "../generated/ProcListReply.js";
+import type { ProcOwnedBy as WireProcOwnedBy } from "../generated/ProcOwnedBy.js";
+import type { ProcSignal as WireProcSignal } from "../generated/ProcSignal.js";
 import type { GitPrReplyReply as WireGitPrReplyReply } from "../generated/GitPrReplyReply.js";
 import type { GitPrResolveReply as WireGitPrResolveReply } from "../generated/GitPrResolveReply.js";
 import type { GitPrReactReply as WireGitPrReactReply } from "../generated/GitPrReactReply.js";
@@ -279,16 +286,19 @@ export type PtyListReply = z.infer<typeof PtyListReply>;
 
 export const ProcSignal = z.enum(["TERM", "KILL"]);
 export type ProcSignal = z.infer<typeof ProcSignal>;
-/** What proc.kill signals: the pid alone, every process in its group, or the pid and every process under it. The
- * group is a one-process tool; a thread spans many groups, so no thread's end goes by one. */
-export const KillMode = z.enum(["pid", "group", "tree"]);
+type ProcSignalHeld = Held<Same<ProcSignal, WireProcSignal>>;
+/** What proc.kill signals: the pid alone, or the pid and every process under it. Never a process group: a thread spans
+ * many, and a group TERM took processes of other threads. */
+export const KillMode = z.enum(["pid", "tree"]);
 export type KillMode = z.infer<typeof KillMode>;
+type KillModeHeld = Held<Same<KillMode, WireKillMode>>;
 
 /** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. The daemon stamps
  * agent, slate and tool, the three it knows by fact; the page names the rest. */
 export const PROC_KINDS = ["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"] as const;
 export const ProcKind = z.enum(PROC_KINDS);
 export type ProcKind = z.infer<typeof ProcKind>;
+type ProcKindHeld = Held<Same<ProcKind, WireProcKind>>;
 
 /** The rung of the daemon's ladder that named the owner, first match wins: the thread's own process or a parent of
  * it (`root`), a process a Mac's fork tracker followed from one of those (`fork`), a group seen under the thread
@@ -297,6 +307,7 @@ export type ProcKind = z.infer<typeof ProcKind>;
  * no thread). */
 export const ProcOwnedBy = z.enum(["root", "fork", "group", "env", "cgroup", "folder", "coalition"]);
 export type ProcOwnedBy = z.infer<typeof ProcOwnedBy>;
+type ProcOwnedByHeld = Held<Same<ProcOwnedBy, WireProcOwnedBy>>;
 
 /** The owner a row carries; `warm` says the thread is a warm agent's, started ahead of a send, and no thread has
  * that id until a send claims it. */
@@ -384,14 +395,23 @@ export const ProcInspectReply = z.object({
 });
 export type ProcInspectReply = z.infer<typeof ProcInspectReply>;
 
-/** proc.list's answer: the rows read at `at`, every process up to the cap, and how many the machine had. */
+/** One thread cgroup's memory on a box: its memory.stat anon and kernel bytes, which count what the thread's processes
+ * hold once however many of them share it, and leave out the page cache they read. */
+export const CgroupMemory = z.object({ cgroup: z.string(), memory: z.number().int().nonnegative() });
+export type CgroupMemory = z.infer<typeof CgroupMemory>;
+type CgroupMemoryHeld = Held<Same<CgroupMemory, WireCgroupMemory>>;
+
+/** proc.list's answer: the rows read at `at`, every process up to the cap, how many the machine had, and on a box each
+ * thread cgroup's memory. */
 export const ProcListReply = z.object({
   at: z.number(),
   daemon: z.number().int(),
   total: z.number().int(),
   procs: z.array(ProcEntry),
+  cgroups: z.array(CgroupMemory).optional(),
 });
 export type ProcListReply = z.infer<typeof ProcListReply>;
+type ProcListReplyHeld = Held<Same<ProcListReply, WireProcListReply>>;
 /** What a proc.kill did: every pid it signalled, those KILL was sent to once TERM's grace was up, and those still
  * there after it. Absent fields are a daemon that signals one pid and answers nothing more. */
 export const ProcKillReply = z.object({
@@ -400,6 +420,8 @@ export const ProcKillReply = z.object({
   left: z.array(z.number().int()).optional(),
 });
 export type ProcKillReply = z.infer<typeof ProcKillReply>;
+/** Every field a daemon of this version answers; the schema keeps each optional for the one before. */
+type ProcKillReplyHeld = Held<Same<Required<ProcKillReply>, WireProcKillReply>>;
 
 /** How much of a command's output one exec op carries back, stdout and stderr together. Past it the reply says
  * truncated and the rest is dropped: the road is a WebSocket frame and a turn that cats a log would otherwise put

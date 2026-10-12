@@ -18,8 +18,8 @@ use wsp_frames::{
     GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply, GitStartOnReply,
     GitUpdateReply, GitWorktreesReply, GuestCliMessage, GuestOpenReply, HostFolderListing, MachineAnswersReply, MachineExecReply,
     MachineHandleReply, MachineLinkRequest, MachineListReply, MachineReachReply, MachineReadingReply, MachineShapeReply, MachineStateReply,
-    PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, SshStartReply, SysHistoryReply, TranscriptsListReply, TranscriptsReadReply,
-    UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
+    PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, ProcKillReply, ProcListReply, SshStartReply, SysHistoryReply, TranscriptsListReply,
+    TranscriptsReadReply, UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
 };
 
 fn fixtures() -> PathBuf {
@@ -313,6 +313,14 @@ fn every_reply_fixture_round_trips_through_the_reply_types() {
                 "SysHistoryReply" => {
                     round_trip::<SysHistoryReply>(&sample, &at);
                 }
+                "ProcListReply" => {
+                    round_trip::<ProcListReply>(&sample, &at);
+                }
+                // A daemon a version behind answers a kill with nothing; the host reads that, this daemon never writes it.
+                "ProcKillReply" if sample == serde_json::json!({}) => {}
+                "ProcKillReply" => {
+                    round_trip::<ProcKillReply>(&sample, &at);
+                }
                 "UsageLogsReply" => {
                     round_trip::<UsageLogsReply>(&sample, &at);
                 }
@@ -376,6 +384,8 @@ fn every_reply_fixture_round_trips_through_the_reply_types() {
         "MachineStateReply",
         "SshStartReply",
         "SysHistoryReply",
+        "ProcKillReply",
+        "ProcListReply",
         "TranscriptsListReply",
         "TranscriptsReadReply",
         "UsageLogsReply",

@@ -16,7 +16,7 @@
     "op": "proc.kill",
     "pid": 50,
     "signal": "TERM",
-    "mode": "group",
+    "mode": "tree",
     "startedAt": 1760140800000,
     "identity": "675177110",
     "protect": [
