@@ -116,12 +116,13 @@ export function useSettingsContext(): SettingsContext {
   };
 }
 
-/** The page Settings is on: a remembered page whose noun is gone falls back to its group. The Add a computer door
- * is a move, not an override: it writes Computers as the page, so the computer it adds is on the list the person is
- * left on. */
+/** The page Settings is on: a remembered page whose noun is gone falls back to its group, but for the computer a
+ * remove is still saying something about. The Add a computer door is a move, not an override: it writes Computers as
+ * the page, so the computer it adds is on the list the person is left on. */
 export function useSettingsAt(): SettingsAt {
   const stored = useSettingsStore(s => s.at);
+  const parting = useSettingsStore(s => s.parting);
   const places = useStore(s => s.places);
   const projects = useStore(s => s.projects);
-  return resolveAt(stored, places, projects);
+  return stored.kind === "computer" && stored.id === parting ? stored : resolveAt(stored, places, projects);
 }
