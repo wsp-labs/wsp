@@ -2,7 +2,7 @@
 // A refused frame carries the fix apart from what happened, and the host that serves the runtime keeps one line of
 // every refusal it sent: a refusal the page drops is still somewhere a person can read it.
 import { afterEach, describe, expect, it } from "vitest";
-import { refusal, refusalLine } from "@wsp/protocol";
+import { PROCESSES_LEFT_KIND, processesLeftRefusal, refusal, refusalLine, type ActivityThread } from "@wsp/protocol";
 import { createRuntime, type InitDoor } from "../src/runtime.js";
 import { serveRuntime, type RuntimeServer } from "../src/serve.js";
 import { memoryStore } from "../src/store.js";
@@ -44,6 +44,17 @@ describe("a refused frame", () => {
     const got = await client.request("init.keys", { provider: "box", key: KEY });
     expect(got).toMatchObject({ ok: false, kind: "auth", fix: "Check it and paste it again." });
     expect(got["error"]).toBe(refusalLine(`Box refused ${KEY}\nits answer was 401`, "Check it and paste it again."));
+    client.close();
+  });
+
+  it("over processes a thread still runs carries them, so the app asks about each without a second read", async () => {
+    const left: ActivityThread[] = [{ threadId: "t-1", title: "fix login", workspaceId: "ws-1", memory: 100, cpu: 0, processes: [{ pid: 4200, ppid: 1, depth: 0, startedAt: 1, kind: "dev", name: "vite", command: "node vite", memory: 100, cpu: 0, ports: [5173] }] }];
+    const runtime = rt();
+    runtime.sessions.settle = () => Promise.reject(processesLeftRefusal("settle", left));
+    srv = await serveRuntime(runtime, { port: 0, authToken: "host-token" });
+    const client = await WsClient.connect(srv.port, { token: "host-token" });
+    const got = await client.request("sessions.settle", { threadIds: ["t-1"], processes: "ask" });
+    expect(got).toMatchObject({ ok: false, kind: PROCESSES_LEFT_KIND, left });
     client.close();
   });
 

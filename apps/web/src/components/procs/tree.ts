@@ -4,7 +4,7 @@
 // shown under its parents, so a row whose command is twenty characters of the
 // same flags is still told apart by what started it.
 import { CATALOG_AGENTS } from "@wsp/catalog";
-import { appProcLine, byProcColumn, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
+import { appProcLine, byProcColumn, RUN_SCRIPT, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
 
 export type { ProcSort };
 
@@ -104,9 +104,6 @@ export function agentRows(procs: readonly ProcEntry[], threads: readonly ProcThr
   }
   return rows;
 }
-
-/** A turn's run script as either road starts it: `bash <run folder>/<12 hex>.sh`. */
-const RUN_SCRIPT = /^bash \S*\/[0-9a-f]{12}\.sh$/;
 
 /** Every process from a turn's run script down to the first process under it run as an agent's binary, whatever
  * thread it is: on a computer whose turns stand in no cgroup a row there cannot be tied to its thread, and a signal

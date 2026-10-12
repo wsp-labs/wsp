@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ActivityEnded, ActivityView, EXIT_CODES, END_AGAIN_FIX, HERE_PLACE_ID, VerbFailure, agentEndFix, agentEndLine, endReusedLine, NOT_STARTED_FIX, notStartedLine, processesLeft, processesLeftFix, processesLeftLine, refusalLine } from "@wsp/protocol";
+import { ActivityEnded, ActivityView, EXIT_CODES, END_AGAIN_FIX, HERE_PLACE_ID, PROCESSES_LEFT_KIND, VerbFailure, agentEndFix, agentEndLine, endReusedLine, NOT_STARTED_FIX, notStartedLine, processesLeft, processesLeftFix, processesLeftLine, processesLeftOf, refusalLine } from "@wsp/protocol";
 import { projectOn } from "./verbs-fixture.js";
 import { FAKE_DAEMON_PID, procRow } from "./fake-procs.js";
 import { verbsHost } from "./verbs-host.js";
@@ -195,6 +195,45 @@ describe("activity on the command line", () => {
     expect(kept.code, kept.io.errors.join("\n")).toBe(0);
     expect(h.daemon.procs.signals).toEqual([]);
     expect(h.daemon.procs.procs.map(p => p.pid)).toContain(4200);
+  });
+
+  it("a thread beside it in the same folder keeps its own processes: the refusal carries none of them, and neither stop nor keep touches them", async () => {
+    const { threadId } = await threadWithServer();
+    const ran = await h.run("run", "lab", "start the docs server", "--json");
+    expect(ran.code, ran.io.errors.join("\n")).toBe(0);
+    const beside = (h.json(ran.io).at(-1) as { threadId: string }).threadId;
+    expect(beside).not.toBe(threadId);
+    const theirs = { by: "fork" as const, thread: beside };
+    h.daemon.procs.procs.push(
+      procRow({ pid: 4600, comm: "node", cmdline: "node /lab/node_modules/.bin/vite --port 5174", rss: 90_000_000, kind: "dev", owner: theirs, startedAt: STARTED + 3_000 }),
+      procRow({ pid: 4650, ppid: 4600, comm: "esbuild", cmdline: "/lab/node_modules/esbuild/bin/esbuild --service", rss: 20_000_000, owner: theirs, startedAt: STARTED + 4_000 }),
+    );
+    h.daemon.procs.ports.push({ port: 5174, pid: 4600 });
+
+    // What the app reads off the refusal: this thread's tree alone, with its port and memory.
+    const refused = await h.rt.sessions.settle([threadId], undefined, { processes: "ask" }).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(refused).toMatchObject({ kind: PROCESSES_LEFT_KIND });
+    const left = processesLeftOf(refused).left!;
+    expect(left.map(t => t.threadId)).toEqual([threadId]);
+    expect(left[0]!.processes.map(p => ({ pid: p.pid, ports: p.ports, memory: p.memory }))).toEqual([
+      { pid: 4200, ports: [5173], memory: 80_000_000 },
+      { pid: 4300, ports: [], memory: 20_000_000 },
+    ]);
+    expect(failure((await h.run("thread", "settle", threadId, "--json")).io).error).not.toContain("4600");
+
+    const stopped = await h.run("thread", "settle", threadId, "--processes", "stop", "--json");
+    expect(stopped.code, stopped.io.errors.join("\n")).toBe(0);
+    expect(h.daemon.procs.signals.map(s => s.pid)).toEqual([4200, 4300]);
+    expect(h.daemon.procs.procs.map(p => p.pid)).toEqual(expect.arrayContaining([4600, 4650]));
+
+    const kept = await h.run("thread", "settle", beside, "--processes", "keep", "--json");
+    expect(kept.code, kept.io.errors.join("\n")).toBe(0);
+    expect(h.json(kept.io).at(-1)).toMatchObject({ settled: [{ threadId: beside }], left: [] });
+    expect(h.daemon.procs.signals.map(s => s.pid)).toEqual([4200, 4300]);
+    expect(h.daemon.procs.procs.map(p => p.pid)).toEqual(expect.arrayContaining([4600, 4650]));
   });
 
   it("settle on a daemon with no list waits for the watch's snapshot instead, and still refuses", async () => {

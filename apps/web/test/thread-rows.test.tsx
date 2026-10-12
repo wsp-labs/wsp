@@ -391,7 +391,7 @@ describe("the Threads section's head", () => {
     const settle = head().querySelector<HTMLButtonElement>("[data-settle-finished]")!;
     expect(settle.textContent).toBe("Settle 3 finished");
     await act(async () => fireEvent.click(settle));
-    expect(settleThreads).toHaveBeenCalledWith(["a", "b"]);
+    expect(settleThreads).toHaveBeenCalledWith(["a", "b"], "ask");
     const notice = await waitFor(() => useNotices.getState().notices.find(n => n.text === "Settled 3 threads")!);
     expect(notice.action?.word).toBe("Undo");
     notice.action!.run();

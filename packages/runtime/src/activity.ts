@@ -30,6 +30,8 @@ import {
   usageRefusal,
   type ActivityEnded,
   type ActivityProc,
+  type ActivityThread,
+  type LeftThread,
   type ActivityRead,
   type ActivityScope,
   type ActivityView,
@@ -38,9 +40,12 @@ import {
   type ProcEntry,
   processesLeft,
   processesLeftRefusal,
+  threadCgroup,
   unknownOpLine,
 } from "@wsp/protocol";
 import { DaemonRefusal } from "./types/internal.js";
+import type { LiveWorkspace } from "./types/wiring.js";
+import type { DaemonChannel } from "./daemon-channel.js";
 import type { RuntimeContext } from "./context.js";
 
 /** How long a read waits for the daemon's first snapshot, which comes one sampling interval after the watch. */
@@ -56,8 +61,8 @@ export interface ActivityDoor {
   end(o: { computer?: string; pid: number; startedAt: number }, caller?: Caller): Promise<ActivityEnded>;
   /** Before a settle or a delete takes these threads: ask refuses while one runs a process that outlives its agent,
    * naming each; stop ends each by the pid and start just read, the top of each tree taking what is under it; keep
-   * reads nothing. Only this computer's threads are read, each once, never waiting on the daemon's sampler: a thread on
-   * a box settles as before, its processes ending with its cgroup. */
+   * reads nothing. This computer's threads and a box's are read, each computer once, never waiting on the daemon's sampler:
+   * a box thread's are what stands in its cgroup there, and stop ends that cgroup. A cloud machine's thread is not read. */
   meet(threadIds: readonly string[], processes: ProcessesAsk, verb: "settle" | "delete", caller?: Caller): Promise<ActivityEnded[]>;
 }
 
@@ -78,14 +83,19 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     throw usageRefusal(boxActivityLine(row.name), BOX_ACTIVITY_FIX);
   };
 
+  type Open = (onEvent: (event: Record<string, unknown>) => void) => Promise<DaemonChannel>;
+  const localChannel: Open = async onEvent => {
+    if (ctx.opts.local?.daemonRoad === undefined) throw new Error(NO_DAEMON_HERE);
+    return ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent);
+  };
+
   /** One whole snapshot of this computer's processes and its listeners by pid, on a socket of its own. Once takes the
    * rows at once, with no cpu where no sampler runs, instead of the watch's first snapshot a sampling interval on;
-   * a daemon too old for the list is watched. Without ports the listeners are not read. */
-  const snapshot = async (o: { once?: boolean; ports?: boolean } = {}): Promise<{ snap: ProcSnapshot; ports: Map<number, number[]> }> => {
-    if (ctx.opts.local?.daemonRoad === undefined) throw new Error(NO_DAEMON_HERE);
+   * a daemon too old for the list is watched, unless watch is false. Without ports the listeners are not read. */
+  const snapshot = async (o: { once?: boolean; ports?: boolean; watch?: boolean } = {}, open: Open = localChannel): Promise<{ snap: ProcSnapshot; ports: Map<number, number[]> }> => {
     let take: (snap: ProcSnapshot) => void = () => {};
     const got = new Promise<ProcSnapshot>(resolve => (take = resolve));
-    const channel = await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, event => {
+    const channel = await open(event => {
       if (event["type"] !== "proc.snapshot") return;
       const read = ProcSnapshot.safeParse(event);
       if (read.success) take(read.data);
@@ -104,6 +114,7 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
         });
         if (listed !== undefined) return { snap: { type: "proc.snapshot" as const, ...ProcListReply.parse(listed) }, ports };
       }
+      if (o.watch === false) throw new Error(unknownOpLine("proc.list"));
       await ask({ op: "proc.watch" });
       let timer: ReturnType<typeof setTimeout> | undefined;
       const late = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`${THIS_COMPUTER}'s daemon sent no processes in ${SNAPSHOT_WAIT_MS / 1000} s`)), SNAPSHOT_WAIT_MS)));
@@ -151,6 +162,39 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
 
   /** Whether a caller may read or end what a thread runs: a person any thread's, a thread its own and those under it. */
   const reaches = (threadId: string | undefined, caller: Caller | undefined): boolean => scopeOf(caller) === undefined || (threadId !== undefined && ctx.settlesThread(threadId, caller));
+
+  /** The box a thread runs on, where its processes stand in its cgroup there; a cloud machine's thread has none. */
+  const boxOf = (id: string): { placeId: string; entry: LiveWorkspace } | undefined => {
+    const entry = ctx.live.get(ctx.threadRecords.get(id)?.workspaceId ?? ctx.latestOn(id)?.workspaceId ?? "");
+    const placeId = entry?.record.place;
+    return entry === undefined || isLocalWorkspace(entry.record) || placeId === undefined || ctx.placeDoor?.joined(placeId) !== true ? undefined : { placeId, entry };
+  };
+
+  /** One read of a box's processes by its threads' cgroups, once; nothing while the box is away or its daemon fails the
+   * read, since nothing there can be read or ended then, and a box's fault never holds a settle here. */
+  const boxRead = async (placeId: string, threadIds: readonly string[]): Promise<{ read: ActivityRead; view: ActivityView } | undefined> => {
+    const door = ctx.placeDoor;
+    if (door === undefined || door.link(placeId) === undefined) return undefined;
+    // The box's link is one socket with one process watch its panes share, which closing this channel would not end.
+    const taken = await snapshot({ once: true, watch: false }, async onEvent => door.channel(placeId, onEvent) ?? Promise.reject(new Error(`${door.nameOf(placeId)} is away`))).catch((e: unknown) => {
+      console.warn(`${door.nameOf(placeId)}'s processes were not read for a settle or a delete: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    });
+    if (taken === undefined) return undefined;
+    const { snap, ports } = taken;
+    const scopes = threadIds.map(id => ({ threadId: id, title: ctx.threadFacts(id)?.title ?? threadWord(id), workspaceId: boxOf(id)?.entry.record.id ?? "", roots: [], cgroup: threadCgroup(id) }));
+    const read: ActivityRead = { computer: door.nameOf(placeId), at: snap.at, procs: snap.procs, daemon: snap.daemon, host: 0, scopes, agentBins: CATALOG_AGENTS.map(a => a.bin), ports };
+    return { read, view: activityOf(read) };
+  };
+
+  /** Ends a box thread's cgroup through the end that box already runs, then reads again what is still there, each
+   * process by the start it was listed with. */
+  const endOnBox = async (placeId: string, entry: LiveWorkspace, t: ActivityThread): Promise<ActivityEnded> => {
+    await ctx.moduleOf(entry.record.kind).endThread?.(entry, t.threadId, {});
+    const after = await boxRead(placeId, [t.threadId]).catch(() => undefined);
+    const left = t.processes.filter(p => after === undefined || after.read.procs.some(q => q.pid === p.pid && Math.abs(q.startedAt - p.startedAt) <= SAME_START_MS)).map(p => p.pid);
+    return { pid: t.processes[0]!.pid, ended: t.processes, forced: [], left };
+  };
 
   const elsewhere = (id: string): boolean => {
     const record = ctx.live.get(ctx.threadRecords.get(id)?.workspaceId ?? ctx.latestOn(id)?.workspaceId ?? "")?.record;
@@ -249,18 +293,37 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     },
 
     async meet(threadIds, processes, verb, caller) {
+      if (processes === "keep") return [];
       const local = threadIds.filter(id => !elsewhere(id));
-      if (local.length === 0 || processes === "keep") return [];
-      const { view, read } = await viewOf({ threadIds: local }, caller, true);
-      const left = processesLeft(view, local);
+      const here = local.length === 0 ? undefined : await viewOf({ threadIds: local }, caller, true);
+      const left: LeftThread[] = here === undefined ? [] : processesLeft(here.view, local);
+      const boxes = new Map<string, string[]>();
+      for (const id of threadIds) {
+        const box = boxOf(id);
+        if (box === undefined) continue;
+        if (!reaches(id, caller)) throw notFoundRefusal(`no thread ${threadWord(id)}`);
+        boxes.set(box.placeId, [...(boxes.get(box.placeId) ?? []), id]);
+      }
+      const onBoxes: { placeId: string; t: ActivityThread }[] = [];
+      for (const [placeId, ids] of boxes) {
+        const there = await boxRead(placeId, ids);
+        for (const t of there === undefined ? [] : processesLeft(there.view, ids)) {
+          onBoxes.push({ placeId, t });
+          left.push({ ...t, on: there!.read.computer });
+        }
+      }
       if (left.length === 0) return [];
       if (processes === "ask") throw processesLeftRefusal(verb, left);
       const ended: ActivityEnded[] = [];
-      for (const t of left) {
-        const ending = new Set(t.processes.map(p => p.pid));
-        for (const p of t.processes) if (!ending.has(p.ppid)) ended.push(await endOn(read, { pid: p.pid, startedAt: p.startedAt }, caller));
+      if (here !== undefined) {
+        for (const t of processesLeft(here.view, local)) {
+          const ending = new Set(t.processes.map(p => p.pid));
+          for (const p of t.processes) if (!ending.has(p.ppid)) ended.push(await endOn(here.read, { pid: p.pid, startedAt: p.startedAt }, caller));
+        }
       }
+      for (const { placeId, t } of onBoxes) ended.push(await endOnBox(placeId, boxOf(t.threadId)!.entry, t));
       return ended;
     },
+
   };
 }

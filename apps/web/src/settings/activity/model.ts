@@ -155,7 +155,7 @@ const SLATE_FOLDER = /(^|\/)(wsp-)?slates\/[^/\s]+\//;
 const slateFolderOf = (threadId: string): string => `slates/${threadId}/`;
 
 /** What a process is called: the script a runtime runs, a tool with its subcommand, or the command. */
-export function procName(p: ProcEntry): string {
+export function procName(p: Pick<ProcEntry, "comm" | "cmdline">): string {
   const argv = p.cmdline.split(" ").filter(w => w !== "");
   const bin = (argv[0] ?? p.comm).split("/").at(-1) ?? p.comm;
   const comm = p.comm !== "" ? p.comm : bin;

@@ -679,7 +679,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     name: "delete",
     usage: "wsp delete <thread><!-- cloud -->|<workspace><!-- /cloud --> [--processes stop|keep] [--yes]",
     about:
-      "takes a thread away, its turns and checkpoints with it, and the worktree wsp made for it once no other thread is in it, never the project folder, refused while one on this computer still runs processes unless --processes says to stop or keep them<!-- cloud -->; a workspace goes as before, its machine deleted at the provider and its record and threads dropped from this computer<!-- /cloud -->",
+      "takes a thread away, its turns and checkpoints with it, and the worktree wsp made for it once no other thread is in it, never the project folder, refused while one still runs processes, on this computer or a box, unless --processes says to stop or keep them<!-- cloud -->; a workspace goes as before, its machine deleted at the provider and its record and threads dropped from this computer<!-- /cloud -->",
     page: "front",
     options: { yes: { type: "boolean" }, processes: { type: "string" } },
     cloudFlags: ["workspace"],
@@ -711,7 +711,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.",
+        "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched.<!-- cloud --> Named by workspace, a workspace goes as before: its machine is deleted at the provider and its record and threads dropped from this computer and the person's sidebar, and everything on that machine's disk that was not exported or pushed goes with it.<!-- /cloud --> Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.",
       input: { thread: z.string().optional().describe("the thread, by its id or a prefix of it that names one"), workspace: WorkspaceIn.optional(), processes: ProcessesIn, confirm: ConfirmIn },
       output: { threadId: z.string().optional(), workspaceId: z.string(), worktree: z.string().optional(), name: z.string().optional(), machineId: z.string().optional(), threads: z.number().int(), ended: z.array(ActivityEnded).optional() },
       call: async ({ thread: threadRef, workspace: ref, processes, confirm }, deps) => {

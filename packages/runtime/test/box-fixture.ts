@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join as joinPath } from "node:path";
-import { HERE_PLACE_ID, type Caller, type ThreadScope, type TurnResult } from "@wsp/protocol";
+import { HERE_PLACE_ID, inCgroup, unknownOpLine, type Caller, type ProcEntry, type ThreadScope, type TurnResult } from "@wsp/protocol";
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { Store } from "../src/store.js";
 import type { Clock } from "../src/clock.js";
@@ -49,6 +49,11 @@ export interface Box {
   endFails?: boolean;
   /** The branch the folders there have checked out; none answers as a detached head does. */
   head?: string;
+  /** The processes its daemon lists and the ports they listen on; a thread's end takes those in its cgroup. */
+  procs: ProcEntry[];
+  ports: { port: number; pid: number }[];
+  /** Its daemon predates proc.list and refuses it as an op it does not know. */
+  listless?: boolean;
 }
 
 export interface BoxLogin {
@@ -69,7 +74,7 @@ const PTY_OPS = new Set(["pty.create", "pty.attach", "pty.write", "pty.resize", 
 
 export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys } = {}): Box {
   let ptys = 0;
-  const seen: Box = { ops: [], execs: [], frames: [], taken: new Set(), kills: [], push: event => client.say(event), configs: new Map(), order: [] };
+  const seen: Box = { ops: [], execs: [], frames: [], taken: new Set(), kills: [], push: event => client.say(event), configs: new Map(), order: [], procs: [], ports: [] };
   /** The runs a signal reached, by the run's own path off the command. */
   const stopped = new Set<string>();
   const runOf = (cmd: string): string | undefined => /cat (\S+)\.pid/.exec(cmd)?.[1];
@@ -85,6 +90,9 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
       seen.frames.push(frame);
       if (o.ptys !== undefined && PTY_OPS.has(op)) return void o.ptys(frame).then(reply => client.say({ ...reply, id: frame["id"] }), (e: unknown) => client.say({ id: frame["id"], ok: false, error: String(e) }));
       if (op === "pty.create") return say({ ptyId: `p${++ptys}` });
+      if (op === "proc.list" && seen.listless === true) return client.say({ id: frame["id"], ok: false, error: unknownOpLine("proc.list") });
+      if (op === "proc.list") return say({ at: Date.now(), daemon: 1, total: seen.procs.length, procs: seen.procs });
+      if (op === "ports.watch") return say({ ports: seen.ports });
       if (op === "git.status") return say({ branch: { oid: "abc", head: "main", upstream: "origin/main", ahead: 0, behind: 0 }, entries: [], root: String(frame["cwd"]) });
       return say({});
     }
@@ -122,8 +130,12 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
       seen.order.push("end starts");
       setTimeout(() => {
         seen.order.push("end answers");
-        if (seen.endFails === true) say({ exitCode: 1, stdout: "", stderr: `processes 4242 of ${/wsp_end '([^']+)'/.exec(cmd)?.[1] ?? ""} did not end\n`, truncated: false });
-        else out("");
+        const cgroup = /wsp_end '([^']+)'/.exec(cmd)?.[1] ?? "";
+        if (seen.endFails === true) say({ exitCode: 1, stdout: "", stderr: `processes 4242 of ${cgroup} did not end\n`, truncated: false });
+        else {
+          seen.procs = seen.procs.filter(p => !inCgroup(p.cgroup, cgroup));
+          out("");
+        }
       }, seen.endMs?.(cmd) ?? 0);
       return;
     }
