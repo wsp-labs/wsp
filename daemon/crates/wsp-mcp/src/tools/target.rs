@@ -104,8 +104,40 @@ pub async fn thread_folder(client: &Client, thread: &str, tool: &str, cloud: boo
     Ok(folder.id)
 }
 
-/// A computer by the name or the id the list carries, and a provider also by its own name in any case, as namesPlace
-/// reads one; a word nothing holds is refused with the names there are.
+/// A row of the host's places list, with what a line calls it: `tableName`, a cloud by its own name.
+#[derive(Deserialize)]
+pub struct ListedPlace {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// The sizes the row offers, which only a cloud's row carries.
+    #[serde(default)]
+    pub(super) sizes: Vec<Offer>,
+}
+
+impl ListedPlace {
+    pub fn table_name<'a>(&'a self, words: &'a Words) -> &'a str {
+        if self.kind.as_deref() == Some("provider") {
+            if let Some(name) = words.provider_names.get(&self.name) {
+                return name;
+            }
+        }
+        &self.name
+    }
+
+    /// Whether a word names this row, as `namesPlace` reads it: its id or its name, and a cloud also by its own name
+    /// in any case.
+    pub fn named(&self, words: &Words, word: &str) -> bool {
+        let folded = word.to_lowercase();
+        self.id == word
+            || self.name == word
+            || (self.kind.as_deref() == Some("provider")
+                && [self.id.as_str(), self.name.as_str(), self.table_name(words)].iter().any(|n| n.to_lowercase() == folded))
+    }
+}
+
+/// A computer by the name or the id the list carries; a word nothing holds is refused with the names there are.
 pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<String, Failure> {
     place_named(client, words, word).await.map(|(id, _)| id)
 }
@@ -113,33 +145,15 @@ pub async fn place_id(client: &Client, words: &Words, word: &str) -> Result<Stri
 /// The same computer as place_id finds, with the sizes its row offers.
 pub async fn place_named(client: &Client, words: &Words, word: &str) -> Result<(String, Vec<Offer>), Failure> {
     #[derive(Deserialize)]
-    struct Place {
-        id: String,
-        name: String,
-        #[serde(default)]
-        kind: Option<String>,
-        #[serde(default)]
-        sizes: Vec<Offer>,
-    }
-    #[derive(Deserialize)]
     struct Places {
-        places: Vec<Place>,
+        places: Vec<ListedPlace>,
     }
     let Places { mut places } = client.request("places.list", Map::new()).await?;
-    let lower = word.to_lowercase();
-    let names = |p: &Place| {
-        p.id == word
-            || p.name == word
-            || (p.kind.as_deref() == Some("provider")
-                && [p.id.as_str(), p.name.as_str(), words.provider_names.get(&p.name).map_or(p.name.as_str(), String::as_str)]
-                    .iter()
-                    .any(|name| name.to_lowercase() == lower))
-    };
-    if let Some(i) = places.iter().position(names) {
+    if let Some(i) = places.iter().position(|p| p.named(words, word)) {
         let place = places.swap_remove(i);
         return Ok((place.id, place.sizes));
     }
-    let held = places.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");
+    let held = places.iter().map(|p| p.table_name(words)).collect::<Vec<_>>().join(", ");
     Err(Failure::usage(refusal_line(&fill(&words.no_such_place, &[("word", word), ("held", &held)]), &words.places_fix)))
 }
 

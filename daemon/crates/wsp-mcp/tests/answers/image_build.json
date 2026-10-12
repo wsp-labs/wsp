@@ -19,7 +19,7 @@
         },
         {
           "op": "image.build",
-          "place": "place-9"
+          "place": "attic \u0085"
         },
         {
           "op": "image.get"

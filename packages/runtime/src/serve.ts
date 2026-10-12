@@ -58,7 +58,7 @@ import {
   PLACE_DOOR_REFUSAL,
   PLACE_DOOR_UNSERVED,
   PLACE_UNKNOWN_REFUSAL,
-  noSuchPlaceRefusal,
+  noSuchPlaceRefusal, tableName,
   RELAY_TICKET_REFUSAL,
   REQUEST_NOT_AN_OBJECT,
   RuntimeRequest,
@@ -423,8 +423,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
   const placeFolders = async (placeId: string, asked: { dir?: string; hidden?: boolean; repos?: boolean }, origin: Caller | undefined): Promise<HostFolderListing> => {
     const rows = await places().list(now());
     const row = rows.find(place => place.id === placeId);
-    if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, rows.map(place => place.name))), { kind: "usage" });
-    if (!isJoinedComputer(row)) throw Object.assign(new Error(providerFoldersRefusal(row.name)), { kind: "usage" });
+    if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, rows.map(tableName))), { kind: "usage" });
+    if (!isJoinedComputer(row)) throw Object.assign(new Error(providerFoldersRefusal(tableName(row))), { kind: "usage" });
     // A daemon older than 60 cannot seal the link this rides, so only one from 60 to 72 is here without fs.folders.
     const version = (await places().reportOf(row.id))?.daemonVersion;
     if (version !== undefined && version < FS_FOLDERS_DAEMON_VERSION) throw new Error(placeBehindLine(row.name, placeDaemonBehind({ daemonVersion: version })!));
@@ -978,14 +978,14 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               const rows = await places().list(now());
               const row = rows.find(place => place.id === msg.placeId);
               if (row === undefined) {
-                send({ id: msg.id, ok: false, error: noSuchPlaceRefusal(msg.placeId, rows.map(place => place.name)), kind: "usage" });
+                send({ id: msg.id, ok: false, error: noSuchPlaceRefusal(msg.placeId, rows.map(tableName)), kind: "usage" });
                 return;
               }
               // The road makes a workspace on a computer somebody joined and reads the tools inside it: the row for
               // the computer this host runs on and a provider's row are proved where the line was typed, so they
               // are refused here rather than failing at the first step of a road they were never for.
               if (!isJoinedComputer(row)) {
-                send({ id: msg.id, ok: false, error: doctorRowRefusal(row.name), kind: "usage" });
+                send({ id: msg.id, ok: false, error: doctorRowRefusal(tableName(row)), kind: "usage" });
                 return;
               }
               if (doctoring.has(row.id)) {

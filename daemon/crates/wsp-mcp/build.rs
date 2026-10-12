@@ -57,10 +57,8 @@ fn without_cloud(path: &Path, text: &str) -> String {
         "words.json" => {
             let mut words = read(text);
             words["add"]["providers"] = Value::Array(vec![Value::from(BOAT)]);
-            // Boat ships in every build and keeps its own name; Solari's goes with the cloud.
-            if let Some(names) = words["providerNames"].as_object_mut() {
-                names.retain(|id, _| id == BOAT);
-            }
+            let boat = words["providerNames"][BOAT].clone();
+            words["providerNames"] = Value::Object([(BOAT.to_owned(), boat)].into_iter().collect());
             serde_json::to_string_pretty(&words).expect("words serialize")
         }
         "server.json" => {

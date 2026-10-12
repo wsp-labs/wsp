@@ -4,7 +4,8 @@ import { z } from "zod";
 import { AgentSignInState } from "../agents-report.js";
 import { KNOWN_HOSTS, PLACE_INSTALL, plural, thisComputer } from "../format.js";
 import { RecipeFile } from "../recipe-file.js";
-import { HERE_PLACE_ID, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves } from "../place-word.js";
+import { PlaceKind } from "./place-kind.js";
+import { HERE_PLACE_ID, cloudNamed, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves } from "../place-word.js";
 import { DELETE_AFTER_MAX_MS, NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS } from "../place-state.js";
 import { isPlainPath, PortForward, RelayPort } from "../wire/limits.js";
 import { MachineSizeOffer, WorkspaceSize } from "../wire/capabilities.js";
@@ -131,8 +132,7 @@ export const DoctorLineEvent = z.object({
 });
 export type DoctorLineEvent = z.infer<typeof DoctorLineEvent>;
 
-export const PlaceKind = z.enum(["computer", "provider"]);
-export type PlaceKind = z.infer<typeof PlaceKind>;
+export { PlaceKind };
 
 /** What the computers table calls one row's kind, which is finer than PlaceKind by one: the computer the host runs
  * on is named as its owner names it, a computer somebody joined is a box, and a provider account is a cloud. The
@@ -687,7 +687,7 @@ export const placeForgetsOnly = (holds: PlaceHolds): boolean => holds.away === t
 export const PlaceRemoved = z.object({ removed: z.boolean(), took: PlaceHolds.omit({ unsaved: true }).optional(), swept: z.array(z.string()), note: z.string().optional() });
 export type PlaceRemoved = z.infer<typeof PlaceRemoved>;
 
-export { HERE_PLACE_ID, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves };
+export { HERE_PLACE_ID, cloudNamed, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves };
 
 /** What one row of the places list holds of the person's money: the spend it has taken since midnight and since
  * the first of the month, over every workspace that stood on it then, deleted ones included, and what it is burning

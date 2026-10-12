@@ -7,8 +7,8 @@
 // Nothing here reads a key or the provider: the host owns both.
 import { log } from "@clack/prompts";
 import { styleText } from "node:util";
-import { CLOUD_SETUP_WORDS, InitJob, SIGN_IN_OPEN_STATE, fmtDuration, initJobOver, initRowOver, initRowUnrun, INIT_ROW_STATES, type InitRow } from "@wsp/protocol";
-import { appUrl } from "./init-first.js";
+import { CLOUD_SETUP_WORDS, InitJob, subThreadsOnly, SIGN_IN_OPEN_STATE, fmtDuration, initJobOver, initRowOver, initRowUnrun, INIT_ROW_STATES, type InitRow } from "@wsp/protocol";
+import { appUrl, subThreadsReady } from "./init-first.js";
 import { textPrompt } from "./init-layout.js";
 import { openApp, type ServedAt } from "./init-serve.js";
 import type { InitIO } from "./init.js";
@@ -176,6 +176,7 @@ async function ended(o: BesideOptions, job: InitJob): Promise<number> {
   }
   if (job.golden !== undefined) log.step(`Image v${job.golden.version} sealed on the host serving this state.`, out);
   if (job.workspace !== undefined) log.step(`Workspace ${job.workspace.name} (${job.workspace.id}) forked from it.`, out);
+  if (job.place !== undefined && subThreadsOnly(job.place.id)) subThreadsReady(job.rows.filter(row => row.kind === "sign-in").map(row => ({ name: row.label, state: row.login })), o.io.output);
   if (o.app !== undefined) {
     const { code } = await o.client.request<{ code: string }>("pair.issue", { here: true });
     await openApp(appUrl(o.app.at, job.workspace?.id, code), o.app.at, o.io, o.app.interactive, { runDir: o.app.runDir });

@@ -7,7 +7,7 @@
 // which the command line reads too, and where today ends is daysBack in the
 // app's timestamp reading, which every surface that says "today" reads.
 import { catalogEntry } from "@wsp/catalog";
-import { BUILD_TAKES_UNMEASURED, chargesNothing, customRows, fmtBytes, fmtRate, plural, sealedLoginsHeld, type PlaceView, type Recipe, type SealedImage, type SealedImageCopy } from "@wsp/protocol";
+import { BUILD_TAKES_UNMEASURED, chargesNothing, customRows, fmtBytes, fmtRate, plural, sealedLoginsHeld, subThreadsOnly, type PlaceView, type Recipe, type SealedImage, type SealedImageCopy } from "@wsp/protocol";
 import { HardDriveIcon, KeyRoundIcon, TagIcon } from "lucide-react";
 import type { ChipItem } from "../components/ui/chips.js";
 import { placeNamed } from "./places.js";
@@ -56,6 +56,10 @@ export const IMAGE_WORDS = {
   /** A build's one line on a page's IMAGE row: the stage it is on, then how far it has come. */
   stepNow: (stage: string | undefined, done: number, total: number): string => (stage === undefined ? `${done} of ${total} steps done` : `${stage}, ${done} of ${total}`),
 } as const;
+
+/** Whether a ready card offers New thread here: a cloud met through a lead's sub-threads alone takes no thread
+ * started by hand. */
+export const startsThreadsHere = (place: Pick<PlaceView, "id" | "kind">): boolean => !(place.kind === "provider" && subThreadsOnly(place.id));
 
 /** What a copy build takes, said beside the press that starts one, a line each: the time, and the rate where the
  * place bills. Stacked rather than joined, so the slot is as wide on a cloud that bills as on a computer that does
