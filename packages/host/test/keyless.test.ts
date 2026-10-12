@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cli, localWiring, makeRuntime, noClaudeKeyNote, up } from "../src/cli.js";
 import { NO_PROJECT_YET } from "../src/verbs.js";
@@ -67,6 +67,14 @@ describe("a computer with no machine provider key", () => {
     expect(listed.lines[0]).toContain(folder);
     // Nothing forks here, so the missing Claude key is about the threads that run on this computer, not about forks.
     expect(served.lines.at(-1)).toBe(noClaudeKeyNote(true));
+  });
+
+  it("says no key is beside the state only where none is: a Boat key there opens a place and wires nothing", async () => {
+    mkdirSync(dirname(statePath), { recursive: true });
+    writeFileSync(join(dirname(statePath), ".env"), "BOAT_API_KEY=boat_live_fake\n");
+    const served = captured();
+    handle = await up(served, { port: 0, statePath, webDir, runtime: makeRuntime({}, statePath, undefined, process.env, undefined, localWiring(home, process.env, fakeDaemonStart, statePath, copyingFake())) });
+    expect(served.lines[1]).toBe(noProviderStorageLine());
   });
 
 });

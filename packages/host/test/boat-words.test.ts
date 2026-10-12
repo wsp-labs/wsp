@@ -40,7 +40,7 @@ function readWords(): { path: string; text: string }[] {
 
 describe("ASCII's provider is Boat", () => {
   it("is named Boat, with a Boat API key made at the console boat.dev serves", () => {
-    expect(PROVIDER_KEY_WORDS["box"]).toEqual({ name: "Boat", keyName: "Boat API key", keyConsole: "boat.dev/dashboard" });
+    expect(PROVIDER_KEY_WORDS["box"]).toEqual({ name: "Boat", keyName: "Boat API key", keyConsole: "boat.dev/dashboard", subThreads: true });
     expect(providerKeyName("box")).toBe("Boat");
     expect(BOX_KEY_ENV).toBe("BOAT_API_KEY");
   });

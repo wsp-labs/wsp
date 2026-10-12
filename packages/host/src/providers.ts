@@ -8,8 +8,8 @@
 // provider by name.
 
 import { agentName, vaultVariableRow } from "@wsp/catalog";
-import { BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, checkProviderKey, type KeyCheck, type MachineBackend } from "@wsp/engine";
-import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, providerKeyName, standInRecordsPath } from "@wsp/protocol";
+import { BOX_PRICING, BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, boxClassFor, checkProviderKey, type BoxLimits, type KeyCheck, type MachineBackend } from "@wsp/engine";
+import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, boatAddedLine, providerKeyName, standInRecordsPath } from "@wsp/protocol";
 import type { PlaceBackends } from "@wsp/runtime";
 import { CLOUD_ON } from "./cloud.js";
 import { keyIn } from "./env-keys.js";
@@ -44,6 +44,9 @@ export interface ProviderModule {
    * are serving in place of rather than the stand-in's own name. */
   standsFor?(env: ProviderEnv): string | undefined;
   build(env: ProviderEnv): MachineBackend;
+  /** What `wsp add` prints once this row's key is saved, off what the provider's key check answered; absent, the
+   * add prints the row's place line. */
+  addedLine?(answer: unknown): string;
 }
 
 /** The variable a person names a provider in, for a host started by a service or a window where no flag can reach. */
@@ -72,6 +75,7 @@ const boatModule = (cloud: boolean): ProviderModule => ({
   keyConsole: PROVIDER_KEY_WORDS["box"]!.keyConsole,
   selects: env => cloud && env[PROVIDER_ENV] === "box",
   build: env => new BoxBackend({ apiKey: env[BOX_KEY_ENV] ?? "" }),
+  addedLine: answer => boatAddedLine(answer as BoxLimits | undefined, boxClassFor(BOX_PRICING.defaultSize)),
 });
 
 /** Solari, registered only with the cloud on. Built in a function so a public build, whose bundler reads the test
@@ -149,9 +153,11 @@ export const cloudRoads = (modules: readonly ProviderModule[] = PROVIDER_MODULES
 export const noMachinesLine = (modules: readonly ProviderModule[] = PROVIDER_MODULES): string => (cloudRoads(modules) ? NO_PROVIDER_LINE : NO_MACHINES_LINE);
 
 /** Whether a word names a cloud that is not registered here, which is a line to refuse by the flag rather than one
- * nobody answers to. */
-export const unregisteredCloud = (word: string | undefined, modules: readonly ProviderModule[] = PROVIDER_MODULES): boolean =>
-  word !== undefined && !modules.some(m => m.id === word) && CLOUD_ONLY_MODULES.some(m => m.id === word);
+ * nobody answers to. A cloud is named by its id or, in any case, by the name its key rows give it. */
+export const unregisteredCloud = (word: string | undefined, modules: readonly ProviderModule[] = PROVIDER_MODULES): boolean => {
+  const named = (m: ProviderModule): boolean => word !== undefined && (m.id === word || providerKeyName(m.id).toLowerCase() === word.toLowerCase());
+  return !modules.some(named) && CLOUD_ONLY_MODULES.some(named);
+};
 
 /** Every variable the rows select on, each once: what a service carries over from the shell that installed it, so
  * a provider added tomorrow travels with its row rather than with a list somebody remembered to edit. */
@@ -210,10 +216,12 @@ export function providerBackendFor(env: ProviderEnv, modules: readonly ProviderM
 
 /** The backend of the provider a person named, built off that provider's own row and never off which row this host
  * forks on: with the cloud off Boat is never the provider a host forks on, and its key is still put to Boat. With none
- * named, the row this computer is wired by. */
+ * named, the row this computer is wired by; a name no row has is refused, never read as none named. */
 export function namedProviderBackend(env: ProviderEnv, provider: string | undefined, modules: readonly ProviderModule[] = PROVIDER_MODULES): MachineBackend {
-  const row = provider === undefined ? undefined : modules.find(m => m.id === provider);
-  return (row ?? providerModule(env, modules)).build(env);
+  if (provider === undefined) return providerModule(env, modules).build(env);
+  const row = modules.find(m => m.id === provider);
+  if (row === undefined) throw new Error(`${provider} is not a provider this wsp knows`);
+  return row.build(env);
 }
 
 /** Whether this row is somewhere work can stand: a row somebody has added, or a stand-in wearing the cloud it is
@@ -301,9 +309,9 @@ export function providerKeyRow(env: ProviderEnv, modules: readonly ProviderModul
 
 /** The row a key being saved belongs to: the one named, else the row this computer would be wired by. Nothing where
  * no such row reads a key. */
-function keyRowFor(env: ProviderEnv, provider: string | undefined, modules: readonly ProviderModule[]): { id: string; keyEnv: string } | undefined {
+export function keyRowFor(env: ProviderEnv, provider: string | undefined, modules: readonly ProviderModule[] = PROVIDER_MODULES): (ProviderModule & { keyEnv: string }) | undefined {
   const row = provider === undefined ? providerKeyRow(env, modules) : modules.find(m => m.id === provider);
-  return row?.keyEnv === undefined ? undefined : { id: row.id, keyEnv: row.keyEnv };
+  return row?.keyEnv === undefined ? undefined : { ...row, keyEnv: row.keyEnv };
 }
 
 /** What saving a key writes into the .env a host reads its own from: the variable the row that takes it reads, and
