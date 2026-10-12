@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { type Capabilities, type PreferencesPatch, type ProjectView, type McpServerSpec, type Caller, type WorkspaceAgents, type WorkspaceKind, ThreadScope, phaseHoldsSlot, SPAWN_ACTS_ALLOWED, agentsOffRefusal, roadOf, scopeOf, spawnActRefusal, spawnCapRefusal, spawnDepthRefusal, spawnRepositoryRefusal, spawnReachRefusal, type SpawnAct, threadPlace, forksNoMachines, kindWords, NO_PROVIDER_LINE, providerCannotRefusal, machineWord, noWorkspaceRefusal, notFoundRefusal, type WorktreeFolder, runsInFolder, copiesFolder, childOnAnotherComputerLine, childToLeadsComputerLine, elsewhereWorkspaceLine, treeThreadOutOfReachLine, threadWord, folderGoneRefusal, type AcrossAct, agentsOffComputerRefusal, rootGoneRefusal, refusal, spawnFolderRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, relayedRecordRefusal, relayedRefusal, undrivenRefusal, workspaceState, HERE_PLACE_ID } from "@wsp/protocol";
+import { type Capabilities, type PreferencesPatch, type ProjectView, type McpServerSpec, type Caller, type WorkspaceAgents, type WorkspaceKind, ThreadScope, phaseHoldsSlot, SPAWN_ACTS_ALLOWED, agentsOffRefusal, roadOf, scopeOf, spawnActRefusal, spawnCapRefusal, spawnDepthRefusal, spawnRepositoryRefusal, spawnReachRefusal, type SpawnAct, threadPlace, forksNoMachines, kindWords, NO_PROVIDER_LINE, providerCannotRefusal, machineWord, noWorkspaceRefusal, notFoundRefusal, type WorktreeFolder, runsInFolder, copiesFolder, childOnAnotherComputerLine, childToLeadsComputerLine, elsewhereWorkspaceLine, treeThreadOutOfReachLine, threadWord, folderGoneRefusal, type AcrossAct, agentsOffComputerRefusal, rootGoneRefusal, refusal, spawnFolderRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, relayedRecordRefusal, relayedRefusal, undrivenRefusal, workspaceState, HERE_PLACE_ID, subStartsNothingRefusal } from "@wsp/protocol";
 import type { WorkspaceRecord, LiveWorkspace } from "../types/wiring.js";
 import { PROJECTS, type WorkspaceLike } from "../types/internal.js";
 import type { RuntimeContext, RulesArea } from "../context.js";
@@ -161,7 +161,11 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
   /** Whether a request comes from a thread on a computer the person joined, which reaches every thread of its own tree
    * for a message and a listing wherever that thread runs: its lead and its siblings on this computer are how it talks
    * back, and a thread of another tree stays out of reach by the tree rule. */
-  const talksToItsTree = (caller: Caller | undefined): boolean => boxOf(caller) !== undefined;
+  const talksToItsTree = (caller: Caller | undefined): boolean => {
+    const scope = scopeOf(caller);
+    // A sub-thread is a child on a computer of its own, as a thread on a box is: it sends to its tree and lists it (10).
+    return boxOf(caller) !== undefined || (scope !== undefined && live.get(scope.workspaceId)?.record.lead !== undefined);
+  };
   /** The rule as a sentence: what this request is refused with for that record, or nothing when it may drive it.
    * A record this host does not hold, which a port forward's target may be since the host forwards a builder's
    * ports too, is nobody's to refuse for. The project rule is read before the computer rule, and both before the
@@ -297,6 +301,8 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     if (over === undefined) throw new Error(rootGoneRefusal(scope.threadId, act));
     for (const { record, policy } of over) if (policy?.spawn !== true) throw new Error(agentsOffLine(record, act, scope.threadId));
     if (!SPAWN_ACTS_ALLOWED.includes(act)) throw actRefusal(scope, act);
+    // A sub-thread starts nothing of its own; it still sends to its lead, merges in, updates, fixes and commits (10).
+    if (own.lead !== undefined && own.agents?.spawn !== true && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
     // The depth cap counts what a thread starts under itself; a send and a bring back start nothing, so a thread
     // at the cap still talks to its tree and still gets its work out.
     if (act === "send" || act === "bring_back") return free;

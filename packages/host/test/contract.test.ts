@@ -13,7 +13,7 @@ import { type AddressInfo } from "node:net";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { FORK_RESUME_FIX, FORK_RESUME_LINE, HOST_TOKEN_ENV, HOST_URL_ENV, notAThreadLine, NAME_A_THREAD_FIX, NOT_UNDER_FIX, notUnderLine, replacesWorkingFix, replacesWorkingLine, seedSaveRefusal, fmtBytes, CLOUD_ENV, DAEMON_TOKEN_PATH, deniedLine, noSuchAccountLine, PERMISSION_DENY, pushedForChildLine, EXIT_CODES, refusalLine, SCOPED_MCP_ARG, scopedNoPairLine, HERE_PLACE_ID, shellQuote, TURN_TOKEN_ENV, VerbFailure, WS_PATH } from "@wsp/protocol";
+import { FORK_RESUME_FIX, FORK_RESUME_LINE, subBesideRefusal, subNoThreadRefusal, subSizeNoCloudRefusal, HOST_TOKEN_ENV, HOST_URL_ENV, notAThreadLine, NAME_A_THREAD_FIX, NOT_UNDER_FIX, notUnderLine, replacesWorkingFix, replacesWorkingLine, seedSaveRefusal, fmtBytes, CLOUD_ENV, DAEMON_TOKEN_PATH, deniedLine, noSuchAccountLine, PERMISSION_DENY, pushedForChildLine, EXIT_CODES, refusalLine, SCOPED_MCP_ARG, scopedNoPairLine, HERE_PLACE_ID, shellQuote, TURN_TOKEN_ENV, VerbFailure, WS_PATH } from "@wsp/protocol";
 import { CLOUD_ON } from "../src/cloud.js";
 import { copyKey, createRuntime, DAEMON_TOKEN_SET, localExecStream, memoryStore, type Runtime, type Store } from "@wsp/runtime";
 import { fakeCopier, LocalBackend } from "@wsp/engine";
@@ -477,6 +477,20 @@ describe("the agent contract on the command line and the tool door", () => {
       expect(refused.code, `wsp run ${beside.join(" ")}`).toBe(EXIT_CODES.usage);
       expect(failure(refused.io).error).not.toBe("");
     }
+    // A sub-thread is a child of the thread asking: a terminal's line is refused, and so is --size with no cloud and a
+    // word beside --on, each a usage refusal, exit 3, before anything is made.
+    const machines = (await rt.workspaces.list()).length;
+    for (const [words, said] of [
+      [["--on", "boat"], subNoThreadRefusal("boat").message],
+      [["--size", "4x8"], subSizeNoCloudRefusal().message],
+      [["--on", "boat", "--beside", lead], subBesideRefusal("--beside").message],
+      [["alpha", "--on", "boat"], subBesideRefusal("a project").message],
+    ] as const) {
+      const refused = await run("run", ...words, "x", "--json");
+      expect(refused.code, `wsp run ${words.join(" ")}`).toBe(EXIT_CODES.usage);
+      expect(failure(refused.io).error).toBe(said);
+    }
+    expect((await rt.workspaces.list()).length).toBe(machines);
     // A fork carries a thread's conversation and --resume one kept outside wsp: a start takes one of them.
     for (const beside of [["--resume", "conv-7f3a"], ["--resume", "conv-7f3a", "--copy"], ["--copy"]]) {
       const refused = await run("run", "--fork", opened.threadId, ...beside, "x", "--json");
