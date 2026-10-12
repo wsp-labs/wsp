@@ -7,7 +7,7 @@
 // session id repeats across turns. Wire order is the timeline order. createdAt
 // is the wire's `at` (ms epoch) as ISO, else the caller's receipt clock, else
 // "" for unstamped history.
-import { AFTER_CUT_LINE, LIMIT_WORDS, NOTIFY_ME, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
+import { AFTER_CUT_LINE, LIMIT_WORDS, isSubOomLine, NOTIFY_ME, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
 import { spawnedThreadOf } from "./spawned.js";
 import type {
   CallResult,
@@ -284,7 +284,8 @@ export function createSessionFold(): SessionFold {
     // The failure's words stand as their own row; a failure with none leaves the turn's one word to say it. A turn the
     // agent's usage limit stopped is news, not a fault: the turn's footer and the strip over the composer say it, so no
     // row repeats the agent's words.
-    if (result.status === "failed" && result.error !== undefined && result.limit === undefined) {
+    // A sub-thread killed for memory says so in its strip, with the size to start again at.
+    if (result.status === "failed" && result.error !== undefined && result.limit === undefined && !isSubOomLine(result.error)) {
       addWork(t, { createdAt: at, label: result.error, tone: "error", sourceActivityKind: "runtime.error" }, at);
     }
     t.summary = {

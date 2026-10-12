@@ -13,13 +13,15 @@
 // A subagent's page is the same view over the lead's transcript cut to that
 // subagent's lines, with no turn of its own to fold, count or close.
 import { HeroField, HeroMark } from "./EmptyHero.js";
+import { SpawnCard } from "./SpawnCard";
+import { useSpawnLog } from "./spawnLog";
 import { SetupCard, SetupRoom } from "./SetupCard.js";
 import { holdEndOnFooterShrink } from "./footerHold.js";
 import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { capRaiseAct, cloudSaid, subStartingLine, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { openComputerSettings } from "../../settings/openAt";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
@@ -130,7 +132,9 @@ export function ChatView({
     useOpenSubagentRun.setState({ run });
     return () => useOpenSubagentRun.setState({ run: null });
   }, [run]);
-  const working = subagent === null && (view.running || capped !== undefined);
+  // A sub-thread waiting for its machine or watching it be made is not at work: its strip or its spawn view says so.
+  const spawning = sub?.state === "starting" || sub?.state === "waiting";
+  const working = subagent === null && !spawning && (view.running || capped !== undefined);
   const empty = pageEntries === null && view.entries.length === 0 && !working;
   // A workspace an agent forked out of a thread stands before its thread's row is listed. The fork opens that thread
   // inside the parent's own turn, so it is on its way while that turn runs; after it, nothing is coming. The host
@@ -149,6 +153,9 @@ export function ChatView({
   const landed = useStore(s => (s.landed?.workspaceId === workspaceId ? s.landed : null));
   const dropLanded = useStore(s => s.dropLanded);
   const setupStands = landed !== null && (!thread.hydrated || empty);
+  // A sub-thread's machine being made stands where its conversation will, until the agent starts.
+  const spawnLog = useSpawnLog(workspaceId);
+  const spawnStands = spawnLog !== undefined && sub?.state === "starting";
   useEffect(() => {
     if (landed !== null && thread.hydrated && !empty) dropLanded(workspaceId);
   }, [landed, thread.hydrated, empty, dropLanded, workspaceId]);
@@ -175,7 +182,6 @@ export function ChatView({
   const runs = useMemo(() => ({ name: workspace?.name ?? workspaceId, where }), [workspace, workspaceId, where]);
   const machineWait = useMemo<MachineWait | null>(() => {
     if (state === null || !working) return null;
-    if (sub?.state === "starting") return { label: subStartingLine(cloudSaid(sub.on)), elapsed: true, act: null };
     const wait = turnWait(state, runs);
     if (wait !== null) return { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
     if (capped === undefined) return null;
@@ -382,14 +388,14 @@ export function ChatView({
           </Button>
         </TimelineRuleLine>
       ) : null}
-      {machine !== null ? <TimelineRuleLine data-machine-line line={machine} wraps /> : null}
+      {machine !== null ? <TimelineRuleLine data-machine-line line={machine} /> : null}
     </div>
   ) : null;
 
   // One list per thread shown: a thread drawn from what the transcripts hold replaces the last one with no loading
   // line between, and opens at its own end rather than at the offset the last one was read to.
   const drawn: Drawn | null =
-    setupStands || !thread.hydrated || empty
+    setupStands || spawnStands || !thread.hydrated || empty
       ? null
       : {
           key: pageEntries === null ? thread.drawKey : `${thread.drawKey}/a/${subagent}`,
@@ -444,6 +450,17 @@ export function ChatView({
           <SetupRoom>
             <SetupCard creation={landed.creation} landedAt={landed.at} />
           </SetupRoom>
+        ) : spawnStands ? (
+          <SetupRoom>
+            <SpawnCard
+              title={turnRows.at(-1)?.harnessTitle ?? turnRows.at(-1)?.prompt ?? ""}
+              spawn={spawnLog!}
+              onTryAgain={() => {
+                const row = turnRows.at(-1);
+                if (row !== undefined) void api?.startSession({ workspaceId, prompt: row.prompt ?? "", ...(row.threadId === undefined ? {} : { thread: row.threadId }) });
+              }}
+            />
+          </SetupRoom>
         ) : !thread.hydrated || (empty && forkWaits) ? (
           <div className="flex h-full items-center justify-center pb-(--chat-composer-inset) text-sm text-muted-foreground">{TRANSCRIPT_LOADING}</div>
         ) : empty ? (
@@ -474,7 +491,7 @@ export function ChatView({
         ref={composerRef}
         data-chat-composer-dock
         data-at-end={!showTranscript || atEnd || undefined}
-        data-centred={(thread.hydrated && empty && !setupStands && !forkWaits) || undefined}
+        data-centred={(thread.hydrated && empty && !setupStands && !spawnStands && !forkWaits) || undefined}
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10 *:pointer-events-auto transition-[bottom] duration-300 ease-out data-centred:bottom-(--empty-lift) motion-reduce:transition-none"
       >
         <ScrollToEnd hidden={!showTranscript || atEnd} onClick={() => void listRef.current?.scrollToEnd({ animated: true })} />

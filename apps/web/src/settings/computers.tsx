@@ -39,6 +39,7 @@ import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, WHERE_WORDS, 
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
 import { copyOn } from "./image.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
+import { LimitBand } from "./LimitBand.js";
 import { openImageRecipe } from "./openAt.js";
 import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
 import { cloudsOffered, keyHeld } from "./providers.js";
@@ -256,6 +257,7 @@ function CloudListRow({ place, machines, running, cell, open, ctx }: { place: Pl
       <Num k="threads">{running}</Num>
       <PlaceState place={place} cell={cell} onSignIn={open} />
       <Chevron />
+      <LimitBand place={place} />
     </GridRow>
   );
 }

@@ -290,17 +290,55 @@ function heldWords(held: { files: number; commits: number }): string {
 /** The work a done read found not pushed and the branch it is on, as the open thread's notice and a tile's card say it. */
 const heldOn = (held: { files: number; commits: number }, branch: string): string => `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed`;
 
-/** The notice above a done sub-thread's composer while its work holds its machine. */
-export const subNotPushedNotice = (held: { files: number; commits: number }, branch: string): string => `${capitalisedFirst(heldOn(held, branch))}. This machine stays until ${held.files + held.commits === 1 ? "it is" : "they are"}; ask the thread to push ${held.files + held.commits === 1 ? "it" : "them"}.`;
-
 /** A not pushed sub-thread's reason on its tile's card. */
 export const subNotPushedReason = (held: { files: number; commits: number }, branch: string): string => `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.`;
 
-/** The notice above a released sub-thread's composer, which stays open: a send makes a new machine. */
-export const subReleasedNotice = (on: string): string => `This thread's machine was deleted. A message starts a new one on ${on}, and the conversation goes on.`;
+/** One strip over a sub-thread's composer: what holds or blocks it as the title, the why and what follows under it. */
+export interface SubStripWords {
+  title: string;
+  note: string;
+}
 
-/** The notice above a sub-thread whose cloud was removed from the host, named by the computer the host runs on. */
-export const subCloudGoneNotice = (on: string, here: string): string => `${on} was removed from ${here}, so a message has no machine to start. Add ${on} again in Settings > Computers, and the conversation goes on.`;
+/** The strip's words for every state that holds or blocks a sub-thread, each said there and nowhere else in the
+ * thread. A not pushed strip names the push's refusal where the done read caught one, since asking the agent to push
+ * again cannot mend a token that cannot write. */
+export const SUB_STRIP = {
+  waitingSlot: (on: string, running: number, atOnce: number): SubStripWords => ({ title: `Waiting for a machine on ${on}`, note: `${running} of ${atOnce} machines are running. It starts on its own when one frees.` }),
+  waitingMinute: (on: string, used: number, limit: number): SubStripWords => ({ title: `Waiting for ${on}'s next minute of starts`, note: `${used} of ${limit} starts this minute are used. It starts on its own within the minute.` }),
+  notPushed: (held: { files: number; commits: number }, branch: string, refused?: string): SubStripWords => ({
+    title: `${capitalisedFirst(heldWords(held))} not pushed`,
+    note: refused === undefined ? `They are on ${branch} on this machine, which stays until they are pushed or brought home.` : `The push to ${branch} was refused: ${refused}. This machine stays until the work is pushed or brought home.`,
+  }),
+  deleting: (minutes: string, branch: string): SubStripWords => ({ title: `Its machine is deleted in ${minutes}`, note: `Everything is pushed to ${branch}. The transcript stays, and a message after the delete starts a new machine.` }),
+  released: (on: string): SubStripWords => ({ title: "This thread's machine was deleted", note: `A message starts a new one on ${on}, and the conversation goes on.` }),
+  oom: (line: string): SubStripWords => ({ title: "Killed for memory", note: capitalisedFirst(line) }),
+  cloudGone: (on: string, here: string): SubStripWords => ({ title: `${on} was removed from ${here}`, note: `This thread has no machine to start until ${on} is added again. Its transcript stays.` }),
+  raise: "Raise machines at once",
+  pushAgain: "Push again",
+  bringHome: "Bring it home",
+  startAgain: (size: string): string => `Start again at ${size}`,
+  addAgain: (on: string): string => `Add ${on} again`,
+} as const;
+
+/** The message Push again sends the sub-thread. */
+export const subPushAgainPrompt = (branch: string): string => `Push ${branch} again, and say what the remote answers.`;
+
+/** Whether a turn's failure is subOomLine's, which the strip over the composer says in its place. */
+export const isSubOomLine = (line: string): boolean => /^the agent on .+ was killed for memory: /i.test(line);
+
+/** The spawning view's lines, the stages the spawn reports with the facts it read: done in the past tense, under way
+ * in the present, so the view and the command line name the same steps. */
+export const SUB_SPAWN_WORDS = {
+  branch: (done: boolean): string => (done ? "Checked the branch" : "Checking the branch"),
+  branchFact: (branch: string, sha: string): string => `${branch} is pushed at ${sha.slice(0, 7)}`,
+  machine: (on: string, done: boolean): string => (done ? `Asked ${on} for a machine` : `Asking ${on} for a machine`),
+  files: (n: number, done: boolean): string => `${done ? "Copied" : "Copying"} ${n} picked ${n === 1 ? "file" : "files"}`,
+  agent: (agent: string): string => `Starting ${agent}`,
+  agentFact: (model: string, effort: string): string => `${model}, ${effort}, with the lead's brief`,
+  details: "Show details",
+  hideDetails: "Hide details",
+  tryAgain: "Try again",
+} as const;
 
 const capitalisedFirst = (line: string): string => `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
 

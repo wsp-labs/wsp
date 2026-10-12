@@ -641,6 +641,10 @@ export const PlaceView = z.object({
   sizeDefault: z.object({ cpu: z.number().int(), memMb: z.number().int() }).optional(),
   /** On a cloud, how long a finished sub-thread's machine stays before it is deleted, the person's or the default. */
   deleteAfterMs: z.number().int().optional(),
+  /** A cloud that reads its own limits: the machine hours its account's credit buys, as that read answered. */
+  creditHours: z.number().optional(),
+  /** On a cloud, what it has spent since midnight, the figure `wsp computers` carries as its spend row's todayUsd. */
+  spentTodayUsd: z.number().optional(),
 });
 export type PlaceView = z.infer<typeof PlaceView>;
 
