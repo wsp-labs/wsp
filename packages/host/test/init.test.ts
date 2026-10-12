@@ -3065,6 +3065,25 @@ describe("wsp init, a signal during prepare", () => {
     expect(f.exits).toEqual([130]);
   });
 
+  it("a start limit ends the wait for a machine slot at once: the wait is for the machine cap alone (05, Q12)", async () => {
+    const f = fake({ yes: true, retry: { waitMs: 60_000, attempts: 3 } });
+    let asked = 0;
+    f.opts.runtime = recipe => {
+      const backend = stubBackend();
+      backend.create = async () => {
+        asked++;
+        throw Object.assign(new Error("Boat's starts for this minute are used"), { kind: "startLimit", status: 429, code: "rate_limited", window: "minute" });
+      };
+      f.backends.push(backend);
+      return createRuntime({ backend, store: ownedStore(), adapters: {}, goldenRecipe: recipe , hostId: "box:h1" });
+    };
+    const result = await runInit(f.opts, f.io);
+    expect(result.code).toBe(1);
+    expect(asked).toBe(1);
+    expect(f.text()).toContain("Boat's starts for this minute are used");
+    expect(f.text()).not.toContain("at its machine cap");
+  });
+
   it("a builder that outlives its kill is named with the sweep line, and its record stays for the sweep", async () => {
     const f = fake({ yes: true });
     const store = ownedStore();
