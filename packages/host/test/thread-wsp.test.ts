@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { localWiring, makeRuntime, servingWiring } from "../src/cli.js";
 import type { RunningWsp } from "../src/mcp-install.js";
-import { threadBinDir, writeThreadWsp } from "../src/shim.js";
+import { threadBinDir, threadDockerNotesDir, writeThreadWsp } from "../src/shim.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 /** No socket on stdin: Debian's bash -c reads bashrc in place of BASH_ENV when stdin is one, taking it for rshd, and
@@ -88,6 +88,23 @@ describe("the wsp a thread's shell runs on this computer", () => {
       // A login shell the command itself starts, inside the agent's own, of every shell this computer has.
       expect(run(["-lc", present.map(p => `${p} -lc wsp`).join("; ")]), `${name} -lc nesting`).toBe(present.map(() => "thread").join("\n"));
       if (name === "zsh") expect(run(["-lc", "echo $ZSHENV_RAN"])).toBe("1");
+    });
+  }
+
+  for (const [name, shell] of SHELLS) {
+    it.skipIf(shell === undefined)(`puts its docker first for a ${name} login shell in a turn, labelling the thread's run and noting its compose up`, () => {
+      const home = join(dir, "person");
+      const own = join(home, ".local", "bin");
+      mkdirSync(own, { recursive: true });
+      writeStub(join(own, "docker"), '#!/bin/sh\necho "docker $*"\n');
+      for (const file of [".zprofile", ".bash_profile"]) writeFileSync(join(home, file), 'export PATH="$HOME/.local/bin:$PATH"\n');
+      const statePath = join(dir, "home", "state.json");
+      const env = { ...servingWiring(statePath, { here: {}, run: started(join(dir, "none.mjs")) }, home, { PATH: "/usr/bin:/bin", HOME: home }).env(), WSP_THREAD: "t1" };
+      const run = (line: string): string => execFileSync(shell!, ["-lc", line], { env, cwd: home, encoding: "utf8", stdio: SHELL_STDIO }).trim();
+      expect(run("command -v docker; docker run busybox")).toBe(`${join(threadBinDir(statePath), "docker")}\ndocker run --label wsp.thread=t1 busybox`);
+      expect(run("docker compose -p lab up -d")).toBe("docker compose -p lab up -d");
+      const notes = readFileSync(join(threadDockerNotesDir(statePath), "t1"), "utf8").split("\n");
+      expect([notes.length, notes[0]!.split("\t").slice(0, 3)]).toEqual([2, ["t1", realpathSync(home), "lab"]]);
     });
   }
 

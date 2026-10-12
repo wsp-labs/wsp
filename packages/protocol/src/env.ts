@@ -26,7 +26,8 @@ export const TURN_TOKEN_ENV = "WSP_TURN";
 
 /** The variable a turn's launch environment carries with its thread's id, which every process the turn starts
  * inherits, a dev server it detached with setsid included: the daemon reads it to put such a process under its
- * thread. A label and nothing more: it grants nothing, no road reads it to decide what a caller may do, and a
+ * thread, and the docker wsp puts first on the turn's PATH labels the containers the thread makes with it. A label and
+ * nothing more: it grants nothing, no road reads it to decide what a caller may do, and a
  * process that sets it to another thread's id only moves where its own row is drawn. */
 export const THREAD_ENV = "WSP_THREAD";
 
