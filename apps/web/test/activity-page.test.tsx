@@ -190,10 +190,10 @@ describe("Settings > Activity", () => {
     feed(1);
     toggle("t_one");
     const row = document.querySelector<HTMLElement>("[data-proc-row='32']")!;
-    expect(row.querySelector("[data-act=end]")!.parentElement!.className).toContain("max-md:hidden");
+    expect(row.querySelector("[data-act=end]")!.parentElement!.className).toContain("narrow:hidden");
     const menu = row.querySelector<HTMLElement>("[data-act=menu]")!;
-    expect(menu.parentElement!.className).toContain("max-md:opacity-100");
-    expect(menu.parentElement!.className).not.toContain("max-md:hidden");
+    expect(menu.parentElement!.className).toContain("narrow:opacity-100");
+    expect(menu.parentElement!.className).not.toContain("narrow:hidden");
     fireEvent.click(menu);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["Open :5173 in a browser tab", "End", "Open thread", "Copy command", "Copy PID"]);
@@ -210,10 +210,10 @@ describe("Settings > Activity", () => {
     await open();
     feed(1);
     const head = document.querySelector<HTMLElement>("[data-group='t_one']")!;
-    expect(head.querySelector("[data-act=end-all]")!.parentElement!.className).toContain("max-md:hidden");
+    expect(head.querySelector("[data-act=end-all]")!.parentElement!.className).toContain("narrow:hidden");
     const menu = head.querySelector<HTMLElement>("[data-act=head-menu]")!;
-    expect(menu.className).toContain("md:hidden");
-    expect(menu.className).not.toContain("max-md:hidden");
+    expect(menu.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "narrow:flex"]));
+    expect(menu.className).not.toContain("narrow:hidden");
     fireEvent.click(menu);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
     expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["End all", "Open thread"]);

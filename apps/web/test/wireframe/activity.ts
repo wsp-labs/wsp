@@ -18,9 +18,10 @@ const AT = Date.parse("2026-09-17T09:00:00.000Z");
 const session = (id: string, workspaceId: string, prompt: string, pid: number | undefined, over: Partial<SessionView> = {}): SessionView =>
   ({ id: `s_${id}`, workspaceId, threadId: id, harness: "claude", status: pid === undefined ? "completed" : "running", prompt, startedBy: "person", startedAt: AT, ...(pid === undefined ? { endedAt: AT + 60_000 } : { pid }), ...over }) as SessionView;
 
-/** Five threads on the Mac's two folders of spoo: four with a turn running, one resting with its agent kept. */
+/** Five threads on the Mac's two folders of spoo: four with a turn running, one resting with its agent kept. The
+ * sampler is the design round's child, which its Processes pane folds under it. */
 export const ACTIVITY_SESSIONS: Record<string, SessionView[]> = {
-  ws_here: [session("th_design", "ws_here", "Task manager design round", 40009), session("th_sampler", "ws_here", "Daemon libproc sampler", 38810)],
+  ws_here: [session("th_design", "ws_here", "Task manager design round", 40009), session("th_sampler", "ws_here", "Daemon libproc sampler", 38810, { parentThreadId: "th_design", startedBy: "agent" } as Partial<SessionView>)],
   ws_copy: [
     session("th_landing", "ws_copy", "Landing hero copy", 36120, { asking: "Which headline do you want?" } as Partial<SessionView>),
     session("th_legend", "ws_copy", "Fix the usage page legend", 35002, { harness: "codex" }),
@@ -109,18 +110,19 @@ export const ACTIVITY_APP_PROCS: AppProc[] = [
   { pid: 51102, kind: "tab", origins: ["http://localhost:5174"] },
 ];
 
-/** Feeds the page as the daemon would: the minutes before the shot fast, then a frame every two seconds. */
-export function feedActivity(hot: boolean, energy: boolean): void {
+/** Feeds the page as the daemon would, over the link `key` names: the minutes before the shot fast, then a frame every
+ * two seconds. */
+export function feedActivity(hot: boolean, energy: boolean, key: string = HERE_KEY): void {
   let tick = 0;
   const send = (): void => {
     tick++;
     const at = AT + tick * 2000;
-    getProcs(HERE_KEY).feed({ type: "proc.snapshot", at, daemon: DAEMON, total: 1104, procs: frame(tick, hot, energy), seq: tick, cost: { cpuMs: 1.3 + (tick % 3) * 0.2, held: 412_000 } });
-    getProcs(HERE_KEY).feedStatus("live");
+    getProcs(key).feed({ type: "proc.snapshot", at, daemon: DAEMON, total: 1104, procs: frame(tick, hot, energy), seq: tick, cost: { cpuMs: 1.3 + (tick % 3) * 0.2, held: 412_000 } });
+    getProcs(key).feedStatus("live");
     const sample: SysSample = { type: "sys.sample", cpu: 21, load1: 3.2, mem: { used: 24.1 * GB, total: 36 * GB }, disk: { used: 400 * GB, total: 1000 * GB }, at } as SysSample;
     getLive(HERE_KEY).feedSample(sample);
   };
-  syncPorts(HERE_KEY, [
+  syncPorts(key, [
     { port: 5173, pid: 41877, process: "node", loopback: true },
     { port: 3000, pid: 36400, process: "node", loopback: false },
     { port: 5174, pid: 31877, process: "node", loopback: true },
