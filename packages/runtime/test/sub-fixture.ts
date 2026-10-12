@@ -120,15 +120,26 @@ function leadDaemon(git: LeadGit) {
   return { frames, open };
 }
 
+/** Where each agent keeps a session's one file on a machine, as their adapters say: Claude Code under its config dir by
+ * folder, Codex under its home by date. */
+export const CLAUDE_SESSION_FILE = (id: string) => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 });
+export const CODEX_SESSION_FILE = (id: string) => ({ folder: "/root/.codex/sessions", name: `-${id}.jsonl`, depth: 3 });
+
+/** The file a session's pack finds on a machine: Claude Code's under the folder of the turn's cwd, /root/web, and
+ * Codex's rollout under the day it started. */
+export function sessionPathOf(folder: string, name: string): string {
+  return folder.endsWith("/sessions") ? `${folder}/2026/10/12/rollout-2026-10-12T06-00-00${name}` : `${folder}/-root-web/${name}`;
+}
+
 type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLater?: boolean; exit?: () => void };
 
 /** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
  * but for one started while `hold` is set, which runs until `release` ends it; with `exitLater` its process exits only
  * at `exit`, as a real one does a moment after its result. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn): HarnessAdapterFactory {
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn, sessionFile: (id: string) => { folder: string; name: string; depth: number }): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
-    sessionFile: id => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 }),
+    sessionFile,
     start: o => {
       starts.push({ o, env: hctx.env });
       const sessionId = `s${starts.length}`;
@@ -220,9 +231,9 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const claude = harness(starts, leadTurn);
+  const claude = harness(starts, leadTurn, CLAUDE_SESSION_FILE);
   const onBoat = o.subAdapter;
-  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn) };
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE) };
   const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);
@@ -258,7 +269,8 @@ export const UNPUSHED = `branch wsp/fix-the-flaky-upload-test\npushed none\nunpu
 
 export interface Answers {
   read: string | { exitCode: number; stderr: string };
-  session: Buffer | null;
+  /** The packed session, or only its packed size, where the host is not to read it. */
+  session: Buffer | number | null;
 }
 
 /** Boat answering the result read, the session's pack and its read as `answers` says, on every machine it makes. */
@@ -268,19 +280,26 @@ export function answering(boat: Boat, answers: Answers): void {
     if (cmd.includes("git rev-list --count --branches --not --remotes")) {
       return typeof answers.read === "string" ? { exitCode: 0, stdout: answers.read, stderr: "" } : { exitCode: answers.read.exitCode, stdout: "", stderr: answers.read.stderr };
     }
-    if (cmd.includes("gzip -c")) return answers.session === null ? { exitCode: 0, stdout: "nofile\n", stderr: "" } : { exitCode: 0, stdout: `size ${answers.session.length}\n`, stderr: "" };
+    if (cmd.includes("gzip -c")) {
+      if (answers.session === null) return { exitCode: 0, stdout: "nofile\n", stderr: "" };
+      const [, folder, name] = /find '([^']+)' .* -name '\*([^']+)'/.exec(cmd)!;
+      const size = typeof answers.session === "number" ? answers.session : answers.session.length;
+      return { exitCode: 0, stdout: `path ${sessionPathOf(folder!, name!)}\nsize ${size}\n`, stderr: "" };
+    }
     return base(m, cmd, stdin);
   };
   const create = boat.create.bind(boat);
   boat.create = async spec => {
     const m = (await create(spec)) as StubMachine;
     m.readBytes = async (path: string, o?: { size?: number }) => {
-      if (answers.session === null || !path.startsWith("/tmp/wsp-session-") || o?.size !== answers.session.length) throw new Error(`nothing packed at ${path}`);
-      return answers.session;
+      const packed = answers.session;
+      if (!Buffer.isBuffer(packed) || !path.startsWith("/tmp/wsp-session-") || o?.size !== packed.length) throw new Error(`nothing packed at ${path}`);
+      return packed;
     };
     return m;
   };
 }
+
 
 /** Real timers, and a now the test can move on: a jump fires every timer it passes at once. */
 export function jumpClock(): { clock: Clock; jump(ms: number): void } {

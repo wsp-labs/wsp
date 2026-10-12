@@ -23,6 +23,9 @@ import {
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
   replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX,
   subMachineTakenRefusal,
+  subOpening,
+  SUB_TURN_GONE_LINE,
+  subTurnGone,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readyFork } from "./forks.js";
@@ -35,6 +38,7 @@ import {
   type LiveSession, type SessionEntry, stopLogLine,
 } from "../types/internal.js";
 import { launchArea, servedTo } from "./launch.js";
+import { trimmedRow } from "./trimmed-row.js";
 import type { RuntimeContext, SessionsArea } from "../context.js";
 
 /** A steered message's images as an adapter that declares steersImages reads them: the bytes, as a start's inline road. */
@@ -100,29 +104,6 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       void stopping?.then(() => settle(ctx.placeAway(place)), () => settle(ctx.placeAway(place)));
     });
   };
-  /** The row a thread whose rows all fell off the cap is named by, built off its record and the transcript: its id is
-   * the thread's, and no turn of it runs, since the cap never drops a running row. */
-  const trimmedRow = (threadId: string, r: ThreadRecord & { workspaceId: string }, ended = r.ended): SessionView => {
-    const resume = ctx.startedAs(r.workspaceId, threadId);
-    const cwd = resume === undefined ? undefined : ctx.folderOf(r.workspaceId, resume);
-    // Its first words name it and its last place it in time, as its row did.
-    const words = transcriptIndex.get(r.workspaceId)?.words.get(threadId);
-    return {
-      id: threadId,
-      threadId,
-      workspaceId: r.workspaceId,
-      harness: r.harness,
-      status: ended ?? "completed",
-      ...(words?.first !== undefined ? { prompt: words.first } : {}),
-      ...(words !== undefined && words.last > 0 ? { startedAt: words.last, endedAt: words.last } : {}),
-      ...(r.parentThreadId !== undefined ? { startedBy: "agent" as const, parentThreadId: r.parentThreadId } : {}),
-      ...(r.rootThreadId !== undefined ? { rootThreadId: r.rootThreadId } : {}),
-      ...(resume !== undefined ? { claudeSessionId: resume } : {}),
-      ...(cwd !== undefined ? { cwd } : {}),
-      ...(r.permissionMode !== undefined ? { permissionMode: r.permissionMode } : {}),
-      ...(r.forkedFrom !== undefined ? { forkedFrom: r.forkedFrom } : {}),
-    };
-  };
   /** A stop on one turn; `marked` lets a held turn's next look go on once the stop has marked it, or will not. */
   const stopTurn = async (marked: () => void, ...[sessionId, origin, task]: Parameters<Runtime["sessions"]["interrupt"]>): ReturnType<Runtime["sessions"]["interrupt"]> => {
     await ctx.ready();
@@ -132,7 +113,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     // A thread whose rows all fell off the cap is stopped by the row its listing names, so its tree stops under it as
     // under a thread whose rows are there.
     const trimmed = rowOf() === undefined ? threadRecords.get(sessionId) : undefined;
-    let s = trimmed === undefined ? rowOf() : { view: trimmedRow(sessionId, trimmed), turnId: sessionId };
+    let s = trimmed === undefined ? rowOf() : { view: trimmedRow(ctx, sessionId, trimmed), turnId: sessionId };
     if (!s) return { outcome: "not-found" };
     // One absence for every row a thread cannot reach, wherever it stands: a sentence about the workspace would
     // tell a thread which of the two rules hid the row.
@@ -332,7 +313,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       }
       const reached = opens ? await ctx.entryOf(workspaceId, opensThere ? undefined : origin) : await ctx.entryOfRow({ threadId, workspaceId }, origin, "send");
       if (reached === undefined) throw new Error(`no thread ${opened.thread} in this folder`);
-      const entry = reached;
+      // A released sub-thread's send moves it onto a new machine once it holds the thread, and runs there.
+      let entry = reached;
       // A restart is read before the machine is asked: a send into a thread that has run replaces nothing.
       const replaces = opened.replaces;
       if (replaces !== undefined) {
@@ -373,6 +355,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const refuse = (): void => {
         if (!live.has(workspaceId)) throw new Error(deletedBeforeStartLine(entry.record.name));
         ctx.refuseSubSend(live.get(workspaceId)!);
+        if (live.get(workspaceId)!.record.phase === "released") return;
         const refusal = sendRefusal(workspaceState({ phase: entry.record.phase }), entry.record.gone, entry.record.name);
         if (refusal !== null) throw new Error(refusal);
       };
@@ -431,6 +414,15 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // registration did, so a road that may not start a process on the target's workspace does not get one
       // started for it a turn later.
       const notifyRoad = asked === undefined ? registered?.road : roadOf(origin);
+      // The last check before anything is minted for the launch, which is made for the machine the turn runs on: a
+      // released sub-thread's send makes it one, and a send meeting that waits for it.
+      let notice: string | undefined;
+      if (entry.record.sub !== undefined) {
+        const resumed = await ctx.resumeSub(entry, threadId, o.harness);
+        entry = resumed.entry;
+        if (resumed.preamble !== undefined) o.prompt = subOpening(resumed.preamble, o.prompt);
+        if (resumed.notices.length > 0) notice = resumed.notices.join("\n");
+      }
       if (entry.record.queue !== undefined) return ctx.holdQueued({ workspaceId, threadId, tree, o: { ...o, ...(title !== undefined ? { title } : {}) }, notify: asked }, origin);
       const turnToken = randomBytes(16).toString("hex");
       const { scoped, env: launchEnv, wsp } = await threadLaunch(entry, threadId, tree.rootThreadId ?? threadId);
@@ -856,7 +848,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         }
         // The turn is running; what the record failed to remember must not read as a start that failed.
         if (resume === undefined) await ctx.rememberTarget(entry.record).catch((e: unknown) => console.warn(`last target for ${workspaceId} not remembered: ${e instanceof Error ? e.message : String(e)}`));
-        return handle;
+        return notice === undefined ? handle : Object.assign(handle, { notice });
       } catch (e: unknown) {
         failure = e instanceof Error ? e.message : String(e);
         throw e;
@@ -932,7 +924,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const rowed = new Set([...sessions.values()].map(s => threadKeyOf(s.view)));
       const trimmed = ctx.treeRecords(origin, "list", workspaceId).filter(([threadId]) => !rowed.has(threadId));
       const ends = await Promise.all(trimmed.map(async ([threadId, r]) => r.ended ?? threadResult(await ctx.openThread(r.workspaceId, threadId), threadId)?.status));
-      const listed = [...ctx.listedRows(held).map(view => (ctx.reachesRow(view, origin) ? view : namedOnly(view))), ...trimmed.map(([threadId, r], i) => trimmedRow(threadId, r, ends[i]))];
+      const listed = [...ctx.listedRows(held).map(view => (ctx.reachesRow(view, origin) ? view : namedOnly(view))), ...trimmed.map(([threadId, r], i) => trimmedRow(ctx, threadId, r, ends[i]))];
       return ctx.placedRows(listed);
     },
 
@@ -1301,9 +1293,12 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         bus.emit({ type: "thread.rewound", workspaceId, threadId });
       };
 
+      // A sub-thread's checkpoints went with its machine once that machine was deleted.
+      const gone = (startedAt: number | undefined): boolean => subTurnGone(entry.record.sub, startedAt);
       if (opts.undo === true) {
         const rewound = held?.rewound;
         if (rewound === undefined) throw conflict(REWIND_NO_UNDO_LINE);
+        if (gone(rewound.at)) throw conflict(SUB_TURN_GONE_LINE);
         besideRunning();
         const back = await restore(rewound.before);
         delete held!.rewound;
@@ -1318,6 +1313,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       for (const e of events) if (e.threadId === threadId && e.turnId !== undefined && !order.includes(e.turnId)) order.push(e.turnId);
       const at = opts.turnId === undefined ? -1 : order.indexOf(opts.turnId);
       if (at < 0) throw notFoundRefusal(`no turn ${opts.turnId ?? ""} on thread ${threadWord(threadId)}`);
+      if (gone([...sessions.values()].find(r => r.turnId === order[at])?.view.startedAt ?? events.find(e => e.turnId === order[at] && e.at !== undefined)?.at)) throw conflict(SUB_TURN_GONE_LINE);
       if (at === order.length - 1) throw conflict(REWIND_LATEST_LINE);
       if (events.some(e => e.threadId === threadId && e.turnId === order[at] && copiedFromOf(e) !== undefined)) throw conflict(REWIND_COPIED_LINE);
       const cut = order.slice(at + 1);
@@ -1494,6 +1490,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     startOn(workspaceId, opened, origin).catch((e: unknown) => {
       const claimed = claimedBy.get(opened);
       if (claimed !== undefined && ctx.keptAgents.get(claimed)?.warm !== undefined) ctx.reapKept(claimed);
+      // A sub-machine a refused send leaves with no turn is done, so its delete is armed.
+      if (live.get(workspaceId)?.record.sub !== undefined) void ctx.subDone(workspaceId);
       throw e;
     });
   return { sessionsApi, stopHolds: threadId => ending.has(threadId), stopTry };
