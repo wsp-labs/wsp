@@ -509,6 +509,8 @@ export interface BootArea {
   readonly factsAfterRead: (threadId: string, origin: Caller | undefined) => Promise<ThreadFacts | undefined>;
   readonly settledNow: (threadId: string, settleMs: number | null) => boolean;
   readonly pushHead: (threadId: string) => void;
+  /** Answers once every row that moved is on the bus. */
+  readonly rowsSent: () => Promise<void>;
   readonly mark: (threadIds: readonly string[], stamped: ThreadStamps | ((threadId: string) => ThreadStamps), origin: Caller | undefined) => Promise<void>;
   readonly endSnoozeFor: (row: Pick<SessionView, "threadId" | "rootThreadId">) => void;
   readonly armResume: (threadIds: readonly string[], on: boolean, origin: Caller | undefined) => Promise<void>;
@@ -579,7 +581,7 @@ export interface SubSpawnArea {
   /** A released sub-thread on a new machine forked from the image head as it stands, the picked files and the kept
    * session landed on it, the checks that still apply read first: the live entry now, and the head its send opens with.
    * A send that meets a resume in flight waits for it and opens with no head of its own; any other is answered as it is. */
-  readonly resumeSub: (entry: LiveWorkspace, threadId: string, harness: string) => Promise<{ entry: LiveWorkspace; preamble?: string; notices: string[] }>;
+  readonly resumeSub: (entry: LiveWorkspace, threadId: string, harness: string, asked?: string) => Promise<{ entry: LiveWorkspace; preamble?: string; notices: string[] }>;
 }
 
 export interface SubQueueArea {

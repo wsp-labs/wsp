@@ -79,6 +79,7 @@ import { PaperclipIcon, SplitIcon } from "lucide-react";
 import { AGENT_WARM_TYPED_MS, ASIDE_NO_SESSION_LINE, forkOfLine, forkWhereLine, composerHeldLine, HERE_PLACE_ID, hereName, HOST_ASLEEP_SEND, isLocalWorkspace, signedOutLine, type AgentsTarget, FILES_MAX, FILE_MAX_WORDS, IMAGE_MAX_WORDS, IMAGE_TYPE_WORDS, TURN_IN_FLIGHT, movesRunningAccess, noImagesLine, readsImages, screenCommandLine, screenCommandTyped, screenCommandsOf, sendRefusal, steerFilesBlocked, type SendRefusalKind, type TurnLimit, type WorkspaceState } from "@wsp/protocol";
 import type { ConnStatus, WarmAgentOptions } from "../../protocol/client";
 import { hostAsleep } from "../../boot";
+import { startFailureSays } from "./spawnLog";
 import { projectHomeKey, useAbsentComputer, useHarnessCatalogs, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
 import { useComputerName } from "../../sidebar/workspaceRows";
 import { useThreadFolder, useThreadStart } from "../../files/root";
@@ -622,7 +623,7 @@ export function ChatComposer({
     [searchKey],
   );
 
-  const { setSending, appendUserTurn, appendLocalError, thread: into, busy, sending } = thread;
+  const { setSending, appendUserTurn, appendLocalError, dropSent, thread: into, busy, sending } = thread;
   // Drawing one of the workspace's threads ends its fork draft, here or on coming back from another thread: the
   // composer is keyed by the thread it shows, so leaving for another thread unmounts it before any change is seen.
   useEffect(() => {
@@ -691,12 +692,16 @@ export function ChatComposer({
         .catch((err: unknown) => {
           setSending(false);
           launched(workspaceId, requestId);
-          onRefused();
           restoreFiles(threadKey, requestId, rowId);
-          appendLocalError(err instanceof Error ? err.message : String(err));
+          const message = err instanceof Error ? err.message : String(err);
+          // A sub-thread's machine start that failed is on its row before the refusal lands: the start line says it and
+          // holds the message for Try again, so no error row repeats it and the draft is not handed back.
+          if (startFailureSays(useStore.getState().sessions[workspaceId], into, message)) return dropSent();
+          onRefused();
+          appendLocalError(message);
         });
     },
-    [api, appendLocalError, appendUserTurn, dismissRefused, fastOn, files, folderStart, fork, harnessId, hold, into, launched, launching, pinned, restoreFiles, sendFilesAs, setSending, startOptions, threadKey, wake, wakesFirst, workspaceId],
+    [api, appendLocalError, appendUserTurn, dropSent, dismissRefused, fastOn, files, folderStart, fork, harnessId, hold, into, launched, launching, pinned, restoreFiles, sendFilesAs, setSending, startOptions, threadKey, wake, wakesFirst, workspaceId],
   );
 
   /** Asks the host beside the thread and opens the side question's tab of the right panel on the answer. */

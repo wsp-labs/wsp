@@ -200,10 +200,10 @@ describe("BoxBackend declarations", () => {
       copies: true,
       ownNetwork: true,
       sizes: [
-        { cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
-        { cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
-        { cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
-        { cpu: 16, memMb: 32768, rateUsdPerHour: 0.2 },
+        { name: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+        { name: "default", cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+        { name: "large", cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+        { name: "extra large", cpu: 16, memMb: 32768, rateUsdPerHour: 0.2 },
       ],
     });
     expect(backend.baseTemplates).toEqual({ sandbox: BOX_BASE_TEMPLATE, desktop: BOX_BASE_TEMPLATE });
@@ -327,8 +327,11 @@ describe("BoxBackend against a fake Box API", () => {
       .on("PATCH", "/boxes/bx_uwepudz7", INFO("bx_uwepudz7", "idle", { name: "wsp;o=h_1" }))
       .on("POST", "/boxes/bx_uwepudz7/commands", COMMAND(""));
     const { backend } = backendOn(api, "standard");
-    const machine = await backend.create({ kind: "sandbox", template: "wsp-mac-default-v1", cpu: 4, memMb: 8192, labels: { [OWNER_LABEL]: "h_1" } });
+    const heard: { line: string; box?: { id: string; state: string } }[] = [];
+    const machine = await backend.create({ kind: "sandbox", template: "wsp-mac-default-v1", cpu: 4, memMb: 8192, labels: { [OWNER_LABEL]: "h_1" } }, (line, box) => heard.push({ line, ...(box !== undefined ? { box } : {}) }));
     expect(machine.id).toBe("bx_uwepudz7");
+    // Each of Boat's own states the box passed through, once, for the person following the create.
+    expect(heard).toEqual(["provisioned", "cloning", "idle"].map(state => ({ line: `Boat's machine bx_uwepudz7 is ${state}`, box: { id: "bx_uwepudz7", state } })));
     // No window named and no cap on the account: no timer, the provider's own meaning of null.
     expect(api.took("POST", "/boxes")!.body).toEqual({ type: "default", ttlSeconds: null, noEnv: true, name: "wsp;o=h_1", from: "wsp-mac-default-v1" });
     // The deployed box came back named after its snapshot, so the labels went back on with one update.
@@ -1410,10 +1413,10 @@ const NAMED_SPEC = { kind: "sandbox" as const, labels: { [NAME_LABEL]: "Fix the 
 describe("Boat's limits, read from Boat", () => {
   it("the class table is Boat's: four sizes with their disks and rates, xlarge at $0.200; named snapshots past 10 cost $1.70 a month", () => {
     expect(BOX_CLASSES).toEqual([
-      { type: "small", cpu: 2, memMb: 4096, diskGb: 12, rateUsdPerHour: 0.018 },
-      { type: "default", cpu: 4, memMb: 8192, diskGb: 50, rateUsdPerHour: 0.036 },
-      { type: "large", cpu: 8, memMb: 16384, diskGb: 125, rateUsdPerHour: 0.072 },
-      { type: "xlarge", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
+      { type: "small", name: "small", cpu: 2, memMb: 4096, diskGb: 12, rateUsdPerHour: 0.018 },
+      { type: "default", name: "default", cpu: 4, memMb: 8192, diskGb: 50, rateUsdPerHour: 0.036 },
+      { type: "large", name: "large", cpu: 8, memMb: 16384, diskGb: 125, rateUsdPerHour: 0.072 },
+      { type: "xlarge", name: "extra large", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
     ]);
     expect(BOX_PRICING.rateUsdPerHour({ cpu: 16, memMb: 32768 })).toBe(0.2);
     expect(BOX_PRICING.snapshotStorage).toMatchObject({ freeNamed: 10, usdPerNamedMonth: 1.7 });
@@ -1440,9 +1443,9 @@ describe("Boat's limits, read from Boat", () => {
         creditBalanceHours: 81.6,
       });
       expect(backend.capabilities.sizes).toEqual([
-        { cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
-        { cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
-        { cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+        { name: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+        { name: "default", cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+        { name: "large", cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
       ]);
     }
   });

@@ -22,6 +22,7 @@ import { SubagentFoldRow } from "../src/components/chat/SubagentFoldRow.js";
 import { caps } from "./caps.js";
 import { noDaemonApi } from "./fake-daemon-api.js";
 import { installFakeLayout } from "./fake-layout.js";
+import { composerEditor, press, typeInto } from "./composer-harness.js";
 
 let restoreLayout: () => void = () => {};
 beforeAll(() => {
@@ -74,7 +75,9 @@ const SUBAGENTS: SubagentView[] = [
 ];
 
 let LISTED = SUBAGENTS;
-const leadRow = (): SessionView => ({ id: "s_lead", workspaceId: WS, harness: "claude", status: "running", prompt: "Run the marathon", threadId: LEAD, startedAt: ago(6), subagents: LISTED });
+/** What a case lays over the lead's row, as a sub-thread's own state. */
+let LEAD_OVER: Partial<SessionView> = {};
+const leadRow = (): SessionView => ({ id: "s_lead", workspaceId: WS, harness: "claude", status: "running", prompt: "Run the marathon", threadId: LEAD, startedAt: ago(6), subagents: LISTED, ...LEAD_OVER });
 
 const scope = { workspaceId: WS, sessionId: "s_lead", threadId: LEAD, turnId: "turn_lead" };
 const launch = (id: string, prompt: string, title: string, at: number): SessionEvent[] => [
@@ -174,6 +177,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
   vi.setSystemTime(NOW);
   LISTED = SUBAGENTS;
+  LEAD_OVER = {};
   window.localStorage.clear();
 });
 afterEach(() => {
@@ -473,5 +477,66 @@ describe("an old subagent's page", () => {
     await waitFor(() => expect(shownText()).toContain("34 open. Reading each one for the files it names."), { timeout: 8000 });
     await act(() => new Promise<void>(resolve => setTimeout(resolve, 1000)));
     expect([...reads].sort()).toEqual(["head", "page"]);
+  });
+});
+
+describe("a sub-thread whose restart failed", () => {
+  const SAID = "Boat gave two machines in a row that could not run commands (bx_1, bx_2); Boat is restoring badly right now.";
+  const FIX = "Start it again in a few minutes.";
+
+  it("says the refusal once, on the start line, and keeps it there after a subagent's page and Back", async () => {
+    // The host put the row saying the start failed on the bus before it answered the send's refusal.
+    LEAD_OVER = {
+      status: "completed",
+      endedAt: ago(2),
+      sub: { state: "released", on: "box", machine: "lab", size: { cpu: 2, memMb: 4096, name: "small" }, branch: "wsp/lab", releasedAt: ago(3), spawn: { startedAt: NOW, machine: { since: NOW, states: [] }, failed: { step: "machine", said: SAID, fix: FIX }, asked: "what was the word?", log: [] } },
+    };
+    const sent: string[] = [];
+    LISTED = SUBAGENTS.map(sub => (sub.state === "running" ? { ...sub, state: "done" as const, endedAt: ago(2) } : sub));
+    // The turn ended, so the composer sends rather than queues.
+    const ended: SessionEvent[] = [...HISTORY, { type: "session.done", ...scope, at: ago(2), result: { status: "completed" } } as SessionEvent, { type: "session.end", ...scope, at: ago(2), exitCode: 0, sawResult: true } as SessionEvent];
+    // The first send is refused with the failed start; Try again's send is taken and its start is under way.
+    const refusing: Api = {
+      ...api,
+      sessionHistory: async () => ended,
+      startSession: async o => {
+        sent.push(o.prompt);
+        if (sent.length === 1) throw new Error(`${SAID} ${FIX}`);
+        return { id: "s10", workspaceId: WS, harness: "claude", status: "running" } as SessionView;
+      },
+    };
+    useStore.getState().bind(refusing);
+    useStore.getState().setConn("live");
+    render(
+      <AppShell>
+        <Centre />
+      </AppShell>,
+    );
+    await waitFor(() => expect(useStore.getState().harnesses.length).toBeGreaterThan(0));
+    act(() => useStore.getState().select(WS, LEAD));
+    await waitFor(() => expect(document.body.textContent).toContain("Eight threads are out."));
+    const said = (): number => page().textContent!.split(SAID).length - 1;
+    const editor = composerEditor();
+    await typeInto(editor, "what was the word?");
+    await press(editor, "Enter");
+    await waitFor(() => expect(sent).toEqual(["what was the word?"]));
+    await waitFor(() => expect(said()).toBe(1));
+    // The start line holds the message for Try again, so the composer does not hand it back.
+    expect(editor.textContent).toBe("");
+    fireEvent.click(await found("[data-k=spawn-try-again]"));
+    await waitFor(() => expect(sent).toEqual(["what was the word?", "what was the word?"]));
+    // Try again's start writes a spawn with no failure, and the row moves to it.
+    LEAD_OVER = { ...LEAD_OVER, sub: { ...LEAD_OVER.sub!, state: "starting", spawn: { startedAt: NOW + 1_000, machine: { since: NOW + 1_000, states: [] }, asked: "what was the word?", log: [] } } };
+    await act(() => useStore.getState().reloadSessions(WS));
+    await waitFor(() => expect(said()).toBe(0));
+    // A subagent's page and Back remount the list on the same thread: the old refusal stays off the page.
+    await openPage("order");
+    // The lead's list goes once the subagent's has painted.
+    await act(() => new Promise<void>(resolve => setTimeout(resolve, 300)));
+    await waitFor(() => expect(document.querySelectorAll("[data-chat-view] [data-spawn-line]").length).toBe(0));
+    act(() => useStore.getState().select(WS, LEAD));
+    await waitFor(() => expect(document.body.textContent).toContain("Eight threads are out."));
+    await act(() => new Promise<void>(resolve => setTimeout(resolve, 300)));
+    expect(said()).toBe(0);
   });
 });

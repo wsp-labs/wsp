@@ -435,7 +435,7 @@
       "waking": "{name} waking",
       "unreachable": "{name} is up and not answering yet",
       "gone": "{name} gone",
-      "released": "{name} released"
+      "released": "{name} deleted"
     },
     "rebuildRefused": {
       "running": "This one is running, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
@@ -444,7 +444,7 @@
       "waking": "This one is waking, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
       "unreachable": "This one is not answering yet; the rebuild is offered once it is gone",
       "gone": "This one is gone, so nothing needs rebuilding; the rebuild is offered once a workspace is gone",
-      "released": "This one is released, so nothing needs rebuilding; the rebuild is offered once a workspace is gone"
+      "released": "This one is deleted, so nothing needs rebuilding; the rebuild is offered once a workspace is gone"
     },
     "onMachine": "{state} on {machine}",
     "renamed": "{was} is now {name} {id}",

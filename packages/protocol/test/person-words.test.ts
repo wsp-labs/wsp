@@ -115,10 +115,31 @@ const CUT = {
   thisMac: /(?<![\w-])[Tt]his Mac(?![\w-])/,
 } as const;
 
-/** The locked Computers screens name a cloud's machines in three places and nowhere else: the Computers page's blurb,
- * the cloud list's Machines column and what a cloud's Remove takes. Each is exact, so any other machine word still
- * fails. */
-const LOCKED_MACHINE_WORDS = ["The computers your threads run on, and the clouds that lend them machines.   is the first one.", "Machines", "Deletes every machine wsp made there and forgets the key."];
+/** The locked Computers screens name a cloud's machines in three places: the Computers page's blurb, the cloud list's
+ * Machines column and what a cloud's Remove takes; and Boat's own lines, each held to the file that says it. Each is
+ * exact, so any other machine word, or one of these anywhere else, still fails. */
+const LOCKED_MACHINE_WORDS: ReadonlyArray<{ word: string; file?: string }> = [
+  { word: "The computers your threads run on, and the clouds that lend them machines.   is the first one." },
+  { word: "Machines" },
+  { word: "Deletes every machine wsp made there and forgets the key." },
+  // A Boat machine is what Boat sells and what its own dashboard calls it: Boat's page,
+  // its band, a sub-thread's card and Boat's remove name the machines a sub-thread runs on.
+  ...[
+    "Machines at once",
+    "How many machines may run on   at once. A sub-thread past it waits for one to free.",
+    "What   may spend in a day before no new machine starts. Machines already running are left alone.",
+    "Machine size for a sub-thread",
+    "Delete a finished sub-thread's machine after",
+    "Its transcript and the agent's session are kept, and a message after the delete starts a new machine.",
+    "its machine",
+    "their machines",
+    "Ask each sub-thread to push first; Remove anyway deletes that work with the machines.",
+  ].map(word => ({ word, file: "apps/web/src/settings/format.ts" })),
+  { word: "Machines at once", file: "apps/web/src/settings/LimitBand.tsx" },
+  ...["machine is", "machines are"].map(word => ({ word, file: "apps/web/src/settings/places.ts" })),
+  ...[", its machine was deleted  ; a message starts a new one", "its machine is deleted in", "Starting a machine on   ( ,   vCPU,  )"].map(word => ({ word, file: "apps/web/src/sidebar/tileCard.ts" })),
+];
+const locked = (said: string): boolean => LOCKED_MACHINE_WORDS.some(({ word, file }) => said.endsWith(` ${JSON.stringify(word)}`) && (file === undefined || said.startsWith(`${file}:`)));
 
 /** The protocol's words for the computer the host runs on in place of its name. The command line says them; the app
  * names that computer by the name its owner gave it, off the places list. */
@@ -158,7 +179,7 @@ describe("the words a person reads", () => {
   });
 
   it("the app says none of the words the spec cut", () => {
-    expect(spelling(app, Object.keys(CUT) as Array<keyof typeof CUT>).filter(said => !LOCKED_MACHINE_WORDS.some(word => said.endsWith(` ${JSON.stringify(word)}`)))).toEqual([]);
+    expect(spelling(app, Object.keys(CUT) as Array<keyof typeof CUT>).filter(said => !locked(said))).toEqual([]);
   });
 
   // The protocol's tables are the command line's words as well as the app's, and the spec keeps the five nouns

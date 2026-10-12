@@ -5,14 +5,16 @@
 // and the row comes back as the host now reads it; a row off its default carries the arrow that takes it back.
 import { useState } from "react";
 import { MinusIcon, PlusIcon } from "lucide-react";
-import { HERE_PLACE_ID, NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS, fmtMemGb, placeSettingNamed, type PlaceSettingWord, type PlaceSettingsAsk, type PlaceView } from "@wsp/protocol";
+import { HERE_PLACE_ID, NAP_AFTER_MAX_MS, TURN_LIMIT_MAX_MS, fmtMemGb, fmtRate, isProviderPlace, placeSettingNamed, sizeFromWord, sizeNameOf, sizeWord, subSizesSold, type PlaceSettingWord, type PlaceSettingsAsk, type PlaceView } from "@wsp/protocol";
 import { Button } from "../components/ui/button.js";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../components/ui/input-group.js";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { Switch } from "../components/ui/switch.js";
 import { noticeFailure } from "../notices/store.js";
 import { useStore } from "../protocol/store.js";
 import { COMPUTER_PAGE_WORDS as W, SETTINGS_WORDS } from "./format.js";
-import { SELECT_WIDTH } from "./layout.js";
+import { ROW_FIELD, SELECT_WIDTH } from "./layout.js";
+import { cn } from "../lib/utils.js";
 import { hereName, placeName } from "./places.js";
 import { Card, Row } from "./rows.js";
 import { ChangeButton, FieldSheet, sheetWrite, type Written } from "./sheetParts.js";
@@ -21,6 +23,8 @@ import type { SettingsContext } from "./settingsContext.js";
 const NAP_CHOICES: ReadonlyArray<number | null> = [10, 20, 30, 60, 120, 180].map(m => m * 60_000).filter(ms => ms <= NAP_AFTER_MAX_MS).concat([null] as never);
 const TURN_LIMIT_CHOICES: ReadonlyArray<number | null> = [1, 2, 4, 6, 8, 12, 24].map(h => h * 3_600_000).filter(ms => ms <= TURN_LIMIT_MAX_MS).concat([null] as never);
 const NEVER = "never";
+/** A finished sub-thread's machine goes at once or after one of these; null stands for at once in the select. */
+const DELETE_CHOICES: ReadonlyArray<number | null> = [null, ...[10, 30, 60, 120, 180].map(m => m * 60_000)];
 
 const setOn = (place: PlaceView, ask: PlaceSettingsAsk): Promise<void> => useStore.getState().setPlace(place.id, ask).catch(noticeFailure);
 const resetOn = (place: PlaceView, word: PlaceSettingWord): (() => void) => () => void useStore.getState().setPlace(place.id, {}, [word]).catch(noticeFailure);
@@ -60,7 +64,7 @@ export function BehindRow({ place, ctx }: { place: PlaceView; ctx: SettingsConte
 
 /** A setting's number with a step either side, at least one. While a set is on its way the host's row still holds
  * the number before it, so the number shown and the next step go off the last one sent. */
-function Stepper({ k, value, label, onChange }: { k: string; value: number; label: string; onChange: (next: number) => Promise<void> }) {
+function Stepper({ k, value, label, max, onChange }: { k: string; value: number; label: string; max?: number | undefined; onChange: (next: number) => Promise<void> }) {
   const [sent, setSent] = useState<number | null>(null);
   const shown = sent ?? value;
   const step = (next: number): void => {
@@ -75,7 +79,7 @@ function Stepper({ k, value, label, onChange }: { k: string; value: number; labe
       <span data-k={`${k}-value`} className="min-w-8 px-1 text-center text-[13px] tabular-nums text-foreground">
         {shown}
       </span>
-      <Button variant="ghost" size="icon-xs" aria-label={W.more} onClick={() => step(shown + 1)} className="h-full rounded-l-none">
+      <Button variant="ghost" size="icon-xs" aria-label={W.more} disabled={max !== undefined && shown >= max} onClick={() => step(shown + 1)} className="h-full rounded-l-none">
         <PlusIcon aria-hidden className="size-3.5" />
       </Button>
     </span>
@@ -113,6 +117,93 @@ function SpanSelect({ k, label, value, choices, none, onChange }: { k: string; l
   );
 }
 
+/** A dollar figure typed into a row, saved on Enter or when the field is left, and put back where it reads no figure. */
+function DollarsField({ k, label, value, onChange }: { k: string; label: string; value: number; onChange: (usd: number) => void }) {
+  const [typed, setTyped] = useState<string | null>(null);
+  const save = (): void => {
+    if (typed === null) return;
+    const usd = Number(typed);
+    setTyped(null);
+    if (typed.trim() !== "" && Number.isFinite(usd) && usd >= 0 && usd !== value) onChange(usd);
+  };
+  return (
+    <InputGroup className={cn(SELECT_WIDTH, ROW_FIELD)}>
+      <InputGroupAddon>
+        <InputGroupText>$</InputGroupText>
+      </InputGroupAddon>
+      <InputGroupInput data-k={k} aria-label={label} inputMode="decimal" value={typed ?? String(value)} className="tabular-nums" onChange={e => setTyped(e.target.value)} onBlur={save} onKeyDown={e => e.key === "Enter" && save()} />
+    </InputGroup>
+  );
+}
+
+/** The sizes a cloud's plan sells a sub-thread, by class name, figures and rate. */
+function SizeSelect({ place }: { place: PlaceView }) {
+  const sold = subSizesSold(place.sizes ?? [], place.plan);
+  const now = place.size === undefined ? "" : sizeWord(place.size);
+  // The trigger is a select's width, so it leaves the rate to the list.
+  const word = (key: string, rated = true): string => {
+    const offer = sold.find(s => sizeWord(s) === key);
+    const size = offer ?? sizeFromWord(key);
+    if (size === undefined) return key;
+    return W.sizeChoice(sizeNameOf(size), size.cpu, fmtMemGb(size.memMb), offer === undefined || !rated ? undefined : fmtRate(offer.rateUsdPerHour));
+  };
+  return (
+    <Select value={now} onValueChange={v => void setOn(place, { size: sizeFromWord(String(v))! })}>
+      <SelectTrigger size="sm" aria-label={W.sizeTitle} data-k="sub-size" className={SELECT_WIDTH}>
+        <SelectValue>{(v: string) => word(v, false)}</SelectValue>
+      </SelectTrigger>
+      <SelectPopup>
+        {sold.map(s => (
+          <SelectItem key={sizeWord(s)} value={sizeWord(s)}>
+            {word(sizeWord(s))}
+          </SelectItem>
+        ))}
+      </SelectPopup>
+    </Select>
+  );
+}
+
+/** A cloud's own limits, ahead of the nap and the turn limit: machines at once against the plan's, spend per day,
+ * the size a sub-thread gets, and how long a finished sub-thread's machine stays. */
+function CloudLimitRows({ place }: { place: PlaceView }) {
+  const name = placeName(place);
+  const cap = place.cap !== undefined && "machines" in place.cap ? place.cap : undefined;
+  const set = place.settings ?? {};
+  if (cap === undefined) return null;
+  const planCap = place.plan?.machinesAtOnce;
+  const deleteAfter = place.deleteAfterMs ?? null;
+  return (
+    <>
+      <Row
+        id="machines-at-once"
+        title={W.machinesTitle}
+        description={W.machinesLine(name, planCap)}
+        control={<Stepper k="machines-at-once" value={cap.machines} label={W.machinesTitle} max={planCap} onChange={n => setOn(place, { machines: n })} />}
+        {...(set.machines === undefined ? {} : { reset: resetOn(place, "machines") })}
+      />
+      <Row
+        id="spend-per-day"
+        title={W.spendTitle}
+        description={W.spendLine(name)}
+        control={<DollarsField k="spend-per-day" label={W.spendTitle} value={cap.spendPerDayUsd} onChange={usd => void setOn(place, { spendPerDayUsd: usd })} />}
+        {...(set.spendPerDayUsd === undefined ? {} : { reset: resetOn(place, "spend") })}
+      />
+      {place.size === undefined ? null : (
+        <Row id="sub-size" title={W.sizeTitle} description={W.sizeLine} control={<SizeSelect place={place} />} {...(set.size === undefined ? {} : { reset: resetOn(place, "size") })} />
+      )}
+      {place.deleteAfterMs === undefined ? null : (
+        <Row
+          id="delete-after"
+          title={W.deleteTitle}
+          description={W.deleteLine}
+          control={<SpanSelect k="delete-after" label={W.deleteTitle} value={deleteAfter === 0 ? null : deleteAfter} choices={DELETE_CHOICES} none={W.deleteAtOnce} onChange={ms => void setOn(place, { deleteAfterMs: ms ?? 0 })} />}
+          {...(set.deleteAfterMs === undefined ? {} : { reset: resetOn(place, "delete-after") })}
+        />
+      )}
+    </>
+  );
+}
+
 /** Limits: threads at once on any computer that has said its shape, the nap window wherever workspaces nap, and the
  * turn limit wherever the host says one. */
 export function LimitsCard({ place }: { place: PlaceView }) {
@@ -122,9 +213,11 @@ export function LimitsCard({ place }: { place: PlaceView }) {
   const set = place.settings ?? {};
   const naps = place.napMs !== undefined;
   const limited = place.turnLimitMs !== undefined;
-  if (threads === undefined && !naps && !limited) return null;
+  const cloud = isProviderPlace(place);
+  if (threads === undefined && !naps && !limited && !cloud) return null;
   return (
     <Card id="computer-limits" head={W.limits}>
+      {cloud ? <CloudLimitRows place={place} /> : null}
       {threads === undefined ? null : (
         <Row
           id="threads-at-once"

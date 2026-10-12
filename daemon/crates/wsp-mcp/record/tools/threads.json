@@ -204,6 +204,9 @@
                       },
                       "memMb": {
                         "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -252,6 +255,9 @@
                       },
                       "readAt": {
                         "type": "string"
+                      },
+                      "pushRefused": {
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -292,6 +298,137 @@
                   },
                   "sessionNotKept": {
                     "type": "string"
+                  },
+                  "spawn": {
+                    "type": "object",
+                    "properties": {
+                      "startedAt": {
+                        "type": "number"
+                      },
+                      "branch": {
+                        "type": "object",
+                        "properties": {
+                          "branch": {
+                            "type": "string"
+                          },
+                          "sha": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "branch",
+                          "sha",
+                          "ms"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "machine": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "states": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "states"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "files": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "bytes": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "paths",
+                          "bytes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "readyAt": {
+                        "type": "number"
+                      },
+                      "failed": {
+                        "type": "object",
+                        "properties": {
+                          "step": {
+                            "type": "string",
+                            "enum": [
+                              "machine",
+                              "files"
+                            ]
+                          },
+                          "said": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "step",
+                          "said"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "uncommitted": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "asked": {
+                        "type": "string"
+                      },
+                      "notSent": {
+                        "type": "string"
+                      },
+                      "replaced": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "log": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "startedAt",
+                      "log"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -785,6 +922,9 @@
                       },
                       "memMb": {
                         "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -833,6 +973,9 @@
                       },
                       "readAt": {
                         "type": "string"
+                      },
+                      "pushRefused": {
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -873,6 +1016,137 @@
                   },
                   "sessionNotKept": {
                     "type": "string"
+                  },
+                  "spawn": {
+                    "type": "object",
+                    "properties": {
+                      "startedAt": {
+                        "type": "number"
+                      },
+                      "branch": {
+                        "type": "object",
+                        "properties": {
+                          "branch": {
+                            "type": "string"
+                          },
+                          "sha": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "branch",
+                          "sha",
+                          "ms"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "machine": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "states": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "states"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "files": {
+                        "type": "object",
+                        "properties": {
+                          "since": {
+                            "type": "number"
+                          },
+                          "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "bytes": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          },
+                          "ms": {
+                            "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                          }
+                        },
+                        "required": [
+                          "since",
+                          "paths",
+                          "bytes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "readyAt": {
+                        "type": "number"
+                      },
+                      "failed": {
+                        "type": "object",
+                        "properties": {
+                          "step": {
+                            "type": "string",
+                            "enum": [
+                              "machine",
+                              "files"
+                            ]
+                          },
+                          "said": {
+                            "type": "string"
+                          },
+                          "fix": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "step",
+                          "said"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "uncommitted": {
+                        "$ref": "#/properties/threads/items/properties/sub/properties/result/properties/commits"
+                      },
+                      "asked": {
+                        "type": "string"
+                      },
+                      "notSent": {
+                        "type": "string"
+                      },
+                      "replaced": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "log": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "startedAt",
+                      "log"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [

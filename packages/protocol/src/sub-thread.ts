@@ -62,6 +62,20 @@ export const subSizeWords = (size: Pick<SubSize, "name" | "cpu" | "memMb">): str
 
 const rateWord = (usdPerHour: number): string => `$${usdPerHour.toFixed(3)}/h`;
 
+/** A size by the class name its row carries, or by its figures where it carries none. */
+export const sizeNameOf = (size: { cpu: number; memMb: number; name?: string | undefined }): string => size.name ?? sizeWord(size);
+
+/** The size a sub-thread killed for memory starts again at: the smallest its cloud sells with more memory than it had,
+ * or none where the cloud sells nothing bigger. What the kill's line names and the strip's Start again asks. */
+export function subNextSize<S extends { cpu: number; memMb: number }>(size: { memMb: number }, sold: readonly S[]): S | undefined {
+  return [...sold].filter(s => s.memMb > size.memMb).sort((a, b) => a.memMb - b.memMb)[0];
+}
+
+/** The sizes a cloud's row says it sells a sub-thread now: those its plan names, or every size it lists before a
+ * limits read has answered. */
+export const subSizesSold = <S extends { cpu: number; memMb: number }>(sizes: readonly S[], plan: { sizes: readonly string[] } | undefined): S[] =>
+  sizes.filter(s => plan === undefined || plan.sizes.includes(sizeWord(s)));
+
 /** The folder a sub-thread works in on its machine: the repository's own name off its remote, under root's home. */
 export function subFolderOf(remote: string): string {
   const name = (ownerRepoOf(remote) ?? remote).split("/").at(-1)!.replace(/\.git$/, "");
@@ -280,6 +294,104 @@ function heldWords(held: { files: number; commits: number }): string {
   const parts = [held.commits > 0 ? `${held.commits} ${held.commits === 1 ? "commit" : "commits"}` : "", held.files > 0 ? `${held.files} changed ${held.files === 1 ? "file" : "files"}` : ""].filter(Boolean);
   return parts.length === 0 ? "work" : parts.join(" and ");
 }
+
+/** The work a done read found not pushed and the branch it is on, as the open thread's notice and a tile's card say it. */
+const heldOn = (held: { files: number; commits: number }, branch: string): string => `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed`;
+
+/** A not pushed sub-thread's reason on its tile's card. */
+export const subNotPushedReason = (held: { files: number; commits: number }, branch: string): string => `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.`;
+
+/** One strip over a sub-thread's composer: what holds or blocks it as the title, the why and what follows under it. */
+export interface SubStripWords {
+  title: string;
+  note: string;
+}
+
+/** The strip's words for every state that holds or blocks a sub-thread, each said there and nowhere else in the
+ * thread. A not pushed strip names the push's refusal where the done read caught one, since asking the agent to push
+ * again cannot mend a token that cannot write. */
+export const SUB_STRIP = {
+  waitingSlot: (on: string, running: number, atOnce: number): SubStripWords => ({ title: `Waiting for a machine on ${on}`, note: `${running} of ${atOnce} machines are running. It starts on its own when one frees.` }),
+  waitingMinute: (on: string, used: number, limit: number): SubStripWords => ({ title: `Waiting for ${on}'s next minute of starts`, note: `${used} of ${limit} starts this minute are used. It starts on its own within the minute.` }),
+  notPushed: (held: { files: number; commits: number }, branch: string, refused?: string): SubStripWords => ({
+    title: `${capitalisedFirst(heldWords(held))} not pushed`,
+    note: `${refused === undefined ? `They are on ${branch} on this machine.` : `The push to ${branch} was refused: ${refused}.`} This machine stays until the work is pushed or copied to your computer.`,
+  }),
+  deleting: (minutes: string, branch: string): SubStripWords => ({ title: `Its machine is deleted in ${minutes}`, note: `Everything is pushed to ${branch}. The transcript stays, and a message after the delete starts a new machine.` }),
+  released: (on: string): SubStripWords => ({ title: "This thread's machine was deleted", note: `A message starts a new one on ${on}, and the conversation goes on.` }),
+  oom: (line: string): SubStripWords => ({ title: "Killed for memory", note: capitalisedFirst(line) }),
+  cloudGone: (on: string, here: string): SubStripWords => ({ title: `${on} was removed from ${here}`, note: `This thread has no machine to start until ${on} is added again. Its transcript stays.` }),
+  raise: "Raise machines at once",
+  pushAgain: "Push again",
+  /** Copies the sub-thread's commits back to the computer the host runs on, by its name. */
+  copyTo: (computer: string): string => `Copy to ${computer}`,
+  startAgain: (size: string): string => `Start again at ${size}`,
+  addAgain: (on: string): string => `Add ${on} again`,
+} as const;
+
+/** The command a shell call ran, off its tool input: the `command` field where the input is the agent's JSON (Claude
+ * Code's carries a description beside it), else the input itself. */
+function shellCommandOf(input: string): string {
+  try {
+    const parsed: unknown = JSON.parse(input);
+    const command = typeof parsed === "object" && parsed !== null ? (parsed as { command?: unknown }).command : undefined;
+    return typeof command === "string" ? command : input;
+  } catch {
+    return input;
+  }
+}
+
+/** Whether a shell call an agent made runs a git push. */
+export const isGitPush = (input: string): boolean => /\bgit\b(?:\s+-\S+(?:\s+\S+)?)*\s+push\b/.test(shellCommandOf(input));
+
+/** Progress lines a remote says on any push, refused or not. */
+const PUSH_PROGRESS = /^remote:\s*(?:$|Enumerating|Counting|Compressing|Total|Resolving|Writing|Delta|To create|Create a pull request|\s*https?:\/\/)/;
+
+/** Why a push was refused, off the output of a push that failed: the remote's own words, else git's fatal line, the
+ * rejected ref's line, then its error line, cut to one line of 200 characters; nothing where none of them is there.
+ * The lines are git's (2.43): `remote: Permission to <repo> denied to <user>.` with `fatal: ... returned error: 403`,
+ * and ` ! [remote rejected] HEAD -> main (pre-receive hook declined)` under the hook's own `remote:` line. */
+export function pushRefusedOf(output: string): string | undefined {
+  const lines = output.split("\n").map(l => l.trimEnd());
+  const first = (match: (l: string) => boolean): string | undefined => lines.find(match);
+  const remote = first(l => l.startsWith("remote:") && !PUSH_PROGRESS.test(l));
+  const line = remote ?? first(l => l.startsWith("fatal:")) ?? first(l => /^\s*! \[/.test(l)) ?? first(l => l.startsWith("error:"));
+  if (line === undefined) return undefined;
+  const said = line.replace(/^remote:\s*/, "").replace(/^\s*! /, "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
+  return said === "" ? undefined : said.slice(0, 200);
+}
+
+/** The message Start again sends the lead: the sub-thread by its title, started again at the size its kill named. */
+export const subStartAgainPrompt = (title: string, on: string, size: string): string => `Start the work of the sub-thread "${title}" again on ${on} at size ${size}: its agent was killed for memory.`;
+
+/** The message Push again sends the sub-thread. */
+export const subPushAgainPrompt = (branch: string): string => `Push ${branch} again, and say what the remote answers.`;
+
+/** Whether a turn's failure is subOomLine's, which the strip over the composer says in its place. */
+export const isSubOomLine = (line: string): boolean => /^the agent on .+ was killed for memory: /i.test(line);
+
+/** The line under a sub-thread's brief and the steps it opens to, the stages the spawn reports with the facts it read:
+ * done in the past tense, under way in the present, so the thread and the command line name the same steps. */
+export const SUB_SPAWN_WORDS = {
+  branch: (done: boolean): string => (done ? "Checked the branch" : "Checking the branch"),
+  branchFact: (branch: string, sha: string): string => `${branch} is pushed at ${sha.slice(0, 7)}`,
+  machine: (on: string, done: boolean): string => (done ? `Asked ${on} for a machine` : `Asking ${on} for a machine`),
+  files: (n: number, done: boolean): string => `${done ? "Copied" : "Copying"} ${n} picked ${n === 1 ? "file" : "files"}`,
+  agent: (agent: string): string => `Starting ${agent}`,
+  agentFact: (model: string | undefined, effort: string | undefined): string | undefined => ([model, effort].filter(Boolean).join(", ") || undefined),
+  /** The cloud's machine by its id and the cloud's own states it passed through. */
+  machineFact: (id: string | undefined, states: readonly string[]): string | undefined => (id === undefined ? undefined : [id, ...states].join(", ")),
+  filesFact: (paths: readonly string[], bytes: string): string => `${paths.join(", ")}, ${bytes}`,
+  notSent: (why: string): string => `No git-ignored files were sent: ${why}.`,
+  starting: (on: string): string => `Starting a machine on ${on}`,
+  started: (on: string, took: string): string => `Started on ${on} in ${took}`,
+  failed: (on: string): string => `Could not start a machine on ${on}`,
+  details: "Show details",
+  hideDetails: "Hide details",
+  tryAgain: "Try again",
+} as const;
+
+const capitalisedFirst = (line: string): string => `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
 
 /** What a sub-thread holds that no remote has: the counts its last read found, or that the read did not answer. */
 export interface SubUnpushed {

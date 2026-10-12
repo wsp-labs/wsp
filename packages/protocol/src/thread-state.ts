@@ -9,7 +9,7 @@
 // sidebar, the pane header and the command line never say two things about
 // one thread.
 import { askingLine } from "./format.js";
-import type { SessionPermissionEvent, SessionStatus, SubagentState, ThreadView } from "./index.js";
+import type { SessionPermissionEvent, SessionStatus, SubagentState, SubRow, ThreadView } from "./index.js";
 
 export type ThreadState = SessionStatus | "waiting" | "done";
 
@@ -29,10 +29,12 @@ export function threadUnread(thread: Pick<ThreadView, "status" | "endedAt" | "re
 }
 
 /** Whether the thread waits on the person: it asks, or is stopped behind a thread that asks, or a finish, a failure or
- * a snooze's end sits there that no window has shown. A turn the person stopped asks nothing of them, so its end does
- * not count. What the dock's count, the jump to the next thread and the menu bar read. */
-export function threadNeedsYou(thread: Pick<ThreadView, "status" | "asking" | "waitingOn" | "endedAt" | "readAt" | "wokeAt">): boolean {
+ * a snooze's end sits there that no window has shown, or a sub-thread's work not pushed holds its machine. A turn the
+ * person stopped asks nothing of them, so its end does not count. What the dock's count, the jump to the next thread and the menu bar read. */
+export function threadNeedsYou(thread: Pick<ThreadView, "status" | "asking" | "waitingOn" | "endedAt" | "readAt" | "wokeAt"> & { sub?: Pick<SubRow, "held"> | undefined }): boolean {
   if (thread.asking !== undefined || thread.waitingOn !== undefined) return true;
+  // A sub-thread done with work not pushed holds a machine that costs money until someone acts, read or not.
+  if (thread.sub?.held !== undefined && thread.status !== "running") return true;
   return threadUnseenAt(thread.status === "interrupted" ? { ...thread, endedAt: undefined } : thread) !== undefined;
 }
 

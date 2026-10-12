@@ -182,6 +182,7 @@ function deriveThread(thread: ThreadView, workspace: Pick<WorkspaceView, "projec
     asking: waitingLine(thread) ?? null,
     ...(thread.setupRefusal !== undefined ? { setupRefusal: thread.setupRefusal } : {}),
     ...(thread.capped !== undefined ? { capped: thread.capped } : {}),
+    ...(thread.sub !== undefined ? { sub: thread.sub } : {}),
     limit: thread.limit ?? null,
     resumeAt: thread.resumeAt ?? null,
     costUsd: thread.costUsd ?? null,

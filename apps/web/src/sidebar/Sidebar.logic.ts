@@ -85,12 +85,15 @@ export interface SectionInput extends SidebarThreadStatusInput {
   readonly unread: boolean;
   /** The reset an armed Resume at reset goes on at; a thread so armed waits on nobody. */
   readonly resumeAt?: number | null;
+  /** A sub-thread's machine, whose work not pushed holds it until the person acts. */
+  readonly sub?: { readonly held?: unknown } | undefined;
 }
 
-/** The section a thread's own state files it under: a question or a failure waits on the person, a running turn
-    works, a finish nobody has seen is Done and the rest rests in Idle. */
+/** The section a thread's own state files it under: a question, a failure or a sub-thread's work not pushed waits on
+    the person, a running turn works, a finish nobody has seen is Done and the rest rests in Idle. */
 export function threadSection(thread: SectionInput): ThreadSection {
   if (thread.asking !== null || (thread.status === "failed" && (thread.resumeAt ?? null) === null)) return "needs-you";
+  if (thread.sub?.held !== undefined && thread.status !== "running") return "needs-you";
   if (isThreadWorking(thread)) return "working";
   return thread.unread ? "done" : "idle";
 }

@@ -413,6 +413,8 @@ export interface PlaceRecording {
   /** Marks every sub-thread's record at that place released with its cloud gone, its thread and transcript kept: the
    * provider's machines are deleted and its key forgotten. */
   releaseRecordsOn?(placeId: string): Promise<void>;
+  /** What each of these rows that has a spend per day spent since midnight, as `wsp computers` reads its spend. */
+  spentToday?(places: readonly PlaceView[]): Promise<{ place: string; todayUsd: number }[]>;
   /** Signs an agent in on that computer through the sign-in relay, as the app's own sign-in does: every step it
    * reaches, the page and the code among them, goes to `emit`. Absent, a machine sign-in fails its row. */
   signIn?(placeId: string, agent: string, emit: (e: AgentsSignInEvent) => void): Promise<{ leave(): void; stop?(): void }>;
