@@ -416,14 +416,14 @@ describe("the tree rule over a lead's children on a computer the person joined",
     await expect(rt.sessions.start(child.workspaceId, { prompt: "a grandchild", harness: "claude" }, child.caller)).rejects.toThrow(rootGoneRefusal(child.threadId, "thread_new"));
   });
 
-  it("lets a thread beside its lead send to it and open beside itself after the lead's rows fell off the folder's cap", { timeout: 120_000 }, async () => {
+  it("lets a thread beside its lead send to it and open beside itself after the folder passed its row cap, the lead's row kept", { timeout: 120_000 }, async () => {
     const held = await leadAndBox();
     const { rt, folder, threadId, starts, turn } = held;
     starts[0]!.answer("done for now");
     await turn.finished;
     const sub = await childIn(held, held.mac.id, "look at the tests");
     for (let i = 0; i < 205; i++) await (await rt.sessions.start(folder.id, { prompt: `the person's ${i}`, harness: "claude" })).finished;
-    expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toEqual([]);
+    expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toHaveLength(1);
     const sent = await rt.sessions.start(folder.id, { thread: threadId, prompt: "the tests pass", harness: "claude" }, sub.caller);
     await sent.finished;
     expect(starts.at(-1)!.o.prompt).toBe("the tests pass");
@@ -470,7 +470,7 @@ describe("the tree rule over a lead's children on a computer the person joined",
   });
 });
 
-describe("a lead's tree on a computer the person joined, once the folder's rows of it fell off the cap", () => {
+describe("a lead's tree on a computer the person joined, once its folders passed their row caps", () => {
   it("still counts depth from the lead, stops with the lead, takes the lead's messages and keeps the person's under the lead", { timeout: 240_000 }, async () => {
     const held = await leadAndBox();
     const { rt, folder, threadId, lead } = held;
@@ -484,10 +484,10 @@ describe("a lead's tree on a computer the person joined, once the folder's rows 
     await expect(deeper()).rejects.toThrow(tooDeep);
     for (let i = 0; i < 205; i++) await (await rt.sessions.start(first.workspaceId, { prompt: `the person's ${i}`, harness: "claude" })).finished;
     const rows = await rt.sessions.list();
-    expect(rows.filter(r => r.threadId === first.threadId || r.threadId === second.threadId)).toEqual([]);
+    expect(rows.filter(r => r.threadId === first.threadId || r.threadId === second.threadId)).toHaveLength(2);
     // The grandchild is still two deep under a lead that allows two.
     await expect(deeper()).rejects.toThrow(tooDeep);
-    // A stop on the lead still takes the tree under it, through the child whose rows went.
+    // A stop on the lead still takes the tree under it, through the child, with every other thread of its folder past the cap.
     const leadRow = rows.find(r => r.threadId === threadId && r.status === "running")!;
     expect((await rt.sessions.interrupt(leadRow.id)).under ?? []).toContain(grandId);
     expect((await rt.sessions.list()).find(r => r.threadId === grandId)!.status).not.toBe("running");

@@ -513,6 +513,11 @@
                     "title": "wsp image",
                     "filepath": "content/reference/cli/image.mdx"
                   },
+                  "/image-build": {
+                    "type": "page",
+                    "title": "wsp image build",
+                    "filepath": "content/reference/cli/image-build.mdx"
+                  },
                   "/join": {
                     "type": "page",
                     "title": "wsp join",
@@ -577,6 +582,11 @@
                     "type": "page",
                     "title": "wsp projects remove",
                     "filepath": "content/reference/cli/projects-remove.mdx"
+                  },
+                  "/projects-seed": {
+                    "type": "page",
+                    "title": "wsp projects seed",
+                    "filepath": "content/reference/cli/projects-seed.mdx"
                   },
                   "/projects-set": {
                     "type": "page",

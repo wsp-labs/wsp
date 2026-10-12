@@ -18,7 +18,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -45,7 +47,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -72,7 +76,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -99,7 +105,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -126,7 +134,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -153,7 +163,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -180,7 +192,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -207,7 +221,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -234,7 +250,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -261,7 +279,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -289,7 +309,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -317,7 +339,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -344,7 +368,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",
@@ -371,7 +397,9 @@
         },
         {
           "op": "sessions.history",
-          "workspaceId": "ws-1"
+          "workspaceId": "ws-1",
+          "threadId": "thread-7f3a9c21e4b5",
+          "whole": true
         },
         {
           "op": "sessions.answer",

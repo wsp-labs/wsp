@@ -316,6 +316,13 @@ export const noBranchesLine = (project: string): string => `${project} is not a 
 export const folderOnCopyRefusal = (computer: string): string =>
   `${computer} takes a repo it can clone, not a folder on this computer; give the repo's url, or add the folder here with no --on`;
 
+/** Why a cloud records no project with the cloud off: a project and its threads on a cloud's machines are the cloud's
+ * top-level road, which only a host started with the cloud on takes. */
+export const cloudProjectRefusal = (cloud: string): { happened: string; fix: string } => ({
+  happened: `${cloud} holds no project of its own on this host`,
+  fix: "Record the project on this computer or on a computer you added.",
+});
+
 /** What a remove says on the computer the app runs on: the folder is the project, so nothing of it moves. */
 export const projectRemovedHereLine = (name: string): string => `${name} is no longer a project here; its code is where it was`;
 
