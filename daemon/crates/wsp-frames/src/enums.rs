@@ -62,6 +62,16 @@ pub enum ProcSignal {
     Kill,
 }
 
+/// What proc.kill signals: the pid alone, or the pid and every process under it. Never a process group: a thread
+/// spans many, and a group TERM took processes of other threads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum KillMode {
+    Pid,
+    Tree,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]

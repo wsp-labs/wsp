@@ -16,6 +16,14 @@
         "finished": {
           "type": "boolean",
           "description": "settle the finished threads under each thread named, and not the thread itself"
+        },
+        "processes": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "keep"
+          ],
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run"
         }
       },
       "required": [
@@ -61,6 +69,107 @@
             "required": [
               "threadId",
               "why"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "forced": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "freed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pid",
+              "ended",
+              "forced",
+              "left"
             ],
             "additionalProperties": false
           }
@@ -97,6 +206,14 @@
         "finished": {
           "type": "boolean",
           "description": "settle the finished threads under each thread named, and not the thread itself"
+        },
+        "processes": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "keep"
+          ],
+          "description": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run. A thread on a cloud machine is not read and goes as before"
         }
       },
       "required": [
@@ -142,6 +259,107 @@
             "required": [
               "threadId",
               "why"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ended": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer"
+              },
+              "ended": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pid": {
+                      "type": "integer"
+                    },
+                    "ppid": {
+                      "type": "integer"
+                    },
+                    "depth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "startedAt": {
+                      "type": "number"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "agent",
+                        "tool",
+                        "dev",
+                        "test",
+                        "build",
+                        "slate",
+                        "terminal",
+                        "tab",
+                        "app",
+                        "wsp",
+                        "other"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "command": {
+                      "type": "string"
+                    },
+                    "memory": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "type": "number"
+                    },
+                    "ports": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "ppid",
+                    "depth",
+                    "startedAt",
+                    "kind",
+                    "name",
+                    "command",
+                    "memory",
+                    "cpu",
+                    "ports"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "forced": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "left": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "freed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pid",
+              "ended",
+              "forced",
+              "left"
             ],
             "additionalProperties": false
           }

@@ -477,6 +477,108 @@ export const USAGE_PAGE_WORDS = {
   allOf: { agent: "All agents together", account: "All accounts together", computer: "All computers together", project: "All projects together", model: "All models together", source: "All sources together" },
 } as const;
 
+/** Settings > Activity: every thread's processes on one computer, with their memory, CPU, energy and ports. */
+export const ACTIVITY_WORDS = {
+  title: "Activity",
+  paletteNote: "Every thread's processes, memory and CPU",
+  views: { threads: "Threads", processes: "Processes", kinds: "Kinds", ports: "Ports" },
+  view: "View",
+  computer: "Computer",
+  filter: "Filter by name, port or thread",
+  every: "Every process",
+  memory: "Memory",
+  cpu: "CPU",
+  energy: "Power",
+  pid: "PID",
+  thread: "Thread",
+  port: "Port",
+  process: "Process",
+  reach: "Who can connect",
+  processes: "Processes",
+  wsp: "wsp",
+  wspNote: "The app and what runs it",
+  wspNoteBox: "What runs wsp here",
+  loose: "No thread",
+  looseNote: "Started with no thread wsp knows of",
+  sampler: "Task manager",
+  samplerNote: "What reading this page costs",
+  end: "End",
+  endAll: "End all",
+  stop: "Stop",
+  open: "Open",
+  openPort: (port: number): string => `Open :${port} in a browser tab`,
+  openThread: "Open thread",
+  copyCommand: "Copy command",
+  copyPid: "Copy PID",
+  more: "More",
+  slate: (name: string): string => (name === "" ? "Slate" : `Slate: ${name}`),
+  ending: "Ending",
+  forceEnd: "Force end",
+  container: "Container",
+  up: (time: string): string => `Up ${time}`,
+  endContainer: "Stop the container, its data kept",
+  copyName: "Copy name",
+  copyContainerId: "Copy container ID",
+  containerNotes: {
+    label: "Its thread's docker started it",
+    compose: "Its compose project was last started from this thread",
+    loose: "No thread started it, so wsp leaves it to whoever did",
+    gone: "Its label names a thread wsp no longer knows",
+    goneCompose: "Its compose project was last started from a thread wsp no longer knows",
+  },
+  subagent: "Subagent",
+  subagentStates: { running: "Running", done: "Done", failed: "Failed", stopped: "Stopped" },
+  subagentNote: "Runs inside its agent, whose row holds its memory and CPU",
+  tokens: (n: string): string => `${n} tokens`,
+  needed: "wsp needs this to run",
+  loopback: "Local only",
+  everyAddress: "Open to the network",
+  oneCore: "100% is one core",
+  energyNote: "CPU power, last 2 s",
+  of: (used: string): string => `of ${used} in use`,
+  threads: (n: number): string => (n === 1 ? "1 thread" : `${n} threads`),
+  processCount: (n: number): string => (n === 1 ? "1 process" : `${n} processes`),
+  nothing: "No thread is running anything.",
+  nothingMatches: "Nothing matches.",
+  pending: "Reading this computer's processes.",
+  paneNothing: "Nothing running for this thread",
+  openInActivity: "Open in Activity",
+  chips: { threads: "Threads", kinds: "Kinds", projects: "Projects" },
+  graph: (what: string): string => `${what} over the last minutes`,
+  stopTitle: (title: string): string => `Stop the turn in ${title}?`,
+  /** On a box a stop ends the thread's cgroup whole; here it ends the agent alone. */
+  stopSentence: (agent: string, endsAll: boolean): string =>
+    `${agent} stops where it is and the turn reads Interrupted. ${endsAll ? "Everything else the thread started on that computer ends with it, its dev and tool servers included." : "The dev server and tool servers it started keep running."}`,
+  stopTurn: "Stop turn",
+  endAllTitle: (title: string): string => `End everything ${title} started?`,
+  /** `first` is what ends before them: the thread's running turn, or the agent it keeps for its next turn. */
+  endAllSentence: (procs: number, containers: number, memory: string, first: "turn" | "kept" | null): string =>
+    `${[...(procs > 0 || containers === 0 ? [procs === 1 ? "1 process" : `${procs} processes`] : []), ...(containers > 0 ? [containers === 1 ? "1 container" : `${containers} containers`] : [])].join(" and ")} holding ${memory} end${first === "turn" ? ", after its turn stops" : first === "kept" ? ", after the agent it keeps for its next turn" : ""}.`,
+  endAllLeaves: "The threads it started are left as they are.",
+  endAllPress: "End all",
+  cancel: "Cancel",
+  /** What a settle or a delete asks while the threads it takes still run processes beside their agents. */
+  leftTitle: (threads: number, title: string): string => (threads === 1 ? `Stop what ${title} still runs?` : `Stop what ${threads} threads still run?`),
+  /** What Stop ends: each process and what it started here, and a box thread's cgroup whole on that box. */
+  leftStops: (boxes: readonly string[], here: boolean): string =>
+    boxes.length === 0
+      ? "Stop ends each one and what it started."
+      : here
+        ? `Stop ends each one and what it started, and on ${listWords(boxes)} everything the thread started there.`
+        : `Stop ends everything the thread started on ${listWords(boxes)}.`,
+  leftSettle: (stops: string): string => `Settling leaves these running. ${stops}`,
+  leftDelete: (count: number, stops: string): string => `It still runs ${count === 1 ? "1 process" : `${count} processes`}. ${stops}`,
+  settleStop: "Settle and stop them",
+  settleKeep: "Settle, keep running",
+  deleteStop: "Delete and stop them",
+  deleteKeep: "Delete, keep running",
+  stopping: "Stopping…",
+  standing: (names: readonly string[]): string => `Still running after Stop: ${listWords(names)}.`,
+  close: "Close",
+  computerRow: "What runs here",
+  computerLine: (threads: number): string => (threads === 0 ? "No thread running, wsp's own parts" : `${threads === 1 ? "1 thread" : `${threads} threads`} running, and wsp's own parts`),
+} as const;
+
 /** Settings > Projects: the list, a project's own page and its one act. */
 export const PROJECTS_WORDS = {
   look: "Look",

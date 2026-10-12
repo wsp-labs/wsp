@@ -18,6 +18,7 @@ mod machine;
 pub mod numbers;
 mod place;
 mod place_paths;
+mod proc_owner;
 mod reply;
 mod request;
 mod shell;
@@ -29,10 +30,11 @@ pub use auth::DaemonAuthRequest;
 pub use checkpoint::{checkpoint_copy_part, checkpoint_id_ok, checkpoint_prefix, CHECKPOINT_REFS};
 pub use copy::{Carried, CarryModule, CopyAsk, CopyReport, CopyRoadName, FoundModule, WorktreeRemoval, WorktreeReport};
 pub use enums::{
-    CheckState, DaemonErrorCode, FsEntryType, FsReadEncoding, FsSearchMode, GitDiffScope, HostItemKind, MergeMethod, Mergeable, ProcSignal,
-    PtyMode, PullRequestState, ReactionContent, ReviewEvent, ReviewSide, ReviewState, TranscriptVoice, UsageLogFormat, WorkspaceKind,
+    CheckState, DaemonErrorCode, FsEntryType, FsReadEncoding, FsSearchMode, GitDiffScope, HostItemKind, KillMode, MergeMethod, Mergeable,
+    ProcSignal, PtyMode, PullRequestState, ReactionContent, ReviewEvent, ReviewSide, ReviewState, TranscriptVoice, UsageLogFormat,
+    WorkspaceKind,
 };
-pub use event::{DaemonEvent, ProcEntry, Usage};
+pub use event::{CgroupMemory, ContainerPlacedBy, DaemonEvent, ProcContainer, ProcCost, ProcEntry, Usage};
 pub use guest::{GuestCliMessage, GuestKind, GuestOpen, GuestOpenReply, GuestStream};
 pub use id::RequestId;
 pub use landed::{landed_files_script, outside_marks, outside_sweep_script, own_marks, OUTSIDE_MARK, OWN_MARK};
@@ -53,6 +55,7 @@ pub use place_paths::{
     place_daemon_paths, place_owned_paths, place_provision_paths, probe_path, PlaceDaemonPaths, PlaceProvisionPaths, READINGS_FOLDER,
     SSH_FOLDER,
 };
+pub use proc_owner::{ProcKind, ProcOwnedBy, ProcOwner, ProcScope, ProcScopePid, PROC_SCOPES_MAX, PROC_SCOPE_PIDS_MAX, WORKSPACE_LABEL};
 pub use reply::{
     DaemonErrorResponse, DaemonExecReply, Empty, False, FsEntry, FsFilesReply, FsHashReply, FsImageReply, FsListReply, FsReadReply,
     FsSearchHit, FsSearchReply, FsWriteReply, GitBranch, GitBranchCompareReply, GitBranchesReply, GitCheckpointDropReply,
@@ -61,14 +64,14 @@ pub use reply::{
     GitPrResolveReply, GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply,
     GitStartOnReply, GitStatusEntry, GitStatusReply, GitUpdateReply, GitWorktree, GitWorktreesReply, HostFolder, HostFolderListing,
     HostItem, InboxRescanReply, IssueComment, IssueRead, ListeningPort, ManifestEntry, ManifestGetReply, ManifestRecordReply,
-    ManifestRestartScriptReply, PlaceLeaveReply, PlaceUpdateReply, PortsWatchReply, ProcInspectReply, PtyAttachReply, PtyCreateReply,
-    PtyListEntry, PtyListReply, PullRequest, PullRequestAutoMerge, PullRequestCheck, PullRequestCheckRun, PullRequestComment,
-    PullRequestCommit, PullRequestFile, PullRequestFork, PullRequestLabel, PullRequestPageCut, PullRequestReaction, PullRequestReview,
-    PullRequestReviewComment, PullRequestReviewRequest, PullRequestVerdict, Reply, SshStartReply, SysHistoryReply, SysPoint,
-    TranscriptMessage, TranscriptRow, TranscriptsListReply, TranscriptsReadReply, True, UsageLimitReading, UsageLimitWindow, UsageLogRow,
-    UsageLogsReply, UsageTokens,
+    ManifestRestartScriptReply, PlaceLeaveReply, PlaceUpdateReply, PortsWatchReply, ProcInspectReply, ProcKillReply, ProcListReply,
+    PtyAttachReply, PtyCreateReply, PtyListEntry, PtyListReply, PullRequest, PullRequestAutoMerge, PullRequestCheck, PullRequestCheckRun,
+    PullRequestComment, PullRequestCommit, PullRequestFile, PullRequestFork, PullRequestLabel, PullRequestPageCut, PullRequestReaction,
+    PullRequestReview, PullRequestReviewComment, PullRequestReviewRequest, PullRequestVerdict, Reply, SshStartReply, SysHistoryReply,
+    SysPoint, TranscriptMessage, TranscriptRow, TranscriptsListReply, TranscriptsReadReply, True, UsageLimitReading, UsageLimitWindow,
+    UsageLogRow, UsageLogsReply, UsageTokens,
 };
 pub use request::{DaemonOp, DaemonRequest, ReviewComment, UsageStore, DAEMON_OPS, GUEST_OPS};
 pub use shell::shell_quote;
-pub use shim::{computer_wsp_shim, guest_wsp_shim, COMPUTER_WSP_UNIT_FLAG, COMPUTER_WSP_VERB};
+pub use shim::{computer_wsp_shim, docker_shim, guest_wsp_shim, COMPUTER_WSP_UNIT_FLAG, COMPUTER_WSP_VERB};
 pub use validate::{is_http_url, is_plain_path, is_under_path, RelayPort};

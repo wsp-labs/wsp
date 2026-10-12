@@ -13,7 +13,7 @@ use wsp_frames::{numbers, words, DaemonErrorCode, WorkspaceKind};
 
 use crate::paths::OpError;
 use crate::proc::{ProcFsSource, ProcSource};
-use crate::proc_local::{road_for, LocalProcSource};
+use crate::proc_local::{road_for, LocalProcSource, SAME_START_MS};
 use crate::sys::{ProcSysSource, SysSource};
 use crate::sys_local::HostSysSource;
 
@@ -35,21 +35,39 @@ pub(crate) struct ReadingsOptions {
 pub(crate) struct KindReadings {
     pub(crate) metrics: fn(&ReadingsOptions) -> Arc<dyn SysSource>,
     pub(crate) processes: fn(&ReadingsOptions) -> Arc<dyn ProcSource>,
+    /// How far a row's start time may sit from the kernel's, which a kill checks the row against.
+    pub(crate) start_slack_ms: i64,
+    /// Whether the machine's turns stand in /wsp-threads cgroups, which only a box's place launch puts them in: there a
+    /// root daemon ends nothing outside them and its own children. A fork's turns come through its provider's exec.
+    pub(crate) threads_in_cgroups: bool,
+    /// Whether the processes carry the computer's containers: on a computer the person owns, never inside a fork.
+    pub(crate) containers: bool,
 }
 
 /// What a daemon on a Linux machine reads, whichever way the host reaches it: that machine's own /proc for both.
-/// One module under both kinds rather than two alike, since a fork and a machine somebody owns differ in how the
-/// host gets to the daemon and not in what the daemon can see of the machine under it.
-static PROC_READINGS: KindReadings = KindReadings {
+/// A fork and a machine somebody owns differ in how the host gets to the daemon and not in what the daemon can see of
+/// the machine under it; they differ only in where turns stand, which the kill reads.
+const PROC: KindReadings = KindReadings {
     metrics: |o| Arc::new(ProcSysSource::new(o.root.clone(), o.proc_root.clone())),
     processes: |o| Arc::new(ProcFsSource::new(o.proc_root.clone(), o.passwd_path.clone(), numbers::PROC_CAP)),
+    start_slack_ms: 0,
+    threads_in_cgroups: false,
+    containers: false,
 };
+static PROC_READINGS: KindReadings = PROC;
+
+/// A Linux box somebody owns and joined: its /proc as a fork's, and its turns in /wsp-threads cgroups.
+static BOX_READINGS: KindReadings = KindReadings { threads_in_cgroups: true, containers: true, ..PROC };
 
 /// What a daemon reads on a computer that is not a Linux guest: its own host, by the roads its system has, because the
 /// /proc road reads nothing at all on a Mac and left both panes at pending.
 static HOST_READINGS: KindReadings = KindReadings {
     metrics: |o| Arc::new(HostSysSource::new(o.work_folder.clone())),
     processes: |o| Arc::new(LocalProcSource::new(None, road_for(o.platform), numbers::PROC_CAP)),
+    // A Mac reads starts out of libproc, exact; Linux reads them off ps's whole-second elapsed column.
+    start_slack_ms: if cfg!(target_os = "linux") { SAME_START_MS } else { 0 },
+    threads_in_cgroups: false,
+    containers: true,
 };
 
 /// Which modules a kind reads with.
@@ -70,7 +88,7 @@ const KIND_READINGS: [(WorkspaceKind, Road); 3] =
 
 fn by_platform(platform: &str) -> &'static KindReadings {
     if platform == "linux" {
-        &PROC_READINGS
+        &BOX_READINGS
     } else {
         &HOST_READINGS
     }
@@ -128,7 +146,12 @@ mod tests {
     fn picks_a_places_two_modules_by_the_system_it_is_on_which_is_the_one_platform_switch_there_is() {
         // On Linux a place reads its own /proc, as a fork does; elsewhere it reads its own host,
         // which is what answers on a Mac: the /proc road reads nothing there and left both panes at pending.
-        assert!(std::ptr::eq(readings_for("place", "linux").unwrap(), readings_for("cloud", "linux").unwrap()));
+        let (place, cloud) = (readings_for("place", "linux").unwrap(), readings_for("cloud", "linux").unwrap());
+        // Only a box's turns stand in thread cgroups; a fork's come through its provider's exec, and stay killable.
+        assert!(place.threads_in_cgroups && !cloud.threads_in_cgroups);
+        // A fork's engine is its fence, which shows the workspace's own containers; only an owned computer's are read.
+        assert!(place.containers && readings_for("local", "macos").unwrap().containers && !cloud.containers);
+        assert!(!readings_for("place", "macos").unwrap().threads_in_cgroups && !readings_for("local", "linux").unwrap().threads_in_cgroups);
         assert!(std::ptr::eq(readings_for("place", "macos").unwrap(), readings_for("local", "linux").unwrap()));
         assert!(!std::ptr::eq(readings_for("place", "macos").unwrap(), readings_for("cloud", "linux").unwrap()));
         assert!(std::ptr::eq(readings_for("local", "macos").unwrap(), readings_for("local", "linux").unwrap()));

@@ -6,7 +6,7 @@
 // whose title holds the typed query and every other one whose messages hold
 // it, as the host found them. Pure apart from the callbacks it is handed, so
 // the list is testable without the dialog.
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, BookOpenIcon, BugIcon, ChevronDownIcon, ChevronUpIcon, FileTextIcon, FolderOpenIcon, FolderPlusIcon, GithubIcon, MonitorIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { ActivityIcon, ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, BookOpenIcon, BugIcon, ChevronDownIcon, ChevronUpIcon, FileTextIcon, FolderOpenIcon, FolderPlusIcon, GithubIcon, MonitorIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { REPO } from "../../../../../packages/protocol/src/bundles.mjs";
 import { agentName } from "@wsp/catalog";
@@ -19,8 +19,9 @@ import { browserTabClaimsShortcut, formatShortcutLabel, matchesShortcut, type Sh
 import { isDesktopShell } from "../../lib/desktopShell.js";
 import { WORKSPACE_SELECT_SLOTS, workspaceSelectCommand, type KeybindingShortcut } from "../../keybindingTypes.js";
 import { ProjectGlyph } from "../../projects/look.js";
-import { SETTINGS_WORDS, onName } from "../../settings/format.js";
+import { ACTIVITY_WORDS, SETTINGS_WORDS, onName } from "../../settings/format.js";
 import { groupNames } from "../../settings/groups.js";
+import { openSettingsGroup } from "../../settings/openAt.js";
 import { absenceOf } from "../../settings/places.js";
 import { threadWalk } from "../../shell/shellCommands.js";
 import { searchSidebarThreadsByTitle } from "../../sidebar/Sidebar.logic.js";
@@ -319,6 +320,15 @@ function actionItems(input: PaletteItemsInput): Array<CommandPaletteActionItem |
       description: groupNames(),
       shortcutCommand: "settings.toggle",
       run: sync(handlers.openSettings),
+    },
+    {
+      kind: "action",
+      value: "action:activity",
+      searchTerms: ["activity", "task manager", "processes", "memory", "cpu", "power", "ports", "end a process"],
+      icon: <ActivityIcon className={ITEM_ICON_CLASS} />,
+      title: ACTIVITY_WORDS.title,
+      description: `${ACTIVITY_WORDS.paletteNote} in ${SETTINGS_WORDS.title}`,
+      run: sync(() => openSettingsGroup("activity")),
     },
     ...LINKS.map(({ value, title, terms, Icon, url }) => ({
       kind: "action" as const,

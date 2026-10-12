@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { openingTitle, titleLine } from "../format.js";
 import { threadNeedsYou } from "../thread-state.js";
-import { TurnLimit } from "../usage.js";
+import { TurnLimit, UsageTokens } from "../usage.js";
 import { permissionPrompt } from "../wire/helpers.js";
 import { SubRow } from "./sub-row.js";
 
@@ -102,6 +102,14 @@ export type ThreadMarks = z.infer<typeof ThreadMarks>;
 export const SubagentState = z.enum(["running", "done", "failed", "stopped"]);
 export type SubagentState = z.infer<typeof SubagentState>;
 
+/** What one of an agent's own subagents spent, off its own calls alone and as it stood at its newest row: its tokens
+ * as a turn's use reads them, input being every token its model read with cached and cacheWrite the parts of it read
+ * from and written to the cache, absent until a call of it is counted, and the tool calls it made and how long it ran
+ * where its agent says them. Never the size of what it holds, which an agent may report beside these under a name
+ * that reads like spend. */
+export const SubagentUsage = z.object({ tokens: UsageTokens.optional(), toolUses: z.number().int().nonnegative().optional(), durationMs: z.number().nonnegative().optional() });
+export type SubagentUsage = z.infer<typeof SubagentUsage>;
+
 /** One of a thread's subagents as a listing carries it, read off the transcript's session.subagent rows at answer
  * time and never written on the row: id is the agent's own for it, what a stop names, and parentToolUseId the call
  * that launched it, which its lines carry. A child stays for as long as its start row is in the transcript. */
@@ -121,6 +129,7 @@ export const SubagentView = z.object({
    * failed; each absent where the agent gave no words. */
   lastLine: z.string().optional(),
   failure: z.string().optional(),
+  usage: SubagentUsage.optional(),
 });
 export type SubagentView = z.infer<typeof SubagentView>;
 
@@ -229,6 +238,10 @@ export const SessionView = z.object({
    * computer's, and on a turn that is over. It is never written down: a pid outlives nothing, and the computer is
    * free to hand it to a stranger the moment the turn ends. */
   pid: z.number().int().optional(),
+  /** The agent's own process under pid, as the turn's run recorded it when it started the agent: what the Processes
+   * pane offers Stop on instead of kill, whatever name the agent's binary runs under. Absent until the agent writes
+   * it, and wherever pid is. */
+  agentPid: z.number().int().optional(),
   /** The agent's own subagents of every turn of this row's thread, in the order they started, on the thread's latest
    * row alone. Stamped at answer time off the transcript like pid, never written down. */
   subagents: z.array(SubagentView).optional(),
@@ -313,8 +326,9 @@ export const ThreadView = z.object({
   /** The latest turn's last line and why it failed, as SessionView carries them. */
   lastLine: z.string().optional(),
   failure: z.string().optional(),
-  /** The latest turn's process on the computer the host runs on, as SessionView.pid carries it. */
+  /** The latest turn's process on the computer the host runs on, and its agent's, as SessionView carries them. */
   pid: z.number().int().optional(),
+  agentPid: z.number().int().optional(),
   /** The thread's stamps and marks, as SessionView carries them; threadUnread reads readAt and wokeAt. */
   readAt: z.number().optional(),
   settledAt: z.number().optional(),
@@ -390,6 +404,7 @@ export function foldThreads(sessions: ReadonlyArray<SessionView>): ThreadView[] 
       ...(latest.lastLine !== undefined ? { lastLine: latest.lastLine } : {}),
       ...(latest.failure !== undefined ? { failure: latest.failure } : {}),
       ...(latest.pid !== undefined ? { pid: latest.pid } : {}),
+      ...(latest.agentPid !== undefined ? { agentPid: latest.agentPid } : {}),
       ...(latest.readAt !== undefined ? { readAt: latest.readAt } : {}),
       ...(latest.settledAt !== undefined ? { settledAt: latest.settledAt } : {}),
       ...(latest.pinnedAt !== undefined ? { pinnedAt: latest.pinnedAt } : {}),

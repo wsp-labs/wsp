@@ -55,5 +55,112 @@
       }
     ],
     "seq": 3
+  },
+  {
+    "type": "proc.snapshot",
+    "at": 1757000000000,
+    "daemon": 42,
+    "total": 2,
+    "procs": [
+      {
+        "pid": 60,
+        "ppid": 1,
+        "user": "root",
+        "state": "S",
+        "comm": "python3",
+        "cmdline": "python3 /tmp/slate/x.py",
+        "cpu": 0,
+        "rss": 4096,
+        "startedAt": 1757000001000,
+        "owner": {
+          "by": "root",
+          "thread": "t_abc",
+          "workspace": "w_1",
+          "warm": true
+        },
+        "kind": "slate"
+      },
+      {
+        "pid": 61,
+        "ppid": 1,
+        "user": "root",
+        "state": "S",
+        "comm": "node",
+        "cmdline": "node dev.js",
+        "cpu": 0,
+        "rss": 4096,
+        "startedAt": 1757000001000,
+        "owner": {
+          "by": "folder",
+          "workspace": "w_1"
+        }
+      }
+    ],
+    "seq": 4
+  },
+  {
+    "type": "proc.snapshot",
+    "at": 1757000000000,
+    "daemon": 42,
+    "total": 1,
+    "procs": [],
+    "seq": 5,
+    "containers": [
+      {
+        "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "name": "lab-db-1",
+        "image": "postgres:17",
+        "state": "running",
+        "startedAt": 1757000001000,
+        "thread": "t_abc",
+        "placedBy": "compose",
+        "folder": "/srv/acme/lab",
+        "project": "lab",
+        "memory": 163155968,
+        "cpu": 0.4
+      },
+      {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "scratch",
+        "image": "busybox:1.37",
+        "state": "running"
+      }
+    ]
+  },
+  {
+    "type": "proc.snapshot",
+    "at": 1757000000000,
+    "daemon": 42,
+    "total": 1,
+    "procs": [],
+    "seq": 5,
+    "containers": []
+  },
+  {
+    "type": "proc.snapshot",
+    "at": 1757000000000,
+    "daemon": 42,
+    "total": 1,
+    "procs": [
+      {
+        "pid": 51,
+        "ppid": 1,
+        "user": "root",
+        "state": "S",
+        "comm": "node",
+        "cmdline": "node server.js",
+        "cpu": 0,
+        "rss": 4096,
+        "startedAt": 1757000001000,
+        "cgroup": "/wsp-threads/t_abc"
+      }
+    ],
+    "seq": 4,
+    "cgroups": [
+      {
+        "cgroup": "/wsp-threads/t_abc",
+        "memory": 258998272
+      }
+    ]
   }
 ]

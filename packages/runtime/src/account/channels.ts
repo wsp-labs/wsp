@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
+import { readlinkSync } from "node:fs";
+import { hostname } from "node:os";
 import { join, relative } from "node:path";
-import { remoteHost } from "@wsp/catalog";
-import { runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, type Caller } from "@wsp/protocol";
-import { groupExists } from "../local-exec.js";
+import { CATALOG_AGENTS, remoteHost } from "@wsp/catalog";
+import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, type Caller } from "@wsp/protocol";
+import { agentPidOf, groupExists } from "../local-exec.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { MachineExecOptions } from "../machine-exec.js";
@@ -201,7 +203,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const COMPUTER_WATCHES = ["ports.watch", "sys.watch"];
   /** That computer's daemon watches, reads and signals any pid on it and names no workspace on its answers, and the
    * one watch it holds is the link's, which the computer's own page shares. */
-  const COMPUTER_PROCS = ["proc.watch", "proc.unwatch", "proc.inspect", "proc.kill"];
+  const COMPUTER_PROCS = ["proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop"];
   /** The whole of what a client's channel into a served workspace carries, for the reason DEVICE_OPS is a list: that
    * computer's daemon runs every other op on the computer itself, so a deny list would let an op added later reach it.
    * Each of these names the workspace it is for, and the daemon answers it inside that workspace. */
@@ -248,6 +250,42 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
       closed: channel.closed,
     };
   };
+  /** The desktop app's main process, off the lock Electron keeps in the app's folder beside this host's state while
+   * it runs; nothing where no app of this host's runs, or where the lock outlived an app that crashed. */
+  const appMain = (): number[] => {
+    if (ctx.opts.statePath === undefined) return [];
+    try {
+      const named = /^(.+)-(\d+)$/.exec(readlinkSync(join(ctx.stateFolder(), APP_DATA_FOLDER, APP_LOCK_FILE)));
+      if (named === null || named[1] !== hostname()) return [];
+      const pid = Number(named[2]);
+      process.kill(pid, 0);
+      return [pid];
+    } catch {
+      return [];
+    }
+  };
+  /** A channel to a computer's daemon, with every proc.kill carrying what that daemon must never signal, read at the
+   * kill and from nothing a page holds, so a page can neither drop nor stretch a list. Every daemon gets the names
+   * agents run under. The daemon of the computer this host runs on also gets this host and its parent, the app's
+   * main process with everything under it, and each running turn's root and the agent its run recorded, with every
+   * process between them, which is ended by its thread's stop; those pids are this computer's, so another computer's
+   * daemon never gets them. */
+  const killGuarded = (channel: DaemonChannel, here: boolean): DaemonChannel => ({
+    send(frame) {
+      if (frame.op !== "proc.kill") return channel.send(frame);
+      const { protect: _protect, apps: _apps, agents: _agents, ...asked } = frame;
+      const names = { agentBins: CATALOG_AGENTS.map(a => a.bin) };
+      if (!here) return channel.send({ ...asked, ...names });
+      const agents = [...ctx.sessions.values()].flatMap(s => {
+        if (s.view.status !== "running" || s.pid === undefined) return [];
+        const agent = s.run === undefined ? undefined : agentPidOf(s.run);
+        return agent === undefined ? [s.pid] : [s.pid, agent];
+      });
+      return channel.send({ ...asked, protect: [process.pid, process.ppid], apps: appMain(), agents, ...names });
+    },
+    close: () => channel.close(),
+    closed: channel.closed,
+  });
   /** The thread whose pane opened each pty of a workspace, as the pty.create a client sent named it: every thread of
    * a project folder rides one workspace's channel, and each one's drawer shows its own shells. Kept in the host's
    * state, one document per workspace, so a host that restarts over shells a daemon still holds still knows whose they
@@ -345,7 +383,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   /** The process group each local workspace's turns led, as the turn road launches them, kept past the turn for as
    * long as the group has members: a server the turn left in its group is still the workspace's, and the kernel
    * hands the number to nobody else while one is there. */
-  const turnGroups = new Map<string, Set<number>>();
+  const turnGroups = new Map<string, Map<number, string>>();
   /** How often the turns' groups are read again while any workspace holds one, so a group that emptied stops being a
    * root before the kernel can hand its number to a stranger's group, whether or not a channel watches. */
   const PORT_ROOTS_RECHECK_MS = 5_000;
@@ -364,7 +402,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const portRootsOf = (workspaceId: string): number[] => {
     const roots = new Set<number>();
     const groups = turnGroups.get(workspaceId);
-    for (const pid of groups ?? []) {
+    for (const pid of groups?.keys() ?? []) {
       if (groupExists(pid)) roots.add(pid);
       else groups?.delete(pid);
     }
@@ -378,6 +416,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const portRootsMoved = (workspaceId: string): void => {
     portRootsOf(workspaceId);
     for (const push of portWatchers.get(workspaceId) ?? []) push();
+    ctx.procScopesMoved();
   };
   /** A local workspace's channel with its ports.watch rooted at that workspace's processes and its folder, named
    * again on the same socket each time they move; the daemon answers a second watch with what the new roots opened
@@ -642,7 +681,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
     withDaemon, overChannel, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
-    portPids, heldToOwner, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
+    portPids, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };
 }

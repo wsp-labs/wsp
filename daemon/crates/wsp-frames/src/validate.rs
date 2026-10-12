@@ -32,7 +32,10 @@ pub(crate) fn bounded_list<'de, D, const EACH: usize, const MAX: usize>(d: D) ->
 where
     D: Deserializer<'de>,
 {
-    let list = Vec::<String>::deserialize(d)?;
+    within::<D, EACH, MAX>(Vec::<String>::deserialize(d)?)
+}
+
+fn within<'de, D: Deserializer<'de>, const EACH: usize, const MAX: usize>(list: Vec<String>) -> Result<Vec<String>, D::Error> {
     if list.len() > MAX {
         return Err(de::Error::custom(format!("at most {MAX} entries, got {}", list.len())));
     }
@@ -40,6 +43,14 @@ where
         return Err(de::Error::custom(format!("entry longer than {EACH} characters: {long}")));
     }
     Ok(list)
+}
+
+/// A list of strings that may be absent, under the same caps when it is there.
+pub(crate) fn bounded_list_opt<'de, D, const EACH: usize, const MAX: usize>(d: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<Vec<String>>::deserialize(d)?.map(within::<D, EACH, MAX>).transpose()
 }
 
 /// A string that may be absent, under the same cap when it is there.
@@ -62,6 +73,18 @@ where
     let list = Vec::<String>::deserialize(d)?;
     if list.len() > MAX {
         return Err(de::Error::custom(format!("at most {MAX} entries, got {}", list.len())));
+    }
+    Ok(list)
+}
+
+/// A list of pids that may be absent, under a cap on how many.
+pub(crate) fn capped_pids<'de, D, const MAX: usize>(d: D) -> Result<Option<Vec<u32>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let list = Option::<Vec<u32>>::deserialize(d)?;
+    if let Some(n) = list.as_ref().map(Vec::len).filter(|n| *n > MAX) {
+        return Err(de::Error::custom(format!("at most {MAX} entries, got {n}")));
     }
     Ok(list)
 }
@@ -128,6 +151,19 @@ where
     let s = String::deserialize(d)?;
     if s.len() != 64 || !s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
         return Err(de::Error::custom("a sha256 is 64 lowercase hex characters"));
+    }
+    Ok(s)
+}
+
+/// A container as the engine names it in full: sixty-four lowercase hex characters, never a name a stop could resolve
+/// to another container.
+pub(crate) fn container_id<'de, D>(d: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(d)?;
+    if s.len() != 64 || !s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        return Err(de::Error::custom("a container is named by its full id, 64 lowercase hex characters"));
     }
     Ok(s)
 }

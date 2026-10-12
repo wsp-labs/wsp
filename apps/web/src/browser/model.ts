@@ -78,12 +78,12 @@ function sameDirectory(a: ReadonlyArray<KnownPort>, b: ReadonlyArray<KnownPort>)
 
 function snapshotRows(reply: unknown): PortsSnapshot["ports"] | null {
   if (!Array.isArray(reply)) return null;
-  const rows: { port: number; pid: number | null; process: string | null }[] = [];
+  const rows: { port: number; pid: number | null; process: string | null; loopback?: boolean }[] = [];
   for (const row of reply) {
     if (typeof row !== "object" || row === null || !("port" in row)) return null;
-    const { port, pid, process } = row as { port: unknown; pid?: unknown; process?: unknown };
+    const { port, pid, process, loopback } = row as { port: unknown; pid?: unknown; process?: unknown; loopback?: unknown };
     if (typeof port !== "number") return null;
-    rows.push({ port, pid: typeof pid === "number" ? pid : null, process: typeof process === "string" ? process : null });
+    rows.push({ port, pid: typeof pid === "number" ? pid : null, process: typeof process === "string" ? process : null, ...(typeof loopback === "boolean" ? { loopback } : {}) });
   }
   return rows;
 }

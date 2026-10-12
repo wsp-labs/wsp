@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use ts_rs::TS;
 
 use crate::validate::http_url;
-use crate::{GuestKind, PtyMode, RelayPort};
+use crate::{GuestKind, ProcKind, ProcOwner, PtyMode, RelayPort};
 
 /// A reading is a number on the wire or nothing: serde_json writes a NaN or an infinity as null, which the
 /// protocol's number schema refuses, so a reading that is not finite travels as zero.
@@ -18,8 +18,9 @@ pub struct Usage {
     pub total: u64,
 }
 
-/// One process as /proc/[pid] shows it. cpu is its busy share of one core over the interval; rss in bytes;
-/// startedAt epoch milliseconds; pty names the daemon pty whose shell this is.
+/// One process as /proc/[pid] shows it. cpu is its busy share of one core over the interval; rss the memory it holds in
+/// bytes: its physical footprint on a Mac, its private resident memory (RssAnon) where /proc is read, ps's resident
+/// figure on this computer's Linux road; startedAt epoch milliseconds; pty names the daemon pty whose shell this is.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +43,101 @@ pub struct ProcEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cgroup: Option<String>,
+    /// The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a
+    /// Mac alone keeps one, so a row elsewhere, and a pid's first reading, carry none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub energy_mw: Option<f64>,
+    /// The process group, which outlives the parent a detached child loses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub pgid: Option<u32>,
+    /// Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub owner: Option<ProcOwner>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub kind: Option<ProcKind>,
+    /// What a kill checks the pid still holds this process by, as proc.kill's identity: the kernel's unique id on a Mac, the
+    /// start in clock ticks on a box. Absent where the reader has neither, this computer's ps on Linux.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub id: Option<String>,
+}
+
+/// One thread cgroup's memory on a box: its `memory.stat` anon and kernel bytes, which count what the thread's processes
+/// hold once however many of them share it, and leave out the page cache they read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CgroupMemory {
+    pub cgroup: String,
+    pub memory: u64,
+}
+
+/// How a container came to stand under its thread: its `wsp.thread` label, or a thread's compose note.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum ContainerPlacedBy {
+    Label,
+    Compose,
+}
+
+fn finite_opt<S: Serializer>(value: &Option<f64>, s: S) -> Result<S::Ok, S::Error> {
+    match value {
+        Some(v) => finite(v, s),
+        None => s.serialize_none(),
+    }
+}
+
+/// One running container on the computer's engine. It stands under the thread its `wsp.thread` label names, else, unless
+/// it carries a fork's `wsp.workspace` label, under the thread of the newest compose note whose folder sits inside its
+/// compose folder, else under no thread with that folder named. memory is its cgroup's anon and kernel bytes, cpu its
+/// busy share of one core; both absent until read.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcContainer {
+    /// The engine's full id, which container.stop names back.
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    /// The engine's word for it: running, paused or restarting.
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub started_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub thread: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub placed_by: Option<ContainerPlacedBy>,
+    /// Compose's working folder for the project it belongs to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folder: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub project: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub memory: Option<u64>,
+    #[serde(default, serialize_with = "finite_opt", skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cpu: Option<f64>,
+}
+
+/// What one tick of the process sampler cost the daemon: the cpu time the read and the frame took, and about how many
+/// bytes of rows it holds between ticks to tell the next frame's changes by.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcCost {
+    #[serde(serialize_with = "finite")]
+    pub cpu_ms: f64,
+    pub held: u64,
 }
 
 /// Every frame the daemon pushes without being asked, keyed on `type` as the zod union is.
@@ -163,11 +259,43 @@ pub enum DaemonEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         seq: Option<u64>,
+        /// Absent on a daemon a version behind, which never measured it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cost: Option<ProcCost>,
+        /// Every running container, where the computer has an engine the daemon reaches; absent where it has none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        containers: Option<Vec<ProcContainer>>,
+        /// Every thread cgroup's memory, on a box whose thread cgroups count it; absent elsewhere and on a daemon a
+        /// version behind.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cgroups: Option<Vec<CgroupMemory>>,
     },
     /// What moved since frame `base`: the rows new or changed, whole, and the pids gone. A client holding any other
     /// frame than `base` applies nothing and watches again for a whole snapshot.
     #[serde(rename = "proc.changes")]
-    ProcChanges { at: i64, daemon: u32, total: u64, procs: Vec<ProcEntry>, gone: Vec<u32>, seq: u64, base: u64 },
+    ProcChanges {
+        at: i64,
+        daemon: u32,
+        total: u64,
+        procs: Vec<ProcEntry>,
+        gone: Vec<u32>,
+        seq: u64,
+        base: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cost: Option<ProcCost>,
+        /// Every running container, whole, where the list moved since `base`; absent where it did not.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        containers: Option<Vec<ProcContainer>>,
+        /// Every thread cgroup's memory, whole on every frame since it moves every tick; absent where none is read.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cgroups: Option<Vec<CgroupMemory>>,
+    },
     /// A process inside the machine opened a session; this one goes up to the watcher alone.
     #[serde(rename = "guest.opened", rename_all = "camelCase")]
     GuestOpened {
@@ -244,6 +372,11 @@ mod tests {
             started_at: 0,
             pty: None,
             cgroup: None,
+            energy_mw: None,
+            pgid: None,
+            owner: None,
+            kind: None,
+            id: None,
         };
         assert_eq!(serde_json::to_value(&proc_entry).unwrap()["cpu"], json!(0.0));
         let fine =

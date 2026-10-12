@@ -57,9 +57,11 @@ import type { DeviceDoor } from "../devices.js";
 import type { PlaceDoor } from "../places.js";
 import type { Slates } from "../slates.js";
 import type { GitPrDiffReply, ReviewDraft, ReviewPostResult, ReviewVerdict, StartResult } from "@wsp/protocol";
-import type { HistoryPage, ThreadHead } from "@wsp/protocol";
+import type { HistoryPage, ProcKind, ThreadHead } from "@wsp/protocol";
 import type { StartPicksAsked } from "./harness.js";
 import type { EventBus } from "./events.js";
+import type { ActivityDoor } from "../activity.js";
+import type { ActivityEnded, ProcessesAsk } from "@wsp/protocol";
 import type { CreatedWorkspace, CreateWorkspaceOptions, RecipeShelf, ProjectExportOptions, ProjectImportOptions, SessionHandle, GoldenRecipe, RunningExec, GoldenBuildRequest, GoldenPromotion, GoldenUpgradeResult, SweepResult, OriginStatusApi, UsageDoor } from "./wiring.js";
 
 export interface Runtime {
@@ -73,6 +75,15 @@ export interface Runtime {
   /** One channel to the daemon of the computer this host runs on, the one its local workspace dials, for a terminal
    * that belongs to this computer rather than to a workspace on it. */
   hereChannel(onEvent: (event: Record<string, unknown>) => void): Promise<DaemonChannel>;
+  /** A channel over the link a computer the person added holds, its kills carrying the names agents run under and
+   * none of this computer's pids, which name other processes there. */
+  placeKills(channel: DaemonChannel): DaemonChannel;
+  /** A computer's live readings, this one or one the person added, off the one watch the host holds of it for every
+   * reader until the returned detach runs. */
+  watchPlaceSys(placeId: string, fn: (s: SysSample) => void): Promise<() => void>;
+  /** Names a process this host started for a thread, a guest's tool server, to the daemon's owner ladder until the
+   * returned release. */
+  ownProcess(threadId: string, pid: number, kind: ProcKind): () => void;
   /** The agents, skills and MCP servers on one computer or workspace, read as that computer's login. A napping
    * workspace answers the last report read while it ran and is never woken for this. */
   readonly agents: {
@@ -515,7 +526,7 @@ export interface Runtime {
      * thread whose tree works or asks is left whole, and one the fold holds already is left too. With finished, each
      * thread named stays and the finished threads under it settle, a failed one staying and one with work under it
      * left. A thread's own token settles itself and the threads under it alone. */
-    settle(threadIds: readonly string[], origin?: Caller, o?: { finished?: boolean }): Promise<SessionSettleResult>;
+    settle(threadIds: readonly string[], origin?: Caller, o?: { finished?: boolean; processes?: ProcessesAsk }): Promise<SessionSettleResult>;
     /** Pins, snoozes or places each thread, or takes one of those back, and tells every window as read does; a snooze
      * stamps the thread read too, and every window is told again the moment it ends. */
     mark(threadIds: readonly string[], marks: ThreadMarks, origin?: Caller): Promise<void>;
@@ -549,7 +560,7 @@ export interface Runtime {
      * machine at the cloud with it, and its kept session, answering `machine` deleted and the cloud it was on; a
      * thread's own token is refused it over work the sub-thread's last read found not pushed. With check, a
      * sub-thread's delete refuses as it would and answers the question a person is put first, deleting nothing. */
-    delete(threadId: string, origin?: Caller, o?: { check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; machine?: "deleted"; on?: string; question?: string }>;
+    delete(threadId: string, origin?: Caller, o?: { processes?: ProcessesAsk; check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[]; machine?: "deleted"; on?: string; question?: string }>;
   };
   readonly harnesses: {
     /** What each harness with an adapter takes at launch; the composer's pickers render from this. With a running
@@ -663,6 +674,8 @@ export interface Runtime {
   };
   /** Each thread's slate: its record, the ops a window and the slate verbs send, and a press into the thread. */
   readonly slates: Slates;
+  /** This computer's processes by the thread that started them, and the End of one by its pid and start. */
+  readonly activity: ActivityDoor;
   /** The computers paired with this host and the one time codes that pair them, one collection each on this state
    * file, so a restart neither locks a paired computer out nor keeps a revoked one in. */
   readonly devices: DeviceDoor;

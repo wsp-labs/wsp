@@ -11,6 +11,7 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Turns {
+    pub activity: super::activity::ActivityWords,
     pub several_threads: String,
     pub no_thread: String,
     pub other_version: String,

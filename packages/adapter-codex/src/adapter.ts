@@ -56,6 +56,7 @@ import type {
   SessionTitleMaker,
   CommitDrafter,
   SubagentState,
+  SubagentUsage,
   TaskStop,
   SessionTitleReader,
   TurnImage,
@@ -512,6 +513,8 @@ interface Child {
   model?: string;
   depth?: number;
   summary?: string;
+  /** Its own thread's running total, as the server last reported it. */
+  usage?: SubagentUsage;
 }
 
 /** How a subagent's own turn ended, in the shared words. */
@@ -519,6 +522,12 @@ const childEnd = (status: string | undefined): SubagentState => (status === "com
 
 /** A subagent's depth under the lead off codex's path for it: /root is the lead, /root/alpha one it spawned. */
 const depthOf = (path: string | undefined): number | undefined => (path === undefined ? undefined : Math.max(1, path.split("/").filter(Boolean).length - 1));
+
+/** A subagent's spend off its own thread's running total; undefined for a report that names no count. */
+function childUsageOf(total: Record<string, unknown> | undefined): SubagentUsage | undefined {
+  if (total === undefined || BREAKDOWN.every(([, key]) => count(total[key]) === undefined)) return undefined;
+  return { tokens: Object.fromEntries(BREAKDOWN.map(([name, key]) => [name, count(total[key]) ?? 0])) as NonNullable<SubagentUsage["tokens"]> };
+}
 
 /** The turn's tokens with its subagents' calls added: what the lead's model held and its window stay the lead's. */
 function withChildTokens(lead: TurnTokens | undefined, children: Readonly<Record<string, number>>): TurnTokens | undefined {
@@ -727,7 +736,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
               ...(c.model !== undefined ? { model: c.model } : {}),
               ...(c.prompt !== undefined ? { asked: subagentAsked(c.prompt) } : {}),
             }
-          : c.summary !== undefined ? { summary: c.summary } : {}),
+          : { ...(c.summary !== undefined ? { summary: c.summary } : {}), ...(c.usage !== undefined ? { usage: c.usage } : {}) }),
       });
     /** A sign of a subagent: a new one starts running, and one already running is said again where the sign adds to
      * what was said of it. */
@@ -866,6 +875,11 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           if (last === undefined) break;
           emit({ type: "turn.usage", sessionId: threadId, tokens: (count(last.inputTokens) ?? 0) + (count(last.outputTokens) ?? 0), ...(emittedAtMs !== undefined ? { at: emittedAtMs } : {}) });
           for (const [name, key] of BREAKDOWN) if (count(last[key]) !== undefined) childTokens[name] = (childTokens[name] ?? 0) + count(last[key])!;
+          const c = children.get(task);
+          const usage = childUsageOf(rec(rec(params.tokenUsage)?.total));
+          if (c === undefined || usage === undefined) break;
+          c.usage = usage;
+          if (c.state === "running") emit({ type: "subagent", sessionId: threadId, task, state: "running", parentToolUseId: c.parent, usage });
           break;
         }
         default:

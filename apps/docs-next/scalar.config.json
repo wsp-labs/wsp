@@ -383,6 +383,16 @@
                     "title": "Command line",
                     "filepath": "content/reference/cli/index.mdx"
                   },
+                  "/activity": {
+                    "type": "page",
+                    "title": "wsp activity",
+                    "filepath": "content/reference/cli/activity.mdx"
+                  },
+                  "/activity-end": {
+                    "type": "page",
+                    "title": "wsp activity end",
+                    "filepath": "content/reference/cli/activity-end.mdx"
+                  },
                   "/add": {
                     "type": "page",
                     "title": "wsp add",

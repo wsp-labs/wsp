@@ -30,6 +30,7 @@ import {
   DAEMON_PRE_AUTH_BYTES_EXCEEDED,
   DAEMON_ROOTS_PATH,
   DAEMON_SAMPLER_INTERVAL_MS,
+  DAEMON_PROC_INTERVAL_MS,
   DAEMON_TOKEN_PATH,
   GUEST_WSP_HOME,
   HOMEBREW_HOME,
@@ -40,6 +41,7 @@ import {
   WORKSPACE_OVERLAID,
   DAEMON_TOKEN_REFUSED,
   DAEMON_VERSION,
+  THREAD_ENV,
   CopyReport,
   DaemonAuthRequest,
   DaemonErrorResponse,
@@ -115,6 +117,8 @@ import {
   FsFilesReply,
   GitSnapshotReply,
   SysHistoryReply,
+  ProcKillReply,
+  ProcListReply,
   TranscriptsListReply,
   TranscriptsReadReply,
   UsageLogsReply,
@@ -147,6 +151,8 @@ import {
   OPEN_SHIM_PATH,
   OPEN_SOCKET_PATH,
   PID_MAX,
+  KILL_PIDS_MAX,
+  KILL_GRACE_MS,
   SSH_IDLE_MS,
   SSH_KEY_MAX,
   PLACE_LINK_NONCE_BYTES,
@@ -196,6 +202,7 @@ import {
   PLACE_FOUND_END,
   PLACE_FOUND_MAX_BYTES,
   guestWspShim,
+  dockerShim,
   hostKeyRefusal,
   hostQuietLine,
   hostRefusedLine,
@@ -405,12 +412,15 @@ const numbers = (): Record<string, number | string | readonly string[]> => ({
   portCommandBytes: PORT_COMMAND_BYTES,
   procCap: PROC_CAP,
   pidMax: PID_MAX,
+  killPidsMax: KILL_PIDS_MAX,
+  killGraceMs: KILL_GRACE_MS,
   sshKeyMax: SSH_KEY_MAX,
   sshIdleMs: SSH_IDLE_MS,
   openBodyMax: HTTP_URL_MAX,
   daemonDefaultHost: DAEMON_DEFAULT_HOST,
   daemonDefaultPort: DAEMON_DEFAULT_PORT,
   daemonSamplerIntervalMs: DAEMON_SAMPLER_INTERVAL_MS,
+  daemonProcIntervalMs: DAEMON_PROC_INTERVAL_MS,
   guestWspHome: GUEST_WSP_HOME,
   workspaceOverlaid: WORKSPACE_OVERLAID,
   homebrewHome: HOMEBREW_HOME,
@@ -852,6 +862,30 @@ const REPLIES: Record<string, { schema: ZodTypeAny; samples: unknown[] }> = {
       { path: "/Users/dev/.wsp/worktrees/pr_9eb41ab3/loose", rescued: "refs/rescue/pr_9eb41ab3/loose/5f1c0e2b9a7d" },
     ],
   },
+  ProcKillReply: {
+    schema: ProcKillReply,
+    samples: [
+      { signalled: [4103, 4104], forced: [4104], left: [] },
+      // A daemon a version behind signals the pid alone and answers nothing more.
+      {},
+    ],
+  },
+  ProcListReply: {
+    schema: ProcListReply,
+    samples: [
+      {
+        at: 1_790_640_000_000,
+        daemon: 812,
+        total: 214,
+        procs: [
+          { pid: 4103, ppid: 4100, user: "dev", state: "S", comm: "node", cmdline: "node node_modules/.bin/vite --port 5199", cpu: 2.5, rss: 6_184_960, startedAt: 1_790_639_000_000, pty: "p1", cgroup: "/wsp-threads/t_lab1", energyMw: 12.5, pgid: 4103, owner: { by: "cgroup", thread: "t_lab1", workspace: "ws_lab", warm: true }, kind: "dev", id: "675177110" },
+          { pid: 4104, ppid: 1, user: "dev", state: "S", comm: "tail", cmdline: "tail -f /dev/null", cpu: 0, rss: 0, startedAt: 1_790_639_000_000, owner: { by: "folder" } },
+        ],
+        cgroups: [{ cgroup: "/wsp-threads/t_lab1", memory: 258_998_272 }],
+      },
+      { at: 1_790_640_000_000, daemon: 812, total: 1, procs: [{ pid: 1, ppid: 0, user: "root", state: "S", comm: "init", cmdline: "/sbin/init", cpu: 0, rss: 0, startedAt: 1_790_600_000_000 }] },
+    ],
+  },
   SysHistoryReply: {
     schema: SysHistoryReply,
     samples: [
@@ -1021,6 +1055,15 @@ describe("the words and numbers are what this package exports", () => {
     expect(readFileSync(path, "utf8"), `daemon/fixtures/contract/guest-wsp-shim.sh is behind the protocol. The regenerated file is at ${regenerated}: copy it over and commit it`).toBe(text);
   });
 
+  it("docker-shim.sh equals its regeneration, so the docker on the host's computer and on a box is one text", () => {
+    const text = dockerShim("{bin}", "{notes}");
+    const regenerated = join(tmpdir(), "wsp-contract-docker-shim.sh");
+    writeFileSync(regenerated, text);
+    const path = join(CONTRACT, "docker-shim.sh");
+    expect(existsSync(path), `daemon/fixtures/contract/docker-shim.sh is missing. The regenerated file is at ${regenerated}: copy it there and commit it`).toBe(true);
+    expect(readFileSync(path, "utf8"), `daemon/fixtures/contract/docker-shim.sh is behind the protocol. The regenerated file is at ${regenerated}: copy it over and commit it`).toBe(text);
+  });
+
   it("puts every file the daemon inside a machine writes for itself under one folder, by the names a joined computer uses", () => {
     // A workspace on a computer somebody joined has this folder of its own bound over the computer's, so a path
     // that slipped out of it would be written into a /root every workspace there shares: the second workspace's
@@ -1040,6 +1083,11 @@ describe("the words and numbers are what this package exports", () => {
     });
     // The binary the host deploys is not one of them: it is the host's to land and sits beside the folder.
     expect(GUEST_DAEMON_DIR.startsWith(GUEST_WSP_HOME)).toBe(false);
+  });
+
+  it("reads a process's thread out of the variable a turn's launch names it in", () => {
+    const daemonSource = readFileSync(fileURLToPath(new URL("../../../daemon/crates/wsp-daemon/src/proc_owner.rs", import.meta.url)), "utf8");
+    expect(daemonSource).toContain(`pub(crate) const THREAD_MARK: &str = "${THREAD_ENV}";`);
   });
 
   it("holds every 4401 reason once, and the listening line names a host and a port", () => {

@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use ts_rs::TS;
 
 use crate::{
-    CheckState, DaemonErrorCode, FsEntryType, HostItemKind, MachineErrorKind, MergeMethod, Mergeable, PullRequestState, ReactionContent,
-    RequestId, ReviewState, TranscriptVoice, Usage,
+    CgroupMemory, CheckState, DaemonErrorCode, FsEntryType, HostItemKind, MachineErrorKind, MergeMethod, Mergeable, ProcEntry,
+    PullRequestState, ReactionContent, RequestId, ReviewState, TranscriptVoice, Usage,
 };
 
 /// The literal `true` the ok envelope carries.
@@ -205,6 +205,21 @@ pub struct InboxRescanReply {
     pub count: u64,
 }
 
+/// Every process once, for a reader that wants no stream: the rows a running sampler last read, else one scan whose
+/// cpu reads 0, since a share has no interval to run over. at is the clock the rows were read at.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ProcListReply {
+    pub at: i64,
+    pub daemon: u32,
+    pub total: u64,
+    pub procs: Vec<ProcEntry>,
+    /// Every thread cgroup's memory, on a box whose thread cgroups count it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cgroups: Option<Vec<CgroupMemory>>,
+}
+
 /// cwd is null when unreadable; threads is absent where the machine's processes module cannot count them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -216,6 +231,16 @@ pub struct ProcInspectReply {
     #[ts(optional)]
     pub threads: Option<u32>,
     pub children: Vec<u32>,
+}
+
+/// What a proc.kill did: every pid it signalled, those of them KILL was sent to once TERM's 2 s were up, and those
+/// still there after that KILL. A zombie counts as gone: it holds no memory and no port.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ProcKillReply {
+    pub signalled: Vec<u32>,
+    pub forced: Vec<u32>,
+    pub left: Vec<u32>,
 }
 
 /// name is the entry's own name in the listed directory; size is 0 for anything but a file; mtime is epoch ms.

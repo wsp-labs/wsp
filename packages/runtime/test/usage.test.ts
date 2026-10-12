@@ -412,6 +412,13 @@ describe("a computer's readings", () => {
     expect(frames.find(f => f["op"] === "sys.history")).toMatchObject({ op: "sys.history", from: answer.from, to: answer.to, stepMs: 1_800_000 });
   });
 
+  it("asks for the last fifteen minutes at the daemon's fifteen-second reads, the window the Computers list opens on", async () => {
+    const { rt, ws, frames } = await readingsFrom(frame => ({ id: 1, ok: true, ...(frame["op"] === "sys.history" ? { points: [], stepMs: 15_000, truncated: false } : {}) }) as DaemonResponse);
+    const answer = await rt.usage.readings({ workspaceId: ws.id }, "15m");
+    expect(answer.to - answer.from).toBe(15 * 60_000);
+    expect(frames.find(f => f["op"] === "sys.history")).toMatchObject({ op: "sys.history", from: answer.from, to: answer.to, stepMs: 15_000 });
+  });
+
   it("hands on a daemon's refusal as it said it: one from before it kept readings names the op, and the page reads any refusal as no readings", async () => {
     const { rt, ws } = await readingsFrom(frame => (frame["op"] === "sys.history" ? { id: 1, ok: false, error: "unknown op: sys.history" } : { id: 1, ok: true }) as DaemonResponse);
     await expect(rt.usage.readings({ workspaceId: ws.id }, "day")).rejects.toThrow("unknown op: sys.history");

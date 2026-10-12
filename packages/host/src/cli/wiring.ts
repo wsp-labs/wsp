@@ -32,7 +32,7 @@ import { recipeWatch, type WatchFn } from "../recipe-watch.js";
 import { serversActs } from "../servers-acts.js";
 import { pluginsActs } from "../plugins-acts.js";
 import { hostActs } from "../agents-signin.js";
-import { threadShellEnv, writeThreadWsp } from "../shim.js";
+import { threadDockerNotesDir, threadShellEnv, writeThreadWsp } from "../shim.js";
 import { mcpServerSpec, runningWsp, wspCommand, type RunningWsp } from "../mcp-install.js";
 import { hostPlatform } from "../verbs.js";
 import { VERSION } from "../version.js";
@@ -110,7 +110,7 @@ export function localWiring(
   const daemon = startOnce(
     async () => {
       running = undefined;
-      const started = await startDaemon({ root: home, workFolder: backend.workFolder(), rootsPath, inboxDir: hostInboxDir(statePath), readingsDir: hostReadingsDir(statePath), say });
+      const started = await startDaemon({ root: home, workFolder: backend.workFolder(), rootsPath, inboxDir: hostInboxDir(statePath), readingsDir: hostReadingsDir(statePath), dockerNotes: threadDockerNotesDir(statePath), say });
       running = started.version;
       return started;
     },

@@ -6,6 +6,9 @@
 // token; the store re-runs its standing fetches when the status comes back
 // to live.
 import {
+  processesLeftOf,
+  type LeftThread,
+  type ProcessesAsk,
   ConversationsAnswer,
   type ResumeAsk,
   PendingComputer,
@@ -64,6 +67,7 @@ import {
   type RunStep,
   SessionInterruptOutcome,
   SessionInterruptResult,
+  ActivityEnded,
   SessionRenameResult,
   SessionRestoreResult,
   SessionSettleResult,
@@ -95,6 +99,7 @@ import {
   ReadingsAnswer,
   UsedAnswer,
   type UsageRange,
+  type ReadingsRange,
   type UsageSplit,
   PlaceAddJob,
   PlaceUpdateReply,
@@ -135,6 +140,10 @@ import {
   WorkspaceCostEvent,
   type WorkspaceStatus,
   WorkspaceSysEvent,
+  PlaceSysEvent,
+  AppProcList,
+  AppProcsEvent,
+  type AppProc,
   type WorkspaceView,
   PlaceHolds,
   PlaceRemoved,
@@ -194,11 +203,14 @@ export class DisconnectedError extends Error {
 export class RequestError extends Error {
   readonly kind: string | undefined;
   readonly fix: string | undefined;
-  constructor(message: string, kind?: string, fix?: string) {
+  /** The threads a settle or a delete was refused over, with the processes each still runs. */
+  readonly left: readonly LeftThread[] | undefined;
+  constructor(message: string, kind?: string, fix?: string, left?: readonly LeftThread[]) {
     super(message);
     this.name = "RequestError";
     this.kind = kind;
     this.fix = fix;
+    this.left = left;
   }
 }
 
@@ -254,6 +266,8 @@ export class ProtocolClient {
   /** Listeners for this computer's own readings, which the host pushes on this socket. Kept off #listeners for the
    * reason the daemon's frames are: a figure ticking twice a minute is not history for the store to fold. */
   #sys = new Set<(e: WorkspaceSysEvent) => void>();
+  #placeSys = new Set<(e: PlaceSysEvent) => void>();
+  #appProcs = new Set<(procs: AppProc[]) => void>();
   #opts: ProtocolClientOptions;
   #Ctor: typeof WebSocket;
   #backoff: (attempt: number) => number;
@@ -335,11 +349,22 @@ export class ProtocolClient {
     return () => this.#sys.delete(fn);
   }
 
+  /** Readings of each computer of the person's this socket asked about by its place. */
+  onPlaceSysSample(fn: (e: PlaceSysEvent) => void): () => void {
+    this.#placeSys.add(fn);
+    return () => this.#placeSys.delete(fn);
+  }
+
   subscribe(fn: (e: ProtocolEvent) => void): () => void {
     this.#listeners.add(fn);
     if (!this.#subscribed) { this.#subscribed = true; if (this.status === "live") this.#sendSubscribe(); }
     return () => this.#listeners.delete(fn);
   }
+  onAppProcs(fn: (procs: AppProc[]) => void): () => void {
+    this.#appProcs.add(fn);
+    return () => this.#appProcs.delete(fn);
+  }
+
 
   #sendSubscribe(): void {
     this.#subscribeId = this.#next();
@@ -450,6 +475,16 @@ export class ProtocolClient {
         if (reading.success) for (const fn of this.#sys) fn(reading.data);
         return;
       }
+      if (msg.type === "place.sys") {
+        const reading = PlaceSysEvent.safeParse(msg);
+        if (reading.success) for (const fn of this.#placeSys) fn(reading.data);
+        return;
+      }
+      if (msg.type === "app.procs") {
+        const said = AppProcsEvent.safeParse(msg);
+        if (said.success) for (const fn of this.#appProcs) fn(said.data.procs);
+        return;
+      }
       if (typeof msg.seq === "number" && (this.#cursor === undefined || msg.seq > this.#cursor)) this.#cursor = msg.seq;
       this.#heard++;
       for (const fn of this.#listeners) fn(msg as unknown as ProtocolEvent);
@@ -462,7 +497,7 @@ export class ProtocolClient {
     const p = this.#pending.get(id);
     if (!p) return;
     this.#pending.delete(id);
-    if (msg.ok === false) p.reject(new RequestError(String(msg.error ?? NO_REASON), typeof msg.kind === "string" ? msg.kind : undefined, typeof msg.fix === "string" ? msg.fix : undefined));
+    if (msg.ok === false) p.reject(new RequestError(String(msg.error ?? NO_REASON), typeof msg.kind === "string" ? msg.kind : undefined, typeof msg.fix === "string" ? msg.fix : undefined, processesLeftOf(msg).left));
     else p.resolve(msg);
   }
 
@@ -671,6 +706,9 @@ export interface Api {
    * could not end on a computer the person added. With task it stops that one subagent of the turn alone, and error
    * says in the host's words why the agent would not or could not. */
   interruptSession?(sessionId: string, task?: string): Promise<{ outcome: SessionInterruptOutcome; left?: string; error?: string }>;
+  /** Ends a process this computer runs for a thread by its pid and the start it was listed with, as `wsp activity end`
+   * does: a kept or warm agent's rows free that agent for its thread's next send, and a running turn's agent is refused. */
+  endActivity?(pid: number, startedAt: number): Promise<ActivityEnded>;
   /** Sends a message into the session's running turn; takes the runtime's session id, as interruptSession does. accepted
    * means a session.steer event is on the wire; not-running means the turn beat it and the caller starts a turn instead.
    * Optional so fixtures without a steering harness need not fake it; the composer keeps the stop road without it.
@@ -696,14 +734,15 @@ export interface Api {
    * host refuses one whose turn reached its agent. Optional so fixtures that never forget one need not fake it; a
    * client without it offers no forget. */
   forgetThread?(threadId: string): Promise<void>;
-  /** Takes a thread in a folder away alone, and the worktree wsp made with the last thread in it. */
-  deleteThread?(threadId: string): Promise<{ workspaceId: string; worktree?: string; threads: number }>;
+  /** Takes a thread in a folder away alone, and the worktree wsp made with the last thread in it. With processes ask it
+   * is refused while the thread runs processes beside its agent, the refusal carrying them; a check deletes nothing. */
+  deleteThread?(threadId: string, o?: { processes?: ProcessesAsk; check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }>;
   /** Stamps a thread as shown now on the host, which tells every window; takes the thread's fold key. Optional so
    * fixtures that never open one need not fake it. */
   readThread?(threadId: string): Promise<void>;
   /** Settles each thread and every thread under it on the host, which tells every window and answers what it settled
    * and what it left; takes fold keys. A client without it offers no settle. */
-  settleThreads?(threadIds: readonly string[]): Promise<SessionSettleResult>;
+  settleThreads?(threadIds: readonly string[], processes?: ProcessesAsk): Promise<SessionSettleResult>;
   /** Pins, snoozes or places threads, or takes one of those back, on the host, which tells every window; takes fold
    * keys. A client without it offers none of them. */
   markThreads?(threadIds: readonly string[], marks: ThreadMarks): Promise<void>;
@@ -880,6 +919,17 @@ export interface Api {
   unwatchSys?(workspaceId: string): Promise<void>;
   /** The readings those asks push, for every workspace this socket asked about. */
   onSysSample?(fn: (e: WorkspaceSysEvent) => void): () => void;
+  /** Asks the host to push a computer's readings on this socket, this one or a box, every two seconds until
+   * unwatchPlaceSys or the socket goes. The host holds one watch per computer however many sockets ask. */
+  watchPlaceSys?(placeId: string): Promise<void>;
+  unwatchPlaceSys?(placeId: string): Promise<void>;
+  onPlaceSysSample?(fn: (e: PlaceSysEvent) => void): () => void;
+  /** Asks the host for the desktop app's processes by pid, pushed each time the app reads them again until the socket
+   * goes; the app reads them only while some socket watches. Optional for a fixture and for a host that predates it. */
+  watchAppProcs?(): Promise<AppProc[]>;
+  /** Ends this socket's watchAppProcs once no pane names this computer's processes. */
+  unwatchAppProcs?(): Promise<void>;
+  onAppProcs?(fn: (procs: AppProc[]) => void): () => void;
   /** The workspace's cost ticks since the runtime began metering it, folded to the rate changes and the newest. Optional
    * so fixtures without a usage chart need not fake it; without it the chart starts with the next tick. */
   costHistory?(workspaceId: string): Promise<WorkspaceCostEvent[]>;
@@ -892,7 +942,7 @@ export interface Api {
    * the command line prints for it, and the account row as it now reads. */
   usageReset?(account: string): Promise<ResetAnswer>;
   /** A computer's readings over a range, folded into the range's step; none where its daemon kept none. */
-  placesReadings?(placeId: string, range: UsageRange): Promise<ReadingsAnswer>;
+  placesReadings?(placeId: string, range: ReadingsRange): Promise<ReadingsAnswer>;
   /** Moves head to a version in the manifest; workspaces already forked keep their image. */
   rollbackSnapshot(version: number, name?: string): Promise<SnapshotRollbackResult>;
   /** Snapshots the workspace's disk as a project golden; the runtime refuses a machine that is not first-life. Optional
@@ -1034,6 +1084,12 @@ export function makeApi(c: ProtocolClient): Api {
     watchSys: async workspaceId => void (await c.request("sys.subscribe", { workspaceId })),
     unwatchSys: async workspaceId => void (await c.request("sys.unsubscribe", { workspaceId })),
     onSysSample: fn => c.onSysSample(fn),
+    watchPlaceSys: async placeId => void (await c.request("sys.subscribe", { placeId })),
+    unwatchPlaceSys: async placeId => void (await c.request("sys.unsubscribe", { placeId })),
+    onPlaceSysSample: fn => c.onPlaceSysSample(fn),
+    watchAppProcs: async () => AppProcList.parse((await c.request<{ procs?: unknown }>("appProcs.watch")).procs),
+    unwatchAppProcs: async () => void (await c.request("appProcs.unwatch")),
+    onAppProcs: fn => c.onAppProcs(fn),
     portReach: async (id, port) => (await c.request<{ reach: PortReachView }>("workspaces.portReach", { workspaceId: id, port })).reach,
     portProbe: async (id, port) => (await c.request<{ probe: PortProbeView }>("workspaces.portProbe", { workspaceId: id, port })).probe,
     startSession: async ({ workspaceId, ...opts }) => (await c.request<{ session: SessionView }>("sessions.start", opts.fork === undefined ? { workspaceId, ...opts } : { ...opts })).session,
@@ -1051,6 +1107,7 @@ export function makeApi(c: ProtocolClient): Api {
     sessionAttachment: async (workspaceId, threadId, requestId, index) => (await c.request<{ attachment: KeptAttachment }>("sessions.attachment", { workspaceId, threadId, requestId, index })).attachment,
     listSessions: async id =>
       (await c.request<{ sessions: SessionView[] }>("sessions.list", id !== undefined ? { workspaceId: id } : {})).sessions,
+    endActivity: async (pid, startedAt) => ActivityEnded.parse(await c.request("activity.end", { pid, startedAt })),
     // Parsed, not trusted: an outcome outside the enum must not read as accepted.
     interruptSession: async (sessionId, task) => {
       const { outcome, left, error } = SessionInterruptResult.pick({ outcome: true, left: true, error: true }).parse(await c.request("sessions.interrupt", { sessionId, ...(task !== undefined ? { task } : {}) }));
@@ -1065,9 +1122,9 @@ export function makeApi(c: ProtocolClient): Api {
     // Parsed, not trusted: an outcome outside the enum must not read as renamed.
     renameSession: async (sessionId, title) => SessionRenameResult.parse(await c.request<Record<string, unknown>>("sessions.rename", { sessionId, title })),
     forgetThread: async threadId => void (await c.request("sessions.forget", { threadId })),
-    deleteThread: async threadId => await c.request<{ workspaceId: string; worktree?: string; threads: number }>("sessions.delete", { threadId }),
+    deleteThread: async (threadId, o = {}) => await c.request<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }>("sessions.delete", { threadId, ...o }),
     readThread: async threadId => void (await c.request("sessions.read", { threadId })),
-    settleThreads: async threadIds => SessionSettleResult.parse(await c.request<Record<string, unknown>>("sessions.settle", { threadIds })),
+    settleThreads: async (threadIds, processes) => SessionSettleResult.parse(await c.request<Record<string, unknown>>("sessions.settle", { threadIds, ...(processes !== undefined ? { processes } : {}) })),
     markThreads: async (threadIds, marks) => void (await c.request("sessions.mark", { threadIds, marks })),
     restoreThreads: async threadIds => SessionRestoreResult.parse(await c.request<Record<string, unknown>>("sessions.restore", { threadIds })),
     // Parsed, not trusted: a hit names a thread the palette opens.

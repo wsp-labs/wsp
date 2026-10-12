@@ -59,6 +59,8 @@ pub struct DeleteIn {
     #[serde(default)]
     pub workspace: Option<String>,
     #[serde(default)]
+    pub processes: Option<String>,
+    #[serde(default)]
     pub confirm: Option<bool>,
 }
 
@@ -76,6 +78,9 @@ pub struct DeleteOut {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub machine_id: Option<String>,
     pub threads: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<Vec<serde_json::Value>>"))]
+    pub ended: Option<Box<serde_json::value::RawValue>>,
     /// On a sub-thread: its machine at the cloud was deleted with it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub machine: Option<String>,
@@ -83,11 +88,8 @@ pub struct DeleteOut {
 
 const DELETE_NAME: &str = "delete";
 
-pub const DELETE: Tool = Tool {
-    name: DELETE_NAME,
-    listed: include_str!(concat!(env!("OUT_DIR"), "/record/tools/delete.json")),
-    call: |host, args| Box::pin(delete(host, args)),
-};
+const DELETE_LISTED: &str = include_str!(concat!(env!("OUT_DIR"), "/record/tools/delete.json"));
+pub const DELETE: Tool = Tool { name: DELETE_NAME, listed: DELETE_LISTED, call: |host, args| Box::pin(delete(host, args)) };
 
 #[derive(Deserialize)]
 struct Place {
@@ -136,11 +138,11 @@ fn on_delete(workspace: &Workspace, on: Option<&str>) -> (String, String) {
 /// The command line asks a person before a delete; over MCP the second call is that step, so a machine is never
 /// killed by one call the caller made on its own.
 async fn delete(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
-    let DeleteIn { thread, workspace, confirm } = input(DELETE_NAME, arguments)?;
+    let DeleteIn { thread, workspace, processes, confirm } = input(DELETE_NAME, arguments)?;
     let client = host.client().await?;
     let words = workspace::words();
     if let Some(named) = thread {
-        return delete_thread(&client, &named, confirm == Some(true), host.cloud()).await;
+        return delete_thread(&client, &named, processes.as_deref().unwrap_or("ask"), confirm == Some(true), host.cloud()).await;
     }
     let nothing = if host.cloud() { words.delete_names_nothing_cloud } else { words.delete_names_nothing };
     let Some(workspace) = workspace else { return Err(Failure::usage(nothing).into()) };
@@ -156,6 +158,7 @@ async fn delete(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         name: Some(dropped.name.clone()),
         machine_id: Some(dropped.machine_id.clone()),
         threads,
+        ended: None,
         machine: None,
     };
     if confirm != Some(true) {
@@ -181,7 +184,7 @@ fn refuse_folder(workspace: &Workspace) -> Result<(), Failure> {
 
 /// A thread, with the worktree wsp made that it runs in; nothing where the word names no thread, or with a cloud one
 /// on a machine, which a workspace delete takes.
-async fn delete_thread(client: &Client, named: &str, confirm: bool, cloud: bool) -> Result<Answer, Refused> {
+async fn delete_thread(client: &Client, named: &str, processes: &str, confirm: bool, cloud: bool) -> Result<Answer, Refused> {
     #[derive(Deserialize)]
     struct Folder {
         id: String,
@@ -203,6 +206,8 @@ async fn delete_thread(client: &Client, named: &str, confirm: bool, cloud: bool)
         #[serde(default)]
         worktree: Option<String>,
         threads: u64,
+        #[serde(default)]
+        ended: Option<Box<serde_json::value::RawValue>>,
     }
     let words = workspace::words();
     let not_here = || Failure::usage(fill(&words.no_thread_here, &[("ref", named)]));
@@ -235,21 +240,42 @@ async fn delete_thread(client: &Client, named: &str, confirm: bool, cloud: bool)
     };
     let id = thread.runtime_id().to_owned();
     let worktree = at.worktree.filter(|w| w.removable()).map(|w| w.path);
+    let asked = |check: bool| {
+        let mut asked = params([("threadId", Value::from(id.as_str())), ("processes", Value::from(processes))]);
+        if check {
+            asked.insert("check".to_owned(), Value::Bool(true));
+        }
+        asked
+    };
+    let _: Value = client.request("sessions.delete", asked(true)).await?;
     if !confirm {
         let said = match &worktree {
             Some(path) => fill(&words.thread_kept_worktree, &[("thread", &id), ("path", path)]),
             None => fill(&words.thread_kept_folder, &[("thread", &id)]),
         };
-        let going =
-            DeleteOut { thread_id: Some(id), workspace_id: at.id, worktree: None, name: None, machine_id: None, threads: 1, machine: None };
+        let going = DeleteOut {
+            thread_id: Some(id),
+            workspace_id: at.id,
+            worktree: None,
+            name: None,
+            machine_id: None,
+            threads: 1,
+            ended: None,
+            machine: None,
+        };
         return Ok(Answer::text_error(said, &going));
     }
-    let gone: Deleted = client.request("sessions.delete", params([("threadId", Value::from(id.as_str()))])).await?;
+    let mut gone: Deleted = client.request("sessions.delete", asked(false)).await?;
+    let ended = super::activity::ended_of(DELETE_LISTED, cloud, "ended", gone.ended.take())?;
     let said = match &gone.worktree {
         Some(path) => {
             fill(&counted(gone.threads, &words.thread_deleted_one, &words.thread_deleted_many), &[("thread", &id), ("path", path)])
         }
         None => fill(&words.thread_deleted, &[("thread", &id)]),
+    };
+    let said = match &ended {
+        Some(e) => e.lines.iter().cloned().chain([said]).collect::<Vec<_>>().join("\n"),
+        None => said,
     };
     let out = DeleteOut {
         thread_id: Some(id),
@@ -258,6 +284,7 @@ async fn delete_thread(client: &Client, named: &str, confirm: bool, cloud: bool)
         name: None,
         machine_id: None,
         threads: gone.threads,
+        ended: ended.map(|e| e.parsed),
         machine: None,
     };
     Ok(Answer::text(said, &out))
@@ -294,6 +321,7 @@ async fn delete_sub(client: &Client, thread: &super::named::Thread, confirm: boo
             name: None,
             machine_id: None,
             threads: 1,
+            ended: None,
             machine: None,
         };
         return Ok(Answer::text_error(said, &going));
@@ -308,6 +336,7 @@ async fn delete_sub(client: &Client, thread: &super::named::Thread, confirm: boo
         name: None,
         machine_id: None,
         threads: gone.threads,
+        ended: None,
         machine: gone.machine.filter(|m| m == "deleted"),
     };
     Ok(Answer::text(said, &out))

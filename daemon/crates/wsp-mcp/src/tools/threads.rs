@@ -90,6 +90,8 @@ struct Session {
     #[serde(default)]
     pid: Option<Box<RawValue>>,
     #[serde(default)]
+    agent_pid: Option<Box<RawValue>>,
+    #[serde(default)]
     read_at: Option<Box<RawValue>>,
     #[serde(default)]
     settled_at: Option<Box<RawValue>>,
@@ -183,6 +185,9 @@ pub struct Thread {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(test, schemars(with = "Option<i64>"))]
     pub pid: Option<Box<RawValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<i64>"))]
+    pub agent_pid: Option<Box<RawValue>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(test, schemars(with = "Option<f64>"))]
     pub read_at: Option<Box<RawValue>>,
@@ -380,6 +385,7 @@ fn fold(sessions: Vec<Session>) -> Vec<Thread> {
                 last_line: latest.last_line,
                 failure: latest.failure,
                 pid: latest.pid,
+                agent_pid: latest.agent_pid,
                 read_at: latest.read_at,
                 settled_at: latest.settled_at,
                 pinned_at: latest.pinned_at,

@@ -8,7 +8,7 @@
 // ProviderAuthError).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { AdapterEvent, ExecStream, ExecStreamFactory } from "@wsp/protocol";
+import { agentWord, type AdapterEvent, type ExecStream, type ExecStreamFactory } from "@wsp/protocol";
 import { createOpenCodeAdapter } from "../src/adapter.js";
 
 const SESSION = "ses_f1d4a1b2cffeQwErTyUiOpAsDf";
@@ -77,7 +77,7 @@ describe("OpenCodeAdapter over an opencode run --format json turn", () => {
     const session = adapter.start({ prompt: "list the three largest files", cwd: "/root/app", model: "anthropic/claude-sonnet-4-5", effort: "high", permissionMode: "auto", onEvent: () => {} });
     await session.finished;
     const call = exec.calls[0]!;
-    expect(call.command.startsWith("cd '/root/app' && opencode run --format json")).toBe(true);
+    expect(call.command.startsWith(`cd '/root/app' && ${agentWord("opencode", undefined)} run --format json`)).toBe(true);
     expect(call.command).toContain("-m anthropic/claude-sonnet-4-5 --variant high --auto <<'WSP_PROMPT_END'\nlist the three largest files\nWSP_PROMPT_END");
     expect(call.input).toBeUndefined();
     expect(call.env).toEqual({ PATH: "/root/.local/bin:/usr/bin" });

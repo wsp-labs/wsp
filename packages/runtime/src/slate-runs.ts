@@ -10,7 +10,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, posix, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { writeOwn } from "@wsp/own-file";
-import { EXEC_DEADLINE_EXIT, EXEC_OUTPUT_MAX, EXEC_TIMEOUT_MAX_MS, runOutputTail, SLATE_HELD_APPROVAL } from "@wsp/protocol";
+import { EXEC_DEADLINE_EXIT, EXEC_OUTPUT_MAX, EXEC_TIMEOUT_MAX_MS, runOutputTail, SLATE_HELD_APPROVAL, THREAD_ENV } from "@wsp/protocol";
 import { SLATE_LIMITS, SLATE_SECRET_IN_ARGS } from "@wsp/protocol/slate";
 import type { SlateJson } from "@wsp/protocol/slate";
 
@@ -154,6 +154,8 @@ export interface SlateRunsDeps {
   /** Where a run of this thread runs when that is not this computer: the thread's own machine, for a run `on` the
    * thread whose thread is on a box. Unset, or answering nothing, runs it here. */
   road?: (threadId: string, on: "thread" | "host") => RunRoad | undefined;
+  /** Names a command's process on this computer as the thread's slate run until the returned release. */
+  own?: (threadId: string, pid: number, kind: "slate") => () => void;
   now?: () => number;
 }
 
@@ -183,8 +185,9 @@ export interface RoadEnd {
 export interface RunRoad {
   /** SLATE_DIR on that computer, whose files the road writes before each command. */
   slateDir: string;
-  /** Each line as it is printed where the run streams, then the end, once; kill ends the whole group. */
-  start(o: RoadStart, on: { line(stream: "out" | "err", text: string): void; end(o: RoadEnd): void }): { kill(): void };
+  /** Each line as it is printed where the run streams, then the end, once; kill ends the whole group. The pid is the
+   * command's on this computer, where it runs here. */
+  start(o: RoadStart, on: { line(stream: "out" | "err", text: string): void; end(o: RoadEnd): void }): { kill(): void; pid?: number };
   reshape(o: { cmd: string; input: string; cwd: string; env: Record<string, string>; timeoutS: number; scrub: (text: string) => string }): Reshape;
 }
 
@@ -348,10 +351,13 @@ const localRoad: RunRoad = {
       }, CLOSE_GRACE_MS);
     });
     child.on("close", (code, signal) => end(code, signal));
-    return { kill: () => (child.pid !== undefined ? killGroup(child.pid) : undefined) };
+    return { kill: () => (child.pid !== undefined ? killGroup(child.pid) : undefined), ...(child.pid !== undefined ? { pid: child.pid } : {}) };
   },
   reshape: o => reshapeResult(o),
 };
+
+/** Why a command did not start: it starts in its thread's folder, never the host's own, and none is known. */
+export const NO_FOLDER = "this host knows no folder for the thread, so the command did not start";
 
 const RESULT_FIELDS = ["exit", "out", "err", "json", "lines", "endedAt", "ms", "cut"] as const;
 
@@ -728,11 +734,12 @@ export function createSlateRuns(deps: SlateRunsDeps): SlateRuns {
     if (running(t) >= RUNNING_MAX) return hold(req, l, "busy");
     const inputs = req.inputs();
     if ((inputs.args ?? []).some(input => "secret" in input)) return fail(req, l, SLATE_SECRET_IN_ARGS);
-    // On the thread's own machine the command takes that machine's environment, and SLATE_DIR there.
+    // On the thread's own machine the command takes that machine's environment, SLATE_DIR there and the thread's mark,
+    // which names the run's processes as the thread's to that machine's daemon.
     const road = deps.road?.(threadId, decl.on ?? "thread");
     let env: Record<string, string>;
     try {
-      env = road === undefined ? loginEnv(threadId) : { SLATE_DIR: road.slateDir };
+      env = road === undefined ? loginEnv(threadId) : { SLATE_DIR: road.slateDir, [THREAD_ENV]: threadId };
     } catch (e) {
       return fail(req, l, filesUnwritten(e));
     }
@@ -798,9 +805,9 @@ export function createSlateRuns(deps: SlateRunsDeps): SlateRuns {
         finish({ state: ok ? "done" : "failed", ...(why !== undefined ? { why } : {}), exit, err, ...(json !== undefined ? { json } : {}) });
         return;
       }
-      // A then gets the raw result and nothing the command was given (12): on a box, its login and SLATE_DIR alone. It
+      // A then gets the raw result and nothing the command was given (12): on a box, its login, SLATE_DIR and the mark. It
       // has 60 s whatever the command's own timeout, as a tool run's then has.
-      const shaping = road === undefined ? reshape(threadId, decl.then, raw, cwd) : road.reshape({ cmd: decl.then, input: raw, cwd, env: { SLATE_DIR: road.slateDir }, timeoutS: DEFAULT_TIMEOUT_S, scrub: text => secrets.scrub(threadId, text) });
+      const shaping = road === undefined ? reshape(threadId, decl.then, raw, cwd) : road.reshape({ cmd: decl.then, input: raw, cwd, env: { SLATE_DIR: road.slateDir, [THREAD_ENV]: threadId }, timeoutS: DEFAULT_TIMEOUT_S, scrub: text => secrets.scrub(threadId, text) });
       l.reshaping = shaping;
       void shaping.done.then(answer => {
         if (l.gen !== gen) return;
@@ -808,7 +815,15 @@ export function createSlateRuns(deps: SlateRunsDeps): SlateRuns {
         finish("json" in answer ? { state: "done", exit, err, json: answer.json } : { state: "failed", why: answer.why, exit: answer.exit, err: answer.err });
       });
     };
-    const started = (road ?? localRoad).start({ cmd: decl.cmd, args, cwd, env, ...(stdin !== undefined ? { stdin } : {}), timeoutS: timeout, stream: decl.stream === true }, { line, end });
+    let release: (() => void) | undefined;
+    let over = false;
+    const ended = (o: RoadEnd): void => {
+      over = true;
+      release?.();
+      end(o);
+    };
+    const started = (road ?? localRoad).start({ cmd: decl.cmd, args, cwd, env, ...(stdin !== undefined ? { stdin } : {}), timeoutS: timeout, stream: decl.stream === true }, { line, end: ended });
+    if (!over && started.pid !== undefined) release = deps.own?.(threadId, started.pid, "slate");
     // A road may end before it answers, as a launch refused at once does; nothing is left to kill then.
     if (l.gen === gen && l.record.state === "running") l.kill = started.kill;
     return { outcome: "running", record };
