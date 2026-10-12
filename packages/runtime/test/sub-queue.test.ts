@@ -197,7 +197,7 @@ describe("the minute of starts, a stop, a restart and the counts", () => {
   });
 
   it("counts a queued spawn against its root's machines and a released machine not at all (04, L2)", async () => {
-    const { rt, turns, make, store, project, lead, token, threadId } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 2 } });
+    const { rt, turns, make, store, boat, project, lead, token, threadId } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 2 } });
     // A done sub-thread naps its machine at once, so the first one works on, holding its slot, until it is ended.
     turns.hold = true;
     const a = await spawnAndStart(rt, project.id, lead, token, "First");
@@ -209,6 +209,9 @@ describe("the minute of starts, a stop, a restart and the counts", () => {
     // The first machine released: it counts no more, and the third waits behind the second.
     await store.put("workspaces", a.made.id, { ...((await store.get("workspaces", a.made.id)) as object), phase: "released", machineId: "" });
     await rt.close();
+    // The new host lets the second through at boot. Its machine is never made here, so it holds the slot when the
+    // third is asked; made, its turn would end at once and nap it, freeing the slot before the third is counted.
+    boat.create = () => new Promise<never>(() => {});
     const again = make();
     const third = await again.workspaces.create({ project: project.id, name: "Third", sub: { on: "boat" } }, lead);
     expect((await recordOf(again, third.id))).toMatchObject({ phase: "queued" });
