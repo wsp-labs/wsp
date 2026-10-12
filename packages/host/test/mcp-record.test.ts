@@ -19,7 +19,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { CATALOG, agentName } from "@wsp/catalog";
 import { SEAL_REFUSAL } from "@wsp/keys";
-import { CLOUD_ENV, cloudFromEnv, compareVersions, placeSetRefusal, placeRenameRefusal, placeSshOtherRefusal, usageRefusal, type RefusalHalves, configDirSignInLine, EXIT_CODES, HERE_PLACE_ID, HOST_CLOSED_LINE, HOST_KEY_ENV, HOST_STOPPING_CLOSE, HOST_STOPPING_LINE, NOT_DELIVERED_LINE, HOST_TOKEN_ENV, HOST_URL_ENV, KIND_CLASS, TURN_TOKEN_ENV, LAUNCHED_WITH, LOOPBACK, SKILL_PREVIEW_BYTES, WS_PATH, isLoopback, isUrl, isWildcard, servedHostname, wsUrlOf, hostNoKeyLine, jsonLine, NEWER_TURN_LINE, noMessagesLine, noReplyLine, NO_TERMINAL_CONFIG_LINE, refusalLine, scopedNoPairLine, commandWords, authRefusal, deviceAuthOldHostLine, noSuchPlaceRefusal, pairKeyRefusal, problemListsOf, SEAL_CLIENT, unclosedQuoteRefusal, validatorRefusal, PROVIDER_KEY_WORDS, RecipeFile, type PendingComputer, type PlaceSpend, type PlaceView, type ServerToolsAnswer } from "@wsp/protocol";
+import { CLOUD_ENV, cloudFromEnv, compareVersions, seedNotHereRefusal, seedSaveRefusal, placeSetRefusal, placeRenameRefusal, placeSshOtherRefusal, usageRefusal, type RefusalHalves, configDirSignInLine, EXIT_CODES, HERE_PLACE_ID, HOST_CLOSED_LINE, HOST_KEY_ENV, HOST_STOPPING_CLOSE, HOST_STOPPING_LINE, NOT_DELIVERED_LINE, HOST_TOKEN_ENV, HOST_URL_ENV, KIND_CLASS, TURN_TOKEN_ENV, LAUNCHED_WITH, LOOPBACK, SKILL_PREVIEW_BYTES, WS_PATH, isLoopback, isUrl, isWildcard, servedHostname, wsUrlOf, hostNoKeyLine, jsonLine, NEWER_TURN_LINE, noMessagesLine, noReplyLine, NO_TERMINAL_CONFIG_LINE, refusalLine, scopedNoPairLine, commandWords, authRefusal, deviceAuthOldHostLine, noSuchPlaceRefusal, pairKeyRefusal, problemListsOf, SEAL_CLIENT, unclosedQuoteRefusal, validatorRefusal, PROVIDER_KEY_WORDS, RecipeFile, type PendingComputer, type PlaceSpend, type PlaceView, type ServerToolsAnswer } from "@wsp/protocol";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { hostExitedLine, noHostAnsweredLine, startingHostLine, upArgs } from "../src/host-start.js";
 import { hostLogPath, hostTokenPath, lockPathFor, POLL_MS, SERVICE_WAIT_MS, STARTED_BY_ENV } from "../src/host-lock.js";
@@ -478,6 +478,13 @@ const refused = (error: string, kind?: string): string => JSON.stringify({ id: 1
 /** A usage refusal as the host sends one, its fix half beside the line it ends. */
 const refusedHalves = (said: RefusalHalves): string => JSON.stringify({ id: 1, ok: false, error: usageRefusal(said.happened, said.fix).message, kind: "usage", fix: said.fix });
 
+/** A refusal as the host sends one off the error the runtime threw: its line, its kind and its fix half. */
+const refusedError = (e: Error): string => JSON.stringify({ id: 1, ok: false, error: e.message, kind: (e as { kind?: string }).kind, fix: (e as { fix?: string }).fix });
+
+/** Two rows of a seed menu: an environment file and a package tree. */
+const SEED_ENV = { path: ".env", dir: false, bytes: 1_126, kind: "config", why: "environment file", picked: false };
+const SEED_MODULES = { path: "node_modules", dir: true, bytes: 831_520_768, kind: "rebuilt", why: "rebuilt on the box", picked: false };
+
 /** The calls recorded per tool, each a case name, the arguments and what the host answered each op with. */
 type Answered = Record<string, TurnCase[]>;
 
@@ -699,6 +706,20 @@ const ANSWERED: Answered = {
     },
     { case: "one agent's, none kept", arguments: { agent: "codex" }, replies: { "conversations.list": reply({ rows: [], held: [] }) } },
     { case: "refused", arguments: { project: "nowhere" }, replies: { "conversations.list": refused("no project nowhere. Read the projects with wsp projects.", "not-found") } },
+  ],
+  projects_seed: [
+    {
+      case: "the menu with nothing picked yet, nothing saved",
+      arguments: { project: "lab" },
+      replies: { "projects.seed": reply({ project: "lab", folder: "/work/acme/lab", rows: [SEED_ENV, { ...SEED_MODULES, extra: "dropped" }], picked: { paths: [], bytes: 0, missing: [] }, saved: false }) },
+    },
+    {
+      case: "a path kept, one cut and the picks saved, one saved path gone from the folder",
+      arguments: { project: "lab", keep: [".env"], cut: ["node_modules"], none: true, confirm: true },
+      replies: { "projects.seed": reply({ project: "lab", folder: "/work/acme/lab", rows: [{ ...SEED_ENV, picked: true }, SEED_MODULES], picked: { paths: [".env"], bytes: 1_126, missing: [".env.old"] }, saved: true }) },
+    },
+    { case: "a thread's own token asking for the save", arguments: { project: "lab", keep: [".env"], confirm: true }, replies: { "projects.seed": refusedError(seedSaveRefusal("lab", { keep: [".env"] })) } },
+    { case: "a project on another computer", arguments: { project: "lab" }, replies: { "projects.seed": refusedError(seedNotHereRefusal("lab", "attic")) } },
   ],
   ...RECIPES,
   ...ADD,

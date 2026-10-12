@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, HERE_PLACE_ID, cloudProjectRefusal } from "@wsp/protocol";
-import { BoxBackend, FakeBackend, LocalBackend, NoProviderBackend, SolariBackend, landsBytes, type MachineBackend } from "@wsp/engine";
+import { BoxBackend, FakeBackend, LocalBackend, NoProviderBackend, SolariBackend, landsBytes, limitsOf, type MachineBackend } from "@wsp/engine";
 import { goldenRecipe, makeRuntime, optsFor, providerSlotOf, servingWiring, swapProvider } from "../src/cli.js";
 import { keysOf } from "../src/env-keys.js";
 import { placeWiring } from "../src/places.js";
@@ -328,7 +328,7 @@ describe("Boat with the cloud off, as a public build registers it", () => {
       vi.unstubAllGlobals();
     });
     expect(await providerKeyCheck({}, "bx_plainly_wrong_key", "box", OFF)).toEqual({ state: "refused", said: "401 unauthorized" });
-    expect(await providerKeyCheck({}, "bx_good", "box", OFF)).toEqual({ state: "taken", answer: { limits: {} } });
+    expect(await providerKeyCheck({}, "bx_good", "box", OFF)).toEqual({ state: "taken", answer: limitsOf({}) });
     expect(asked).toEqual(["/api/box/v1/limits", "/api/box/v1/limits"]);
   });
 

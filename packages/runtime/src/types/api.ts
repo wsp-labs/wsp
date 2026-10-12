@@ -23,6 +23,7 @@ import type {
   ProjectBranch,
   SeedChoice,
   SeedPlan,
+  ProjectSeed,
   SessionEvent,
   SessionAccessResult,
   SessionAnswerResult,
@@ -332,6 +333,10 @@ export interface Runtime {
     /** What a seed of a folder on this computer would carry, with the ticks a remembered choice for that folder
      * leaves on it. Nothing of the folder is read whole and nothing leaves this computer. */
     seedPlan(source: string): Promise<SeedPlan>;
+    /** The seed picks of a project whose folder is on this computer: its remembered choice, else nothing, moved by
+     * `none`, `keep` and `cut`; `save` keeps them as the folder's remembered choice, and a thread's token is refused
+     * that. A project on another computer is refused. */
+    seed(ref: string, o: { keep?: readonly string[]; cut?: readonly string[]; none?: boolean; save?: boolean }, origin?: Caller): Promise<ProjectSeed>;
     /** Every project this host holds, oldest first. */
     list(origin?: Caller): Promise<ProjectView[]>;
     /** What a new thread on each of those projects starts on, by project id, off the runtime's table. */

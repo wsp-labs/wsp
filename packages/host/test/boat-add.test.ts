@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { BOX_PRICING, BoxBackend, boxClassFor, checkProviderKey, keyCheckLine, type MachineBackend } from "@wsp/engine";
-import { GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, boatPlanOf, boatSealLines, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
+import { BOX_PRICING, BoxBackend, boxClassFor, checkProviderKey, limitsOf, keyCheckLine, type MachineBackend } from "@wsp/engine";
+import { GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, boatSealLines, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
 import { buildImageAt } from "../src/verbs/workspaces-help.js";
 import type { HostClient } from "../src/verbs.js";
 import { addCommand, addLines, addRefusal } from "../src/places.js";
@@ -22,7 +22,7 @@ const PAID_BOX = { ok: true, type: "limits.info", accessTier: "paid", canStart: 
 /** The same plan on boat.dev's documented base, in its sandbox field names. */
 const PAID_SANDBOX = { ok: true, type: "limits.info", canStart: true, activeSandboxes: 1, maxActiveSandboxes: 100, sandboxPlanKey: "box_20", sandboxPlanDollars: 20, starts: { unlimited: false, minute: { limit: 12, used: 3, remaining: 9 }, hour: { limit: 60, used: 12, remaining: 48 }, day: { limit: 200, used: 47, remaining: 153 } }, billingStatus: "active" };
 /** A trial that never paid. */
-const TRIAL = { ok: true, type: "limits.info", accessTier: "trial", canStart: true, activeBoxes: 0, maxActiveBoxes: 2, boxPlanKey: "trial", trialComputeCapSeconds: 90_000, creditBalanceHours: 25, startLimits: { perMinute: 5, perHour: 25, perDay: 75 }, billingStatus: "trial" };
+const TRIAL = { ok: true, type: "limits.info", accessTier: "trial", canStart: true, activeBoxes: 0, maxActiveBoxes: 2, boxPlanKey: "trial", trialComputeCapSeconds: 90_000, creditBalanceHours: 25, starts: { unlimited: false, minute: { limit: 5, used: 0 }, hour: { limit: 25, used: 0 }, day: { limit: 75, used: 0 } }, billingStatus: "trial" };
 
 // The suite runs with the cloud off, and Boat is a row of the provider table only with it on: this file is about
 // that row, so it reads the table as a host started with WSP_CLOUD=1 does.
@@ -101,16 +101,16 @@ const FIRST_PROMPT = { question: `Boat API key\nNo BOAT_API_KEY in ${KEY_LAYER_W
 describe("Boat's plan line", () => {
   const small = boxClassFor(BOX_PRICING.defaultSize);
 
-  it("reads the plan off either base's field names and says it as one line", () => {
-    expect(boatAddedLine(boatPlanOf(PAID_BOX), small)).toBe(PAID_LINE);
-    expect(boatAddedLine(boatPlanOf(PAID_SANDBOX), small)).toBe(PAID_LINE);
-    expect(boatAddedLine(boatPlanOf(TRIAL), small)).toBe(TRIAL_LINE);
+  it("reads the plan off the engine's reading of either base's field names and says it as one line", () => {
+    expect(boatAddedLine(limitsOf(PAID_BOX), small)).toBe(PAID_LINE);
+    expect(boatAddedLine(limitsOf(PAID_SANDBOX), small)).toBe(PAID_LINE);
+    expect(boatAddedLine(limitsOf(TRIAL), small)).toBe(TRIAL_LINE);
   });
 
-  it("says only what the answer held, and the size alone where it held nothing readable", () => {
-    expect(boatAddedLine(boatPlanOf({ boxPlanKey: "box_100" }), small)).toBe("Boat added: $100 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
-    expect(boatAddedLine(boatPlanOf({ boxPlanKey: "box_20", unlimited: true, startLimits: null }), small)).toContain("$20 plan, no start limits;");
-    expect(boatAddedLine(boatPlanOf("not json"), small)).toBe("Boat added; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
+  it("says only what the answer held, and the size alone where nothing was read", () => {
+    expect(boatAddedLine(limitsOf({ boxPlanKey: "box_100" }), small)).toBe("Boat added: $100 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
+    expect(boatAddedLine(limitsOf({ boxPlanKey: "box_20", starts: { unlimited: true } }), small)).toBe("Boat added: $20 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
+    expect(boatAddedLine(undefined, small)).toBe("Boat added; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
     expect(boatAddedLine(undefined, { ...small, rateUsdPerHour: 0.09 })).toContain("at $0.09/h until");
   });
 });
