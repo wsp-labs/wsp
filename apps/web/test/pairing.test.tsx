@@ -11,7 +11,9 @@ import { openingHash, PAIR_CODE_SHAPE_REFUSAL, pairToken, shownPairCode, WS_PATH
 import { BootGate } from "../src/BootGate.js";
 import { PAIR_HEADING } from "../src/PairScreen.js";
 import { DEVICE_TOKEN_KEY, deviceName, redeemPairingCode, runtimeUrl, storedDeviceToken } from "../src/protocol/pairing.js";
+import { useStore } from "../src/protocol/store.js";
 import { stubBackend } from "../../../packages/runtime/test/stub-backend.js";
+import { stallingAfterFirstAuth } from "./stalled-host.js";
 
 /** The page as the host serves it on its own computer: the digest of its token, never the token. */
 const boot = (over: Partial<BootPayload> = {}): BootPayload => ({ wsPath: WS_PATH, paired: true, version: "0.0.0", tokenHash: "a".repeat(64), ...over });
@@ -29,11 +31,11 @@ afterEach(async () => {
 });
 
 /** A real host-shaped pair: an HTTP server with the runtime answering upgrades of WS_PATH on its own port. */
-async function serving(): Promise<{ port: number; hostToken: string; runtime: ReturnType<typeof createRuntime> }> {
+async function serving(authDeadlineMs?: number): Promise<{ port: number; hostToken: string; runtime: ReturnType<typeof createRuntime> }> {
   const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
   http = createServer((_req, res) => res.end("page"));
   await new Promise<void>(done => http!.listen(0, "127.0.0.1", done));
-  srv = await serveRuntime(runtime, { port: 0, authToken: "host-token", attach: http, devices: runtime.devices });
+  srv = await serveRuntime(runtime, { port: 0, authToken: "host-token", attach: http, devices: runtime.devices, ...(authDeadlineMs !== undefined ? { authDeadlineMs } : {}) });
   return { port: (http.address() as { port: number }).port, hostToken: "host-token", runtime };
 }
 
@@ -51,6 +53,33 @@ async function codeFrom(port: number, here = false): Promise<string> {
   ws.close();
   return issued["code"] as string;
 }
+
+/** The page's WebSocket swapped for `Ctor` while `run` runs, and the browser's own put back after. */
+async function dialingWith(Ctor: typeof WebSocket, run: () => Promise<void>): Promise<void> {
+  const browser = globalThis.WebSocket;
+  globalThis.WebSocket = Ctor;
+  try {
+    await run();
+  } finally {
+    globalThis.WebSocket = browser;
+  }
+}
+
+/** A browser WebSocket whose first auth frame carries a token the host never minted: one refusal, then the page's own. */
+function refusedOnce(): typeof WebSocket {
+  let spent = false;
+  return class extends WebSocket {
+    override send(data: Parameters<WebSocket["send"]>[0]): void {
+      if (spent || typeof data !== "string" || !data.includes('"op":"auth"')) return super.send(data);
+      spent = true;
+      super.send(JSON.stringify({ ...(JSON.parse(data) as object), token: "a-token-this-host-never-minted" }));
+    }
+  };
+}
+
+/** Settles once the window is live on the host or on the code screen, whichever comes first. */
+const liveOrPairing = (): Promise<void> =>
+  waitFor(() => expect(useStore.getState().conn === "live" || screen.queryByText(PAIR_HEADING) !== null).toBe(true), { timeout: 5_000 });
 
 const AT = (port: number) => ({ protocol: "http:", host: `127.0.0.1:${port}` });
 const mount = (b: BootPayload, port: number) => render(<BootGate boot={b} at={AT(port)} agent="Mozilla/5.0 (Macintosh)" storage={window.localStorage} />);
@@ -216,6 +245,62 @@ describe("the screen a page with no token shows", () => {
     }
   });
 
+  it("a host whose loop stands still past the auth deadline while the window auths keeps the window on the app", async () => {
+    const { port } = await serving(100);
+    useStore.setState({ conn: "connecting" });
+    const asked: number[] = [];
+    window.wsp = {
+      hostToken: async () => {
+        asked.push(asked.length);
+        return "host-token";
+      },
+    };
+    await dialingWith(stallingAfterFirstAuth(400), async () => {
+      render(<BootGate boot={boot({ tokenHash: undefined, paired: false })} at={AT(port)} agent="Mozilla/5.0 (Macintosh)" storage={window.localStorage} />);
+      await liveOrPairing();
+      expect(screen.queryByText(PAIR_HEADING)).toBeNull();
+      expect(useStore.getState().conn).toBe("live");
+      // The late close was never read as a refusal: the shell was asked the once the window booted.
+      expect(asked).toHaveLength(1);
+    });
+  });
+
+  it("a refusal followed by an ask the host accepts goes back to the app, even when the shell answers the same token", async () => {
+    const { port } = await serving();
+    useStore.setState({ conn: "connecting" });
+    const asked: number[] = [];
+    window.wsp = {
+      hostToken: async () => {
+        asked.push(asked.length);
+        return "host-token";
+      },
+    };
+    await dialingWith(refusedOnce(), async () => {
+      render(<BootGate boot={boot({ tokenHash: undefined, paired: false })} at={AT(port)} agent="Mozilla/5.0 (Macintosh)" storage={window.localStorage} />);
+      await waitFor(() => expect(asked).toHaveLength(2), { timeout: 5_000 });
+      await liveOrPairing();
+      expect(screen.queryByText(PAIR_HEADING)).toBeNull();
+      expect(useStore.getState().conn).toBe("live");
+    });
+  });
+
+  it("on the code screen asks the shell again when the window comes forward, and goes in on a token the host takes", async () => {
+    const { port } = await serving();
+    useStore.setState({ conn: "connecting" });
+    let held = "a-token-this-host-never-minted";
+    window.wsp = { hostToken: async () => held };
+    render(<BootGate boot={boot({ tokenHash: undefined, paired: false })} at={AT(port)} agent="Mozilla/5.0 (Macintosh)" storage={window.localStorage} />);
+    expect(await screen.findByText(PAIR_HEADING, undefined, { timeout: 5_000 })).toBeTruthy();
+    held = "host-token";
+    // The screen is drawn before its effects run, so the focus listener stands only once they are flushed.
+    await act(async () => {});
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(useStore.getState().conn).toBe("live"), { timeout: 5_000 });
+    expect(screen.queryByText(PAIR_HEADING)).toBeNull();
+  });
+
   it("a shell whose token the host keeps refusing ends on the code screen rather than asking for ever", async () => {
     const { port } = await serving();
     const asked: number[] = [];
@@ -228,8 +313,8 @@ describe("the screen a page with no token shows", () => {
     try {
       render(<BootGate boot={boot({ tokenHash: undefined, paired: false })} at={{ protocol: "http:", host: `127.0.0.1:${port}` }} agent="Mozilla/5.0 (Macintosh)" storage={window.localStorage} />);
       expect(await screen.findByText(PAIR_HEADING, undefined, { timeout: 5_000 })).toBeTruthy();
-      // The one token the shell holds was asked about once and refused once: nothing loops on it.
-      expect(asked.length).toBeLessThanOrEqual(2);
+      // The one token the shell holds was dialled twice and refused twice: nothing loops on it.
+      expect(asked.length).toBeLessThanOrEqual(3);
     } finally {
       delete window.wsp;
     }

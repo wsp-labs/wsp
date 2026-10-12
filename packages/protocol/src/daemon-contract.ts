@@ -186,6 +186,9 @@ export const DAEMON_AUTH_DEADLINE_PASSED = "no auth frame arrived in time";
  * rotation takes the sockets the old token opened with it, rather than leaving them answering for the life of the
  * connection. Under the same close code the four above travel with. */
 export const DAEMON_TOKEN_ROTATED = "the daemon token was rotated; dial again with the current one";
+/** Whether a daemon's close refused the token, rather than cutting a socket whose auth frame came late: every daemon
+ * closes both 4401, and a host that stood still past the deadline holds a token the daemon never read. */
+export const daemonRefusedToken = (code: number, reason: string): boolean => code === 4401 && reason !== DAEMON_AUTH_DEADLINE_PASSED;
 /** The reply to a frame that is not JSON, with a null id since none could be read. */
 export const DAEMON_INVALID_JSON = "invalid json";
 /** Why a daemon started with an empty token file refuses to start at all. */

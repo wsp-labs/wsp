@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { defineConfig } from "tsup";
 import { skillText } from "../../packages/host/skill-text.js";
-import { buildDefines } from "../../packages/wspx/scripts/build-defines.mjs";
+import { buildDefines, publicBuild } from "../../packages/wspx/scripts/build-defines.mjs";
 
 // Two self-contained bundles, the window's main and the wsp command the shim
 // runs: every workspace package and its deps ride inside, so the packaged app
@@ -17,6 +17,8 @@ export default defineConfig([
     target: "node22",
     external: ["electron", "bufferutil", "utf-8-validate"],
     define: buildDefines(),
+    // The only way esbuild drops comments and its file markers, which name modules and providers a public build leaves out.
+    minifyWhitespace: publicBuild(),
     // The host's wsp skill rides in as text, the way its own build inlines it.
     esbuildPlugins: [skillText()],
     outExtension: () => ({ js: ".mjs" }),
