@@ -105,8 +105,8 @@ export interface Runtime {
     signInStop(signInId: string): void;
     /** The sign-in as the line the person's own terminal runs there. */
     signInLine(target: AgentsTarget, ask: SignInAsk, origin?: Caller): Promise<SignInLine>;
-    /** Writes an agent's token or key into this host's vault. */
-    key(agent: string, key: string): Promise<void>;
+    /** Writes an agent's token or key into this host's vault; `way` "key" is the API key of one that mints a token. */
+    key(agent: string, key: string, way?: "token" | "key"): Promise<void>;
     /** Writes the wsp server into that agent's own config on this computer. */
     addTools(target: AgentsTarget, agent: string, origin?: Caller): Promise<{ file: string }>;
     /** Hands every sign-in from here on the host relay's callback forward to its target; the return takes it back. */

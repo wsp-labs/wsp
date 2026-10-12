@@ -6,7 +6,7 @@
 // Set up hands them to the host. Which step a pending add was left at is this
 // window's own, kept beside its id.
 import { create } from "zustand";
-import { PLACE_HOST_KEY_KIND, PLACE_SUDO_KIND, SETUP_WORDS, placeName, placeWord, setupNeedsYouLine, waitLine, type PendingComputer, type RecipeSignIn, type PlaceAddJob, type PlaceEstimate, type PlaceSetup, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions } from "@wsp/protocol";
+import { PLACE_HOST_KEY_KIND, PLACE_SUDO_KIND, placeNoPicksLine, SETUP_WORDS, placeName, placeWord, setupNeedsYouLine, waitLine, type PendingComputer, type RecipeSignIn, type PlaceAddJob, type PlaceEstimate, type PlaceSetup, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions } from "@wsp/protocol";
 import { addNotice, noticeFailure } from "../../notices/store.js";
 import type { Api } from "../../protocol/client.js";
 import { useStore } from "../../protocol/store.js";
@@ -247,9 +247,13 @@ export function readOptions(api: Api): void {
 }
 
 /** The setup a start answered, onto the computer's row at once: its frames fold onto that run, not the one before. */
-function showSetup(answer: { place: PlaceView; setup?: PlaceSetup }): void {
+function showSetup(answer: { place: PlaceView; setup?: PlaceSetup; said?: string }): Failure | null {
   useStore.setState(s => ({ places: s.places.map(p => (p.id === answer.place.id ? { ...answer.place, ...(answer.setup === undefined ? {} : { setup: answer.setup }) } : p)) }));
+  // A setup the host could not start says why rather than refusing the ask.
+  return answer.said === undefined ? null : saidAs(answer.said);
 }
+
+const saidAs = (said: string): Failure => ({ said, fix: undefined, kind: undefined, disconnected: false });
 
 /** How long picks rest before they are kept: a burst of ticks or a name typed is one write. */
 const KEEP_AFTER_MS = 400;
@@ -311,7 +315,11 @@ export async function setUp(api: Api, setIcon: (slug: string, icon: ProjectIcon)
   keeping = undefined;
   useAddFlow.setState({ starting: true, refused: null });
   try {
-    showSetup(await api.placesSetup(placeId, { choices: picks }));
+    const said = showSetup(await api.placesSetup(placeId, { choices: picks }));
+    if (said !== null) {
+      useAddFlow.setState({ starting: false, refused: said });
+      return;
+    }
   } catch (e) {
     useAddFlow.setState({ starting: false, refused: failureOf(e) });
     return;
@@ -339,11 +347,11 @@ export async function skipRow(api: Api | null, placeId: string, row: string): Pr
 
 /** Copy the keys on a computer that follows no recipe: its picks with the yes, and the server's row run again, which
  * puts on the servers that waited on it. */
-export async function copyKeysOn(api: Api | null, place: Pick<PlaceView, "id" | "picks">, row: string): Promise<Failure | null> {
-  if (api?.placesSetup === undefined || place.picks === undefined) return null;
+export async function copyKeysOn(api: Api | null, place: Pick<PlaceView, "id" | "picks">, row: string, box: string): Promise<Failure | null> {
+  if (api?.placesSetup === undefined) return null;
+  if (place.picks === undefined) return saidAs(placeNoPicksLine(box));
   try {
-    showSetup(await api.placesSetup(place.id, { choices: { ...place.picks, copyKeys: true }, row }));
-    return null;
+    return showSetup(await api.placesSetup(place.id, { choices: { ...place.picks, copyKeys: true }, row }));
   } catch (e) {
     return failureOf(e);
   }
@@ -353,8 +361,7 @@ export async function copyKeysOn(api: Api | null, place: Pick<PlaceView, "id" | 
 export async function retrySetup(api: Api | null, placeId: string, row: string): Promise<Failure | null> {
   if (api?.placesSetup === undefined) return null;
   try {
-    showSetup(await api.placesSetup(placeId, { row }));
-    return null;
+    return showSetup(await api.placesSetup(placeId, { row }));
   } catch (e) {
     return failureOf(e);
   }
@@ -362,12 +369,12 @@ export async function retrySetup(api: Api | null, placeId: string, row: string):
 
 /** One agent's sign-in row run again on another way. The host sets a computer up from a saved recipe's own file, so a
  * computer that followed one follows its own picks from here. */
-export async function setupWithWay(api: Api | null, place: PlaceView, agent: string, way: RecipeSignIn, row: string): Promise<Failure | null> {
-  if (api?.placesSetup === undefined || place.picks === undefined) return null;
+export async function setupWithWay(api: Api | null, place: PlaceView, agent: string, way: RecipeSignIn, row: string, box: string): Promise<Failure | null> {
+  if (api?.placesSetup === undefined) return null;
+  if (place.picks === undefined) return saidAs(placeNoPicksLine(box));
   const choices: RecipeFile = { ...place.picks, agents: { ...place.picks.agents, [agent]: { ...place.picks.agents[agent], signin: way } } };
   try {
-    showSetup(await api.placesSetup(place.id, { choices, row }));
-    return null;
+    return showSetup(await api.placesSetup(place.id, { choices, row }));
   } catch (e) {
     return failureOf(e);
   }

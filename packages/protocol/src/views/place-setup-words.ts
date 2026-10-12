@@ -186,12 +186,14 @@ export interface SignInWayFacts {
   box: string;
   mint?: string;
   keyEnv?: string;
+  /** The key is typed into a field drawn under the row, so nothing has to be put anywhere first. */
+  field?: boolean;
 }
 /** What one way does, as its sentence in the fix and the picker's note under a row picked that way both say it. */
 export const signInWayDoes = (way: SignInWay, o: SignInWayFacts): string =>
   ({
     token: `${o.mint ?? `${o.name}'s own command`} runs on ${o.here} and asks your browser once`,
-    key: `put ${o.keyEnv ?? "the key"} in ~/.wsp/.env on ${o.here} first, and wsp reads it from there without showing it`,
+    key: o.field === true ? `paste your ${o.keyEnv ?? "key"}; wsp saves it to ~/.wsp/.env without showing it` : `put ${o.keyEnv ?? "the key"} in ~/.wsp/.env on ${o.here} first, and wsp reads it from there without showing it`,
     machine: `${o.name}'s own sign-in runs there`,
   })[way];
 /** What a sign-in row says where the vault holds what its way takes. */
@@ -199,6 +201,8 @@ export const tokenHeldLine = (here: string): string => `the token made on ${here
 export const keyHeldLine = (here: string): string => `the key in ~/.wsp/.env on ${here}`;
 /** What a row picked to take a key says where the vault holds none. */
 export const noKeyLine = (keyEnv: string, here: string): string => `~/.wsp/.env on ${here} holds no ${keyEnv}`;
+/** Whether a row's note is the one a row picked to take a key says where the vault holds none, on any computer. */
+export const saysNoKey = (note: string | undefined, keyEnv: string): boolean => note?.startsWith("~/.wsp/.env on ") === true && note.endsWith(` holds no ${keyEnv}`);
 /** A sign-in on that computer whose page hands back a code: the setup has nowhere to take the code, so the row's own
  * Sign in runs it, with the code pasted under the row. */
 export const CODE_FROM_ROW = "its page hands back a code, so it signs in from this row";

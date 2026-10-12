@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AT_ITS_TERMINAL, PLACE_HOST_KEY_KIND, closedBeforeSignInLine, PLACE_SUDO_KIND, RecipeFile, SKIPPED_FOR_NOW, copiedFromLine, noCopyLine, noKeyLine, signInThereFix, signInWaysFix, type AgentsSignInEvent, type AgentsTarget, type AgentRow, type AgentsReport, type PlaceAddJob, type PlaceAddStep, type EventUnion, type PendingComputer, type PlaceSetup, type PlaceView, type ProjectView, type RecipeOptions, type RecipeView, waitLine } from "@wsp/protocol";
+import { AT_ITS_TERMINAL, PLACE_HOST_KEY_KIND, closedBeforeSignInLine, PLACE_SUDO_KIND, RecipeFile, SKIPPED_FOR_NOW, copiedFromLine, noCopyLine, noKeyLine, placeNoPicksLine, placeProvisioningLine, placeSyncingLine, signInThereFix, signInWaysFix, waitLine, type AgentsSignInEvent, type AgentsTarget, type AgentRow, type AgentsReport, type PlaceAddJob, type PlaceAddStep, type EventUnion, type PendingComputer, type PlaceSetup, type PlaceView, type ProjectView, type RecipeOptions, type RecipeView } from "@wsp/protocol";
 import { RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useNotices } from "../src/notices/store.js";
 import { useStore } from "../src/protocol/store.js";
@@ -1280,9 +1280,139 @@ describe("Add a computer, the running sheet as the host has it", () => {
     expect(fake.signIns).toEqual([{ target: { placeId: "here" }, agent: "claude" }]);
     await press(claude().querySelector("[data-k=sign-in]"));
     expect(fake.signIns.at(-1)).toEqual({ target: { placeId: studio.id }, agent: "claude" });
-    // The key is put in the wsp home's .env by the person; the button runs that sign-in's row again with that way picked.
-    await press(claude().querySelector("[data-k=sign-in-key]"));
-    expect(setups.map(s => [s.ref, s.o.choices?.agents["claude"]?.signin, s.o.row])).toEqual([[studio.id, "key", "signins/claude"]]);
+    // The computer takes the key already, so a run again would read the same missing key: the button opens a field.
+    await press(claude().querySelector("button[data-k=sign-in-key]"));
+    expect(claude().querySelector("input[data-k=sign-in-key]")).not.toBeNull();
+    expect(setups).toEqual([]);
+  });
+
+  it("opens a field on Use an API key where the computer takes the key and the host holds none, and puts the key typed in the host's vault as the key, never shown again", async () => {
+    const keys: [string, string, string | undefined][] = [];
+    const setups: unknown[] = [];
+    const fake = signInHost({ agentsRead: async () => boxReport(), agentsKey: async (agent: string, key: string, way?: string) => void keys.push([agent, key, way]), placesSetup: async (ref: string, o: unknown) => (setups.push({ ref, o }), { addId: "a_key", place: useStore.getState().places.find(p => p.id === ref)! }) } as Partial<Api>);
+    const run: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "signins/claude", label: "Claude Code", outcome: "failed", step: "signins", note: noKeyLine("ANTHROPIC_API_KEY", "zingzy's MacBook Pro") }] };
+    useStore.setState({ places: [here, { ...placed(DONE, run), picks: RecipeFile.parse({ name: "studio", agents: { claude: { signin: "key" } } }) }] });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    const claude = (): HTMLElement => dialog()!.querySelector<HTMLElement>("[data-step-row='signins/claude']")!;
+    expect(claude().querySelector("input")).toBeNull();
+    await press(claude().querySelector("button[data-k=sign-in-key]"));
+    const field = claude().querySelector<HTMLInputElement>("input[data-k=sign-in-key]")!;
+    expect(field.type).toBe("password");
+    act(() => void fireEvent.change(field, { target: { value: " sk-ant-api03-x " } }));
+    await press(claude().querySelector("[data-k=sign-in-save]"));
+    expect(keys).toEqual([["claude", "sk-ant-api03-x", "key"]]);
+    expect(setups).toEqual([]);
+    await waitFor(() => expect(claude().querySelector("input")).toBeNull());
+    expect(dialog()!.textContent).not.toContain("sk-ant-api03-x");
+  });
+
+  it("says why under the row pressed where the host refuses the press, as it does a setup still running, never at the foot of the list", async () => {
+    const busy = new RequestError(placeProvisioningLine("studio", "clis"), "conflict");
+    const fake = signInHost({ agentsRead: async () => boxReport(), placesSetup: async () => Promise.reject(busy) } as Partial<Api>);
+    const running: PlaceSetup = { ...RUNNING, steps: [{ step: "floor", state: "done" }, { step: "agents", state: "done" }, { step: "signins", state: "done" }, { step: "clis", state: "running" }, { step: "mcp", state: "done" }] };
+    const run: PlaceView["applied"] = {
+      hash: "h",
+      at: "x",
+      rows: [
+        { id: "signins/claude", label: "Claude Code", outcome: "failed", step: "signins", note: noCopyLine("Claude Code", "zingzy's MacBook Pro") },
+        { id: "agents/mcp/claude/sentry", label: "Claude Code sentry", outcome: "skipped", kind: "server", step: "mcp", note: "not copied", keys: ["SENTRY_ACCESS_TOKEN"] },
+      ],
+    };
+    useStore.setState({ places: [here, { ...placed(running, run), picks: RecipeFile.parse({ name: "studio", agents: { claude: { signin: "token" } }, mcp: { sentry: { agents: ["claude"] } } }), recipe: "none" }] });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    const row = (id: string): HTMLElement => dialog()!.querySelector<HTMLElement>(`[data-step-row='${id}']`)!;
+    // The dialog words the host's conflict itself: what blocks, and that the same press works once it ends.
+    const said = "studio is still being set up; press again once it is done.";
+    await press(row("agents/mcp/claude/sentry").querySelector("[data-k=copy-keys]"));
+    expect(row("agents/mcp/claude/sentry").querySelector("[data-k=retry-refused]")?.textContent).toBe(said);
+    await press(row("signins/claude").querySelector("button[data-k=sign-in-key]"));
+    expect(row("signins/claude").querySelector("[data-k=retry-refused]")?.textContent).toBe(said);
+    // Said once, where it was pressed.
+    expect(row("agents/mcp/claude/sentry").textContent).not.toContain("still being set up");
+    // Once the setup ends the sentence is false, so it goes.
+    act(() => useStore.setState(s => ({ places: s.places.map(p => (p.id === studio.id ? { ...p, setup: { ...running, state: "done" as const, steps: running.steps.map(l => ({ ...l, state: "done" as const })) } } : p)) })));
+    await settle();
+    expect(dialog()!.textContent).not.toContain("still being set up");
+  });
+
+  it("takes a refusal a recipe's sync gave off the row once that sync ends, since the setup itself never moved", async () => {
+    const fake = signInHost({ agentsRead: async () => boxReport(), placesSetup: async () => Promise.reject(new RequestError(placeSyncingLine("studio"), "conflict")) } as Partial<Api>);
+    const done: PlaceSetup = { ...DONE, steps: [...DONE.steps, { step: "skills", state: "done" }] };
+    const run: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "skills/b", label: "b", outcome: "failed", step: "skills", note: "a link inside points at a folder" }] };
+    useStore.setState({ places: [here, { ...placed(done, run), picks: RecipeFile.parse({ name: "Builders" }), recipe: "builders", sync: { state: "running", changes: ["skills/b"], since: "2026-10-12T10:00:00.000Z" } }] });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    const row = (): HTMLElement => dialog()!.querySelector<HTMLElement>("[data-step-row='skills/b']")!;
+    await press(row().querySelector("[data-k=retry]"));
+    expect(row().querySelector("[data-k=retry-refused]")?.textContent).toBe("studio is still being set up; press again once it is done.");
+    act(() => useStore.setState(s => ({ places: s.places.map(p => (p.id === studio.id ? { ...p, sync: undefined } : p)) })));
+    await settle();
+    expect(row().querySelector("[data-k=retry-refused]")).toBeNull();
+  });
+
+  /** Claude Code's row picked to take the key, failed for want of it, over a host whose token sign-in waits. */
+  const keyRow = async () => {
+    const keys: [string, string, string | undefined][] = [];
+    const fake = signInHost({ agentsRead: async () => boxReport(), agentsKey: async (agent: string, key: string, way?: string) => void keys.push([agent, key, way]) } as Partial<Api>);
+    const fix = signInWaysFix(["key", "token", "machine"], { name: "Claude Code", here: "zingzy's MacBook Pro", box: "studio", mint: "claude setup-token", keyEnv: "ANTHROPIC_API_KEY" });
+    const run: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "signins/claude", label: "Claude Code", outcome: "failed", step: "signins", note: noKeyLine("ANTHROPIC_API_KEY", "zingzy's MacBook Pro"), fix }] };
+    useStore.setState({ places: [here, { ...placed(DONE, run), picks: RecipeFile.parse({ name: "studio", agents: { claude: { signin: "key" } } }) }] });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    const claude = (): HTMLElement => dialog()!.querySelector<HTMLElement>("[data-step-row='signins/claude']")!;
+    return { fake, keys, claude, field: () => claude().querySelector("input[data-k=sign-in-key]") };
+  };
+
+  it("closes the key's field when a token is made from the row, and draws the token's page and code in its place", async () => {
+    const { fake, claude, field } = await keyRow();
+    await press(claude().querySelector("button[data-k=sign-in-key]"));
+    expect(field()).not.toBeNull();
+    await press(claude().querySelector("button[data-k=sign-in-token]"));
+    expect(fake.signIns).toEqual([{ target: { placeId: "here" }, agent: "claude" }]);
+    expect(field()).toBeNull();
+    expect(claude().textContent).toContain("ABCD-1234");
+  });
+
+  it("stops a token being made from the row when the key's field opens, so nothing runs on this computer unseen", async () => {
+    const { fake, claude, field } = await keyRow();
+    await press(claude().querySelector("button[data-k=sign-in-token]"));
+    expect(claude().textContent).toContain("ABCD-1234");
+    await press(claude().querySelector("button[data-k=sign-in-key]"));
+    expect(fake.stopped).toEqual(["claude"]);
+    expect(field()).not.toBeNull();
+    expect(claude().textContent).not.toContain("ABCD-1234");
+  });
+
+  it("says to paste the key where its field is open, and keeps the sentence that names the file until then", async () => {
+    const { claude } = await keyRow();
+    const putFirst = "Use an API key: put ANTHROPIC_API_KEY in ~/.wsp/.env on zingzy's MacBook Pro first, and wsp reads it from there without showing it.";
+    expect(claude().textContent).toContain(putFirst);
+    await press(claude().querySelector("button[data-k=sign-in-key]"));
+    expect(claude().textContent).toContain("Use an API key: paste your ANTHROPIC_API_KEY; wsp saves it to ~/.wsp/.env without showing it.");
+    expect(claude().textContent).not.toContain(putFirst);
+  });
+
+  it("says why under the row where the host could not start the setup it was asked for, or the computer holds no picks to run it from", async () => {
+    const fake = signInHost({ agentsRead: async () => boxReport(), placesSetup: async () => ({ addId: "a_1", place: useStore.getState().places.find(p => p.id === studio.id)!, said: "studio reported no home folder, so nothing can be set up there" }) } as Partial<Api>);
+    const run: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "agents/mcp/claude/sentry", label: "Claude Code sentry", outcome: "skipped", kind: "server", step: "mcp", note: "not copied", keys: ["SENTRY_ACCESS_TOKEN"] }] };
+    const done: PlaceSetup = { ...DONE, steps: [...DONE.steps, { step: "mcp", state: "done" }] };
+    useStore.setState({ places: [here, { ...placed(done, run), picks: RecipeFile.parse({ name: "studio", mcp: { sentry: { agents: ["claude"] } } }), recipe: "none" }] });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    const sentry = (): HTMLElement => dialog()!.querySelector<HTMLElement>("[data-step-row='agents/mcp/claude/sentry']")!;
+    await press(sentry().querySelector("[data-k=copy-keys]"));
+    expect(sentry().querySelector("[data-k=retry-refused]")?.textContent).toBe("studio reported no home folder, so nothing can be set up there");
+    // A computer whose record holds no picks has nothing to set up again from, and the row says so.
+    act(() => useStore.setState(s => ({ places: s.places.map(p => (p.id === studio.id ? { ...p, picks: undefined } : p)) })));
+    await press(sentry().querySelector("[data-k=copy-keys]"));
+    expect(sentry().querySelector("[data-k=retry-refused]")?.textContent).toBe(placeNoPicksLine("studio"));
   });
 
   it("opens OpenCode's sign-in in place as its own terminal on the computer, since it asks which provider: no line to copy", async () => {

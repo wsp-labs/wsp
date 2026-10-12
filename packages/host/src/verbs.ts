@@ -521,6 +521,7 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   "servers signin agent": "the agent whose config names the server, by its catalog id as wsp servers shows it",
   "servers tools agent": "the agent whose config names the server, by its catalog id as wsp servers shows it",
   "servers tools refresh": "start the server again even where an answer from the last three minutes stands",
+  "agents key api-key": "the value typed is the agent's API key, not the token its own command mints; for a computer picked to use the key",
   "servers tools project": "the project on the computer --on names whose server it is, by name; a thread finds its own project's servers",
   "servers add on": AGENTS_ON_WORDS,
   "servers add agent": "the agent whose config takes the server, by its catalog id",
