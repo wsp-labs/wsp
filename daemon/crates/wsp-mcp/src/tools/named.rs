@@ -27,6 +27,8 @@ pub struct Thread {
     pub ran: bool,
     /// The folder its latest turn ran in, absent where none recorded one.
     pub cwd: Option<String>,
+    /// A sub-thread on a cloud, whose machine is its own and goes with it.
+    pub sub: bool,
 }
 
 impl Thread {
@@ -55,6 +57,8 @@ struct SessionRow {
     refusal: Option<Value>,
     #[serde(default)]
     cwd: Option<String>,
+    #[serde(default)]
+    sub: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +88,7 @@ fn fold(rows: Vec<SessionRow>) -> Vec<Thread> {
                 status: latest.status.clone(),
                 session_id: latest.id.clone(),
                 cwd: latest.cwd.clone(),
+                sub: latest.sub.is_some(),
                 ran,
                 id,
             }
@@ -252,7 +257,7 @@ pub struct Workspace {
     pub gone: Option<String>,
 }
 
-const PHASES: [&str; 5] = ["running", "pausing", "napping", "waking", "gone"];
+const PHASES: [&str; 6] = ["running", "pausing", "napping", "waking", "gone", "released"];
 
 /// The fields `WorkspaceOut` requires, each of its type: a reply short of them is a host of another version.
 fn workspace_out(value: &Value) -> Option<Workspace> {
@@ -378,6 +383,7 @@ mod tests {
             claude_session_id: None,
             refusal: None,
             cwd: None,
+            sub: None,
         }
     }
 

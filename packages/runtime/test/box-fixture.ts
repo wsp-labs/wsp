@@ -49,6 +49,8 @@ export interface Box {
   endFails?: boolean;
   /** The branch the folders there have checked out; none answers as a detached head does. */
   head?: string;
+  /** The branches the folders' remote holds, as git ls-remote --heads lists them there. */
+  remoteHeads?: string[];
 }
 
 export interface BoxLogin {
@@ -102,6 +104,7 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
       return out(`${at}\n`);
     }
     if (o.failClone === true && line.includes("git clone")) return out("", 128);
+    if (line.includes("ls-remote") && line.includes("--heads")) return out((seen.remoteHeads ?? []).map(h => `${"0".repeat(40)}\trefs/heads/${h}\n`).join(""));
     if (line.includes("symbolic-ref --quiet --short HEAD")) return seen.head === undefined ? out("", 1) : out(`${seen.head}\n`);
     if (line.includes("wsp_mcp_read()")) {
       const said = [...line.matchAll(/^wsp_mcp_read (\d+) '([^']+)'$/gm)].map(([, i, path]) => {
