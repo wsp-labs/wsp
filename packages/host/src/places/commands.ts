@@ -635,12 +635,11 @@ async function removeProviderAt(io: CliIO, client: HostClient, place: PlaceView,
   const { workspaces } = await client.request<{ workspaces: WorkspaceView[] }>("workspaces.list");
   const there = new Set(workspaces.filter(w => placeOf(places, w)?.id === place.id).map(w => w.id));
   const forget = flags.forget === true;
-  // Work no remote has goes with the machines either way, so the question names it before anybody says yes; a
-  // sub-thread's record stays, released, so a forget counts it among no records that leave.
+  // Work no remote has goes with the machines either way, so the question names it, as the host reads it, before
+  // anybody says yes; a sub-thread's record stays, so a forget counts it among no records that leave.
+  const warned = subHeldOnRemoveLine(PlaceHolds.parse(await client.request("places.holds", { placeId: place.id })).unsaved);
   const { sessions } = await client.request<{ sessions: SessionView[] }>("sessions.list", {});
   const subs = foldThreads(sessions).filter(t => t.sub !== undefined && there.has(t.workspaceId));
-  const held = subs.flatMap(t => (t.sub!.held !== undefined && t.sub!.state !== "released" ? [{ threadId: t.threadId ?? t.id, branch: t.sub!.branch, ...t.sub!.held }] : []));
-  const warned = subHeldOnRemoveLine(held);
   const tasks = forget ? there.size - new Set(subs.map(t => t.workspaceId)).size : there.size;
   const question = forget ? providerForgetQuestion(name, tasks) : providerRemoveQuestion(name, tasks);
   if (!(await confirmedAt(io, flags.yes === true, warned === undefined ? question : `${question}\n${warned}`, name))) return 1;

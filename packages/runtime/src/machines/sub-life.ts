@@ -86,7 +86,7 @@ export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
     on: sub.on,
     machine: record.name,
     size: { cpu: record.size.cpu, memMb: record.size.memMb },
-    rateUsdPerHour: sub.rateUsdPerHour,
+    ...(sub.rateUsdPerHour !== undefined ? { rateUsdPerHour: sub.rateUsdPerHour } : {}),
     branch: sub.branch,
     ...(sub.result !== undefined ? { result: sub.result } : {}),
     ...(sub.held !== undefined ? { held: { files: sub.held.files, commits: sub.held.commits } } : {}),
@@ -279,7 +279,9 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       await ctx.persist(entry.record);
       return;
     }
+    // A nap or a wake in flight settles first: a machine a wake brought back runs, and is read again before it goes.
     await entry.napping?.catch(() => undefined);
+    await entry.waking?.catch(() => undefined);
     if (entry.record.phase === "running") {
       const again = await readResult(entry);
       sub.result = again;
@@ -291,6 +293,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       }
       if (threadId !== undefined) await keepSession(entry, threadId);
     }
+    // A send after the wake can start a turn while the machine is read, and that turn takes it back.
+    if (sub.deleteAt === undefined || (threadId !== undefined && busy(threadId))) return;
     try {
       await ctx.unfork(entry);
     } catch (e) {
@@ -334,27 +338,63 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     timers.delete(e.workspaceId);
   });
 
+  /** What a sub-machine may hold that no remote has: the counts its last read found, that the read failed, or that a
+   * turn ran since it, whose work nothing has read yet; nothing for a released box or a thread that never ran. */
   const subUnpushed = (entry: LiveWorkspace): SubUnpushed | undefined => {
     const sub = entry.record.sub;
-    if (sub?.held === undefined || entry.record.phase === "released") return undefined;
+    if (sub === undefined || entry.record.phase === "released") return undefined;
+    const threadId = threadOf(entry.record.id);
+    if (threadId === undefined) return undefined;
+    const ran = ctx.latestOn(threadId)?.startedAt;
+    if (sub.result === undefined ? ran !== undefined : ran !== undefined && ran > Date.parse(sub.result.readAt)) return { files: 0, commits: 0, unread: true };
+    if (sub.held === undefined) return undefined;
     return { files: sub.held.files, commits: sub.held.commits, ...(sub.result?.readFailed !== undefined ? { readFailed: sub.result.readFailed } : {}) };
+  };
+
+  /** The cloud left this host by a forget: nothing there was deleted, so the record keeps its phase, says its cloud
+   * is gone, and arms no delete it could not make. */
+  const forgotten = async (entry: LiveWorkspace): Promise<void> => {
+    const id = entry.record.id;
+    timers.get(id)?.();
+    timers.delete(id);
+    const sub = entry.record.sub!;
+    delete sub.deleteAt;
+    sub.cloudGone = true;
+    entry.lateRead?.();
+    ctx.attach(entry.record, deadMachine(entry.record.machineId));
+    await ctx.persist(entry.record);
+    ctx.idle.forget(id);
   };
 
   return {
     subDone: id => serial(id, () => done(id)),
     subExpire: id => serial(id, () => expire(id)),
     armSubs: () => {
-      for (const entry of live.values()) if (entry.record.sub?.deleteAt !== undefined) arm(entry);
+      for (const entry of live.values()) {
+        const sub = entry.record.sub;
+        if (sub === undefined || entry.record.phase === "released" || sub.cloudGone === true) continue;
+        if (sub.deleteAt !== undefined) arm(entry);
+        // A done a restart cut short wrote neither, and no end comes again: it runs now. One with a turn running, or
+        // with none run yet, returns at once.
+        else if (sub.held === undefined) void serial(entry.record.id, () => done(entry.record.id));
+      }
     },
     subLost: async (entry, reason): Promise<GoneOutcome> => {
       await release(entry, { lost: reason });
       return "settled";
     },
-    releaseSubsOn: async placeId => {
-      for (const entry of [...live.values()]) if (entry.record.sub !== undefined && ctx.placeIdOf(entry.record) === placeId) await release(entry, { cloudGone: true });
+    releaseSubsOn: async (placeId, o = {}) => {
+      for (const entry of [...live.values()]) {
+        if (entry.record.sub === undefined || ctx.placeIdOf(entry.record) !== placeId) continue;
+        if (o.forgot === true && entry.record.phase !== "released") await forgotten(entry);
+        else await release(entry, { cloudGone: true });
+      }
     },
     subUnpushed,
-    subDelete: async (entry, threadId, origin, o) => {
+    subDelete: async (asked, threadId, origin, o) => {
+      // A done still reading has the word on what the machine holds, so it is waited for.
+      await working.get(asked.record.id);
+      const entry = live.get(asked.record.id) ?? asked;
       // Never under a turn, and never by a thread's own token over work no remote holds; the caller's reach was read.
       if (busy(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
       const held = subUnpushed(entry);
@@ -370,7 +410,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     },
     refuseSubSend: entry => {
       const sub = entry.record.sub;
-      if (sub === undefined || entry.record.phase !== "released") return;
+      if (sub === undefined || (entry.record.phase !== "released" && sub.cloudGone !== true)) return;
       throw sub.cloudGone === true ? subCloudGoneRefusal(cloudOf(entry)) : subReleasedRefusal(threadOf(entry.record.id) ?? entry.record.name, cloudOf(entry), sub.branch);
     },
     leadOfSub: (workspaceId, origin) => {

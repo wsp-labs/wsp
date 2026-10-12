@@ -523,8 +523,9 @@ export interface SubLifeArea {
   readonly armSubs: () => void;
   /** The cloud lost a sub-machine: the record is released, the thread kept. */
   readonly subLost: (entry: LiveWorkspace, reason: string) => Promise<GoneOutcome>;
-  /** The cloud left this host: every sub-machine it held is released and says so. */
-  readonly releaseSubsOn: (placeId: string) => Promise<void>;
+  /** The cloud left this host: every sub-machine it held is released and says so; after a forget, which deleted
+   * nothing there, each keeps its phase and says its cloud is gone. */
+  readonly releaseSubsOn: (placeId: string, o?: { forgot?: true }) => Promise<void>;
   /** The work a sub-machine's last read found not pushed; nothing where it holds none. */
   readonly subUnpushed: (entry: LiveWorkspace) => SubUnpushed | undefined;
   /** A sub-thread and its machine taken away, refused under a turn and to a thread's own token over work not pushed;

@@ -446,7 +446,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
     if (found === undefined) throw new Error(noKindLine(kind));
     return found;
   };
-  const backendFor = (record: WorkspaceRecord): MachineBackend => (record.phase === "released" ? RELEASED_BACKEND : moduleOf(record.kind).backend(record));
+  const backendFor = (record: WorkspaceRecord): MachineBackend => (record.phase === "released" || record.sub?.cloudGone === true ? RELEASED_BACKEND : moduleOf(record.kind).backend(record));
   const openChannel = opts.daemonChannel ?? openDaemonChannel;
   /** The backend a kind's machines live on where no record is in hand yet: the create that is about to write one,
    * and the roads that ask what this host can do at all. The same reading a record gets, off the two facts a record

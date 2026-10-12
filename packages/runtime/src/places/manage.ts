@@ -542,7 +542,9 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
 
     holds: async placeId => {
       const held = await recordOf(placeId);
-      return held === undefined ? { forks: [], projects: [], unsaved: [] } : holdsOf(placeId, held);
+      if (held !== undefined) return holdsOf(placeId, held);
+      // A cloud holds no project and no folder; what a remove takes from it unsaved is its sub-threads' work.
+      return { forks: [], projects: [], unsaved: providerIds().includes(placeId) ? ((await recording.subHoldsOn?.(placeId)) ?? []) : [] };
     },
 
     async remove(placeId, ask = {}) {
