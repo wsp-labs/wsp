@@ -1721,6 +1721,9 @@
                   },
                   "requestId": {
                     "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -1730,6 +1733,55 @@
                   "placeId",
                   "place",
                   "running",
+                  "atOnce"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "session.uncapped"
+                  },
+                  "workspaceId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/workspaceId"
+                  },
+                  "sessionId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/sessionId"
+                  },
+                  "at": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/at"
+                  },
+                  "turnId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/turnId"
+                  },
+                  "threadId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/threadId"
+                  },
+                  "pos": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
+                  "why": {
+                    "type": "string",
+                    "enum": [
+                      "freed",
+                      "raised",
+                      "lent"
+                    ]
+                  },
+                  "atOnce": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "workspaceId",
+                  "sessionId",
+                  "why",
                   "atOnce"
                 ],
                 "additionalProperties": false
@@ -3635,6 +3687,9 @@
                   },
                   "requestId": {
                     "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -3644,6 +3699,55 @@
                   "placeId",
                   "place",
                   "running",
+                  "atOnce"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "session.uncapped"
+                  },
+                  "workspaceId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/workspaceId"
+                  },
+                  "sessionId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/sessionId"
+                  },
+                  "at": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/at"
+                  },
+                  "turnId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/turnId"
+                  },
+                  "threadId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/threadId"
+                  },
+                  "pos": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
+                  "why": {
+                    "type": "string",
+                    "enum": [
+                      "freed",
+                      "raised",
+                      "lent"
+                    ]
+                  },
+                  "atOnce": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "workspaceId",
+                  "sessionId",
+                  "why",
                   "atOnce"
                 ],
                 "additionalProperties": false
