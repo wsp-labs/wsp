@@ -1,11 +1,14 @@
-import { execFailedLine, guestUnusableLine, LINK_RETRY_WINDOW_MS, linkBackoffMs, machineUnreachedLine, napRefusedLine, stopRefusedLine } from "@wsp/protocol";
+import { type StartWindow, execFailedLine, guestUnusableLine, LINK_RETRY_WINDOW_MS, linkBackoffMs, machineUnreachedLine, napRefusedLine, stopRefusedLine } from "@wsp/protocol";
 
+/** concurrency is the provider's machine cap alone; startLimit is a window of starts used, which waiting on a slot
+ * never ends. */
 export type ErrorKind =
-  | "concurrency" | "plan" | "missing" | "conflict"
+  | "concurrency" | "startLimit" | "plan" | "missing" | "conflict"
   | "snapshotUnavailable" | "transient" | "auth" | "unknown";
 
-/** requestId is the id the provider's reply carried, when it carried one: what a report to the provider quotes. */
-export interface WspError { kind: ErrorKind; status: number; code?: string; message: string; requestId?: string }
+/** requestId is the id the provider's reply carried, when it carried one: what a report to the provider quotes.
+ * window is the one a startLimit met; said is the provider's own words where the message is wsp's line instead. */
+export interface WspError { kind: ErrorKind; status: number; code?: string; message: string; requestId?: string; window?: StartWindow; said?: string }
 
 export function classify(status: number, body: { code?: string; error?: string }, requestId?: string): WspError {
   const message = body.error ?? "";
@@ -78,8 +81,9 @@ export class CreateCancelledError extends Error {
   constructor(
     readonly machineId: string,
     readonly why: string,
+    line: string,
   ) {
-    super(`box ${machineId} was cancelled during create${why === "" ? "" : `: ${why}`}`);
+    super(line);
     this.name = "CreateCancelledError";
   }
 }

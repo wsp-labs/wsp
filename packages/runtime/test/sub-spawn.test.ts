@@ -14,13 +14,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR } from "@wsp/engine";
 import {
-  agentsOffRefusal, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDayStartsRefusal, subDetachedRefusal,
-  subHourStartsRefusal, subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
+  agentsOffRefusal, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
+  subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
   subNoUpstreamRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
 } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import { copyKey } from "../src/runtime.js";
-import { PAID, TRIAL, leadOnThisComputer, type Boat, type Fault, type Setup } from "./sub-fixture.js";
+import { PAID, PAID_SIZES, TRIAL, TRIAL_SIZES, leadOnThisComputer, type Boat, type Fault, type Setup } from "./sub-fixture.js";
 import { leadAndBox } from "./box-fixture.js";
 
 let root: string | undefined;
@@ -145,10 +145,10 @@ describe("run --on boat from a thread on this computer", () => {
     const { rt, boat, project, lead } = await leadOnThisComputer();
     boat.limitsRead = TRIAL;
     const big = await refused(spawn(rt, project.id, lead, { size: "8x16" }));
-    expect(big).toEqual({ said: subSizeRefusal("Boat", "8x16", TRIAL.sizes).message, cls: "usage" });
+    expect(big).toEqual({ said: subSizeRefusal("Boat", "8x16", TRIAL_SIZES).message, cls: "usage" });
     expect(big.said).toBe("Boat sells small 2x4 ($0.018/h) and default 4x8 ($0.036/h) on this plan; 8x16 is not one of them. Name one of them, or leave the size out for Boat's own.");
     const odd = await refused(spawn(rt, project.id, lead, { size: "3x5" }));
-    expect(odd).toEqual({ said: subSizeRefusal("Boat", "3x5", TRIAL.sizes).message, cls: "usage" });
+    expect(odd).toEqual({ said: subSizeRefusal("Boat", "3x5", TRIAL_SIZES).message, cls: "usage" });
     expect(boat.creates).toEqual([]);
   });
 
@@ -192,7 +192,7 @@ describe("every check refuses before Boat is asked for a start", () => {
     { name: "S5 commits git could not count", setup: { git: { countsUnknown: true } }, expect: () => ({ said: subAheadUnknownRefusal("feat/upload").message, cls: "usage" }) },
     { name: "S6 no image on Boat", setup: { image: false }, expect: () => ({ said: subNoImageRefusal("Boat").message, cls: "usage" }) },
     { name: "S6 an image with no GitHub sign-in", setup: { image: { logins: [{ name: "GitHub CLI login", state: "skipped" }] } }, expect: () => ({ said: subNoSignInRefusal("Boat", { label: "GitHub", cli: "gh", login: "GitHub CLI login" }, "acme/web").message, cls: "usage" }) },
-    { name: "S7 a size the plan does not sell", sub: { size: "16x32" }, expect: () => ({ said: subSizeRefusal("Boat", "16x32", PAID.sizes).message, cls: "usage" }) },
+    { name: "S7 a size the plan does not sell", sub: { size: "16x32" }, expect: () => ({ said: subSizeRefusal("Boat", "16x32", PAID_SIZES).message, cls: "usage" }) },
     { name: "S8 a name git refuses", sub: { branch: "wsp/bad..name" }, expect: () => ({ said: subBranchNameRefusal("wsp/bad..name").message, cls: "usage" }) },
     { name: "S8 the lead's own branch", sub: { branch: "feat/upload" }, expect: () => ({ said: subLeadBranchRefusal("feat/upload").message, cls: "usage" }) },
     { name: "S8 HEAD", sub: { branch: "HEAD" }, expect: () => ({ said: subBranchNameRefusal("HEAD").message, cls: "usage" }) },
@@ -207,13 +207,13 @@ describe("every check refuses before Boat is asked for a start", () => {
     },
     {
       name: "S13 the hour's starts used",
-      before: f => void (f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, hour: { limit: 60, used: 60, remaining: 0 } } }),
-      expect: () => ({ said: subHourStartsRefusal("Boat", 60, 60, "the $20 plan", NAME).message, cls: "provider" }),
+      before: f => void (f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, hour: { limit: 60, used: 60 } } }),
+      expect: () => ({ said: startsUsedLine("hour", 60, 60, "the $20 plan", `sub-thread ${NAME}`), cls: "provider" }),
     },
     {
       name: "S13 the day's starts used",
-      before: f => void (f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, day: { limit: 200, used: 200, remaining: 0 } } }),
-      expect: () => ({ said: subDayStartsRefusal("Boat", 200, 200, "the $20 plan", NAME).message, cls: "provider" }),
+      before: f => void (f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, day: { limit: 200, used: 200 } } }),
+      expect: () => ({ said: startsUsedLine("day", 200, 200, "the $20 plan", `sub-thread ${NAME}`), cls: "provider" }),
     },
   ];
   for (const c of cases) {

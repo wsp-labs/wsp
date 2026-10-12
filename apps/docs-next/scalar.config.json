@@ -583,6 +583,11 @@
                     "title": "wsp projects remove",
                     "filepath": "content/reference/cli/projects-remove.mdx"
                   },
+                  "/projects-seed": {
+                    "type": "page",
+                    "title": "wsp projects seed",
+                    "filepath": "content/reference/cli/projects-seed.mdx"
+                  },
                   "/projects-set": {
                     "type": "page",
                     "title": "wsp projects set",

@@ -23,6 +23,7 @@ mod pull_request;
 mod recipe;
 mod recipes;
 pub(crate) mod said;
+mod seed;
 mod servers;
 mod setup;
 mod skills;
@@ -129,6 +130,7 @@ pub const TOOLS: &[Tool] = &[
     agents::PLUGINS,
     projects::TOOL,
     conversations::TOOL,
+    seed::TOOL,
     threads::THREADS,
     threads::THREAD_READ,
     threads::THREAD_HEAD,

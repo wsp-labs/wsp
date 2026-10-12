@@ -3,6 +3,7 @@
 // another's machines and two copies would drift the day a field is added on
 // one side; what stays here is the interfaces with methods, which no wire
 // carries.
+import type { BoxLimits } from "./box-backend.js";
 import type {
   Capabilities,
   DaemonSupervisor,
@@ -18,9 +19,13 @@ import type {
   PlaceCapacity,
   PreviewReach,
   SnapshotRow,
-  SnapshotStoragePricing,
+  SnapshotStoragePricing as WireSnapshotStoragePricing,
   TemplateRow,
 } from "@wsp/protocol";
+
+/** Storage as the provider bills it, and for a provider that bills named snapshots by count (Boat) the free count
+ * and the price of each past it. No link carries the count: a computer's own daemon bills nothing. */
+export type SnapshotStoragePricing = WireSnapshotStoragePricing & { freeNamed?: number; usdPerNamedMonth?: number };
 
 export type {
   DaemonSupervisor,
@@ -34,7 +39,6 @@ export type {
   MachineState,
   PreviewReach,
   SnapshotRow,
-  SnapshotStoragePricing,
   TemplateRow,
 };
 
@@ -182,17 +186,6 @@ export interface BackendPricing {
 }
 
 
-/** A cloud account's plan, as its provider answers it before a start: what a size and a start limit are read off. */
-export interface CloudLimits {
-  trial: boolean;
-  /** The provider's key for the plan, `box_20` for the $20 plan; absent where it names none. */
-  planKey?: string;
-  /** The sizes the plan sells, smallest first, each by its class's own name. */
-  sizes: { name: string; cpu: number; memMb: number; rateUsdPerHour: number }[];
-  /** Starts used and allowed per window; absent where the plan counts none. */
-  starts?: Record<"minute" | "hour" | "day", { limit: number; used: number; remaining: number }>;
-}
-
 /** What the runtime reads to drive a machine through naps and wakes on this provider. Present exactly when the
  * capabilities carry a pauseMode; a registry test holds the two together. */
 export interface Lifecycle {
@@ -264,9 +257,9 @@ export interface MachineBackend {
   /** Optional: what the computer holding this backend has left for one more machine. Only a backend on a computer
    * the person owns answers; a provider's room is its own cap and its own refusal. */
   capacity?(): Promise<PlaceCapacity>;
-  /** Optional: a provider that sells sizes by plan and counts starts. The plan the account is on, the sizes it sells
-   * and the starts used in each window, read off the provider at the call; nothing is assumed. */
-  limits?(): Promise<CloudLimits>;
+  /** Optional: a provider that sells sizes by plan and counts starts (Boat). The account's plan, the classes it sells
+   * and the starts used in each window, as the provider's own read keeps them. */
+  limits?(): Promise<BoxLimits>;
   /** Optional: only backends whose capabilities include snapshotListing have it. Every snapshot on the account, with its size. */
   listSnapshots?(): Promise<SnapshotRow[]>;
   /** Optional, the four together: only backends whose capabilities include templates have them. Promotes a snapshot

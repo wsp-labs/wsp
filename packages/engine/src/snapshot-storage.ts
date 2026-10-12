@@ -9,9 +9,16 @@ import { nameOwner } from "./snapshot-names.js";
 /** The provider quotes decimal GB: a 3839352227-byte snapshot lists as 3.84 GB. */
 const GB = 1e9;
 
-export function snapshotMonthlyUsd(totalBytes: number, pricing: SnapshotStoragePricing): number {
-  return Math.max(0, totalBytes / GB - pricing.freeGb) * pricing.usdPerGbMonth;
+export function snapshotMonthlyUsd(totalBytes: number, pricing: SnapshotStoragePricing, named: number): number {
+  const counted = Math.max(0, named - (pricing.freeNamed ?? 0)) * (pricing.usdPerNamedMonth ?? 0);
+  return Math.max(0, totalBytes / GB - pricing.freeGb) * pricing.usdPerGbMonth + counted;
 }
+
+/** Named snapshots billed by count (Boat): no GB price, a price per named snapshot. */
+export const billedByCount = (pricing: SnapshotStoragePricing): boolean => pricing.usdPerGbMonth === 0 && pricing.usdPerNamedMonth !== undefined;
+
+/** A named snapshot carries the name it was saved under; the provider's own history rows carry none. */
+export const namedCount = (rows: readonly SnapshotRow[]): number => rows.filter(r => r.name !== undefined).length;
 
 /** Anything the provider lists that wsp may have made: a snapshot or a template. */
 export interface OwnedRow {
@@ -80,7 +87,8 @@ export function snapshotStorage(rows: readonly SnapshotRow[], pricing: SnapshotS
     freeGb: pricing.freeGb,
     usdPerGbMonth: pricing.usdPerGbMonth,
     billedFrom: pricing.billedFrom,
-    monthlyUsd: snapshotMonthlyUsd(totalBytes, pricing),
+    monthlyUsd: snapshotMonthlyUsd(totalBytes, pricing, namedCount(rows)),
+    ...(billedByCount(pricing) ? { named: { count: namedCount(rows), free: pricing.freeNamed ?? 0 } } : {}),
     kept: group(split.kept),
     orphans: group(split.orphans),
     others: group(split.foreign),
@@ -103,6 +111,8 @@ export interface RetentionPlan {
   parentAssumed: boolean;
   /** What the listing says the dropped snapshots hold; a snapshot the listing lacks counts as nothing. */
   freedBytes: number;
+  /** How many of the dropped snapshots are named, which a provider billing by count prices. */
+  namedFreed: number;
   /** The monthly cost now minus the cost once they are gone, so a drop inside the free GB saves nothing. */
   savesUsdPerMonth: number;
 }
@@ -152,5 +162,7 @@ export function retentionPlan(
   const sizeOf = (id: string): number => rows.find(r => r.id === id)?.sizeBytes ?? 0;
   const totalBytes = rows.reduce((n, r) => n + r.sizeBytes, 0);
   const freedBytes = drop.reduce((n, v) => n + sizeOf(v.snapshotId), 0);
-  return { keep, drop, abandoned, guarded, parentAssumed, freedBytes, savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing) };
+  const named = namedCount(rows);
+  const namedDropped = namedCount(rows.filter(r => drop.some(v => v.snapshotId === r.id)));
+  return { keep, drop, abandoned, guarded, parentAssumed, freedBytes, namedFreed: namedDropped, savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing, named) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing, named - namedDropped) };
 }

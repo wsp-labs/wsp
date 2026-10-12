@@ -888,6 +888,11 @@ const RuntimeOp = z.discriminatedUnion("op", [
   /** Replies with { plan: SeedPlan } for a folder on this computer: what a seed of it would carry, read off git's
    * own ignore listing and one size pass. No file's content is read and nothing leaves this computer. */
   z.object({ id: reqId, op: z.literal("project.seed.plan"), source: z.string() }),
+  /** The seed picks of a project whose folder is on this computer: the menu with the folder's remembered choice on
+   * it, else nothing picked, then `none`, `keep` and `cut` in that order. `save` writes the picks as the folder's
+   * remembered choice, the record an add with remember writes; a thread's token is refused it. Replies with a
+   * ProjectSeed. */
+  z.object({ id: reqId, op: z.literal("projects.seed"), project: z.string(), keep: z.array(z.string()).optional(), cut: z.array(z.string()).optional(), none: z.boolean().optional(), save: z.boolean().optional() }),
   /** Every project this host holds. Replies with { projects }. */
   z.object({ id: reqId, op: z.literal("projects.list") }),
   /** The conversations the agents kept on a project's computer outside wsp, in its folder and its worktrees, newest
@@ -1012,6 +1017,9 @@ export const THREAD_OPS: readonly string[] = [
   "conversations.list",
   "projects.defaults",
   "projects.resolve",
+  // The seed menu of a project the thread may name, read here; its save is refused by the runtime, with the line
+  // to hand the person, since what leaves this computer is theirs to pick.
+  "projects.seed",
   "workspaces.list",
   // Every verb a thread runs names its workspace as a person does, so the door that reads a name is open to the
   // same tokens the list is: the tree rule refuses the names outside it here exactly as it hides them there.

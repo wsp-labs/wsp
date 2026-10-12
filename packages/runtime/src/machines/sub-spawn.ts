@@ -7,12 +7,12 @@
 // turn holds nothing, so it is deleted and replaced once.
 import { randomBytes } from "node:crypto";
 import { gitHostOf, remoteHost, type GitHost } from "@wsp/catalog";
-import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type CloudLimits, type MachineBackend } from "@wsp/engine";
+import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type BoxLimits, type MachineBackend } from "@wsp/engine";
 import {
   DETACHED_HEAD, GitStatusReply, SUB_DELETE_AFTER_MIN, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
-  providerKeyName, scopeOf, shellLine, shellQuote, startingLine, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDayStartsRefusal, subDetachedRefusal, subFolderOf,
-  subHourStartsRefusal, subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
-  subNotSentLine, subNothingPickedWhy, subOtherHostRefusal, subPickedElsewhereWhy, subPlanWord, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
+  providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
+  subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
+  subNotSentLine, subNothingPickedWhy, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   subSizeWord, subTwiceRefusal, subUncommittedLine, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES } from "../types/internal.js";
@@ -40,9 +40,11 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   /** The backend a provider row forks on, or nothing where this host holds no key for it. */
   const providerAt = (id: string): MachineBackend | undefined => places.backend(id) ?? placeDoor?.backendOf(id);
 
-  /** The sizes a cloud sells now: its plan's where it reads one, else every size it offers. */
-  const soldBy = (at: MachineBackend, limits: CloudLimits | undefined): SubSize[] =>
-    limits?.sizes ?? at.capabilities.sizes.map(s => ({ name: subSizeWord(s), cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour ?? at.pricing.rateUsdPerHour(s) }));
+  /** The sizes a cloud sells now: the classes its plan's read names, else every size it offers. */
+  const soldBy = (at: MachineBackend, limits: BoxLimits | undefined): SubSize[] =>
+    limits !== undefined
+      ? BOX_CLASSES.filter(c => limits.sizes.includes(c.type)).map(c => ({ name: c.type, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour }))
+      : at.capabilities.sizes.map(s => ({ name: subSizeWord(s), cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour ?? at.pricing.rateUsdPerHour(s) }));
 
   /** A setting a person keeps on the cloud's row beyond the ones every place reads, where one is set. */
   const settingOf = (placeId: string, key: "size" | "deleteAfterMs"): unknown => {
@@ -128,9 +130,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const seed = await seedOf(project);
       // S13: the hour's and the day's starts.
       const starts = limits?.starts;
-      const plan = subPlanWord({ trial: limits?.trial === true, key: limits?.planKey });
-      if (starts !== undefined && starts.day.remaining <= 0) throw subDayStartsRefusal(on, starts.day.used, starts.day.limit, plan, name);
-      if (starts !== undefined && starts.hour.remaining <= 0) throw subHourStartsRefusal(on, starts.hour.used, starts.hour.limit, plan, name);
+      const spent = (["day", "hour"] as const).find(w => starts !== undefined && starts[w].used >= starts[w].limit);
+      if (spent !== undefined) throw new Error(startsUsedLine(spent, starts![spent].used, starts![spent].limit, boatPlanWords(limits!.trial, limits!.planUsd), `sub-thread ${name}`));
 
       const nameTaken = ctx.nameRefusal(name);
       if (nameTaken !== undefined) throw Object.assign(new Error(nameTaken), { kind: "conflict" });
