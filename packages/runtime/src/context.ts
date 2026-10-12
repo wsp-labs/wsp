@@ -520,6 +520,8 @@ export interface SubSpawnArea {
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
   /** The machine of a spawn the queue let through, made as a spawn makes one, the picked files packed fresh. */
   readonly standUpQueued: (record: WorkspaceRecord) => Promise<void>;
+  /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
+  readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
 }
 
 export interface SubQueueArea {
