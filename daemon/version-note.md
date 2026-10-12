@@ -1,0 +1,1 @@
+A box's doctor loads the overlay module with modprobe where the kernel does not list overlay yet and reads /proc/filesystems again, so a box rebooted onto a new kernel runs workspaces; it refuses only a kernel with no overlay module to load or one whose module would not load, naming which, the second in modprobe's own last line.
