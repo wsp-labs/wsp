@@ -26,6 +26,14 @@
           "type": "string",
           "description": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch"
         },
+        "on": {
+          "type": "string",
+          "description": "boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch and pushes a branch of its own; your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces"
+        },
+        "size": {
+          "type": "string",
+          "description": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
+        },
         "cwd": {
           "type": "string",
           "description": "a folder inside the project or one of its worktrees, absolute, which the thread starts in"
@@ -148,6 +156,117 @@
         "afterCut": {
           "type": "boolean",
           "const": true
+        },
+        "sub": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "machine": {
+              "type": "string"
+            },
+            "size": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "integer"
+                },
+                "memMb": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cpu",
+                "memMb"
+              ],
+              "additionalProperties": false
+            },
+            "rateUsdPerHour": {
+              "type": "number"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "base": {
+              "type": "object",
+              "properties": {
+                "branch": {
+                  "type": "string"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "branch",
+                "sha"
+              ],
+              "additionalProperties": false
+            },
+            "branch": {
+              "type": "string"
+            },
+            "sent": {
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "paths",
+                "bytes",
+                "missing"
+              ],
+              "additionalProperties": false
+            },
+            "notSent": {
+              "type": "object",
+              "properties": {
+                "uncommitted": {
+                  "$ref": "#/properties/sub/properties/sent/properties/bytes"
+                },
+                "why": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uncommitted"
+              ],
+              "additionalProperties": false
+            },
+            "deleteAfterMinutes": {
+              "$ref": "#/properties/sub/properties/sent/properties/bytes"
+            }
+          },
+          "required": [
+            "on",
+            "machine",
+            "size",
+            "rateUsdPerHour",
+            "repo",
+            "base",
+            "branch",
+            "sent",
+            "notSent",
+            "deleteAfterMinutes"
+          ],
+          "additionalProperties": false,
+          "description": "on a sub-thread's start: the machine, the branches and the files sent"
         }
       },
       "required": [
@@ -193,6 +312,14 @@
           "type": "string",
           "description": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch"
         },
+        "on": {
+          "type": "string",
+          "description": "boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch and pushes a branch of its own; your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces"
+        },
+        "size": {
+          "type": "string",
+          "description": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
+        },
         "cwd": {
           "type": "string",
           "description": "a folder inside the project or one of its worktrees, absolute, which the thread starts in"
@@ -315,6 +442,117 @@
         "afterCut": {
           "type": "boolean",
           "const": true
+        },
+        "sub": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "string"
+            },
+            "machine": {
+              "type": "string"
+            },
+            "size": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "integer"
+                },
+                "memMb": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cpu",
+                "memMb"
+              ],
+              "additionalProperties": false
+            },
+            "rateUsdPerHour": {
+              "type": "number"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "base": {
+              "type": "object",
+              "properties": {
+                "branch": {
+                  "type": "string"
+                },
+                "sha": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "branch",
+                "sha"
+              ],
+              "additionalProperties": false
+            },
+            "branch": {
+              "type": "string"
+            },
+            "sent": {
+              "type": "object",
+              "properties": {
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "paths",
+                "bytes",
+                "missing"
+              ],
+              "additionalProperties": false
+            },
+            "notSent": {
+              "type": "object",
+              "properties": {
+                "uncommitted": {
+                  "$ref": "#/properties/sub/properties/sent/properties/bytes"
+                },
+                "why": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uncommitted"
+              ],
+              "additionalProperties": false
+            },
+            "deleteAfterMinutes": {
+              "$ref": "#/properties/sub/properties/sent/properties/bytes"
+            }
+          },
+          "required": [
+            "on",
+            "machine",
+            "size",
+            "rateUsdPerHour",
+            "repo",
+            "base",
+            "branch",
+            "sent",
+            "notSent",
+            "deleteAfterMinutes"
+          ],
+          "additionalProperties": false,
+          "description": "on a sub-thread's start: the machine, the branches and the files sent"
         }
       },
       "required": [

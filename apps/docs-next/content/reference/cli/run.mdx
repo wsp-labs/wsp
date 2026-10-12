@@ -3,24 +3,32 @@
 {/* Written by apps/docs-next/scripts/cli.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
 ```text
-usage: wsp run [<project>] [--beside <thread>] [--fork <thread> [--at <n>]]
-       [--branch <branch>] [--cwd <path>] [--agent <id>]
-       [--model, --effort, --access <word>] [--fast] [--notify <thread|me>]
-       [--title <title>] [--replaces <thread>] [--file <path>]
-       [--resume <id> [--copy]] [--detach] "<message>"
+usage: wsp run [<project>] [--on boat [--size <cpu>x<memGb>]]
+       [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>]
+       [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>]
+       [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>]
+       [--file <path>] [--resume <id> [--copy]] [--detach] "<message>"
   an agent works in the project's folder and you read its reply: a thread with
   the agent, model, effort and access the app offers; a project on a box runs in
-  its folder there as the login the box was added with; --beside runs it in the
-  folder another thread works in, on that thread's computer; --branch runs it in
-  a worktree of the project's repo on that branch, made under wsp's folder
-  unless one already holds it, and --cwd in a folder inside the project or one
-  of its worktrees; --fork starts it from another thread's conversation through
-  its latest finished turn, or the one --at counts from 1, on that thread's
-  agent in its folder, or with --branch in a new worktree whose files are that
-  turn's; with no project, run from inside one of your project folders, or from
-  a thread, beside it; follows its first turn, or with --detach prints the id
-  and returns
+  its folder there as the login the box was added with; --on boat starts it as a
+  sub-thread of the thread asking, on a machine of its own on Boat forked from
+  your image at --size or Boat's own size, which fetches your pushed branch and
+  pushes --branch or wsp/<slug>; --beside runs it in the folder another thread
+  works in, on that thread's computer; --branch runs it in a worktree of the
+  project's repo on that branch, made under wsp's folder unless one already
+  holds it, and --cwd in a folder inside the project or one of its worktrees;
+  --fork starts it from another thread's conversation through its latest
+  finished turn, or the one --at counts from 1, on that thread's agent in its
+  folder, or with --branch in a new worktree whose files are that turn's; with
+  no project, run from inside one of your project folders, or from a thread,
+  beside it; follows its first turn, or with --detach prints the id and returns
 
+  --on          boat, to start the thread as a sub-thread of the thread asking
+                on a machine of its own on Boat, forked from your image; it
+                fetches your pushed branch and pushes its own
+  --size        with --on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16
+                or 16x32, the ones the plan sells; Boat's own size setting
+                without it
   --beside      a thread whose folder the new thread starts in, by its id or a
                 prefix, on the computer it runs on; never with a project or
                 --branch
@@ -32,7 +40,9 @@ usage: wsp run [<project>] [--beside <thread>] [--fork <thread> [--at <n>]]
                 from 1 as wsp thread read lists them; the latest without it
   --branch      a branch other than the one the project's folder has checked
                 out: the thread runs in the worktree holding it, made under
-                wsp's folder from the folder's current commit for a new branch
+                wsp's folder from the folder's current commit for a new branch;
+                with --on, the branch the sub-thread makes and pushes;
+                wsp/<slug> without it
   --cwd         a folder inside the project or one of its worktrees, absolute,
                 to start the thread in; the project's folder without it
   --agent       which agent runs the thread, by its catalog id (claude, codex,

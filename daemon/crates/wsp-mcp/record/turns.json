@@ -130,6 +130,12 @@
   "moved": "its worktree at {from} is gone, so it goes on in {to}",
   "movedFresh": "its worktree at {from} is gone, so it goes on in {to} in a fresh session of its agent",
   "openedThread": "thread {thread}",
+  "sub": {
+    "sizeNoCloud": "--size sizes a sub-thread's machine, and this line starts none. Add --on boat.",
+    "beside": "--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it takes no {word}. Drop {word}, or run the work without --on.",
+    "opened": "thread {thread} on {on} in {folder}",
+    "opening": "{preamble}\n\n{task}"
+  },
   "capWait": "waiting while {place} is running {running} of {threads}",
   "noResult": "turn ended without a result",
   "noThreadStamped": "the runtime stamped no thread on the session",

@@ -29,6 +29,7 @@ mod setup;
 mod skills;
 mod slate;
 mod start;
+mod sub;
 mod target;
 mod terminal_config;
 mod thread;
