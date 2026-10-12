@@ -191,7 +191,8 @@ export function composerSendBlock(input: {
   if (input.state === null) return "not-found";
   if (input.daemonOnly === true) return !input.hydrated ? "loading" : input.agents ? null : "no-agents";
   if (input.absent === true) return "unreachable";
-  if (input.state !== "running") return input.state;
+  // A released machine is a sub-thread's, deleted after it was done: a send starts a new one for it.
+  if (input.state !== "running" && input.state !== "released") return input.state;
   if (!input.hydrated) return "loading";
   if (!input.agents) return "no-agents";
   return null;
