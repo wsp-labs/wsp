@@ -63,6 +63,7 @@ import {
   WORKSPACE_KIND_WORDS,
   WorkspaceKind,
   workspacesBlockedBy,
+  placeCannotBootLine,
   CGROUP_CONTROLLERS_PATH,
   PROC_FILESYSTEMS_PATH,
   placeDaemonPaths,
@@ -617,6 +618,12 @@ describe("the one rule that decides whether a computer can be a place", () => {
     const overlay = "this computer's kernel has no overlay filesystem, which a workspace here reads this computer's own directories through";
     expect(workspacesBlockedBy({ platform: "linux", read: box({ [CGROUP_CONTROLLERS_PATH]: CGROUP[CGROUP_CONTROLLERS_PATH]! }), euid: 0 })).toBe(overlay);
     expect(workspacesBlockedBy({ platform: "linux", read: box({ ...CGROUP, [PROC_FILESYSTEMS_PATH]: "nodev sysfs\next4\n" }), euid: 0 })).toBe(overlay);
+  });
+
+  it("says the refusal of a named computer with its and it, never it's or this computer, which is the reader's", () => {
+    const overlay = "this computer's kernel has no overlay filesystem, which a workspace here reads this computer's own directories through";
+    expect(placeCannotBootLine("hetzner", overlay)).toBe("hetzner cannot run wsp workspaces: its kernel has no overlay filesystem, which a workspace here reads its own directories through");
+    expect(placeCannotBootLine("hetzner", "wsp runs workspaces on this computer as root, and this daemon is not root")).toBe("hetzner cannot run wsp workspaces: wsp runs workspaces on it as root, and this daemon is not root");
   });
 
   it("names root last, so a box that has everything else reads the one thing a person can change from here", () => {
