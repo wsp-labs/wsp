@@ -113,7 +113,8 @@ const THREAD = "019fd0aa-0000-7000-8000-00000000c0de";
  * and the server's exit ends, as codex-cli 0.155.1 was seen to do; its pid goes to STUB_HEARD. "background <n>" leaves
  * n real commands running past the turn as background terminals, each "terminal <pid>" to STUB_HEARD, whose item
  * completes only once it exits, with a line in the thread's session file under CODEX_HOME then and "ended <pid>" to
- * STUB_HEARD after it; thread/unsubscribe goes to STUB_HEARD as "unsubscribe" and ends every such command
+ * STUB_HEARD after it; "raced" starts a command whose item completes right behind turn/completed, in the same write;
+ * thread/unsubscribe goes to STUB_HEARD as "unsubscribe" and ends every such command
  * STUB_UNLOAD_MS later, as 0.155.1's unload of a thread nobody is subscribed to does (60 s there). */
 export function codexKeeper(path: string): string {
   return writeStub(
@@ -190,8 +191,13 @@ require("node:readline").createInterface({ input: process.stdin }).on("line", li
         }
       }
       record(text);
+      const raced = { type: "commandExecution", id: "raced" + turns, command: "true", source: "unifiedExecStartup" };
+      if (text === "raced") say({ method: "item/started", params: { threadId: "${THREAD}", turnId: id, item: { ...raced, status: "inProgress" } } });
       say({ method: "item/completed", params: { threadId: "${THREAD}", turnId: id, item: { type: "agentMessage", id: "m" + turns, text: signed(text, turns) } } });
-      say({ method: "turn/completed", params: { threadId: "${THREAD}", turn: { id, items: [], status: "completed" } } });
+      const end = { method: "turn/completed", params: { threadId: "${THREAD}", turn: { id, items: [], status: "completed" } } };
+      const behind = { method: "item/completed", params: { threadId: "${THREAD}", turnId: id, item: { ...raced, status: "completed" } } };
+      if (text === "raced") process.stdout.write(JSON.stringify(end) + "\\n" + JSON.stringify(behind) + "\\n");
+      else say(end);
     });
   }
 }).on("close", quit);

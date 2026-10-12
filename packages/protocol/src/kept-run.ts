@@ -69,10 +69,11 @@ class Queue {
     this.wake?.();
   }
 
-  /** Ends at once, dropping what was not read yet: whatever the process printed after its turn closed is no turn's. */
-  cut(): void {
-    this.lines.length = 0;
+  /** Ends at once, answering what was not read yet: whatever the process printed after its turn closed is no turn's. */
+  cut(): string[] {
+    const left = this.lines.splice(0);
     this.end();
+    return left;
   }
 
   async *iterate(): AsyncGenerator<string> {
@@ -115,7 +116,9 @@ export function keepRun(stream: ExecStream, between?: (line: string) => void): K
   let turns = 0;
   const turn = (): { stream: ExecStream; from?: number } => {
     const from = turns++ === 0 ? undefined : stream.nextTurn?.();
-    open?.queue.cut();
+    const stale = open?.queue.cut() ?? [];
+    open = undefined;
+    for (const line of stale) between?.(line);
     const queue = new Queue();
     let closed = false;
     let settle: (code: number | null) => void = () => {};
@@ -141,7 +144,7 @@ export function keepRun(stream: ExecStream, between?: (line: string) => void): K
           return;
         }
         if (open === mine) open = undefined;
-        queue.cut();
+        for (const line of queue.cut()) between?.(line);
         stream.rest?.();
         settle(0);
       },

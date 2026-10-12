@@ -255,6 +255,18 @@ describe("a thread on this computer keeps its agent process between turns", () =
     }
   }, 30_000);
 
+  it("lets go of a Codex thread whose command ends in the same read as its turn's end, and the keep then runs out", async () => {
+    const fc = fakeClock();
+    const rt = host({ clock: fc.clock });
+    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac" });
+    const one = await send(rt, ws.id, "raced", { harness: "codex" });
+    expect(one.result.status).toBe("completed");
+    await until(() => readFileSync(heard, "utf8").includes("unsubscribe"), 5_000);
+    fc.advance(AGENT_KEEP_MS);
+    await gone(pidOf(one.result.text));
+    await rt.close();
+  }, 30_000);
+
   it(`ends the idle one at the cap of ${AGENTS_KEPT}, never a server a background command keeps`, async () => {
     const rt = host();
     const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac" });
