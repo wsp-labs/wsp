@@ -3,7 +3,7 @@
 // the copy asked only when this computer has no command line and the copy runs, the timer that reads an open one
 // whatever its checks say and nothing merged, the tree settled once its pull request merges and nothing in it works, and the
 // acts on it: the page, a fix sent into the workspace's thread, a merge of the head the host read, and an update.
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -150,7 +150,7 @@ let rt: Runtime | undefined;
 let root: string;
 let store: Store;
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "wsp-pr-"));
+  root = realpathSync(mkdtempSync(join(tmpdir(), "wsp-pr-")));
   store = memoryStore();
   await store.put("goldens", copyKey("default", "default"), IMAGE);
 });
