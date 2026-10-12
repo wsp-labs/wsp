@@ -350,6 +350,22 @@ pub struct FsHashReply {
     pub special: Vec<String>,
 }
 
+/// What an http MCP server answered an http.post: its status, the content type and session id it sent, and its body
+/// as text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpPostReply {
+    pub status: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub session_id: Option<String>,
+    pub body: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct FsWriteReply {

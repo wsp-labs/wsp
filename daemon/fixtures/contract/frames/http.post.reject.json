@@ -1,0 +1,31 @@
+[
+  {
+    "id": 1,
+    "op": "http.post",
+    "url": "ftp://mcp.example.com/mcp",
+    "headers": {},
+    "body": ""
+  },
+  {
+    "id": 1,
+    "op": "http.post",
+    "url": "https://mcp.example.com/mcp",
+    "body": ""
+  },
+  {
+    "id": 1,
+    "op": "http.post",
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "body": "",
+    "bearer": { "file": "~/.claude/.credentials.json", "at": ["mcpOAuth"] }
+  },
+  {
+    "id": 1,
+    "op": "http.post",
+    "url": "https://mcp.example.com/mcp",
+    "headers": {},
+    "body": "",
+    "timeoutMs": 0
+  }
+]

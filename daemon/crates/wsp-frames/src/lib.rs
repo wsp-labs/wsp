@@ -63,15 +63,15 @@ pub use reply::{
     GitPrCheckoutReply, GitPrDiffReply, GitPrListReply, GitPrMergeReply, GitPrReactReply, GitPrReadReply, GitPrReply, GitPrReplyReply,
     GitPrResolveReply, GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply,
     GitStartOnReply, GitStatusEntry, GitStatusReply, GitUpdateReply, GitWorktree, GitWorktreesReply, HostFolder, HostFolderListing,
-    HostItem, InboxRescanReply, IssueComment, IssueRead, ListeningPort, ManifestEntry, ManifestGetReply, ManifestRecordReply,
-    ManifestRestartScriptReply, PlaceLeaveReply, PlaceUpdateReply, PortsWatchReply, ProcInspectReply, ProcKillReply, ProcListReply,
-    PtyAttachReply, PtyCreateReply, PtyListEntry, PtyListReply, PullRequest, PullRequestAutoMerge, PullRequestCheck, PullRequestCheckRun,
-    PullRequestComment, PullRequestCommit, PullRequestFile, PullRequestFork, PullRequestLabel, PullRequestPageCut, PullRequestReaction,
-    PullRequestReview, PullRequestReviewComment, PullRequestReviewRequest, PullRequestVerdict, Reply, SshStartReply, SysHistoryReply,
-    SysPoint, TranscriptMessage, TranscriptRow, TranscriptsListReply, TranscriptsReadReply, True, UsageLimitReading, UsageLimitWindow,
-    UsageLogRow, UsageLogsReply, UsageTokens,
+    HostItem, HttpPostReply, InboxRescanReply, IssueComment, IssueRead, ListeningPort, ManifestEntry, ManifestGetReply,
+    ManifestRecordReply, ManifestRestartScriptReply, PlaceLeaveReply, PlaceUpdateReply, PortsWatchReply, ProcInspectReply, ProcKillReply,
+    ProcListReply, PtyAttachReply, PtyCreateReply, PtyListEntry, PtyListReply, PullRequest, PullRequestAutoMerge, PullRequestCheck,
+    PullRequestCheckRun, PullRequestComment, PullRequestCommit, PullRequestFile, PullRequestFork, PullRequestLabel, PullRequestPageCut,
+    PullRequestReaction, PullRequestReview, PullRequestReviewComment, PullRequestReviewRequest, PullRequestVerdict, Reply, SshStartReply,
+    SysHistoryReply, SysPoint, TranscriptMessage, TranscriptRow, TranscriptsListReply, TranscriptsReadReply, True, UsageLimitReading,
+    UsageLimitWindow, UsageLogRow, UsageLogsReply, UsageTokens,
 };
-pub use request::{DaemonOp, DaemonRequest, ReviewComment, UsageStore, DAEMON_OPS, GUEST_OPS};
+pub use request::{DaemonOp, DaemonRequest, HttpBearer, ReviewComment, UsageStore, DAEMON_OPS, GUEST_OPS};
 pub use shell::shell_quote;
 pub use shim::{computer_wsp_shim, docker_shim, guest_wsp_shim, COMPUTER_WSP_UNIT_FLAG, COMPUTER_WSP_VERB};
 pub use validate::{is_http_url, is_plain_path, is_under_path, RelayPort};
