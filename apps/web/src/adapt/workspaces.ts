@@ -120,6 +120,7 @@ function indicatorTone(state: WorkspaceState): StatusIndicator["tone"] {
     case "waking":
     case "unreachable":
     case "gone":
+    case "waiting":
     case "released":
       return "neutral";
     default: {
@@ -146,6 +147,9 @@ export function turnWait(state: WorkspaceState, workspace: { readonly name: stri
       return { label: `waiting for ${workspace.name} to answer`, wake: false, elapsed: false };
     case "gone":
       return { label: `${workspace.name} is gone`, wake: false, elapsed: false };
+    // A held spawn's row says what it waits for off the thread's own count, which the chat reads next.
+    case "waiting":
+      return null;
     case "released":
       return { label: `${workspace.name}'s computer was deleted`, wake: false, elapsed: false };
     default: {

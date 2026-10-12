@@ -15,7 +15,8 @@ import { accruedPast, appendCostPoint, dayStart, goneWords, monthStart, placeSpe
 import { realClock, type Clock } from "./clock.js";
 import type { Store } from "./store.js";
 
-/** The provider word the runtime's own phase implies: a wake in flight is a machine starting, a pause in flight still runs. */
+/** The provider word the runtime's own phase implies: a wake in flight or a queued spawn is a machine starting, a pause
+ * in flight still runs, and a released sub-machine's machine is gone. */
 export function machineStateOf(phase: WorkspacePhase): MachineState {
   switch (phase) {
     case "running":
@@ -24,6 +25,7 @@ export function machineStateOf(phase: WorkspacePhase): MachineState {
     case "napping":
       return "paused";
     case "waking":
+    case "queued":
       return "starting";
     case "gone":
     case "released":
@@ -661,6 +663,11 @@ export function createStatusTracker(o: StatusTrackerOptions): StatusApi {
           return { ...base, machineState: state === "gone" ? machineStateOf(view.phase) : state, reach };
         };
 
+        // A queued spawn has no machine yet: there is nothing to ask, and nothing gone.
+        if (view.phase === "queued") {
+          suspects.delete(r.id);
+          return { ...base, machineState: machineStateOf(view.phase), reach: { state: "napping" } };
+        }
         // A gone record already holds the provider's last word, and a released one stands on no machine; asking again would only 404.
         if (view.phase === "gone" || view.phase === "released") {
           suspects.delete(r.id);

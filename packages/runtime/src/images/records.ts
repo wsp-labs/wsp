@@ -57,6 +57,7 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
     ...(r.review !== undefined ? { review: r.review } : {}),
     ...(r.claudeSessionId !== undefined ? { claudeSessionId: r.claudeSessionId } : {}),
     ...(r.screen !== undefined ? { screen: r.screen } : {}),
+    ...(r.queue !== undefined ? { queue: r.queue } : {}),
     ...(r.gone !== undefined ? { gone: r.gone } : {}),
     ...(r.theme !== undefined ? { theme: r.theme } : {}),
     ...(r.glyph !== undefined ? { glyph: r.glyph } : {}),

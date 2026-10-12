@@ -315,7 +315,8 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
   };
 
   /** The engine knows three phases. A pause in flight is a nap to it (the wake resumes either way); a gone record's
-   * machine is a stand-in it only ever meets through rebuild, which replaces the machine whatever the phase says. */
+   * machine is a stand-in it only ever meets through rebuild, which replaces the machine whatever the phase says, and
+   * a queued or released sub-machine has no machine for it to meet. */
   const enginePhaseOf = (phase: WorkspacePhase): EnginePhase => {
     switch (phase) {
       case "running":
@@ -324,6 +325,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
         return phase;
       case "pausing":
       case "gone":
+      case "queued":
       case "released":
         return "napping";
       default: {

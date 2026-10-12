@@ -16,7 +16,7 @@
 import { memo, useLayoutEffect, useRef, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { AlarmClockIcon, ArchiveIcon, ChevronDownIcon, ChevronRightIcon, CornerDownRightIcon, FileDiffIcon, FolderIcon, GitBranchIcon, GitPullRequestIcon, SplitIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
-import type { PlaceView, ThreadCapWait } from "@wsp/protocol";
+import { capRaiseAct, type PlaceView, type ThreadCapWait } from "@wsp/protocol";
 import { THREAD_WORDS, WORKSPACE_WORDS } from "../actions/format.js";
 import type { Launch, SidebarThreadSnapshot } from "../adapt/index.js";
 import { HarnessMark } from "../components/chat/HarnessMark.js";
@@ -210,7 +210,11 @@ const NameBox = ({ name, label, saving, onRename, onCancel }: { name: string; la
 const NO_CHECKOUT: TileCheckout = { branch: "", counts: [] };
 
 /** The setting that ends a held thread's wait, the card's line under the status row's reason. */
-const capNotes = (capped: ThreadCapWait | undefined): string[] => (capped === undefined ? [] : [CAP_WAIT_WORDS.raise(capped.place)]);
+const capNotes = (capped: ThreadCapWait | undefined): string[] => {
+  if (capped === undefined) return [];
+  const act = capRaiseAct(capped);
+  return act === undefined ? [] : [CAP_WAIT_WORDS.raise(capped.place, act)];
+};
 
 /** What a tile is drawn from. */
 type ThreadTileProps = {
