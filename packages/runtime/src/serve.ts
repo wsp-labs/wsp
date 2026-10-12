@@ -15,7 +15,7 @@ import {
   usageRefusal,
   absentComputer,
   ACCOUNT_UNSERVED,
-  AUTH_DEADLINE_MS,
+  AUTH_DEADLINE_CLOSE, AUTH_DEADLINE_MS,
   DAEMON_AUTH_DEADLINE_PASSED,
   DAEMON_PRE_AUTH_BYTES_EXCEEDED,
   PRE_AUTH_MAX_BYTES,
@@ -590,7 +590,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
       ? undefined
       : setTimeout(() => {
           throughDoor();
-          ws.close(4401, DAEMON_AUTH_DEADLINE_PASSED);
+          ws.close(AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED);
         }, opts.authDeadlineMs ?? AUTH_DEADLINE_MS);
     // A deadline nobody is waiting on holds no process open.
     byDeadline?.unref();
@@ -1076,7 +1076,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               if (refusedOffOwnRoad()) return;
               const picked = msg.recipe === undefined ? undefined : await recipeNamed(msg.recipe);
               const given = picked !== undefined ? { choices: picked.file, recipe: picked.slug } : msg.choices !== undefined ? { choices: msg.choices } : {};
-              send({ id: msg.id, ok: true, ...(await places().setUp(msg.ref, { ...given, ...(msg.addId !== undefined ? { addId: msg.addId } : {}) })) });
+              send({ id: msg.id, ok: true, ...(await places().setUp(msg.ref, { ...given, ...(msg.addId !== undefined ? { addId: msg.addId } : {}), ...(msg.row !== undefined ? { row: msg.row } : {}) })) });
               return;
             }
             case "places.choose": {

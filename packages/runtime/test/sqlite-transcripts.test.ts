@@ -389,6 +389,72 @@ describe("a runtime whose store keeps transcripts as rows", () => {
     await again.close();
   });
 
+  it("finds its newest words once the person opens it", async () => {
+    const lines = (prompt: string): { kind: "text"; text: string }[] => [{ kind: "text", text: `${prompt} said ${"long words ".repeat(110_000)}` }];
+    const { store } = freshSqlite();
+    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: scripted(lines) } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const x = await rt.sessions.start(ws.id, { prompt: "turn one" });
+    await x.finished;
+    const xId = x.view().threadId!;
+    await (await rt.sessions.start(ws.id, { prompt: "turn two zebra", thread: xId })).finished;
+    await new Promise(r => setTimeout(r, 400));
+    await rt.sessions.page(ws.id, { threadId: xId });
+    await new Promise(r => setTimeout(r, 200));
+    expect((await rt.sessions.search("zebra")).hits.map(h => h.threadId)).toEqual([xId]);
+    await rt.close();
+  });
+
+  it("holds the newest words of a thread that alone passes what the host holds and lets its oldest go, across a restart", async () => {
+    // Each turn's reply is 1.2 M characters, so two turns pass WORDS_HELD and the first turn's words are the ones let go.
+    const lines = (prompt: string): { kind: "text"; text: string }[] => [{ kind: "text", text: prompt.startsWith("older") ? "short" : `${prompt} said ${"long words ".repeat(110_000)}` }];
+    const { store } = freshSqlite();
+    const backend = stubBackend();
+    const rt = createRuntime({ backend, store, adapters: { claude: scripted(lines) } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    await (await rt.sessions.start(ws.id, { prompt: "older thread walrus" })).finished;
+    const x = await rt.sessions.start(ws.id, { prompt: "turn one aardvark" });
+    await x.finished;
+    const xId = x.view().threadId!;
+    await (await rt.sessions.start(ws.id, { prompt: "turn two zebra", thread: xId })).finished;
+    await new Promise(r => setTimeout(r, 400));
+    expect(await rt.sessions.search("zebra")).toEqual({ hits: [expect.objectContaining({ threadId: xId })], unsearched: 1 });
+    expect(await rt.sessions.search("aardvark")).toEqual({ hits: [], unsearched: 1 });
+    // The older thread holds nothing, so it alone is counted.
+    expect(await rt.sessions.search("walrus")).toEqual({ hits: [], unsearched: 1 });
+    await rt.close();
+    const again = createRuntime({ backend, store, adapters: {} });
+    for (let i = 0; i < 100 && (await again.sessions.search("zebra")).hits.length === 0; i++) await new Promise(r => setTimeout(r, 10));
+    expect(await again.sessions.search("zebra")).toEqual({ hits: [expect.objectContaining({ threadId: xId })], unsearched: 1 });
+    expect(await again.sessions.search("aardvark")).toEqual({ hits: [], unsearched: 1 });
+    await again.close();
+  });
+
+  it("names no thread whose agent failed before it started as unsearched after a restart, since it has no words", async () => {
+    const neverStarts: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: o => {
+        const localId = randomUUID();
+        const result: TurnResult = { status: "failed", error: "not signed in" };
+        const finished = Promise.resolve().then(() => {
+          o.onEvent({ type: "turn.done", sessionId: localId, result });
+          o.onEvent({ type: "session.end", sessionId: localId, exitCode: 1, sawResult: false });
+          return result;
+        });
+        return { localId, finished, interrupt: async () => {} };
+      },
+    });
+    const { store } = freshSqlite();
+    const backend = stubBackend();
+    const rt = createRuntime({ backend, store, adapters: { claude: neverStarts } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    await (await rt.sessions.start(ws.id, { prompt: "fix the login page" })).finished;
+    await rt.close();
+    const again = createRuntime({ backend, store, adapters: {} });
+    expect(await again.sessions.search("login")).toEqual({ hits: [] });
+    await again.close();
+  });
+
   it("forgets one thread of 300 off that thread's rows alone, and leaves the other threads' words", { timeout: 60_000 }, async () => {
     const lines = (prompt: string): { kind: "text"; text: string }[] => [{ kind: "text", text: `${prompt} says marker-${prompt.slice(-3)} ${"filler words ".repeat(1600)}` }];
     const { store } = freshSqlite();

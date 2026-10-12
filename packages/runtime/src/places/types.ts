@@ -639,8 +639,9 @@ export interface PlaceDoor {
   /** Sets a computer up from picks: a pending add that joined and waits on its choices, given them here or holding
    * them already, or a computer already set up, run again for whatever is missing, a sign-in that waits or ran out
    * among it. `ref` is a computer's id or name, or a pending add's id or address. Refused in one sentence for an add
-   * that never joined, and for a computer with no picks where none are given. */
-  setUp(ref: string, o: { choices?: RecipeFile; recipe?: string; addId?: string }): Promise<PlaceSetUp>;
+   * that never joined, and for a computer with no picks where none are given. `row`, on a setup that ended, runs that
+   * row's step again alone, every other step's rows standing; refused for a row the setup holds nothing under. */
+  setUp(ref: string, o: { choices?: RecipeFile; recipe?: string; addId?: string; row?: string }): Promise<PlaceSetUp>;
   /** Every add that has not reached Set up, oldest first. */
   pending(): Promise<PendingComputer[]>;
   /** Keeps the person's picks so far on a pending add, and the recipe they started from, so it resumes there. `ref`

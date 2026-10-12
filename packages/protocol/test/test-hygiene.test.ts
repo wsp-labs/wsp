@@ -276,7 +276,6 @@ const ALLOWED: Record<Rule, readonly Allowed[]> = {
     { text: "expect(spent).toBeLessThan(15_000);", count: 1, why: "200 streamed events among 200 threads settle in about 1 s; re-deriving every thread once per workspace took 7 s idle" },
     { text: "expect(performance.now() - started).toBeLessThan(200);", count: 1, why: "tight: hostile slate input is refused under 100 to 500 ms; the faults it guards take seconds and gigabytes" },
     { text: "expect(performance.now() - started).toBeLessThan(500);", count: 1, why: "tight: hostile slate input is refused under 100 to 500 ms; the faults it guards take seconds and gigabytes" },
-    { text: "expect(took).toBeLessThan(50);", count: 1, why: "tight: a start in the project folder answers under 50 ms, which a worktree's copy would not" },
     { text: "expect(Date.now() - asked).toBeLessThan(1_000);", count: 2, why: "an interrupt of a kept agent ends its turn under 1 s rather than at the stop's grace" },
     { text: "expect(Date.now() - attachedAt).toBeLessThan(WALL_MS * 0.9);", count: 1, why: "a cut at the idle or wall limit lands under 5 s or before the wall, not at the child's 30 s" },
     { text: "expect(Date.now() - at).toBeGreaterThanOrEqual(300 - 10);", count: 1, why: "a lost link waits out its 300 ms relink wait first; a lower bound with 10 ms for the clocks' drift, which load only lengthens" },

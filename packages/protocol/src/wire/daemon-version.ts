@@ -160,6 +160,7 @@ const DAEMON_CONTENTS = [
   "0a0e575d0660d41561cf0038a2bbf6db41373f3ffa4654b941702c22bed43265",
   "2bcd6f46ae63613208d94094effd91ac33ff3d5c9d9d472a3739e756b88578ae",
   "5561b75989b87c1acfb0b1b6312d0ce49fde4f286d6c6c495205956aeb77dca1",
+  "0c317e5ccfb3fc061b1ba9b28f0f8f16f41e30c0c268be5284654ad156c96686",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -600,7 +601,10 @@ const DAEMON_CONTENTS = [
  * same HEAD; copy worktree takes --checkpoint <ref>, a ref under refs/wsp/checkpoints/ naming a commit, to make a new
  * branch at the commit that checkpoint was taken on (the folder's HEAD for a checkpoint with no parent) with the config
  * files and dependencies carried as for any new worktree and the checkpoint's files laid in uncommitted, the worktree's
- * index left at the start, and refuses a branch that exists or that a worktree holds. */
+ * index left at the start, and refuses a branch that exists or that a worktree holds.
+ * Version 151: A box's doctor loads the overlay module with modprobe where the kernel does not list overlay yet and
+ * reads /proc/filesystems again, so a box rebooted onto a new kernel runs workspaces; it refuses only a kernel with no
+ * overlay module to load or one whose module would not load, naming which, the second in modprobe's own last line. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

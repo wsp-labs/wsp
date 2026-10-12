@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // node scripts/public-check.mjs <folder or .tgz>...: whether a public build
-// carries Solari, the cloud it leaves out. Every script in it is read as code,
-// its comments left out, every page, stylesheet, picture, manifest and README
-// whole, and every daemon binary for its strings. Solari's module or its words
-// is a line naming the file, and the exit is 1. The release runs it on the packed
-// tarball and on the desktop app's folder before either leaves the runner.
+// carries Solari, the cloud it leaves out. Every script, page, stylesheet,
+// picture, manifest and README in it is read whole, comments and the bundler's
+// file markers included, and every daemon binary for its strings. Solari's
+// module or its words is a line naming the file, and the exit is 1. The release
+// runs it on the packed tarball and on the desktop app's folder before either
+// leaves the runner.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
-import ts from "@typescript/typescript6";
 
 /** What Solari leaves in a build: its name, matched inside a longer word (SolariBackend, getsolari.com), and its key's
  * prefix. Boat ships in a public build, so its words pass. Solarized is a colour theme the diff viewer ships, and
  * Solaris an operating system a binary may name. */
 export const PROVIDER_WORDS = [/solari(?![sz])/i, /slr_live_/];
 
-const SCRIPT = new Set([".js", ".mjs", ".cjs"]);
-const TEXT = new Set([".json", ".html", ".css", ".svg", ".md"]);
+const TEXT = new Set([".js", ".mjs", ".cjs", ".json", ".html", ".css", ".svg", ".md"]);
 /** The first bytes of an ELF file and of a Mach-O, thin or universal, either byte order: a daemon binary. */
 const BINARY_MAGIC = ["7f454c46", "cffaedfe", "feedfacf", "cafebabe", "bebafeca"];
 
@@ -26,17 +25,6 @@ const BINARY_MAGIC = ["7f454c46", "cffaedfe", "feedfacf", "cafebabe", "bebafeca"
 function binaryText(path) {
   const bytes = readFileSync(path);
   return BINARY_MAGIC.includes(bytes.subarray(0, 4).toString("hex")) ? bytes.toString("latin1") : undefined;
-}
-
-/** A script's code with its comments gone: every name and every literal, one to a line. */
-export function codeOf(text, fileName = "bundle.js") {
-  const out = [];
-  const visit = node => {
-    if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node) || ts.isStringLiteralLike(node) || ts.isRegularExpressionLiteral(node) || ts.isTemplateLiteralToken(node) || ts.isJsxText(node)) out.push(node.text);
-    ts.forEachChild(node, visit);
-  };
-  visit(ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS));
-  return out.join("\n");
 }
 
 /** The content hash the bundler puts in an emitted file's name, eight letters of base64url with a digit among them
@@ -64,7 +52,7 @@ const walk = dir => readdirSync(dir).flatMap(name => {
 export function providerWordsUnder(root) {
   return walk(root).flatMap(path => {
     const ext = extname(path);
-    const text = SCRIPT.has(ext) ? codeOf(readFileSync(path, "utf8"), path) : TEXT.has(ext) ? readFileSync(path, "utf8") : binaryText(path);
+    const text = TEXT.has(ext) ? readFileSync(path, "utf8") : binaryText(path);
     return text === undefined ? [] : wordsIn(text).map(hit => ({ file: relative(root, path), ...hit }));
   });
 }

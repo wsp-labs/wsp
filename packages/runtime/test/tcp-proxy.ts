@@ -10,12 +10,16 @@ export interface TcpProxy {
   /** How many connections this road is holding, which is what a line still waiting on one looks like from outside. */
   live(): number;
   resume(): void;
+  /** Forwards the next chunk the target sends, then holds this whole process still for `ms`, as a host whose loop
+   * stalled does: nothing here reads, writes or fires a timer until it is over. */
+  freezeAfterNextReply(ms: number): void;
   close(): Promise<void>;
 }
 
 export async function startTcpProxy(targetPort: number, listenPort = 0): Promise<TcpProxy> {
   const pairs = new Set<{ a: Socket; b: Socket }>();
   let stalled = false;
+  let freezeMs = 0;
   const server = createServer(a => {
     const b = connect(targetPort, "127.0.0.1");
     const pair = { a, b };
@@ -25,6 +29,10 @@ export async function startTcpProxy(targetPort: number, listenPort = 0): Promise
     });
     b.on("data", chunk => {
       if (!stalled) a.write(chunk);
+      if (freezeMs === 0) return;
+      const until = Date.now() + freezeMs;
+      freezeMs = 0;
+      while (Date.now() < until);
     });
     const drop = () => {
       pairs.delete(pair);
@@ -52,6 +60,9 @@ export async function startTcpProxy(targetPort: number, listenPort = 0): Promise
     },
     resume() {
       stalled = false;
+    },
+    freezeAfterNextReply(ms) {
+      freezeMs = ms;
     },
     cutAll() {
       for (const { a, b } of pairs) {

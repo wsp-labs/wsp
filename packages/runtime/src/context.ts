@@ -357,6 +357,10 @@ export interface ChannelsArea {
   readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
   readonly killGuarded: (channel: DaemonChannel, here: boolean) => DaemonChannel;
   readonly threadTagged: (workspaceId: string, channel: DaemonChannel) => DaemonChannel;
+  /** Each workspace's shell tags as read from the store, and its write of them while one is in flight: a deleted
+   * workspace's tags go once its last write settles. */
+  readonly tagsHeld: ReadonlyMap<string, Promise<Map<string, string>>>;
+  readonly tagWrites: ReadonlyMap<string, Promise<void>>;
   readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
   readonly sharedDaemonReplaced: () => void;
   /** By workspace, each process group a turn led and the thread whose turn it was. */

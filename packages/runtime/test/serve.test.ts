@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { connect, type Socket } from "node:net";
 import WebSocket from "ws";
 import { keyFingerprint } from "@wsp/engine";
-import { DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type InitJob, type PortForward, type TurnResult } from "@wsp/protocol";
+import { AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type InitJob, type PortForward, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type HarnessSession, type HarnessStartOptions, type InitDoor, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair, verifyPlaceBytes, type PlaceKeyPair, type PlaceRecord } from "../src/places.js";
 import { freshEphemeral, makeSeal, sealKeys, sharedSecret } from "@wsp/keys";
@@ -166,10 +166,10 @@ describe("the two limits a socket is held to before it is let in", () => {
     return { ws, frames, closed };
   };
 
-  it("closes a socket that never says anything, with the sentence the machine's own door speaks", async () => {
+  it("closes a socket that never says anything with the code that is no refusal and the sentence the machine's own door speaks", async () => {
     srv = await serveRuntime(rt(), { port: 0, authToken: "secret", authDeadlineMs: 60 });
     const { closed } = await opened(srv.port);
-    expect(await closed).toEqual([4401, DAEMON_AUTH_DEADLINE_PASSED]);
+    expect(await closed).toEqual([AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED]);
   });
 
   it("closes a socket that sends more bytes than the door takes, and answers it nothing", async () => {

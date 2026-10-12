@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { defineConfig } from "tsup";
-import { buildDefines } from "./scripts/build-defines.mjs";
+import { buildDefines, publicBuild } from "./scripts/build-defines.mjs";
 
 // One self-contained bundle for npm: the workspace packages and their
 // dependencies are all devDependencies here, which tsup inlines, so the
@@ -16,6 +16,8 @@ export default defineConfig({
   target: "node22",
   external: ["bufferutil", "utf-8-validate"],
   define: buildDefines(),
+  // The only way esbuild drops comments and its file markers, which name modules and providers a public build leaves out.
+  minifyWhitespace: publicBuild(),
   banner: {
     js: [
       "#!/usr/bin/env node",

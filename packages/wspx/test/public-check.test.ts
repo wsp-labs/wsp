@@ -42,9 +42,15 @@ describe("the check a public build passes", () => {
     expect(run.stderr).toContain("assets/web/words.json");
   });
 
-  it("reads a script's code and not its comments, and takes a colour theme named Solarized for what it is", () => {
-    const root = built({ "dist/bin.js": '// Solari answers 502 here\nexport const theme = "solarized-dark";\n' });
-    expect(providerWords(root)).toEqual([]);
+  it.each([
+    ["the bundler's file marker", "// ../engine/src/solari-backend.ts\nvar PAUSE_MS = 4 * 6e4;"],
+    ["a doc comment", "/** Root disk in GiB (Solari: 4, and 20 is its cap). */\nexport const disk = 4;"],
+  ])("reads a script's comments too, and finds Solari in %s", (_, code) => {
+    expect(providerWords(built({ "dist/bin.js": `${code}\n` }))).toHaveLength(1);
+  });
+
+  it("takes a colour theme named Solarized for what it is", () => {
+    expect(providerWords(built({ "dist/bin.js": '// the solarized theme\nexport const theme = "solarized-dark";\n' }))).toEqual([]);
   });
 
   it.each([

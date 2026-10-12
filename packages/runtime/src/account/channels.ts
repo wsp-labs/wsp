@@ -304,19 +304,30 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   };
   /** Writes one at a time per workspace, each the tags as they stand when it runs, so the last write is the latest. */
   const tagWrites = new Map<string, Promise<void>>();
+  /** Deleted workspaces whose tags are held until their last write settles: a read before then would find the document
+   * that write deletes. A write with no tags held is a reply that landed after its workspace went, and writes nothing. */
+  const tagsGoing = new Set<string>();
   const keepTags = (workspaceId: string): void => {
-    const write = (tagWrites.get(workspaceId) ?? Promise.resolve())
+    const write: Promise<void> = (tagWrites.get(workspaceId) ?? Promise.resolve())
       .then(async () => {
-        const tags = await tagsOf(workspaceId);
+        const held = tagsHeld.get(workspaceId);
+        if (held === undefined) return;
+        const tags = await held;
         if (tags.size === 0) await ctx.store.delete(PTY_THREADS, workspaceId);
         else await ctx.store.put(PTY_THREADS, workspaceId, Object.fromEntries(tags));
       })
-      .catch((e: unknown) => console.warn(`whose shells are whose in ${workspaceId} was not kept for the next host: ${e instanceof Error ? e.message : String(e)}`));
+      .catch((e: unknown) => console.warn(`whose shells are whose in ${workspaceId} was not kept for the next host: ${e instanceof Error ? e.message : String(e)}`))
+      .then(() => {
+        if (tagWrites.get(workspaceId) !== write) return;
+        tagWrites.delete(workspaceId);
+        if (tagsGoing.delete(workspaceId)) tagsHeld.delete(workspaceId);
+      });
     tagWrites.set(workspaceId, write);
   };
   ctx.bus.on("workspace.deleted", e => {
     if (e.type !== "workspace.deleted") return;
     tagsHeld.set(e.workspaceId, Promise.resolve(new Map<string, string>()));
+    tagsGoing.add(e.workspaceId);
     keepTags(e.workspaceId);
   });
   /** A client's channel that keeps the thread a pty.create names, which the daemon never hears, and names it on
@@ -399,7 +410,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     for (const pid of portPids.get(workspaceId)?.values() ?? []) roots.add(pid);
     return [...roots].sort((a, b) => a - b);
   };
-  const openBoxPanels = boxPanelsOpener(ctx, portWatchers);
+  const openBoxPanels = boxPanelsOpener(ctx, portWatchers, new Map());
   /** Reads the workspace's roots now, which drops a turn's group that emptied, and names them again to every channel
    * that watches. */
   const portRootsMoved = (workspaceId: string): void => {
@@ -670,7 +681,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
     withDaemon, overChannel, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
-    portPids, heldToOwner, killGuarded, threadTagged, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
+    portPids, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };
 }

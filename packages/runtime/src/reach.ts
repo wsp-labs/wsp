@@ -4,7 +4,7 @@
 // liveness is an app-level ping op; every (re)connect re-subscribes and
 // rescans the inbox because events pushed during a gap are gone for good.
 
-import { DaemonEvent, linkBackoffMs, MachineErrorKind, type DaemonLinkStatus } from "@wsp/protocol";
+import { DaemonEvent, daemonRefusedToken, linkBackoffMs, MachineErrorKind, type DaemonLinkStatus } from "@wsp/protocol";
 import WebSocket from "ws";
 import { openFrame, SEAL_REFUSAL, type Seal } from "@wsp/keys";
 
@@ -216,7 +216,7 @@ export function connectDaemon(opts: ReachOptions): DaemonReach {
       stopHeartbeat();
       flushPending("connection lost");
       if (closed) return;
-      if (ev.code === 4401) {
+      if (daemonRefusedToken(ev.code, String(ev.reason))) {
         // The host owns the token it sent; a guest refusing it will refuse the same one again.
         setStatus("reauth-needed");
         readyReject(new Error(`daemon rejected token (4401 ${String(ev.reason)})`)); // no-op once ready resolved
