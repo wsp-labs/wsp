@@ -8,10 +8,9 @@ import { z } from "zod";
 import { refusal, refusalParts } from "./exit.js";
 import { seedNotHereRefusal } from "./project-seed.js";
 import { ownerRepoOf } from "./start.js";
+import { cloudNamed, PROVIDER_KEY_WORDS, providerKeyName } from "./place-word.js";
 import { fmtMemGb, sizeFromWord, sizeWord } from "./words/units.js";
 
-/** The minutes a finished sub-thread's machine stays before it is deleted, until the person sets another. */
-export const SUB_DELETE_AFTER_MIN = 30;
 /** The most a sub-thread's picked files may come to, packed: the files worth picking are a few KB of `.env` style
  * configs, so anything past this is a data folder picked by mistake. */
 export const SUB_SEED_MAX_BYTES = 20 * 1024 * 1024;
@@ -215,3 +214,67 @@ export const subNotSentLine = (why: string, project: string): string =>
 export const subCopyingLine = (files: number): string => `copying ${files} ${files === 1 ? "file" : "files"}`;
 /** The first line a terminal prints: where the sub-thread runs. */
 export const subOpenedLine = (threadId: string, on: string, folder: string): string => `thread ${threadId.slice(0, 8)} on ${on.toLowerCase()} in ${folder}`;
+
+/** The work a done read found not pushed, in the words the delete's question and the lead's refusal give it. */
+function heldWords(held: { files: number; commits: number }): string {
+  const parts = [held.commits > 0 ? `${held.commits} ${held.commits === 1 ? "commit" : "commits"}` : "", held.files > 0 ? `${held.files} changed ${held.files === 1 ? "file" : "files"}` : ""].filter(Boolean);
+  return parts.length === 0 ? "work" : parts.join(" and ");
+}
+
+/** What a sub-thread holds that no remote has: the counts its last read found, or that the read did not answer. */
+export interface SubUnpushed {
+  files: number;
+  commits: number;
+  readFailed?: string;
+}
+
+/** The second line of the delete's question, and the half of the lead's refusal that says what is not pushed. */
+export function subUnpushedLine(held: SubUnpushed, branch: string): string {
+  if (held.readFailed !== undefined) return `its machine could not be read (${held.readFailed}), so work on ${branch} may not be pushed and would go with it.`;
+  return `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed and go with it.`;
+}
+
+/** The question a person answers before a sub-thread and its machine go. */
+export function subDeleteQuestion(o: { threadId: string; title: string; on: string; branch: string; held?: SubUnpushed }): string {
+  const first = `Delete sub-thread ${o.threadId.slice(0, 8)} (${o.title}) and its machine on ${o.on}?`;
+  const second = o.held === undefined ? `Its turns leave this computer and its machine is deleted; what it pushed to ${o.branch} stays on the remote.` : subUnpushedLine(o.held, o.branch);
+  return `${first}\n${second.charAt(0).toUpperCase()}${second.slice(1)}`;
+}
+
+/** A lead's own token asking the delete of a sub-thread whose work is not pushed: losing it is the person's call. */
+export const subHeldDeleteRefusal = (threadId: string, held: SubUnpushed, branch: string): Error =>
+  usage(
+    held.readFailed !== undefined
+      ? `sub-thread ${threadId.slice(0, 8)}'s machine could not be read (${held.readFailed}), so work on ${branch} may not be pushed`
+      : `sub-thread ${threadId.slice(0, 8)} holds ${heldWords(held)} not pushed on ${branch}`,
+    "Send it a push, or ask the person to delete it.",
+  );
+
+/** A send into a sub-thread whose cloud this host no longer holds. */
+export const subCloudGoneRefusal = (on: string): Error => usage(`${on} is no longer on this host`, `Add it with wsp add ${on.toLowerCase()} and send again.`);
+
+/** A send into a sub-thread whose machine was deleted after it was done, before a new machine can be made for it. */
+export const subReleasedRefusal = (threadId: string, on: string, branch: string): Error =>
+  usage(`sub-thread ${threadId.slice(0, 8)}'s machine on ${on} was deleted after it was done; its work is on ${branch}`, `Merge ${branch} into its lead, or start a new sub-thread with wsp run --on ${on.toLowerCase()}.`);
+
+/** What a delete Boat refused says, and when it is asked again. */
+export const subDeleteRefusedLine = (on: string, machine: string, said: string, retryMinutes: number): string =>
+  `${on} would not delete ${machine} (${said}); it is tried again in ${retryMinutes} minutes`;
+
+/** The line a cloud's remove adds to its question for sub-threads whose machines hold work no remote has: it goes
+ * with them. Names five and counts the rest. */
+export function subHeldOnRemoveLine(held: readonly { threadId: string; branch: string; files: number; commits: number }[]): string | undefined {
+  if (held.length === 0) return undefined;
+  const named = held.slice(0, 5).map(h => `${h.threadId.slice(0, 8)} (${heldWords(h)} on ${h.branch})`);
+  const rest = held.length > 5 ? ` and ${held.length - 5} more` : "";
+  return `${held.length === 1 ? "A sub-thread holds" : `${held.length} sub-threads hold`} work not pushed, which goes with ${held.length === 1 ? "its machine" : "their machines"}: ${named.join(", ")}${rest}.`;
+}
+
+/** A sub-thread's cloud as a line names it, off the word its record keeps: `boat` is Boat. */
+export function cloudSaid(on: string): string {
+  const id = cloudNamed(Object.keys(PROVIDER_KEY_WORDS), on);
+  return id === undefined ? on : providerKeyName(id);
+}
+
+/** What a sub-thread's delete did. */
+export const subDeletedLine = (threadId: string, on: string): string => `deleted sub-thread ${threadId.slice(0, 8)} and its machine on ${on}`;

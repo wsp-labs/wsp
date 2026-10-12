@@ -154,6 +154,9 @@ export interface Machine {
   /** Optional: bytes onto the machine on a backend that mints no signed upload URL. `landBytes` is what reads it,
    * so no caller picks between the two roads itself. */
   putBytes?(path: string, bytes: Uint8Array, opts?: { timeoutMs?: number }): Promise<BytesLanded | void>;
+  /** Optional: one file's bytes off the machine on a backend that mints no signed download URL. `size`, where the
+   * caller read it already, spares the read of it. */
+  readBytes?(path: string, opts?: { size?: number; timeoutMs?: number }): Promise<Buffer>;
   /** Optional: what keeps a process running on this machine, read by the daemon deploy. Absent means the guest has
    * a service manager and the deploy registers a unit with it. */
   readonly daemonSupervisor?: DaemonSupervisor;
@@ -195,8 +198,10 @@ export interface Lifecycle {
    * the runtime's own backstop policy and handed over whenever the idle window is armed, for a provider whose
    * backstop is pushed rather than set once at create. Never called for a machine the runtime has napped or
    * forgotten. Called from the policy's own arming and not awaited: a rejection is logged, and the backend decides
-   * whether a given instant is worth a call, since the window is armed on every streamed chunk. */
-  backstop?(machine: Machine, until: number): Promise<void>;
+   * whether a given instant is worth a call, since the window is armed on every streamed chunk. `exact` sends the
+   * instant as it is, earlier than the last one sent or not: a finished sub-thread's machine whose nap did not land
+   * stops at its delete's instant and no later. */
+  backstop?(machine: Machine, until: number, o?: { exact?: true }): Promise<void>;
   /** Optional: how long the machine has been quiet by what the computer running it can see, bytes on its
    * published ports and commands run in it. Read once before an idle stop, so a dev server somebody is clicking
    * through stays up. Undefined where the backend cannot say, which leaves the stop to the host's own clock. */

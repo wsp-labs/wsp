@@ -111,6 +111,7 @@ const PHASE_SLOT: Record<WorkspaceState, { button: string; cannot: string }> = {
   unreachable: { button: "Pause", cannot: "be paused" },
   paused: { button: "Wake", cannot: "be woken" },
   gone: { button: "Wake", cannot: "be woken" },
+  released: { button: "Wake", cannot: "be woken" },
   pausing: { button: "Pausing…", cannot: "be paused" },
   waking: { button: "Stop", cannot: "be woken" },
 };
@@ -148,6 +149,8 @@ export function phaseRefusal(state: WorkspaceState): string | null {
       return null;
     case "gone":
       return goneRefusal(undefined, "wake");
+    case "released":
+      return "This sub-thread's computer was deleted once it was done";
     default: {
       const _exhaustive: never = state;
       return null;

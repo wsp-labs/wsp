@@ -372,6 +372,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await ctx.confineSetup(entry, o.harness);
       const refuse = (): void => {
         if (!live.has(workspaceId)) throw new Error(deletedBeforeStartLine(entry.record.name));
+        ctx.refuseSubSend(live.get(workspaceId)!);
         const refusal = sendRefusal(workspaceState({ phase: entry.record.phase }), entry.record.gone, entry.record.name);
         if (refusal !== null) throw new Error(refusal);
       };
@@ -1403,13 +1404,15 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       return { turns: cutsConversation ? cut.length : 0, ...(moved !== undefined ? { files: Number(moved["files"] ?? 0) } : {}), ...(shared ? { kept: REWIND_SHARED_LINE } : {}) };
     },
 
-    async delete(threadId, origin) {
+    async delete(threadId, origin, o = {}) {
       await ctx.ready();
-      ctx.spawnGuard("delete", origin);
       const workspaceId = [...sessions.values()].find(s => s.view.threadId === threadId)?.view.workspaceId ?? threadRecords.get(threadId)?.workspaceId;
+      if (!ctx.leadOfSub(workspaceId, origin)) ctx.spawnGuard("delete", origin);
       if (workspaceId === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
+      if (entry.record.sub !== undefined) return ctx.subDelete(entry, threadId, origin, o);
+      if (o.check === true) throw Object.assign(new Error(`thread ${threadWord(threadId)} is no sub-thread, so a delete's check reads nothing for it`), { kind: "usage" });
       if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
       const tree = entry.record.worktree;
       const threads = new Set([

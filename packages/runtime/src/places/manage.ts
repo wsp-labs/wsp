@@ -558,7 +558,10 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       if (provider !== undefined) {
         const forgetKey = wiring.forgetKey?.bind(wiring);
         const answer = await removeProvider({ placeId, backend: provider, owner: (await opts.owner?.()) ?? "", known: (await recording.machinesOn?.(placeId)) ?? [], ...(forgetKey === undefined ? {} : { forgetKey }), ...(opts.killConfirm === undefined ? {} : { confirm: opts.killConfirm }) });
-        if (answer.removed) emit({ type: "place.removed", placeId });
+        if (answer.removed) {
+          await recording.releaseRecordsOn?.(placeId);
+          emit({ type: "place.removed", placeId });
+        }
         return answer;
       }
       if (held === undefined) return { removed: false, swept: [] };
