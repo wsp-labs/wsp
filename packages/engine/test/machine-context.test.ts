@@ -23,6 +23,7 @@ import {
   contextLine,
   contextPath,
   mergeFacts,
+  overlayProbe,
   parseProbe,
   probeCommand,
   renderMachineContext,
@@ -500,6 +501,27 @@ describe("the guest scripts on a local bash", () => {
     probe = parseProbe((await run(probeCommand(roots), roots.home)).stdout)!;
     expect([...probe.conflicts].sort()).toEqual(["hermes", "pi"]);
   }, 30_000);
+
+  it("asks modprobe for an overlay the kernel does not list yet and reads the list again, and says no where it will not load", async () => {
+    const roots = fakeGuest();
+    const filesystems = join(roots.etc, "filesystems");
+    const bin = join(roots.etc, "bin");
+    mkdirSync(bin);
+    const overlayOn = async (modprobe: string, listed: string): Promise<string> => {
+      writeFileSync(filesystems, listed);
+      writeStub(join(bin, "modprobe"), `#!/bin/sh\necho "$*" >> ${bin}/asked\n${modprobe}\n`);
+      rmSync(join(bin, "asked"), { force: true });
+      return (await run(`PATH=${bin}:$PATH; ${overlayProbe(filesystems)}`, roots.home)).stdout;
+    };
+    const asked = (): string => (existsSync(join(bin, "asked")) ? readFileSync(join(bin, "asked"), "utf8") : "");
+    expect(await overlayOn("exit 1", "nodev\tsysfs\nnodev\toverlay\n")).toBe("OVERLAY yes\n");
+    expect(asked()).toBe("");
+    expect(await overlayOn(`printf 'nodev\\toverlay\\n' >> ${filesystems}`, "nodev\tsysfs\n")).toBe("OVERLAY yes\n");
+    expect(asked()).toBe("overlay\n");
+    expect(await overlayOn("echo \"modprobe: ERROR: could not insert 'overlay': Operation not permitted\" >&2; exit 1", "nodev\tsysfs\n")).toBe("OVERLAY no\n");
+    expect(asked()).toBe("overlay\n");
+    expect(await overlayOn("exit 0", "nodev\tsysfs\n")).toBe("OVERLAY no\n");
+  });
 
   it("opens no shell of the machine's own where it may open none, and reads every other fact just the same", async () => {
     const roots = fakeGuest();
