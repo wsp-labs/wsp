@@ -350,10 +350,13 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     const lender = mine.lenders.find(l => runsHere(l) && !lent.some(([, other]) => other === l));
     if (lender !== undefined) {
       borrowed.set(turnId, lender);
+      if (mine.waiting !== undefined) mine.through = { why: "lent", atOnce };
       return undefined;
     }
     const ahead = [...capHeld.entries()].filter(([id, h]) => id !== turnId && h.placeId === placeId && h.order < mine.order).length;
-    return here.length - lent.length + ahead < atOnce ? undefined : { placeId, place: ctx.placeDoor!.nameOf(placeId), running: here.length, atOnce };
+    if (here.length - lent.length + ahead >= atOnce) return { placeId, place: ctx.placeDoor!.nameOf(placeId), running: here.length, atOnce };
+    if (mine.waiting !== undefined) mine.through = { why: atOnce > mine.waiting.wait.atOnce ? "raised" : "freed", atOnce };
+    return undefined;
   };
 
   /** Holds a turn until a turn ends anywhere, a computer's settings change, a workspace is deleted or a held turn
@@ -367,8 +370,8 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     if (held.stopped !== undefined) return Promise.reject(new Error(held.stopped));
     const said = held.waiting?.wait;
     const moved = said === undefined || said.running !== wait.running || said.atOnce !== wait.atOnce || said.place !== wait.place;
+    const row = sessions.get(at.turnId);
     if (held.waiting === undefined) {
-      const row = sessions.get(at.turnId);
       const written: HeldStartRecord = {
         workspaceId: at.workspaceId, threadId: at.threadId, turnId: at.turnId, sessionId: at.sessionId, harness: row?.view.harness ?? "", place: wait.place,
         ...(row?.view.prompt !== undefined ? { prompt: row.view.prompt } : {}),
@@ -394,6 +397,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
       });
       held.waiting = {
         wait,
+        at: { workspaceId: at.workspaceId, threadId: at.threadId, sessionId: at.sessionId },
         wake,
         stop: reason => {
           if (over) return;
@@ -401,7 +405,8 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
           reject(new Error(reason));
         },
       };
-      if (moved) ctx.record({ type: "session.capped", workspaceId: at.workspaceId, sessionId: at.sessionId, turnId: at.turnId, threadId: at.threadId, ...wait, ...(at.requestId !== undefined ? { requestId: at.requestId } : {}) });
+      const prompt = said === undefined ? row?.view.prompt : undefined;
+      if (moved) ctx.record({ type: "session.capped", workspaceId: at.workspaceId, sessionId: at.sessionId, turnId: at.turnId, threadId: at.threadId, ...wait, ...(at.requestId !== undefined ? { requestId: at.requestId } : {}), ...(prompt !== undefined ? { prompt } : {}) });
     });
   };
 
@@ -430,12 +435,14 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
   };
 
   /** A turn is let through or given up: every turn still waiting looks again, since its place in line or the count
-   * its row says just moved. */
+   * its row says just moved. One let through after a wait says why in its transcript, which also moves its row off
+   * the wait before its agent has said a word. */
   const capLeft = (turnId: string): void => {
     const held = capHeld.get(turnId);
     if (held === undefined) return;
     capHeld.delete(turnId);
     if (held.waiting !== undefined) heldWrite(() => ctx.store.delete(HELD_STARTS, turnId));
+    if (held.waiting !== undefined && held.through !== undefined) ctx.record({ type: "session.uncapped", ...held.waiting.at, turnId, ...held.through });
     for (const other of [...capHeld.values()]) other.waiting?.wake();
   };
 

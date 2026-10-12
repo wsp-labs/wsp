@@ -48,5 +48,7 @@ export const COMPOSER_WORDS = {
   menuNoMatch: { path: "No file matches", "pull-request": "No open pull request or issue matches" },
   /** The hover on a message sent into a running turn; nothing is drawn above the bubble. */
   sentWhileWorking: "Sent while the agent was working",
+  /** Under a message whose turn waits on its computer's threads at once. */
+  waitingToStart: "waiting to start",
 } as const;
 

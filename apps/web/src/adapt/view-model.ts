@@ -25,6 +25,8 @@ export interface ChatMessage {
   readonly streaming: boolean;
   /** A user message sent into the turn while it ran, not the one that opened it. */
   readonly steered?: boolean;
+  /** A message whose turn its computer's threads at once still holds back. */
+  readonly waiting?: boolean;
   /** The images the person's message carried, as the runtime kept them: their type, weight and name, never their
    * pixels. Present on the message that opened the turn and only when it carried one. */
   readonly attachments?: ReadonlyArray<AttachmentRecord>;

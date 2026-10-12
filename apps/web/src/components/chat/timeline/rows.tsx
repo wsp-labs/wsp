@@ -105,7 +105,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   const files = useSentFiles(row.message);
 
   return (
-    <div className="group flex flex-col items-end gap-1">
+    <div className="group flex flex-col items-end gap-1" {...(row.message.waiting === true ? { "data-user-message-waiting": "true" } : {})}>
       <div
         className={PERSON_BUBBLE}
         {...(row.message.steered === true ? { "data-user-message-steered": "true", title: COMPOSER_WORDS.sentWhileWorking } : {})}
@@ -118,6 +118,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
           markdownCwd={ctx.markdownCwd}
         />
       </div>
+      {row.message.waiting === true ? <p className="pe-1 text-muted-foreground text-xs">{COMPOSER_WORDS.waitingToStart}</p> : null}
       <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
         <div className="flex shrink-0 items-center gap-2">
           <p className="text-muted-foreground text-xs tabular-nums">

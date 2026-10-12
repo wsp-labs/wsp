@@ -77,6 +77,7 @@ import type {
   SpawnAct,
   ThreadWaitingOn,
   ThreadCapWait,
+  SessionUncappedEvent,
 } from "@wsp/protocol";
 import type { CopyBuild, GoneSeenBy, SubResult, SubUnpushed, WorktreeSettled } from "@wsp/protocol";
 import type { agentsReads } from "./agents-read.js";
@@ -677,15 +678,16 @@ export interface DetachedSend {
 }
 
 /** A turn its computer's threads at once has not let through yet: the computer, the running turns that wait on it and
- * so lend it a slot, the order it came in, the reason a stop gave it, and once it waits, what its row says and the two
- * ways the wait ends. */
+ * so lend it a slot, the order it came in, the reason a stop gave it, once it waits, what its row says, the thread it
+ * waits on and the two ways the wait ends, and once a look lets a waiting turn through, why. */
 export interface CapHeld {
   placeId: string | undefined;
   lenders: string[];
   order: number;
   stopped?: string;
   stops?: Set<Promise<void>>;
-  waiting?: { wait: ThreadCapWait; wake: () => void; stop: (reason: string) => void };
+  waiting?: { wait: ThreadCapWait; at: { workspaceId: string; threadId: string; sessionId: string }; wake: () => void; stop: (reason: string) => void };
+  through?: Pick<SessionUncappedEvent, "why" | "atOnce">;
 }
 
 export interface ThreadsArea {
