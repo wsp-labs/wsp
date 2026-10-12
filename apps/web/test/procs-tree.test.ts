@@ -125,8 +125,8 @@ describe("agentRows", () => {
     const native = [...turn.map(p => (p.pid === 302 ? { ...p, comm: "2.1.296", cmdline: "claude -p --input-format stream-json" } : p)), proc(305, 302, "claude", { cmdline: "claude -p hi" })];
     const thread: ProcThread = { threadId: "th_a", title: "a", pid: 300, sessionId: "s_a", agentPid: 302 };
     expect([...agentRows(native, [thread]).keys()].sort()).toEqual([300, 301, 302]);
-    // A recorded pid that is not under the turn's root names nothing, and the names stand in.
-    expect([...agentRows(native, [{ ...thread, agentPid: 400 }]).keys()].sort()).toEqual([300, 301, 302, 305]);
+    // A recorded pid that is not under the turn's root names nothing, and the shallowest name stands in.
+    expect([...agentRows(native, [{ ...thread, agentPid: 400 }]).keys()].sort()).toEqual([300, 301, 302]);
   });
 
   it("takes the agent binary a recorded launcher starts, npm's codex under node, and what the agent starts stays out", () => {

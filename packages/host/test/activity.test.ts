@@ -32,7 +32,8 @@ describe("activity on the command line", () => {
       procRow({ pid: 4150, ppid: 4100, comm: "node", cmdline: "node wsp mcp --scoped", rss: 70_000_000, owner, startedAt: STARTED + 500 }),
       procRow({ pid: 4200, comm: "node", cmdline: "node /lab/node_modules/.bin/vite", rss: 80_000_000, cpu: 10, kind: "dev", owner, startedAt: STARTED + 1_000 }),
       procRow({ pid: 4300, ppid: 4200, comm: "esbuild", cmdline: "/lab/node_modules/esbuild/bin/esbuild --service", rss: 20_000_000, owner, startedAt: STARTED + 2_000 }),
-      procRow({ pid: 5000, comm: "zsh", cmdline: "-zsh", rss: 4_000_000 }),
+      // The person's own shell, its terminal app not listed: the daemon's children are wsp's.
+      procRow({ pid: 5000, ppid: 4999, comm: "zsh", cmdline: "-zsh", rss: 4_000_000 }),
     ];
     h.daemon.procs.ports = [{ port: 5173, pid: 4200 }];
     const title = (h.json((await h.run("threads", "--json")).io).at(-1) as { threads: { id: string; threadId?: string; title: string }[] }).threads.find(t => (t.threadId ?? t.id) === threadId)!.title;
@@ -55,9 +56,9 @@ describe("activity on the command line", () => {
         cpu: 13,
         processes: [
           { pid: 4200, ppid: 1, depth: 0, startedAt: STARTED + 1_000, kind: "dev", name: "node", command: "node /lab/node_modules/.bin/vite", memory: 80_000_000, cpu: 10, ports: [5173] },
-          { pid: 4300, ppid: 4200, depth: 1, startedAt: STARTED + 2_000, kind: "other", name: "esbuild", command: "/lab/node_modules/esbuild/bin/esbuild --service", memory: 20_000_000, cpu: 0, ports: [] },
+          { pid: 4300, ppid: 4200, depth: 1, startedAt: STARTED + 2_000, kind: "dev", name: "esbuild", command: "/lab/node_modules/esbuild/bin/esbuild --service", memory: 20_000_000, cpu: 0, ports: [] },
           { pid: 4100, ppid: 1, depth: 0, startedAt: STARTED, kind: "agent", name: "2.1.296", command: "claude -p --input-format stream-json", memory: 300_000_000, cpu: 3, ports: [] },
-          { pid: 4150, ppid: 4100, depth: 1, startedAt: STARTED + 500, kind: "other", name: "node", command: "node wsp mcp --scoped", memory: 70_000_000, cpu: 0, ports: [] },
+          { pid: 4150, ppid: 4100, depth: 1, startedAt: STARTED + 500, kind: "tool", name: "node", command: "node wsp mcp --scoped", memory: 70_000_000, cpu: 0, ports: [] },
         ],
       },
     ]);
@@ -172,7 +173,7 @@ describe("activity on the command line", () => {
     const left = processesLeft(ActivityView.parse(h.json((await h.run("activity", threadId, "--json")).io).at(-1)), [threadId]);
     expect(left[0]!.processes.map(p => p.pid)).toEqual([4200, 4300]);
     expect(failure(refused.io).error).toBe(refusalLine(processesLeftLine("settle", left), processesLeftFix("settle")));
-    expect(failure(refused.io).error).toContain(`4200 node (dev, :5173) of ${threadId.slice(0, 8)}, 4300 esbuild (other) of ${threadId.slice(0, 8)}`);
+    expect(failure(refused.io).error).toContain(`4200 node (dev, :5173) of ${threadId.slice(0, 8)}, 4300 esbuild (dev) of ${threadId.slice(0, 8)}`);
     expect(h.daemon.procs.signals).toEqual([]);
     expect((h.json((await h.run("threads", "--json")).io).at(-1) as { threads: { settledAt?: number; id: string }[] }).threads.every(t => t.settledAt === undefined)).toBe(true);
 
