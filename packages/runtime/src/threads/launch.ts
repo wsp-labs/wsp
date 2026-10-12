@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
-import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
+import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
@@ -69,7 +69,7 @@ export function launchArea(ctx: RuntimeContext) {
     const { catalog, picksFor } = await launchPicks(entry, harness, probe, prefs, threadId, asked);
     const picks = picksFor(undefined);
     const folder = await ctx.threadFolder(entry, asked);
-    if (!existsSync(folder)) return { warm: "none" };
+    if (isLocalWorkspace(entry.record) && !existsSync(folder)) return { warm: "none" };
     const cwd = ctx.runsIn(entry, undefined, folder);
     const launch: KeptLaunch = { fixed: launchFixed(entry, harness, cwd, undefined, catalog?.version), picks: { ...picks } };
     const standing = ctx.warmOn(workspaceId, harness);
@@ -106,7 +106,8 @@ export function launchArea(ctx: RuntimeContext) {
     // of its own.
     if (scopeOf(origin) !== undefined) return { warm: "none" };
     const entry = await ctx.entryOf(workspaceId, origin);
-    if (!ctx.moduleOf(entry.record.kind).keepsAgents || ctx.state.closing) return { warm: "none" };
+    // A joined computer too small to keep one would end it the moment it stood.
+    if (!ctx.moduleOf(entry.record.kind).keepsAgents || ctx.keptBox(workspaceId)?.cap === 0 || ctx.state.closing) return { warm: "none" };
     const prefs = ctx.state.preferencesHeld ?? (await ctx.preferences.get());
     const harness = asked.harness ?? ctx.defaultAgentOf(prefs, entry);
     if (ctx.agentOff(entry, harness)) return { warm: "none" };

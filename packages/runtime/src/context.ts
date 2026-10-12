@@ -718,8 +718,10 @@ export interface ThreadsArea {
   readonly hostWrites: Map<string, Promise<void>>;
   readonly writeSession: (harnessSessionId: string, write: () => Promise<SessionRenameWrite>) => Promise<SessionRenameWrite>;
   readonly takeKept: (threadId: string, launch: KeptLaunch | undefined, session: string | undefined, whole?: KeptLaunch) => KeptProcess | undefined;
-  readonly holdKept: (threadId: string, o: Omit<KeptProcess, "file" | "usedAt" | "cancel">) => boolean;
-  readonly holdWarm: (threadId: string, o: Omit<KeptProcess, "file" | "usedAt" | "cancel">) => void;
+  readonly holdKept: (threadId: string, o: Omit<KeptProcess, "file" | "boxFile" | "usedAt" | "cancel">) => boolean;
+  readonly holdWarm: (threadId: string, o: Omit<KeptProcess, "file" | "boxFile" | "usedAt" | "cancel">) => void;
+  readonly keptBox: (workspaceId: string) => { place: string; cap: number } | undefined;
+  readonly keptCheck: (threadId: string) => Promise<void>;
   readonly warmOn: (workspaceId: string, harness: string) => [string, KeptProcess] | undefined;
   readonly rewarm: (threadId: string) => void;
   readonly claimWarm: (workspaceId: string, harness: string) => string | undefined;
