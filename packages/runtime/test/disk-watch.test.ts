@@ -52,6 +52,14 @@ function boat(readings: string[]): { backend: StubBackend; swept: string[]; read
   return { backend, swept, reads: () => reads };
 }
 
+/** df's used and free on a box's root, in kB: 68928192 on a 75 GB disk (read on a small Boat box, 2026-10-12), the
+ * filesystem's own blocks and its reserve taken, and the 12 and 160 GB disks at the same share. */
+const DISK_75_GB_KB = 68928192;
+const DISK_12_GB_KB = 11004751;
+const DISK_160_GB_KB = 146730014;
+/** One df answer for a disk of that many kB at that share used. */
+const full = (diskKb: number, pct: number): string => `${Math.round((diskKb * pct) / 100)} ${diskKb - Math.round((diskKb * pct) / 100)}`;
+
 const settle = async (): Promise<void> => {
   for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 2));
 };
@@ -60,7 +68,7 @@ describe("the disk of a machine whose stop snapshots it", () => {
   it("is read on the beat with no turn ending, and past 90% what wsp made is cleared and the thread told, again only once it fell 5 points under", async () => {
     // 50%, then 93% (the crossing), 92% after the sweep, 88% and 91% (never under 85, so nothing new), 84% (under), and
     // 91% a second crossing.
-    const { backend, swept } = boat(["500000 500000", "930000 70000", "920000 80000", "880000 120000", "910000 90000", "840000 160000", "910000 90000"]);
+    const { backend, swept } = boat([50, 93, 92, 88, 91, 84, 91].map(pct => full(DISK_75_GB_KB, pct)));
     const { clock, advance } = fakeClock();
     const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: answers }, clock });
     const notices: SessionNoticeEvent[] = [];
@@ -75,10 +83,10 @@ describe("the disk of a machine whose stop snapshots it", () => {
     await settle();
     expect(swept).toEqual(["staged", "caches"]);
     const thread = turn.view().threadId!;
-    const text = diskMarkLine({ machine: "web", on: "default", pct: 92, usedBytes: 920000 * 1024, sizeBytes: 1000000 * 1024, freedBytes: 10000 * 1024, machineGoes: false, move: { thread, name: "large", cpu: 8, memMb: 16384, diskGb: 160 } });
+    const text = diskMarkLine({ machine: "web", on: "default", pct: 92, usedBytes: 63413937 * 1024, sizeBytes: DISK_75_GB_KB * 1024, freedBytes: 689282 * 1024, machineGoes: false, move: { thread, name: "large", cpu: 8, memMb: 16384, diskGb: 160 } });
     expect(notices.map(n => [n.threadId, n.turnId, n.text])).toEqual([[thread, expect.any(String), text]]);
     // default keeps small's root disk, so the move offered skips it for large, the first size whose disk is bigger.
-    expect(text).toContain("wsp cleared 10 MB of its own staging and build caches there");
+    expect(text).toContain("wsp cleared 706 MB of its own staging and build caches there");
     expect(text).toContain(`Free space on its disk. Or move it to large (8 vCPU, 16 GB, 160 GB disk): wsp resize ${thread} --size 8x16 stops it and resumes it at that size, with its files, which ends a turn running there.`);
     expect(text).not.toMatch(/default \(|for files/);
     expect((await rt.status.list())[0]!.reason).toMatch(/^its disk is 92% full: /);
@@ -152,24 +160,38 @@ describe("the disk of a machine whose stop snapshots it", () => {
   }, 20_000);
 
   it("tells a sub-thread's machine it goes once its thread is done, and offers a move only where one is given", () => {
-    const words = { machine: "fix-upload", on: "Boat", pct: 93.4, usedBytes: 65.6 * 2 ** 30, sizeBytes: 70.6 * 2 ** 30, freedBytes: 0 };
+    const words = { machine: "fix-upload", on: "Boat", pct: 93.4, usedBytes: 65.6e9, sizeBytes: 70.6e9, freedBytes: 0 };
     expect(diskMarkLine({ ...words, machineGoes: true })).toBe(
       "The disk of fix-upload is 93.4% used (65.6 of 70.6 GB) and still filling. Boat cannot save a stop of a full disk, and deletes one whose stops keep failing with its disk. wsp found none of its own staging or build caches there to clear. Free space on its disk, or let the thread finish: its machine is deleted once it is done.",
     );
     expect(diskMarkLine({ ...words, machineGoes: false })).toMatch(/to clear\. Free space on its disk\.$/);
   });
 
-  it("offers no move on large, since xlarge's disk was never measured", async () => {
-    const { backend } = boat(["950000 50000"]);
-    const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: answers } });
-    const notices: SessionNoticeEvent[] = [];
-    rt.events.on("session.notice", (e: EventUnion) => void (e.type === "session.notice" && notices.push(e)));
-    const ws = await createOn(rt, { golden: "snap_g", name: "web", cpu: 8, memMb: 16384 });
-    await (await rt.sessions.start(ws.id, { prompt: "build" })).finished;
-    await settle();
-    expect(notices.map(n => n.text)).toEqual([expect.stringMatching(/Free space on its disk\.$/)]);
-    expect(notices[0]!.text).not.toMatch(/resize|xlarge/);
-    await rt.close();
+  it("names the disk and the size it moves to in one unit, decimal GB as Boat sells them", () => {
+    // df on a small box's 75 GB disk (2026-10-12): 25745280 kB used, 43182912 free.
+    const text = diskMarkLine({ machine: "web", on: "Boat", pct: 37.4, usedBytes: 25745280 * 1024, sizeBytes: (25745280 + 43182912) * 1024, freedBytes: 689282 * 1024, machineGoes: false, move: { thread: "t1", name: "large", cpu: 8, memMb: 16384, diskGb: 160 } });
+    expect(text).toContain("(26.4 of 70.6 GB)");
+    expect(text).toContain("wsp cleared 706 MB");
+    expect(text).toContain("160 GB disk");
+  });
+
+  it("offers the first size up that grows the disk the machine reads, and none on large", async () => {
+    // A small box on Boat's older 12 GB disk moves to default; one on the 75 GB disk default shares moves to large; on
+    // large nothing is offered, since xlarge's disk was never measured.
+    const offers: (string | undefined)[] = [];
+    for (const [cpu, memMb, diskKb] of [[2, 4096, DISK_12_GB_KB], [2, 4096, DISK_75_GB_KB], [8, 16384, DISK_160_GB_KB]] as const) {
+      const { backend } = boat([full(diskKb, 95)]);
+      const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: answers } });
+      const notices: SessionNoticeEvent[] = [];
+      rt.events.on("session.notice", (e: EventUnion) => void (e.type === "session.notice" && notices.push(e)));
+      const ws = await createOn(rt, { golden: "snap_g", name: "web", cpu, memMb });
+      await (await rt.sessions.start(ws.id, { prompt: "build" })).finished;
+      await settle();
+      expect(notices).toHaveLength(1);
+      offers.push(/Or move it to (.*?): wsp resize \S+ --size (\S+) /.exec(notices[0]!.text)?.slice(1).join(" "));
+      await rt.close();
+    }
+    expect(offers).toEqual(["default (4 vCPU, 8 GB, 75 GB disk) 4x8", "large (8 vCPU, 16 GB, 160 GB disk) 8x16", undefined]);
   });
 
   it("reads nothing on a machine whose stop keeps memory", async () => {
