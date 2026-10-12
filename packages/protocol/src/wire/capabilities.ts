@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { z } from "zod";
-import { InitJob, InitAgent, InitKeys } from "../init-job.js";
+import { InitJob, InitAgent, InitKeys, SetupPlace } from "../init-job.js";
 import { WorkspaceKind } from "../views/workspace-kind.js";
 
 // --- backend capabilities ----------------------------------------------------
@@ -26,7 +26,7 @@ export const InitSetup = z.object({
    * one; null where no place here runs workspaces, so there is no image to build and nothing to price. */
   pricing: z.object({ size: WorkspaceSize, rateUsdPerHour: z.number(), builderDiskGb: z.number().positive().optional() }).nullable(),
   /** The place the build boots on: the one the ask named, else the default place; absent with `pricing` null. */
-  place: z.object({ id: z.string(), name: z.string() }).optional(),
+  place: SetupPlace.optional(),
   /** The provider this host forks on, under the word its machines are stamped with: where every workspace it makes
    * lands, and what `wsp up --provider` moves. A run beside this host reads it to say so where the provider it was
    * given is another one. Absent on a host of an earlier build, which says nothing about where it forks. */

@@ -243,27 +243,17 @@ pub const BUILD: Tool = Tool {
     call: |host, args| Box::pin(build(host, args)),
 };
 
-/// The build's frames carry the place's id whichever word named it; a word the list does not hold goes to the host
-/// as typed, since the host is the one judge of what it names.
+/// The word goes to the host as typed, since the host is the one judge of what it names. The list is read as the
+/// command line reads it to follow the build's frames, so both servers ask the host the same things.
 async fn build(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
-    #[derive(Deserialize)]
-    struct Place {
-        id: String,
-        name: String,
-    }
-    #[derive(Deserialize)]
-    struct Places {
-        places: Vec<Place>,
-    }
     #[derive(Deserialize)]
     struct Built {
         build: Box<RawValue>,
     }
     let BuildIn { place, force } = input(BUILD_NAME, arguments)?;
     let client = host.client().await?;
-    let listed: Places = client.request("places.list", Map::new()).await?;
-    let id = listed.places.into_iter().find(|p| p.id == place || p.name == place).map_or(place, |p| p.id);
-    let mut asked = params([("place", Value::from(id))]);
+    let _: Value = client.request("places.list", Map::new()).await?;
+    let mut asked = params([("place", Value::from(place))]);
     if force == Some(true) {
         asked.insert("force".to_owned(), Value::Bool(true));
     }

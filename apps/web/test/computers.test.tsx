@@ -7,7 +7,7 @@
 // that adds another computer.
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, type PlaceHolds, type ProjectView } from "@wsp/protocol";
+import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, providerKeptLine, providerKeyRefused, providerKeyStillLine, refusal, type PlaceHolds, type ProjectView } from "@wsp/protocol";
 import { render } from "@testing-library/react";
 import { makeApi, ProtocolClient, RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useContextMenuStore } from "../src/actions/contextMenu.js";
@@ -619,6 +619,82 @@ describe("a computer's own page", () => {
     fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
     await waitFor(() => expect(removed).toEqual(["p_1"]));
     await waitFor(() => expect(pageAt()).toBe("computers"));
+  });
+
+  it("keeps the dialog open on a provider's remove that was not made, with the host's reason in the slot", async () => {
+    const note = providerKeptLine("Boat", 1, [{ id: "bx_rb3j87ys", said: "still running after three asks" }]);
+    const asked: string[] = [];
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    await mountComputers(computersApi({ removePlace: async (id: string) => (asked.push(id), { removed: false, swept: [], deleted: 1, note }) } as unknown as Partial<Api>).api, { kind: "computer", id: "box" });
+    expect(document.querySelector("[data-k='remove-note']")?.textContent).toBe(WHERE_WORDS.removeCloudDescription);
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toContain(note));
+    expect(asked).toEqual(["box"]);
+    expect(screen.getByText("Remove Boat?")).toBeTruthy();
+    expect(pageAt()).not.toBe("computers");
+  });
+
+  it("turns to the Forget confirm when Boat refuses its key, and the forget asks the host to forget it", async () => {
+    const refused = providerKeyRefused("Boat", "unauthorized");
+    const asked: (boolean | undefined)[] = [];
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    await mountComputers(
+      computersApi({
+        removePlace: async (_id: string, _sudo?: string, _force?: boolean, forget?: boolean) => {
+          asked.push(forget);
+          if (forget !== true) throw refusal(refused.said, refused.fix, "auth");
+          return { removed: true, swept: [] };
+        },
+      } as unknown as Partial<Api>).api,
+      { kind: "computer", id: "box" },
+    );
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(screen.getByText("Forget Boat?")).toBeTruthy());
+    const slot = document.querySelector("[data-k='remove-refusal']")?.textContent ?? "";
+    expect(slot).toContain(refused.said);
+    expect(slot).toContain(WHERE_WORDS.keyRefusedFix("Boat"));
+    expect(slot).not.toContain("--forget");
+    expect(document.querySelector("[data-k='remove-sentence']")?.textContent).toBe("The key leaves zingzy's MacBook Pro. Nothing at Boat is touched, so what wsp made there may bill until Boat's own timer ends it.");
+    expect(document.querySelector("[data-k='remove-confirm']")?.textContent).toBe(WHERE_WORDS.forget);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(asked).toEqual([false, true]));
+    await waitFor(() => expect(pageAt()).toBe("computers"));
+  });
+
+  it("stays open on a forget that went through with the key still elsewhere, the note in the slot and one Done", async () => {
+    const note = providerKeyStillLine([{ file: "/work/acme/.env" }]);
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    await mountComputers(
+      computersApi({
+        removePlace: async () => {
+          // The host drops the place from the list before its answer lands, as place.removed does.
+          useStore.setState(st => ({ places: st.places.filter(p => p.id !== "box") }));
+          return { removed: true, swept: [], deleted: 0, note };
+        },
+      } as unknown as Partial<Api>).api,
+      { kind: "computer", id: "box" },
+    );
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toBe(note));
+    expect(document.querySelector("[data-k='remove-made-note']")).toBeTruthy();
+    expect(document.querySelector("[data-k='remove-confirm']")).toBeNull();
+    expect([...document.querySelectorAll("[data-remove-place-dialog] button")].map(b => b.textContent)).toEqual([WHERE_WORDS.done]);
+    expect(pageAt()).not.toBe("computers");
+    fireEvent.click(document.querySelector("[data-k='remove-done']")!);
+    await waitFor(() => expect(pageAt()).toBe("computers"));
+    expect(document.querySelector("[data-remove-place-dialog]")).toBeNull();
+  });
+
+  it("keeps the dialog open on a remove the host answers as not made with no reason, and says why", async () => {
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    await mountComputers(computersApi({ removePlace: async () => ({ removed: false, swept: [] }) } as unknown as Partial<Api>).api, { kind: "computer", id: "box" });
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toContain(WHERE_WORDS.removeUnmade("Boat")));
+    expect(screen.getByText("Remove Boat?")).toBeTruthy();
   });
 
   it("names the computer's projects at once, holds the confirm while it reads the work no remote has, then names that work in the slot's muted note with Remove anyway taking it", async () => {

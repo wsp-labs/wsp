@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { PLACES_TICKET_REFUSAL, DAEMON_VERSION, FS_FOLDERS_DAEMON_VERSION, projectLeftOnComputerLine, placeBehindLine, placeDaemonBehind, absentComputer, HERE_PLACE_ID, noSuchPlaceRefusal, providerFoldersRefusal, type HostFolderListing } from "@wsp/protocol";
+import { PLACES_TICKET_REFUSAL, DAEMON_VERSION, FS_FOLDERS_DAEMON_VERSION, projectLeftOnComputerLine, placeBehindLine, placeDaemonBehind, absentComputer, HERE_PLACE_ID, noSuchPlaceRefusal, tableName, providerFoldersRefusal, type HostFolderListing } from "@wsp/protocol";
 import { until } from "./until.js";
 import { WsClient } from "./ws-client.js";
 import { report } from "./place-join.js";
@@ -124,8 +124,8 @@ describe("the folders of a computer you own", () => {
     const c = await mine();
     const rows = await ctx.runtime!.places!.list(Date.now());
     const provider = rows.find(p => p.kind !== "computer")!;
-    expect(await c.request("host.folders", { on: provider.id })).toMatchObject({ ok: false, error: providerFoldersRefusal(provider.name), kind: "usage" });
-    expect(await c.request("host.folders", { on: "pl_nobody" })).toMatchObject({ ok: false, error: noSuchPlaceRefusal("pl_nobody", rows.map(p => p.name)), kind: "usage" });
+    expect(await c.request("host.folders", { on: provider.id })).toMatchObject({ ok: false, error: providerFoldersRefusal(tableName(provider)), kind: "usage" });
+    expect(await c.request("host.folders", { on: "pl_nobody" })).toMatchObject({ ok: false, error: noSuchPlaceRefusal("pl_nobody", rows.map(tableName)), kind: "usage" });
     client.close();
     await until(async () => (await ctx.runtime!.places!.list(0)).find(p => p.id === placeId)?.present === false);
     expect(await c.request("host.folders", { on: placeId })).toMatchObject({ ok: false, error: absentComputer("srv", null).sentence });

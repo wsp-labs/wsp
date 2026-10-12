@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { HarnessCatalog, MachineSizeOffer, MachineState, WorkspaceSize, WorkspaceView } from "../index.js";
-import { namesPlace } from "../place-word.js";
+import { namesPlace, placeSaid } from "../place-word.js";
 import { shellLine } from "../shell-quote.js";
 import { plural } from "./base.js";
 import { threadWord } from "./computer.js";
@@ -834,8 +834,8 @@ export const placeForksNothingPickLine = (place: string, names: readonly string[
 export const imageBuiltOnLine = (place: string): string => `your image is built on ${place}`;
 
 /** The line beside it when --on named a place other than the image's own: a rebuild never moves the image's home. */
-export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string }): string | undefined =>
-  on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${home.name}, so it is built there and not on ${on}`;
+export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string; kind?: string }): string | undefined =>
+  on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${placeSaid(home)}, so it is built there and not on ${on}`;
 
 /** What a line that takes a thread answers a word naming no thread but a project, or with a cloud a machine: what the
  * word is, the line's own name and where its threads are listed. The lines that read an agent's config take a
