@@ -57,7 +57,7 @@ describe("threads at once", () => {
 
   it("refuses a number the row's kind does not take, set or reset, a set with nothing in it, one key both set and reset, and counts below one", () => {
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, { machines: 2 })).toBe("spoo takes threads at once, turn limit, agents may start agents and levels deep, not machines at once");
-    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { threads: 2 })).toBe("solari takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep, not threads at once");
+    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { threads: 2 })).toBe("Solari takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep, not threads at once");
     expect(placeSetRefusal({ id: HERE_PLACE_ID, kind: "computer", name: "mac", takesForks: false }, { napMs: null })).toBe("mac takes threads at once, turn limit, agents may start agents and levels deep, not nap after");
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo", takesForks: true }, { napMs: null })).toBeUndefined();
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo", takesForks: false }, {}, ["spend"])).toBe("spoo takes threads at once, turn limit, agents may start agents and levels deep, not spend per day");
@@ -66,7 +66,7 @@ describe("threads at once", () => {
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, {}, ["threads"])).toBeUndefined();
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo", takesForks: true }, {})).toBe("nothing to set on spoo: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login");
     expect(placeSetRefusal({ id: HERE_PLACE_ID, kind: "computer", name: "mac", takesForks: false }, {})).toBe("nothing to set on mac: it takes threads at once, turn limit, agents may start agents and levels deep");
-    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { machines: undefined }, [])).toBe("nothing to set on solari: it takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep");
+    expect(placeSetRefusal({ id: "solari", kind: "provider", name: "solari", takesForks: true }, { machines: undefined }, [])).toBe("nothing to set on Solari: it takes machines at once, spend per day, nap after, turn limit, agents may start agents and levels deep");
     expect(placeSetRefusal({ id: "p_1", kind: "computer", name: "spoo" }, { threads: 2 }, ["threads"])).toBe("spoo: threads at once is both set and reset; name it once");
     expect(() => PlaceView.shape.cap.parse({ threads: 0 })).toThrow();
     expect(() => PlaceView.shape.cap.parse({ machines: 0, spendPerDayUsd: 10 })).toThrow();
@@ -84,7 +84,7 @@ describe("what a place's settings read as in a line", () => {
     expect(placeSettingsLine({ ...spoo, ...nap, capDefault: { threads: 2 }, napMs: 5 * 60_000, settings: { napMs: 5 * 60_000 } })).toBe("spoo: 2 threads at once (the default), naps after 5m (20m by default)");
     // The default beside a set value is the one the row carries, which is the host's own and not a constant here.
     expect(placeSettingsLine({ ...spoo, takesForks: true, napDefault: 60 * 60_000, capDefault: { threads: 2 }, napMs: 5 * 60_000, settings: { napMs: 5 * 60_000 } })).toBe("spoo: 2 threads at once (the default), naps after 5m (60m by default)");
-    expect(placeSettingsLine({ ...solari, cap: { machines: 5, spendPerDayUsd: 2.5 }, capDefault: CLOUD_CAP_DEFAULT, settings: { machines: 5, spendPerDayUsd: 2.5 } })).toBe("solari: 5 machines at once (3 by default), $2.50 a day ($10 by default)");
+    expect(placeSettingsLine({ ...solari, cap: { machines: 5, spendPerDayUsd: 2.5 }, capDefault: CLOUD_CAP_DEFAULT, settings: { machines: 5, spendPerDayUsd: 2.5 } })).toBe("Solari: 5 machines at once (3 by default), $2.50 a day ($10 by default)");
     expect(NAP_AFTER_MS).toBe(20 * 60_000);
     expect(placeSettingsLine({ ...spoo, capDefault: { threads: 2 }, spawn: AGENTS_ON, spawnDefault: AGENTS_ON })).toBe("spoo: 2 threads at once (the default), agents may spawn: up to 3 machines (the default), 2 levels deep (the default)");
     expect(placeSettingsLine({ ...spoo, capDefault: { threads: 2 }, spawn: { ...AGENTS_ON, spawn: false }, spawnDefault: AGENTS_ON, settings: { spawn: { spawn: false } } })).toBe("spoo: 2 threads at once (the default), agents may not spawn (on, up to 3 by default), 2 levels deep (the default)");
@@ -147,8 +147,8 @@ describe("the turn limit", () => {
   it("reads in the settings line at what it runs at, with the default beside one the person set", () => {
     expect(placeSettingsLine({ ...spoo, capDefault: { threads: 2 }, turnLimitMs: null, turnLimitDefault: null })).toBe("spoo: 2 threads at once (the default), no turn limit (the default)");
     expect(placeSettingsLine({ ...spoo, capDefault: { threads: 2 }, turnLimitMs: 8 * HOUR, turnLimitDefault: null, settings: { turnLimitMs: 8 * HOUR } })).toBe("spoo: 2 threads at once (the default), stops a turn at 8h (off by default)");
-    expect(placeSettingsLine({ ...solari, capDefault: CLOUD_CAP_DEFAULT, turnLimitMs: null, turnLimitDefault: 6 * HOUR, settings: { turnLimitMs: null } })).toBe("solari: 3 machines at once (the default), $10 a day (the default), no turn limit (6h by default)");
-    expect(placeSettingsLine({ ...solari, capDefault: CLOUD_CAP_DEFAULT, turnLimitMs: 6 * HOUR, turnLimitDefault: 6 * HOUR })).toBe("solari: 3 machines at once (the default), $10 a day (the default), stops a turn at 6h (the default)");
+    expect(placeSettingsLine({ ...solari, capDefault: CLOUD_CAP_DEFAULT, turnLimitMs: null, turnLimitDefault: 6 * HOUR, settings: { turnLimitMs: null } })).toBe("Solari: 3 machines at once (the default), $10 a day (the default), no turn limit (6h by default)");
+    expect(placeSettingsLine({ ...solari, capDefault: CLOUD_CAP_DEFAULT, turnLimitMs: 6 * HOUR, turnLimitDefault: 6 * HOUR })).toBe("Solari: 3 machines at once (the default), $10 a day (the default), stops a turn at 6h (the default)");
   });
 });
 

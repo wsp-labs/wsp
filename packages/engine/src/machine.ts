@@ -247,8 +247,9 @@ export interface MachineBackend {
   namedAfter?(names: ReadonlySet<string>): Promise<NamedMachine[]>;
   /** Optional: only backends the person holds a key for. One cheap authenticated read that boots nothing and touches
    * no machine's idle clock, so a key the provider refuses is known before anything is saved or billed. Rejects with
-   * the provider's own WspError; `checkProviderKey` is what reads that answer. */
-  checkKey?(): Promise<void>;
+   * the provider's own WspError; `checkProviderKey` is what reads that answer. Resolves with what the read answered,
+   * which says what the key holds where the provider's answer does. */
+  checkKey?(): Promise<unknown>;
   get(id: string): Promise<Machine>;
   /** size comes off the listing itself; a per-machine GET would reset that machine's idle timer. */
   list(labels?: Record<string, string>): Promise<MachineListRow[]>;
