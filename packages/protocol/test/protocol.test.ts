@@ -932,6 +932,8 @@ describe("runtime wire types", () => {
       "worktree.make", "worktree.remove", "sessions.delete",
       // A reset spends what the person's plan has banked, with no undo.
       "usage.reset",
+      // A move to another size stops the machine and bills the size it moves to from then on.
+      "workspaces.resize",
       // A recipe is read off this computer's disk and resolved against it, and a save or a remove writes there.
       "recipes.list", "recipes.get", "recipes.save", "recipes.remove", "recipes.options",
       // A slate's write and read are its agent's; a press, an approval, a cancel and a revoke start, stop or change what

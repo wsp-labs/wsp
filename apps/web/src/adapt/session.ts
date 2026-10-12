@@ -533,6 +533,14 @@ export function createSessionFold(): SessionFold {
       case "session.uncapped":
         push(workEntry({ id: `uncapped:${event.turnId ?? event.sessionId}`, turnId: null, createdAt: at, label: capStartedLine(event), tone: "notice", sourceActivityKind: "runtime.starting" }, at));
         return;
+      case "session.notice": {
+        // The host's line about the machine under the thread, said between turns or inside one: a notice on the
+        // turn it lands in, never a message under the agent's name.
+        const t = turnFor(event, at);
+        closeOpenMessage(t);
+        addWork(t, { createdAt: at, label: event.text, tone: "notice", sourceActivityKind: "runtime.notice" }, at);
+        return;
+      }
       case "session.moved":
       case "session.behind":
       case "session.capped":

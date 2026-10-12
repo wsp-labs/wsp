@@ -70,6 +70,9 @@ import {
   COPY_ALONE_FIX,
   RESUME_HERE_LINE,
   RESUME_HERE_FIX,
+  RESIZE_WORD_FIX,
+  resizeWordLine,
+  usageRefusal,
 } from "@wsp/protocol";
 import { absoluteFolder, deletedLine, forgotLine, otherVersion, NO_DRAFT_FIX, noDraftLine, rebuiltLine, renamedWorkspaceLine, threadLabel, type HostClient } from "../src/verbs.js";
 import type { TurnCase } from "./mcp-record-turns.js";
@@ -177,6 +180,7 @@ export async function workspaceWords(line: LineOf, host: HostOf): Promise<Record
     herePlaceId: HERE_PLACE_ID,
     copyTakesNone: slot(copyText, "--size", "words"),
     sizeRefused: slot(sizeText, "2x4 ($0.09/hr)", "sizes"),
+    resizeWord: usageRefusal(resizeWordLine("{word}"), RESIZE_WORD_FIX).message,
     cwdNotAbsolute: await thrown(() => absoluteFolder("{path}")),
     committedOne: slot(committedLine("{name}", { oid: "abcdefghij", subject: "{subject}", filesChanged: 1 }), "abcdefg", "oid"),
     committedMany: slot(slot(committedLine("{name}", { oid: "abcdefghij", subject: "{subject}", filesChanged: 2 }), "abcdefg", "oid"), "2", "count"),
@@ -394,6 +398,13 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
     { case: "gone", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: GONE }) } },
     { case: "gone with no words", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: { ...GONE, gone: "" } }) } },
   ]),
+  resize: [
+    { case: "moved", arguments: { thread: "t-1", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": reply({ workspace: WORKSPACE }) } },
+    { case: "the largest", arguments: { thread: "t-1", size: "16x32" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": reply({ workspace: WORKSPACE }) } },
+    { case: "no such thread", arguments: { thread: "t-0", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }) } },
+    { case: "a word that names no size", arguments: { thread: "t-1", size: "0x8" }, replies: {} },
+    { case: "a turn running", arguments: { thread: "t-1", size: "4x8" }, replies: { "sessions.list": reply({ sessions: THREAD_ROWS }), "workspaces.resize": refused("alpha has a turn running, and the stop a move to another size takes would end it. Stop the turn or wait for it to end, then move it.", "conflict") } },
+  ],
   snapshot: onCloud([
     { case: "taken", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.snapshot": reply({ projectGolden: GOLDEN_SHUFFLED }) } },
     { case: "refused", arguments: { workspace: "alpha" }, replies: { "workspaces.resolve": reply({ workspace: WORKSPACE }), "workspaces.snapshot": refused("only a first-life machine can be snapshotted") } },

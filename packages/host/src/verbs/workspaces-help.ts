@@ -225,6 +225,13 @@ export async function nap(client: HostClient, ref: string): Promise<WorkspaceOut
   return (await client.request<{ workspace: WorkspaceOut }>("workspaces.nap", { workspaceId: source.id })).workspace;
 }
 
+/** Moves the machine a thread runs on to another size, the stop and the resume at it done by the host, and answers
+ * with its record once it runs again. */
+export async function resize(client: HostClient, ref: string, size: { cpu: number; memMb: number }): Promise<WorkspaceOut> {
+  const thread = await threadOf(client, ref);
+  return (await client.request<{ workspace: WorkspaceOut }>("workspaces.resize", { workspaceId: thread.workspaceId, size })).workspace;
+}
+
 /** Replaces the machine under a workspace the provider no longer has, the road out of gone that the app's row
  * action takes. The status is read beside the record so the refusal is the row's own: the record alone carries no
  * reach, and a workspace whose machine stopped answering would read as answering here while every pane on it read
