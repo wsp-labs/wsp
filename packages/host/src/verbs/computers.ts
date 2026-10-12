@@ -21,6 +21,8 @@ import {
   ResetAnswer,
   resetQuestion,
   DELETE_AFTER_MAX_MS,
+  placeTakes,
+  type PlaceSettingWord,
   sizeFromWord,
   type WorkspaceSize,
 } from "@wsp/protocol";
@@ -29,9 +31,15 @@ import { hostPlatform, computerLines, computerSetLines, recipeLines, recipeShown
 import { agentsAsked, countAsked, sizeChosen } from "./workspaces-help.js";
 import { confirmed, asJson } from "./io.js";
 
-/** The size a --size word names, sent for the host to hold against the kind and the sizes the row offers; a word
- * that names no size at all is refused here, in the one size sentence over that row's sizes. */
-const sizeRead = (place: PlaceView, word: string): WorkspaceSize => sizeFromWord(word) ?? sizeChosen(place.sizes ?? [], word);
+/** What a --size word asks of the host: the size it names, held there against the kind and the row's sizes. A word
+ * that names no size is refused here over the row's sizes where the row takes one; anywhere else it goes as a reset of
+ * the size, which the host refuses by the kind in the words a size it could read gets. */
+function sizeAsked(place: PlaceView, word: string | undefined, reset: readonly PlaceSettingWord[]): { set: { size?: WorkspaceSize }; reset: PlaceSettingWord[] } {
+  const size = word === undefined ? undefined : sizeFromWord(word);
+  if (word === undefined || size !== undefined) return { set: size === undefined ? {} : { size }, reset: [...reset] };
+  if (placeTakes(place, "size")) return { set: { size: sizeChosen(place.sizes ?? [], word) }, reset: [...reset] };
+  return { set: {}, reset: reset.includes("size") ? [...reset] : [...reset, "size"] };
+}
 
 export const COMPUTER_VERBS: readonly Verb[] = [
   {
@@ -85,7 +93,8 @@ export const COMPUTER_VERBS: readonly Verb[] = [
       const reset = flagList(ctx.flags, "reset").map(word => oneOf("reset", SETTING_RESETS, word, ref)!);
       const client = await ctx.client();
       const place = await placeNamed(client, ref);
-      const { computer, was } = await setComputer(client, place, { ...set, ...(size !== undefined ? { size: sizeRead(place, size) } : {}) }, reset, also);
+      const asked = sizeAsked(place, size, reset);
+      const { computer, was } = await setComputer(client, place, { ...set, ...asked.set }, asked.reset, also);
       ctx.out.emit({ computer }, computerSetLines(computer, was, also, Object.keys(set).length > 0 || reset.length > 0).join("\n"));
       return 0;
     },
@@ -114,16 +123,17 @@ export const COMPUTER_VERBS: readonly Verb[] = [
         const spawn = agentsAsked(on, maxMachines, maxDepth);
         const client = await deps.client();
         const place = await placeNamed(client, ref);
+        const asked = sizeAsked(place, size, reset ?? []);
         const { computer } = await setComputer(client, place, {
           ...(threads !== undefined ? { threads } : {}),
           ...(machines !== undefined ? { machines } : {}),
           ...(spend !== undefined ? { spendPerDayUsd: spend } : {}),
-          ...(size !== undefined ? { size: sizeRead(place, size) } : {}),
+          ...asked.set,
           ...(deleteAfter !== undefined ? { deleteAfterMs: deleteAfter * 60_000 } : {}),
           ...(nap !== undefined ? { napMs: napMsOf(nap) } : {}),
           ...(turnLimit !== undefined ? { turnLimitMs: turnLimitMsOf(turnLimit) } : {}),
           ...(spawn !== undefined ? { spawn } : {}),
-        }, reset ?? [], { name, ssh, recipe });
+        }, asked.reset, { name, ssh, recipe });
         return asJson({ computer });
       },
     }),

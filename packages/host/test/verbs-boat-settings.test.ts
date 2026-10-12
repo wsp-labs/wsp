@@ -2,8 +2,8 @@
 // Boat's own settings on wsp computers set, and its plan and starts on wsp computers, over a host whose Boat row is a
 // BoxBackend answering /limits with the owner's recorded answer. Every case runs with the cloud off as well as on,
 // since Boat's settings are in every build.
-import { EXIT_CODES, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, HERE_PLACE_ID, refusalLine, sizeRefusal, threadOpRefusal, type PlaceView } from "@wsp/protocol";
-import { BoxBackend } from "@wsp/engine";
+import { EXIT_CODES, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, HERE_PLACE_ID, fmtSize, refusalLine, SIZE_PICK_FIX, sizeRefusal, threadOpRefusal, type PlaceView } from "@wsp/protocol";
+import { BoxBackend, type RetryClock } from "@wsp/engine";
 import { memoryStore } from "@wsp/runtime";
 import { describe, expect, it, vi } from "vitest";
 import { hostKeyHere } from "../src/places.js";
@@ -28,13 +28,13 @@ describe("Boat's settings and its limits on the command line", () => {
   const h = verbsHost();
 
   /** The host again with Boat beside this computer, its backend a BoxBackend whose every call is counted. */
-  async function withBoat(answers: () => Promise<Response> = async () => new Response(JSON.stringify(OWNER_LIMITS), { status: 200 })): Promise<string[]> {
+  async function withBoat(answers: () => Promise<Response> = async () => new Response(JSON.stringify(OWNER_LIMITS), { status: 200 }), clock?: RetryClock): Promise<string[]> {
     const asked: string[] = [];
     const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
       asked.push(`${init?.method ?? "GET"} ${String(url)}`);
       return answers();
     }) as typeof globalThis.fetch;
-    const boat = new BoxBackend({ apiKey: "box_x", fetch });
+    const boat = new BoxBackend({ apiKey: "box_x", fetch, ...(clock !== undefined ? { clock } : {}) });
     await h.restartHost({}, memoryStore(), { wired: "default", backend: p => (p === "default" ? h.backend : p === "box" ? boat : undefined), list: () => ["box"] });
     return asked;
   }
@@ -46,7 +46,7 @@ describe("Boat's settings and its limits on the command line", () => {
     const set = await h.run("computers", "set", "boat", "--size", "4x8", "--delete-after", "60");
     expect(set.io.errors).toEqual([]);
     expect(set.code).toBe(0);
-    expect(set.io.lines[0]).toContain("size 4 vCPU, 8 GB (2x4 by default)");
+    expect(set.io.lines[0]).toContain(`size ${fmtSize({ cpu: 4, memMb: 8192 })} (2x4 by default)`);
     expect(set.io.lines[0]).toContain("deleted after 60 min (30 min by default)");
     expect(await boatRow()).toMatchObject({ settings: { size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 }, size: { cpu: 4, memMb: 8192 }, deleteAfterMs: 3_600_000 });
 
@@ -55,7 +55,7 @@ describe("Boat's settings and its limits on the command line", () => {
     expect(answered(size.io).computer.settings?.size).toBeUndefined();
 
     const delay = await h.run("computers", "set", "box", "--reset", "delete-after");
-    expect(delay.io.lines[0]).toContain("size 2 vCPU, 4 GB (the default), deleted after 30 min (the default)");
+    expect(delay.io.lines[0]).toContain(`size ${fmtSize({ cpu: 2, memMb: 4096 })} (the default), deleted after 30 min (the default)`);
     expect(await boatRow()).toMatchObject({ size: { cpu: 2, memMb: 4096 }, deleteAfterMs: 1_800_000 });
     expect((await boatRow()).settings).toBeUndefined();
 
@@ -69,7 +69,7 @@ describe("Boat's settings and its limits on the command line", () => {
     expect(sizes.map(s => `${s.cpu}x${s.memMb / 1024}`)).toEqual(["2x4", "4x8", "8x16"]);
     const unsold = await h.run("computers", "set", "boat", "--size", "16x32");
     expect(unsold.code).toBe(EXIT_CODES.usage);
-    expect(unsold.io.errors).toEqual([`wsp computers set: ${sizeRefusal("16x32", sizes)}`]);
+    expect(unsold.io.errors).toEqual([`wsp computers set: ${refusalLine(sizeRefusal("16x32", sizes), SIZE_PICK_FIX)}`]);
     for (const word of ["big", "4x8x2", "0x4"]) {
       const wrong = await h.run("computers", "set", "boat", "--size", word);
       expect(wrong.code).toBe(EXIT_CODES.usage);
@@ -83,6 +83,10 @@ describe("Boat's settings and its limits on the command line", () => {
     const here = await h.run("computers", "set", HERE_PLACE_ID, "--size", "4x8", "--delete-after", "10");
     expect(here.code).toBe(EXIT_CODES.usage);
     expect(here.io.errors[0]).toContain("not size and delete after");
+    // This computer takes no size, so a word that names none gets the same refusal as one that does.
+    const kindOnly = (await h.run("computers", "set", HERE_PLACE_ID, "--size", "4x8")).io.errors;
+    expect(kindOnly[0]).toMatch(/takes .*, not size$/);
+    for (const word of ["big", "0x4"]) expect((await h.run("computers", "set", HERE_PLACE_ID, "--size", word)).io.errors, word).toEqual(kindOnly);
     expect((await boatRow()).settings).toBeUndefined();
   });
 
@@ -111,7 +115,7 @@ describe("Boat's settings and its limits on the command line", () => {
     });
     const table = await h.run("computers");
     const [head, ...rows] = table.io.lines[0]!.split("\n");
-    expect(head!.split(/ {2,}/)).toContain("STARTS");
+    expect(head!.split(/ {2,}/)).toEqual(expect.arrayContaining(["STARTS", "WORKSPACES"]));
     expect(rows.find(r => r.startsWith("Boat"))).toContain("187/200 today");
     expect(asked).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
   });
@@ -129,6 +133,18 @@ describe("Boat's settings and its limits on the command line", () => {
     expect((await boatRow()).settings).toEqual({ size: { cpu: 4, memMb: 8192 } });
     answer();
     await vi.waitFor(async () => expect((await h.rt.places!.list(Date.now())).find(p => p.id === "box")?.plan).toMatchObject({ key: "box_20" }));
+  });
+
+  it("leaves the plan and the starts off the row once a limits read fails, after a good one", async () => {
+    let at = 0;
+    let status = 200;
+    await withBoat(async () => new Response(JSON.stringify(status === 200 ? OWNER_LIMITS : { code: "internal", message: "down" }), { status }), { now: () => at, sleep: async () => {} });
+    const boat = async (): Promise<PlaceView | undefined> => (await h.rt.places!.list(Date.now())).find(p => p.id === "box");
+    await vi.waitFor(async () => expect((await boat())?.starts?.day).toEqual({ used: 187, limit: 200 }));
+    at = 60_000;
+    status = 500;
+    await vi.waitFor(async () => expect((await boat())?.plan).toBeUndefined());
+    expect((await boat())?.starts).toBeUndefined();
   });
 
   it("refuses a thread's own token every set on Boat, and changes nothing", async () => {

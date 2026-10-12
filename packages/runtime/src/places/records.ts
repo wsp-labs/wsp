@@ -127,7 +127,9 @@ export function placeRecords(ctx: PlaceDoorContext) {
         .placeLimits()
         .catch(() => undefined)
         .then(limits => {
-          if (limits !== undefined) limitsKept.set(row.id, limits);
+          // A failed read leaves the fields out rather than an answer nobody can say is still true.
+          if (limits === undefined) limitsKept.delete(row.id);
+          else limitsKept.set(row.id, limits);
         })
         .finally(() => limitsAsking.delete(row.id));
     }

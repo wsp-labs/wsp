@@ -141,13 +141,22 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
             frame.insert(key.to_owned(), Value::Number(n));
         }
     }
-    // A word that names no size at all is refused here over the row's sizes; the host holds a size against the rest.
+    // sizeAsked's rule: a word that names no size is refused here over the row's sizes where the row offers any (only a
+    // cloud's does, which is placeTakes for a size); anywhere else it goes as a reset of the size, for the host's
+    // refusal of the kind.
+    let mut reset = reset.unwrap_or_default();
     if let Some(word) = size {
-        let (cpu, mem_mb) = size_from_word(&word).ok_or_else(|| size_refused(&word, &offered))?;
-        let mut figures = Map::new();
-        figures.insert("cpu".to_owned(), Value::from(cpu as u64));
-        figures.insert("memMb".to_owned(), Value::from(mem_mb as u64));
-        frame.insert("size".to_owned(), Value::Object(figures));
+        match size_from_word(&word) {
+            Some((cpu, mem_mb)) => {
+                let mut figures = Map::new();
+                figures.insert("cpu".to_owned(), Value::from(cpu as u64));
+                figures.insert("memMb".to_owned(), Value::from(mem_mb as u64));
+                frame.insert("size".to_owned(), Value::Object(figures));
+            }
+            None if !offered.is_empty() => return Err(size_refused(&word, &offered).into()),
+            None if !reset.iter().any(|w| w == "size") => reset.push("size".to_owned()),
+            None => {}
+        }
     }
     if let Some(minutes) = &delete_after {
         let ms = minutes
@@ -168,7 +177,7 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
     {
         frame.insert("spawn".to_owned(), Value::Object(asked));
     }
-    if let Some(reset) = reset.filter(|r| !r.is_empty()) {
+    if !reset.is_empty() {
         frame.insert("reset".to_owned(), Value::from(reset));
     }
     // One frame carries every argument, as the command line sends them, so the host checks them all before it writes.
