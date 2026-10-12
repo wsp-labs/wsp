@@ -1324,6 +1324,7 @@ describe("daemon files and diff ops", () => {
       openSocket: "/home/maya/.wsp/open.sock",
       guestSocket: "/home/maya/.wsp/daemon.sock",
       guestBin: "/home/maya/.wsp/place-bin",
+      dockerNotes: "/home/maya/.wsp/docker-notes",
       manifestPath: "/home/maya/.wsp/manifest.json",
       profileFile: "/home/maya/.wsp/profile.sh",
       unitDir: "/home/maya/.config/systemd/user",

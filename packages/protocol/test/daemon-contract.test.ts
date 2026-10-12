@@ -200,6 +200,7 @@ import {
   PLACE_FOUND_END,
   PLACE_FOUND_MAX_BYTES,
   guestWspShim,
+  dockerShim,
   hostKeyRefusal,
   hostQuietLine,
   hostRefusedLine,
@@ -1026,6 +1027,15 @@ describe("the words and numbers are what this package exports", () => {
     const path = join(CONTRACT, "guest-wsp-shim.sh");
     expect(existsSync(path), `daemon/fixtures/contract/guest-wsp-shim.sh is missing. The regenerated file is at ${regenerated}: copy it there and commit it`).toBe(true);
     expect(readFileSync(path, "utf8"), `daemon/fixtures/contract/guest-wsp-shim.sh is behind the protocol. The regenerated file is at ${regenerated}: copy it over and commit it`).toBe(text);
+  });
+
+  it("docker-shim.sh equals its regeneration, so the docker on the host's computer and on a box is one text", () => {
+    const text = dockerShim("{bin}", "{notes}");
+    const regenerated = join(tmpdir(), "wsp-contract-docker-shim.sh");
+    writeFileSync(regenerated, text);
+    const path = join(CONTRACT, "docker-shim.sh");
+    expect(existsSync(path), `daemon/fixtures/contract/docker-shim.sh is missing. The regenerated file is at ${regenerated}: copy it there and commit it`).toBe(true);
+    expect(readFileSync(path, "utf8"), `daemon/fixtures/contract/docker-shim.sh is behind the protocol. The regenerated file is at ${regenerated}: copy it over and commit it`).toBe(text);
   });
 
   it("puts every file the daemon inside a machine writes for itself under one folder, by the names a joined computer uses", () => {

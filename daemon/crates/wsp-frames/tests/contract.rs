@@ -11,8 +11,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use wsp_frames::{
-    guest_wsp_shim, landed_files_script, numbers, outside_sweep_script, place_owned_paths, probe_path, words, BackendFacts, CopyReport,
-    DaemonAuthRequest, DaemonErrorResponse, DaemonEvent, DaemonRequest, FsFilesReply, GitBranchCompareReply, GitBranchesReply,
+    docker_shim, guest_wsp_shim, landed_files_script, numbers, outside_sweep_script, place_owned_paths, probe_path, words, BackendFacts,
+    CopyReport, DaemonAuthRequest, DaemonErrorResponse, DaemonEvent, DaemonRequest, FsFilesReply, GitBranchCompareReply, GitBranchesReply,
     GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiscardReply, GitIssueReadReply, GitMergeInReply, GitPrCheckoutReply,
     GitPrDiffReply, GitPrListReply, GitPrMergeReply, GitPrReactReply, GitPrReadReply, GitPrReply, GitPrReplyReply, GitPrResolveReply,
     GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply, GitStartOnReply,
@@ -624,6 +624,13 @@ fn the_wsp_shim_matches_the_committed_fixture_byte_for_byte() {
     let path = fixtures().join("guest-wsp-shim.sh");
     let theirs = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     assert_eq!(guest_wsp_shim(SHIM_BINARY), theirs, "guest-wsp-shim.sh and guest_wsp_shim are one text");
+}
+
+#[test]
+fn the_docker_shim_matches_the_committed_fixture_byte_for_byte() {
+    let path = fixtures().join("docker-shim.sh");
+    let theirs = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    assert_eq!(docker_shim("{bin}", "{notes}"), theirs, "docker-shim.sh and docker_shim are one text");
 }
 
 #[test]
