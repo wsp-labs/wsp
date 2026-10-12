@@ -581,7 +581,7 @@ export class StageStream {
   private lines(final: boolean, stopped: boolean): string[] {
     const out: string[] = [];
     const width = this.width;
-    const failure = final && this.view.failure !== undefined ? this.view.failure.split("\n") : [];
+    const failure = final && this.view.failure !== undefined ? this.view.failure.split("\n").flatMap(l => (width === undefined ? [l] : wrap(l, width - 3))) : [];
     // The block must fit the screen it redraws over, so a failed step's tail gives up its oldest lines first.
     const budget = this.animate ? Math.max(0, rowsOf(this.output) - 1 - this.view.steps.length - failure.length) : Infinity;
     for (const s of this.view.steps) {
@@ -603,7 +603,7 @@ export class StageStream {
         }
       }
     }
-    for (const l of failure) out.push(`${dim(S_BAR)}  ${this.cut(l)}`);
+    for (const l of failure) out.push(`${dim(S_BAR)}  ${l}`);
     return out;
   }
 

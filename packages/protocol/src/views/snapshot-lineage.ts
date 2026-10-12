@@ -67,6 +67,9 @@ export const SnapshotStorage = z.object({
   usdPerGbMonth: z.number(),
   billedFrom: z.string(),
   monthlyUsd: z.number(),
+  /** On a provider that bills named snapshots by count: how many there are and how many are free. monthlyUsd is
+   * what the ones past those cost. */
+  named: z.object({ count: z.number(), free: z.number() }).optional(),
   /** This host's and in use: a golden version, a project golden or a live workspace names it, or this host took it
    * inside the grace a seal needs before the manifest records it. */
   kept: SnapshotGroup,
