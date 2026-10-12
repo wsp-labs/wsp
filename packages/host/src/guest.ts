@@ -9,7 +9,7 @@
 // One concern per interface: this door binds a session to the workspace its
 // link serves and picks the kind; each kind is one module, and adding a kind is
 // one module and one row in the table below.
-import { type DaemonEvent, GUEST_SESSIONS_PER_WORKSPACE_CAP, GUEST_WORKSPACE_FULL, guestNoKindLine, guestNoLoopbackLine, guestNoSessionLine, guestNoTokenRefusal, guestTurnNoTokenRefusal, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, UNAUTHORIZED, type GuestKind } from "@wsp/protocol";
+import { type DaemonEvent, GUEST_SESSIONS_PER_WORKSPACE_CAP, GUEST_WORKSPACE_FULL, guestNoKindLine, guestNoLoopbackLine, guestNoSessionLine, guestNoTokenRefusal, guestTurnNoTokenRefusal, HOST_TOKEN_ENV, HOST_URL_ENV, THREAD_ENV, TURN_TOKEN_ENV, UNAUTHORIZED, type GuestKind } from "@wsp/protocol";
 import type { Authed, GuestKindModule, GuestSession } from "@wsp/runtime";
 
 /** The road back down to one machine's daemon, and which workspace that machine is: a computer's own link is
@@ -115,6 +115,7 @@ export function guestDoor(o: GuestDoorOptions): GuestDoor {
       [HOST_URL_ENV]: hostUrl,
       [HOST_TOKEN_ENV]: e.token,
       ...(e.turnToken !== undefined ? { [TURN_TOKEN_ENV]: e.turnToken } : {}),
+      [THREAD_ENV]: scope.threadId,
     };
     const session = module.open({
       argv: e.argv,

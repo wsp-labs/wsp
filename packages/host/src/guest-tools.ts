@@ -9,18 +9,21 @@
 import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline";
-import { CLOUD_ENV, NO_SLATE_MCP_ARG, type GuestKind } from "@wsp/protocol";
+import { CLOUD_ENV, NO_SLATE_MCP_ARG, THREAD_ENV, type GuestKind, type ProcKind } from "@wsp/protocol";
 import type { GuestKindModule } from "@wsp/runtime";
 import { guestCli } from "./guest-cli.js";
 import { guestMcp } from "./guest-mcp.js";
 import { runningWsp, toolServerOf, type RunningWsp } from "./mcp-install.js";
 
+/** Names a process the host started for a thread to the daemon's owner ladder until the returned release. */
+export type OwnProcess = (threadId: string, pid: number, kind: ProcKind) => () => void;
+
 /** The kinds this host answers a guest session with, for the wsp it runs as. */
-export function guestKinds(statePath: string, run: RunningWsp = runningWsp()): Record<GuestKind, GuestKindModule> {
-  return { mcp: guestTools(statePath, toolServerOf(run)), cli: guestCli(statePath, run) };
+export function guestKinds(statePath: string, run: RunningWsp = runningWsp(), own?: OwnProcess): Record<GuestKind, GuestKindModule> {
+  return { mcp: guestTools(statePath, toolServerOf(run), own), cli: guestCli(statePath, run) };
 }
 
-export function guestTools(statePath: string, toolServer: string | false): GuestKindModule {
+export function guestTools(statePath: string, toolServer: string | false, ownProcess?: OwnProcess): GuestKindModule {
   if (toolServer === false) return guestMcp(statePath);
   return {
     open(o) {
@@ -31,6 +34,8 @@ export function guestTools(statePath: string, toolServer: string | false): Guest
       const env = { ...o.env, ...own };
       // Not the guest's folder, which is on its machine and which the guest's rules never read.
       const child = spawn(toolServer, ["mcp", "--state", statePath, "--scoped", "--guest", ...(o.noSlate === true ? [NO_SLATE_MCP_ARG] : [])], { cwd: dirname(statePath), env, stdio: ["pipe", "pipe", "pipe"] });
+      const thread = o.env[THREAD_ENV];
+      const release = thread !== undefined && child.pid !== undefined ? ownProcess?.(thread, child.pid, "tool") : undefined;
       let live = true;
       let said = "";
       // Its last line is what the guest reads when it ends first; the rest is not kept.
@@ -44,6 +49,7 @@ export function guestTools(statePath: string, toolServer: string | false): Guest
       });
       child.stdin.on("error", () => undefined);
       const ended = (): void => {
+        release?.();
         if (!live) return;
         live = false;
         const last = said.trim().split("\n").at(-1);

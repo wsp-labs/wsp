@@ -213,6 +213,11 @@ function treeRows(placed: Placed, members: readonly ProcEntry[], ports: Readonly
   return out;
 }
 
+/** The rungs that name a process a thread started; the folder and the coalition name only where it runs, which the
+ * person's own terminal shares, so a row they alone own is not wsp's to list or end. */
+const STARTED_BY = new Set<string>(["root", "fork", "group", "env", "cgroup"]);
+const startedByWsp = (p: ProcEntry): boolean => p.owner !== undefined && STARTED_BY.has(p.owner.by);
+
 /** The computer's processes by thread, each thread in the order the host named it and only where it has any. */
 export function activityOf(read: ActivityRead): ActivityView {
   const placed = place(read);
@@ -230,7 +235,7 @@ export function activityOf(read: ActivityRead): ActivityView {
   }
   const free = read.procs.filter(p => !placed.threadOf.has(p.pid));
   const wsp = free.filter(p => placed.kindOf(p) === "wsp");
-  const unowned = free.filter(p => p.owner !== undefined && placed.kindOf(p) !== "wsp");
+  const unowned = free.filter(p => startedByWsp(p) && placed.kindOf(p) !== "wsp");
   return { computer: read.computer, at: read.at, threads, wsp: treeRows(placed, wsp, read.ports), unowned: treeRows(placed, unowned, read.ports) };
 }
 
@@ -274,7 +279,7 @@ export function endPlan(read: ActivityRead, pid: number, startedAt: number, may:
   const owner = placed.threadOf.get(pid);
   if (!may(owner?.threadId)) throw refusal(notThreadsLine(pid), NOT_THREADS_FIX, "usage");
   if (pid === read.daemon || pid === read.host) throw refusal(wspOwnLine(pid), WSP_OWN_FIX, "usage");
-  if (owner === undefined && p.owner === undefined) throw refusal(notStartedLine(pid), NOT_STARTED_FIX, "usage");
+  if (owner === undefined && !startedByWsp(p)) throw refusal(notStartedLine(pid), NOT_STARTED_FIX, "usage");
   if (Math.abs(p.startedAt - startedAt) > SAME_START_MS) throw refusal(endReusedLine(pid, p, startedAt), END_AGAIN_FIX, "not-found");
   const agent = placed.agentOf.get(pid);
   if (agent !== undefined) {

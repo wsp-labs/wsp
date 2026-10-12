@@ -255,7 +255,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   /** The process group each local workspace's turns led, as the turn road launches them, kept past the turn for as
    * long as the group has members: a server the turn left in its group is still the workspace's, and the kernel
    * hands the number to nobody else while one is there. */
-  const turnGroups = new Map<string, Set<number>>();
+  const turnGroups = new Map<string, Map<number, string>>();
   /** How often the turns' groups are read again while any workspace holds one, so a group that emptied stops being a
    * root before the kernel can hand its number to a stranger's group, whether or not a channel watches. */
   const PORT_ROOTS_RECHECK_MS = 5_000;
@@ -274,7 +274,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const portRootsOf = (workspaceId: string): number[] => {
     const roots = new Set<number>();
     const groups = turnGroups.get(workspaceId);
-    for (const pid of groups ?? []) {
+    for (const pid of groups?.keys() ?? []) {
       if (groupExists(pid)) roots.add(pid);
       else groups?.delete(pid);
     }
@@ -288,6 +288,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const portRootsMoved = (workspaceId: string): void => {
     portRootsOf(workspaceId);
     for (const push of portWatchers.get(workspaceId) ?? []) push();
+    ctx.procScopesMoved();
   };
   /** A local workspace's channel with its ports.watch rooted at that workspace's processes and its folder, named
    * again on the same socket each time they move; the daemon answers a second watch with what the new roots opened
