@@ -12,7 +12,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { BOX_WORK_DIR } from "@wsp/engine";
+import { BOX_WORK_DIR, placeLimitsOf } from "@wsp/engine";
 import {
   agentsOffRefusal, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
   subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
@@ -20,7 +20,7 @@ import {
 } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import { copyKey } from "../src/runtime.js";
-import { PAID, PAID_SIZES, TRIAL, TRIAL_SIZES, leadOnThisComputer, type Boat, type Fault, type Setup } from "./sub-fixture.js";
+import { PAID, PAID_SIZES, TRIAL, TRIAL_SIZES, leadOnThisComputer, until, type Boat, type Fault, type Setup } from "./sub-fixture.js";
 import { leadAndBox } from "./box-fixture.js";
 
 let root: string | undefined;
@@ -94,7 +94,7 @@ describe("run --on boat from a thread on this computer", () => {
     // The record names the lead's project and the lead, and stands in its root's tree.
     const record = (await store.get("workspaces", made.id)) as Record<string, unknown>;
     expect(record).toMatchObject({ kind: "cloud", project: project.id, lead: { threadId, workspaceId: folder.id }, rootThreadId: threadId, parentThreadId: threadId, agents: { spawn: false }, golden: "wsp-host-default-v1", size: { cpu: 2, memMb: 4096 } });
-    expect(record["sub"]).toEqual({ on: "boat", repo: "https://github.com/acme/web.git", base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" }, branch: "wsp/fix-the-flaky-upload-test", folder: "/root/web", rateUsdPerHour: 0.018 });
+    expect(record["sub"]).toEqual({ on: "boat", repo: "https://github.com/acme/web.git", base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" }, branch: "wsp/fix-the-flaky-upload-test", folder: "/root/web", rateUsdPerHour: 0.018, sizeName: "small", spawn: expect.any(Object) });
     // The thread opens in that folder, the preamble above the task, and is the lead's child.
     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
     await child.finished;
@@ -104,6 +104,30 @@ describe("run --on boat from a thread on this computer", () => {
     expect((await rt.sessions.list()).find(r => r.threadId === child.view().threadId)).toMatchObject({ parentThreadId: threadId, rootThreadId: threadId, workspaceId: made.id });
     // wsp asked the lead's daemon one read and pushed nothing.
     expect(daemon.frames.slice(before).map(f => f["op"])).toEqual(["git.status"]);
+  });
+
+  it("writes each step of the start on the record as it goes, the row carrying it, for the line under the brief", async () => {
+    const { rt, boat, project, lead, token } = await leadOnThisComputer({ picks: [".env", ".env.local"], git: { uncommitted: 3 } });
+    boat.states = ["provisioning", "cloning", "ready"];
+    const made = await spawn(rt, project.id, lead);
+    const machine = boat.machines[0]!;
+    const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
+    await child.finished;
+    const row = (await rt.sessions.list()).find(r => r.threadId === child.view().threadId)!;
+    const spawned = row.sub!.spawn!;
+    expect(spawned).toMatchObject({
+      branch: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", ms: expect.any(Number) },
+      machine: { id: machine.id, states: ["provisioning", "cloning", "ready"], ms: expect.any(Number) },
+      files: { paths: [".env", ".env.local"], bytes: 1243, ms: expect.any(Number) },
+      uncommitted: 3,
+    });
+    expect(spawned.readyAt).toBeGreaterThanOrEqual(spawned.startedAt);
+    expect(spawned.failed).toBeUndefined();
+    // The log is the stage lines the command line prints, Boat's states among them.
+    expect(spawned.log).toEqual(expect.arrayContaining([`starting ${NAME} on Boat`, `Boat's machine ${machine.id} is cloning`, "copying 2 files", "ready"]));
+    expect(row.sub!.state).toBe("running");
+    // The size by its class name, as Boat sells it, for the card and the pane.
+    expect(row.sub!.size).toEqual({ cpu: 2, memMb: 4096, name: "small" });
   });
 
   it("sends nothing ignored without the person's picks, says why, and names a picked path no longer there", async () => {
@@ -176,6 +200,18 @@ describe("run --on boat from a thread on this computer", () => {
     await told.finished;
     expect(told.view().threadId).toBe(threadId);
     expect(starts.at(-1)!.o.prompt).toContain("pushed wsp/fix-the-flaky-upload-test");
+  });
+});
+
+describe("Boat's row", () => {
+  it("carries the account's machines running, the hours its credit buys and what Boat spent today, as its plan panel and wsp computers read them", async () => {
+    const { rt, boat } = await leadOnThisComputer({ spendPerDayUsd: 10 });
+    Object.assign(boat, { placeLimits: async () => placeLimitsOf({ ...PAID, activeBoxes: 7, creditBalanceHours: 41.5 }) });
+    await rt.places!.list(Date.now());
+    const row = await until(async () => (await rt.places!.list(Date.now())).find(p => p.id === "box" && p.plan !== undefined), "Boat's limits read on its row");
+    expect(row.plan).toMatchObject({ machinesAtOnce: 100, running: 7 });
+    expect(row.creditHours).toBe(41.5);
+    expect(row.spentTodayUsd).toBe((await rt.status.spend(await rt.places!.rows())).find(s => s.place === "box")!.todayUsd);
   });
 });
 

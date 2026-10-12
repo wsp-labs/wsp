@@ -5,7 +5,7 @@
 // useDiscoveredLocalServers.ts and contracts (commit 57a66608). Fields the
 // wsp wire cannot fill today are kept when a copied component reads them and
 // dropped when nothing does. Everything here is data: no React, no schemas.
-import type { AttachmentRecord, FilePatch, MachineState, PermissionOption, PermissionOutcome, ReachState, SessionOrigin, SessionStatus, SubagentView, ThreadCapWait, ThreadPlacement, TurnLimit, WorkspacePhase, WorkspaceState, WorkspaceStatus, WorkspaceView, PlanStep, TurnChangedFile, TurnTokens } from "@wsp/protocol";
+import type { AttachmentRecord, FilePatch, MachineState, PermissionOption, PermissionOutcome, ReachState, SessionOrigin, SessionStatus, SubagentView, SubRow, ThreadCapWait, ThreadPlacement, TurnLimit, WorkspacePhase, WorkspaceState, WorkspaceStatus, WorkspaceView, PlanStep, TurnChangedFile, TurnTokens } from "@wsp/protocol";
 
 // --- chat -------------------------------------------------------------------
 
@@ -323,7 +323,24 @@ export type MessagesTimelineRow =
     }
   | { readonly kind: "thinking"; readonly id: string; readonly createdAt: string | null }
   /** Where a fork's own history starts, after the turns it was handed. */
-  | { readonly kind: "fork"; readonly id: string; readonly createdAt: string | null };
+  | { readonly kind: "fork"; readonly id: string; readonly createdAt: string | null }
+  /** A sub-thread's machine being made, or made, under the message it was made for: the start, when the agent first
+   * answered after it, and that message's words, which Try again sends again. */
+  | { readonly kind: "machine-start"; readonly id: string; readonly createdAt: string | null; readonly start: MachineStart; readonly answeredAt: number | null; readonly prompt: string | null };
+
+/** A sub-thread's latest machine start and what its line names beside it: the agent, its picks and the project. */
+export interface MachineStart {
+  readonly workspaceId: string;
+  readonly threadId: string | undefined;
+  /** The thread's agent by its id and the thread by its title, which a send again names. */
+  readonly harness: string;
+  readonly title: string;
+  readonly sub: SubRow;
+  readonly agent: string;
+  readonly model?: string | undefined;
+  readonly effort?: string | undefined;
+  readonly project: string;
+}
 
 // --- composer prompts ---------------------------------------------------------
 
@@ -433,6 +450,8 @@ export interface SidebarThreadSnapshot {
   readonly setupRefusal?: string;
   /** The computer's threads at once the latest turn waits on before it starts; absent on a turn not held. */
   readonly capped?: ThreadCapWait;
+  /** A sub-thread's machine on its cloud: its state, the work holding it and when it goes or went. */
+  readonly sub?: SubRow;
   /** The usage limit that stopped the latest turn, as the protocol's fold reads it; null on a turn that ended another
    * way. resumeAt is the reset the turn is armed to go on at, null while nobody pressed Resume at reset. */
   readonly limit?: TurnLimit | null;

@@ -20,13 +20,13 @@
 // sent with the next Remove.
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "./settingsStore.js";
-import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, placeUnsavedRefusal, type PlaceHolds, type PlaceView } from "@wsp/protocol";
+import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, placeUnsavedRefusal, subHeldOnRemoveLine, type PlaceHolds, type PlaceView } from "@wsp/protocol";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
 import { cn } from "../lib/utils.js";
 import { failureOf } from "../protocol/failure.js";
-import { useStore } from "../protocol/store.js";
+import { useSidebarProjects, useStore } from "../protocol/store.js";
 import { ADD_COMPUTER_WORDS, WHERE_WORDS } from "./format.js";
 import { ROW_FIELD } from "./layout.js";
 import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, providerForgetSentence, removeSentence, removeTitle, removedTitle, type PlaceHolding } from "./places.js";
@@ -50,6 +50,12 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
   const forgets = keyRefused || (holds !== null && placeForgetsOnly(holds));
   const reading = open && api?.placeHolds !== undefined && holds === null && refusal === null;
   const projects = useStore(s => s.projects).filter(p => p.computer === place.id).map(p => p.name);
+  // The sub-threads on a cloud whose work holds their machines, by the titles the sidebar shows; the host's lines name
+  // them by id, and are said instead where the rows here have not caught up.
+  const heldTitles = useSidebarProjects()
+    .flatMap(p => p.threads)
+    .filter(t => t.sub?.held !== undefined && (t.sub.on === place.id || t.sub.on === place.name))
+    .map(t => t.title);
 
   useEffect(() => {
     if (!open || api?.placeHolds === undefined) return;
@@ -150,7 +156,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
                 (reading
                   ? { waiting: WHERE_WORDS.readingHolds }
                   : unsaved.length > 0
-                    ? { note: <span data-k="unsaved" className="block max-h-9 overflow-y-auto">{`${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
+                    ? { note: <span data-k="unsaved" className={cn("block", !isProviderPlace(place) && "max-h-9 overflow-y-auto")}>{isProviderPlace(place) ? (heldTitles.length > 0 ? WHERE_WORDS.subsHeld(heldTitles) : `${subHeldOnRemoveLine(unsaved) ?? ""} ${WHERE_WORDS.unsavedFixCloud}`) : `${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
                     : {})))}
           />
           {asksSudo ? <Input data-k="sudo-password" aria-label="Password for sudo" type="password" autoFocus autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && password !== "" && void remove()} className={cn(ROW_FIELD, "w-44")} /> : null}

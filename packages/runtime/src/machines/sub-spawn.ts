@@ -13,7 +13,7 @@ import {
   providerKeyName, scopeOf, shellLine, capWaitLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
-  subSizeWord, subTwiceRefusal, subUncommittedLine, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
+  subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES, deadMachine, isAbsentMachine, isCapRefusal } from "../types/internal.js";
 import { SUB_SESSIONS, subSessionLandCommand } from "./sub-life.js";
@@ -35,8 +35,41 @@ function faultOf(e: unknown): SubFault | undefined {
   return undefined;
 }
 
+/** The picked files a start lands: packed, counted and named, or nothing and why. */
+type Seed = { tar?: Buffer; files: number; paths: string[]; bytes: number; missing: string[]; why?: string };
+
 export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
-  const { live, store, places, placeDoor, bus, clock } = ctx;
+  const { live, store, places, placeDoor, bus, clock, threadRecords } = ctx;
+
+  /** The thread's row reads the start again where the record has a thread yet: a first start has none until it stands. */
+  const told = (record: WorkspaceRecord): void => {
+    for (const [threadId, held] of threadRecords) if (held.workspaceId === record.id) return ctx.pushHead(threadId);
+  };
+  /** One step of the record's start moved: written on its spawn and told to its row. */
+  const step = (record: WorkspaceRecord, move: (spawn: SubSpawn) => void): void => {
+    const spawn = record.sub?.spawn;
+    if (spawn === undefined) return;
+    move(spawn);
+    told(record);
+  };
+  /** A start's report that writes each line on the record's spawn log too, with the cloud's machine and its states. */
+  const logged = (record: WorkspaceRecord, report: StageReport): StageReport => (stage, message, said) => {
+    report(stage, message, said);
+    step(record, spawn => {
+      spawn.log = [...spawn.log, message].slice(-SUB_SPAWN_LOG_LINES);
+      const box = said?.box;
+      if (box === undefined || spawn.machine === undefined) return;
+      spawn.machine.id = box.id;
+      if (spawn.machine.states.at(-1) !== box.state) spawn.machine.states.push(box.state);
+    });
+  };
+  /** The step a start failed on, with the two halves of why, on its spawn. */
+  const spawnFailed = (record: WorkspaceRecord, e: unknown): void =>
+    step(record, spawn => {
+      const message = e instanceof Error ? e.message : String(e);
+      const fix = typeof (e as { fix?: unknown } | undefined)?.fix === "string" ? (e as { fix: string }).fix : undefined;
+      spawn.failed = { step: spawn.files !== undefined && spawn.files.ms === undefined ? "files" : "machine", said: refusalSaid(message, fix), ...(fix !== undefined ? { fix } : {}) };
+    });
 
   /** The backend a provider row forks on, or nothing where this host holds no key for it. */
   const providerAt = (id: string): MachineBackend | undefined => places.backend(id) ?? placeDoor?.backendOf(id);
@@ -44,8 +77,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   /** The sizes a cloud sells now: the classes its plan's read names, else every size it offers. */
   const soldBy = (at: MachineBackend, limits: BoxLimits | undefined): SubSize[] =>
     limits !== undefined
-      ? BOX_CLASSES.filter(c => limits.sizes.includes(c.type)).map(c => ({ name: c.type, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour }))
-      : at.capabilities.sizes.map(s => ({ name: subSizeWord(s), cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour ?? at.pricing.rateUsdPerHour(s) }));
+      ? BOX_CLASSES.filter(c => limits.sizes.includes(c.type)).map(c => ({ name: c.name, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour }))
+      : at.capabilities.sizes.map(s => ({ name: s.name ?? subSizeWord(s), cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour ?? at.pricing.rateUsdPerHour(s) }));
 
   /** A setting a person keeps on the cloud's row beyond the ones every place reads, where one is set. */
   const settingOf = (placeId: string, key: "size"): unknown => {
@@ -80,6 +113,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   };
 
   const spawnSub = async (opts: CreateWorkspaceOptions, origin: Caller | undefined): Promise<CreatedWorkspace> => {
+    const began = clock.now();
     const ask = opts.sub!;
     const name = ctx.nameGiven(opts.name);
     // S1: a sub-thread is a child, with a lead to notify and to merge into.
@@ -155,7 +189,6 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const folder = subFolderOf(project.remote);
       const deleteAfterMinutes = Math.round((ctx.settingsAt(place)?.deleteAfterMs ?? DELETE_AFTER_MS) / 60_000);
       const id = `ws_${randomBytes(4).toString("hex")}`;
-      const report = ctx.stageReporter(id, name, clock.now(), scope);
       const machineRecord: WorkspaceRecord = {
         id,
         name,
@@ -173,8 +206,18 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         // Its own switch, off: a sub-thread starts nothing of its own.
         agents: { ...AGENTS_ON, spawn: false } satisfies WorkspaceAgents,
         lead: { threadId: scope.threadId, workspaceId: lead.record.id },
-        sub: { on: on.toLowerCase(), repo, base, branch: result, folder, rateUsdPerHour: size.rateUsdPerHour },
+        sub: {
+          on: on.toLowerCase(),
+          repo,
+          base,
+          branch: result,
+          folder,
+          rateUsdPerHour: size.rateUsdPerHour,
+          sizeName: size.name,
+          spawn: { startedAt: began, branch: { ...base, ms: clock.now() - began }, ...(uncommitted > 0 ? { uncommitted } : {}), ...(seed.why !== undefined ? { notSent: seed.why } : {}), log: [] },
+        },
       };
+      const report = logged(machineRecord, ctx.stageReporter(id, name, clock.now(), scope));
       // Past the machines at once or the minute's starts the spawn waits its turn, its record queued with no machine
       // (05, Q4); the queue makes the machine and starts the thread when its turn comes.
       const wait = ctx.queueWait(place, limits);
@@ -228,7 +271,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
 
   /** A machine for the record, deleted and replaced once where it fails before the first turn in a way a fresh one
    * cures; the lines of a replacement, which the spawn's answer carries. */
-  const machineFor = async (record: WorkspaceRecord, at: MachineBackend, on: string, seed: { tar?: Buffer; files: number }, report: StageReport, landed: () => void): Promise<string[]> => {
+  const machineFor = async (record: WorkspaceRecord, at: MachineBackend, on: string, seed: Seed, report: StageReport, landed: () => void): Promise<string[]> => {
     const notices: string[] = [];
     let first: SubFault | undefined;
     for (;;) {
@@ -243,6 +286,10 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         first = fault;
         const line = subReplacedLine(fault, record.name, on);
         notices.push(line);
+        step(record, spawn => {
+          spawn.replaced = [...(spawn.replaced ?? []), line];
+          delete spawn.files;
+        });
         report("fork-requested", line, { notice: line });
         console.warn(`workspace ${record.id}: ${line}`);
         // A fresh key, so the next create is a new machine and not a replay of the one deleted.
@@ -260,11 +307,18 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     const at = ctx.backendFor(record);
     const seed = await seedOf(ctx.projectHeld(record.project));
     const lead = record.lead!;
-    const report = ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId });
+    // The queue's wait is the strip's to say: the start's own time counts from here.
+    step(record, spawn => {
+      spawn.startedAt = clock.now();
+      if (seed.why !== undefined) spawn.notSent = seed.why;
+      else delete spawn.notSent;
+    });
+    const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId }));
     ctx.forking.add(record.name);
     try {
       await machineFor(record, at, on, seed, report, posted);
     } catch (e) {
+      spawnFailed(record, e);
       report("failed", e instanceof Error ? e.message : String(e));
       throw e;
     } finally {
@@ -290,7 +344,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
 
   /** The files picked for the lead's project folder on this computer, packed now; nothing and why for a project with
    * no picks or one whose folder is elsewhere. Refuses a pack past what a sub-thread carries. */
-  const seedOf = async (project: ReturnType<RuntimeContext["projectHeld"]>): Promise<{ tar?: Buffer; files: number; paths: string[]; bytes: number; missing: string[]; why?: string }> => {
+  const seedOf = async (project: ReturnType<RuntimeContext["projectHeld"]>): Promise<Seed> => {
     const none = { files: 0, paths: [], bytes: 0, missing: [] };
     if (!copiesFolder(kindForComputer(project.computer))) return { ...none, why: subPickedElsewhereWhy(project.name, ctx.placeName(project.computer)) };
     const folder = folderNamed(project.path);
@@ -312,7 +366,10 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
 
   /** One machine for the record: forked from the image head, its daemon asked, the folder made and the picked files
    * landed through the provider's file road, never inside a command. The record is stored once all of it stands. */
-  const standUp = async (record: WorkspaceRecord, on: string, seed: { tar?: Buffer; files: number }, report: StageReport, landed: () => void): Promise<void> => {
+  const standUp = async (record: WorkspaceRecord, on: string, seed: Seed, report: StageReport, landed: () => void): Promise<void> => {
+    step(record, spawn => {
+      spawn.machine = { since: clock.now(), states: [] };
+    });
     report("fork-requested", startingLine(record.name, on));
     await ctx.fork(
       record,
@@ -335,14 +392,27 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     const folder = record.sub!.folder;
     const made = await entry.machine.exec(`install -d -m 0755 ${shellQuote(folder)}`);
     if (made.exitCode !== 0) throw new Error(`${folder} was not made on ${entry.machine.id} (exit ${made.exitCode}): ${made.stderr.trim() || made.stdout.trim()}`);
+    step(record, spawn => {
+      if (spawn.machine !== undefined) spawn.machine.ms = clock.now() - spawn.machine.since;
+    });
     if (seed.tar !== undefined) {
+      step(record, spawn => {
+        spawn.files = { since: clock.now(), paths: seed.paths, bytes: seed.bytes };
+      });
       if (entry.machine.putBytes === undefined) throw new Error(`${on} takes no file onto ${entry.machine.id}, so the picked files cannot land`);
       report("project-cloned", subCopyingLine(seed.files));
       const at = `/tmp/wsp-seed-${record.id}.tgz`;
       await entry.machine.putBytes(at, seed.tar);
       const unpacked = await entry.machine.exec(`tar -xzf ${shellQuote(at)} -C ${shellQuote(folder)} && rm -f ${shellQuote(at)}`);
       if (unpacked.exitCode !== 0) throw new Error(`the picked files did not land in ${folder} (exit ${unpacked.exitCode}): ${unpacked.stderr.trim() || unpacked.stdout.trim()}`);
+      step(record, spawn => {
+        if (spawn.files !== undefined) spawn.files.ms = clock.now() - spawn.files.since;
+      });
     }
+    step(record, spawn => {
+      spawn.readyAt = clock.now();
+      delete spawn.asked;
+    });
     await ctx.persist(record);
     delete entry.creating;
     report("ready", CREATE_READY);
@@ -377,7 +447,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
    * spend, the agent, the picked files, the starts), then the same record on a machine forked from the image head as
    * it stands now, at its size, the picked files and the kept session landed before the turn. The lead's branch is
    * not read again: the thread goes on from its own result branch. */
-  const resumeSub: SubSpawnArea["resumeSub"] = async (asked, threadId, harness) => {
+  const resumeSub: SubSpawnArea["resumeSub"] = async (asked, threadId, harness, prompt) => {
     const id = asked.record.id;
     const ahead = resuming.get(id);
     if (ahead !== undefined) {
@@ -385,7 +455,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       return { entry: live.get(id)!, notices: [] };
     }
     if (asked.record.phase !== "released") return { entry: asked, notices: [] };
-    const work = resumeOnce(asked, threadId, harness);
+    const work = resumeOnce(asked, threadId, harness, prompt);
     resuming.set(id, work);
     try {
       return await work;
@@ -394,7 +464,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     }
   };
 
-  const resumeOnce = async (asked: LiveWorkspace, threadId: string, harness: string) => {
+  const resumeOnce = async (asked: LiveWorkspace, threadId: string, harness: string, prompt: string | undefined) => {
     const record = asked.record;
     const sub = record.sub!;
     const row = (await ctx.computerRows()).find(r => r.kind === "provider" && namesPlace(r, sub.on));
@@ -416,17 +486,23 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     record.phase = "running";
     record.firstLife = true;
     delete sub.lost;
-    const report = ctx.stageReporter(record.id, record.name, clock.now(), undefined);
+    sub.spawn = { startedAt: clock.now(), ...(prompt !== undefined ? { asked: prompt } : {}), ...(seed.why !== undefined ? { notSent: seed.why } : {}), log: [] };
+    told(record);
+    const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), undefined));
     ctx.forking.add(record.name);
     let notices: string[];
     try {
       notices = await machineFor(record, at, on, seed, report, () => {});
     } catch (e) {
+      spawnFailed(record, e);
       report("failed", e instanceof Error ? e.message : String(e));
       record.phase = "released";
       record.machineId = "";
       ctx.attach(record, deadMachine(""));
       await ctx.persist(record);
+      // The row saying the start failed goes out before the refusal, so the app's start line holds it when the send's
+      // refusal lands and says it there alone.
+      await ctx.rowsSent();
       throw e;
     } finally {
       ctx.forking.delete(record.name);
@@ -472,7 +548,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     const at = ctx.backendFor(record);
     const sold = soldBy(at, at.limits === undefined ? undefined : await at.limits().catch(() => undefined));
     const size = sold.find(s => s.cpu === record.size.cpu && s.memMb === record.size.memMb) ?? { name: subSizeWord(record.size), ...record.size };
-    const bigger = sold.filter(s => s.memMb > record.size.memMb).sort((a, b) => a.memMb - b.memMb)[0];
+    const bigger = subNextSize(record.size, sold);
     const row = (await ctx.computerRows().catch(() => [])).find(r => r.kind === "provider" && namesPlace(r, record.sub!.on));
     return subOomLine(record.name, row === undefined ? record.sub!.on : providerKeyName(row.name), size, bigger === undefined ? undefined : subSizeWord(bigger));
   };

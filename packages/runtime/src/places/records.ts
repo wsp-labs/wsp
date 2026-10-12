@@ -134,7 +134,7 @@ export function placeRecords(ctx: PlaceDoorContext) {
         .finally(() => limitsAsking.delete(row.id));
     }
     const limits = limitsKept.get(row.id);
-    return limits === undefined ? row : { ...row, plan: limits.plan, ...(limits.starts !== undefined ? { starts: limits.starts } : {}) };
+    return limits === undefined ? row : { ...row, plan: limits.plan, ...(limits.starts !== undefined ? { starts: limits.starts } : {}), ...(limits.creditHours !== undefined ? { creditHours: limits.creditHours } : {}) };
   };
   /** The size a sub-thread's machine there gets, the person's or the one that cloud's pricing names, and that default
    * beside it; nothing of either where this host holds no backend for the row and nobody set one. */

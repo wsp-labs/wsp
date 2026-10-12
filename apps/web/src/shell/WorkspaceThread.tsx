@@ -10,7 +10,8 @@
 // or a letter typed outside the dock's own keys folds the prompt to the first
 // row of the composer's drawer until the person opens it again. A turn the
 // agent's usage limit stopped is a row of that drawer too, until the turn goes
-// on or the thread moves on without it. On a subagent's page the slot holds
+// on or the thread moves on without it. A sub-thread's machine that holds or blocks it says so in one strip over the
+// composer. On a subagent's page the slot holds
 // that subagent's bar: nobody writes to a subagent but through its lead.
 import { useEffect, useMemo } from "react";
 import { permissionPromptWords } from "@wsp/protocol";
@@ -21,6 +22,7 @@ import { useComposerBarStore } from "../components/chat/composerBar.js";
 import { useComposerDraftStore } from "../components/chat/composerDraftStore.js";
 import { PromptDock } from "../components/chat/PromptDock.js";
 import { SubagentBar } from "../components/chat/SubagentBar.js";
+import { SubThreadStrip } from "../components/chat/SubStrip.js";
 import { useSubagentModel } from "../components/threads/SubagentCard.js";
 import { useTypeToWrite } from "../components/chat/composerTypeToFocus.js";
 import type { ChatThreadHandle } from "../components/chat/useChatThread.js";
@@ -121,5 +123,10 @@ function Slot({ workspaceId, thread, answer }: { workspaceId: string; thread: Ch
         }}
       />
     );
-  return <ChatComposer key={`${workspaceId}/${thread.drawKey}`} workspaceId={workspaceId} thread={thread} question={question} limit={threadLimit} />;
+  return (
+    <>
+      {latest === undefined ? null : <SubThreadStrip workspaceId={workspaceId} row={latest} />}
+      <ChatComposer key={`${workspaceId}/${thread.drawKey}`} workspaceId={workspaceId} thread={thread} question={question} limit={threadLimit} />
+    </>
+  );
 }
