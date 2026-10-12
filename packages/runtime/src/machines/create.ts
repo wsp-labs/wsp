@@ -138,7 +138,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
       if (!made) {
         // A create still in flight holds its slot; the one being refused never bound a machine, so it cannot name itself.
         const holding = [...live.values()].filter(w => ctx.holdsSlot(w.record)).map(w => w.record.name);
-        const line = machineCapRefusal(holding, [...builders.values()].map(x => x.record.name));
+        const line = machineCapRefusal(holding, [...builders.values()].map(x => x.record.name), (refusal as WspError).said);
         throw Object.assign(new Error(line, { cause: refusal }), { kind: "concurrency", ...(typeof (refusal as WspError).status === "number" ? { status: (refusal as WspError).status } : {}) });
       }
     }

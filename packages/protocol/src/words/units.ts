@@ -283,11 +283,43 @@ export const SIZE_PICK_FIX = "Ask for one of those instead.";
  * the pause it is offered beside is a workspace's move; the runtime stops the builders it may before it asks here.
  * Only the holders are claimed: the plan's cap is nowhere in Capabilities, and a slot held by a machine this host
  * cannot name still counts against it, so no branch but the two-holder line the ticket wrote totals the slots. */
-export function machineCapRefusal(workspaces: readonly string[], builders: readonly string[] = []): string {
+export function machineCapRefusal(workspaces: readonly string[], builders: readonly string[] = [], said?: string): string {
   const holders = [...workspaces, ...builders.map(name => `${name} (builder)`)];
-  if (holders.length === 0) return "the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again";
+  // A refusal read as the cap by its status alone, its code one nobody listed, keeps the provider's words.
+  const words = said === undefined || said === "" ? "" : ` The provider said: ${said}`;
+  if (holders.length === 0) return `the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again${words === "" ? "" : `.${words}`}`;
   const slots = holders.length === 1 ? "a machine slot is" : holders.length === 2 ? "both machine slots are" : "machine slots are";
-  return `${slots} in use: ${holders.join(", ")}. Pause ${holders.length === 1 ? "it" : "one"} or wait for a nap.`;
+  return `${slots} in use: ${holders.join(", ")}. Pause ${holders.length === 1 ? "it" : "one"} or wait for a nap.${words}`;
+}
+
+/** Boat's three windows of starts: a create, a fork, a deploy from a named snapshot and a resume each count once. */
+export type StartWindow = "minute" | "hour" | "day";
+
+/** A start Boat refused because one window's starts are used, with the account's own numbers off `GET /limits`.
+ * Boat publishes no reset time and its windows roll, so no line names a clock time. `what` is the machine's name. */
+export function startsUsedLine(window: StartWindow, used: number, limit: number, plan: string | undefined, what: string | undefined): string {
+  const head = `Boat's starts for ${window === "day" ? "today" : `this ${window}`} are used (${used} of ${limit}${plan === undefined ? "" : ` on ${plan}`}), so ${what === undefined || what === "" ? "the machine" : what} was not started`;
+  if (window === "minute") return `${head}; start it again in a minute.`;
+  if (window === "hour") return `${head}; start it again later in the hour, or move to a plan with more at boat.dev/dashboard.`;
+  return `${head}; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.`;
+}
+
+/** The plan a start line names: the trial, or the plan by its monthly price. */
+export const boatPlanWords = (trial: boolean, usd: number | undefined): string | undefined => (trial ? "the trial" : usd === undefined ? undefined : `the $${usd} plan`);
+
+export const BOAT_BALANCE_LINE = "Boat's balance is used up, so no machine starts; add time at boat.dev/dashboard. Boat stops running machines 24 hours after the balance ran out.";
+export const BOAT_MEMBER_CAP_LINE = "this Boat organization caps your usage; ask its owner to raise your cap.";
+export const BOAT_NO_CAPACITY_LINE = "Boat has no free machines of this size right now; try again in a few minutes, or a smaller size.";
+
+/** A create or a fork Boat could not get a machine for: it removed the box, reported cancelled once, then 404. */
+export function boatCancelledLine(what: string | undefined, said: string | undefined): string {
+  return `Boat could not get a machine${what === undefined ? "" : ` for ${what}`} and cancelled the create${said === undefined || said === "" ? "" : ` (${said})`}; start it again.`;
+}
+
+/** The host log's line for a call Boat refused: the status, Boat's code and request id, and the first line of its words. */
+export function boatRefusedLogLine(call: string, status: number, code: string | undefined, requestId: string | undefined, said: string): string {
+  const end = said.indexOf("\n");
+  return `Boat refused ${call}: ${status} code=${code ?? "none"} requestId=${requestId ?? "none"}: ${(end === -1 ? said : said.slice(0, end)).slice(0, 300)}`;
 }
 
 /** How a duration reads: short is the chat footer's and the notify line's ("1.5s", "8m 12s"), clock is the cut

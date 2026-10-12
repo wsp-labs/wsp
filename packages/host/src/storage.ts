@@ -3,7 +3,7 @@
 // delete the golden versions retention no longer needs, and the doctor's split
 // of the account listing into this host's, this host's orphans and the rest.
 import type { Readable, Writable } from "node:stream";
-import { plural } from "@wsp/engine";
+import { billedByCount, plural, type SnapshotStoragePricing } from "@wsp/engine";
 import type { GoldenVersion, SnapshotStorage } from "@wsp/protocol";
 import type { AccountOrphans, OrphansDeleted, RetentionPlan, Runtime } from "@wsp/runtime";
 import { isCancel, log } from "@clack/prompts";
@@ -38,7 +38,11 @@ export const noProviderStorageLine = (statePath?: string): string =>
   `storage: nothing listed; this host is wired to no provider${statePath === undefined ? "" : ` (no key beside ${statePath})`}`;
 
 export function describeStorage(s: SnapshotStorage): string {
-  const cost = s.monthlyUsd > 0 ? `${perMonth(s.monthlyUsd)} above the free ${s.freeGb} GB from ${s.billedFrom}` : `inside the free ${s.freeGb} GB, nothing to pay from ${s.billedFrom}`;
+  const named = s.named;
+  const past = named === undefined ? 0 : Math.max(0, named.count - named.free);
+  const cost = named !== undefined
+    ? past > 0 ? `${named.count} named against the ${named.free} free, ${perMonth(s.monthlyUsd)} for the ${past} past them` : `${named.count} named, inside the ${named.free} free, nothing to pay`
+    : s.monthlyUsd > 0 ? `${perMonth(s.monthlyUsd)} above the free ${s.freeGb} GB from ${s.billedFrom}` : `inside the free ${s.freeGb} GB, nothing to pay from ${s.billedFrom}`;
   const owners = describeOwners(s);
   return `storage: ${plural(s.count, "snapshot")}, ${gb(s.totalBytes)}; ${cost}${owners === "" ? "" : `. ${owners}`}`;
 }
@@ -61,16 +65,18 @@ export function describeOrphans(plan: AccountOrphans): string[] {
  * of its own, so an offer with no snapshot in it says that rather than blaming the free GB for saving nothing. The
  * state file is named because it is what decided: a run under a different --state reads the usual file's goldens as
  * recorded by nothing, and this delete cannot be undone. */
-export function describeOrphanOffer(plan: AccountOrphans, yes: boolean, statePath?: string): string {
+export function describeOrphanOffer(plan: AccountOrphans, yes: boolean, pricing: SnapshotStoragePricing, statePath?: string): string {
   const what = [
     plan.snapshots.length > 0 ? plural(plan.snapshots.length, "orphan snapshot") : "",
     plan.templates.length > 0 ? plural(plan.templates.length, "orphan template") : "",
   ].filter(w => w !== "").join(" and ");
-  const cost = plan.freedBytes === 0
-    ? ", holding no snapshot bytes"
-    : plan.savesUsdPerMonth > 0
-      ? `, ${gb(plan.freedBytes)}, saving ${perMonth(plan.savesUsdPerMonth)}`
-      : `, ${gb(plan.freedBytes)}, inside the free GB, so nothing saved yet`;
+  const cost = billedByCount(pricing) && plan.snapshots.length > 0
+    ? plan.savesUsdPerMonth > 0 ? `, saving ${perMonth(plan.savesUsdPerMonth)}` : `, inside the ${pricing.freeNamed ?? 0} kept free, so nothing saved yet`
+    : plan.freedBytes === 0
+      ? ", holding no snapshot bytes"
+      : plan.savesUsdPerMonth > 0
+        ? `, ${gb(plan.freedBytes)}, saving ${perMonth(plan.savesUsdPerMonth)}`
+        : `, ${gb(plan.freedBytes)}, inside the free GB, so nothing saved yet`;
   const decided = statePath === undefined ? "" : `; nothing in ${statePath} records them`;
   return yes ? `deleting ${what}${cost}${decided}` : `${what}${cost}${decided}; wsp doctor --yes deletes them`;
 }
@@ -87,12 +93,16 @@ export function describeDeleted(done: OrphansDeleted): string {
 }
 
 /** The one line the offer asks with: what goes, what it holds, what it saves, what stays. */
-export function describeRetention(plan: RetentionPlan, pricing: { freeGb: number; billedFrom: string }): string {
-  const saving = plan.savesUsdPerMonth > 0 ? `saving ${perMonth(plan.savesUsdPerMonth)} from ${pricing.billedFrom}` : `inside the free ${pricing.freeGb} GB, so nothing saved yet`;
+export function describeRetention(plan: RetentionPlan, pricing: SnapshotStoragePricing): string {
+  const byCount = billedByCount(pricing);
+  const held = byCount ? plural(plan.namedFreed, "named snapshot") : gb(plan.freedBytes);
+  const saving = plan.savesUsdPerMonth > 0
+    ? `saving ${perMonth(plan.savesUsdPerMonth)}${byCount ? "" : ` from ${pricing.billedFrom}`}`
+    : byCount ? `inside the ${pricing.freeNamed ?? 0} kept free, so nothing saved yet` : `inside the free ${pricing.freeGb} GB, so nothing saved yet`;
   const parent = plan.keep[1];
   const assumed = plan.parentAssumed && parent !== undefined ? ` v${parent.version} is taken as the parent by version order: v${plan.keep[0]!.version} was sealed before parents were recorded.` : "";
   const abandoned = plan.abandoned.length > 0 ? ` ${versionList(plan.abandoned)} ${plan.abandoned.length === 1 ? "is an abandoned branch" : "are abandoned branches"}: v${plan.keep[0]!.version} was not built through ${plan.abandoned.length === 1 ? "it" : "them"}.` : "";
-  return `Delete image ${versionList(plan.drop)}, ${gb(plan.freedBytes)}, ${saving}? ${versionList(plan.keep)} stay.${assumed}${abandoned}`;
+  return `Delete image ${versionList(plan.drop)}, ${held}, ${saving}? ${versionList(plan.keep)} stay.${assumed}${abandoned}`;
 }
 
 export function describeGuarded(g: RetentionPlan["guarded"][number]): string {

@@ -1381,7 +1381,7 @@ export async function cleanOrphans(rt: Runtime, io: Pick<CliIO, "log">, yes: boo
   io.log(describeStorage(storage));
   for (const line of describeOrphans(plan)) io.log(line);
   if (plan.snapshots.length === 0 && plan.templates.length === 0) return "no orphan of this host";
-  const offer = describeOrphanOffer(plan, yes, statePath);
+  const offer = describeOrphanOffer(plan, yes, rt.backend.pricing.snapshotStorage, statePath);
   if (!yes) return offer;
   io.log(offer);
   const done = await rt.golden.deleteOrphans();
