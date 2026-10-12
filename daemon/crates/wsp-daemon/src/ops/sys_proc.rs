@@ -76,6 +76,7 @@ pub(super) fn serves(op: &DaemonOp) -> bool {
             | DaemonOp::ProcInspect { .. }
             | DaemonOp::ProcList
             | DaemonOp::ProcKill { .. }
+            | DaemonOp::ContainerStop { .. }
     )
 }
 
@@ -155,6 +156,15 @@ pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId
                     .unwrap_or_else(|| wsp_frames::place_daemon_paths(&crate::place::place_home(ctx.options.home.as_deref())).run_dir)
             });
             answer(id, async { crate::kill::proc_kill(&ctx.options.kind, pid_in_range(pid)?, frame, runs.as_deref()).await }.await)
+        }
+        DaemonOp::ContainerStop { container } => {
+            let stopped = async {
+                let sampler = ctx.proc_sampler()?;
+                let reader = sampler.containers().ok_or_else(|| OpError::coded(DaemonErrorCode::Unsupported, not_built(name)))?;
+                reader.stop_container(&container).await?;
+                Ok(Empty {})
+            };
+            answer(id, stopped.await)
         }
         _ => refuse(id, DaemonErrorCode::Unsupported, not_built(name)),
     }

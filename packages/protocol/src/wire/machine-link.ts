@@ -601,6 +601,29 @@ export type ProcCost = z.infer<typeof ProcCost>;
 export const PlaceSysEvent = z.object({ type: z.literal("place.sys"), placeId: z.string(), sample: SysSample });
 export type PlaceSysEvent = z.infer<typeof PlaceSysEvent>;
 
+/** How a container came to stand under its thread: its wsp.thread label, or a thread's compose note. */
+export const ContainerPlacedBy = z.enum(["label", "compose"]);
+export type ContainerPlacedBy = z.infer<typeof ContainerPlacedBy>;
+
+/** One running container on the computer's engine. It stands under the thread its wsp.thread label names, else under
+ * the thread of the newest compose note whose folder sits inside its compose folder, else under no thread with that
+ * folder named. memory is its cgroup's anon and kernel bytes, cpu its busy share of one core; both absent until read. */
+export const ProcContainer = z.object({
+  id: z.string(),
+  name: z.string(),
+  image: z.string(),
+  state: z.string(),
+  startedAt: z.number().optional(),
+  thread: z.string().optional(),
+  /** A word a newer daemon adds reads as absent here, rather than dropping the frame it rides in. */
+  placedBy: ContainerPlacedBy.optional().catch(undefined),
+  folder: z.string().optional(),
+  project: z.string().optional(),
+  memory: z.number().optional(),
+  cpu: z.number().optional(),
+});
+export type ProcContainer = z.infer<typeof ProcContainer>;
+
 /** Every process the daemon read this tick. daemon is its own pid, so a
  * client can name it; total counts /proc entries, procs holds at most the
  * first thousand of them by pid. */
@@ -614,6 +637,8 @@ export const ProcSnapshot = z.object({
    * behind names none and sends no changes, so its snapshot is a whole list held with no gap to track. */
   seq: z.number().int().optional(),
   cost: ProcCost.optional(),
+  /** Every running container, where the computer has an engine the daemon reaches. */
+  containers: z.array(ProcContainer).optional(),
 });
 export type ProcSnapshot = z.infer<typeof ProcSnapshot>;
 
@@ -628,15 +653,18 @@ export const ProcChanges = z.object({
   seq: z.number().int(),
   base: z.number().int(),
   cost: ProcCost.optional(),
+  /** Every running container, whole, where the list moved since `base`. */
+  containers: z.array(ProcContainer).optional(),
 });
 export type ProcChanges = z.infer<typeof ProcChanges>;
 
-/** The snapshot a proc.changes frame leaves, rows by pid as the daemon lists them; undefined where the frame does not
+/** The snapshot a proc.changes frame leaves, rows by pid as the daemon lists them, and the containers it carried or
+ * else those held; undefined where the frame does not
  * follow the snapshot held, which a client answers by watching again for a whole one. */
 export function applyProcChanges(snapshot: ProcSnapshot, changes: ProcChanges): ProcSnapshot | undefined {
   if (changes.base !== snapshot.seq) return undefined;
   const rows = new Map(snapshot.procs.map(p => [p.pid, p]));
   for (const pid of changes.gone) rows.delete(pid);
   for (const p of changes.procs) rows.set(p.pid, p);
-  return { type: "proc.snapshot", at: changes.at, daemon: changes.daemon, total: changes.total, procs: [...rows.values()].sort((a, b) => a.pid - b.pid), seq: changes.seq, ...(changes.cost === undefined ? {} : { cost: changes.cost }) };
+  return { type: "proc.snapshot", at: changes.at, daemon: changes.daemon, total: changes.total, procs: [...rows.values()].sort((a, b) => a.pid - b.pid), seq: changes.seq, ...(changes.cost === undefined ? {} : { cost: changes.cost }), ...((changes.containers ?? snapshot.containers) === undefined ? {} : { containers: changes.containers ?? snapshot.containers }) };
 }

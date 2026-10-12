@@ -203,7 +203,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const COMPUTER_WATCHES = ["ports.watch", "sys.watch"];
   /** That computer's daemon watches, reads and signals any pid on it and names no workspace on its answers, and the
    * one watch it holds is the link's, which the computer's own page shares. */
-  const COMPUTER_PROCS = ["proc.watch", "proc.unwatch", "proc.inspect", "proc.kill"];
+  const COMPUTER_PROCS = ["proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop"];
   /** The whole of what a client's channel into a served workspace carries, for the reason DEVICE_OPS is a list: that
    * computer's daemon runs every other op on the computer itself, so a deny list would let an op added later reach it.
    * Each of these names the workspace it is for, and the daemon answers it inside that workspace. */

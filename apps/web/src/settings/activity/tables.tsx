@@ -3,9 +3,9 @@
 // group row folds open onto its processes, each with its kind's glyph, its
 // figures inked only past their marks, and its one act while pointed at.
 import { memo, useCallback, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { ActivityIcon, AppWindowIcon, ArrowDownIcon, BotIcon, ChevronRightIcon, CircleDashedIcon, CogIcon, EllipsisIcon, EthernetPortIcon, FlaskConicalIcon, Globe2Icon, GaugeIcon, HammerIcon, PanelsTopLeftIcon, ServerIcon, TerminalSquareIcon, type LucideIcon } from "lucide-react";
+import { ActivityIcon, AppWindowIcon, ArrowDownIcon, BotIcon, ChevronRightIcon, CircleDashedIcon, CogIcon, ContainerIcon, EllipsisIcon, EthernetPortIcon, FlaskConicalIcon, Globe2Icon, GaugeIcon, HammerIcon, PanelsTopLeftIcon, ServerIcon, TerminalSquareIcon, type LucideIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
-import { fmtBytes, fmtDuration, fmtTokens } from "@wsp/protocol";
+import { fmtBytes, fmtDuration, fmtTokens, fmtUptime } from "@wsp/protocol";
 import { HarnessMark } from "../../components/chat/HarnessMark.js";
 import { useSubagentModel } from "../../components/threads/SubagentCard.js";
 import { LINE_SLOT_CLASS, ThreadStatus } from "../../components/status/ThreadStatus.js";
@@ -21,17 +21,19 @@ import { ACTIVITY_COLUMNS, ACTIVITY_FLAT_COLUMNS, ACTIVITY_PORT_COLUMNS, GlyphFr
 import { CARD_INSET, GLYPH, LIST_TITLE, NOTE } from "../layout.js";
 import { CARD_SURFACE } from "../rows.js";
 import { FACT, VALUE } from "../format.js";
-import { groupActions, procActions, type GroupVerbs, type ProcTarget, type ProcVerbs } from "./actions.js";
+import { containerActions, groupActions, procActions, type ContainerVerbs, type GroupVerbs, type ProcTarget, type ProcVerbs } from "./actions.js";
 import {
   cpuTint,
   cpuWord,
   energyTint,
   energyWord,
   flat,
+  groupSpent,
   KIND_WORDS,
   memoryTint,
   portsWord,
   spent,
+  type ActivityContainer,
   type ActivityGroup,
   type ActivityPort,
   type ActivityProc,
@@ -98,7 +100,7 @@ const PORT_ACTS: readonly string[] = ["open-port", "end"];
 const UNTAGGED: ReadonlySet<ProcKind> = new Set(["agent", "other", "wsp", "app"]);
 
 /** What a row's acts reach; the page holds the dialogs, the signals and where a browser tab opens. */
-export interface Acts extends ProcVerbs, GroupVerbs {
+export interface Acts extends ProcVerbs, GroupVerbs, ContainerVerbs {
   /** The workspace a browser tab at a port of this group's opens in, where one is known. */
   workspaceOf(group: ActivityGroup | null): string | undefined;
 }
@@ -249,6 +251,54 @@ function ActivitySubagentRow({ s, harness, workspaceId }: { s: ActivitySubagent;
   );
 }
 
+/** One container under its group: its image, how long it has run and, under No thread, its compose folder as tags, then
+ * the memory and CPU of its own cgroup, and End, which stops it and keeps its data. */
+function ContainerRow({ c, loose, acts }: { c: ActivityContainer; loose: boolean; acts: Acts }) {
+  const stopping = acts.stopping.has(c.id);
+  const facts = [c.image, ...(c.upMs === null ? [] : [W.up(fmtUptime(c.upMs))]), ...(loose && c.folder !== null ? [c.folder] : [])].filter(f => f !== "");
+  const menu = (e: MouseEvent<HTMLElement>): void => void openContextMenu(e, resolveActions(containerActions, c, acts));
+  const note = loose ? W.containerNotes.loose : c.placedBy === "compose" ? W.containerNotes.compose : W.containerNotes.label;
+  return (
+    <div data-container-row={c.id} title={note} onContextMenu={menu} className={cn(SUB_ROW, TREE)}>
+      <span className="flex min-w-0 items-start gap-2 ps-11 max-md:ps-3">
+        <ContainerIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{c.name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{stopping ? W.ending : W.container}</span>
+          <span data-container-facts className="flex min-w-0 shrink-[3] items-baseline gap-2 overflow-hidden text-xs tabular-nums text-muted-foreground">
+            {facts.map((fact, i) => (
+              <span key={fact} className={cn("shrink-0 whitespace-nowrap", i > 0 && "max-sm:hidden")}>
+                {fact}
+              </span>
+            ))}
+          </span>
+        </span>
+      </span>
+      <span data-col="mem" className={cn(NUM, c.mem !== null && inked(memoryTint(c.mem)))}>
+        {c.mem === null ? "" : fmtBytes(c.mem)}
+      </span>
+      <span data-col="cpu" className={cn(NUM, WIDE, c.cpu !== null && inked(cpuTint(c.cpu)))}>
+        {c.cpu === null ? "" : cpuWord(c.cpu)}
+      </span>
+      <span data-col="energy" className={WIDE} />
+      <span className={stopping ? cn("flex justify-end", WIDE) : ACT}>
+        {stopping ? (
+          <Spinner className="size-3.5 text-muted-foreground" />
+        ) : (
+          <Button variant="outline" size="xs" data-act="end-container" className={DANGER_BUTTON} onClick={() => acts.endContainer(c)}>
+            {W.end}
+          </Button>
+        )}
+      </span>
+      <span className={MENU}>
+        <button type="button" aria-label={W.more} data-act="menu" onClick={menu} className={MENU_BUTTON}>
+          <EllipsisIcon aria-hidden className="size-3.5" />
+        </button>
+      </span>
+    </div>
+  );
+}
+
 /** The sampler's own row, last under wsp: what reading this page costs the daemon. */
 export interface SamplerCost {
   readonly cpu: number;
@@ -281,8 +331,8 @@ interface HeadMenu {
 
 const openHeadMenu = (event: MouseEvent<HTMLElement>, menu: HeadMenu): void => void openContextMenu(event, resolveActions(groupActions, menu.group, menu.acts));
 
-function GroupHead({ glyph, name, status, note, procs, open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
-  const t = spent(procs);
+function GroupHead({ glyph, name, status, note, procs, containers = [], open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; procs: readonly ActivityProc[]; containers?: readonly ActivityContainer[]; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
+  const t = groupSpent({ procs, containers });
   return (
     <div className="group/row">
       <GridRow columns={TREE} open={onOpen} {...(menu === undefined ? {} : { onContextMenu: e => openHeadMenu(e, menu) })} attrs={{ "aria-expanded": String(open), "data-group": id }}>
@@ -326,7 +376,8 @@ export interface ThreadsProps {
 /** What a group draws, as one string: a frame that moved none of it leaves the group's block as it was. */
 const groupSig = (g: ActivityGroup): string =>
   g.procs.flatMap(flat).map(p => `${p.pid}:${p.name}:${p.kind}:${p.mem}:${p.cpu}:${p.energy}:${portsWord(p.ports)}`).join("|") +
-  `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}`;
+  `|${g.subagents.map(s => `${s.id}:${s.title}:${s.state}:${fmtDuration(s.ms)}:${s.tokens}:${s.model}`).join("|")}|${g.thread?.working ?? ""}|${g.thread?.title ?? ""}|${g.thread?.slate ?? ""}` +
+  `|${g.containers.map(c => `${c.id}:${c.name}:${c.image}:${c.upMs === null ? "" : fmtUptime(c.upMs)}:${c.mem}:${c.cpu}:${c.folder}:${c.placedBy}`).join("|")}`;
 
 interface BlockProps {
   readonly g: ActivityGroup;
@@ -356,8 +407,9 @@ const GroupBlock = memo(
     if (g.kind === "loose")
       return (
         <div data-activity-group="loose">
-          <GroupHead id={g.id} glyph={<CircleDashedIcon aria-hidden className={GLYPH} />} name={W.loose} note={W.looseNote} procs={g.procs} open={opened} onOpen={() => toggle(g.id)} look={look} />
+          <GroupHead id={g.id} glyph={<CircleDashedIcon aria-hidden className={GLYPH} />} name={W.loose} note={W.looseNote} procs={g.procs} containers={g.containers} open={opened} onOpen={() => toggle(g.id)} look={look} />
           {opened ? procRows(g.procs, 0, g, acts, look) : null}
+          {opened ? g.containers.map(c => <ContainerRow key={c.id} c={c} loose acts={acts} />) : null}
         </div>
       );
     const t = g.thread!;
@@ -370,6 +422,7 @@ const GroupBlock = memo(
           {...(status === undefined ? {} : { status: <ThreadStatus thread={status} {...(age === undefined ? {} : { age })} still className={LINE_SLOT_CLASS} /> })}
           note={t.project}
           procs={g.procs}
+          containers={g.containers}
           open={opened}
           onOpen={() => toggle(g.id)}
           act={
@@ -384,6 +437,7 @@ const GroupBlock = memo(
         />
         {opened ? procRows(g.procs, 0, g, acts, look) : null}
         {opened ? g.subagents.map(s => <ActivitySubagentRow key={s.id} s={s} harness={t.harness} workspaceId={t.workspaceId} />) : null}
+        {opened ? g.containers.map(c => <ContainerRow key={c.id} c={c} loose={false} acts={acts} />) : null}
       </div>
     );
   },

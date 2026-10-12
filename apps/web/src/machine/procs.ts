@@ -116,6 +116,13 @@ export class WorkspaceProcs {
     return ProcKillReply.parse(await wire.request("proc.kill", { pid, ...ask }));
   }
 
+  /** Stops one container through its engine, TERM then KILL two seconds on, and never removes it. */
+  async stopContainer(container: string): Promise<void> {
+    const wire = getDaemonWire(this.#workspaceId);
+    if (!wire) throw new Error("not answering");
+    await wire.request("container.stop", { container });
+  }
+
   onChange(fn: () => void): () => void {
     this.#fns.add(fn);
     return () => this.#fns.delete(fn);

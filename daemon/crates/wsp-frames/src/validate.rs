@@ -155,6 +155,19 @@ where
     Ok(s)
 }
 
+/// A container as the engine names it in full: sixty-four lowercase hex characters, never a name a stop could resolve
+/// to another container.
+pub(crate) fn container_id<'de, D>(d: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(d)?;
+    if s.len() != 64 || !s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        return Err(de::Error::custom("a container is named by its full id, 64 lowercase hex characters"));
+    }
+    Ok(s)
+}
+
 /// The protocol's isHttpUrl: http or https, then anything that is not whitespace or a control character.
 pub fn is_http_url(url: &str) -> bool {
     let bytes = url.as_bytes();
