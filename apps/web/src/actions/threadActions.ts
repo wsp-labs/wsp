@@ -12,6 +12,7 @@ import type { SidebarThreadSnapshot } from "../adapt/index.js";
 import { addressLink } from "../protocol/address.js";
 import { CHILD_WORDS, CLIENT_CANNOT_OPEN, CLIENT_CANNOT_SEND, CLIENT_CANNOT_REWIND, CLIENT_CANNOT_DELETE, CLIENT_CANNOT_DELETE_THREAD, CLIENT_CANNOT_MARK, CLIENT_CANNOT_RESTORE, CLIENT_CANNOT_SETTLE, CLIENT_CANNOT_STOP, NOTHING_READ_TO_SETTLE, THREAD_HAS_NO_ID, THREAD_STILL_RUNNING_HERE, THREAD_NOT_RUNNING, THREAD_TREE_WORKING, THREAD_WORDS, threadForgetRefusalFor, threadRenameRefusal, CLIENT_CANNOT_READ } from "./format.js";
 import type { ChildPart } from "../components/threads/leadTree.js";
+import { standingLine } from "../components/procs/leftAsk.js";
 import { addNotice } from "../notices/store.js";
 import type { ActionEntry } from "./registry.js";
 import type { KeybindingShortcut } from "../keybindingTypes.js";
@@ -378,17 +379,19 @@ export interface ChildVerbs {
   readonly restore?: ((threadIds: ReadonlyArray<string>) => Promise<void>) | undefined;
 }
 
-/** Settles threads and says what the host settled and what it left with why, with the way back, which restores what
- * the host settled: every settle the app sends goes through here. A refusal is the store's toast. */
+/** Settles threads and says what the host settled, what it left with why and any process a stop left running, with
+ * the way back, which restores what the host settled: every settle the app sends goes through here. A refusal is the
+ * store's toast. */
 export async function settleSaying(threadIds: ReadonlyArray<string>, verbs: Pick<ChildVerbs, "settle" | "restore">, where?: string): Promise<void> {
   if (verbs.settle === undefined) return;
   const answer = await verbs.settle(threadIds);
   if (answer === undefined) return;
   const whys = [...new Set(answer.left.map(t => t.why))].map(why => CHILD_WORDS.left(answer.left.filter(t => t.why === why).length, why));
   const moved = answer.settled.map(t => t.threadId);
+  const standing = standingLine(answer.ended);
   addNotice({
-    kind: moved.length > 0 ? "done" : "note",
-    text: [...(moved.length > 0 ? [CHILD_WORDS.settled(moved.length)] : []), ...whys].join(". "),
+    kind: moved.length > 0 && standing === null ? "done" : "note",
+    text: [...(moved.length > 0 ? [CHILD_WORDS.settled(moved.length)] : []), ...whys].join(". ") + (standing === null ? "" : `. ${standing}`),
     ...(where !== undefined ? { where } : {}),
     ...(moved.length > 0 ? { action: { word: CHILD_WORDS.undo, run: () => void verbs.restore?.(moved) } } : {}),
   });

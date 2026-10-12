@@ -97,7 +97,7 @@ const TREE_ACTS: readonly string[] = ["stop", "end", "free"];
 const PORT_ACTS: readonly string[] = ["open-port", "end"];
 
 /** Kinds whose word says nothing beside the name or the group: an agent is named, wsp's parts stand under wsp. */
-const UNTAGGED: ReadonlySet<ProcKind> = new Set(["agent", "other", "wsp", "app"]);
+export const UNTAGGED: ReadonlySet<ProcKind> = new Set(["agent", "other", "wsp", "app"]);
 
 /** What a row's acts reach; the page holds the dialogs, the signals and where a browser tab opens. */
 export interface Acts extends ProcVerbs, GroupVerbs, ContainerVerbs {

@@ -10,7 +10,8 @@
 // start it read, and a pid that now names another process is refused.
 import { z } from "zod";
 import { byProcColumn, PROC_KINDS, type ProcEntry, type ProcKind } from "../wire/daemon.js";
-import { refusal } from "../exit.js";
+import { PROCESSES_LEFT_KIND, refusal } from "../exit.js";
+import { inCgroup } from "../thread-cgroup.js";
 import { threadWord } from "../words/computer.js";
 
 /** One process as Activity draws it, in the order of its thread's tree: depth counts the steps under the first of
@@ -51,6 +52,11 @@ export const ActivityView = z.object({
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 
+/** A thread a settle or a delete would leave processes running for, as its refusal carries it: `on` names the box it
+ * runs on, where Stop ends the thread's cgroup whole rather than each process by identity. */
+export const LeftThread = ActivityThread.extend({ on: z.string().optional() });
+export type LeftThread = z.infer<typeof LeftThread>;
+
 /** What an End did: every process it signalled, those still there after TERM's grace that KILL went to, and those
  * still there after that. A kept agent is freed through its thread, which `freed` names. */
 export const ActivityEnded = z.object({
@@ -84,6 +90,8 @@ export interface ActivityScope {
   roots: readonly number[];
   /** The root of the agent the thread keeps for its next turn, which an End frees through the thread. */
   kept?: number;
+  /** On a box, the cgroup every process the thread started stands in. */
+  cgroup?: string;
 }
 
 export interface ActivityRead {
@@ -139,6 +147,12 @@ export function agentPath(root: number, kidsOf: (pid: number) => readonly ProcEn
   return undefined;
 }
 
+/** A turn's run script as either road starts it, `bash <run folder>/<12 hex>.sh`, and the pump that feeds the agent
+ * its input. The pump and its shell, a fork of the script that reads as it, outlive the script's own shell under pid 1
+ * in the turn's group: they are the agent's, and end with it. */
+export const RUN_SCRIPT = /^bash \S*\/[0-9a-f]{12}\.sh$/;
+const RUN_PUMP = /^tail -n \+1 -f \S*\/[0-9a-f]{12}\.in$/;
+
 interface Placed {
   byPid: ReadonlyMap<number, ProcEntry>;
   kidsOf: (pid: number) => readonly ProcEntry[];
@@ -173,6 +187,10 @@ function place(read: ActivityRead): Placed {
     const owner = p.owner?.thread === undefined ? undefined : byId.get(p.owner.thread);
     if (owner !== undefined) threadOf.set(p.pid, owner);
   }
+  for (const p of read.procs) {
+    const scope = threadOf.has(p.pid) ? undefined : read.scopes.find(s => s.cgroup !== undefined && inCgroup(p.cgroup, s.cgroup));
+    if (scope !== undefined) threadOf.set(p.pid, scope);
+  }
   const claim = (pid: number, scope: ActivityScope): void => {
     if (threadOf.has(pid) && threadOf.get(pid) !== scope) return;
     threadOf.set(pid, scope);
@@ -187,6 +205,14 @@ function place(read: ActivityRead): Placed {
         rootOf.set(pid, root);
       }
     }
+  }
+  for (const p of read.procs) {
+    if (p.pgid === undefined || agentOf.has(p.pid) || !(RUN_SCRIPT.test(p.cmdline) || RUN_PUMP.test(p.cmdline))) continue;
+    const scope = read.scopes.find(s => s.roots.includes(p.pgid!));
+    if (scope === undefined || (threadOf.has(p.pid) && threadOf.get(p.pid) !== scope)) continue;
+    threadOf.set(p.pid, scope);
+    agentOf.set(p.pid, scope);
+    rootOf.set(p.pid, p.pgid);
   }
   const kindOf = (p: ProcEntry): ProcKind => {
     if (agentOf.has(p.pid) || p.kind === "agent") return "agent";
@@ -322,9 +348,9 @@ export function processesLeft(view: ActivityView, threadIds: readonly string[]):
 /** The most processes a refusal names before it counts the rest. */
 const LEFT_NAMED = 8;
 
-export const processesLeftLine = (verb: "settle" | "delete", left: readonly ActivityThread[]): string => {
+export const processesLeftLine = (verb: "settle" | "delete", left: readonly LeftThread[]): string => {
   const rows = left.flatMap(t => t.processes.map(p => ({ t, p })));
-  const named = rows.slice(0, LEFT_NAMED).map(({ t, p }) => `${p.pid} ${p.name} (${p.kind}${p.ports.length > 0 ? `, :${p.ports.join(" :")}` : ""}) of ${threadWord(t.threadId)}`);
+  const named = rows.slice(0, LEFT_NAMED).map(({ t, p }) => `${p.pid} ${p.name} (${p.kind}${p.ports.length > 0 ? `, :${p.ports.join(" :")}` : ""}) of ${threadWord(t.threadId)}${t.on !== undefined ? ` on ${t.on}` : ""}`);
   const more = rows.length > LEFT_NAMED ? ` and ${rows.length - LEFT_NAMED} more` : "";
   return `${verb === "settle" ? "a thread to settle" : "the thread to delete"} still runs ${rows.length === 1 ? "a process" : `${rows.length} processes`}: ${named.join(", ")}${more}:`;
 };
@@ -332,4 +358,15 @@ export const processesLeftLine = (verb: "settle" | "delete", left: readonly Acti
 export const processesLeftFix = (verb: "settle" | "delete"): string =>
   `${verb} it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).`;
 
-export const processesLeftRefusal = (verb: "settle" | "delete", left: readonly ActivityThread[]): Error => refusal(processesLeftLine(verb, left), processesLeftFix(verb), "usage");
+export const processesLeftRefusal = (verb: "settle" | "delete", left: readonly LeftThread[]): Error =>
+  Object.assign(refusal(processesLeftLine(verb, left), processesLeftFix(verb), PROCESSES_LEFT_KIND), { left });
+
+/** The threads a refusal over processes left running carries, as a reply puts them beside its error. */
+export function processesLeftOf(e: unknown): { left?: LeftThread[] } {
+  if (typeof e !== "object" || e === null || (e as { kind?: unknown }).kind !== PROCESSES_LEFT_KIND) return {};
+  const read = z.array(LeftThread).safeParse((e as { left?: unknown }).left);
+  return read.success ? { left: read.data } : {};
+}
+
+/** The processes a stop signalled that were still there after it, each as it was listed. */
+export const standingAfterStop = (ended: readonly ActivityEnded[]): ActivityProc[] => ended.flatMap(e => e.ended.filter(p => e.left.includes(p.pid)));

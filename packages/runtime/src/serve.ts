@@ -111,7 +111,7 @@ import {
   type ThreadScope,
   type WorkspaceOrigin,
   type WorkspaceView,
-  problemListsOf,
+  refusalFields,
 } from "@wsp/protocol";
 import type { DaemonChannel } from "./daemon-channel.js";
 import { NO_DEVICE_DOOR, safeEqual, threadOf, type DeviceDoor, type HeldDevice } from "./devices.js";
@@ -1940,7 +1940,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
             error: e instanceof Error ? e.message : String(e),
             ...(typeof kind === "string" ? { kind } : {}),
             ...(typeof fix === "string" ? { fix } : {}),
-            ...problemListsOf(e),
+            ...refusalFields(e),
           });
           opts.failed?.(msg.op, e);
         }

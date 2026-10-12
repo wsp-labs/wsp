@@ -546,14 +546,14 @@ The conversations the agents kept in a project's folder and its worktrees on the
 
 ## delete
 
-Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.
+Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.
 
 **Takes**
 
 | Field | Type | Required | What it is |
 |---|---|---|---|
 | `thread` | string |  | the thread, by its id or a prefix of it that names one |
-| `processes` | `stop`, `keep` |  | what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread |
+| `processes` | `stop`, `keep` |  | what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run |
 | `confirm` | boolean |  | true deletes it; absent or false answers with what would go and deletes nothing, so a person can be asked first |
 
 **Answers**
@@ -2188,7 +2188,7 @@ Settles each thread (by id, or a prefix of it) and every thread under it: they f
 |---|---|---|---|
 | `threads` | string[] | yes | the threads' ids, or prefixes that each name one, as threads lists them |
 | `finished` | boolean |  | settle the finished threads under each thread named, and not the thread itself |
-| `processes` | `stop`, `keep` |  | what to do with the processes a thread on this computer still runs beside its agent: stop ends each by identity, keep leaves them running; refused without one while any run. A thread on a box is not read and goes as before, its processes ending with the thread |
+| `processes` | `stop`, `keep` |  | what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run |
 
 **Answers**
 
