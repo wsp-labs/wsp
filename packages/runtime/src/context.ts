@@ -348,7 +348,7 @@ export interface ChannelsArea {
   readonly servedByItsComputer: (entry: LiveWorkspace) => ((frame: Record<string, unknown>) => Promise<Record<string, unknown>>) | undefined;
   readonly channelOver: (reach: DaemonReachView, name: string, onEvent: (event: Record<string, unknown>) => void) => Promise<DaemonChannel>;
   readonly withDaemon: <T>(entry: LiveWorkspace, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>) => Promise<T>;
-  readonly stdioRoad: (entry: LiveWorkspace) => Promise<StdioRoad>;
+  readonly stdioRoad: (entry: LiveWorkspace, need?: number) => Promise<StdioRoad>;
   readonly overChannel: <T>(channel: DaemonChannel, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>) => Promise<T>;
   readonly onThisComputer: <T>(work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>, home: string) => Promise<T>) => Promise<T>;
   readonly placeGuard: (placeId: string) => Promise<void>;

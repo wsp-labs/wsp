@@ -10,7 +10,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { McpTransport } from "@wsp/catalog";
 import { EXEC_OUTPUT_MAX, fmtBytes, runOutputTail, slateMachineOnBox } from "@wsp/protocol";
-import type { SlateAsk } from "@wsp/protocol";
+import type { HttpBearer, SlateAsk } from "@wsp/protocol";
 import { slateHostAway, slateProblem, slateServerNotSetUp, type SlateDoc, type SlateJson, type SlateProblem, type SlateRunDecl } from "@wsp/protocol/slate";
 import { HELD_APPROVAL, HELD_BUDGET, HELD_PRESSED, lastResult, mapStrings, runningRecord, SECRET_DOTS, spent, stableJson, type Reshape, type RunResult, type RunApprovals, type RunBy, type RunRecord, type RunStartAnswer } from "./slate-runs.js";
 
@@ -59,6 +59,33 @@ export interface McpServerSpec {
   secrets: readonly string[];
   /** Where a command server runs: on the thread's own computer through its daemon. Absent runs it on this one. */
   open?: McpPipeOpen;
+  /** Where an http server is asked from, one road per connection: the thread's own computer through its daemon.
+   * Absent asks it from this one. */
+  post?: () => McpPost;
+  /** An http server's sign-in the thread's agent keeps on its own computer, which only that computer's daemon reads. */
+  signIn?: McpSignIn;
+}
+
+/** Where the bearer is, read there; the agent's own word on it asked again there, true where it holds one, which
+ * renews a token near its end the way the agent does; and the line the person signs in with there. */
+export interface McpSignIn {
+  bearer: HttpBearer;
+  renew(): Promise<boolean>;
+  line: string;
+}
+
+/** What an http server answered one message, wherever it was asked from. */
+export interface McpHttpAnswer {
+  status: number;
+  contentType?: string;
+  sessionId?: string;
+  body: string;
+}
+
+/** One message to an http server and the end of the road it goes by. */
+export interface McpPost {
+  send(t: Extract<McpTransport, { kind: "http" }>, req: { headers: Record<string, string>; body: string; ms: number }): Promise<McpHttpAnswer>;
+  close(): void;
 }
 
 /** What a command server's process says, wherever it runs. `exit` is said once, with why it ended. */
@@ -374,21 +401,28 @@ function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServe
   };
 }
 
+/** This computer's own fetch, no redirect followed, a failed answer's body never read. */
+const fetchHere: McpPost = {
+  async send(t, req) {
+    const res = await fetch(t.url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(req.ms), headers: req.headers, body: req.body });
+    const answer = { status: res.status, ...(res.headers.get("content-type") !== null ? { contentType: res.headers.get("content-type")! } : {}), ...(res.headers.get("mcp-session-id") !== null ? { sessionId: res.headers.get("mcp-session-id")! } : {}) };
+    if (!res.ok) await res.body?.cancel();
+    return { ...answer, body: res.ok ? await boundedText(res) : "" };
+  },
+  close() {},
+};
+
 /** Streamable HTTP: one POST per message, the answer as JSON or on an event stream's data lines. No redirect is
  * followed, so the config's headers reach its own address alone. */
-function httpClient(t: Extract<McpTransport, { kind: "http" }>, onClose: () => void): Client {
+function httpClient(t: Extract<McpTransport, { kind: "http" }>, spec: McpServerSpec, onClose: () => void): Client {
   let session: string | undefined;
   let next = 1;
   let closed = false;
-  const post = async (body: Record<string, unknown>, ms: number): Promise<Response> => {
-    const res = await fetch(t.url, {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(ms),
-      headers: { ...t.headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL_VERSION, ...(session !== undefined ? { "Mcp-Session-Id": session } : {}) },
-      body: JSON.stringify(body),
-    });
-    session = res.headers.get("mcp-session-id") ?? session;
+  const road = spec.post?.() ?? fetchHere;
+  const post = async (body: Record<string, unknown>, ms: number): Promise<McpHttpAnswer> => {
+    const headers = { ...t.headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL_VERSION, ...(session !== undefined ? { "Mcp-Session-Id": session } : {}) };
+    const res = await road.send(t, { headers, body: JSON.stringify(body), ms });
+    session = res.sessionId ?? session;
     return res;
   };
   return {
@@ -398,9 +432,8 @@ function httpClient(t: Extract<McpTransport, { kind: "http" }>, onClose: () => v
         if (closed) throw new Error("the server's connection is closed");
         const res = await post({ jsonrpc: "2.0", id, method, params }, ms);
         if (res.status === 401 || res.status === 403) throw new Error(`its address wants a sign-in (${res.status}); sign in where the agent keeps it`);
-        if (!res.ok) throw new Error(`its address answered ${method} with ${res.status}`);
-        const text = await boundedText(res);
-        const lines = (res.headers.get("content-type") ?? "").includes("event-stream") ? text.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()) : [text];
+        if (res.status < 200 || res.status > 299) throw new Error(`its address answered ${method} with ${res.status}`);
+        const lines = (res.contentType ?? "").includes("event-stream") ? res.body.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()) : [res.body];
         for (const line of lines) {
           let msg: { id?: unknown; result?: unknown; error?: RpcError };
           try {
@@ -424,6 +457,7 @@ function httpClient(t: Extract<McpTransport, { kind: "http" }>, onClose: () => v
     close() {
       if (closed) return;
       closed = true;
+      road.close();
       onClose();
     },
     get closed() {
@@ -594,7 +628,7 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
         release?.();
         if (t.conns.get(server) === made) t.conns.delete(server);
       };
-      const client = spec.transport.kind === "stdio" ? stdioClient(spec.transport, spec, gone) : httpClient(spec.transport, gone);
+      const client = spec.transport.kind === "stdio" ? stdioClient(spec.transport, spec, gone) : httpClient(spec.transport, spec, gone);
       if (!client.closed && client.pid !== undefined) release = deps.own?.(threadId, client.pid, "tool");
       try {
         const init = (await client.request("initialize", { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } }, CONNECT_MS).answer) as { capabilities?: { resources?: unknown } } | undefined;

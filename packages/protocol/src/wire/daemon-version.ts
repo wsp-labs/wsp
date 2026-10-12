@@ -164,6 +164,7 @@ const DAEMON_CONTENTS = [
   "a934fd82cd94334fd628c496fa325269b1ea755531c94fd0c13d0659bc3cd9c9",
   "43fe415ad837dda666c4f00dd0688bcc76aa139ee0f438d7e005268e71ce2bca",
   "58a118b3b52e5a1ba90c8a038df4bed85659d763ab11ca2bfcbc099353af5bce",
+  "ea7ddf9672058441f203edb34058aaa4891edf74f4491eb00ff3d7dafe27ac07",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -657,7 +658,11 @@ const DAEMON_CONTENTS = [
  * stdin, stdout and stderr as pipes held for the socket that opened it; stdio.write feeds its stdin, stdout and stderr
  * come back apart as stdio.out and stdio.err, base64 and unchanged, and stdio.close or the socket's close kills the
  * group and says stdio.exit; any of the three that names a machine is refused, so a command a machine's config chose
- * never runs on the computer outside it. */
+ * never runs on the computer outside it.
+ * Version 155: http.post posts one message to an http MCP server from this computer, a loopback address included, with
+ * the headers the host names and, where it names a sign-in file under the home with no Authorization header given, the
+ * bearer that file holds, read as the home's owner through no link and put on that request alone; it answers the
+ * status, content type, session id and body, no redirect followed. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
@@ -716,6 +721,10 @@ export function placeDaemonBehind(place: { daemonVersion?: number }): string | u
 /** The first daemon that holds a command open on pipes (stdio.open), which a slate's MCP server on a box or a cloud
  * machine runs over. */
 export const STDIO_DAEMON_VERSION = 154;
+
+/** The first daemon that posts to an http server from its own computer (http.post), which a slate's http MCP server
+ * on a box or a cloud machine is asked through. */
+export const HTTP_POST_DAEMON_VERSION = 155;
 
 /** The first daemon that answers fs.folders. */
 export const FS_FOLDERS_DAEMON_VERSION = 73;
