@@ -4,10 +4,11 @@ import { readlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, relative } from "node:path";
 import { CATALOG_AGENTS, remoteHost } from "@wsp/catalog";
-import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, type Caller } from "@wsp/protocol";
+import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, STDIO_DAEMON_VERSION, slateServerBehindLine, type Caller } from "@wsp/protocol";
 import { agentPidOf, groupExists } from "../local-exec.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
+import type { StdioRoad } from "../slate-mcp-on.js";
 import type { MachineExecOptions } from "../machine-exec.js";
 import type { WorkspaceRecord, LiveWorkspace } from "../types/wiring.js";
 import { DaemonRefusal, defaultBranchRefused, isOnDefaultBranch, type ChildStart, type SESSION_FACTS } from "../types/internal.js";
@@ -153,6 +154,29 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     } finally {
       channel.close();
     }
+  };
+
+  /** The road a slate's command server on a workspace's computer runs over, one per server: that computer's link and
+   * the events it carries, or the machine's own daemon dialled for it alone. A daemon older than `need`, the first that
+   * serves the ops the server is asked by, is refused before anything is sent. */
+  const stdioRoad = async (entry: LiveWorkspace, need = STDIO_DAEMON_VERSION): Promise<StdioRoad> => {
+    const listeners = new Set<(event: Record<string, unknown>) => void>();
+    const heard = (event: Record<string, unknown>): void => {
+      for (const fn of listeners) fn(event);
+    };
+    const listen = (fn: (event: Record<string, unknown>) => void): (() => void) => (listeners.add(fn), () => void listeners.delete(fn));
+    const served = servedByItsComputer(entry);
+    if (served === undefined) {
+      const channel = await ownDaemonChannel(entry, heard);
+      return { send: async frame => replyOf(frame as DaemonFrame, (await channel.send(frame as DaemonFrame)) as Record<string, unknown>), listen, closed: channel.closed, close: () => channel.close() };
+    }
+    const placeId = entry.record.place;
+    if (placeId === undefined || placeDoor === undefined) throw new Error(placeServesDaemonLine(entry.record.name, computerOf(entry)));
+    const version = (await placeDoor.reportOf(placeId))?.daemonVersion;
+    if (version !== undefined && version < need) throw new Error(slateServerBehindLine(placeDoor.nameOf(placeId)));
+    const link = placeDoor.channel(placeId, heard);
+    if (link === undefined) throw new Error(absentComputer(placeDoor.nameOf(placeId), null).sentence);
+    return { send: async frame => replyOf(frame as DaemonFrame, await served(frame)), listen, closed: link.closed, close: () => link.close() };
   };
 
   /** The frames this host sends the daemon of the computer it runs on, which runs the git host's own signed-in command
@@ -700,7 +724,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   return {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
-    withDaemon, overChannel, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
+    withDaemon, overChannel, stdioRoad, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
     portPids, threadTerminals, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };

@@ -314,6 +314,15 @@ describe("MessagesTimeline", () => {
     expect(markup).toContain("Also changed in this folder");
   });
 
+  it("reads a scroller standing at its own bottom as the end, though the list's sizes still hold a taller composer", async () => {
+    const { resolveTimelineIsAtEnd } = await import("./MessagesTimeline.logic");
+    // The composer settled 92 px shorter after the first draw: the content now fits, the scroller is at its bottom, and
+    // the list's own length still counts the old inset, so a scroll at that moment read the view as not at the end.
+    const stale = { isAtEnd: false, contentLength: 709, scroll: 0, scrollLength: 649 };
+    expect(resolveTimelineIsAtEnd(stale, 0, { scrollHeight: 649, scrollTop: 0, clientHeight: 649 })).toBe(true);
+    expect(resolveTimelineIsAtEnd(stale, 0, { scrollHeight: 1400, scrollTop: 0, clientHeight: 649 })).toBe(false);
+  });
+
   it("treats only the strict list end as the live edge", async () => {
     const {
       resolveTimelineIsAtEnd,
@@ -629,6 +638,44 @@ describe("MessagesTimeline", () => {
     expect(markup).not.toContain("onerror=");
     expect(markup).not.toContain("javascript:");
     expect(markup).not.toContain("globalThis.__xss");
+  });
+
+  it("draws a sub-thread's start line between the message its machine was made for and the agent's reply", () => {
+    const at = Date.parse(MESSAGE_CREATED_AT);
+    const brief = buildUserTimelineEntry("Fix the flaky upload test.");
+    const reply = { ...buildAssistantTimelineEntry("On it."), id: "message-2", createdAt: new Date(at + 16_000).toISOString() };
+    const spawn = { startedAt: at - 33_000, machine: { since: at - 33_000, id: "bx_7k2q9", states: ["ready"], ms: 31_000 }, readyAt: at - 1_000, log: [] };
+    const machineStart = { workspaceId: "ws_a", threadId: "th_1", harness: "claude", title: "fix", sub: { state: "running" as const, on: "box", machine: "fix", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix", spawn }, agent: "Claude Code", project: "web" };
+    const { container } = render(<MessagesTimeline {...buildProps()} timelineEntries={[brief, reply]} machineStart={machineStart} />);
+    const text = container.textContent ?? "";
+    expect(container.querySelector("[data-spawn-line=done]")?.textContent).toBe("Started on Boat in 49s");
+    expect(text.indexOf("Fix the flaky upload test.")).toBeLessThan(text.indexOf("Started on Boat"));
+    expect(text.indexOf("Started on Boat")).toBeLessThan(text.indexOf("On it."));
+  });
+
+  it("draws a failed resume's start line open on its step, Try again sending the message the host kept and taking it out of the composer", async () => {
+    const at = Date.parse(MESSAGE_CREATED_AT);
+    const said = "Boat gave two machines in a row that could not run commands (bx_1, bx_2); Boat is restoring badly right now.";
+    const fix = "Start it again in a few minutes.";
+    const brief = buildUserTimelineEntry("Fix the flaky upload test.");
+    const reply = { ...buildAssistantTimelineEntry("Pushed it."), id: "message-2", createdAt: new Date(at + 60_000).toISOString() };
+    const spawn = { startedAt: at + 3_599_000, machine: { since: at + 3_599_000, id: "bx_2", states: ["provisioning"] }, failed: { step: "machine" as const, said, fix }, asked: "what was the word?", log: [] };
+    const machineStart = { workspaceId: "ws_a", threadId: "th_1", harness: "claude", title: "fix", sub: { state: "released" as const, on: "box", machine: "fix", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix", spawn }, agent: "Claude Code", project: "web" };
+    const startSession = vi.fn(async () => ({ id: "s", workspaceId: "ws_a" }));
+    const { useStore } = await import("../../protocol/store");
+    useStore.setState({ api: { startSession } as never });
+    // The composer put the refused message back as its draft.
+    const { useComposerDraftStore } = await import("./composerDraftStore");
+    useComposerDraftStore.getState().setDraft("th_1", { prompt: "what was the word?", cursor: 18 });
+    const { container } = render(<MessagesTimeline {...buildProps()} timelineEntries={[brief, reply]} machineStart={machineStart} />);
+    expect(container.querySelector("[data-spawn-line=failed]")).not.toBeNull();
+    expect((container.textContent ?? "").split(said).length - 1).toBe(1);
+    fireEvent.click(container.querySelector("[data-k=spawn-try-again]")!);
+    expect(startSession).toHaveBeenCalledTimes(1);
+    expect(startSession).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws_a", thread: "th_1", prompt: "what was the word?" }));
+    // Try again sent it, so the composer no longer holds it to be sent a second time.
+    expect(useComposerDraftStore.getState().drafts["th_1"]?.prompt ?? "").toBe("");
+    useStore.setState({ api: null });
   });
 
   it("draws an insight block as a note labelled Insight, with no star and no dashes", () => {

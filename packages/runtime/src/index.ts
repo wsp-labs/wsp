@@ -63,3 +63,4 @@ export { SLATES } from "./lazy-slates.js";
 export type * from "./slates.js";
 export type * from "./slate-runs.js";
 export * from "./activity.js";
+export type { McpSignIn } from "./slate-mcp.js";

@@ -99,8 +99,8 @@ import {
   sudoPasswordAsk,
 } from "../src/places.js";
 import { BackCutError, backBindLine } from "../src/place-back.js";
-import { heldPlaceScript } from "@wsp/protocol";
-import { placeFilePath, placeKeyPath, placeLogPath, placeReport, placeService, readPlaceFile, sweepPlace as sweepPlaceHere, sweptLine, sweptSaid, writePlaceFile, type PlaceSweepOptions } from "../src/place-report.js";
+import { CGROUP_CONTROLLERS_PATH, PROC_FILESYSTEMS_PATH, heldPlaceScript, workspacesBlockedBy } from "@wsp/protocol";
+import { modprobeAt, placeFilePath, placeKeyPath, placeLogPath, placeReport, placeService, readPlaceFile, sweepPlace as sweepPlaceHere, sweptLine, sweptSaid, writePlaceFile, type PlaceSweepOptions } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { SERVICE_MANAGERS, type RunResult, type ServiceAddress, type ServiceManager, type ServiceRunner, type ServiceUnit } from "../src/service.js";
 import { addedBy, addedProviders } from "../src/providers.js";
@@ -489,6 +489,25 @@ describe("what this computer says about itself", () => {
     // How long it has been up rides the report, so a row for a computer that stopped answering says what it last
     // was rather than standing at pending for a fact nothing is coming back with.
     expect(report.uptimeMs).toBeGreaterThan(0);
+  });
+
+  it("loads an overlay module its kernel does not list yet through the loader it runs, and refuses one with no module in the doctor's words", () => {
+    const dir = tmp("report-overlay");
+    const filesystems = join(dir, "filesystems");
+    writeFileSync(filesystems, "nodev\tsysfs\next4\n");
+    const files: Record<string, string> = { [CGROUP_CONTROLLERS_PATH]: join(dir, "controllers"), [PROC_FILESYSTEMS_PATH]: filesystems };
+    writeFileSync(files[CGROUP_CONTROLLERS_PATH]!, "cpu memory\n");
+    const read = (path: string): string | undefined => (existsSync(files[path] ?? "/nonexistent") ? readFileSync(files[path]!, "utf8") : undefined);
+    const loads = writeStub(join(dir, "modprobe"), `#!/bin/sh\necho "$*" >> ${dir}/asked\n[ "$1" = -n ] && exit 0\nprintf 'nodev\\toverlay\\n' >> ${filesystems}\n`);
+    expect(workspacesBlockedBy({ platform: "linux", read, modprobe: modprobeAt(loads), euid: 0 })).toBeUndefined();
+    expect(readFileSync(join(dir, "asked"), "utf8")).toBe("overlay\n");
+
+    writeFileSync(filesystems, "nodev\tsysfs\next4\n");
+    const none = writeStub(join(dir, "modprobe-none"), "#!/bin/sh\necho 'modprobe: FATAL: Module overlay not found in directory /lib/modules/6.8.0-146-generic' >&2\nexit 1\n");
+    expect(workspacesBlockedBy({ platform: "linux", read, modprobe: modprobeAt(none), euid: 0 })).toBe(
+      "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through",
+    );
+    expect(modprobeAt(join(dir, "no-such-modprobe"))(["overlay"])).toEqual({ error: "ENOENT" });
   });
 
   it("reads the PATH a login shell here gives, not the one the shell that typed the join happened to hold", async () => {

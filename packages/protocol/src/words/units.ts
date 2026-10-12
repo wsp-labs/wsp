@@ -22,10 +22,19 @@ export function compactBytes(n: number): string {
 }
 
 export function fmtBytes(n: number): string {
-  if (n < KIB) return `${n} B`;
-  if (n < MIB) return `${Math.round(n / KIB)} KB`;
-  if (n < GIB) return `${Math.round(n / MIB)} MB`;
-  const gb = n / GIB;
+  return bytesIn(n, KIB);
+}
+
+/** Bytes in decimal units, as a provider sells a disk: a 160 GB disk reads 160 GB, where fmtBytes says 149. */
+export function fmtDiskBytes(n: number): string {
+  return bytesIn(n, 1000);
+}
+
+function bytesIn(n: number, k: number): string {
+  if (n < k) return `${n} B`;
+  if (n < k ** 2) return `${Math.round(n / k)} KB`;
+  if (n < k ** 3) return `${Math.round(n / k ** 2)} MB`;
+  const gb = n / k ** 3;
   return `${Number.isInteger(Number(gb.toFixed(1))) ? Math.round(gb) : gb.toFixed(1)} GB`;
 }
 
@@ -321,6 +330,9 @@ export function boatCancelledLine(what: string | undefined, said: string | undef
   return `Boat could not get a machine${what === undefined ? "" : ` for ${what}`} and cancelled the create${said === undefined || said === "" ? "" : ` (${said})`}; start it again.`;
 }
 
+/** A create's line as the box Boat made for it moves through Boat's own states. */
+export const boatBoxStateLine = (id: string, state: string): string => `Boat's machine ${id} is ${state}`;
+
 /** The host log's line for a call Boat refused: the status, Boat's code and request id, and the first line of its words. */
 export function boatRefusedLogLine(call: string, status: number, code: string | undefined, requestId: string | undefined, said: string): string {
   const end = said.indexOf("\n");
@@ -401,9 +413,9 @@ export function fmtInr(inr: number): string {
 export const LIST_PRICE_WORD = "list price";
 
 /** Two byte counts against each other with the unit said once when they share it: "3.6 of 3.9 GB", "900.0 MB of 3.9 GB". */
-export function fmtBytesOf(used: number, total: number): string {
-  const t = fmtBytes(total);
-  const u = fmtBytes(used);
+export function fmtBytesOf(used: number, total: number, fmt: (n: number) => string = fmtBytes): string {
+  const t = fmt(total);
+  const u = fmt(used);
   const unit = t.slice(t.lastIndexOf(" "));
   return `${u.endsWith(unit) ? u.slice(0, -unit.length) : u} of ${t}`;
 }

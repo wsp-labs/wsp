@@ -9,13 +9,13 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
+import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatBoxStateLine, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
 import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, DOCTOR_LABEL, GOLDEN_LABEL, HOST_LABEL, NAME_LABEL, OWNER_LABEL, SMOKE_LABEL, WORKSPACE_LABEL, WSP_LABEL } from "./labels.js";
-import type { BackendPricing, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
+import type { BackendPricing, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach, ProviderBoxState, RunOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow } from "./machine.js";
 import { DAEMON_PORT } from "./preview.js";
 
 type Fetch = typeof globalThis.fetch;
@@ -26,6 +26,8 @@ export const BOX_API_URL = "https://ascii.dev/api/box/v1";
  * 2026-10-11). Which of them a plan sells is read off `GET /limits` (`planSizes`). */
 export interface BoxClass {
   type: "small" | "default" | "large" | "xlarge";
+  /** The class as a person reads it, the one spelling every size row carries. */
+  name: string;
   cpu: number;
   memMb: number;
   diskGb: number;
@@ -33,10 +35,10 @@ export interface BoxClass {
 }
 
 export const BOX_CLASSES: readonly BoxClass[] = [
-  { type: "small", cpu: 2, memMb: 4096, diskGb: 12, rateUsdPerHour: 0.018 },
-  { type: "default", cpu: 4, memMb: 8192, diskGb: 50, rateUsdPerHour: 0.036 },
-  { type: "large", cpu: 8, memMb: 16384, diskGb: 125, rateUsdPerHour: 0.072 },
-  { type: "xlarge", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
+  { type: "small", name: "small", cpu: 2, memMb: 4096, diskGb: 12, rateUsdPerHour: 0.018 },
+  { type: "default", name: "default", cpu: 4, memMb: 8192, diskGb: 50, rateUsdPerHour: 0.036 },
+  { type: "large", name: "large", cpu: 8, memMb: 16384, diskGb: 125, rateUsdPerHour: 0.072 },
+  { type: "xlarge", name: "extra large", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
 ];
 
 /** The root disk a box of each class reads, in GB as lsblk counts /dev/vda inside one (2026-10-12): a box made at
@@ -183,8 +185,9 @@ export function placeLimitsOf(limits: BoxLimits): CloudLimits | undefined {
   const sizes = BOX_CLASSES.filter(c => limits.sizes.includes(c.type)).map(c => sizeWord(c));
   const starts = limits.starts;
   return {
-    plan: { ...(limits.planKey !== undefined ? { key: limits.planKey } : {}), trial: limits.trial, machinesAtOnce: limits.machinesAtOnce, sizes },
+    plan: { ...(limits.planKey !== undefined ? { key: limits.planKey } : {}), trial: limits.trial, machinesAtOnce: limits.machinesAtOnce, sizes, ...(limits.activeBoxes !== undefined ? { running: limits.activeBoxes } : {}) },
     ...(starts !== undefined ? { starts: { minute: { ...starts.minute }, hour: { ...starts.hour }, day: { ...starts.day } } } : {}),
+    ...(limits.creditBalanceHours !== undefined ? { creditHours: limits.creditBalanceHours } : {}),
   };
 }
 
@@ -520,7 +523,7 @@ export class BoxBackend implements MachineBackend {
   get capabilities(): Capabilities {
     const sold = this.limitsKept?.limits.sizes;
     const sizes = BOX_CLASSES.filter(c => sold === undefined || sold.includes(c.type));
-    return { ...BOX_CAPABILITIES, sizes: sizes.map(c => ({ cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour })) };
+    return { ...BOX_CAPABILITIES, sizes: sizes.map(c => ({ name: c.name, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour })) };
   }
 
   readonly pricing = BOX_PRICING;
@@ -721,11 +724,12 @@ export class BoxBackend implements MachineBackend {
 
   /** Reads the box until `done` says so, at the poll pace, inside `budgetMs`; a box the provider lost throws missing,
    * one that reads error throws its reason, and one Boat cancelled throws its line naming `name` on the first read. */
-  async settle(id: string, done: (view: BoxView) => boolean, budgetMs: number, what: string, signal?: AbortSignal, name?: string): Promise<BoxView> {
+  async settle(id: string, done: (view: BoxView) => boolean, budgetMs: number, what: string, signal?: AbortSignal, name?: string, seen?: (view: BoxView) => void): Promise<BoxView> {
     const started = this.clock.now();
     for (;;) {
       if (signal?.aborted === true) throw signal.reason instanceof Error ? signal.reason : new Error(`${what} of ${id} was stopped by its caller`);
       const view = await this.view(id);
+      seen?.(view);
       if (done(view)) return view;
       if (view.state === "error") throw new Error(`box ${id} reads error during ${what}${view.error ? `: ${view.error}` : ""}`);
       if (view.state === "cancelled") throw new CreateCancelledError(id, view.error ?? "", boatCancelledLine(name, view.error ?? undefined));
@@ -794,7 +798,7 @@ export class BoxBackend implements MachineBackend {
   }
 
   /** `sent` is the bytes an earlier ask under `spec.idempotencyKey` sent, sent again as they are. */
-  async create(spec: MachineSpec, _waiting?: (line: string) => void, sent?: string): Promise<Machine> {
+  async create(spec: MachineSpec, waiting?: (line: string, box?: ProviderBoxState) => void, sent?: string): Promise<Machine> {
     const what = spec.labels?.[NAME_LABEL];
     const { sizes } = await this.beforeStart();
     // The runtime checks a size against `capabilities`, which lists every class until the first read of /limits.
@@ -815,9 +819,17 @@ export class BoxBackend implements MachineBackend {
     if (lost !== undefined) console.warn(createAnswerLostLine(providerKeyName("box"), lost, id));
     const machine = new BoxMachine(this, id, spec.kind, spec.labels, undefined, replayed);
     if (timerUntil !== undefined) this.backstops.set(id, { until: timerUntil, spanMs: spec.idleTimeoutMs! });
+    // Each of Boat's own states the box passes through, once, for the person following the create.
+    let said: string | undefined;
+    const tell = (state: string | undefined): void => {
+      if (state === undefined || state === said) return;
+      said = state;
+      waiting?.(boatBoxStateLine(id, state), { id, state });
+    };
+    tell(res.box.state);
     try {
       // Commands sent before ready run before the box is usable, so the handle is given back once it reads ready.
-      const view = await this.settle(id, v => STATE_MAP[v.state] === "running", this.budgets.createMs, "create", undefined, what);
+      const view = await this.settle(id, v => STATE_MAP[v.state] === "running", this.budgets.createMs, "create", undefined, what, v => tell(v.state));
       await machine.proveRoad();
       // A box deployed from a named snapshot is named after the snapshot, whatever the create asked (measured
       // 2026-09-11), and the name is where the labels live: it is set again once the box stands.

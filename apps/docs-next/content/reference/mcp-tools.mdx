@@ -171,6 +171,8 @@ Adds a computer of the person's over ssh and sets it up from a saved recipe, as 
 | `computer.size` | object |  |  |
 | `computer.sizeDefault` | object |  |  |
 | `computer.deleteAfterMs` | integer |  |  |
+| `computer.creditHours` | number |  |  |
+| `computer.spentTodayUsd` | number |  |  |
 | `setup` | object[] | yes |  |
 | `setup[].step` | `connect`, `host-key`, `check`, `chip`, `root`, `system`, `disk`, `reach`, `wsp`, `service`, `join`, `floor`, `agents`, `signins`, `clis`, `skills`, `mcp`, `plugins`, `configs`, `folders`, `folderServers`, `github`, `context` | yes |  |
 | `setup[].state` | `running`, `done`, `failed`, `skipped` | yes |  |
@@ -427,6 +429,8 @@ Nothing.
 | `computers[].size` | object |  |  |
 | `computers[].sizeDefault` | object |  |  |
 | `computers[].deleteAfterMs` | integer |  |  |
+| `computers[].creditHours` | number |  |  |
+| `computers[].spentTodayUsd` | number |  |  |
 | `spend` | object[] | yes |  |
 | `spend[].place` | string | yes |  |
 | `spend[].todayUsd` | number | yes |  |
@@ -528,6 +532,8 @@ Sets what the person may set on one computer and answers its row as it now reads
 | `computer.size` | object |  |  |
 | `computer.sizeDefault` | object |  |  |
 | `computer.deleteAfterMs` | integer |  |  |
+| `computer.creditHours` | number |  |  |
+| `computer.spentTodayUsd` | number |  |  |
 
 ## conversations
 

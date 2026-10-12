@@ -318,3 +318,8 @@ export type SlateValuesEvent = z.infer<typeof SlateValuesEvent>;
 /** New lines of a streaming run, scrubbed, pushed and never recorded. */
 export const SlateRunEvent = z.object({ type: z.literal("slate.run"), workspaceId: z.string(), threadId: z.string(), run: z.string(), lines: z.array(z.string()) });
 export type SlateRunEvent = z.infer<typeof SlateRunEvent>;
+
+/** Why a thread on a machine wsp made on a joined computer gets no tool or resource run: its server would start on
+ * that computer itself, outside the machine, off a config the machine's own agent writes. */
+export const slateMachineOnBox = (runs: readonly string[], machine: string, computer: string): string =>
+  `${runs.map(r => `$${r}`).join(", ")} ${runs.length === 1 ? "calls" : "call"} an MCP server, and this thread runs on ${machine}, a machine wsp made on ${computer}, whose server would start on ${computer} outside it: a slate's tool run goes only to a thread in a folder on ${computer} or on a cloud machine, so start the thread in the project's folder on ${computer}`;

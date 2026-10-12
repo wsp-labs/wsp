@@ -71,8 +71,9 @@ themes Paper's until tuned.
 | `--border` | #232323 | #e4e4e7 | sidebar and panel edges, glyph frames |
 | `--input` / `--input-fill` | #1e1e1e / #101010 | #d4d4d8 / #ffffff | button and field edge and fill |
 | `--primary` | #346bf1 | #1b4ed8 | the one primary button, the focus ring, the line of the Usage page's chart (2026-10-01), a slate's one accent piece, a slate chart's first series when it holds the accent, a treemap's first group, a running timeline bar |
-| `--warning` | #fe9a00 | #e17100 | a cloud's Full and At limit, an account's Limit reached on the Usage page, a slate's warning tone, a decision node's tint, a slate chart's second series or treemap group |
-| `--error-foreground` | #ff6467 | #c10007 | a refusal sentence, Remove inside a dialog, a diff count's deletions, a slate's bad tone |
+| `--warning` | #fe9a00 | #e17100 | a cloud's Full and At limit, an account's Limit reached on the Usage page, a Boat limit column from nine tenths of its limit, the mark of a sub-thread's start step that passed with a warning, a slate's warning tone, a decision node's tint, a slate chart's second series or treemap group |
+| `--error-foreground` | #ff6467 | #c10007 | a refusal sentence, Remove inside a dialog, a diff count's deletions, a Boat limit column's figure at its limit, a sub-thread's failed start line, a slate's bad tone |
+| `--error` | #fb414a | #fb2c36 | a Boat limit column's bar at its limit |
 | `--success` | #00bc7d | #009966 | the sign-in dot on an agents panel row, a diff count's additions, a slate's good tone, a start or end node's tint, a slate chart's fourth series or treemap group |
 | `--sidebar` | #000000 | #fafafa | the sidebar |
 | `--sidebar-foreground` | #f1f3f7 | #27272a | tile titles |

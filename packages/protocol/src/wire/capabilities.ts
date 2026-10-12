@@ -39,8 +39,9 @@ export const InitSetup = z.object({
 });
 export type InitSetup = z.infer<typeof InitSetup>;
 
-/** One size a create may ask for, with what it costs awake. */
-export const MachineSizeOffer = WorkspaceSize.extend({ rateUsdPerHour: z.number() });
+/** One size a create may ask for, with what it costs awake, and its class by the name a person reads where the
+ * provider sells classes. */
+export const MachineSizeOffer = WorkspaceSize.extend({ rateUsdPerHour: z.number(), name: z.string().optional() });
 export type MachineSizeOffer = z.infer<typeof MachineSizeOffer>;
 
 /** How a provider pauses a machine. memory: a pause keeps the processes and every byte they hold. disk: a pause is a

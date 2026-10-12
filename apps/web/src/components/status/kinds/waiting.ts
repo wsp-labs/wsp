@@ -6,7 +6,7 @@ import type { StatusKind } from "./kind.js";
  * runs yet, so no crab and no time, and the reason rides the tile's card rather than the slot. */
 export const WAITING: StatusKind = {
   id: "waiting",
-  is: thread => thread.status === "running" && thread.capped !== undefined,
+  is: thread => thread.status === "running" && (thread.capped !== undefined || thread.sub?.state === "waiting"),
   glyph: HourglassIcon,
   word: "Waiting",
 };

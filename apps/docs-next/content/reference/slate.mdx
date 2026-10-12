@@ -890,11 +890,11 @@ a setup the person performs, with a secret:
   <value name="project" start="" />
   <secret name="vercelToken" />
   <run name="check" cmd='vercel project inspect "$PROJECT" 2>&1 | head -c 4000'
-    env={{ PROJECT: $project, VERCEL_TOKEN: $vercelToken }} on="host" timeout={30} />
+    env={{ PROJECT: $project, VERCEL_TOKEN: $vercelToken }} timeout={30} />
   <run name="env" cmd='grep -v "^VERCEL_TOKEN=" .env > .env.tmp 2>/dev/null; printf "VERCEL_TOKEN=%s\n" "$VERCEL_TOKEN" >> .env.tmp; mv .env.tmp .env'
-    env={{ VERCEL_TOKEN: $vercelToken }} on="host" timeout={10} />
+    env={{ VERCEL_TOKEN: $vercelToken }} timeout={10} />
   <run name="ci" cmd='gh secret set VERCEL_TOKEN --repo "$REPO"' stdin={$vercelToken}
-    env={{ REPO: $repo }} on="host" timeout={60} />
+    env={{ REPO: $repo }} timeout={60} />
   <derived name="checked" value={$check.state == 'done' and contains($check.out, $project)} />
   <derived name="written" value={$env.state == 'done' and $ci.state == 'done'} />
   <when change={$project} do={start($check)} />

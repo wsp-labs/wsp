@@ -11,7 +11,7 @@
 // so nothing here filters again.
 import { ServerIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { HERE_PLACE_ID, NO_RECIPE, SETUP_WORDS, absentRoad, nameList, setupWord, pendingWord, type PendingComputer, awayMsOf, fmtCpus, fmtMemGb, foldThreads, isLocalWorkspace, workspaceStateOf, workspaceWord, type AbsentComputer, type AgentsReport, type PlaceView, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { HERE_PLACE_ID, NO_RECIPE, SETUP_WORDS, absentRoad, nameList, setupWord, cloudPlanLine, cloudStartsTodayLine, sizeNameOf, subSizesSold, pendingWord, type PendingComputer, awayMsOf, fmtCpus, fmtMemGb, foldThreads, isLocalWorkspace, workspaceStateOf, workspaceWord, type AbsentComputer, type AgentsReport, type PlaceView, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { computerActions } from "../actions/computerActions.js";
 import { openContextMenu } from "../actions/contextMenu.js";
 import { resolveActions } from "../actions/registry.js";
@@ -43,6 +43,7 @@ import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, N
 import { copyOn } from "./image.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
 import { LiveBand } from "./LiveBand.js";
+import { LimitBand, limitNote } from "./LimitBand.js";
 import { openImageRecipe } from "./openAt.js";
 import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeIsOffline, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
 import { cloudsOffered, keyHeld } from "./providers.js";
@@ -256,13 +257,14 @@ function CloudListRow({ place, machines, running, cell, open, ctx }: { place: Pl
   const menu = useRowMenu(place, ctx);
   return (
     <GridRow columns={LIST_COLUMNS} open={open} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
-      <GridName glyph={placeGlyph(place)} name={placeName(place)} />
+      <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(limitNote(place) === undefined ? {} : { note: limitNote(place)! })} />
       <Num k="machines" wideOnly span={2}>
         {machines}
       </Num>
       <Num k="threads">{running}</Num>
       <PlaceState place={place} cell={cell} onSignIn={open} />
       <Chevron />
+      <LimitBand place={place} />
     </GridRow>
   );
 }
@@ -460,6 +462,18 @@ function RemoveLine({ place, ctx, onRemoved }: { place: PlaceView; ctx: Settings
 /** A computer's facts of one kind on one line: its system, cores and memory, as it last reported them. */
 const shapeLine = (place: PlaceView): string => [place.os, place.shape === undefined ? undefined : fmtCpus(place.shape.cpu, "cores"), place.shape === undefined ? undefined : fmtMemGb(place.shape.memMb)].filter((part): part is string => part !== undefined && part !== "").join(", ");
 
+/** A cloud's plan off its own limits read, and today's starts against the plan's under it. */
+function PlanLines({ place }: { place: PlaceView }) {
+  if (place.plan === undefined) return null;
+  const names = subSizesSold(place.sizes ?? [], place.plan).map(sizeNameOf);
+  return (
+    <span className="flex flex-col">
+      <span data-k="cloud-plan">{cloudPlanLine(place.plan, place.starts, names)}</span>
+      {place.starts === undefined ? null : <span data-k="cloud-starts" className="tabular-nums">{cloudStartsTodayLine(place.starts)}</span>}
+    </span>
+  );
+}
+
 /** The recipe a computer follows, its changes reaching it on their own; None where it follows none. A move is the
  * host's: its answer stands on the computer's row, and the recipes are read again for who follows each. */
 function RecipeCard({ place, ctx }: { place: PlaceView; ctx: SettingsContext }) {
@@ -613,7 +627,7 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
     <>
       <section data-settings-card="computer" className="flex flex-col gap-3">
         <div className={CARD_SURFACE}>
-          <HeadRow glyph={<ComputerGlyph place={place} className="size-4 text-foreground/80" />} title={name} {...(fact === undefined ? {} : { mark: <VersionFact parts={fact} /> })} {...(shapeLine(place) === "" ? {} : { line: shapeLine(place) })} attrs={{ "data-k": "computer-head" }} />
+          <HeadRow glyph={<ComputerGlyph place={place} className="size-4 text-foreground/80" />} title={name} {...(fact === undefined ? {} : { mark: <VersionFact parts={fact} /> })} {...(cloud && place.plan !== undefined ? { line: <PlanLines place={place} /> } : shapeLine(place) === "" ? {} : { line: shapeLine(place) })} attrs={{ "data-k": "computer-head" }} />
           {cloud ? null : <BehindRow place={place} ctx={ctx} />}
         </div>
         <PlaceStateLine place={place} ctx={ctx} />

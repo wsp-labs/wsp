@@ -90,7 +90,7 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
     if (first?.crossed !== true || ctx.state.closing) return;
     await sweepLeftovers(entry.machine).catch((e: unknown) => console.warn(`what wsp made on ${entry.record.name} was not cleared: ${e instanceof Error ? e.message : String(e)}`));
     const after = (await diskRead(entry))?.use ?? first.use;
-    const to = await moveFor(entry);
+    const to = await moveFor(entry, after.usedBytes + after.freeBytes);
     const words = {
       machine: entry.record.name,
       on: providerKeyName(ctx.providerOf(entry.record) ?? "the provider"),
@@ -108,17 +108,17 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
       ctx.record({ type: "session.notice", workspaceId: entry.record.id, sessionId: s.view.claudeSessionId ?? s.turnId, turnId: s.turnId, threadId: thread, text });
     }
   };
-  /** The first size up the plan sells whose measured root disk is bigger than this machine's; nothing where either
-   * disk was never measured. */
-  const moveFor = async (entry: LiveWorkspace): Promise<Omit<DiskMove, "thread"> | undefined> => {
+  /** The first size up the plan sells whose measured root disk grows the one this machine reads, which is not always
+   * its size's: Boat makes a small box on an older 12 GB disk when it runs short. df counts 6% under the disk's own
+   * size (70.6 of 75.2 GB on a small box, 2026-10-12), so a size grows it only past a tenth more. */
+  const moveFor = async (entry: LiveWorkspace, readBytes: number): Promise<Omit<DiskMove, "thread"> | undefined> => {
     const at = ctx.backendFor(entry.record);
-    const here = at.rootDiskOf?.(entry.record.size);
-    if (here === undefined) return undefined;
+    if (at.rootDiskOf === undefined) return undefined;
     await at.limits?.().catch(() => undefined);
     const up = at.capabilities.sizes.filter(s => s.memMb > entry.record.size.memMb).sort((a, b) => a.memMb - b.memMb);
     for (const s of up) {
-      const disk = at.rootDiskOf?.(s);
-      if (disk !== undefined && disk.diskGb > here.diskGb) return { name: disk.name, cpu: s.cpu, memMb: s.memMb, diskGb: disk.diskGb };
+      const disk = at.rootDiskOf(s);
+      if (disk !== undefined && disk.diskGb * 1e9 > readBytes * 1.1) return { name: disk.name, cpu: s.cpu, memMb: s.memMb, diskGb: disk.diskGb };
     }
     return undefined;
   };

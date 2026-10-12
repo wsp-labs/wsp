@@ -23,8 +23,8 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpTransport, type TurnServer } from "@wsp/catalog";
-import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, type Host } from "@wsp/collect";
-import type { ServerToolsAsk } from "@wsp/runtime";
+import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, tilde, type Host } from "@wsp/collect";
+import { SERVER_NOT_SET_UP, type McpSignIn, type ServerToolsAsk } from "@wsp/runtime";
 import { lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
 import { ownServerFiles } from "./agents-here.js";
 
@@ -37,6 +37,9 @@ const HARNESS_KEPT_MS = 10 * 60_000;
 const HARNESS_AT_ONCE = 2;
 /** How long a harness is given to say whether it holds a server's sign-in. */
 const HARNESS_MS = 5_000;
+/** How long it is given to say so when its word renews a token near its end, which waits on the server's own token
+ * endpoint. */
+const RENEW_MS = 30_000;
 /** The most of a server's tools answer read back; a list past it is refused, never cut. */
 const ANSWER_CAP = 1024 * 1024;
 /** What of a server's stdout and stderr is kept on the target while it runs; past it the rest is read and dropped.
@@ -295,6 +298,22 @@ async function askHarness(host: Host, agent: McpAgent, name: string, cwd: string
   return out === undefined ? undefined : check.auth(out, name);
 }
 
+/** The sign-in the agent keeps on the computer `host` reads for an http server that names no Authorization header of
+ * its own: where its bearer is under the home there, for that computer's daemon to read; the agent's own word on it
+ * asked again, which renews a token near its end; and the line the person signs it in with there. Nothing for a command
+ * server, an agent whose store was never measured, or a store wsp points outside the home. */
+export function signInOf(host: Host, agentId: string, name: string, t: McpTransport, cwd: string): McpSignIn | undefined {
+  const agent = MCP_AGENTS.find(a => a.id === agentId);
+  const store = agent?.mcp.oauth;
+  const login = agent?.mcp.login;
+  if (agent === undefined || store === undefined || login === undefined || t.kind !== "http" || Object.keys(t.headers).some(k => k.toLowerCase() === "authorization")) return undefined;
+  const home = tilde(host.home, host.stores?.[agentId] ?? store.home);
+  if (!home.startsWith("~/")) return undefined;
+  const bearer = store.bearer({ name, url: t.url, headers: t.headers }, home, text => createHash("sha256").update(text).digest("hex"));
+  const line = "command" in login ? harnessLine(agentId, login.command(name), { stores: host.stores }) : login.inside(name);
+  return { bearer, line, renew: async () => (await askHarness(host, agent, name, cwd, RENEW_MS)) === "signed-in" };
+}
+
 /** One server by that name as a turn there reads it, in the project's folder where one is named, else in the home:
  * the agent's user scope first, as the report's own rows name it, else the first the agent reads. */
 async function findServer(host: Host, agent: McpAgent, name: string, project: string | undefined): Promise<TurnServer | undefined> {
@@ -324,7 +343,7 @@ async function readServer(host: Host, agentId: string, name: string, o: { projec
   const agent = MCP_AGENTS.find(a => a.id === agentId);
   if (agent === undefined) throw new Error(noMcpAgentRefusal(agentId));
   const found = await findServer(host, agent, name, o.project);
-  if (found === undefined) throw new Error(noSuchServerRefusal(name, agent.name));
+  if (found === undefined) throw Object.assign(new Error(noSuchServerRefusal(name, agent.name)), { code: SERVER_NOT_SET_UP });
   const cwd = found.scope !== "user" && o.project !== undefined ? o.project : host.home;
   const resolved = agent.mcp.format.resolve(found.server, n => o.values?.[n]);
   if ("missing" in resolved) return { agent, found, cwd, missing: resolved.missing };

@@ -5,6 +5,7 @@ import { CLAUDE_CODE, CLAUDE_CONFIG_DIR, CLAUDE_INSTALL, CLAUDE_LATEST, LOCAL_BI
 import { CLAUDE_CONTEXT } from "../context.js";
 import { CLAUDE_HOOKS, CLAUDE_SETTINGS_FILE } from "../hooks.js";
 import { CLAUDE_MCP_CHECK } from "../mcp-check.js";
+import { CLAUDE_MCP_OAUTH } from "../mcp-oauth.js";
 import { CLAUDE_MCP_LOGIN } from "../mcp-login.js";
 import { CLAUDE_PLUGINS, CLAUDE_PLUGIN_SKILLS } from "../skills.js";
 import { CLAUDE_PLUGIN_SHELF } from "../plugins-claude.js";
@@ -36,7 +37,7 @@ export const CLAUDE: AgentEntry = {
   updateLine: "claude update",
   signIn: SIGN_IN_ROWS.claude,
   // https://docs.claude.com/en/docs/claude-code/mcp (user scope; project scope lives in each repo's .mcp.json)
-  mcp: { format: MCP_SERVERS_JSON, files: ["~/.claude.json"], projectFiles: [".mcp.json"], scope: "user scope and your home folder", httpAuth: "its sign-in is kept with the Claude Code login", check: CLAUDE_MCP_CHECK, login: CLAUDE_MCP_LOGIN },
+  mcp: { format: MCP_SERVERS_JSON, files: ["~/.claude.json"], projectFiles: [".mcp.json"], scope: "user scope and your home folder", httpAuth: "its sign-in is kept with the Claude Code login", check: CLAUDE_MCP_CHECK, login: CLAUDE_MCP_LOGIN, oauth: CLAUDE_MCP_OAUTH },
   hooks: CLAUDE_HOOKS,
   configPaths: [
     CLAUDE_SETTINGS_FILE, "~/.claude/CLAUDE.md", "~/.claude/skills", "~/.claude/agents", "~/.claude/commands",
