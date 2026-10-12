@@ -32,7 +32,6 @@
         },
         "size": {
           "type": "string",
-          "pattern": "^\\d+x\\d+$",
           "description": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
         },
         "cwd": {
@@ -319,7 +318,6 @@
         },
         "size": {
           "type": "string",
-          "pattern": "^\\d+x\\d+$",
           "description": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
         },
         "cwd": {
