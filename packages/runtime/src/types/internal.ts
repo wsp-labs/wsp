@@ -644,6 +644,8 @@ export interface KeptProcess {
   scopeDeviceId?: string;
   waiting: { on: boolean };
   file?: SessionFileStamp;
+  /** On a joined computer, the session file's size there as a read after its last turn found it. */
+  boxFile?: Promise<number | undefined>;
   usedAt: number;
   cancel: () => void;
 }
@@ -1132,7 +1134,8 @@ export interface KindModule {
    * stamped on every request that token makes: a machine's is relayed, and this computer's is here. */
   turnRoad: ScopedRoad;
   /** Whether a thread's agent process is kept up between its turns here, for the next send to skip its boot: on the
-   * computer the host runs on, and on no machine, where a 4 GB box holds two threads' agents already. */
+   * computer the host runs on and in a folder on a joined computer, each capped off its own memory; on no cloud
+   * machine, where a 4 GB machine holds two threads' agents already. */
   keepsAgents: boolean;
   /** Where a turn here gets the values the vault holds for MCP servers: "environment", the turn's own, which a
    * fork's image names each by and nothing else hands them; "launch", each server's entry in the turn's launch, read

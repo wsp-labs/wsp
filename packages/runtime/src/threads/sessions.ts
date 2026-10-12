@@ -362,6 +362,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         await ctx.copyBlocked(entry);
         // A restart of this computer took a worktree's dependency mounts; they are back before the agent runs.
         await ctx.worktreeMounted(entry);
+        await ctx.keptCheck(threadId);
       }
       const title = o.title === undefined ? undefined : titleLine(o.title);
       if (title === "") throw new Error(EMPTY_TITLE_LINE);
@@ -645,6 +646,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               cleared = true;
               await ctx.copyBlocked(entry);
               await ctx.worktreeMounted(entry);
+              await ctx.keptCheck(threadId);
               continue;
             }
             const writing = resume === undefined ? undefined : ctx.hostWrites.get(resume);
