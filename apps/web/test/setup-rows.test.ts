@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { AT_ITS_TERMINAL, copiedFromLine, GITHUB_SKIPPED_LINE, waitsForInstallLine, RecipeFile, SIGNED_IN_THERE, SKIPPED_FOR_NOW, type EventUnion, type PendingComputer, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupStep, type PlaceView } from "@wsp/protocol";
 import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
-import { checkRows, foldSetup, runningSince, setupCount, setupRows, setupStanding } from "../src/settings/add/setup.js";
+import { checkRows, foldSetup, leftRows, runningSince, setupCount, setupRows, setupStanding } from "../src/settings/add/setup.js";
+import { ADD_COMPUTER_WORDS } from "../src/settings/format.js";
 import { caps } from "./caps.js";
 import { resetSettings, settingsApi, settle } from "./settings-harness.js";
 
@@ -181,6 +182,29 @@ describe("a setup as rows", () => {
       { id: "clis/gh", label: "gh", outcome: "failed", step: "clis" },
     ];
     expect(setupStanding({ setup: { ...RUNNING, state: "done" }, applied: { hash: "h", at: "x", rows: settled } })).toBe("ready");
+  });
+
+  it("names what a setup left: each row skipped or failed, a step whose items missed by those items, the first few by name", () => {
+    const rows = setupRows(
+      {
+        setup: { ...RUNNING, state: "done", steps: [{ step: "agents", state: "done" }, { step: "clis", state: "failed", note: "1 of 1 failed" }, { step: "github", state: "done" }] },
+        applied: {
+          hash: "h",
+          at: "x",
+          rows: [
+            { id: "claude", label: "Claude Code", outcome: "installed", step: "agents" },
+            { id: "signins/claude", label: "Claude Code", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW },
+            { id: "clis/gh", label: "gh", outcome: "failed", step: "clis" },
+            { id: "github", label: "GitHub", outcome: "skipped", step: "github" },
+          ],
+        },
+      },
+      "studio",
+    );
+    expect(rows.find(r => r.id === "clis")?.state).toBe("failed");
+    expect(leftRows(rows)).toEqual(["Claude Code sign-in skipped", "gh failed", "GitHub skipped"]);
+    expect(ADD_COMPUTER_WORDS.left(leftRows(rows), "studio")).toBe("Claude Code sign-in skipped, gh failed, GitHub skipped. Finish them from studio's page in Settings.");
+    expect(ADD_COMPUTER_WORDS.left([...leftRows(rows), "uv failed"], "studio")).toBe("Claude Code sign-in skipped, gh failed, GitHub skipped and 1 more. Finish them from studio's page in Settings.");
   });
 
   it("reads a skipped sign-in as skipped, a landed one by where it signed in, and counts a skipped step as through", () => {

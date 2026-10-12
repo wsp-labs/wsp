@@ -290,7 +290,7 @@ else if (PICK_STEPS.includes(screen as AddStep) || screen === "projects-taken" |
 // The desktop shell's folder picker, which is what draws Add a folder on Import projects.
 if (screen.startsWith("projects")) window.wsp = { pickFolder: async () => undefined };
 
-if (screen === "closing") setTimeout(() => addNotice({ kind: "note", text: "Setup keeps going. wsp pings you when it needs you.", where: "studio", action: { word: "Open", run: () => {} } }), 50);
+if (screen === "closing") setTimeout(() => addNotice({ kind: "note", text: "studio is being set up; you can close this", detail: "wsp says when it is ready.", where: "studio", action: { word: "Open", run: () => {} } }), 50);
 
 const opened = params.get("open");
 if (opened !== null) {

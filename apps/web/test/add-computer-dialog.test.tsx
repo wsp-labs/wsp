@@ -10,10 +10,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AT_ITS_TERMINAL, PLACE_HOST_KEY_KIND, closedBeforeSignInLine, PLACE_SUDO_KIND, RecipeFile, SKIPPED_FOR_NOW, copiedFromLine, noCopyLine, noKeyLine, signInThereFix, signInWaysFix, type AgentsSignInEvent, type AgentsTarget, type AgentRow, type AgentsReport, type PlaceAddJob, type PlaceAddStep, type EventUnion, type PendingComputer, type PlaceSetup, type PlaceView, type ProjectView, type RecipeOptions, type RecipeView } from "@wsp/protocol";
+import { AT_ITS_TERMINAL, PLACE_HOST_KEY_KIND, closedBeforeSignInLine, PLACE_SUDO_KIND, RecipeFile, SKIPPED_FOR_NOW, copiedFromLine, noCopyLine, noKeyLine, signInThereFix, signInWaysFix, type AgentsSignInEvent, type AgentsTarget, type AgentRow, type AgentsReport, type PlaceAddJob, type PlaceAddStep, type EventUnion, type PendingComputer, type PlaceSetup, type PlaceView, type ProjectView, type RecipeOptions, type RecipeView, waitLine } from "@wsp/protocol";
 import { RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useNotices } from "../src/notices/store.js";
 import { useStore } from "../src/protocol/store.js";
+import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { closeAdd, openAdd, openPending, openSetup, useAddFlow } from "../src/settings/add/addFlow.js";
 import { fromRecipe, githubPick } from "../src/settings/add/choices.js";
 import { useAdds } from "../src/settings/adds.js";
@@ -1049,18 +1050,48 @@ describe("Add a computer while the setup runs", () => {
     expect(useStore.getState().projectHome).toBe("pr_there");
   });
 
-  it("says closing mid-setup is fine in a notice whose Open brings the dialog back", async () => {
+  const stateOf = (id: string): { mark: string | null | undefined; why: string | null } => {
+    const row = document.querySelector<HTMLElement>(`[data-grid='computers'] [data-place-row='${id}']`)!;
+    return { mark: row.querySelector("[data-state-mark]")?.getAttribute("data-state-mark"), why: row.getAttribute("title") };
+  };
+
+  it("keeps a running setup going when Esc closes it: the row reads Setting up, and a notice whose Open brings the dialog back says so", async () => {
+    const fake = host();
     useStore.setState({ places: [here, placed(RUNNING)] });
-    mountSettings({ api: host().api, at: { kind: "group", group: "computers" } });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
     act(() => openSetup(studio.id));
     await settle();
-    await press(dialog()!.querySelector("[data-k=close]"));
+    act(() => void fireEvent.keyDown(dialog()!, { key: "Escape" }));
+    await settle();
     expect(dialog()).toBeNull();
-    const notice = useNotices.getState().notices.at(-1)!;
-    expect([notice.text, notice.where]).toEqual(["Setup keeps going. wsp pings you when it needs you.", "studio"]);
+    expect(fake.asked.setups).toEqual([]);
+    expect(stateOf(studio.id)).toEqual({ mark: "working", why: "setting up the agents" });
+    const notice = useNotices.getState().notices[0]!;
+    expect([notice.text, notice.detail, notice.where]).toEqual(["studio is being set up; you can close this", "wsp says when it is ready.", "studio"]);
     act(() => notice.action!.run());
     await settle();
     expect(step()).toBe("running");
+  });
+
+  it("keeps a sign-in waiting when Esc closes the dialog on it: the row reads Needs you, and the notice says the setup goes on and what waits", async () => {
+    // The host's steps ended with the Claude Code sign-in still waiting: the run reads done, the wait standing.
+    const wait = { row: "signins/claude", label: "Claude Code", url: "https://claude.ai/oauth/device", code: "4F2K-9QJM", expiresAt: "2026-10-03T10:10:00.000Z", state: "waiting" as const };
+    const fake = host();
+    useStore.setState({ places: [here, placed({ ...RUNNING, addId: "a_wait", state: "done", finishedAt: "2026-10-03T10:06:00.000Z", steps: [{ step: "floor", state: "done" }, { step: "agents", state: "done" }, { step: "signins", state: "done" }], waiting: [wait] })] });
+    mountSettings({ api: fake.api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    expect(title()).toBe("studio needs you");
+    act(() => void fireEvent.keyDown(dialog()!, { key: "Escape" }));
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(fake.asked.setups).toEqual([]);
+    expect(stateOf(studio.id)).toEqual({ mark: "needs-you", why: waitLine(wait) });
+    const notice = useNotices.getState().notices[0]!;
+    expect([notice.kind, notice.text, notice.detail, notice.where]).toEqual(["note", "studio is being set up; you can close this", `${waitLine(wait)}.`, "studio"]);
+    act(() => notice.action!.run());
+    await settle();
+    expect([step(), title()]).toEqual(["running", "studio needs you"]);
   });
 
   it("opens a pending add where it was left, with its picks", async () => {
@@ -1126,6 +1157,32 @@ describe("Add a computer, the running sheet as the host has it", () => {
     } as Partial<Api>);
     return { ...fake, signIns: asked, opened, stopped, tell: (e: Omit<AgentsSignInEvent, "type" | "signInId">) => act(() => told.at(-1)?.({ type: "agents.signIn", signInId: "si_1", ...e })), answer: () => answer() };
   };
+
+  it("says a setup that ended with a folder not moved needs you once it is closed, never that it is ready", async () => {
+    const run: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "folders/wsp", label: "wsp", outcome: "failed", step: "folders", note: "the clone failed" }] };
+    useStore.setState({ places: [here, placed({ ...DONE, addId: "a_folder" }, run)] });
+    mountSettings({ api: host().api, at: { kind: "group", group: "computers" } });
+    act(() => openSetup(studio.id));
+    await settle();
+    expect(title()).toBe("studio needs you");
+    act(() => void fireEvent.keyDown(dialog()!, { key: "Escape" }));
+    await settle();
+    expect(useNotices.getState().notices.map(n => [n.kind, n.text])).toEqual([["note", "studio needs you: wsp: the clone failed"]]);
+  });
+
+  it("says a setup that ended is ready once it is closed, with what it left and where to finish it, and says it once", async () => {
+    useStore.setState({ places: [here, placed({ ...DONE, addId: "a_left" }, OWNERS_RUN)] });
+    mountSettings({ api: host().api, at: { kind: "group", group: "computers" } });
+    for (let i = 0; i < 2; i++) {
+      act(() => openSetup(studio.id));
+      await settle();
+      act(() => void fireEvent.keyDown(dialog()!, { key: "Escape" }));
+      await settle();
+    }
+    expect(useNotices.getState().notices.map(n => [n.kind, n.text, n.detail])).toEqual([["done", "studio is ready: threads you start on it run there", "Codex sign-in failed, GitHub skipped. Finish them from studio's page in Settings."]]);
+    act(() => useNotices.getState().notices[0]!.action!.run());
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: studio.id });
+  });
 
   it("reads done when the host's setup is done and waits on nothing, a failed sign-in and a skipped GitHub included", async () => {
     useStore.setState({ places: [here, placed(DONE, OWNERS_RUN)] });
@@ -1385,7 +1442,7 @@ describe("Add a computer, the running sheet as the host has it", () => {
       await settle();
       await press(dialog()!.querySelector("[data-k=close]"));
     }
-    expect(useNotices.getState().notices.slice(before).map(n => n.text)).toEqual(["Setup keeps going. wsp pings you when it needs you."]);
+    expect(useNotices.getState().notices.slice(before).map(n => n.text)).toEqual(["studio is being set up; you can close this"]);
   });
 
   it("draws the saved line's check in again at most once in a few seconds, however fast the picks move", async () => {
