@@ -113,10 +113,11 @@ async function begin() {
 const rows = async (rt: Awaited<ReturnType<typeof begin>>["rt"], workspaceId: string) => (await rt.sessions.history(workspaceId)).filter(e => e.type === "session.subagent");
 
 describe("a Codex turn's subagents through the runtime", () => {
-  it("writes the child's start and end as rows, holds the lead's reply until the child ends, and keeps the child under the thread", async () => {
+  it("writes the child's start, its thread's spend and its end as rows, holds the lead's reply until the child ends, and keeps the child under the thread", async () => {
     const { rt, ws, servers } = await begin();
-    await until(async () => (await rt.sessions.list(ws.id))[0]?.subagents?.length === 1);
-    expect((await rt.sessions.list(ws.id))[0]!.subagents).toEqual([{ id: CHILD, title: "alpha", state: "running", parentToolUseId: "call_S2JP", depth: 1, startedAt: expect.any(Number) }]);
+    const usage = { tokens: { input: 20_756, cached: 0, cacheWrite: 0, output: 0, reasoning: 0 } };
+    await until(async () => (await rt.sessions.list(ws.id))[0]?.subagents?.[0]?.usage !== undefined);
+    expect((await rt.sessions.list(ws.id))[0]!.subagents).toEqual([{ id: CHILD, title: "alpha", state: "running", parentToolUseId: "call_S2JP", depth: 1, startedAt: expect.any(Number), usage }]);
 
     servers[0]!.push(message(LEAD, LEAD_TURN, "lead_m1", "spawned it"), turnCompleted(LEAD, LEAD_TURN, "completed"));
     await new Promise(r => setTimeout(r, 20));
@@ -129,8 +130,9 @@ describe("a Codex turn's subagents through the runtime", () => {
     expect(foldThreads(await rt.sessions.list(ws.id))[0]!.subagents?.map(c => [c.id, c.state])).toEqual([[CHILD, "done"]]);
     expect((await rt.sessions.history(ws.id)).find(e => e.type === "session.done")).toMatchObject({ result: { status: "completed", text: "spawned it" } });
     const said = await rows(rt, ws.id);
-    expect(said.map(e => [e.task, e.state])).toEqual([[CHILD, "running"], [CHILD, "done"]]);
-    expect(said[1]).toMatchObject({ parentToolUseId: "call_S2JP", summary: "slept and done" });
+    expect(said.map(e => [e.task, e.state, e.usage])).toEqual([[CHILD, "running", undefined], [CHILD, "running", usage], [CHILD, "done", usage]]);
+    expect(said[2]).toMatchObject({ parentToolUseId: "call_S2JP", summary: "slept and done" });
+    expect(row!.subagents?.[0]?.usage).toEqual(usage);
     await rt.close();
   });
 
@@ -144,7 +146,7 @@ describe("a Codex turn's subagents through the runtime", () => {
 
     servers[0]!.push(message(LEAD, LEAD_TURN, "lead_m1", "the child was stopped"), turnCompleted(LEAD, LEAD_TURN, "completed"));
     await until(async () => (await rt.sessions.list(ws.id))[0]!.status === "completed");
-    expect((await rows(rt, ws.id)).map(e => [e.task, e.state])).toEqual([[CHILD, "running"], [CHILD, "stopped"]]);
+    expect((await rows(rt, ws.id)).map(e => [e.task, e.state])).toEqual([[CHILD, "running"], [CHILD, "running"], [CHILD, "stopped"]]);
     await rt.close();
   });
 });

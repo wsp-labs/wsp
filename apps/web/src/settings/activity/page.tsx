@@ -159,6 +159,7 @@ function useThreads(computer: ActivityComputer, ctx: SettingsContext): { threads
           working: t.status === "running",
           ...(here ? (t.pid === undefined ? {} : { pid: t.pid }) : { cgroup: threadCgroup(t.id) }),
           ...(slate === undefined ? {} : { slate }),
+          ...(t.subagents === undefined ? {} : { subagents: t.subagents }),
         });
       }
     }
@@ -204,7 +205,8 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
     const ppid = snapshot.procs.find(p => p.pid === snapshot.daemon)?.ppid;
     return ppid === undefined || ppid <= 1 ? undefined : ppid;
   }, [here, snapshot]);
-  const scope = useMemo(() => (snapshot === null ? null : scopeOf({ snapshot, threads, ports, ...(host === undefined ? {} : { host }), ...(app === undefined ? {} : { app }) })), [snapshot, threads, ports, host, app]);
+  // Read again each frame, so a running subagent's time moves with the figures and an ended one leaves after its minute.
+  const scope = useMemo(() => (snapshot === null ? null : scopeOf({ snapshot, threads, ports, now: Date.now(), ...(host === undefined ? {} : { host }), ...(app === undefined ? {} : { app }) })), [snapshot, threads, ports, host, app]);
 
   const view = useSettingsStore(s => s.activityView);
   const [sort, setSort] = useState<ActivitySort>("mem");

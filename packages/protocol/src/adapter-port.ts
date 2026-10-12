@@ -13,7 +13,7 @@
 // these into the SessionEvent shapes in index.ts that clients read, which is
 // why the vocabulary they share (DeltaKind, TurnResult, SessionHarness) is
 // declared once there and imported back here.
-import type { DeltaKind, FilePatch, McpServerSpec, PermissionOption, PermissionOutcome, PlanStep, SessionHarness, SubagentState, TurnResult } from "./index.js";
+import type { DeltaKind, FilePatch, McpServerSpec, PermissionOption, PermissionOutcome, PlanStep, SessionHarness, SubagentState, SubagentUsage, TurnResult } from "./index.js";
 import { shellQuote } from "./shell-quote.js";
 import type { HarnessLimit } from "./usage.js";
 
@@ -178,6 +178,7 @@ export type AdapterEvent =
        * the agent said them; a model learned after the start comes on one more running event. */
       model?: string;
       asked?: string;
+      usage?: SubagentUsage;
     }
   | { type: "permission.ask"; sessionId: string; ask: PermissionAsk }
   | {

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { openingTitle, titleLine } from "../format.js";
 import { threadNeedsYou } from "../thread-state.js";
-import { TurnLimit } from "../usage.js";
+import { TurnLimit, UsageTokens } from "../usage.js";
 import { permissionPrompt } from "../wire/helpers.js";
 
 export const SessionStatus = z.enum(["running", "completed", "interrupted", "failed"]);
@@ -98,6 +98,14 @@ export type ThreadMarks = z.infer<typeof ThreadMarks>;
 export const SubagentState = z.enum(["running", "done", "failed", "stopped"]);
 export type SubagentState = z.infer<typeof SubagentState>;
 
+/** What one of an agent's own subagents spent, off its own calls alone and as it stood at its newest row: its tokens
+ * as a turn's use reads them, input being every token its model read with cached and cacheWrite the parts of it read
+ * from and written to the cache, absent until a call of it is counted, and the tool calls it made and how long it ran
+ * where its agent says them. Never the size of what it holds, which an agent may report beside these under a name
+ * that reads like spend. */
+export const SubagentUsage = z.object({ tokens: UsageTokens.optional(), toolUses: z.number().int().nonnegative().optional(), durationMs: z.number().nonnegative().optional() });
+export type SubagentUsage = z.infer<typeof SubagentUsage>;
+
 /** One of a thread's subagents as a listing carries it, read off the transcript's session.subagent rows at answer
  * time and never written on the row: id is the agent's own for it, what a stop names, and parentToolUseId the call
  * that launched it, which its lines carry. A child stays for as long as its start row is in the transcript. */
@@ -117,6 +125,7 @@ export const SubagentView = z.object({
    * failed; each absent where the agent gave no words. */
   lastLine: z.string().optional(),
   failure: z.string().optional(),
+  usage: SubagentUsage.optional(),
 });
 export type SubagentView = z.infer<typeof SubagentView>;
 
