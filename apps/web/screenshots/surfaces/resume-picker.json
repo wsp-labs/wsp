@@ -9,11 +9,11 @@
     "menu:k=project-switcher",
     "menu-item=resume-conversation"
   ],
-  "wait": "palette-group=conversations",
+  "wait": "resume-row",
   "widths": [
     1440,
     390
   ],
-  "reason": "The palette is a popup capped at 576px, the same at 1280 as at 1440; 390 is where it reflows, which is shot here.",
-  "settleMs": 700
+  "reason": "The picker is a popup capped at 880px, the same at 1280 as at 1440; 390 is where it hides its preview and the list takes the width, which is shot here.",
+  "settleMs": 900
 }

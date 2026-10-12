@@ -8,7 +8,7 @@
     "switcher-option=pr_spoo",
     "menu:k=project-switcher",
     "menu-item=resume-conversation",
-    "hover:palette-group=conversations",
+    "hover:resume-row",
     "focus:slot=autocomplete-input",
     "type:redirect",
     "key:Enter"

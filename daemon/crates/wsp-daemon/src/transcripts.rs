@@ -31,6 +31,8 @@ const END_BYTES: u64 = 64 << 10;
 const LIST_CAP: usize = 1000;
 /// The most messages one read hands back, whatever it was asked for.
 const LAST_CAP: u32 = 1000;
+/// The most of a transcript's end one tail read takes, whatever it was asked for.
+const TAIL_CAP: u32 = 4 << 20;
 /// How much of a title or a prompt a row carries, and of a message or a tool call's input a read does.
 const LINE_WORDS: usize = 500;
 const MESSAGE_WORDS: usize = 8000;
@@ -57,12 +59,13 @@ pub(crate) async fn serve_read(
     dirs: Vec<String>,
     id: String,
     last: u32,
+    tail: Option<u32>,
 ) -> Result<TranscriptsReadReply, OpError> {
     if !crate::roads::host_road_serves(road, ctx.is_place()) {
         return Err(OpError::coded(DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD));
     }
     let home = crate::place::place_home(ctx.options.home.as_deref());
-    tokio::task::spawn_blocking(move || read(&root, &dirs, &id, last, &home)).await.map_err(|e| OpError::plain(e.to_string()))
+    tokio::task::spawn_blocking(move || read(&root, &dirs, &id, last, tail, &home)).await.map_err(|e| OpError::plain(e.to_string()))
 }
 
 /// The store's folder under the held home, `~/` for a root inside it or a path from `/`, opened as the home's owner, the
@@ -346,97 +349,128 @@ fn rows_of(line: &Value) -> Vec<(TranscriptMessage, Option<String>)> {
         .collect()
 }
 
-pub(crate) fn read(root: &str, dirs: &[String], id: &str, last: u32, home: &Path) -> TranscriptsReadReply {
+/// With `tail`, only the file's last `tail` bytes are read: the branch is walked as far up as the window holds it, and
+/// `earlier` counts the window's messages alone.
+pub(crate) fn read(root: &str, dirs: &[String], id: &str, last: u32, tail: Option<u32>, home: &Path) -> TranscriptsReadReply {
     let nothing = || TranscriptsReadReply { found: false, cwd: None, title: None, messages: Vec::new(), earlier: 0 };
     if !session_id(id) {
         return nothing();
     }
     with_store(home, root, nothing(), |store| {
-        let Some((file, _, _)) = newest(store, dirs, id) else { return nothing() };
-        let mut ends = Ends::default();
-        let mut nodes: HashMap<String, Node> = HashMap::new();
-        // The child each line had last, which is the one the CLI wrote after it on the branch it went on along.
-        let mut latest_child: HashMap<String, String> = HashMap::new();
-        let mut leaf: Option<String> = None;
-        let mut newest_line: Option<String> = None;
-        let _ = lines(
-            file,
-            |_| true,
-            |text| {
-                let Ok(line) = serde_json::from_str::<Value>(text) else { return };
-                ends.take(&line);
-                if str_of(&line, "type") == Some("last-prompt") {
-                    if let Some(at) = str_of(&line, "leafUuid") {
-                        leaf = Some(at.to_owned());
-                    }
-                    return;
+        let Some((file, _, bytes)) = newest(store, dirs, id) else { return nothing() };
+        match tail.map(|t| u64::from(t.min(TAIL_CAP))) {
+            // A window that holds no message whole, as one long tool result at the end leaves it, is widened.
+            Some(mut window) => loop {
+                if window >= bytes {
+                    break walk(&file, bytes, None, last);
                 }
-                let Some(uuid) = str_of(&line, "uuid") else { return };
-                if line.get("isSidechain").and_then(Value::as_bool) == Some(true) {
-                    return;
+                let read = walk(&file, bytes, Some(window), last);
+                if !read.messages.is_empty() || window >= u64::from(TAIL_CAP) {
+                    break read;
                 }
-                let parent = str_of(&line, "parentUuid").map(str::to_owned);
-                if let Some(parent) = &parent {
-                    latest_child.insert(parent.clone(), uuid.to_owned());
-                }
-                newest_line = Some(uuid.to_owned());
-                nodes.insert(uuid.to_owned(), Node { parent, rows: rows_of(&line) });
+                window = (window * 4).min(u64::from(TAIL_CAP));
             },
-        );
-        // The newest last prompt names where the CLI resumes; a turn cut short after it wrote that line carries on
-        // below it along the newest child of each line.
-        let mut at = leaf.filter(|l| nodes.contains_key(l)).or(newest_line);
-        let mut steps = 0;
-        while let Some(child) = at.as_ref().and_then(|a| latest_child.get(a)) {
-            if steps > nodes.len() {
-                break;
-            }
-            steps += 1;
-            at = Some(child.clone());
-        }
-        let mut chain: Vec<&Node> = Vec::new();
-        let mut steps = 0;
-        while let Some(node) = at.as_ref().and_then(|a| nodes.get(a)) {
-            if steps > nodes.len() {
-                break;
-            }
-            steps += 1;
-            chain.push(node);
-            at = node.parent.clone();
-        }
-        chain.reverse();
-        let mut rows: Vec<(TranscriptMessage, Option<String>)> = Vec::new();
-        for (row, piece_of) in chain.into_iter().flat_map(|n| n.rows.iter().cloned()) {
-            if let Some((held, held_of)) = rows.last_mut() {
-                if row.who == TranscriptVoice::Agent && held.who == TranscriptVoice::Agent && piece_of.is_some() && *held_of == piece_of {
-                    held.text.push_str(&row.text);
-                    continue;
-                }
-            }
-            rows.push((row, piece_of));
-        }
-        let is_message = |m: &TranscriptMessage| m.who != TranscriptVoice::Tool;
-        let total = rows.iter().filter(|(m, _)| is_message(m)).count();
-        let keep = (last.min(LAST_CAP) as usize).min(total);
-        let earlier = total - keep;
-        let mut seen = 0;
-        let from = rows
-            .iter()
-            .position(|(m, _)| {
-                if is_message(m) {
-                    seen += 1;
-                }
-                seen > earlier
-            })
-            .unwrap_or(rows.len());
-        TranscriptsReadReply {
-            found: true,
-            title: ends.title().map(|t| cut(t.trim(), LINE_WORDS)),
-            cwd: ends.cwd,
-            messages: rows.into_iter().skip(from).map(|(m, _)| m).collect(),
-            earlier: earlier as u32,
+            None => walk(&file, bytes, None, last),
         }
     })
+}
+
+/// One transcript walked along its branch, the whole file or its last `window` bytes.
+fn walk(file: &File, bytes: u64, window: Option<u64>, last: u32) -> TranscriptsReadReply {
+    let mut ends = Ends::default();
+    let mut nodes: HashMap<String, Node> = HashMap::new();
+    // The child each line had last, which is the one the CLI wrote after it on the branch it went on along.
+    let mut latest_child: HashMap<String, String> = HashMap::new();
+    let mut leaf: Option<String> = None;
+    let mut newest_line: Option<String> = None;
+    let mut take = |line: &Value| {
+        ends.take(line);
+        if str_of(line, "type") == Some("last-prompt") {
+            if let Some(at) = str_of(line, "leafUuid") {
+                leaf = Some(at.to_owned());
+            }
+            return;
+        }
+        let Some(uuid) = str_of(line, "uuid") else { return };
+        if line.get("isSidechain").and_then(Value::as_bool) == Some(true) {
+            return;
+        }
+        let parent = str_of(line, "parentUuid").map(str::to_owned);
+        if let Some(parent) = &parent {
+            latest_child.insert(parent.clone(), uuid.to_owned());
+        }
+        newest_line = Some(uuid.to_owned());
+        nodes.insert(uuid.to_owned(), Node { parent, rows: rows_of(line) });
+    };
+    match window {
+        Some(window) => each_line(&read_window(file, bytes - window, window), true, take),
+        None => {
+            if let Ok(whole) = file.try_clone() {
+                let _ = lines(
+                    whole,
+                    |_| true,
+                    |text| {
+                        if let Ok(line) = serde_json::from_str::<Value>(text) {
+                            take(&line);
+                        }
+                    },
+                );
+            }
+        }
+    }
+    // The newest last prompt names where the CLI resumes; a turn cut short after it wrote that line carries on
+    // below it along the newest child of each line.
+    let mut at = leaf.filter(|l| nodes.contains_key(l)).or(newest_line);
+    let mut steps = 0;
+    while let Some(child) = at.as_ref().and_then(|a| latest_child.get(a)) {
+        if steps > nodes.len() {
+            break;
+        }
+        steps += 1;
+        at = Some(child.clone());
+    }
+    let mut chain: Vec<&Node> = Vec::new();
+    let mut steps = 0;
+    while let Some(node) = at.as_ref().and_then(|a| nodes.get(a)) {
+        if steps > nodes.len() {
+            break;
+        }
+        steps += 1;
+        chain.push(node);
+        at = node.parent.clone();
+    }
+    chain.reverse();
+    let mut rows: Vec<(TranscriptMessage, Option<String>)> = Vec::new();
+    for (row, piece_of) in chain.into_iter().flat_map(|n| n.rows.iter().cloned()) {
+        if let Some((held, held_of)) = rows.last_mut() {
+            if row.who == TranscriptVoice::Agent && held.who == TranscriptVoice::Agent && piece_of.is_some() && *held_of == piece_of {
+                held.text.push_str(&row.text);
+                continue;
+            }
+        }
+        rows.push((row, piece_of));
+    }
+    let is_message = |m: &TranscriptMessage| m.who != TranscriptVoice::Tool;
+    let total = rows.iter().filter(|(m, _)| is_message(m)).count();
+    let keep = (last.min(LAST_CAP) as usize).min(total);
+    let earlier = total - keep;
+    let mut seen = 0;
+    let from = rows
+        .iter()
+        .position(|(m, _)| {
+            if is_message(m) {
+                seen += 1;
+            }
+            seen > earlier
+        })
+        .unwrap_or(rows.len());
+    TranscriptsReadReply {
+        found: true,
+        title: ends.title().map(|t| cut(t.trim(), LINE_WORDS)),
+        cwd: ends.cwd,
+        messages: rows.into_iter().skip(from).map(|(m, _)| m).collect(),
+        earlier: earlier as u32,
+    }
 }
 
 #[cfg(test)]
@@ -570,7 +604,7 @@ mod tests {
         )
         .unwrap();
         assert!(list("~/.claude/projects", &names(&["k", "j"]), &names(&["/work/acme/lab"]), home.path()).rows.is_empty());
-        assert!(!read("~/.claude/projects", &names(&["k", "j"]), ONE, 10, home.path()).found);
+        assert!(!read("~/.claude/projects", &names(&["k", "j"]), ONE, 10, None, home.path()).found);
     }
 
     #[test]
@@ -590,7 +624,7 @@ mod tests {
                 json!({"type": "last-prompt", "lastPrompt": "three", "leafUuid": "a4"}),
             ],
         );
-        let all = read("~/.claude/projects", &names(&["k"]), ONE, 200, home.path());
+        let all = read("~/.claude/projects", &names(&["k"]), ONE, 200, None, home.path());
         let rows: Vec<(TranscriptVoice, &str, Option<&str>)> =
             all.messages.iter().map(|m| (m.who, m.text.as_str(), m.tool.as_deref())).collect();
         assert_eq!(
@@ -604,13 +638,13 @@ mod tests {
             ]
         );
         assert_eq!((all.found, all.earlier, all.cwd.as_deref()), (true, 0, Some("/work/acme/lab")));
-        let two = read("~/.claude/projects", &names(&["k"]), ONE, 2, home.path());
+        let two = read("~/.claude/projects", &names(&["k"]), ONE, 2, None, home.path());
         assert_eq!(two.earlier, 2);
         assert_eq!(
             two.messages.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(),
             vec!["three", "{\"command\":\"ls\"}", "four and more"]
         );
-        assert!(!read("~/.claude/projects", &names(&["k"]), TWO, 2, home.path()).found);
+        assert!(!read("~/.claude/projects", &names(&["k"]), TWO, 2, None, home.path()).found);
     }
 
     #[test]
@@ -628,7 +662,7 @@ mod tests {
                 said("a2", "u2", "m2", "dropped"),
             ],
         );
-        let read = read("~/.claude/projects", &names(&["k"]), ONE, 200, home.path());
+        let read = read("~/.claude/projects", &names(&["k"]), ONE, 200, None, home.path());
         assert_eq!(read.messages.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), vec!["one", "kept"]);
     }
 
@@ -644,8 +678,56 @@ mod tests {
                 said("a1", "u1", "m1", "the reply"),
             ],
         );
-        let read = read("~/.claude/projects", &names(&["k"]), ONE, 200, home.path());
+        let read = read("~/.claude/projects", &names(&["k"]), ONE, 200, None, home.path());
         assert_eq!(read.messages.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), vec!["one", "the reply"]);
+    }
+
+    #[test]
+    fn a_tail_read_takes_the_newest_messages_off_the_window_alone_along_its_branch() {
+        let home = tempfile::tempdir().unwrap();
+        let pad = "x".repeat(4000);
+        let mut lines = vec![user("u0", None, "the first prompt", "cli")];
+        let mut parent = "u0".to_owned();
+        for n in 0..50 {
+            lines.push(said(&format!("p{n}"), &parent, &format!("pm{n}"), &pad));
+            parent = format!("p{n}");
+        }
+        lines.extend([
+            user("u1", Some(&parent), "near the end", "cli"),
+            said("a1", "u1", "m1", "kept"),
+            user("u2", Some("u1"), "a turn left by a rewind", "cli"),
+            said("a2", "a1", "m2", "the last reply"),
+            json!({"type": "ai-title", "aiTitle": "the title"}),
+            json!({"type": "last-prompt", "lastPrompt": "near the end", "leafUuid": "a2"}),
+        ]);
+        write(home.path(), &format!(".claude/projects/k/{ONE}.jsonl"), &lines);
+        let tail = read("~/.claude/projects", &names(&["k"]), ONE, 3, Some(6000), home.path());
+        assert!(tail.found);
+        assert_eq!(tail.messages.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), vec!["near the end", "kept", "the last reply"]);
+        assert_eq!((tail.title.as_deref(), tail.cwd.as_deref()), (Some("the title"), Some("/work/acme/lab")));
+        assert!(tail.earlier <= 1, "the window holds the end alone, not the 51 messages before it: {}", tail.earlier);
+        let whole = read("~/.claude/projects", &names(&["k"]), ONE, 3, Some(u32::MAX), home.path());
+        assert_eq!(whole.earlier, 51, "a window past the file's size reads it whole");
+    }
+
+    #[test]
+    fn a_tail_read_widens_a_window_one_long_line_fills_until_it_holds_a_message() {
+        let home = tempfile::tempdir().unwrap();
+        let mut lines = vec![user("u0", None, "the first prompt", "cli")];
+        let mut parent = "u0".to_owned();
+        for n in 0..20 {
+            lines.push(said(&format!("p{n}"), &parent, &format!("pm{n}"), &"y".repeat(4000)));
+            parent = format!("p{n}");
+        }
+        lines.extend([
+            user("u1", Some(&parent), "the last prompt", "cli"),
+            said("a1", "u1", "m1", "the last reply"),
+            json!({"type": "attachment", "uuid": "x1", "parentUuid": "a1", "attachment": {"type": "note", "content": "x".repeat(30_000)}}),
+        ]);
+        write(home.path(), &format!(".claude/projects/k/{ONE}.jsonl"), &lines);
+        let tail = read("~/.claude/projects", &names(&["k"]), ONE, 2, Some(6000), home.path());
+        assert_eq!(tail.messages.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), vec!["the last prompt", "the last reply"]);
+        assert!(tail.earlier < 20, "a widened window still reads the end alone: {}", tail.earlier);
     }
 
     /// A real Claude Code 2.1.296 transcript of two writers on one session: the terminal's turn set ALPHA, a `-p
@@ -667,7 +749,7 @@ mod tests {
             (Some("lab codewords"), Some("feat/x"), Some("cli"))
         );
         assert_eq!(row.first_prompt.as_deref(), Some("Remember the codeword ALPHA. Reply with just OK."));
-        let read = read("~/.claude/projects", &names(&["-work-acme-lab"]), TWO_WRITERS_ID, 200, home.path());
+        let read = read("~/.claude/projects", &names(&["-work-acme-lab"]), TWO_WRITERS_ID, 200, None, home.path());
         let said: Vec<&str> = read.messages.iter().map(|m| m.text.as_str()).collect();
         assert!(said.contains(&"Remember the codeword ALPHA. Reply with just OK."));
         assert!(said.contains(&"What codewords do you remember? List them only."));

@@ -5,12 +5,14 @@
 // wsp's turns can express: no proposed plans, subagent fleets, checkpoints or
 // MCP presentation tables. Turn duration comes from the turn summary because
 // entries are unstamped on our wire.
-import { fmtDuration, isCodeSearchTool, waitingAskerLine, type ThreadWaitingOn } from "@wsp/protocol";
-import { isPromptOpen } from "./session.js";
+import { CONVERSATION_WORDS, fmtDuration, isCodeSearchTool, waitingAskerLine, type ThreadWaitingOn } from "@wsp/protocol";
+import { isEarlierEntry, isPromptOpen } from "./session.js";
 import { spawnCallOf, type SpawnedChildren } from "./spawned.js";
 import type { MessagesTimelineRow, PermissionPrompt, SpawnCall, TimelineEntry, ToolGroupAction, ToolGroupSummaryKind, TurnSummary, WorkLogEntry, WorkLogTone } from "./view-model.js";
 
 const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
+/** The fold the rows of a conversation from outside wsp sit in, shut until opened, by the turn fold's own toggle. */
+export const EARLIER_FOLD = "earlier";
 
 export interface DeriveRowsInput {
   readonly timelineEntries: ReadonlyArray<TimelineEntry>;
@@ -46,6 +48,9 @@ export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTime
   for (const fold of folds.values()) {
     if (!input.expandedTurnIds?.has(fold.turnId)) for (const id of fold.hiddenEntryIds) collapsed.add(id);
   }
+  const firstEarlier = entries.findIndex(isEarlierEntry);
+  const earlierOpen = input.expandedTurnIds?.has(EARLIER_FOLD) ?? false;
+  if (!earlierOpen) for (const e of entries) if (isEarlierEntry(e)) collapsed.add(e.id);
 
   let activeTurnHeaderIndex = entries.length;
   if (input.isWorking) {
@@ -143,6 +148,7 @@ export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTime
     if (input.isWorking && index === activeTurnHeaderIndex) pushWorking();
     if (entry.id === activePlacementId) pushActive();
 
+    if (index === firstEarlier) rows.push({ kind: "turn-fold", id: `turn-fold:${EARLIER_FOLD}`, createdAt: entry.createdAt, turnId: EARLIER_FOLD, label: CONVERSATION_WORDS.earlierFold, expanded: earlierOpen });
     const fold = folds.get(entry.id);
     if (fold) {
       rows.push({ kind: "turn-fold", id: `turn-fold:${fold.turnId}`, createdAt: fold.createdAt, turnId: fold.turnId, label: fold.label, expanded: input.expandedTurnIds?.has(fold.turnId) ?? false });
@@ -257,6 +263,7 @@ export function entryHiders(input: DeriveRowsInput, entryId: string): { readonly
   const { folds } = deriveTurnFolds(entries, terminalAssistantMessageIds(entries), new Map(input.turns.map(t => [t.turnId, t])), unsettledTurnId);
   let turnId: string | null = null;
   for (const fold of folds.values()) if (fold.hiddenEntryIds.has(entryId)) turnId = fold.turnId;
+  if (isEarlierEntry({ id: entryId })) turnId = EARLIER_FOLD;
   let groupId: string | null = null;
   for (const row of deriveMessagesTimelineRows({ ...input, expandedTurnIds: EVERY, expandedWorkGroupIds: EVERY })) {
     if (row.kind === "work" && row.isExpandedToolGroup && row.groupedEntries.some(e => e.id === entryId)) groupId = row.id.slice(0, -":details".length);

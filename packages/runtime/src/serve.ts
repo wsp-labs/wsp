@@ -126,6 +126,7 @@ import { answerProcesses, isProcessesRequest } from "./serve-processes.js";
 import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerProject, isProjectRequest } from "./serve-projects.js";
+import { answerConversations, isConversationsRequest } from "./serve-conversations.js";
 import { answerSlate, isSlateRequest, type SlateHolds } from "./serve-slates.js";
 import { serveStart } from "./serve-start.js";
 export type { ForwardsSource };
@@ -874,6 +875,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
           if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
           if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
           if (isProcessesRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProcesses(rt, msg, origin)) });
+          if (isConversationsRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerConversations(rt.conversations, msg, origin)) });
           switch (msg.op) {
             case "auth":
               send({ id: msg.id, ok: true, ...released });
@@ -1401,9 +1403,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               return;
             case "workspaces.snapshot":
               send({ id: msg.id, ok: true, projectGolden: await rt.workspaces.snapshot(msg.workspaceId, origin) });
-              return;
-            case "conversations.list":
-              send({ id: msg.id, ok: true, ...(await rt.conversations.list({ ...(msg.project !== undefined ? { project: msg.project } : {}), ...(msg.agent !== undefined ? { agent: msg.agent } : {}) }, origin)) });
               return;
             case "projectGoldens.list":
               send({ id: msg.id, ok: true, projectGoldens: await rt.golden.projects() });

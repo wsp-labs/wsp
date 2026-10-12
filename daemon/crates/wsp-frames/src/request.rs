@@ -194,7 +194,8 @@ pub enum DaemonOp {
         cwds: Vec<String>,
     },
     /// One Claude Code session's transcript under a folder of `dirs`, its conversation along the branch the CLI resumes: the
-    /// newest `last` messages, each tool call one row, and how many messages came before them.
+    /// newest `last` messages, each tool call one row, and how many messages came before them. With `tail`, only the
+    /// file's last `tail` bytes are read, the branch walked as far as they hold it; a daemon before it reads the whole file.
     #[serde(rename = "transcripts.read")]
     TranscriptsRead {
         #[serde(deserialize_with = "bounded::<_, 1, 4096>")]
@@ -204,6 +205,9 @@ pub enum DaemonOp {
         #[serde(deserialize_with = "bounded::<_, 1, 64>")]
         session: String,
         last: NonZeroU32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        tail: Option<NonZeroU32>,
     },
     #[serde(rename = "proc.watch")]
     ProcWatch {

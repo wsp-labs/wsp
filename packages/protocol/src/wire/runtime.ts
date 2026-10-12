@@ -932,6 +932,10 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * first, each with whether another app holds it open now and the wsp thread already on it; an agent's store that
    * did not answer is a held line. Replies with ConversationsAnswer's fields. */
   z.object({ id: reqId, op: z.literal("conversations.list"), project: z.string().optional(), agent: z.string().optional() }),
+  /** One of those conversations read before any thread opens on it, never as its writer: its newest rows as a thread
+   * would open with them, or with preview the few the picker shows, off the end of the agent's file alone. Replies
+   * with ConversationRead's fields. */
+  z.object({ id: reqId, op: z.literal("conversations.read"), project: z.string().optional(), agent: z.string().min(1), conversation: z.string().min(1).max(200), preview: z.boolean().optional() }),
   /** What a new thread on each of those projects starts on, by project id, each value with where it came from, read
    * off the runtime's table rather than any machine. Replies with { defaults }. */
   z.object({ id: reqId, op: z.literal("projects.defaults") }),
@@ -1160,6 +1164,7 @@ export const DEVICE_OPS: readonly string[] = [
   "workspaces.reviewDraft",
   "projects.list",
   "conversations.list",
+  "conversations.read",
   "projects.defaults",
   "projects.resolve",
   "projects.branch",

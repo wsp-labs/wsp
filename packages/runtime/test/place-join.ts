@@ -13,7 +13,7 @@ import { WsClient } from "./ws-client.js";
  * them rather than reading them a second time. */
 export const DOOR = ["http://192.168.1.20:4400"];
 
-export const HERE = { name: "zingzys-mac", os: "macOS 15.0", shape: { cpu: 8, memMb: 16384 }, engine: "docker" as const, mac: "mac-mini" as const };
+export const HERE = { name: "zingzys-mac", os: "macOS 15.0", shape: { cpu: 8, memMb: 16384 }, engine: "docker" as const, mac: "mac-mini" as const, home: "/home/dev" };
 
 export function wiring(hostKey: PlaceKeyPair, provider?: { id: string; rateUsdPerHour: number }, update?: PlaceUpdater): PlaceWiring {
   return { hostKey, provider: () => provider, here: () => HERE, hostName: () => "zingzys-mac", ...(update === undefined ? {} : { update }) };

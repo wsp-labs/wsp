@@ -10,6 +10,7 @@ import {
   type LeftThread,
   type ProcessesAsk,
   ConversationsAnswer,
+  ConversationRead,
   type ResumeAsk,
   PendingComputer,
   PlaceSetup,
@@ -753,6 +754,7 @@ export interface Api {
   searchMessages?(query: string): Promise<SessionSearchResult>;
   /** The conversations the agents kept in a project's folder outside wsp, read on the project's computer. */
   conversationsList?(project: string): Promise<ConversationsAnswer>;
+  conversationRead?(o: { project: string; agent: string; id: string; preview?: boolean }): Promise<ConversationRead>;
   /** A thread opened on one of them, by project: the host reads it first and opens the thread in the folder it ran in. */
   resumeConversation?(o: { project: string; prompt: string; requestId: string; harness: string; resume: ResumeAsk; model?: string; effort?: string; permissionMode?: string }): Promise<SessionView>;
   /** Asks the thread's agent a question beside the thread, by any of its session ids, on a copy of its session the
@@ -1130,6 +1132,7 @@ export function makeApi(c: ProtocolClient): Api {
     // Parsed, not trusted: a hit names a thread the palette opens.
     searchMessages: async query => SessionSearchResult.parse(await c.request<Record<string, unknown>>("sessions.search", { query })),
     conversationsList: async project => ConversationsAnswer.parse(await c.request<Record<string, unknown>>("conversations.list", { project })),
+    conversationRead: async o => ConversationRead.parse(await c.request<Record<string, unknown>>("conversations.read", { project: o.project, agent: o.agent, conversation: o.id, ...(o.preview === true ? { preview: true } : {}) })),
     resumeConversation: async o => (await c.request<{ session: SessionView }>("sessions.start", { ...o })).session,
     askAside: async (sessionId, question, askId) => SessionAsideResult.parse(await c.request<Record<string, unknown>>("sessions.aside", { sessionId, question, ...(askId !== undefined ? { askId } : {}) })),
     rewindThread: async (threadId, turnId, files) => SessionRewindResult.parse(await c.request<Record<string, unknown>>("sessions.rewind", { threadId, turnId, files })),
