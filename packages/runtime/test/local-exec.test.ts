@@ -7,7 +7,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agentWord, EXEC_CHUNK_BYTES, endRun, shellQuote, turnCutLine, type ExecStream } from "@wsp/protocol";
 import { gateLoop, writeStub } from "../../protocol/test/stub-script.js";
-import { agentPidOf, groupExists, localExecStream, ownOrphans, treeWork, type TreeWorkReader } from "../src/local-exec.js";
+import { agentPidOf, groupExists, localExecStream, treeWork, type TreeWorkReader } from "../src/local-exec.js";
 import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
 import { alive, gone, grandchild, sweepStrays } from "./strays.js";
 
@@ -485,16 +485,50 @@ describe("what a run leaves on this computer", () => {
   }, 20_000);
 });
 
-describe("the processes a run starts with", () => {
-  it("are read once the subshell that backgrounded the input pump has gone, so the pump is never a turn's leftover", async () => {
-    // The script (100) runs the agent (101), which forked the pump's launcher (102) before it was exec'd; the
-    // launcher starts tail (103) and the read loop (104) and exits. On a loaded computer it can still stand when the
-    // agent first prints.
-    const launcherUp = [{ pid: 100, ppid: 9 }, { pid: 101, ppid: 100 }, { pid: 102, ppid: 101 }, { pid: 103, ppid: 102 }, { pid: 104, ppid: 102 }];
-    const launcherGone = [{ pid: 100, ppid: 9 }, { pid: 101, ppid: 100 }, { pid: 103, ppid: 1 }, { pid: 104, ppid: 1 }];
-    const reads = [launcherUp, launcherUp, launcherGone];
-    expect([...(await ownOrphans(async () => reads.shift() ?? launcherGone, 100))].sort()).toEqual([103, 104]);
+describe("a run kept between turns", () => {
+  let root: string;
+  let runDir: string;
+  const ending: ExecStream[] = [];
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "wsp-localexec-kept-"));
+    runDir = join(root, "runs");
   });
+  afterEach(() => {
+    for (const stream of ending.splice(0)) stream.kill();
+    rmSync(root, { recursive: true, force: true });
+    sweepStrays();
+  });
+
+  const ppidOf = (pid: number): number => Number(execFileSync("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8" }).trim());
+
+  it("re-opened mid-turn, spares only its input pump at that turn's end: what the turn left is ended and the agent reads on", async () => {
+    const gate = join(root, "gate");
+    const child = join(root, "child");
+    const holder = join(root, "holder");
+    // "leave" starts a holder keeping a sleep under it until the gate opens: no orphan when the next host re-opens the
+    // run, and one by the time the turn ends.
+    const hold = `sleep 300 > /dev/null 2>&1 & echo $! > ${shellQuote(child)}; echo $$ > ${shellQuote(holder)}; ${gateLoop(gate)}`;
+    const agent = `while IFS= read -r l; do if [ "$l" = leave ]; then sh -c ${shellQuote(hold)} & echo left; else echo "said $l"; fi; done`;
+    const reading = new Set<() => void>();
+    const first = localExecStream({ root, runDir, pollMs: 20, reading })(agent, { env: {}, input: ["leave"] });
+    ending.push(first);
+    expect((await first.lines[Symbol.asyncIterator]().next()).value).toBe("left");
+    const sleeper = await grandchild(child);
+    const held = await grandchild(holder);
+    for (const drop of [...reading]) drop();
+    const reopened = await localExecStream({ root, runDir, pollMs: 20 }).attach!(first.run!, { input: true, startedAt: Date.now(), from: statSync(`${first.run!}.log`).size });
+    if (reopened === "gone") throw new Error("the run was gone");
+    ending.push(reopened);
+    writeFileSync(gate, "go\n");
+    await vi.waitFor(() => expect(ppidOf(sleeper)).not.toBe(held), { timeout: 5_000 });
+    const lines = reopened.lines[Symbol.asyncIterator]();
+    expect(await reopened.write("done")).toBe("written");
+    expect((await lines.next()).value).toBe("said done");
+    reopened.rest!();
+    await gone(sleeper);
+    expect(await reopened.write("again")).toBe("written");
+    expect((await lines.next()).value).toBe("said again");
+  }, 20_000);
 });
 
 describe("a real turn's process group", () => {
