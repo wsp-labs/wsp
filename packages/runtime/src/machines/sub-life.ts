@@ -156,14 +156,19 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     try {
       const said = await entry.machine.exec(subResultCommand(sub.folder, sub.branch, sub.base.sha), { timeoutMs: INLINE_EXEC_MS });
       if (said.exitCode !== 0) return failed(`exit ${said.exitCode}: ${(said.stderr.trim() || said.stdout.trim()).slice(-200)}`);
-      return subResultOf(said.stdout, sub.branch, readAt) ?? failed(`it answered no counts: ${said.stdout.trim().slice(-200)}`);
+      const read = subResultOf(said.stdout, sub.branch, readAt);
+      if (read === undefined) return failed(`it answered no counts: ${said.stdout.trim().slice(-200)}`);
+      // A machine made after the delete holds no repository until its agent fetches one; the branch pushed before stands.
+      if (read.norepo !== true || sub.result?.pushedSha == null) return read;
+      const { norepo: _none, ...answered } = read;
+      return { ...answered, pushedSha: sub.result.pushedSha, commits: sub.result.commits };
     } catch (e) {
       return failed(e instanceof Error ? e.message : String(e));
     }
   };
 
   /** The agent's one session file, packed on the machine and kept on the host, so a machine lost later still leaves a
-   * session to resume from. A keep that fails leaves the last one kept. */
+   * session to resume from. A keep that fails keeps none, and a send goes on from the transcript. */
   const keepSession = async (entry: LiveWorkspace, threadId: string): Promise<void> => {
     const sub = entry.record.sub!;
     const row = ctx.latestOn(threadId);
@@ -172,12 +177,12 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     const file = ctx.adapterFor(entry, row.harness).adapter.sessionFile?.(id);
     const read = entry.machine.readBytes?.bind(entry.machine);
     if (file === undefined || read === undefined) return;
-    const before = sub.session?.id === id ? sub.session.kept : null;
     const at = `/tmp/wsp-session-${threadId}.gz`;
     try {
       const packed = await entry.machine.exec(subSessionPackCommand(file, at), { timeoutMs: INLINE_EXEC_MS });
       if (packed.exitCode === 0 && packed.stdout.includes("nofile")) {
-        sub.session = { agent: row.harness, id, kept: before, why: `no session file for ${id} under ${file.folder}` };
+        await store.deleteBlob(SUB_SESSIONS, threadId);
+        sub.session = { agent: row.harness, id, kept: null, why: `no session file for ${id} under ${file.folder}` };
         return;
       }
       const size = Number(/^size (\d+)$/m.exec(packed.stdout)?.[1]);
@@ -193,7 +198,9 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
       console.warn(`the session of sub-thread ${threadId} was not kept: ${why}`);
-      sub.session = { agent: row.harness, id, kept: before, why };
+      // A copy from an earlier done lacks the turns since, so a send goes on from the transcript instead (04).
+      await store.deleteBlob(SUB_SESSIONS, threadId).catch(() => undefined);
+      sub.session = { agent: row.harness, id, kept: null, why };
     } finally {
       await entry.machine.exec(`rm -f ${shellQuote(at)}`).catch(() => undefined);
     }

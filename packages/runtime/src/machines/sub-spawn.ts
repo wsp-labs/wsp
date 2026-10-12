@@ -384,6 +384,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       await ahead;
       return { entry: live.get(id)!, notices: [] };
     }
+    if (asked.record.phase !== "released") return { entry: asked, notices: [] };
     const work = resumeOnce(asked, threadId, harness);
     resuming.set(id, work);
     try {

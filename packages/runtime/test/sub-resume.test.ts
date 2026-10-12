@@ -7,7 +7,7 @@
 // and no rewind or fork of a turn the deleted machine ran.
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR } from "@wsp/engine";
-import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionTooLargeLine, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { copyKey, type Runtime } from "../src/runtime.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
@@ -89,7 +89,81 @@ describe("the session kept at each done", () => {
   });
 });
 
+describe("a keep that fails after a good one", () => {
+  it("keeps none and drops the copy from the done before, so the row says a send goes on from the transcript", async () => {
+    const held = await doneOnce();
+    expect(await held.store.getBlob(SUB_SESSIONS, held.threadId)).toBeDefined();
+    await held.rt.workspaces.wake(held.made.id);
+    // The pack answers a size, and the read of it fails.
+    held.answers.session = 1_234;
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "and one more", harness: "claude" })).finished;
+    const r = await until(async () => ((await held.record()).sub!.session?.kept === null ? held.record() : undefined), "the failed keep");
+    expect(await held.store.getBlob(SUB_SESSIONS, held.threadId)).toBeUndefined();
+    const row = (await held.rt.sessions.list()).find(s => s.threadId === held.threadId)!;
+    expect(row.sub?.sessionNotKept).toBe(subSessionNotKeptLine(r.sub!.session!.why!));
+    expect(r.sub!.session!.why).toContain("nothing packed at /tmp/wsp-session-");
+  });
+});
+
 describe("a send into a released sub-thread", () => {
+  it("makes a send that arrives while the new machine is made wait for it, so the turn with the preamble runs first and none runs on the deleted box", async () => {
+    const held = await released();
+    let open!: () => void;
+    const gate = new Promise<void>(r => (open = r));
+    const create = held.boat.create.bind(held.boat);
+    let asked = false;
+    held.boat.create = async spec => {
+      asked = true;
+      await gate;
+      return create(spec);
+    };
+    const launches = held.starts.length;
+    const a = held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" });
+    await until(() => (asked ? true : undefined), "the create asked of Boat");
+    const b = held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "and the second word?", harness: "claude" });
+    await new Promise(r => setTimeout(r, 30));
+    // Nothing has launched while the machine is being made.
+    expect(held.starts).toHaveLength(launches);
+    open();
+    await Promise.all([(await a).finished, (await b).finished]);
+    const ran = held.starts.slice(launches).map(x => x.o.prompt);
+    expect(ran).toHaveLength(2);
+    expect(ran[0]!.startsWith("This thread's machine was deleted after its last turn")).toBe(true);
+    expect(ran[0]!.endsWith("what was the word?")).toBe(true);
+    expect(ran[1]).toBe("and the second word?");
+    expect(held.boat.creates.filter(c => c.fromSnapshot !== undefined).length).toBe(2);
+  });
+
+  it("runs a done for a send refused after its new machine stands, so the delete is armed and the branch pushed before stands", async () => {
+    const held = await released();
+    held.answers.read = "norepo\n";
+    const png = { mediaType: "image/png", bytes: Buffer.alloc(32, 7).toString("base64"), name: "shot.png" };
+    const refused = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "look at this", harness: "claude", attachments: [png] }).then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    );
+    expect(refused).toBeInstanceOf(Error);
+    const machine = held.boat.machines.at(-1)!;
+    expect(machine.id).not.toBe(held.first.id);
+    const r = await until(async () => ((await held.record()).phase === "napping" ? held.record() : undefined), "the nap after the refused send");
+    expect(r.machineId).toBe(machine.id);
+    expect(r.sub!.deleteAt).toBeGreaterThan(held.clock.now());
+    expect(r.sub!.result).toMatchObject({ pushedSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", commits: 3 });
+    expect(r.sub!.result!.norepo).toBeUndefined();
+  });
+
+  it("keeps the branch pushed before when the delete reads a woken new machine that holds no repository", async () => {
+    const held = await released();
+    held.answers.read = "norepo\n";
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
+    await until(async () => ((await held.record()).phase === "napping" ? true : undefined), "the nap after the resumed turn");
+    await held.rt.workspaces.wake(held.made.id);
+    held.jump(31 * MIN);
+    const r = await until(async () => ((await held.record()).phase === "released" ? held.record() : undefined), "the second release");
+    expect(r.sub!.result).toMatchObject({ pushedSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", commits: 3 });
+    expect(r.sub!.result!.norepo).toBeUndefined();
+  });
+
   it("makes a new machine from the image head, lands the picked files and Claude's session in its -root-web folder, one copy, and resumes the same session under the preamble", async () => {
     const held = await released();
     await sealV2(held);

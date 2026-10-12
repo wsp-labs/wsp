@@ -385,6 +385,8 @@ const MACHINE_DOWN: ReadonlySet<WorkspaceState> = new Set<WorkspaceState>(["paus
 export async function awake(client: HostClient, workspace: WorkspaceView, action: string, tell: (line: string) => void): Promise<Woken> {
   const before = workspaceState({ phase: workspace.phase });
   if (before === "gone") throw new Error(goneRefusal(workspace.name, action, workspace.gone));
+  // A released sub-thread has no machine to wake: its send makes a new one.
+  if (before === "released" && action === "send") return { workspace, woke: false };
   if (before !== "running") tell(`waking ${workspace.name}`);
   const woken = (await client.request<{ workspace: WorkspaceOut }>("workspaces.wake", { workspaceId: workspace.id })).workspace;
   return { workspace: woken, woke: MACHINE_DOWN.has(before) && workspaceState({ phase: woken.phase }) === "running" };

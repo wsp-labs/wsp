@@ -124,6 +124,8 @@ export interface Turn {
   reason?: string;
   /** The thread's previous turn ended without a result, as the turn's session.start said. */
   afterCut?: true;
+  /** What making the turn's machine said beside it, as the start's answer carried it. */
+  notice?: string;
 }
 
 /** The model, effort and access a start names: the model and effort as the composer's pickers name them, which the
@@ -557,12 +559,12 @@ async function begin(client: HostClient, start: Sent, startedBy: SessionOrigin, 
     offStarting();
     throw new Error(OTHER_VERSION);
   }
-  const { session, outcome, turnId } = reply.data;
+  const { session, outcome, turnId, notice } = reply.data;
   turnOf = turnId;
   if (outcome === "steered") offStarting();
   const threadId = session.threadId;
   if (threadId === undefined) throw new Error("the runtime stamped no thread on the session");
-  return { turn: { session, threadId, outcome }, turnId };
+  return { turn: { session, threadId, outcome, ...(notice !== undefined ? { notice } : {}) }, turnId };
 }
 
 /** A start as it goes out: with the request id its every send carries, so the host that answers it, or a host that
@@ -1065,6 +1067,7 @@ export async function followVerb(ctx: VerbContext, client: HostClient, start: Re
         // The live turn, which follow fills in as its events land: whoever waited on it reads its end off this.
         onTurn?.(t);
         if (announce) ctx.out.emit({ type: "thread", id: t.threadId, workspaceId: t.session.workspaceId, harness: t.session.harness, startedBy: t.session.startedBy }, openedThreadSaid(t.threadId, opened, t.session.cwd));
+        for (const line of t.notice?.split("\n") ?? []) ctx.io.error(line);
         if (t.outcome !== "started" && t.outcome !== "held") ctx.io.error(JOINED[t.outcome](picks, waitedFor));
         if (joinedWaiting) ctx.io.error(WAITING_ON_A_PERSON);
       },
@@ -1133,6 +1136,7 @@ export async function detachVerb(ctx: VerbContext, client: HostClient, start: Re
     waitedFor = e.waitsFor;
     waitSaid(ctx, waitingLine(e));
   }, () => hostBack(ctx));
+  for (const line of turn.notice?.split("\n") ?? []) ctx.io.error(line);
   if (turn.outcome === "held" && turn.session.capped !== undefined) ctx.io.error(capWaitLine(turn.session.capped));
   else if (turn.outcome !== "started" && turn.outcome !== "held") ctx.io.error(JOINED[turn.outcome](picks, waitedFor));
   ctx.out.emit({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}) }, openedThreadSaid(turn.threadId, opened, turn.session.cwd));

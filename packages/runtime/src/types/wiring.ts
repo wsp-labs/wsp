@@ -482,6 +482,8 @@ export interface SessionHandle {
   readonly turnId: string;
   /** How the start that handed this out went: steered means the handle is the thread's running turn, not a new one. */
   readonly outcome: Exclude<SessionStartOutcome, "held">;
+  /** What making the turn's machine said beside it, a line each: a sub-thread's new machine after its delete. */
+  readonly notice?: string;
   view(): SessionView;
   interrupt(): Promise<void>;
   steer?(prompt: string, id?: string, images?: readonly TurnImage[]): Promise<"accepted" | "not-running">;
