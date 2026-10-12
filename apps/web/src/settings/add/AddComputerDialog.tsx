@@ -10,10 +10,10 @@
 // and the one act.
 import { CheckIcon, ExternalLinkIcon, KeyRoundIcon, ListChecksIcon, ServerIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { fmtBytes, fmtDuration, HERE_PLACE_ID, hereName, NO_RECIPE, recipeCounts, recipeSummary, signInWayLabel, type SignInWay, type AgentsTarget, type PlaceSetupStep, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions, type SshHostSuggestion } from "@wsp/protocol";
-import { agentName, signInWaysOf } from "@wsp/catalog";
+import { fmtBytes, fmtDuration, HERE_PLACE_ID, hereName, NO_RECIPE, recipeCounts, recipeSummary, signInWayLabel, signInWaysFix, type SignInWay, type AgentsTarget, type PlaceSetupStep, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions, type SshHostSuggestion } from "@wsp/protocol";
+import { agentName, catalogEntry, keyEnvOf, mintsToken, signInWaysOf } from "@wsp/catalog";
 import { ActButton } from "../../components/agents/agentsParts.js";
-import { AGENTS_LIST_WORDS, agentSignInStart, catalogSignInRow, signInAct, wayStart, type RowAct, type RowsContext } from "../../components/agents/agentsRows.js";
+import { AGENTS_LIST_WORDS, agentSignInStart, catalogSignInRow, signInAct, wayStart, type RowAct, type RowsContext, type SignInStart } from "../../components/agents/agentsRows.js";
 import { SignInFlowView } from "../../components/agents/SignInFlowView.js";
 import { useAgentActs } from "../../components/agents/useAgentActs.js";
 import { useAgentsReport } from "../../components/agents/useAgentsReport.js";
@@ -353,29 +353,43 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
   const target = useMemo<AgentsTarget>(() => ({ placeId: place.id }), [place.id]);
   const signIns = useAgentActs(target);
   const { report } = useAgentsReport(rows.some(row => row.signIn !== undefined) ? target : null);
-  const [refused, setRefused] = useState<Failure | null>(null);
+  // A refusal is said under the row whose act asked, where the person is looking, never at the foot of a long list.
+  const [refused, setRefused] = useState<{ row: string; failure: Failure } | null>(null);
   const [busy, setBusy] = useState(false);
   const [turned, setTurned] = useState<ReadonlyMap<string, boolean>>(new Map());
   const isOpen = (row: StepLine): boolean => opensLog(row) && (turned.get(row.id) ?? row.state === "failed");
   const open = rows.filter(isOpen);
   const logs = useStepLogs(place.id, open.length > 0, open.some(row => row.state === "working"));
-  const ask = (run: () => Promise<Failure | null>): void => {
+  const ask = (row: string, run: () => Promise<Failure | null>): void => {
     setBusy(true);
     void run().then(failure => {
       setBusy(false);
-      setRefused(failure);
+      // The host refuses a press while a setup or a sync runs there; the act works once it ends.
+      setRefused(failure === null ? null : { row, failure: failure.kind === "conflict" ? { ...failure, said: ADD_COMPUTER_WORDS.stillSettingUp(box), fix: undefined } : failure });
     });
   };
-  const retry = (row: string) => (): void => ask(() => retrySetup(api, place.id, row));
+  // A refusal says how the setup or a recipe's sync stood when it was pressed, so it goes once either moves on.
+  const setupState = place.setup?.state;
+  const syncState = place.sync?.state;
+  useEffect(() => setRefused(null), [setupState, syncState]);
+  const retry = (row: string) => (): void => ask(row, () => retrySetup(api, place.id, row));
   // The yes lives on the picks a computer follows: a recipe's page gives it for every computer that follows one.
   const ownPicks = place.recipe === undefined || place.recipe === NO_RECIPE;
-  const copyKeys = (row: string) => (): void => ask(() => copyKeysOn(api, place, row));
-  const skip = (row: string) => (): void => ask(() => skipRow(api, place.id, row));
+  const copyKeys = (row: string) => (): void => ask(row, () => copyKeysOn(api, place, row, box));
+  const skip = (row: string) => (): void => ask(row, () => skipRow(api, place.id, row));
   const ctx: RowsContext = { where: "box", computer: box, heldWhy: null, ...(signIns === undefined ? {} : { acts: signIns }) };
   // A token is made on the computer the host runs on, so its sign-in is that computer's.
   const hereTarget = useMemo<AgentsTarget>(() => ({ placeId: HERE_PLACE_ID }), []);
   const hereSignIns = useAgentActs(hereTarget);
   const hereCtx: RowsContext = { where: "here", heldWhy: null, ...(hereSignIns === undefined ? {} : { acts: hereSignIns }) };
+  // A row draws one sign-in: a way started from one computer's sign-ins ends what the other's hold on that row, so a
+  // token made here never runs unseen behind the key's field, nor the field stand over a token's page.
+  const alone =
+    (row: string, mine: typeof signIns, run: () => void) =>
+    (): void => {
+      (mine === hereSignIns ? signIns : hereSignIns)?.cancel(row);
+      run();
+    };
   // An agent with several ways offers each on its row, the one this computer was set up with first.
   const waysOf = (row: StepLine): SignInWay[] => {
     if (row.signIn === undefined) return [];
@@ -385,9 +399,19 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
   };
   const wayAct = (row: StepLine, way: SignInWay): ReturnType<typeof signInAct> => {
     const agent = row.signIn!;
-    if (way === "key") return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, run: () => ask(() => setupWithWay(api, place, agent, "key", row.id)) } };
+    // A computer that takes the key already failed for want of it, and a run again reads the same missing key: the
+    // key is asked for under the row and goes to the host's vault, which lands the row.
+    if (way === "key" && place.picks?.agents[agent]?.signin === "key") {
+      const start: SignInStart = { kind: "vault", agent, word: "key" };
+      const { flow } = signInAct(row.id, start, ctx);
+      return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, ...(signIns === undefined ? {} : { run: alone(row.id, signIns, () => signIns.start(row.id, start)) }) }, ...(flow === undefined ? {} : { flow }) };
+    }
+    if (way === "key") return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, run: () => ask(row.id, () => setupWithWay(api, place, agent, "key", row.id, box)) } };
+    const mine = way === "token" ? hereSignIns : signIns;
     const made = signInAct(row.id, wayStart(agent, way), way === "token" ? hereCtx : ctx);
-    return made.act.id === "sign-in" ? { ...made, act: { ...made.act, label: signInWayLabel(way, box) } } : made;
+    if (made.act.id !== "sign-in") return made;
+    const run = made.act.run;
+    return { ...made, act: { ...made.act, label: signInWayLabel(way, box), ...(run === undefined ? {} : { run: alone(row.id, mine, run) }) } };
   };
   // How it signs in there is the agents list's own rule, off that computer's report row where one is read.
   const signInOf = (row: StepLine) => {
@@ -428,21 +452,38 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
   };
   const flowOf = (row: StepLine): ReactNode => {
     const ways = waysOf(row);
-    const flow = ways.length > 0 ? ways.flatMap(way => (way === "key" ? [] : [wayAct(row, way).flow])).find(f => f !== undefined) : signInOf(row)?.flow;
+    const flow = ways.length > 0 ? ways.map(way => wayAct(row, way).flow).find(f => f !== undefined) : signInOf(row)?.flow;
     return flow === undefined ? undefined : <SignInFlowView view={flow} label={row.name} reserve={false} />;
+  };
+  // With the key's field open under it, the row's fix says to paste the key there, not to put it in the file first.
+  const here = useStore(s => hereName(s.places));
+  const worded = (row: StepLine): StepLine => {
+    const ways = waysOf(row);
+    if (!ways.includes("key") || wayAct(row, "key").flow?.flow.kind !== "vault") return row;
+    const signIn = catalogEntry(row.signIn!)?.signIn;
+    const keyEnv = signIn === undefined ? undefined : keyEnvOf(signIn);
+    const facts = { name: agentName(row.signIn!), here, box, field: true, ...(signIn !== undefined && mintsToken(signIn) ? { mint: signIn.mint } : {}), ...(keyEnv === undefined ? {} : { keyEnv }) };
+    return { ...row, fix: signInWaysFix(ways, facts) };
+  };
+  const under = (row: StepLine): ReactNode => {
+    const shown = row.wait !== undefined ? <WaitBlock row={row} onRetry={retry(row.id)} onSkip={skip(row.id)} busy={busy} /> : (flowOf(row) ?? (isOpen(row) && logs !== null ? <StepLog lines={logs[row.id as PlaceSetupStep]} /> : undefined));
+    if (refused?.row !== row.id) return shown;
+    return (
+      <>
+        {shown}
+        <RefusalSlot k="retry-refused" said={refused.failure.said} {...(refused.failure.fix === undefined ? {} : { fix: refused.failure.fix })} />
+      </>
+    );
   };
   const toggle = (row: StepLine) => (opensLog(row) ? { open: isOpen(row), onToggle: () => setTurned(was => new Map(was).set(row.id, !isOpen(row))) } : { open: false });
   return (
-    <>
-      <Grid id={id}>
-        {rows.map(row => (
-          <StepRow key={row.id} row={row} acts={acts(row)} toggle={toggle(row)}>
-            {row.wait !== undefined ? <WaitBlock row={row} onRetry={retry(row.id)} onSkip={skip(row.id)} busy={busy} /> : (flowOf(row) ?? (isOpen(row) && logs !== null ? <StepLog lines={logs[row.id as PlaceSetupStep]} /> : undefined))}
-          </StepRow>
-        ))}
-      </Grid>
-      {refused === null ? null : <RefusalSlot k="retry-refused" said={refused.said} {...(refused.fix === undefined ? {} : { fix: refused.fix })} />}
-    </>
+    <Grid id={id}>
+      {rows.map(row => (
+        <StepRow key={row.id} row={worded(row)} acts={acts(row)} toggle={toggle(row)}>
+          {under(row)}
+        </StepRow>
+      ))}
+    </Grid>
   );
 }
 

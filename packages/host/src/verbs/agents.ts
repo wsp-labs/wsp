@@ -238,20 +238,21 @@ export const AGENT_VERBS: readonly Verb[] = [
   },
   {
     name: "agents key",
-    usage: "wsp agents key <agent>",
-    about: "puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints",
+    usage: "wsp agents key <agent> [--api-key]",
+    about: "puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints, and --api-key takes its API key instead",
     page: "agent",
-    options: {},
+    options: { "api-key": { type: "boolean" } },
     cliOnly: "takes a token typed at the host's own terminal into its vault, which is the person's to hand over",
     hostSide: HOST_SIDE_VAULT,
     run: async ctx => {
       const [agent, ...rest] = ctx.args;
       if (agent === undefined || rest.length > 0) throw usageRefusal("wsp agents key takes one agent.", usageIs(ctx));
       if (ctx.io.isTTY !== true) throw usageRefusal("nobody is at this terminal to paste a token.", "Run it in a terminal on the computer the host runs on.");
+      const apiKey = ctx.flags["api-key"] === true;
       const mint = catalogEntry(agent)?.signIn;
-      const ask = mint !== undefined && "mint" in mint ? `Run ${mint.mint} in another terminal, then paste the token it prints` : `Paste ${agentName(agent)}'s API key`;
+      const ask = !apiKey && mint !== undefined && "mint" in mint ? `Run ${mint.mint} in another terminal, then paste the token it prints` : `Paste ${agentName(agent)}'s API key`;
       const key = await ctx.io.askSecret(ask);
-      await (await ctx.client()).request("agents.key", { agent, key });
+      await (await ctx.client()).request("agents.key", { agent, key, ...(apiKey ? { way: "key" } : {}) });
       ctx.io.log(`${agentName(agent)}'s key is in this host's vault; every turn reads it from there.`);
       return 0;
     },

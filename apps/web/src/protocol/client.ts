@@ -640,7 +640,7 @@ export interface Api {
   /** Types what a sign-in's page handed back into that sign-in's pty. */
   agentsSignInCode?(signInId: string, code: string): Promise<void>;
   /** Puts an agent's token or key into the host's vault; refused off the host's own socket. */
-  agentsKey?(agent: string, key: string): Promise<void>;
+  agentsKey?(agent: string, key: string, way?: "token" | "key"): Promise<void>;
   /** Writes the wsp server into an agent's config on this computer. */
   agentsAddTools?(target: AgentsTarget, agent: string): Promise<{ file: string }>;
   /** skills.sh searched by the host; the page never asks skills.sh itself. A client without it holds Add a skill. */
@@ -1296,7 +1296,7 @@ export function makeApi(c: ProtocolClient): Api {
       };
     },
     agentsSignInCode: async (signInId, code) => void (await c.request("agents.signInCode", { signInId, code })),
-    agentsKey: async (agent, key) => void (await c.request("agents.key", { agent, key })),
+    agentsKey: async (agent, key, way) => void (await c.request("agents.key", { agent, key, ...(way !== undefined ? { way } : {}) })),
     agentsAddTools: async (target, agent) => ({ file: String((await c.request<{ file?: unknown }>("agents.addTools", { target, agent })).file) }),
     subscribe: fn => c.subscribe(fn),
     getGolden: async (name = "default") => (await c.request<{ manifest?: GoldenManifest }>("golden.get", { name })).manifest,

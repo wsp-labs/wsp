@@ -540,11 +540,15 @@ describe("the host's acts that write", () => {
     await expect(a.key("claude", "sk-ant-api03-not-a-token")).rejects.toThrow(notTokenRefusal("Claude Code"));
     await a.key("claude", "  sk-ant-oat01-abcdefghijklmnopqrstuvwxyz  ");
     await a.key("gemini", "AIzaFake");
+    // An agent that mints a token takes its API key where the person picked the key.
+    await a.key("claude", "  sk-ant-api03-x  ", "key");
     await expect(a.key("pi", "x")).rejects.toThrow(noVaultKeyRefusal("Pi"));
+    await expect(a.key("pi", "x", "key")).rejects.toThrow(noVaultKeyRefusal("Pi"));
     await expect(a.key("gemini", "   ")).rejects.toThrow("The key for Gemini CLI is empty.");
     const env = readFileSync(join(dir, ".env"), "utf8");
     expect(env).toContain("CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-abcdefghijklmnopqrstuvwxyz\n");
     expect(env).toContain("GEMINI_API_KEY=AIzaFake");
+    expect(env).toContain("ANTHROPIC_API_KEY=sk-ant-api03-x\n");
   });
 
   it("writes the wsp server into an agent's config on this computer, the entry an install writes, and nowhere else", async () => {
@@ -632,5 +636,9 @@ describe("the sign-in lines at the person's terminal", () => {
     const at = { ...captured(), isTTY: true, askSecret: async (q: string) => (expect(q).toContain("claude setup-token"), "sk-ant-oat01-typed") };
     expect(await runVerb(key, ["agents", "key", "claude"], at, () => "/tmp/state.json", { env: {}, dial: async () => client })).toBe(0);
     expect(asked.find(a => a.op === "agents.key")?.params).toEqual({ agent: "claude", key: "sk-ant-oat01-typed" });
+    // --api-key asks for the API key and says so on the wire, where the token's paste would refuse it.
+    const apiKey = { ...captured(), isTTY: true, askSecret: async (q: string) => (expect(q).toBe("Paste Claude Code's API key"), "sk-ant-api03-typed") };
+    expect(await runVerb(key, ["agents", "key", "claude", "--api-key"], apiKey, () => "/tmp/state.json", { env: {}, dial: async () => client })).toBe(0);
+    expect(asked.filter(a => a.op === "agents.key").at(-1)?.params).toEqual({ agent: "claude", key: "sk-ant-api03-typed", way: "key" });
   });
 });
