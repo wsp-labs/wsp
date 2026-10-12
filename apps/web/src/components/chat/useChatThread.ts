@@ -198,6 +198,8 @@ function ownPlace(e: SessionEvent): string | undefined {
       return `session.behind:${e.turnId}`;
     case "session.capped":
       return `session.capped:${e.turnId}`;
+    case "session.uncapped":
+      return `session.uncapped:${e.turnId}`;
     case "session.run":
       return `session.run:${e.runId}:${e.state}`;
     case "session.subagent":
@@ -524,15 +526,29 @@ export function stabilizeEntries(next: ReadonlyArray<TimelineEntry>, previous: R
 /** The person's own row for one send, from the click until the runtime's own row replaces it: one id the whole way,
  * since a row that changes identity under the list is torn down and built again where the person was reading. The
  * records and the request id ride it, so their thumbnails are there at the click rather than a roundtrip later. */
-function sentEntry(sent: Kept): TimelineEntry {
+function sentEntry(sent: Kept, waiting = false): TimelineEntry {
   const { text, at, requestId, attachments } = sent;
   const id = `sent-user:${requestId}`;
   return {
     id,
     kind: "message",
     createdAt: at,
-    message: { id, role: "user", text, turnId: null, streaming: false, createdAt: at, updatedAt: at, requestId, ...(attachments !== undefined ? { attachments } : {}) },
+    message: { id, role: "user", text, turnId: null, streaming: false, createdAt: at, updatedAt: at, requestId, ...(attachments !== undefined ? { attachments } : {}), ...(waiting ? { waiting } : {}) },
   };
+}
+
+/** The message a turn its computer's threads at once holds was sent, off the first line of its wait, until its start
+ * writes it: still waiting until the line that it was let through. Nothing of the thread lands while it waits but
+ * those lines, so only the tail is read. */
+function heldPromptOf(state: ThreadState): (Kept & { waiting: boolean }) | null {
+  let waiting = true;
+  for (let i = state.events.length - 1; i >= 0; i--) {
+    const e = state.events[i]!;
+    if (e.type === "session.uncapped") waiting = false;
+    else if (e.type !== "session.capped") return null;
+    else if (e.prompt !== undefined) return { text: e.prompt, requestId: e.requestId ?? e.turnId ?? e.sessionId, at: state.arrivals[i] || (e.at === undefined ? "" : new Date(e.at).toISOString()), waiting };
+  }
+  return null;
 }
 
 /** The thread of a folder's rows whose event is the folder's newest, as the whole history's last event names it: a
@@ -650,9 +666,12 @@ export function deriveChatView(state: ThreadState, previous: ReadonlyArray<Timel
     const first = one.turnId === undefined ? -1 : entries.findIndex(e => entryTurnId(e) === one.turnId);
     entries.splice(first === -1 ? entries.length : first, 0, sentEntry(one));
   }
+  const asked = heldPromptOf(state);
+  const ownAsked = asked !== null && state.pendingPrompt?.requestId === asked.requestId;
+  if (asked !== null && !ownAsked) entries.push(sentEntry(asked, asked.waiting));
   if (state.pendingPrompt !== null) {
     const { starting, requestId, at } = state.pendingPrompt;
-    entries.push(sentEntry(state.pendingPrompt));
+    entries.push(sentEntry(state.pendingPrompt, ownAsked && asked.waiting));
     if (starting !== undefined) {
       const id = `starting:${requestId}`;
       entries.push({ id, kind: "work", createdAt: at, entry: { id, createdAt: at, turnId: null, label: starting, tone: "notice", sourceActivityKind: "runtime.starting" } });

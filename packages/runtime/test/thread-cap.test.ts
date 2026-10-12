@@ -33,7 +33,7 @@ const heldTurns = () => {
       started.push(prompt);
       live.add(prompt);
       most = Math.max(most, live.size);
-      onEvent({ type: "session.start", sessionId });
+      if (!prompt.startsWith("silent")) onEvent({ type: "session.start", sessionId });
       const result: TurnResult = { status: "completed", text: "ok" };
       let over = false;
       const end = (): void => {
@@ -755,13 +755,14 @@ describe("a followed send into a thread whose turn is held lends that held turn 
     const t = heldTurns();
     const clients: WsClient[] = [];
     try {
-      const { as, ask } = await leadOnOne(root, t, clients);
+      const { mac, as, ask } = await leadOnOne(root, t, clients);
       const asLead = await as("lead");
       const builder = (await asLead.request("sessions.start", { prompt: "builder", answerHeld: true })) as Started;
       expect(builder.outcome).toBe("held");
       const more = ask(asLead, builder.session.threadId, "also do this");
       await movesOn(t, "builder", more, "also do this");
       expect([...t.live].sort()).toEqual(["also do this", "lead"]);
+      expect((await ctx.runtime!.sessions.history(mac.id)).filter(e => e.type === "session.uncapped")).toEqual([expect.objectContaining({ threadId: builder.session.threadId, why: "lent", atOnce: 1 })]);
     } finally {
       for (const c of clients) c.close();
       for (const end of [...t.ends.values()]) end();
@@ -1050,6 +1051,86 @@ describe("a restart a computer's threads at once holds", () => {
       ends.get("parser again")!();
       await rt.sessions.delete(A);
       expect(foldThreads(await rowsOf(mac.id)).find(t => t.id === A2)).not.toHaveProperty("replaces");
+      host.close();
+    } finally {
+      for (const end of ends.values()) end();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("raising a computer's threads at once", () => {
+  it("starts as many waiting threads as the new room takes within 2 s, oldest first, each saying it started on the raise", async () => {
+    const root = mkdtempSync(joinPath(tmpdir(), "wsp-cap-raise-"));
+    const { ends, started, adapter } = heldTurns();
+    try {
+      const { host, set } = await onHere(root, adapter);
+      const mac = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "mac" });
+      await set(6);
+      for (let i = 1; i <= 6; i++) await ctx.runtime!.sessions.start((await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: `w${i}` })).id, { prompt: `run ${i}` });
+      const seventh = host.request("sessions.start", { workspaceId: mac.id, prompt: "seventh", answerHeld: true });
+      await until(async () => (await rowsOf(mac.id)).filter(r => r.capped !== undefined).length === 1);
+      const eighth = host.request("sessions.start", { workspaceId: mac.id, prompt: "eighth", answerHeld: true });
+      await until(async () => (await rowsOf(mac.id)).filter(r => r.capped !== undefined).length === 2);
+      const held = Object.fromEntries((await rowsOf(mac.id)).map(r => [r.prompt!, r.id]));
+      await set(8);
+      await until(() => ends.has("seventh") && ends.has("eighth"), 2000);
+      expect(started.slice(6)).toEqual(["seventh", "eighth"]);
+      await Promise.all([seventh, eighth]);
+      const history = await ctx.runtime!.sessions.history(mac.id);
+      for (const prompt of ["seventh", "eighth"]) {
+        const own = history.filter(e => e.turnId === held[prompt]);
+        // The message it waits to run is in the transcript from the first line of its wait, and why it left is the line before its start.
+        expect(own.find(e => e.type === "session.capped")).toMatchObject({ prompt });
+        expect(own.map(e => e.type).slice(-2)).toEqual(["session.uncapped", "session.start"]);
+        expect(own.find(e => e.type === "session.uncapped")).toMatchObject({ why: "raised", atOnce: 8 });
+      }
+      host.close();
+    } finally {
+      for (const end of ends.values()) end();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("a thread that leaves the wait as a slot frees says so, once, and one that never waited says nothing", async () => {
+    const root = mkdtempSync(joinPath(tmpdir(), "wsp-cap-freed-"));
+    const { ends, adapter } = heldTurns();
+    try {
+      const { host, set } = await onHere(root, adapter);
+      const mac = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "mac" });
+      await set(1);
+      const one = await ctx.runtime!.sessions.start(mac.id, { prompt: "one" });
+      const two = ctx.runtime!.sessions.start(mac.id, { prompt: "two" });
+      await until(async () => (await rowsOf(mac.id)).some(r => r.capped !== undefined));
+      ends.get("one")!();
+      await one.finished;
+      await two;
+      const history = await ctx.runtime!.sessions.history(mac.id);
+      expect(history.filter(e => e.type === "session.uncapped")).toEqual([expect.objectContaining({ threadId: (await two).view().threadId, why: "freed", atOnce: 1 })]);
+      host.close();
+    } finally {
+      for (const end of ends.values()) end();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("pushes the waiting thread's row without its wait the moment it is let through, before its agent says it started", async () => {
+    const root = mkdtempSync(joinPath(tmpdir(), "wsp-cap-row-"));
+    const { ends, adapter } = heldTurns();
+    try {
+      const { host, set } = await onHere(root, adapter);
+      const mac = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "mac" });
+      await set(1);
+      await ctx.runtime!.sessions.start(mac.id, { prompt: "one" });
+      void ctx.runtime!.sessions.start(mac.id, { prompt: "silent two" });
+      await until(async () => (await rowsOf(mac.id)).some(r => r.capped !== undefined));
+      const threadId = (await rowsOf(mac.id)).find(r => r.capped !== undefined)!.threadId;
+      const heard: { type: string; threadId?: string; row?: { capped?: unknown } }[] = [];
+      ctx.runtime!.events.on("*", e => void heard.push(e as never));
+      await set(2);
+      await until(() => ends.has("silent two"));
+      await until(() => heard.some(e => e.type === "session.row" && e.threadId === threadId && e.row !== undefined && e.row.capped === undefined));
+      expect(heard.some(e => e.type === "session.start")).toBe(false);
       host.close();
     } finally {
       for (const end of ends.values()) end();

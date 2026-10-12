@@ -99,6 +99,7 @@ import {
   type WorkspaceCreatingEvent,
   ThreadDefaults,
   capWaitLine,
+  capStartedLine,
   COPY_ALONE_LINE,
   COPY_ALONE_FIX,
   RESUME_WHERE_LINE,
@@ -1093,6 +1094,7 @@ export async function followVerb(ctx: VerbContext, client: HostClient, start: Re
           ctx.out.emit(e, redialed ? e.result.text : reply);
         } else ctx.out.emit(e);
         if (e.type === "session.capped") ctx.io.error(capWaitLine(e));
+        if (e.type === "session.uncapped") ctx.io.error(capStartedLine(e));
         if (e.type === "session.start" && e.afterCut === true) ctx.io.error(AFTER_CUT_LINE);
         // The person's turn as the transcript keeps it: one bracket per image, since a terminal draws no pixels.
         if (e.type === "session.start") for (const file of e.attachments ?? []) stream.line(attachmentLine(file));
