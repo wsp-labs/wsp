@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // One agent process serving a thread's turns one after another: the real Claude and Codex adapters over this
 // computer's runs, each driving an agent stub that names the process every reply came from.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createClaudeAdapter } from "@wsp/adapter-claude";
 import { createCodexAdapter } from "@wsp/adapter-codex";
 import type { AdapterEvent, ExecStreamFactory } from "@wsp/protocol";
+import { writeStub } from "../../protocol/test/stub-script.js";
 import { localExecStream } from "../src/local-exec.js";
 import { claudeKeeper, codexKeeper, pidOf } from "./kept-stubs.js";
 import { alive, gone, sweepStrays } from "./strays.js";
@@ -144,6 +145,24 @@ describe("a Claude process kept between turns", () => {
     if (reopened === "gone") throw new Error("the run was gone");
     const r2 = await reopened.finished;
     expect(r2.text).toContain("two later from");
+  }, 20_000);
+
+  it("keeps its input and its process through each turn's end when it prints before reading its prompt and its input starts late", async () => {
+    // Claude Code with a SessionStart hook prints before it reads its prompt; here the input pump starts 0.8 s after it.
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    writeStub(join(bin, "sh"), `#!/bin/sh\ncase "$*" in *.pump*) sleep 0.8 ;; esac\nexec /bin/sh "$@"\n`);
+    const heard = join(root, "heard");
+    const first = claude({ env: { STUB_EARLY: "1", STUB_HEARD: heard, PATH: `${bin}:${process.env["PATH"] ?? "/usr/bin:/bin"}` } }).start({ prompt: "one", cwd: root, keep: true, onEvent: () => {} });
+    const pid = pidOf((await first.finished).text);
+    const second = first.kept!()!.next({ prompt: "leave a child", onEvent: () => {} });
+    expect(await second.finished).toMatchObject({ status: "completed" });
+    // The second turn's end has read the group once its child is gone, and the first turn's end before it.
+    await gone(Number(/child (\d+)/.exec(readFileSync(heard, "utf8"))![1]));
+    const r3 = await second.kept!()!.next({ prompt: "three", onEvent: () => {} }).finished;
+    expect(r3).toMatchObject({ status: "completed" });
+    expect(pidOf(r3.text)).toBe(pid);
+    await second.kept!()!.close();
   }, 20_000);
 
   it("ends what a turn left running in its process group when the turn ends, and keeps the agent and its input", async () => {
