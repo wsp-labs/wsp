@@ -103,6 +103,9 @@ export interface SettingsState {
   /** The page under the Agents page's tab that stands in place of its list: one server or skill, or an add. Moving to
    * another page, tab or computer drops it. */
   readonly agentsLevel: AgentsLevel | null;
+  /** The computer a remove is taking out while its dialog still has something to say: its page stays drawn from the
+   * last copy of it after the host drops it from the list, until the dialog closes. */
+  readonly parting: string | null;
   go(at: SettingsAt): void;
   setSearch(search: string): void;
   setReads(patch: Partial<SettingsReads>): void;
@@ -119,6 +122,7 @@ export interface SettingsState {
   pickAgentsTab(tab: AgentsTab): void;
   pickAgentsPlace(placeId: string | null): void;
   openAgentsLevel(level: AgentsLevel | null): void;
+  holdParting(placeId: string | null): void;
 }
 
 export type UsageTab = "used" | "limits";
@@ -146,6 +150,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   agentsTab: "agents",
   agentsPlace: null,
   agentsLevel: null,
+  parting: null,
   go(at) {
     set({ at, search: "", recipeAsked: null, addAsked: null, agentsLevel: null });
     try {
@@ -171,6 +176,9 @@ export const useSettingsStore = create<SettingsState>(set => ({
   },
   openAgentsLevel(agentsLevel) {
     set({ agentsLevel });
+  },
+  holdParting(parting) {
+    set({ parting });
   },
 
   setSearch(search) {
