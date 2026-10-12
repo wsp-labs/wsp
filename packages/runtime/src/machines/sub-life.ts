@@ -6,7 +6,7 @@
 // thread, transcript, result and session. The timer is the record's deleteAt,
 // so a restarted host arms it again.
 import { INLINE_EXEC_MS, isMissing } from "@wsp/engine";
-import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
+import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subResultLine, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
 import { GONE_REASON, deadMachine } from "../types/internal.js";
 import type { GoneOutcome, LiveWorkspace, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubLifeArea } from "../context.js";
@@ -20,6 +20,8 @@ export const SUB_SESSION_MAX_BYTES = 64 * 1024 * 1024;
 export const SUB_STOP_AFTER_DELETE_MS = 10 * 60_000;
 /** How long a delete the cloud refused waits before it is asked again. */
 export const SUB_DELETE_RETRY_MS = 10 * 60_000;
+/** The longest a lead's line waits on the done read after its sub-thread's turn; past it the line goes without. */
+export const SUB_LINE_WAIT_MS = 5 * 60_000;
 /** The row's reason for the nap a done takes. */
 const DONE_NAP = "its sub-thread is done";
 
@@ -102,6 +104,14 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   const timers = new Map<string, () => void>();
   /** The done or delete in flight per record: the next waits for it, so a done and a delete never cross. */
   const working = new Map<string, Promise<void>>();
+  /** The lines waiting on a done's read, per record, each with when it became owed: a done that started then or later
+   * answers it, one already under way when the line came does not. */
+  const readWaits = new Map<string, Set<{ since: number; go: () => void }>>();
+  const readDone = (id: string, startedAt: number): void => {
+    for (const w of readWaits.get(id) ?? []) if (w.since <= startedAt) w.go();
+  };
+  /** When the last done to finish started, per record: a wait on a turn that ended before it has had its done. */
+  const doneStarted = new Map<string, number>();
 
   const serial = (id: string, work: () => Promise<void>): Promise<void> => {
     const next = (working.get(id) ?? Promise.resolve()).then(work, work);
@@ -232,6 +242,16 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   };
 
   const done = async (id: string): Promise<void> => {
+    const startedAt = clock.now();
+    try {
+      await doneSteps(id);
+    } finally {
+      doneStarted.set(id, startedAt);
+      readDone(id, startedAt);
+    }
+  };
+
+  const doneSteps = async (id: string): Promise<void> => {
     const entry = live.get(id);
     if (entry?.record.sub === undefined || entry.record.phase === "released") return;
     const threadId = threadOf(id);
@@ -254,6 +274,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     }
     await ctx.persist(entry.record);
     arm(entry);
+    // The lead's line goes on the read, not after the nap: a stop at the cloud takes minutes.
+    readDone(id, clock.now());
     if (entry.record.phase !== "running") return;
     try {
       await ctx.napWith(id, DONE_NAP);
@@ -337,6 +359,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     if (e.type !== "workspace.deleted") return;
     timers.get(e.workspaceId)?.();
     timers.delete(e.workspaceId);
+    doneStarted.delete(e.workspaceId);
   });
 
   /** What a sub-machine may hold that no remote has: the counts its last read found, that the read failed, or that a
@@ -368,8 +391,57 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     ctx.idle.forget(id);
   };
 
+  /** What the done after a turn that ended at `since` read off the machine, once it has; nothing where no read
+   * followed (a turn took the machine back, it was lost) or none came within SUB_LINE_WAIT_MS. */
+  const subRead = async (workspaceId: string, since: number): Promise<SubResult | undefined> => {
+    const read = (): SubResult | undefined => {
+      const r = live.get(workspaceId)?.record.sub?.result;
+      return r !== undefined && Date.parse(r.readAt) >= since ? r : undefined;
+    };
+    const entry = live.get(workspaceId);
+    if (entry?.record.sub === undefined) return undefined;
+    if (read() === undefined && entry.record.phase !== "released" && (doneStarted.get(workspaceId) ?? -Infinity) < since) {
+      await new Promise<void>(resolve => {
+        const waits = readWaits.get(workspaceId) ?? new Set();
+        readWaits.set(workspaceId, waits);
+        const w = {
+          since,
+          go: () => {
+            cancel();
+            waits.delete(w);
+            if (waits.size === 0 && readWaits.get(workspaceId) === waits) readWaits.delete(workspaceId);
+            resolve();
+          },
+        };
+        const cancel = clock.schedule(() => w.go(), SUB_LINE_WAIT_MS, { unref: true });
+        waits.add(w);
+      });
+    }
+    return read();
+  };
+
+  /** The line a sub-thread's finished line to its lead ends with, off the read of the done after its turn; nothing
+   * where none followed or a turn runs on it again, and the line goes as any thread's. */
+  const subLine = async (workspaceId: string, since: number): Promise<string | undefined> => {
+    const result = await subRead(workspaceId, since);
+    const now = live.get(workspaceId);
+    const threadId = threadOf(workspaceId);
+    if (now?.record.sub === undefined || result === undefined || threadId === undefined || busy(threadId)) return undefined;
+    const sub = now.record.sub;
+    const deleteAt = sub.deleteAt;
+    return subResultLine({
+      threadId,
+      lead: now.record.lead?.threadId ?? threadId,
+      result,
+      base: sub.base.branch,
+      ...(deleteAt !== undefined && now.record.phase !== "released" ? { deleteInMs: Math.max(0, deleteAt - clock.now()) } : {}),
+    });
+  };
+
   return {
     subDone: id => serial(id, () => done(id)),
+    subRead,
+    subLine,
     subExpire: id => serial(id, () => expire(id)),
     armSubs: () => {
       for (const entry of live.values()) {

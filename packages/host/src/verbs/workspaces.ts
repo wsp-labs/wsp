@@ -286,12 +286,12 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       const at = await threadAt(client, lead, "wsp merge in");
       const kid = await childOf(client, at, child, "wsp merge in");
       const done = await mergedIn(client, { workspace: at.workspace, threadId: threadIdOf(at.thread) }, { workspaceId: kid.workspace.id, threadId: threadIdOf(kid.thread) }, line => ctx.io.error(line));
-      ctx.out.emit({ ...done }, mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }));
+      ctx.out.emit({ ...done }, mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }, threadIdOf(kid.thread)));
       return 0;
     },
     tool: tool({
       description:
-        "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
+        "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
       input: {
         lead: ThreadIn,
         child: z.string().describe("the child thread whose branch is merged in, by its id or a prefix of it"),
@@ -302,7 +302,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
         const at = await threadAt(client, lead, "wsp merge in");
         const kid = await childOf(client, at, child, "wsp merge in");
         const done = await mergedIn(client, { workspace: at.workspace, threadId: threadIdOf(at.thread) }, { workspaceId: kid.workspace.id, threadId: threadIdOf(kid.thread) }, QUIET_LINE);
-        return asText(mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }), { ...done });
+        return asText(mergeInLine({ ...done, lead: threadLabel(at.thread), child: threadLabel(kid.thread) }, threadIdOf(kid.thread)), { ...done });
       },
     }),
   },
