@@ -26,7 +26,8 @@ export const USAGE_STORES_MAX = 32;
 /** How much of a detached command's output one poll exec reads; a full read is followed by another at once. */
 export const EXEC_CHUNK_BYTES = 262_144;
 /** How long a turn may do nothing at all before the runtime cuts it: no byte on its stream, no message from the
- * person, and no work in the process tree it started. It is the one rule that ends a turn the harness left hanging:
+ * person, and no work in the process tree it started, meaning every process whose parent chain reaches the turn's
+ * command or a member of the command's group. It is the one rule that ends a turn the harness left hanging:
  * a fixed wall clock cut a build that was still working at 15 minutes on 2026-09-06. */
 export const TURN_IDLE_MS = 10 * 60_000;
 /** How hard the process tree a turn started has to be working for the turn to count as alive while it prints
