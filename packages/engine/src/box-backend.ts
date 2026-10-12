@@ -9,7 +9,7 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { DAEMON_UNIT, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, shellQuote, type Capabilities } from "@wsp/protocol";
+import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type StartWindow } from "@wsp/protocol";
 import { GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
@@ -22,10 +22,10 @@ type Fetch = typeof globalThis.fetch;
 
 export const BOX_API_URL = "https://ascii.dev/api/box/v1";
 
-/** The three classes the API sells without an operator allocation, with the disk each one floors at (the disk is
- * not settable and may be roomier) and the published rate. The trial allows small and default only. */
+/** The classes Boat sells, with the disk for files each one gets and the published rate (boat.dev pricing, read
+ * 2026-10-11). Which of them a plan sells is read off `GET /limits` (`planSizes`). */
 export interface BoxClass {
-  type: "small" | "default" | "large";
+  type: "small" | "default" | "large" | "xlarge";
   cpu: number;
   memMb: number;
   diskGb: number;
@@ -33,9 +33,10 @@ export interface BoxClass {
 }
 
 export const BOX_CLASSES: readonly BoxClass[] = [
-  { type: "small", cpu: 2, memMb: 4096, diskGb: 40, rateUsdPerHour: 0.018 },
-  { type: "default", cpu: 4, memMb: 8192, diskGb: 80, rateUsdPerHour: 0.036 },
-  { type: "large", cpu: 8, memMb: 16384, diskGb: 100, rateUsdPerHour: 0.072 },
+  { type: "small", cpu: 2, memMb: 4096, diskGb: 12, rateUsdPerHour: 0.018 },
+  { type: "default", cpu: 4, memMb: 8192, diskGb: 50, rateUsdPerHour: 0.036 },
+  { type: "large", cpu: 8, memMb: 16384, diskGb: 125, rateUsdPerHour: 0.072 },
+  { type: "xlarge", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
 ];
 
 /** The class a size names: the one it matches, else the smallest that holds both figures, else the largest sold. */
@@ -47,14 +48,14 @@ export function boxClassFor(size: { cpu?: number; memMb?: number }): BoxClass {
 
 const classOfType = (type: string | undefined): BoxClass | undefined => BOX_CLASSES.find(c => c.type === type);
 
-/** Snapshots, the address, the desktop and the hosted routes are included with a box; no storage price is
- * published for a named snapshot. */
-const NO_SNAPSHOT_STORAGE: SnapshotStoragePricing = { freeGb: 0, usdPerGbMonth: 0, billedFrom: "" };
+/** Automatic snapshots, the address, the desktop and the hosted routes come with a box; named snapshots are free up
+ * to 10 and $1.70 a month each past that. */
+const BOX_SNAPSHOT_STORAGE: SnapshotStoragePricing = { freeGb: 0, usdPerGbMonth: 0, billedFrom: "", freeNamed: 10, usdPerNamedMonth: 1.7 };
 
 export const BOX_PRICING: BackendPricing = {
   rateUsdPerHour: size => boxClassFor(size).rateUsdPerHour,
   defaultSize: { cpu: 2, memMb: 4096 },
-  snapshotStorage: NO_SNAPSHOT_STORAGE,
+  snapshotStorage: BOX_SNAPSHOT_STORAGE,
 };
 
 /** The stock image a box boots from when no snapshot names one: the API's own default environment name, which a
@@ -111,6 +112,95 @@ export const BACKSTOP_CAP_MS = 20_000;
 /** The longest auto-stop the trial takes; `null` (no auto-stop) is refused there until the first payment. */
 export const TRIAL_TTL_S = 7200;
 
+/** How long one read of `GET /limits` stands for the account; a burst of starts inside it counts itself up. */
+export const LIMITS_KEPT_MS = 10_000;
+/** How long the same refusal of the same call goes unlogged after it was logged. */
+export const REFUSAL_LOG_QUIET_MS = 60_000;
+
+export interface StartCount {
+  used: number;
+  limit: number;
+}
+
+/** The account's limits as wsp reads them off `GET /limits`: the plan, its machine cap, its three windows of starts
+ * (absent on an account with no start limits), the classes it sells, and the balance. */
+export interface BoxLimits {
+  trial: boolean;
+  planKey?: string;
+  planUsd?: number;
+  machinesAtOnce?: number;
+  /** Every box of the account that runs now, wsp's or not. */
+  activeBoxes?: number;
+  starts?: Record<StartWindow, StartCount>;
+  sizes: BoxClass["type"][];
+  canStart: boolean;
+  startBlockedReason?: string;
+  creditBalanceHours?: number;
+  billingStatus?: string;
+}
+
+type RawWindow = { limit?: unknown; used?: unknown } | null | undefined;
+type RawTier = { key?: unknown; dollars?: unknown };
+
+/** `GET /limits` on either base: ascii.dev spells the account's boxes Boxes, boat.dev Sandboxes. */
+interface RawLimits {
+  accessTier?: unknown;
+  maxActiveBoxes?: unknown;
+  maxActiveSandboxes?: unknown;
+  activeBoxes?: unknown;
+  activeSandboxes?: unknown;
+  starts?: { unlimited?: unknown; minute?: RawWindow; hour?: RawWindow; day?: RawWindow } | null;
+  canStart?: unknown;
+  startBlockedReason?: unknown;
+  creditBalanceHours?: unknown;
+  billingStatus?: unknown;
+  boxPlanKey?: unknown;
+  sandboxPlanKey?: unknown;
+  boxPlanDollars?: unknown;
+  sandboxPlanDollars?: unknown;
+  boxPlanTiers?: RawTier[];
+  sandboxPlanTiers?: RawTier[];
+}
+
+const numberOf = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+const textOf = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+
+/** The classes a plan sells: small and default on the trial, xlarge only from the $100 plan up. */
+export function planSizes(trial: boolean, planUsd: number | undefined): BoxClass["type"][] {
+  if (trial) return ["small", "default"];
+  return planUsd !== undefined && planUsd >= 100 ? ["small", "default", "large", "xlarge"] : ["small", "default", "large"];
+}
+
+export function limitsOf(raw: RawLimits): BoxLimits {
+  const planKey = textOf(raw.boxPlanKey ?? raw.sandboxPlanKey);
+  const trial = raw.accessTier === "trial" || planKey === "trial";
+  const tier = (raw.boxPlanTiers ?? raw.sandboxPlanTiers ?? []).find(t => t.key === planKey);
+  const planUsd = trial ? undefined : (numberOf(raw.boxPlanDollars ?? raw.sandboxPlanDollars) ?? numberOf(tier?.dollars) ?? numberOf(Number(/^box_(\d+)$/.exec(planKey ?? "")?.[1])));
+  const count = (w: RawWindow): StartCount | undefined => {
+    const limit = numberOf(w?.limit);
+    return limit === undefined ? undefined : { used: numberOf(w?.used) ?? 0, limit };
+  };
+  const [minute, hour, day] = [count(raw.starts?.minute), count(raw.starts?.hour), count(raw.starts?.day)];
+  const machinesAtOnce = numberOf(raw.maxActiveBoxes ?? raw.maxActiveSandboxes);
+  const activeBoxes = numberOf(raw.activeBoxes ?? raw.activeSandboxes);
+  const startBlockedReason = textOf(raw.startBlockedReason);
+  const creditBalanceHours = numberOf(raw.creditBalanceHours);
+  const billingStatus = textOf(raw.billingStatus);
+  return {
+    trial,
+    ...(planKey !== undefined ? { planKey } : {}),
+    ...(planUsd !== undefined ? { planUsd } : {}),
+    ...(machinesAtOnce !== undefined ? { machinesAtOnce } : {}),
+    ...(activeBoxes !== undefined ? { activeBoxes } : {}),
+    ...(raw.starts?.unlimited !== true && minute !== undefined && hour !== undefined && day !== undefined ? { starts: { minute, hour, day } } : {}),
+    sizes: planSizes(trial, planUsd),
+    canStart: raw.canStart !== false,
+    ...(startBlockedReason !== undefined ? { startBlockedReason } : {}),
+    ...(creditBalanceHours !== undefined ? { creditBalanceHours } : {}),
+    ...(billingStatus !== undefined ? { billingStatus } : {}),
+  };
+}
+
 /** How long a firewall rule has to stand unchanged before the box's own agent is taken to have finished rewriting
  * the rules for this life, and how often it is read meanwhile. */
 export const FIREWALL_HOLD_MS = 30_000;
@@ -153,6 +243,8 @@ const STATE_MAP: Record<string, MachineState> = {
   archiving: "paused",
   archived: "paused",
   error: "gone",
+  // Terminal: a create or a fork that could not get a machine, reported once and then 404.
+  cancelled: "gone",
 };
 
 const stateOf = (state: string): MachineState => STATE_MAP[state] ?? "running";
@@ -312,10 +404,24 @@ const templateRowOf = (s: NamedSnapshotView): TemplateRow => ({
  * a cap only as the concurrency kind: the builder is killed before the smoke fork, the row names the slot holders. */
 const CAP_CODES: ReadonlySet<string> = new Set(["limit_reached", "member_limit_reached"]);
 const CAP_WORDS = /concurrent box/i;
+/** The two codes of a window of starts used: rate_limited is the minute or the hour, which only a read of /limits
+ * tells apart (`startRefused`). */
+const START_CODES: ReadonlySet<string> = new Set(["rate_limited", "daily_limit_reached"]);
+/** Refusals whose own words name nothing a person can act on, in wsp's line instead; Boat's words stay in `said`. */
+const REFUSAL_LINES: Readonly<Record<string, string>> = {
+  billing_required: BOAT_BALANCE_LINE,
+  team_member_cap_reached: BOAT_MEMBER_CAP_LINE,
+  out_of_capacity: BOAT_NO_CAPACITY_LINE,
+};
 
-function boxKind(e: WspError): WspError {
-  if (e.kind !== "concurrency" && ((e.code !== undefined && CAP_CODES.has(e.code)) || CAP_WORDS.test(e.message))) return { ...e, kind: "concurrency" };
-  return e;
+/** A refusal read by its code, never by its status alone. A 429 whose code nobody listed keeps the cap reading
+ * classify gave it and its own words, so nothing is hidden. */
+function boxRefusal(e: WspError): WspError {
+  if (e.code !== undefined && START_CODES.has(e.code)) return { ...e, kind: "startLimit", ...(e.code === "daily_limit_reached" ? { window: "day" as const } : {}) };
+  if ((e.code !== undefined && CAP_CODES.has(e.code)) || CAP_WORDS.test(e.message)) return { ...e, kind: "concurrency" };
+  if (e.status === 429) return { ...e, said: e.message };
+  const line = e.code === undefined ? undefined : REFUSAL_LINES[e.code];
+  return line === undefined ? e : { ...e, message: line, said: e.message };
 }
 
 /** Whether a refusal is the provider saying the box is not ready for this call yet. Its two restore codes say so in
@@ -373,24 +479,30 @@ export interface BoxBackendOptions {
   budgets?: Partial<BoxBudgets>;
 }
 
+const BOX_CAPABILITIES: Omit<Capabilities, "sizes"> = {
+  liveCloneForks: false, // a fork boots from a disk snapshot; no memory travels, so the agents start again
+  pauseMode: "disk", // a stop snapshots the disk and kills every process; the ptys and the daemon die with it
+  replacesMachine: true, // a fresh box deployed from the snapshot stands in for one that is gone, which is what a create does here
+  previewUrls: true, // POST /host mints a stable tokened route per port that passes a WebSocket upgrade (measured)
+  signedUrls: false, // bytes go through PUT /files as JSON
+  callbackRelay: true, // the daemon link rides the hosted route
+  diskSnapshots: true, // a named snapshot of a running box
+  images: true, // the seller keeps the named snapshots a box boots from
+  snapshotsAnyLife: true, // the snapshot is the disk as it stands, so a box that stopped and booted again saves the same
+  snapshotListing: true,
+  templates: true, // a named snapshot is the template: durable past its source box, deleted by name
+  kept: false, // a fork wsp made and can rebuild
+  copies: true, // the project's checkout is copied into the fork by the box's own runtime
+  ownNetwork: true, // each workspace on a box gets its own network and its own published ports
+};
+
 export class BoxBackend implements MachineBackend {
-  readonly capabilities: Capabilities = {
-    liveCloneForks: false, // a fork boots from a disk snapshot; no memory travels, so the agents start again
-    pauseMode: "disk", // a stop snapshots the disk and kills every process; the ptys and the daemon die with it
-    replacesMachine: true, // a fresh box deployed from the snapshot stands in for one that is gone, which is what a create does here
-    previewUrls: true, // POST /host mints a stable tokened route per port that passes a WebSocket upgrade (measured)
-    signedUrls: false, // bytes go through PUT /files as JSON
-    callbackRelay: true, // the daemon link rides the hosted route
-    diskSnapshots: true, // a named snapshot of a running box
-    images: true, // the seller keeps the named snapshots a box boots from
-    snapshotsAnyLife: true, // the snapshot is the disk as it stands, so a box that stopped and booted again saves the same
-    snapshotListing: true,
-    templates: true, // a named snapshot is the template: durable past its source box, deleted by name
-    kept: false, // a fork wsp made and can rebuild
-    copies: true, // the project's checkout is copied into the fork by the box's own runtime
-    ownNetwork: true, // each workspace on a box gets its own network and its own published ports
-    sizes: BOX_CLASSES.map(c => ({ cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour })),
-  };
+  /** The sizes are the classes the plan sells, off the last read of /limits; every class before the first. */
+  get capabilities(): Capabilities {
+    const sold = this.limitsKept?.limits.sizes;
+    const sizes = BOX_CLASSES.filter(c => sold === undefined || sold.includes(c.type));
+    return { ...BOX_CAPABILITIES, sizes: sizes.map(c => ({ cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour })) };
+  }
 
   readonly pricing = BOX_PRICING;
 
@@ -407,8 +519,11 @@ export class BoxBackend implements MachineBackend {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetch: Fetch;
-  /** The longest auto-stop the account takes, in seconds, or null where none is required; read off /limits once. */
-  private ttlCapRead: Promise<number | null> | undefined;
+  /** The last answered read of /limits and when it was answered, and the read out now. */
+  private limitsKept: { at: number; limits: BoxLimits } | undefined;
+  private limitsAsked: Promise<BoxLimits> | undefined;
+  /** When each refusal (call, status, code) was last logged, pruned past the quiet window on each write. */
+  private readonly refusalsLogged = new Map<string, number>();
   /** The stop timer last sent per box: the instant, so a window armed on every chunk costs one call a minute at
    * most, and the span it stood for, which is what a resume arms again before the runtime's first arming. */
   private readonly backstops = new Map<string, { until: number; spanMs: number }>();
@@ -461,29 +576,93 @@ export class BoxBackend implements MachineBackend {
       }
       const text = await res.text();
       if (res.ok) return (text ? JSON.parse(text) : {}) as T;
-      let envelope: { code?: string; message?: string; requestId?: string } = {};
+      let envelope: { code?: string; message?: string; requestId?: string; error?: { code?: string; message?: string } } = {};
       try {
         envelope = JSON.parse(text) as typeof envelope;
       } catch { /* not a JSON envelope */ }
-      const e = boxKind(classify(res.status, { code: envelope.code, error: envelope.message ?? text }, envelope.requestId));
+      const code = envelope.code ?? envelope.error?.code;
+      const said = envelope.message ?? envelope.error?.message ?? text;
+      this.logRefusal(`${method} ${path}`, res.status, code, envelope.requestId, said);
+      const e = boxRefusal(classify(res.status, { code, error: said }, envelope.requestId));
       if (opts.once || !shouldRetry(e, attempt)) fail(e);
       await this.clock.sleep(backoffMs(attempt));
       attempt++;
     }
   }
 
-  /** The auto-stop the account requires: two hours on the trial, none once it has paid. One answered read of /limits
-   * per backend, before the first create, since the trial refuses `null` with trial_auto_stop_required. A read that
-   * failed is not kept: one that ended at its cap would otherwise fail every create, wake and backstop after it. */
-  ttlCap(): Promise<number | null> {
-    this.ttlCapRead ??= this.request<{ accessTier?: string }>("GET", "/limits").then(
-      l => (l.accessTier === "trial" ? TRIAL_TTL_S : null),
-      (e: unknown) => {
-        this.ttlCapRead = undefined;
-        throw e;
-      },
-    );
-    return this.ttlCapRead;
+  /** Every refusal goes in the host log with Boat's code and request id, but a poll that meets the same one every
+   * two seconds (a restore, a firewall rule) writes it once a minute. */
+  private logRefusal(call: string, status: number, code: string | undefined, requestId: string | undefined, said: string): void {
+    const key = `${call} ${status} ${code ?? ""}`;
+    const now = this.clock.now();
+    const at = this.refusalsLogged.get(key);
+    if (at !== undefined && now - at < REFUSAL_LOG_QUIET_MS) return;
+    for (const [k, t] of this.refusalsLogged) if (now - t >= REFUSAL_LOG_QUIET_MS) this.refusalsLogged.delete(k);
+    this.refusalsLogged.set(key, now);
+    console.warn(boatRefusedLogLine(call, status, code, requestId, said));
+  }
+
+  /** The account's limits, a read kept LIMITS_KEPT_MS and counted up by every start made meanwhile. */
+  limits(): Promise<BoxLimits> {
+    const kept = this.limitsKept;
+    if (kept !== undefined && this.clock.now() - kept.at < LIMITS_KEPT_MS) return Promise.resolve(kept.limits);
+    return this.readLimits();
+  }
+
+  /** One read of /limits, shared by every caller while it is out. A read that failed is not kept: one that ended at
+   * its cap would otherwise fail every create, wake and backstop after it. */
+  private readLimits(): Promise<BoxLimits> {
+    this.limitsAsked ??= this.request<RawLimits>("GET", "/limits")
+      .then(raw => {
+        const limits = limitsOf(raw);
+        this.limitsKept = { at: this.clock.now(), limits };
+        return limits;
+      })
+      .finally(() => {
+        this.limitsAsked = undefined;
+      });
+    return this.limitsAsked;
+  }
+
+  /** The read before a start. One that fails with a read already kept goes on with that one: the start itself is
+   * what Boat takes or refuses. */
+  async beforeStart(): Promise<BoxLimits> {
+    try {
+      return await this.limits();
+    } catch (e) {
+      if (this.limitsKept === undefined) throw e;
+      return this.limitsKept.limits;
+    }
+  }
+
+  /** One start this backend made, counted on the kept read without a read of its own. */
+  counted(): void {
+    for (const count of Object.values(this.limitsKept?.limits.starts ?? {})) count.used += 1;
+  }
+
+  /** A start Boat refused for a window of starts used, in that window's line with the account's own numbers off a
+   * fresh read; rate_limited is the hour when the hour is used and the minute otherwise. Anything else, or a window
+   * the read cannot number, is thrown as it came. */
+  async startRefused(e: unknown, what: string | undefined): Promise<never> {
+    const refused = e as Partial<WspError>;
+    if (refused.kind !== "startLimit") throw e;
+    const limits = await this.readLimits().catch(() => undefined);
+    const starts = limits?.starts;
+    if (limits === undefined || starts === undefined) throw e;
+    const spent = (w: StartWindow): boolean => starts[w].used >= starts[w].limit;
+    // A rolling window can free a start before the read; with neither spent, Boat's own words are the true ones.
+    if (refused.window === undefined && !spent("hour") && !spent("minute")) throw e;
+    const window: StartWindow = refused.window ?? (spent("hour") ? "hour" : "minute");
+    const line = startsUsedLine(window, starts[window].used, starts[window].limit, boatPlanWords(limits.trial, limits.planUsd), what);
+    const { kind, status, code, requestId } = refused;
+    throw Object.assign(new Error(line), { kind, status, code, ...(requestId !== undefined ? { requestId } : {}), window, said: refused.message });
+  }
+
+  /** The auto-stop the account requires: two hours on the trial, none once it has paid. Read off the kept limits,
+   * since the trial refuses `null` with trial_auto_stop_required. */
+  async ttlCap(): Promise<number | null> {
+    const limits = this.limitsKept?.limits ?? (await this.readLimits());
+    return limits.trial ? TRIAL_TTL_S : null;
   }
 
   /** The `ttlSeconds` a create or a resume carries for a stop timer ending at `instant`: the seconds to it, under the
@@ -503,22 +682,23 @@ export class BoxBackend implements MachineBackend {
 
   /** The cheapest authenticated read: the account's limits, which boot nothing and touch no box. */
   async checkKey(): Promise<void> {
-    await this.request("GET", "/limits");
+    await this.readLimits();
   }
 
   view(id: string): Promise<BoxView> {
     return this.request<{ box: BoxView }>("GET", `/boxes/${encodeURIComponent(id)}`).then(r => r.box);
   }
 
-  /** Reads the box until `done` says so, at the poll pace, inside `budgetMs`; a box the provider lost throws missing
-   * and one that reads error throws its reason. */
-  async settle(id: string, done: (view: BoxView) => boolean, budgetMs: number, what: string, signal?: AbortSignal): Promise<BoxView> {
+  /** Reads the box until `done` says so, at the poll pace, inside `budgetMs`; a box the provider lost throws missing,
+   * one that reads error throws its reason, and one Boat cancelled throws its line naming `name` on the first read. */
+  async settle(id: string, done: (view: BoxView) => boolean, budgetMs: number, what: string, signal?: AbortSignal, name?: string): Promise<BoxView> {
     const started = this.clock.now();
     for (;;) {
       if (signal?.aborted === true) throw signal.reason instanceof Error ? signal.reason : new Error(`${what} of ${id} was stopped by its caller`);
       const view = await this.view(id);
       if (done(view)) return view;
       if (view.state === "error") throw new Error(`box ${id} reads error during ${what}${view.error ? `: ${view.error}` : ""}`);
+      if (view.state === "cancelled") throw new Error(boatCancelledLine(name, view.error ?? undefined));
       if (this.clock.now() - started >= budgetMs) throw new Error(`${what} of ${id} still reads ${view.state} after ${Math.round(budgetMs / 1000)} s`);
       await this.clock.sleep(this.budgets.pollMs);
     }
@@ -585,21 +765,29 @@ export class BoxBackend implements MachineBackend {
 
   /** `sent` is the bytes an earlier ask under `spec.idempotencyKey` sent, sent again as they are. */
   async create(spec: MachineSpec, _waiting?: (line: string) => void, sent?: string): Promise<Machine> {
+    const what = spec.labels?.[NAME_LABEL];
+    const { sizes } = await this.beforeStart();
+    // The runtime checks a size against `capabilities`, which lists every class until the first read of /limits.
+    const cls = boxClassFor(spec);
+    if (!sizes.includes(cls.type)) {
+      throw Object.assign(new Error(refusalLine(sizeRefusal(sizeWord(cls), this.capabilities.sizes), SIZE_PICK_FIX)), { kind: "invalid" });
+    }
     const timerUntil = spec.idleTimeoutMs === undefined ? undefined : this.clock.now() + spec.idleTimeoutMs;
     const bytes = sent ?? (await this.createRequest(spec));
     const name = (JSON.parse(bytes) as { name: string }).name;
-    const { answer: res, lost } = await this.postCreate(spec.idempotencyKey ?? crypto.randomUUID(), bytes);
+    const { answer: res, lost } = await this.postCreate(spec.idempotencyKey ?? crypto.randomUUID(), bytes).catch((e: unknown) => this.startRefused(e, what));
     // A fresh create answers with the box provisioning; a replay under a key already used answers with the box as it
     // stands, which is the one fact the reply carries about it. A box found by asking again inside this create is
     // this attempt's own, not an earlier one's.
     const replayed = lost === undefined && res.status !== undefined && res.status !== "provisioning";
+    if (!replayed) this.counted();
     const id = res.box.id;
     if (lost !== undefined) console.warn(createAnswerLostLine(providerKeyName("box"), lost, id));
     const machine = new BoxMachine(this, id, spec.kind, spec.labels, undefined, replayed);
     if (timerUntil !== undefined) this.backstops.set(id, { until: timerUntil, spanMs: spec.idleTimeoutMs! });
     try {
       // Commands sent before ready run before the box is usable, so the handle is given back once it reads ready.
-      const view = await this.settle(id, v => STATE_MAP[v.state] === "running", this.budgets.createMs, "create");
+      const view = await this.settle(id, v => STATE_MAP[v.state] === "running", this.budgets.createMs, "create", undefined, what);
       await machine.proveRoad();
       // A box deployed from a named snapshot is named after the snapshot, whatever the create asked (measured
       // 2026-09-11), and the name is where the labels live: it is set again once the box stands.
@@ -934,9 +1122,11 @@ export class BoxMachine implements Machine {
   async resume(signal?: AbortSignal): Promise<void> {
     // The timer the box last had, armed again from now, so a host that dies before the wake's first arming leaves
     // the box a stop; with none on record, the account's cap.
+    await this.backend.beforeStart();
     const last = this.backend.lastTimer(this.id);
     const ttlSeconds = await this.backend.ttlSecondsFor(last === undefined ? undefined : this.backend.clock.now() + last.spanMs);
-    await this.backend.request("POST", this.path("/resume"), { body: { ttlSeconds }, signal });
+    await this.backend.request("POST", this.path("/resume"), { body: { ttlSeconds }, signal }).catch((e: unknown) => this.backend.startRefused(e, this.labels?.[NAME_LABEL]));
+    this.backend.counted();
     await this.backend.settle(this.id, v => STATE_MAP[v.state] === "running", this.backend.budgets.resumeMs, "resume", signal);
     await this.proveRoad(signal);
   }
