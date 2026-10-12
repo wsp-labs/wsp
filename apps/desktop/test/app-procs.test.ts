@@ -25,7 +25,8 @@ const METRICS: AppMetric[] = [
   { pid: 57700, type: "Utility", serviceName: "storage.mojom.StorageService" },
   { pid: 57701, type: "Tab" },
 ];
-const tab = (pid: number, site: string) => ({
+const tab = (pid: number, site: string, id = pid - 57000) => ({
+  id,
   guest: true,
   frames: [
     { pid, url: `http://${site}:45025/tab?code=s3cret` },
@@ -37,6 +38,7 @@ const PAGES = [
   tab(57673, "b.test"),
   tab(57663, "a.test"),
   {
+    id: 1,
     guest: false,
     frames: [
       { pid: 57642, url: "http://127.0.0.1:45025/" },
@@ -56,18 +58,18 @@ describe("the app's processes", () => {
       { pid: 57625, kind: "network" },
       { pid: 57642, kind: "renderer" },
       { pid: 57655, kind: "frame", origins: ["http://x.test:45025"] },
-      { pid: 57663, kind: "tab", origins: ["http://a.test:45025"] },
-      { pid: 57673, kind: "tab", origins: ["http://b.test:45025"] },
-      { pid: 57698, kind: "frame", origins: ["http://c.test:45025"] },
+      { pid: 57663, kind: "tab", origins: ["http://a.test:45025"], contents: [663] },
+      { pid: 57673, kind: "tab", origins: ["http://b.test:45025"], contents: [673] },
+      { pid: 57698, kind: "frame", origins: ["http://c.test:45025"], contents: [673, 663] },
       { pid: 57700, kind: "helper" },
       { pid: 57701, kind: "helper" },
     ]);
   });
 
   it("name every tab one renderer holds, and never a page's path or query", () => {
-    const shared = [tab(57663, "a.test"), tab(57663, "b.test"), tab(57663, "a.test")];
+    const shared = [tab(57663, "a.test", 7), tab(57663, "b.test", 8), tab(57663, "a.test", 9)];
     const [, , , , , named] = appProcLabels(METRICS, shared);
-    expect(named).toEqual({ pid: 57663, kind: "tab", origins: ["http://a.test:45025", "http://b.test:45025"] });
+    expect(named).toEqual({ pid: 57663, kind: "tab", origins: ["http://a.test:45025", "http://b.test:45025"], contents: [7, 8, 9] });
     expect(appProcLine(named!)).toBe("browser tab a.test:45025 +1");
     expect(JSON.stringify(appProcLabels(METRICS, shared))).not.toContain("s3cret");
   });
@@ -81,7 +83,8 @@ describe("the app's processes", () => {
     const top = { osProcessId: 1, url: "http://a.test/", framesInSubtree: [] as ContentsOf["mainFrame"][] };
     const inner = { osProcessId: 2, url: "http://c.test/", framesInSubtree: [] };
     top.framesInSubtree.push(inner, top);
-    expect(pageOf({ getType: () => "webview", mainFrame: top })).toEqual({
+    expect(pageOf({ id: 12, getType: () => "webview", mainFrame: top })).toEqual({
+      id: 12,
       guest: true,
       frames: [
         { pid: 1, url: "http://a.test/" },
@@ -92,13 +95,14 @@ describe("the app's processes", () => {
 
   it("leave out a page whose renderer is gone and read the rest", () => {
     const gone = {
+      id: 4,
       getType: () => "webview",
       get mainFrame(): ContentsOf["mainFrame"] {
         throw new Error("Render frame was disposed before WebFrameMain could be accessed");
       },
     };
-    const window = { getType: () => "window", mainFrame: { osProcessId: 3, url: "http://127.0.0.1:1/", framesInSubtree: [] } };
-    expect(pagesOf([gone, window])).toEqual([{ guest: false, frames: [{ pid: 3, url: "http://127.0.0.1:1/" }] }]);
+    const window = { id: 1, getType: () => "window", mainFrame: { osProcessId: 3, url: "http://127.0.0.1:1/", framesInSubtree: [] } };
+    expect(pagesOf([gone, window])).toEqual([{ id: 1, guest: false, frames: [{ pid: 3, url: "http://127.0.0.1:1/" }] }]);
   });
 });
 

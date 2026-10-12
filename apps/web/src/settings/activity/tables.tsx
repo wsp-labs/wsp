@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Activity's four views over one computer's groups, in the Settings grid: a
-// group row folds open onto its processes, each with its kind's glyph, its
-// figures inked only past their marks, and its one act while pointed at.
+// group row folds open onto its processes, each with its kind's glyph centred
+// on the row, its figures inked only past their marks, and its acts in its
+// menu.
 import { memo, useCallback, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { ActivityIcon, AppWindowIcon, ArrowDownIcon, BotIcon, ChevronRightIcon, CircleDashedIcon, CogIcon, ContainerIcon, EllipsisIcon, EthernetPortIcon, FlaskConicalIcon, Globe2Icon, GaugeIcon, HammerIcon, PanelsTopLeftIcon, ServerIcon, TerminalSquareIcon, type LucideIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
@@ -81,7 +82,7 @@ const KIND_HEADS: Record<ProcKind, string> = {
 export const TINT_INK: Record<Exclude<Tint, null>, string> = { warn: TONE_TEXT.warning, danger: TONE_TEXT.danger };
 const inked = (tint: Tint): string | undefined => (tint === null ? undefined : TINT_INK[tint]);
 
-/** Name, memory, CPU, energy, the act, and the fold or the menu. Below 768 px the name, memory and the last stand. */
+/** Name, memory, CPU, energy, and the fold or the menu. Below 768 px the name, memory and the last stand. */
 const TREE = ACTIVITY_COLUMNS;
 const FLAT = ACTIVITY_FLAT_COLUMNS;
 const PORTS = ACTIVITY_PORT_COLUMNS;
@@ -91,14 +92,13 @@ const LIST = cn(CARD_SURFACE, "flex flex-col [&>*+*]:border-t [&>*+*]:border-bor
 const HEAD = cn("mb-4 grid min-h-7 items-end gap-x-4 border-x border-transparent text-sm leading-5", CARD_INSET);
 const HEAD_NAME = "-ml-[calc(var(--settings-inset,20px)+1px)] min-w-0 truncate whitespace-nowrap font-normal text-foreground/70";
 const SUB_ROW = cn("group/row grid items-center gap-x-4 py-2.5 transition-colors duration-150 hover:bg-accent/60", CARD_INSET);
-/** A row's act stands while the row is pointed at or focused. */
+/** A port's Open stands while the row is pointed at or focused. */
 const ACT = "flex justify-end gap-1.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 narrow:hidden";
-/** The row's menu: shown while the row is pointed at, and always below 768 px, where it is the only road to the acts. */
+/** The row's menu, the road to its acts: shown while the row is pointed at, and always below 768 px. */
 const MENU = "flex justify-end opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 narrow:opacity-100";
 const MENU_BUTTON = "-mx-1 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-/** The acts a row shows inline: a process's End, a working agent's Stop or a kept one's End; a port's Open beside its End. */
-const TREE_ACTS: readonly string[] = ["stop", "end", "free"];
-const PORT_ACTS: readonly string[] = ["open-port", "end"];
+/** The one act a row shows beside its menu: a port's Open. */
+const PORT_ACTS: readonly string[] = ["open-port"];
 
 /** Kinds whose word says nothing beside the name or the group: an agent is named, wsp's parts stand under wsp. */
 export const UNTAGGED: ReadonlySet<ProcKind> = new Set(["agent", "other", "wsp", "app"]);
@@ -154,15 +154,14 @@ function Figures({ mem, cpu, energy, look, tinted = true }: { mem: number; cpu: 
 }
 
 function ProcGlyph({ p }: { p: ActivityProc }) {
-  if (p.harness !== undefined) return <HarnessMark harness={p.harness} label={agentName(p.harness)} className="mt-0.5 size-4 shrink-0" />;
+  if (p.harness !== undefined) return <HarnessMark harness={p.harness} label={agentName(p.harness)} className="size-4 shrink-0" />;
   const Glyph = KIND_GLYPHS[p.kind];
-  return <Glyph aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />;
+  return <Glyph aria-hidden className="size-4 shrink-0 text-muted-foreground" />;
 }
 
-/** The acts a row shows inline, from its registry; an act after which the process does not come back takes the danger
- * ink under the pointer. A process being ended shows the spinner in their place. */
-function ProcAct({ target, acts, inline = TREE_ACTS }: { target: ProcTarget; acts: Acts; inline?: readonly string[] }) {
-  if (acts.ending.has(target.p.pid)) return <Spinner className="size-3.5 text-muted-foreground" />;
+/** The acts a Ports row shows inline, from its registry. */
+function ProcAct({ target, acts, inline }: { target: ProcTarget; acts: Acts; inline: readonly string[] }) {
+  if (acts.ending.has(target.p.pid)) return null;
   return (
     <>
       {resolveActions(procActions, target, acts)
@@ -178,9 +177,11 @@ function ProcAct({ target, acts, inline = TREE_ACTS }: { target: ProcTarget; act
 
 const openMenu = (event: MouseEvent<HTMLElement>, target: ProcTarget, acts: Acts): void => void openContextMenu(event, resolveActions(procActions, target, acts));
 
-/** The row's menu: every act it takes, the copies and Open thread among them. */
+/** The row's menu: every act it takes, End, the copies and Open thread among them; a heading's, End all on what it
+ * holds. A process being ended shows the spinner in its place. */
 function RowMenu({ target, acts }: { target: ProcTarget; acts: Acts }) {
-  if (target.p.heading === true) return <span />;
+  if (acts.ending.has(target.p.pid)) return <Spinner className="size-3.5 justify-self-end text-muted-foreground" />;
+  if (resolveActions(procActions, target, acts).length === 0) return <span />;
   return (
     <span className={MENU}>
       <button type="button" aria-label={W.more} data-act="menu" onClick={e => openMenu(e, target, acts)} className={MENU_BUTTON}>
@@ -210,17 +211,17 @@ const ProcRow = memo(ProcRowView, (a, b) => procSig(a.p) === procSig(b.p) && a.d
 function ProcRowView({ p, depth, group, acts, look }: ProcRowProps) {
   const ending = acts.ending.has(p.pid);
   const heading = p.heading === true;
-  const tag = ending ? W.ending : UNTAGGED.has(p.kind) || heading ? undefined : KIND_WORDS[p.kind];
+  const tag = ending ? W.ending : (p.note ?? (UNTAGGED.has(p.kind) || heading ? undefined : KIND_WORDS[p.kind]));
   const target = targetOf(p, group, acts);
   return (
     <div
       data-proc-row={heading ? `${p.kind}-heading` : p.pid}
       data-kind={p.kind}
       title={heading ? undefined : p.needed === true ? W.needed : p.command}
-      onContextMenu={heading ? undefined : e => openMenu(e, target, acts)}
+      onContextMenu={e => openMenu(e, target, acts)}
       className={cn(SUB_ROW, TREE)}
     >
-      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--depth)*1.25rem)] narrow:ps-[calc(0.75rem+var(--depth)*0.75rem)]" style={{ "--depth": depth } as CSSProperties}>
+      <span className="flex min-w-0 items-center gap-2 ps-[calc(2.75rem+var(--depth)*1.25rem)] narrow:ps-[calc(0.75rem+var(--depth)*0.75rem)]" style={{ "--depth": depth } as CSSProperties}>
         <ProcGlyph p={p} />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{heading ? W.slate(p.name) : p.name}</span>
@@ -229,9 +230,6 @@ function ProcRowView({ p, depth, group, acts, look }: ProcRowProps) {
         </span>
       </span>
       <Figures mem={p.mem} cpu={p.cpu} energy={p.energy} look={look} />
-      <span className={ending ? cn("flex justify-end", WIDE) : ACT}>
-        <ProcAct target={target} acts={acts} />
-      </span>
       <RowMenu target={target} acts={acts} />
     </div>
   );
@@ -248,8 +246,8 @@ function ActivitySubagentRow({ s, harness, workspaceId }: { s: ActivitySubagent;
   const tags = [W.subagentStates[s.state], fmtDuration(s.ms), ...(s.tokens === null ? [] : [W.tokens(fmtTokens(s.tokens))]), ...(s.model === null || model === null ? [] : [model])];
   return (
     <div data-subagent-row={s.id} data-state={s.state} title={W.subagentNote} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--nest)*1.25rem)] narrow:ps-[calc(0.75rem+var(--nest)*0.75rem)]">
-        <BotIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <span className="flex min-w-0 items-center gap-2 ps-[calc(2.75rem+var(--nest)*1.25rem)] narrow:ps-[calc(0.75rem+var(--nest)*0.75rem)]">
+        <BotIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{s.title}</span>
           <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{W.subagent}</span>
@@ -265,7 +263,6 @@ function ActivitySubagentRow({ s, harness, workspaceId }: { s: ActivitySubagent;
       <span data-col="mem" />
       <span data-col="cpu" className={WIDE} />
       <span data-col="energy" className={WIDE} />
-      <span className={WIDE} />
       <span />
     </div>
   );
@@ -280,8 +277,8 @@ function ContainerRow({ c, loose, acts }: { c: ActivityContainer; loose: boolean
   const note = !loose ? (c.placedBy === "compose" ? W.containerNotes.compose : W.containerNotes.label) : c.placedBy === "label" ? W.containerNotes.gone : c.placedBy === "compose" ? W.containerNotes.goneCompose : W.containerNotes.loose;
   return (
     <div data-container-row={c.id} title={note} onContextMenu={menu} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-[calc(2.75rem+var(--nest)*1.25rem)] narrow:ps-[calc(0.75rem+var(--nest)*0.75rem)]">
-        <ContainerIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <span className="flex min-w-0 items-center gap-2 ps-[calc(2.75rem+var(--nest)*1.25rem)] narrow:ps-[calc(0.75rem+var(--nest)*0.75rem)]">
+        <ContainerIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{c.name}</span>
           <span className="shrink-0 text-xs text-muted-foreground max-sm:hidden">{stopping ? W.ending : W.container}</span>
@@ -301,20 +298,15 @@ function ContainerRow({ c, loose, acts }: { c: ActivityContainer; loose: boolean
         {c.cpu === null ? "" : cpuWord(c.cpu)}
       </span>
       <span data-col="energy" className={WIDE} />
-      <span className={stopping ? cn("flex justify-end", WIDE) : ACT}>
-        {stopping ? (
-          <Spinner className="size-3.5 text-muted-foreground" />
-        ) : c.owned ? (
-          <Button variant="outline" size="xs" data-act="end-container" className={DANGER_BUTTON} onClick={() => acts.endContainer(c)}>
-            {W.end}
-          </Button>
-        ) : null}
-      </span>
-      <span className={MENU}>
-        <button type="button" aria-label={W.more} data-act="menu" onClick={menu} className={MENU_BUTTON}>
-          <EllipsisIcon aria-hidden className="size-3.5" />
-        </button>
-      </span>
+      {stopping ? (
+        <Spinner className="size-3.5 justify-self-end text-muted-foreground" />
+      ) : (
+        <span className={MENU}>
+          <button type="button" aria-label={W.more} data-act="menu" onClick={menu} className={MENU_BUTTON}>
+            <EllipsisIcon aria-hidden className="size-3.5" />
+          </button>
+        </span>
+      )}
     </div>
   );
 }
@@ -328,15 +320,14 @@ export interface SamplerCost {
 function SamplerRow({ cost, look }: { cost: SamplerCost; look: Look }) {
   return (
     <div data-proc-row="sampler" title={W.samplerNote} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
-        <GaugeIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <span className="flex min-w-0 items-center gap-2 ps-11 narrow:ps-3">
+        <GaugeIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{W.sampler}</span>
           <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground max-sm:hidden">{W.samplerNote}</span>
         </span>
       </span>
       <Figures mem={cost.held} cpu={cost.cpu} energy={null} look={look} />
-      <span className={WIDE} />
       <span />
     </div>
   );
@@ -352,7 +343,7 @@ interface HeadMenu {
 const openHeadMenu = (event: MouseEvent<HTMLElement>, menu: HeadMenu): void => void openContextMenu(event, resolveActions(groupActions, menu.group, menu.acts));
 
 /** A group's head: its name and note, and `total`, the figures it draws, a lead's holding the threads folded under it. */
-function GroupHead({ glyph, name, status, note, total: t, open, onOpen, act, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; total: Spent; open: boolean; onOpen: () => void; act?: ReactNode; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
+function GroupHead({ glyph, name, status, note, total: t, open, onOpen, menu, look, id, tinted = true }: { glyph: ReactNode; name: string; status?: ReactNode; note: string; total: Spent; open: boolean; onOpen: () => void; menu?: HeadMenu; look: Look; id: string; tinted?: boolean }) {
   return (
     <div className="group/row">
       <GridRow columns={TREE} open={onOpen} {...(menu === undefined ? {} : { onContextMenu: e => openHeadMenu(e, menu) })} attrs={{ "aria-expanded": String(open), "data-group": id }}>
@@ -374,7 +365,6 @@ function GroupHead({ glyph, name, status, note, total: t, open, onOpen, act, men
           </span>
         </span>
         <Figures mem={t.mem} cpu={t.cpu} energy={t.energy} look={look} tinted={tinted} />
-        <span className={ACT}>{act}</span>
         <ChevronRightIcon aria-hidden className={cn("size-3.5 shrink-0 justify-self-end text-muted-foreground transition-transform duration-150", open && "rotate-90")} />
       </GridRow>
     </div>
@@ -456,13 +446,6 @@ const GroupBlock = memo(
           total={totalSpent([g, ...under])}
           open={opened}
           onOpen={() => toggle(g.id)}
-          act={
-            g.procs.length === 0 && !g.containers.some(c => c.owned) ? undefined : (
-              <Button variant="outline" size="xs" data-act="end-all" className={DANGER_BUTTON} onClick={() => acts.endAll(g)}>
-                {W.endAll}
-              </Button>
-            )
-          }
           menu={{ group: g, acts }}
           look={look}
         />
@@ -531,7 +514,6 @@ export function ThreadsTable({ name, groups, statusOf, ageOf, box, cost, filteri
         <SortCell k="mem" word={W.memory} look={look} />
         <SortCell k="cpu" word={W.cpu} look={look} wide />
         {look.energy ? <SortCell k="energy" word={W.energy} look={look} wide /> : <span className={WIDE} />}
-        <span className={WIDE} />
         <span />
       </div>
       <div className={LIST}>
@@ -562,12 +544,12 @@ function FlatRowView({ row, acts, look, sub = false }: { row: PlacedProc; acts: 
   const target = targetOf(p, group, acts);
   return (
     <div data-proc-row={p.pid} data-kind={p.kind} title={p.command} onContextMenu={e => openMenu(e, target, acts)} className={cn(SUB_ROW, FLAT)}>
-      <span className={cn("flex min-w-0 items-start gap-2", sub && "ps-11 narrow:ps-3")}>
+      <span className={cn("flex min-w-0 items-center gap-2", sub && "ps-11 narrow:ps-3")}>
         <ProcGlyph p={p} />
         <span className="flex min-w-0 flex-col">
           <span className="flex min-w-0 items-baseline gap-2">
             <span className={cn("min-w-0 truncate text-sm leading-5", outside ? "text-muted-foreground" : "text-foreground/80")}>{p.name}</span>
-            {outside || sub || UNTAGGED.has(p.kind) ? null : <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground max-sm:hidden">{ending ? W.ending : KIND_WORDS[p.kind]}</span>}
+            {outside || sub || (UNTAGGED.has(p.kind) && p.note === undefined) ? null : <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground max-sm:hidden">{ending ? W.ending : (p.note ?? KIND_WORDS[p.kind])}</span>}
             {p.ports.length === 0 ? null : <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{portsWord(p.ports)}</span>}
           </span>
           {outside ? null : <span className="truncate text-xs leading-4 text-muted-foreground">{whereOf(group)}</span>}
@@ -575,9 +557,6 @@ function FlatRowView({ row, acts, look, sub = false }: { row: PlacedProc; acts: 
       </span>
       <span className={cn(FACT, "text-right", WIDE)}>{p.pid}</span>
       <Figures mem={p.mem} cpu={p.cpu} energy={p.energy} look={look} />
-      <span className={ending ? cn("flex justify-end", WIDE) : ACT}>
-        <ProcAct target={target} acts={acts} />
-      </span>
       <RowMenu target={target} acts={acts} />
     </div>
   );
@@ -591,7 +570,6 @@ function FlatHead({ name, look }: { name: string; look: Look }) {
       <SortCell k="mem" word={W.memory} look={look} />
       <SortCell k="cpu" word={W.cpu} look={look} wide />
       {look.energy ? <SortCell k="energy" word={W.energy} look={look} wide /> : <span className={WIDE} />}
-      <span className={WIDE} />
       <span />
     </div>
   );
@@ -631,7 +609,6 @@ export function KindsTable({ name, kinds, acts, look, filtering }: { name: strin
         <SortCell k="mem" word={W.memory} look={look} />
         <SortCell k="cpu" word={W.cpu} look={look} wide />
         {look.energy ? <SortCell k="energy" word={W.energy} look={look} wide /> : <span className={WIDE} />}
-        <span className={WIDE} />
         <span />
       </div>
       <div className={LIST}>
@@ -657,7 +634,7 @@ function KindRow({ row, acts, look }: { row: PlacedProc; acts: Acts; look: Look 
   const target = targetOf(p, group, acts);
   return (
     <div data-proc-row={p.pid} data-kind={p.kind} title={p.command} onContextMenu={e => openMenu(e, target, acts)} className={cn(SUB_ROW, TREE)}>
-      <span className="flex min-w-0 items-start gap-2 ps-11 narrow:ps-3">
+      <span className="flex min-w-0 items-center gap-2 ps-11 narrow:ps-3">
         <ProcGlyph p={p} />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{p.name}</span>
@@ -666,9 +643,6 @@ function KindRow({ row, acts, look }: { row: PlacedProc; acts: Acts; look: Look 
         </span>
       </span>
       <Figures mem={p.mem} cpu={p.cpu} energy={p.energy} look={look} />
-      <span className={ending ? cn("flex justify-end", WIDE) : ACT}>
-        <ProcAct target={target} acts={acts} />
-      </span>
       <RowMenu target={target} acts={acts} />
     </div>
   );
@@ -719,6 +693,3 @@ export function PortsTable({ rows, acts, filtering }: { rows: readonly { port: A
     </div>
   );
 }
-
-/** Every process in a group, for End all's count and memory. */
-export const groupProcs = (g: ActivityGroup): ActivityProc[] => g.procs.flatMap(flat);

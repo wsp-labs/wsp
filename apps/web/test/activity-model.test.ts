@@ -25,6 +25,7 @@ import {
   memoryTint,
   groupsUnder,
   nestGroups,
+  pickChoices,
   portRows,
   procName,
   pushHistory,
@@ -133,6 +134,30 @@ describe("scopeOf", () => {
     expect(shape(s.groups.filter(g => g.id === "loose"))).toEqual([["loose", [[21, "terminal", "zsh"]]]]);
   });
 
+  it("puts a browser tab under the thread whose pane holds its page, a frame of it with it, and Graphics and Network under wsp as shared", () => {
+    const procs = [...HERE, proc(60, 1, "wsp Helper"), proc(61, 60, "wsp Helper", { rss: 300 * MB }), proc(62, 60, "wsp Helper"), proc(63, 60, "wsp Helper"), proc(64, 60, "wsp Helper"), proc(65, 60, "wsp Helper")];
+    const app = new Map([
+      [60, { pid: 60, kind: "main" as const }],
+      [61, { pid: 61, kind: "tab" as const, origins: ["http://localhost:5199"], contents: [7] }],
+      [62, { pid: 62, kind: "frame" as const, origins: ["https://acme.dev"], contents: [7] }],
+      [63, { pid: 63, kind: "gpu" as const }],
+      [64, { pid: 64, kind: "network" as const }],
+      [65, { pid: 65, kind: "tab" as const, origins: ["http://localhost:4000"], contents: [9] }],
+    ]);
+    const s = scopeOf({ snapshot: snap(procs), threads: THREADS, ports: PORTS, host: 10, app, guests: new Map([[7, "t2"]]) });
+    const rows = (id: string) => s.groups.find(g => g.id === id)!.procs.flatMap(flat);
+    expect(rows("t2").filter(p => p.pid >= 60).map(p => [p.pid, p.kind, p.name, p.endable === true])).toEqual([
+      [61, "tab", "localhost:5199", false],
+      [62, "tab", "acme.dev", false],
+    ]);
+    const wsp = rows("wsp");
+    expect(wsp.filter(p => p.pid === 63 || p.pid === 64).map(p => [p.name, p.note])).toEqual([
+      ["Graphics", "Shared by the app and its tabs"],
+      ["Network", "Shared by the app and its tabs"],
+    ]);
+    expect(wsp.map(p => p.pid)).toContain(65);
+  });
+
   it("reads the owner a daemon stamps as an object: the thread it names, No thread for wsp's launch on a Mac, and not wsp's for a folder alone", () => {
     const owned = [
       proc(10, 1, "node", { cmdline: "node wsp host" }),
@@ -147,7 +172,7 @@ describe("scopeOf", () => {
     const s = scopeOf({ snapshot: ProcSnapshot.parse(frame), threads: [thread("t1")], ports: new Map(), host: 10 });
     expect(shape(s.groups)).toEqual([
       ["wsp", [[10, "wsp", "Host"], [20, "wsp", "Daemon"]]],
-      ["t1", [[61, "tool", "server"], [60, "slate", "python3 run.py"]]],
+      ["t1", [[60, "slate", "python3 run.py"], [61, "tool", "server"]]],
       ["loose", [[63, "other", "helper"]]],
     ]);
     expect(s.rest.map(p => p.pid)).toEqual([62]);
@@ -188,7 +213,7 @@ describe("scopeOf", () => {
     expect(s.groups.find(g => g.id === "t1")!.procs.map(tree)).toEqual([[31, "Claude Code", "agent", [[32, "mcp", "tool"]]]]);
     expect(s.groups.find(g => g.id === "t2")!.procs.map(p => [p.pid, p.kind])).toEqual([[41, "agent"]]);
     const t1 = s.groups.find(g => g.id === "t1")!;
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {} };
     expect(resolveActions(procActions, { p: t1.procs[0]!, group: t1 }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
     expect(resolveActions(procActions, { p: t1.procs[0]!.children[0]!, group: t1 }, verbs).map(a => a.id)).toContain("end");
   });
@@ -246,7 +271,7 @@ describe("scopeOf", () => {
       [110, "dev", "http.server"],
     ]);
     expect(group.procs[0]!.mem).toBe(302 * MB);
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {} };
     expect(resolveActions(procActions, { p: group.procs[0]!, group }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
     expect(resolveActions(procActions, { p: group.procs[1]!, group }, verbs).map(a => a.id)).toContain("end");
   });
@@ -264,12 +289,12 @@ describe("scopeOf", () => {
     const group = s.groups.find(g => g.id === "t1")!;
     expect(group.procs.flatMap(flat).map(p => [p.pid, p.kind, p.name])).toEqual([[32, "agent", "Codex"], [33, "tool", "mcp"]]);
     expect(group.procs[0]!.mem).toBe(242 * MB);
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {} };
     expect(resolveActions(procActions, { p: group.procs[0]!, group }, verbs).map(a => a.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
   });
 
   it("frees a kept agent between turns here through its thread, and never one on a box, whose end takes the cgroup", () => {
-    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {} };
+    const verbs: ProcVerbs = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {} };
     const kept = [proc(10, 1, "node", { cmdline: "node wsp host" }), proc(20, 10, "wsp-daemon"), proc(30, 10, "claude", { kind: "agent", owner: { by: "root", thread: "t1" } })];
     const here = scopeOf({ snapshot: snap(kept), threads: [thread("t1", { working: false })], ports: new Map(), host: 10 }).groups.find(g => g.id === "t1")!;
     expect(resolveActions(procActions, { p: here.procs[0]!, group: here }, verbs).map(a => a.id)).toEqual(["free", "open-thread", "copy-command", "copy-pid"]);
@@ -432,11 +457,15 @@ describe("totals, sort and the views", () => {
     expect(filterGroups(g, "nothing like it", NO_PICKS)).toEqual([]);
   });
 
-  it("narrows by the thread, kind and project chips", () => {
+  it("narrows by the thread and the kind picked, and offers the kinds running and the threads with a group", () => {
     const g = here().groups;
-    expect(filterGroups(g, "", { ...NO_PICKS, threads: ["t2"] }).map(x => x.id)).toEqual(["t2"]);
-    expect(filterGroups(g, "", { ...NO_PICKS, projects: ["acme"] }).map(x => x.id)).toEqual(["t2"]);
-    expect(shape(filterGroups(g, "", { ...NO_PICKS, kinds: ["dev"] }))).toEqual([["t1", [[30, "agent", "Claude Code"], [32, "dev", "vite"], [33, "dev", "esbuild"]]]]);
+    expect(filterGroups(g, "", { ...NO_PICKS, thread: "t2" }).map(x => x.id)).toEqual(["t2"]);
+    expect(shape(filterGroups(g, "", { ...NO_PICKS, kind: "dev" }))).toEqual([["t1", [[30, "agent", "Claude Code"], [32, "dev", "vite"], [33, "dev", "esbuild"]]]]);
+    expect(filterGroups(g, "", { thread: "t2", kind: "dev" })).toEqual([]);
+    const offered = pickChoices(g, NO_PICKS);
+    expect(offered.kinds).toEqual(["agent", "tool", "dev", "test", "terminal", "wsp", "other"]);
+    expect(offered.threads).toEqual([{ id: "t1", title: "Thread t1" }, { id: "t2", title: "Thread t2" }]);
+    expect(pickChoices(g, { ...NO_PICKS, kind: "tab" }).kinds).toContain("tab");
   });
 
   it("lists every owned process flat, and the rest of the computer only with Every process", () => {

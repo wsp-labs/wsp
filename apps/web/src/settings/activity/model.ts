@@ -92,9 +92,11 @@ export interface ActivityProc {
   /** A process a thread or wsp started, which End reaches; never an agent, what wsp needs, or a row only wsp's launch
    * on a Mac places. */
   readonly endable?: boolean;
-  /** A heading over processes and no process itself: a thread's slate, its runs under it. It takes no act, and its
-   * figures are its runs' sum, which no total counts twice. */
+  /** A heading over processes and no process itself: a thread's slate, its runs under it. Its one act is End all on
+   * its runs, and its figures are their sum, which no total counts twice. */
   readonly heading?: boolean;
+  /** What the row's tag says in place of its kind: a part of the app every tab shares. */
+  readonly note?: string;
   readonly children: readonly ActivityProc[];
 }
 
@@ -150,11 +152,16 @@ export interface ScopeInput {
   readonly host?: number;
   /** The desktop app's own processes by pid, as the app names them, on the computer the host runs on. */
   readonly app?: ReadonlyMap<number, AppProc>;
+  /** The thread whose pane holds each browser tab's page, by the page's WebContents id. */
+  readonly guests?: ReadonlyMap<number, string>;
   /** The time the subagents are drawn at; now where left out. */
   readonly now?: number;
 }
 
 const NO_APP: ReadonlyMap<number, AppProc> = new Map();
+const NO_GUESTS: ReadonlyMap<number, string> = new Map();
+/** Chromium runs one graphics and one network process for the window and every tab, and reports no split. */
+const SHARED_PARTS: ReadonlySet<AppProc["kind"]> = new Set(["gpu", "network"]);
 
 const siteOf = (origin: string): string => {
   try {
@@ -202,15 +209,22 @@ export function procName(p: Pick<ProcEntry, "comm" | "cmdline">): string {
 /** The computer's frame read into groups by `placeProcs`: wsp's parts, each thread, and No thread. A thread is rooted at
  * its own process here, which stands for the agent until the agent's binary shows; on a box, whose pids the app is
  * never told, at the heads of its cgroup. */
-export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Date.now() }: ScopeInput): ActivityScope {
+export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, guests = NO_GUESTS, now = Date.now() }: ScopeInput): ActivityScope {
   const threadById = new Map(threads.map(t => [t.id, t]));
+  // A renderer that holds the pages of several tabs stands under the thread of the first one a pane holds.
+  const tabsOf = new Map<string, number[]>();
+  for (const [pid, part] of app) {
+    const thread = part.contents?.map(id => guests.get(id)).find(t => t !== undefined);
+    if (thread !== undefined) tabsOf.set(thread, [...(tabsOf.get(thread) ?? []), pid]);
+  }
   const placed = placeProcs({
     procs: snapshot.procs,
     daemon: snapshot.daemon,
     ...(host === undefined ? {} : { host }),
     threads: threads.map(t => {
       const bin = CATALOG_AGENTS.find(a => a.id === t.harness)?.bin;
-      return { id: t.id, roots: t.pid === undefined ? [] : [t.pid], ...(t.agentPid !== undefined ? { agents: [t.agentPid] } : {}), ...(t.cgroup !== undefined ? { cgroup: t.cgroup } : {}), ...(bin !== undefined ? { bin } : {}) };
+      const tabs = tabsOf.get(t.id);
+      return { id: t.id, roots: t.pid === undefined ? [] : [t.pid], ...(t.agentPid !== undefined ? { agents: [t.agentPid] } : {}), ...(t.cgroup !== undefined ? { cgroup: t.cgroup } : {}), ...(bin !== undefined ? { bin } : {}), ...(tabs !== undefined ? { tabs } : {}) };
     }),
     agentBins: CATALOG_AGENTS.map(a => a.bin),
     listens: pid => (ports.get(pid)?.length ?? 0) > 0,
@@ -264,6 +278,7 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
       startedAt: p.startedAt,
       ...(p.id !== undefined ? { id: p.id } : {}),
       ...(thread !== undefined ? { harness: thread.harness } : {}),
+      ...(part !== undefined && SHARED_PARTS.has(part.kind) ? { note: ACTIVITY_WORDS.shared } : {}),
       ...(placed.needed(p.pid) ? { needed: true } : {}),
       ...(placed.endable(p.pid) ? { endable: true } : {}),
       children,
@@ -310,13 +325,15 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
     };
     return heads.map(build);
   };
-  /** A thread's slate runs under one heading beside its agent, since the host and not the agent starts them. */
+  /** A thread's slate runs and the tool servers it keeps under one heading beside its agent, since the host and not
+   * the agent starts them: a tool server the agent started stands under the agent, never at the top. */
   const withSlate = (heads: readonly ActivityProc[], t: ActivityThread): ActivityProc[] => {
-    const runs = heads.filter(p => p.kind === "slate");
+    const theSlates = (p: ActivityProc): boolean => p.kind === "slate" || p.kind === "tool";
+    const runs = heads.filter(theSlates);
     if (runs.length === 0) return [...heads];
     const sum = spent(runs);
     const slate: ActivityProc = { pid: -1, name: t.slate ?? "", kind: "slate", mem: sum.mem, cpu: sum.cpu, energy: sum.energy, ports: [], command: "", heading: true, children: runs };
-    return [...heads.filter(p => p.kind !== "slate"), slate];
+    return [...heads.filter(p => !theSlates(p)), slate];
   };
 
   // A container stands under the thread the daemon named where this page knows that thread, else under No thread.
@@ -475,36 +492,49 @@ function prune(procs: readonly ActivityProc[], keep: (p: ActivityProc) => boolea
 }
 
 export interface ActivityPicks {
-  /** Thread ids; empty picks every thread. */
-  readonly threads: readonly string[];
-  readonly kinds: readonly ProcKind[];
-  /** Project names. */
-  readonly projects: readonly string[];
+  /** A thread's id, or null for every thread. */
+  readonly thread: string | null;
+  readonly kind: ProcKind | null;
 }
 
-export const NO_PICKS: ActivityPicks = { threads: [], kinds: [], projects: [] };
+export const NO_PICKS: ActivityPicks = { thread: null, kind: null };
 
-/** The groups a filter and the chips leave. The text matches a process, a subagent's title, a container or its thread's
- * title; a match stays under its group with its parents. A thread or project chip keeps only those threads, and drops
- * wsp's parts and No thread; a kind chip keeps only processes of those kinds, and no subagent or container, neither
+/** The groups a filter and the two selects leave. The text matches a process, a subagent's title, a container or its
+ * thread's title; a match stays under its group with its parents. A thread picked keeps only that thread, and drops
+ * wsp's parts and No thread; a kind picked keeps only processes of that kind, and no subagent or container, neither
  * being a process of a kind. */
 export function filterGroups(groups: readonly ActivityGroup[], text: string, picks: ActivityPicks): ActivityGroup[] {
   const needle = text.trim().toLowerCase();
-  const narrowed = picks.threads.length > 0 || picks.projects.length > 0;
+  const kind = picks.kind;
   return groups.flatMap(g => {
-    if (narrowed && (g.thread === undefined || (picks.threads.length > 0 && !picks.threads.includes(g.id)) || (picks.projects.length > 0 && !picks.projects.includes(g.thread.project)))) return [];
+    if (picks.thread !== null && g.id !== picks.thread) return [];
     let procs: readonly ActivityProc[] = g.procs;
-    let subagents = picks.kinds.length > 0 ? [] : g.subagents;
-    let containers = picks.kinds.length > 0 ? [] : g.containers;
-    if (picks.kinds.length > 0) procs = prune(procs, p => picks.kinds.includes(p.kind));
+    let subagents = kind !== null ? [] : g.subagents;
+    let containers = kind !== null ? [] : g.containers;
+    if (kind !== null) procs = prune(procs, p => p.kind === kind && p.heading !== true);
     const titled = needle !== "" && g.thread !== undefined && g.thread.title.toLowerCase().includes(needle);
     if (needle !== "" && !titled) {
       procs = prune(procs, p => procHit(p, needle));
       subagents = subagents.filter(s => s.title.toLowerCase().includes(needle));
       containers = containers.filter(c => containerHit(c, needle));
     }
-    return procs.length > 0 || subagents.length > 0 || containers.length > 0 || (titled && picks.kinds.length === 0) ? [{ ...g, procs, subagents, containers }] : [];
+    return procs.length > 0 || subagents.length > 0 || containers.length > 0 || (titled && kind === null) ? [{ ...g, procs, subagents, containers }] : [];
   });
+}
+
+export interface PickChoices {
+  readonly kinds: readonly ProcKind[];
+  readonly threads: readonly { readonly id: string; readonly title: string }[];
+}
+
+/** What the two selects offer: each kind wsp's processes here run as, in one order, and each thread with a group. A
+ * kind picked stays offered while nothing of it runs, so the select still names it; a thread picked that has gone
+ * from the list is let go by the page. */
+export function pickChoices(groups: readonly ActivityGroup[], picks: ActivityPicks): PickChoices {
+  const running = new Set(groups.flatMap(g => g.procs.flatMap(flat)).map(p => p.kind));
+  if (picks.kind !== null) running.add(picks.kind);
+  const threads = groups.flatMap(g => (g.thread === undefined ? [] : [{ id: g.id, title: g.thread.title }]));
+  return { kinds: PROC_KINDS.filter(k => running.has(k)), threads };
 }
 
 /** One row of the flat views, with the group it belongs to. */

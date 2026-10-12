@@ -9,7 +9,7 @@
 // daemon is also told whenever a thread here has a root, watched or not: a
 // Mac's daemon follows each root's forks as they happen, since a Bash call's
 // shell lives milliseconds and no later read sees it.
-import { PROC_SCOPE_PIDS_MAX, PROC_SCOPES_MAX, THIS_COMPUTER, threadCgroup, type DaemonFrame, type ProcKind, type ProcScope } from "@wsp/protocol";
+import { isLocalWorkspace, PROC_SCOPE_PIDS_MAX, PROC_SCOPES_MAX, THIS_COMPUTER, threadCgroup, type DaemonFrame, type ProcKind, type ProcScope } from "@wsp/protocol";
 import { groupExists } from "../local-exec.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { RuntimeContext, ProcScopesArea } from "../context.js";
@@ -116,6 +116,10 @@ export function procScopesArea(ctx: RuntimeContext): ProcScopesArea {
       d.warm ||= warm;
     }
     for (const [pid, o] of owned) draft(o.threadId, ctx.latestOn(o.threadId)?.workspaceId ?? ctx.threadRecords.get(o.threadId)?.workspaceId, true).pids.push({ pid, kind: o.kind });
+    for (const t of ctx.threadTerminals()) {
+      const record = ctx.live.get(t.workspace)?.record;
+      if (record !== undefined && isLocalWorkspace(record)) draft(t.thread, t.workspace, true).pids.push({ pid: t.pid, kind: "terminal" });
+    }
     const newest = new Map<string, { threadId: string; at: number }>();
     for (const { view } of ctx.sessions.values()) {
       const entry = ctx.live.get(view.workspaceId);
@@ -152,10 +156,19 @@ export function procScopesArea(ctx: RuntimeContext): ProcScopesArea {
     };
     for (const { view } of ctx.sessions.values()) if (view.threadId !== undefined) consider(view.threadId, view.workspaceId, view.startedAt ?? 0);
     for (const [threadId, record] of ctx.threadRecords) if (!at.has(threadId)) consider(threadId, record.workspaceId, 0);
+    const terminals = new Map<string, { pid: number; kind: ProcKind }[]>();
+    for (const t of ctx.threadTerminals()) {
+      if (ctx.live.get(t.workspace)?.record.place !== placeId) continue;
+      if (!at.has(t.thread)) consider(t.thread, t.workspace, 0);
+      terminals.set(t.thread, [...(terminals.get(t.thread) ?? []), { pid: t.pid, kind: "terminal" }]);
+    }
     return [...at]
       .sort(([, a], [, b]) => b.startedAt - a.startedAt)
       .slice(0, PROC_SCOPES_MAX)
-      .map(([thread, t]) => ({ thread, workspace: t.workspace, folder: t.folder, cgroup: threadCgroup(thread) }));
+      .map(([thread, t]) => {
+        const pids = terminals.get(thread)?.slice(0, PROC_SCOPE_PIDS_MAX);
+        return { thread, workspace: t.workspace, folder: t.folder, cgroup: threadCgroup(thread), ...(pids !== undefined ? { pids } : {}) };
+      });
   };
 
   /** A channel whose proc.watch goes after the scopes, and which names them again while it watches whenever they

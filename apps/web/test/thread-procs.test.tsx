@@ -4,7 +4,7 @@
 // Activity's rows, never a sibling's from the same folder, End on a row
 // ending its tree, the watch held only while the pane stands, and the road
 // to Activity for the whole computer.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PlaceView, ProcEntry, SessionView, WorkspaceView } from "@wsp/protocol";
 import { ProcessesSurface } from "../src/components/procs/ProcessesSurface.js";
@@ -14,6 +14,7 @@ import { getProcs, resetProcs } from "../src/machine/procs.js";
 import { useStore } from "../src/protocol/store.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { fakeWire, resetSurfaces, type FakeWire } from "./surface-harness.js";
+import { closeMenu, fromMenu, menuOf } from "./row-menu.js";
 
 const MB = 1024 * 1024;
 const HERE: PlaceView = { id: "here", kind: "computer", name: "lab-mbp", default: true, present: true } as PlaceView;
@@ -98,24 +99,27 @@ describe("a thread's Processes pane", () => {
     expect(allRows()).toEqual([40, 41]);
   });
 
-  it("draws each row as Activity does: its figures, its port and End, the agent with Stop", () => {
+  it("draws each row as Activity does: its figures and its port, End in its menu, the agent's menu with Stop", async () => {
     show("t_one");
     mount();
     feed();
     const vite = document.querySelector<HTMLElement>("[data-proc-row='32']")!;
     expect(vite.dataset["kind"]).toBe("dev");
     expect([...vite.querySelectorAll("[data-col]")].map(c => c.textContent)).toEqual(["300 MB", "2.0%", ""]);
-    expect(vite.querySelector("[data-act=end]")).not.toBeNull();
+    expect(vite.querySelector("[data-act=end]")).toBeNull();
+    expect(await menuOf(vite)).toContain("end");
+    closeMenu();
     const agent = document.querySelector<HTMLElement>("[data-proc-row='30']")!;
-    expect(agent.querySelector("[data-act=end]")).toBeNull();
-    expect(agent.querySelector("[data-act=stop]")).not.toBeNull();
+    const offered = await menuOf(agent);
+    closeMenu();
+    expect([offered.includes("stop"), offered.includes("end")]).toEqual([true, false]);
   });
 
   it("End on a row ends that process and its tree by the identity it was read with", async () => {
     show("t_one");
     mount();
     feed();
-    fireEvent.click(document.querySelector("[data-proc-row='32'] [data-act=end]")!);
+    await fromMenu(document.querySelector("[data-proc-row='32']")!, "end");
     await act(async () => {});
     expect(calls("proc.kill")).toEqual([{ pid: 32, signal: "TERM", mode: "tree", startedAt: 1_757_000_000_000, identity: "vite-identity" }]);
   });
@@ -126,7 +130,7 @@ describe("a thread's Processes pane", () => {
     show("t_idle");
     mount();
     feed([...PROCS, proc(60, 10, "claude", { kind: "agent", owner: { by: "root", thread: "t_idle" } })]);
-    fireEvent.click(document.querySelector("[data-proc-row='60'] [data-act=free]")!);
+    await fromMenu(document.querySelector("[data-proc-row='60']")!, "free");
     await act(async () => {});
     expect(ended).toEqual([[60, 1_757_000_000_000]]);
     expect(calls("proc.kill")).toEqual([]);
@@ -198,7 +202,7 @@ describe("the pane's containers", () => {
       }),
     );
 
-  it("draws the open thread's labelled container under it, never a sibling's or one no thread placed, and End stops it", () => {
+  it("draws the open thread's labelled container under it, never a sibling's or one no thread placed, and End in its menu stops it", async () => {
     wire = fakeWire({ "proc.watch": {}, "proc.unwatch": {}, "proc.kill": {}, "container.stop": {} });
     provideDaemonWire(WS, wire);
     show("t_one");
@@ -208,7 +212,7 @@ describe("the pane's containers", () => {
     expect(rows.map(r => r.dataset["containerRow"])).toEqual([ID("a")]);
     expect(rows[0]!.closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("t_one");
     expect(rows[0]!.querySelector('[data-col="mem"]')!.textContent).toBe("160 MB");
-    fireEvent.click(rows[0]!.querySelector('[data-act="end-container"]')!);
-    expect(calls("container.stop")).toEqual([{ container: ID("a") }]);
+    await fromMenu(rows[0]!, "end");
+    await waitFor(() => expect(calls("container.stop")).toEqual([{ container: ID("a") }]));
   });
 });
