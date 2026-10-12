@@ -1172,7 +1172,7 @@ export function ChatComposer({
       <ComposerSurface.Shell tray attached={hasRows(drawer) || draftBanner !== undefined}>
         {/* Inside the shell the glass is the shell's, whose dark ink is only ever laid at its own faint opacity. */}
         {draftBanner === undefined ? null : (
-          <ComposerBanner.Root {...{ [`data-${draftBanner.k}-banner`]: true }} className="mx-auto -mb-px w-[calc(100%-2*var(--chat-composer-drawer-inset))] [--glass-opacity:var(--chat-composer-glass-opacity)]">
+          <ComposerBanner.Root {...{ [`data-${draftBanner.k}-banner`]: true }} className="mx-auto -mb-(--chat-composer-attachment-overlap) w-[calc(100%-2*var(--chat-composer-drawer-inset))] [--glass-opacity:var(--chat-composer-glass-opacity)]">
             <ComposerBanner.Row>
               <ComposerBanner.Icon>{draftBanner.icon}</ComposerBanner.Icon>
               <ComposerBanner.Content>
