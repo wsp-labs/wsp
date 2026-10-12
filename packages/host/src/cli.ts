@@ -23,7 +23,7 @@ import { statePathFrom } from "./cli/state.js";
 export { devCheckoutState, type StatePick, statePick, defaultStatePath, statesHere, stateStore } from "./cli/state.js";
 import { SERVE_FLAGS, optsFor, type SharedFlags, SHARED_OPTIONS } from "./cli/flags.js";
 export { type ServeAsked, SERVE_FLAGS, type SharedOpts, optsFor, SHARED_OPTIONS } from "./cli/flags.js";
-export { goldenRecipe, localWorkFolder, type LocalDaemonStart, localWiring, hostRecipeWatch, providerSlotOf, swapProvider, servingWiring, makeRuntime, hostSeed, projectFolder } from "./cli/wiring.js";
+export { goldenRecipe, localWorkFolder, type LocalDaemonStart, localWiring, hostRecipeWatch, providerSlotOf, swapProvider, forgetProviderKey, servingWiring, makeRuntime, hostSeed, projectFolder } from "./cli/wiring.js";
 export { type StopProcess, OWN_FILES_POLL_MS, stopOnSignals, type UncaughtProcess, stayOnUncaught, type ServeOptions, serve, noClaudeKeyNote, hostDoctorReaders } from "./cli/serve.js";
 export { terminalInitIO, providerBesideRefusal, upCommandFor } from "./cli/init.js";
 export { up, type ServiceDeps, hostRoadWord, hostStoppedLine, systemService, serviceArgv, keyOnlyInThisShell, claudeKeyOnlyInThisShell, upServiceCommand, downCommand, statusCommand, pickUpPorts } from "./cli/service.js";
