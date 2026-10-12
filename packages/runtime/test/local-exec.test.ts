@@ -32,7 +32,9 @@ describe("local exec stream", () => {
     root = mkdtempSync(join(tmpdir(), "wsp-localexec-"));
     runDir = join(root, "runs");
   });
-  afterEach(() => {
+  afterEach(async () => {
+    // A case that failed before its kill leaves its run up; every run under the folder ends here.
+    await localExecStream({ root, runDir }).sweep!([]);
     rmSync(root, { recursive: true, force: true });
     sweepStrays();
   });
@@ -352,7 +354,9 @@ describe("what a run leaves on this computer", () => {
     root = mkdtempSync(join(tmpdir(), "wsp-localexec-files-"));
     runDir = join(root, "runs");
   });
-  afterEach(() => {
+  afterEach(async () => {
+    // A case that failed before its kill leaves its run up; every run under the folder ends here.
+    await localExecStream({ root, runDir }).sweep!([]);
     rmSync(root, { recursive: true, force: true });
     sweepStrays();
   });
