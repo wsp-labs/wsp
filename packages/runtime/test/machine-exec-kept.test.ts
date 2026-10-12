@@ -11,9 +11,12 @@ import { keepRun, shellQuote, type ExecStream } from "@wsp/protocol";
 import { machineExecStream } from "../src/machine-exec.js";
 import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 
-const dirs: string[] = [];
+const guests: { machine: Machine; runDir: string; root: string }[] = [];
 const pids: number[] = [];
-afterEach(() => {
+
+/** Ends every run a case started, closed or not, with its whole group: a case that failed or timed out before its
+ * close leaves its agent and input pump waiting on a message that never comes. */
+async function endGuests(): Promise<void> {
   for (const pid of pids.splice(0)) {
     try {
       process.kill(pid, "SIGKILL");
@@ -21,13 +24,16 @@ afterEach(() => {
       // gone already, as the case asserts
     }
   }
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-});
+  for (const { machine, runDir, root } of guests.splice(0)) {
+    await machineExecStream(machine, { runDir }).sweep!([]);
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+afterEach(endGuests);
 
 /** This computer's bash as the computer the run is on, every exec's text kept. */
 function guest(): { machine: Machine; runDir: string; root: string; calls: string[] } {
   const root = mkdtempSync(join(tmpdir(), "wsp-kept-road-"));
-  dirs.push(root);
   const calls: string[] = [];
   const machine = {
     id: "box",
@@ -39,7 +45,9 @@ function guest(): { machine: Machine; runDir: string; root: string; calls: strin
         });
       }),
   } as unknown as Machine;
-  return { machine, runDir: join(root, "run"), root, calls };
+  const runDir = join(root, "run");
+  guests.push({ machine, runDir, root });
+  return { machine, runDir, root, calls };
 }
 
 /** An agent that answers every line it reads with `got <line>` and its own pid, and on "leave" first starts a sleep
@@ -148,5 +156,18 @@ describe("a process kept between turns on a joined computer's road", () => {
     await keeper.close(1_000, 500);
     reopened.kill();
     await vi.waitFor(() => expect(readdirSync(runDir)).toEqual([]), { timeout: 5_000 });
+  }, 20_000);
+
+  it("a run a case never closed is ended with its input pump by the teardown every case runs", async () => {
+    const { machine, runDir, root } = guest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })(agent(join(root, "left")), { env: {}, input: ["one"] });
+    const keeper = keepRun(stream);
+    await until(keeper.turn().stream.lines[Symbol.asyncIterator](), line => line.startsWith("got one"));
+    const leader = Number(readFileSync(`${stream.run!}.pid`, "utf8").trim());
+    const pump = Number(readFileSync(`${stream.run!}.tail`, "utf8").trim());
+    expect([alive(leader), alive(pump)]).toEqual([true, true]);
+    await endGuests();
+    await vi.waitFor(() => expect([alive(leader), alive(pump)]).toEqual([false, false]), { timeout: 5_000 });
+    stream.kill();
   }, 20_000);
 });
