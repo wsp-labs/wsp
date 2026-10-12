@@ -99,6 +99,7 @@ import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTi
 import { shellScriptOf } from "./shell-script.js";
 import { forkSessionOn, revertOn, type SideRunner } from "./turn-pages.js";
 import { startSeeded } from "./lost-session.js";
+import { endedBetween, type Background } from "./background.js";
 
 export interface CodexStartOptions {
   prompt: string;
@@ -595,6 +596,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     sideRun?: (id: RequestId, answer: Record<string, unknown> | undefined) => string | TurnResult;
     /** The server this turn runs on, kept for the thread's next turn once this one is over. */
     keeper?: KeptRun;
+    /** The commands that server runs past its turns, which every turn on it reads and writes. */
+    background?: Background;
     /** Where this turn starts in the run's log, on a kept server past its first turn. */
     from?: number;
     /** The thread already open on the server, a kept one or a re-opened run read from a later turn's start: nothing
@@ -805,8 +808,13 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
       // A server is kept only past a turn that went as it should, so a sign-in or a fix made in between reaches the
       // next turn on a server launched again.
       if (result.status !== "completed" && result.status !== "interrupted") o.keeper?.release();
-      // A kept server lets go of the thread, so the person's own Codex may open it while wsp waits for the next message.
-      else if (o.keeper?.up === true && o.threadOptions !== undefined) void stream.write(threadUnsubscribeLine(threadId));
+      // A kept server lets go of the thread, so the person's own Codex may open it while wsp waits for the next message,
+      // unless a command the turn left going would die with the unload that follows.
+      else if (o.keeper?.up === true && o.threadOptions !== undefined) {
+        const holding = o.background !== undefined && o.background.commands.size > 0;
+        if (o.background !== undefined) o.background.held = holding ? threadId : undefined;
+        if (!holding) void stream.write(threadUnsubscribeLine(threadId));
+      }
       emit({ type: "turn.done", sessionId: threadId, result });
       for (const askId of [...pending.keys()]) closeAsk(askId, "cancelled");
       settleAwaiting();
@@ -863,7 +871,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           const item = itemOf(params);
           if (item === undefined) break;
           const done = method === "item/completed";
-          if (item.type === "commandExecution") commands[done ? "delete" : "add"](item.id);
+          if (item.type === "commandExecution") for (const running of [commands, o.background?.commands]) running?.[done ? "delete" : "add"](item.id);
           if (item.type === "fileChange") changesById.set(item.id, item.changes);
           const c = children.get(task);
           if (done && item.type === "agentMessage" && c !== undefined) c.summary = str(item.text);
@@ -1024,7 +1032,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           const item = itemOf(params);
           if (item === undefined) break;
           const done = method === "item/completed";
-          if (item.type === "commandExecution") commands[done ? "delete" : "add"](item.id);
+          if (item.type === "commandExecution") for (const running of [commands, o.background?.commands]) running?.[done ? "delete" : "add"](item.id);
           if (item.type === "fileChange") changesById.set(item.id, item.changes);
           if (done && item.type === "agentMessage") lastText = str(item.text);
           if (item.type === "contextCompaction") {
@@ -1250,9 +1258,10 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
         const thread = { threadId, legacy, ...(modelUsed !== undefined ? { model: modelUsed } : {}), ...(cwdUsed !== undefined ? { cwd: cwdUsed } : {}) };
         return {
           // Keyed as a cold resume of the thread is, so the rows a kept turn writes are the ones a launched one would.
-          next: turn => nextOn(keeper, threadId, thread, turn, o.threadOptions),
+          next: turn => nextOn(keeper, threadId, thread, turn, o.threadOptions, o.background),
           close: c => keeper.close(c?.now === true ? 0 : (deps.resultExitMs ?? RUN_EXIT_MS), graceMs),
           exited: keeper.exited,
+          working: () => (o.background?.commands.size ?? 0) > 0,
           sessionFile: rolloutIn(deps.home, threadId),
         };
       },
@@ -1271,7 +1280,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
 
   /** The thread's next turn on a server its last turn left up: turn/start on the thread it already holds, at the
    * model, effort and access the earlier turn set, which the server keeps for every later turn. */
-  const nextOn = (keeper: KeptRun, localId: string, thread: { threadId: string; legacy: boolean; model?: string; cwd?: string }, turn: KeptTurn, threadOptions?: ThreadOptions): CodexSession => {
+  const nextOn = (keeper: KeptRun, localId: string, thread: { threadId: string; legacy: boolean; model?: string; cwd?: string }, turn: KeptTurn, threadOptions?: ThreadOptions, background?: Background): CodexSession => {
     const images = turn.images?.map(imagePathOf);
     const { stream, from } = keeper.turn();
     // The last turn let the thread go, so this one opens it again on the same server, its turn/start right behind:
@@ -1283,6 +1292,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
       localId,
       startedAt: Date.now(),
       keeper,
+      ...(background !== undefined ? { background } : {}),
       ...(from !== undefined ? { from } : {}),
       opened: { threadId: thread.threadId, legacy: thread.legacy },
       ...(threadOptions !== undefined ? { threadOptions } : {}),
@@ -1313,10 +1323,12 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
             : threadResumeLine({ ...thread, threadId: options.resume });
     const command = buildCommand({ ...(options.cwd !== undefined ? { cwd: options.cwd } : {}), ...(options.mcpServers !== undefined ? { mcpServers: options.mcpServers } : {}), ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
     const run = deps.exec(command, { env: { ...env }, input: [initializeLine(), INITIALIZED_LINE, ACCOUNT_READ_LINE, rateLimitsReadLine(options.limitDetails === true), threadLine], ...(valued ? { secret: { input: true as const } } : {}) });
-    const keeper = options.keep === true ? keepRun(run) : undefined;
+    const background: Background | undefined = options.keep === true ? { commands: new Set(), held: undefined } : undefined;
+    const keeper = background === undefined ? undefined : keepRun(run, line => endedBetween(run, background, line));
     return follow({
       stream: keeper === undefined ? run : keeper.turn().stream,
       ...(keeper !== undefined ? { keeper } : {}),
+      ...(background !== undefined ? { background } : {}),
       localId,
       startedAt: Date.now(),
       command,
