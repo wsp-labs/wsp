@@ -44,9 +44,9 @@ import { AGENT_PID_FILE_ENV, EXEC_CHUNK_BYTES, psCpuSeconds, RUN_STOP_MS, shellQ
 import type { ExecStream, ExecStreamFactory } from "@wsp/protocol";
 import { readsWork, turnActivity, turnCut, type MachineExecOptions, type TurnWaiting } from "./machine-exec.js";
 
-/** One reading of the work a turn's process group has done, in the ticks the activity clock counts, or undefined
- * when this computer cannot answer for the group. */
-export type GroupWorkReader = (pgid: number, then: (ticks: number | undefined) => void) => void;
+/** One reading of the work a turn's process tree has done, in the ticks the activity clock counts, or undefined
+ * when this computer cannot answer for the tree. */
+export type TreeWorkReader = (leader: number, then: (ticks: number | undefined) => void) => void;
 
 export interface LocalExecOptions extends Pick<MachineExecOptions, "idleMs" | "deadlineMs" | "now" | "pollMs"> {
   /** The folder the child starts in; the command may cd elsewhere, as a harness turn's does. */
@@ -56,7 +56,7 @@ export interface LocalExecOptions extends Pick<MachineExecOptions, "idleMs" | "d
   runDir: string;
   /** How the turn's tree is read; ps is the road on this computer. A test hands in a reader that answers off the
    * clock the rule measures against, since what a real tree is given on a loaded box is not what the rule is. */
-  readWork?: GroupWorkReader;
+  readWork?: TreeWorkReader;
   /** Every run this process is reading, each as the call that stops reading it. A poll of a run holds the event
    * loop until that run ends, so a process that is done with its work has to let go of the ones still going: the
    * turns themselves lead their own process groups and go on, and whatever opens them next reads their logs from
@@ -121,27 +121,63 @@ function cpuTicks(time: string): number {
   return Number.isSafeInteger(ticks) ? ticks : 0;
 }
 
-/** The work the turn's own process group has done, as this computer's ps reports it: the group's cumulative CPU,
- * which is every process the turn started and nothing else. Neither ps reports a process's I/O, so a local turn's
- * reading is CPU alone where a guest's counts bytes moved too. Nothing here may reach the timer that calls it:
- * node hands only five errnos to a spawn's async error path and throws the rest (EPERM where ps is out of reach,
- * ENOMEM on a full box) straight out of execFile, so both roads answer with no reading, and a turn whose tree
- * cannot be read is left on its stream alone. */
-const readGroupWork: GroupWorkReader = (pgid, then) => {
-  const sum = (stdout: string): number => {
-    let ticks = 0;
+/** The work the turn's process tree has done, as this computer's ps reports it: the cumulative CPU of every process
+ * whose parent chain reaches the turn's leader, and of the leader's group, which holds the orphans the turn left. The
+ * group alone is not the tree: Claude Code starts every Bash call in a session of its own, so a build a tool runs is in
+ * no group the turn leads. ps counts only the processes still running, and no column of a Mac's ps carries the CPU of a
+ * child its parent has reaped, so a plain sum falls each time a compiler exits. Each reader keeps what every process of
+ * the tree was last read at and adds what each has done since, so the total never falls when one exits; a process born
+ * and reaped between two reads is not seen. A pid read lower than before is a new process on that number. Neither ps
+ * reports a process's I/O, so a local turn's reading is CPU alone where a guest's counts bytes moved too. Nothing here
+ * may reach the timer that calls it: node hands only five errnos to a spawn's async error path and throws the rest
+ * (EPERM where ps is out of reach, ENOMEM on a full box) straight out of execFile, so both roads answer with no
+ * reading, and a turn whose tree cannot be read is left on its stream alone. */
+export function treeWork(): TreeWorkReader {
+  let seen = new Map<number, number>();
+  let total = 0;
+  const add = (stdout: string, leader: number): number => {
+    const rows = new Map<number, { ppid: number; pgid: number; ticks: number }>();
     for (const row of stdout.split("\n")) {
-      const [group = "", time = ""] = row.trim().split(/\s+/);
-      if (Number(group) === pgid) ticks += cpuTicks(time);
+      const [pid = "", ppid = "", pgid = "", time = ""] = row.trim().split(/\s+/);
+      if (pid !== "") rows.set(Number(pid), { ppid: Number(ppid), pgid: Number(pgid), ticks: cpuTicks(time) });
     }
-    return ticks;
+    const inTree = new Map<number, boolean>();
+    const reaches = (pid: number): boolean => {
+      const path = new Set<number>();
+      let at = pid;
+      let found = inTree.get(at);
+      while (found === undefined) {
+        const row = rows.get(at);
+        if (at === leader || row?.pgid === leader) found = true;
+        // A parent loop ends the walk: procps reads /proc pid by pid, so a pid reused mid-read can print one.
+        else if (row === undefined || at <= 1 || path.has(at)) found = false;
+        else {
+          path.add(at);
+          at = row.ppid;
+          found = inTree.get(at);
+        }
+      }
+      for (const p of path) inTree.set(p, found);
+      return found;
+    };
+    const now = new Map<number, number>();
+    for (const [pid, { ticks }] of rows) {
+      if (!reaches(pid)) continue;
+      const before = seen.get(pid);
+      total += before === undefined || ticks < before ? ticks : ticks - before;
+      now.set(pid, ticks);
+    }
+    seen = now;
+    return total;
   };
-  try {
-    execFile("ps", ["-eo", "pgid=,time="], (err, stdout) => then(err === null ? sum(stdout) : undefined));
-  } catch {
-    then(undefined);
-  }
-};
+  return (leader, then) => {
+    try {
+      execFile("ps", ["-eo", "pid=,ppid=,pgid=,time="], (err, stdout) => then(err === null ? add(stdout, leader) : undefined));
+    } catch {
+      then(undefined);
+    }
+  };
+}
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -390,7 +426,6 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
   const now = opts.now ?? Date.now;
   const pollMs = opts.pollMs ?? POLL_MS;
   const runDir = opts.runDir;
-  const readWork = opts.readWork ?? readGroupWork;
   /** A handle this factory could have minted, and nothing else: the shape is read here, by the one predicate both
    * the attach road and the sweep read, so nothing that turned up in the run folder reaches a signal on the
    * strength of being there. */
@@ -405,6 +440,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     // landed; the wall runs from the turn's own start, which an attach is handed.
     let startedAt = o.startedAt ?? now();
     let activity = turnActivity(now());
+    const readWork = opts.readWork ?? treeWork();
     /** Between two turns of a process kept for the next one: no limit reads the quiet, since no turn is open to be stuck. */
     let resting = false;
     /** The run's own orphans, read from when its process first printed, before any turn of it could run a tool: the
@@ -564,8 +600,8 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     return {
       lines: lines.iterate(),
       run: base,
-      // The leader of the turn's own group, which is every process the turn started: what names this turn's tree in
-      // the pane that lists this computer's processes.
+      // The leader of the turn's own group, the root of the turn's tree (every process under it, and its group): what
+      // names this turn's tree in the pane that lists this computer's processes.
       ...((): { pid?: number } => {
         const pid = leader();
         return pid !== undefined ? { pid } : {};

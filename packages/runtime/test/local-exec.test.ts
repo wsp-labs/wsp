@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agentWord, EXEC_CHUNK_BYTES, endRun, shellQuote, turnCutLine, type ExecStream } from "@wsp/protocol";
-import { gateLoop } from "../../protocol/test/stub-script.js";
-import { agentPidOf, groupExists, localExecStream, ownOrphans, type GroupWorkReader } from "../src/local-exec.js";
+import { gateLoop, writeStub } from "../../protocol/test/stub-script.js";
+import { agentPidOf, groupExists, localExecStream, ownOrphans, treeWork, type TreeWorkReader } from "../src/local-exec.js";
 import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
 import { alive, gone, grandchild, sweepStrays } from "./strays.js";
 
@@ -20,7 +20,7 @@ async function collect(lines: AsyncIterable<string>): Promise<string[]> {
 /** A tree burning one core, counted on the clock the idle rule compares its readings against. A real burner is no
  * use here: ps answers whole seconds of CPU on Linux, so a tree given a fraction of a loaded box shows nothing at
  * all until a whole second of its own has passed, and no idle limit is long enough to outrun that ratio. */
-function burningTree(now: () => number): GroupWorkReader {
+function burningTree(now: () => number): TreeWorkReader {
   const from = now();
   return (_pgid, then) => then(Math.floor((now() - from) / 10));
 }
@@ -172,6 +172,74 @@ describe("local exec stream", () => {
     stream.kill();
     expect(await stream.exited).not.toBe(0);
   }, 15_000);
+
+  /** Node code that burns a second of CPU, since Linux's ps counts whole seconds, writes its pid to `burned`, and
+   * holds what it burned until `release` exists, so the test reads it while it runs and again once it is gone. */
+  const burner = (burned: string, release: string): string =>
+    `const fs = require("fs"); const s = process.cpuUsage(); while (process.cpuUsage(s).user < 1.2e6); fs.writeFileSync(${JSON.stringify(burned)}, String(process.pid)); setInterval(() => fs.existsSync(${JSON.stringify(release)}) && process.exit(0), 20);`;
+  const node = shellQuote(process.execPath);
+
+  /** Starts `script` as the leader of a group of its own, as a turn's launch does, and reads its tree's work. */
+  async function treeOf(script: string, check: (reading: () => Promise<number | undefined>) => Promise<void>): Promise<void> {
+    const leader = spawn("/bin/sh", ["-c", script], { detached: true, stdio: "ignore" });
+    const pgid = leader.pid!;
+    const read = treeWork();
+    try {
+      await check(() => new Promise(resolve => read(pgid, resolve)));
+    } finally {
+      process.kill(-pgid, "SIGKILL");
+      await vi.waitFor(() => expect(groupExists(pgid)).toBe(false), { timeout: 5_000 });
+    }
+  }
+
+  async function burned(file: string): Promise<number> {
+    await vi.waitFor(() => expect(readFileSync(file, "utf8").trim()).not.toBe(""), { timeout: 15_000 });
+    return grandchild(file);
+  }
+
+  it("the tree's reading keeps the work of a child its parent has reaped", async () => {
+    const [done, release] = [join(root, "burned"), join(root, "release")];
+    await treeOf(`${node} -e ${shellQuote(burner(done, release))}; sleep 30`, async reading => {
+      const child = await burned(done);
+      const burning = await reading();
+      expect(burning).toBeGreaterThanOrEqual(100);
+      writeFileSync(release, "");
+      await gone(child);
+      expect(await reading()).toBeGreaterThanOrEqual(burning!);
+    });
+  }, 30_000);
+
+  it("the tree's reading counts a child in a session of its own, as an agent's tool call runs, while it works", async () => {
+    const [done, release] = [join(root, "burned"), join(root, "release")];
+    // A detached spawn calls setsid, which is how Claude Code starts every Bash call: the burner leaves the leader's group.
+    const spawner = `require("child_process").spawn(process.execPath, ["-e", ${JSON.stringify(burner(done, release))}], { detached: true, stdio: "ignore" }); setInterval(() => {}, 1000);`;
+    await treeOf(`exec ${node} -e ${shellQuote(spawner)}`, async reading => {
+      const child = await burned(done);
+      expect(Number(execFileSync("ps", ["-o", "pgid=", "-p", String(child)], { encoding: "utf8" }).trim())).toBe(child);
+      expect(await reading()).toBeGreaterThanOrEqual(100);
+    });
+  }, 30_000);
+
+  it("the tree's reading counts an orphan the leader left in its group", async () => {
+    const [done, release] = [join(root, "burned"), join(root, "release")];
+    await treeOf(`${node} -e ${shellQuote(burner(done, release))} & exit 0`, async reading => {
+      await burned(done);
+      expect(await reading()).toBeGreaterThanOrEqual(100);
+    });
+  }, 30_000);
+
+  it("the tree's reading answers when ps names two processes as each other's parent", async () => {
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    // procps reads /proc pid by pid, so a pid reused mid-read can print a parent loop; the leader's tree is 999 and 1000.
+    writeStub(join(bin, "ps"), "#!/bin/sh\nprintf '999 1 999 0:00.50\\n1000 999 999 0:01.00\\n500 600 500 0:01.00\\n600 500 600 0:01.00\\n'\n");
+    vi.stubEnv("PATH", `${bin}:${process.env.PATH}`);
+    try {
+      expect(await new Promise(resolve => treeWork()(999, resolve))).toBe(150);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 10_000);
 
   it("a child that prints nothing while the tree it started sleeps is cut at the idle limit, and the cut leaves no grandchild", async () => {
     const marker = join(root, "idle.pid");
