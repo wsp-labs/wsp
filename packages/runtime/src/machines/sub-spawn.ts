@@ -162,6 +162,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       // Past the machines at once or the minute's starts the spawn waits its turn, its record queued with no machine
       // (05, Q4); the queue makes the machine and starts the thread when its turn comes.
       const wait = ctx.queueWait(place, limits);
+      // Taken in the same step as the read, with no await between, so a spawn asked beside this one counts it.
+      const claim = wait === undefined ? ctx.claimStart(id, place) : undefined;
       ctx.forking.add(name);
       ctx.supersedeFailed(name);
       try {
@@ -170,7 +172,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
           await ctx.enqueue(machineRecord, wait);
         } else {
           // Another client took the last slot between the read and the create: the spawn waits at the head (Q9).
-          const made = await machineFor(machineRecord, at, on, seed, report, freePlace).catch(async (e: unknown) => {
+          const made = await machineFor(machineRecord, at, on, seed, report, () => (freePlace(), claim!.posted())).catch(async (e: unknown) => {
             if (!isCapRefusal(e)) throw e;
             const full = ctx.cloudFull(place, limits);
             report("fork-requested", capWaitLine(full), { waiting: true });
@@ -183,6 +185,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         report("failed", e instanceof Error ? e.message : String(e));
         throw e;
       } finally {
+        claim?.release();
         ctx.forking.delete(name);
       }
       if (uncommitted > 0) notices.push(subUncommittedLine(uncommitted, project.name, base.branch, base.sha));
@@ -234,7 +237,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
 
   /** The machine of a spawn the queue let through: the cloud and the picked files read again now, since the files
    * are packed fresh at each start (S21), and the stages said under the lead that asked. */
-  const standUpQueued = async (record: WorkspaceRecord): Promise<void> => {
+  const standUpQueued = async (record: WorkspaceRecord, posted: () => void): Promise<void> => {
     const placeId = ctx.placeIdOf(record)!;
     const row = (await ctx.computerRows()).find(r => r.id === placeId || r.id === record.provider);
     const on = row === undefined ? record.sub!.on : providerKeyName(row.name);
@@ -244,7 +247,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     const report = ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId });
     ctx.forking.add(record.name);
     try {
-      await machineFor(record, at, on, seed, report, () => {});
+      await machineFor(record, at, on, seed, report, posted);
     } catch (e) {
       report("failed", e instanceof Error ? e.message : String(e));
       throw e;

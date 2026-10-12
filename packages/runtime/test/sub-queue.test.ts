@@ -216,3 +216,97 @@ describe("a create Boat refuses at its machines at once", () => {
     expect((await recordOf(rt, c.made.id))?.phase).toBe("queued");
   });
 });
+
+/** Boat's create answers only after `ms`, as a real one takes seconds: a second spawn asked meanwhile reads the count. */
+function slowCreates(boat: { create: (spec: MachineSpec) => Promise<unknown> }, ms: number): void {
+  const create = boat.create.bind(boat);
+  boat.create = async (spec: MachineSpec) => {
+    await new Promise(r => setTimeout(r, ms));
+    return create(spec);
+  };
+}
+
+describe("spawns asked together, and a spawn whose start never comes", () => {
+  it("two spawns asked at the same moment under --machines 1: one machine, the other queued", async () => {
+    const { rt, store, boat, project, lead } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    slowCreates(boat, 200);
+    const both = await Promise.allSettled(["First", "Second"].map(name => rt.workspaces.create({ project: project.id, name, sub: { on: "boat" } }, lead)));
+    expect(both.map(b => b.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(boat.creates).toHaveLength(1);
+    const phases = await Promise.all(both.map(async b => ((await store.get("workspaces", (b as PromiseFulfilledResult<{ id: string }>).value.id)) as { phase: string }).phase));
+    expect(phases.sort()).toEqual(["queued", "running"]);
+  });
+
+  it("two spawns asked at the same moment on the minute's last start: one machine, the other held for the minute", async () => {
+    const { rt, store, boat, project, lead } = await leadOnThisComputer({ agents: { spawn: true, maxMachines: 5 } });
+    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 11 } } };
+    slowCreates(boat, 200);
+    const both = await Promise.allSettled(["First", "Second"].map(name => rt.workspaces.create({ project: project.id, name, sub: { on: "boat" } }, lead)));
+    expect(both.map(b => b.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(boat.creates).toHaveLength(1);
+    const records = await Promise.all(both.map(async b => (await store.get("workspaces", (b as PromiseFulfilledResult<{ id: string }>).value.id)) as { phase: string; queue?: { why: string } }));
+    expect(records.find(r => r.phase === "queued")?.queue?.why).toBe("minute");
+  });
+
+  it("the queue passes over a queued record whose start never came, and drops it after a short wait", async () => {
+    const fc = fakeClock();
+    const { rt, store, boat, project, lead, token } = await leadOnThisComputer({ clock: fc.clock, machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    const a = await spawnAndStart(rt, project.id, lead, token, "First");
+    await a.started;
+    // Its client went away between the create and the start.
+    const orphan = await rt.workspaces.create({ project: project.id, name: "Orphan", sub: { on: "boat" } }, lead);
+    const c = await spawnAndStart(rt, project.id, lead, token, "Third");
+    expect(c.held()).toMatchObject({ why: "slot" });
+    await rt.workspaces.nap(a.made.id);
+    await expect.poll(() => boat.creates.map(s => s.labels?.[NAME_LABEL])).toEqual(["First", "Third"]);
+    await c.started;
+    expect(((await store.get("workspaces", orphan.id)) as { phase: string }).phase).toBe("queued");
+    fc.advance(60_000);
+    await expect.poll(async () => store.get("workspaces", orphan.id)).toBeUndefined();
+    expect(boat.creates).toHaveLength(2);
+  });
+
+  it("a startless queued record alone in the queue is still dropped after the wait", async () => {
+    const fc = fakeClock();
+    const { rt, store, boat, project, lead, token } = await leadOnThisComputer({ clock: fc.clock, machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    const a = await spawnAndStart(rt, project.id, lead, token, "First");
+    await a.started;
+    // Its client went away between the create and the start, and no other spawn waits to move the queue.
+    const orphan = await rt.workspaces.create({ project: project.id, name: "Orphan", sub: { on: "boat" } }, lead);
+    await rt.workspaces.nap(a.made.id);
+    fc.advance(120_000);
+    await expect.poll(async () => store.get("workspaces", orphan.id)).toBeUndefined();
+    expect(boat.creates).toHaveLength(1);
+  });
+
+  it("a delete while a let-through spawn's machine is being made stops it: the machine goes as it lands and no thread starts", async () => {
+    const { rt, store, boat, starts, project, lead, token } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    const a = await spawnAndStart(rt, project.id, lead, token, "First");
+    await a.started;
+    const b = await spawnAndStart(rt, project.id, lead, token, "Second");
+    slowCreates(boat, 300);
+    await rt.workspaces.nap(a.made.id);
+    await expect.poll(async () => (await store.get("workspaces", b.made.id)) as { queue?: unknown }).not.toHaveProperty("queue");
+    await rt.workspaces.delete(b.made.id);
+    await expect(b.started).rejects.toThrow();
+    await expect.poll(async () => store.get("workspaces", b.made.id)).toBeUndefined();
+    expect(boat.creates).toHaveLength(2);
+    await expect.poll(() => boat.machines.at(-1)!.killed).toBe(true);
+    expect(starts.filter(s => s.o.cwd === "/root/web")).toHaveLength(1);
+  });
+
+  it("a spawn behind the head shows the head's wait, and every held row on the place takes the head's count as it moves (Q18, U5)", async () => {
+    const fc = fakeClock();
+    const { rt, boat, project, lead, token } = await leadOnThisComputer({ clock: fc.clock, agents: { spawn: true, maxMachines: 5 } });
+    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 12 } } };
+    const b = await spawnAndStart(rt, project.id, lead, token, "Second");
+    expect(b.held()).toMatchObject({ why: "minute", running: 12, atOnce: 12 });
+    const c = await spawnAndStart(rt, project.id, lead, token, "Third");
+    expect(c.held()).toMatchObject({ why: "minute", running: 12, atOnce: 12 });
+    // Boat's minute reads 13 used: both rows say the head's new count at the next read.
+    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 13 } } };
+    fc.advance(10_000);
+    const capped = async () => (await rt.sessions.list()).filter(r => r.workspaceId === b.made.id || r.workspaceId === c.made.id).map(r => r.capped);
+    await expect.poll(capped).toEqual([expect.objectContaining({ why: "minute", running: 13 }), expect.objectContaining({ why: "minute", running: 13 })]);
+  });
+});

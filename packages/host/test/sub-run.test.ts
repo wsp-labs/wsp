@@ -117,6 +117,18 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
     expect((await rt.sessions.list()).find(r => r.threadId === out.threadId)).toMatchObject({ workspaceId: out.workspaceId });
   });
 
+  it("a --file that is not there is refused before Boat or the queue holds anything", async () => {
+    const { rt, store, boat, starts, launch } = await leadOnThisComputer({ served: true, machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    await wsp(launch, "run", "--on", "boat", "--detach", "--notify", "me", TASK, "--json");
+    await expect.poll(() => starts.length).toBe(2);
+    const bad = await wsp(launch, "run", "--on", "boat", "--title", "Bad file", "--file", "/nowhere/missing.png", "--detach", "--notify", "me", "Look at the file.", "--json");
+    expect(bad.code).toBe(EXIT_CODES.usage);
+    expect(bad.io.errors.join("\n")).toContain("there is no file at /nowhere/missing.png on this computer");
+    expect(((await store.list("workspaces")) as { name: string }[]).map(w => w.name)).not.toContain("Bad file");
+    expect(boat.creates).toHaveLength(1);
+    expect((await rt.workspaces.list()).filter(w => w.phase === "queued")).toEqual([]);
+  });
+
   it("refuses the hour's starts used as the provider's class, exit 1, with no create", async () => {
     const { boat, launch } = await leadOnThisComputer({ served: true });
     boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, hour: { limit: 60, used: 60 } } };

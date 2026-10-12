@@ -493,6 +493,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       }
       const entry = await ctx.entryOf(id, origin);
       if (entry.deleting) return entry.deleting;
+      // A held spawn is stopped as a stop does, its machine going as it lands where one is being made.
+      const held = entry.record.phase === "queued" ? ctx.deleteQueued(id) : undefined;
+      if (held !== undefined) return held;
       // A worktree wsp made goes with its record, never over files no commit holds; the project folder, and a
       // worktree somebody else made, are never touched.
       const tree = entry.record.worktree;
@@ -510,7 +513,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           await ctx.dropThreadFiles(entry, [...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
           // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back. A spawn
           // still waiting for its machine has none to delete.
-          const machineless = entry.record.phase === "queued" && entry.record.queue !== undefined;
+          const machineless = entry.record.phase === "queued";
           if (!machineless && !kindWords(entry.record.kind).driven) {
             await entry.machine.kill().catch((e: unknown) => {
               if (!isMissing(e)) throw e;
