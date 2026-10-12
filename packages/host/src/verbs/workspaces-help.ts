@@ -728,9 +728,18 @@ export const THREAD_HEAD = ["PROJECT", "FOLDER", "BRANCH", "THREAD", "SUBAGENT",
  * the two words `wsp stop <thread> --subagent <id>` takes, and BY is the agent that started it. */
 export function threadLines(t: ThreadRow, indent = ""): string[][] {
   const folder = shortenedFront(homeShortened(t.folder, homedir()), FOLDER_WIDTH);
-  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
+  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, subThreadWord(t) ?? threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
   const under = (t.subagents ?? []).map(c => [t.projectName, folder, t.branch, `${indent}  ${t.id}`, c.id, t.harness, subagentStateWord(c.state), "agent", t.computerName, shortenedEnd(c.title, TITLE_WIDTH)]);
   return [own, ...under];
+}
+
+/** A sub-thread's state where its machine says more than its turn: waiting for a slot on its cloud, its machine being
+ * made, or done with work no remote has; a question it asks still reads first. */
+function subThreadWord(t: ThreadRow): string | undefined {
+  if (t.sub === undefined || t.asking !== undefined || t.waitingOn !== undefined) return undefined;
+  if (t.sub.state === "waiting") return "Waiting";
+  if (t.sub.state === "starting") return "Starting";
+  return t.status !== "running" && t.sub.held !== undefined ? "Not pushed" : undefined;
 }
 
 /** The rows a --tree listing prints: every thread a person or the command line opened, each followed by the ones

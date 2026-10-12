@@ -107,6 +107,7 @@ function leadDaemon(git: LeadGit) {
     send: async (frame: unknown): Promise<DaemonResponse> => {
       const f = frame as Record<string, unknown>;
       frames.push(f);
+      if (f["op"] === "git.mergeIn") return { id: 1, ok: true, branch: String(f["branch"]), merged: true, commits: 3, oid: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", conflicts: [] } as unknown as DaemonResponse;
       if (f["op"] === "git.status") {
         const entries = Array.from({ length: git.uncommitted }, (_, i) => ({ path: `f${i}`, xy: " M" }));
         return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]), ...(git.countsUnknown === true ? { countsUnknown: true } : {}) } as unknown as DaemonResponse;
@@ -130,9 +131,12 @@ export function sessionPathOf(folder: string, name: string): string {
   return folder.endsWith("/sessions") ? `${folder}/2026/10/12/rollout-2026-10-12T06-00-00${name}` : `${folder}/-root-web/${name}`;
 }
 
+type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLater?: boolean; exit?: () => void };
+
 /** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
- * but for one started while `hold` is set, which runs until `release` ends it. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: { end?: () => void; hold?: boolean; release?: () => void }, sessionFile: (id: string) => { folder: string; name: string; depth: number }): HarnessAdapterFactory {
+ * but for one started while `hold` is set, which runs until `release` ends it; with `exitLater` its process exits only
+ * at `exit`, as a real one does a moment after its result. */
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn, sessionFile: (id: string) => { folder: string; name: string; depth: number }): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
     sessionFile,
@@ -147,8 +151,11 @@ function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, 
         const finished = new Promise<TurnResult>(resolve => {
           lead[first ? "end" : "release"] = () => {
             o.onEvent({ type: "turn.done", sessionId, result });
-            o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
-            resolve(result);
+            lead.exit = () => {
+              o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+              resolve(result);
+            };
+            if (lead.exitLater !== true) lead.exit();
           };
         });
         return { localId: sessionId, finished, interrupt: async () => {} };
@@ -219,7 +226,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const git: LeadGit = { head: "feat/upload", upstream: "origin/feat/upload", ahead: 0, uncommitted: 0, ...o.git };
   const daemon = leadDaemon(git);
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
-  const leadTurn: { end?: () => void; hold?: boolean; release?: () => void } = {};
+  const leadTurn: LeadTurn = {};
   const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
   const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};

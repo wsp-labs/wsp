@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "merge_in",
-    "description": "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
+    "description": "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -45,6 +45,9 @@
           "items": {
             "$ref": "#/properties/lead"
           }
+        },
+        "unpushed": {
+          "$ref": "#/properties/commits"
         }
       },
       "required": [
@@ -67,7 +70,7 @@
   },
   "cloudOn": {
     "name": "merge_in",
-    "description": "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
+    "description": "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -111,6 +114,9 @@
           "items": {
             "$ref": "#/properties/lead"
           }
+        },
+        "unpushed": {
+          "$ref": "#/properties/commits"
         }
       },
       "required": [
