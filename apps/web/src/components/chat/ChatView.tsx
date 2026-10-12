@@ -19,7 +19,7 @@ import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { CAP_RAISE_ACT, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { openComputerSettings } from "../../settings/openAt";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
@@ -177,7 +177,8 @@ export function ChatView({
     const wait = turnWait(state, runs);
     if (wait !== null) return { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
     if (capped === undefined) return null;
-    return { label: capWaitLine(capped), elapsed: true, act: { label: CAP_RAISE_ACT, run: () => openComputerSettings(capped.placeId) } };
+    const raise = capRaiseAct(capped);
+    return { label: capWaitLine(capped), elapsed: true, act: raise === undefined ? null : { label: raise, run: () => openComputerSettings(capped.placeId) } };
   }, [state, working, wake, workspaceId, runs, capped]);
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.

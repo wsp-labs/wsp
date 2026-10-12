@@ -59,6 +59,7 @@
                 "napping",
                 "waking",
                 "gone",
+                "queued",
                 "released"
               ]
             },
@@ -616,6 +617,7 @@
                 "napping",
                 "waking",
                 "gone",
+                "queued",
                 "released"
               ]
             },

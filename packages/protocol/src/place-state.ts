@@ -81,16 +81,16 @@ export function settingFor<T>(own: T | undefined, placed: T | undefined, fallbac
   return own !== undefined ? own : placed !== undefined ? placed : fallback;
 }
 
-/** Whether a machine in this phase holds one of its cloud's slots: a napping machine holds none and a gone one is
- * not there, while one creating or waking already does. Phase alone, so a refusal can read it without asking the
- * provider about every machine. */
-export const phaseHoldsSlot = (w: Pick<WorkspaceView, "phase">): boolean => {
+/** Whether a machine in this phase holds one of its cloud's slots: a napping machine holds none, a gone or released
+ * one is not there and a queued one waiting with `queue` has none yet, while one creating or waking already does.
+ * Phase alone, so a refusal can read it without asking the provider about every machine. */
+export const phaseHoldsSlot = (w: Pick<WorkspaceView, "phase" | "queue">): boolean => {
   const state = workspaceState({ phase: w.phase });
-  return state !== "paused" && state !== "gone" && state !== "released";
+  return state !== "paused" && state !== "gone" && state !== "released" && !(w.phase === "queued" && w.queue !== undefined);
 };
 
 /** What the count reads of a workspace and of a thread. */
-export type PlacedWorkspace = Pick<WorkspaceView, "id" | "kind" | "machineId" | "place" | "provider" | "phase">;
+export type PlacedWorkspace = Pick<WorkspaceView, "id" | "kind" | "machineId" | "place" | "provider" | "phase" | "queue">;
 export type PlacedThread = Pick<ThreadView, "workspaceId" | "status">;
 
 /** A dollar figure a person typed, in whole dollars where it has no cents. */
@@ -325,11 +325,14 @@ export function placeFullLine(place: Pick<PlaceView, "kind" | "name" | "cap" | "
 }
 
 /** What holds a turn back while its computer's threads at once is met: the computer and what runs there against its
- * cap. Threads and never machines, since a thread on a box or on this computer makes none. */
-export const capRunningLine = (w: ThreadCapWait): string => `${w.place} is running ${w.running} of ${plural(w.atOnce, "thread")}`;
+ * cap; for a sub-thread's spawn, the cloud's machines running or its starts this minute used. */
+export const capRunningLine = (w: ThreadCapWait): string =>
+  w.why === "minute" ? `${w.place}'s starts this minute are used: ${w.running} of ${w.atOnce}` : `${w.place} is running ${w.running} of ${plural(w.atOnce, w.why === "slot" ? "machine" : "thread")}`;
 
-/** The line a held turn says where nothing beside it says it waits: the chat's working row and the command line. */
-export const capWaitLine = (w: ThreadCapWait): string => `waiting while ${capRunningLine(w)}`;
+/** The line a held turn says where nothing beside it says it waits: the chat's working row and the command line. A
+ * spawn says a machine slot and a minute of starts apart, since raising one does nothing for the other (05, Q18). */
+export const capWaitLine = (w: ThreadCapWait): string =>
+  w.why === "slot" ? `waiting for a machine on ${w.place}: ${w.running} of ${w.atOnce} running` : w.why === "minute" ? `waiting for ${w.place}'s next minute of starts: ${w.running} of ${w.atOnce} used` : `waiting while ${capRunningLine(w)}`;
 
 /** Why a held turn ended with nothing started: the person or its lead stopped it while it waited, or before it had
  * looked at its computer's threads at once and had no count to say. */
@@ -345,6 +348,10 @@ export const capRestartedLine = (place: string): string => `the host restarted w
 
 /** The act that ends the wait without one of those threads ending, as the app's button and a tile's card name it. */
 export const CAP_RAISE_ACT = "Raise threads at once";
+
+/** The act a held wait offers beside its count: threads or machines at once, and none for a minute of starts, which
+ * the cloud's plan sets and no setting here moves. */
+export const capRaiseAct = (w: ThreadCapWait): string | undefined => (w.why === undefined ? CAP_RAISE_ACT : w.why === "slot" ? "Raise machines at once" : undefined);
 
 /** The act that wakes a napping machine, as the chat's working row names it beside the line that it naps. */
 export const WAKE_ACT = "Wake";

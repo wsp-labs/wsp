@@ -572,6 +572,7 @@ Asks the thread's agent to fix the pull request of the folder it works in. With 
 | `capped.place` | string | yes |  |
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
+| `capped.why` | `slot`, `minute` |  |  |
 
 ## folders
 
@@ -1254,7 +1255,7 @@ Starts a reviewer thread on a pull request, off its link or off the pull request
 | `workspace.id` | string | yes |  |
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
-| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `released` | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
 | `workspace.kind` | `cloud`, `local`, `place` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
@@ -1347,6 +1348,7 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `capped.place` | string | yes |  |
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
+| `capped.why` | `slot`, `minute` |  |  |
 | `afterCut` | `true` |  |  |
 | `sub` | object |  | on a sub-thread's start: the machine, the branches and the files sent |
 | `sub.on` | string | yes |  |
@@ -1390,6 +1392,7 @@ Sends a message to an existing thread (by id, or a prefix of it) and returns the
 | `capped.place` | string | yes |  |
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
+| `capped.why` | `slot`, `minute` |  |  |
 | `afterCut` | `true` |  |  |
 
 ## servers
@@ -1845,7 +1848,7 @@ Opens a thread off a GitHub issue or pull request link, returning as soon as the
 | `workspace.id` | string | yes |  |
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
-| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `released` | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
 | `workspace.kind` | `cloud`, `local`, `place` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |

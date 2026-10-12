@@ -10,8 +10,8 @@ import { join } from "node:path";
 import { afterEach } from "vitest";
 import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
 import { boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
-import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 import type { Clock } from "../src/clock.js";
+import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 // The key the picks are kept under, as the seed verb writes it and the spawn reads it: through the folder's links.
 import { folderNamed } from "../src/types/wiring.js";
 import type { DaemonChannelOptions } from "../src/daemon-channel.js";
@@ -184,6 +184,8 @@ export interface Setup {
   served?: true;
   /** Branches the remote holds already. */
   remoteHeads?: string[];
+  /** Boat's machines at once as the person set it, which wires the place door that keeps it. */
+  machines?: number;
   /** The host's clock, for a test that moves time on. */
   clock?: Clock;
   /** The agent a turn on a Boat machine runs, where it is not the stub that answers at once. */
@@ -208,7 +210,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
   const leadTurn: { end?: () => void; hold?: boolean; release?: () => void } = {};
   const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
-  const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
+  const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
   const claude = harness(starts, leadTurn);
@@ -216,12 +218,14 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn) };
   const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
+  const make = (): Runtime => createRuntime(options);
   if (o.served === true) {
     ctx.runtime = rt;
     ctx.srv = await serveRuntime(rt, { port: 0, authToken: "host-token", devices: rt.devices });
     here.url = `ws://127.0.0.1:${ctx.srv.port}`;
   }
   if (o.spendPerDayUsd !== undefined) await rt.places!.set("box", { spendPerDayUsd: o.spendPerDayUsd });
+  if (o.machines !== undefined) await rt.places!.set("box", { machines: o.machines });
   const project = await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "web" });
   // The remote, recorded on the project as GitHub's, answers from a bare repo here, so no read leaves this computer.
   if (o.remote === undefined) {
@@ -237,7 +241,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const lead: Caller = { origin: "here", by: { kind: "thread", threadId, workspaceId: folder.id, rootThreadId: threadId } };
   // The same host started again on the same state, as a restart leaves it, on a clock of its own where one is given.
   const restart = (clock?: Clock): Runtime => createRuntime(clock === undefined ? options : { ...options, clock });
-  return { rt, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo, restart, turns: leadTurn };
+  return { rt, make, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo, restart, turns: leadTurn };
 }
 
 /** What the result read prints on a machine whose branch is pushed, three commits on the lead's. */
