@@ -672,6 +672,32 @@ describe("BoxBackend against a fake Box API", () => {
     expect(api.took("POST", "/boxes/bx_tumrjngm/stop")!.body).toEqual({});
   });
 
+  it("resumes a stopped box at a size with one resume naming that size's class, and answers once it runs again", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
+      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+    await machineOn(api).machine.resumeAt({ cpu: 4, memMb: 8192 });
+    expect(api.calls().filter(c => c.startsWith("POST /boxes/bx_tumrjngm/") && !c.endsWith("/commands"))).toEqual(["POST /boxes/bx_tumrjngm/resume"]);
+    expect(api.took("POST", "/boxes/bx_tumrjngm/resume")!.body).toMatchObject({ type: "default" });
+    expect(api.calls().at(-1)).toBe("POST /boxes/bx_tumrjngm/commands");
+  });
+
+  it("names the root disk each size reads as measured, and none for a size nobody measured", () => {
+    const { backend } = backendOn(new FakeBox());
+    expect(BOX_CLASSES.map(c => [c.type, backend.rootDiskOf(c)?.diskGb])).toEqual([["small", 75], ["default", 75], ["large", 160], ["xlarge", undefined]]);
+    expect(backend.rootDiskOf({ cpu: 8, memMb: 16384 })).toEqual({ name: "large", diskGb: 160 });
+  });
+
+  it("a plain resume names no class, so the box keeps its own", async () => {
+    const api = new FakeBox()
+      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
+      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+    await machineOn(api).machine.resume();
+    expect(api.took("POST", "/boxes/bx_tumrjngm/resume")!.body).not.toHaveProperty("type");
+  });
+
   it("a box already archiving or archived gets no stop at all", async () => {
     const api = new FakeBox().on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archived"));
     const { machine } = machineOn(api);
@@ -710,6 +736,18 @@ describe("BoxBackend against a fake Box API", () => {
     // The box's own error, where it gives one, is the reading.
     expect(stopRefusalOf({ error: "disk snapshot failed: no space left on device", ...failing })).toBe("disk snapshot failed: no space left on device");
     expect(stopRefusalOf({})).toBe("it reported no snapshot attempt, and the last that completed was none");
+  });
+
+  it("a pause given a longer wait, as a move to another size gives it, outlasts the budget while a full disk archives", async () => {
+    const archiving = Array.from({ length: 20 }, () => INFO("bx_tumrjngm", "archiving"));
+    const api = new FakeBox()
+      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), ...archiving, INFO("bx_tumrjngm", "archived"))
+      .on("POST", "/boxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "box.stopping", status: "archiving", box: BOX("bx_tumrjngm", "archiving") } });
+    const { machine, clock } = machineOn(api);
+    const before = clock.at;
+    await machine.pause({ waitMs: 30 * 60_000 });
+    expect(clock.at - before).toBeGreaterThan(100);
+    expect(api.calls().filter(c => c.endsWith("/stop"))).toHaveLength(1);
   });
 
   it("a stop that never lands inside the budget ends the pause with the row's words, the machine still read as paused-in-progress", async () => {

@@ -425,11 +425,11 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
         // the person's stop, and says on the row that a resume the backend gave up on is being read about.
         move: (m, move) =>
           move === "resume"
-            ? m.resume(entry.wakeStop?.signal).catch(async (e: unknown) => {
+            ? (entry.resizeTo !== undefined && m.resumeAt !== undefined ? m.resumeAt(entry.resizeTo, entry.wakeStop?.signal) : m.resume(entry.wakeStop?.signal)).catch(async (e: unknown) => {
                 if (e instanceof ResumeUnansweredError) await ctx.saysWaking(entry, RESUME_UNANSWERED);
                 throw e;
               })
-            : m.pause(),
+            : m.pause(entry.napWaitMs !== undefined ? { waitMs: entry.napWaitMs } : undefined),
         wakeCheck: async m => {
           const expected = record.shape;
           let both = "";

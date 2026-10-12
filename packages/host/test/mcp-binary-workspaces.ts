@@ -15,6 +15,7 @@ export const WORKSPACE_CALLED: Called[] = [
   { tool: "image", argv: ["image"], arguments: {}, heldHere: true },
   { tool: "wake", argv: ["wake", "alpha"], arguments: { workspace: "alpha" }, given: alpha, cloud: true },
   { tool: "pause", argv: ["pause", "alpha"], arguments: { workspace: "alpha" }, given: alpha, cloud: true },
+  { tool: "resize", argv: ["resize", "nope", "--size", "4x8"], arguments: { thread: "nope", size: "4x8" }, refused: true },
   { tool: "rename", argv: ["rename", "alpha", "alpha"], arguments: { workspace: "alpha", name: "alpha" }, given: alpha, heldHere: true, cloud: true },
   { tool: "delete", argv: ["delete", "alpha", "--yes"], arguments: { workspace: "alpha" }, given: alpha, first: true, error: true, heldHere: true, cloud: true },
   { tool: "delete", argv: ["delete", "nope", "--yes"], arguments: { thread: "nope", confirm: true }, refused: true },

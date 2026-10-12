@@ -1222,10 +1222,9 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true, workspace: handed(await rt.workspaces.get(msg.workspaceId, origin, msg.threadId)) });
               return;
             case "workspaces.nap":
-              send({ id: msg.id, ok: true, workspace: handed(await rt.workspaces.nap(msg.workspaceId, origin)) });
-              return;
+            case "workspaces.resize":
             case "workspaces.wake":
-              send({ id: msg.id, ok: true, workspace: handed(await rt.workspaces.wake(msg.workspaceId, origin)) });
+              send({ id: msg.id, ok: true, workspace: handed(await (msg.op === "workspaces.nap" ? rt.workspaces.nap(msg.workspaceId, origin) : msg.op === "workspaces.wake" ? rt.workspaces.wake(msg.workspaceId, origin) : rt.workspaces.resize(msg.workspaceId, msg.size, origin))) });
               return;
             case "workspaces.stopWake":
               send({ id: msg.id, ok: true, workspace: handed(await rt.workspaces.stopWake(msg.workspaceId, origin)) });

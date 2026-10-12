@@ -85,8 +85,16 @@ const NO_RESULT_LINE: &str = "turn ended without a result";
 /// The events of this thread that a read folds, in order; an event of another kind, or one that does not read as its
 /// kind's shape, is no row of it.
 fn of_thread(events: &[Box<RawValue>], thread_id: &str) -> Vec<Event> {
-    const READ: [&str; 7] =
-        ["session.start", "session.steer", "session.delta", "session.done", "session.end", "session.moved", "session.behind"];
+    const READ: [&str; 8] = [
+        "session.start",
+        "session.steer",
+        "session.delta",
+        "session.done",
+        "session.end",
+        "session.moved",
+        "session.behind",
+        "session.notice",
+    ];
     events
         .iter()
         .filter_map(|raw| serde_json::from_str::<Event>(raw.get()).ok())
@@ -155,7 +163,7 @@ pub fn messages(events: &[Box<RawValue>], thread_id: &str) -> Vec<Message> {
                     fill(template, &[("from", event.from.as_deref().unwrap_or_default()), ("to", event.to.as_deref().unwrap_or_default())]);
                 say(&mut rows, &mut open, "turn", at, text);
             }
-            "session.behind" => {
+            "session.behind" | "session.notice" => {
                 say(&mut rows, &mut open, "turn", at, event.text.unwrap_or_default());
             }
             "session.delta" => {

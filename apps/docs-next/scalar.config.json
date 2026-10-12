@@ -638,6 +638,11 @@
                     "title": "wsp remove",
                     "filepath": "content/reference/cli/remove.mdx"
                   },
+                  "/resize": {
+                    "type": "page",
+                    "title": "wsp resize",
+                    "filepath": "content/reference/cli/resize.mdx"
+                  },
                   "/restart": {
                     "type": "page",
                     "title": "wsp restart",

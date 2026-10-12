@@ -57,7 +57,7 @@ export type ProviderRequestKind = "command" | "file-read" | "file-change" | "mcp
 export type WorkLogTone = "thinking" | "tool" | "notice" | "error" | "compaction";
 
 /** Which wire event produced a work row; the copied rows key chrome on it. */
-export type WorkLogSourceKind = "tool.started" | "tool.completed" | "reasoning" | "runtime.error" | "runtime.notify" | "runtime.resume" | "runtime.starting" | "harness.note" | "harness.compaction";
+export type WorkLogSourceKind = "tool.started" | "tool.completed" | "reasoning" | "runtime.error" | "runtime.notify" | "runtime.notice" | "runtime.resume" | "runtime.starting" | "harness.note" | "harness.compaction";
 
 export interface WorkLogEntry extends CallResult {
   readonly id: string;

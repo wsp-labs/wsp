@@ -455,6 +455,7 @@ describe("the agent contract on the command line and the tool door", () => {
       await last("pause", "pause", "alpha");
       await last("wake", "wake", "alpha");
     }
+    expect(await last("resize", "resize", lead, "--size", "4x8")).toMatchObject({ workspace: { name: "alpha", phase: "running" } });
     // The seeded golden was sealed before records existed, so the record reads off its head and holds no sign-ins.
     expect(await last("image", "image")).toMatchObject({ image: expect.objectContaining({ version: 1 }), copies: [expect.objectContaining({ place: "default" })], projects: expect.any(Array) });
     if (snapped !== undefined) {
