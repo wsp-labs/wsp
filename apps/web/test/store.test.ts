@@ -396,6 +396,21 @@ describe("store creations", () => {
     expect(useStore.getState().goldenFrames).toEqual({});
   });
 
+  it("reads the rows again when a removed place held workspaces, since a cloud's remove releases its sub-threads with no event of their own", () => {
+    const refresh = vi.fn(async () => {});
+    const real = useStore.getState().refresh;
+    useStore.setState({ refresh, workspaces: [{ id: "ws_fix", name: "fix", kind: "cloud", provider: "box", place: "box", machineId: "bx_1", project: { id: "pr_1", name: "web", path: "/root/web", computer: "here" }, phase: "napping", golden: "g", createdAt: "2026-10-12T08:00:00Z" } as never] });
+    try {
+      const apply = useStore.getState().applyEvent;
+      apply({ type: "place.removed", placeId: "p_1" });
+      expect(refresh).not.toHaveBeenCalled();
+      apply({ type: "place.removed", placeId: "box" });
+      expect(refresh).toHaveBeenCalledTimes(1);
+    } finally {
+      useStore.setState({ refresh: real, workspaces: [] });
+    }
+  });
+
   it("takes a computer's row as a set from anywhere left it, and adds no row the list does not hold", () => {
     useStore.setState({ places: [HERE_PLACE, HETZNER_PLACE] });
     const apply = useStore.getState().applyEvent;

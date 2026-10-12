@@ -145,14 +145,25 @@ export interface TimelineEndState {
  */
 export const TIMELINE_FOLLOW_REARM_THRESHOLD_PX = 40;
 
+/** Whether a scroller stands at its own bottom, which is the transcript's end whatever the list's lengths say: once the
+ * content fits, no later scroll comes to read them again. */
+export function scrollerAtBottom(node: { scrollHeight: number; scrollTop: number; clientHeight: number }): boolean {
+  return node.scrollHeight - node.scrollTop - node.clientHeight <= TIMELINE_FOLLOW_REARM_THRESHOLD_PX;
+}
+
 export function resolveTimelineIsAtEnd(
   state: TimelineEndState | undefined,
   endInset = 0,
+  node?: { scrollHeight: number; scrollTop: number; clientHeight: number },
 ): boolean | undefined {
   if (!state) {
     return undefined;
   }
   if (state.isAtEnd) {
+    return true;
+  }
+  // The list's lengths lag a composer that settled shorter after the first draw.
+  if (node !== undefined && scrollerAtBottom(node)) {
     return true;
   }
   const { contentLength, scroll, scrollLength } = state;
@@ -306,6 +317,11 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
     case "thinking":
     case "fork":
       return a.createdAt === (b as typeof a).createdAt;
+
+    case "machine-start": {
+      const next = b as typeof a;
+      return a.start.sub.spawn === next.start.sub.spawn && a.start.model === next.start.model && a.start.effort === next.start.effort && a.answeredAt === next.answeredAt && a.prompt === next.prompt;
+    }
 
     case "turn-fold": {
       const bf = b as typeof a;

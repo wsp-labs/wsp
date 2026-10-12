@@ -8,8 +8,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
-use base64::Engine;
 use serde::Serialize;
 use serde_json::Value;
 use wsp_frames::{
@@ -26,7 +24,7 @@ use crate::paths::OpError;
 use crate::pty::{passwd_row, process_env, pump, PtyCreateOpts};
 use crate::roads::guest_road_serves;
 use crate::sys::SocketWatch;
-use crate::tunnel::Tunnels;
+use crate::tunnel::{lenient_base64, Tunnels};
 #[cfg(not(target_os = "linux"))]
 use crate::workspace::no_such_workspace;
 #[cfg(target_os = "linux")]
@@ -55,6 +53,7 @@ pub(crate) struct Conn {
     /// opened from the ones the new one did. None on the link and inside a workspace, which take no token.
     pub(crate) token: Option<String>,
     pub(crate) tunnels: Tunnels,
+    pub(crate) stdios: crate::stdio::Stdios,
     /// What the socket's close undoes: every pty, mode and watcher listener an op on it made. None once closed, so an
     /// op still being answered when the socket went undoes itself at once instead of outliving it.
     detaches: Mutex<Option<Vec<Detach>>>,
@@ -83,6 +82,7 @@ impl Conn {
             road,
             token,
             tunnels: Tunnels::default(),
+            stdios: crate::stdio::Stdios::default(),
             detaches: Mutex::new(Some(unwatch)),
             proc_watch,
             sys_watch,
@@ -139,10 +139,11 @@ impl Conn {
             detach();
         }
         self.tunnels.close_all();
+        self.stdios.close_all();
     }
 }
 
-fn ok(id: Option<RequestId>) -> String {
+pub(crate) fn ok(id: Option<RequestId>) -> String {
     text(&Reply::new(id, Empty {}))
 }
 
@@ -175,21 +176,6 @@ fn in_port_scope(port: NonZeroU16, frame: &Value) -> bool {
         Some("tunnel.open") => frame.get("port").and_then(Value::as_u64) == Some(u64::from(port.get())),
         _ => false,
     }
-}
-
-/// Base64 as node's Buffer reads it: padding optional, characters outside the alphabet skipped.
-fn lenient_base64(text: &str) -> Vec<u8> {
-    let clean: String = text
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '-' | '_'))
-        .map(|c| match c {
-            '-' => '+',
-            '_' => '/',
-            c => c,
-        })
-        .collect();
-    let config = GeneralPurposeConfig::new().with_decode_allow_trailing_bits(true).with_decode_padding_mode(DecodePaddingMode::Indifferent);
-    GeneralPurpose::new(&base64::alphabet::STANDARD, config).decode(&clean).unwrap_or_default()
 }
 
 /// An op's outcome on the wire: the body under the ok envelope, or the failure with its code when it carries one.
@@ -273,7 +259,8 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
         Some(name) if GUEST_OPS.contains(&name) && !guest_road_serves(&conn.road, ctx.is_place(), name) => {
             refuse(id, DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD)
         }
-        Some(name @ ("fs.image" | "fs.hash")) => crate::slate_reads::serve(ctx, id, name, frame).await,
+        Some(name @ ("fs.image" | "fs.hash" | "http.post")) => crate::slate_reads::serve(conn, ctx, id, name, frame).await,
+        Some(name @ ("stdio.open" | "stdio.write" | "stdio.close")) => crate::stdio::serve(conn, ctx, id, name, frame),
         Some(
             name @ ("pty.create"
             | "pty.attach"
@@ -1120,13 +1107,13 @@ pub(crate) mod tests {
     use std::io::Write;
     use tokio::sync::mpsc;
 
-    pub(super) struct Bench {
+    pub(crate) struct Bench {
         pub(super) ctx: Arc<Ctx>,
         _token: tempfile::NamedTempFile,
         root: tempfile::TempDir,
     }
 
-    pub(super) fn bench() -> Bench {
+    pub(crate) fn bench() -> Bench {
         let mut token = tempfile::NamedTempFile::new().unwrap();
         writeln!(token, "t").unwrap();
         let root = tempfile::tempdir().unwrap();
@@ -1137,13 +1124,13 @@ pub(crate) mod tests {
         Bench { ctx: Arc::new(Ctx::new(options, Box::new(|_| {}), 0).unwrap()), _token: token, root }
     }
 
-    pub(super) fn conn(scope: Option<u16>) -> (Arc<Conn>, mpsc::UnboundedReceiver<Outgoing>) {
+    pub(crate) fn conn(scope: Option<u16>) -> (Arc<Conn>, mpsc::UnboundedReceiver<Outgoing>) {
         conn_on(scope, Road::Inbound)
     }
 
     /// A daemon of a computer somebody owns: the place file is what the roads table reads, and on this platform
     /// it turns no runtime on, so the bench is the switch alone.
-    pub(super) fn place_bench() -> Bench {
+    pub(crate) fn place_bench() -> Bench {
         let mut token = tempfile::NamedTempFile::new().unwrap();
         writeln!(token, "t").unwrap();
         let root = tempfile::tempdir().unwrap();
@@ -1160,7 +1147,7 @@ pub(crate) mod tests {
         (Arc::new(Conn::new(1, scope.and_then(NonZeroU16::new), Outbound(tx), road, None)), rx)
     }
 
-    pub(super) async fn reply(bench: &Bench, conn: &Arc<Conn>, frame: Value) -> Value {
+    pub(crate) async fn reply(bench: &Bench, conn: &Arc<Conn>, frame: Value) -> Value {
         serde_json::from_str(handle(conn, &bench.ctx, &frame.to_string()).await.text()).unwrap()
     }
 

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // How an agent's own harness answers for one MCP server's sign-in: the line
 // that asks it and how its words about that server read. A server
-// behind a sign-in keeps its token where the harness put it, which wsp never
-// reads, so the harness's word is the only one there is. One module per
+// behind a sign-in keeps its token where the harness put it, which only the
+// daemon there reads (mcp-oauth.ts), so the harness's word on whether it holds
+// is the only one there is. One module per
 // harness, registered on its catalog entry, each read against the version
 // named on it; words that are not the measured ones answer nothing.
 import { shellQuote, type McpAuth } from "@wsp/protocol";

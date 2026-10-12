@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
 import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
-import { boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
+import { boatBoxStateLine, boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult, type AdapterEvent } from "@wsp/protocol";
 import type { Clock } from "../src/clock.js";
 import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 // The key the picks are kept under, as the seed verb writes it and the spawn reads it: through the folder's links.
@@ -71,6 +71,8 @@ export interface Boat extends StubBackend {
   limitsRead: BoxLimits;
   /** Every file put on a machine, by its path there. */
   files: { machine: string; path: string; bytes: Buffer }[];
+  /** Boat's own states each create reports its box through, as the box backend's create tells them. */
+  states: string[];
 }
 
 /** Boat as a stub: every class's figures, the plan it is asked for, a file road, and a create that fails as told. */
@@ -79,13 +81,15 @@ function fakeBoat(): Boat {
   boat.creates = [];
   boat.faults = [];
   boat.files = [];
+  boat.states = [];
   boat.limitsRead = PAID;
   Object.assign(boat, { capabilities: { ...boat.capabilities, sizes: PAID_SIZES.map(s => ({ cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour })) } });
   boat.limits = async () => boat.limitsRead;
   const make = boat.create.bind(boat);
-  boat.create = async (spec: MachineSpec): Promise<Machine> => {
+  boat.create = async (spec: MachineSpec, waiting?: (line: string, box?: { id: string; state: string }) => void): Promise<Machine> => {
     boat.creates.push(spec);
     const m = (await make(spec)) as StubMachine;
+    for (const state of boat.states) waiting?.(boatBoxStateLine(m.id, state), { id: m.id, state });
     m.putBytes = async (path: string, bytes: Uint8Array) => {
       boat.files.push({ machine: m.id, path, bytes: Buffer.from(bytes) });
     };
@@ -131,7 +135,7 @@ export function sessionPathOf(folder: string, name: string): string {
   return folder.endsWith("/sessions") ? `${folder}/2026/10/12/rollout-2026-10-12T06-00-00${name}` : `${folder}/-root-web/${name}`;
 }
 
-type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLater?: boolean; exit?: () => void };
+type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLater?: boolean; exit?: () => void; says?: Omit<Extract<AdapterEvent, { type: "turn.delta" }>, "type" | "sessionId">[] };
 
 /** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
  * but for one started while `hold` is set, which runs until `release` ends it; with `exitLater` its process exits only
@@ -160,6 +164,7 @@ function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, 
         });
         return { localId: sessionId, finished, interrupt: async () => {} };
       }
+      for (const said of lead.says ?? []) o.onEvent({ type: "turn.delta", sessionId, ...said });
       o.onEvent({ type: "turn.done", sessionId, result });
       o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
       return { localId: sessionId, finished: Promise.resolve(result), interrupt: async () => {} };

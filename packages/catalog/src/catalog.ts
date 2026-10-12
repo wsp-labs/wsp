@@ -9,7 +9,7 @@ import { AGENT_MODULES } from "./agents/index.js";
 import type { AgentContext } from "./context.js";
 import type { HookCarry } from "./hooks.js";
 import { GCLOUD, KUBECTL } from "./linux-casks.js";
-import type { McpConfig } from "./mcp.js";
+import type { McpConfig } from "./mcp-config.js";
 import { loginRoad, type ServerSignInRoad } from "./mcp-login.js";
 import { pinnedRelease } from "./release-pins.js";
 import type { BundledSkills, PluginRoad, PluginSkills, SkillRoots } from "./skills.js";

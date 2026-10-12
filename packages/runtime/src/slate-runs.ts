@@ -156,6 +156,9 @@ export interface SlateRunsDeps {
   road?: (threadId: string, on: "thread" | "host") => RunRoad | undefined;
   /** Names a command's process on this computer as the thread's slate run until the returned release. */
   own?: (threadId: string, pid: number, kind: "slate") => () => void;
+  /** Why a run on="host" of this thread does not start, a stored one from a thread now off this computer: said as it
+   * starts, before anything asks the person. */
+  hostRefused?: (threadId: string, run: string) => string | undefined;
   now?: () => number;
 }
 
@@ -884,6 +887,8 @@ export function createSlateRuns(deps: SlateRunsDeps): SlateRuns {
         delete l.held;
         return { outcome: "held", record: write(req.threadId, req.run, l, { ...(l.result ?? {}), state: "held", why: HELD_ASLEEP, runs: l.record.runs }) };
       }
+      const refused = req.decl.on === "host" ? deps.hostRefused?.(req.threadId, req.run) : undefined;
+      if (refused !== undefined) return fail(req, l, refused);
       const beside = l.record.state === "running";
       if (beside && req.decl.once === true) return { outcome: "noop", record: l.record };
       delete l.held;

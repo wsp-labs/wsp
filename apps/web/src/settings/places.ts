@@ -6,7 +6,7 @@
 // rate are all the protocol's (absentComputer, fmtSize, fmtBytes, offlineFor,
 // fmtRate) and are not copied here.
 import type { MarkState } from "../components/status/markState.js";
-import { FREE_WORD, JOINED_COMPUTER, PLACE_LEAVE_LINE, placeAwayRefusal, placeForgetLine, type PlaceHolds, hereName, syncLine, isHere, isProviderPlace, placeName, placeOf, absentComputer, placeDaemonBehind, awayMsOf, chargesNothing, daemonSilent, fmtBytes, fmtRate, imageCopyLine, isLocalWorkspace, landsOn, namesPlace, ownDaemonDown, plural, placeWord, SETUP_WORDS, type AbsentComputer, type InitSetup, type PlaceKind, type PlaceProvisionRow, type PlaceView, type ProjectView, type SealedImageCopy, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { FREE_WORD, JOINED_COMPUTER, PLACE_LEAVE_LINE, placeAwayRefusal, placeForgetLine, type PlaceHolds, hereName, syncLine, isHere, isProviderPlace, subThreadsOnly, workspaceWord, placeName, placeOf, absentComputer, placeDaemonBehind, awayMsOf, chargesNothing, daemonSilent, fmtBytes, fmtRate, imageCopyLine, isLocalWorkspace, landsOn, namesPlace, ownDaemonDown, plural, placeWord, SETUP_WORDS, type AbsentComputer, type InitSetup, type PlaceKind, type PlaceProvisionRow, type PlaceView, type ProjectView, type SealedImageCopy, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { agentName } from "@wsp/catalog";
 import { PLACE_STATE_WORDS, PROVISION_OUTCOME_WORDS, WHERE_WORDS, capitalised } from "./format.js";
 
@@ -51,7 +51,12 @@ export function removeSentence(place: PlaceView, holding: PlaceHolding, here: st
   const offline = !isProviderPlace(place) && placeIsOffline(place);
   const ssh = place.road?.ssh;
   const lines: string[] = [];
-  if (isProviderPlace(place)) {
+  if (isProviderPlace(place) && subThreadsOnly(place.id)) {
+    // A sub-thread whose machine was deleted, or that still waits for one, holds none at the cloud.
+    const machines = holding.workspaces.filter(w => w.state !== workspaceWord("released") && w.state !== workspaceWord("waiting")).length;
+    lines.push(machines === 0 ? `The key for ${name} is forgotten on ${here}.` : `Its ${machines === 1 ? "machine is" : `${machines} machines are`} deleted at ${name} and the key is forgotten on ${here}.`);
+    if (threads > 0) lines.push(`${threads === 1 ? "Its sub-thread stays" : `The ${threads} sub-threads stay`} with ${threads === 1 ? "its transcript" : "their transcripts"}, and a message to one asks for ${name} again.`);
+  } else if (isProviderPlace(place)) {
     lines.push(count === 0 ? `The key for ${name} is forgotten on ${here}.` : `Its ${count === 1 ? "task is" : `${count} tasks are`} deleted at ${name} and the key is forgotten on ${here}.`);
     if (threads > 0) lines.push(`${threads === 1 ? "Its thread stays" : `The ${threads} threads stay`} with ${threads === 1 ? "its transcript" : "their transcripts"}.`);
   } else {

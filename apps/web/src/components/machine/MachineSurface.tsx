@@ -4,10 +4,10 @@
 // and the registry's actions for it. On this computer's own panel the facts
 // are this computer's and there is nothing to act on.
 import { useId } from "react";
-import { ActivityIcon, AppWindowIcon, CpuIcon, LaptopIcon, MemoryStickIcon } from "lucide-react";
+import { ActivityIcon, AppWindowIcon, CpuIcon, HourglassIcon, LaptopIcon, MemoryStickIcon, ReceiptIcon } from "lucide-react";
 import { Chips, type ChipItem } from "../ui/chips.js";
 import { ComputerGlyph } from "../../settings/ComputerGlyph.js";
-import { HERE_PLACE_ID, diskTone, fmtBytesOfTotal, fmtCpus, fmtMemGb, fmtSize, kindWords, readingRoad, workspaceKind, workspaceStateOf, workspaceWord, type SizeTone, type SysSample, type WorkspaceView } from "@wsp/protocol";
+import { HERE_PLACE_ID, SUB_STRIP, hereName, diskTone, fmtBytesOfTotal, fmtCpus, fmtMemGb, fmtSize, kindWords, readingRoad, workspaceKind, workspaceStateOf, workspaceWord, type SizeTone, type SysSample, type WorkspaceView } from "@wsp/protocol";
 import { runAction } from "../../actions/contextMenu.js";
 import { actionIfAny, resolveActions, rowLabelOf } from "../../actions/registry.js";
 import { useWorkspaceVerbs } from "../../actions/verbs.js";
@@ -15,7 +15,9 @@ import { workspaceActions, workspaceTarget } from "../../actions/workspaceAction
 import { TONE_TEXT } from "../../lib/tone.js";
 import { cn } from "../../lib/utils.js";
 import { LIVE_WINDOW, staleWord, useWorkspaceLive, type StaleWord } from "../../machine/live.js";
-import { useAbsentComputer, useCapabilities, usePlaces, useStatus, useWorkspace } from "../../protocol/store.js";
+import { useAbsentComputer, useCapabilities, useCost, usePlaces, useSidebarProjects, useStatus, useWorkspace } from "../../protocol/store.js";
+import { useMinuteClockWhen } from "../status/useMinuteClock.js";
+import { subMachineFacts } from "../../sidebar/tileCard.js";
 import { placeName } from "../../settings/places.js";
 import { whereRuns } from "../../sidebar/workspaceRows.js";
 import { Button, DANGER_BUTTON } from "../ui/button.js";
@@ -23,6 +25,8 @@ import { ScrollArea } from "../ui/scroll-area.js";
 
 /** The registry's actions this pane draws, in this order; the open verbs live on the tab strip and the row. */
 const PANE_ACTIONS = ["phase", "start-daemon", "rebuild", "bring-back", "export-project", "delete", "forget"] as const;
+/** The acts a sub-machine's pane leaves out. */
+const SUB_LEAVES: ReadonlySet<string> = new Set(["phase", "rebuild", "bring-back"]);
 
 export function MachineSurface({ workspaceId }: { workspaceId: string }) {
   const workspace = useWorkspace(workspaceId);
@@ -184,6 +188,10 @@ function Facts({ workspace }: { workspace: WorkspaceView }) {
   const absent = useAbsentComputer(workspace.id);
   const state = absent?.word ?? workspaceWord(workspaceStateOf(workspace, status), capabilities?.pauseMode);
   const size = status ? fmtSize(status.size, kindWords(workspaceKind(workspace)).cpu) : null;
+  const sub = useSubThread(workspace.id);
+  const cost = useCost(sub === undefined ? null : workspace.id);
+  const now = useMinuteClockWhen(sub !== undefined);
+  const facts = sub?.sub === undefined ? null : subMachineFacts(sub.sub, sub.status === "running", cost?.accruedUsd ?? null, now);
   return (
     <FactChips
       items={[
@@ -191,6 +199,8 @@ function Facts({ workspace }: { workspace: WorkspaceView }) {
         { text: whereRuns(places, { workspace, status }), icon: LaptopIcon },
         status ? { text: fmtCpus(status.size.cpu, kindWords(workspaceKind(workspace)).cpu), icon: CpuIcon } : null,
         status ? { text: fmtMemGb(status.size.memMb), icon: MemoryStickIcon } : null,
+        facts?.cost === undefined ? null : { text: facts.cost, icon: ReceiptIcon },
+        facts?.goes === undefined ? null : { text: facts.goes, icon: HourglassIcon },
       ]}
       path={workspace.project.path}
     />
@@ -212,12 +222,21 @@ function HereFacts() {
   );
 }
 
+/** The sub-thread a sub-machine runs alone, where the workspace is one. */
+function useSubThread(workspaceId: string) {
+  return useSidebarProjects().find(p => p.id === workspaceId)?.threads.find(t => t.sub !== undefined);
+}
+
 function Actions({ workspace }: { workspace: WorkspaceView }) {
   const status = useStatus(workspace.id);
   const places = usePlaces();
   const verbs = useWorkspaceVerbs();
+  // A sub-machine's life is its delete timer's and a message makes a new one, so it offers no pause, wake or rebuild;
+  // its branch is the agent's to push, so no bring back, and its export says what it does: a copy to this computer.
+  const sub = useSubThread(workspace.id) !== undefined;
   const resolved = resolveActions(workspaceActions, workspaceTarget(workspace, status, places), verbs);
-  const actions = PANE_ACTIONS.flatMap(id => actionIfAny(resolved, id) ?? []);
+  const actions = PANE_ACTIONS.filter(id => !(sub && SUB_LEAVES.has(id))).flatMap(id => actionIfAny(resolved, id) ?? []);
+  const wordOf = (action: (typeof actions)[number]): string => (sub && action.id === "export-project" ? SUB_STRIP.copyTo(hereName(places)) : (action.buttonWord ?? action.title));
   if (actions.length === 0) return null;
   return (
     <footer className="flex flex-wrap gap-1.5 border-t border-border/60 px-3 py-2.5" data-machine-actions>
@@ -229,11 +248,11 @@ function Actions({ workspace }: { workspace: WorkspaceView }) {
           className={cn(action.destructive && DANGER_BUTTON)}
           disabled={action.refusal !== null}
           title={action.refusal ?? action.hint ?? undefined}
-          aria-label={rowLabelOf(action)}
+          aria-label={sub && action.id === "export-project" ? wordOf(action) : rowLabelOf(action)}
           data-action={action.id}
           onClick={() => void runAction(action)}
         >
-          {action.buttonWord ?? action.title}
+          {wordOf(action)}
         </Button>
       ))}
     </footer>

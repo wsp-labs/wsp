@@ -124,8 +124,15 @@ describe("a send into a released sub-thread", () => {
     await new Promise(r => setTimeout(r, 30));
     // Nothing has launched while the machine is being made.
     expect(held.starts).toHaveLength(launches);
+    // The thread's row reads its machine starting meanwhile, the resume's own start under way on it.
+    const row = (await held.rt.sessions.list()).filter(s => s.threadId === held.threadId).at(-1)!;
+    expect(row.sub).toMatchObject({ state: "starting", spawn: { machine: { states: [] } } });
+    expect(row.sub!.spawn!.branch).toBeUndefined();
     open();
     await Promise.all([(await a).finished, (await b).finished]);
+    expect((await held.record()).sub!.spawn).toMatchObject({ readyAt: expect.any(Number), machine: { ms: expect.any(Number) } });
+    // A start that stands drops the asked text: the turn's own row and transcript hold it from here.
+    expect((await held.record()).sub!.spawn!.asked).toBeUndefined();
     const ran = held.starts.slice(launches).map(x => x.o.prompt);
     expect(ran).toHaveLength(2);
     expect(ran[0]!.startsWith("This thread's machine was deleted after its last turn")).toBe(true);
@@ -239,6 +246,23 @@ describe("a send into a released sub-thread", () => {
     expect((await held.record()).machineId).toBe(good!.id);
   });
 
+  it("puts the failed start's row on the bus before it answers the refusal, however long the row takes to place", async () => {
+    const held = await released({ deleteAfterMs: 30 * MIN });
+    held.boat.faults.push({ kind: "unusable" }, { kind: "unusable" });
+    // Placing a row reads the computers; a slow read must not let the refusal overtake the row.
+    const door = held.rt.places!;
+    const rows = door.rows.bind(door);
+    door.rows = async () => (await new Promise(r => setTimeout(r, 50)), rows());
+    const order: string[] = [];
+    held.rt.events.on("*", e => void (e.type === "session.row" && e.row?.sub?.spawn?.failed !== undefined && order.push("row")));
+    await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" }).then(
+      () => order.push("started"),
+      () => order.push("refused"),
+    );
+    expect(order[0]).toBe("row");
+    expect(order).toContain("refused");
+  });
+
   it("fails after a second broken box with both named, and the record stays released for the next send", async () => {
     const held = await released();
     held.boat.faults.push({ kind: "unusable" }, { kind: "unusable" });
@@ -252,6 +276,11 @@ describe("a send into a released sub-thread", () => {
     expect(e?.message).toBe(subTwiceRefusal(fault(a!.id), fault(b!.id), NAME, "Boat").message);
     expect(held.starts).toHaveLength(launches);
     expect(await held.record()).toMatchObject({ phase: "released", machineId: "" });
+    // The step it failed on stays on the row with the two halves of why, for the line under the message to say.
+    // And the message the send asked, which no turn wrote down, for Try again after a reload too.
+    expect((await held.record()).sub!.spawn!.asked).toBe("what was the word?");
+    const failed = (await held.record()).sub!.spawn!.failed!;
+    expect(failed).toEqual({ step: "machine", said: e!.message.slice(0, -" Start it again in a few minutes.".length), fix: "Start it again in a few minutes." });
     await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
     expect(held.starts.at(-1)!.o.resume).toBe("s2");
   });

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The tool and resource runs a slate starts on its thread's own MCP servers (07, "MCP tools and resources"), on this
-// computer. The host hands over a server as the thread's agent configures it, already resolved; this file holds one
+// The tool and resource runs a slate starts on its thread's own MCP servers (07, "MCP tools and resources"), on the
+// computer the thread runs on. The host hands over a server as the thread's agent configures it there, already
+// resolved, with the road its command starts by on another computer (slate-mcp-on.ts); this file holds one
 // live client per server per thread, asks the person once per server per thread for reading and calling, asks on
 // every start of a destructive tool, calls the tool with the arguments the declaration evaluates to, and writes the
 // result into the run's record scrubbed of every secret. A secret reaches a server only inside a call's arguments,
@@ -8,10 +9,43 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { McpTransport } from "@wsp/catalog";
-import { EXEC_OUTPUT_MAX, fmtBytes, runOutputTail } from "@wsp/protocol";
-import type { SlateAsk } from "@wsp/protocol";
-import type { SlateJson, SlateRunDecl } from "@wsp/protocol/slate";
+import { EXEC_OUTPUT_MAX, fmtBytes, runOutputTail, slateMachineOnBox } from "@wsp/protocol";
+import type { HttpBearer, SlateAsk } from "@wsp/protocol";
+import { slateHostAway, slateProblem, slateServerNotSetUp, type SlateDoc, type SlateJson, type SlateProblem, type SlateRunDecl } from "@wsp/protocol/slate";
 import { HELD_APPROVAL, HELD_BUDGET, HELD_PRESSED, lastResult, mapStrings, runningRecord, SECRET_DOTS, spent, stableJson, type Reshape, type RunResult, type RunApprovals, type RunBy, type RunRecord, type RunStartAnswer } from "./slate-runs.js";
+
+/** The thread's computer where it is not this one, and this one's name. */
+export interface Away {
+  computer: string;
+  host: string;
+  /** The machine wsp made on that computer the thread runs on, where it is one: its server would start on the
+   * computer outside it, so it gets no tool run. */
+  machine?: string;
+}
+
+/** Why a run on="host" does not start from a thread off this computer, which a slate stored before it moved holds. */
+export const hostAway = (away: Away | undefined, run: string): string | undefined => (away === undefined ? undefined : slateHostAway(`$${run}`, away.computer, away.host));
+
+/** What a slate is refused as it is written from a thread off this computer: a command run on="host", which would run
+ * here with the sign-ins here, and a run on a server the agent's config there does not name. Only servers the slate
+ * before did not name are asked about, so a write that keeps its servers asks that computer nothing. */
+export async function refusedAway(
+  before: SlateDoc | null,
+  doc: SlateDoc | null | undefined,
+  away: Away | undefined,
+  missingOn: ((servers: string[]) => Promise<{ agent: { id: string; name: string }; thread: string; missing: string[] }>) | undefined,
+): Promise<SlateProblem[]> {
+  if (away === undefined || !doc) return [];
+  const runs = Object.entries(doc.runs);
+  const problems = runs.flatMap(([name, d]) => (d.kind === "cmd" && d.on === "host" ? [slateProblem("K711", slateHostAway(`$${name}`, away.computer, away.host))] : []));
+  const tools = runs.flatMap(([name, d]) => (d.kind === "cmd" ? [] : [name]));
+  if (away.machine !== undefined) return tools.length === 0 ? problems : [...problems, slateProblem("K712", slateMachineOnBox(tools, away.machine, away.computer))];
+  const known = new Set(Object.values(before?.runs ?? {}).flatMap(d => (d.kind === "cmd" ? [] : [d.server])));
+  const asked = [...new Set(runs.flatMap(([, d]) => (d.kind === "cmd" || known.has(d.server) ? [] : [d.server])))];
+  if (asked.length === 0 || missingOn === undefined) return problems;
+  const { agent, thread, missing } = await missingOn(asked);
+  return [...problems, ...missing.map(server => slateProblem("K710", slateServerNotSetUp(server, away.computer, agent, thread)))];
+}
 
 /** `files` is the text of each slate file its then reads, as on a command. */
 export type McpRunDecl = Extract<SlateRunDecl, { kind: "tool" | "resource" }> & { files?: Record<string, string> };
@@ -23,7 +57,52 @@ export interface McpServerSpec {
   cwd: string;
   env: Readonly<Record<string, string>>;
   secrets: readonly string[];
+  /** Where a command server runs: on the thread's own computer through its daemon. Absent runs it on this one. */
+  open?: McpPipeOpen;
+  /** Where an http server is asked from, one road per connection: the thread's own computer through its daemon.
+   * Absent asks it from this one. */
+  post?: () => McpPost;
+  /** An http server's sign-in the thread's agent keeps on its own computer, which only that computer's daemon reads. */
+  signIn?: McpSignIn;
 }
+
+/** Where the bearer is, read there; the agent's own word on it asked again there, true where it holds one, which
+ * renews a token near its end the way the agent does; and the line the person signs in with there. */
+export interface McpSignIn {
+  bearer: HttpBearer;
+  renew(): Promise<boolean>;
+  line: string;
+}
+
+/** What an http server answered one message, wherever it was asked from. */
+export interface McpHttpAnswer {
+  status: number;
+  contentType?: string;
+  sessionId?: string;
+  body: string;
+}
+
+/** One message to an http server and the end of the road it goes by. */
+export interface McpPost {
+  send(t: Extract<McpTransport, { kind: "http" }>, req: { headers: Record<string, string>; body: string; ms: number }): Promise<McpHttpAnswer>;
+  close(): void;
+}
+
+/** What a command server's process says, wherever it runs. `exit` is said once, with why it ended. */
+export interface McpPipeEvents {
+  out(chunk: Buffer): void;
+  err(text: string): void;
+  exit(why: string): void;
+}
+
+/** A command server's stdin and the stop of its whole process group; `pid` where it runs on this computer. */
+export interface McpPipe {
+  write(text: string): void;
+  kill(): void;
+  readonly pid?: number;
+}
+
+export type McpPipeOpen = (t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServerSpec, on: McpPipeEvents) => McpPipe;
 
 export interface McpToolInfo {
   name: string;
@@ -90,6 +169,8 @@ export interface SlateMcp {
   /** The servers the slate's document names, and which of them an `always` timer keeps open. Others close. */
   servers(threadId: string, names: readonly string[], kept: readonly string[]): void;
   shown(threadId: string, shown: boolean): void;
+  /** Closes the thread's servers and keeps its runs: its machine napped, and the next start opens them again. */
+  closeServers(threadId: string): void;
   /** slate_catalog <server>: its tools, each input schema folded to a line per property, and whether consent stands. */
   catalog(threadId: string, server: string): Promise<string>;
   drop(threadId: string): void;
@@ -218,13 +299,36 @@ class RpcFailed extends Error {
   }
 }
 
-function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServerSpec, onClose: () => void): Client {
+/** The server's command on this computer, in a process group of its own. */
+const spawnHere: McpPipeOpen = (t, spec, on) => {
   const child: ChildProcess = spawn(t.command, t.args, { cwd: t.cwd ?? spec.cwd, env: { ...spec.env, ...t.env }, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+  child.stdin?.on("error", () => {});
+  child.stderr?.setEncoding("utf8");
+  child.stderr?.on("data", on.err);
+  child.stdout?.on("data", on.out);
+  child.on("error", e => on.exit(`${t.command} could not be started: ${e.message}`));
+  child.on("exit", (code, signal) => on.exit(`the server exited${code !== null ? ` with ${code}` : signal !== null ? ` on ${signal}` : ""}`));
+  return {
+    ...(child.pid !== undefined ? { pid: child.pid } : {}),
+    write: text => void child.stdin?.write(text),
+    kill() {
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // Gone already.
+      }
+    },
+  };
+};
+
+function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServerSpec, onClose: () => void): Client {
   const waiting = new Map<number, { ok: (v: unknown) => void; no: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   let next = 1;
   let closed = false;
   let err = "";
   let buffer = Buffer.alloc(0);
+  let pipe: McpPipe | undefined;
   const finish = (why: string): void => {
     if (closed) return;
     closed = true;
@@ -233,22 +337,13 @@ function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServe
       w.no(new Error(why));
     }
     waiting.clear();
-    if (child.pid !== undefined) {
-      try {
-        process.kill(-child.pid, "SIGKILL");
-      } catch {
-        // Gone already.
-      }
-    }
+    pipe?.kill();
     onClose();
   };
   const send = (msg: Record<string, unknown>): void => {
-    if (!closed) child.stdin?.write(`${JSON.stringify(msg)}\n`);
+    if (!closed) pipe?.write(`${JSON.stringify(msg)}\n`);
   };
-  child.stdin?.on("error", () => {});
-  child.stderr?.setEncoding("utf8");
-  child.stderr?.on("data", (chunk: string) => (err = (err + chunk).slice(-ERR_KEPT)));
-  child.stdout?.on("data", (chunk: Buffer) => {
+  const out = (chunk: Buffer): void => {
     if (closed) return;
     buffer = Buffer.concat([buffer, chunk]);
     let at: number;
@@ -280,9 +375,8 @@ function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServe
     }
     // A message still unended past the cap is never going to be one worth reading.
     if (buffer.length > MESSAGE_MAX_BYTES) finish(TOO_BIG);
-  });
-  child.on("error", e => finish(`${t.command} could not be started: ${e.message}`));
-  child.on("exit", (code, signal) => finish(`the server exited${code !== null ? ` with ${code}` : signal !== null ? ` on ${signal}` : ""}`));
+  };
+  pipe = (spec.open ?? spawnHere)(t, spec, { out, err: text => (err = (err + text).slice(-ERR_KEPT)), exit: finish });
   return {
     request(method, params, ms) {
       const id = next++;
@@ -303,25 +397,32 @@ function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServe
       return closed;
     },
     said: () => err,
-    ...(child.pid !== undefined ? { pid: child.pid } : {}),
+    ...(pipe.pid !== undefined ? { pid: pipe.pid } : {}),
   };
 }
 
+/** This computer's own fetch, no redirect followed, a failed answer's body never read. */
+const fetchHere: McpPost = {
+  async send(t, req) {
+    const res = await fetch(t.url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(req.ms), headers: req.headers, body: req.body });
+    const answer = { status: res.status, ...(res.headers.get("content-type") !== null ? { contentType: res.headers.get("content-type")! } : {}), ...(res.headers.get("mcp-session-id") !== null ? { sessionId: res.headers.get("mcp-session-id")! } : {}) };
+    if (!res.ok) await res.body?.cancel();
+    return { ...answer, body: res.ok ? await boundedText(res) : "" };
+  },
+  close() {},
+};
+
 /** Streamable HTTP: one POST per message, the answer as JSON or on an event stream's data lines. No redirect is
  * followed, so the config's headers reach its own address alone. */
-function httpClient(t: Extract<McpTransport, { kind: "http" }>, onClose: () => void): Client {
+function httpClient(t: Extract<McpTransport, { kind: "http" }>, spec: McpServerSpec, onClose: () => void): Client {
   let session: string | undefined;
   let next = 1;
   let closed = false;
-  const post = async (body: Record<string, unknown>, ms: number): Promise<Response> => {
-    const res = await fetch(t.url, {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(ms),
-      headers: { ...t.headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL_VERSION, ...(session !== undefined ? { "Mcp-Session-Id": session } : {}) },
-      body: JSON.stringify(body),
-    });
-    session = res.headers.get("mcp-session-id") ?? session;
+  const road = spec.post?.() ?? fetchHere;
+  const post = async (body: Record<string, unknown>, ms: number): Promise<McpHttpAnswer> => {
+    const headers = { ...t.headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL_VERSION, ...(session !== undefined ? { "Mcp-Session-Id": session } : {}) };
+    const res = await road.send(t, { headers, body: JSON.stringify(body), ms });
+    session = res.sessionId ?? session;
     return res;
   };
   return {
@@ -331,9 +432,8 @@ function httpClient(t: Extract<McpTransport, { kind: "http" }>, onClose: () => v
         if (closed) throw new Error("the server's connection is closed");
         const res = await post({ jsonrpc: "2.0", id, method, params }, ms);
         if (res.status === 401 || res.status === 403) throw new Error(`its address wants a sign-in (${res.status}); sign in where the agent keeps it`);
-        if (!res.ok) throw new Error(`its address answered ${method} with ${res.status}`);
-        const text = await boundedText(res);
-        const lines = (res.headers.get("content-type") ?? "").includes("event-stream") ? text.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()) : [text];
+        if (res.status < 200 || res.status > 299) throw new Error(`its address answered ${method} with ${res.status}`);
+        const lines = (res.contentType ?? "").includes("event-stream") ? res.body.split("\n").filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()) : [res.body];
         for (const line of lines) {
           let msg: { id?: unknown; result?: unknown; error?: RpcError };
           try {
@@ -357,6 +457,7 @@ function httpClient(t: Extract<McpTransport, { kind: "http" }>, onClose: () => v
     close() {
       if (closed) return;
       closed = true;
+      road.close();
       onClose();
     },
     get closed() {
@@ -527,7 +628,7 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
         release?.();
         if (t.conns.get(server) === made) t.conns.delete(server);
       };
-      const client = spec.transport.kind === "stdio" ? stdioClient(spec.transport, spec, gone) : httpClient(spec.transport, gone);
+      const client = spec.transport.kind === "stdio" ? stdioClient(spec.transport, spec, gone) : httpClient(spec.transport, spec, gone);
       if (!client.closed && client.pid !== undefined) release = deps.own?.(threadId, client.pid, "tool");
       try {
         const init = (await client.request("initialize", { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } }, CONNECT_MS).answer) as { capabilities?: { resources?: unknown } } | undefined;
@@ -855,6 +956,11 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
       // Hidden starts the idle clock from now, not from the last call.
       if (t.shown && !on) for (const c of t.conns.values()) void c.then(conn => (conn.usedAt = now()), () => {});
       t.shown = on;
+    },
+
+    closeServers(threadId) {
+      const t = threads.get(threadId);
+      if (t !== undefined) for (const server of [...t.conns.keys()]) closeConn(t, server);
     },
 
     async catalog(threadId, server) {

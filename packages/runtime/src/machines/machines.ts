@@ -268,7 +268,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
         const spec = forkSpec(record, golden?.kind ?? "sandbox", image === undefined ? undefined : goldenImage(image.projects === undefined && golden !== undefined ? golden : { snapshotId: record.golden }).spec, record.spec.engine === true || (golden !== undefined && (await ctx.recipeAsksEngine(golden))), override, golden?.npmBin);
         // A place that has never held this image says missing about a reference no registry has: the fork lands
         // nowhere and the sentence says where it would land until that place holds a copy.
-        const machine = await b.create(spec, report === undefined ? undefined : line => report("fork-requested", line, { waiting: true })).catch((e: unknown) => {
+        const machine = await b.create(spec, report === undefined ? undefined : (line, box) => report("fork-requested", line, { waiting: true, ...(box !== undefined ? { box } : {}) })).catch((e: unknown) => {
           if (image === undefined || record.place === undefined || !isMissing(e)) throw e;
           throw Object.assign(new Error(placeHoldsNoImageLine(ctx.placeDoorOf().nameOf(record.place), spec.fromSnapshot ?? spec.template ?? record.golden)), { kind: "invalid" });
         });

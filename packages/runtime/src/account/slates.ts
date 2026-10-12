@@ -2,13 +2,23 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, SETTLE_MS } from "@wsp/protocol";
+import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, folderOnJoined, HERE_PLACE_ID, HTTP_POST_DAEMON_VERSION, SETTLE_MS, slateMachineOnBox, type AgentsTarget } from "@wsp/protocol";
+import { isServerNotSetUp } from "../agents-read.js";
+import { pipeOn, postOn } from "../slate-mcp-on.js";
 import { lazySlates } from "../lazy-slates.js";
 import type { Slates } from "../slates.js";
 import type { RuntimeContext, SlatesArea } from "../context.js";
+import type { LiveWorkspace } from "../types/wiring.js";
 
 export function slatesArea(ctx: RuntimeContext): SlatesArea {
   const { opts, store, local, bus, clock, live, threadRecords, sessions, transcripts } = ctx;
+  const harnessOf = (threadId: string): string | undefined => ctx.latestOn(threadId)?.harness ?? threadRecords.get(threadId)?.harness;
+  /** Where a box thread's agent reads its servers: that computer's login for a folder there, else the machine itself. */
+  const serversTarget = (box: LiveWorkspace): AgentsTarget =>
+    box.record.place !== undefined && folderOnJoined(box.record.kind) ? { placeId: box.record.place, project: box.record.project } : { workspaceId: box.record.id };
+  /** A machine wsp made on a joined computer, from before a thread there ran in a folder: the daemon that answers it is
+   * the computer's own, so a server it holds open would run on the computer, outside the machine. */
+  const machineOnBox = (box: LiveWorkspace): boolean => box.record.place !== undefined && !folderOnJoined(box.record.kind);
   const slates: Slates = lazySlates({
     store,
     now: () => clock.now(),
@@ -68,13 +78,33 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
     ownProcess: (threadId, pid, kind) => ctx.ownProcess(threadId, pid, kind),
     mcpServer: async (threadId, name) => {
       const workspaceId = ctx.latestOn(threadId)?.workspaceId ?? threadRecords.get(threadId)?.workspaceId;
-      const harness = ctx.latestOn(threadId)?.harness ?? threadRecords.get(threadId)?.harness;
+      const harness = harnessOf(threadId);
       const entry = workspaceId === undefined ? undefined : live.get(workspaceId);
       if (entry === undefined || harness === undefined) throw new Error(`this host holds no folder for thread ${threadId}`);
-      if (!isLocalWorkspace(entry.record)) throw new Error("a slate's tool runs start their server on this computer, and this thread runs on another");
+      // A thread on another computer starts its server there, off that computer's config, with its sign-ins.
+      const box = ctx.boxOf(threadId);
+      if (box !== undefined) {
+        if (machineOnBox(box)) throw new Error(slateMachineOnBox([name], box.record.name, ctx.computerOf(box)));
+        const { login, ...spec } = await ctx.agentsRead.server(serversTarget(box), { agent: harness, name });
+        if (login === undefined) throw new Error(`${ctx.computerOf(box)} did not say who its lines run as`);
+        return { ...spec, open: pipeOn(ctx.computerOf(box), login, () => ctx.stdioRoad(box)), post: postOn(ctx.computerOf(box), () => ctx.stdioRoad(box, HTTP_POST_DAEMON_VERSION), spec.signIn) };
+      }
       const reader = opts.agentsReader;
       if (reader?.server === undefined) throw new Error("this host reads no agent's MCP config");
       return reader.server({ kind: "here", projects: [{ id: workspaceId!, name: "thread", path: ctx.checkoutOf(entry.record) }] }, { agent: harness, name });
+    },
+    away: threadId => {
+      const box = ctx.boxOf(threadId);
+      return box === undefined ? undefined : { computer: ctx.computerOf(box), host: ctx.placeName(HERE_PLACE_ID), ...(machineOnBox(box) ? { machine: box.record.name } : {}) };
+    },
+    missingOn: async (threadId, servers) => {
+      const box = ctx.boxOf(threadId);
+      const agent = harnessOf(threadId);
+      if (box === undefined || agent === undefined) return { agent: { id: agent ?? "", name: agent ?? "" }, thread: threadId, missing: [] };
+      // Only a config that names no such server refuses the write; a computer that could not be read now leaves the
+      // run to say why when it starts.
+      const named = await Promise.all(servers.map(name => ctx.agentsRead.server(serversTarget(box), { agent, name }).then(() => true, (e: unknown) => !isServerNotSetUp(e))));
+      return { agent: { id: agent, name: ctx.agentLabel(agent) }, thread: threadId, missing: servers.filter((_, i) => !named[i]) };
     },
     sources: (threadId, workspaceId) => ({
       threadId,
@@ -130,6 +160,9 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
     },
     runEnv: () => local?.env() ?? (process.env as Record<string, string>),
     ...(opts.statePath !== undefined ? { secretsFile: join(ctx.stateFolder(), "slates.secrets.json"), slatesDir: join(ctx.stateFolder(), "slates") } : {}),
+  });
+  bus.on("workspace.napped", e => {
+    if (e.type === "workspace.napped") slates.napped(e.workspaceId);
   });
   return { slates };
 }

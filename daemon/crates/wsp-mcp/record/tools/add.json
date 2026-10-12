@@ -200,6 +200,9 @@
                   },
                   "rateUsdPerHour": {
                     "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -965,6 +968,9 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "running": {
+                  "type": "integer"
                 }
               },
               "required": [
@@ -1041,6 +1047,12 @@
             },
             "deleteAfterMs": {
               "type": "integer"
+            },
+            "creditHours": {
+              "type": "number"
+            },
+            "spentTodayUsd": {
+              "type": "number"
             }
           },
           "required": [
@@ -1327,6 +1339,9 @@
                   },
                   "rateUsdPerHour": {
                     "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -2092,6 +2107,9 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "running": {
+                  "type": "integer"
                 }
               },
               "required": [
@@ -2168,6 +2186,12 @@
             },
             "deleteAfterMs": {
               "type": "integer"
+            },
+            "creditHours": {
+              "type": "number"
+            },
+            "spentTodayUsd": {
+              "type": "number"
             }
           },
           "required": [

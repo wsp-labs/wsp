@@ -53,6 +53,10 @@ export const DaemonEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("tunnel.data"), tunnelId: z.string(), data: z.string(), machineId: z.string().optional() }),
   /** The guest side closed; the laptop connection ends after any data before it. */
   z.object({ type: z.literal("tunnel.end"), tunnelId: z.string(), machineId: z.string().optional() }),
+  /** A stdio.open command's stdout and stderr, base64 and apart, then its end: no code where a signal ended it. */
+  z.object({ type: z.literal("stdio.out"), stdioId: z.string(), data: z.string() }),
+  z.object({ type: z.literal("stdio.err"), stdioId: z.string(), data: z.string() }),
+  z.object({ type: z.literal("stdio.exit"), stdioId: z.string(), code: z.number().int().optional() }),
   /** A pty printed, or a tool asked to open, a plain http URL on a local host
    * with an explicit port (http://localhost:8123/, 127.0.0.1:8123): the port a
    * person would click. Only the port travels; the host forwards it here. */
