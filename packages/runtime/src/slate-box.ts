@@ -9,13 +9,8 @@
 import { randomBytes } from "node:crypto";
 import { DEADLINE_EXIT, PlaceFolderMachine, putFiles, type Machine } from "@wsp/engine";
 import { EXEC_OUTPUT_MAX, shellQuote, threadCgroup } from "@wsp/protocol";
+import { BOX_SLATES, boxSlateDir } from "./slate-mcp-on.js";
 import { reshapeAnswer, type Reshape, type RoadEnd, type RunRoad } from "./slate-runs.js";
-
-/** Where a thread's slate keeps its files on its machine: rewritten from the record before every command and
- * removed with the thread, so losing it costs nothing. */
-export const BOX_SLATES = "/tmp/wsp-slates";
-
-export const boxSlateDir = (threadId: string): string => `${BOX_SLATES}/${threadId}`;
 
 /** How long a removal a box did not answer waits before it is tried again. */
 const OWED_RETRY_MS = 60_000;

@@ -22,14 +22,18 @@ const PR_REST: Omit<import("@wsp/protocol").PullRequest, "number" | "url" | "sta
 
 /** A daemon inside a workspace that answers the two frames a bring back sends, so the verb's own line is read here
  * without a machine: the push, then the pull request or the sentence that says none was opened. */
-function fakeGitDaemon(): { open: (o: DaemonChannelOptions) => Promise<DaemonChannel>; pr: { refuse?: { error: string; code?: DaemonErrorCode } }; procs: FakeProcs } {
+function fakeGitDaemon(): { open: (o: DaemonChannelOptions) => Promise<DaemonChannel>; pr: { refuse?: { error: string; code?: DaemonErrorCode } }; procs: FakeProcs; ops: string[] } {
   const procs = fakeProcs();
   const state: { refuse?: { error: string; code?: DaemonErrorCode } } = {};
+  /** Every op sent, in order. */
+  const ops: string[] = [];
   return {
     pr: state,
     procs,
+    ops,
     open: async ({ onEvent }: DaemonChannelOptions) => ({
       send: async (frame: { op: string; branch?: string }) => {
+        ops.push(frame.op);
         const proc = procs.answer(frame, onEvent);
         if (proc !== undefined) return proc as never;
         // A source a fork is made from reads as on its own branch, tracked and level with the remote, and the fork's copy is

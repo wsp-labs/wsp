@@ -10,7 +10,8 @@ import { isAbsolute, join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlaceFolderMachine, type ExecResult, type Machine, type RunOptions } from "@wsp/engine";
 import type { Caller } from "@wsp/protocol";
-import { boxLauncher, boxLedger, boxRoad, boxSlateDir } from "../src/slate-box.js";
+import { boxLauncher, boxLedger, boxRoad } from "../src/slate-box.js";
+import { boxSlateDir } from "../src/slate-mcp-on.js";
 import { cgroupJoinLine, FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX, threadCgroup } from "@wsp/protocol";
 import { slateHostAway, slateServerNotSetUp } from "@wsp/protocol/slate";
 import type { McpPipeOpen } from "../src/slate-mcp.js";
@@ -475,7 +476,7 @@ describe("a box thread's tool run", () => {
   const AWAY = { computer: "hetzner", host: "studio" };
   const CLAUDE = { id: "claude", name: "Claude Code" };
   /** Slates for a thread on hetzner, where the agent's config there names github alone, or on this computer. */
-  const slatesOn = (where: typeof AWAY | undefined | (() => typeof AWAY | undefined), open?: McpPipeOpen) => {
+  const slatesOn = (where: typeof AWAY | undefined | (() => typeof AWAY | undefined), open?: McpPipeOpen, machine?: Machine) => {
     const awayOf = typeof where === "function" ? where : () => where;
     const away = awayOf();
     const thread = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -486,7 +487,7 @@ describe("a box thread's tool run", () => {
       record: () => {},
       emit: () => {},
       thread: () => ({ workspaceId: "w1", rootThreadId: thread, sessionId: "s1", folder: temp(), hostFolder: temp(), computer: away?.computer ?? "studio" }),
-      ...(typeof where === "function" || away !== undefined ? { machineOf: () => bashMachine(), away: awayOf, missingOn: async (_t: string, servers: string[]) => (asked.push(servers), { agent: CLAUDE, thread, missing: servers.filter(s => s !== "github") }) } : {}),
+      ...(typeof where === "function" || away !== undefined ? { machineOf: () => machine ?? bashMachine(), away: awayOf, missingOn: async (_t: string, servers: string[]) => (asked.push(servers), { agent: CLAUDE, thread, missing: servers.filter(s => s !== "github") }) } : {}),
       under: lead => [lead],
       threadOfToken: () => thread,
       sources: (threadId, workspaceId) => ({ threadId, workspaceId, now: Date.now(), rows: () => [] }) as never,
@@ -582,6 +583,44 @@ describe("a box thread's tool run", () => {
     expect(pipes[1]!.killed).toBe(false);
     await slates.forget(thread);
     await vi.waitFor(() => expect(pipes[1]!.killed).toBe(true));
+    slates.close();
+  });
+
+  it("a forget that keeps, as a delete with keep asks, leaves the slate's running run and its kept server running", async () => {
+    const pipes: { killed: boolean }[] = [];
+    const open: McpPipeOpen = (_t, _spec, on) => {
+      const pipe = { killed: false };
+      pipes.push(pipe);
+      return {
+        write(text) {
+          for (const line of text.split("\n").filter(l => l.startsWith("{"))) {
+            const msg = JSON.parse(line) as { id?: number; method: string };
+            if (msg.id === undefined) continue;
+            const result = msg.method === "initialize" ? { protocolVersion: "2025-06-18", capabilities: { tools: {} } } : msg.method === "tools/list" ? { tools: [{ name: "list", annotations: { readOnlyHint: true } }] } : { content: [{ type: "text", text: "{}" }] };
+            setImmediate(() => on.out(Buffer.from(`${JSON.stringify({ jsonrpc: "2.0", id: msg.id, result })}\n`)));
+          }
+        },
+        kill() {
+          pipe.killed = true;
+          setImmediate(() => on.exit("the server was stopped"));
+        },
+      };
+    };
+    const machine = bashMachine();
+    const { slates, thread, asThread } = slatesOn({ ...AWAY }, open, machine);
+    await slates.write({ text: `<slate title="Repos"><run name="repos" tool="github.list" /><run name="nap" cmd="sleep 2" /><column><button id="go" label="Go" onPress={start($repos)} /><button id="nap" label="Nap" onPress={start($nap)} /></column></slate>` }, asThread);
+    const view = async () => (await slates.get(thread))!;
+    const press = async (piece: string, n: number) => slates.event({ threadId: thread, version: (await view()).version, piece, event: "press", requestId: `${piece}-${n}` });
+    for (const piece of ["go", "nap"]) {
+      const said = await press(piece, 0);
+      if (said.ask !== undefined) await slates.approve({ threadId: thread, key: said.ask.key, scope: "thread" });
+    }
+    await vi.waitFor(async () => expect((await view()).values["repos"]).toMatchObject({ state: "done" }), { timeout: 5_000 });
+    await vi.waitFor(async () => expect((await view()).values["nap"]).toMatchObject({ state: "running" }), { timeout: 5_000 });
+    await slates.forget(thread, { keep: true });
+    await new Promise(resolve => setTimeout(resolve, 500));
+    expect(await slates.get(thread)).toBeNull();
+    expect([pipes.map(p => p.killed), machine.killed()]).toEqual([[false], false]);
     slates.close();
   });
 

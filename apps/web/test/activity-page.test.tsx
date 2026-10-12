@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fmtBytes, type PlaceView, type ProcEntry, type ProcSnapshot, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { fmtBytes, type AppProc, type PlaceView, type ProcEntry, type ProcSnapshot, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { provideDaemonWire } from "../src/files/wire.js";
 import { wireAppProcs } from "../src/machine/appProcs.js";
 import { syncPorts } from "../src/machine/ports.js";
 import { getProcs, resetProcs } from "../src/machine/procs.js";
 import { useContextMenuStore } from "../src/actions/contextMenu.js";
 import { useBrowserTabs } from "../src/browser/tabs.js";
+import { guestKey, useGuests } from "../src/browser/guests.js";
+import { useRightPanelStore } from "../src/rightPanelStore.js";
 import { useSlateStore } from "../src/slate/store.js";
 import { useStore } from "../src/protocol/store.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
@@ -18,6 +20,8 @@ import { SidebarCorner } from "../src/sidebar/SidebarCorner.js";
 import { TooltipProvider } from "../src/components/ui/tooltip.js";
 import { mountSettings, pageAt, resetSettings, settingsApi, settle } from "./settings-harness.js";
 import { fakeWire, type FakeWire } from "./surface-harness.js";
+import { closeMenu, fromMenu, menuOf } from "./row-menu.js";
+import { pickOption } from "./select.js";
 
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
@@ -64,8 +68,8 @@ afterEach(() => {
   unwireApp = () => {};
 });
 
-const open = async (): Promise<ReturnType<typeof mountSettings>> => {
-  const view = mountSettings({ api: settingsApi({ watchAppProcs: async () => APP_PROCS, unwatchAppProcs: async () => {}, onAppProcs: () => () => {} }).api, at: { kind: "group", group: "activity" } });
+const open = async (appProcs: AppProc[] = APP_PROCS): Promise<ReturnType<typeof mountSettings>> => {
+  const view = mountSettings({ api: settingsApi({ watchAppProcs: async () => appProcs, unwatchAppProcs: async () => {}, onAppProcs: () => () => {} }).api, at: { kind: "group", group: "activity" } });
   unwireApp = wireAppProcs(useStore);
   await settle();
   return view;
@@ -105,10 +109,37 @@ describe("Settings > Activity", () => {
     act(() => useSlateStore.setState({ byThread: { t_one: { record: { document: { title: "Gold price" } } } as never } }));
     expect(document.querySelector("[data-proc-row=slate-heading]")!.textContent).toContain("Slate: Gold price");
     act(() => useSlateStore.setState({ byThread: {} }));
-    expect(document.querySelector("[data-proc-row=slate-heading] [data-act]")).toBeNull();
+    expect(await menuOf(document.querySelector("[data-proc-row=slate-heading]")!)).toEqual(["end-all", "open-thread"]);
+    closeMenu();
     const vite = document.querySelector<HTMLElement>("[data-proc-row='32']")!;
     expect([...vite.querySelectorAll("[data-col]")].map(c => c.textContent)).toEqual(["300 MB", "2.0%", "11 mW"]);
     expect(vite.textContent).toContain(":5173");
+  });
+
+  it("puts a browser tab under the thread whose pane holds it, and Graphics and Network under wsp as shared by the app and its tabs", async () => {
+    act(() => useStore.setState({ selectedId: WS, selectedThreadId: "t_two" }));
+    const tabId = useBrowserTabs.getState().createTab(WS, { port: 5199, path: "/" });
+    act(() => useRightPanelStore.getState().openBrowser(WS, tabId));
+    const key = guestKey(WS, tabId);
+    // The guest layer holds the tab's webview, whose WebContents id Electron gives it and jsdom does not.
+    Object.defineProperty(HTMLUnknownElement.prototype, "getWebContentsId", { value: () => 9, configurable: true });
+    act(() => useGuests.setState({ guests: { [key]: { workspaceId: WS, tabId, src: "http://localhost:5199/", route: null, loaded: 1 } } }));
+    await open([...APP_PROCS, { pid: 35, kind: "tab", origins: ["http://localhost:5199"], contents: [9] }, { pid: 36, kind: "gpu" }, { pid: 37, kind: "network" }]);
+    feed(1, [...PROCS(1), proc(35, 1, "wsp Helper", { rss: 120 * MB }), proc(36, 1, "wsp Helper (GPU)"), proc(37, 1, "wsp Helper")]);
+    toggle("t_two");
+    toggle("wsp");
+    const tab = document.querySelector<HTMLElement>("[data-proc-row='35']")!;
+    expect(tab.closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("t_two");
+    expect([tab.dataset["kind"], tab.textContent]).toEqual(["tab", expect.stringContaining("localhost:5199")]);
+    expect(await menuOf(tab)).not.toContain("end");
+    closeMenu();
+    for (const pid of ["36", "37"]) {
+      const row = document.querySelector<HTMLElement>(`[data-proc-row='${pid}']`)!;
+      expect(row.closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("wsp");
+      expect(row.textContent).toContain("Shared by the app and its tabs");
+    }
+    delete (HTMLUnknownElement.prototype as { getWebContentsId?: unknown }).getWebContentsId;
+    act(() => useGuests.setState({ guests: {} }));
   });
 
   it("puts the task manager's own cost last under wsp", async () => {
@@ -123,7 +154,7 @@ describe("Settings > Activity", () => {
     expect(rowPids().at(-1)).toBe("sampler");
   });
 
-  it("sorts by each column, filters as it is typed and narrows by the chips", async () => {
+  it("sorts by each column, filters as it is typed and narrows by the kind and thread selects", async () => {
     await open();
     feed(1);
     fireEvent.click(document.querySelector("[data-sort=cpu]")!);
@@ -135,13 +166,14 @@ describe("Settings > Activity", () => {
     expect(groups()).toEqual(["t_one"]);
     expect(rowPids()).toEqual(["30", "32", "34"]);
     fireEvent.change(filter, { target: { value: "" } });
-    fireEvent.click(document.querySelector("[data-chip-set=threads] [data-chip=t_two]")!);
+    expect(document.querySelector("[data-k=activity-chips]")).toBeNull();
+    const thread = document.querySelector("[data-k=activity-thread]")!;
+    expect(await pickOption(thread, "Fast build")).toEqual(["All threads", "Wire the page", "Fast build"]);
     expect(groups()).toEqual(["t_two"]);
-    fireEvent.click(document.querySelector("[data-chip-set=threads] [data-chip=t_two]")!);
-    fireEvent.click(document.querySelector("[data-chip-set=kinds] [data-chip=slate]")!);
+    await pickOption(thread, "All threads");
+    expect(await pickOption(document.querySelector("[data-k=activity-kind]")!, "Slate run")).toEqual(["All kinds", "Agent", "Tool server", "Dev server", "Build", "Slate run", "Browser tab", "wsp"]);
     expect(groups()).toEqual(["t_one"]);
   });
-
   it("draws the Processes, Kinds and Ports views over the same watch", async () => {
     await open();
     feed(1);
@@ -176,23 +208,22 @@ describe("Settings > Activity", () => {
     expect(document.querySelectorAll("[data-tile-line] [data-chart-end]").length).toBe(0);
   });
 
-  it("gives End and End all the danger ink under the pointer, and the agent Stop and never End", async () => {
+  it("puts no act on a row or a thread's head: End, a destructive item, and Stop stand in the row's menu", async () => {
     await open();
     feed(1);
     toggle("t_one");
-    const danger = ["border-destructive/50", "text-destructive-foreground"];
-    for (const c of danger) expect(document.querySelector("[data-proc-row='32'] [data-act=end]")!.className).toContain(c);
-    for (const c of danger) expect(document.querySelector("[data-group=t_one] [data-act=end-all]")!.className).toContain(c);
-    expect(document.querySelector("[data-proc-row='30'] [data-act=end]")).toBeNull();
-    expect(document.querySelector("[data-proc-row='30'] [data-act=stop]")!.className).not.toContain("border-destructive/50");
+    expect(document.querySelectorAll("[data-act=end], [data-act=stop], [data-act=free], [data-act=end-all], [data-act=end-container]").length).toBe(0);
+    expect(await menuOf(document.querySelector("[data-proc-row='32']")!)).toContain("end");
+    expect(useContextMenuStore.getState().menu!.items.find(i => i.id === "end")).toMatchObject({ destructive: true });
+    closeMenu();
+    expect(await menuOf(document.querySelector("[data-proc-row='30']")!)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
+    closeMenu();
   });
-
-  it("gives every process row a menu, the road to its acts below 768 px, where the inline acts stand down", async () => {
+  it("gives every process row a menu, the road to its acts at every width", async () => {
     await open();
     feed(1);
     toggle("t_one");
     const row = document.querySelector<HTMLElement>("[data-proc-row='32']")!;
-    expect(row.querySelector("[data-act=end]")!.parentElement!.className).toContain("narrow:hidden");
     const menu = row.querySelector<HTMLElement>("[data-act=menu]")!;
     expect(menu.parentElement!.className).toContain("narrow:opacity-100");
     expect(menu.parentElement!.className).not.toContain("narrow:hidden");
@@ -202,35 +233,39 @@ describe("Settings > Activity", () => {
     act(() => useContextMenuStore.getState().choose("end"));
     await settle();
     expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM", mode: "tree", startedAt: 0 }]);
-    fireEvent.click(document.querySelector<HTMLElement>("[data-proc-row='30'] [data-act=menu]")!);
-    await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
-    expect(useContextMenuStore.getState().menu!.items.map(i => i.id)).toEqual(["stop", "open-thread", "copy-command", "copy-pid"]);
-    act(() => useContextMenuStore.getState().choose(null));
   });
-
-  it("gives a thread's head a menu with End all and Open thread, its road below 768 px, where the act cell stands down", async () => {
+  it("gives a thread's head a menu with Open thread and no End all, its road below 768 px", async () => {
     await open();
     feed(1);
     const head = document.querySelector<HTMLElement>("[data-group='t_one']")!;
-    expect(head.querySelector("[data-act=end-all]")!.parentElement!.className).toContain("narrow:hidden");
     const menu = head.querySelector<HTMLElement>("[data-act=head-menu]")!;
     expect(menu.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "narrow:flex"]));
-    expect(menu.className).not.toContain("narrow:hidden");
     fireEvent.click(menu);
     await waitFor(() => expect(useContextMenuStore.getState().menu).not.toBeNull());
-    expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["End all", "Open thread"]);
-    act(() => useContextMenuStore.getState().choose("end-all"));
-    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(useContextMenuStore.getState().menu!.items.map(i => i.label)).toEqual(["Open thread"]);
+    closeMenu();
     expect(head.getAttribute("aria-expanded")).toBe("false");
     expect(document.querySelector("[data-group='wsp'] [data-act=head-menu]")).toBeNull();
   });
 
-  it("opens a port in a browser tab of its thread from the Ports view, beside End", async () => {
+  it("ends a slate's runs from End all in its heading's menu, after asking with their count and memory", async () => {
+    await open();
+    feed(1);
+    toggle("t_one");
+    await fromMenu(document.querySelector("[data-proc-row=slate-heading]")!, "end-all");
+    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(screen.getByRole("alertdialog").textContent).toContain("End everything the slate runs?");
+    expect(screen.getByRole("alertdialog").textContent).toContain(`1 process holding ${fmtBytes(18 * MB)} end, and what each started.`);
+    fireEvent.click(document.querySelector("[data-k=activity-confirm]")!);
+    await settle();
+    expect(wire.calls.filter(([op]) => op === "proc.kill")).toEqual([["proc.kill", { pid: 33, signal: "TERM", mode: "tree", startedAt: 0 }]]);
+  });
+  it("opens a port in a browser tab of its thread from the Ports view, its End in the menu", async () => {
     await open();
     feed(1);
     act(() => useSettingsStore.getState().pickActivityView("ports"));
     const row = document.querySelector<HTMLElement>("[data-port-row='5173']")!;
-    expect([...row.querySelectorAll<HTMLElement>("[data-act]")].map(b => b.dataset["act"])).toEqual(["open-port", "end", "menu"]);
+    expect([...row.querySelectorAll<HTMLElement>("[data-act]")].map(b => b.dataset["act"])).toEqual(["open-port", "menu"]);
     fireEvent.click(row.querySelector("[data-act=open-port]")!);
     await settle();
     expect(useStore.getState().selectedThreadId).toBe("t_one");
@@ -272,7 +307,8 @@ describe("Settings > Activity", () => {
       const row = (c: string) => document.querySelector<HTMLElement>(`[data-container-row="${ID(c)}"]`)!;
       for (const c of ["b", "c", "d", "e"]) {
         expect(row(c).closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("loose");
-        expect(row(c).querySelector("[data-act=end-container]")).toBeNull();
+        expect(await menuOf(row(c))).not.toContain("end");
+        closeMenu();
       }
       expect(row("b").title).toBe("No thread started it, so wsp leaves it to whoever did");
       expect(row("c").title).toBe("No thread started it, so wsp leaves it to whoever did");
@@ -285,21 +321,18 @@ describe("Settings > Activity", () => {
       expect(useContextMenuStore.getState().menu!.items.map(i => i.id)).toEqual(["copy-name", "copy-id"]);
       act(() => useContextMenuStore.getState().choose(null));
       toggle("t_two");
-      expect(row("a").querySelector("[data-act=end-container]")).not.toBeNull();
+      expect(await menuOf(row("a"))).toContain("end");
+      closeMenu();
     });
 
-    it("End all names the thread's containers with its processes, and stops them as it ends the processes", async () => {
+    it("stops a container its thread placed from End in its menu", async () => {
       wire = fakeWire({ "proc.watch": {}, "proc.unwatch": {}, "proc.kill": {}, "container.stop": {} });
       provideDaemonWire(HERE_KEY, wire);
       await open();
       feedWith(1);
-      fireEvent.click(document.querySelector("[data-group=t_two] [data-act=end-all]")!);
-      await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
-      // The database's 170 MB: rustc runs under the agent and ends with its turn's stop, never by End all's own kill.
-      expect(screen.getByText(`1 container holding ${fmtBytes(170 * MB)} end, after its turn stops.`)).toBeTruthy();
-      fireEvent.click(document.querySelector("[data-k=activity-confirm]")!);
+      toggle("t_two");
+      await fromMenu(document.querySelector(`[data-container-row="${ID("a")}"]`)!, "end");
       await settle();
-      expect(wire.calls.filter(([op]) => op === "proc.kill")).toEqual([]);
       expect(wire.calls.filter(([op]) => op === "container.stop")).toEqual([["container.stop", { container: ID("a") }]]);
     });
   });
@@ -308,7 +341,7 @@ describe("Settings > Activity", () => {
     await open();
     feed(1);
     toggle("t_one");
-    fireEvent.click(document.querySelector("[data-proc-row='32'] [data-act=end]")!);
+    await fromMenu(document.querySelector("[data-proc-row='32']")!, "end");
     await settle();
     // The process and everything under it, checked against the start its row was read with.
     expect(wire.calls.at(-1)).toEqual(["proc.kill", { pid: 32, signal: "TERM", mode: "tree", startedAt: 0 }]);
@@ -386,8 +419,10 @@ describe("Settings > Activity", () => {
     const agent = document.querySelector<HTMLElement>("[data-proc-row='101']")!;
     expect(agent.dataset["kind"]).toBe("agent");
     expect(document.querySelector("[data-proc-row='100']")).toBeNull();
-    expect([...agent.querySelectorAll<HTMLElement>("[data-act]")].map(b => b.dataset["act"])).toEqual(["stop", "menu"]);
-    fireEvent.click(agent.querySelector("[data-act=stop]")!);
+    expect([...agent.querySelectorAll<HTMLElement>("[data-act]")].map(b => b.dataset["act"])).toEqual(["menu"]);
+    expect(await menuOf(agent)).not.toContain("end");
+    closeMenu();
+    await fromMenu(agent, "stop");
     await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
     expect(screen.getByText(/ends with it, its dev and tool servers included/)).toBeTruthy();
     provideDaemonWire("ws_box", null);
@@ -397,7 +432,7 @@ describe("Settings > Activity", () => {
     await open();
     feed(1);
     toggle("t_one");
-    fireEvent.click(document.querySelector("[data-proc-row='30'] [data-act=stop]")!);
+    await fromMenu(document.querySelector("[data-proc-row='30']")!, "stop");
     await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
     expect(screen.getByText(/The dev server and tool servers it started keep running/)).toBeTruthy();
   });
@@ -419,9 +454,6 @@ describe("Activity's threads", () => {
     expect(document.querySelector("[data-group=t_two] [data-col=mem]")!.textContent).toBe(fmtBytes(400 * MB + 9 * GB));
     toggle("t_one");
     expect(groups()).toEqual(["wsp", "t_one"]);
-    fireEvent.click(document.querySelector("[data-group=t_one] [data-act=end-all]")!);
-    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
-    expect(screen.getByText(/The threads it started are left as they are/)).toBeTruthy();
   });
 
   it("draws again only the rows whose words a frame moved", () => {

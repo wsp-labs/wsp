@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { SearchIcon } from "lucide-react";
 import { fmtBytes, folderOnJoined, THREAD_CGROUPS, HERE_PLACE_ID, isProviderPlace, placeOf, workspaceKind, type PlaceView, type WorkspaceView } from "@wsp/protocol";
 import { ChartPlot, spanPoints } from "../../components/machine/MachineSurface.js";
-import { CHIP } from "../../components/ui/chips.js";
 import { Input } from "../../components/ui/input.js";
 import { SegmentedControl } from "../../components/ui/segmented-control.js";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../components/ui/select.js";
@@ -35,13 +34,13 @@ import {
   energyTint,
   energyWord,
   filterGroups,
-  flat,
   flatRows,
   HISTORY_POINTS,
   KIND_WORDS,
   kindGroups,
   memoryShareTint,
   NO_PICKS,
+  pickChoices,
   portRows,
   pushHistory,
   sortGroups,
@@ -49,6 +48,7 @@ import {
   totalSpent,
   type ActivityPicks,
   type ActivityScope,
+  type PickChoices,
   type ActivitySort,
   type HistoryPoint,
   type ProcKind,
@@ -159,7 +159,11 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
 
   const energy = scope?.energy ?? false;
   const look: Look = useMemo(() => ({ sort, onSort: setSort, energy }), [sort, energy]);
-  const filtering = filter.trim() !== "" || picks.threads.length + picks.kinds.length + picks.projects.length > 0;
+  const threadGone = scope !== null && picks.thread !== null && !scope.groups.some(g => g.id === picks.thread);
+  useEffect(() => {
+    if (threadGone) setPicks(p => ({ ...p, thread: null }));
+  }, [threadGone]);
+  const filtering = filter.trim() !== "" || picks.thread !== null || picks.kind !== null;
   const groups = useMemo(() => (scope === null ? [] : sortGroups(filterGroups(scope.groups, filter, picks), sort)), [scope, filter, picks, sort]);
   const name = placeName(computer.place);
   const unavailable = snapshot === null && absent === null ? procs.unavailable : null;
@@ -167,8 +171,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
   return (
     <div data-k="activity" data-activity-at={computer.place.id} className="flex animate-settle-in flex-col gap-10 motion-reduce:animate-none">
       {absent !== null ? null : scope === null ? <TilesSkeleton /> : <Tiles scope={scope} history={history.points} mem={mem} />}
-      <Controls computer={computer} computers={computers} filter={filter} onFilter={setFilter} {...(view === "processes" ? { every: { on: every, set: setEvery } } : {})} />
-      {scope === null || absent !== null ? null : <Chips scope={scope} picks={picks} onPicks={setPicks} />}
+      <Controls computer={computer} computers={computers} filter={filter} onFilter={setFilter} picks={picks} onPicks={setPicks} choices={scope === null || absent !== null ? NO_CHOICES : pickChoices(scope.groups, picks)} {...(view === "processes" ? { every: { on: every, set: setEvery } } : {})} />
       {absent !== null ? (
         <div data-k="activity-away" className="flex flex-col gap-1 py-2">
           <p className={NOTE}>{absent.said}</p>
@@ -306,35 +309,71 @@ function RowsSkeleton() {
   );
 }
 
-function Controls({ computer, computers, filter, onFilter, every }: { computer: ActivityComputer; computers: readonly ActivityComputer[]; filter: string; onFilter: (v: string) => void; every?: { on: boolean; set: (v: boolean) => void } }) {
+const NO_CHOICES: PickChoices = { kinds: [], threads: [] };
+/** The page's own pickers and its filter stand at the height of the Agents page's computer picker, the Settings
+ * controls outside a row, not a row's. */
+const BAR_SELECT = cn(SELECT_WIDTH, "h-8 min-h-8");
+const BAR_FIELD = cn(ROW_FIELD, "h-8 [&_input]:h-7.5 [&_input]:leading-7.5 sm:[&_input]:h-7.5 sm:[&_input]:leading-7.5");
+const ALL = "all";
+
+function Controls({ computer, computers, filter, onFilter, picks, onPicks, choices, every }: { computer: ActivityComputer; computers: readonly ActivityComputer[]; filter: string; onFilter: (v: string) => void; picks: ActivityPicks; onPicks: (p: ActivityPicks) => void; choices: PickChoices; every?: { on: boolean; set: (v: boolean) => void } }) {
   const pick = useSettingsStore(s => s.pickActivityPlace);
+  const titleOf = (id: string): string => choices.threads.find(t => t.id === id)?.title ?? "";
   return (
     <div data-k="activity-controls" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <Select value={computer.place.id} onValueChange={id => pick(id as string)}>
-        <SelectTrigger size="sm" aria-label={W.computer} data-k="activity-computer" className={cn(SELECT_WIDTH, "w-56 gap-2 max-sm:w-full")}>
-          <SelectValue>
-            {(id: string) => {
-              const shown = computers.find(c => c.place.id === id)?.place;
-              return shown === undefined ? null : (
+      <span className="flex min-w-0 flex-wrap items-center gap-2 max-sm:grid max-sm:w-full max-sm:grid-cols-2">
+        <Select value={computer.place.id} onValueChange={id => pick(id as string)}>
+          <SelectTrigger size="sm" aria-label={W.computer} data-k="activity-computer" className={cn(BAR_SELECT, "w-56 gap-2 max-sm:col-span-2 max-sm:w-full")}>
+            <SelectValue>
+              {(id: string) => {
+                const shown = computers.find(c => c.place.id === id)?.place;
+                return shown === undefined ? null : (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ComputerGlyph place={shown} className="size-3.5 shrink-0 text-foreground/80" />
+                    <span className="truncate">{placeName(shown)}</span>
+                  </span>
+                );
+              }}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup>
+            {computers.map(c => (
+              <SelectItem key={c.place.id} value={c.place.id}>
                 <span className="flex min-w-0 items-center gap-2">
-                  <ComputerGlyph place={shown} className="size-3.5 shrink-0 text-foreground/80" />
-                  <span className="truncate">{placeName(shown)}</span>
+                  <ComputerGlyph place={c.place} className="size-4 text-foreground/80" />
+                  {placeName(c.place)}
                 </span>
-              );
-            }}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectPopup>
-          {computers.map(c => (
-            <SelectItem key={c.place.id} value={c.place.id}>
-              <span className="flex min-w-0 items-center gap-2">
-                <ComputerGlyph place={c.place} className="size-4 text-foreground/80" />
-                {placeName(c.place)}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectPopup>
-      </Select>
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+        <Select value={picks.kind ?? ALL} onValueChange={v => onPicks({ ...picks, kind: v === ALL ? null : (v as ProcKind) })}>
+          <SelectTrigger size="sm" aria-label={W.kind} data-k="activity-kind" className={cn(BAR_SELECT, "w-40 max-sm:w-full")}>
+            <SelectValue>{(v: string) => <span className="truncate">{v === ALL ? W.allKinds : KIND_WORDS[v as ProcKind]}</span>}</SelectValue>
+          </SelectTrigger>
+          <SelectPopup>
+            <SelectItem value={ALL}>{W.allKinds}</SelectItem>
+            {choices.kinds.map(k => (
+              <SelectItem key={k} value={k}>
+                {KIND_WORDS[k]}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+        <Select value={picks.thread ?? ALL} onValueChange={v => onPicks({ ...picks, thread: v === ALL ? null : (v as string) })}>
+          <SelectTrigger size="sm" aria-label={W.thread} data-k="activity-thread" className={cn(BAR_SELECT, "w-48 max-sm:w-full")}>
+            <SelectValue>{(v: string) => <span className="truncate">{v === ALL ? W.allThreads : titleOf(v)}</span>}</SelectValue>
+          </SelectTrigger>
+          <SelectPopup>
+            <SelectItem value={ALL}>{W.allThreads}</SelectItem>
+            {choices.threads.map(t => (
+              <SelectItem key={t.id} value={t.id}>
+                <span className="truncate">{t.title}</span>
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      </span>
       <span className="flex items-center gap-4 max-sm:w-full">
         {every === undefined ? null : (
           <label className={cn(NOTE, "flex shrink-0 items-center gap-2")}>
@@ -344,53 +383,9 @@ function Controls({ computer, computers, filter, onFilter, every }: { computer: 
         )}
         <span className="relative flex w-64 items-center max-sm:w-full">
           <SearchIcon aria-hidden className="pointer-events-none absolute left-2.5 z-10 size-3.5 text-muted-foreground" />
-          <Input data-k="activity-filter" value={filter} onChange={e => onFilter(e.target.value)} placeholder={W.filter} aria-label={W.filter} className={cn(ROW_FIELD, "w-full [&_input]:pl-8")} />
+          <Input data-k="activity-filter" value={filter} onChange={e => onFilter(e.target.value)} placeholder={W.filter} aria-label={W.filter} className={cn(BAR_FIELD, "w-full [&_input]:pl-8")} />
         </span>
       </span>
-    </div>
-  );
-}
-
-/** The thread, kind and project chips: each a press that narrows the view to it, pressed again to let it go. A set with
- * one choice says nothing and is not drawn. */
-function Chips({ scope, picks, onPicks }: { scope: ActivityScope; picks: ActivityPicks; onPicks: (p: ActivityPicks) => void }) {
-  const owned = scope.groups.flatMap(g => g.procs.flatMap(flat));
-  const kinds = [...new Set(owned.map(p => p.kind))];
-  const threadGroups = scope.groups.filter(g => g.thread !== undefined);
-  const projects = [...new Set(threadGroups.map(g => g.thread!.project))];
-  const toggle = <K extends keyof ActivityPicks>(k: K, v: ActivityPicks[K][number]): void => {
-    const list = picks[k] as readonly string[];
-    onPicks({ ...picks, [k]: list.includes(v) ? list.filter(x => x !== v) : [...list, v] });
-  };
-  const sets: { k: keyof ActivityPicks; word: string; items: { v: string; text: string; glyph?: ReactNode }[] }[] = [
-    { k: "kinds", word: W.chips.kinds, items: kinds.map(v => ({ v, text: KIND_WORDS[v as ProcKind] })) },
-    { k: "projects", word: W.chips.projects, items: projects.map(v => ({ v, text: v })) },
-    { k: "threads", word: W.chips.threads, items: threadGroups.map(g => ({ v: g.id, text: g.thread!.title })) },
-  ];
-  const drawn = sets.filter(s => s.items.length > 1 || (picks[s.k] as readonly string[]).length > 0);
-  if (drawn.length === 0) return null;
-  return (
-    <div data-k="activity-chips" className="flex flex-col gap-2">
-      {drawn.map(s => (
-        <div key={s.k} data-chip-set={s.k} className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none]">
-          <span className="w-16 shrink-0 text-xs text-muted-foreground">{s.word}</span>
-          {s.items.map(item => {
-            const on = (picks[s.k] as readonly string[]).includes(item.v);
-            return (
-              <button
-                key={item.v}
-                type="button"
-                aria-pressed={on}
-                data-chip={item.v}
-                onClick={() => toggle(s.k, item.v as never)}
-                className={cn(CHIP, "max-w-56 shrink-0 cursor-pointer font-sans text-xs transition-colors duration-150 hover:text-foreground", on ? "border-foreground/40 bg-foreground/[0.1] text-foreground" : "text-muted-foreground")}
-              >
-                <span className="truncate">{item.text}</span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
     </div>
   );
 }

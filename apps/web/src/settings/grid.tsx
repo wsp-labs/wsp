@@ -22,13 +22,13 @@ export const LIST_COLUMNS = "grid-cols-[minmax(0,1fr)_56px_72px_64px_72px_14px] 
 /** A computer's or a cloud's page: the name, a version, and the action at the right. */
 export const PAGE_COLUMNS = "grid-cols-[minmax(0,1fr)_64px_280px] max-md:grid-cols-[minmax(0,1fr)_auto]";
 
-/** Activity's lists: the name, memory, CPU, energy, the act, and the fold or the row's menu; below 768 px the name,
- * memory and the last. */
-export const ACTIVITY_COLUMNS = "grid-cols-[minmax(0,1fr)_76px_60px_64px_64px_20px] narrow:grid-cols-[minmax(0,1fr)_72px_20px]";
-/** Activity's flat list: the name, the pid, memory, CPU, energy, the act and the row's menu. */
-export const ACTIVITY_FLAT_COLUMNS = "grid-cols-[minmax(0,1fr)_56px_76px_60px_64px_64px_20px] narrow:grid-cols-[minmax(0,1fr)_72px_20px]";
-/** Activity's ports: the port, the process, its thread, who can connect, Open and End, and the row's menu. */
-export const ACTIVITY_PORT_COLUMNS = "grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_120px_112px_20px] narrow:grid-cols-[64px_minmax(0,1fr)_20px]";
+/** Activity's lists: the name, memory, CPU, energy, and the fold or the row's menu, which holds its acts; below 768 px
+ * the name, memory and the last. */
+export const ACTIVITY_COLUMNS = "grid-cols-[minmax(0,1fr)_76px_60px_64px_20px] narrow:grid-cols-[minmax(0,1fr)_72px_20px]";
+/** Activity's flat list: the name, the pid, memory, CPU, energy and the row's menu. */
+export const ACTIVITY_FLAT_COLUMNS = "grid-cols-[minmax(0,1fr)_56px_76px_60px_64px_20px] narrow:grid-cols-[minmax(0,1fr)_72px_20px]";
+/** Activity's ports: the port, the process, its thread, who can connect, Open, and the row's menu. */
+export const ACTIVITY_PORT_COLUMNS = "grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_120px_64px_20px] narrow:grid-cols-[64px_minmax(0,1fr)_20px]";
 
 /** A cell that stands only while the full template does. */
 export const WIDE_ONLY = "max-md:hidden";

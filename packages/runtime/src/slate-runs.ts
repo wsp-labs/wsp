@@ -236,7 +236,8 @@ export interface SlateRuns {
   reshape(threadId: string, cmd: string, input: string, folder: string, timeoutS?: number): Reshape;
   secrets: SlateSecrets;
   /** The thread is gone: its runs, timers, approvals in memory and secrets with it. */
-  drop(threadId: string): void;
+  /** Forgets the thread's runs; with `keep`, those running are left running and only its timers stop. */
+  drop(threadId: string, keep?: boolean): void;
   close(): void;
 }
 
@@ -961,10 +962,10 @@ export function createSlateRuns(deps: SlateRunsDeps): SlateRuns {
       scrub: secrets.scrub,
       plaintext: secrets.plaintext,
     },
-    drop(threadId) {
+    drop(threadId, keep = false) {
       const t = threads.get(threadId);
       if (t !== undefined) {
-        for (const [run, l] of t.runs) stop(threadId, run, l, undefined);
+        if (!keep) for (const [run, l] of t.runs) stop(threadId, run, l, undefined);
         clearTimers(t);
         threads.delete(threadId);
       }

@@ -8,16 +8,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { agentName } from "@wsp/catalog";
 import {
-  endHeads,
   fmtBytes,
   foldThreads,
   killTooOldOfLine,
   placeOf,
-  processesLeft,
   threadCgroup,
   threadUnread,
   waitingLine,
-  type ActivityProc as LeftProc,
   type PlaceView,
   type SessionView,
   type ThreadView,
@@ -37,11 +34,12 @@ import { getProcs, useWorkspaceProcs, type ProcsState } from "../../machine/proc
 import { addNotice } from "../../notices/store.js";
 import { DaemonRequestError } from "../../terminal/daemon-link.js";
 import { useStore } from "../../protocol/store.js";
-import { openBrowserAt } from "../../rightPanelStore.js";
+import { guestElement, useGuests } from "../../browser/guests.js";
+import { openBrowserAt, threadOfTab } from "../../rightPanelStore.js";
 import { loadSlate, useSlateStore } from "../../slate/store.js";
 import { ACTIVITY_WORDS as W } from "../format.js";
-import { scopeOf, type ActivityContainer, type ActivityGroup, type ActivityPort, type ActivityProc, type ActivityScope, type ActivityThread } from "./model.js";
-import { groupProcs, type Acts } from "./tables.js";
+import { scopeOf, spent, type ActivityContainer, type ActivityGroup, type ActivityPort, type ActivityProc, type ActivityScope, type ActivityThread } from "./model.js";
+import type { Acts } from "./tables.js";
 
 export interface ThreadsOn {
   readonly workspaces: readonly WorkspaceView[];
@@ -98,13 +96,25 @@ export function useActivityScope(key: string, here: boolean, threads: readonly A
   const appProcs = useAppProcs();
   const app = here ? appProcs : undefined;
   const snapshot = procs.snapshot;
+  // Read again each frame, since a guest's page id is there only once its webview has attached; GUEST_CAP bounds it.
+  const held = useGuests(s => s.guests);
+  const guests = useMemo(() => {
+    const byPage = new Map<number, string>();
+    if (app === undefined || snapshot === null) return byPage;
+    for (const [key, guest] of Object.entries(held)) {
+      const thread = threadOfTab(guest.workspaceId, guest.tabId);
+      const page = pageIdOf(key);
+      if (thread !== undefined && page !== undefined) byPage.set(page, thread);
+    }
+    return byPage;
+  }, [held, app, snapshot]);
   const host = useMemo(() => {
     if (!here || snapshot === null) return undefined;
     const ppid = snapshot.procs.find(p => p.pid === snapshot.daemon)?.ppid;
     return ppid === undefined || ppid <= 1 ? undefined : ppid;
   }, [here, snapshot]);
   // Read again each frame, so a running subagent's time moves with the figures and an ended one leaves after its minute.
-  const scope = useMemo(() => (snapshot === null ? null : scopeOf({ snapshot, threads, ports, now: Date.now(), ...(host === undefined ? {} : { host }), ...(app === undefined ? {} : { app }) })), [snapshot, threads, ports, host, app]);
+  const scope = useMemo(() => (snapshot === null ? null : scopeOf({ snapshot, threads, ports, guests, now: Date.now(), ...(host === undefined ? {} : { host }), ...(app === undefined ? {} : { app }) })), [snapshot, threads, ports, guests, host, app]);
 
   // A thread's slate is named by its title, read once for each thread with a slate run this window has not read.
   const slated = useMemo(() => (scope === null ? [] : scope.groups.flatMap(g => (g.thread !== undefined && g.procs.some(p => p.heading === true) && g.thread.slate === undefined ? [g.thread.id] : []))), [scope]);
@@ -117,6 +127,15 @@ export function useActivityScope(key: string, here: boolean, threads: readonly A
     }
   }, [slated]);
   return { procs, scope };
+}
+
+/** A guest's WebContents id; a webview that has not attached yet throws, and names none. */
+function pageIdOf(key: string): number | undefined {
+  try {
+    return guestElement(key)?.getWebContentsId();
+  } catch {
+    return undefined;
+  }
 }
 
 const statusInputOf = (t: ThreadView): ThreadStatusInput => ({
@@ -157,7 +176,7 @@ export function useActivityActs(key: string, workspaceId: string | null, snapsho
   const frame = useRef(snapshot);
   frame.current = snapshot;
   const verbs = useThreadVerbs();
-  const [asking, setAsking] = useState<{ kind: "stop" | "endAll"; group: ActivityGroup } | null>(null);
+  const [asking, setAsking] = useState<Asking | null>(null);
   const unspin = useCallback((pid: number): void => setEnding(s => new Set([...s].filter(at => at !== pid))), []);
   const listedWith = (p: ActivityProc): { startedAt?: number; identity?: string } => ({ ...(p.startedAt !== undefined ? { startedAt: p.startedAt } : {}), ...(p.id !== undefined ? { identity: p.id } : {}) });
   /** Processes a daemon too old for kill modes signalled alone, said once for the computer when the wait is over. */
@@ -236,7 +255,7 @@ export function useActivityActs(key: string, workspaceId: string | null, snapsho
       stopping,
       endContainer,
       stop: (_p, group) => setAsking({ kind: "stop", group }),
-      endAll: group => setAsking({ kind: "endAll", group }),
+      endAll: (heading, group) => setAsking({ kind: "endAll", group, heading }),
       workspaceOf: group => group?.thread?.workspaceId ?? workspaceId ?? undefined,
       openPort: (at, port, threadId) => {
         useStore.getState().select(at, threadId);
@@ -249,95 +268,40 @@ export function useActivityActs(key: string, workspaceId: string | null, snapsho
     }),
     [ending, end, free, stopping, endContainer, workspaceId],
   );
-  /** End all: the thread's turn stopped, or the agent it keeps freed, and only then one tree kill for each process left
-   * outside the agent, so the agent never runs on with its tool servers or its input gone. A head its agent's end took
-   * already is no failure. */
-  const endAll = async (g: ActivityGroup): Promise<void> => {
-    const t = g.thread;
-    const left = endsOf(g);
-    const agent = keptAgentOf(g);
-    if (t?.working === true) await verbs.stop?.(t.sessionId);
-    else if (agent !== undefined) await release(agent);
+  /** End all on a heading: one tree kill for each process it holds that a thread or wsp started; one gone on its own
+   * since is no failure. */
+  const endAll = (heading: ActivityProc): void => {
     const quiet = (e: unknown): void => {
       if (!(e instanceof DaemonRequestError && e.code === "not-found")) addNotice({ kind: "error", text: errorText(e) });
     };
-    for (const p of headsOf(g, left)) void kill(p).catch(quiet);
-    for (const c of g.containers) if (c.owned) endContainer(c);
+    for (const p of endsOf(heading)) void kill(p).catch(quiet);
   };
   const confirm = (): void => {
     if (asking === null) return;
-    const { kind, group } = asking;
     setAsking(null);
-    if (kind === "endAll") return void endAll(group).catch((e: unknown) => addNotice({ kind: "error", text: errorText(e) }));
-    if (group.thread?.working === true) void verbs.stop?.(group.thread.sessionId);
+    if (asking.kind === "endAll") return endAll(asking.heading);
+    if (asking.group.thread?.working === true) void verbs.stop?.(asking.group.thread.sessionId);
   };
   return { acts, dialog: <AskDialog asking={asking} onClose={() => setAsking(null)} onConfirm={confirm} /> };
 }
 
-/** A group's processes as the one rule for what a thread leaves running reads them, each row under the row it is drawn
- * under. A heading is no process, so its runs stand at the top; what wsp needs, and anything under it, is never ended. */
-function flatOf(g: ActivityGroup): LeftProc[] {
-  const flat: LeftProc[] = [];
-  const walk = (rows: readonly ActivityProc[], ppid: number): void => {
-    for (const p of rows) {
-      if (p.needed === true) continue;
-      if (p.heading === true) {
-        walk(p.children, 0);
-        continue;
-      }
-      flat.push({ pid: p.pid, ppid, depth: 0, startedAt: p.startedAt ?? 0, kind: p.kind, name: p.name, command: p.command, memory: p.mem, cpu: p.cpu, ports: [] });
-      walk(p.children, p.pid);
-    }
-  };
-  walk(g.procs, 0);
-  return flat;
-}
+/** What the dialog asks about: a running turn's stop, or End all on a heading's processes. */
+type Asking = { kind: "stop"; group: ActivityGroup } | { kind: "endAll"; group: ActivityGroup; heading: ActivityProc };
 
-/** The processes End all ends: what the thread would leave running once its agent ends, `processesLeft`'s list. */
-function endsOf(g: ActivityGroup): ActivityProc[] {
-  if (g.thread === undefined) return [];
-  const { id, title, workspaceId } = g.thread;
-  const processes = flatOf(g);
-  const thread = { threadId: id, title, workspaceId, memory: processes.reduce((n, p) => n + p.memory, 0), cpu: processes.reduce((n, p) => n + p.cpu, 0), processes };
-  const left = processesLeft({ computer: "", at: 0, threads: [thread], wsp: [], unowned: [] }, [id])[0]?.processes ?? [];
-  const keep = new Set(left.map(p => p.pid));
-  return groupProcs(g).filter(p => p.heading !== true && keep.has(p.pid));
-}
+/** The processes End all on a heading signals: each it holds that End reaches, the rest of its tree going with it. */
+const endsOf = (heading: ActivityProc): ActivityProc[] => heading.children.filter(p => p.endable === true);
 
-/** The tops of those processes, one tree kill each. */
-function headsOf(g: ActivityGroup, ends: readonly ActivityProc[]): ActivityProc[] {
-  const tops = new Set(endHeads(flatOf(g).filter(p => ends.some(e => e.pid === p.pid))).map(p => p.pid));
-  return ends.filter(p => tops.has(p.pid));
-}
-
-/** The agent a resting thread on the computer the host runs on keeps for its next turn, the top of its agent rows, which
- * the host frees; a box ends a thread's cgroup whole, so none there. */
-function keptAgentOf(g: ActivityGroup): ActivityProc | undefined {
-  if (g.thread === undefined || g.thread.working || g.thread.cgroup !== undefined) return undefined;
-  return g.procs.find(p => p.kind === "agent" && p.needed !== true && p.heading !== true);
-}
-
-/** The memory those processes and containers hold. The rows are flat already, each still carrying its children, so each
- * counts its own figure and never its children's again. */
-const heldBy = (procs: readonly ActivityProc[], containers: readonly ActivityContainer[]): number => procs.reduce((n, p) => n + p.mem, 0) + containers.reduce((n, c) => n + (c.mem ?? 0), 0);
-
-/** Stop asks before a running turn ends; End all asks naming what it takes, its containers among them. */
-function AskDialog({ asking, onClose, onConfirm }: { asking: { kind: "stop" | "endAll"; group: ActivityGroup } | null; onClose: () => void; onConfirm: () => void }) {
+/** Stop asks before a running turn ends; End all asks naming how many processes it ends and what they hold. */
+function AskDialog({ asking, onClose, onConfirm }: { asking: Asking | null; onClose: () => void; onConfirm: () => void }) {
   const t = asking?.group.thread;
-  const procs = asking === null ? [] : endsOf(asking.group);
-  const containers = asking === null ? [] : asking.group.containers.filter(c => c.owned);
-  const title = t?.title ?? W.loose;
-  const leads = useStore(s => t !== undefined && Object.values(s.sessions).some(rows => rows.some(r => r.parentThreadId === t.id)));
+  const ends = asking?.kind === "endAll" ? endsOf(asking.heading) : [];
+  const held = spent(ends);
   return (
     <AlertDialog open={asking !== null} onOpenChange={o => (o ? undefined : onClose())}>
       <AlertDialogPopup>
         <AlertDialogHeader>
-          <AlertDialogTitle>{asking?.kind === "endAll" ? W.endAllTitle(title) : W.stopTitle(title)}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {asking?.kind === "endAll"
-              ? `${W.endAllSentence(procs.length, containers.length, fmtBytes(heldBy(procs, containers)), t?.working === true ? "turn" : asking !== null && keptAgentOf(asking.group) !== undefined ? "kept" : null)}${leads ? ` ${W.endAllLeaves}` : ""}`
-              : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}
-          </AlertDialogDescription>
+          <AlertDialogTitle>{asking?.kind === "endAll" ? W.endAllTitle(asking.heading.name) : W.stopTitle(t?.title ?? W.loose)}</AlertDialogTitle>
+          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(endsOf(asking.heading).length, fmtBytes(held.mem)) : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{W.cancel}</AlertDialogClose>
