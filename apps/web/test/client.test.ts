@@ -726,4 +726,31 @@ describe("ProtocolClient reads in flight", () => {
     expect(sock.frames("workspaces.touch")).toHaveLength(2);
     client.close();
   });
+
+  it("a read asked after an event never takes the answer to one sent before it: it is sent once more when that lands, and every ask until then shares it", async () => {
+    ScriptedSocket.instances.length = 0;
+    ScriptedSocket.authOk = true;
+    ScriptedSocket.serverUp = true;
+    const held: Frame[] = [];
+    ScriptedSocket.reply = f => (f["op"] === "events.subscribe" ? { id: f["id"], ok: true, seq: 0, stream: "s" } : void held.push(f));
+    const client = new ProtocolClient({ url: "ws://test", token: "tok", WebSocketCtor: ScriptedSocket as unknown as typeof WebSocket });
+    client.subscribe(() => {});
+    await client.connect();
+    await replied();
+    const sock = ScriptedSocket.instances[0]!;
+    const answer = (n: number) => sock.onmessage?.({ data: JSON.stringify({ id: held[n]!["id"], ok: true, n }) });
+    const before = client.request("places.list");
+    push(sock, { type: "place.setup", seq: 1, addId: "a_1", placeId: "p_2", end: "ready" });
+    const after = [client.request("places.list"), client.request("places.list")];
+    push(sock, { type: "place.setup", seq: 2, addId: "a_1", placeId: "p_2", end: "ready" });
+    after.push(client.request("places.list"));
+    expect(sock.frames("places.list")).toHaveLength(1);
+    answer(0);
+    expect(await before).toMatchObject({ n: 0 });
+    await until(() => sock.frames("places.list").length === 2);
+    answer(1);
+    expect(await Promise.all(after)).toEqual([{ id: held[1]!["id"], ok: true, n: 1 }, { id: held[1]!["id"], ok: true, n: 1 }, { id: held[1]!["id"], ok: true, n: 1 }]);
+    expect(sock.frames("places.list")).toHaveLength(2);
+    client.close();
+  });
 });

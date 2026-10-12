@@ -205,8 +205,9 @@ export class RequestError extends Error {
 export const defaultBackoffMs = (attempt: number): number => Math.min(5_000, 250 * 2 ** (attempt - 1));
 
 /** Reads two callers may ask with the same words while the first is in flight, which then share one request: a
- * development build's second mount, two panes opening together. A list, so an op added later is never shared by
- * having been forgotten; an act is never on it, since two asks of one are two acts. */
+ * development build's second mount, two panes opening together. An event heard between the two asks ends the
+ * sharing. A list, so an op added later is never shared by having been forgotten; an act is never on it, since two
+ * asks of one are two acts. */
 const SHARED_READS: ReadonlySet<string> = new Set([
   "workspaces.list",
   "workspaces.get",
@@ -237,8 +238,10 @@ export class ProtocolClient {
   #ws: WebSocket | null = null;
   #seq = 0;
   #pending = new Map<number, Pending>();
-  /** Each shared read in flight by its op and words, until it settles. */
-  #inFlight = new Map<string, Promise<unknown>>();
+  /** Each shared read in flight by its op and words, until it settles, with the count of events heard when it was sent. */
+  #inFlight = new Map<string, { asking: Promise<unknown>; sentAt: () => number }>();
+  /** Events handed to the listeners so far. */
+  #heard = 0;
   #listeners = new Set<(e: ProtocolEvent) => void>();
   /** Per-channel listeners for the frames the host relays from a daemon. Kept off #listeners on purpose: a pty
    * chunk is not history, and the store folds everything that reaches an event listener. */
@@ -285,9 +288,19 @@ export class ProtocolClient {
     if (!SHARED_READS.has(op)) return this.#send(op, params);
     const key = `${op} ${JSON.stringify(params)}`;
     const held = this.#inFlight.get(key);
-    if (held !== undefined) return held as Promise<T>;
-    const asking = this.#send<T>(op, params).finally(() => this.#inFlight.delete(key));
-    this.#inFlight.set(key, asking);
+    if (held !== undefined && held.sentAt() >= this.#heard) return held.asking as Promise<T>;
+    // An event since the held read was sent may have changed its answer: ask again once it lands, so this answer lands
+    // last. Asks before that one is sent share it.
+    let sentAt = Infinity;
+    const ask = (): Promise<T> => {
+      sentAt = this.#heard;
+      return this.#send<T>(op, params);
+    };
+    const asking = (held === undefined ? ask() : held.asking.then(ask, ask)).finally(() => {
+      if (this.#inFlight.get(key) === entry) this.#inFlight.delete(key);
+    });
+    const entry = { asking, sentAt: () => sentAt };
+    this.#inFlight.set(key, entry);
     return asking;
   }
 
@@ -438,6 +451,7 @@ export class ProtocolClient {
         return;
       }
       if (typeof msg.seq === "number" && (this.#cursor === undefined || msg.seq > this.#cursor)) this.#cursor = msg.seq;
+      this.#heard++;
       for (const fn of this.#listeners) fn(msg as unknown as ProtocolEvent);
       return;
     }
