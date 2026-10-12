@@ -2,9 +2,10 @@
 import type { ContainerPlacedBy } from "./ContainerPlacedBy.js";
 
 /**
- * One running container on the computer's engine. It stands under the thread its `wsp.thread` label names, else under
- * the thread of the newest compose note whose folder sits inside its compose folder, else under no thread with that
- * folder named. memory is its cgroup's anon and kernel bytes, cpu its busy share of one core; both absent until read.
+ * One running container on the computer's engine. It stands under the thread its `wsp.thread` label names, else, unless
+ * it carries a fork's `wsp.workspace` label, under the thread of the newest compose note whose folder sits inside its
+ * compose folder, else under no thread with that folder named. memory is its cgroup's anon and kernel bytes, cpu its
+ * busy share of one core; both absent until read.
  */
 export type ProcContainer = { 
 /**

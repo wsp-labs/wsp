@@ -25,6 +25,8 @@ use crate::SharedLog;
 
 /// The label the docker shim puts on a container a thread makes, its value the thread's id.
 const THREAD_LABEL: &str = "wsp.thread";
+/// The label a fork's engine fence puts on every container it makes; `wsp_runtime::engine::LABEL` is Linux only.
+const WORKSPACE_LABEL: &str = "wsp.workspace";
 const COMPOSE_FOLDER: &str = "com.docker.compose.project.working_dir";
 const COMPOSE_PROJECT: &str = "com.docker.compose.project";
 /// The four events that change what the reader holds; the engine filters out every other.
@@ -87,16 +89,22 @@ fn inside(folder: &str, top: &str) -> bool {
     folder.trim_end_matches('/') == top || folder.starts_with(&format!("{top}/"))
 }
 
-/// The thread a container stands under: the one its label names; else the newest note whose folder sits inside its
-/// compose folder and whose project, where the note named one, is its own; else none.
+/// The thread a container stands under: the one its label names; else, unless a fork's fence labelled it with its
+/// workspace, the newest note whose folder sits inside its compose folder and whose project, where the note named one,
+/// is its own; else none. A fork's compose keeps compose's own labels, so a box thread's note in the same folder would
+/// otherwise take it.
 pub(crate) fn place(
     label: Option<&str>,
+    workspace: Option<&str>,
     folder: Option<&str>,
     project: Option<&str>,
     notes: &[Note],
 ) -> Option<(String, ContainerPlacedBy)> {
     if let Some(thread) = label.filter(|t| thread_word(t)) {
         return Some((thread.to_owned(), ContainerPlacedBy::Label));
+    }
+    if workspace.is_some() {
+        return None;
     }
     let folder = folder?;
     notes
@@ -184,6 +192,7 @@ struct Known {
     state: String,
     started_at: Option<i64>,
     label: Option<String>,
+    workspace: Option<String>,
     folder: Option<String>,
     project: Option<String>,
     /// Its own cgroup's folder, where the computer reaches it; the engine's stats stand in otherwise.
@@ -329,6 +338,7 @@ impl ContainerReader {
             state: string_at(&inspect, "/State/Status").unwrap_or_else(|| "running".to_owned()),
             started_at: string_at(&inspect, "/State/StartedAt").as_deref().and_then(rfc3339_ms),
             label: label(THREAD_LABEL),
+            workspace: label(WORKSPACE_LABEL),
             folder: label(COMPOSE_FOLDER),
             project: label(COMPOSE_PROJECT),
             cgroup,
@@ -407,7 +417,7 @@ impl ContainerReader {
                             None => k.cpu = None,
                         }
                     }
-                    let placed = place(k.label.as_deref(), k.folder.as_deref(), k.project.as_deref(), &notes.notes);
+                    let placed = place(k.label.as_deref(), k.workspace.as_deref(), k.folder.as_deref(), k.project.as_deref(), &notes.notes);
                     ProcContainer {
                         id: id.clone(),
                         name: k.name.clone(),
@@ -439,9 +449,14 @@ impl ContainerReader {
         let label = |name: &str| inspect.pointer("/Config/Labels").and_then(|l| l.get(name)).and_then(Value::as_str).map(str::to_owned);
         let mut notes = NotesCache::default();
         refresh_notes(&mut notes, &self.opts.notes);
-        if place(label(THREAD_LABEL).as_deref(), label(COMPOSE_FOLDER).as_deref(), label(COMPOSE_PROJECT).as_deref(), &notes.notes)
-            .is_none()
-        {
+        let placed = place(
+            label(THREAD_LABEL).as_deref(),
+            label(WORKSPACE_LABEL).as_deref(),
+            label(COMPOSE_FOLDER).as_deref(),
+            label(COMPOSE_PROJECT).as_deref(),
+            &notes.notes,
+        );
+        if placed.is_none() {
             let name =
                 string_at(&inspect, "/Name").map_or_else(|| id[..12.min(id.len())].to_owned(), |n| n.trim_start_matches('/').to_owned());
             return Err(OpError::coded(
