@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PLACES_TICKET_REFUSAL, deviceHeldRefusal, noSignInRefusal, SIGN_IN_LINE_REFUSAL, AGENTS_KEY_REFUSAL, DAEMON_VERSION, HERE_PLACE_ID, noSuchPlaceRefusal, providerAgentsRefusal, type AgentsSignInEvent, type TurnResult } from "@wsp/protocol";
+import { PLACES_TICKET_REFUSAL, deviceHeldRefusal, noSignInRefusal, SIGN_IN_LINE_REFUSAL, AGENTS_KEY_REFUSAL, DAEMON_VERSION, HERE_PLACE_ID, noSuchPlaceRefusal, tableName, providerAgentsRefusal, type AgentsSignInEvent, type TurnResult } from "@wsp/protocol";
 import { createRuntime, type HarnessAdapterFactory } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
@@ -286,8 +286,8 @@ describe("the agents on a computer you own", () => {
     sockets.push(c.ws);
     const rows = await ctx.runtime!.places!.list(Date.now());
     const provider = rows.find(p => p.kind !== "computer")!;
-    expect(await c.request("agents.read", { target: { placeId: provider.id } })).toMatchObject({ ok: false, error: providerAgentsRefusal(provider.name), kind: "usage" });
-    expect(await c.request("agents.read", { target: { placeId: "pl_nobody" } })).toMatchObject({ ok: false, error: noSuchPlaceRefusal("pl_nobody", rows.map(p => p.name)), kind: "usage" });
+    expect(await c.request("agents.read", { target: { placeId: provider.id } })).toMatchObject({ ok: false, error: providerAgentsRefusal(tableName(provider)), kind: "usage" });
+    expect(await c.request("agents.read", { target: { placeId: "pl_nobody" } })).toMatchObject({ ok: false, error: noSuchPlaceRefusal("pl_nobody", rows.map(tableName)), kind: "usage" });
     const issued = await c.request("ticket.issue", { purpose: "connect" });
     const ticketed = await WsClient.connect(ctx.srv!.port, { ticket: String(issued["ticket"]) });
     sockets.push(ticketed.ws);

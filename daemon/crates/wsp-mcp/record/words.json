@@ -165,10 +165,6 @@
   },
   "noSuchPlace": "no place named {word}; you have {held}",
   "placesFix": "Run wsp computers.",
-  "providerNames": {
-    "box": "Boat",
-    "solari": "Solari"
-  },
   "aimedUsage": "{tool} takes a thread or on, not both",
   "aimedBoth": "A thread already names its computer; give the thread or --on <computer>, not both. {usage}",
   "projectUnnamed": "--project with --on names the project: --project <name>, as wsp projects shows it. {usage}",
@@ -308,6 +304,10 @@
       "solari"
     ],
     "ceilingMs": 600000
+  },
+  "providerNames": {
+    "box": "Boat",
+    "solari": "Solari"
   },
   "usages": {
     "computers": "wsp computers",

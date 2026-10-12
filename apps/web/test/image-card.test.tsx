@@ -263,6 +263,17 @@ describe("the Image card", () => {
     expect(slot()).toBe(IMAGE_WORDS.startHeld("hetzner"));
   });
 
+  it("offers no New thread on a ready Boat, which takes a lead's sub-threads alone, even with a project landing there", async () => {
+    const boat: PlaceView = { id: "box", kind: "provider", name: "box", default: false, rateUsdPerHour: 0.018, takesForks: true, buildsImages: true };
+    const project = { id: "pr_boat", name: "pr_boat", computer: "box", source: { kind: "folder", path: "/p/pr_boat" }, path: "/p/pr_boat", createdAt: AT } as never;
+    useStore.setState({ places: [here, box, boat], projects: [project], landings: {} });
+    await open(host({ image: IMAGE, copies: [copyAt("box")], projects: [] }).api, "box");
+    expect(card()?.querySelector("[data-settings-head]")?.textContent).toBe(IMAGE_WORDS.head("Boat"));
+    expect(title()).toBe(IMAGE_WORDS.state.ready);
+    expect(stateRow().querySelector("[data-k='image-press']")).toBeNull();
+    expect(card()!.textContent).not.toContain(IMAGE_WORDS.startTask);
+  });
+
   it("reads which project lands on the cloud this host forks on by the host's own rule: one on the cloud starts there, one on this Mac stays a copy here", async () => {
     const project = (id: string, computer: string) => ({ id, name: id, computer, source: { kind: "folder", path: `/p/${id}` }, path: `/p/${id}`, createdAt: AT }) as never;
     const onSolari = (projects: never[]) => {

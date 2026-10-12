@@ -6,7 +6,7 @@ import { isIP, type Socket } from "node:net";
 import { homedir, networkInterfaces, platform } from "node:os";
 import { basename, dirname, extname, join, resolve as resolvePath, sep } from "node:path";
 import { CREATED_AT_LABEL, HOST_LABEL, SMOKE_LABEL, WSP_LABEL, type ProvisionPlan } from "@wsp/engine";
-import { BOOT_SCRIPT, DEFAULT_PORT, PAIR_CODE_TTL_MS, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, recordRestoredLine, peerAddress, relayUrlOf, scopeOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type Caller, type PlaceDoorView, type ProjectImportResult, type ProjectPlan, type PlaceView, type ProjectView, type WorkspaceView, kindForComputer, nameTheProjectLine, copiesFolder, runsInFolder } from "@wsp/protocol";
+import { BOOT_SCRIPT, DEFAULT_PORT, PAIR_CODE_TTL_MS, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, scopeOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type Caller, type PlaceDoorView, type ProjectImportResult, type ProjectPlan, type PlaceView, type ProjectView, type WorkspaceView, kindForComputer, nameTheProjectLine, copiesFolder, runsInFolder } from "@wsp/protocol";
 import { sshHostsIn } from "./ssh-hosts.js";
 import { LOOPBACK, describeAge, goldenHead, serveRuntime, tokenDigest, type AdmittedDevices, type CreatedWorkspace, type GoldenBuilderView, type GoldenVersion, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectImportOptions, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
 import { computerDoctor } from "./doctor.js";
@@ -29,7 +29,8 @@ import { runningWsp } from "./mcp-install.js";
 import { wspArgvOf } from "./place-report.js";
 import { proxyWsp, sshDoor, sshFiles } from "./ssh-files.js";
 import { startCallbackRelay, systemOpener, type UrlOpener } from "./relay.js";
-import { NO_PROVIDER } from "./providers.js";
+import { NO_PROVIDER, providerKeyEnvs } from "./providers.js";
+import { keyIn, savedEnv } from "./env-keys.js";
 import type { ReleaseWatch } from "./release.js";
 import { describeStorage, noProviderStorageLine } from "./storage.js";
 import { VERSION } from "./version.js";
@@ -604,7 +605,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
             };
             const rows = (await rt.places?.list(Date.now())) ?? [];
             const row = rows.find(place => place.id === req.placeId);
-            if (row === undefined) throw new Error(noSuchPlaceRefusal(req.placeId, rows.map(place => place.name)));
+            if (row === undefined) throw new Error(noSuchPlaceRefusal(req.placeId, rows.map(tableName)));
             const asks = (question: string): Promise<never> => Promise.reject(new Error(`${question.split("\n")[0]}: the doctor's road on a host asks nobody`));
             const code = await computerDoctor(
               rt,
@@ -700,8 +701,13 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
       else if (b.sealed !== undefined) log(describeSealed(b, b.sealed, rt.backend.pricing.rateUsdPerHour(b.size)));
       else if (b.sealable === true) log(describeKept(b, rt.backend.pricing.rateUsdPerHour(b.size)));
     }
-    // No provider, no request: a host with no key has no account to list and says that where the line would be.
-    if (opts.provider === NO_PROVIDER) log(noProviderStorageLine(opts.statePath));
+    // No provider, no request: a host with no key has no account to list and says that where the line would be. A key
+    // beside the state opens a place without wiring the host to it, so the line names the file only where none is.
+    if (opts.provider === NO_PROVIDER) {
+      const statePath = opts.statePath;
+      const keyBeside = statePath !== undefined && providerKeyEnvs().some(name => keyIn(savedEnv(statePath), name) !== undefined);
+      log(noProviderStorageLine(keyBeside ? undefined : statePath));
+    }
     else {
       try {
         const storage = await rt.golden.storage();

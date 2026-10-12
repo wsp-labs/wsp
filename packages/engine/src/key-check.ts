@@ -8,7 +8,8 @@ import type { ErrorKind, WspError } from "./errors.js";
 import type { MachineBackend } from "./machine.js";
 
 export type KeyCheck =
-  | { state: "taken" }
+  /** `answer` is what the provider's check read answered, where it answered with anything. */
+  | { state: "taken"; answer?: unknown }
   /** The provider answered about the key itself and refused it; `said` is its own status and word. */
   | { state: "refused"; said: string }
   /** Nothing came back about the key; `said` is what this computer saw instead. */
@@ -22,8 +23,8 @@ const REFUSING: ReadonlySet<ErrorKind> = new Set<ErrorKind>(["auth", "plan"]);
 export async function checkProviderKey(backend: MachineBackend): Promise<KeyCheck> {
   if (backend.checkKey === undefined) return { state: "taken" };
   try {
-    await backend.checkKey();
-    return { state: "taken" };
+    const answer = await backend.checkKey();
+    return answer === undefined ? { state: "taken" } : { state: "taken", answer };
   } catch (e) {
     const err = e as Partial<WspError>;
     if (err.kind !== undefined && err.status !== undefined && REFUSING.has(err.kind)) return { state: "refused", said: providerSaidLine(err.status, err.message ?? "") };
