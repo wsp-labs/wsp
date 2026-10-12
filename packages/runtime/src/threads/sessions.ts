@@ -1407,7 +1407,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     async delete(threadId, origin, o = {}) {
       await ctx.ready();
       const workspaceId = [...sessions.values()].find(s => s.view.threadId === threadId)?.view.workspaceId ?? threadRecords.get(threadId)?.workspaceId;
-      if (!ctx.leadOfSub(workspaceId, origin)) ctx.spawnGuard("delete", origin);
+      ctx.spawnGuard(ctx.leadOfSub(workspaceId, origin) ? "delete_sub" : "delete", origin);
       if (workspaceId === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);

@@ -401,9 +401,12 @@ export interface PlaceRecording {
    * provider's listing names, since that listing can miss a row. */
   machinesOn?(placeId: string): Promise<string[]>;
   /** Drops every workspace record at that place from this host, its threads ended, asking nothing of the place: a
-   * provider forgotten rather than removed. A sub-thread's record stays, released, as releaseRecordsOn leaves it.
+   * provider forgotten rather than removed. A sub-thread's record stays, in its phase, its cloud said gone.
    * Absent, the records stay. */
   forgetRecordsOn?(placeId: string): Promise<void>;
+  /** One line for each sub-thread at that place whose machine holds work no remote has, or may: what a remove of
+   * that cloud takes with it. */
+  subHoldsOn?(placeId: string): Promise<string[]>;
   /** Marks every sub-thread's record at that place released with its cloud gone, its thread and transcript kept: the
    * provider's machines are deleted and its key forgotten. */
   releaseRecordsOn?(placeId: string): Promise<void>;

@@ -297,7 +297,6 @@
                 "on",
                 "machine",
                 "size",
-                "rateUsdPerHour",
                 "branch"
               ],
               "additionalProperties": false
@@ -2199,7 +2198,6 @@
                 "on",
                 "machine",
                 "size",
-                "rateUsdPerHour",
                 "branch"
               ],
               "additionalProperties": false

@@ -396,3 +396,171 @@ describe("a sub-thread's delete, checked first", () => {
     expect(await held.store.get("workspaces", held.made.id)).toBeDefined();
   });
 });
+
+const sleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, ms));
+const refusedBy = (p: Promise<unknown>): Promise<Error | undefined> => p.then(
+  () => undefined,
+  (e: unknown) => e as Error,
+);
+
+describe("a delete in the seconds a follow-up turn's done still reads", () => {
+  /** Done once over work not pushed, then a follow-up turn ended with the machine's session read slowed to 800 ms. */
+  async function followedUp() {
+    const held = await doneOnce({ answers: { read: UNPUSHED } });
+    await settled(held);
+    const read = held.machine.readBytes!.bind(held.machine);
+    held.machine.readBytes = async (path, o) => (await sleep(800), read(path, o));
+    await held.rt.workspaces.wake(held.made.id);
+    const next = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "push it", harness: "claude" });
+    await next.finished;
+    return held;
+  }
+
+  it("refuses a lead's token at once, the turn not read yet", async () => {
+    const held = await followedUp();
+    const e = await refusedBy(held.rt.sessions.delete(held.threadId, held.lead));
+    expect(e?.message).toBe(subHeldDeleteRefusal(held.threadId, { files: 0, commits: 0, unread: true }, BRANCH).message);
+    expect(held.machine.killed).toBe(false);
+  });
+
+  it("waits for the done in flight, then refuses a lead's token over the work it found, and the person's question names it", async () => {
+    const held = await followedUp();
+    await sleep(50);
+    const e = await refusedBy(held.rt.sessions.delete(held.threadId, held.lead));
+    expect(e?.message).toBe(subHeldDeleteRefusal(held.threadId, { files: 3, commits: 2 }, BRANCH).message);
+    expect((await held.rt.sessions.delete(held.threadId, undefined, { check: true })).question).toContain(`2 commits and 3 changed files on ${BRANCH} are not pushed`);
+    expect(held.machine.killed).toBe(false);
+    expect(await held.store.get("workspaces", held.made.id)).toBeDefined();
+  });
+});
+
+describe("a restart that cut a done short", () => {
+  it("runs the done at boot, so the machine is armed for its delete or held", async () => {
+    const held = await leadOnThisComputer();
+    open.push(held.rt);
+    answering(held.boat, { read: PUSHED, session: Buffer.from("s") });
+    const made = await held.rt.workspaces.create({ project: held.project.id, name: NAME, sub: { on: "boat" } }, held.lead);
+    const machine = held.boat.machines.at(-1)!;
+    const read = machine.readBytes!.bind(machine);
+    machine.readBytes = () => new Promise<Buffer>(() => {});
+    await (await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Fix it."), harness: "claude", turnToken: held.token, cwd: made.sub!.folder }, held.lead)).finished;
+    await sleep(100);
+    const record = async (): Promise<WorkspaceRecord> => (await held.store.get("workspaces", made.id)) as WorkspaceRecord;
+    expect((await record()).sub!.result).toBeUndefined();
+    await held.rt.close();
+    machine.readBytes = read;
+    const again = held.restart();
+    open.push(again);
+    await again.workspaces.list();
+    const r = await until(async () => ((await record()).sub?.deleteAt !== undefined ? record() : undefined), "the done at boot");
+    expect(r.sub!.result).toMatchObject({ pushedSha: expect.any(String), unpushed: 0 });
+    expect(r.phase).toBe("napping");
+  });
+});
+
+describe("the agents switch over a lead's delete", () => {
+  it("refuses a lead in a folder made with agents off", async () => {
+    const held = await doneOnce();
+    await settled(held);
+    await held.rt.close();
+    const folder = (await held.store.get("workspaces", held.folder.id)) as WorkspaceRecord;
+    await held.store.put("workspaces", folder.id, { ...folder, agents: { ...folder.agents, spawn: false } });
+    const again = held.restart();
+    open.push(again);
+    await again.workspaces.list();
+    const e = await refusedBy(again.sessions.delete(held.threadId, held.lead));
+    expect(e?.message).toContain("may not delete a sub-thread it started");
+    expect(held.machine.killed).toBe(false);
+  });
+});
+
+describe("what goes with Boat", () => {
+  it("names each sub-thread whose machine holds work not pushed", async () => {
+    const held = await doneOnce({ answers: { read: UNPUSHED }, deleteAfterMs: 30 * MIN });
+    await settled(held);
+    const holds = await held.rt.places!.holds("box");
+    expect(holds.unsaved).toEqual([`sub-thread ${held.threadId.slice(0, 8)} holds 2 commits and 3 changed files not pushed on ${BRANCH}`]);
+  });
+
+  it("forgetting Boat keeps each sub-thread's phase, marks it cloudGone, and arms no delete", async () => {
+    const { clock, jump } = jumpClock();
+    const held = await doneOnce({ clock, deleteAfterMs: 30 * MIN });
+    await settled(held);
+    await held.rt.places!.remove("box", { forget: true });
+    const r = await held.record();
+    expect(r.phase).toBe("napping");
+    expect(r.sub!.cloudGone).toBe(true);
+    expect(r.sub!.deleteAt).toBeUndefined();
+    expect((await held.rt.sessions.list()).find(s => s.threadId === held.threadId)?.sub).toMatchObject({ state: "napping", cloudGone: true });
+    const e = await refusedBy(held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "go on", harness: "claude" }));
+    expect(e?.message).toBe(subCloudGoneRefusal("Boat").message);
+    jump(31 * MIN);
+    await sleep(50);
+    expect((await held.record()).phase).toBe("napping");
+    await held.rt.sessions.delete(held.threadId);
+    expect(await held.store.get("workspaces", held.made.id)).toBeUndefined();
+  });
+
+  it("reads a record from before the machine's rate was kept", async () => {
+    const held = await doneOnce();
+    const r = await settled(held);
+    await held.rt.close();
+    const { rateUsdPerHour: _, ...older } = r.sub!;
+    await held.store.put("workspaces", r.id, { ...r, sub: older });
+    const again = held.restart();
+    open.push(again);
+    const row = (await again.sessions.list()).find(s => s.threadId === held.threadId)!;
+    expect(row.sub).toBeDefined();
+    expect("rateUsdPerHour" in row.sub!).toBe(false);
+  });
+});
+
+describe("a delete due while a wake runs", () => {
+  it("waits for the wake and reads the machine again before it deletes", async () => {
+    const { clock, jump } = jumpClock();
+    const held = await doneOnce({ clock });
+    await settled(held);
+    const resume = held.machine.resume.bind(held.machine);
+    let woke!: () => void;
+    held.machine.resume = async () => {
+      await new Promise<void>(res => (woke = res));
+      return resume();
+    };
+    const waking = held.rt.workspaces.wake(held.made.id).catch(() => undefined);
+    await until(() => (woke !== undefined ? true : undefined), "the wake asking");
+    held.answers.read = UNPUSHED;
+    jump(31 * MIN);
+    await sleep(50);
+    woke();
+    await waking;
+    const r = await until(async () => ((await held.record()).sub?.held !== undefined ? held.record() : undefined), "the hold");
+    expect(held.machine.killed).toBe(false);
+    expect(r.phase).not.toBe("released");
+  });
+
+  it("keeps the machine of a turn the send after the wake starts while the machine is read", async () => {
+    const { clock, jump } = jumpClock();
+    const held = await doneOnce({ clock });
+    await settled(held);
+    const resume = held.machine.resume.bind(held.machine);
+    let woke!: () => void;
+    held.machine.resume = async () => {
+      await new Promise<void>(res => (woke = res));
+      return resume();
+    };
+    const read = held.machine.readBytes!.bind(held.machine);
+    held.machine.readBytes = async (path, o) => (await sleep(800), read(path, o));
+    const waking = held.rt.workspaces.wake(held.made.id).catch(() => undefined);
+    await until(() => (woke !== undefined ? true : undefined), "the wake asking");
+    jump(31 * MIN);
+    await sleep(50);
+    woke();
+    await waking;
+    held.turns.hold = true;
+    const next = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "one more thing", harness: "claude" });
+    await sleep(1_500);
+    expect(held.machine.killed).toBe(false);
+    expect(next.view().status).toBe("running");
+    held.turns.release?.();
+  });
+});

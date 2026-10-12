@@ -3,12 +3,15 @@
 // a stub: the person is asked one question naming the machine and any work not
 // pushed, then the thread and its machine go; a lead's own token is refused
 // over work not pushed and answered over work that is.
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { HOST_TOKEN_ENV, TURN_TOKEN_ENV, subOpening } from "@wsp/protocol";
 import { ctx, sockets } from "../../runtime/test/places-fixture.js";
 import { PUSHED, UNPUSHED, answering, leadOnThisComputer } from "../../runtime/test/sub-fixture.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
 import { CLI_VERBS, runVerb, type HostClient } from "../src/verbs.js";
+import { mcpServer } from "../src/mcp.js";
 import { captured } from "./verbs-fixture.js";
 
 const NAME = "Fix the flaky upload test";
@@ -111,5 +114,36 @@ describe("wsp delete <sub-thread>", () => {
     expect(ok.code, ok.io.errors.join("\n")).toBe(0);
     expect(JSON.parse(ok.io.lines[0]!)).toEqual({ threadId: pushed.threadId, workspaceId: pushed.made.id, threads: 1, machine: "deleted" });
     expect(pushed.machine.killed).toBe(true);
+  });
+});
+
+describe("a sub-thread from before the machine's rate was kept", () => {
+  it("lists through the threads tool", async () => {
+    const sub = { state: "napping", on: "boat", machine: NAME, size: { cpu: 2, memMb: 4096 }, branch: BRANCH };
+    const rows = [{ id: "s1", workspaceId: "ws_1", harness: "claude", status: "completed", threadId: "e17a90c3-0000", sub }];
+    const client = {
+      request: async (op: string) => {
+        if (op === "sessions.list") return { sessions: rows };
+        if (op === "workspaces.list") return { workspaces: [] };
+        throw new Error(`unexpected op ${op}`);
+      },
+      events: async () => {},
+      onFrame: () => () => {},
+      closed: new Promise<void>(() => {}),
+      closeWords: () => "closed",
+      close: () => {},
+      terminate: () => {},
+    } as unknown as HostClient;
+    const [toClient, toServer] = InMemoryTransport.createLinkedPair();
+    await mcpServer("/nowhere/state.json", { env: {}, dial: Object.assign(async () => client, { close: async () => {} }) }).connect(toServer);
+    const mcp = new Client({ name: "person", version: "0.0.0" });
+    await mcp.connect(toClient);
+    try {
+      const listed = await mcp.callTool({ name: "threads", arguments: {} });
+      expect(listed.isError, JSON.stringify(listed.content)).not.toBe(true);
+      expect((listed.structuredContent as { threads: { sub?: unknown }[] }).threads[0]!.sub).toEqual(sub);
+    } finally {
+      await mcp.close();
+    }
   });
 });

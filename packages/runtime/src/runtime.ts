@@ -121,7 +121,7 @@ import {
   DISK_USE_CMD,
   diskUsePct,
 } from "@wsp/engine";
-import { AGENT_KEEP_MS, AGENTS_KEPT, placeDropStoppedLine, type KeptAgent } from "@wsp/protocol";
+import { AGENT_KEEP_MS, AGENTS_KEPT, placeDropStoppedLine, subHeldLine, type KeptAgent } from "@wsp/protocol";
 import type { AgentsReport, AgentsSignInEvent, AgentsTarget, DaemonFrame, DaemonResponse, EditorChoice, EditorId, RecipeFile, RecipeOptions, ServerAdd, ServerAsk, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview } from "@wsp/protocol";
 import type {
   AdapterAttachOptions,
@@ -680,7 +680,15 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
             ctx.endSessions(entry.record.id, DELETED_REASON);
             await ctx.drop(entry.record.id);
           }
-          await ctx.releaseSubsOn(placeId);
+          await ctx.releaseSubsOn(placeId, { forgot: true });
+        },
+        subHoldsOn: async placeId => {
+          await ctx.ready();
+          return [...live.values()].flatMap(e => {
+            const held = e.record.sub !== undefined && ctx.placeIdOf(e.record) === placeId ? ctx.subUnpushed(e) : undefined;
+            const threadId = held === undefined ? undefined : [...ctx.threadRecords].find(([, r]) => r.workspaceId === e.record.id)?.[0];
+            return held === undefined || threadId === undefined ? [] : [subHeldLine(threadId, held, e.record.sub!.branch)];
+          });
         },
         releaseRecordsOn: async placeId => {
           await ctx.ready();

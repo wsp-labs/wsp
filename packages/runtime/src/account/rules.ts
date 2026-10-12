@@ -305,7 +305,7 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     if (own.lead !== undefined && own.agents?.spawn !== true && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
     // The depth cap counts what a thread starts under itself; a send and a bring back start nothing, so a thread
     // at the cap still talks to its tree and still gets its work out.
-    if (act === "send" || act === "bring_back") return free;
+    if (act === "send" || act === "bring_back" || act === "delete_sub") return free;
     const depth = depthUnderRoot(scope.threadId);
     const deepest = over.reduce((a, b) => (b.policy!.maxDepth < a.policy!.maxDepth ? b : a));
     const policy = { maxDepth: deepest.policy!.maxDepth, maxMachines: Math.min(...over.map(o => o.policy!.maxMachines)) };

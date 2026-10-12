@@ -391,7 +391,8 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
     base: { branch: string; sha: string };
     branch: string;
     folder: string;
-    rateUsdPerHour: number;
+    /** Absent on a record from before the rate was kept. */
+    rateUsdPerHour?: number;
     result?: SubResult;
     held?: SubHeld & { at: number };
     deleteAt?: number;

@@ -510,8 +510,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           // Before the machine goes: on a computer somebody owns the folders the files landed in outlive the workspace.
           await ctx.dropThreadFiles(entry, [...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
           // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back; a
-          // released record's box is gone already, and its cloud may be too.
-          const standing = entry.record.phase !== "released";
+          // released record's box is gone already, and a record whose cloud left this host has nobody to ask.
+          const standing = entry.record.phase !== "released" && entry.record.sub?.cloudGone !== true;
           if (standing && !kindWords(entry.record.kind).driven) {
             await entry.machine.kill().catch((e: unknown) => {
               if (!isMissing(e)) throw e;

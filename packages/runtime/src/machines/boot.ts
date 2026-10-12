@@ -219,8 +219,8 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const hydrateWorkspace = async (raw: unknown, seen?: FoundMachine, load?: LoadReads, asked?: Promise<Machine>): Promise<LiveWorkspace | undefined> => {
     const stored = raw as WorkspaceRecord;
     const kind = stored.kind;
-    // A released record stands on no machine, and its cloud may have left this host: nothing is asked of either.
-    if (stored.phase === "released") {
+    // A released record stands on no machine, and one whose cloud left this host has nothing to ask: neither is read.
+    if (stored.phase === "released" || stored.sub?.cloudGone === true) {
       ctx.attach({ ...stored }, deadMachine(stored.machineId));
       return undefined;
     }

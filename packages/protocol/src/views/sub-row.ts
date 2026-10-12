@@ -36,7 +36,8 @@ export const SubRow = z.object({
   on: z.string(),
   machine: z.string(),
   size: z.object({ cpu: z.number().int(), memMb: z.number().int() }),
-  rateUsdPerHour: z.number(),
+  /** Absent on a record from before the rate was kept. */
+  rateUsdPerHour: z.number().optional(),
   branch: z.string(),
   result: SubResult.optional(),
   held: SubHeld.optional(),
