@@ -6,6 +6,7 @@
 import type { BoxLimits } from "./box-backend.js";
 import type {
   Capabilities,
+  CloudLimits,
   DaemonSupervisor,
   ExecResult,
   LifecycleBudgets,
@@ -251,6 +252,9 @@ export interface MachineBackend {
    * the provider's own WspError; `checkProviderKey` is what reads that answer. Resolves with what the read answered,
    * which says what the key holds where the provider's answer does. */
   checkKey?(): Promise<unknown>;
+  /** Optional: only a provider that publishes its account's limits. Its plan and the starts used, read now or a few
+   * seconds ago; nothing where the read failed, which a row says by leaving them out. */
+  placeLimits?(): Promise<CloudLimits | undefined>;
   get(id: string): Promise<Machine>;
   /** size comes off the listing itself; a per-machine GET would reset that machine's idle timer. */
   list(labels?: Record<string, string>): Promise<MachineListRow[]>;

@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::{Map, Number, Value};
 
-use super::target::place_id;
+use super::create::{size_from_word, size_refused};
+use super::target::place_named;
 use super::workspace::agents_asked;
 use super::{entry_in, held_field, input, input_refusal, refused_field, Answer, Refused, Tool};
 use crate::host::Host;
@@ -76,6 +77,11 @@ pub struct SetIn {
     #[cfg_attr(test, schemars(with = "Option<f64>"))]
     pub spend: Option<Number>,
     #[serde(default)]
+    pub size: Option<String>,
+    #[serde(default)]
+    #[cfg_attr(test, schemars(with = "Option<u64>"))]
+    pub delete_after: Option<Number>,
+    #[serde(default)]
     #[cfg_attr(test, schemars(with = "Option<u64>"))]
     pub nap: Option<Number>,
     #[serde(default)]
@@ -108,17 +114,55 @@ struct Placed {
 }
 
 async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
-    let SetIn { computer, name, ssh, threads, machines, spend, nap, turn_limit, spawn, max_machines, max_depth, recipe, reset } =
-        input(SET_NAME, arguments)?;
+    let SetIn {
+        computer,
+        name,
+        ssh,
+        threads,
+        machines,
+        spend,
+        size,
+        delete_after,
+        nap,
+        turn_limit,
+        spawn,
+        max_machines,
+        max_depth,
+        recipe,
+        reset,
+    } = input(SET_NAME, arguments)?;
     let client = host.client().await?;
     let words = record::words();
     let mut frame = Map::new();
-    let place = place_id(&client, &words, &computer).await?;
+    let (place, offered) = place_named(&client, &words, &computer).await?;
     frame.insert("placeId".to_owned(), Value::from(place));
     for (key, value) in [("threads", threads), ("machines", machines), ("spendPerDayUsd", spend)] {
         if let Some(n) = value {
             frame.insert(key.to_owned(), Value::Number(n));
         }
+    }
+    // sizeAsked's rule: a word that names no size is refused here over the row's sizes where the row offers any (only a
+    // cloud's does, which is placeTakes for a size); anywhere else it goes as a reset of the size, for the host's
+    // refusal of the kind.
+    let mut reset = reset.unwrap_or_default();
+    if let Some(word) = size {
+        match size_from_word(&word) {
+            Some((cpu, mem_mb)) => {
+                let mut figures = Map::new();
+                figures.insert("cpu".to_owned(), Value::from(cpu as u64));
+                figures.insert("memMb".to_owned(), Value::from(mem_mb as u64));
+                frame.insert("size".to_owned(), Value::Object(figures));
+            }
+            None if !offered.is_empty() => return Err(size_refused(&word, &offered).into()),
+            None if !reset.iter().any(|w| w == "size") => reset.push("size".to_owned()),
+            None => {}
+        }
+    }
+    if let Some(minutes) = &delete_after {
+        let ms = minutes
+            .as_u64()
+            .ok_or_else(|| refused_field(SET_NAME, SET_LISTED, host.cloud(), "delete_after", Value::Number(minutes.clone())))?;
+        frame.insert("deleteAfterMs".to_owned(), Value::from(ms * 60_000));
     }
     if let Some(minutes) = &nap {
         let window = nap_asked(entry_in(SET_LISTED, host.cloud()).unwrap_or_default(), minutes).map_err(Refused::Input)?;
@@ -133,7 +177,7 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
     {
         frame.insert("spawn".to_owned(), Value::Object(asked));
     }
-    if let Some(reset) = reset.filter(|r| !r.is_empty()) {
+    if !reset.is_empty() {
         frame.insert("reset".to_owned(), Value::from(reset));
     }
     // One frame carries every argument, as the command line sends them, so the host checks them all before it writes.
