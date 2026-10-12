@@ -270,11 +270,14 @@ export function placeEngineLine(view: Pick<PlaceView, "name" | "engine">): strin
   return `${view.name} runs a project's own containers on ${view.engine}; a workspace made with --engine gets a socket to it and sees its own containers alone`;
 }
 
+/** An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer. */
+export const TOKEN_SIGN_IN_WORD = "signed in with a token";
+
 /** What a person reads for whether an agent on a computer can take a turn there as things stand: its own login on
- * that computer, the key of theirs wsp hands it, or nothing yet. One home for the three words, so the table, the
- * doctor and the agents block under a computer's row cannot word them three ways. */
+ * that computer, the token or key of theirs wsp hands it, or nothing yet. One home for the three words, so the
+ * table, the doctor and the agents block under a computer's row cannot word them three ways. */
 export function agentSignInWord(state: AgentSignInState): string {
-  return state === "signed-in" ? "signed in" : state === "vault-key" ? "your key" : "not signed in";
+  return state === "signed-in" ? "signed in" : state === "vault-key" ? TOKEN_SIGN_IN_WORD : "not signed in";
 }
 
 /** The version number in what an agent's own version flag printed: agents word that line their own way (`2.1.270

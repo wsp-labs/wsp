@@ -589,8 +589,9 @@ export interface PlaceDoor {
   /** The sign-in word per agent on one computer, off the report it last sent and the vault this host holds: the
    * same reading its row carries, so what a turn is handed and what the screen says cannot part ways. Answered
    * without a read of the store, since every launch on that computer asks it. Nothing for a place this host holds
-   * no record of and for a computer whose daemon lists no logins. */
-  signInsAt(placeId: string): Record<string, AgentSignInState> | undefined;
+   * no record of and for a computer whose daemon lists no logins. `agents` words those agents instead of the ones
+   * this host knows are there (`agentsOn`). */
+  signInsAt(placeId: string, agents?: readonly string[]): Record<string, AgentSignInState> | undefined;
   /** Whether GitHub on that computer signs in from this host's vault: the person picked the vault for it there and
    * its row says gh took the token. Answered without a read, since every launch on that computer asks it. */
   githubFromVault(placeId: string): boolean;
