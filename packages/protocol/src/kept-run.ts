@@ -19,6 +19,10 @@ export interface KeptAgent<Session> {
   /** Where the agent keeps this session's own file on the computer the process runs on: the one file whose name ends
    * in `name`, `depth` folders under `folder`. One that changed between two turns was written by another process. */
   readonly sessionFile?: { folder: string; name: string; depth: number };
+  /** The process still runs work a turn of it left going, which only the person ends (a background command): idle
+   * neither runs its keep out nor ends it at the cap while it does, and it holds its session meanwhile, so nothing else
+   * writes the session file. */
+  working?(): boolean;
 }
 
 /** What a next turn on a kept process takes. Everything else the process was launched with stands, and a turn that
@@ -65,10 +69,11 @@ class Queue {
     this.wake?.();
   }
 
-  /** Ends at once, dropping what was not read yet: whatever the process printed after its turn closed is no turn's. */
-  cut(): void {
-    this.lines.length = 0;
+  /** Ends at once, answering what was not read yet: whatever the process printed after its turn closed is no turn's. */
+  cut(): string[] {
+    const left = this.lines.splice(0);
     this.end();
+    return left;
   }
 
   async *iterate(): AsyncGenerator<string> {
@@ -84,17 +89,21 @@ class Queue {
   }
 }
 
-export function keepRun(stream: ExecStream): KeptRun {
+/** `between` takes each line the process prints while no turn is open. */
+export function keepRun(stream: ExecStream, between?: (line: string) => void): KeptRun {
   let open: { queue: Queue; settle: (code: number | null) => void } | undefined;
   let released = false;
   let ended = false;
   let failure: unknown;
   let code: number | null = null;
-  // One reader for the process's whole life; a line printed while no turn is open goes to nobody. The turn open when
-  // the process goes reads every line it printed before it hears the end.
+  // One reader for the process's whole life; a line printed while no turn is open goes to `between` alone. The turn
+  // open when the process goes reads every line it printed before it hears the end.
   void (async () => {
     try {
-      for await (const line of stream.lines) open?.queue.push(line);
+      for await (const line of stream.lines) {
+        if (open !== undefined) open.queue.push(line);
+        else between?.(line);
+      }
     } catch (e) {
       failure = e;
     }
@@ -107,7 +116,9 @@ export function keepRun(stream: ExecStream): KeptRun {
   let turns = 0;
   const turn = (): { stream: ExecStream; from?: number } => {
     const from = turns++ === 0 ? undefined : stream.nextTurn?.();
-    open?.queue.cut();
+    const stale = open?.queue.cut() ?? [];
+    open = undefined;
+    for (const line of stale) between?.(line);
     const queue = new Queue();
     let closed = false;
     let settle: (code: number | null) => void = () => {};
@@ -133,7 +144,7 @@ export function keepRun(stream: ExecStream): KeptRun {
           return;
         }
         if (open === mine) open = undefined;
-        queue.cut();
+        for (const line of queue.cut()) between?.(line);
         stream.rest?.();
         settle(0);
       },
