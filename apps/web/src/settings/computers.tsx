@@ -11,7 +11,7 @@
 // so nothing here filters again.
 import { ServerIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { HERE_PLACE_ID, NO_RECIPE, absentRoad, pendingWord, type PendingComputer, awayMsOf, fmtCpus, fmtMemGb, foldThreads, isLocalWorkspace, workspaceStateOf, workspaceWord, type AbsentComputer, type AgentsReport, type PlaceView, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { HERE_PLACE_ID, NO_RECIPE, SETUP_WORDS, absentRoad, nameList, setupWord, pendingWord, type PendingComputer, awayMsOf, fmtCpus, fmtMemGb, foldThreads, isLocalWorkspace, workspaceStateOf, workspaceWord, type AbsentComputer, type AgentsReport, type PlaceView, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { computerActions } from "../actions/computerActions.js";
 import { openContextMenu } from "../actions/contextMenu.js";
 import { resolveActions } from "../actions/registry.js";
@@ -30,12 +30,13 @@ import { useStore } from "../protocol/store.js";
 import { DialButton, useDialPlace } from "./AbsentRoad.js";
 import { AddComputer } from "./AddComputer.js";
 import { SetupList } from "./add/AddComputerDialog.js";
+import { rowsLeft, setupRows, setupStanding } from "./add/setup.js";
 import { STEP_TITLES, openAdd, openPending, reachedSteps } from "./add/addFlow.js";
 import { ComputerSignIns } from "./ComputerSignIns.js";
 import { readRecipes, useRecipes } from "./recipesStore.js";
 import { ComputerGlyph, useComputerIcon } from "./ComputerGlyph.js";
 import { BehindRow, LimitsCard, NameCard, SpawnCard } from "./computerSettings.js";
-import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, WHERE_WORDS, capitalised } from "./format.js";
+import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, SETUP_CARD_WORDS, WHERE_WORDS, capitalised } from "./format.js";
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
 import { copyOn } from "./image.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
@@ -532,6 +533,42 @@ function AgentsLink({ place, ctx }: { place: PlaceView; ctx: SettingsContext }) 
   );
 }
 
+/** A computer's setup on its page: the whole log while it runs or once it ended failed; once it ended otherwise, one
+ * row, the log behind Show setup log. The row reads Needs you only where the computer's own word does, naming the rows
+ * left, and Done otherwise, naming any row that failed. The log keeps its
+ * place in the tree, so a row run again from it stays open through its run. */
+function SetupCard({ place }: { place: PlaceView }) {
+  const standing = setupStanding(place);
+  const [shown, setShown] = useState(false);
+  const live = standing === "running" || standing === "failed";
+  const left = live ? [] : rowsLeft(setupRows(place, placeName(place)));
+  return (
+    <section data-settings-card="setup" className="flex flex-col gap-3">
+      <h2 data-settings-head className={SECTION_HEAD}>
+        {WHERE_WORDS.heads.setup}
+      </h2>
+      {live ? null : (
+        <div className={CARD_SURFACE}>
+          <Row
+            id="setup-summary"
+            title={SETUP_CARD_WORDS.title}
+            word={standing === "needs-you" ? SETUP_WORDS.needsYou : SETUP_CARD_WORDS.done}
+            wordClass="fact"
+            wordK="setup-word"
+            description={left.length === 0 ? capitalised(setupWord(place.setup, place.applied)) : standing === "needs-you" ? nameList(left.map(row => row.name)) : SETUP_CARD_WORDS.failed(nameList(left.map(row => row.name)))}
+            control={
+              <Button size="xs" variant="outline" data-k="setup-log" aria-expanded={shown} onClick={() => setShown(was => !was)}>
+                {shown ? SETUP_CARD_WORDS.hideLog : SETUP_CARD_WORDS.showLog}
+              </Button>
+            }
+          />
+        </div>
+      )}
+      {live || shown ? <SetupList place={place} /> : null}
+    </section>
+  );
+}
+
 /** One computer's or cloud's own page. A cloud keeps no computer to read: its agents are the image's, and every word
  * about the image stands under the rule the cloud's key does, since a cloud row drawn for a workspace alone is a
  * machine somebody else's key made. A computer's image is a cloud's too, so it stands only where a cloud is offered. */
@@ -556,14 +593,7 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
         <PlaceStateLine place={place} ctx={ctx} />
       </section>
       {cloud || place.picks === undefined ? null : <RecipeCard place={place} ctx={ctx} />}
-      {cloud || place.setup === undefined ? null : (
-        <section data-settings-card="setup" className="flex flex-col gap-3">
-          <h2 data-settings-head className={SECTION_HEAD}>
-            {WHERE_WORDS.heads.setup}
-          </h2>
-          <SetupList place={place} />
-        </section>
-      )}
+      {cloud || place.setup === undefined ? null : <SetupCard place={place} />}
       {cloud || here ? null : <ComputerSignIns place={place} now={ctx.now} />}
       <LimitsCard place={place} />
       {cloud ? null : <SpawnCard place={place} />}

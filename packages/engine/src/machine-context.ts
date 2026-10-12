@@ -202,6 +202,11 @@ export function boundedCommand(seconds: number, cmd: string): string {
 /** The login shell listing its aliases under the bound, and the word that says so where the bound stopped it. */
 const aliasScan = (sh: string): string => `${boundedCommand(ALIAS_BOUND_S, `${sh} -lic ${shellQuote(ALIAS_PROBES[sh]!)} </dev/null 2>/dev/null`)} || echo "ALIASES ${ALIASES_LATE}"`;
 
+/** Whether the kernel lists overlay, asking modprobe to load it first where it does not yet: a kernel booted since
+ * the last overlay mount has the module on disk and lists nothing. */
+export const overlayProbe = (filesystems = "/proc/filesystems"): string =>
+  `if { grep -qw overlay ${filesystems} || { modprobe overlay && grep -qw overlay ${filesystems}; }; } >/dev/null 2>&1; then echo OVERLAY yes; else echo OVERLAY no; fi`;
+
 /** One short exec that prints the facts between two markers: the kernel, the disk, what is installed, the secret
  * names, the aliases the login shell cannot resolve, each hook the person's file already claims, and the facts a
  * build left on the guest. Every read fails alone. */
@@ -213,7 +218,7 @@ export function probeCommand(roots: GuestRoots = GUEST_ROOTS, path: string = TOO
     "echo WSP_CTX",
     'echo "KERNEL $(uname -r 2>/dev/null)"',
     `echo "DISK $({ ${dfKbCmd(["size", "free"], h)}; } 2>/dev/null)"`,
-    "if grep -qw overlay /proc/filesystems 2>/dev/null; then echo OVERLAY yes; else echo OVERLAY no; fi",
+    overlayProbe(),
     'for b in docker podman tmux fish brew; do if command -v "$b" >/dev/null 2>&1; then echo "HAS $b"; fi; done',
     `if [ -f ${e}/profile.d/wsp-golden.sh ]; then echo "HAS golden-path"; fi`,
     `if [ -x ${BROWSER_SHIM_PATH} ]; then echo "HAS wsp-open"; fi`,

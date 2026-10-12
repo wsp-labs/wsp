@@ -142,6 +142,16 @@ export const PLACE_STATE_WORDS = {
   needsSignIn: (agents: readonly string[]): string => `needs a sign-in: ${agents.join(", ")}`,
 } as const;
 
+/** A computer's Setup card once its setup ended: the one row, and the disclosure over the whole log. */
+export const SETUP_CARD_WORDS = {
+  title: "Setup",
+  done: "Done",
+  showLog: "Show setup log",
+  hideLog: "Hide setup log",
+  /** The rows of a setup that ended Done which did not land. */
+  failed: (names: string): string => `${names} failed`,
+} as const;
+
 /** What Add a computer says beyond PLACES_WORDS.sheet and the roads' own names. */
 export const ADD_COMPUTER_WORDS = {
   title: "Add a computer",
