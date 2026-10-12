@@ -1393,6 +1393,25 @@ describe("local workspace", () => {
     expect((refused as Error).message).toBe("the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again");
   });
 
+  it("a cap refusal read by its status alone keeps the provider's words; a start limit is never called a machine slot", async () => {
+    const backend = stubBackend();
+    const rt = createRuntime({ backend, store, adapters: { claude: echoAdapter }, local: localWiring });
+    await createOn(rt, { golden: "snap_g", name: "b2" });
+    const create = backend.create.bind(backend);
+    let refusal: Error = Object.assign(new Error("Please slow down."), { kind: "concurrency", status: 429, code: "slow_down", said: "Please slow down." });
+    backend.create = async spec => {
+      if (spec.fromSnapshot !== undefined) throw refusal;
+      return create(spec);
+    };
+    const unknown = await createOn(rt, { golden: "snap_g", name: "b3" }).catch((e: unknown) => e);
+    expect((unknown as Error).message).toBe("a machine slot is in use: b2. Pause it or wait for a nap. The provider said: Please slow down.");
+    const day = "Boat's starts for today are used (200 of 200 on the $20 plan), so b4 was not started; Boat counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.";
+    refusal = Object.assign(new Error(day), { kind: "startLimit", window: "day", status: 429, code: "daily_limit_reached" });
+    const limited = await createOn(rt, { golden: "snap_g", name: "b4" }).catch((e: unknown) => e);
+    expect(limited).toMatchObject({ kind: "startLimit", message: day });
+    expect((limited as Error).message).not.toContain("machine slot");
+  });
+
   it("createLocal is refused when no local backend is wired", async () => {
     const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: echoAdapter } });
     await expect(createOn(rt, { on: HERE_PLACE_ID, name: "mac" })).rejects.toThrow("no local backend wired");

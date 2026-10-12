@@ -5,7 +5,8 @@
 // its own and pushes that. What the start answers, the preamble above the
 // lead's task, and every line the start refuses or passes with.
 import { z } from "zod";
-import { refusal } from "./exit.js";
+import { refusal, refusalParts } from "./exit.js";
+import { seedNotHereRefusal } from "./project-seed.js";
 import { ownerRepoOf } from "./start.js";
 import { fmtMemGb, sizeFromWord, sizeWord } from "./words/units.js";
 
@@ -177,20 +178,6 @@ export const subNoAgentRefusal = (on: string, agent: string, carried: readonly s
 /** S12: the picked files come to more than a sub-thread carries. */
 export const subSeedTooBigRefusal = (project: string, bytes: string, max: string, largest: readonly string[]): Error =>
   usage(`the files picked for ${project} come to ${bytes}, over the ${max} a sub-thread carries; the largest are ${largest.join(", ")}`, `Pick again with wsp projects seed ${project}.`);
-/** S13: the hour's starts are used. */
-export const subHourStartsRefusal = (on: string, used: number, limit: number, plan: string, title: string): Error =>
-  provider(`${on}'s starts for this hour are used (${used} of ${limit} on ${plan}), so sub-thread ${title} was not started`, "Start it again later in the hour, or move to a plan with more at boat.dev/dashboard.");
-/** S13: the day's starts are used. */
-export const subDayStartsRefusal = (on: string, used: number, limit: number, plan: string, title: string): Error =>
-  provider(`${on}'s starts for today are used (${used} of ${limit} on ${plan}), so sub-thread ${title} was not started`, `${on} counts the day again tomorrow, or a plan with more starts is at boat.dev/dashboard.`);
-
-/** The plan a start limit is counted on, as a line names it: the trial, or the plan's monthly price off its key. */
-export function subPlanWord(o: { trial: boolean; key?: string | undefined }): string {
-  if (o.trial) return "the trial";
-  const price = /_(\d+)$/.exec(o.key ?? "")?.[1];
-  return price === undefined ? "this plan" : `the $${price} plan`;
-}
-
 /** Why a machine failed before its sub-thread's first turn, the three a fresh machine cures. */
 export type SubFault = { kind: "unusable"; box: string; why: string; requestId?: string } | { kind: "env"; box: string } | { kind: "cancelled"; box: string; why: string };
 
@@ -220,7 +207,7 @@ export const subUncommittedLine = (n: number, folder: string, branch: string, sh
 /** Why nothing ignored went: nothing is picked for the project. */
 export const subNothingPickedWhy = (project: string): string => `nothing is picked for ${project}`;
 /** Why nothing ignored went: the project's folder is on another computer. */
-export const subPickedElsewhereWhy = (project: string, computer: string): string => `${project} lives on ${computer}, and picks are read from folders on this computer only`;
+export const subPickedElsewhereWhy = (project: string, computer: string): string => refusalParts(seedNotHereRefusal(project, computer)).said.replace(/\.$/, "");
 /** The line a start passes with when no git-ignored file was sent. */
 export const subNotSentLine = (why: string, project: string): string =>
   `no git-ignored files were sent: ${why}.${why.startsWith("nothing is picked") ? ` wsp projects seed ${project} shows what could go.` : ""}`;

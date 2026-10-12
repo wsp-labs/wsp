@@ -1109,6 +1109,11 @@ describe("machineCapRefusal", () => {
   it("says so plainly when nothing of this computer holds a slot, instead of naming an empty list", () => {
     expect(machineCapRefusal([])).toBe("the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again");
   });
+
+  it("keeps the provider's own words when its refusal was read as the cap by status alone", () => {
+    expect(machineCapRefusal(["first"], [], "Please slow down.")).toBe("a machine slot is in use: first. Pause it or wait for a nap. The provider said: Please slow down.");
+    expect(machineCapRefusal([], [], "Please slow down.")).toBe("the provider is at its machine cap and no machine of this computer holds a slot; free one at the provider and try again. The provider said: Please slow down.");
+  });
 });
 
 describe("goneWords", () => {

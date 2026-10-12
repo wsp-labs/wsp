@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { EXIT_CODES, HOST_TOKEN_ENV, TURN_TOKEN_ENV, subHourStartsRefusal, subOpenedLine, type SubOut } from "@wsp/protocol";
+import { EXIT_CODES, HOST_TOKEN_ENV, TURN_TOKEN_ENV, startsUsedLine, subOpenedLine, type SubOut } from "@wsp/protocol";
 import { ctx, sockets } from "../../runtime/test/places-fixture.js";
 import { PAID, leadOnThisComputer } from "../../runtime/test/sub-fixture.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
@@ -102,10 +102,10 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
 
   it("refuses the hour's starts used as the provider's class, exit 1, with no create", async () => {
     const { boat, launch } = await leadOnThisComputer({ served: true });
-    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, hour: { limit: 60, used: 60, remaining: 0 } } };
+    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, hour: { limit: 60, used: 60 } } };
     const ran = await wsp(launch, "run", "--on", "boat", "--detach", TASK, "--json");
     expect(ran.code).toBe(EXIT_CODES.provider);
-    expect(JSON.parse(ran.io.errors.at(-1)!)).toEqual({ error: subHourStartsRefusal("Boat", 60, 60, "the $20 plan", "Fix the flaky upload test").message, class: "provider", exit: 1 });
+    expect(JSON.parse(ran.io.errors.at(-1)!)).toEqual({ error: startsUsedLine("hour", 60, 60, "the $20 plan", "sub-thread Fix the flaky upload test"), class: "provider", exit: 1 });
     expect(boat.creates).toEqual([]);
   });
 

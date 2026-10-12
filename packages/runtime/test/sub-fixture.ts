@@ -8,8 +8,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
-import { BOX_WORK_DIR, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type CloudLimits, type Machine, type MachineSpec } from "@wsp/engine";
-import { HERE_PLACE_ID, HOST_TOKEN_ENV, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
+import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
+import { boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
 import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 import type { DaemonChannelOptions } from "../src/daemon-channel.js";
 import { memoryStore, type Store } from "../src/store.js";
@@ -26,17 +26,19 @@ afterEach(() => {
 });
 
 /** The owner's account at 17:06 UTC on 2026-10-11: the $20 plan, every class but xlarge, starts left in each window. */
-export const PAID: CloudLimits = {
+export const PAID: BoxLimits = {
   trial: false,
   planKey: "box_20",
-  sizes: [
-    { name: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
-    { name: "default", cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
-    { name: "large", cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
-  ],
-  starts: { minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
+  planUsd: 20,
+  machinesAtOnce: 100,
+  sizes: ["small", "default", "large"],
+  canStart: true,
+  starts: { minute: { limit: 12, used: 0 }, hour: { limit: 60, used: 9 }, day: { limit: 200, used: 187 } },
 };
-export const TRIAL: CloudLimits = { ...PAID, trial: true, planKey: "box_trial", sizes: PAID.sizes.slice(0, 2), starts: { minute: { limit: 5, used: 0, remaining: 5 }, hour: { limit: 25, used: 0, remaining: 25 }, day: { limit: 75, used: 0, remaining: 75 } } };
+export const TRIAL: BoxLimits = { ...PAID, trial: true, planKey: "trial", planUsd: undefined, machinesAtOnce: 2, sizes: ["small", "default"], starts: { minute: { limit: 5, used: 0 }, hour: { limit: 25, used: 0 }, day: { limit: 75, used: 0 } } };
+/** The classes each plan sells, as a refusal names them. */
+export const PAID_SIZES: SubSize[] = BOX_CLASSES.filter(c => PAID.sizes.includes(c.type)).map(c => ({ name: c.type, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour }));
+export const TRIAL_SIZES: SubSize[] = PAID_SIZES.filter(s => TRIAL.sizes.includes(s.name as "small"));
 
 /** The setup image on Boat: v1, its sign-ins as the seal recorded them, and the agents its recipe carries. */
 async function sealImage(store: Store, o: { logins?: { name: string; state: "copied" | "signed-in" | "skipped" }[]; agents?: string[] } = {}): Promise<void> {
@@ -63,7 +65,7 @@ export type Fault = { kind: "unusable" | "env" | "cancelled"; replayed?: true };
 export interface Boat extends StubBackend {
   creates: MachineSpec[];
   faults: Fault[];
-  limitsRead: CloudLimits;
+  limitsRead: BoxLimits;
   /** Every file put on a machine, by its path there. */
   files: { machine: string; path: string; bytes: Buffer }[];
 }
@@ -75,7 +77,7 @@ function fakeBoat(): Boat {
   boat.faults = [];
   boat.files = [];
   boat.limitsRead = PAID;
-  Object.assign(boat, { capabilities: { ...boat.capabilities, sizes: PAID.sizes.map(s => ({ cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour })) } });
+  Object.assign(boat, { capabilities: { ...boat.capabilities, sizes: PAID_SIZES.map(s => ({ cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour })) } });
   boat.limits = async () => boat.limitsRead;
   const make = boat.create.bind(boat);
   boat.create = async (spec: MachineSpec): Promise<Machine> => {
@@ -90,7 +92,7 @@ function fakeBoat(): Boat {
     if (fault.replayed !== true) m.killed = true;
     if (fault.kind === "unusable") throw new GuestUnusableError(m.id, "Boat", `${BOX_WORK_DIR} is missing`, 200);
     if (fault.kind === "env") throw new EnvNotLandedError(m.id, 124, "");
-    throw new CreateCancelledError(m.id, "no capacity");
+    throw new CreateCancelledError(m.id, "no capacity", boatCancelledLine(spec.labels?.[NAME_LABEL], "no capacity"));
   };
   return boat;
 }

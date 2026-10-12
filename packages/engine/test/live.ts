@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +32,13 @@ export function liveEnv(): LiveEnv {
 export function solariKey(): string {
   const key = readEnv().SOLARI_API_KEY;
   if (!key) throw new Error("Missing SOLARI_API_KEY in .env at repo root");
+  return key;
+}
+
+/** The Boat key, from the environment or else `.env` at the repo root. */
+export function boatKey(): string {
+  const key = process.env.BOAT_API_KEY || (existsSync(join(root, ".env")) ? readEnv().BOAT_API_KEY : undefined);
+  if (!key) throw new Error("Missing BOAT_API_KEY in the environment or in .env at repo root");
   return key;
 }
 
