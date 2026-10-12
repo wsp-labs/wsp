@@ -5,17 +5,17 @@
 // holds a pane to its own folder and its own ptys, reads the computer's ports,
 // load and processes for it through watches it shares with every pane there
 // (box-panels.test.ts), and refuses a command before the link.
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CATALOG_AGENTS } from "@wsp/catalog";
-import { forkOpRefusedLine, rootsPathIn, type DaemonFrame } from "@wsp/protocol";
-import { fakeProcTree } from "../../daemon/test/fake-proc.js";
+import { DAEMON_VERSION, forkOpRefusedLine, rootsPathIn, threadCgroup, type DaemonFrame } from "@wsp/protocol";
+import { fakeProcTree, setListeners, writeProc } from "../../daemon/test/fake-proc.js";
 import { daemonUnderTest } from "../../daemon/test/harness.js";
 import { openDaemonChannel } from "../src/daemon-channel.js";
 import { until } from "./until.js";
-import { handedLine, joined } from "./box-fixture.js";
+import { answering, handedLine, joined } from "./box-fixture.js";
 
 /** A project folder's record on hetzner and a channel into it, with every event the channel hands its pane. */
 async function pane() {
@@ -148,6 +148,42 @@ describe("a terminal of a thread in a folder on a computer you joined", () => {
       channel.close();
       real.close();
     } finally {
+      await daemon.close();
+      for (const dir of [home, inbox, procRoot]) rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+describe("the Browser pane of a thread in a folder on a computer you joined", () => {
+  it("lists a server the thread starts in the background after the pane opened, on a daemon a version behind this host", async () => {
+    const home = mkdtempSync(join(tmpdir(), "wsp-box-home-"));
+    const inbox = mkdtempSync(join(tmpdir(), "wsp-box-inbox-"));
+    const procRoot = fakeProcTree([]);
+    const daemon = await daemonUnderTest({ host: "127.0.0.1", port: 0, token: "box-token", inbox, rootsPath: rootsPathIn(inbox), procRoot });
+    const held: { close(): void }[] = [];
+    try {
+      let push = (_event: Record<string, unknown>): void => {};
+      const real = await openDaemonChannel({ url: `ws://127.0.0.1:${daemon.port}`, token: "box-token", onEvent: event => push(event) });
+      held.push(real);
+      const ports = async (frame: Record<string, unknown>): Promise<Record<string, unknown>> => (await real.send(frame as DaemonFrame)) as Record<string, unknown>;
+      const { rt, project, seen } = await joined({ login: { home, owner: "root" }, adapters: { claude: answering([]) }, ports, daemonVersion: DAEMON_VERSION - 1 });
+      push = event => void (String(event["type"]).startsWith("port.") && seen.push(event));
+      mkdirSync(project.path);
+      const at = await rt.workspaces.folderFor({ project: project.id });
+      const turn = await rt.sessions.start(at.workspace.id, { prompt: "serve it", harness: "claude" });
+      await turn.finished;
+      const heard: Record<string, unknown>[] = [];
+      const channel = await rt.workspaces.daemonChannel(at.workspace.id, e => heard.push(e));
+      held.push(channel);
+      expect(await channel.send({ op: "ports.watch" })).toMatchObject({ ok: true, ports: [] });
+
+      // python3 -m http.server 8090 --bind 0.0.0.0, started in the background: it stands in the thread's cgroup.
+      writeProc(procRoot, { pid: 6043, ppid: 1, comm: "python3", cmdline: ["python3", "-m", "http.server", "8090"], cwd: project.path });
+      writeFileSync(join(procRoot, "6043", "cgroup"), `0::${threadCgroup(turn.view().threadId!)}\n`);
+      setListeners(procRoot, [{ port: 8090, pid: 6043 }]);
+      await until(() => heard.some(e => e["type"] === "port.open" && e["port"] === 8090), 12_000);
+    } finally {
+      for (const one of held.reverse()) one.close();
       await daemon.close();
       for (const dir of [home, inbox, procRoot]) rmSync(dir, { recursive: true, force: true });
     }

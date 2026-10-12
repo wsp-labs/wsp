@@ -730,6 +730,19 @@ export const STDIO_DAEMON_VERSION = 154;
  * on a box or a cloud machine is asked through. */
 export const HTTP_POST_DAEMON_VERSION = 155;
 
+/** The first daemon whose ports.watch takes a name and cgroups, which a box thread's panes watch its ports by. */
+export const NAMED_WATCH_DAEMON_VERSION = 136;
+
+/** The first daemon that ends a socket's readings watch on sys.unwatch; one before it refuses the op. */
+export const SYS_UNWATCH_DAEMON_VERSION = 152;
+
+/** Why a computer's daemon cannot take a pane's port watch, in placeDaemonBehind's words: one from before named
+ * watches, or one that never said its version. */
+export function namedWatchGap(daemonVersion: number | undefined): string | undefined {
+  if (daemonVersion === undefined) return `daemon version unknown, host ${DAEMON_VERSION}`;
+  return daemonVersion < NAMED_WATCH_DAEMON_VERSION ? placeDaemonBehind({ daemonVersion }) : undefined;
+}
+
 /** The first daemon that answers fs.folders. */
 export const FS_FOLDERS_DAEMON_VERSION = 73;
 
