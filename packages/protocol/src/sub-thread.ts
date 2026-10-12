@@ -307,7 +307,7 @@ export const SUB_STRIP = {
   waitingMinute: (on: string, used: number, limit: number): SubStripWords => ({ title: `Waiting for ${on}'s next minute of starts`, note: `${used} of ${limit} starts this minute are used. It starts on its own within the minute.` }),
   notPushed: (held: { files: number; commits: number }, branch: string, refused?: string): SubStripWords => ({
     title: `${capitalisedFirst(heldWords(held))} not pushed`,
-    note: refused === undefined ? `They are on ${branch} on this machine, which stays until they are pushed or brought home.` : `The push to ${branch} was refused: ${refused}. This machine stays until the work is pushed or brought home.`,
+    note: `${refused === undefined ? `They are on ${branch} on this machine.` : `The push to ${branch} was refused: ${refused}.`} This machine stays until the work is pushed or copied to your computer.`,
   }),
   deleting: (minutes: string, branch: string): SubStripWords => ({ title: `Its machine is deleted in ${minutes}`, note: `Everything is pushed to ${branch}. The transcript stays, and a message after the delete starts a new machine.` }),
   released: (on: string): SubStripWords => ({ title: "This thread's machine was deleted", note: `A message starts a new one on ${on}, and the conversation goes on.` }),
@@ -315,7 +315,8 @@ export const SUB_STRIP = {
   cloudGone: (on: string, here: string): SubStripWords => ({ title: `${on} was removed from ${here}`, note: `This thread has no machine to start until ${on} is added again. Its transcript stays.` }),
   raise: "Raise machines at once",
   pushAgain: "Push again",
-  bringHome: "Bring it home",
+  /** Copies the sub-thread's commits back to the computer the host runs on, by its name. */
+  copyTo: (computer: string): string => `Copy to ${computer}`,
   startAgain: (size: string): string => `Start again at ${size}`,
   addAgain: (on: string): string => `Add ${on} again`,
 } as const;
