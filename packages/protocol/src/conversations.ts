@@ -81,13 +81,14 @@ export interface ConversationRoad {
  * recorded folder is one of `cwds`; `live` the ids a running process holds now, null where nothing could say;
  * `stamp` a few words that change when a conversation is added to the folders' store, read without starting the agent;
  * `earlier` one conversation's newest messages, gone where the store holds no such id, and open where `probe` asked it
- * and another process is writing it. `letsGo` says the agent refuses a second writer and lets go of a closed one,
+ * and another process is writing it; `tail` asks a store that reads a file to read only that many bytes of its end,
+ * and `count: false` lets a store skip what it would read only to count the messages before them, `earlier` then 0. `letsGo` says the agent refuses a second writer and lets go of a closed one,
  * and how soon, in a sentence. */
 export interface ConversationStore {
   list(cwds: readonly string[], road: ConversationRoad): Promise<StoredConversation[]>;
   live?(road: ConversationRoad): Promise<ReadonlySet<string> | null>;
   stamp?(cwds: readonly string[], road: ConversationRoad): Promise<string>;
-  earlier(id: string, o: { cwds: readonly string[]; last: number; probe: boolean }, road: ConversationRoad): Promise<ConversationEarlier | "gone" | "open">;
+  earlier(id: string, o: { cwds: readonly string[]; last: number; probe: boolean; tail?: number; count?: false }, road: ConversationRoad): Promise<ConversationEarlier | "gone" | "open">;
   readonly letsGo?: string;
 }
 
@@ -103,6 +104,19 @@ export const foldersStampCommand = (folders: readonly string[]): string =>
 
 /** How many of a conversation's newest messages a thread opens with. */
 export const EARLIER_MESSAGES = 200;
+/** How many of a conversation's newest messages the picker's preview shows, and how much of a transcript's end it
+ * reads for them: 256 KB held 63 messages of a 133 MB Claude Code transcript (measured 2026-10-11). */
+export const PREVIEW_MESSAGES = 4;
+export const PREVIEW_TAIL_BYTES = 256 << 10;
+
+/** One conversation read before any thread opens on it: where it ran, its name, and its newest rows as the thread's
+ * transcript would open with them, a tool call as its one line and a note for the messages left out. */
+export const ConversationRead = z.object({
+  cwd: z.string().optional(),
+  title: z.string(),
+  rows: z.array(z.object({ who: z.enum(["person", "agent", "tool", "note"]), text: z.string() })),
+});
+export type ConversationRead = z.infer<typeof ConversationRead>;
 
 /** The kind a start carries when the conversation is open in another app, which the app answers with its confirm. */
 export const CONVERSATION_OPEN_KIND = "conversation-open";
@@ -112,8 +126,18 @@ export const CONVERSATION_WORDS = {
   row: "Resume a conversation",
   search: "Search conversations...",
   openProjectFirst: "Open a project first",
-  empty: "No Claude Code or Codex conversations in this folder.",
   noMatch: "No matching conversations.",
+  allAgents: "All agents",
+  allBranches: "All branches",
+  allProjects: "All projects",
+  onBranch: (branch: string): string => `On ${branch}`,
+  everyProject: "Conversations in every project",
+  emptyIn: (project: string): string => `No conversations in ${project} yet`,
+  runsIn: "Runs in",
+  previewReading: "Reading the last messages",
+  earlierFold: "Earlier, outside wsp",
+  navigate: "Navigate",
+  close: "Close",
   live: "Open in another app",
   thread: "Already a thread",
   startFresh: "Start fresh",
@@ -123,16 +147,10 @@ export const CONVERSATION_WORDS = {
   cancel: "Cancel",
   group: (project: string): string => `Conversations in ${project}`,
   reading: (computer: string): string => `Reading conversations on ${computer}`,
-  inFolder: (n: number): string => `${n} in this folder`,
   continues: (title: string, copy: boolean): string => (copy ? `Continues a copy of ${title}` : `Continues ${title}`),
   openTitle: (title: string, computer: string): string => `${title} is open in another app on ${computer}`,
   openNote: (letsGo: string | undefined): string =>
     letsGo === undefined ? "Continuing it here too would split it. Continue in a copy, or close it there first." : `Continue in a copy, or close it there and try again. ${letsGo}`,
-  heldRow: (agent: string): string => `${agent} conversations`,
-  heldNote: (computer: string): string => `Update ${computer} to list them`,
-  /** The count beside Resume where a store did not answer, which says whose rows are missing rather than all. */
-  listed: (n: number): string => `${n} listed`,
-  unreadShort: (agent: string): string => `${agent}'s could not be read`,
 } as const;
 
 /** The line that stands for the messages a thread did not open with. */

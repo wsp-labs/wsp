@@ -203,6 +203,8 @@ describe("the list of every place", () => {
     const places = await placesOf();
     expect(places.map(p => p.kind)).toEqual(["computer", "computer", "provider"]);
     expect(places[0]).toMatchObject({ id: "here", name: HERE.name, present: true, takesForks: false });
+    // This computer's home rides on its row as a joined computer's does, what the app writes a path under it from.
+    expect(places[0]!.home).toBe(HERE.home);
     expect(places.at(-1)).toMatchObject({ id: "box", kind: "provider", rateUsdPerHour: 0.018, takesForks: true });
     expect(places.filter(p => p.default)).toHaveLength(1);
     expect(places.find(p => p.default)!.id).toBe(first.placeId);

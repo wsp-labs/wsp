@@ -18,8 +18,11 @@ import {
   conversationOpenFix,
   conversationsUnreadLine,
   conversationsUpdateFix,
+  EARLIER_MESSAGES,
   earlierLine,
   foldThreads,
+  PREVIEW_MESSAGES,
+  PREVIEW_TAIL_BYTES,
   refusalParts,
   unknownOpLine,
   type AdapterEvent,
@@ -113,8 +116,8 @@ function harness(seen: Seen, store?: ConversationStore): HarnessAdapterFactory {
 
 /** A store with the adapters' shape over rows, open ids and one conversation's earlier messages, recording the folders
  * each read was given. */
-function fakeStore(o: { rows?: StoredConversation[]; live?: string[] | null; earlier?: ConversationEarlier | "gone" | "open" | ((probe: boolean) => ConversationEarlier | "gone" | "open"); letsGo?: string }): ConversationStore & { asked: { cwds: readonly string[]; probe?: boolean }[] } {
-  const asked: { cwds: readonly string[]; probe?: boolean }[] = [];
+function fakeStore(o: { rows?: StoredConversation[]; live?: string[] | null; earlier?: ConversationEarlier | "gone" | "open" | ((probe: boolean) => ConversationEarlier | "gone" | "open"); letsGo?: string }): ConversationStore & { asked: { cwds: readonly string[]; probe?: boolean; last?: number; tail?: number; count?: false }[] } {
+  const asked: { cwds: readonly string[]; probe?: boolean; last?: number; tail?: number; count?: false }[] = [];
   return {
     asked,
     ...(o.letsGo !== undefined ? { letsGo: o.letsGo } : {}),
@@ -124,7 +127,7 @@ function fakeStore(o: { rows?: StoredConversation[]; live?: string[] | null; ear
     },
     ...(o.live !== undefined ? { live: async () => (o.live === null ? null : new Set(o.live)) } : {}),
     earlier: async (_id, read) => {
-      asked.push({ cwds: read.cwds, probe: read.probe });
+      asked.push({ cwds: read.cwds, probe: read.probe, last: read.last, ...(read.tail !== undefined ? { tail: read.tail } : {}), ...(read.count === false ? { count: false as const } : {}) });
       const e = o.earlier ?? "gone";
       return typeof e === "function" ? e(read.probe) : e;
     },
@@ -477,6 +480,56 @@ describe("a project's kept conversation list", () => {
     vi.setSystemTime(Date.now() + KEPT_LIST_MS);
     await rt.conversations.list({ project: project.id });
     expect(claude.asked).toHaveLength(3);
+  });
+});
+
+describe("a conversation read for the picker", () => {
+  const earlier: ConversationEarlier = {
+    cwd: "/work/acme/lab-wt",
+    title: "lab codewords",
+    lines: [
+      { who: "person", text: "Remember the codeword ALPHA." },
+      { who: "tool", text: '{"command":"echo hi-from-tool"}', tool: "Bash" },
+      { who: "agent", text: "ALPHA" },
+    ],
+    earlier: 3,
+  };
+
+  it("answers the rows a thread on it would open with, read without taking it and starting nothing", async () => {
+    const { folder } = repoWithTree();
+    const claude = fakeStore({ earlier, live: [ID] });
+    const { rt, seen } = here({ claude });
+    const project = await rt.projects.add({ source: folder });
+    expect(await rt.conversations.read({ project: project.id, agent: "claude", id: ID })).toEqual({
+      cwd: "/work/acme/lab-wt",
+      title: "lab codewords",
+      rows: [
+        { who: "note", text: earlierLine(3, "Claude Code") },
+        { who: "person", text: "Remember the codeword ALPHA." },
+        { who: "tool", text: "$ echo hi-from-tool" },
+        { who: "agent", text: "ALPHA" },
+      ],
+    });
+    expect(claude.asked.filter(a => a.probe !== undefined)).toEqual([{ cwds: claude.asked[0]!.cwds, probe: false, last: EARLIER_MESSAGES }]);
+    expect(seen.starts).toEqual([]);
+  });
+
+  it("previews the newest few off the end of the agent's file, with no count of the rest", async () => {
+    const { folder } = repoWithTree();
+    const claude = fakeStore({ earlier });
+    const { rt } = here({ claude });
+    const project = await rt.projects.add({ source: folder });
+    const preview = await rt.conversations.read({ project: project.id, agent: "claude", id: ID, preview: true });
+    expect(preview.rows.map(r => r.who)).toEqual(["person", "tool", "agent"]);
+    expect(claude.asked.at(-1)).toMatchObject({ probe: false, last: PREVIEW_MESSAGES, tail: PREVIEW_TAIL_BYTES, count: false });
+  });
+
+  it("is refused where the agent holds no such conversation, or reads none", async () => {
+    const { folder } = repoWithTree();
+    const { rt } = here({ claude: fakeStore({ earlier: "gone" }) });
+    const project = await rt.projects.add({ source: folder });
+    await expect(rt.conversations.read({ project: project.id, agent: "claude", id: OTHER })).rejects.toThrow(/holds no conversation/);
+    await expect(rt.conversations.read({ project: project.id, agent: "codex", id: OTHER })).rejects.toThrow(/cannot pick up Codex conversations/);
   });
 });
 

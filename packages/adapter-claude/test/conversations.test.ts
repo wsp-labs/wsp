@@ -111,6 +111,13 @@ describe("Claude Code's conversations in a folder", () => {
     expect(await adapter.conversations.earlier(ID, { cwds: ["/work/acme/lab"], last: 200, probe: true }, road({ "transcripts.read": { found: false, messages: [], earlier: 0 } }))).toBe("gone");
   });
 
+  it("asks the daemon for the end of the file alone where the read names a tail", async () => {
+    const adapter = createClaudeAdapter({ exec: recorded().factory, configDir: "/home/dev/.claude" });
+    const found = road({ "transcripts.read": { found: true, messages: [{ who: "agent", text: "done" }], earlier: 0 } });
+    await adapter.conversations.earlier(ID, { cwds: ["/work/acme/lab"], last: 4, probe: false, tail: 262144 }, found);
+    expect(found.frames).toEqual([{ op: "transcripts.read", root: "/home/dev/.claude/projects", dirs: ["-work-acme-lab"], session: ID, last: 4, tail: 262144 }]);
+  });
+
   it("of more than 64 folders are asked for in frames of at most 64, every run of folders the store holds with every run of cwds, the newest of an id kept", async () => {
     const cwds = Array.from({ length: 70 }, (_, i) => `/work/acme/lab-t${i}`);
     const adapter = createClaudeAdapter({ exec: recorded().factory, configDir: "/home/dev/.claude", projectDirName: "-work-acme-lab" });

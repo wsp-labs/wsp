@@ -232,6 +232,17 @@ interface StopAttempt {
  * why they wait, and nothing leaves it here, since the queue goes to the workspace once it is up; the folder row
  * names the copy's folder. `question` is the line of the question the person folded and `limit` the usage limit that
  * stopped the thread's turn, each a row of the drawer on the box's edge. */
+/** A draft's line over the tray: what the send continues, where, and the dismiss that lets the draft go. */
+export interface ComposerDraftBanner {
+  /** Names the banner and its dismiss for tests: data-<k>-banner, <k>-dismiss. */
+  readonly k: string;
+  readonly icon: ReactNode;
+  readonly line: string;
+  readonly note?: string;
+  readonly dismiss: string;
+  readonly onDismiss: () => void;
+}
+
 export function ChatComposer({
   workspaceId,
   thread,
@@ -242,6 +253,7 @@ export function ChatComposer({
   sendLabel: sendGiven,
   beside,
   under,
+  banner,
   question = null,
   limit = null,
 }: {
@@ -260,6 +272,9 @@ export function ChatComposer({
   /** One line under the tray, where what is typed is refused before any send: a link no project matches. It stands
    * below the composer's glass, which ends at the tray. */
   under?: ReactNode;
+  /** The draft the send continues, said over the tray as a fork's is, with its dismiss: a send that resumes a
+   * conversation, which no process started ahead of it holds. */
+  banner?: ComposerDraftBanner;
   question?: string | null;
   limit?: ThreadLimit | null;
 }) {
@@ -462,7 +477,7 @@ export function ChatComposer({
   // a copy for each, which no process started here serves.
   const warmAsk = ((): string | null => {
     // A fork resumes its source's conversation, which no process started ahead of it holds.
-    if (fork !== undefined) return null;
+    if (fork !== undefined || banner !== undefined) return null;
     const at = onStart !== undefined ? (homeProject === undefined || multiPicks.length > 0 ? undefined : { project: homeProject }) : opening && !waits && blocked === null ? { workspaceId, ...folderStart } : undefined;
     return at === undefined ? null : JSON.stringify({ ...at, harness: harnessId, ...sendPicks(pinned, startOptions), ...(fastOn ? { fast: true } : {}) } satisfies WarmAgentOptions);
   })();
@@ -1144,23 +1159,23 @@ export function ChatComposer({
   );
 
   if (bar !== null) return bar;
+  const draftBanner: ComposerDraftBanner | undefined =
+    fork !== undefined ? { k: "fork", icon: <SplitIcon />, line: forkOfLine(fork.source.title), note: forkWhereLine(fork.branch), dismiss: "Cancel the fork", onDismiss: dismissFork } : banner;
   return (
     <div className="relative w-full px-3 pt-1.5 pb-4 sm:px-5 sm:pt-2 sm:pb-5" data-chat-composer>
       {dropZone}
-      <ComposerSurface.Shell tray attached={hasRows(drawer) || fork !== undefined}>
+      <ComposerSurface.Shell tray attached={hasRows(drawer) || draftBanner !== undefined}>
         {/* Inside the shell the glass is the shell's, whose dark ink is only ever laid at its own faint opacity. */}
-        {fork === undefined ? null : (
-          <ComposerBanner.Root data-fork-banner className="mx-auto -mb-px w-[calc(100%-2*var(--chat-composer-drawer-inset))] [--glass-opacity:var(--chat-composer-glass-opacity)]">
+        {draftBanner === undefined ? null : (
+          <ComposerBanner.Root {...{ [`data-${draftBanner.k}-banner`]: true }} className="mx-auto -mb-px w-[calc(100%-2*var(--chat-composer-drawer-inset))] [--glass-opacity:var(--chat-composer-glass-opacity)]">
             <ComposerBanner.Row>
-              <ComposerBanner.Icon>
-                <SplitIcon />
-              </ComposerBanner.Icon>
+              <ComposerBanner.Icon>{draftBanner.icon}</ComposerBanner.Icon>
               <ComposerBanner.Content>
-                <span className="min-w-0 truncate text-foreground/80">{forkOfLine(fork.source.title)}</span>
-                <span className="shrink-0 text-muted-foreground">{forkWhereLine(fork.branch)}</span>
+                <span className="min-w-0 truncate text-foreground/80">{draftBanner.line}</span>
+                {draftBanner.note === undefined ? null : <span className="shrink-0 text-muted-foreground">{draftBanner.note}</span>}
               </ComposerBanner.Content>
               <ComposerBanner.Actions>
-                <ComposerBanner.Dismiss aria-label="Cancel the fork" data-k="fork-dismiss" onClick={dismissFork} />
+                <ComposerBanner.Dismiss aria-label={draftBanner.dismiss} data-k={`${draftBanner.k}-dismiss`} onClick={draftBanner.onDismiss} />
               </ComposerBanner.Actions>
             </ComposerBanner.Row>
           </ComposerBanner.Root>
