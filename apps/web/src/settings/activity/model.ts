@@ -7,7 +7,8 @@
 // and the host, and the parent chain under each. Sort, filter, the Kinds and Ports views and the
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
-import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
+import { ACTIVITY_WORDS } from "../format.js";
+import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
 
 export type { ProcKind };
 
@@ -90,6 +91,24 @@ export interface ActivityProc {
   readonly children: readonly ActivityProc[];
 }
 
+/** One running container on the computer's engine, under the thread the daemon placed it with, or under No thread. Its
+ * figures are absent until the daemon read them. */
+export interface ActivityContainer {
+  readonly id: string;
+  readonly name: string;
+  readonly image: string;
+  /** How long it has run at the time the page was drawn; null where the engine did not say. */
+  readonly upMs: number | null;
+  readonly mem: number | null;
+  readonly cpu: number | null;
+  /** Compose's folder for its project, which names one under No thread. */
+  readonly folder: string | null;
+  readonly placedBy: ContainerPlacedBy | null;
+  /** Under the thread a label or note placed it with, the only containers End reaches: one under No thread was started
+   * by the person, by a fork's engine, or by a thread wsp no longer knows. */
+  readonly owned: boolean;
+}
+
 export type GroupKind = "wsp" | "thread" | "loose";
 
 export interface ActivityGroup {
@@ -100,6 +119,8 @@ export interface ActivityGroup {
   readonly procs: readonly ActivityProc[];
   /** A thread's subagents drawn now; none for any other group. */
   readonly subagents: readonly ActivitySubagent[];
+  /** The containers a thread's docker started, or under No thread those no thread's did. */
+  readonly containers: readonly ActivityContainer[];
 }
 
 export interface ActivityScope {
@@ -357,17 +378,40 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
     return [...heads.filter(p => p.kind !== "slate"), slate];
   };
 
+  // A container stands under the thread the daemon named where this page knows that thread, else under No thread.
+  const containers = new Map<string, ActivityContainer[]>();
+  for (const c of snapshot.containers ?? []) {
+    const at = c.thread !== undefined && threadById.has(c.thread) ? `t:${c.thread}` : "loose";
+    (containers.get(at) ?? containers.set(at, []).get(at)!).push(containerOf(c, now, at !== "loose"));
+  }
+
   const groups: ActivityGroup[] = [];
   const wsp = members.get("wsp");
-  if (wsp !== undefined) groups.push({ id: "wsp", kind: "wsp", procs: forest(wsp), subagents: [] });
+  if (wsp !== undefined) groups.push({ id: "wsp", kind: "wsp", procs: forest(wsp), subagents: [], containers: [] });
   for (const t of threads) {
     const mine = members.get(`t:${t.id}`);
     const subagents = subagentsOf(t.subagents ?? [], now);
-    if (mine !== undefined || subagents.length > 0) groups.push({ id: t.id, kind: "thread", thread: t, procs: mine === undefined ? [] : withSlate(forest(mine), t), subagents });
+    const held = containers.get(`t:${t.id}`) ?? [];
+    if (mine !== undefined || subagents.length > 0 || held.length > 0) groups.push({ id: t.id, kind: "thread", thread: t, procs: mine === undefined ? [] : withSlate(forest(mine), t), subagents, containers: held });
   }
   const loose = members.get("loose");
-  if (loose !== undefined) groups.push({ id: "loose", kind: "loose", procs: forest(loose), subagents: [] });
+  const looseContainers = containers.get("loose") ?? [];
+  if (loose !== undefined || looseContainers.length > 0) groups.push({ id: "loose", kind: "loose", procs: loose === undefined ? [] : forest(loose), subagents: [], containers: looseContainers });
   return { groups, rest: rest.map(p => leaf(p, [])), energy };
+}
+
+function containerOf(c: ProcContainer, now: number, owned: boolean): ActivityContainer {
+  return {
+    id: c.id,
+    name: c.name,
+    image: c.image,
+    upMs: c.startedAt === undefined ? null : Math.max(0, now - c.startedAt),
+    mem: c.memory ?? null,
+    cpu: c.cpu ?? null,
+    folder: c.folder ?? null,
+    placedBy: c.placedBy ?? null,
+    owned,
+  };
 }
 
 /** Every process under a row, the row included; a heading is no process and only its children count. */
@@ -389,6 +433,18 @@ export function spent(procs: readonly ActivityProc[]): Spent {
   return { mem: all.reduce((n, p) => n + p.mem, 0), cpu: all.reduce((n, p) => n + p.cpu, 0), energy: energies.length === 0 ? null : energies.reduce((n, e) => n + e, 0), count: all.length };
 }
 
+/** A group's figures: its processes' and its containers', whose memory and CPU are their own and no process's. The
+ * count stays its processes'. */
+export function groupSpent(g: Pick<ActivityGroup, "procs" | "containers">): Spent {
+  const p = spent(g.procs);
+  return { ...p, mem: g.containers.reduce((n, c) => n + (c.mem ?? 0), p.mem), cpu: g.containers.reduce((n, c) => n + (c.cpu ?? 0), p.cpu) };
+}
+
+/** Every group's figures together, what the page's totals read. */
+export function totalSpent(groups: readonly ActivityGroup[]): Spent {
+  return groupSpent({ procs: groups.flatMap(g => g.procs), containers: groups.flatMap(g => g.containers) });
+}
+
 export type ActivitySort = "mem" | "cpu" | "energy";
 
 const figure = (sort: ActivitySort) => (s: { mem: number; cpu: number; energy: number | null }) => (sort === "mem" ? s.mem : sort === "cpu" ? s.cpu : (s.energy ?? 0));
@@ -399,12 +455,18 @@ export function sortProcs(procs: readonly ActivityProc[], sort: ActivitySort): A
   return [...procs].sort((a, b) => of(b) - of(a) || a.pid - b.pid).map(p => (p.children.length === 0 ? p : { ...p, children: sortProcs(p.children, sort) }));
 }
 
+/** Heaviest first on the column, a container having no energy figure; ties by name. */
+export function sortContainers(containers: readonly ActivityContainer[], sort: ActivitySort): ActivityContainer[] {
+  const of = (c: ActivityContainer): number => (sort === "mem" ? (c.mem ?? 0) : sort === "cpu" ? (c.cpu ?? 0) : 0);
+  return [...containers].sort((a, b) => of(b) - of(a) || a.name.localeCompare(b.name));
+}
+
 /** wsp's parts stay first and No thread last; the threads between them heaviest first by their totals. */
 export function sortGroups(groups: readonly ActivityGroup[], sort: ActivitySort): ActivityGroup[] {
   const of = figure(sort);
   const rank = (g: ActivityGroup): number => (g.kind === "wsp" ? 0 : g.kind === "thread" ? 1 : 2);
   return [...groups]
-    .map(g => ({ g: { ...g, procs: sortProcs(g.procs, sort) }, total: of(spent(g.procs)) }))
+    .map(g => ({ g: { ...g, procs: sortProcs(g.procs, sort), containers: sortContainers(g.containers, sort) }, total: of(groupSpent(g)) }))
     .sort((a, b) => rank(a.g) - rank(b.g) || b.total - a.total || a.g.id.localeCompare(b.g.id))
     .map(x => x.g);
 }
@@ -423,6 +485,9 @@ export const KIND_WORDS: Record<ProcKind, string> = {
   wsp: "wsp",
   other: "Other",
 };
+
+/** What a filter reads a container by: its name, image and folder, and the word its row draws. */
+const containerHit = (c: ActivityContainer, needle: string): boolean => [c.name, c.image, c.folder ?? "", ACTIVITY_WORDS.container].some(s => s.toLowerCase().includes(needle));
 
 const procHit = (p: ActivityProc, needle: string): boolean => [p.name, p.command, KIND_WORDS[p.kind], String(p.pid), ...p.ports.map(x => String(x.port))].some(s => s.toLowerCase().includes(needle));
 
@@ -444,9 +509,10 @@ export interface ActivityPicks {
 
 export const NO_PICKS: ActivityPicks = { threads: [], kinds: [], projects: [] };
 
-/** The groups a filter and the chips leave. The text matches a process, a subagent's title or its thread's title; a
- * match stays under its group with its parents. A thread or project chip keeps only those threads, and drops wsp's
- * parts and No thread; a kind chip keeps only processes of those kinds, and no subagent, which is no process. */
+/** The groups a filter and the chips leave. The text matches a process, a subagent's title, a container or its thread's
+ * title; a match stays under its group with its parents. A thread or project chip keeps only those threads, and drops
+ * wsp's parts and No thread; a kind chip keeps only processes of those kinds, and no subagent or container, neither
+ * being a process of a kind. */
 export function filterGroups(groups: readonly ActivityGroup[], text: string, picks: ActivityPicks): ActivityGroup[] {
   const needle = text.trim().toLowerCase();
   const narrowed = picks.threads.length > 0 || picks.projects.length > 0;
@@ -454,13 +520,15 @@ export function filterGroups(groups: readonly ActivityGroup[], text: string, pic
     if (narrowed && (g.thread === undefined || (picks.threads.length > 0 && !picks.threads.includes(g.id)) || (picks.projects.length > 0 && !picks.projects.includes(g.thread.project)))) return [];
     let procs: readonly ActivityProc[] = g.procs;
     let subagents = picks.kinds.length > 0 ? [] : g.subagents;
+    let containers = picks.kinds.length > 0 ? [] : g.containers;
     if (picks.kinds.length > 0) procs = prune(procs, p => picks.kinds.includes(p.kind));
     const titled = needle !== "" && g.thread !== undefined && g.thread.title.toLowerCase().includes(needle);
     if (needle !== "" && !titled) {
       procs = prune(procs, p => procHit(p, needle));
       subagents = subagents.filter(s => s.title.toLowerCase().includes(needle));
+      containers = containers.filter(c => containerHit(c, needle));
     }
-    return procs.length > 0 || subagents.length > 0 || (titled && picks.kinds.length === 0) ? [{ ...g, procs, subagents }] : [];
+    return procs.length > 0 || subagents.length > 0 || containers.length > 0 || (titled && picks.kinds.length === 0) ? [{ ...g, procs, subagents, containers }] : [];
   });
 }
 

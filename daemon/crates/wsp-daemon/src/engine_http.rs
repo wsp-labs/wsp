@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The daemon's own requests to the computer's container engine over its unix socket: one request per connection,
+//! and the one held stream of engine events, read a line at a time. Where the socket is comes from the person's own
+//! Docker setup first, then the places engines put it.
+
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use sha2::{Digest, Sha256};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::UnixStream;
+
+/// How long one request waits on the engine before it is given up.
+const ASK_TIMEOUT: Duration = Duration::from_secs(5);
+/// The most of an answer's body, or of one event line, held: an inspect is a few KB, an event line under one.
+const BODY_CAP: usize = 4 << 20;
+const HEAD_CAP: usize = 64 << 10;
+
+/// The engine's socket on this computer: `DOCKER_HOST` where it names a unix socket, the current Docker context's,
+/// then the system's, Docker Desktop's and Podman's. None where no such socket is there.
+pub(crate) fn engine_socket(home: Option<&Path>, docker_host: Option<&str>) -> Option<PathBuf> {
+    let unix = |host: &str| host.strip_prefix("unix://").map(PathBuf::from);
+    let mut tried: Vec<PathBuf> = Vec::new();
+    tried.extend(docker_host.and_then(unix));
+    if let Some(home) = home {
+        tried.extend(context_host(home).as_deref().and_then(unix));
+    }
+    tried.push(PathBuf::from("/var/run/docker.sock"));
+    if let Some(home) = home {
+        tried.push(home.join(".docker/run/docker.sock"));
+    }
+    tried.push(PathBuf::from("/run/podman/podman.sock"));
+    tried.into_iter().find(|p| std::fs::metadata(p).is_ok_and(|m| std::os::unix::fs::FileTypeExt::is_socket(&m.file_type())))
+}
+
+/// The host the person's current Docker context names, off `~/.docker/config.json` and the context's meta file, which
+/// the Docker CLI files under the sha256 of the context's name. None for the default context.
+fn context_host(home: &Path) -> Option<String> {
+    let read = |p: PathBuf| std::fs::read(p).ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
+    let config = read(home.join(".docker/config.json"))?;
+    let name = config.get("currentContext")?.as_str().filter(|n| !n.is_empty() && *n != "default")?;
+    let digest = Sha256::digest(name.as_bytes());
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    let meta = read(home.join(".docker/contexts/meta").join(hex).join("meta.json"))?;
+    meta.pointer("/Endpoints/docker/Host")?.as_str().map(str::to_owned)
+}
+
+/// A response's status, whether its body is chunked, and the bytes read past its head.
+async fn open(sock: &Path, method: &str, path: &str) -> Result<(UnixStream, u16, bool, Vec<u8>), String> {
+    let mut stream = UnixStream::connect(sock).await.map_err(|e| format!("{}: {e}", sock.display()))?;
+    let request = format!("{method} {path} HTTP/1.1\r\nHost: docker\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+    stream.write_all(request.as_bytes()).await.map_err(|e| e.to_string())?;
+    let mut buf = Vec::new();
+    let end = loop {
+        if let Some(at) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            break at;
+        }
+        if buf.len() > HEAD_CAP {
+            return Err("the engine's answer has no end to its head".into());
+        }
+        let mut chunk = [0u8; 8192];
+        let n = stream.read(&mut chunk).await.map_err(|e| e.to_string())?;
+        if n == 0 {
+            return Err("the engine closed before it answered".into());
+        }
+        buf.extend_from_slice(&chunk[..n]);
+    };
+    let head = String::from_utf8_lossy(&buf[..end]).into_owned();
+    let mut lines = head.split("\r\n");
+    let status = lines
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse::<u16>().ok())
+        .ok_or("the engine answered with a head that does not parse")?;
+    let chunked = lines.any(|l| {
+        let l = l.to_ascii_lowercase();
+        l.starts_with("transfer-encoding:") && l.contains("chunked")
+    });
+    Ok((stream, status, chunked, buf[end + 4..].to_vec()))
+}
+
+/// One request: the status and the body as JSON, null where there was none.
+pub(crate) async fn ask(sock: &Path, method: &str, path: &str) -> Result<(u16, serde_json::Value), String> {
+    let asked = async {
+        let (mut stream, status, chunked, mut rest) = open(sock, method, path).await?;
+        let mut chunk = [0u8; 8192];
+        loop {
+            let n = stream.read(&mut chunk).await.map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            rest.extend_from_slice(&chunk[..n]);
+            if rest.len() > BODY_CAP {
+                return Err("the engine's answer is past what the daemon reads".to_owned());
+            }
+        }
+        let body = if chunked { Dechunk::default().feed(&rest) } else { rest };
+        let value = if body.iter().all(u8::is_ascii_whitespace) {
+            serde_json::Value::Null
+        } else {
+            serde_json::from_slice(&body).unwrap_or_default()
+        };
+        Ok((status, value))
+    };
+    tokio::time::timeout(ASK_TIMEOUT, asked).await.map_err(|_| "the engine did not answer in time".to_owned())?
+}
+
+/// A chunked body taken apart as its bytes come, whatever the reads split it at.
+#[derive(Default)]
+struct Dechunk {
+    raw: Vec<u8>,
+    /// The bytes of the chunk under way still to come, and the CRLF after them.
+    left: usize,
+    done: bool,
+}
+
+impl Dechunk {
+    fn feed(&mut self, bytes: &[u8]) -> Vec<u8> {
+        self.raw.extend_from_slice(bytes);
+        let mut out = Vec::new();
+        loop {
+            if self.done {
+                return out;
+            }
+            if self.left > 0 {
+                let take = self.left.min(self.raw.len());
+                // The last two bytes of a chunk's share are its CRLF, which are no body.
+                let body = take.min(self.left.saturating_sub(2));
+                out.extend_from_slice(&self.raw[..body]);
+                self.raw.drain(..take);
+                self.left -= take;
+                if self.left > 0 {
+                    return out;
+                }
+                continue;
+            }
+            let Some(at) = self.raw.windows(2).position(|w| w == b"\r\n") else { return out };
+            let size =
+                usize::from_str_radix(String::from_utf8_lossy(&self.raw[..at]).split(';').next().unwrap_or("").trim(), 16).unwrap_or(0);
+            self.raw.drain(..at + 2);
+            if size == 0 {
+                self.done = true;
+            } else {
+                self.left = size + 2;
+            }
+        }
+    }
+}
+
+/// The engine's event stream, held open: each next line is one event's JSON.
+pub(crate) struct Events {
+    stream: UnixStream,
+    chunks: Option<Dechunk>,
+    body: Vec<u8>,
+}
+
+impl Events {
+    /// Subscribes to what `query` names; a status other than 200 is the engine's refusal.
+    pub(crate) async fn open(sock: &Path, query: &str) -> Result<Events, String> {
+        let path = format!("/events?{query}");
+        let (stream, status, chunked, rest) = tokio::time::timeout(ASK_TIMEOUT, open(sock, "GET", &path))
+            .await
+            .map_err(|_| "the engine did not answer in time".to_owned())??;
+        if status != 200 {
+            return Err(format!("the engine refused its events with {status}"));
+        }
+        let mut events = Events { stream, chunks: chunked.then(Dechunk::default), body: Vec::new() };
+        events.take(&rest);
+        Ok(events)
+    }
+
+    fn take(&mut self, bytes: &[u8]) {
+        match &mut self.chunks {
+            Some(chunks) => {
+                let body = chunks.feed(bytes);
+                self.body.extend_from_slice(&body);
+            }
+            None => self.body.extend_from_slice(bytes),
+        }
+    }
+
+    /// The next line, or an error once the engine closes the stream. A line past the cap is dropped whole.
+    pub(crate) async fn next_line(&mut self) -> Result<Vec<u8>, String> {
+        loop {
+            if let Some(at) = self.body.iter().position(|b| *b == b'\n') {
+                let line: Vec<u8> = self.body.drain(..=at).collect();
+                return Ok(line);
+            }
+            if self.body.len() > BODY_CAP {
+                self.body.clear();
+            }
+            let mut chunk = [0u8; 8192];
+            let n = self.stream.read(&mut chunk).await.map_err(|e| e.to_string())?;
+            if n == 0 {
+                return Err("the engine ended its events".into());
+            }
+            self.take(&chunk[..n]);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_chunked_body_reads_whole_whatever_the_reads_split_it_at() {
+        let whole = b"5\r\nhello\r\n7;x=y\r\n, world\r\n0\r\n\r\n";
+        for split in 0..whole.len() {
+            let mut d = Dechunk::default();
+            let mut out = d.feed(&whole[..split]);
+            out.extend(d.feed(&whole[split..]));
+            assert_eq!(out, b"hello, world", "split at {split}");
+        }
+    }
+
+    #[test]
+    fn the_socket_is_docker_host_first_then_the_current_context_then_the_systems() {
+        let home = tempfile::tempdir().unwrap();
+        let named = home.path().join("named.sock");
+        let context = home.path().join("context.sock");
+        let _a = std::os::unix::net::UnixListener::bind(&named).unwrap();
+        let _b = std::os::unix::net::UnixListener::bind(&context).unwrap();
+        let docker = home.path().join(".docker");
+        std::fs::create_dir_all(&docker).unwrap();
+        std::fs::write(docker.join("config.json"), r#"{"currentContext":"colima"}"#).unwrap();
+        let digest: String = Sha256::digest(b"colima").iter().map(|b| format!("{b:02x}")).collect();
+        let meta = docker.join("contexts/meta").join(digest);
+        std::fs::create_dir_all(&meta).unwrap();
+        std::fs::write(meta.join("meta.json"), format!(r#"{{"Endpoints":{{"docker":{{"Host":"unix://{}"}}}}}}"#, context.display()))
+            .unwrap();
+        let host = format!("unix://{}", named.display());
+        assert_eq!(engine_socket(Some(home.path()), Some(&host)), Some(named.clone()));
+        assert_eq!(engine_socket(Some(home.path()), Some("tcp://10.0.0.1:2375")), Some(context.clone()));
+        // A DOCKER_HOST naming no socket that is there falls through to the context's.
+        assert_eq!(engine_socket(Some(home.path()), Some("unix:///nowhere/docker.sock")), Some(context));
+    }
+}

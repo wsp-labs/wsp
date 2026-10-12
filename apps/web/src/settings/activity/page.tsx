@@ -46,6 +46,7 @@ import {
   pushHistory,
   sortGroups,
   spent,
+  totalSpent,
   type ActivityPicks,
   type ActivityScope,
   type ActivitySort,
@@ -149,7 +150,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
   // costs one render and not a second one from an effect.
   const [history, setHistory] = useState<{ points: readonly HistoryPoint[]; at: number | null; interval: number }>({ points: [], at: null, interval: FIRST_INTERVAL_MS });
   if (snapshot !== null && scope !== null && snapshot.at !== history.at) {
-    const t = spent(scope.groups.flatMap(g => g.procs));
+    const t = totalSpent(scope.groups);
     setHistory(h => ({ points: pushHistory(h.points, { at: snapshot.at, mem: t.mem, cpu: t.cpu, energy: t.energy }), at: snapshot.at, interval: h.at === null ? FIRST_INTERVAL_MS : Math.max(1, snapshot.at - h.at) }));
   }
   const cost: SamplerCost | null = snapshot?.cost === undefined ? null : { cpu: (snapshot.cost.cpuMs / history.interval) * 100, held: snapshot.cost.held };
@@ -225,7 +226,7 @@ const inked = (tint: Tint): string | undefined => (tint === null ? undefined : T
 
 /** wsp's totals on this computer, each figure over a line of the last minutes; the process count stands alone. */
 function Tiles({ scope, history, mem }: { scope: ActivityScope; history: readonly HistoryPoint[]; mem: { used: string; total: number } | null }) {
-  const t = spent(scope.groups.flatMap(g => g.procs));
+  const t = totalSpent(scope.groups);
   const threads = scope.groups.filter(g => g.kind === "thread").length;
   const memTint = memoryShareTint(t.mem, mem?.total ?? null);
   const tiles = [

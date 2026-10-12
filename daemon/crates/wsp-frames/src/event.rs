@@ -65,6 +65,59 @@ pub struct ProcEntry {
     pub id: Option<String>,
 }
 
+/// How a container came to stand under its thread: its `wsp.thread` label, or a thread's compose note.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum ContainerPlacedBy {
+    Label,
+    Compose,
+}
+
+fn finite_opt<S: Serializer>(value: &Option<f64>, s: S) -> Result<S::Ok, S::Error> {
+    match value {
+        Some(v) => finite(v, s),
+        None => s.serialize_none(),
+    }
+}
+
+/// One running container on the computer's engine. It stands under the thread its `wsp.thread` label names, else under
+/// the thread of the newest compose note whose folder sits inside its compose folder, else under no thread with that
+/// folder named. memory is its cgroup's anon and kernel bytes, cpu its busy share of one core; both absent until read.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcContainer {
+    /// The engine's full id, which container.stop names back.
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    /// The engine's word for it: running, paused or restarting.
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub started_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub thread: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub placed_by: Option<ContainerPlacedBy>,
+    /// Compose's working folder for the project it belongs to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub folder: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub project: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub memory: Option<u64>,
+    #[serde(default, serialize_with = "finite_opt", skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cpu: Option<f64>,
+}
+
 /// What one tick of the process sampler cost the daemon: the cpu time the read and the frame took, and about how many
 /// bytes of rows it holds between ticks to tell the next frame's changes by.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -199,6 +252,10 @@ pub enum DaemonEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         cost: Option<ProcCost>,
+        /// Every running container, where the computer has an engine the daemon reaches; absent where it has none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        containers: Option<Vec<ProcContainer>>,
     },
     /// What moved since frame `base`: the rows new or changed, whole, and the pids gone. A client holding any other
     /// frame than `base` applies nothing and watches again for a whole snapshot.
@@ -214,6 +271,10 @@ pub enum DaemonEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         cost: Option<ProcCost>,
+        /// Every running container, whole, where the list moved since `base`; absent where it did not.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        containers: Option<Vec<ProcContainer>>,
     },
     /// A process inside the machine opened a session; this one goes up to the watcher alone.
     #[serde(rename = "guest.opened", rename_all = "camelCase")]

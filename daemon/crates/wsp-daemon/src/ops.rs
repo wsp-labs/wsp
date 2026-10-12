@@ -201,8 +201,7 @@ pub(crate) fn answer<T: Serialize>(id: Option<RequestId>, result: Result<T, OpEr
     }
 }
 
-/// One frame in, one reply out. The reply is the text to write, or the leave's, which the loop writes and then
-/// stops on.
+/// One frame in, one reply out. The reply is the text to write, or the leave's, which the loop writes and then stops on.
 pub(crate) async fn handle(conn: &Arc<Conn>, ctx: &Arc<Ctx>, raw: &str) -> Outgoing {
     // Any JSON value is a frame, as the node daemon reads it; a non-object simply carries no op and no id.
     let Ok(frame) = serde_json::from_str::<Value>(raw) else {
@@ -346,6 +345,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
             | "proc.inspect"
             | "proc.list"
             | "proc.kill"
+            | "container.stop"
             | "guest.open"
             | "guest.send"
             | "guest.watch"

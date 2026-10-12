@@ -21,7 +21,7 @@ import { useStore } from "../../protocol/store.js";
 import { openBrowserAt } from "../../rightPanelStore.js";
 import { loadSlate, useSlateStore } from "../../slate/store.js";
 import { ACTIVITY_WORDS as W } from "../format.js";
-import { scopeOf, spent, type ActivityGroup, type ActivityPort, type ActivityProc, type ActivityScope, type ActivityThread } from "./model.js";
+import { scopeOf, type ActivityContainer, type ActivityGroup, type ActivityPort, type ActivityProc, type ActivityScope, type ActivityThread } from "./model.js";
 import { groupProcs, type Acts } from "./tables.js";
 
 export interface ThreadsOn {
@@ -158,11 +158,33 @@ export function useActivityActs(key: string, workspaceId: string | null, snapsho
       addNotice({ kind: "error", text: errorText(e) });
     });
   }, []);
+  // A container's stop takes its spinner off once the frame no longer lists it, or once the stop failed.
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (snapshot === null || stopping.size === 0) return;
+    const listed = new Set((snapshot.containers ?? []).map(c => c.id));
+    const left = [...stopping].filter(id => listed.has(id));
+    if (left.length !== stopping.size) setStopping(new Set(left));
+  }, [snapshot, stopping]);
+  const endContainer = useCallback(
+    (c: ActivityContainer): void => {
+      setStopping(s => new Set([...s, c.id]));
+      getProcs(key)
+        .stopContainer(c.id)
+        .catch((e: unknown) => {
+          setStopping(s => new Set([...s].filter(id => id !== c.id)));
+          addNotice({ kind: "error", text: errorText(e) });
+        });
+    },
+    [key],
+  );
   const acts: Acts = useMemo(
     () => ({
       ending,
       end,
       free,
+      stopping,
+      endContainer,
       stop: (_p, group) => setAsking({ kind: "stop", group }),
       endAll: group => setAsking({ kind: "endAll", group }),
       workspaceOf: group => group?.thread?.workspaceId ?? workspaceId ?? undefined,
@@ -175,29 +197,40 @@ export function useActivityActs(key: string, workspaceId: string | null, snapsho
       },
       copy: text => void copyText(text).catch((e: unknown) => addNotice({ kind: "error", text: errorText(e) })),
     }),
-    [ending, end, free, workspaceId],
+    [ending, end, free, stopping, endContainer, workspaceId],
   );
   const confirm = (): void => {
     if (asking === null) return;
     const t = asking.group.thread;
     if (t?.working === true) void verbs.stop?.(t.sessionId);
-    if (asking.kind === "endAll") for (const p of groupProcs(asking.group)) if (p.kind !== "agent" && p.needed !== true) end(p);
+    if (asking.kind === "endAll") {
+      for (const p of endsOf(asking.group)) end(p);
+      for (const c of asking.group.containers) if (c.owned) endContainer(c);
+    }
     setAsking(null);
   };
   return { acts, dialog: <AskDialog asking={asking} onClose={() => setAsking(null)} onConfirm={confirm} /> };
 }
 
-/** Stop asks before a running turn ends; End all asks naming what it takes. */
+/** The processes End all ends: every one under the group but its agent and what wsp needs. */
+const endsOf = (g: ActivityGroup): ActivityProc[] => groupProcs(g).filter(p => p.kind !== "agent" && p.needed !== true);
+
+/** The memory those processes and containers hold. The rows are flat already, each still carrying its children, so each
+ * counts its own figure and never its children's again. */
+const heldBy = (procs: readonly ActivityProc[], containers: readonly ActivityContainer[]): number => procs.reduce((n, p) => n + p.mem, 0) + containers.reduce((n, c) => n + (c.mem ?? 0), 0);
+
+/** Stop asks before a running turn ends; End all asks naming what it takes, its containers among them. */
 function AskDialog({ asking, onClose, onConfirm }: { asking: { kind: "stop" | "endAll"; group: ActivityGroup } | null; onClose: () => void; onConfirm: () => void }) {
   const t = asking?.group.thread;
-  const procs = asking === null ? [] : groupProcs(asking.group);
+  const procs = asking === null ? [] : endsOf(asking.group);
+  const containers = asking === null ? [] : asking.group.containers.filter(c => c.owned);
   const title = t?.title ?? W.loose;
   return (
     <AlertDialog open={asking !== null} onOpenChange={o => (o ? undefined : onClose())}>
       <AlertDialogPopup>
         <AlertDialogHeader>
           <AlertDialogTitle>{asking?.kind === "endAll" ? W.endAllTitle(title) : W.stopTitle(title)}</AlertDialogTitle>
-          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(procs.filter(p => p.kind !== "agent").length, fmtBytes(spent(procs.filter(p => p.kind !== "agent")).mem)) : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
+          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(procs.length, containers.length, fmtBytes(heldBy(procs, containers))) : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{W.cancel}</AlertDialogClose>

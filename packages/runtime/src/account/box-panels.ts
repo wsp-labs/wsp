@@ -34,7 +34,7 @@ export function procWatchScope(asks: Iterable<readonly string[] | null>): string
 }
 
 /** What a pane's channel into a folder there answers itself rather than passing up as it came. */
-const PANEL_OPS: ReadonlySet<string> = new Set(["ports.watch", "sys.watch", "sys.unwatch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "pty.create"]);
+const PANEL_OPS: ReadonlySet<string> = new Set(["ports.watch", "sys.watch", "sys.unwatch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop", "pty.create"]);
 
 export interface BoxPanels {
   answers(op: string): boolean;

@@ -87,7 +87,7 @@ watch?: string, } | { "op": "manifest.get" } | { "op": "manifest.record", cmd: s
  * own row comes with them. A watch that names none reads every process; a second watch on the socket names
  * the set again.
  */
-cgroups?: Array<string>, } | { "op": "proc.unwatch" } | { "op": "proc.scopes", scopes: Array<ProcScope>, } | { "op": "proc.inspect", pid: number, } | { "op": "proc.list" } | { "op": "proc.kill", pid: number, signal: ProcSignal, mode?: KillMode, startedAt?: number, identity?: string, protect?: Array<number>, apps?: Array<number>, agents?: Array<number>, agentBins?: Array<string>, } | { "op": "ping" } | { "op": "fs.list", path: string, gitignore?: boolean, 
+cgroups?: Array<string>, } | { "op": "proc.unwatch" } | { "op": "proc.scopes", scopes: Array<ProcScope>, } | { "op": "proc.inspect", pid: number, } | { "op": "proc.list" } | { "op": "proc.kill", pid: number, signal: ProcSignal, mode?: KillMode, startedAt?: number, identity?: string, protect?: Array<number>, apps?: Array<number>, agents?: Array<number>, agentBins?: Array<string>, } | { "op": "container.stop", container: string, } | { "op": "ping" } | { "op": "fs.list", path: string, gitignore?: boolean, 
 /**
  * The workspace this frame is for, on a daemon that runs workspaces: the path then names the folder as
  * that workspace sees it, and the operation is answered inside it. Without one the path is resolved under
