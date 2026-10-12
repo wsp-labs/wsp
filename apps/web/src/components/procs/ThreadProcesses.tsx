@@ -5,7 +5,7 @@
 // computer's threads so a sibling in the same folder is never drawn here. The
 // watch is held while the pane stands, on a box over every thread's cgroup as Activity reads one.
 import { useEffect, useMemo, useState } from "react";
-import { foldThreads, isLocalWorkspace, placeOf, THREAD_CGROUPS, threadKeyOf, type WorkspaceView } from "@wsp/protocol";
+import { foldThreads, isLocalWorkspace, placeOf, THREAD_CGROUPS, threadKeyOf, workspaceComputerName, type WorkspaceView } from "@wsp/protocol";
 import { cn } from "../../lib/utils.js";
 import { getProcs } from "../../machine/procs.js";
 import { threadRows } from "../../protocol/store/selectors.js";
@@ -54,7 +54,7 @@ export function ThreadProcesses({ workspaceId, workspace }: { workspaceId: strin
   useEffect(() => getProcs(workspaceId).hold(here ? null : [THREAD_CGROUPS]).release, [workspaceId, here]);
 
   const { procs, scope } = useActivityScope(workspaceId, here, threads);
-  const { acts, dialog } = useActivityActs(workspaceId, workspaceId, procs.snapshot);
+  const { acts, dialog } = useActivityActs(workspaceId, workspaceId, procs.snapshot, workspaceComputerName(places, workspace));
   const [sort, setSort] = useState<ActivitySort>("mem");
   const energy = scope?.energy ?? false;
   const look: Look = useMemo(() => ({ sort, onSort: setSort, energy }), [sort, energy]);

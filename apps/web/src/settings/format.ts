@@ -503,6 +503,7 @@ export const ACTIVITY_WORDS = {
   more: "More",
   slate: (name: string): string => (name === "" ? "Slate" : `Slate: ${name}`),
   ending: "Ending",
+  forceEnd: "Force end",
   container: "Container",
   up: (time: string): string => `Up ${time}`,
   endContainer: "Stop the container, its data kept",
@@ -540,8 +541,9 @@ export const ACTIVITY_WORDS = {
     `${agent} stops where it is and the turn reads Interrupted. ${endsAll ? "Everything else the thread started on that computer ends with it, its dev and tool servers included." : "The dev server and tool servers it started keep running."}`,
   stopTurn: "Stop turn",
   endAllTitle: (title: string): string => `End everything ${title} started?`,
-  endAllSentence: (procs: number, containers: number, memory: string): string =>
-    `${[...(procs > 0 || containers === 0 ? [procs === 1 ? "1 process" : `${procs} processes`] : []), ...(containers > 0 ? [containers === 1 ? "1 container" : `${containers} containers`] : [])].join(" and ")} holding ${memory} end, and a turn running stops first.`,
+  /** `first` is what ends before them: the thread's running turn, or the agent it keeps for its next turn. */
+  endAllSentence: (procs: number, containers: number, memory: string, first: "turn" | "kept" | null): string =>
+    `${[...(procs > 0 || containers === 0 ? [procs === 1 ? "1 process" : `${procs} processes`] : []), ...(containers > 0 ? [containers === 1 ? "1 container" : `${containers} containers`] : [])].join(" and ")} holding ${memory} end${first === "turn" ? ", after its turn stops" : first === "kept" ? ", after the agent it keeps for its next turn" : ""}.`,
   endAllLeaves: "The threads it started are left as they are.",
   endAllPress: "End all",
   cancel: "Cancel",

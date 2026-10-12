@@ -17,14 +17,14 @@ The instructions the server sends when an agent connects:
 
 ## activity
 
-This computer's processes, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone. A thread reads itself and the threads under it alone. A box's processes are refused here, and so is a thread on one.
+This computer's processes, or a box's with computer, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone, on the computer it runs on. On a box a thread's processes are what stands in its cgroup there. A thread reads itself and the threads under it alone.
 
 **Takes**
 
 | Field | Type | Required | What it is |
 |---|---|---|---|
 | `thread` | string |  | the thread, by its id or a prefix of it that names one, whose processes alone to list |
-| `computer` | string |  | the computer, which must be this one; a box is refused |
+| `computer` | string |  | the computer: this one, which is the default, or a box wsp computers lists |
 
 **Answers**
 
@@ -72,7 +72,7 @@ Ends one process on this computer and every process under it, by its pid and the
 |---|---|---|---|
 | `pid` | integer | yes | the process's pid, as activity lists it |
 | `started` | number | yes | the start activity listed it with, its startedAt in epoch milliseconds |
-| `computer` | string |  | the computer, which must be this one; a box is refused |
+| `computer` | string |  | the computer, which must be this one; a box ends a thread's processes when its thread settles with processes stop |
 
 **Answers**
 

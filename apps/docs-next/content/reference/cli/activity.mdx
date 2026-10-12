@@ -4,11 +4,12 @@
 
 ```text
 usage: wsp activity [<thread>] [--computer <computer>]
-  this computer's processes by the thread that started them, each with its kind,
-  memory, CPU and ports, then wsp's own; a thread named shows its own alone
+  this computer's processes, or a box's, by the thread that started them, each
+  with its kind, memory, CPU and ports, then wsp's own; a thread named shows its
+  own alone, on this computer or the box it runs on
 
-  --computer    the computer to read, which must be this one; a box's processes
-                are in the app's Processes pane
+  --computer    the computer to read: this one, which is the default, or a box
+                wsp computers lists
   --json        print the raw protocol values, one JSON object per line, with
                 everything else on stderr
   --state       the state file the host serves

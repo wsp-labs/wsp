@@ -47,6 +47,7 @@
     "unowned": "no thread",
     "ended": "ended {pid} {name}",
     "endedUnder": "ended {pid} {name} and {count} under it",
+    "gone": "nothing was signalled: the process listed as {pid} is gone",
     "forced": "KILL after TERM's 2 s: {pids}",
     "left": "still running after KILL: {pids}",
     "freed": "freed the agent thread {thread} kept"
