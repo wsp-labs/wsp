@@ -36,6 +36,7 @@ import { useChildVerbs, useThreadVerbs, useWorkspaceVerbs } from "../actions/ver
 import { childActs, finishedTake, kindOf, leadActs, leadNodes, type ChildPart } from "../components/threads/leadTree.js";
 import { workspaceActions, workspaceTarget } from "../actions/workspaceActions.js";
 import type { SidebarProjectSnapshot } from "../adapt/index.js";
+import { DeleteThreadDialog, type ThreadToDelete } from "../components/DeleteThreadDialog.js";
 import { ForgetWorkspaceDialog } from "../components/ForgetWorkspaceDialog.js";
 import { SidebarContent, SidebarMenuButton } from "../components/ui/sidebar.js";
 import { useWarmTiles } from "../components/chat/warmTiles.js";
@@ -146,7 +147,8 @@ const DROP_OVER_CLASS = "rounded-[var(--control-radius)] transition-colors durat
 /** The thread's acts a tile's draw reads: Stop and Settle for its slot, Rename for a double-click on its name. */
 const DRAWN_ACTS = threadActions.filter(entry => entry.id === "stop" || entry.id === "settle" || entry.id === "rename");
 
-/** The workspace entries a project's row leaves off its folder's: renaming and removing a record no row shows. */
+/** The workspace entries a project's row leaves off its folder's: renaming and removing a record no row shows. A
+ * thread's tile in a folder leaves them off too: the record is every thread's of the folder, not this one's. */
 const FOLDER_LEFT_OFF = new Set(["edit", "remove"]);
 
 /** The record the host makes for a project's folder here at its first thread, as the folder's entries read it before. */
@@ -195,6 +197,7 @@ export function WorkspaceSidebar() {
   const [snoozing, setSnoozing] = useState<string | null>(null);
   const tileHandlers = useTileHandlers();
   const [forgetting, setForgetting] = useState<{ workspaceIds: ReadonlyArray<string>; act: "forget" | "delete"; copies?: true } | null>(null);
+  const [deletingThread, setDeletingThread] = useState<Omit<ThreadToDelete, "worktree"> | null>(null);
   /** The tile whose name is being typed, by the row id every tile carries, and whether that name is on its way; one
    * tile at a time, the tile is the only editor, and the field stays until the store has the name. */
   const [renaming, setRenaming] = useState<{ rowId: string; saving: boolean } | null>(null);
@@ -206,6 +209,7 @@ export function WorkspaceSidebar() {
   const canRename = useStore(s => s.api?.renameSession !== undefined);
   const canMark = useStore(s => s.api?.markThreads !== undefined);
   const canDelete = useStore(s => s.api?.deleteWorkspace !== undefined);
+  const canDeleteThread = useStore(s => s.api?.deleteThread !== undefined);
   const markThreads = useStore(s => s.markThreads);
   const settleThreads = useStore(s => s.settleThreads);
   const restoreThreads = useStore(s => s.restoreThreads);
@@ -234,8 +238,9 @@ export function WorkspaceSidebar() {
             deleteCopies: (workspaceIds: ReadonlyArray<string>) => setForgetting({ workspaceIds, act: "delete", copies: true }),
           }
         : {}),
+      ...(canDeleteThread ? { deleteThread: setDeletingThread } : {}),
     }),
-    [canDelete, canMark, canRename, defaultThreadVerbs],
+    [canDelete, canDeleteThread, canMark, canRename, defaultThreadVerbs],
   );
   const defaultVerbs = useWorkspaceVerbs();
   const childVerbs = useChildVerbs();
@@ -276,6 +281,10 @@ export function WorkspaceSidebar() {
   }, [groups, loadLanding]);
   const tripTarget = trip === null ? undefined : workspaces.find(w => w.id === trip.workspaceId);
   const forgetTargets = forgetting === null ? [] : fleet.filter(p => forgetting.workspaceIds.includes(p.id));
+  // The worktree wsp made goes with the last thread in it, as the host deletes.
+  const deletingIn = deletingThread === null ? undefined : fleet.find(p => p.id === deletingThread.workspaceId)?.workspace;
+  const deletingLast = deletingThread !== null && fleet.find(p => p.id === deletingThread.workspaceId)?.threads.every(t => t.threadId === deletingThread.threadId) === true;
+  const deletingWorktree = deletingLast && deletingIn?.worktree?.made === true && deletingIn.worktree.gone !== true ? deletingIn.worktree.path : undefined;
 
   useEffect(() => onAddProjectRequest(() => setAddProject(Date.now())), []);
   useEffect(() => onForgetWorkspaceRequest(({ workspaceId, act }) => setForgetting({ workspaceIds: [workspaceId], act })), []);
@@ -424,7 +433,8 @@ export function WorkspaceSidebar() {
       // A settle, a restore, a pin and a snooze take a root and its whole tree; a tile under one settles its own.
       const root = isRoot ? { ...treeSettle(real), workspaceIds: treeWorkspaceIds(real), pinned: thread.pinnedAt !== null, settled, place: settled ? null : (standings.get(item.id) ?? null) } : null;
       const catalog = catalogIn({ harnesses, harnessesByWorkspace }, thread.workspaceId, thread.harness);
-      const target = threadTarget(thread, { catalog, ...machineOf(runs), ...(place.at !== undefined && !isHere(place.at) ? { elsewhere: place.computer } : {}) }, root, group);
+      const inFolder = runsInFolder(workspaceKind(runs.workspace));
+      const target = threadTarget(thread, { catalog, ...machineOf(runs), inFolder, ...(place.at !== undefined && !isHere(place.at) ? { elsewhere: place.computer } : {}) }, root, group);
       const tileVerbs = inbox === undefined || !canRename ? threadVerbs : { ...threadVerbs, rename: () => setRenaming({ rowId, saving: false }) };
       // The draw reads three of the thread's acts; the menu resolves the rest at the press.
       const actionsOf = resolveActions(DRAWN_ACTS, target, tileVerbs);
@@ -467,7 +477,7 @@ export function WorkspaceSidebar() {
           {...(stops && real.children.length > 0 ? { stopsTree: true } : {})}
           {...tileHandlers(rowId, {
             onSelect: () => select(thread.workspaceId, thread.threadId),
-            onContextMenu: event => void openContextMenu(event, [...own(), ...copyActions()]),
+            onContextMenu: event => void openContextMenu(event, [...own(), ...copyActions().filter(action => !inFolder || !FOLDER_LEFT_OFF.has(action.group))]),
             onRename: title => void sendName(rowId, () => renameThread({ sessionId: thread.sessionId, workspaceId: thread.workspaceId, harness: thread.harness, title })),
             onRenameCancel: () => setRenaming(null),
             onRenameOpen: openerOf(actionById(actionsOf, "rename")),
@@ -759,6 +769,7 @@ export function WorkspaceSidebar() {
         />
       ) : null}
       {trip !== null && tripTarget !== undefined ? <ExportProjectDialog key={trip.key} workspace={tripTarget} onClose={() => setTrip(null)} /> : null}
+      {deletingThread !== null ? <DeleteThreadDialog thread={{ ...deletingThread, ...(deletingWorktree !== undefined ? { worktree: deletingWorktree } : {}) }} onClose={() => setDeletingThread(null)} /> : null}
       {forgetTargets.length > 0 ? (
         <ForgetWorkspaceDialog
           workspaces={forgetTargets.map(target => target.workspace)}

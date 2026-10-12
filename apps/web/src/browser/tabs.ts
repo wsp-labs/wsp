@@ -45,8 +45,6 @@ interface BrowserTabsStore {
   prune: (workspaceId: string, keep: ReadonlyArray<string>) => void;
 }
 
-let seq = 0;
-
 const NO_TABS: Record<string, BrowserTabState> = {};
 
 function freshTab(id: string, address: Place | null): BrowserTabState {
@@ -71,7 +69,8 @@ function updateTab(
 export const useBrowserTabs = create<BrowserTabsStore>()(set => ({
   byWorkspaceId: {},
   createTab: (workspaceId, address) => {
-    const id = `t${++seq}`;
+    // A count from zero would give a tab after a reload the id of a saved tab in another thread's pane.
+    const id = `t${crypto.randomUUID()}`;
     set(state => ({
       byWorkspaceId: {
         ...state.byWorkspaceId,

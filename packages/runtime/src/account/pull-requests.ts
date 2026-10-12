@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { gitHostOf, remoteHost } from "@wsp/catalog";
-import { type DaemonFrame, type Caller, GitPrReadReply, GitPrViewReply, GitRepoReadReply, GitUpdateReply, type TreeRecord, PR_POLL_MS, pullRequestPostLine, isPullRequestFact, noPullRequestRefusal, pullRequestStoppedLine, pullRequestUnreadLine, type PullRequestSeen, threadKeyOf, PR_POLL_IDLE_MS, isLocalWorkspace, PullRequest } from "@wsp/protocol";
+import { type DaemonFrame, type Caller, GitPrReadReply, GitPrViewReply, GitRepoReadReply, GitUpdateReply, type TreeRecord, PR_POLL_MS, pullRequestPostLine, isPullRequestFact, noPullRequestRefusal, pullRequestStoppedLine, pullRequestUnreadLine, type PullRequestSeen, threadKeyOf, PR_POLL_IDLE_MS, isLocalWorkspace, PullRequest, runsInFolder, type SessionView } from "@wsp/protocol";
 import { SLATE_PR_POLL_MS, CHECKOUT_TTL_MS, PR_PAGE_HOLD_MS, RATE_LIMIT_HOLD_MS } from "../types/events.js";
 import type { LiveWorkspace } from "../types/wiring.js";
 import { DaemonRefusal, isNoHostCli } from "../types/internal.js";
@@ -97,6 +97,7 @@ export function pullRequestsArea(ctx: RuntimeContext): PullRequestsArea {
    * within the poll interval answers as held, since its timer keeps it, and anything else within CHECKOUT_TTL_MS. A
    * read the host refused for any reason but a missing command line keeps the last fact, whose time says how old it is. */
   const readPullRequest = (entry: LiveWorkspace, force: boolean, whole = false): Promise<PullRequestSeen | undefined> => {
+    if (leftBranch(entry)) return dropPullRequest(entry).then(() => readPullRequest(entry, force, whole));
     const kept = entry.record.pr;
     if (kept !== undefined && kept.state !== "open") return Promise.resolve(entry.pr);
     const held = entry.pr;
@@ -150,19 +151,66 @@ export function pullRequestsArea(ctx: RuntimeContext): PullRequestsArea {
     return reading;
   };
 
+  /** Whether a project folder's checkout stands on another branch than its pull request was opened from: a folder
+   * that merged a branch once and went back to its base. A record kept before the branch was is judged by its base,
+   * which no pull request's head is. A checkout off any branch, mid rebase, says nothing. A worktree or a machine
+   * keeps its pull request: a fork's head is checked out there as <owner>/<branch>, which gh never finds by branch. */
+  const leftBranch = (entry: LiveWorkspace): boolean => {
+    const kept = entry.record.pr;
+    const now = entry.checkout?.branch;
+    if (!sharedFolder(entry) || kept === undefined || now === undefined || now.startsWith("(")) return false;
+    return kept.branch !== undefined ? now !== kept.branch : now === baseOf(entry);
+  };
+
+  const baseOf = (entry: LiveWorkspace): string => {
+    const project = ctx.projectHeld(entry.record.project);
+    return entry.record.base ?? project.base ?? project.defaultBranch;
+  };
+
+  /** The pull request off the entry, the status and the record, with what was sent from its page and its timer. */
+  const dropPullRequest = async (entry: LiveWorkspace): Promise<void> => {
+    entry.prPoll?.();
+    delete entry.prPoll;
+    delete entry.pr;
+    delete entry.prNoneAt;
+    delete entry.record.pr;
+    delete entry.record.prSent;
+    await ctx.persist(entry.record);
+    await ctx.statusNow(entry);
+  };
+
+  /** Notes that a thread's turn ended on the branch a project folder stands on, which its pull request settles. Only
+   * the folder: a worktree or a machine is its own branch, and every thread there ran on it. On its base, where a
+   * folder mostly stands, nothing is kept, since no pull request's head is the base. */
+  const ranOnBranch = async (entry: LiveWorkspace, threadId: string): Promise<void> => {
+    const branch = entry.checkout?.branch;
+    if (!sharedFolder(entry) || branch === undefined || branch.startsWith("(")) return;
+    const on = entry.record.branchThreads;
+    if (branch === baseOf(entry)) {
+      if (on === undefined) return;
+      delete entry.record.branchThreads;
+      return ctx.persist(entry.record);
+    }
+    if (on?.branch === branch && on.threads.includes(threadId)) return;
+    entry.record.branchThreads = { branch, threads: on?.branch === branch ? [...on.threads, threadId] : [threadId] };
+    await ctx.persist(entry.record);
+  };
+
+  const sharedFolder = (entry: LiveWorkspace): boolean => runsInFolder(entry.record.kind) && entry.record.worktree === undefined;
+
   /** A pull request just read, onto the entry and the status, the record following it where it moved, the timer set
    * for an open one, and the tree settled where it merged or closed. */
   const takePullRequest = async (entry: LiveWorkspace, seen: PullRequestSeen | undefined): Promise<void> => {
     entry.pr = seen;
     if (isPullRequestFact(seen)) {
       const was = entry.record.pr;
-      if (was === undefined || was.state !== seen.state || was.number !== seen.number) {
+      if (was === undefined || was.state !== seen.state || was.number !== seen.number || was.branch !== seen.branch) {
         const settledAt = seen.state === "merged" ? { mergedAt: seen.readAt } : seen.state === "closed" ? { closedAt: seen.readAt } : {};
         // What was sent belongs to the pull request it was read off; another one starts with nothing sent.
         if (was !== undefined && was.number !== seen.number) delete entry.record.prSent;
         // A settled one is never read again, so the checks the read that saw it settle found are the ones it keeps.
         const checks = seen.state !== "open" ? { checks: seen.checks } : {};
-        entry.record.pr = { number: seen.number, url: seen.url, state: seen.state, base: seen.base, ...settledAt, ...checks };
+        entry.record.pr = { number: seen.number, url: seen.url, state: seen.state, base: seen.base, branch: seen.branch, ...settledAt, ...checks };
         await ctx.persist(entry.record);
       }
     }
@@ -202,12 +250,16 @@ export function pullRequestsArea(ctx: RuntimeContext): PullRequestsArea {
 
   /** A root workspace's tree once its pull request merged or closed: every thread of it, across every workspace it
    * spans, stamped read and settled where none of them is working, and its machine napped now rather than after its
-   * quiet window. A workspace a thread opened settles nothing off its own pull request: only the root's counts. A tree
-   * with a turn still running waits for that turn's end, which settles it then. Nothing is deleted. */
+   * quiet window. In a project folder only the trees whose roots ran on the pull request's branch. A workspace a
+   * thread opened settles nothing off its own pull request: only the root's counts. A tree with a turn still running
+   * waits for that turn's end, which settles it then. Nothing is deleted. */
   const settleTree = async (entry: LiveWorkspace): Promise<void> => {
     if (entry.record.parentThreadId !== undefined) return;
     const rows = [...sessions.values()].map(s => s.view);
-    const roots = new Set(rows.filter(v => v.workspaceId === entry.record.id && v.rootThreadId === undefined).map(v => threadKeyOf(v)));
+    const on = entry.record.branchThreads;
+    const ran = on !== undefined && on.branch === entry.record.pr?.branch ? new Set(on.threads) : new Set<string>();
+    const ranHere = (v: SessionView): boolean => !sharedFolder(entry) || ran.has(threadKeyOf(v));
+    const roots = new Set(rows.filter(v => v.workspaceId === entry.record.id && v.rootThreadId === undefined && ranHere(v)).map(v => threadKeyOf(v)));
     if (roots.size === 0) return;
     const tree = rows.filter(v => roots.has(threadKeyOf(v)) || (v.rootThreadId !== undefined && roots.has(v.rootThreadId)));
     if (tree.some(v => v.status === "running")) return;
@@ -243,6 +295,6 @@ export function pullRequestsArea(ctx: RuntimeContext): PullRequestsArea {
   };
   return {
     readHost, pullRequestOn, pageKey, readPage, postAsPerson, readPullRequest, takePullRequest, pollPullRequest,
-    keepTree, settleTree, mergeSettings, updateCopy,
+    keepTree, settleTree, mergeSettings, updateCopy, ranOnBranch,
   };
 }

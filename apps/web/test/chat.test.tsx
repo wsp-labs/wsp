@@ -146,7 +146,7 @@ describe("chat tab rendering", () => {
   });
 
   it("draws what a turn changed under its reply, and opens the Changes pane on that turn", async () => {
-    useDiffStore.setState({ turnByWorkspaceId: {} });
+    useDiffStore.setState({ turnByThread: {} });
     useRightPanelStore.setState({ byWorkspaceId: {} });
     const { api, emit } = fixtureApi([workspace]);
     await setup(api);
@@ -166,12 +166,12 @@ describe("chat tab rendering", () => {
     const counts = document.querySelector<HTMLElement>('[aria-label="14 additions, 3 deletions"]')!;
     expect([...counts.children].map(c => c.className.includes("text-success") || c.className.includes("text-error-foreground"))).toEqual([true, true]);
     fireEvent.click(open);
-    expect(useDiffStore.getState().turnByWorkspaceId[WS]).toEqual({ turnId: CHAT_TURN, cwd: expect.any(String), from, to, path: "server.js" });
+    expect(Object.values(useDiffStore.getState().turnByThread)).toEqual([{ threadId: expect.any(String), turnId: CHAT_TURN, cwd: expect.any(String), from, to, path: "server.js" }]);
     const panel = useRightPanelStore.getState().byWorkspaceId[WS];
     expect([panel?.isOpen, panel?.activeSurfaceId]).toEqual([true, "diff"]);
     // A reload keeps the pane on that turn's own range, never the branch's whole diff against its base.
-    const kept = JSON.parse(window.localStorage.getItem(useDiffStore.persist.getOptions().name!) ?? "null") as { state: { turnByWorkspaceId?: Record<string, unknown> } } | null;
-    expect(kept?.state.turnByWorkspaceId?.[WS]).toMatchObject({ turnId: CHAT_TURN, from, to });
+    const kept = JSON.parse(window.localStorage.getItem(useDiffStore.persist.getOptions().name!) ?? "null") as { state: { turnByThread?: Record<string, unknown> } } | null;
+    expect(Object.values(kept?.state.turnByThread ?? {})[0]).toMatchObject({ turnId: CHAT_TURN, from, to });
   });
 
   it("draws the card as the turn's files alone, and none for a turn that only moved the branch", async () => {
@@ -772,16 +772,19 @@ describe("chat tab new thread mid-turn", () => {
     expect(stopButton()).toBeDefined();
     act(() => requestNewThread({ workspaceId: WS }));
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
-    expect(isEditable(editor)).toBe(true);
-    expect(document.activeElement).toBe(editor);
+    // The new thread has a composer of its own, not the one the left thread typed into.
+    const fresh = composerEditor();
+    expect(fresh).not.toBe(editor);
+    expect(isEditable(fresh)).toBe(true);
+    expect(document.activeElement).toBe(fresh);
     expect(line()).toBeNull();
     expect(sendButton().getAttribute("aria-label")).toBe("Send message");
     for (const e of FIXTURE.slice(6)) emit(e);
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
     expect(screen.queryByText(/Server is live at :3000\./)).toBeNull();
     expect(screen.queryByTestId("settled-footer")).toBeNull();
-    await typeInto(editor, "start over");
-    await press(editor, "Enter");
+    await typeInto(fresh, "start over");
+    await press(fresh, "Enter");
     await waitFor(() => expect(started.length).toBe(1));
     expect(started[0]).toEqual({ workspaceId: WS, requestId: expect.any(String), harness: "claude", prompt: "start over" });
   });
@@ -811,7 +814,8 @@ describe("chat tab new thread mid-turn", () => {
     act(() => requestNewThread({ workspaceId: WS }));
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
     expect(screen.queryByText("hello")).toBeNull();
-    expect(isEditable(editor)).toBe(true);
+    const fresh = composerEditor();
+    expect(isEditable(fresh)).toBe(true);
     expect(line()).toBeNull();
     // The sent turn's events arrive after the request, stamped with the thread the runtime opened for it.
     const first = { ...scope, threadId: "thr_first" };
@@ -819,9 +823,10 @@ describe("chat tab new thread mid-turn", () => {
     emit({ type: "session.delta", ...first, at: T0 + 300, kind: "text", text: "Creating the server file," });
     expect(screen.getByRole("heading", { level: 1 })).toBeDefined();
     expect(screen.queryByText(/Creating the server file/)).toBeNull();
-    expect(isEditable(editor)).toBe(true);
-    await typeInto(editor, "start over");
-    await press(editor, "Enter");
+    expect(composerEditor()).toBe(fresh);
+    expect(isEditable(fresh)).toBe(true);
+    await typeInto(fresh, "start over");
+    await press(fresh, "Enter");
     await waitFor(() => expect(started.length).toBe(2));
     expect(started[1]).toEqual({ workspaceId: WS, requestId: expect.any(String), harness: "claude", prompt: "start over" });
     emit({ type: "session.done", ...first, at: T0 + 900, result: { status: "completed", durationMs: 900, costUsd: 0.001 } });

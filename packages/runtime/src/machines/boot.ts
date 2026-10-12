@@ -469,7 +469,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
           const read =
             threadId === undefined ||
             cwd === undefined ||
-            turnWritten(await ctx.openTranscript(workspaceId), row.turnId).changes ||
+            turnWritten(await ctx.openThread(workspaceId, threadId), row.turnId).changes ||
             (await ctx.readTurnChanges(entry, { sessionId: claudeSessionId ?? id, turnId: row.turnId, threadId, cwd, from, startedAt: startedAt ?? Date.now() }));
           delete row.snapshot;
           if (read || !ctx.state.closing) await ctx.persistSessions(workspaceId);
@@ -926,12 +926,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     return heldUntil(limits.find(l => l.key === key)?.windows ?? [], clock.now());
   };
   /** The threads of the caller's tree by their records, which the cap on a workspace's rows never trims, on one
-   * workspace or on every one this host holds. A record names its root, read before the row rule, so a host of many
-   * threads walks no rows for each record outside the tree. */
+   * workspace or on every one this host holds; a caller that is no thread reaches every thread's. A record names its
+   * root, read before the row rule, so a host of many threads walks no rows for each record outside the tree. */
   const treeRecords = (caller: Caller | undefined, talk: TreeTalk | undefined, workspaceId?: string): [string, ThreadRecord & { workspaceId: string }][] => {
     const root = scopeOf(caller)?.rootThreadId;
-    if (root === undefined) return [];
-    return [...threadRecords].filter(([threadId, r]) => (r.rootThreadId ?? threadId) === root && (workspaceId ?? r.workspaceId) === r.workspaceId && live.has(r.workspaceId) && reachesRow({ threadId, workspaceId: r.workspaceId }, caller, talk));
+    return [...threadRecords].filter(([threadId, r]) => (root === undefined || (r.rootThreadId ?? threadId) === root) && (workspaceId ?? r.workspaceId) === r.workspaceId && live.has(r.workspaceId) && reachesRow({ threadId, workspaceId: r.workspaceId }, caller, talk));
   };
   /** Whether a thread of the caller's tree stands on that workspace, by a row or by a record whose rows the cap took,
    * which is what lets a child list and read the transcript of the workspace its lead runs on; a caller that is no

@@ -4,10 +4,9 @@
 // dispatches; the jump, model-picker, diff, stash, settings and editor rules
 // are left out with the features they drive. The zoom is here but it is the
 // terminal's own, reaching a focused pane and never the app around it. The
-// workspace switch is ours, and so are the new thread's mod+t and mod+shift+o
-// beside mod+n. A label reads the last rule that reaches the page, so mod+n,
-// listed last, labels the desktop shell; a browser tab keeps mod+n and mod+t
-// for its own new window and tab, so mod+shift+o labels it there. A Control
+// workspace switch is ours, and so is the new thread's one chord, mod+t; a
+// browser tab keeps it for its own new tab, so a tab opens New thread from
+// the sidebar or the palette, and mod+n is the terminal's alone. A Control
 // chord is the terminal's while it has focus, short of the commands
 // keybindings.ts passes; the sidebar comes on mod+shift+b
 // there, as mod+b's ctrl+b is readline's and tmux's. Tab and the digits with
@@ -57,9 +56,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+p", command: "files.quickOpen", when: "!terminalOwnsMod" },
   { key: "mod+shift+f", command: "files.search" },
   { key: "mod+,", command: "settings.toggle" },
-  { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+t", command: "chat.new", when: "!terminalFocus" },
-  { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+alt+arrowleft", command: "workspace.previous", when: "!terminalFocus" },
   { key: "mod+alt+arrowright", command: "workspace.next", when: "!terminalFocus" },
   // The arrows read as the list does: left and right walk the workspaces, up and down the threads inside the one
@@ -70,6 +67,14 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+e", command: "thread.settle", when: "!terminalFocus" },
   { key: "mod+alt+u", command: "thread.nextNeedsYou", when: "!terminalFocus" },
   { key: "mod+o", command: "editor.open", when: "!terminalOwnsMod" },
+  // Find in thread takes the browser's own find over a thread, which cannot see the rows a virtualized list leaves
+  // out; anywhere else, Settings or an empty window, the key stays the browser's. Older comes first on Enter and G,
+  // as in VS Code's terminal and chat find, since a thread opens at its newest end.
+  { key: "mod+f", command: "thread.find", when: "threadOpen && !terminalFocus && !previewFocus" },
+  { key: "mod+g", command: "thread.findOlder", when: "threadFindOpen && !terminalFocus" },
+  { key: "f3", command: "thread.findOlder", when: "threadFindOpen && !terminalFocus" },
+  { key: "mod+shift+g", command: "thread.findNewer", when: "threadFindOpen && !terminalFocus" },
+  { key: "shift+f3", command: "thread.findNewer", when: "threadFindOpen && !terminalFocus" },
   { key: "ctrl+tab", command: "workspace.next", when: "!terminalFocus && !panelTabsFocus" },
   { key: "ctrl+shift+tab", command: "workspace.previous", when: "!terminalFocus && !panelTabsFocus" },
   { key: "ctrl+tab", command: "rightPanel.nextTab", when: "panelTabsFocus" },

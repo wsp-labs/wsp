@@ -9,24 +9,43 @@ declare const __WSP_CLOUD__: boolean | undefined;
 /** Where a Solari key comes from, spelled once for the terminal's ask and the provider's key row. */
 export const SOLARI_CONSOLE = "console.getsolari.com";
 
+export interface ProviderKeyWords {
+  name: string;
+  keyName: string;
+  keyConsole?: string;
+  /** A person meets this cloud through a lead's sub-threads alone: a seal there forks no machine of its own, and no
+   * thread is started there by hand. */
+  subThreads?: true;
+}
+
 /** What a person calls a provider, its key and where they get one, keyed by the word WSP_PROVIDER holds. The host's
  * provider registry reads its keyName and keyConsole from here and the app's provider rows read the same, so the
  * screen that asks for a key and the terminal that asks for it say one thing. A provider that takes no key has no
- * row. */
-export const PROVIDER_KEY_WORDS: Record<string, { name: string; keyName: string; keyConsole?: string }> =
-  typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? {} : cloudKeyWords();
+ * row. Boat's row is in every build; Solari's is not in a public build. */
+export const PROVIDER_KEY_WORDS: Record<string, ProviderKeyWords> = {
+  box: { name: "Boat", keyName: "Boat API key", keyConsole: "boat.dev/dashboard", subThreads: true },
+  ...(typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? {} : cloudOnlyKeyWords()),
+};
 
-/** The clouds' rows, in a function so a public build, whose bundler reads the test above as false, drops their words.
- * The test is spelled out where it is read, since a bundler folds the constant only there. */
-function cloudKeyWords(): Record<string, { name: string; keyName: string; keyConsole?: string }> {
-  return {
-    box: { name: "Boat", keyName: "Boat API key", keyConsole: "boat.dev/dashboard" },
-    solari: { name: "Solari", keyName: "Solari API key", keyConsole: SOLARI_CONSOLE },
-  };
+/** Solari's row, in a function so a public build, whose bundler reads the test above as false, drops its words. The
+ * test is spelled out where it is read, since a bundler folds the constant only there, and keeps the function's name,
+ * which so spells no Solari word. */
+function cloudOnlyKeyWords(): Record<string, ProviderKeyWords> {
+  return { solari: { name: "Solari", keyName: "Solari API key", keyConsole: SOLARI_CONSOLE } };
 }
 
 /** A provider's name as its key rows say it, by its id; an id with no row reads as itself. */
 export const providerKeyName = (provider: string): string => PROVIDER_KEY_WORDS[provider]?.name ?? provider;
+
+/** Whether a place is a cloud a person meets through sub-threads alone, by its id. */
+export const subThreadsOnly = (place: string): boolean => PROVIDER_KEY_WORDS[place]?.subThreads === true;
+
+/** A place as a line names it: a cloud by the name its key rows give it, every other place by its own name. */
+export const placeSaid = (place: { name: string; kind?: string }): string => (place.kind === "provider" ? providerKeyName(place.name) : place.name);
+
+/** The cloud a word names among these ids, by its id or, in any case, by the name its key rows give it; nothing where
+ * it names none. The one reading a road that resolves a typed word to a cloud makes. */
+export const cloudNamed = (ids: readonly string[], word: string): string | undefined => ids.find(id => namesPlace({ id, name: id, kind: "provider" }, word));
 
 /** Whether a word names this place: the id the wire keys it by, or the name a person types. A provider is also named
  * by the name its words row gives it, in any case, since that is the word every table prints for it. The one reading

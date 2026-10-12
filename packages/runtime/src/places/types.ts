@@ -47,7 +47,7 @@ import {
   type PlaceProveRequest,
 } from "@wsp/protocol";
 import type { PaneForwards } from "./pane-ports.js";
-import type { EngineStep, ExecResult, Machine, MachineBackend, PlaceFolderMachine, ProvisionOn, ProvisionPlan, ProvisionStage, SetupRun } from "@wsp/engine";
+import type { EngineStep, ExecResult, KillConfirm, Machine, MachineBackend, PlaceFolderMachine, ProvisionOn, ProvisionPlan, ProvisionStage, SetupRun } from "@wsp/engine";
 import type { WebSocket } from "ws";
 import type { DeviceDoor } from "../devices.js";
 import type { HereDaemon, PlaceBackends } from "../runtime.js";
@@ -180,6 +180,10 @@ export interface PlaceWiring {
    * Absent on a runtime served without the ssh road, where a remove of a computer that is not connected says the
    * agent is still installed and leaves it to the person at that computer. */
   leave?: PlaceLeaver;
+  /** Forgets the key a provider row is opened by, in the file the host reads it from and in the provider it forks
+   * on now, once a remove has deleted every machine there; answers the sentence naming where the key still is when
+   * the host also reads it from beyond that file. Absent, the key stays where it is. */
+  forgetKey?(placeId: string): Promise<string | undefined>;
   /** How a login reaches root on a computer, read before a remove or an update over that login does anything there:
    * answers the road where root is reachable, the password the person typed tried where sudo asks for one, and
    * throws the add's own refusal where it is not (the sudo kind where a password would do). Absent, the login is
@@ -394,6 +398,12 @@ export interface PlaceRecording {
   forgetOn(placeId: string): Promise<Omit<PlaceHolds, "unsaved">>;
   /** How many of what that place's cap counts run there now, read against every row the list holds. */
   runningOn(placeId: string, places: readonly Pick<PlaceView, "id" | "kind">[]): Promise<number>;
+  /** The machine of every workspace record at that place, by id: what a provider's remove deletes beside what the
+   * provider's listing names, since that listing can miss a row. */
+  machinesOn?(placeId: string): Promise<string[]>;
+  /** Drops every workspace record at that place from this host, its threads ended, asking nothing of the place: a
+   * provider forgotten rather than removed. Absent, the records stay. */
+  forgetRecordsOn?(placeId: string): Promise<void>;
   /** Signs an agent in on that computer through the sign-in relay, as the app's own sign-in does: every step it
    * reaches, the page and the code among them, goes to `emit`. Absent, a machine sign-in fails its row. */
   signIn?(placeId: string, agent: string, emit: (e: AgentsSignInEvent) => void): Promise<{ leave(): void; stop?(): void }>;
@@ -472,6 +482,10 @@ export interface PlaceDoorOptions {
   /** The saved recipes as this computer has them now, by slug, which a computer that follows one is held against.
    * Absent, nothing syncs. */
   recipes?: () => RecipeResolver | undefined;
+  /** The owner mark this host stamps on every machine it makes, which a provider's remove deletes by. */
+  owner?: () => Promise<string>;
+  /** How a delete is read back gone; tests shrink it. */
+  killConfirm?: KillConfirm;
   now?: () => number;
   /** Runs fn once after ms, on the runtime's clock; the returned function cancels it. Unref'd timers by default. */
   schedule?: (fn: () => void, ms: number) => () => void;

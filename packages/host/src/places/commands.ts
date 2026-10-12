@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { platform } from "node:os";
-import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer } from "@wsp/protocol";
+import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerRemovedLine, providerForgetQuestion, providerForgotLine, providerForceRefusal, namesPlace, placeOf, type WorkspaceView, tableName } from "@wsp/protocol";
 import { checkProviderKey, keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type SshReach } from "@wsp/engine";
 import { sharedOn } from "@wsp/catalog";
 import { randomBytes } from "node:crypto";
 import type { CliIO } from "../cli.js";
 import { servingHost } from "../host-lock.js";
 import { aimName, aimedHost, type HostAim, type HostPick } from "../hosts.js";
-import { PROVIDER_ENV, addedProviders, providerBackendFor, unregisteredCloud, type ProviderEnv } from "../providers.js";
+import { addedProviders, keyRowFor, namedProviderBackend, providerEnvWithKey, unregisteredCloud, type ProviderEnv } from "../providers.js";
+import { keySources, loadKeys } from "../cli/keys.js";
 import { placeLink, relaySignIn, type BoxSignIn, type BoxSignedIn, type PlaceLink } from "../place-signin.js";
 import { publicHostname } from "../relay-link.js";
 import { systemOpener } from "../relay.js";
@@ -19,7 +20,7 @@ import { confirmedAt, dialHost, hostPlatform, table, type DialOpts, type HostCli
 import type { HostStarter } from "../host-start.js";
 import { envFileFor, writeEnvFile } from "../env-keys.js";
 import { openWaits, watchSetup, type SetupWatch } from "../setup-follow.js";
-import { ADD_FLAGS_REFUSAL, SIGN_IN_FLAGS_REFUSAL, addLines, addRefusal, addableProviders, boxNotSignedInLine, boxReplacesLine, boxSignedInLine, noPlaceLine, onePlace, placeNoLoginsLine, providerPlaceLine, removeLines, removeQuestion, signInAgentRefusal, signInRowCommand, signsInOnComputer } from "./add-words.js";
+import { ADD_FLAGS_REFUSAL, SIGN_IN_FLAGS_REFUSAL, addLines, addRefusal, addedProviderId, boxNotSignedInLine, providerBesideLine, boxReplacesLine, boxSignedInLine, noPlaceLine, onePlace, placeNoLoginsLine, removeLines, removeQuestion, signInAgentRefusal, signInRowCommand, signsInOnComputer } from "./add-words.js";
 import type { AddFlags, SshWordReader } from "./add-words.js";
 import { hostKeyHere } from "./this-computer.js";
 
@@ -100,6 +101,7 @@ function aimHere(word: string, opts: PlaceOpts): HostAim {
 
 export async function addCommand(io: CliIO, opts: PlaceOpts, args: readonly string[], flags: AddFlags = {}, deps: PlaceDeps = systemDeps): Promise<number> {
   const [word] = args;
+  const providerId = word === undefined ? undefined : addedProviderId(word);
   if (args.length > 1) throw usageRefusal(`wsp add takes ${addedProviders().length === 0 ? "" : "one provider or "}one address, or nothing at all.`, ADD_USAGE);
   const aim = aimHere("add", opts);
   if (flags.resume === true) {
@@ -108,7 +110,7 @@ export async function addCommand(io: CliIO, opts: PlaceOpts, args: readonly stri
     return setUpPlace(io, opts, aim, word, flags, deps);
   }
   // A recipe, a sign-in left waiting and JSON frames are a computer's add alone; every other road takes none of them.
-  const computerRoad = word !== undefined && flags.update !== true && flags.signIn === undefined && (sourceKindOf(word) === "computer" || (sourceKindOf(word) === undefined && !addableProviders().includes(word)));
+  const computerRoad = word !== undefined && flags.update !== true && flags.signIn === undefined && (sourceKindOf(word) === "computer" || (sourceKindOf(word) === undefined && providerId === undefined));
   if (!computerRoad && (flags.recipe !== undefined || flags.later === true || flags.json === true)) throw usageRefusal(SETUP_FLAGS_REFUSAL, ADD_USAGE);
   if (flags.signIn !== undefined) {
     if (word === undefined) throw usageRefusal("wsp add --sign-in names the computer to sign the agent in on.", ADD_USAGE);
@@ -129,7 +131,7 @@ export async function addCommand(io: CliIO, opts: PlaceOpts, args: readonly stri
   const named = flags.name !== undefined || flags.sshPort !== undefined || flags.keyPath !== undefined || flags.hostKey !== undefined;
   // What one word names is read once, in the protocol: a computer of the person's own over ssh, a repo a computer
   // clones, or a folder this computer holds. A provider's own word is neither and is read first.
-  const provider = word !== undefined && addableProviders().includes(word);
+  const provider = providerId !== undefined;
   const kind = word === undefined || provider ? undefined : sourceKindOf(word);
   if (kind === "computer") return addOverSsh(io, opts, aim, word!, flags, deps);
   // Every other kind a word can name is a project's source, whichever of them it is: the host reads the word again
@@ -142,7 +144,7 @@ export async function addCommand(io: CliIO, opts: PlaceOpts, args: readonly stri
     io.error(ADD_FLAGS_REFUSAL);
     return 1;
   }
-  if (provider) return addProvider(io, opts, word!, deps);
+  if (providerId !== undefined) return addProvider(io, opts, providerId, deps);
   // Read after the ssh road, so a computer the person's ssh config calls by a cloud's word still joins.
   if (unregisteredCloud(word)) throw cloudOffRefusal(`wsp add ${word!}`);
   if (word !== undefined) {
@@ -546,25 +548,28 @@ export function addedLines(place: PlaceView, hostKey: string | undefined): strin
   ];
 }
 
-/** A provider as a place: the words name it, and the key that opens it is put to the provider before anything is
- * written. The key is read under the variable that provider's row declares, off the same three layers every other
- * road reads a key through, and is never written here. Every row a person can add declares one, which is what
- * addedProviders answers with. */
+/** A provider as a place: its key goes through the one key ask every command uses, put to that provider whether it
+ * was saved, set in the shell or typed, and asked for again at a terminal when the provider refuses it. It is saved
+ * under the variable that provider's row declares in the .env beside the state file, and nothing else is written: a
+ * key alone opens the provider as a place beside this computer and leaves the provider it forks on where it was. */
 async function addProvider(io: CliIO, opts: PlaceOpts, id: string, deps: PlaceDeps): Promise<number> {
-  const env: ProviderEnv = { ...(opts.providerEnv ?? process.env), [PROVIDER_ENV]: id };
-  const backend = providerBackendFor(env);
-  const check = await deps.checkKey(backend);
-  const said = keyCheckLine(check, id, true);
-  if (check.state === "refused" && said !== undefined) {
-    io.error(said);
-    return 1;
-  }
+  const own: ProviderEnv = opts.providerEnv ?? process.env;
+  let last: { check: KeyCheck; backend: MachineBackend } | undefined;
+  const checkKey = async (key: string): Promise<KeyCheck> => {
+    const backend = namedProviderBackend(providerEnvWithKey(own, key, id), id);
+    last = { check: await deps.checkKey(backend), backend };
+    return last.check;
+  };
+  const { env } = await loadKeys(io, { ...keySources(own, opts.statePath), checkKey }, { anthropic: false, checkSaved: true, provider: id, save: false });
+  const row = keyRowFor(env, id)!;
+  writeEnvFile(envFileFor(opts.statePath), { [row.keyEnv]: env[row.keyEnv]! });
+  const { check, backend } = last!;
   // A check nothing answered says nothing about the key: it is taken, and the first fork says its own piece.
+  const said = keyCheckLine(check, id);
   if (said !== undefined) io.error(said);
-  writeEnvFile(envFileFor(opts.statePath), { [PROVIDER_ENV]: id });
   const { pricing } = backend;
-  io.log(providerPlaceLine(id, pricing.rateUsdPerHour(pricing.defaultSize)));
-  if (servingHost(opts.statePath) !== undefined) io.log(`the host serving ${opts.statePath} reads that at its next start; wsp down and wsp up pick it up now.`);
+  io.log(row.addedLine?.(check.state === "taken" ? check.answer : undefined) ?? providerBesideLine(id, pricing.rateUsdPerHour(pricing.defaultSize)));
+  if (servingHost(opts.statePath) !== undefined) io.log(`the host serving ${opts.statePath} reads the key at its next start; wsp down and wsp up pick it up now.`);
   return 0;
 }
 
@@ -619,6 +624,24 @@ export interface RemoveFlags {
 
 export const REMOVE_USAGE = "wsp remove <computer> [--yes] [--force] [--forget] [--json]";
 
+/** A provider taken back out: the host deletes every machine it made there and forgets the key only once all are
+ * gone, so one the provider would not delete is a failure that names it, the key kept. A forget asks nothing there. */
+async function removeProviderAt(io: CliIO, client: HostClient, place: PlaceView, places: readonly PlaceView[], typed: string, flags: RemoveFlags): Promise<number> {
+  const name = tableName(place);
+  if (flags.force === true) {
+    const refused = providerForceRefusal(name, typed);
+    throw usageRefusal(refused.said, refused.fix);
+  }
+  const { workspaces } = await client.request<{ workspaces: WorkspaceView[] }>("workspaces.list");
+  const tasks = workspaces.filter(w => placeOf(places, w)?.id === place.id).length;
+  const forget = flags.forget === true;
+  if (!(await confirmedAt(io, flags.yes === true, forget ? providerForgetQuestion(name, tasks) : providerRemoveQuestion(name, tasks), name))) return 1;
+  const answer = PlaceRemoved.parse(await client.request("places.remove", { placeId: place.id, ...(forget ? { forget: true } : {}) }));
+  if (!answer.removed) throw new Error(answer.note ?? noPlaceLine(typed, []));
+  io.log(flags.json === true ? jsonLine(answer) : forget ? providerForgotLine(name, tasks, answer.note) : providerRemovedLine(name, answer.deleted ?? 0, answer.note));
+  return 0;
+}
+
 export async function removeCommand(io: CliIO, opts: PlaceOpts, args: readonly string[], flags: RemoveFlags = {}, deps: PlaceDeps = systemDeps): Promise<number> {
   const [ref] = args;
   if (ref === undefined || args.length !== 1) throw usageRefusal("wsp remove takes one computer.", `usage: ${REMOVE_USAGE}`);
@@ -628,6 +651,9 @@ export async function removeCommand(io: CliIO, opts: PlaceOpts, args: readonly s
   try {
     const picked = await onePlace(client, typed, ref);
     if ("refusal" in picked) {
+      const { places } = await client.request<{ places: PlaceView[] }>("places.list");
+      const provider = places.find(p => p.kind === "provider" && namesPlace(p, ref));
+      if (provider !== undefined) return await removeProviderAt(io, client, provider, places, typed, flags);
       io.error(picked.refusal);
       return 1;
     }

@@ -106,6 +106,9 @@ export interface SettingsState {
   /** Activity's view and the computer it reads, kept while the window is open. Null reads the one wsp runs on. */
   readonly activityView: ActivityView;
   readonly activityPlace: string | null;
+  /** The computer a remove is taking out while its dialog still has something to say: its page stays drawn from the
+   * last copy of it after the host drops it from the list, until the dialog closes. */
+  readonly parting: string | null;
   go(at: SettingsAt): void;
   setSearch(search: string): void;
   setReads(patch: Partial<SettingsReads>): void;
@@ -124,6 +127,7 @@ export interface SettingsState {
   openAgentsLevel(level: AgentsLevel | null): void;
   pickActivityView(view: ActivityView): void;
   pickActivityPlace(placeId: string | null): void;
+  holdParting(placeId: string | null): void;
 }
 
 export type UsageTab = "used" | "limits";
@@ -154,6 +158,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   agentsLevel: null,
   activityView: "threads",
   activityPlace: null,
+  parting: null,
   go(at) {
     set({ at, search: "", recipeAsked: null, addAsked: null, agentsLevel: null });
     try {
@@ -185,6 +190,9 @@ export const useSettingsStore = create<SettingsState>(set => ({
   },
   pickActivityPlace(activityPlace) {
     set({ activityPlace });
+  },
+  holdParting(parting) {
+    set({ parting });
   },
 
   setSearch(search) {

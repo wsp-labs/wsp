@@ -266,6 +266,25 @@ describe("command palette", () => {
     }
   });
 
+  it("offers no Delete task on a project folder its threads share, which would take every thread in it", async () => {
+    const here: WorkspaceView = { ...view("ws_a", "mac"), kind: "local", machineId: "local" };
+    const api = fakeApi([here], [{ ...session("s_a", "ws_a", "thread A"), threadId: "t_a" }, { ...session("s_b", "ws_a", "thread B"), threadId: "t_b" }]);
+    useStore.getState().bind(api);
+    render(
+      <AppShell>
+        <div>center content</div>
+      </AppShell>,
+    );
+    await waitFor(() => expect(useStore.getState().selectedId).toBe(here.id));
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    for (const query of ["delete", "forget", "remove"]) {
+      fireEvent.change(screen.getByPlaceholderText(/Search commands/), { target: { value: query } });
+      await waitFor(() => expect(palette()!.textContent).not.toContain(WORKSPACE_WORDS.delete));
+      expect(palette()!.textContent).not.toContain(WORKSPACE_WORDS.forget);
+    }
+  });
+
   it("offers the start the row's own line names, under start and under daemon, and refuses it while the daemon answers", async () => {
     const here: WorkspaceView = { ...view("ws_a", "mac"), kind: "local", machineId: "local" };
     const asked: string[] = [];
@@ -509,6 +528,24 @@ describe("command palette", () => {
     fireEvent.click(hit);
     await waitFor(() => expect(palette()).toBeNull());
     expect([useStore.getState().selectedId, useStore.getState().selectedThreadId]).toEqual(["ws_b", "t_r"]);
+  });
+
+  it("says how many older threads the host did not search the messages of, as a row that opens nothing", async () => {
+    const api = fakeApi([view("ws_a", "api")], [{ ...session("s_r", "ws_a", "fix the redirect"), threadId: "t_r" }]);
+    api.searchMessages = async () => ({ hits: [], unsearched: 12 });
+    useStore.getState().bind(api);
+    render(
+      <AppShell>
+        <div>center content</div>
+      </AppShell>,
+    );
+    await waitFor(() => expect(useStore.getState().workspaces.length).toBe(1));
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    fireEvent.change(screen.getByPlaceholderText(/Search commands/), { target: { value: "zebra" } });
+    await waitFor(() => expect(inPalette().getByText("12 older threads not searched")).toBeTruthy());
+    expect(inPalette().getByText("Open one to search its messages")).toBeTruthy();
+    expect(inPalette().getByText("12 older threads not searched").closest("[role=option]")).toBeNull();
   });
 
   it("lists a thread an agent opened on another workspace once, naming the workspace it runs on and where that runs", async () => {

@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 73 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 75 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -542,10 +542,11 @@ The conversations the agents kept in a project's folder and its worktrees on the
 | `held[].agent` | string | yes |  |
 | `held[].said` | string | yes |  |
 | `held[].fix` | string | yes |  |
+| `held[].why` | string |  |  |
 
 ## delete
 
-Takes a thread away, named by thread: its turns and checkpoints go, and where it ran in a worktree wsp made, that worktree goes with every thread in it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.
+Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread on this computer that still runs processes beside its agent (a dev server, a watcher) is refused, naming them, until processes says stop, which ends each by identity before the thread goes, or keep, which leaves them running.
 
 **Takes**
 
@@ -695,6 +696,31 @@ Nothing.
 | `projects[].createdAt` | string | yes |  |
 | `projects[].place` | string |  |  |
 | `projects[].sizeBytes` | number |  |  |
+
+## image_build
+
+Builds this host's image at a place from the record alone: a builder is forked there with the recipe the image was sealed from and every sign-in set to skip, the sign-ins the seal held are landed on it out of the vault, and the copy is sealed and recorded under that place at the record's hash. Nothing signs in again and no Keychain is read. A place that already holds a copy built from this record is answered with that copy and `built` false, so asking twice costs nothing; a place whose copy is building is answered with that build, never a second one. A joined computer builds its copy at the end of its setup; every other copy, and every copy a newer version left behind, is built only when this line asks or when a fork there finds no current copy, and that fork says so before the build starts, since a build bills where it runs. Refused in one line for a place this host does not hold, for a place that takes no copy at all, and for a record sealed without the recipe it was built from. A record holding no sign-ins is refused too, since every copy of it would ask for them again; `force` builds it anyway.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `place` | string | yes | the place to build the copy at, by the name wsp computers lists |
+| `force` | boolean |  | build even where the record holds no sign-ins, so the copy asks for every one of them again |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `copy` | object | yes |  |
+| `copy.place` | string | yes |  |
+| `copy.version` | integer | yes |  |
+| `copy.hash` | string |  |  |
+| `copy.snapshotId` | string | yes |  |
+| `copy.templateId` | string |  |  |
+| `copy.builtAt` | string | yes |  |
+| `copy.sizeBytes` | integer |  |  |
+| `built` | boolean | yes |  |
 
 ## merge
 
@@ -948,6 +974,39 @@ Takes a project's record out of this wsp. Its folder stays exactly where it is, 
 | `project.git` | object |  |  |
 | `project.createdAt` | string | yes |  |
 | `said` | string | yes |  |
+
+## projects_seed
+
+What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `project` | string | yes | the project, by name or id; its folder must be on this computer |
+| `keep` | string[] |  | paths off the menu to send, each relative to the project's folder |
+| `cut` | string[] |  | paths off the menu to keep on this computer |
+| `none` | boolean |  | send nothing git ignores |
+| `confirm` | boolean |  | true saves the picks; without it the menu is answered and nothing is saved |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `project` | string | yes |  |
+| `folder` | string | yes |  |
+| `rows` | object[] | yes |  |
+| `rows[].path` | string | yes |  |
+| `rows[].dir` | boolean | yes |  |
+| `rows[].bytes` | integer | yes |  |
+| `rows[].kind` | `config`, `rebuilt`, `data`, `never`, `unknown` | yes |  |
+| `rows[].why` | string | yes |  |
+| `rows[].picked` | boolean | yes |  |
+| `picked` | object | yes |  |
+| `picked.paths` | string[] | yes |  |
+| `picked.bytes` | integer | yes |  |
+| `picked.missing` | string[] | yes |  |
+| `saved` | boolean | yes |  |
 
 ## projects_set
 
@@ -1323,6 +1382,8 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `fork` | string |  | a thread to fork, by id or a prefix of it, as threads lists them: the new thread runs on that thread's agent, at its model and effort unless named, with its conversation through one finished turn and nothing after, in that thread's folder, or with branch in a new worktree on that branch whose files are that turn's checkpoint; never with project, beside, cwd or replaces, and an agent other than the thread's is refused |
 | `at` | integer |  | with fork, the finished turn the fork carries the conversation through, counted from 1 in the order thread_read lists them; absent, the thread's latest finished turn |
 | `branch` | string |  | a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch |
+| `on` | string |  | boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch and pushes a branch of its own; your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces |
+| `size` | string |  | with on, the machine's size as \<cpu>x\<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8 |
 | `cwd` | string |  | a folder inside the project or one of its worktrees, absolute, which the thread starts in |
 | `message` | string | yes |  |
 | `agent` | string |  | the agent to run in the thread, one of claude, codex, opencode, cursor; absent means the host's default |
@@ -1353,6 +1414,17 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
 | `afterCut` | `true` |  |  |
+| `sub` | object |  | on a sub-thread's start: the machine, the branches and the files sent |
+| `sub.on` | string | yes |  |
+| `sub.machine` | string | yes |  |
+| `sub.size` | object | yes |  |
+| `sub.rateUsdPerHour` | number | yes |  |
+| `sub.repo` | string | yes |  |
+| `sub.base` | object | yes |  |
+| `sub.branch` | string | yes |  |
+| `sub.sent` | object | yes |  |
+| `sub.notSent` | object | yes |  |
+| `sub.deleteAfterMinutes` | integer | yes |  |
 
 ## send
 
@@ -2044,6 +2116,7 @@ The thread's head (by id, or a prefix of it): facts, the thread as threads lists
 | `events` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object[] | yes |  |
 | `pos` | integer | yes |  |
 | `total` | integer | yes |  |
+| `trimmed` | `true` |  |  |
 
 ## thread_read
 

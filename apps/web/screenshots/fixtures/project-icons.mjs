@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The tile sidebar with two of its projects wearing images of their own beside the ones that wear a glyph: wsp a flat
-// logo on clear, dark-contrast a photo that fills its square. Each image is the one PNG the window keeps for a
-// project, kept beside the state as the host keeps it and named in the record by its hash.
+// The tile sidebar with three of its projects wearing images of their own beside the ones that wear a glyph: wsp a flat
+// logo on clear, dark-contrast a photo that fills its square, spoo-landing on spoo a 2:1 banner fitted as the window
+// fits one. Each image is the one PNG the window keeps for a project, kept beside the state as the host keeps it and
+// named in the record by its hash.
 import { createHash } from "node:crypto";
 import { crc32, deflateSync } from "node:zlib";
 import { tiles } from "../fixture-kit.mjs";
@@ -37,6 +38,8 @@ const PHOTO = png((x, y) => {
   const sun = Math.hypot(x - 84, y - 70) < 18;
   return sun ? [255, 214, 120, 255] : [Math.round(250 - y * 0.9), Math.round(120 - y * 0.5), Math.round(90 + y * 0.6), 255];
 });
+/** A banner: an opaque 2:1 picture, edge to edge across the middle band with clear above and below. */
+const BANNER = png((x, y) => (y < 32 || y >= 96 ? [0, 0, 0, 0] : x < 64 ? [16, 185, 129, 255] : [14, 116, 144, 255]));
 
 const hashOf = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -54,4 +57,4 @@ export const wearing = (row, images) => ({
 
 export const IMAGES = { LOGO, PHOTO };
 
-export default wearing({ build: tiles, cloud: "solari", keys: { SOLARI_API_KEY: "slr_fixture_not_a_key" } }, { pr_wsp: LOGO, "pr_dark-contrast": PHOTO });
+export default wearing({ build: tiles, cloud: "solari", keys: { SOLARI_API_KEY: "slr_fixture_not_a_key" } }, { pr_wsp: LOGO, "pr_dark-contrast": PHOTO, "pr_spoo-landing-spoo": BANNER });

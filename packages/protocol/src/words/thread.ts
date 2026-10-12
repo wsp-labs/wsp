@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { HarnessCatalog, MachineSizeOffer, MachineState, WorkspaceSize, WorkspaceView } from "../index.js";
-import { namesPlace } from "../place-word.js";
+import { namesPlace, placeSaid } from "../place-word.js";
 import { shellLine } from "../shell-quote.js";
 import { plural } from "./base.js";
 import { threadWord } from "./computer.js";
@@ -256,6 +256,11 @@ export const HOST_ASLEEP_SEND = "your Mac is asleep; new turns start when it wak
  * and which try of how many is about to go, so a run that still fails carries the whole flap in its log. */
 export function providerRoadRetryLine(call: string, code: string, tryNumber: number, tries: number): string {
   return `${call} did not leave this computer (${code}); try ${tryNumber} of ${tries}`;
+}
+
+/** A create whose answer never arrived, asked again under its key until the provider named the machine it made. */
+export function createAnswerLostLine(provider: string, said: string, machineId: string): string {
+  return `the answer to ${provider}'s create was lost (${said}); wsp asked again and found ${machineId}, which this create goes on with.`;
 }
 
 /** A fork the provider refused as "Snapshot not found" while its own listing holds that snapshot, asked again. */
@@ -829,8 +834,8 @@ export const placeForksNothingPickLine = (place: string, names: readonly string[
 export const imageBuiltOnLine = (place: string): string => `your image is built on ${place}`;
 
 /** The line beside it when --on named a place other than the image's own: a rebuild never moves the image's home. */
-export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string }): string | undefined =>
-  on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${home.name}, so it is built there and not on ${on}`;
+export const imageHomeKeptLine = (on: string | undefined, home: { id: string; name: string; kind?: string }): string | undefined =>
+  on === undefined || namesPlace(home, on) ? undefined : `your image lives on ${placeSaid(home)}, so it is built there and not on ${on}`;
 
 /** What a line that takes a thread answers a word naming no thread but a project, or with a cloud a machine: what the
  * word is, the line's own name and where its threads are listed. The lines that read an agent's config take a

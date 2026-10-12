@@ -110,6 +110,28 @@ describe("Claude Code's conversations in a folder", () => {
     expect(found.frames).toEqual([{ op: "transcripts.read", root: "/home/dev/.claude/projects", dirs: ["-work-acme-lab"], session: ID, last: 200 }]);
     expect(await adapter.conversations.earlier(ID, { cwds: ["/work/acme/lab"], last: 200, probe: true }, road({ "transcripts.read": { found: false, messages: [], earlier: 0 } }))).toBe("gone");
   });
+
+  it("of more than 64 folders are asked for in frames of at most 64, every run of folders the store holds with every run of cwds, the newest of an id kept", async () => {
+    const cwds = Array.from({ length: 70 }, (_, i) => `/work/acme/lab-t${i}`);
+    const adapter = createClaudeAdapter({ exec: recorded().factory, configDir: "/home/dev/.claude", projectDirName: "-work-acme-lab" });
+    const frames: Record<string, unknown>[] = [];
+    const r: ConversationRoad = {
+      ask: async frame => {
+        frames.push(frame);
+        const lastAt = (frame["cwds"] as string[]).includes("/work/acme/lab-t3") ? 9 : 5;
+        return { rows: [{ id: ID, cwd: "/work/acme/lab-t3", lastAt, bytes: 1 }] };
+      },
+      exec: async command => {
+        expect(command).toContain("'-work-acme-lab-t69'");
+        return "-work-acme-lab\n-work-acme-lab-t3\nnot-asked\n";
+      },
+    };
+    expect((await adapter.conversations.list(cwds, r)).map(row => [row.id, row.lastAt])).toEqual([[ID, 9]]);
+    expect(frames.map(f => [f["dirs"], (f["cwds"] as string[]).length])).toEqual([
+      [["-work-acme-lab-t3", "-work-acme-lab"], 64],
+      [["-work-acme-lab-t3", "-work-acme-lab"], 6],
+    ]);
+  });
 });
 
 describe("a copy of a Claude Code conversation", () => {

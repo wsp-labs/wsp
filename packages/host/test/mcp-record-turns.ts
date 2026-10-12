@@ -67,6 +67,10 @@ import {
   endReusedLine,
   processesLeftRefusal,
   type ActivityEnded,
+  subBesideRefusal,
+  subOpenedLine,
+  subOpening,
+  subSizeNoCloudRefusal,
 } from "@wsp/protocol";
 import { BASE_GROUP, FLOOR_LINE, GROUP_LABEL, tableLines, totalsLine, type TableRow } from "../src/init-table.js";
 import { GUTTER } from "../src/init-layout.js";
@@ -333,6 +337,7 @@ export async function turnWords(): Promise<Record<string, unknown>> {
     moved: threadMovedLine("{from}", "{to}", false),
     movedFresh: threadMovedLine("{from}", "{to}", true),
     openedThread: openedThreadLine("{thread}", undefined),
+    sub: { sizeNoCloud: subSizeNoCloudRefusal().message, beside: subBesideRefusal("{word}").message, opened: subOpenedLine("{thread}", "{on}", "{folder}"), opening: subOpening("{preamble}", "{task}") },
     capWait: capWaitLine({ placeId: "p", place: "{place}", running: "{running}" as unknown as number, atOnce: 2 }).replace("2 threads", "{threads}"),
     noResult: threadResult([{ type: "session.end", workspaceId: "w", sessionId: "s", threadId: "t", exitCode: null, sawResult: false }], "t")?.error,
     noThreadStamped: unstamped,
@@ -440,6 +445,26 @@ const CLAUDE = {
 };
 const CODEX = { ...CLAUDE, harness: "codex", label: "Codex", source: "table", models: [{ value: "gpt-5", label: "GPT-5", isDefault: true }], legacyModels: undefined, isDefault: false };
 const HARNESSES = ok({ harnesses: [CLAUDE, CODEX] });
+/** A sub-thread's machine on Boat as the host answers its create: the machine, the lines it passed with, and what the
+ * start opens the thread with. */
+const SUB_OUT = {
+  on: "boat",
+  machine: "fix it",
+  size: { cpu: 4, memMb: 8192 },
+  rateUsdPerHour: 0.036,
+  repo: "https://github.com/acme/web.git",
+  base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" },
+  branch: "wsp/fix-it",
+  sent: { paths: [".env"], bytes: 1100, missing: [] },
+  notSent: { uncommitted: 0 },
+  deleteAfterMinutes: 30,
+};
+const SUB_MADE = ok({
+  workspace: { ...WORKSPACE, id: "ws-sub", name: "fix it", project: { id: "p-1", name: "web", path: "/Users/me/web", computer: "here" } },
+  notice: "no git-ignored files were sent \u0085",
+  sub: { out: SUB_OUT, folder: "/root/web", preamble: "This thread runs on a machine of its own on Boat \"x\" \u0085", harness: "claude" },
+});
+const SUB_REPLIES = { "harnesses.list": HARNESSES, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "events.subscribe": ok({}), "workspaces.create": SUB_MADE };
 
 const scope = { workspaceId: "ws-1", sessionId: "sess-9", threadId: STARTED };
 const START = ok({ session: sessionRow({ id: "sess-9", threadId: STARTED, status: "running", startedBy: "agent" }), outcome: "started", turnId: "turn-9" });
@@ -595,6 +620,10 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "refused", arguments: {}, replies: { "host.restart": no("this host runs under wsp up in a terminal; only that terminal brings it back", "usage") } },
   ],
   run: [
+    { case: "a sub-thread on Boat, detached", arguments: { on: "boat", size: "4x8", message: "fix it", notify: ["me"], detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
+    { case: "a sub-thread on Boat followed to its reply", arguments: { on: "boat", message: "fix it", title: "the upload test" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") }, pushed: { "sessions.start": TURN } },
+    { case: "a size with no cloud", arguments: { size: "4x8", message: "t" }, replies: {} },
+    { case: "a cloud beside a project", arguments: { on: "boat", project: "attic-work", message: "t" }, replies: {} },
     { case: "followed to its reply", arguments: { project: "attic-work", message: "fix it", model: "claude-opus-5-5", effort: "max" }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": TURN } },
     { case: "detached", arguments: { project: "attic-work", message: "fix it", detach: true, agent: "codex", notify: ["me", "thread-7f"] }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.list": listed(), "sessions.start": START } },
     { case: "a restart of a stopped thread, named by a prefix", arguments: { project: "attic-work", message: "fix it", detach: true, replaces: "thread-b0b0" }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "sessions.replaceable": ok({}), "workspaces.wake": resolved(), "sessions.list": listed(), "sessions.start": START } },

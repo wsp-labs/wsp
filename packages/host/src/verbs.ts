@@ -384,7 +384,7 @@ export * from "./verbs/io.js";
 export * from "./verbs/agents-help.js";
 export * from "./verbs/slate.js";
 
-/** Every verb, the cloud's among them; VERBS below is the table this process answers. */
+/** Every verb, the cloud's top-level ones among them; VERBS below is the table this process answers. */
 export const ALL_VERBS: readonly Verb[] = [
   ...COMPUTER_VERBS,
   ...AGENT_VERBS,
@@ -397,7 +397,7 @@ export const ALL_VERBS: readonly Verb[] = [
 
 const isCloudVerb = (v: Verb): boolean => "cloud" in v && v.cloud === true;
 
-/** A verb with its cloud flags gone from its table, its usage and its tool, for a process with no cloud registered. */
+/** A verb with its cloud flags gone from its table, its usage and its tool, for a process with the cloud off. */
 function withoutCloudFlags(v: Verb): Verb {
   const dropped = "cloudFlags" in v ? (v.cloudFlags ?? []) : [];
   if (dropped.length === 0 || !("run" in v)) return v;
@@ -415,11 +415,12 @@ function inCloudWords(v: Verb): Verb {
   return hasTool(worded) ? { ...worded, tool: { ...worded.tool, description: cloudText(worded.tool.description, CLOUD_ON) } } : worded;
 }
 
-/** The verbs this process answers: every one where a cloud is registered, and with none, every one but the cloud's,
- * each without its cloud flags. What the pages, the tool server and the skill's rows are all built from. */
+/** The verbs this process answers: every one with the cloud on, and with it off every one but the cloud's top-level
+ * verbs, each without its cloud flags; Boat's roads are on either way. What the pages, the tool server and the
+ * skill's rows are all built from. */
 export const VERBS: readonly Verb[] = (CLOUD_ON ? ALL_VERBS : ALL_VERBS.filter(v => !isCloudVerb(v)).map(withoutCloudFlags)).map(inCloudWords);
 
-/** The line a person typed, as the cloud line it is when no cloud is registered here: the verb it opens, or that
+/** The line a person typed, as the cloud line it is when the cloud is off here: the verb it opens, or that
  * verb with the cloud flag it carries. Nothing where the line means something without one, and nothing in a public
  * build, where no variable turns the cloud on and the line is a word like any other this wsp does not know. */
 export function cloudLineOf(argv: ReadonlyArray<string>): string | undefined {
@@ -482,7 +483,9 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   engine: "give it the place's Docker or podman through a socket that sees its own containers alone",
   "recipe engine": "mark the recipe so every machine from its image gets the place's Docker or podman; it stays in the file until you edit it out",
   "run beside": "a thread whose folder the new thread starts in, by its id or a prefix, on the computer it runs on; never with a project or --branch",
-  "run branch": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the folder's current commit for a new branch",
+  "run branch": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the folder's current commit for a new branch; with --on, the branch the sub-thread makes and pushes; wsp/<slug> without it",
+  "run on": "boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from your image; it fetches your pushed branch and pushes its own",
+  "run size": "with --on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, the ones the plan sells; Boat's own size setting without it",
   "run cwd": "a folder inside the project or one of its worktrees, absolute, to start the thread in; the project's folder without it",
   "run fork": "a thread to fork, by its id or a prefix: the new thread carries its conversation through one finished turn, on its agent and in its folder, or with --branch in a new worktree with that turn's files; never with a project, --beside, --cwd or --replaces",
   "run at": "with --fork, the finished turn the fork carries through, counted from 1 as wsp thread read lists them; the latest without it",
@@ -623,6 +626,10 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   "projects set access": "how far a new thread on it may go without asking: ask, auto-edit, full or plan",
   "projects set after-worktree": "a shell line a new worktree of the project runs once at its top, after each ecosystem's own install",
   "projects set reset": "put a field back on the layer below: agent, model, effort or access, or take the after-worktree command away with after-worktree; repeats",
+  "projects seed keep": "one more path off the menu that goes to a sub-thread's machine; given once per path",
+  "projects seed cut": "one path off the menu that stays on this computer; given once per path",
+  "projects seed none": "send no git-ignored file to a sub-thread's machine",
+  "projects seed yes": "save the picks; without it the menu is printed and nothing is saved",
 };
 
 /** The line one flag gets in one verb's own help: the verb's own row where the word means two things, else the

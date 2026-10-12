@@ -302,8 +302,10 @@ export interface TranscriptsArea {
   readonly moveBlobs: (rows: TranscriptRows) => void;
   readonly transcriptQueue: Map<string, Promise<void>>;
   readonly openTranscript: (workspaceId: string) => Promise<SessionEvent[]>;
+  readonly openThread: (workspaceId: string, threadId: string) => Promise<SessionEvent[]>;
+  readonly openedWords: (workspaceId: string, threadId: string) => void;
   readonly transcriptReader: TranscriptReader;
-  readonly dropFromTranscript: (workspaceId: string, drops: (e: SessionEvent) => boolean) => Promise<void>;
+  readonly dropFromTranscript: (workspaceId: string, threadId: string, drops?: (e: SessionEvent) => boolean) => Promise<void>;
   readonly transcriptTimers: Map<string, () => void>;
   readonly daemonTokens: Map<string, { hasDaemon: boolean; at: number }>;
   readonly daemonTokenOf: (machine: Machine, path?: string) => Promise<string | undefined>;
@@ -353,6 +355,8 @@ export interface ChannelsArea {
   readonly portPids: Map<string, Map<string, number>>;
   readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
   readonly killGuarded: (channel: DaemonChannel, here: boolean) => DaemonChannel;
+  readonly threadTagged: (workspaceId: string, channel: DaemonChannel) => DaemonChannel;
+  readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
   readonly sharedDaemonReplaced: () => void;
   /** By workspace, each process group a turn led and the thread whose turn it was. */
   readonly turnGroups: Map<string, Map<number, string>>;
@@ -428,6 +432,7 @@ export interface PullRequestsArea {
   readonly pollPullRequest: (entry: LiveWorkspace, from?: number) => void;
   readonly keepTree: (child: LiveWorkspace, kept: TreeRecord) => Promise<void>;
   readonly settleTree: (entry: LiveWorkspace) => Promise<void>;
+  readonly ranOnBranch: (entry: LiveWorkspace, threadId: string) => Promise<void>;
   readonly mergeSettings: (remote: string) => Promise<GitRepoReadReply>;
   readonly updateCopy: (entry: LiveWorkspace) => Promise<GitUpdateReply>;
 }
@@ -452,6 +457,8 @@ export interface DaemonArea {
 export interface MachinesArea {
   readonly imageMark: () => string;
   readonly inflight: Set<string>;
+  readonly replayCreates: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
+  readonly sweepStrays: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
   readonly claiming: <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at?: MachineBackend) => Promise<T>;
   readonly observed: (machine: Machine) => Machine;
   readonly observing: (b: MachineBackend) => MachineBackend;
@@ -520,10 +527,15 @@ export interface CreateArea {
   readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;
 }
 
+export interface SubSpawnArea {
+  /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
+  readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
+}
+
 export interface FoldersArea {
   readonly projectFolder: (project: ProjectView) => Promise<LiveWorkspace>;
   readonly worktreeFolder: (project: ProjectView, top: string, branch: string, parent?: string, madeFor?: string, checkpoint?: string) => Promise<LiveWorkspace>;
-  readonly folderFor: (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked }, origin: Caller | undefined) => Promise<{ entry: LiveWorkspace; cwd?: string }>;
+  readonly folderFor: (o: { project?: string; branch?: string; cwd?: string; picks?: StartPicksAsked; opens?: true }, origin: Caller | undefined) => Promise<{ entry: LiveWorkspace; cwd?: string; setup?: string }>;
   readonly queued: <T>(id: string, work: () => Promise<T>) => Promise<T>;
   readonly removeWorktree: (entry: LiveWorkspace, force: boolean, o?: { ending?: boolean; check?: boolean }) => Promise<void>;
   readonly refuseChanged: (path: string) => Promise<void>;
@@ -536,8 +548,16 @@ export interface FoldersArea {
   readonly gitSaid: (res: { stdout: string; stderr: string }) => string;
   readonly worktreesOf: (top: string) => Promise<{ path: string; branch?: string }[]>;
   readonly worktreeMounted: (entry: LiveWorkspace) => Promise<void>;
-  /** What a new worktree ran before its first thread, once, for the first turn there to open with. */
+  /** What a new worktree ran before its first thread, once, for the start that names it first to open with. */
   readonly takeSetupLine: (workspaceId: string) => string | undefined;
+}
+
+/** The folder a start on a link runs in, with the lines its new thread is told first: the worktree was left behind the
+ * pull request, and what a worktree made for this start ran. */
+export interface Placed {
+  readonly entry: LiveWorkspace;
+  readonly behind?: string;
+  readonly setup?: string;
 }
 
 export interface StartFromArea {
@@ -545,9 +565,9 @@ export interface StartFromArea {
   readonly issueOf: (remote: string, number: number) => Promise<IssueRead>;
   readonly pullRequestOf: (remote: string, number: number) => Promise<PullRequest>;
   readonly fromOf: (kind: WorkspaceFrom["kind"], repo: string, read: IssueRead, fact: PullRequest | undefined) => WorkspaceFrom;
-  readonly workspaceFrom: (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined) => Promise<LiveWorkspace>;
+  readonly workspaceFrom: (project: ProjectView, from: WorkspaceFrom, fact: PullRequest | undefined, kind: "start" | "review", origin: Caller | undefined) => Promise<Placed>;
   readonly picksHold: (project: ProjectView, o: StartPicksAsked) => Promise<void>;
-  readonly openWith: (entry: LiveWorkspace, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined) => Promise<StartResult>;
+  readonly openWith: (placed: Placed, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined) => Promise<StartResult>;
   readonly readOnlyOf: (agent: string) => string | undefined;
   readonly reviewers: () => string[];
   readonly takeReview: (entry: LiveWorkspace, threadId: string, text: string) => Promise<void>;
@@ -751,7 +771,7 @@ export interface BuildersArea {
   readonly forkingAt: (placeId: string | undefined) => Promise<MachineBackend | undefined>;
   readonly placeName: (place: string) => string;
   readonly imagePlace: (name: string) => Promise<string>;
-  readonly buildPlaces: () => Promise<{ place: string; name: string; backend: MachineBackend }[]>;
+  readonly buildPlaces: () => Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]>;
   readonly copyRecipeOrThrow: () => ((image: SealedImage) => Promise<GoldenRecipe> | GoldenRecipe);
   readonly recipeOrThrow: (named?: GoldenRecipe) => GoldenRecipe;
   readonly builderLabels: (extra: Record<string, string> | undefined) => Record<string, string>;
@@ -820,4 +840,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash, randomBytes } from "node:crypto";
-import { MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk } from "@wsp/engine";
+import { MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk, nameOwner, strays, type ReapedMachine, type ReapFailure } from "@wsp/engine";
 import { type WorkspacePhase, goneRefusal, notFoundRefusal, noWorkspaceRefusal, noCommandsYetLine, WAKE_STOPPED_UP, type WorkspaceSize, type WorkspaceView, settingFor, IDLE_REASON, ALREADY_RUNNING, goldenImage, goneWords, HOSTNAME_KEPT, hostnameSetLine, NOT_GONE, GONE_UNCHECKED, RESUME_UNANSWERED, runsInFolder, placeHoldsNoImageLine } from "@wsp/protocol";
 import { templateHost } from "../host-id.js";
 import { backstopMs, createIdlePolicy } from "../idle.js";
 import { POLL_INTERVAL_MS, phaseLeavingGone, providerSaid } from "../status.js";
 import { loginEnvOn } from "../types/harness.js";
 import { type WorkspaceSpec, type WorkspaceRecord, type LiveWorkspace, type StageReport, type GoldenExec, type GoneOutcome, settled, VAULTS, shapeFault, setHostname } from "../types/wiring.js";
-import { AGENT_LISTS, WORKSPACES, TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, SESSIONS, WORKSPACE_NAMES, DROPPED, PAUSED_REASON, GONE_REASON, goneLogLine, type DroppedMachine, CREATES, KEY_PURPOSE_MAX, type PendingCreate, fingerprint, pidAlive, forwardedCalls } from "../types/internal.js";
+import { AGENT_LISTS, WORKSPACES, TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, SESSIONS, WORKSPACE_NAMES, DROPPED, PAUSED_REASON, GONE_REASON, goneLogLine, type DroppedMachine, type NamedWorkspace, CREATES, KEY_PURPOSE_MAX, LOST_CREATE_MS, type PendingCreate, fingerprint, pidAlive, forwardedCalls } from "../types/internal.js";
 import type { RuntimeContext, MachinesArea } from "../context.js";
 
 export function machinesArea(ctx: RuntimeContext): MachinesArea {
@@ -38,31 +38,45 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
    * provider's name field has taken. Two state files on one computer read one host id, and on Box a snapshot's name
    * is its id, so the owner is what keeps one state's image from being the other's. */
   const imageMark = (): string => templateHost(hostId) + templateHost(ctx.state.owner);
+  /** The purposes whose create this process is asking for now: their attempts are its own, never the sweep's. */
+  const making = new Set<string>();
 
-  /** The store holds the attempt's key and stamp before the provider hears of it: a retry the provider never answered
-   * (the connection dropped, the process died) sends the same body under the same key and gets back the machine the
-   * first try booted. An answer of any kind ends the attempt and a changed request starts one, so the key after a kill
-   * or a refusal is always fresh. A replay naming a dead machine is dropped and the create made anew (measured
-   * 2026-09-04: the provider replays a killed machine's id). Another live process's attempt is never joined. */
+  /** The store holds the attempt's key, stamp and bytes before the provider hears of it: a retry the provider never
+   * answered (the connection dropped, the process died) sends the same bytes under the same key and gets back the
+   * machine the first try booted. An answer of any kind ends the attempt and a changed request starts one, so the key
+   * after a kill or a refusal is always fresh. A replay naming a dead machine is dropped and the create made anew
+   * (measured 2026-09-04: the provider replays a killed machine's id). Another live process's attempt is never joined,
+   * and an attempt held from before its bytes were kept is never replayed, since its body would not be the same. */
   const keyedCreate = async (at: MachineBackend, purpose: string, spec: MachineSpec, waiting?: (line: string) => void, afterCorpse = false): Promise<Machine> => {
     const body = fingerprint(spec);
     const held = (await store.get(CREATES, purpose)) as PendingCreate | undefined;
     const theirs = held !== undefined && (held.host !== hostId || (held.pid !== process.pid && pidAlive(held.pid)));
     const name = purpose.length <= KEY_PURPOSE_MAX ? purpose : createHash("sha256").update(purpose).digest("hex");
-    const attempt: PendingCreate = held?.body === body && !theirs
+    const replay = held?.body === body && !theirs && (held.request !== undefined || at.createRequest === undefined);
+    const createdAt = replay ? held.createdAt : new Date().toISOString();
+    const stamped = spec.labels?.[CREATED_AT_LABEL] !== undefined ? { ...spec, labels: { ...spec.labels, [CREATED_AT_LABEL]: createdAt } } : spec;
+    const image = spec.fromSnapshot ?? spec.template;
+    const attempt: PendingCreate = replay
       ? { ...held, host: hostId, pid: process.pid }
-      : { key: `${name}:${randomBytes(8).toString("hex")}`, createdAt: new Date().toISOString(), body, host: hostId, pid: process.pid };
+      : {
+          key: `${name}:${randomBytes(8).toString("hex")}`,
+          createdAt,
+          body,
+          host: hostId,
+          pid: process.pid,
+          ...(at.createRequest !== undefined ? { request: await at.createRequest(stamped) } : {}),
+          ...(image !== undefined ? { image } : {}),
+        };
     await store.put(CREATES, purpose, attempt);
+    making.add(purpose);
     let machine: Machine;
     try {
-      machine = await at.create({
-        ...spec,
-        idempotencyKey: attempt.key,
-        ...(spec.labels?.[CREATED_AT_LABEL] !== undefined ? { labels: { ...spec.labels, [CREATED_AT_LABEL]: attempt.createdAt } } : {}),
-      }, waiting);
+      machine = await at.create({ ...stamped, idempotencyKey: attempt.key }, waiting, attempt.request);
     } catch (e) {
       if (typeof (e as WspError).status === "number") await store.delete(CREATES, purpose);
       throw e;
+    } finally {
+      making.delete(purpose);
     }
     await store.delete(CREATES, purpose);
     if (machine.replayed === true) {
@@ -74,6 +88,70 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
       console.warn(`create for ${purpose}: ${machine.id} replayed from an earlier attempt under ${attempt.key}`);
     }
     return machine;
+  };
+
+  /** Asks again every attempt of this host nothing is making any more, LOST_CREATE_MS after it began, with the bytes it
+   * sent: the machine the provider made for it is left for the sweep to record again where the workspace's record was
+   * lost and its name kept, and deleted everywhere else, since no record waits for it. An attempt the provider will
+   * not answer stays for the next sweep. */
+  const replayCreates = async (known: () => Iterable<string>, failed: ReapFailure[]): Promise<ReapedMachine[]> => {
+    if (backend.replayCreate === undefined) return [];
+    const deleted: ReapedMachine[] = [];
+    for (const purpose of await store.keys(CREATES)) {
+      const row = (await store.get(CREATES, purpose)) as PendingCreate | undefined;
+      if (row?.request === undefined || row.host !== hostId) continue;
+      if (row.pid === process.pid ? making.has(purpose) : pidAlive(row.pid)) continue;
+      if (Date.now() - Date.parse(row.createdAt) < LOST_CREATE_MS) continue;
+      let machine: Machine;
+      try {
+        machine = await backend.replayCreate(row.key, row.request);
+      } catch (e) {
+        if (isMissing(e)) await store.delete(CREATES, purpose);
+        else failed.push({ message: `the create under ${row.key} was asked again and not answered: ${e instanceof Error ? e.message : String(e)}; asked again next sweep` });
+        continue;
+      }
+      // The record waits where the sweep records a machine again: its name kept, its project held, no record live.
+      const workspace = purpose.startsWith("workspace/") ? purpose.slice("workspace/".length) : undefined;
+      const kept = workspace === undefined || live.has(workspace) ? undefined : ((await store.get(WORKSPACE_NAMES, workspace)) as NamedWorkspace | undefined);
+      const waits = kept?.project !== undefined && ctx.projectsHeld.has(kept.project);
+      if (machine.seen?.state !== "gone" && !new Set(known()).has(machine.id) && !waits) {
+        try {
+          await gone.stop(backend, machine);
+        } catch (e) {
+          if (!isMissing(e)) {
+            failed.push({ id: machine.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}` });
+            continue;
+          }
+        }
+        const ageMs = Date.now() - Date.parse(row.createdAt);
+        deleted.push({ id: machine.id, builder: false, reason: "lost", ageMs, ...(machine.labels !== undefined ? { labels: machine.labels } : {}), ...(row.image !== undefined ? { name: row.image } : {}) });
+      }
+      await store.delete(CREATES, purpose);
+    }
+    return deleted;
+  };
+
+  /** Deletes what the provider lists under the name of one of this host's images that no record and no attempt of
+   * this host names: a machine whose create lost its answer before anything named it. A machine under any other
+   * name is never asked about. */
+  const sweepStrays = async (known: () => Iterable<string>, failed: ReapFailure[]): Promise<ReapedMachine[]> => {
+    if (backend.namedAfter === undefined) return [];
+    const mark = imageMark();
+    const attempts = (await store.list(CREATES)) as PendingCreate[];
+    const asked = new Set(attempts.flatMap(a => (a.image !== undefined ? [a.image] : [])));
+    const names = new Set([...(await ctx.recordedImages()), ...asked].filter(n => nameOwner(n) === mark));
+    if (names.size === 0) return [];
+    const deleted: ReapedMachine[] = [];
+    for (const m of strays(await backend.namedAfter(names), { known: new Set(known()), asked, now: Date.now() })) {
+      try {
+        await gone.stop(backend, await backend.get(m.id));
+      } catch (e) {
+        if (!isMissing(e)) failed.push({ id: m.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}` });
+        continue;
+      }
+      deleted.push({ id: m.id, builder: false, reason: "stray", name: m.name, ageMs: m.ageMs });
+    }
+    return deleted;
   };
 
   /** Ids this process has created and not yet recorded; the sweep must not read them as lost. */
@@ -750,7 +828,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
   };
 
   return {
-    imageMark, inflight, claiming, observed, observing, fork, unfork, followMachine, attach, endSessions, drop, napWith,
+    imageMark, inflight, replayCreates, sweepStrays, claiming, observed, observing, fork, unfork, followMachine, attach, endSessions, drop, napWith,
     armLateRead, adoptPause, runsUnderNapping, adoptRunning, proven, settleGone, markGone, rereading, adoptGone, recoverGone,
     idle,
   };

@@ -8,6 +8,11 @@
  * the file shows the text and not the mark. */
 export const CLOUD_MARK = "<!-- cloud -->";
 export const CLOUD_SPAN_END = "<!-- /cloud -->";
+/** The mark on text about sub-threads on Boat, which ships in every build: read like the cloud mark, a line, a heading
+ * with its section or a span, and kept whatever the cloud reads, the marks gone. Solari's text and the cloud's
+ * top-level roads stay under the cloud mark. */
+export const BOAT_MARK = "<!-- boat -->";
+export const BOAT_SPAN_END = "<!-- /boat -->";
 /** A span said only with the cloud off, where the road it stands in for reads otherwise without one. */
 export const NO_CLOUD_MARK = "<!-- no cloud -->";
 export const NO_CLOUD_SPAN_END = "<!-- /no cloud -->";
@@ -15,11 +20,14 @@ export const NO_CLOUD_SPAN_END = "<!-- /no cloud -->";
 /** Text as a process with or without a cloud reads it: each span kept or dropped by its mark, the marks gone. What the
  * skill's lines and every verb's own words go through, so both follow one rule. */
 export function cloudText(text: string, cloud: boolean): string {
-  return text.replace(/<!-- cloud -->(.*?)<!-- \/cloud -->/g, (_, kept: string) => (cloud ? kept : "")).replace(/<!-- no cloud -->(.*?)<!-- \/no cloud -->/g, (_, kept: string) => (cloud ? "" : kept));
+  return text
+    .replace(/<!-- \/?boat -->/g, "")
+    .replace(/<!-- cloud -->(.*?)<!-- \/cloud -->/g, (_, kept: string) => (cloud ? kept : ""))
+    .replace(/<!-- no cloud -->(.*?)<!-- \/no cloud -->/g, (_, kept: string) => (cloud ? "" : kept));
 }
 
 /** The skill as a process with or without a cloud reads it: the marks gone either way, and with no cloud everything
- * they mark gone too. */
+ * the cloud mark marks gone too. */
 export function skillFor(skill: string, cloud: boolean): string {
   const out: string[] = [];
   let dropping: number | undefined;
@@ -36,7 +44,7 @@ export function skillFor(skill: string, cloud: boolean): string {
       if (heading !== null) dropping = heading[1]!.length;
       continue;
     }
-    const bare = marked ? line.slice(0, -CLOUD_MARK.length - 1) : line;
+    const bare = marked ? line.slice(0, -CLOUD_MARK.length - 1) : line.endsWith(` ${BOAT_MARK}`) ? line.slice(0, -BOAT_MARK.length - 1) : line;
     out.push(cloudText(bare, cloud));
   }
   return out.join("\n");

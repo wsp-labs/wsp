@@ -2,8 +2,8 @@
 import { dirname, join } from "node:path";
 import { serverValuesOf } from "@wsp/catalog";
 import { authRefusal, THIS_COMPUTER } from "@wsp/protocol";
-import { checkProviderKey, keyCheckLine, type KeyCheck } from "@wsp/engine";
-import { providerBackendFor, providerEnvWith, providerEnvWithKey, providerKeyRow, type ProviderEnv } from "../providers.js";
+import { keyCheckLine, type KeyCheck } from "@wsp/engine";
+import { keyRowFor, providerEnvWith, providerKeyCheck, type ProviderEnv } from "../providers.js";
 import { ANTHROPIC_KEY, KEY_LAYER_WORDS, envFileFor, keyIn, parseEnvFile, savedEnv, serverEnvFileFor, vaultOf, writeEnvFile, type Keys } from "../env-keys.js";
 import { DEFAULT_HOME } from "../hosts.js";
 import type { CliIO } from "./io.js";
@@ -33,7 +33,7 @@ export function keyLayers(sources: KeySources): Array<Record<string, string | un
 export function keySources(env: ProviderEnv, statePath: string): KeySources {
   // The key is put to the provider this run is wired to, under that row's own variable: a person who named a
   // provider is typing that provider's key, whatever another row would have been taken by.
-  return { env, cwd: process.cwd(), statePath, checkKey: key => checkProviderKey(providerBackendFor(providerEnvWithKey(env, key))) };
+  return { env, cwd: process.cwd(), statePath, checkKey: key => providerKeyCheck(env, key) };
 }
 
 /** The environment a run picks its provider out of, as this computer stands now: the run's own with the command
@@ -59,17 +59,24 @@ export interface LoadedKeys {
   env: ProviderEnv;
 }
 
-export async function loadKeys(
-  io: CliIO,
-  sources: KeySources,
-  ask: { anthropic: boolean; noProviderKey?: NoProviderKey; checkSaved?: boolean } = { anthropic: true },
-): Promise<LoadedKeys> {
+export interface KeyAsk {
+  anthropic: boolean;
+  noProviderKey?: NoProviderKey;
+  checkSaved?: boolean;
+  /** The provider the key is for, by its id, where the line named one: wsp add asks for that row's key whichever row
+   * this computer is wired by. */
+  provider?: string;
+  /** False where the caller writes the key itself, so nothing asks whether to save it. */
+  save?: false;
+}
+
+export async function loadKeys(io: CliIO, sources: KeySources, ask: KeyAsk = { anthropic: true }): Promise<LoadedKeys> {
   const ownEnv = envFileFor(sources.statePath);
   const layers = keyLayers(sources);
   const env = providerEnvWith({}, sources.env, layers);
-  // The row this run is wired to, which is the only one it is asked about: the variable it reads its key from is
-  // the one named on the screen, written to the file and put to the provider.
-  const row = providerKeyRow(env);
+  // The row named, else the row this run is wired to, which is the only one it is asked about: the variable it reads
+  // its key from is the one named on the screen, written to the file and put to the provider.
+  const row = keyRowFor(env, ask.provider);
   const keyEnv = row?.keyEnv;
   const held = keyEnv === undefined ? undefined : keyIn(env, keyEnv);
   let anthropic = keysFound(sources, layers).anthropic;
@@ -134,7 +141,7 @@ export async function loadKeys(
     }
   }
 
-  if ((await io.ask(saveQuestion(dirname(sources.statePath), Object.keys(set).length))) === "yes") writeEnvFile(ownEnv, set);
+  if (ask.save !== false && (await io.ask(saveQuestion(dirname(sources.statePath), Object.keys(set).length))) === "yes") writeEnvFile(ownEnv, set);
   return loaded(key);
 }
 

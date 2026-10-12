@@ -14,6 +14,7 @@ import { createCodexAdapter } from "@wsp/adapter-codex";
 import {
   claudeProjectKey,
   CONVERSATION_OPEN_KIND,
+  CONVERSATIONS_AGAIN_FIX,
   conversationOpenFix,
   conversationsUnreadLine,
   conversationsUpdateFix,
@@ -233,7 +234,7 @@ describe("a project's conversations", () => {
     expect(held.fix).toBe(conversationsUpdateFix("this computer"));
   });
 
-  it("leave out an agent whose store answered nothing, the others' rows standing", async () => {
+  it("say in one line which agent's store could not be read and why, the others' rows standing", async () => {
     const { folder } = repoWithTree();
     const codex: ConversationStore = { list: () => Promise.reject(new Error("codex: command not found")), earlier: async () => "gone" };
     const claude = fakeStore({ rows: [row(ID, folder, 100)], live: [] });
@@ -241,7 +242,10 @@ describe("a project's conversations", () => {
     const project = await rt.projects.add({ source: folder });
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     const answer = await rt.conversations.list({ project: project.id });
-    expect(answer).toEqual({ rows: [expect.objectContaining({ agent: "claude", id: ID })], held: [] });
+    expect(answer).toEqual({
+      rows: [expect.objectContaining({ agent: "claude", id: ID })],
+      held: [{ agent: "codex", said: "Codex's conversations could not be read: codex: command not found", fix: CONVERSATIONS_AGAIN_FIX, why: "codex: command not found" }],
+    });
     expect(warned.mock.calls.flat().join("\n")).toContain("codex: command not found");
     warned.mockRestore();
   });
@@ -259,6 +263,60 @@ describe("a project's conversations", () => {
     const project = await rt.projects.add({ source: folder });
     expect((await rt.conversations.list({ project: project.id })).rows).toEqual([{ agent: "claude", id: ID, title: "lab codewords", cwd: folder, lastAt: 9, bytes: 10, origin: "terminal", live: false }]);
     expect(frames[0]).toMatchObject({ op: "transcripts.list", root: "/home/dev/.claude/projects", cwds: [folder, `${folder}-wt`] });
+  });
+
+  it("of 74 folders are all listed and opened, in frames of at most 64 the daemon takes, asking only for folders Claude Code keeps", async () => {
+    const { folder } = repoWithTree();
+    const trees = Array.from({ length: 72 }, (_, i) => `${folder}-t${i}`);
+    for (const [i, tree] of trees.entries()) git(folder, "worktree", "add", "-q", "-b", `t${i}`, tree);
+    const home = scratch();
+    const root = join(home, ".claude", "projects");
+    const held = { [ID]: folder, [OTHER]: trees[70]! };
+    for (const [id, cwd] of Object.entries(held)) {
+      mkdirSync(join(root, claudeProjectKey(cwd)), { recursive: true });
+      writeFileSync(join(root, claudeProjectKey(cwd), `${id}.jsonl`), `${JSON.stringify({ cwd })}\n`);
+    }
+    const frames: Record<string, unknown>[] = [];
+    // The daemon's own frame check, which refuses the whole frame before any folder is read.
+    const capped = (f: Record<string, unknown>): string | undefined => {
+      frames.push(f);
+      for (const key of ["dirs", "cwds"]) if (Array.isArray(f[key]) && f[key].length > 64) return `invalid frame: at most 64 entries, got ${f[key].length}`;
+      return undefined;
+    };
+    const kept = (f: Record<string, unknown>): [string, string][] =>
+      (f["dirs"] as string[]).flatMap(dir => {
+        const at = join(root, dir);
+        return (readdirSync(root).includes(dir) ? readdirSync(at) : []).map((name): [string, string] => [name.slice(0, -6), (JSON.parse(readFileSync(join(at, name), "utf8")) as { cwd: string }).cwd]);
+      });
+    const claude = { ...claudeConversations({ configDir: join(home, ".claude") }), live: async () => null };
+    const { rt } = here({ claude }, {
+      "transcripts.list": f => {
+        const error = capped(f);
+        if (error !== undefined) return { id: 1, ok: false, error } as DaemonResponse;
+        const rows = kept(f).filter(([, cwd]) => (f["cwds"] as string[]).includes(cwd));
+        return { id: 1, ok: true, rows: rows.map(([id, cwd]) => ({ id, cwd, entrypoint: "cli", lastAt: id === ID ? 2 : 1, bytes: 1 })) } as unknown as DaemonResponse;
+      },
+      "transcripts.read": f => {
+        const error = capped(f);
+        if (error !== undefined) return { id: 1, ok: false, error } as DaemonResponse;
+        const found = kept(f).find(([id]) => id === f["session"]);
+        return { id: 1, ok: true, found: found !== undefined, ...(found !== undefined ? { cwd: found[1], messages: [], earlier: 0 } : { messages: [], earlier: 0 }) } as unknown as DaemonResponse;
+      },
+    });
+    const project = await rt.projects.add({ source: folder });
+    const answer = await rt.conversations.list({ project: project.id });
+    expect(answer.held).toEqual([]);
+    expect(answer.rows.map(r => [r.id, r.cwd])).toEqual([
+      [ID, folder],
+      [OTHER, trees[70]],
+    ]);
+    const listed = frames.filter(f => f["op"] === "transcripts.list");
+    expect(listed.every(f => (f["dirs"] as string[]).length <= 64 && (f["cwds"] as string[]).length <= 64)).toBe(true);
+    expect(new Set(listed.flatMap(f => f["dirs"] as string[]))).toEqual(new Set(Object.values(held).map(claudeProjectKey)));
+    expect(new Set(listed.flatMap(f => f["cwds"] as string[])).size).toBe(74);
+    const { outside } = await startOn(rt, project.id, { id: OTHER }, "go on", "claude");
+    expect(outside.cwd).toBe(trees[70]);
+    expect(frames.filter(f => f["op"] === "transcripts.read").map(f => f["dirs"])).toEqual([[claudeProjectKey(trees[70]!)]]);
   });
 });
 
@@ -371,8 +429,8 @@ describe("a project's kept conversation list", () => {
     const { rt } = here({ claude });
     const project = await rt.projects.add({ source: folder });
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect((await rt.conversations.list({ project: project.id })).rows).toEqual([]);
-    expect((await rt.conversations.list({ project: project.id })).rows.map(r => r.id)).toEqual([ID]);
+    expect(await rt.conversations.list({ project: project.id })).toMatchObject({ rows: [], held: [{ agent: "claude", why: "the daemon connection closed" }] });
+    expect(await rt.conversations.list({ project: project.id })).toMatchObject({ rows: [{ id: ID }], held: [] });
     expect(calls).toBe(2);
     warned.mockRestore();
   });

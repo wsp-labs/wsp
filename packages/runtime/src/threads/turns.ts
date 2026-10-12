@@ -691,13 +691,21 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
       // taken down and say so in the log for every thread on it.
       if (!ended) void ctx.refreshTitle(view, true);
       // The turn may have moved the branch or the files, so the tile's line is read again now rather than on a timer,
-      // and the pull request with it, since the agent may have pushed.
-      if (!ended) void ctx.readCheckout(entry, true).then(() => ctx.readPullRequest(entry, true)).then(() => ctx.readLeadOf(entry));
-      // A tree whose root's pull request has settled settles again as its last turn ends: merged stays merged, and a
-      // send into the tree is what took it off the fold.
+      // and the pull request with it, since the agent may have pushed. A tree whose root's pull request has settled
+      // then settles again as its last turn ends: merged stays merged, and a send into the tree is what took it off
+      // the fold. It waits for the checkout, by which a project folder that left the pull request's branch drops it.
       if (!ended) {
-        const rootOn = view.rootThreadId === undefined ? entry : live.get(ctx.latestOn(view.rootThreadId)?.workspaceId ?? "");
-        if (rootOn !== undefined && rootOn.record.pr !== undefined && rootOn.record.pr.state !== "open") void ctx.settleTree(rootOn);
+        const settleAgain = (): void => {
+          const rootOn = view.rootThreadId === undefined ? entry : live.get(ctx.latestOn(view.rootThreadId)?.workspaceId ?? "");
+          if (rootOn !== undefined && rootOn.record.pr !== undefined && rootOn.record.pr.state !== "open") void ctx.settleTree(rootOn);
+        };
+        void ctx
+          .readCheckout(entry, true)
+          .then(() => ctx.ranOnBranch(entry, threadId))
+          .then(() => ctx.readPullRequest(entry, true))
+          .then(() => ctx.readLeadOf(entry))
+          .catch((e: unknown) => console.warn(`the branch of ${entry.record.name} was not read at a turn's end: ${e instanceof Error ? e.message : String(e)}`))
+          .then(settleAgain);
       }
       if (t.imagesDir !== undefined) ctx.dropImages(entry, t.imagesDir);
     };
@@ -774,7 +782,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
     // an opened reader has no way to be let go: a file that did not read says nothing about the run, which is left as it was.
     let written: SessionEvent[];
     try {
-      written = await ctx.openTranscript(view.workspaceId);
+      written = await ctx.openThread(view.workspaceId, threadId);
     } catch (e: unknown) {
       return left(e);
     }

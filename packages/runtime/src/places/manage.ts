@@ -25,6 +25,7 @@ import {
   joinToken,
   absentComputer,
   noSuchPlaceRefusal,
+  providerKeyName,
   placeUnsavedRefusal,
   placeAwayRefusal,
   placeForgetAnswersRefusal,
@@ -81,6 +82,7 @@ import {
   NO_ESTIMATE_LINE, LOG_READ_MS, UPDATE_WAIT_MS,
 } from "./helpers.js";
 import type { PlaceDoorContext } from "./context.js";
+import { removeProvider } from "./provider-remove.js";
 import type { PlaceRecordsArea } from "./records.js";
 import type { PlaceSetupArea } from "./setup.js";
 import type { PlaceViewsArea } from "./views.js";
@@ -105,7 +107,7 @@ const runtimeProjectOf = (checkout: string | undefined): string | undefined => {
 export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "add" | "dial" | "road" | "exec" | "adds" | "reportOf" | "homeOf" | "list" | "rows" | "set" | "update" | "holds" | "remove" | "find" | "pending" | "choose" | "setUp" | "follow" | "recipeChanged" | "followers" | "skip" | "estimate" | "setupLog" | "unfollow" | "picksOf" | "on" | "close"> {
   const { opts, store, devices, wiring, recording, clockNow, dialWaitMs, live, kept, forwards, watchers, emit } = ctx;
   const {
-    records, providerIds, recordOf, settingsOf, settingsHeld, rowIds, withCap, untilDaemonVersion, awaiting, adds,
+    records, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, rowIds, withCap, untilDaemonVersion, awaiting, adds,
     putAdd, loginOf, rootOver, loginAnswers, reachedOver, holdBack, defaultId, inTurn, markHeld, change,
   } = recordArea;
   const {
@@ -421,7 +423,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       const marked = (await markHeld()) ?? HERE_PLACE_ID;
       const record = placeId === HERE_PLACE_ID ? undefined : await recordOf(placeId);
       const row = placeId === HERE_PLACE_ID ? hereRow(marked) : record !== undefined ? joinedRow(record, marked) : providerIds().includes(placeId) ? providerRow(placeId, marked) : undefined;
-      if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, [wiring.here().name, ...(await records()).map(r => r.name), ...providerIds()])), { kind: "usage" });
+      if (row === undefined) throw Object.assign(new Error(noSuchPlaceRefusal(placeId, [wiring.here().name, ...(await records()).map(r => r.name), ...providerIds().map(providerKeyName)])), { kind: "usage" });
       const renamed = also.name?.trim();
       const ssh = also.ssh?.trim();
       const { spawn, ...rest } = set;
@@ -545,6 +547,20 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
 
     async remove(placeId, ask = {}) {
       const held = await recordOf(placeId);
+      const provider = held === undefined && providerIds().includes(placeId) ? providerBackend(placeId) : undefined;
+      if (provider !== undefined && ask.forget === true) {
+        // Nothing at the provider is asked: a key it refuses reaches no machine there, and the records go with it.
+        await recording.forgetRecordsOn?.(placeId);
+        const still = await wiring.forgetKey?.(placeId);
+        emit({ type: "place.removed", placeId });
+        return { removed: true, swept: [], ...(still === undefined ? {} : { note: still }) };
+      }
+      if (provider !== undefined) {
+        const forgetKey = wiring.forgetKey?.bind(wiring);
+        const answer = await removeProvider({ placeId, backend: provider, owner: (await opts.owner?.()) ?? "", known: (await recording.machinesOn?.(placeId)) ?? [], ...(forgetKey === undefined ? {} : { forgetKey }), ...(opts.killConfirm === undefined ? {} : { confirm: opts.killConfirm }) });
+        if (answer.removed) emit({ type: "place.removed", placeId });
+        return answer;
+      }
       if (held === undefined) return { removed: false, swept: [] };
       // Read before anything goes: a fork's commits and a project folder's are on that computer alone until they are
       // pushed, and the remove takes that computer's copies with it.

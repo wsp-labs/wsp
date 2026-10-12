@@ -57,6 +57,7 @@ pub struct Turns {
     pub moved: String,
     pub moved_fresh: String,
     pub opened_thread: String,
+    pub sub: SubWords,
     pub cap_wait: String,
     pub no_result: String,
     pub no_thread_stamped: String,
@@ -125,6 +126,16 @@ pub struct Picks {
     pub access_refused: String,
     /// wsp's access words, in the order a refusal names the ones an agent takes.
     pub access_choices: Vec<String>,
+}
+
+/// A sub-thread's start on a cloud: `subSizeNoCloudRefusal`, `subBesideRefusal`, `subOpenedLine`, `subOpening`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubWords {
+    pub size_no_cloud: String,
+    pub beside: String,
+    pub opened: String,
+    pub opening: String,
 }
 
 #[derive(Deserialize)]

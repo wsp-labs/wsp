@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // New thread as a person finds it: the sidebar's first row, with the word and
 // its chord on its face, and the pencil glyph the header holds beside the
-// sidebar toggle wherever the sidebar is away (collapsed, a phone's closed
-// sheet, Settings). Both open New thread on its project, or ask for one where
+// sidebar toggle wherever the sidebar is away (collapsed, or a phone's closed
+// sheet) and Settings is shut. Both open New thread on its project, or ask for one where
 // the person asked to pick every time, and both are held while there is no
 // project to open one on: aria-disabled rather than the disabled attribute, so
 // the pointer still reaches the tooltip that says what it is.

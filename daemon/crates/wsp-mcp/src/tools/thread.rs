@@ -356,7 +356,7 @@ async fn answer(tool: &'static str, effect: &'static str, host: Arc<Host>, argum
     let thread = thread_of(&client, &thread).await?;
     let thread_id = thread.runtime_id().to_owned();
     let named = thread_word(&thread_id);
-    let Some(ask) = open_ask(&history(&client, &thread.workspace_id).await?, &thread_id) else {
+    let Some(ask) = open_ask(&history(&client, &thread.workspace_id, &thread_id).await?, &thread_id) else {
         return Err(Failure::new(fill(&words.no_open_ask, &[("thread", &named)])).into());
     };
     let Some(option) = ask.options.iter().find(|o| o.effect == road.effect) else {

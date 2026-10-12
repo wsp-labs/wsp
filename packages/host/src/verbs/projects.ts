@@ -14,11 +14,13 @@ import {
   ProjectView,
   addedProjectLine,
   MEMORY_KEPT_CLAUSE,
+  ProjectSeed,
+  projectSeedLines,
 } from "@wsp/protocol";
 import { RecipeAnswer, RecipeScan, recipePrintout, scanPrintout } from "../recipe-answer.js";
 import { isRecipeTick, runRecipe, runScan } from "../recipe-command.js";
 import { historyCache, smallRecipePath } from "../recipe-file.js";
-import { HOST_RESTARTING_LINE, hostPlatform, table, usageIs, tool, type Verb, flag, flagList, absolutePath } from "./client.js";
+import { HOST_RESTARTING_LINE, hostPlatform, table, usageIs, tool, type HostClient, type Verb, flag, flagList, absolutePath } from "./client.js";
 import { workspaces, threads, threadsOf, threadRows, THREAD_HEAD, threadLines, threadTree, placeNames, projectsOf, projectOf, projectLine, NO_PROJECT_YET } from "./workspaces-help.js";
 import { projectDefaultsOf, waitThrough } from "./turns-help.js";
 import { confirmed, WaitOut, ThreadRowOut, asJson, asText, waitAnswer, timeoutFlag, ACCESS_IN_WORDS, PROJECT_FOLDERS, WEIGH_BY_FOLDERS, projectFolders, projectsFlag, progress, printTable } from "./io.js";
@@ -30,6 +32,24 @@ const projectSetLines = (set: { project: ProjectView; defaults: ThreadDefaults; 
   ...threadDefaultsLines(set.defaults),
   ...(set.afterWorktree !== undefined ? [afterWorktreeLine(set.afterWorktree)] : []),
 ];
+
+/** A project's seed picks, off the host, with only the words a caller gave on the wire. */
+const projectSeed = (client: HostClient, project: string, o: { keep: string[]; cut: string[]; none: boolean; save: boolean }): Promise<ProjectSeed> =>
+  client
+    .request<Record<string, unknown>>("projects.seed", {
+      project,
+      ...(o.keep.length > 0 ? { keep: o.keep } : {}),
+      ...(o.cut.length > 0 ? { cut: o.cut } : {}),
+      ...(o.none ? { none: true } : {}),
+      ...(o.save ? { save: true } : {}),
+    })
+    .then(a => ProjectSeed.parse(a));
+
+/** The picks as a terminal reads them: the head, the menu's table, and whether anything was saved. */
+const projectSeedText = (seed: ProjectSeed): string => {
+  const { head, rows, foot } = projectSeedLines(seed);
+  return [head, "", ...(rows.length === 0 ? [] : [...table(rows).map(line => `  ${line}`), ""]), ...foot].join("\n");
+};
 
 export const PROJECT_VERBS: readonly Verb[] = [
   {
@@ -168,6 +188,33 @@ export const PROJECT_VERBS: readonly Verb[] = [
         const set = await projectDefaultsSet(await deps.client(), project, { ...(agent !== undefined ? { agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}), ...(after_worktree !== undefined ? { afterWorktree: after_worktree } : {}), ...(reset !== undefined ? { reset } : {}) });
         return asText(projectSetLines(set).join("\n"), set);
       },
+    }),
+  },
+  {
+    name: "projects seed",
+    usage: "wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]",
+    about: "what git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: the menu with each path's size and why, the picks marked; --yes saves the picks, which every later sub-thread of the project takes",
+    page: "agent",
+    options: { keep: { type: "string", multiple: true }, cut: { type: "string", multiple: true }, none: { type: "boolean" }, yes: { type: "boolean" } },
+    run: async ctx => {
+      const [ref, ...rest] = ctx.args;
+      if (ref === undefined || rest.length > 0) throw usageRefusal("wsp projects seed takes one project.", usageIs(ctx));
+      const seed = await projectSeed(await ctx.client(), ref, { keep: flagList(ctx.flags, "keep"), cut: flagList(ctx.flags, "cut"), none: ctx.flags["none"] === true, save: ctx.flags["yes"] === true });
+      ctx.out.emit(seed, projectSeedText(seed));
+      return 0;
+    },
+    tool: tool({
+      description:
+        "What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.",
+      input: {
+        project: z.string().describe("the project, by name or id; its folder must be on this computer"),
+        keep: z.array(z.string()).optional().describe("paths off the menu to send, each relative to the project's folder"),
+        cut: z.array(z.string()).optional().describe("paths off the menu to keep on this computer"),
+        none: z.boolean().optional().describe("send nothing git ignores"),
+        confirm: z.boolean().optional().describe("true saves the picks; without it the menu is answered and nothing is saved"),
+      },
+      output: ProjectSeed.shape,
+      call: async ({ project, keep, cut, none, confirm }, deps) => asJson(await projectSeed(await deps.client(), project, { keep: keep ?? [], cut: cut ?? [], none: none === true, save: confirm === true })),
     }),
   },
   {

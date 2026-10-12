@@ -97,7 +97,7 @@ export function useComposerPicks(workspaceId: string, thread: ChatThreadHandle):
   const catalogs = useHarnessCatalogs(workspaceId);
   const ask = useDefaultsAsk(workspaceId);
   const kept = useComposerOptions(workspaceId);
-  const rows = useThreadSessions(workspaceId, thread.threadKey);
+  const rows = useThreadSessions(workspaceId, thread.threadKey, thread.fresh);
   const pickedOn = useComposerOptionsStore(s => s.pickedOn[workspaceId] ?? NO_THREADS);
   const picked = useMemo(() => pickedFor(kept, thread.view, pickedOn, thread.threadKey), [kept, pickedOn, thread.threadKey, thread.view]);
   const onThread = useMemo(() => threadPicks(thread.view, rows), [rows, thread.view]);

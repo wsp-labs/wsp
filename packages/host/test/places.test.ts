@@ -22,7 +22,7 @@ import { MissingKnownHostsError, missingKnownHostsLine, OWN_MARK, outsideAfterSc
 import { daemonBinaryHere } from "../src/assets.js";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noGuestDaemonLine, noPlaceSystemLine } from "../src/daemon-binary.js";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, addFound, addFoundScript, addUndoScript, apparmorStep, apparmorStoodLine, daemonFlags, joinedAddWrites, joinedLine, joinedPlace, loginFilesStep, PLACE_JOINED_LINE, placeFoundSkippedLine, placeFoundStep, profileSourceLine, sshDaemonPlace, WSP_READY_LINE } from "../src/doctor.js";
-import { BoxBackend, type KeyCheck, type MachineBackend } from "@wsp/engine";
+import { BoxBackend, checkProviderKey, type KeyCheck, type MachineBackend } from "@wsp/engine";
 import { computerLines, hostPlatform, placeLines, placeNames } from "../src/verbs.js";
 import { namesPlace, PLACE_FOUND_END, placeOutsideLeftLine, placeOwnersUnknownLine, placeStoodBeforeLine, TOOL_PREFIX, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { pinnedDroppingPort, refusedPort } from "../../runtime/test/held-port.js";
@@ -55,6 +55,7 @@ import {
   preparePlaceHome,
   joinPlace,
   addableProviders,
+  addWord,
   leaveCommand as leaveCommandHere,
   leavePlace,
   placeHere,
@@ -127,7 +128,7 @@ describe("what wsp add prints with no argument", () => {
     expect(lines).toContain(`wsp join https://p_ab12cd34.usewsp.com --code ${token}`);
     expect(lines).toContain("spent by the first join");
     expect(lines).toContain("wsp add user@host");
-    for (const id of addableProviders()) expect(lines).toContain(`wsp add ${id}`);
+    for (const id of addableProviders()) expect(lines).toContain(`wsp add ${addWord(id)}`);
   });
 
   it("sends the person to wsp computers, the verb that lists a joined computer, and says the daemon is what goes on", () => {
@@ -149,7 +150,7 @@ describe("what wsp add prints with no argument", () => {
     expect(addedProviders().map(m => addedBy(m))).toEqual(["key", "key"]);
     expect(addedProviders().map(m => [m.id, m.keyEnv !== undefined])).toEqual([["box", true], ["solari", true]]);
     expect(addableProviders()).not.toContain("none");
-    expect(addRefusal("nonsense")).toContain("box, solari");
+    expect(addRefusal("nonsense")).toContain("boat, solari");
     expect(addRefusal("nonsense")).toContain("user@host");
     expect(addRefusal("nonsense")).toContain("wsp add with no argument");
     expect(addRefusal("nonsense")).toContain("an alias your ssh config gives a HostName");
@@ -163,19 +164,20 @@ describe("a provider as a place", () => {
     const put: MachineBackend[] = [];
     const refusing = { ...systemPlaceDeps, checkKey: async (b: MachineBackend): Promise<KeyCheck> => (put.push(b), { state: "refused", said: "box said 401 invalid token" }) };
     const io = captured();
-    expect(await addCommand(io, opts(home, { BOAT_API_KEY: "sk-ant-x" }), ["box"], {}, refusing)).toBe(1);
-    expect(io.errors.join("\n")).toContain("401");
+    // With nobody at a terminal to type another, the refused key stops the add on the auth class.
+    await expect(addCommand(io, opts(home, { BOAT_API_KEY: "sk-ant-x" }), ["box"], {}, refusing)).rejects.toMatchObject({ kind: "auth", message: expect.stringContaining("401") });
     expect(existsSync(join(home, ".env"))).toBe(false);
     // The key is put to the provider being added, built out of the environment that carries every row's key under
     // the variable that row declares.
     expect(put).toHaveLength(1);
     expect(put[0]).toBeInstanceOf(BoxBackend);
-    // A key the provider took sets this computer up for it and nothing of the key is written or printed.
+    // A key the provider took is saved under its own variable and nothing else, so it opens the provider as a place
+    // beside this computer; the key itself is never printed.
     const taking = { ...systemPlaceDeps, checkKey: async () => ({ state: "taken" }) as const };
     const good = captured();
     expect(await addCommand(good, opts(home, { BOAT_API_KEY: "sk-ant-x" }), ["box"], {}, taking)).toBe(0);
-    expect(good.lines.join("\n")).toContain("place box");
-    expect(readFileSync(join(home, ".env"), "utf8")).toBe("WSP_PROVIDER=box\n");
+    expect(good.lines.join("\n")).toContain("Boat added");
+    expect(readFileSync(join(home, ".env"), "utf8")).toBe("BOAT_API_KEY=sk-ant-x\n");
     expect(good.lines.join("\n") + good.errors.join("\n")).not.toContain("sk-ant-x");
   });
 
@@ -186,9 +188,56 @@ describe("a provider as a place", () => {
     const beside = { ...opts(home, { BOAT_API_KEY: "sk-ant-x" }), statePath: join(folder, "state.json") };
     const io = captured();
     expect(await addCommand(io, beside, ["box"], {}, systemPlaceDeps)).toBe(0);
-    expect(readFileSync(join(folder, ".env"), "utf8")).toBe("WSP_PROVIDER=box\n");
+    expect(readFileSync(join(folder, ".env"), "utf8")).toBe("BOAT_API_KEY=sk-ant-x\n");
     // The wsp home's own file is another host's, and this add never touched it.
     expect(existsSync(join(home, ".env"))).toBe(false);
+  });
+
+  describe.skipIf(CLOUD_ON)("Boat with the cloud off", () => {
+    // Boat's own answer to a key it does not know, empty or wrong alike, as GET /limits replied on 2026-10-12.
+    const UNAUTHORIZED = { ok: false, type: "box.error", status: 401, code: "unauthorized", message: "unauthorized", error: { code: "unauthorized", message: "unauthorized", status: 401 } };
+    const boatTaking = (good: string): string[] => {
+      const asked: string[] = [];
+      vi.stubGlobal("fetch", async (url: string, init: { headers: Record<string, string> }) => {
+        asked.push(String(url));
+        const taken = init.headers["Authorization"] === `Bearer ${good}`;
+        return new Response(JSON.stringify(taken ? { limits: {} } : UNAUTHORIZED), { status: taken ? 200 : 401, headers: { "content-type": "application/json" } });
+      });
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      return asked;
+    };
+    const checking = { ...systemPlaceDeps, checkKey: checkProviderKey };
+
+    it("puts the key to Boat and refuses one Boat refuses, writing nothing", async () => {
+      const home = tmp("add-boat-refused");
+      const asked = boatTaking("bx_good");
+      const io = captured();
+      await expect(addCommand(io, opts(home, { BOAT_API_KEY: "bx_plainly_wrong_key" }), ["box"], {}, checking)).rejects.toMatchObject({ kind: "auth", message: expect.stringContaining("401 unauthorized") });
+      expect(asked.map(u => new URL(u).pathname)).toEqual(["/api/box/v1/limits"]);
+      expect(io.lines).toEqual([]);
+      expect(existsSync(join(home, ".env"))).toBe(false);
+    });
+
+    it("asks for the key when no Boat key is anywhere, and says nothing was added when nobody types one", async () => {
+      const home = tmp("add-boat-keyless");
+      boatTaking("bx_good");
+      const io = captured();
+      await expect(addCommand(io, opts(home, {}), ["box"], {}, checking)).rejects.toThrow(/^unexpected prompt: Boat API key\n/);
+      expect(io.lines).toEqual([]);
+      expect(existsSync(join(home, ".env"))).toBe(false);
+    });
+
+    it("saves a key Boat takes beside the state as a place beside this computer, and never names it the provider this host forks on", async () => {
+      const home = tmp("add-boat-taken");
+      boatTaking("bx_good");
+      const io = captured();
+      expect(await addCommand(io, opts(home, { BOAT_API_KEY: "bx_good" }), ["box"], {}, checking)).toBe(0);
+      expect(io.lines.join("\n")).toContain("Boat added");
+      expect(io.lines.join("\n")).not.toContain("forks your image");
+      expect(readFileSync(join(home, ".env"), "utf8")).toBe("BOAT_API_KEY=bx_good\n");
+    });
   });
 
   it("refuses the ssh road's own flags when no computer was named beside them", async () => {

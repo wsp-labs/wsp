@@ -25,7 +25,7 @@ const changed = (at: number): string => new Date(at).toLocaleString("sv-SE").sli
 const mark = (r: OutsideConversation): string => (r.thread !== undefined ? `thread ${r.thread.slice(0, 8)}` : r.live ? "open elsewhere" : r.origin === "wsp" ? "wsp" : "");
 
 export function conversationsLines(answer: ConversationsAnswer): string[] {
-  const rows = answer.rows.length === 0 ? ["no Claude Code or Codex conversations in this folder"] : table([["AGENT", "ID", "CHANGED", "SIZE", "BRANCH", "", "TITLE"], ...answer.rows.map(r => [r.agent, r.id, changed(r.lastAt), r.bytes !== undefined ? fmtBytes(r.bytes) : "-", r.branch ?? "-", mark(r), r.title])]);
+  const rows = answer.rows.length > 0 ? table([["AGENT", "ID", "CHANGED", "SIZE", "BRANCH", "", "TITLE"], ...answer.rows.map(r => [r.agent, r.id, changed(r.lastAt), r.bytes !== undefined ? fmtBytes(r.bytes) : "-", r.branch ?? "-", mark(r), r.title])]) : answer.held.length === 0 ? ["no Claude Code or Codex conversations in this folder"] : [];
   return [...rows, ...answer.held.map(h => `${h.said}. ${h.fix}`)];
 }
 

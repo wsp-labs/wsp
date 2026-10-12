@@ -30,8 +30,9 @@ export const OutsideConversation = z.object({
 });
 export type OutsideConversation = z.infer<typeof OutsideConversation>;
 
-/** One agent whose conversations were not read, in two halves. */
-export const ConversationsHeld = z.object({ agent: z.string(), said: z.string(), fix: z.string() });
+/** One agent whose conversations were not read, in two halves; `why` is the store's own error where the read failed
+ * for any reason but the computer's update. */
+export const ConversationsHeld = z.object({ agent: z.string(), said: z.string(), fix: z.string(), why: z.string().optional() });
 export type ConversationsHeld = z.infer<typeof ConversationsHeld>;
 
 /** A project's conversations, newest first, and the agents whose store did not answer. */
@@ -129,6 +130,9 @@ export const CONVERSATION_WORDS = {
     letsGo === undefined ? "Continuing it here too would split it. Continue in a copy, or close it there first." : `Continue in a copy, or close it there and try again. ${letsGo}`,
   heldRow: (agent: string): string => `${agent} conversations`,
   heldNote: (computer: string): string => `Update ${computer} to list them`,
+  /** The count beside Resume where a store did not answer, which says whose rows are missing rather than all. */
+  listed: (n: number): string => `${n} listed`,
+  unreadShort: (agent: string): string => `${agent}'s could not be read`,
 } as const;
 
 /** The line that stands for the messages a thread did not open with. */
@@ -154,4 +158,6 @@ export const RESUME_HERE_FIX = "Name a project on this computer or on a box.";
 export const COPY_ALONE_LINE = "--copy copies the conversation --resume names, so it goes with --resume";
 export const COPY_ALONE_FIX = "Add --resume <id>, or leave --copy off.";
 export const conversationsUnreadLine = (agent: string, computer: string): string => `${agent} conversations on ${computer} were not read`;
+export const conversationsFailedLine = (agent: string, why: string): string => `${agent}'s conversations could not be read: ${why}`;
+export const CONVERSATIONS_AGAIN_FIX = "Ask again in a moment.";
 export const conversationsUpdateFix = (computer: string): string => `Update ${computer} with wsp add ${computer} --update to list them.`;

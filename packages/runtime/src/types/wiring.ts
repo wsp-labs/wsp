@@ -60,7 +60,7 @@ import type {
   WorkspaceStatus,
   WorkspaceView,
 } from "@wsp/protocol";
-import type { TreeFact, TreeRecord, PullRequestSent, PullRequestRecord, PullRequestSeen, Checkout } from "@wsp/protocol";
+import type { SubStarted, TreeFact, TreeRecord, PullRequestSent, PullRequestRecord, PullRequestSeen, Checkout } from "@wsp/protocol";
 import { shellQuote } from "@wsp/protocol";
 import type { AgentsActs, AgentsReader, PluginsActs, ServerIcons, ServersActs, SkillsActs } from "../agents-read.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../daemon-channel.js";
@@ -96,7 +96,18 @@ export interface WorkspaceSpec {
 /** What a create answers: the view, and a notice when a builder kept after a save was stopped to make room. */
 export interface CreatedWorkspace extends WorkspaceView {
   notice?: string;
+  /** A sub-thread's start: what it answers, the folder it opens in, the preamble above its task and the agent read. */
+  sub?: SubStarted;
 }
+
+/** What a start with `sub` asks: the cloud by its word, the size and result branch the lead named, and its agent. */
+export interface SubAsk {
+  on: string;
+  size?: string;
+  branch?: string;
+  harness?: string;
+}
+
 
 export interface CreateWorkspaceOptions extends WorkspaceSpec {
   /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands, so
@@ -105,6 +116,8 @@ export interface CreateWorkspaceOptions extends WorkspaceSpec {
   /** Snapshot id of a project image to fork; absent takes the head of this host's own image. */
   golden?: string;
   name: string;
+  /** A sub-thread of the asking thread on a cloud: a machine of its own from the image, in no project's place. */
+  sub?: SubAsk;
   /** What the agents on the new workspace may ask of this host; absent takes the default, and on a fork a thread asked for it
    * is the forking workspace's own switch, so a tree of machines carries one rule rather than needing it set again.
    * A key left out takes the default. */
@@ -346,6 +359,9 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
   /** What the host keeps of the workspace's pull request: enough that a merged one reads merged after a restart and is
    * never read again, and nothing more of it is written under the host's folder. */
   pr?: PullRequestRecord;
+  /** A project folder's branch and the threads whose turns ended on it since the folder went to it: the threads its
+   * pull request settles, since the folder's other threads did their work on other branches. */
+  branchThreads?: { branch: string; threads: string[] };
   /** The checkout git last gave, so a machine nothing can ask after a restart still shows its branch and counts. */
   checkout?: Checkout;
   /** What a child keeps of the tree it is in: its merge into its lead, the files a merge stopped on, and why its last
@@ -355,11 +371,19 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
   from?: WorkspaceFrom;
   /** A review workspace's review as the person shapes it before Post. */
   review?: ReviewDraft;
+  /** The thread the latest review opened: its replies alone are read as the draft, never another thread's in the copy. */
+  reviewThread?: string;
   /** The items of its pull request's page sent to its agent, with when. */
   prSent?: PullRequestSent[];
   /** Folders an import landed on the machine beside the project, which its daemon may browse: kept here so every
    * whole write of the roots file lists them, and gone with the record. No project is made of them. */
   landed?: string[];
+  /** A sub-machine's lead: the thread that started it with run --on and the workspace that thread ran on. The record
+   * names the lead's project for the repository, and runs at its place, never on that project's computer. */
+  lead?: { threadId: string; workspaceId: string };
+  /** What its one sub-thread was started on: the cloud's word, the remote it fetches, the lead's pushed commit, the
+   * branch it pushes and the folder it works in. Kept on the record, which outlives its machine. */
+  sub?: { on: string; repo: string; base: { branch: string; sha: string }; branch: string; folder: string };
 }
 
 export interface LiveWorkspace {
@@ -697,6 +721,9 @@ export interface RuntimeOptions {
   /** What a road that needs a machine says where nothing here starts one; the host names it from what it registered.
    * NO_PROVIDER_LINE when unset. */
   noMachinesLine?: string;
+  /** Whether a project may be recorded on a cloud, which is the cloud's top-level road: the host says so where its
+   * cloud is on. True when unset. */
+  cloudProjects?: boolean;
 }
 
 export interface WakeOptions {

@@ -1775,6 +1775,10 @@
         "total": {
           "type": "integer",
           "minimum": 0
+        },
+        "trimmed": {
+          "type": "boolean",
+          "const": true
         }
       },
       "required": [
@@ -3569,6 +3573,10 @@
         "total": {
           "type": "integer",
           "minimum": 0
+        },
+        "trimmed": {
+          "type": "boolean",
+          "const": true
         }
       },
       "required": [

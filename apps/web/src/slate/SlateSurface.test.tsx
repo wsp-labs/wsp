@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionView } from "@wsp/protocol";
 import type { Api, ProtocolEvent } from "../protocol/client";
 import { useStore } from "../protocol/store";
-import { useRightPanelStore } from "../rightPanelStore";
+import { selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore";
 import { useComposerDraftStore } from "../components/chat/composerDraftStore";
 import { MountedComposer } from "../components/chat/testing";
 import { SlateSurface } from "./SlateSurface";
@@ -94,11 +94,11 @@ describe("the Slate tab", () => {
     render(
       <>
         <SlateSurface />
-        <MountedComposer workspaceId="ws" />
+        <MountedComposer workspaceId="ws" threadKey="t1" />
       </>,
     );
     await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Ask for one" })));
-    expect(useComposerDraftStore.getState().drafts["ws"]?.prompt).toBe("Build a slate for this thread that shows ");
+    expect(useComposerDraftStore.getState().drafts["t1"]?.prompt).toBe("Build a slate for this thread that shows ");
     expect(screen.getByTestId("composer-editor").textContent).toBe("Build a slate for this thread that shows ");
     expect(document.activeElement).toBe(screen.getByTestId("composer-editor"));
   });
@@ -110,11 +110,12 @@ describe("the Slate tab", () => {
     render(
       <>
         <SlateSurface />
-        <MountedComposer workspaceId="ws" />
+        <MountedComposer workspaceId="ws" threadKey="t2" />
       </>,
     );
     await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Draft it" })));
-    expect(useComposerDraftStore.getState().drafts["ws"]?.prompt).toBe("Look at this\n");
+    expect(useComposerDraftStore.getState().drafts["t2"]?.prompt).toBe("Look at this\n");
+    expect(useComposerDraftStore.getState().drafts["ws"]).toBeUndefined();
   });
 
   it("says a slate was cleared, and offers Undo while there is one", async () => {
@@ -164,14 +165,14 @@ describe("the Slate tab", () => {
     select(slates, "t1");
     event({ type: "session.slate", workspaceId: "ws", sessionId: "s1", threadId: "t1", cause: "set", version: 1, by: "agent", pieces: ["root"] });
     await waitFor(() => expect(slates.shown).toHaveBeenCalledWith("t1"));
-    const panel = useRightPanelStore.getState().byWorkspaceId["ws"];
-    expect(panel?.isOpen).toBe(true);
-    expect(panel?.activeSurfaceId).toBe("slate");
+    const panel = selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, "ws");
+    expect(panel.isOpen).toBe(true);
+    expect(panel.activeSurfaceId).toBe("slate");
     // A second write does not move the panel again: the person moved it back to another tab.
     useRightPanelStore.getState().open("ws", "diff");
     event({ type: "session.slate", workspaceId: "ws", sessionId: "s1", threadId: "t1", cause: "patch", version: 2, by: "agent", pieces: ["root"] });
     await waitFor(() => expect(slates.calls.filter(c => c === "get")).toHaveLength(2));
-    expect(useRightPanelStore.getState().byWorkspaceId["ws"]?.activeSurfaceId).toBe("diff");
+    expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, "ws").activeSurfaceId).toBe("diff");
     expect(slates.shown).toHaveBeenCalledTimes(1);
   });
 
@@ -181,7 +182,7 @@ describe("the Slate tab", () => {
     event({ type: "session.slate", workspaceId: "ws", sessionId: "s2", threadId: "t2", cause: "set", version: 1, by: "agent", pieces: ["root"] });
     await waitFor(() => expect(slates.calls).toContain("get"));
     expect(slates.shown).not.toHaveBeenCalled();
-    expect(useRightPanelStore.getState().byWorkspaceId["ws"]?.activeSurfaceId ?? null).toBeNull();
+    expect(selectWorkspaceRightPanelState(useRightPanelStore.getState().byWorkspaceId, "ws").activeSurfaceId ?? null).toBeNull();
   });
 });
 

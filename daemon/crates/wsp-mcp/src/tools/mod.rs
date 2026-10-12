@@ -24,11 +24,13 @@ mod pull_request;
 mod recipe;
 mod recipes;
 pub(crate) mod said;
+mod seed;
 mod servers;
 mod setup;
 mod skills;
 mod slate;
 mod start;
+mod sub;
 mod target;
 mod terminal_config;
 mod thread;
@@ -132,6 +134,7 @@ pub const TOOLS: &[Tool] = &[
     conversations::TOOL,
     activity::READ,
     activity::END,
+    seed::TOOL,
     threads::THREADS,
     threads::THREAD_READ,
     threads::THREAD_HEAD,
