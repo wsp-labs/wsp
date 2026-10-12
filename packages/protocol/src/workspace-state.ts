@@ -240,6 +240,8 @@ export interface WorkspaceStateInput {
 export function workspaceState(input: WorkspaceStateInput): WorkspaceState {
   const machine = input.machineState ?? null;
   const reach = input.reach ?? null;
+  // The runtime reports a released sub-machine's machine as gone, which is what released means: its own word wins.
+  if (input.phase === "released") return "released";
   if (machine === "gone") return "gone";
   switch (input.phase) {
     case "pausing":
@@ -252,8 +254,6 @@ export function workspaceState(input: WorkspaceStateInput): WorkspaceState {
       return "gone";
     case "queued":
       return "waiting";
-    case "released":
-      return "released";
     case "running":
       if (machine === "paused") return "paused";
       if (machine === "starting") return "waking";
@@ -286,7 +286,7 @@ const WORDS: Record<WorkspaceState, string> = {
   unreachable: "Unreachable",
   gone: "Gone",
   waiting: "Waiting",
-  released: "Released",
+  released: "Deleted",
 };
 
 /** The two words a computer that keeps the processes and the bytes of a paused machine reads instead: a nap there

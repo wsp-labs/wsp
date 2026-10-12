@@ -15,11 +15,13 @@
 import { HeroField, HeroMark } from "./EmptyHero.js";
 import { SetupCard, SetupRoom } from "./SetupCard.js";
 import { holdEndOnFooterShrink } from "./footerHold.js";
+import { scrollerAtBottom } from "./MessagesTimeline.logic.js";
 import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, modelOf, modelPicks, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { agentName } from "@wsp/catalog";
 import { openComputerSettings } from "../../settings/openAt";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
@@ -29,7 +31,7 @@ import { useMachineLine } from "../../notices/workspaceLines.js";
 import { openNamedFile } from "../../files/open";
 import { carryNewThreadRoot, threadFolderOf } from "../../files/root";
 import { cn } from "../../lib/utils";
-import { DEFAULT_TIMESTAMP_FORMAT, launchIn, subagentEntries, subagentRunOf, turnWait, type MessageId, type TimestampFormat, type TurnDiffSummary, type TurnSummary } from "./adapt";
+import { DEFAULT_TIMESTAMP_FORMAT, launchIn, subagentEntries, subagentRunOf, turnWait, type MachineStart, type MessageId, type TimestampFormat, type TurnDiffSummary, type TurnSummary } from "./adapt";
 import { changedPathOf, onlyOf, useDiffStore } from "../../diffs/store";
 import { carryNewThreadPanel, openBrowserAt, useRightPanelStore } from "../../rightPanelStore";
 import { carryNewThreadDrawer } from "../../terminal/drawerStore";
@@ -97,6 +99,7 @@ export function ChatView({
   // A turn its computer's threads at once holds back has no start in the transcript yet, and still reads as working:
   // the timeline's working row says what holds it, with the setting that lets it start.
   const capped = turnRows.at(-1)?.capped;
+  const sub = turnRows.at(-1)?.sub;
   // The subagent's own fold in the lead's transcript, and what the listing says it was asked while that fold is unread.
   const run = useMemo(() => (subagent === null ? null : subagentRunOf(view.entries, subagent)), [subagent, view.entries]);
   const listed = subagent === null ? undefined : turnRows.flatMap(row => row.subagents ?? []).find(sub => sub.parentToolUseId === subagent);
@@ -129,7 +132,9 @@ export function ChatView({
     useOpenSubagentRun.setState({ run });
     return () => useOpenSubagentRun.setState({ run: null });
   }, [run]);
-  const working = subagent === null && (view.running || capped !== undefined);
+  // A sub-thread waiting for its machine or watching it be made is not at work: its strip or its spawn view says so.
+  const spawning = sub?.state === "starting" || sub?.state === "waiting";
+  const working = subagent === null && !spawning && (view.running || capped !== undefined);
   const empty = pageEntries === null && view.entries.length === 0 && !working;
   // A workspace an agent forked out of a thread stands before its thread's row is listed. The fork opens that thread
   // inside the parent's own turn, so it is on its way while that turn runs; after it, nothing is coming. The host
@@ -182,7 +187,8 @@ export function ChatView({
   }, [state, working, wake, workspaceId, runs, capped]);
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.
-  const paused = state === "paused" && !working ? workspaceWord(state, capabilities?.pauseMode) : null;
+  // A sub-machine's nap is its delete timer's, with no Wake of its own: the line above the composer says what holds it.
+  const paused = state === "paused" && !working && sub === undefined ? workspaceWord(state, capabilities?.pauseMode) : null;
   const { startNewThread, hydrated, threadKey } = thread;
   // A reply's shell blocks run in the thread the view holds, in its folder: the one its start named, else the
   // workspace's thread folder, as a file named in the transcript opens. Neither known, or no thread yet, offers no Run.
@@ -194,6 +200,13 @@ export function ChatView({
   // The agent this thread ran on, which a rewind names; a thread with no turn has none.
   const agent = turnRows.at(-1)?.harness ?? view.agent;
   const catalog = useHarnessCatalog(agent, workspaceId);
+  // A sub-thread whose machine was made for it says so in one line under the message it was made for.
+  const startRow = turnRows.at(-1);
+  const machineStart = useMemo((): MachineStart | null => {
+    if (startRow?.sub?.spawn === undefined) return null;
+    const model = startRow.model === undefined ? undefined : catalog === null ? startRow.model : (modelOf(catalog, modelPicks(startRow.model).model)?.label ?? startRow.model);
+    return { workspaceId, threadId: startRow.threadId, harness: startRow.harness, title: startRow.harnessTitle ?? startRow.sub.machine, sub: startRow.sub, agent: catalog?.label ?? agentName(startRow.harness), model, effort: startRow.effort, project: startRow.project?.name ?? "" };
+  }, [startRow, catalog, workspaceId]);
   // What each turn changed hangs under that turn's last reply, and opens the Changes pane on the turn's own range.
   // Keyed on what it draws rather than on the entries, so a streamed chunk hands the timeline the same map.
   const diffPlaces = view.turns.flatMap(turn => {
@@ -273,10 +286,12 @@ export function ChatView({
       root.style.setProperty("--chat-composer-inset", `${composer.offsetHeight}px`);
       const scroller = listRef.current?.getScrollableNode();
       if (atEndRef.current && scroller) scroller.scrollTop = scroller.scrollHeight;
+      // A composer that settled shorter can leave the whole transcript in view with the end read as left behind.
+      else if (scroller && scrollerAtBottom(scroller)) onIsAtEndChange(true);
     });
     observer.observe(composer);
     return () => observer.disconnect();
-  }, []);
+  }, [onIsAtEndChange]);
   const footerRef = useCallback((node: HTMLDivElement | null) => {
     if (node === null) return;
     let scroller = node.parentElement;
@@ -420,6 +435,7 @@ export function ChatView({
               forkableMessageIds={pageEntries === null ? forkableIds : NO_IDS}
               onFork={onFork}
               forkedFrom={pageEntries === null ? forkedFrom : null}
+              machineStart={pageEntries === null ? machineStart : null}
               replyRuns={pageEntries === null ? replyRuns : null}
               {...(pageEntries === null ? { onReachTop: thread.older } : {})}
               onFinder={onFinder}

@@ -60,12 +60,12 @@ import type {
   WorkspaceStatus,
   WorkspaceView,
 } from "@wsp/protocol";
-import type { SubHeld, SubResult, SubStarted, TreeFact, TreeRecord, PullRequestSent, PullRequestRecord, PullRequestSeen, Checkout } from "@wsp/protocol";
+import type { SubHeld, SubResult, SubSpawn, SubStarted, TreeFact, TreeRecord, PullRequestSent, PullRequestRecord, PullRequestSeen, Checkout } from "@wsp/protocol";
 import { shellQuote } from "@wsp/protocol";
 import type { AgentsActs, AgentsReader, PluginsActs, ServerIcons, ServersActs, SkillsActs } from "../agents-read.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../daemon-channel.js";
 import type { MachineExecOptions, TurnWaiting } from "../machine-exec.js";
-import type { Copier } from "@wsp/engine";
+import type { Copier, ProviderBoxState } from "@wsp/engine";
 import type { TaskStop, TurnImage } from "@wsp/protocol";
 import { realClock, type Clock } from "../clock.js";
 import type { StatusApi, StatusListOptions, StatusWatchOptions } from "../status.js";
@@ -393,6 +393,8 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
     folder: string;
     /** Absent on a record from before the rate was kept. */
     rateUsdPerHour?: number;
+    /** The class the cloud sold the machine as; absent on a record from before the name was kept. */
+    sizeName?: string;
     result?: SubResult;
     held?: SubHeld & { at: number };
     deleteAt?: number;
@@ -401,6 +403,8 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
     lost?: string;
     cloudGone?: true;
     session?: SubSession;
+    /** The latest start of its machine, step by step, written as it goes. */
+    spawn?: SubSpawn;
   };
 }
 
@@ -476,7 +480,8 @@ export interface LiveWorkspace {
 
 /** Reports one create stage as it is reached; the runtime stamps id, name and elapsed time. A notice is a second
  * line written for a person; a detail is what the machine answered, which rides the line's title. */
-export type StageReport = (stage: WorkspaceCreateStage, message: string, said?: { notice?: string; detail?: string; waiting?: true }) => void;
+/** `box` is the provider's own machine and its state, where the line says one. */
+export type StageReport = (stage: WorkspaceCreateStage, message: string, said?: { notice?: string; detail?: string; waiting?: true; box?: ProviderBoxState }) => void;
 
 export interface SessionHandle {
   readonly id: string;

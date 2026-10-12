@@ -412,7 +412,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // released sub-thread's send makes it one, and a send meeting that waits for it.
       let notice: string | undefined;
       if (entry.record.sub !== undefined) {
-        const resumed = await ctx.resumeSub(entry, threadId, o.harness);
+        const resumed = await ctx.resumeSub(entry, threadId, o.harness, o.prompt);
         entry = resumed.entry;
         if (resumed.preamble !== undefined) o.prompt = subOpening(resumed.preamble, o.prompt);
         if (resumed.notices.length > 0) notice = resumed.notices.join("\n");

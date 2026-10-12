@@ -86,6 +86,9 @@
                 },
                 "readAt": {
                   "type": "string"
+                },
+                "pushRefused": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -209,6 +212,9 @@
                   "type": "string"
                 },
                 "readAt": {
+                  "type": "string"
+                },
+                "pushRefused": {
                   "type": "string"
                 }
               },

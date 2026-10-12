@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { AgentSignInState, ContextMenuItem, HostsView, PlaceView, ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb, WorkspaceGlyph } from "../index.js";
+import type { AgentSignInState, CloudPlan, CloudStarts, ContextMenuItem, HostsView, PlaceView, ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb, WorkspaceGlyph } from "../index.js";
 import { dotColour, effectiveOpacity, themeInk, type Rgb, type WorkspaceTheme } from "../workspace-look.js";
 import { compareVersions } from "../semver.mjs";
 import { plural } from "./base.js";
@@ -597,3 +597,17 @@ export const threadStoppedLine = (title: string): string => `${title} stopped`;
 
 /** What a thread's end says of a process that went without an error of its own: its exit code, when it had one. */
 export const exitLine = (exitCode: number | null): string | undefined => (exitCode === null ? undefined : `exit ${exitCode}`);
+
+/** A cloud's plan as its page's head says it, off its own limits read: the trial's few figures, or a paid plan's
+ * machines and starts in each window. */
+export function cloudPlanLine(plan: CloudPlan, starts: CloudStarts | undefined, sizeNames: readonly string[]): string {
+  const day = starts === undefined ? "" : `, ${starts.day.limit} starts a day`;
+  if (plan.trial) return `Trial: ${plural(plan.machinesAtOnce, "machine")} at once${day}, ${sizeNames.join(" and ")} sizes`;
+  const usd = /^box_(\d+)$/.exec(plan.key ?? "")?.[1];
+  const head = usd === undefined ? "Plan" : `$${usd} plan`;
+  const windows = starts === undefined ? "" : `, ${starts.minute.limit} starts a minute, ${starts.hour.limit} an hour, ${starts.day.limit} a day`;
+  return `${head}: ${plural(plan.machinesAtOnce, "machine")} at once${windows}`;
+}
+
+/** Today's starts against the plan's, under the plan line. */
+export const cloudStartsTodayLine = (starts: CloudStarts): string => `Starts today: ${starts.day.used} of ${starts.day.limit}`;

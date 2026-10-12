@@ -5,10 +5,10 @@
 // wsp's turns can express: no proposed plans, subagent fleets, checkpoints or
 // MCP presentation tables. Turn duration comes from the turn summary because
 // entries are unstamped on our wire.
-import { CONVERSATION_WORDS, fmtDuration, isCodeSearchTool, waitingAskerLine, type ThreadWaitingOn } from "@wsp/protocol";
+import { CONVERSATION_WORDS, fmtDuration, isCodeSearchTool, subSpawning, waitingAskerLine, type ThreadWaitingOn } from "@wsp/protocol";
 import { isEarlierEntry, isPromptOpen } from "./session.js";
 import { spawnCallOf, type SpawnedChildren } from "./spawned.js";
-import type { MessagesTimelineRow, PermissionPrompt, SpawnCall, TimelineEntry, ToolGroupAction, ToolGroupSummaryKind, TurnSummary, WorkLogEntry, WorkLogTone } from "./view-model.js";
+import type { MachineStart, MessagesTimelineRow, PermissionPrompt, SpawnCall, TimelineEntry, ToolGroupAction, ToolGroupSummaryKind, TurnSummary, WorkLogEntry, WorkLogTone } from "./view-model.js";
 
 const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
 /** The fold the rows of a conversation from outside wsp sit in, shut until opened, by the turn fold's own toggle. */
@@ -32,6 +32,8 @@ export interface DeriveRowsInput {
   readonly openRun?: boolean;
   /** A fork's page: the rule line saying where it came from stands after the turns it was handed. */
   readonly forked?: boolean;
+  /** A sub-thread's latest machine start: its line stands after the message it was made for. */
+  readonly machineStart?: MachineStart | null;
 }
 
 export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTimelineRow[] {
@@ -140,11 +142,17 @@ export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTime
   const pushRule = (): void => {
     rows.push({ kind: "fork", id: "fork-rule", createdAt: null });
   };
+  const start = machineStartAt(entries, input.machineStart ?? null);
+  const startAt = start?.at ?? -1;
+  const pushStart = (): void => {
+    rows.push({ kind: "machine-start", id: "machine-start", createdAt: null, start: input.machineStart!, answeredAt: start!.answeredAt, prompt: start!.prompt });
+  };
 
   for (let index = 0; index < entries.length; index++) {
     const entry = entries[index]!;
     sayStopsBefore(index);
     if (index === ruleAt) pushRule();
+    if (index === startAt) pushStart();
     if (input.isWorking && index === activeTurnHeaderIndex) pushWorking();
     if (entry.id === activePlacementId) pushActive();
 
@@ -243,6 +251,7 @@ export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTime
 
   sayStopsBefore(entries.length);
   if (ruleAt === entries.length) pushRule();
+  if (startAt === entries.length) pushStart();
   if (input.isWorking && activeTurnHeaderIndex === entries.length) pushWorking();
   if (behind !== null) rows.push({ kind: "permission", id: `waiting-on:${behind.threadId}:${behind.prompt.askId}`, createdAt: input.activeTurnStartedAt ?? "", permission: borrowedPrompt(behind), asker: waitingAskerLine(behind.title) });
   // A turn stopped on a prompt is waiting, not thinking: the live row would say the agent is at work while it is not.
@@ -554,4 +563,22 @@ export function workEntryKind(entry: WorkLogEntry): ToolGroupSummaryKind | null 
     case "collab_agent_tool_call": return "agent-tool";
     default: return null;
   }
+}
+
+/** How far a message's own clock may run ahead of the host's start for the start to still be that message's: a send
+ * is stamped where the person typed it, the start where the host began it. */
+const START_SLACK_MS = 10_000;
+
+/** Where a sub-thread's start line stands: after the first message of the person at or after the start began, its
+ * words, and when the agent first answered after it. A start still under way with no such message yet stands last; a
+ * finished one whose message is not among the entries read is not drawn. */
+export function machineStartAt(entries: readonly TimelineEntry[], start: MachineStart | null): { at: number; answeredAt: number | null; prompt: string | null } | null {
+  const spawn = start?.sub.spawn;
+  if (spawn === undefined) return null;
+  const from = spawn.startedAt - START_SLACK_MS;
+  const message = entries.findIndex(e => e.kind === "message" && e.message.role === "user" && Date.parse(e.createdAt) >= from);
+  if (message === -1) return subSpawning(spawn) || spawn.failed !== undefined ? { at: entries.length, answeredAt: null, prompt: spawn.asked ?? null } : null;
+  const answer = entries.slice(message + 1).find(e => !(e.kind === "message" && e.message.role === "user"));
+  const said = entries[message]!;
+  return { at: message + 1, answeredAt: answer === undefined || spawn.readyAt === undefined ? null : Date.parse(answer.createdAt), prompt: said.kind === "message" ? said.message.text : null };
 }

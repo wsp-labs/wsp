@@ -106,6 +106,9 @@ export const WHERE_WORDS = {
   /** The confirm where a task or a project folder there holds work no remote has, which the remove takes with it. */
   removeAnyway: "Remove anyway",
   /** The fix under that work's names: the ways to keep it, and what the button does. */
+  subsHeld: (titles: readonly string[]): string =>
+    `Work not pushed goes with ${titles.length === 1 ? "its machine" : "their machines"}: ${titles.join(", ")}. Ask ${titles.length === 1 ? "it" : "each"} to push first.`,
+  unsavedFixCloud: "Ask each sub-thread to push first; Remove anyway deletes that work with the machines.",
   unsavedFix: "Export a task's project or push its branch, and copy a project folder's work off the computer from the path named; Remove anyway takes it with the computer.",
   /** The slot's note while the host reads what goes with the computer, the confirm held until it lands. */
   readingHolds: "Reading what goes with it.",
@@ -718,6 +721,17 @@ export const COMPUTER_PAGE_WORDS = {
   turnLimitTitle: "Turn limit",
   turnLimitLine: "Stops a turn that runs this long. Send to the thread to continue where it stopped.",
   turnLimitOff: "Off",
+  machinesTitle: "Machines at once",
+  machinesLine: (name: string, plan: number | undefined): string =>
+    `How many machines may run on ${name} at once. A sub-thread past it waits for one to free.${plan === undefined ? "" : ` ${name}'s plan allows ${plan}.`}`,
+  spendTitle: "Spend per day",
+  spendLine: (name: string): string => `What ${name} may spend in a day before no new machine starts. Machines already running are left alone.`,
+  sizeTitle: "Machine size for a sub-thread",
+  sizeLine: "The size a sub-thread gets when the thread starting it names none.",
+  sizeChoice: (name: string, cpu: number, mem: string, rate: string | undefined): string => `${name.charAt(0).toUpperCase()}${name.slice(1)}, ${cpu} vCPU, ${mem}${rate === undefined ? "" : `, ${rate}`}`,
+  deleteTitle: "Delete a finished sub-thread's machine after",
+  deleteLine: "Its transcript and the agent's session are kept, and a message after the delete starts a new machine.",
+  deleteAtOnce: "At once",
   threadsHere: "Threads here",
   spawnTitle: "Agents may start agents",
   spawnLine: (depth: number, machines?: number): string =>

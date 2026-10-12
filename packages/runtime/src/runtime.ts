@@ -700,6 +700,7 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           await ctx.ready();
           await ctx.releaseSubsOn(placeId);
         },
+        spentToday: places => ctx.status.spend(places, clock.now()),
         signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
         storesOn: (placeId, home) => ctx.placeStores(placeId, home),
         loginHere: agent => loginHere(ctx.homesHere, agent),

@@ -55,7 +55,7 @@ describe("the wsp skill", () => {
     expect(boat).toContain(`deleted ${DELETE_AFTER_MS / 60_000} minutes after it is done`);
     expect(boat).toContain("12 a minute and 200 a day on the $20 plan");
     const costs = section("## Costs and limits");
-    for (const c of BOX_CLASSES) expect(costs).toContain(`\`${c.cpu}x${c.memMb / 1024}\` (\`${c.type}\`, ${c.diskGb} GB) $${c.rateUsdPerHour.toFixed(3)}`);
+    for (const c of BOX_CLASSES) expect(costs).toContain(`\`${c.cpu}x${c.memMb / 1024}\` (\`${c.name}\`, ${c.diskGb} GB) $${c.rateUsdPerHour.toFixed(3)}`);
     expect(costs).toContain("The trial, until the first payment, runs 2 machines at once, sells `2x4` and `4x8` only, and takes 5 starts a minute, 25 an hour and 75 a day.");
     expect(costs).toContain(`wsp holds Boat to ${CLOUD_CAP_DEFAULT.machines} machines at once`);
   });
