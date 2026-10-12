@@ -107,6 +107,9 @@
 //                    and Pi to install, every server state a connect answers
 //                    (&signin=unset: a server's sign-in fails at once, its harness
 //                    having no server of that name)
+//   processes-widths the Processes pane of Activity's design thread on this Mac at
+//                    540, 480, 400 and its 360 floor: its agent, tool servers, dev
+//                    server and slate, and its child thread folded under it
 //   panel-agents     the task on the box selected, its panel open on Agents
 //                    (&fork=solari: the same task a fork at Solari, whose one
 //                    act is Edit image)
@@ -123,6 +126,8 @@ import { DAEMON_VERSION, DEFAULT_PREFERENCES, copyFirstLine, hostnameSetLine, ty
 import { AppShell } from "../../src/shell/AppShell";
 import { FirstRun } from "../../src/shell/FirstRun";
 import { AgentsSurface } from "../../src/components/agents/AgentsSurface";
+import { ProcessesSurface } from "../../src/components/procs/ProcessesSurface";
+import { HERE_KEY } from "../../src/terminal/computer";
 import { HARNESS_DEFAULTS, HARNESSES } from "../fixtures/harnesses";
 import { AGENTS_PAGE_REPORT, AGENTS_REPORT, AGENTS_SETUP_REPORT, AGENTS_TOOLS_REPORT, HOSTILE_SKILL_MD, SERVER_TOOLS, SKILL_HITS, SKILL_PREVIEWS } from "../fixtures/agents-report";
 import { useSettingsStore, type SettingsAt } from "../../src/settings/settingsStore";
@@ -583,7 +588,8 @@ const HELD: WorkspaceView[] = emptyScreen
       WORKSPACES.filter(w => w.place === undefined || computers.some(place => place.id === w.place)).filter(w => !oneProject || (w.project.id === SPOO.id && w.parentThreadId === undefined))
     : [];
 /** The threads of the workspaces this screen holds and no other. */
-const activityScreen = screen.startsWith("settings-activity");
+const processesScreen = screen === "processes-widths";
+const activityScreen = screen.startsWith("settings-activity") || processesScreen;
 const HELD_SESSIONS: Record<string, SessionView[]> = Object.fromEntries(Object.entries(activityScreen ? ACTIVITY_SESSIONS : SESSIONS).filter(([workspace]) => HELD.some(w => w.id === workspace)));
 
 /** Usage in the owner's shape: Claude Code on an API key on the Mac and Boat, Codex on ChatGPT Plus with a reading,
@@ -734,7 +740,7 @@ const api = {
     return new Promise<never>(() => {});
   },
   // Activity names the app's own processes from the list the desktop app hands the host.
-  ...(screen.startsWith("settings-activity") ? { watchAppProcs: async () => ACTIVITY_APP_PROCS, unwatchAppProcs: async () => {}, onAppProcs: () => () => {} } : {}),
+  ...(activityScreen ? { watchAppProcs: async () => ACTIVITY_APP_PROCS, unwatchAppProcs: async () => {}, onAppProcs: () => () => {} } : {}),
 } as unknown as Api;
 
 // The desktop shell's bridge, on the one screen about the foot: the hosts this window can move between, which is
@@ -796,8 +802,8 @@ useStore.setState({
   creations: creatingScreen ? [creation] : [],
   sessions: drawsSidebar ? HELD_SESSIONS : {},
   // The screen about Settings over a workspace's panel has that workspace selected; every other opens on none.
-  selectedId: screen === "settings-over-panel" ? "ws_copy" : screen === "panel-agents" ? "ws_box" : creatingScreen ? creation.key : null,
-  selectedThreadId: null,
+  selectedId: screen === "settings-over-panel" ? "ws_copy" : screen === "panel-agents" ? "ws_box" : processesScreen ? "ws_here" : creatingScreen ? creation.key : null,
+  selectedThreadId: processesScreen ? "th_design" : null,
 } as never);
 /** The workspace the create lands as: a copy on the box at the project's own path, where a box mounts it. */
 function landed(): WorkspaceView {
@@ -821,7 +827,7 @@ if (screen === "settings-add-cloud") useSettingsStore.getState().askAdd("cloud")
 if (activityScreen) {
   const view = params.get("view");
   if (view === "processes" || view === "kinds" || view === "ports") useSettingsStore.setState({ activityView: view });
-  feedActivity(screen === "settings-activity-hot", params.get("energy") !== "0");
+  feedActivity(screen === "settings-activity-hot", params.get("energy") !== "0", processesScreen ? "ws_here" : HERE_KEY);
   wireAppProcs(useStore);
 }
 useStore.getState().bind(api);
@@ -853,6 +859,19 @@ function AgentsWidths() {
       {PANEL_WIDTHS.map(width => (
         <div key={width} data-agents-width={width} style={{ width }} className="flex h-full flex-col border-x border-border/50">
           <AgentsSurface workspaceId="ws_copy" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The Processes pane of one thread at the panel's widths, the one it opens at first. */
+function ProcessesWidths() {
+  return (
+    <div className="flex h-dvh items-start gap-10 bg-background p-4">
+      {[540, ...PANEL_WIDTHS.slice(1)].map(width => (
+        <div key={width} data-processes-width={width} style={{ width }} className="flex h-full flex-col border-x border-border/50">
+          <ProcessesSurface workspaceId="ws_here" />
         </div>
       ))}
     </div>
@@ -912,6 +931,8 @@ createRoot(document.getElementById("root")!).render(
   <>
     {screen === "agents-widths" || screen === "skill-preview" ? (
       <AgentsWidths />
+    ) : processesScreen ? (
+      <ProcessesWidths />
     ) : firstRunScreens.includes(screen) ? (
       <div className="flex h-dvh flex-col">
         <FirstRun />

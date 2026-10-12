@@ -1,58 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The process table's order: a tree by ppid, siblings sorted by the chosen
-// column, and on the computer the host runs on the threads of this workspace
-// first, each one the tree its own process leads. A filter keeps that shape
-// rather than flattening it: a match is shown under its parents, so a row
-// whose command is twenty characters of the same flags is still told apart by
-// what started it.
+// column. A filter keeps that shape rather than flattening it: a match is
+// shown under its parents, so a row whose command is twenty characters of the
+// same flags is still told apart by what started it.
 import { CATALOG_AGENTS } from "@wsp/catalog";
-import { appProcLine, byProcColumn, inCgroup, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
+import { appProcLine, byProcColumn, type AppProc, type ProcEntry, type ProcSort } from "@wsp/protocol";
 
 export type { ProcSort };
 
-/** One thread of this workspace: the process the host started for it, which that thread's tree is rooted at, or on a
- * computer the person joined, the cgroup every process it started stands in. */
-export type ProcThread = {
+/** A thread with a turn's process on this computer, which its agent's row stops through. */
+export interface ProcThread {
   threadId: string;
   title: string;
+  /** The process the host started for the turn. */
+  pid: number;
   /** The running turn's, which its stop names; absent while none runs. */
   sessionId?: string;
   /** The agent the turn's run recorded as it started it, under pid. */
   agentPid?: number;
-} & (
-  | { pid: number; cgroup?: never }
-  | { cgroup: string; pid?: never }
-);
+}
 
 export interface ProcRow {
   proc: ProcEntry;
   depth: number;
 }
 
-/** One thread's own tree: the process the host started for it and everything under it. A thread known by its cgroup
- * carries what that cgroup's processes spend together, whatever the filter shows of them. */
-export interface ProcThreadTree {
-  thread: ProcThread;
-  rows: ProcRow[];
-  spent?: { cpu: number; rss: number };
-}
-
-/** What the pane draws: this workspace's threads first, then everything else the machine is running. A process
- * under a thread's tree is in no other, so the rows can be counted by adding the two up. */
-export interface ProcTable {
-  threads: ProcThreadTree[];
-  rest: ProcRow[];
-}
-
 const hit = (p: ProcEntry, needle: string): boolean => [String(p.pid), p.comm, p.cmdline, p.user].some(s => s.toLowerCase().includes(needle));
 
-/**
- * The table for one snapshot: `threads` are the trees this workspace's own threads lead, in the order they were
- * given, and `rest` is every other process on the machine, nested by parent. A thread whose process is not in the
- * snapshot has no tree. Under a filter a process is shown when it matches or something under it does, which is what
- * keeps a match's parents above it.
- */
-export function procTable(procs: readonly ProcEntry[], sort: ProcSort, filter: string, threads: readonly ProcThread[] = []): ProcTable {
+/** The table for one snapshot, nested by parent. Under a filter a process is shown when it matches or something under
+ * it does, which is what keeps a match's parents above it. */
+export function procTable(procs: readonly ProcEntry[], sort: ProcSort, filter: string): ProcRow[] {
   const needle = filter.trim().toLowerCase();
   const pids = new Set(procs.map(p => p.pid));
   const children = new Map<number, ProcEntry[]>();
@@ -66,70 +43,25 @@ export function procTable(procs: readonly ProcEntry[], sort: ProcSort, filter: s
     }
   }
   const kidsOf = (pid: number): ProcEntry[] => children.get(pid) ?? [];
-
-  /** The rows for one forest, with a set of pids that belong to somebody else's tree left out of it whole. Each
-   * scope marks its own keepers: a process is drawn when it matches or something under it does, so a parent stands
-   * above its match and a tree whose only match was claimed elsewhere is not drawn for an empty reason. */
-  const rowsOf = (heads: readonly ProcEntry[], skip: ReadonlySet<number>): ProcRow[] => {
-    const keep = new Set<number>();
-    const mark = (p: ProcEntry): boolean => {
-      if (skip.has(p.pid)) return false;
-      // Every child is read, never short-circuited: each one that stays has to be marked for the walk below.
-      const under = kidsOf(p.pid).map(mark).includes(true);
-      const stays = under || needle === "" || hit(p, needle);
-      if (stays) keep.add(p.pid);
-      return stays;
-    };
-    for (const head of heads) mark(head);
-    const out: ProcRow[] = [];
-    const walk = (list: readonly ProcEntry[], depth: number): void => {
-      for (const proc of [...list].sort(byProcColumn(sort))) {
-        if (!keep.has(proc.pid)) continue;
-        out.push({ proc, depth });
-        walk(kidsOf(proc.pid), depth + 1);
-      }
-    };
-    walk(heads, 0);
-    return out;
+  const keep = new Set<number>();
+  const mark = (p: ProcEntry): boolean => {
+    // Every child is read, never short-circuited: each one that stays has to be marked for the walk below.
+    const under = kidsOf(p.pid).map(mark).includes(true);
+    const stays = under || needle === "" || hit(p, needle);
+    if (stays) keep.add(p.pid);
+    return stays;
   };
-
-  const byPid = new Map(procs.map(p => [p.pid, p]));
-  const claimed = new Set<number>();
-  const claim = (p: ProcEntry): void => {
-    claimed.add(p.pid);
-    for (const kid of kidsOf(p.pid)) claim(kid);
-  };
-  const trees: ProcThreadTree[] = [];
-  for (const thread of threads) {
-    if (thread.cgroup !== undefined) {
-      // Every process in the cgroup, each drawn under the first of its parents that stands there too: a server the
-      // thread detached heads a tree of its own beside the turn's.
-      const members = procs.filter(p => !claimed.has(p.pid) && inCgroup(p.cgroup, thread.cgroup));
-      if (members.length === 0) continue;
-      const inside = new Set(members.map(p => p.pid));
-      const heads = members.filter(p => p.ppid === p.pid || !inside.has(p.ppid));
-      const rows = rowsOf(heads, claimed);
-      for (const head of heads) claim(head);
-      let cpu = 0;
-      let rss = 0;
-      for (const p of members) {
-        cpu += p.cpu;
-        rss += p.rss;
-      }
-      if (rows.length > 0) trees.push({ thread, rows, spent: { cpu, rss } });
-      continue;
+  for (const root of roots) mark(root);
+  const out: ProcRow[] = [];
+  const walk = (list: readonly ProcEntry[], depth: number): void => {
+    for (const proc of [...list].sort(byProcColumn(sort))) {
+      if (!keep.has(proc.pid)) continue;
+      out.push({ proc, depth });
+      walk(kidsOf(proc.pid), depth + 1);
     }
-    const head = byPid.get(thread.pid);
-    // A thread whose process already sits inside an earlier thread's tree is drawn there and not a second time.
-    if (head === undefined || claimed.has(head.pid)) continue;
-    const rows = rowsOf([head], claimed);
-    // Claimed whether or not the filter left anything of it: what a filter hid here is hidden, not moved into the
-    // rest of the machine. A thread with nothing left under a filter drops its heading with its rows.
-    claim(head);
-    if (rows.length > 0) trees.push({ thread, rows });
-  }
-  const rest = rowsOf(roots, claimed);
-  return { threads: trees, rest };
+  };
+  walk(roots, 0);
+  return out;
 }
 
 const NO_APP: ReadonlyMap<number, AppProc> = new Map();
@@ -153,25 +85,13 @@ function pathUp(byPid: ReadonlyMap<number, ProcEntry>, p: ProcEntry, root: numbe
 
 /** The rows that are a running turn's agent, each with its thread: the process the host started for the turn and
  * every process from it down to the agent its run recorded, or where none was recorded down to each process run as an
- * agent's binary; on a computer the person joined each agent binary in the thread's cgroup and what stands above it there. A signal to any of them
+ * agent's binary. A signal to any of them
  * ends the turn as failed, so the pane stops the thread instead. A tool server under the agent is none of them. */
 export function agentRows(procs: readonly ProcEntry[], threads: readonly ProcThread[]): Map<number, ProcThread> {
   const byPid = new Map(procs.map(p => [p.pid, p]));
   const rows = new Map<number, ProcThread>();
   for (const thread of threads) {
     if (thread.sessionId === undefined) continue;
-    if (thread.cgroup !== undefined) {
-      // A box run records no agent: its run script and shell stand above the agent binary in the thread's cgroup.
-      for (const p of procs) {
-        if (!isAgent(p) || !inCgroup(p.cgroup, thread.cgroup)) continue;
-        let at: ProcEntry | undefined = p;
-        while (at !== undefined && inCgroup(at.cgroup, thread.cgroup) && !rows.has(at.pid)) {
-          rows.set(at.pid, thread);
-          at = byPid.get(at.ppid);
-        }
-      }
-      continue;
-    }
     if (!byPid.has(thread.pid)) continue;
     rows.set(thread.pid, thread);
     const recorded = thread.agentPid === undefined ? undefined : byPid.get(thread.agentPid);

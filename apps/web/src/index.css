@@ -7,6 +7,16 @@
 @custom-variant wco (&:is(.wco, .wco *));
 /* Anywhere but the Mac's window, whose glass is macOS's own. */
 @custom-variant off-mac (&:not(.desktop-mac, .desktop-mac *));
+/* Activity's narrow row: a window under 768 px, or a Processes pane under 640 px, below which the wide row leaves a
+   nested name a few letters (measured at the pane's 540 px default, 2026-10-12). */
+@custom-variant narrow {
+  @media (width < 48rem) {
+    @slot;
+  }
+  @container activity (width < 40rem) {
+    @slot;
+  }
+}
 
 /* On mobile, morph the expanded hero composer into the compact docked
    composer while it moves; the rest of the app remains visually stationary. */

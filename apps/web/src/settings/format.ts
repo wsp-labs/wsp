@@ -518,6 +518,8 @@ export const ACTIVITY_WORDS = {
   nothing: "No thread is running anything.",
   nothingMatches: "Nothing matches.",
   pending: "Reading this computer's processes.",
+  paneNothing: "Nothing running for this thread",
+  openInActivity: "Open in Activity",
   chips: { threads: "Threads", kinds: "Kinds", projects: "Projects" },
   graph: (what: string): string => `${what} over the last minutes`,
   stopTitle: (title: string): string => `Stop the turn in ${title}?`,
