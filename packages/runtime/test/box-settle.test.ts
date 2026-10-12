@@ -114,7 +114,7 @@ describe("a thread on a box whose pane opened a shell with a dev server in it", 
   /** The shell and its vite, outside the thread's cgroup as the box daemon's pty.create leaves them, stamped the
    * thread's as that daemon does once the host names the shell; the shell's tag in the host's state; and a daemon
    * whose pty.kill takes the shell and what runs in it. */
-  async function withShell() {
+  async function withShell(o: { stamped?: boolean } = {}) {
     const store = memoryStore();
     const starts: Started[] = [];
     const killed: string[] = [];
@@ -131,11 +131,12 @@ describe("a thread on a box whose pane opened a shell with a dev server in it", 
     const turn = await held.rt.sessions.start(at.workspace.id, { prompt: "start the dev server", harness: "claude" });
     const threadId = turn.view().threadId!;
     await until(async () => (await held!.rt.sessions.list(at.workspace.id)).every(s => s.status !== "running"));
-    const owner = { by: "root" as const, thread: threadId };
+    // Stamped once the host names the shell; a host that restarted over it names it no more, so it stands unowned.
+    const owner = o.stamped === false ? {} : { kind: "terminal" as const, owner: { by: "root" as const, thread: threadId } };
     held.seen.procs = [
       row(7100, 1, "node", "node /root/spoo-ts/node_modules/.bin/vite", threadCgroup(threadId)),
-      { ...row(9100, 1, "bash", "-bash", "/user.slice"), pty: "pty_1", kind: "terminal", owner },
-      { ...row(9110, 9100, "node", "node /root/spoo-ts/node_modules/.bin/vite --port 5199", "/user.slice"), kind: "terminal", owner },
+      { ...row(9100, 1, "bash", "-bash", "/user.slice"), pty: "pty_1", ...owner },
+      { ...row(9110, 9100, "node", "node /root/spoo-ts/node_modules/.bin/vite --port 5199", "/user.slice"), ...owner },
     ];
     await store.put("pty-threads", at.workspace.id, { pty_1: threadId });
     return { ...held, threadId, killed };
@@ -149,6 +150,16 @@ describe("a thread on a box whose pane opened a shell with a dev server in it", 
     expect(answer.ended).toEqual([expect.objectContaining({ left: [] })]);
     expect(b.killed).toEqual(["pty_1"]);
     expect(pids(b.seen.procs)).toEqual([]);
+  });
+
+  it("settle with stop kills no shell it did not list, though the host's state tags it with the thread", async () => {
+    const b = await withShell({ stamped: false });
+    const refused = await b.rt.sessions.settle([b.threadId], undefined, { processes: "ask" }).then(() => "", (e: unknown) => (e as Error).message);
+    expect(refused).toContain(`still runs a process: 7100 node (dev) of ${b.threadId.slice(0, 8)} on hetzner`);
+    const answer = await b.rt.sessions.settle([b.threadId], undefined, { processes: "stop" });
+    expect(answer.ended).toEqual([expect.objectContaining({ pid: 7100, left: [] })]);
+    expect(b.killed).toEqual([]);
+    expect(pids(b.seen.procs)).toEqual([9100, 9110]);
   });
 
   it("settle with keep leaves the shell running", async () => {
