@@ -119,12 +119,23 @@ function leadDaemon(git: LeadGit) {
   return { frames, open };
 }
 
+/** Where each agent keeps a session's one file on a machine, as their adapters say: Claude Code under its config dir by
+ * folder, Codex under its home by date. */
+export const CLAUDE_SESSION_FILE = (id: string) => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 });
+export const CODEX_SESSION_FILE = (id: string) => ({ folder: "/root/.codex/sessions", name: `-${id}.jsonl`, depth: 3 });
+
+/** The file a session's pack finds on a machine: Claude Code's under the folder of the turn's cwd, /root/web, and
+ * Codex's rollout under the day it started. */
+export function sessionPathOf(folder: string, name: string): string {
+  return folder.endsWith("/sessions") ? `${folder}/2026/10/12/rollout-2026-10-12T06-00-00${name}` : `${folder}/-root-web/${name}`;
+}
+
 /** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
  * but for one started while `hold` is set, which runs until `release` ends it. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: { end?: () => void; hold?: boolean; release?: () => void }): HarnessAdapterFactory {
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: { end?: () => void; hold?: boolean; release?: () => void }, sessionFile: (id: string) => { folder: string; name: string; depth: number }): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
-    sessionFile: id => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 }),
+    sessionFile,
     start: o => {
       starts.push({ o, env: hctx.env });
       const sessionId = `s${starts.length}`;
@@ -211,9 +222,9 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const claude = harness(starts, leadTurn);
+  const claude = harness(starts, leadTurn, CLAUDE_SESSION_FILE);
   const onBoat = o.subAdapter;
-  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn) };
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE) };
   const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
   if (o.served === true) {
@@ -247,7 +258,8 @@ export const UNPUSHED = `branch wsp/fix-the-flaky-upload-test\npushed none\nunpu
 
 export interface Answers {
   read: string | { exitCode: number; stderr: string };
-  session: Buffer | null;
+  /** The packed session, or only its packed size, where the host is not to read it. */
+  session: Buffer | number | null;
 }
 
 /** Boat answering the result read, the session's pack and its read as `answers` says, on every machine it makes. */
@@ -257,17 +269,62 @@ export function answering(boat: Boat, answers: Answers): void {
     if (cmd.includes("git rev-list --count --branches --not --remotes")) {
       return typeof answers.read === "string" ? { exitCode: 0, stdout: answers.read, stderr: "" } : { exitCode: answers.read.exitCode, stdout: "", stderr: answers.read.stderr };
     }
-    if (cmd.includes("gzip -c")) return answers.session === null ? { exitCode: 0, stdout: "nofile\n", stderr: "" } : { exitCode: 0, stdout: `size ${answers.session.length}\n`, stderr: "" };
+    if (cmd.includes("gzip -c")) {
+      if (answers.session === null) return { exitCode: 0, stdout: "nofile\n", stderr: "" };
+      const [, folder, name] = /find '([^']+)' .* -name '\*([^']+)'/.exec(cmd)!;
+      const size = typeof answers.session === "number" ? answers.session : answers.session.length;
+      return { exitCode: 0, stdout: `path ${sessionPathOf(folder!, name!)}\nsize ${size}\n`, stderr: "" };
+    }
     return base(m, cmd, stdin);
   };
   const create = boat.create.bind(boat);
   boat.create = async spec => {
     const m = (await create(spec)) as StubMachine;
     m.readBytes = async (path: string, o?: { size?: number }) => {
-      if (answers.session === null || !path.startsWith("/tmp/wsp-session-") || o?.size !== answers.session.length) throw new Error(`nothing packed at ${path}`);
-      return answers.session;
+      const packed = answers.session;
+      if (!Buffer.isBuffer(packed) || !path.startsWith("/tmp/wsp-session-") || o?.size !== packed.length) throw new Error(`nothing packed at ${path}`);
+      return packed;
     };
     return m;
   };
 }
 
+
+/** Real timers, and a now the test can move on: a jump fires every timer it passes at once. */
+export function jumpClock(): { clock: Clock; jump(ms: number): void } {
+  let offset = 0;
+  const pending = new Set<{ at: number; fn: () => void; timer: ReturnType<typeof setTimeout> }>();
+  const clock: Clock = {
+    now: () => Date.now() + offset,
+    schedule: (fn, ms, o) => {
+      const p = { at: Date.now() + offset + ms, fn, timer: setTimeout(() => (pending.delete(p), fn()), ms) };
+      if (o?.unref === true) p.timer.unref();
+      pending.add(p);
+      return () => {
+        clearTimeout(p.timer);
+        pending.delete(p);
+      };
+    },
+  };
+  const jump = (ms: number): void => {
+    offset += ms;
+    for (const p of [...pending].sort((a, b) => a.at - b.at)) {
+      if (p.at > Date.now() + offset) continue;
+      clearTimeout(p.timer);
+      pending.delete(p);
+      p.fn();
+    }
+  };
+  return { clock, jump };
+}
+
+/** Waits for a condition with a time limit, polling. */
+export async function until<T>(read: () => Promise<T | undefined> | T | undefined, what: string, ms = 5_000): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const got = await read();
+    if (got !== undefined && got !== false) return got;
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await new Promise(r => setTimeout(r, 10));
+  }
+}

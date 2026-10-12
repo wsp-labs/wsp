@@ -531,8 +531,10 @@ export interface SubLifeArea {
   /** A sub-thread and its machine taken away, refused under a turn and to a thread's own token over work not pushed;
    * with check, the question a person is put and nothing deleted. */
   readonly subDelete: (entry: LiveWorkspace, threadId: string, origin: Caller | undefined, o: { check?: boolean }) => Promise<{ workspaceId: string; threads: number; machine?: "deleted"; on: string; question?: string }>;
-  /** Refuses a send into a released sub-thread, and the wake a send asks first, saying why. */
+  /** Refuses a send into a sub-thread whose cloud left this host; a released one's send makes it a new machine. */
   readonly refuseSubSend: (entry: LiveWorkspace) => void;
+  /** Refuses a wake of a released sub-thread, which has no machine to wake, or of one whose cloud left this host. */
+  readonly refuseSubWake: (entry: LiveWorkspace) => void;
   /** Whether the caller is the lead that started the sub-thread on this record: a lead deletes its own sub-threads, as
    * the person does, and no thread deletes anything else. */
   readonly leadOfSub: (workspaceId: string | undefined, origin: Caller | undefined) => boolean;
@@ -543,6 +545,10 @@ export interface SubSpawnArea {
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
   /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
   readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
+  /** A released sub-thread on a new machine forked from the image head as it stands, the picked files and the kept
+   * session landed on it, the checks that still apply read first: the live entry now, and the head its send opens with.
+   * A send that meets a resume in flight waits for it and opens with no head of its own. */
+  readonly resumeSub: (entry: LiveWorkspace, threadId: string, harness: string) => Promise<{ entry: LiveWorkspace; preamble?: string; notices: string[] }>;
 }
 
 export interface FoldersArea {

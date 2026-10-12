@@ -11,6 +11,8 @@ import {
   usageRefusal, FORK_BESIDE_FIX, FORK_BESIDE_LINE, FORK_RESUME_FIX, FORK_RESUME_LINE, FORK_NO_ANCHOR_FIX, FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RUNNING_FIX,
   FORK_RUNNING_LINE, forkAgentFix, forkAgentLine, forkNoAnchorLine, forkNoTurnLine, forkTurnsFix, forkTurnsLine, noBranchesLine,
   placeBranchLine,
+  SUB_TURN_GONE_LINE,
+  subTurnGone,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { ATTACHMENT_KEYS, ATTACHMENTS, type KeptImages } from "../types/internal.js";
@@ -94,6 +96,10 @@ export async function readFork(ctx: RuntimeContext, fork: ForkSource, origin: Ca
     return finished[at - 1]!;
   };
   const turnId = pick();
+  // A turn's checkpoint and the session it cut at went with a sub-thread's machine once that machine was deleted.
+  if (turnId !== undefined && subTurnGone(entry.record.sub, events.find(e => e.turnId === turnId && e.at !== undefined)?.at)) {
+    throw Object.assign(new Error(SUB_TURN_GONE_LINE), { kind: "conflict" });
+  }
   const lastOf = <T extends SessionEvent["type"]>(type: T, turn: string): Extract<SessionEvent, { type: T }> | undefined => {
     for (let i = events.length - 1; i >= 0; i--) if (events[i]!.type === type && events[i]!.turnId === turn) return events[i] as Extract<SessionEvent, { type: T }>;
     return undefined;
