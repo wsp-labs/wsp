@@ -316,6 +316,8 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
    * are. An entry goes at the pty's kill and when a list no longer holds it; the document goes with its workspace. */
   const PTY_THREADS = "pty-threads";
   const tagsHeld = new Map<string, Promise<Map<string, string>>>();
+  /** The same tags once read, for the scopes the daemon is told, which are read in one go. */
+  const tagsRead = new Map<string, Map<string, string>>();
   const tagsOf = (workspaceId: string): Promise<Map<string, string>> => {
     const held = tagsHeld.get(workspaceId);
     if (held !== undefined) return held;
@@ -324,8 +326,21 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
       () => new Map<string, string>(),
     );
     tagsHeld.set(workspaceId, read);
+    void read.then(tags => {
+      if (tagsHeld.get(workspaceId) === read) tagsRead.set(workspaceId, tags);
+    });
     return read;
   };
+  /** Each shell a thread's pane opened, by the pid it leads and the workspace it was opened in: the daemon is told it is
+   * that thread's, so it and what it starts stand under the thread. The New thread page's shells wait for the thread
+   * its first send makes. */
+  const threadTerminals = (): { thread: string; workspace: string; pid: number }[] =>
+    [...portPids].flatMap(([workspace, ptys]) =>
+      [...ptys].flatMap(([ptyId, pid]) => {
+        const thread = tagsRead.get(workspace)?.get(ptyId);
+        return thread === undefined || thread === "" ? [] : [{ thread, workspace, pid }];
+      }),
+    );
   /** Writes one at a time per workspace, each the tags as they stand when it runs, so the last write is the latest. */
   const tagWrites = new Map<string, Promise<void>>();
   /** Deleted workspaces whose tags are held until their last write settles: a read before then would find the document
@@ -344,13 +359,17 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
       .then(() => {
         if (tagWrites.get(workspaceId) !== write) return;
         tagWrites.delete(workspaceId);
-        if (tagsGoing.delete(workspaceId)) tagsHeld.delete(workspaceId);
+        if (!tagsGoing.delete(workspaceId)) return;
+        tagsHeld.delete(workspaceId);
+        tagsRead.delete(workspaceId);
       });
     tagWrites.set(workspaceId, write);
   };
   ctx.bus.on("workspace.deleted", e => {
     if (e.type !== "workspace.deleted") return;
-    tagsHeld.set(e.workspaceId, Promise.resolve(new Map<string, string>()));
+    const none = new Map<string, string>();
+    tagsHeld.set(e.workspaceId, Promise.resolve(none));
+    tagsRead.set(e.workspaceId, none);
     tagsGoing.add(e.workspaceId);
     keepTags(e.workspaceId);
   });
@@ -366,6 +385,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
         if (typeof ptyId !== "string" || typeof thread !== "string") return { id: frame.id, ok: false, error: "pty.thread names a ptyId and a thread" } as DaemonResponse;
         tags.set(ptyId, thread);
         keepTags(workspaceId);
+        portRootsMoved(workspaceId);
         return { id: frame.id, ok: true } as DaemonResponse;
       }
       const sent = (frame.op === "pty.create" ? rest : frame) as DaemonFrame;
@@ -705,7 +725,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
     withDaemon, overChannel, stdioRoad, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
-    portPids, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
+    portPids, threadTerminals, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };
 }
