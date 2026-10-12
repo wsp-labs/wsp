@@ -8,6 +8,7 @@ import { harnessCatalog } from "../harness-catalog.js";
 import { accountOnComputer } from "../usage.js";
 import { phaseLeavingGone, providerSaid } from "../status.js";
 import type { WorkspaceRecord, LiveWorkspace, FoundMachine } from "../types/wiring.js";
+import { subRowOf } from "./sub-life.js";
 import { WORKSPACES, PROJECTS, TRANSCRIPTS, SESSIONS, HELD_STARTS, type HeldStartRecord, READS, READS_ID, RESTARTED_REASON, goneLogLine, labelOf, restartCutLine, turnWritten, type TranscriptRecord, type TurnLive, type TurnAsked, readAsked, readScope, readRoad, readSteered, type ThreadRecord, type ThreadStamps, type TreeTalk, type SessionIndexRecord, BUILDERS, OWNER, HELD_TTL_MS, pidAlive, type BuilderRecord, type LiveBuilder, deadMachine, isAbsentMachine, absentMachine, type StoredBuilder } from "../types/internal.js";
 import type { RuntimeContext, BootArea } from "../context.js";
 
@@ -218,6 +219,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const hydrateWorkspace = async (raw: unknown, seen?: FoundMachine, load?: LoadReads, asked?: Promise<Machine>): Promise<LiveWorkspace | undefined> => {
     const stored = raw as WorkspaceRecord;
     const kind = stored.kind;
+    // A released record stands on no machine, and one whose cloud left this host has nothing to ask: neither is read.
+    if (stored.phase === "released" || stored.sub?.cloudGone === true) {
+      ctx.attach({ ...stored }, deadMachine(stored.machineId));
+      return undefined;
+    }
     // A record whose kind this host wired no module for, or whose place forks nothing any more, is left as it
     // was: only the host that owns that machine can serve it.
     let at: MachineBackend;
@@ -558,6 +564,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       }
       await deviceDoor.revokeAsides();
       // Each start waits for its thread's workspace to settle its turns, so a line meets the turn re-opened there.
+      ctx.armSubs();
       void ctx.deliverOwed().catch((e: unknown) => console.warn(`the lines owed to threads were not sent: ${e instanceof Error ? e.message : String(e)}`));
       // Each builder is read beside the others, and the load waits for them no later than its one deadline: one still
       // out is admitted when its read lands, and a refresh before that waits on the same read.
@@ -713,10 +720,13 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const placedRows = async (listed: SessionView[]): Promise<SessionView[]> => {
     const computers = listed.length === 0 ? [] : await computerRows();
     return listed.map(view => {
-      const id = live.get(view.workspaceId)?.record.project;
+      const record = live.get(view.workspaceId)?.record;
+      const id = record?.project;
       const project = id === undefined ? undefined : projectsHeld.get(id);
       const computer = computers.find(r => r.id === project?.computer);
-      return project === undefined ? view : { ...view, project: { id: project.id, name: project.name }, computerName: computer === undefined ? project.computer : tableName(computer) };
+      const sub = record === undefined ? undefined : subRowOf(record);
+      const placed = sub === undefined ? view : { ...view, sub };
+      return project === undefined ? placed : { ...placed, project: { id: project.id, name: project.name }, computerName: computer === undefined ? project.computer : tableName(computer) };
     });
   };
   /** The row ids pushed once already, whose opening prompt (a builder's brief of kilobytes, repeated on every row of

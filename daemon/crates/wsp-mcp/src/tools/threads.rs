@@ -76,6 +76,8 @@ struct Session {
     #[serde(default)]
     setup_refusal: Option<String>,
     #[serde(default)]
+    sub: Option<Box<RawValue>>,
+    #[serde(default)]
     capped: Option<Box<RawValue>>,
     #[serde(default)]
     limit: Option<Box<RawValue>>,
@@ -161,6 +163,10 @@ pub struct Thread {
     pub waiting_on: Option<Box<RawValue>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setup_refusal: Option<String>,
+    /// A sub-thread's machine on its cloud, as the host's row carries it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub sub: Option<Box<RawValue>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
     pub capped: Option<Box<RawValue>>,
@@ -367,6 +373,7 @@ fn fold(sessions: Vec<Session>) -> Vec<Thread> {
                 asking: latest.asking,
                 waiting_on: latest.waiting_on,
                 setup_refusal: latest.setup_refusal,
+                sub: latest.sub,
                 capped: latest.capped,
                 limit: latest.limit,
                 resume_at: latest.resume_at,

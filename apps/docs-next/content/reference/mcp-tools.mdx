@@ -486,7 +486,7 @@ The conversations the agents kept in a project's folder and its worktrees on the
 
 ## delete
 
-Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.
+Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person.
 
 **Takes**
 
@@ -505,6 +505,7 @@ Takes a thread away, named by thread: its turns and checkpoints go, and where it
 | `name` | string |  |  |
 | `machineId` | string |  |  |
 | `threads` | integer | yes |  |
+| `machine` | `"deleted"` |  | on a sub-thread: its machine on Boat was deleted with it |
 
 ## discard
 
@@ -1253,7 +1254,7 @@ Starts a reviewer thread on a pull request, off its link or off the pull request
 | `workspace.id` | string | yes |  |
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
-| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone` | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `released` | yes |  |
 | `workspace.kind` | `cloud`, `local`, `place` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
@@ -1844,7 +1845,7 @@ Opens a thread off a GitHub issue or pull request link, returning as soon as the
 | `workspace.id` | string | yes |  |
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
-| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone` | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `released` | yes |  |
 | `workspace.kind` | `cloud`, `local`, `place` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
@@ -2020,6 +2021,7 @@ The thread's head (by id, or a prefix of it): facts, the thread as threads lists
 | `facts.asking` | string |  |  |
 | `facts.waitingOn` | object |  |  |
 | `facts.setupRefusal` | string |  |  |
+| `facts.sub` | object |  |  |
 | `facts.capped` | object |  |  |
 | `facts.limit` | object |  |  |
 | `facts.resumeAt` | number |  |  |
@@ -2167,6 +2169,7 @@ Every thread as the sidebar lists it: its project, the folder it works in (the p
 | `threads[].asking` | string |  |  |
 | `threads[].waitingOn` | object |  |  |
 | `threads[].setupRefusal` | string |  |  |
+| `threads[].sub` | object |  |  |
 | `threads[].capped` | object |  |  |
 | `threads[].limit` | object |  |  |
 | `threads[].resumeAt` | number |  |  |
