@@ -179,6 +179,8 @@ export interface Setup {
   served?: true;
   /** Branches the remote holds already. */
   remoteHeads?: string[];
+  /** The agent a turn on a Boat machine runs, where it is not the stub that answers at once. */
+  subAdapter?: HarnessAdapterFactory;
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -202,7 +204,10 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const rt: Runtime = createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts, leadTurn), codex: harness(starts, leadTurn) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents });
+  const claude = harness(starts, leadTurn);
+  const onBoat = o.subAdapter;
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn) };
+  const rt: Runtime = createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents });
   if (o.served === true) {
     ctx.runtime = rt;
     ctx.srv = await serveRuntime(rt, { port: 0, authToken: "host-token", devices: rt.devices });
