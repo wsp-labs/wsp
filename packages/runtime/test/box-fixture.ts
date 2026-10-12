@@ -162,7 +162,7 @@ function agentAnswers(seen: Box, sessions: Map<string, { session: string; cwd: s
   return undefined;
 }
 
-export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys; agent?: boolean; runs?: Map<string, AgentRun>; stdio?: Stdio; posts?: Posts } = {}): Box {
+export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys; ports?: Ptys; agent?: boolean; runs?: Map<string, AgentRun>; stdio?: Stdio; posts?: Posts } = {}): Box {
   let ptys = 0;
   const seen: Box = { ops: [], execs: [], frames: [], taken: new Set(), kills: [], push: event => client.say(event), configs: new Map(), order: [], procs: [], ports: [], runs: o.runs ?? new Map() };
   const sessions = new Map<string, { session: string; cwd: string }>();
@@ -179,7 +179,8 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
     if (op === "machine.capacity") return say({ cores: 4, memMb: 8192, memRoomMb: 4096, machineMemMb: 4096, diskFreeBytes: 10 * 1024 ** 3, images: [], machines: { running: 0, paused: 0 } });
     if (op !== "exec") {
       seen.frames.push(frame);
-      if (o.ptys !== undefined && PTY_OPS.has(op)) return void o.ptys(frame).then(reply => client.say({ ...reply, id: frame["id"] }), (e: unknown) => client.say({ id: frame["id"], ok: false, error: String(e) }));
+      const real = PTY_OPS.has(op) ? o.ptys : op === "ports.watch" ? o.ports : undefined;
+      if (real !== undefined) return void real(frame).then(reply => client.say({ ...reply, id: frame["id"] }), (e: unknown) => client.say({ id: frame["id"], ok: false, error: String(e) }));
       if (o.stdio !== undefined && op.startsWith("stdio.")) return say(o.stdio(frame, seen.push));
       if (o.posts !== undefined && op === "http.post") return void o.posts(frame).then(say, (e: unknown) => client.say({ id: frame["id"], ok: false, error: String(e) }));
       if (op === "pty.create") return say({ ptyId: `p${++ptys}` });
@@ -273,7 +274,7 @@ export function answering(starts: Started[]): HarnessAdapterFactory {
   });
 }
 
-/** A real daemon answering a box's pty frames, its own events pushed up the link by the test. */
+/** A real daemon answering a box's pty frames, or its port watches, its own events pushed up the link by the test. */
 export type Ptys = (frame: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
 export const HETZNER: BoxLogin = { home: "/root", owner: "root" };
@@ -294,7 +295,7 @@ export async function pickSignIn(store: Store, placeId: string, agent: string, s
   await ctx.runtime!.places!.load();
 }
 
-export async function joined(o: { login?: BoxLogin; adapters?: Record<string, HarnessAdapterFactory>; taken?: string[]; store?: Store; vault?: Record<string, string>; failClone?: boolean; serversActs?: ServersActs; agentsReader?: AgentsReader; daemonVersion?: number; stdio?: Stdio; posts?: Posts; logins?: string; clock?: Clock; ptys?: Ptys; github?: "vault" | "machine" | "skip"; agent?: boolean; memMb?: number } = {}) {
+export async function joined(o: { login?: BoxLogin; adapters?: Record<string, HarnessAdapterFactory>; taken?: string[]; store?: Store; vault?: Record<string, string>; failClone?: boolean; serversActs?: ServersActs; agentsReader?: AgentsReader; daemonVersion?: number; stdio?: Stdio; posts?: Posts; logins?: string; clock?: Clock; ptys?: Ptys; ports?: Ptys; github?: "vault" | "machine" | "skip"; agent?: boolean; memMb?: number } = {}) {
   const login = o.login ?? HETZNER;
   const { hostKey, store } = await serving({ adapters: o.adapters ?? {}, ...(o.store !== undefined ? { store: o.store } : {}), ...(o.vault !== undefined ? { vault: o.vault } : {}), ...(o.serversActs !== undefined ? { serversActs: o.serversActs } : {}), ...(o.agentsReader !== undefined ? { agentsReader: o.agentsReader } : {}), ...(o.clock !== undefined ? { clock: o.clock } : {}) });
   let seen!: Box;
@@ -302,7 +303,7 @@ export async function joined(o: { login?: BoxLogin; adapters?: Record<string, Ha
     code: await code(),
     report: report("hetzner", { login: { HOME: login.home, USER: "root", PATH: "/usr/bin" }, ...(o.memMb !== undefined ? { shape: { cpu: 2, memMb: o.memMb } } : {}), ...(o.daemonVersion !== undefined ? { daemonVersion: o.daemonVersion } : {}) }),
     answers: c => {
-      seen = box(c, login, { ...(o.failClone === true ? { failClone: true } : {}), ...(o.logins !== undefined ? { logins: o.logins } : {}), ...(o.ptys !== undefined ? { ptys: o.ptys } : {}), ...(o.agent === true ? { agent: true } : {}), ...(o.stdio !== undefined ? { stdio: o.stdio } : {}), ...(o.posts !== undefined ? { posts: o.posts } : {}) });
+      seen = box(c, login, { ...(o.failClone === true ? { failClone: true } : {}), ...(o.logins !== undefined ? { logins: o.logins } : {}), ...(o.ptys !== undefined ? { ptys: o.ptys } : {}), ...(o.ports !== undefined ? { ports: o.ports } : {}), ...(o.agent === true ? { agent: true } : {}), ...(o.stdio !== undefined ? { stdio: o.stdio } : {}), ...(o.posts !== undefined ? { posts: o.posts } : {}) });
       for (const path of o.taken ?? []) seen.taken.add(path);
     },
   });

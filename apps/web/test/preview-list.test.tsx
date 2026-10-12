@@ -5,15 +5,18 @@
 // opens the address.
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { DAEMON_VERSION, NAMED_WATCH_DAEMON_VERSION, placeBehindLine, type PlaceView, type WorkspaceView } from "@wsp/protocol";
+import { useStore } from "../src/protocol/store.js";
 import type { PreviewableServer } from "../src/adapt/view-model.js";
 import { recentsKey, type BrowserHistoryEntry } from "../src/browser/recents.js";
 import { currentPlace, useBrowserTabs } from "../src/browser/tabs.js";
 import { BrowserSurface } from "../src/components/preview/BrowserSurface.js";
-import { PREVIEW_NO_MATCH, PreviewEmptyState } from "../src/components/preview/PreviewEmptyState.js";
+import { PREVIEW_EMPTY, PREVIEW_NO_MATCH, PreviewEmptyState } from "../src/components/preview/PreviewEmptyState.js";
 
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  useStore.setState({ places: [], workspaces: [] });
 });
 
 const server = (port: number, processName: string): PreviewableServer => ({
@@ -90,5 +93,38 @@ describe("the address bar over the list", () => {
     fireEvent.change(bar(), { target: { value: "localhost:3000" } });
     fireEvent.keyDown(bar(), { key: "Enter" });
     expect(currentPlace(useBrowserTabs.getState().byWorkspaceId[WS]?.[tabId] ?? null)).toEqual({ port: 3000, path: "/" });
+  });
+});
+
+describe("the Browser pane of a thread on a computer whose daemon is too old to watch its ports", () => {
+  const WS = "ws_box";
+  const folder: WorkspaceView = { id: WS, project: { id: "pr_lab", name: "lab", path: "/root/lab", computer: "p_2" }, name: WS, kind: "place", place: "p_2", machineId: "p_2", phase: "running", golden: "", createdAt: "2026-10-13T00:00:00.000Z" };
+  const hetzner = (daemonVersion?: number): PlaceView => ({ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "none", buildsImages: false, ...(daemonVersion === undefined ? {} : { daemonVersion }) });
+  const said = (daemonVersion?: number, recents: BrowserHistoryEntry[] = []): string => {
+    cleanup();
+    window.localStorage.setItem(recentsKey(WS), JSON.stringify(recents));
+    useStore.setState({ places: [hetzner(daemonVersion)], workspaces: [folder] });
+    useBrowserTabs.setState({ byWorkspaceId: {} });
+    const tabId = useBrowserTabs.getState().createTab(WS, null);
+    render(<BrowserSurface workspaceId={WS} surface={{ id: `browser:${tabId}`, kind: "preview", resourceId: tabId }} />);
+    return document.querySelector("[data-browser-surface]")!.textContent ?? "";
+  };
+
+  it("says that computer's update line in place of the empty sentence, and the empty sentence once it can watch", () => {
+    const old = NAMED_WATCH_DAEMON_VERSION - 1;
+    expect(said(old)).toContain(placeBehindLine("hetzner", `daemon ${old}, host ${DAEMON_VERSION}`));
+    expect(said(old)).not.toContain(PREVIEW_EMPTY);
+    expect(said(undefined)).toContain("hetzner is behind: daemon version unknown");
+    expect(said(NAMED_WATCH_DAEMON_VERSION)).toContain(PREVIEW_EMPTY);
+    expect(said(NAMED_WATCH_DAEMON_VERSION)).not.toContain("is behind");
+  });
+
+  it("says the update line above the list once the folder has a recent address, and nothing of it once it can watch", () => {
+    const old = NAMED_WATCH_DAEMON_VERSION - 1;
+    const opened = [recent("http://localhost:8090/")];
+    expect(said(old, opened)).toContain(placeBehindLine("hetzner", `daemon ${old}, host ${DAEMON_VERSION}`));
+    expect(ports()).toEqual(["http://localhost:8090/"]);
+    expect(said(NAMED_WATCH_DAEMON_VERSION, opened)).not.toContain("is behind");
+    expect(ports()).toEqual(["http://localhost:8090/"]);
   });
 });

@@ -4,6 +4,7 @@ import type { PreviewableServer } from "../../adapt/view-model";
 import { relativeLabel, type BrowserHistoryEntry } from "../../browser/recents";
 import { GROUP_LABEL } from "../../lib/microLabel";
 import { cn } from "../../lib/utils";
+import { NOTE } from "../../settings/layout";
 import { Empty, EmptyTitle } from "../ui/empty";
 
 import { PreviewLocalServerCard } from "./PreviewLocalServerCard";
@@ -16,6 +17,7 @@ export const PREVIEW_NO_MATCH = "No address or server matches.";
 
 const HEADING = cn(GROUP_LABEL, "px-1 text-muted-foreground");
 const ROWS = "-mx-1 flex flex-col gap-0.5";
+const LINE = cn(NOTE, "px-1");
 
 interface Props {
   servers: ReadonlyArray<PreviewableServer>;
@@ -24,9 +26,12 @@ interface Props {
   query: string;
   onRemoveRecent: (url: string) => void;
   onOpenUrl: (url: string) => void;
+  /** Why no server can show, said in place of the empty sentence and above any list: the computer's daemon is too old
+   * to watch ports. */
+  behind?: string | null;
 }
 
-export function PreviewEmptyState({ servers, recentEntries, query, onRemoveRecent, onOpenUrl }: Props) {
+export function PreviewEmptyState({ servers, recentEntries, query, onRemoveRecent, onOpenUrl, behind = null }: Props) {
   const recents = recentEntries.filter((entry) => URL.canParse(entry.url)).slice(0, 8);
   const now = Date.now();
   const needle = query.trim().toLowerCase();
@@ -37,7 +42,7 @@ export function PreviewEmptyState({ servers, recentEntries, query, onRemoveRecen
   if (servers.length === 0 && recents.length === 0) {
     return (
       <Empty>
-        <EmptyTitle className="max-w-sm">{PREVIEW_EMPTY}</EmptyTitle>
+        <EmptyTitle className="max-w-sm">{behind ?? PREVIEW_EMPTY}</EmptyTitle>
       </Empty>
     );
   }
@@ -45,7 +50,8 @@ export function PreviewEmptyState({ servers, recentEntries, query, onRemoveRecen
   return (
     <div className="flex h-full min-h-0 overflow-y-auto px-5 py-8">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
-        {shownRecents.length === 0 && shownServers.length === 0 ? <p className="px-1 text-[13px] text-muted-foreground">{PREVIEW_NO_MATCH}</p> : null}
+        {behind !== null ? <p className={LINE}>{behind}</p> : null}
+        {shownRecents.length === 0 && shownServers.length === 0 ? <p className={LINE}>{PREVIEW_NO_MATCH}</p> : null}
         {shownRecents.length > 0 ? (
           <div className="flex flex-col gap-2">
             <h2 className={HEADING}>Recently used</h2>
