@@ -370,7 +370,7 @@ export class ProtocolClient {
       this.#ws = null;
       this.#unclaimed.clear();
       this.#failAll(new DisconnectedError("lost"));
-      // 4401 is the runtime refusing the token; redialling cannot fix that.
+      // 4401 is the runtime refusing the token; redialling cannot fix that. A deadline it missed closes 4408.
       if (ev.code === 4401) this.#die("unauthorized");
       else this.#scheduleRedial();
     };

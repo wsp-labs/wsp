@@ -84,6 +84,10 @@ export function linkBackoffMs(attempt: number): number {
 /** The close code a host sends the clients on its own socket as it stops: the socket did not break under them, the
  * host let it go, so a command waiting on a turn says the host is restarting rather than that the turn failed. */
 export const HOST_STOPPING_CLOSE = 4001;
+/** The close code a host's own door sends when no auth frame was read in time. A host whose loop stood still past the
+ * deadline cuts a socket whose frame sat unread, so this is never a refused token and a client dials again on it. */
+export const AUTH_DEADLINE_CLOSE = 4408;
+
 export function isHttpUrl(url: unknown): url is string {
   if (typeof url !== "string" || url.length > HTTP_URL_MAX || !HTTP_URL_RE.test(url)) return false;
   try {

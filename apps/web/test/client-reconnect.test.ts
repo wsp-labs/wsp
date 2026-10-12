@@ -3,12 +3,14 @@
 // the runtime suite's tcp proxy: a cut socket is what a wsp restart looks like
 // from an open tab. jsdom's WebSocket is the browser one here.
 import { createRuntime, memoryStore, serveRuntime, type HarnessAdapterFactory, type Runtime, type RuntimeServer } from "@wsp/runtime";
+import { AUTH_DEADLINE_CLOSE } from "@wsp/protocol";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeApi, ProtocolClient, type ConnStatus, type ProtocolEvent } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { createOn, stubBackend } from "../../../packages/runtime/test/stub-backend.js";
 import { startTcpProxy, type TcpProxy } from "../../../packages/runtime/test/tcp-proxy.js";
 import { clearNotices } from "./notice-text.js";
+import { stallingAfterFirstAuth } from "./stalled-host.js";
 
 const TOKEN = "runtime-token";
 
@@ -34,6 +36,26 @@ afterEach(async () => {
 });
 
 describe("runtime socket reconnect", () => {
+  it("a host whose loop stood still past the auth deadline with the frame on its socket closes it as late, and the client dials again and goes live", async () => {
+    const rt: Runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
+    srv = await serveRuntime(rt, { port: 0, authToken: TOKEN, authDeadlineMs: 100 });
+    const closes: number[] = [];
+    let refused = false;
+    client = new ProtocolClient({
+      url: `ws://127.0.0.1:${srv.port}`,
+      token: TOKEN,
+      WebSocketCtor: stallingAfterFirstAuth(400, closes),
+      onUnauthorized: () => {
+        refused = true;
+      },
+      backoffMs: () => 50,
+    });
+    await client.connect();
+    expect(client.status).toBe("live");
+    expect(refused).toBe(false);
+    expect(closes).toEqual([AUTH_DEADLINE_CLOSE]);
+  });
+
   it("a cut socket comes back: re-auth, events restored, list and statuses refetched, conn settles live", async () => {
     const rt: Runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
     srv = await serveRuntime(rt, { port: 0, authToken: TOKEN });
