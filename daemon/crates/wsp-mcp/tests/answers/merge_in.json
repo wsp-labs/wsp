@@ -46,6 +46,50 @@
       ]
     },
     {
+      "case": "a sub-thread holding commits not pushed",
+      "arguments": {
+        "lead": "t-1",
+        "child": "t-4"
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1 \u0085 lead\"},{\"id\":\"s-4\",\"workspaceId\":\"ws-4\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-4 child\"}]}",
+        "workspaces.get": "{\"id\":1,\"ok\":true,\"workspace\":{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}}",
+        "workspaces.get #2": "{\"id\":1,\"ok\":true,\"workspace\":{\"name\":\"beta \u0085\",\"id\":\"ws-4\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\",\"parentWorkspaceId\":\"ws-1\"}}",
+        "workspaces.wake": "{\"id\":1,\"ok\":true,\"workspace\":{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}}",
+        "workspaces.mergeIn": "{\"id\":1,\"ok\":true,\"lead\":\"alpha\",\"child\":\"Fix it\",\"branch\":\"wsp/fix-it\",\"merged\":true,\"commits\":3,\"conflicts\":[],\"unpushed\":2}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread t-1 \\u0085 le: merged wsp/fix-it from thread t-4 chil, 3 commits\\nt-4 chil holds 2 commits not pushed on its machine; they are not in this merge.\"}],\"structuredContent\":{\"lead\":\"alpha\",\"child\":\"Fix it\",\"branch\":\"wsp/fix-it\",\"merged\":true,\"commits\":3,\"conflicts\":[],\"unpushed\":2}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-1",
+          "threadId": "t-1 \u0085 lead"
+        },
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.get",
+          "workspaceId": "ws-4",
+          "threadId": "t-4 child"
+        },
+        {
+          "op": "workspaces.wake",
+          "workspaceId": "ws-1"
+        },
+        {
+          "op": "workspaces.mergeIn",
+          "workspaceId": "ws-1",
+          "child": "ws-4",
+          "threadId": "t-1 \u0085 lead",
+          "childThreadId": "t-4 child"
+        }
+      ]
+    },
+    {
       "case": "one commit",
       "arguments": {
         "lead": "t-1",
