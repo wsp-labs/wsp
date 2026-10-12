@@ -183,3 +183,32 @@ describe("a thread's Processes pane", () => {
     expect(useStore.getState().settingsOpen).toBe(true);
   });
 });
+
+describe("the pane's containers", () => {
+  const ID = (c: string): string => c.repeat(64);
+  const withContainers = () =>
+    act(() =>
+      getProcs(WS).feed({
+        ...frame(PROCS),
+        containers: [
+          { id: ID("a"), name: "lab-db-1", image: "postgres:17", state: "running", thread: "t_one", placedBy: "label", memory: 160 * MB, cpu: 0.5 },
+          { id: ID("b"), name: "fast-cache", image: "redis:8-alpine", state: "running", thread: "t_two", placedBy: "label", memory: 9 * MB },
+          { id: ID("c"), name: "scratch", image: "busybox:1.37", state: "running", memory: 1 * MB },
+        ],
+      }),
+    );
+
+  it("draws the open thread's labelled container under it, never a sibling's or one no thread placed, and End stops it", () => {
+    wire = fakeWire({ "proc.watch": {}, "proc.unwatch": {}, "proc.kill": {}, "container.stop": {} });
+    provideDaemonWire(WS, wire);
+    show("t_one");
+    mount();
+    withContainers();
+    const rows = [...document.querySelectorAll<HTMLElement>("[data-container-row]")];
+    expect(rows.map(r => r.dataset["containerRow"])).toEqual([ID("a")]);
+    expect(rows[0]!.closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("t_one");
+    expect(rows[0]!.querySelector('[data-col="mem"]')!.textContent).toBe("160 MB");
+    fireEvent.click(rows[0]!.querySelector('[data-act="end-container"]')!);
+    expect(calls("container.stop")).toEqual([{ container: ID("a") }]);
+  });
+});

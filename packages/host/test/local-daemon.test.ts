@@ -83,7 +83,7 @@ describe("local daemon", () => {
   /** This daemon as a host starts it: the person's home as the browse root, and the roots file and the inbox
    * named by the host, beside its state file. */
   const startLocal = (over: Partial<LocalDaemonOptions> = {}): Promise<LocalDaemon> =>
-    LocalDaemon.start({ root, workFolder: root, rootsPath: join(stateFolder(), "roots"), inboxDir: join(stateFolder(), "inbox"), readingsDir: join(stateFolder(), "readings"), spawned: daemons.record, ...over });
+    LocalDaemon.start({ root, workFolder: root, rootsPath: join(stateFolder(), "roots"), inboxDir: join(stateFolder(), "inbox"), readingsDir: join(stateFolder(), "readings"), dockerNotes: join(stateFolder(), "docker-notes"), spawned: daemons.record, ...over });
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "wsp-localdaemon-"));
   });
@@ -145,6 +145,8 @@ describe("local daemon", () => {
     expect(argv[argv.indexOf("--inbox") + 1]).toBe(join(stateFolder(), "inbox"));
     // The readings outlive the token folder, which a start makes fresh: a week of them is kept beside the state.
     expect(argv[argv.indexOf("--readings-dir") + 1]).toBe(join(stateFolder(), "readings"));
+    // The compose notes this computer's threads' docker writes, which place a compose project's containers.
+    expect(argv[argv.indexOf("--docker-notes") + 1]).toBe(join(stateFolder(), "docker-notes"));
     expect(existsSync(join(stateFolder(), "inbox"))).toBe(true);
     expect(existsSync(join(root, ".wsp"))).toBe(false);
   });

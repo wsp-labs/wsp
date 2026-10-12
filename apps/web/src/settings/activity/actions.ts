@@ -7,7 +7,7 @@
 import { CircleStopIcon, ClipboardCopyIcon, Globe2Icon, MessageSquareIcon, SquareXIcon } from "lucide-react";
 import type { ActionEntry } from "../../actions/registry.js";
 import { ACTIVITY_WORDS as W } from "../format.js";
-import type { ActivityGroup, ActivityPort, ActivityProc } from "./model.js";
+import type { ActivityContainer, ActivityGroup, ActivityPort, ActivityProc } from "./model.js";
 
 export interface ProcTarget {
   readonly p: ActivityProc;
@@ -120,7 +120,7 @@ export const groupActions: ReadonlyArray<ActionEntry<ActivityGroup, GroupVerbs>>
     group: "act",
     icon: () => SquareXIcon,
     destructive: true,
-    applies: g => g.thread !== undefined && g.procs.length > 0,
+    applies: g => g.thread !== undefined && (g.procs.length > 0 || g.containers.some(c => c.owned)),
     title: () => W.endAll,
     rowLabel: () => W.endAll,
     refusal: () => null,
@@ -134,5 +134,46 @@ export const groupActions: ReadonlyArray<ActionEntry<ActivityGroup, GroupVerbs>>
     title: () => W.openThread,
     refusal: () => null,
     run: (g, v) => v.openThread(g),
+  },
+];
+
+export interface ContainerVerbs {
+  /** The containers whose stop is under way, by id. */
+  readonly stopping: ReadonlySet<string>;
+  endContainer(c: ActivityContainer): void;
+  copy(text: string): void;
+}
+
+/** What a container's row offers: End, which stops it through the engine and never removes it, only on one a label or
+ * note placed under its thread; and its name and id to copy. */
+export const containerActions: ReadonlyArray<ActionEntry<ActivityContainer, ContainerVerbs>> = [
+  {
+    id: "end",
+    group: "act",
+    icon: () => SquareXIcon,
+    destructive: true,
+    applies: c => c.owned,
+    title: () => W.endContainer,
+    rowLabel: () => W.end,
+    refusal: (c, v) => (v.stopping.has(c.id) ? W.ending : null),
+    run: (c, v) => v.endContainer(c),
+  },
+  {
+    id: "copy-name",
+    group: "copy",
+    icon: () => ClipboardCopyIcon,
+    applies: () => true,
+    title: () => W.copyName,
+    refusal: () => null,
+    run: (c, v) => v.copy(c.name),
+  },
+  {
+    id: "copy-id",
+    group: "copy",
+    icon: () => ClipboardCopyIcon,
+    applies: () => true,
+    title: () => W.copyContainerId,
+    refusal: () => null,
+    run: (c, v) => v.copy(c.id),
   },
 ];

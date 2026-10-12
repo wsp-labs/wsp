@@ -49,7 +49,7 @@ describe("which subagents Activity draws", () => {
 });
 
 describe("a subagent's row under its thread", () => {
-  const acts: Acts = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {}, workspaceOf: () => "ws_lab" };
+  const acts: Acts = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {}, workspaceOf: () => "ws_lab", stopping: new Set(), endContainer: () => {} };
   const look: Look = { sort: "mem", onSort: () => {}, energy: false };
 
   it("says its title, state, time, tokens and model, and holds no memory, CPU or End", () => {
