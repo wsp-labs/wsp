@@ -518,6 +518,24 @@ describe("command palette", () => {
     expect([useStore.getState().selectedId, useStore.getState().selectedThreadId]).toEqual(["ws_b", "t_r"]);
   });
 
+  it("says how many older threads the host did not search the messages of, as a row that opens nothing", async () => {
+    const api = fakeApi([view("ws_a", "api")], [{ ...session("s_r", "ws_a", "fix the redirect"), threadId: "t_r" }]);
+    api.searchMessages = async () => ({ hits: [], unsearched: 12 });
+    useStore.getState().bind(api);
+    render(
+      <AppShell>
+        <div>center content</div>
+      </AppShell>,
+    );
+    await waitFor(() => expect(useStore.getState().workspaces.length).toBe(1));
+    mod("k");
+    await waitFor(() => expect(palette()).not.toBeNull());
+    fireEvent.change(screen.getByPlaceholderText(/Search commands/), { target: { value: "zebra" } });
+    await waitFor(() => expect(inPalette().getByText("12 older threads not searched")).toBeTruthy());
+    expect(inPalette().getByText("Open one to search its messages")).toBeTruthy();
+    expect(inPalette().getByText("12 older threads not searched").closest("[role=option]")).toBeNull();
+  });
+
   it("lists a thread an agent opened on another workspace once, naming the workspace it runs on and where that runs", async () => {
     const lead = { ...session("s_lead", "ws_a", "run the migration across the fleet"), threadId: "t_lead", startedAt: Date.now() - 60_000 };
     // Opened by the lead's agent, filed under the other workspace: the palette reads the same tree the sidebar draws.

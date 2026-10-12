@@ -13,6 +13,8 @@ export async function answerProject(projects: Runtime["projects"], msg: ProjectR
       const { notice, ...project } = await projects.add({ source: msg.source, ...(msg.on !== undefined ? { on: msg.on } : {}), ...(msg.name !== undefined ? { name: msg.name } : {}), ...(msg.base !== undefined ? { base: msg.base } : {}), ...(msg.into !== undefined ? { into: msg.into } : {}), ...(msg.seed !== undefined ? { seed: msg.seed } : {}) }, origin);
       return { project, ...(notice !== undefined ? { notice } : {}) };
     }
+    case "projects.seed":
+      return { ...(await projects.seed(msg.project, { ...(msg.keep !== undefined ? { keep: msg.keep } : {}), ...(msg.cut !== undefined ? { cut: msg.cut } : {}), ...(msg.none === true ? { none: true } : {}), ...(msg.save === true ? { save: true } : {}) }, origin)) };
     case "projects.list":
       return { projects: await projects.list(origin) };
     case "projects.defaults":

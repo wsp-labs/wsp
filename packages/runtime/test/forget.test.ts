@@ -280,7 +280,8 @@ describe("sessions.forget", () => {
     const doc = (await store.get("sessions", ws.id)) as { sessions: unknown[] };
     await store.put("sessions", ws.id, { ...doc, sessions: [] });
     const after = createRuntime({ backend, store, adapters: { claude: working } });
-    expect(await after.sessions.list(ws.id)).toEqual([]);
+    // Listed off its record, its row gone.
+    expect((await after.sessions.list(ws.id)).map(s => [s.id, s.threadId])).toEqual([[thread, thread]]);
 
     // The record is written once a turn was handed over, so a thread with a record and no row is one that ran: the
     // forget is refused in the one sentence, as it is for a thread whose row still says so.
@@ -399,7 +400,8 @@ describe("a thread whose rows fell off the index cap", () => {
     expect(((await store.get("sessions", ws.id)) as { threads: Record<string, unknown> }).threads[thread]).toMatchObject({ harness: "claude", worked: false });
     await capped(store, ws.id);
     const after = createRuntime({ backend, store, adapters: { claude: dies } });
-    expect(await after.sessions.list(ws.id)).toEqual([]);
+    // Listed off its record, its row gone.
+    expect((await after.sessions.list(ws.id)).map(s => [s.id, s.threadId])).toEqual([[thread, thread]]);
 
     await after.sessions.forget(thread);
 
@@ -430,7 +432,8 @@ describe("a thread whose rows fell off the index cap", () => {
     await restarted.close();
     await capped(store, ws.id);
     const after = createRuntime({ backend, store, adapters: { claude: hangs } });
-    expect(await after.sessions.list(ws.id)).toEqual([]);
+    // Listed off its record, its row gone.
+    expect((await after.sessions.list(ws.id)).map(s => [s.id, s.threadId])).toEqual([[thread, thread]]);
 
     await expect(after.sessions.forget(thread)).rejects.toMatchObject({ message: threadForgetRefusal(thread), kind: "conflict" });
 

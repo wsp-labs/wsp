@@ -340,7 +340,7 @@ describe("thread actions", () => {
     const actions = resolveActions(threadActions, thread("completed", "rt_1"), threadVerbs({ readEvents, copyText }));
     expect(actionById(actions, "copy-markdown")).toMatchObject({ title: "Copy as Markdown", refusal: null });
     await actionById(actions, "copy-markdown").run();
-    expect(readEvents).toHaveBeenCalledWith("ws_a");
+    expect(readEvents).toHaveBeenCalledWith("ws_a", "rt_1");
     expect(copyText).toHaveBeenCalledWith(threadMarkdown(threadMessages(events, "rt_1")));
     expect(copyText.mock.calls[0]![0]).not.toContain("not this one");
     expect(actionById(resolveActions(threadActions, thread("completed", null), threadVerbs()), "copy-markdown").refusal).toBe("This thread has no id yet");

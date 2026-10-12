@@ -8,7 +8,7 @@
 // provider by name.
 
 import { agentName, vaultVariableRow } from "@wsp/catalog";
-import { BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, type MachineBackend } from "@wsp/engine";
+import { BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, checkProviderKey, type KeyCheck, type MachineBackend } from "@wsp/engine";
 import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, providerKeyName, standInRecordsPath } from "@wsp/protocol";
 import type { PlaceBackends } from "@wsp/runtime";
 import { CLOUD_ON } from "./cloud.js";
@@ -61,22 +61,25 @@ export const SOLARI_KEY_ENV = "SOLARI_API_KEY";
 /** False in a public build, which the bundler fills in where PUBLIC_BUILD=1; never filled in anywhere else. */
 declare const __WSP_CLOUD__: boolean | undefined;
 
-/** The clouds, which are registered only with the cloud on. Built in a function so a public build, whose bundler
- * reads the test below as false, drops the rows, the backends they build and their words. The test is spelled here
- * and not imported from cloud.ts: a bundler folds the constant only where it is written. */
-function cloudModules(): readonly ProviderModule[] {
+/** Boat, registered in every build. A key alone makes it a place beside this computer; only WSP_PROVIDER=box with
+ * the cloud on makes it the provider this host forks on, since a host forking every thread on a cloud is the cloud's
+ * top-level road. */
+const boatModule = (cloud: boolean): ProviderModule => ({
+  id: "box",
+  envNames: [PROVIDER_ENV],
+  keyEnv: BOX_KEY_ENV,
+  keyName: PROVIDER_KEY_WORDS["box"]!.keyName,
+  keyConsole: PROVIDER_KEY_WORDS["box"]!.keyConsole,
+  selects: env => cloud && env[PROVIDER_ENV] === "box",
+  build: env => new BoxBackend({ apiKey: env[BOX_KEY_ENV] ?? "" }),
+});
+
+/** Solari, registered only with the cloud on. Built in a function so a public build, whose bundler reads the test
+ * below as false, drops the row, the backend it builds and its words. The test is spelled here and not imported from
+ * cloud.ts: a bundler folds the constant only where it is written, and it keeps the names of the folded branch, so
+ * no name here spells Solari. */
+function cloudOnlyModules(): readonly ProviderModule[] {
   return [
-    {
-      id: "box",
-      envNames: [PROVIDER_ENV],
-      keyEnv: BOX_KEY_ENV,
-      keyName: PROVIDER_KEY_WORDS["box"]!.keyName,
-      keyConsole: PROVIDER_KEY_WORDS["box"]!.keyConsole,
-      // Named alone: the word says which cloud this computer forks on, and a missing key is asked for by its own
-      // variable on the key screen rather than guessed at here.
-      selects: env => env[PROVIDER_ENV] === "box",
-      build: env => new BoxBackend({ apiKey: env[BOX_KEY_ENV] ?? "" }),
-    },
     {
       id: "solari",
       envNames: [PROVIDER_ENV],
@@ -90,11 +93,11 @@ function cloudModules(): readonly ProviderModule[] {
     },
   ];
 }
-const CLOUD_MODULES: readonly ProviderModule[] = typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? [] : cloudModules();
+const CLOUD_ONLY_MODULES: readonly ProviderModule[] = typeof __WSP_CLOUD__ === "boolean" && !__WSP_CLOUD__ ? [] : cloudOnlyModules();
 
-/** The providers a process answers for, by whether its cloud is on: with it off the clouds are not among them, and
+/** The providers a process answers for, by whether its cloud is on: with it off Solari is not among them, and
  * everything read off the table (the words `wsp add` takes, the keys, the places, the Add a cloud sheet) goes with
- * them. A test hands in the table it means rather than turning the process's cloud on. */
+ * it; Boat is there either way. A test hands in the table it means rather than turning the process's cloud on. */
 export const providerTable = (cloud: boolean): readonly ProviderModule[] => [
   {
     id: "fake",
@@ -122,7 +125,8 @@ export const providerTable = (cloud: boolean): readonly ProviderModule[] => [
       return new FakeBackend({ records, ...(root === undefined ? {} : { guest: fakeGuestAt(root) }) });
     },
   },
-  ...(cloud ? CLOUD_MODULES : []),
+  boatModule(cloud),
+  ...(cloud ? CLOUD_ONLY_MODULES : []),
   {
     id: NO_PROVIDER,
     // No machine behind it, so no place to add and none to show: it is the row that refuses every road in one line.
@@ -135,14 +139,19 @@ export const providerTable = (cloud: boolean): readonly ProviderModule[] => [
 /** The providers this process answers for, off its own cloud reading. The one gate. */
 export const PROVIDER_MODULES: readonly ProviderModule[] = providerTable(CLOUD_ON);
 
-/** What a road that needs a machine says where nothing here starts one: how to add a provider where one can be
- * added, else how to join a computer. Read off the registered rows, so the line never names a road the table lacks. */
-export const noMachinesLine = (modules: readonly ProviderModule[] = PROVIDER_MODULES): string => (addedProviders(modules).length > 0 ? NO_PROVIDER_LINE : NO_MACHINES_LINE);
+/** Whether a table takes the cloud's top-level roads: a provider a person adds can be the one this host forks on, and a
+ * project can stand on a cloud. Boat alone, as the cloud off registers it, is a place and never that. */
+export const cloudRoads = (modules: readonly ProviderModule[] = PROVIDER_MODULES): boolean => addedProviders(modules).some(m => m.selects({ [PROVIDER_ENV]: m.id }));
+
+/** What a road that needs a machine says where nothing here starts one: how to add a provider where one added can be
+ * the one this host forks on, else how to join a computer. Read off the registered rows, so the line never names a
+ * road the table lacks. */
+export const noMachinesLine = (modules: readonly ProviderModule[] = PROVIDER_MODULES): string => (cloudRoads(modules) ? NO_PROVIDER_LINE : NO_MACHINES_LINE);
 
 /** Whether a word names a cloud that is not registered here, which is a line to refuse by the flag rather than one
  * nobody answers to. */
 export const unregisteredCloud = (word: string | undefined, modules: readonly ProviderModule[] = PROVIDER_MODULES): boolean =>
-  word !== undefined && !modules.some(m => m.id === word) && CLOUD_MODULES.some(m => m.id === word);
+  word !== undefined && !modules.some(m => m.id === word) && CLOUD_ONLY_MODULES.some(m => m.id === word);
 
 /** Every variable the rows select on, each once: what a service carries over from the shell that installed it, so
  * a provider added tomorrow travels with its row rather than with a list somebody remembered to edit. */
@@ -197,6 +206,14 @@ export function wiredProviderId(env: ProviderEnv, modules: readonly ProviderModu
 
 export function providerBackendFor(env: ProviderEnv, modules: readonly ProviderModule[] = PROVIDER_MODULES): MachineBackend {
   return providerModule(env, modules).build(env);
+}
+
+/** The backend of the provider a person named, built off that provider's own row and never off which row this host
+ * forks on: with the cloud off Boat is never the provider a host forks on, and its key is still put to Boat. With none
+ * named, the row this computer is wired by. */
+export function namedProviderBackend(env: ProviderEnv, provider: string | undefined, modules: readonly ProviderModule[] = PROVIDER_MODULES): MachineBackend {
+  const row = provider === undefined ? undefined : modules.find(m => m.id === provider);
+  return (row ?? providerModule(env, modules)).build(env);
 }
 
 /** Whether this row is somewhere work can stand: a row somebody has added, or a stand-in wearing the cloud it is
@@ -312,6 +329,11 @@ export function providerEnvWithKey(env: ProviderEnv, key: string, provider?: str
   const row = keyRowFor(env, provider, modules);
   if (row === undefined) return env;
   return { ...env, [row.keyEnv]: key, ...(provider === undefined ? {} : { [PROVIDER_ENV]: row.id }) };
+}
+
+/** Whether the provider a key is typed for takes it: the one check the app's keys step and wsp init both run. */
+export function providerKeyCheck(env: ProviderEnv, key: string, provider?: string, modules: readonly ProviderModule[] = PROVIDER_MODULES): Promise<KeyCheck> {
+  return checkProviderKey(namedProviderBackend(providerEnvWithKey(env, key, provider, modules), provider, modules));
 }
 
 /** The environment a run picks its provider out of: the host's own, the command line's words in front, and every

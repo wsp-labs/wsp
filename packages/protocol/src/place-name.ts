@@ -12,7 +12,7 @@ import { isLocalWorkspace, whereWord } from "./workspace-state.js";
 export const isHere = (place: PlaceView | undefined): boolean => place?.id === HERE_PLACE_ID;
 
 /** Whether this row is the provider this host forks on rather than a computer somebody owns. */
-export const isProviderPlace = (place: PlaceView): boolean => place.kind === "provider";
+export const isProviderPlace = (place: Pick<PlaceView, "kind">): boolean => place.kind === "provider";
 
 /** What a table calls a computer: the name a person types for it, and a provider by the name the app gives it, never
  * the id stored state holds; either one names it after --on. */

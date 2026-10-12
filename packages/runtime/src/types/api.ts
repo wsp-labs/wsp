@@ -23,6 +23,7 @@ import type {
   ProjectBranch,
   SeedChoice,
   SeedPlan,
+  ProjectSeed,
   SessionEvent,
   SessionAccessResult,
   SessionAnswerResult,
@@ -332,6 +333,10 @@ export interface Runtime {
     /** What a seed of a folder on this computer would carry, with the ticks a remembered choice for that folder
      * leaves on it. Nothing of the folder is read whole and nothing leaves this computer. */
     seedPlan(source: string): Promise<SeedPlan>;
+    /** The seed picks of a project whose folder is on this computer: its remembered choice, else nothing, moved by
+     * `none`, `keep` and `cut`; `save` keeps them as the folder's remembered choice, and a thread's token is refused
+     * that. A project on another computer is refused. */
+    seed(ref: string, o: { keep?: readonly string[]; cut?: readonly string[]; none?: boolean; save?: boolean }, origin?: Caller): Promise<ProjectSeed>;
     /** Every project this host holds, oldest first. */
     list(origin?: Caller): Promise<ProjectView[]>;
     /** What a new thread on each of those projects starts on, by project id, off the runtime's table. */
@@ -452,6 +457,9 @@ export interface Runtime {
     list(workspaceId?: string, origin?: Caller): Promise<SessionView[]>;
     /** The workspace's persisted session events, oldest first; a chat replays these on mount. */
     history(workspaceId: string, origin?: Caller): Promise<SessionEvent[]>;
+    /** One thread's every kept event, oldest first, read off that thread alone; nothing for a thread the caller does
+     * not reach, as history leaves its events out. Refused as usage with no thread, or with a page's window. */
+    threadHistory(workspaceId: string, asked: { threadId?: string | undefined; before?: number | undefined; limit?: number | undefined }, origin?: Caller): Promise<SessionEvent[]>;
     /** One thread's newest events under `before`, as sessions.history answers a page; nothing for a thread the caller
      * does not reach, as history leaves its events out. */
     page(workspaceId: string, window: { threadId: string; before?: number; limit?: number }, origin?: Caller): Promise<HistoryPage>;

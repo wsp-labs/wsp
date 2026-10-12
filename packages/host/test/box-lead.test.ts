@@ -270,7 +270,7 @@ async function pastTheCap(rt: Awaited<ReturnType<typeof lead>>["rt"], folderId: 
   for (let i = 0; i < 205; i++) await (await rt.sessions.start(folderId, { prompt: `the person's ${i}`, harness: "claude" })).finished;
 }
 
-describe("a lead's tree, once the folder's rows of the lead and a child fell off the cap", () => {
+describe("a lead's tree, once its folder passed its row cap with the lead's and a child's rows kept", () => {
   it("a child in the folder lists both, with how each last turn ended, and reaches the lead with wsp send and its sibling with the send tool", { timeout: 240_000 }, async () => {
     const { rt, folder, starts, threadId, launch, turn } = await lead();
     expect((await wsp(launch, "run", "lab", "--detach", `${HOLD}build it`)).code).toBe(0);
@@ -280,7 +280,7 @@ describe("a lead's tree, once the folder's rows of the lead and a child fell off
     starts[0]!.answer("waiting on the children");
     await turn.finished;
     await pastTheCap(rt, folder.id);
-    expect((await rt.sessions.list()).filter(r => r.threadId === threadId || r.threadId === sibling)).toEqual([]);
+    expect((await rt.sessions.list()).filter(r => r.threadId === threadId || r.threadId === sibling)).toHaveLength(2);
     const listed = (await wsp(child, "threads", "--json")).json<{ threads: ThreadRow[] }>().threads;
     expect(listed.find(t => t.threadId === threadId)).toMatchObject({ projectName: "lab", workspaceId: folder.id, status: "completed" });
     expect(listed.find(t => t.threadId === sibling)).toMatchObject({ projectName: "lab", parentThreadId: threadId, rootThreadId: threadId, status: "failed" });
@@ -294,14 +294,14 @@ describe("a lead's tree, once the folder's rows of the lead and a child fell off
     starts.find(s => s.o.prompt === `${HOLD}build it`)!.answer("built");
   });
 
-  it("a child in the folder stops the lead as it would with the lead's rows there: not running, and the running threads under it stopped", { timeout: 240_000 }, async () => {
+  it("a child in the folder stops the lead: not running, and the running threads under it stopped", { timeout: 240_000 }, async () => {
     const { rt, folder, starts, threadId, launch, turn } = await lead();
     const sender = (await wsp(launch, "run", "lab", "--detach", `${HOLD}build it`, "--json")).json<{ threadId: string }>().threadId;
     const child = starts.find(s => s.o.prompt === `${HOLD}build it`)!.env;
     starts[0]!.answer("waiting on the child");
     await turn.finished;
     await pastTheCap(rt, folder.id);
-    expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toEqual([]);
+    expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toHaveLength(1);
     const stopped = await wsp(child, "stop", threadId, "--json");
     expect(stopped.errors).toEqual([]);
     expect(stopped.json<{ outcome: string; under?: string[] }>()).toMatchObject({ outcome: "not-running", under: [sender] });
@@ -316,7 +316,7 @@ describe("a lead's tree, once the folder's rows of the lead and a child fell off
     starts[0]!.answer("waiting on the child");
     await turn.finished;
     await pastTheCap(rt, folder.id);
-    expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toEqual([]);
+    expect((await rt.sessions.list()).filter(r => r.threadId === threadId)).toHaveLength(1);
     expect((await wsp(child, "threads", "--json")).json<{ threads: ThreadRow[] }>().threads.find(t => t.threadId === threadId)).toMatchObject({ projectName: "lab", computerName: HERE.name });
     const sent = await wsp(child, "send", threadId, "--detach", "which branch do I push to?");
     expect(sent.errors).toEqual([]);

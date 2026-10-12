@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 71 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 73 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -611,6 +611,31 @@ Nothing.
 | `projects[].place` | string |  |  |
 | `projects[].sizeBytes` | number |  |  |
 
+## image_build
+
+Builds this host's image at a place from the record alone: a builder is forked there with the recipe the image was sealed from and every sign-in set to skip, the sign-ins the seal held are landed on it out of the vault, and the copy is sealed and recorded under that place at the record's hash. Nothing signs in again and no Keychain is read. A place that already holds a copy built from this record is answered with that copy and `built` false, so asking twice costs nothing; a place whose copy is building is answered with that build, never a second one. A joined computer builds its copy at the end of its setup; every other copy, and every copy a newer version left behind, is built only when this line asks or when a fork there finds no current copy, and that fork says so before the build starts, since a build bills where it runs. Refused in one line for a place this host does not hold, for a place that takes no copy at all, and for a record sealed without the recipe it was built from. A record holding no sign-ins is refused too, since every copy of it would ask for them again; `force` builds it anyway.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `place` | string | yes | the place to build the copy at, by the name wsp computers lists |
+| `force` | boolean |  | build even where the record holds no sign-ins, so the copy asks for every one of them again |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `copy` | object | yes |  |
+| `copy.place` | string | yes |  |
+| `copy.version` | integer | yes |  |
+| `copy.hash` | string |  |  |
+| `copy.snapshotId` | string | yes |  |
+| `copy.templateId` | string |  |  |
+| `copy.builtAt` | string | yes |  |
+| `copy.sizeBytes` | integer |  |  |
+| `built` | boolean | yes |  |
+
 ## merge
 
 Merges the pull request of the branch the thread's folder is on as the person, by the method named or the repository's own default, and only while its head is still the commit the host last read, so a push since then fails it in the git host's own words. when_checks_pass arms it to merge once its checks pass instead, where the repository allows that. Answers with the number, the method, and whether it merged now or waits on its checks. Refused in one line where the branch has no open pull request, where the repository does not allow the method or does not merge by itself, and with the git host's own reason where it refused, branch protection included. A thread's own token is refused: merging is the person's act.
@@ -863,6 +888,39 @@ Takes a project's record out of this wsp. Its folder stays exactly where it is, 
 | `project.git` | object |  |  |
 | `project.createdAt` | string | yes |  |
 | `said` | string | yes |  |
+
+## projects_seed
+
+What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `project` | string | yes | the project, by name or id; its folder must be on this computer |
+| `keep` | string[] |  | paths off the menu to send, each relative to the project's folder |
+| `cut` | string[] |  | paths off the menu to keep on this computer |
+| `none` | boolean |  | send nothing git ignores |
+| `confirm` | boolean |  | true saves the picks; without it the menu is answered and nothing is saved |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `project` | string | yes |  |
+| `folder` | string | yes |  |
+| `rows` | object[] | yes |  |
+| `rows[].path` | string | yes |  |
+| `rows[].dir` | boolean | yes |  |
+| `rows[].bytes` | integer | yes |  |
+| `rows[].kind` | `config`, `rebuilt`, `data`, `never`, `unknown` | yes |  |
+| `rows[].why` | string | yes |  |
+| `rows[].picked` | boolean | yes |  |
+| `picked` | object | yes |  |
+| `picked.paths` | string[] | yes |  |
+| `picked.bytes` | integer | yes |  |
+| `picked.missing` | string[] | yes |  |
+| `saved` | boolean | yes |  |
 
 ## projects_set
 

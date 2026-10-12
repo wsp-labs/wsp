@@ -4,9 +4,13 @@
 // cuts and in what order, and every refusal made before anything is written.
 // The daemon and the harnesses are fakes, so the runtime's own reading is
 // what is under test.
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CODEX_LEGACY_HISTORY,
+  DAEMON_VERSION,
   DEVICE_OPS,
   REWIND_LATEST_LINE,
   REWIND_NO_CHECKPOINT_LINE,
@@ -29,7 +33,8 @@ import {
 } from "@wsp/protocol";
 import { createRuntime, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
-import { memoryStore } from "../src/store.js";
+import { memoryStore, type Store } from "../src/store.js";
+import { sqliteStore } from "../src/sqlite-store.js";
 import { createOn, stubBackend, tokenGuest } from "./stub-backend.js";
 
 const FIRST_SESSION = "44444444-4444-4444-8444-444444444444";
@@ -143,10 +148,10 @@ afterEach(async () => {
 });
 
 /** A cloud workspace whose daemon answers, as a fork on a box does, with one harness under the claude id. */
-async function workspace(adapter: HarnessAdapterFactory, daemon = fakeDaemon()) {
+async function workspace(adapter: HarnessAdapterFactory, daemon = fakeDaemon(), store: Store = memoryStore()) {
   const backend = stubBackend();
   backend.execImpl = tokenGuest;
-  rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: adapter }, daemonToken: DAEMON_TOKEN, daemonChannel: daemon.open });
+  rt = createRuntime({ backend, store, adapters: { claude: adapter }, daemonToken: DAEMON_TOKEN, daemonChannel: daemon.open });
   const ws = await createOn(rt, { golden: "snap_g", name: "pricing page", agents: { spawn: true, maxMachines: 2, maxDepth: 2 } });
   backend.machines[0]!.previewUrl = async () => ({ url: "http://127.0.0.1:7070", token: "e", expiresAt: Date.now() + 3_600_000 });
   const events: EventUnion[] = [];
@@ -237,6 +242,38 @@ describe("rewinding a thread to one of its replies", () => {
     await settle();
     // Undo lasts until the turn after the rewind ends.
     expect(foldThreads(await rt!.sessions.list(ws.id)).find(t => t.threadId === threadId)?.rewoundAt).toBeUndefined();
+  });
+
+  it("cuts one thread's turns off that thread's rows alone, and another thread in the folder keeps its events and its words", async () => {
+    const state = mkdtempSync(join(tmpdir(), "wsp-rewind-"));
+    try {
+      const store = sqliteStore(join(state, "state.json"), { wsp: "test", daemon: DAEMON_VERSION, bin: "/usr/local/bin/wsp" });
+      const rows = store.transcripts!;
+      let folderReads = 0;
+      const all = rows.all.bind(rows);
+      rows.all = workspaceId => (folderReads++, all(workspaceId));
+      const { ws } = await workspace(harness({ cuts: "copy" }), fakeDaemon(), store);
+      const { threadId, turns } = await threeTurns(ws.id);
+      const other = await rt!.sessions.start(ws.id, { prompt: "other" });
+      await other.finished;
+      await settle();
+      const otherId = other.view().threadId!;
+      const kept = await rt!.sessions.threadHistory(ws.id, { threadId: otherId });
+      const said = async (words: string): Promise<string[]> => (await rt!.sessions.search(words)).hits.map(h => h.threadId);
+      expect(await said("reply 3")).toEqual([threadId]);
+      folderReads = 0;
+      await rt!.sessions.rewind(threadId, { turnId: turns[0]!, files: false });
+      expect(folderReads).toBe(0);
+      expect((await rt!.sessions.threadHistory(ws.id, { threadId })).every(e => e.turnId === turns[0])).toBe(true);
+      expect(await rt!.sessions.threadHistory(ws.id, { threadId: otherId })).toEqual(kept);
+      expect(await said("reply 3")).toEqual([]);
+      expect(await said("reply 4")).toEqual([otherId]);
+      expect(await said("reply 1")).toEqual([threadId]);
+    } finally {
+      await rt?.close();
+      rt = undefined;
+      rmSync(state, { recursive: true, force: true });
+    }
   });
 
   it("with the conversation alone leaves the files where they are", async () => {

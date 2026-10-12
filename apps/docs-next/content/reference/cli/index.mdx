@@ -74,6 +74,7 @@ wsp --version
 | [`wsp host unlink`](/reference/cli/host-unlink) | take this computer off the relay account and stop its tunnel |
 | [`wsp hosts`](/reference/cli/hosts) | every host on your account this computer can reach, with a live beat for each and the one every line takes marked |
 | [`wsp image`](/reference/cli/image) | the image this host owns: its version, its hash, whether it holds your sign-ins, and the copy each place has built of it |
+| [`wsp image build`](/reference/cli/image-build) | builds this host's image at a place from the record, its sign-ins coming from the vault and no sign-in run again |
 | `wsp init` | seal this computer into your image, one screen at a time: Agents, Tools, Also on this computer, Sign-ins, wsp for your agents on this computer, each shown when it has a row to pick, then Build. Beside a host already serving this state file the screens are the same and the build runs in that host, on the place --on names or its default place, a computer you joined included. With no host serving and no provider key it seals nothing and records a folder here as your first project instead |
 | [`wsp join`](/reference/cli/join) | on the computer you are sitting at: join it to the wsp at that address, then install the daemon as a systemd system unit, which dials again at every boot. A place is a Linux computer; a Mac refuses |
 | [`wsp leave`](/reference/cli/leave) | on that computer: take wsp off it, for a computer whose host is gone and cannot run wsp remove; asked once, and stopped by a fork or a project checkout there holding work no remote has, naming each |
@@ -88,6 +89,7 @@ wsp --version
 | [`wsp plugins enable`](/reference/cli/plugins-enable) | turns one agent's plugin that was turned off on again |
 | [`wsp projects`](/reference/cli/projects) | your projects, each on its computer: where its code comes from, where its folder sits, the branch a machine of it starts on and how many threads it has |
 | [`wsp projects remove`](/reference/cli/projects-remove) | takes a project out of this wsp; its folder is left where it is, on this computer or on a computer you joined, a project with a machine standing on it is refused naming them, and one whose checkout on a computer of yours holds work no remote has is stopped naming it |
+| [`wsp projects seed`](/reference/cli/projects-seed) | what git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: the menu with each path's size and why, the picks marked; --yes saves the picks, which every later sub-thread of the project takes |
 | [`wsp projects set`](/reference/cli/projects-set) | what a new thread on one project starts on, over the agent's own defaults: its agent, model, effort and access; and the shell line a new worktree of it runs once, after each ecosystem's own install, for what none of them knows |
 | [`wsp recipe`](/reference/cli/recipe) | write the recipe and print it as a table: every catalog agent and tool with its tick, why it has it and what it costs on the machine, then the commands your agents ran that no catalog row carries. --tick used\|installed\|default names the rule that decides every tick (used, the default, ticks what your agents actually ran here); --set \<id>=on\|off flips a row by its catalog id, or a package this computer's own package managers have by the id wsp recipe scan gives it, which the build installs by that package's own road; --signin \<id>=copy\|machine\|later\|key\|skip\|token answers a sign-in by catalog id, later leaving it to the first time the tool is needed on the machine and key bringing the key files beside a login and nothing else of it; --add \<id>=\<command> carries a tool neither the catalog nor this computer has, installed by that command on the machine, with --add-check \<id>=\<command> saying it is there and --why \<words> what the rows it adds are for; --engine marks the recipe so every machine from its image gets the place's Docker or podman through a socket of its own (a project whose compose file needs one), and stays in the file until you edit it out; --project reads a folder's own manifests for what it takes to build and weighs the histories by it, --out says where the file goes and --json prints the table as one object. Naming --tick or --project decides every tick again; without either, what the file says stands and the flags flip rows on top of it. A sign-in answer stands either way: no rule decides one. All of them repeat. Review it, then wsp init --recipe |
 | [`wsp recipe scan`](/reference/cli/recipe-scan) | read this computer and print every option, writing nothing: the agents, the tools with why and size, what else a package manager here has that the image could take, the commands your agents ran, and the sign-ins, each with what to do about it and one line of why; --project weighs the histories by a folder and --json prints it as one object |
@@ -338,6 +340,12 @@ up and down for the host, recipe and image for what a machine starts from.
       its agent, model, effort and access; and the shell line a new worktree of
       it runs once, after each ecosystem's own install, for what none of them
       knows
+  wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none]
+    [--yes]
+      what git ignores in a project's folder on this computer, and which of it
+      goes to a sub-thread's machine: the menu with each path's size and why,
+      the picks marked; --yes saves the picks, which every later sub-thread of
+      the project takes
   wsp threads wait <thread>... [--timeout <s>] [--tail]
       blocks until one of the threads leaves running and prints its finished
       line, with the reply whole under it; --tail prints the reply's last line
@@ -410,6 +418,9 @@ up and down for the host, recipe and image for what a machine starts from.
   wsp image
       the image this host owns: its version, its hash, whether it holds your
       sign-ins, and the copy each place has built of it
+  wsp image build <place> [--force]
+      builds this host's image at a place from the record, its sign-ins coming
+      from the vault and no sign-in run again
   wsp worktree <project> <branch>
       a worktree of the project's repo on the branch, for an agent to work in by
       path or to start a thread in: the one git already has the branch checked
