@@ -14,6 +14,7 @@ import {
 } from "./keybindingTypes.js";
 import { isDesktopShell } from "./lib/desktopShell.js";
 import { isPanelTabsFocused } from "./lib/panelFocus.js";
+import { isPreviewFocused } from "./lib/previewFocus.js";
 import { isMacPlatform } from "./lib/utils.js";
 
 export interface ShortcutEventLike {
@@ -122,17 +123,17 @@ function holdsModAlone(shortcut: KeybindingShortcut, platform: string): boolean 
   return isMacPlatform(platform) ? metaKey && !ctrlKey : ctrlKey && !metaKey;
 }
 
-/** The keys a browser takes with the platform's mod alone: a digit picks one of its tabs, t opens a new one and n a
- * new window, both on Chromium's reserved list. Not the same fact as how many sidebar slots this shell binds:
- * WORKSPACE_SELECT_SLOTS moves on its own. */
-const BROWSER_TAB_KEYS: ReadonlySet<string> = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", "t", "n"]);
+/** The keys a browser takes with the platform's mod alone: a digit picks one of its tabs, t opens a new one, w closes
+ * it and n opens a new window, the last three on Chromium's reserved list. Not the same fact as how many sidebar
+ * slots this shell binds: WORKSPACE_SELECT_SLOTS moves on its own. */
+const BROWSER_TAB_KEYS: ReadonlySet<string> = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", "t", "w", "n"]);
 
 /** The side arrows a macOS browser keeps for its own tabs, held with Command and Option. */
 const BROWSER_TAB_ARROWS: ReadonlySet<string> = new Set(["arrowleft", "arrowright"]);
 
 /**
  * The chords a browser keeps for its own tabs and windows: Control with Tab, the
- * platform's mod with a digit, with T or with N, and on macOS Command and Option with a
+ * platform's mod with a digit, with T, W or N, and on macOS Command and Option with a
  * side arrow. A page in a tab never receives them, so the rules must not fire on
  * them and no label may offer them there. The desktop shell has no tab strip
  * and the page gets them. Two chords that look like these are not: Control
@@ -331,7 +332,7 @@ export function isTerminalAppShortcut(
   platform = navigator.platform,
 ): boolean {
   if (!event.metaKey && !event.ctrlKey) return false;
-  const command = resolveShortcutCommand(event, keybindings, { platform, context: { terminalFocus: true, panelTabsFocus: isPanelTabsFocused() } });
+  const command = resolveShortcutCommand(event, keybindings, { platform, context: { terminalFocus: true, panelTabsFocus: isPanelTabsFocused(), previewFocus: isPreviewFocused() } });
   if (command === null) return false;
   if (event.metaKey) return true;
   return TERMINAL_PASSES.has(command) && !(SHELL_KEEPS.has(event.key.toLowerCase()) && !event.shiftKey && !event.altKey);

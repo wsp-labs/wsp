@@ -645,7 +645,7 @@ export const PROJECTS_WORDS = {
   inherits: (value: string, from?: string): string => (from === undefined ? `Default (${value})` : `Default (${value}, from ${from})`),
 } as const;
 
-/** Settings > Keybindings: the four cards' heads and the three keys that are not rules. */
+/** Settings > Keybindings: the four cards' heads and the keys that are not rules. */
 export const KEYBINDINGS_WORDS = {
   title: "Keybindings",
   windowAndPanels: "Window and panels",
@@ -655,6 +655,7 @@ export const KEYBINDINGS_WORDS = {
   sendMessage: "Send the message",
   submitComment: "Submit a review comment",
   leaveSettings: "Leave Settings",
+  closeWindow: "Close the window",
 } as const;
 
 /** Settings > General's Version card: the two halves of one release, and the road to the next. */

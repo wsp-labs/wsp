@@ -79,6 +79,9 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "ctrl+shift+tab", command: "workspace.previous", when: "!terminalFocus && !panelTabsFocus" },
   { key: "ctrl+tab", command: "rightPanel.nextTab", when: "panelTabsFocus" },
   { key: "ctrl+shift+tab", command: "rightPanel.previousTab", when: "panelTabsFocus" },
+  // A browser closes its own tab on mod+w, so the chord reaches the page only in the desktop shell, which closes the
+  // window on mod+shift+w instead.
+  { key: "mod+w", command: "rightPanel.closeTab", when: "previewFocus" },
   ...WORKSPACE_SELECT_SLOTS.map(slot => ({ key: `mod+${slot}`, command: workspaceSelectCommand(slot) })),
 ];
 
