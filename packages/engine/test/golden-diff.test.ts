@@ -119,6 +119,13 @@ describe("recipe diff", () => {
       apply: [],
     },
     {
+      name: "a volatile file its ticked row stopped carrying is no change: an image sealed with the plugin index offers no update for it",
+      from: snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json"), { ...file("agents/claude", ".claude-cfg/plugins/installed_plugins.json"), volatile: true }]),
+      to: snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json")]),
+      diff: EMPTY,
+      apply: [],
+    },
+    {
       name: "the same recipe is no change, whatever the row order or the hash",
       from: snap([row("shell", "shell/zshrc"), row("tools", "tools/brew/jq")], [file("shell/zshrc", ".zshrc")]),
       to: snap([row("tools", "tools/brew/jq"), row("shell", "shell/zshrc")], [file("shell/zshrc", ".zshrc")]),

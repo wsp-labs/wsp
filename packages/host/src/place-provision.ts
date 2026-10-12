@@ -8,7 +8,7 @@
 // through the list beside the job. What runs the plan is the engine's.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { join, posix } from "node:path";
+import { join } from "node:path";
 import type { Host, Manifest, ManifestEntry, Platform } from "@wsp/collect";
 import { expand, nodeHost } from "@wsp/collect";
 import { CATALOG_AGENTS, COMPILER_ROW, aptNeedRows, setupNeedRows, MCP_AGENTS, SHARED_SKILLS, TOOL_PREFIX, catalogEntry, catalogIdOfRow, harnessLine, installHomes, ownSkillFolder, rewrittenRel, roadModule } from "@wsp/catalog";
@@ -38,6 +38,7 @@ import {
 import { agentOfRow, GITHUB_CLI as GH, GITHUB_ROW, keysKeptLine, signInRowId, MCP_ID_PREFIX, probePath, toolRowId, type Recipe, type RecipeFile, type RecipeKind } from "@wsp/protocol";
 import type { GoldenImport, PlaceProvisioner, PlaceUndo } from "@wsp/runtime";
 import { serverVault } from "./env-keys.js";
+import { pluginInstalls } from "./plugin-installs.js";
 import { brewTableFor, copyRows, planImport } from "./image-recipe.js";
 import { CONFIG_PATHS, configTexts, type ConfigText } from "./recipe-configs.js";
 import { folderFiles, LINKED_FOLDER_NOTE } from "./folder-files.js";
@@ -81,12 +82,10 @@ function smallOf(picks: RecipeFile): Recipe {
   };
 }
 
-/** The folders an agent's row on this computer carries that the picks name one by one or never send: its skills
- * folders, which travel skill by skill, and its plugins' folder, which never travels. */
+/** The folders an agent's row on this computer carries that the picks name one by one: its skills folders, which
+ * travel skill by skill. */
 function pickedApart(agentId: string): string[] {
-  const a = CATALOG_AGENTS.find(entry => entry.id === agentId);
-  if (a === undefined) return [];
-  return [...a.skillRoots.user.map(r => r.dir), ...(a.pluginSkills === undefined ? [] : [posix.dirname(a.pluginSkills.index)])];
+  return CATALOG_AGENTS.find(entry => entry.id === agentId)?.skillRoots.user.map(r => r.dir) ?? [];
 }
 
 const under = (path: string, dir: string): boolean => path === dir || path.startsWith(`${dir}/`);
@@ -251,23 +250,9 @@ function serverTools(plan: ProvisionPlan, home: string): string[] {
  * shell), the floor and the machine context. */
 const READS_THIS_COMPUTER: ReadonlySet<string> = new Set(["floor", "agents", "clis", "mcp", "configs", "context"]);
 
-/** The picked plugins as the lines that put each on, by the agent's own commands there pointed at the folder its
- * threads read, each from the marketplace this computer's index names for it. One whose marketplace this computer
- * cannot name is set aside. */
-function pluginsOf(picks: RecipeFile, home: string, stores?: Readonly<Record<string, string>>): { plugins: NonNullable<ProvisionPlan["plugins"]>[number][]; skipped: { id: string; label: string; note: string }[] } {
-  const agent = CATALOG_AGENTS.find(a => a.plugins !== undefined && picks.agents[a.id] !== undefined);
-  const road = agent?.plugins;
-  const plugins: NonNullable<ProvisionPlan["plugins"]>[number][] = [];
-  const skipped: { id: string; label: string; note: string }[] = [];
-  const index = road === undefined || !existsSync(expand({ home }, road.marketplaces)) ? undefined : readFileSync(expand({ home }, road.marketplaces), "utf8");
-  for (const name of Object.keys(picks.plugins)) {
-    const marketplace = name.split("@")[1];
-    const source = road === undefined || index === undefined || marketplace === undefined ? undefined : road.sourceOf(index, marketplace);
-    if (agent === undefined || road === undefined || source === undefined) skipped.push({ id: `plugins/${name}`, label: name, note: road === undefined ? "no picked agent takes plugins" : "this computer names no marketplace for it" });
-    else plugins.push({ id: `plugins/${name}`, label: name, cmd: harnessLine(agent.id, road.install(name, source), { stores }), asked: out => road.asked(out, name) });
-  }
-  return { plugins, skipped };
-}
+/** The picked plugins as the lines that put each on, pointed at the folder threads there read. */
+const pluginsOf = (picks: RecipeFile, home: string, stores?: Readonly<Record<string, string>>) =>
+  pluginInstalls(Object.keys(picks.plugins), CATALOG_AGENTS.find(a => a.plugins !== undefined && picks.agents[a.id] !== undefined), home, stores);
 
 /** How one catalog row comes off a computer by its own road, on the job's PATH: the line, or why there is none. */
 function catalogUninstall(id: string, path: string, prefix: string): Pick<PlaceUndo, "cmd" | "note"> {
@@ -365,7 +350,7 @@ export function placeProvisioner(o: ProvisionReaders): PlaceProvisioner {
       const { path, prefix } = placePaths(on.home);
       const imp = planImport(
         rows.filter(e => e.bring === true),
-        { rows, small: recipe, home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, path, prefix },
+        { rows, small: recipe, home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, plugins: false, path, prefix },
       );
       return provisionPlanOf(imp, recipe.at, path, prefix);
     },
@@ -399,7 +384,7 @@ export function placeProvisioner(o: ProvisionReaders): PlaceProvisioner {
           rows.filter(e => e.bring === true),
           // The files that travel with an agent are its own: its settings, its standing instructions and its configs.
           // A dotfile, a login's store and a shell's rc go only as the configs the person picked.
-          { rows, small: smallOf(picks), home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, path, prefix },
+          { rows, small: smallOf(picks), home: o.home, platform: o.platform, brew, secrets: new Map(), vault: serverVault(o.statePath), keepFile: agentStateFile, plugins: false, path, prefix },
         ),
         rows,
         on.recipe,

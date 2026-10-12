@@ -17,6 +17,7 @@ import { applyMachineContext } from "./machine-context.js";
 import type { Machine } from "./machine.js";
 import { closeAgentFiles, landedAt, mergedIntoLine, oncePathsOf, outsideAfterScript, outsideBeforeScript, provisionFiles, storeRoots, type OwnedPaths, type ProvisionLanding } from "./provision-files.js";
 import { headlessKeys, provisionMcp } from "./provision-mcp.js";
+import { installPlugin, lastWords, type PluginInstall } from "./plugins-install.js";
 
 /** What the recipe comes to on a computer you own, in run order: the node step, the agents after it, the tools by
  * their roads, the rows outside the catalog last, each with the `after` chain the tools plan gave it. The floor is
@@ -53,8 +54,8 @@ export interface ProvisionPlan {
   /** The CLIs among `steps` the kept servers need on first (`serverNeeds`): the servers wait on these and not on
    * every CLI. */
   serverTools?: readonly string[];
-  /** Plugins, each put on by its agent's own commands; `asked` reads off what one printed why it is set aside. */
-  plugins?: readonly { id: string; label: string; cmd: string; asked?(out: string): string | undefined }[];
+  /** Plugins, each put on by its agent's own commands. */
+  plugins?: readonly PluginInstall[];
 }
 
 /** What a plan off the picks adds to the import's: the skills, the configs, the plugins and whether the C toolchain
@@ -495,14 +496,7 @@ async function stepRows(machine: Machine, plan: ProvisionPlan, step: EngineStep,
     case "plugins": {
       const rows: PlaceProvisionRow[] = [];
       for (const plugin of plan.plugins ?? []) {
-        const started = Date.now();
-        const res = await machine.run(`${pathLine(plan.path, plan.prefix)}\n${plugin.cmd}`, { deadlineMs: PLUGIN_MS }).catch((e: unknown) => ({ exitCode: -1, stdout: "", stderr: e instanceof Error ? e.message : String(e) }));
-        const asked = res.exitCode === 0 ? undefined : plugin.asked?.(res.stdout);
-        const row: PlaceProvisionRow = res.exitCode === 0
-          ? { id: plugin.id, label: plugin.label, outcome: "installed", ms: Date.now() - started }
-          : asked !== undefined
-            ? { id: plugin.id, label: plugin.label, outcome: "skipped", note: asked }
-            : { id: plugin.id, label: plugin.label, outcome: "failed", note: lastWords(res.stderr || res.stdout) ?? `exit ${res.exitCode}` };
+        const row = await installPlugin(machine, plugin, pathLine(plan.path, plan.prefix));
         stage(rowLine(row), undefined, row);
         rows.push(row);
       }
@@ -543,9 +537,3 @@ async function hooked(machine: Machine, plan: ProvisionPlan, row: PlaceProvision
   const res = await machine.exec(`${pathLine(plan.path, plan.prefix)}\n${hook.on}`, { timeoutMs: HOOK_MS }).catch((e: unknown) => ({ exitCode: -1, stdout: "", stderr: e instanceof Error ? e.message : String(e) }));
   return res.exitCode === 0 ? row : { ...row, outcome: "failed", note: `${hook.on}: ${lastWords(res.stderr || res.stdout) ?? `exit ${res.exitCode}`}` };
 }
-
-/** How long one plugin's install gets: its marketplace's clone and the plugin's own files. */
-const PLUGIN_MS = 300_000;
-
-/** The last line a command said, for a row's note. */
-const lastWords = (text: string): string | undefined => text.trim().split("\n").at(-1)?.slice(0, 300) || undefined;

@@ -503,6 +503,23 @@ describe("packPlan", () => {
     expect(importFor([await scan()], { home, secrets: new Map(), platform: "darwin" }).recipeHash).not.toBe(imp.recipeHash);
   });
 
+  it("the image leaves Claude Code's plugin index here and installs the plugins this computer switches on into the store turns read there; a computer somebody owns takes none from it", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "lint@acme": true, "off@acme": false, "far@lab": true, "proj@acme": true } }));
+    const at = (scope: string) => [{ scope, installPath: `${home}/.claude/plugins/cache/acme/x/1.0.0`, ...(scope === "project" ? { projectPath: "/x/lab" } : {}) }];
+    writeFileSync(join(home, ".claude", "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "lint@acme": at("user"), "off@acme": at("user"), "far@lab": at("user"), "proj@acme": at("project") } }));
+    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: { source: { source: "github", repo: "acme/plugins" } } }));
+    const claude = (await detectAgents({ ...nodeHost(), home })).find(r => r.id === "agents/claude")!;
+    expect(claude.paths).toEqual(["~/.claude/settings.json"]);
+    const imp = importFor([claude], { home, secrets: new Map(), platform: "darwin" });
+    expect(imp.files?.lands.map(l => l.dest)).toEqual([".claude-cfg/settings.json"]);
+    expect(imp.plugins).toMatchObject({ agent: "agents/claude", folder: "/root/.claude-cfg/plugins", skipped: [{ id: "plugins/far@lab", label: "far@lab", note: "this computer names no marketplace for it" }] });
+    expect(imp.plugins?.installs.map(p => [p.id, p.cmd])).toEqual([["plugins/lint@acme", "export CLAUDE_CONFIG_DIR='/root/.claude-cfg'; claude plugin marketplace add 'acme/plugins' || true\nclaude plugin install 'lint@acme' --json </dev/null"]]);
+    expect(importFor([claude], { home, secrets: new Map(), platform: "darwin", plugins: false }).plugins).toBeUndefined();
+    expect(importFor([], { home, secrets: new Map(), platform: "darwin" }).plugins).toBeUndefined();
+  });
+
   it("a hook is judged by the file it points at: a link to a script under home travels as its bytes, one to a private key comes out and is listed as left behind", async () => {
     const home = laptop();
     mkdirSync(join(home, ".claude", "hooks"), { recursive: true });

@@ -366,7 +366,7 @@ describe("the plan off a computer's picks", () => {
   /** A Mac with two agents, a server each and the same one under both, two CLIs and a crate. */
   const manifest: Manifest = {
     entries: [
-      { rung: "agents", id: "agents/claude", label: "Claude Code", paths: ["~/.claude/settings.json", "~/.claude/skills", "~/.claude/plugins/installed_plugins.json"], bytes: 1, default: "bring" },
+      { rung: "agents", id: "agents/claude", label: "Claude Code", paths: ["~/.claude/settings.json", "~/.claude/skills"], bytes: 1, default: "bring" },
       { rung: "agents", id: "agents/codex", label: "Codex", paths: ["~/.codex/config.toml"], bytes: 1, default: "bring" },
       { rung: "agents", id: "agents/mcp/claude/linear", label: "linear", group: "Claude Code MCP servers", paths: [], bytes: 0, default: "bring" },
       { rung: "agents", id: "agents/mcp/codex/linear", label: "linear", group: "Codex MCP servers", paths: [], bytes: 0, default: "bring" },
@@ -379,7 +379,7 @@ describe("the plan off a computer's picks", () => {
   };
   const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, mcp: { linear: { agents: ["claude"] } }, clis: { bat: { via: "brew" } } });
 
-  it("ticks the picks and nothing else: the agent with its own files less its skills and plugins, the server for its agent, the CLI by its manager", () => {
+  it("ticks the picks and nothing else: the agent with its own files less its skills, the server for its agent, the CLI by its manager", () => {
     const rows = picksRows(manifest, picks, { home: "/Users/dev", brew: new Map() });
     const ticked = rows.filter(e => e.bring === true).map(e => e.id);
     expect(ticked).toEqual(expect.arrayContaining(["agents/claude", "agents/mcp/claude/linear", "tools/brew/bat"]));

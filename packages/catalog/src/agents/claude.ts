@@ -38,12 +38,10 @@ export const CLAUDE: AgentEntry = {
   // https://docs.claude.com/en/docs/claude-code/mcp (user scope; project scope lives in each repo's .mcp.json)
   mcp: { format: MCP_SERVERS_JSON, files: ["~/.claude.json"], projectFiles: [".mcp.json"], scope: "user scope and your home folder", httpAuth: "its sign-in is kept with the Claude Code login", check: CLAUDE_MCP_CHECK, login: CLAUDE_MCP_LOGIN },
   hooks: CLAUDE_HOOKS,
-  configPaths: [
-    CLAUDE_SETTINGS_FILE, "~/.claude/CLAUDE.md", "~/.claude/skills", "~/.claude/agents", "~/.claude/commands",
-    "~/.claude/plugins/installed_plugins.json", "~/.claude/plugins/known_marketplaces.json", "~/.claude.json",
-  ],
-  // ~/.claude.json holds per-project state and caches rewritten on every run; the plugin indexes carry lastUpdated stamps.
-  volatile: ["~/.claude/plugins/installed_plugins.json", "~/.claude/plugins/known_marketplaces.json", "~/.claude.json"],
+  // The plugin index never travels: it names folders only this computer holds, so each plugin installs there afresh.
+  configPaths: [CLAUDE_SETTINGS_FILE, "~/.claude/CLAUDE.md", "~/.claude/skills", "~/.claude/agents", "~/.claude/commands", "~/.claude.json"],
+  // ~/.claude.json holds per-project state and caches rewritten on every run.
+  volatile: ["~/.claude.json"],
   projectState: [
     { state: "session transcripts", location: "projects/KEY/SESSIONID.jsonl and projects/KEY/SESSIONID/", key: "the resolved path with every character outside A-Z a-z 0-9 replaced by a dash", pathFields: ["cwd on every message line"], move: "rename the KEY directory; rewriting cwd is optional", status: "measured" },
     { state: "auto memory", location: "projects/KEY/memory/", key: "the same KEY", pathFields: [], move: "comes along with the directory rename", status: "measured" },
