@@ -10,7 +10,7 @@ import { PlaceFolderMachine, spawnSyncFed } from "@wsp/engine";
 import { DaemonExecRequest, cgroupJoinLine, dockerShim, placeDaemonPaths, threadCgroup } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { machineExecStream } from "../src/machine-exec.js";
-import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 
 const CGROUP = threadCgroup("thread-1");
 /** Root on Linux, where runuser hands a turn to another login as the box's daemon does; a Mac has no runuser. */
