@@ -1346,7 +1346,8 @@ export type SessionRewindResult = z.infer<typeof SessionRewindResult>;
  * session row. */
 export const SessionStartOutcome = z.enum(["started", "steered", "queued", "held"]);
 export type SessionStartOutcome = z.infer<typeof SessionStartOutcome>;
-export const SessionStartResult = z.object({ session: SessionView, outcome: SessionStartOutcome, turnId: z.string() });
+/** notice: what making the turn's machine said beside it, a line each, as a sub-thread's new machine after its delete. */
+export const SessionStartResult = z.object({ session: SessionView, outcome: SessionStartOutcome, turnId: z.string(), notice: z.string().optional() });
 export type SessionStartResult = z.infer<typeof SessionStartResult>;
 /** What a sessions.warm did: started a process, found one launched as asked standing and gave it its window again, or
  * nothing, where the workspace's computer or the agent keeps no process ahead of a send. */

@@ -414,11 +414,14 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // registration did, so a road that may not start a process on the target's workspace does not get one
       // started for it a turn later.
       const notifyRoad = asked === undefined ? registered?.road : roadOf(origin);
-      // The last check before anything is minted for the launch, which is made for the machine the turn runs on.
-      if (entry.record.phase === "released") {
+      // The last check before anything is minted for the launch, which is made for the machine the turn runs on: a
+      // released sub-thread's send makes it one, and a send meeting that waits for it.
+      let notice: string | undefined;
+      if (entry.record.sub !== undefined) {
         const resumed = await ctx.resumeSub(entry, threadId, o.harness);
         entry = resumed.entry;
         if (resumed.preamble !== undefined) o.prompt = subOpening(resumed.preamble, o.prompt);
+        if (resumed.notices.length > 0) notice = resumed.notices.join("\n");
       }
       if (entry.record.queue !== undefined) return ctx.holdQueued({ workspaceId, threadId, tree, o: { ...o, ...(title !== undefined ? { title } : {}) }, notify: asked }, origin);
       const turnToken = randomBytes(16).toString("hex");
@@ -845,7 +848,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         }
         // The turn is running; what the record failed to remember must not read as a start that failed.
         if (resume === undefined) await ctx.rememberTarget(entry.record).catch((e: unknown) => console.warn(`last target for ${workspaceId} not remembered: ${e instanceof Error ? e.message : String(e)}`));
-        return handle;
+        return notice === undefined ? handle : Object.assign(handle, { notice });
       } catch (e: unknown) {
         failure = e instanceof Error ? e.message : String(e);
         throw e;
@@ -1487,6 +1490,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     startOn(workspaceId, opened, origin).catch((e: unknown) => {
       const claimed = claimedBy.get(opened);
       if (claimed !== undefined && ctx.keptAgents.get(claimed)?.warm !== undefined) ctx.reapKept(claimed);
+      // A sub-machine a refused send leaves with no turn is done, so its delete is armed.
+      if (live.get(workspaceId)?.record.sub !== undefined) void ctx.subDone(workspaceId);
       throw e;
     });
   return { sessionsApi, stopHolds: threadId => ending.has(threadId), stopTry };

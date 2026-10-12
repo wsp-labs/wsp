@@ -4,7 +4,7 @@
 // recorded in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, LOST_SESSION_NOTE, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, lostSessionPrompt, refusedTurn, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
+import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
 import type { AdapterAttachOptions, AdapterEvent, AgentLaunch, KeptAgent, KeptRun, KeptTurn, SubagentState, TaskStop, AsideAnswer, AsideQuestion, ExecStream, ExecStreamFactory, HarnessCatalogProbe, HarnessExec, McpServerSpec, PermissionAsk, PermissionOutcome, ScreenCommand, SessionAsker, SessionForker, SessionHarness, SessionRenamer, SessionTitleMaker, SessionTitleReader, TurnImage, TurnRefusal, TurnResult, TurnStatus, CommitDrafter, ConversationStore, TurnTokens } from "@wsp/protocol";
 import { SKIP_PROMPTS_MODE, controlAllowLine, controlAnswerLine, controlErrorLine, controlLine, interruptLine, modeOptionOn, setModeLine, stopTaskLine } from "./permissions.js";
 import { CLAUDE_SCREEN_COMMANDS, catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
@@ -1292,55 +1292,31 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
   const start = (options: StartOptions): ClaudeSession => {
     const { resume, seed } = options;
     if (resume === undefined || seed === undefined) return launch(options);
-    let lost = false;
-    const first = launch({
-      ...options,
-      onEvent: event => {
-        if (event.type === "turn.done" && event.result.error === `${NO_CONVERSATION} ${resume}`) lost = true;
-        else if (!(lost && event.type === "session.end")) options.onEvent(event);
-      },
-    });
-    let current = first;
-    const finished = first.finished.then(async result => {
-      if (!lost) return result;
-      const { resume: _gone, seed: _seed, ...fresh } = options;
-      let noted = false;
-      current = launch({
-        ...fresh,
-        prompt: lostSessionPrompt(await seed(), options.prompt),
-        onEvent: event => {
-          options.onEvent(event);
-          if (event.type !== "session.start" || noted) return;
-          noted = true;
-          options.onEvent({ type: "turn.delta", sessionId: event.sessionId, kind: "note", text: LOST_SESSION_NOTE });
-        },
-      });
-      return current.finished;
-    });
+    const { first, now, finished } = startAfterLoss({ ...options, resume, seed }, `${NO_CONVERSATION} ${resume}`, launch);
     const session: ClaudeSession = {
       localId: first.localId,
       get claudeSessionId() {
-        return current.claudeSessionId;
+        return now().claudeSessionId;
       },
       get command() {
-        return current.command;
+        return now().command;
       },
       get run() {
-        return current.run;
+        return now().run;
       },
       get pid() {
-        return current.pid;
+        return now().pid;
       },
       get tellsUnread() {
-        return current.tellsUnread;
+        return now().tellsUnread;
       },
       finished,
-      kept: () => current.kept?.(),
-      interrupt: () => current.interrupt(),
-      steer: (prompt, id, images) => current.steer(prompt, id, images),
-      answer: (askId, answer) => current.answer(askId, answer),
-      setAccess: mode => current.setAccess(mode),
-      stopTask: task => current.stopTask(task),
+      kept: () => now().kept?.(),
+      interrupt: () => now().interrupt(),
+      steer: (prompt, id, images) => now().steer(prompt, id, images),
+      answer: (askId, answer) => now().answer(askId, answer),
+      setAccess: mode => now().setAccess(mode),
+      stopTask: task => now().stopTask(task),
     };
     sessions.set(first.localId, session);
     return session;

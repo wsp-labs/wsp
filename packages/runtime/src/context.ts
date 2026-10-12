@@ -550,7 +550,7 @@ export interface SubSpawnArea {
   readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
   /** A released sub-thread on a new machine forked from the image head as it stands, the picked files and the kept
    * session landed on it, the checks that still apply read first: the live entry now, and the head its send opens with.
-   * A send that meets a resume in flight waits for it and opens with no head of its own. */
+   * A send that meets a resume in flight waits for it and opens with no head of its own; any other is answered as it is. */
   readonly resumeSub: (entry: LiveWorkspace, threadId: string, harness: string) => Promise<{ entry: LiveWorkspace; preamble?: string; notices: string[] }>;
 }
 

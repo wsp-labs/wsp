@@ -17,7 +17,7 @@ export async function answeredStart(answerHeld: boolean, start: (onHeld?: OnHeld
   const handle = await start(answerHeld ? onHeld : undefined).catch((e: unknown) => {
     if (!answered) throw e;
   });
-  if (!answered && handle !== undefined) answer({ session: handle.view(), outcome: handle.outcome, turnId: handle.turnId });
+  if (!answered && handle !== undefined) answer({ session: handle.view(), outcome: handle.outcome, turnId: handle.turnId, ...(handle.notice !== undefined ? { notice: handle.notice } : {}) });
 }
 
 /** Where a sessions.start or a sessions.warm runs: the record it names, else, on this computer, the folder of the
