@@ -18,9 +18,13 @@ import type {
   PlaceCapacity,
   PreviewReach,
   SnapshotRow,
-  SnapshotStoragePricing,
+  SnapshotStoragePricing as WireSnapshotStoragePricing,
   TemplateRow,
 } from "@wsp/protocol";
+
+/** Storage as the provider bills it, and for a provider that bills named snapshots by count (Boat) the free count
+ * and the price of each past it. No link carries the count: a computer's own daemon bills nothing. */
+export type SnapshotStoragePricing = WireSnapshotStoragePricing & { freeNamed?: number; usdPerNamedMonth?: number };
 
 export type {
   DaemonSupervisor,
@@ -34,7 +38,6 @@ export type {
   MachineState,
   PreviewReach,
   SnapshotRow,
-  SnapshotStoragePricing,
   TemplateRow,
 };
 

@@ -8,8 +8,8 @@
 // provider by name.
 
 import { agentName, vaultVariableRow } from "@wsp/catalog";
-import { BOX_PRICING, BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, boxClassFor, checkProviderKey, type KeyCheck, type MachineBackend } from "@wsp/engine";
-import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, boatAddedLine, boatPlanOf, providerKeyName, standInRecordsPath } from "@wsp/protocol";
+import { BOX_PRICING, BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, boxClassFor, checkProviderKey, type BoxLimits, type KeyCheck, type MachineBackend } from "@wsp/engine";
+import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, boatAddedLine, providerKeyName, standInRecordsPath } from "@wsp/protocol";
 import type { PlaceBackends } from "@wsp/runtime";
 import { CLOUD_ON } from "./cloud.js";
 import { keyIn } from "./env-keys.js";
@@ -75,7 +75,7 @@ const boatModule = (cloud: boolean): ProviderModule => ({
   keyConsole: PROVIDER_KEY_WORDS["box"]!.keyConsole,
   selects: env => cloud && env[PROVIDER_ENV] === "box",
   build: env => new BoxBackend({ apiKey: env[BOX_KEY_ENV] ?? "" }),
-  addedLine: answer => boatAddedLine(boatPlanOf(answer), boxClassFor(BOX_PRICING.defaultSize)),
+  addedLine: answer => boatAddedLine(answer as BoxLimits | undefined, boxClassFor(BOX_PRICING.defaultSize)),
 });
 
 /** Solari, registered only with the cloud on. Built in a function so a public build, whose bundler reads the test

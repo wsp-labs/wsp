@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 72 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 73 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -888,6 +888,39 @@ Takes a project's record out of this wsp. Its folder stays exactly where it is, 
 | `project.git` | object |  |  |
 | `project.createdAt` | string | yes |  |
 | `said` | string | yes |  |
+
+## projects_seed
+
+What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `project` | string | yes | the project, by name or id; its folder must be on this computer |
+| `keep` | string[] |  | paths off the menu to send, each relative to the project's folder |
+| `cut` | string[] |  | paths off the menu to keep on this computer |
+| `none` | boolean |  | send nothing git ignores |
+| `confirm` | boolean |  | true saves the picks; without it the menu is answered and nothing is saved |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `project` | string | yes |  |
+| `folder` | string | yes |  |
+| `rows` | object[] | yes |  |
+| `rows[].path` | string | yes |  |
+| `rows[].dir` | boolean | yes |  |
+| `rows[].bytes` | integer | yes |  |
+| `rows[].kind` | `config`, `rebuilt`, `data`, `never`, `unknown` | yes |  |
+| `rows[].why` | string | yes |  |
+| `rows[].picked` | boolean | yes |  |
+| `picked` | object | yes |  |
+| `picked.paths` | string[] | yes |  |
+| `picked.bytes` | integer | yes |  |
+| `picked.missing` | string[] | yes |  |
+| `saved` | boolean | yes |  |
 
 ## projects_set
 
