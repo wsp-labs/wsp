@@ -5,12 +5,12 @@
 // host's side, where the join's first frame and the places list read this
 // computer's own row.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir, arch as osArch, platform, release, type as osType, uptime as upSeconds, userInfo } from "node:os";
 import { spawnRun } from "@wsp/collect";
-import { PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
+import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ServerPort } from "@wsp/engine";
 import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
@@ -158,10 +158,10 @@ function engineOnPath(path: string | undefined): PlaceEngine {
   return engineWord(onPath("docker", path) !== undefined, onPath("podman", path) !== undefined);
 }
 
-/** This computer's read-only reading of whether its daemon runs workspaces here, in the daemon's own words so the
- * host's own-machine row and a joined computer's report speak alike. The authoritative gate when a fork is asked
- * for is still the daemon's self check, which mounts an overlay and makes a cgroup; this reads the same kernel
- * facts without touching anything. `runs` overrides the read when the daemon already knows the answer. */
+/** This computer's reading of whether its daemon runs workspaces here, in the daemon's own words so the host's
+ * own-machine row and a joined computer's report speak alike. The authoritative gate when a fork is asked for is
+ * still the daemon's self check, which mounts an overlay and makes a cgroup; this reads the same kernel facts and,
+ * as the doctor does, loads an overlay module the kernel does not list yet. */
 function selfDoctor(env: Readonly<Record<string, string | undefined>>): Pick<PlaceReport, "runsWorkspaces" | "engine"> & { workspacesBlocked?: string } {
   const engine = engineOnPath(env.PATH);
   const blocked = workspacesBlocked();
@@ -170,7 +170,19 @@ function selfDoctor(env: Readonly<Record<string, string | undefined>>): Pick<Pla
 
 /** The one kernel reason this computer cannot run workspaces, or nothing when it can: the protocol's rule over the
  * files this side reads. */
-const workspacesBlocked = (): string | undefined => workspacesBlockedBy({ platform: platform(), read: readTextOr, euid: process.geteuid?.() });
+const workspacesBlocked = (): string | undefined => workspacesBlockedBy({ platform: platform(), read: readTextOr, modprobe: modprobeAt(MODPROBE_PATH), euid: process.geteuid?.() });
+
+/** A module load or dry run takes milliseconds; the bound only keeps a loader that hangs from holding a join or a
+ * places list. */
+const MODPROBE_MS = 10_000;
+
+/** The kernel's module loader at `path`, run as the rule above asks. */
+export const modprobeAt =
+  (path: string): ModprobeRun =>
+  args => {
+    const run = spawnSync(path, args, { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8", timeout: MODPROBE_MS });
+    return run.error !== undefined ? { error: (run.error as NodeJS.ErrnoException).code ?? run.error.message } : { ok: run.status === 0, stderr: run.stderr };
+  };
 
 /** A file's text, or nothing where it is not there, which is what the rule above reads absence as. */
 function readTextOr(path: string): string | undefined {

@@ -66,6 +66,8 @@ import {
   placeCannotBootLine,
   CGROUP_CONTROLLERS_PATH,
   PROC_FILESYSTEMS_PATH,
+  MODPROBE_PATH,
+  type ModprobeRun,
   placeDaemonPaths,
   placeLinkTranscript,
   workFolderIn,
@@ -587,9 +589,12 @@ describe("the one rule that decides whether a computer can be a place", () => {
   /** A kernel, as the rule reads one: the two files it asks for, and nothing else on this machine. */
   const box = (files: Record<string, string>) => (path: string): string | undefined => files[path];
   const CGROUP: Record<string, string> = { [CGROUP_CONTROLLERS_PATH]: "cpuset cpu io memory pids\n", [PROC_FILESYSTEMS_PATH]: "nodev sysfs\next4\nnodev overlay\n" };
+  const unasked: ModprobeRun = args => {
+    throw new Error(`modprobe ${args.join(" ")} was asked`);
+  };
 
   it("takes a Linux box with cgroup v2, the two controllers a cap needs, an overlay and root", () => {
-    expect(workspacesBlockedBy({ platform: "linux", read: box(CGROUP), euid: 0 })).toBeUndefined();
+    expect(workspacesBlockedBy({ platform: "linux", read: box(CGROUP), modprobe: unasked, euid: 0 })).toBeUndefined();
   });
 
   it("turns down anything that is not Linux before it reads a file at all", () => {
@@ -598,44 +603,78 @@ describe("the one rule that decides whether a computer can be a place", () => {
       asked++;
       return CGROUP[path];
     };
-    expect(workspacesBlockedBy({ platform: "darwin", read: counting, euid: 0 })).toBe("wsp runs workspaces on a Linux computer");
+    expect(workspacesBlockedBy({ platform: "darwin", read: counting, modprobe: unasked, euid: 0 })).toBe("wsp runs workspaces on a Linux computer");
     expect(asked).toBe(0);
   });
 
   it("names cgroup v1 when the controllers file is not there, since that is what mounting v1 looks like", () => {
-    const said = workspacesBlockedBy({ platform: "linux", read: box({ [PROC_FILESYSTEMS_PATH]: CGROUP[PROC_FILESYSTEMS_PATH]! }), euid: 0 });
+    const said = workspacesBlockedBy({ platform: "linux", read: box({ [PROC_FILESYSTEMS_PATH]: CGROUP[PROC_FILESYSTEMS_PATH]! }), modprobe: unasked, euid: 0 });
     expect(said).toContain("cgroup v1");
     expect(said).toContain("systemd.unified_cgroup_hierarchy=1");
   });
 
   it("names the controller a cap needs and does not have, one at a time", () => {
     const without = (drop: string) => box({ ...CGROUP, [CGROUP_CONTROLLERS_PATH]: "cpuset cpu io memory pids\n".replace(`${drop} `, "") });
-    expect(workspacesBlockedBy({ platform: "linux", read: without("memory"), euid: 0 })).toBe("this computer's cgroup root offers no memory controller, which wsp needs to run workspaces here");
-    expect(workspacesBlockedBy({ platform: "linux", read: without("cpu"), euid: 0 })).toBe("this computer's cgroup root offers no cpu controller, which wsp needs to run workspaces here");
+    expect(workspacesBlockedBy({ platform: "linux", read: without("memory"), modprobe: unasked, euid: 0 })).toBe("this computer's cgroup root offers no memory controller, which wsp needs to run workspaces here");
+    expect(workspacesBlockedBy({ platform: "linux", read: without("cpu"), modprobe: unasked, euid: 0 })).toBe("this computer's cgroup root offers no cpu controller, which wsp needs to run workspaces here");
   });
 
-  it("names the overlay a workspace's layers stack on, whether the file is missing or does not list it", () => {
-    const overlay = "this computer's kernel has no overlay filesystem, which a workspace here reads this computer's own directories through";
-    expect(workspacesBlockedBy({ platform: "linux", read: box({ [CGROUP_CONTROLLERS_PATH]: CGROUP[CGROUP_CONTROLLERS_PATH]! }), euid: 0 })).toBe(overlay);
-    expect(workspacesBlockedBy({ platform: "linux", read: box({ ...CGROUP, [PROC_FILESYSTEMS_PATH]: "nodev sysfs\next4\n" }), euid: 0 })).toBe(overlay);
+  it("loads an overlay module the kernel does not list yet and reads the list again before it refuses", () => {
+    const files = { ...CGROUP, [PROC_FILESYSTEMS_PATH]: "nodev sysfs\next4\n" };
+    const asked: string[] = [];
+    const modprobe: ModprobeRun = args => {
+      asked.push(args.join(" "));
+      files[PROC_FILESYSTEMS_PATH] += "nodev\toverlay\n";
+      return { ok: true, stderr: "" };
+    };
+    expect(workspacesBlockedBy({ platform: "linux", read: box(files), modprobe, euid: 0 })).toBeUndefined();
+    expect(asked).toEqual(["overlay"]);
+  });
+
+  it("refuses a kernel with no overlay module to load in the doctor's words, whether the file is missing or does not list it", () => {
+    // kmod 31's answer for a module that is not on disk, to the load and to the dry run alike (measured on 6.8.0-117).
+    const asked: string[] = [];
+    const modprobe: ModprobeRun = args => {
+      asked.push(args.join(" "));
+      return { ok: false, stderr: "modprobe: FATAL: Module overlay not found in directory /lib/modules/6.8.0-146-generic\n" };
+    };
+    const absent = "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through";
+    expect(workspacesBlockedBy({ platform: "linux", read: box({ [CGROUP_CONTROLLERS_PATH]: CGROUP[CGROUP_CONTROLLERS_PATH]! }), modprobe, euid: 0 })).toBe(absent);
+    expect(workspacesBlockedBy({ platform: "linux", read: box({ ...CGROUP, [PROC_FILESYSTEMS_PATH]: "nodev sysfs\next4\n" }), modprobe, euid: 0 })).toBe(absent);
+    expect(asked).toEqual(["overlay", "-n overlay", "overlay", "-n overlay"]);
+  });
+
+  it("refuses a module that will not load in the doctor's words, with modprobe's own last line", () => {
+    const modprobe: ModprobeRun = args => (args[0] === "-n" ? { ok: true, stderr: "" } : { ok: false, stderr: "modprobe: ERROR: could not insert 'overlay': Operation not permitted\n" });
+    const read = box({ ...CGROUP, [PROC_FILESYSTEMS_PATH]: "nodev sysfs\next4\n" });
+    expect(workspacesBlockedBy({ platform: "linux", read, modprobe, euid: 0 })).toBe(
+      "this computer's kernel has an overlay module that would not load (modprobe: ERROR: could not insert 'overlay': Operation not permitted), and a workspace here reads this computer's own directories through an overlay",
+    );
+    const loadsAndStillLists: ModprobeRun = () => ({ ok: true, stderr: "" });
+    expect(workspacesBlockedBy({ platform: "linux", read, modprobe: loadsAndStillLists, euid: 0 })).toBe(
+      "this computer's kernel has an overlay module that would not load (modprobe loaded it and the kernel still lists no overlay), and a workspace here reads this computer's own directories through an overlay",
+    );
+    expect(workspacesBlockedBy({ platform: "linux", read, modprobe: () => ({ error: "ENOENT" }), euid: 0 })).toBe(
+      `this computer's kernel has an overlay module that would not load (${MODPROBE_PATH} could not run: ENOENT), and a workspace here reads this computer's own directories through an overlay`,
+    );
   });
 
   it("says the refusal of a named computer with its and it, never it's or this computer, which is the reader's", () => {
-    const overlay = "this computer's kernel has no overlay filesystem, which a workspace here reads this computer's own directories through";
-    expect(placeCannotBootLine("hetzner", overlay)).toBe("hetzner cannot run wsp workspaces: its kernel has no overlay filesystem, which a workspace here reads its own directories through");
+    const overlay = "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through";
+    expect(placeCannotBootLine("hetzner", overlay)).toBe("hetzner cannot run wsp workspaces: its kernel has no overlay filesystem and no overlay module to load, which a workspace here reads its own directories through");
     expect(placeCannotBootLine("hetzner", "wsp runs workspaces on this computer as root, and this daemon is not root")).toBe("hetzner cannot run wsp workspaces: wsp runs workspaces on it as root, and this daemon is not root");
   });
 
   it("names root last, so a box that has everything else reads the one thing a person can change from here", () => {
-    expect(workspacesBlockedBy({ platform: "linux", read: box(CGROUP), euid: 1000 })).toBe("wsp runs workspaces on this computer as root, and this daemon is not root");
-    expect(workspacesBlockedBy({ platform: "linux", read: box(CGROUP) })).toContain("as root");
+    expect(workspacesBlockedBy({ platform: "linux", read: box(CGROUP), modprobe: unasked, euid: 1000 })).toBe("wsp runs workspaces on this computer as root, and this daemon is not root");
+    expect(workspacesBlockedBy({ platform: "linux", read: box(CGROUP), modprobe: unasked })).toContain("as root");
   });
 
   it("asks in one order, so the reason a person reads is the first thing missing rather than the last", () => {
     // A Mac with none of it reads the platform, not the cgroup; a Linux box missing both cgroup and overlay reads
     // the cgroup. Every sentence above is reachable, and only the first one that applies is ever said.
-    expect(workspacesBlockedBy({ platform: "darwin", read: box({}), euid: 1000 })).toContain("Linux computer");
-    expect(workspacesBlockedBy({ platform: "linux", read: box({}), euid: 1000 })).toContain("cgroup v1");
-    expect(workspacesBlockedBy({ platform: "linux", read: box({ [CGROUP_CONTROLLERS_PATH]: "cpu memory\n" }), euid: 1000 })).toContain("overlay");
+    expect(workspacesBlockedBy({ platform: "darwin", read: box({}), modprobe: unasked, euid: 1000 })).toContain("Linux computer");
+    expect(workspacesBlockedBy({ platform: "linux", read: box({}), modprobe: unasked, euid: 1000 })).toContain("cgroup v1");
+    expect(workspacesBlockedBy({ platform: "linux", read: box({ [CGROUP_CONTROLLERS_PATH]: "cpu memory\n" }), modprobe: () => ({ ok: false, stderr: "" }), euid: 1000 })).toContain("overlay");
   });
 });
