@@ -46,6 +46,7 @@ import {
   type ProjectImportRequest,
   HERE_PLACE_ID,
   jsonLine,
+  SubOut,
 } from "@wsp/protocol";
 import type { CliIO } from "../cli.js";
 import { colourDepth, isTTY } from "../init-layout.js";
@@ -247,6 +248,8 @@ export const TurnOut = z.object({
   capped: ThreadCapWait.optional().describe("what holds the start back while outcome is held: the computer and what runs there against its threads at once"),
   afterCut: z.literal(true).optional(),
 });
+/** What a run answers: a turn's answer, and on a sub-thread's start what its machine came up with. */
+export const RunOut = TurnOut.extend({ sub: SubOut.optional().describe("on a sub-thread's start: the machine, the branches and the files sent") });
 /** What a wait answers with for the thread that left running: the turn's outcome and the facts the harness reported,
  * the reply cut to the notify line's tail. */
 const ThreadEndOut = z.object({
@@ -273,9 +276,9 @@ export const asText = (text: string, structured: Structured): CallToolResult => 
 export const turnText = (out: z.infer<typeof TurnOut>): string => (out.afterCut === true ? `${AFTER_CUT_LINE}\n${out.text ?? ""}` : out.text ?? "");
 
 /** A detached start's answer on the tool door: the thread's id, as the command line's first line prints it. */
-export const detachedOut = (turn: Turn, opened?: (threadId: string, folder?: string) => string): CallToolResult => {
+export const detachedOut = (turn: Turn, opened?: (threadId: string, folder?: string) => string, sub?: SubOut): CallToolResult => {
   const line = openedThreadLine(turn.threadId, opened, turn.session.cwd);
-  return asText(turn.outcome === "held" && turn.session.capped !== undefined ? `${line}\n${capWaitLine(turn.session.capped)}` : line, turnView(turn));
+  return asText(turn.outcome === "held" && turn.session.capped !== undefined ? `${line}\n${capWaitLine(turn.session.capped)}` : line, { ...turnView(turn), ...(sub !== undefined ? { sub } : {}) });
 };
 
 const endView = (ended: Ended): z.infer<typeof ThreadEndOut> => {
@@ -336,6 +339,14 @@ export const RunProjectIn = z
   );
 export const BesideIn = z.string().optional().describe("a thread, by its id or a prefix of it, beside which the new thread runs: in the folder that thread works in, on the computer it runs on; never with project or branch");
 export const BranchIn = z.string().optional().describe("a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch");
+export const OnIn = z
+  .string()
+  .optional()
+  .describe("boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch and pushes a branch of its own; your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces");
+export const SubSizeIn = z
+  .string()
+  .optional()
+  .describe("with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8");
 export const RunCwdIn = z.string().optional().describe("a folder inside the project or one of its worktrees, absolute, which the thread starts in");
 /** The threads an act on a shared folder took in too, on the answers of commit, discard and update. */
 export const SHARED_WITH = { sharedWith: z.array(z.string()).optional().describe("the other threads working in the same folder, by id, whose changes the act took in too; absent where none do") };
