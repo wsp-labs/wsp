@@ -5,7 +5,7 @@
 // CODEX_HOME.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
+import { agentWord, conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
 import { createCodexAdapter, creditsOf, type CodexSession } from "../src/adapter.js";
 import { LETS_GO } from "../src/conversations.js";
@@ -219,7 +219,7 @@ describe("CodexAdapter over codex app-server", () => {
     const session = adapter.start({ prompt: "list the repo", model: "gpt-5.5", effort: "low", permissionMode: "workspace-write", cwd: "/root/app", onEvent: () => {} });
     await session.finished;
     const call = launch.calls[0]!;
-    expect(call.command).toBe("cd '/root/app' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(call.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
     expect(call.command).not.toContain("list the repo");
     expect(call.env).toEqual({ CODEX_HOME: "/root/.codex" });
     expect(adapter.env).toEqual({ CODEX_HOME: "/root/.codex" });
@@ -997,7 +997,7 @@ describe("a subagent's frames on its lead's stream", () => {
       title: "Sleep 20 s and say done.",
       asked: "Sleep 20 s and say done.\nEnd without waiting.",
     });
-    expect(subagents(events).at(-1)).toMatchObject({ task: CHILD, state: "running", depth: 1 });
+    expect(subagents(events).filter(e => e.usage === undefined).at(-1)).toMatchObject({ task: CHILD, state: "running", depth: 1 });
     expect(deltasOf(events).filter(d => d.toolUseId === SPAWN)).toEqual([
       { type: "turn.delta", sessionId: THREAD_ID, kind: "tool_use", text: JSON.stringify({ prompt: "Sleep 20 s and say done.\nEnd without waiting." }), toolName: "spawn_agent", toolUseId: SPAWN },
       { type: "turn.delta", sessionId: THREAD_ID, kind: "tool_result", text: "", toolUseId: SPAWN, isError: false },
@@ -1005,7 +1005,11 @@ describe("a subagent's frames on its lead's stream", () => {
 
     live.wires[0]!.push(childSays("done"), childEnded("completed"));
     const result = await session.finished;
-    expect(subagents(events).at(-1)).toEqual({ type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "done", parentToolUseId: SPAWN, summary: "done" });
+    const usage = { tokens: { input: 900, cached: 0, cacheWrite: 0, output: 0, reasoning: 0 } };
+    expect(subagents(events).filter(e => e.usage !== undefined)).toEqual([
+      { type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "running", parentToolUseId: SPAWN, usage },
+      { type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "done", parentToolUseId: SPAWN, summary: "done", usage },
+    ]);
     expect(result).toMatchObject({ status: "completed", text: "spawned it" });
     expect(result.tokens).toMatchObject({ input: 18_900, context: 18_000, window: 258_400 });
     expect(tasks(events).at(-1)).toBe(0);
@@ -1183,17 +1187,20 @@ describe("a recorded Codex turn whose lead spawned an agent and ended first", ()
   const LEAD = "01a100dc-e1f0-7183-94f1-048611cff500";
   const CHILD = "01a100dd-0379-7f91-bd7d-76a0d1bcb962";
 
-  it("holds the lead's reply until the child's own turn completes, and says the child's start, with what its spawn asked and the model it named, and its end once each", async () => {
+  it("holds the lead's reply until the child's own turn completes, and says the child's start, with what its spawn asked and the model it named, what its thread spent, and its end once each", async () => {
     const launch = launcher(server(fixtureLines("app-server-subagent")));
     const { events, onEvent } = collect();
     const result = await adapterOver(launch).start({ prompt: "spawn one agent and end your turn", onEvent }).finished;
     const said = events.filter((e): e is Extract<AdapterEvent, { type: "subagent" }> => e.type === "subagent");
+    // The child's row carries its own thread's total; the lead's turn still counts the child's calls in its tokens.
+    const usage = { tokens: { input: 19_515, cached: 19_200, cacheWrite: 0, output: 5, reasoning: 0 } };
     expect(said).toEqual([
       { type: "subagent", sessionId: LEAD, task: CHILD, state: "running", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", title: "Reply with the single word done and nothing else.", model: "gpt-5.6-luna", asked: "Reply with the single word done and nothing else." },
-      { type: "subagent", sessionId: LEAD, task: CHILD, state: "done", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", summary: "done" },
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "running", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", usage },
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "done", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", summary: "done", usage },
     ]);
     const at = (type: string) => events.findIndex(e => e.type === type);
-    expect(at("turn.done")).toBeGreaterThan(events.lastIndexOf(said[1]!));
+    expect(at("turn.done")).toBeGreaterThan(events.lastIndexOf(said[2]!));
     expect(events.flatMap(e => (e.type === "turn.tasks" ? [e.running] : []))).toEqual([1, 0]);
     expect(result).toMatchObject({ status: "completed", text: "spawned", tokens: { input: 77_535 + 19_515, window: 258_400 } });
     expect(deltasOf(events).map(d => d.text)).not.toContain("done");
@@ -1280,7 +1287,7 @@ describe("a side question on a Codex thread", () => {
     const answer = await adapter.aside!({ session: THREAD_ID, question: "which folder are you in?", cwd: "/root/app", model: "gpt-5.5" });
     expect(answer).toEqual({ text: "You are in /root/app; you last asked me to count.", usage: { input: 900, cached: 880, output: 12, reasoning: 0, context: 912 } });
     const call = launch.calls[0]!;
-    expect(call.command).toBe("cd '/root/app' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(call.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
     // A side question is no turn of the account's: it asks neither the account nor its limits.
     expect(call.input?.map(l => parse(l).method)).toEqual(["initialize", "initialized", "thread/fork"]);
     const fork = parse(call.input!.at(-1)!);
@@ -1366,7 +1373,7 @@ describe("what a rewind needs of a Codex turn", () => {
       return w;
     });
     expect(await adapterOver(launch).revert({ session: THREAD_ID, beforeTurn: TURN_ID, cwd: "/root/app" })).toBeUndefined();
-    expect(launch.calls[0]!.command).toBe("cd '/root/app' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(launch.calls[0]!.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
     expect(parse(launch.calls[0]!.input!.at(-1)!)).toMatchObject({ method: "thread/resume", params: { threadId: THREAD_ID } });
     expect(launch.wires[0]!.written.find(m => m.method === "thread/revert")).toEqual({ id: "wsp-revert", method: "thread/revert", params: { threadId: THREAD_ID, beforeTurnId: TURN_ID } });
     expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
@@ -1464,7 +1471,7 @@ describe("what a rewind needs of a Codex turn", () => {
       const result = await adapterOver(launch).start({ prompt: "list every code word you remember", fork: { session: THREAD_ID, turn: "t8" }, cwd: "/root/app-fork", model: "gpt-5.5", permissionMode: "workspace-write", onEvent }).finished;
       expect(result).toMatchObject({ status: "completed", text: "ALPHA, BETA" });
       expect(launch.calls).toHaveLength(1);
-      expect(launch.calls[0]!.command).toBe("cd '/root/app-fork' && codex app-server -c tools.update_plan.enabled='true'");
+      expect(launch.calls[0]!.command).toBe(`cd '/root/app-fork' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
       const fork = parse(launch.calls[0]!.input!.at(-1)!);
       expect(fork).toEqual({ id: "wsp-thread", method: "thread/fork", params: { threadId: THREAD_ID, lastTurnId: "t8", ephemeral: false, excludeTurns: true, cwd: "/root/app-fork", model: "gpt-5.5", sandbox: "workspace-write", approvalPolicy: "on-request" } });
       expect(launch.wires[0]!.written.some(m => m.method === "thread/start" || m.method === "thread/resume")).toBe(false);

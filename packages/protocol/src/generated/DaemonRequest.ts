@@ -3,7 +3,9 @@ import type { FsReadEncoding } from "./FsReadEncoding.js";
 import type { FsSearchMode } from "./FsSearchMode.js";
 import type { GitDiffScope } from "./GitDiffScope.js";
 import type { GuestKind } from "./GuestKind.js";
+import type { KillMode } from "./KillMode.js";
 import type { MergeMethod } from "./MergeMethod.js";
+import type { ProcScope } from "./ProcScope.js";
 import type { ProcSignal } from "./ProcSignal.js";
 import type { ReactionContent } from "./ReactionContent.js";
 import type { RequestId } from "./RequestId.js";
@@ -78,7 +80,14 @@ cgroups?: Array<string>,
  * A name for this watch on the socket, so one socket holds a watch per name, each with its own roots and
  * folder, and every port event it sends carries the name. Without one the watch is the socket's own.
  */
-watch?: string, } | { "op": "manifest.get" } | { "op": "manifest.record", cmd: string, cwd: string, port?: number, } | { "op": "manifest.restartScript" } | { "op": "inbox.watch" } | { "op": "inbox.rescan" } | { "op": "sys.watch" } | { "op": "sys.history", from: number, to: number, stepMs: number, } | { "op": "usage.logs", stores: Array<UsageStore>, } | { "op": "transcripts.list", root: string, dirs: Array<string>, cwds: Array<string>, } | { "op": "transcripts.read", root: string, dirs: Array<string>, session: string, last: number, } | { "op": "proc.watch" } | { "op": "proc.unwatch" } | { "op": "proc.inspect", pid: number, } | { "op": "proc.kill", pid: number, signal: ProcSignal, } | { "op": "ping" } | { "op": "fs.list", path: string, gitignore?: boolean, 
+watch?: string, } | { "op": "manifest.get" } | { "op": "manifest.record", cmd: string, cwd: string, port?: number, } | { "op": "manifest.restartScript" } | { "op": "inbox.watch" } | { "op": "inbox.rescan" } | { "op": "sys.watch" } | { "op": "sys.unwatch" } | { "op": "sys.history", from: number, to: number, stepMs: number, } | { "op": "usage.logs", stores: Array<UsageStore>, } | { "op": "transcripts.list", root: string, dirs: Array<string>, cwds: Array<string>, } | { "op": "transcripts.read", root: string, dirs: Array<string>, session: string, last: number, } | { "op": "proc.watch", 
+/**
+ * The cgroups whose processes this socket reads each tick, each with every cgroup under it, by the path
+ * /proc/[pid]/cgroup names: a box's threads, so a busy box is not read whole every two seconds. The daemon's
+ * own row comes with them. A watch that names none reads every process; a second watch on the socket names
+ * the set again.
+ */
+cgroups?: Array<string>, } | { "op": "proc.unwatch" } | { "op": "proc.scopes", scopes: Array<ProcScope>, } | { "op": "proc.inspect", pid: number, } | { "op": "proc.list" } | { "op": "proc.kill", pid: number, signal: ProcSignal, mode?: KillMode, startedAt?: number, identity?: string, protect?: Array<number>, apps?: Array<number>, agents?: Array<number>, agentBins?: Array<string>, } | { "op": "container.stop", container: string, } | { "op": "ping" } | { "op": "fs.list", path: string, gitignore?: boolean, 
 /**
  * The workspace this frame is for, on a daemon that runs workspaces: the path then names the folder as
  * that workspace sees it, and the operation is answered inside it. Without one the path is resolved under

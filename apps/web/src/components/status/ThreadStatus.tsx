@@ -21,6 +21,7 @@ export function ThreadStatus({
   age,
   settled = false,
   kind: given,
+  still = false,
   crab = true,
   className,
 }: {
@@ -32,6 +33,8 @@ export function ThreadStatus({
   settled?: boolean;
   /** A kind no thread reads as, for a tile that holds no thread yet. */
   kind?: StatusKind;
+  /** The crab holds still, on a page whose own redraws are what it measures. */
+  still?: boolean;
   /** Draw the crab in the slot; a tile draws a working thread's at its title's end instead. */
   crab?: boolean;
   className?: string;
@@ -46,24 +49,24 @@ export function ThreadStatus({
       </span>
     );
   return kind.wordOf === undefined ? (
-    <Mark thread={thread} kind={kind} word={kind.word ?? ""} age={age} crab={crab} className={slot} />
+    <Mark thread={thread} kind={kind} word={kind.word ?? ""} age={age} still={still} crab={crab} className={slot} />
   ) : (
-    <TickingMark thread={thread} kind={kind} word={now => kind.wordOf!(thread, now)} age={age} crab={crab} className={slot} />
+    <TickingMark thread={thread} kind={kind} word={now => kind.wordOf!(thread, now)} age={age} still={still} crab={crab} className={slot} />
   );
 }
 
 /** A word read off the minute clock, so a reset's "resets in 14 min" moves while it stands. */
-function TickingMark({ word, ...mark }: { thread: ThreadStatusInput; kind: StatusKind; word: (now: number) => string; age: string | undefined; crab: boolean; className: string }) {
+function TickingMark({ word, ...mark }: { thread: ThreadStatusInput; kind: StatusKind; word: (now: number) => string; age: string | undefined; still: boolean; crab: boolean; className: string }) {
   return <Mark {...mark} word={word(useMinuteClock())} />;
 }
 
-function Mark({ thread, kind, word, age, crab, className }: { thread: ThreadStatusInput; kind: StatusKind; word: string; age: string | undefined; crab: boolean; className: string }) {
+function Mark({ thread, kind, word, age, still, crab, className }: { thread: ThreadStatusInput; kind: StatusKind; word: string; age: string | undefined; still: boolean; crab: boolean; className: string }) {
   const Glyph = kind.glyph;
   return (
     <Tooltip>
       <TooltipTrigger render={<span data-thread-status={kind.id} data-tone={kind.tone} role="img" aria-label={word} className={className} />}>
         {kind.timed ? <WorkingSince since={thread.startedAt} format={fmtRunning} /> : null}
-        {Glyph !== undefined ? <Glyph aria-hidden className="size-3 shrink-0" /> : crab ? <Crab /> : null}
+        {Glyph !== undefined ? <Glyph aria-hidden className="size-3 shrink-0" /> : crab ? <Crab still={still} /> : null}
       </TooltipTrigger>
       <TooltipPopup side="top">
         <span className="tabular-nums">

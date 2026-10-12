@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { ASIDE_TOOL_LINE, asideWallLine, shellQuote } from "@wsp/protocol";
+import { agentWord, ASIDE_TOOL_LINE, asideWallLine, shellQuote } from "@wsp/protocol";
 import type { ExecStream, ExecStreamFactory } from "@wsp/protocol";
 import { createClaudeAdapter } from "../src/adapter.js";
 import { ASIDE_HOOKS_ID, asideCommand, asideHooksLine, asidePrompt } from "../src/aside.js";
@@ -106,7 +106,7 @@ describe("asideCommand", () => {
     const picks = { cwd: "/root/spoo", model: "claude-opus-5", effort: "high", contextWindow: "1m", mcpServers: servers, memoryDir };
     const turn = buildCommand({ resume: SESSION, ...picks });
     const line = asideCommand({ fork: FORK, ...picks });
-    expect(line.startsWith("cd '/root/spoo' && claude -p ")).toBe(true);
+    expect(line.startsWith(`cd '/root/spoo' && ${agentWord("claude", undefined)} -p `)).toBe(true);
     // Every flag that shapes the request the model is sent: the model and its window, the effort, the servers whose
     // tools head the prompt, and the slate's brief at the end of the system prompt.
     for (const flag of [/--model '[^']*'/, /--effort '[^']*'/, /--mcp-config '[^']*'/, /--append-system-prompt '[^']*'/]) {

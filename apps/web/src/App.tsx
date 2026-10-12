@@ -14,6 +14,7 @@ import { FirstRun } from "./shell/FirstRun.js";
 import { ProjectHome } from "./shell/ProjectHome.js";
 import { WorkspaceCreation } from "./shell/WorkspaceCreation.js";
 import { WorkspaceThread } from "./shell/WorkspaceThread.js";
+import { wireAppProcs } from "./machine/appProcs.js";
 import { wireHostLive } from "./machine/hostLive.js";
 import { wireLinks } from "./shell/links.js";
 import { wireTerminals } from "./terminal/wiring.js";
@@ -57,6 +58,7 @@ export function App({ wsUrl, token, onUnauthorized }: AppProps) {
   }, [wsUrl, token, bind, setConn, noteGap, onUnauthorized]);
   useEffect(() => wireTerminals(useStore), []);
   useEffect(() => wireHostLive(useStore), []);
+  useEffect(() => wireAppProcs(useStore), []);
   useEffect(() => wireLinks(useStore), []);
   useThemeEffect();
   useFontEffect();

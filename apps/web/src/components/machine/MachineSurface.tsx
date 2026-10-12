@@ -124,21 +124,22 @@ export function spanPoints<T extends { at: number }>(readings: readonly T[], fro
 
 /** One series in the chart's grammar: the rule lines, each run of points as a line over a faint fill, and a dot on
  * the newest point. Separate runs draw no line between them, so a stretch with no reading is a gap. A chart too
- * small for the fill draws the line alone, since fills under short runs read as bars. */
-export function ChartPlot({ runs, label, end, fill = true, marked, className, height = "h-24" }: { runs: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>; label: string; end: boolean; fill?: boolean; /** A point a reader is on, drawn as the newest one is. */ marked?: { x: number; y: number } | undefined; className?: string; height?: string }) {
+ * small for the fill draws the line alone, since fills under short runs read as bars. A plot a few pixels tall
+ * keeps the zero baseline alone and fills stronger, or its area reads as a plain line. */
+export function ChartPlot({ runs, label, end, fill = true, rules = true, fillOpacity = 0.2, marked, className, height = "h-24" }: { runs: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>; label: string; end: boolean; fill?: boolean; rules?: boolean; fillOpacity?: number; /** A point a reader is on, drawn as the newest one is. */ marked?: { x: number; y: number } | undefined; className?: string; height?: string }) {
   const fade = useId();
   const drawn = runs.filter(run => run.length > 0);
   const newest = drawn[drawn.length - 1]?.at(-1);
   return (
     <div className={cn("relative", className)}>
       <svg className={cn("block w-full", height)} viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" role="img" aria-label={label}>
-        {[0.25, 0.5, 0.75, 1].map(at => (
+        {(rules ? [0.25, 0.5, 0.75, 1] : []).map(at => (
           <line key={at} x1={0} x2={CHART_W} y1={CHART_PAD + (1 - at) * (CHART_H - 2 * CHART_PAD)} y2={CHART_PAD + (1 - at) * (CHART_H - 2 * CHART_PAD)} className="stroke-border" strokeWidth={1} strokeDasharray={at === 1 ? undefined : "2 3"} vectorEffect="non-scaling-stroke" />
         ))}
-        <line x1={0} x2={CHART_W} y1={CHART_H - CHART_PAD} y2={CHART_H - CHART_PAD} className="stroke-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <line x1={0} x2={CHART_W} y1={CHART_H - CHART_PAD} y2={CHART_H - CHART_PAD} className={rules ? "stroke-border" : "stroke-border/60"} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         <defs>
           <linearGradient id={fade} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="currentColor" stopOpacity="0.2" />
+            <stop offset="0" stopColor="currentColor" stopOpacity={fillOpacity} />
             <stop offset="1" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
         </defs>

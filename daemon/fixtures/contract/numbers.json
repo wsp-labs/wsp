@@ -1,5 +1,5 @@
 {
-  "daemonVersion": 151,
+  "daemonVersion": 152,
   "execBodyMax": 16384,
   "prReplyBodyMax": 65536,
   "guestMessageCapBytes": 4194304,
@@ -39,12 +39,15 @@
   "portCommandBytes": 512,
   "procCap": 1000,
   "pidMax": 4194304,
+  "killPidsMax": 256,
+  "killGraceMs": 2000,
   "sshKeyMax": 1024,
   "sshIdleMs": 300000,
   "openBodyMax": 8192,
   "daemonDefaultHost": "0.0.0.0",
   "daemonDefaultPort": 7070,
   "daemonSamplerIntervalMs": 2000,
+  "daemonProcIntervalMs": 2000,
   "guestWspHome": "/root/.wsp",
   "workspaceOverlaid": [
     "/usr",

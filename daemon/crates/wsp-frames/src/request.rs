@@ -5,10 +5,14 @@ use std::num::{NonZeroU16, NonZeroU32};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::validate::{bounded, bounded_list, bounded_opt, capped_list, cgroup_paths, exec_timeout, sha256_hex, upload_word, watch_name};
+use crate::proc_owner::scopes;
+use crate::validate::{
+    bounded, bounded_list, bounded_list_opt, bounded_opt, capped_list, capped_pids, cgroup_paths, container_id, exec_timeout, sha256_hex,
+    upload_word, watch_name,
+};
 use crate::{
-    FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, MergeMethod, ProcSignal, ReactionContent, RequestId, ReviewEvent, ReviewSide,
-    UsageLogFormat,
+    FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, KillMode, MergeMethod, ProcScope, ProcSignal, ReactionContent, RequestId,
+    ReviewEvent, ReviewSide, UsageLogFormat,
 };
 
 /// One request on an authed socket: the id the reply echoes and the op with its parameters.
@@ -163,8 +167,11 @@ pub enum DaemonOp {
     InboxRescan,
     #[serde(rename = "sys.watch")]
     SysWatch,
+    #[serde(rename = "sys.unwatch")]
+    SysUnwatch,
     /// The computer's readings a minute apart between two instants, ms epoch, folded into steps of step_ms: what the
-    /// daemon kept while it ran, whether or not anybody watched.
+    /// daemon kept while it ran, whether or not anybody watched. A step under a minute answers the last fifteen
+    /// minutes of reads as they were taken.
     #[serde(rename = "sys.history", rename_all = "camelCase")]
     SysHistory { from: i64, to: i64, step_ms: u64 },
     /// What each agent's own store on this computer counted, for the stores the host names: counts, a model and a
@@ -199,13 +206,82 @@ pub enum DaemonOp {
         last: NonZeroU32,
     },
     #[serde(rename = "proc.watch")]
-    ProcWatch,
+    ProcWatch {
+        /// The cgroups whose processes this socket reads each tick, each with every cgroup under it, by the path
+        /// /proc/[pid]/cgroup names: a box's threads, so a busy box is not read whole every two seconds. The daemon's
+        /// own row comes with them. A watch that names none reads every process; a second watch on the socket names
+        /// the set again.
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "cgroup_paths")]
+        #[ts(optional)]
+        cgroups: Option<Vec<String>>,
+    },
     #[serde(rename = "proc.unwatch")]
     ProcUnwatch,
+    /// The threads whose processes these are, the whole list each time: every row proc.watch sends after it carries
+    /// the owner and kind they name.
+    #[serde(rename = "proc.scopes")]
+    ProcScopes {
+        #[serde(deserialize_with = "scopes")]
+        scopes: Vec<ProcScope>,
+    },
     #[serde(rename = "proc.inspect")]
     ProcInspect { pid: NonZeroU32 },
-    #[serde(rename = "proc.kill")]
-    ProcKill { pid: NonZeroU32, signal: ProcSignal },
+    #[serde(rename = "proc.list")]
+    ProcList,
+    /// TERM sends TERM and, to whatever of the targets is still there 2 s on, KILL; KILL sends KILL at once. Mode
+    /// picks the targets, the pid alone when absent. startedAt and identity (the row's id) are the row's own, so a pid reused since the row
+    /// was read is never signalled. protect, apps, agents and agentBins are the host's: pids never signalled; the app's
+    /// main processes, never signalled with everything under them; each running turn's root and recorded agent, which
+    /// no mode signals with every process between them, past a recorded launcher down to one run as a name in
+    /// agentBins, or from a root down to one run as such a name where no agent was recorded, since a thread's agent is
+    /// ended by stopping its thread. A daemon also refuses the root and agent of each turn its own run folder records. The three pid lists come only to
+    /// the daemon of the host's own computer; agentBins to every daemon, which in a thread's cgroup also refuses a
+    /// process run as one of those names and what stands above it there.
+    #[serde(rename = "proc.kill", rename_all = "camelCase")]
+    ProcKill {
+        pid: NonZeroU32,
+        signal: ProcSignal,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        mode: Option<KillMode>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        started_at: Option<i64>,
+        #[serde(default, deserialize_with = "bounded_opt::<_, 32>", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        identity: Option<String>,
+        #[serde(
+            default,
+            deserialize_with = "capped_pids::<_, { crate::numbers::KILL_PIDS_MAX }>",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[ts(optional)]
+        protect: Option<Vec<u32>>,
+        #[serde(
+            default,
+            deserialize_with = "capped_pids::<_, { crate::numbers::KILL_PIDS_MAX }>",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[ts(optional)]
+        apps: Option<Vec<u32>>,
+        #[serde(
+            default,
+            deserialize_with = "capped_pids::<_, { crate::numbers::KILL_PIDS_MAX }>",
+            skip_serializing_if = "Option::is_none"
+        )]
+        #[ts(optional)]
+        agents: Option<Vec<u32>>,
+        #[serde(default, deserialize_with = "bounded_list_opt::<_, 255, 64>", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        agent_bins: Option<Vec<String>>,
+    },
+    /// Stops one container through the engine, two seconds from its TERM to its KILL, and never removes it; one no label
+    /// or compose note places under a thread is refused as forbidden.
+    #[serde(rename = "container.stop")]
+    ContainerStop {
+        #[serde(deserialize_with = "container_id")]
+        container: String,
+    },
     #[serde(rename = "ping")]
     Ping,
     #[serde(rename = "fs.list", rename_all = "camelCase")]
@@ -893,7 +969,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 77] = [
+pub const DAEMON_OPS: [&str; 81] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -908,14 +984,18 @@ pub const DAEMON_OPS: [&str; 77] = [
     "inbox.watch",
     "inbox.rescan",
     "sys.watch",
+    "sys.unwatch",
     "sys.history",
     "usage.logs",
     "transcripts.list",
     "transcripts.read",
     "proc.watch",
     "proc.unwatch",
+    "proc.scopes",
     "proc.inspect",
+    "proc.list",
     "proc.kill",
+    "container.stop",
     "ping",
     "fs.list",
     "fs.files",

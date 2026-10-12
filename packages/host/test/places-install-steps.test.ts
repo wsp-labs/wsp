@@ -774,7 +774,9 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
     expect(readers[0]).toContain("--code-file '/home/maya/.wsp/join-code'");
     // Nothing the deploy runs asks that box about docker: the field a report was once refused for is gone from the
     // shape both sides read, so a deploy and a hand-run join cannot disagree about whether a report is valid.
-    expect(box.ran.join("\n")).not.toContain("docker");
+    // The leave's list names the docker a box's threads run and its notes folder, which no deploy line reads.
+    const at = placeDaemonPaths("/home/maya");
+    expect(box.ran.join("\n").replaceAll(`${at.guestBin}/docker`, "").replaceAll(at.dockerNotes, "")).not.toContain("docker");
     expect(Object.keys(PlaceReport.shape)).not.toContain("docker");
     expect(PlaceReport.safeParse({ ...(await placeReport({ name: "box", home: tmp("one-reader-home") })), dialed: "http://192.168.1.20:4400" }).success).toBe(true);
   });

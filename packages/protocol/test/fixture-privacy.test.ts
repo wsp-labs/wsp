@@ -57,6 +57,7 @@ const SAMPLE_HOME =
   "a sample path copied from a real computer before this scan and read only as text: the MCP record's folder listings and the reads that write them, where a new home means regenerating the record, the dev harness pages, the daemon contract's frames, a report link the renderer must leave unlinked, and test text";
 const ASIDE = "a synthetic id in a recorded mid-turn Claude Code session, linking each line to the one before and each call to its result";
 const CURSOR = "a recorded Cursor turn; the call id is cut short";
+const SPEND = "a recorded Claude Code turn whose two background subagents outlive the lead's first result, read for what each spent; the session and tool ids are synthetic and pair each call with its result";
 const HANDBACK = "a recorded Claude Code turn ending a subagent or a background command, in auto mode or the default one; the session and tool ids are synthetic and pair each call with its result";
 /** Every recorded id or real home the fixtures and test sources still carry, in whichever file, as many times as count
  * says, each with why it stays. */
@@ -93,6 +94,11 @@ const ALLOWED: readonly Allowed[] = [
   { text: "toolu_01WspFixHandBgCall", count: 3, why: HANDBACK },
   { text: "toolu_01WspFixHandFg", count: 10, why: HANDBACK },
   { text: "toolu_01WspFixHandFgCall", count: 3, why: HANDBACK },
+  { text: "21031000-0000-4aaa-8bbb-000000000001", count: 41, why: SPEND },
+  { text: "toolu_01WspFixProbeOne", count: 10, why: SPEND },
+  { text: "toolu_01WspFixProbeTwo", count: 10, why: SPEND },
+  { text: "toolu_01WspFixProbeBashOne", count: 5, why: SPEND },
+  { text: "toolu_01WspFixProbeBashTwo", count: 5, why: SPEND },
   { text: "21921000-0000-4aaa-8bbb-000000000003", count: 22, why: HANDBACK },
   { text: "21921000-0000-4aaa-8bbb-000000000004", count: 26, why: HANDBACK },
   { text: "21921000-0000-4aaa-8bbb-000000000005", count: 36, why: HANDBACK },

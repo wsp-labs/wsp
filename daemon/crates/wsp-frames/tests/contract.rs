@@ -11,15 +11,15 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use wsp_frames::{
-    guest_wsp_shim, landed_files_script, numbers, outside_sweep_script, place_owned_paths, probe_path, words, BackendFacts, CopyReport,
-    DaemonAuthRequest, DaemonErrorResponse, DaemonEvent, DaemonRequest, FsFilesReply, GitBranchCompareReply, GitBranchesReply,
+    docker_shim, guest_wsp_shim, landed_files_script, numbers, outside_sweep_script, place_owned_paths, probe_path, words, BackendFacts,
+    CopyReport, DaemonAuthRequest, DaemonErrorResponse, DaemonEvent, DaemonRequest, FsFilesReply, GitBranchCompareReply, GitBranchesReply,
     GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiscardReply, GitIssueReadReply, GitMergeInReply, GitPrCheckoutReply,
     GitPrDiffReply, GitPrListReply, GitPrMergeReply, GitPrReactReply, GitPrReadReply, GitPrReply, GitPrReplyReply, GitPrResolveReply,
     GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply, GitStartOnReply,
     GitUpdateReply, GitWorktreesReply, GuestCliMessage, GuestOpenReply, HostFolderListing, MachineAnswersReply, MachineExecReply,
     MachineHandleReply, MachineLinkRequest, MachineListReply, MachineReachReply, MachineReadingReply, MachineShapeReply, MachineStateReply,
-    PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, SshStartReply, SysHistoryReply, TranscriptsListReply, TranscriptsReadReply,
-    UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
+    PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, ProcKillReply, ProcListReply, SshStartReply, SysHistoryReply, TranscriptsListReply,
+    TranscriptsReadReply, UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
 };
 
 fn fixtures() -> PathBuf {
@@ -313,6 +313,14 @@ fn every_reply_fixture_round_trips_through_the_reply_types() {
                 "SysHistoryReply" => {
                     round_trip::<SysHistoryReply>(&sample, &at);
                 }
+                "ProcListReply" => {
+                    round_trip::<ProcListReply>(&sample, &at);
+                }
+                // A daemon a version behind answers a kill with nothing; the host reads that, this daemon never writes it.
+                "ProcKillReply" if sample == serde_json::json!({}) => {}
+                "ProcKillReply" => {
+                    round_trip::<ProcKillReply>(&sample, &at);
+                }
                 "UsageLogsReply" => {
                     round_trip::<UsageLogsReply>(&sample, &at);
                 }
@@ -376,6 +384,8 @@ fn every_reply_fixture_round_trips_through_the_reply_types() {
         "MachineStateReply",
         "SshStartReply",
         "SysHistoryReply",
+        "ProcKillReply",
+        "ProcListReply",
         "TranscriptsListReply",
         "TranscriptsReadReply",
         "UsageLogsReply",
@@ -497,10 +507,13 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("portCommandBytes", Value::from(numbers::PORT_CMDLINE_CAP_BYTES));
     m.insert("procCap", Value::from(numbers::PROC_CAP));
     m.insert("pidMax", Value::from(numbers::PID_MAX));
+    m.insert("killPidsMax", Value::from(numbers::KILL_PIDS_MAX));
+    m.insert("killGraceMs", Value::from(numbers::KILL_GRACE_MS));
     m.insert("openBodyMax", Value::from(numbers::OPEN_BODY_CAP));
     m.insert("daemonDefaultHost", Value::from(numbers::DEFAULT_HOST));
     m.insert("daemonDefaultPort", Value::from(numbers::DEFAULT_PORT));
     m.insert("daemonSamplerIntervalMs", Value::from(numbers::SAMPLER_INTERVAL_MS));
+    m.insert("daemonProcIntervalMs", Value::from(numbers::PROC_INTERVAL_MS));
     m.insert("guestWspHome", Value::from(numbers::GUEST_WSP_HOME));
     m.insert("workspaceOverlaid", Value::from(numbers::OVERLAID.to_vec()));
     m.insert("homebrewHome", Value::from(numbers::HOMEBREW_HOME));
@@ -621,6 +634,13 @@ fn the_wsp_shim_matches_the_committed_fixture_byte_for_byte() {
     let path = fixtures().join("guest-wsp-shim.sh");
     let theirs = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     assert_eq!(guest_wsp_shim(SHIM_BINARY), theirs, "guest-wsp-shim.sh and guest_wsp_shim are one text");
+}
+
+#[test]
+fn the_docker_shim_matches_the_committed_fixture_byte_for_byte() {
+    let path = fixtures().join("docker-shim.sh");
+    let theirs = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    assert_eq!(docker_shim("{bin}", "{notes}"), theirs, "docker-shim.sh and docker_shim are one text");
 }
 
 #[test]

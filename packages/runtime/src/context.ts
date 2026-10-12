@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { ActivityArea } from "./activity.js";
 import type {
   GoneWatch,
   Builder,
@@ -17,7 +18,7 @@ import type {
   VaultOptions,
   BoxLimits,
 } from "@wsp/engine";
-import type { DaemonFrame, PlaceKind } from "@wsp/protocol";
+import type { DaemonFrame, PlaceKind, ProcKind, ProcScope } from "@wsp/protocol";
 import type {
   AdapterEvent,
   SessionOrigin,
@@ -355,6 +356,7 @@ export interface ChannelsArea {
   readonly GUEST_ROAD_FRAMES: string[];
   readonly portPids: Map<string, Map<string, number>>;
   readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
+  readonly killGuarded: (channel: DaemonChannel, here: boolean) => DaemonChannel;
   readonly threadTagged: (workspaceId: string, channel: DaemonChannel) => DaemonChannel;
   /** Each workspace's shell tags as read from the store, and its write of them while one is in flight: a deleted
    * workspace's tags go once its last write settles. */
@@ -362,7 +364,8 @@ export interface ChannelsArea {
   readonly tagWrites: ReadonlyMap<string, Promise<void>>;
   readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
   readonly sharedDaemonReplaced: () => void;
-  readonly turnGroups: Map<string, Set<number>>;
+  /** By workspace, each process group a turn led and the thread whose turn it was. */
+  readonly turnGroups: Map<string, Map<number, string>>;
   readonly armRootsRecheck: () => void;
   readonly portRootsMoved: (workspaceId: string) => void;
   readonly rootedPorts: (workspaceId: string, folder: string, ptys: Map<string, number>, channel: DaemonChannel) => DaemonChannel;
@@ -370,6 +373,16 @@ export interface ChannelsArea {
   readonly leadStart: (lead: LiveWorkspace, child: string, road: "fork" | "run") => Promise<ChildStart>;
   readonly startChildOn: (child: LiveWorkspace, branch: string, lead: string) => Promise<string>;
   readonly sameRepository: (a: ProjectView, b: ProjectView, caller: Caller | undefined) => boolean;
+}
+
+export interface ProcScopesArea {
+  /** Names a process this host started for a thread (a slate run, a tool server) to the daemon's owner ladder until
+   * the returned release is called. */
+  readonly ownProcess: (threadId: string, pid: number, kind: ProcKind) => () => void;
+  readonly procScopesMoved: () => void;
+  readonly scopesHere: () => ProcScope[];
+  readonly scopesOn: (placeId: string) => ProcScope[];
+  readonly scopedProcs: (scopes: () => ProcScope[], channel: DaemonChannel) => DaemonChannel;
 }
 
 export interface RecordsArea {
@@ -902,4 +915,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;

@@ -303,6 +303,7 @@ import { transcriptsArea } from "./threads/transcripts.js";
 import { slatesArea } from "./account/slates.js";
 
 import { channelsArea } from "./account/channels.js";
+import { procScopesArea } from "./account/proc-scopes.js";
 
 import { recordsArea } from "./images/records.js";
 
@@ -345,6 +346,7 @@ import { projectsArea } from "./projects/projects.js";
 
 import { usageArea } from "./account/usage.js";
 import { conversationsArea } from "./threads/conversations.js";
+import { activityDoor } from "./activity.js";
 
 import { statusArea } from "./account/status.js";
 
@@ -425,6 +427,7 @@ export {
 export function createRuntime(opts: RuntimeOptions): Runtime {
   const ctx = {} as RuntimeContext;
   Object.assign(ctx, runtimeCore(ctx, opts));
+  Object.assign(ctx, { activity: activityDoor(ctx) });
   Object.assign(ctx, kindsArea(ctx));
 
   Object.assign(ctx, rulesArea(ctx));
@@ -434,6 +437,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
   Object.assign(ctx, slatesArea(ctx));
 
   Object.assign(ctx, channelsArea(ctx));
+  Object.assign(ctx, procScopesArea(ctx));
 
   Object.assign(ctx, recordsArea(ctx));
 
@@ -1028,11 +1032,22 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
           },
         }
       : {}),
-    hereChannel: async onEvent => ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent)),
+    ownProcess: (threadId, pid, kind) => ctx.ownProcess(threadId, pid, kind),
+    hereChannel: async onEvent => ctx.killGuarded(ctx.scopedProcs(ctx.scopesHere, ctx.heldToOwner(HERE_PLACE_ID, await ctx.channelOver(await ctx.localRoad(), THIS_COMPUTER, onEvent))), true),
+    placeKills: channel => ctx.killGuarded(channel, false),
+    watchPlaceSys: async (placeId, fn) => {
+      if (placeId !== HERE_PLACE_ID) {
+        if (ctx.placeDoor === undefined) throw new Error(noSuchPlaceRefusal(placeId, []));
+        return ctx.placeDoor.watchSys(placeId, fn);
+      }
+      if (ctx.local?.sysSamples === undefined) throw new Error("this host reads nothing of the computer it runs on");
+      return ctx.local.sysSamples(fn);
+    },
     agents: { ...ctx.agentsRead, homesHere: ctx.homesHere },
     preferences: ctx.preferences,
     usage: ctx.usage,
     conversations: ctx.conversations,
+    activity: ctx.activity,
     status: {
       ...ctx.status,
       // Which workspaces this caller is served is decided here, after the probes, off the same reading the other

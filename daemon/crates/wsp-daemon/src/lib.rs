@@ -7,7 +7,9 @@ mod auth;
 mod beneath;
 mod bring_back;
 mod clock;
+mod containers;
 mod door;
+mod engine_http;
 mod exec;
 mod files;
 mod fs;
@@ -17,6 +19,7 @@ mod hash;
 mod hosts;
 mod image;
 mod inbox;
+mod kill;
 #[cfg(target_os = "macos")]
 mod libproc;
 mod link;
@@ -29,6 +32,9 @@ mod place;
 mod ports;
 mod proc;
 mod proc_local;
+mod proc_owner;
+#[cfg(target_os = "macos")]
+mod proc_track;
 mod pty;
 mod readings;
 mod readings_history;
@@ -139,6 +145,9 @@ pub struct Options {
     pub readings_dir: Option<PathBuf>,
     /// How often the kept readings read the computer; the rule's own where unset. Only a case has use for another.
     pub readings_interval_ms: Option<u64>,
+    /// The folder a thread's docker writes its compose notes in: the host's, for this computer's daemon; the place's
+    /// own `docker-notes` where unset.
+    pub docker_notes: Option<PathBuf>,
 }
 
 impl Options {
@@ -185,6 +194,7 @@ impl Options {
             install_root: None,
             readings_dir: None,
             readings_interval_ms: None,
+            docker_notes: None,
         }
     }
 }
@@ -293,7 +303,8 @@ pub(crate) struct Ctx {
     /// file it binds, which sits in that workspace's own wsp folder and so inside that workspace alone.
     workspace_doors: Mutex<HashMap<String, WorkspaceDoor>>,
     keys: AtomicU64,
-    /// The readings this daemon keeps a minute apart for as long as it runs, which sys.history reads back.
+    /// The readings this daemon keeps a minute apart for as long as it runs and its last fifteen minutes of reads,
+    /// which sys.history reads back.
     pub(crate) history: Arc<readings_history::History>,
     /// What each agent store file came to at its last usage.logs, for as long as this daemon runs.
     pub(crate) usage_logs: Arc<usage_logs::UsageCache>,
@@ -452,6 +463,9 @@ impl Ctx {
             }
         };
         let _ = self.computer_door.set(kept);
+        if let Err(e) = write_docker_shim(&at.guest_bin, &at.docker_notes) {
+            self.log(&format!("this computer's threads run docker unlabelled: {}: {e}", at.guest_bin.join("docker").display()));
+        }
     }
 
     /// The door goes with the workspace it was inside: this ends the loop, and the file it was bound on is the
@@ -516,8 +530,35 @@ impl Ctx {
             log: Arc::clone(&self.log),
         };
         let sampler = proc::ProcSampler::new((kind.processes)(&self.readings_options()), opts);
+        if kind.containers {
+            sampler.read_containers(self.container_reader());
+        }
         *held = Some(Arc::clone(&sampler));
         Ok(sampler)
+    }
+
+    /// The engine's containers on this computer, read with the person's own Docker setup and the notes its threads'
+    /// docker writes.
+    fn container_reader(&self) -> Arc<containers::ContainerReader> {
+        let home = self.options.home.clone().or_else(|| std::env::var_os("HOME").map(PathBuf::from));
+        let notes = self
+            .options
+            .docker_notes
+            .clone()
+            .unwrap_or_else(|| wsp_frames::place_daemon_paths(&place::place_home(self.options.home.as_deref())).docker_notes);
+        let readings = self.readings_options();
+        containers::ContainerReader::new(containers::ReaderOptions {
+            home,
+            docker_host: std::env::var("DOCKER_HOST").ok(),
+            notes,
+            proc_root: readings.proc_root,
+            cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+            cgroups: cfg!(target_os = "linux"),
+            stats_every: containers::STATS_EVERY,
+            retry: containers::RETRY_EVERY,
+            now: Arc::new(sys::now_ms),
+            log: Arc::clone(&self.log),
+        })
     }
 
     /// A number no other socket or listener in this daemon has.
@@ -782,6 +823,20 @@ fn write_wsp_shim(helper: Option<&Path>, bin: &Path, door: &Path, unit: Option<&
     std::fs::create_dir_all(bin)?;
     let shim = wsp_frames::computer_wsp_shim(&exe.to_string_lossy(), &door.to_string_lossy(), unit);
     wsp_runtime::bundle::write_file_in(bin, "wsp", shim.as_bytes(), 0o755).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+/// The docker a thread on this computer finds beside its wsp, which labels the containers it makes. Apart from the
+/// door: a thread without its wsp tools still runs docker.
+#[cfg(target_os = "linux")]
+fn write_docker_shim(bin: &Path, notes: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(bin)?;
+    let shim = wsp_frames::docker_shim(&bin.to_string_lossy(), &notes.to_string_lossy());
+    wsp_runtime::bundle::write_file_in(bin, "docker", shim.as_bytes(), 0o755).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn write_docker_shim(_: &Path, _: &Path) -> std::io::Result<()> {
+    Ok(())
 }
 
 #[cfg(not(target_os = "linux"))]

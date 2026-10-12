@@ -26,6 +26,7 @@ import { AddButton } from "../components/ui/add-button.js";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../components/ui/select.js";
 import { PROJECT_GLYPHS } from "../projects/look.js";
 import { Button, DANGER_BUTTON } from "../components/ui/button.js";
+import { useComputerLive } from "../machine/computerLive.js";
 import { useStore } from "../protocol/store.js";
 import { DialButton, useDialPlace } from "./AbsentRoad.js";
 import { AddComputer } from "./AddComputer.js";
@@ -36,12 +37,14 @@ import { ComputerSignIns } from "./ComputerSignIns.js";
 import { readRecipes, useRecipes } from "./recipesStore.js";
 import { ComputerGlyph, useComputerIcon } from "./ComputerGlyph.js";
 import { BehindRow, LimitsCard, NameCard, SpawnCard } from "./computerSettings.js";
-import { ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, SETUP_CARD_WORDS, WHERE_WORDS, capitalised } from "./format.js";
+import { ACTIVITY_WORDS, ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, SETUP_CARD_WORDS, WHERE_WORDS, capitalised } from "./format.js";
+import { activityComputers } from "./activity/page.js";
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
 import { copyOn } from "./image.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
+import { LiveBand } from "./LiveBand.js";
 import { openImageRecipe } from "./openAt.js";
-import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
+import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeIsOffline, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
 import { cloudsOffered, keyHeld } from "./providers.js";
 import { RemoveComputerDialog } from "./RemoveComputerDialog.js";
 import { CARD_SURFACE, Card, HeadRow, Row, type SettingsCardData, type SettingsRowData } from "./rows.js";
@@ -229,6 +232,8 @@ const placeGlyph = (place: PlaceView) => (
 export function ComputerListRow({ place, running, cell, open, ctx }: { place: PlaceView; running: number; cell: PlaceStateCell; open?: () => void; ctx: Pick<SettingsContext, "setPreferences" | "shell"> }) {
   const menu = useRowMenu(place, ctx);
   const fact = versionFact(place, ctx.shell.host);
+  const live = useStore(s => s.conn === "live");
+  useComputerLive(place.id, !placeIsOffline(place));
   return (
     <GridRow columns={LIST_COLUMNS} {...(open === undefined ? {} : { open })} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
       <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(place.default ? { tag: WHERE_WORDS.default } : {})} {...(fact === undefined ? {} : { fact })} />
@@ -241,6 +246,7 @@ export function ComputerListRow({ place, running, cell, open, ctx }: { place: Pl
       <Num k="threads">{running}</Num>
       <PlaceState place={place} cell={cell} {...(open === undefined ? {} : { onSignIn: open })} />
       {open === undefined ? <span /> : <Chevron />}
+      <LiveBand placeId={place.id} away={placeIsOffline(place) || !live} />
     </GridRow>
   );
 }
@@ -533,6 +539,26 @@ function AgentsLink({ place, ctx }: { place: PlaceView; ctx: SettingsContext }) 
   );
 }
 
+/** Activity scoped to this computer: what its threads run, their memory and CPU. Its line reads only what the page
+ * already holds, since nothing samples the computer while Activity is closed. */
+function ActivityLink({ place, ctx }: { place: PlaceView; ctx: SettingsContext }) {
+  const running = runningThreadsOn(ctx)[place.id] ?? 0;
+  return (
+    <Card id="computer-activity">
+      <Row
+        id="activity-on"
+        title={ACTIVITY_WORDS.computerRow}
+        description={ACTIVITY_WORDS.computerLine(running)}
+        open={() => {
+          useSettingsStore.getState().pickActivityPlace(place.id);
+          ctx.go({ kind: "group", group: "activity" });
+        }}
+        attrs={{ "data-k": "activity-on" }}
+      />
+    </Card>
+  );
+}
+
 /** A computer's setup on its page: the whole log while it runs or once it ended failed; once it ended otherwise, one
  * row, the log behind Show setup log. The row reads Needs you only where the computer's own word does, naming the rows
  * left, and Done otherwise, naming any row that failed. The log keeps its
@@ -595,6 +621,7 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
       {cloud || place.picks === undefined ? null : <RecipeCard place={place} ctx={ctx} />}
       {cloud || place.setup === undefined ? null : <SetupCard place={place} />}
       {cloud || here ? null : <ComputerSignIns place={place} now={ctx.now} />}
+      {activityComputers(ctx.places, ctx.workspaces).some(c => c.place.id === place.id) ? <ActivityLink place={place} ctx={ctx} /> : null}
       <LimitsCard place={place} />
       {cloud ? null : <SpawnCard place={place} />}
       {cloud ? image === null ? null : <ReportLists report={imageAgentsReport(image, place.id)} ctx={{ where: "provider", on: name, editImage: () => openImageRecipe(place.id) }} /> : <AgentsLink place={place} ctx={ctx} />}

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { agentWord } from "@wsp/protocol";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +13,7 @@ const CHAT = "c6b62c6f-7ead-4fd6-9922-e952131177ff";
 describe("the agent print line", () => {
   it("runs one stream-json turn in the folder it trusts, resumes by chat and takes the model", () => {
     const line = buildCommand({ prompt: "list the files", cwd: "/root/app", resume: CHAT, model: "claude-opus-4-8[context=1m,effort=high]" });
-    expect(line.startsWith("cd '/root/app' && cursor-agent -p --output-format stream-json --stream-partial-output --trust --workspace '/root/app'")).toBe(true);
+    expect(line.startsWith(`cd '/root/app' && ${agentWord("cursor-agent", undefined)} -p --output-format stream-json --stream-partial-output --trust --workspace '/root/app'`)).toBe(true);
     expect(line).toContain(" --model 'claude-opus-4-8[context=1m,effort=high]'");
     expect(line).toContain(` --resume ${CHAT}`);
   });

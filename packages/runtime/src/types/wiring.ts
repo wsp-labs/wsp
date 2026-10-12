@@ -72,7 +72,7 @@ import type { StatusApi, StatusListOptions, StatusWatchOptions } from "../status
 import type { PlaceWiring } from "../places.js";
 import type { Store } from "../store.js";
 import type { GitHubCache } from "../github-cache.js";
-import type { ReadingsAnswer, AccountsAnswer, ResetAnswer, UsageRange, UsageSplit, UsedAnswer } from "@wsp/protocol";
+import type { ReadingsAnswer, ReadingsRange, AccountsAnswer, ResetAnswer, UsageRange, UsageSplit, UsedAnswer } from "@wsp/protocol";
 import type { ReviewDraft, WorkspaceFrom } from "@wsp/protocol";
 import type { HarnessAdapterFactory } from "./harness.js";
 
@@ -1019,7 +1019,7 @@ export interface UsageDoor {
   accounts(ask?: { fresh?: boolean }): Promise<AccountsAnswer>;
   /** A computer's readings over a range, off the daemon that kept them: this computer, a joined one, or a workspace's
    * own machine. A daemon that keeps none, or none yet, answers no points. */
-  readings(target: { placeId: string } | { workspaceId: string }, range: UsageRange, origin?: Caller): Promise<ReadingsAnswer>;
+  readings(target: { placeId: string } | { workspaceId: string }, range: ReadingsRange, origin?: Caller): Promise<ReadingsAnswer>;
   /** Spends one of an account's banked resets on a computer of the person's that holds its login, `on` naming one by
    * a word a person types. Refused before anything runs for a key, an away computer and a provider's machines. */
   reset(ask: { account: string; creditId?: string; on?: string }): Promise<ResetAnswer>;

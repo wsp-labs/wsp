@@ -206,6 +206,41 @@ describe("an agent's own subagents as children of its thread", () => {
     await rt2.close();
   });
 
+  it("a child lists what it has spent as of its newest row, its end's in all, and a restart's replay writes no spend row twice", async () => {
+    const h = machineRuns();
+    const store = memoryStore();
+    const backend = stubBackend();
+    const { rt, ws, run } = await begin(h, store, backend);
+    const tokens = (input: number, output: number) => ({ input, output, cached: 0, cacheWrite: 0, reasoning: 0 });
+    const spent = (task: string, state: "running" | "done", usage: { tokens: ReturnType<typeof tokens>; toolUses: number; durationMs: number }): AdapterEvent => ({ type: "subagent", sessionId: "sess-1", task, state, parentToolUseId: `toolu_${task}`, usage });
+    h.emit(run, started("a1", "sess-1"));
+    h.emit(run, spent("a1", "running", { tokens: tokens(10_310, 16), toolUses: 1, durationMs: 1_085 }));
+    await until(async () => subagentRows(await rt.sessions.history(ws.id)).length === 2);
+    expect((await rt.sessions.list(ws.id))[0]!.subagents?.[0]).toMatchObject({ id: "a1", title: "count a1", state: "running", usage: { tokens: tokens(10_310, 16), toolUses: 1, durationMs: 1_085 } });
+    await rt.close();
+
+    const rt2 = createRuntime({ backend, store, adapters: { claude: h.adapter } });
+    h.emit(run, spent("a1", "done", { tokens: tokens(21_274, 19), toolUses: 1, durationMs: 14_370 }));
+    await until(async () => subagentRows(await rt2.sessions.history(ws.id)).length === 3);
+    expect(subagentRows(await rt2.sessions.history(ws.id)).filter(e => e.usage !== undefined)).toHaveLength(2);
+    const [child] = (await rt2.sessions.list(ws.id))[0]!.subagents!;
+    expect(child).toMatchObject({ id: "a1", title: "count a1", state: "done", usage: { tokens: tokens(21_274, 19), toolUses: 1, durationMs: 14_370 } });
+    await rt2.close();
+  });
+
+  it("a child its turn's end stopped keeps what it spent and no run time, since its last progress row's is from before the end", async () => {
+    const h = machineRuns();
+    const { rt, ws, run } = await begin(h);
+    h.emit(run, started("a1", "sess-1"));
+    h.emit(run, { type: "subagent", sessionId: "sess-1", task: "a1", state: "running", parentToolUseId: "toolu_a1", usage: { toolUses: 5, durationMs: 6_018 } });
+    reply(h, run, "sess-1");
+    await until(async () => (await rt.sessions.list(ws.id))[0]!.status === "completed");
+    const [child] = (await rt.sessions.list(ws.id))[0]!.subagents!;
+    expect(child).toMatchObject({ id: "a1", state: "stopped", usage: { toolUses: 5 } });
+    expect(child!.usage).toEqual({ toolUses: 5 });
+    await rt.close();
+  });
+
   it("a run a host from before subagents were recorded wrote is re-read with its children and no delta twice", async () => {
     const h = machineRuns();
     const store = memoryStore();

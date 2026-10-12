@@ -10,35 +10,37 @@
 //! and a daemon has pipes for streams.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use wsp_frames::{numbers, ProcEntry, ProcInspectReply};
+use wsp_frames::{numbers, ProcEntry, ProcInspectReply, ProcScope};
 
 use crate::paths::OpError;
 use crate::proc::{children_of, listening_ports_of, no_process, ProcScan, ProcScanInput, ProcSource};
+use crate::proc_owner::{folder_in, mark_in, Mark, Owned, OwnerFacts};
 use crate::sys::finite;
 use crate::sys_local::host_command;
 
 /// ps prints resident memory in kibibytes.
 const RSS_UNIT: u64 = 1024;
 
-/// The columns the pane reads, in one order both platforms print: the identity, the state, the memory the table
+/// The columns the pane reads, in one order both platforms print: the identity and the group, the state, the memory the table
 /// sorts on, the cpu the machine has spent, the time it has run, and the argv last, which is the only column
 /// allowed to hold spaces here. The start time is the elapsed time taken off the scan's clock: ps prints it as a
 /// local date otherwise, which nothing here can turn back into an instant without the C library's calendar.
-const PS_COLUMNS: &str = "pid=,ppid=,state=,user=,rss=,time=,etime=,args=";
+const PS_COLUMNS: &str = "pid=,ppid=,pgid=,state=,user=,rss=,time=,etime=,args=";
 /// The accounting name on its own, where everything after the pid is the name however many spaces it holds.
 const PS_NAMES: &str = "pid=,ucomm=";
 /// How far a start time read off two scans may drift before the pid counts as a new process: the elapsed column
 /// is whole seconds, so the same process reads up to a second apart from one tick to the next.
-const SAME_START_MS: i64 = 2_000;
+pub(crate) const SAME_START_MS: i64 = 2_000;
 
 /// One process as either road read it, before the sampler's own clock turns its cpu time into a share of the window.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PsRow {
     pub(crate) pid: u32,
     pub(crate) ppid: u32,
+    pub(crate) pgid: u32,
     pub(crate) user: String,
     pub(crate) state: String,
     /// The accounting name; empty for a pid ps named between its two reads, until the next tick.
@@ -48,6 +50,10 @@ pub(crate) struct PsRow {
     pub(crate) cpu_seconds: f64,
     pub(crate) rss: u64,
     pub(crate) started_at: i64,
+    /// Nanojoules its cpu work has drawn since it started, where the kernel counts them: a Mac does, ps does not.
+    pub(crate) energy_nj: Option<u64>,
+    /// The kernel's unique id where the road reads it (libproc), which a kill checks the pid by.
+    pub(crate) id: Option<String>,
 }
 
 /// Seconds behind a ps time column, `[dd-][hh:]mm:ss[.cc]`: a Mac's ps carries hundredths and Linux's whole
@@ -86,10 +92,10 @@ pub(crate) fn parse_ps_names(text: &str) -> HashMap<u32, String> {
     names
 }
 
-/// The first seven columns as words and the rest of the line as the argv.
-fn columns(line: &str) -> Option<([&str; 7], &str)> {
+/// The first eight columns as words and the rest of the line as the argv.
+fn columns(line: &str) -> Option<([&str; 8], &str)> {
     let mut rest = line.trim_start();
-    let mut words = [""; 7];
+    let mut words = [""; 8];
     for word in &mut words {
         let end = rest.find(char::is_whitespace)?;
         *word = &rest[..end];
@@ -106,8 +112,11 @@ fn columns(line: &str) -> Option<([&str; 7], &str)> {
 pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
     let mut rows = Vec::new();
     for line in text.lines() {
-        let Some(([pid, ppid, state, user, rss, time, etime], args)) = columns(line) else { continue };
-        let (Ok(pid), Ok(ppid), Ok(rss)) = (pid.parse::<u32>(), ppid.parse::<u32>(), rss.parse::<u64>()) else { continue };
+        let Some(([pid, ppid, pgid, state, user, rss, time, etime], args)) = columns(line) else { continue };
+        let (Ok(pid), Ok(ppid), Ok(pgid), Ok(rss)) = (pid.parse::<u32>(), ppid.parse::<u32>(), pgid.parse::<u32>(), rss.parse::<u64>())
+        else {
+            continue;
+        };
         let Some(letter) = state.chars().next() else { continue };
         if etime.is_empty() || !etime.bytes().all(|b| b.is_ascii_digit() || b == b':' || b == b'-') {
             continue;
@@ -119,6 +128,7 @@ pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
         rows.push(PsRow {
             pid,
             ppid,
+            pgid,
             user: user.to_owned(),
             state: letter.to_string(),
             comm: String::new(),
@@ -126,6 +136,8 @@ pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
             cpu_seconds: ps_seconds(time),
             rss: rss * RSS_UNIT,
             started_at: at - (ps_seconds(etime) * 1000.0) as i64,
+            energy_nj: None,
+            id: None,
         });
     }
     rows.sort_by_key(|r| r.pid);
@@ -137,13 +149,28 @@ pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
 pub(crate) type PortsOfPid = Arc<dyn Fn(u32) -> Result<Vec<u16>, String> + Send + Sync>;
 
 /// The person's processes as rows, by the road this computer reads them, for the user and the scan's clock.
-type RowsOf = Box<dyn Fn(&str, i64) -> Result<Vec<PsRow>, String> + Send + Sync>;
+/// The rows, and the cpu milliseconds the commands run to read them spent.
+type RowsOf = Box<dyn Fn(&str, i64) -> Result<(Vec<PsRow>, f64), String> + Send + Sync>;
 
-/// How this computer is read: its processes, one pid's listening ports and one pid's folder.
+type FollowScopes = Box<dyn Fn(&[ProcScope]) + Send + Sync>;
+
+/// The threads a Mac's fork tracker follows, and the thread it followed a pid from.
+pub(crate) struct Forks {
+    follow: FollowScopes,
+    owner_of: Box<dyn Fn(u32) -> Option<Owned> + Send + Sync>,
+}
+
+/// How this computer is read: its processes, one pid's listening ports and one pid's folder, and what the owner
+/// ladder reads off a pid every tick, so none of those spawns anything.
 pub(crate) struct Road {
     rows: RowsOf,
     pub(crate) ports: PortsOfPid,
     folder: fn(u32) -> Option<String>,
+    mark: fn(u32) -> Option<Mark>,
+    cwd: fn(u32) -> Option<PathBuf>,
+    coalition: fn(u32) -> Option<u64>,
+    unique: fn(u32) -> Option<u64>,
+    forks: Option<Forks>,
 }
 
 /// The road for the system the daemon runs on, by the platform word the readings pick it with: libproc on a Mac, ps
@@ -153,31 +180,88 @@ pub(crate) fn road_for(platform: &str) -> Road {
     if platform == "macos" {
         return mac::road();
     }
+    let linux = platform == "linux";
     let ports: PortsOfPid =
-        if platform == "linux" { Arc::new(|pid| Ok(listening_ports_of(Path::new("/proc"), pid))) } else { Arc::new(|_| Ok(Vec::new())) };
-    Road { rows: Box::new(ps_rows), ports, folder: lsof_folder }
+        if linux { Arc::new(|pid| Ok(listening_ports_of(Path::new("/proc"), pid))) } else { Arc::new(|_| Ok(Vec::new())) };
+    Road {
+        rows: Box::new(ps_rows),
+        ports,
+        folder: lsof_folder,
+        mark: if linux { |pid| mark_in(Path::new("/proc"), pid) } else { |_| None },
+        cwd: if linux { |pid| folder_in(Path::new("/proc"), pid) } else { |_| None },
+        coalition: |_| None,
+        unique: |_| None,
+        forks: None,
+    }
 }
 
 /// ps exits non-zero with what it printed when a selection matches nothing, so a run that printed rows is read
 /// whatever its status; one that printed nothing is a machine this module cannot read, and the refusal travels so the
 /// pane says so instead of showing an empty table as a fact.
-fn ps_read(user: &str, columns: &str) -> Result<String, String> {
-    let output = host_command("ps", &["-ww", "-U", user, "-o", columns]).output().map_err(|e| format!("ps: {e}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    if stdout.trim().is_empty() {
-        return Err(format!("ps -U {user} printed nothing: {}", String::from_utf8_lossy(&output.stderr).trim()));
+fn ps_read(user: &str, columns: &str) -> Result<Counted, String> {
+    let read = counted(host_command("ps", &["-ww", "-U", user, "-o", columns])).map_err(|e| format!("ps: {e}"))?;
+    if read.stdout.trim().is_empty() {
+        return Err(format!("ps -U {user} printed nothing: {}", read.stderr.trim()));
     }
-    Ok(stdout)
+    Ok(read)
 }
 
-fn ps_rows(user: &str, at: i64) -> Result<Vec<PsRow>, String> {
+/// What a command run to its end printed, its pid, and the cpu milliseconds it spent.
+pub(crate) struct Counted {
+    pub(crate) pid: u32,
+    pub(crate) stdout: String,
+    pub(crate) stderr: String,
+    pub(crate) spent: f64,
+}
+
+/// Runs a command to its end, and reads what it printed and the cpu milliseconds it spent: std's wait drops the
+/// rusage the kernel hands back with the exit, so the reap is wait4's. stderr is read on a thread of its own, so a
+/// child that fills that pipe before it closes stdout does not wait on this read, and the child is reaped whatever a
+/// read said.
+pub(crate) fn counted(mut command: std::process::Command) -> std::io::Result<Counted> {
+    use std::io::Read;
+    let mut child = command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn()?;
+    let err = child.stderr.take().map(|mut err| {
+        std::thread::spawn(move || {
+            let mut stderr = Vec::new();
+            err.read_to_end(&mut stderr).map(|_| stderr)
+        })
+    });
+    let mut stdout = Vec::new();
+    let read = child.stdout.take().map_or(Ok(0), |mut out| out.read_to_end(&mut stdout));
+    let stderr = err.map_or(Ok(Vec::new()), |t| t.join().unwrap_or_else(|_| Err(std::io::Error::other("the stderr reader panicked"))));
+    let mut status = 0;
+    let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    let pid = child.id() as libc::pid_t;
+    let reaped = loop {
+        let r = unsafe { libc::wait4(pid, &mut status, 0, &mut usage) };
+        if r != -1 || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+            break r;
+        }
+    };
+    read?;
+    let stderr = stderr?;
+    let ms = |t: libc::timeval| t.tv_sec as f64 * 1000.0 + t.tv_usec as f64 / 1000.0;
+    let spent = if reaped == pid { ms(usage.ru_utime) + ms(usage.ru_stime) } else { 0.0 };
+    Ok(Counted {
+        pid: pid as u32,
+        stdout: String::from_utf8_lossy(&stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&stderr).into_owned(),
+        spent,
+    })
+}
+
+/// The person's processes as ps prints them, less the ps this read ran, which lists itself.
+fn ps_rows(user: &str, at: i64) -> Result<(Vec<PsRow>, f64), String> {
     let printed = ps_read(user, PS_COLUMNS)?;
-    let names = parse_ps_names(&ps_read(user, PS_NAMES)?);
-    let mut rows = parse_ps(&printed, at);
+    let named = ps_read(user, PS_NAMES)?;
+    let names = parse_ps_names(&named.stdout);
+    let mut rows = parse_ps(&printed.stdout, at);
+    rows.retain(|row| row.pid != printed.pid && row.pid != named.pid);
     for row in &mut rows {
         row.comm = names.get(&row.pid).cloned().unwrap_or_default();
     }
-    Ok(rows)
+    Ok((rows, printed.spent + named.spent))
 }
 
 #[cfg(target_os = "macos")]
@@ -187,13 +271,16 @@ mod mac {
 
     use wsp_frames::numbers;
 
-    use super::{PsRow, Road};
+    use super::{Forks, PsRow, Road};
     use crate::libproc;
+    use crate::proc_track::Tracker;
 
     pub(super) fn road() -> Road {
         let argvs: Mutex<HashMap<u32, Argv>> = Mutex::new(HashMap::new());
+        let tracker = Arc::new(Tracker::default());
+        let follows = Arc::clone(&tracker);
         Road {
-            rows: Box::new(move |user, _| rows(user, &argvs)),
+            rows: Box::new(move |user, _| rows(user, &argvs).map(|rows| (rows, 0.0))),
             ports: Arc::new(|pid| {
                 let mut ports: Vec<u16> = libproc::listeners(pid).into_iter().map(|l| l.port).collect();
                 ports.sort_unstable();
@@ -201,6 +288,14 @@ mod mac {
                 Ok(ports)
             }),
             folder: |pid| libproc::cwd(pid).map(|p| p.to_string_lossy().into_owned()),
+            mark: |pid| libproc::environ(pid).and_then(|bytes| crate::proc_owner::mark_of(&bytes)),
+            cwd: libproc::cwd,
+            coalition: libproc::coalition,
+            unique: |pid| libproc::uniq(pid).map(|u| u.unique),
+            forks: Some(Forks {
+                follow: Box::new(move |scopes| follows.follow(scopes)),
+                owner_of: Box::new(move |pid| tracker.owner_of(pid).map(|o| (*o).clone())),
+            }),
         }
     }
 
@@ -240,6 +335,7 @@ mod mac {
             rows.push(PsRow {
                 pid,
                 ppid: id.ppid,
+                pgid: id.pgid,
                 user: user.to_owned(),
                 state: id.state.to_string(),
                 comm: id.comm,
@@ -247,6 +343,8 @@ mod mac {
                 cpu_seconds: spent.map_or(0.0, |s| s.cpu_seconds),
                 rss: spent.map_or(0, |s| s.footprint),
                 started_at: id.started_ms,
+                energy_nj: spent.and_then(|s| s.energy_nj),
+                id: libproc::uniq(pid).map(|u| u.unique.to_string()),
             });
         }
         let seen: HashSet<u32> = rows.iter().map(|r| r.pid).collect();
@@ -263,6 +361,17 @@ mod mac {
 struct Spent {
     started_at: i64,
     cpu_seconds: f64,
+    energy_nj: Option<u64>,
+}
+
+/// The power drawn between two readings of a process's energy counter, in milliwatts: nanojoules over milliseconds is
+/// microwatts, so a thousandth of that. None without both readings or a window, and for a counter that went back.
+fn energy_mw(before_nj: Option<u64>, now_nj: Option<u64>, elapsed_ms: i64) -> Option<f64> {
+    let (before, now) = (before_nj?, now_nj?);
+    if elapsed_ms <= 0 || now < before {
+        return None;
+    }
+    Some(finite((now - before) as f64 / elapsed_ms as f64 / 1000.0))
 }
 
 /// This computer's processes as the person's own ps or Activity Monitor shows them.
@@ -290,30 +399,60 @@ impl LocalProcSource {
     /// tick counters, and the start time the pid keeps while it is the same process. ps's own %cpu is not that: on
     /// Linux it is the average over the whole life of the process, so a process that burned a second an hour ago
     /// still reads busy. Linux ps prints whole seconds of cpu, so this quantises there; libproc reads nanoseconds.
-    fn share(&self, spent: &mut HashMap<u32, Spent>, row: &PsRow, elapsed_ms: i64) -> (f64, i64) {
-        let before =
-            spent.get(&row.pid).filter(|b| (b.started_at - row.started_at).abs() <= SAME_START_MS).map(|b| (b.started_at, b.cpu_seconds));
-        let started_at = before.map_or(row.started_at, |(started, _)| started);
-        spent.insert(row.pid, Spent { started_at, cpu_seconds: row.cpu_seconds });
+    fn share(&self, spent: &mut HashMap<u32, Spent>, row: &PsRow, elapsed_ms: i64) -> (f64, Option<f64>, i64) {
+        let before = spent
+            .get(&row.pid)
+            .filter(|b| (b.started_at - row.started_at).abs() <= SAME_START_MS)
+            .map(|b| (b.started_at, b.cpu_seconds, b.energy_nj));
+        let started_at = before.map_or(row.started_at, |(started, _, _)| started);
+        spent.insert(row.pid, Spent { started_at, cpu_seconds: row.cpu_seconds, energy_nj: row.energy_nj });
         let cpu = match before {
-            Some((_, cpu_before)) if elapsed_ms > 0 => {
+            Some((_, cpu_before, _)) if elapsed_ms > 0 => {
                 finite((row.cpu_seconds - cpu_before) / (elapsed_ms as f64 / 1000.0) * 100.0).max(0.0)
             }
             _ => 0.0,
         };
-        (cpu, started_at)
+        (cpu, before.and_then(|(_, _, nj)| energy_mw(nj, row.energy_nj, elapsed_ms)), started_at)
+    }
+}
+
+impl OwnerFacts for LocalProcSource {
+    fn thread_mark(&self, pid: u32) -> Option<Mark> {
+        (self.road.mark)(pid)
+    }
+    fn folder(&self, pid: u32) -> Option<PathBuf> {
+        (self.road.cwd)(pid)
+    }
+    fn coalition(&self, pid: u32) -> Option<u64> {
+        (self.road.coalition)(pid)
+    }
+    fn unique_id(&self, pid: u32) -> Option<u64> {
+        (self.road.unique)(pid)
+    }
+    fn forked(&self, pid: u32) -> Option<Owned> {
+        self.road.forks.as_ref().and_then(|f| (f.owner_of)(pid))
+    }
+    fn scopes_moved(&self, scopes: &[ProcScope]) {
+        if let Some(f) = &self.road.forks {
+            (f.follow)(scopes);
+        }
     }
 }
 
 impl ProcSource for LocalProcSource {
     fn scan(&self, input: &ProcScanInput) -> Result<ProcScan, String> {
-        let rows = (self.road.rows)(&self.user, input.at)?;
+        let (rows, child_ms) = (self.road.rows)(&self.user, input.at)?;
         let mut spent = self.spent.lock().unwrap_or_else(|e| e.into_inner());
         let mut seen = HashSet::new();
         let mut procs = Vec::with_capacity(rows.len().min(self.cap));
-        for row in rows.iter().take(self.cap) {
+        let mut order: Vec<&PsRow> = rows.iter().collect();
+        if rows.len() > self.cap {
+            let first = threads_first(&rows, &input.scopes, |pid| self.forked(pid).is_some());
+            order.sort_by_key(|r| !first.contains(&r.pid));
+        }
+        for row in order.into_iter().take(self.cap) {
             seen.insert(row.pid);
-            let (cpu, started_at) = self.share(&mut spent, row, input.elapsed_ms);
+            let (cpu, energy_mw, started_at) = self.share(&mut spent, row, input.elapsed_ms);
             procs.push(ProcEntry {
                 pid: row.pid,
                 ppid: row.ppid,
@@ -326,10 +465,16 @@ impl ProcSource for LocalProcSource {
                 started_at,
                 pty: input.pty.get(&row.pid).cloned(),
                 cgroup: None,
+                energy_mw,
+                pgid: Some(row.pgid),
+                owner: None,
+                kind: None,
+                id: row.id.clone(),
             });
         }
         spent.retain(|pid, _| seen.contains(pid));
-        Ok(ProcScan { total: rows.len() as u64, procs })
+        procs.sort_unstable_by_key(|p| p.pid);
+        Ok(ProcScan { total: rows.len() as u64, procs, child_ms, cgroups: None })
     }
 
     /// What this computer can say about one process beyond its row: the ports it listens on, its folder, and its
@@ -342,6 +487,29 @@ impl ProcSource for LocalProcSource {
         let ports = (self.road.ports)(pid).map_err(OpError::plain)?;
         Ok(ProcInspectReply { pid, cwd: (self.road.folder)(pid), ports, threads: None, children: children_of(pid, procs) })
     }
+}
+
+/// The pids a read past its cap keeps ahead of the rest, as a box keeps its thread cgroups' members: each thread's agents
+/// and the pids the host started for it, every process in one of its turns' groups, what a Mac's fork tracker followed
+/// from them, and every process under any of those.
+fn threads_first(rows: &[PsRow], scopes: &[ProcScope], forked: impl Fn(u32) -> bool) -> HashSet<u32> {
+    let roots: HashSet<u32> = scopes.iter().flat_map(|s| s.agents.iter().copied().chain(s.pids.iter().map(|p| p.pid))).collect();
+    let groups: HashSet<u32> = scopes.iter().flat_map(|s| s.groups.iter().copied()).collect();
+    let mut first: HashSet<u32> =
+        rows.iter().filter(|r| roots.contains(&r.pid) || groups.contains(&r.pgid) || forked(r.pid)).map(|r| r.pid).collect();
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for r in rows.iter().filter(|r| r.ppid != r.pid) {
+        children.entry(r.ppid).or_default().push(r.pid);
+    }
+    let mut stack: Vec<u32> = first.iter().copied().collect();
+    while let Some(pid) = stack.pop() {
+        for kid in children.get(&pid).into_iter().flatten() {
+            if first.insert(*kid) {
+                stack.push(*kid);
+            }
+        }
+    }
+    first
 }
 
 /// The folder a process is in, as lsof names it. None where lsof is absent or the process is out of reach, which is
@@ -359,15 +527,54 @@ mod tests {
     use std::process::Stdio;
     use std::time::{Duration, Instant};
 
+    #[test]
+    fn a_command_run_counted_says_what_it_printed_and_the_cpu_it_spent() {
+        let mut busy = std::process::Command::new("/bin/sh");
+        busy.args(["-c", "i=0; while [ $i -lt 300000 ]; do i=$((i+1)); done; echo done; echo said >&2"]);
+        let read = counted(busy).unwrap();
+        assert_eq!((read.stdout.as_str(), read.stderr.as_str()), ("done\n", "said\n"));
+        assert!(read.spent > 10.0, "{} ms", read.spent);
+    }
+
+    #[test]
+    fn a_command_that_fills_stderr_before_it_closes_stdout_is_read_whole() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut loud = std::process::Command::new("/bin/sh");
+            loud.args(["-c", "head -c 200000 /dev/zero >&2; echo done"]);
+            let _ = tx.send(counted(loud).map(|r| (r.stdout, r.stderr.len())).map_err(|e| e.to_string()));
+        });
+        let read = rx.recv_timeout(std::time::Duration::from_secs(10)).expect("counted waited on a full stderr pipe");
+        assert_eq!(read, Ok(("done\n".to_owned(), 200_000)));
+    }
+
+    #[test]
+    fn this_computer_s_rows_leave_out_the_ps_that_read_them() {
+        let user = std::env::var("USER").unwrap_or_else(|_| "root".to_owned());
+        // A test running beside this one in the same process can have a ps of its own up at the moment of the read, so
+        // a read is taken again before a ps under this process counts as this read's own.
+        let mut listed = Vec::new();
+        for _ in 0..5 {
+            let (rows, spent) = ps_rows(&user, now_ms()).unwrap();
+            assert!(rows.iter().any(|r| r.pid == std::process::id()), "the test's own process is listed");
+            assert!(spent >= 0.0);
+            listed = rows.into_iter().filter(|r| r.ppid == std::process::id() && r.cmdline.contains("-ww -U")).map(|r| r.cmdline).collect();
+            if listed.is_empty() {
+                break;
+            }
+        }
+        assert!(listed.is_empty(), "a ps this read ran is listed: {listed:?}");
+    }
+
     // Fixture provenance: the Linux rows were captured from ps in the column order this module asks for, the
     // macOS rows hand-written in the same documented order; the elapsed column replaces the printed date the node
     // daemon's fixtures carry, since this module reads etime.
-    const LINUX_PS: &str = "      1       0 S root      7040 00:00:03 5-02:07:19 /sbin/init
-      2       0 S root         0 00:00:00 5-02:07:19 [kthreadd]
-    904      1 Ssl root    151204 00:02:17   01:05:37 claude -p do the thing
+    const LINUX_PS: &str = "      1       0       1 S root      7040 00:00:03 5-02:07:19 /sbin/init
+      2       0       0 S root         0 00:00:00 5-02:07:19 [kthreadd]
+    904      1     904 Ssl root    151204 00:02:17   01:05:37 claude -p do the thing
 ";
-    const MAC_PS: &str = "  4212      1 Ss   zingzy   41232 0:04.31 02:44 claude --print hello
-  4213   4212 R+   zingzy  900000 12:31.07 02:43 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=renderer
+    const MAC_PS: &str = "  4212      1  4212 Ss   zingzy   41232 0:04.31 02:44 claude --print hello
+  4213   4212  4212 R+   zingzy  900000 12:31.07 02:43 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=renderer
 ";
     /// The name pass, where everything after the pid is the name however many spaces it holds.
     const MAC_PS_NAMES: &str = "  4212 claude\n  4213 Google Chrome Helper\n";
@@ -383,7 +590,7 @@ mod tests {
     }
 
     fn scan_at(source: &LocalProcSource, at: i64, elapsed_ms: i64, pty: HashMap<u32, String>) -> ProcScan {
-        source.scan(&ProcScanInput { at, elapsed_ms, pty }).unwrap()
+        source.scan(&ProcScanInput { at, elapsed_ms, pty, only: None, daemon: 0, scopes: Arc::default() }).unwrap()
     }
 
     /// Scans until a reading answers, since what a scan reports is what the test is waiting for. Each scan is handed
@@ -423,13 +630,16 @@ mod tests {
             PsRow {
                 pid: 1,
                 ppid: 0,
+                pgid: 1,
                 user: "root".into(),
                 state: "S".into(),
                 comm: String::new(),
                 cmdline: "/sbin/init".into(),
                 cpu_seconds: 3.0,
                 rss: 7040 * 1024,
-                started_at: AT - (5 * 86_400 + 2 * 3600 + 7 * 60 + 19) * 1000
+                started_at: AT - (5 * 86_400 + 2 * 3600 + 7 * 60 + 19) * 1000,
+                energy_nj: None,
+                id: None,
             }
         );
         // A kernel thread has no argv; ps prints its name in brackets, and the pane draws that from the name itself.
@@ -449,7 +659,10 @@ mod tests {
         );
         // The argv is the only column allowed spaces here, so a Mac's own path with two of them arrives whole.
         assert_eq!(mac[1].cmdline, "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper --type=renderer");
-        assert_eq!((mac[1].ppid, mac[1].state.as_str(), mac[1].cpu_seconds, mac[1].rss), (4212, "R", 751.07, 900_000 * 1024));
+        assert_eq!(
+            (mac[1].ppid, mac[1].pgid, mac[1].state.as_str(), mac[1].cpu_seconds, mac[1].rss),
+            (4212, 4212, "R", 751.07, 900_000 * 1024)
+        );
         assert_eq!(parse_ps("ps: nothing to see\n", AT), vec![]);
     }
 
@@ -464,7 +677,7 @@ mod tests {
 
     #[test]
     fn truncates_a_command_line_by_bytes_the_same_budget_the_guests_road_reads_out_of_proc() {
-        let row = |args: &str| parse_ps(&format!("      7       1 S root      100 00:00:01 01:00 {args}\n"), AT).remove(0);
+        let row = |args: &str| parse_ps(&format!("      7       1       7 S root      100 00:00:01 01:00 {args}\n"), AT).remove(0);
         assert_eq!(row(&"x".repeat(300)).cmdline.len(), numbers::CMDLINE_BYTES);
         // Two bytes to the character, so the same budget holds half as many of them: the cut is by bytes, not letters.
         // A character the cut lands inside decodes to one replacement, as it does on the guest's road.
@@ -527,9 +740,59 @@ mod tests {
     }
 
     #[test]
+    fn past_the_cap_the_threads_processes_are_read_first_and_the_rest_by_pid() {
+        let row = |pid: u32, ppid: u32, pgid: u32| PsRow {
+            pid,
+            ppid,
+            pgid,
+            user: "ana".into(),
+            state: "S".into(),
+            comm: "p".into(),
+            cmdline: "p".into(),
+            cpu_seconds: 0.0,
+            rss: 1,
+            started_at: AT,
+            energy_nj: None,
+            id: None,
+        };
+        // 900 is a thread's agent and 901 its dev server; 950 left the agent's tree but stands in its turn's group, and
+        // 960 is a slate run the host started. The person's own 100 to 103 come first by pid.
+        let rows = vec![
+            row(100, 1, 100),
+            row(101, 1, 101),
+            row(102, 1, 102),
+            row(103, 1, 103),
+            row(900, 1, 900),
+            row(901, 900, 901),
+            row(950, 1, 940),
+            row(960, 1, 960),
+        ];
+        let mut road = road_for("linux");
+        road.rows = Box::new(move |_, _| Ok((rows.clone(), 0.0)));
+        let source = LocalProcSource::new(Some("ana".into()), road, 5);
+        let scope = ProcScope {
+            thread: "t_1".into(),
+            agents: vec![900],
+            groups: vec![940],
+            pids: vec![wsp_frames::ProcScopePid { pid: 960, kind: wsp_frames::ProcKind::Slate }],
+            workspace: None,
+            folder: None,
+            warm: false,
+            cgroup: None,
+        };
+        let scan = source
+            .scan(&ProcScanInput { at: AT, elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0, scopes: Arc::new(vec![scope]) })
+            .unwrap();
+        assert_eq!(scan.procs.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![100, 900, 901, 950, 960]);
+        assert_eq!(scan.total, 8);
+    }
+
+    #[test]
     fn a_machine_whose_ps_says_nothing_at_all_is_refused_so_no_pane_reads_an_empty_table_as_a_fact() {
         let source = LocalProcSource::new(Some("no-such-person-here".into()), road_for("linux"), numbers::PROC_CAP);
-        let err = source.scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new() }).unwrap_err();
+        let err = source
+            .scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0, scopes: Arc::default() })
+            .unwrap_err();
         assert!(err.starts_with("ps -U no-such-person-here printed nothing"), "{err}");
     }
 
@@ -537,7 +800,9 @@ mod tests {
     #[test]
     fn a_mac_refuses_a_person_it_has_no_account_for_rather_than_reading_an_empty_table() {
         let source = LocalProcSource::new(Some("no-such-person-here".into()), road_for("macos"), numbers::PROC_CAP);
-        let err = source.scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new() }).unwrap_err();
+        let err = source
+            .scan(&ProcScanInput { at: now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: 0, scopes: Arc::default() })
+            .unwrap_err();
         assert_eq!(err, "no account named no-such-person-here on this computer");
     }
 
@@ -625,5 +890,16 @@ mod tests {
             assert_eq!(folder, Some(std::env::current_dir().unwrap().canonicalize().unwrap()));
         }
         drop(listener);
+    }
+
+    #[test]
+    fn energy_is_the_counter_moved_over_the_window_and_none_without_two_readings() {
+        // 600 mJ over 2 s is 300 mW.
+        assert_eq!(energy_mw(Some(1_000_000_000), Some(1_600_000_000), 2_000), Some(300.0));
+        assert_eq!(energy_mw(None, Some(5), 2_000), None);
+        assert_eq!(energy_mw(Some(5), None, 2_000), None);
+        assert_eq!(energy_mw(Some(5), Some(9), 0), None);
+        // A pid reused by a new process starts its counter again.
+        assert_eq!(energy_mw(Some(9), Some(5), 2_000), None);
     }
 }

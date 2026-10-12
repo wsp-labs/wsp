@@ -6,10 +6,19 @@
 // process the turn starts, a server it detached included, stands there too.
 import { CGROUP_MOUNT, THREAD_CGROUPS as THREADS } from "./daemon-contract.js";
 import { shellQuote } from "./shell-quote.js";
+import type { CgroupMemory } from "./wire/daemon.js";
 
 /** The cgroup a thread's processes stand in, as /proc/[pid]/cgroup names it and a process row carries it. */
 export function threadCgroup(threadId: string): string {
   return `${THREADS}/${threadId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
+/** A box thread's memory: its cgroup's anon and kernel bytes as the daemon read them, which count what its processes
+ * hold once however many share it and leave out the page cache they read, where its rows' resident figures would count
+ * each shared library again in every process. Undefined where the daemon read none (a daemon a version behind, a cgroup
+ * made before its folder turned the memory controller on), and the rows' own figures stand. */
+export function cgroupMemory(cgroups: readonly CgroupMemory[] | undefined, cgroup: string | undefined): number | undefined {
+  return cgroup === undefined ? undefined : cgroups?.find(c => c.cgroup === cgroup)?.memory;
 }
 
 /** Whether a process row's cgroup is this one or one under it. */
@@ -18,11 +27,14 @@ export function inCgroup(at: string | undefined, cgroup: string): boolean {
 }
 
 /** The line a launch runs as root before it hands its command to the login: the shell stands itself in the thread's
- * cgroup, so what it starts stands there too. A computer with no cgroup v2, or one that will not take the folder,
- * launches the same command where it stands, since the cgroup tracks and never gates. */
+ * cgroup, so what it starts stands there too. The folder above it turns on the memory and pids controllers for its
+ * children, which is what gives each thread's cgroup `memory.stat` and `pids.current`; that folder holds no process
+ * of its own, as the kernel asks of one that does. A computer with no cgroup v2, or one that will not take the folder
+ * or the controllers, launches the same command where it stands, since the cgroup tracks and never gates. */
 export function cgroupJoinLine(cgroup: string): string {
   const at = shellQuote(`${CGROUP_MOUNT}${cgroup}`);
-  return `[ -f ${CGROUP_MOUNT}/cgroup.controllers ] && mkdir -p ${at} 2>/dev/null && echo $$ > ${at}/cgroup.procs 2>/dev/null; true`;
+  const above = shellQuote(`${CGROUP_MOUNT}${cgroup.slice(0, cgroup.lastIndexOf("/"))}`);
+  return `[ -f ${CGROUP_MOUNT}/cgroup.controllers ] && mkdir -p ${at} 2>/dev/null && { echo '+memory +pids' > ${above}/cgroup.subtree_control; echo $$ > ${at}/cgroup.procs; } 2>/dev/null; true`;
 }
 
 /** How long a thread's processes get between TERM and KILL, and after KILL, in tenths of a second. */

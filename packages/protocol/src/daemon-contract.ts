@@ -146,6 +146,15 @@ export const PORT_COMMAND_BYTES = 512;
 export const PROC_CAP = 1000;
 /** Linux pid_max ceiling: above it proc.inspect and proc.kill refuse alike as bad-request. */
 export const PID_MAX = 4_194_304;
+/** How many pids the host's protect and agents lists on proc.kill may each name. */
+export const KILL_PIDS_MAX = 256;
+/** How long proc.kill waits after TERM before it sends KILL to whatever of its targets is still there. */
+export const KILL_GRACE_MS = 2000;
+/** The desktop app's own data folder, beside the state file of the host it opens on, and the single-instance lock
+ * Electron keeps in it while the app runs: a link named for this computer and the app's main pid, which is how that
+ * host knows the app's processes whether or not a page watches them. */
+export const APP_DATA_FOLDER = "desktop";
+export const APP_LOCK_FILE = "SingletonLock";
 
 /** One guest message's JSON: a thread's whole transcript is the largest thing that rides the guest road. */
 export const GUEST_MESSAGE_CAP_BYTES = 4 * 1024 * 1024;
@@ -249,6 +258,10 @@ export const daemonListeningLine = (host: string, port: number | string): string
  * two of these, since a box under load slips a tick and one interval would be a race with the daemon on every
  * reading. */
 export const DAEMON_SAMPLER_INTERVAL_MS = 2_000;
+
+/** How often a running process sampler reads the processes after its first snapshot, so the most a list it answers
+ * can lag the processes as they are. The Rust daemon's PROC_INTERVAL_MS, held equal by the contract fixture set. */
+export const DAEMON_PROC_INTERVAL_MS = 2_000;
 
 /** The sampler lines the daemon logs: one sampler serves every watcher, starts with the first and stops with the
  * last, and these two pairs are how a test reads that without a counter inside the daemon. */

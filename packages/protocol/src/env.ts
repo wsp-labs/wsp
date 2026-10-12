@@ -25,6 +25,13 @@ export const CLOUD_ENV = "WSP_CLOUD";
  * thing that maps it to a thread, so a caller cannot name a thread it did not come from. */
 export const TURN_TOKEN_ENV = "WSP_TURN";
 
+/** The variable a turn's launch environment carries with its thread's id, which every process the turn starts
+ * inherits, a dev server it detached with setsid included: the daemon reads it to put such a process under its
+ * thread, and the docker wsp puts first on the turn's PATH labels the containers the thread makes with it. A label and
+ * nothing more: it grants nothing, no road reads it to decide what a caller may do, and a
+ * process that sets it to another thread's id only moves where its own row is drawn. */
+export const THREAD_ENV = "WSP_THREAD";
+
 /** The address a machine dials this host at, in the launch environment of every turn on a workspace whose agents
  * may spawn: the host's own reachable address, which is not loopback, since the turn runs on another computer. */
 export const HOST_URL_ENV = "WSP_HOST_URL";
@@ -94,9 +101,9 @@ export const STATE_STORE_ENV = "WSP_STATE_STORE";
  * own. Unset everywhere else. */
 export const RELEASE_API_ENV = "WSP_RELEASE_API";
 
-/** Every variable a turn's launch hands its agent for reaching this host, the one list of them: an agent that hands
- * its servers only the variables it is told to pass is told these. */
-export const LAUNCH_ENV = [HOST_URL_ENV, HOST_TOKEN_ENV, HOST_KEY_ENV, TURN_TOKEN_ENV] as const;
+/** Every variable a turn's launch hands its agent, for reaching this host and naming its thread, the one list of them:
+ * an agent that hands its servers only the variables it is told to pass is told these. */
+export const LAUNCH_ENV = [HOST_URL_ENV, HOST_TOKEN_ENV, HOST_KEY_ENV, TURN_TOKEN_ENV, THREAD_ENV] as const;
 
 /** The variables a person sets or meets, which the docs' environment page lists; every other name here is for a
  * harness, a test or the cloud. */

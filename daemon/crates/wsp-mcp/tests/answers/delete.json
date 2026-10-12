@@ -33,7 +33,8 @@
       },
       "replies": {
         "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-2 \u0085\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-2\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-3\"}]}",
-        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"name\":\"here\",\"id\":\"ws-2\",\"machineId\":\"here\",\"phase\":\"running\",\"kind\":\"local\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\",\"worktree\":{\"path\":\"/Users/me/.wsp/worktrees/proj-1/work \u0085\",\"branch\":\"work\",\"made\":true}},{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}]}"
+        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"name\":\"here\",\"id\":\"ws-2\",\"machineId\":\"here\",\"phase\":\"running\",\"kind\":\"local\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\",\"worktree\":{\"path\":\"/Users/me/.wsp/worktrees/proj-1/work \u0085\",\"branch\":\"work\",\"made\":true}},{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":true,\"workspaceId\":\"ws-2\",\"worktree\":\"/Users/me/.wsp/worktrees/proj-1/work \u0085\",\"threads\":2}"
       },
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread t-2 \\u0085 kept. Its turns and checkpoints leave this computer, and the worktree at /Users/me/.wsp/worktrees/proj-1/work \\u0085 with it where no other thread is in it; the branch and the project folder are left as they are. Ask the person, then call delete again with confirm true.\"}],\"structuredContent\":{\"threadId\":\"t-2 \\u0085\",\"workspaceId\":\"ws-2\",\"threads\":1},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
       "asked": [
@@ -42,6 +43,12 @@
         },
         {
           "op": "workspaces.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-2 \u0085",
+          "processes": "ask",
+          "check": true
         }
       ]
     },
@@ -49,11 +56,13 @@
       "case": "thread in the folder unconfirmed",
       "arguments": {
         "thread": "t-3",
-        "confirm": false
+        "confirm": false,
+        "processes": "keep"
       },
       "replies": {
         "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-2 \u0085\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-2\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-3\"}]}",
-        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"name\":\"here\",\"id\":\"ws-2\",\"machineId\":\"here\",\"phase\":\"running\",\"kind\":\"local\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"},{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}]}"
+        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"name\":\"here\",\"id\":\"ws-2\",\"machineId\":\"here\",\"phase\":\"running\",\"kind\":\"local\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"},{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":true,\"workspaceId\":\"ws-2\",\"threads\":1}"
       },
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread t-3 kept. Its turns and checkpoints leave this computer; the folder it worked in is left as it is. Ask the person, then call delete again with confirm true.\"}],\"structuredContent\":{\"threadId\":\"t-3\",\"workspaceId\":\"ws-2\",\"threads\":1},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
       "asked": [
@@ -62,6 +71,72 @@
         },
         {
           "op": "workspaces.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-3",
+          "processes": "keep",
+          "check": true
+        }
+      ]
+    },
+    {
+      "case": "thread refused while processes run",
+      "arguments": {
+        "thread": "t-3",
+        "confirm": true
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-2 \u0085\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-2\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-3\"}]}",
+        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"name\":\"here\",\"id\":\"ws-2\",\"machineId\":\"here\",\"phase\":\"running\",\"kind\":\"local\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"},{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":false,\"error\":\"the thread to delete still runs a process: 4200 node (dev, :5173) of t-3: delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"the thread to delete still runs a process: 4200 node (dev, :5173) of t-3: delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).\"}],\"structuredContent\":{\"error\":\"the thread to delete still runs a process: 4200 node (dev, :5173) of t-3: delete it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-3",
+          "processes": "ask",
+          "check": true
+        }
+      ]
+    },
+    {
+      "case": "thread deleted with its processes stopped",
+      "arguments": {
+        "thread": "t-3",
+        "confirm": true,
+        "processes": "stop"
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-1\",\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-1\"},{\"id\":\"s-2\",\"workspaceId\":\"ws-2\",\"harness\":\"codex\",\"status\":\"completed\",\"threadId\":\"t-2 \u0085\"},{\"id\":\"s-3\",\"workspaceId\":\"ws-2\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-3\"}]}",
+        "workspaces.list": "{\"id\":1,\"ok\":true,\"workspaces\":[{\"name\":\"here\",\"id\":\"ws-2\",\"machineId\":\"here\",\"phase\":\"running\",\"kind\":\"local\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"},{\"name\":\"alpha \\\"one\\\" \u0085 🧪\",\"id\":\"ws-1\",\"machineId\":\"m-1\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"snap-g1\",\"createdAt\":\"2026-09-27T01:02:03.004Z\",\"project\":{\"id\":\"proj-1\",\"name\":\"alpha\",\"path\":\"/root/alpha\",\"computer\":\"place-9\"},\"home\":\"/root\",\"theme\":{\"dots\":[{\"angle\":12.5,\"radius\":0.30000000000000004}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":1,\"mode\":\"auto\"},\"agents\":{\"spawn\":true,\"maxMachines\":2,\"maxDepth\":1},\"place\":\"place-9\",\"provider\":\"solari\"}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":true,\"ended\":[{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node vite\",\"memory\":1,\"cpu\":0,\"ports\":[5173]}],\"forced\":[],\"left\":[]}],\"threads\":1,\"workspaceId\":\"ws-2\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ended 4200 node\\ndeleted thread t-3\"}],\"structuredContent\":{\"threadId\":\"t-3\",\"workspaceId\":\"ws-2\",\"threads\":1,\"ended\":[{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node vite\",\"memory\":1,\"cpu\":0,\"ports\":[5173]}],\"forced\":[],\"left\":[]}]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "workspaces.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-3",
+          "processes": "stop",
+          "check": true
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-3",
+          "processes": "stop"
         }
       ]
     },
@@ -86,7 +161,14 @@
         },
         {
           "op": "sessions.delete",
-          "threadId": "t-2 \u0085"
+          "threadId": "t-2 \u0085",
+          "processes": "ask",
+          "check": true
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-2 \u0085",
+          "processes": "ask"
         }
       ]
     },
@@ -111,7 +193,14 @@
         },
         {
           "op": "sessions.delete",
-          "threadId": "t-2 \u0085"
+          "threadId": "t-2 \u0085",
+          "processes": "ask",
+          "check": true
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-2 \u0085",
+          "processes": "ask"
         }
       ]
     },
@@ -136,7 +225,14 @@
         },
         {
           "op": "sessions.delete",
-          "threadId": "t-3"
+          "threadId": "t-3",
+          "processes": "ask",
+          "check": true
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-3",
+          "processes": "ask"
         }
       ]
     },
@@ -284,7 +380,9 @@
         },
         {
           "op": "sessions.delete",
-          "threadId": "t-2 \u0085"
+          "threadId": "t-2 \u0085",
+          "processes": "ask",
+          "check": true
         }
       ]
     },
