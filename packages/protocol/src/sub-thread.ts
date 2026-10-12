@@ -57,7 +57,7 @@ export const subSizeWord = (size: { cpu: number; memMb: number }): string => siz
 export const subSizeOf = (word: string): { cpu: number; memMb: number } | undefined => sizeFromWord(word);
 
 /** A size in the words the preamble and the card say it in: `small, 2 vCPU, 4 GB`. */
-export const subSizeWords = (size: SubSize): string => `${size.name}, ${size.cpu} vCPU, ${fmtMemGb(size.memMb)}`;
+export const subSizeWords = (size: Pick<SubSize, "name" | "cpu" | "memMb">): string => `${size.name}, ${size.cpu} vCPU, ${fmtMemGb(size.memMb)}`;
 
 const rateWord = (usdPerHour: number): string => `$${usdPerHour.toFixed(3)}/h`;
 
@@ -191,6 +191,13 @@ export function subReplacedLine(f: SubFault, machine: string, on: string): strin
   if (f.kind === "unusable") return `${on} gave ${f.box} with nothing able to run on it (${f.why}); wsp deleted it and started another.`;
   if (f.kind === "env") return `${on}'s machine ${f.box} did not take wsp's setup within 2 minutes (exit 124); wsp deleted it and started another.`;
   return `${on} could not get a machine for ${machine} and cancelled the create (${f.why}); wsp started another.`;
+}
+
+/** A sub-thread's turn the kernel ended for memory, as its finished line says it: the machine's size, that the
+ * cloud's own processes hold part of it, and the next size up to start the work again at, where the cloud sells one. */
+export function subOomLine(machine: string, on: string, size: Pick<SubSize, "name" | "cpu" | "memMb">, bigger: string | undefined): string {
+  const again = bigger !== undefined ? `Start the work again with size ${bigger}.` : `${on} sells no bigger size, so the work has to use less memory.`;
+  return `the agent on ${machine} was killed for memory: its machine is ${subSizeWords(size)}, and ${on}'s own processes hold part of that. ${again}`;
 }
 
 /** The refusal a second failure in a row fails the spawn with, naming both machines. */
