@@ -476,6 +476,7 @@ export const FLAG_WORDS: Readonly<Record<string, string>> = {
   "thread settle processes": "stop ends every process a thread to settle still runs beside its agent, by identity, before it settles; keep leaves them running; refused without it while any run",
   "delete processes": "stop ends every process the thread still runs beside its agent, by identity, before it goes; keep leaves them running; refused without it while any run",
   "activity computer": "the computer to read: this one, which is the default, or a box wsp computers lists",
+  "activity wide": "each process's pid and whole command line, the run script and input pump of a turn on rows of their own, nothing cut to the terminal's width",
   "activity end computer": "the computer the process runs on, which must be this one; a box's go with its thread's settle and --processes stop",
   "activity end started": "the process's start as wsp activity --json lists it, startedAt in epoch milliseconds; a pid that started otherwise is refused",
   "stop subagent": "stop one of the agent's own subagents alone, by its id in the SUBAGENT column of wsp threads; the turn and its other subagents run on",
