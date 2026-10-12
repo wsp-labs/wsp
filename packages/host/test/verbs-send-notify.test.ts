@@ -637,6 +637,28 @@ describe("wsp verbs over the host: send, steer, stop and notify", () => {
       held.release(2, "three done");
       await followed.ended;
       expect(followed.io.lines.at(-1)).toBe("three done");
+      expect(followed.io.errors).toEqual([`waiting while ${here} is running 1 of 1 thread`, "started: a thread slot freed"]);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  it("computers set --threads past the running count starts the threads waiting on it within 2 s, oldest first", async () => {
+    const held = heldAgent(false);
+    await h.restartHost({ claude: held.adapter });
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), "wsp-repo-")));
+    try {
+      await projectOn(h.rt, HERE_PLACE_ID, folder, { name: "spoo" });
+      await h.rt.places!.set(HERE_PLACE_ID, { threads: 6 });
+      const here = (await h.rt.places!.rows()).find(p => p.id === HERE_PLACE_ID)!.name;
+      for (let i = 1; i <= 6; i++) await h.run("run", "spoo", "--detach", `run ${i}`);
+      expect((await h.run("run", "spoo", "--detach", "--json", "seventh")).code).toBe(0);
+      expect((await h.run("run", "spoo", "--detach", "--json", "eighth")).code).toBe(0);
+      expect(held.starts).toHaveLength(6);
+      expect((await h.run("computers", "set", here, "--threads", "8")).code).toBe(0);
+      await vi.waitFor(() => expect(held.starts).toHaveLength(8), { timeout: 2000, interval: 10 });
+      expect(held.starts.slice(6).map(s => s.prompt)).toEqual(["seventh", "eighth"]);
+      for (let i = 0; i < 8; i++) held.release(i, "done");
     } finally {
       rmSync(folder, { recursive: true, force: true });
     }

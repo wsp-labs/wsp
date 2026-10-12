@@ -595,7 +595,7 @@ describe("ChatView", () => {
   it("a turn its computer's threads at once holds back says what holds it at the transcript's end, with the setting that lets it start, and works once it starts", async () => {
     const sc = { workspaceId: WS, sessionId: "turn_held", turnId: "turn_held", threadId: "thr_held" };
     const capped = { placeId: "p_hetzner", place: "hetzner", running: 2, atOnce: 2 };
-    const history: SessionEvent[] = [{ type: "session.capped", ...sc, at: T0, ...capped }];
+    const history: SessionEvent[] = [{ type: "session.capped", ...sc, at: T0, ...capped, prompt: "fix the build" }];
     const held: SessionView = { id: "turn_held", workspaceId: WS, harness: "claude", status: "running", threadId: "thr_held", prompt: "fix the build", capped };
     const rows: SessionView[] = [held];
     const { api, emit } = fixtureApi([workspace], { [WS]: history }, rows);
@@ -603,6 +603,9 @@ describe("ChatView", () => {
     await setup(api);
 
     const line = await screen.findByText("waiting while hetzner is running 2 of 2 threads");
+    // The message it waits to run is in the transcript from the hold, marked as waiting.
+    const asked = within(document.querySelector<HTMLElement>("[data-chat-view]")!).getByText("fix the build").closest<HTMLElement>("[data-user-message-waiting]");
+    expect(asked).not.toBeNull();
     const row = line.closest<HTMLElement>("[data-machine-wait]")!;
     expect(row).not.toBeNull();
     expect(document.body.textContent).not.toContain("Working for");
@@ -612,10 +615,15 @@ describe("ChatView", () => {
 
     // The runtime takes the hold off the row as the turn starts, and the line goes with it.
     rows[0] = { ...held, capped: undefined };
-    emit({ type: "session.start", ...sc, at: T0 + 60_000, model: "claude-sonnet-5", prompt: "fix the build" });
+    emit({ type: "session.uncapped", ...sc, at: T0 + 59_000, why: "raised", atOnce: 3 });
     emit({ type: "session.row", workspaceId: WS, threadId: "thr_held", id: "turn_held", row: rows[0] });
-    await screen.findByText(/Working for/);
+    // Why it left the wait, in one muted line, and its message no longer waits.
+    await screen.findByText(/^started: threads raised to 3$/i);
     expect(screen.queryByText(/^waiting while hetzner/)).toBeNull();
+    expect(document.querySelector("[data-user-message-waiting]")).toBeNull();
+    emit({ type: "session.start", ...sc, at: T0 + 60_000, model: "claude-sonnet-5", prompt: "fix the build" });
+    await screen.findByText(/Working for/);
+    expect(within(document.querySelector<HTMLElement>("[data-chat-view]")!).getAllByText("fix the build")).toHaveLength(1);
     act(() => useStore.setState({ settingsOpen: false }));
   });
 
