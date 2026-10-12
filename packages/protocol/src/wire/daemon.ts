@@ -568,7 +568,8 @@ export const DaemonRequest = z.discriminatedUnion("op", [
     agentBins: z.array(z.string().max(255)).max(64).optional(),
   }),
   /** Stops one container through the engine's own stop, two seconds from its TERM to its KILL, and never removes it.
-   * Named by the full id its row carries, never a name another container could answer to. */
+   * Named by the full id its row carries, never a name another container could answer to. One no label or compose note
+   * places under a thread, the person's own or a fork's, is refused with code forbidden. */
   z.object({ id: reqId, op: z.literal("container.stop"), container: z.string().regex(/^[0-9a-f]{64}$/) }),
   z.object({ id: reqId, op: z.literal("ping") }),
   /** Lists one directory's direct children, each request under its own entry

@@ -7,6 +7,7 @@
 // and the host, and the parent chain under each. Sort, filter, the Kinds and Ports views and the
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
+import { ACTIVITY_WORDS } from "../format.js";
 import { agentPath, APP_PROC_WORDS, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
 
 export type { ProcKind };
@@ -103,6 +104,9 @@ export interface ActivityContainer {
   /** Compose's folder for its project, which names one under No thread. */
   readonly folder: string | null;
   readonly placedBy: ContainerPlacedBy | null;
+  /** Under the thread a label or note placed it with, the only containers End reaches: one under No thread was started
+   * by the person, by a fork's engine, or by a thread wsp no longer knows. */
+  readonly owned: boolean;
 }
 
 export type GroupKind = "wsp" | "thread" | "loose";
@@ -378,7 +382,7 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
   const containers = new Map<string, ActivityContainer[]>();
   for (const c of snapshot.containers ?? []) {
     const at = c.thread !== undefined && threadById.has(c.thread) ? `t:${c.thread}` : "loose";
-    (containers.get(at) ?? containers.set(at, []).get(at)!).push(containerOf(c, now));
+    (containers.get(at) ?? containers.set(at, []).get(at)!).push(containerOf(c, now, at !== "loose"));
   }
 
   const groups: ActivityGroup[] = [];
@@ -396,7 +400,7 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
   return { groups, rest: rest.map(p => leaf(p, [])), energy };
 }
 
-function containerOf(c: ProcContainer, now: number): ActivityContainer {
+function containerOf(c: ProcContainer, now: number, owned: boolean): ActivityContainer {
   return {
     id: c.id,
     name: c.name,
@@ -406,6 +410,7 @@ function containerOf(c: ProcContainer, now: number): ActivityContainer {
     cpu: c.cpu ?? null,
     folder: c.folder ?? null,
     placedBy: c.placedBy ?? null,
+    owned,
   };
 }
 
@@ -481,9 +486,8 @@ export const KIND_WORDS: Record<ProcKind, string> = {
   other: "Other",
 };
 
-/** What a filter reads a container by: its name, image and folder, and the word for it. */
-export const CONTAINER_WORD = "Container";
-const containerHit = (c: ActivityContainer, needle: string): boolean => [c.name, c.image, c.folder ?? "", CONTAINER_WORD].some(s => s.toLowerCase().includes(needle));
+/** What a filter reads a container by: its name, image and folder, and the word its row draws. */
+const containerHit = (c: ActivityContainer, needle: string): boolean => [c.name, c.image, c.folder ?? "", ACTIVITY_WORDS.container].some(s => s.toLowerCase().includes(needle));
 
 const procHit = (p: ActivityProc, needle: string): boolean => [p.name, p.command, KIND_WORDS[p.kind], String(p.pid), ...p.ports.map(x => String(x.port))].some(s => s.toLowerCase().includes(needle));
 

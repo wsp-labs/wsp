@@ -2,7 +2,7 @@
 //! The containers the computer's engine runs, for Activity, read while some socket watches the processes. The reader
 //! holds one engine `/events` subscription, lists the containers once when it opens, and inspects one only on its
 //! create, start, die and destroy: the engine's list costs it about 6 ms a container (7.6% of a core polled every 2 s
-//! with 13, #2068), so nothing lists on a tick. A container's figures come from its own cgroup's files on Linux, the
+//! with 13), so nothing lists on a tick. A container's figures come from its own cgroup's files on Linux, the
 //! cgroup found off `/proc/<pid>/cgroup`, and where those are out of reach (a Mac, whose engine runs in a VM) from
 //! the engine's one-shot stats every STATS_EVERY.
 
@@ -427,12 +427,32 @@ impl ContainerReader {
     }
 
     /// Stops one container through the engine, two seconds from TERM to KILL, and never removes it.
+    /// Only a container a label or a compose note places under a thread: one the person started, or a fork's engine,
+    /// is refused, as proc.kill on a box refuses what stands outside the thread cgroups.
     pub(crate) async fn stop_container(&self, id: &str) -> Result<(), OpError> {
         let sock = self.socket().ok_or_else(|| OpError::coded(DaemonErrorCode::NotFound, "no container engine runs on this computer"))?;
+        let gone = || OpError::coded(DaemonErrorCode::NotFound, format!("no container {}", &id[..12.min(id.len())]));
+        let (status, inspect) = ask(&sock, "GET", &format!("/containers/{id}/json")).await.map_err(OpError::plain)?;
+        if status == 404 {
+            return Err(gone());
+        }
+        let label = |name: &str| inspect.pointer("/Config/Labels").and_then(|l| l.get(name)).and_then(Value::as_str).map(str::to_owned);
+        let mut notes = NotesCache::default();
+        refresh_notes(&mut notes, &self.opts.notes);
+        if place(label(THREAD_LABEL).as_deref(), label(COMPOSE_FOLDER).as_deref(), label(COMPOSE_PROJECT).as_deref(), &notes.notes)
+            .is_none()
+        {
+            let name =
+                string_at(&inspect, "/Name").map_or_else(|| id[..12.min(id.len())].to_owned(), |n| n.trim_start_matches('/').to_owned());
+            return Err(OpError::coded(
+                DaemonErrorCode::Forbidden,
+                format!("{name} was not started by a thread, so wsp does not stop it; stop it with docker stop"),
+            ));
+        }
         let (status, body) = ask(&sock, "POST", &format!("/containers/{id}/stop?t=2")).await.map_err(OpError::plain)?;
         match status {
             204 | 304 => Ok(()),
-            404 => Err(OpError::coded(DaemonErrorCode::NotFound, format!("no container {}", &id[..12.min(id.len())]))),
+            404 => Err(gone()),
             _ => Err(OpError::plain(
                 body.get("message").and_then(Value::as_str).map_or_else(|| format!("the engine answered {status}"), str::to_owned),
             )),

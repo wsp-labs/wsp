@@ -475,7 +475,7 @@ async fn end_stops_a_container_through_the_engines_stop_with_two_seconds_and_nev
     let cg = Cgroups::new();
     let notes = tempfile::tempdir().unwrap();
     let a = id('a');
-    engine.hold(inspect(&a, "a", true, 0, json!({})));
+    engine.hold(inspect(&a, "a", true, 0, json!({ "wsp.thread": "t_one" })));
     let r = reader(&engine, notes.path(), &cg, false, Duration::from_secs(3600));
     r.stop_container(&a).await.unwrap();
     // Stopped already reads as done; gone is not found.
@@ -483,8 +483,38 @@ async fn end_stops_a_container_through_the_engines_stop_with_two_seconds_and_nev
     let err = r.stop_container(&id('f')).await.unwrap_err();
     assert_eq!(err.code, Some(DaemonErrorCode::NotFound));
     let stop = format!("POST /containers/{a}/stop?t=2");
-    assert_eq!(engine.asked(), vec![stop.clone(), stop, format!("POST /containers/{}/stop?t=2", id('f'))]);
+    let look = |c: &str| format!("GET /containers/{c}/json");
+    assert_eq!(engine.asked(), vec![look(&a), stop.clone(), look(&a), stop, look(&id('f'))]);
     assert_eq!(engine.count(|l| l.starts_with("DELETE") || l.contains("remove") || l.contains("kill")), 0);
+}
+
+#[tokio::test]
+async fn end_refuses_a_container_no_label_or_note_places_whether_the_person_or_a_forks_engine_started_it() {
+    let engine = Engine::new().await;
+    let cg = Cgroups::new();
+    let notes = tempfile::tempdir().unwrap();
+    let (by_hand, fenced, noted) = (id('a'), id('b'), id('c'));
+    engine.hold(inspect(&by_hand, "scratch", true, 0, json!({})));
+    // A fork's container on a box: its engine's fence labels it with the workspace, never a thread.
+    engine.hold(inspect(&fenced, "wsp-ws_fork-db", true, 0, json!({ "wsp.workspace": "ws_fork" })));
+    engine.hold(inspect(
+        &noted,
+        "lab-db-1",
+        true,
+        0,
+        json!({ "com.docker.compose.project": "lab", "com.docker.compose.project.working_dir": "/srv/acme/lab" }),
+    ));
+    std::fs::write(notes.path().join("t_one"), "t_one\t/srv/acme/lab\t\t1791777782\n").unwrap();
+    let r = reader(&engine, notes.path(), &cg, false, Duration::from_secs(3600));
+    for (c, name) in [(&by_hand, "scratch"), (&fenced, "wsp-ws_fork-db")] {
+        let err = r.stop_container(c).await.unwrap_err();
+        assert_eq!(err.code, Some(DaemonErrorCode::Forbidden), "{name}");
+        assert_eq!(err.message, format!("{name} was not started by a thread, so wsp does not stop it; stop it with docker stop"));
+    }
+    // A compose project a thread's note names is that thread's, and stops.
+    r.stop_container(&noted).await.unwrap();
+    assert_eq!(engine.count(|l| l.starts_with("POST")), 1);
+    assert_eq!(engine.count(|l| l == format!("POST /containers/{noted}/stop?t=2")), 1);
 }
 
 #[test]
