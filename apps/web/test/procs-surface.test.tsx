@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Processes surface over a fake daemon wire: the tree with its labels,
 // the sort and filter controls, the lit row's inspect fields, the two-step
-// kill with a fake clock, the fixed row height, on a local workspace the
+// kill with a fake clock, an agent row's stop, the fixed row height, on a local workspace the
 // threads' own trees and the toggle the rest of the computer sits behind, and
 // on this computer's own panel the whole list.
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DaemonEvent, forkProcsUnreadLine, type AppProc, type ProcChanges, type ProcEntry, type ProcSnapshot, type SessionView } from "@wsp/protocol";
+import { DaemonEvent, forkProcsUnreadLine, killTooOldLine, type AppProc, type ProcChanges, type ProcEntry, type ProcSnapshot, type SessionView } from "@wsp/protocol";
 import { ProcessesSurface, ROW_PX } from "../src/components/procs/ProcessesSurface.js";
 import { provideDaemonWire } from "../src/files/wire.js";
 import { wireAppProcs } from "../src/machine/appProcs.js";
@@ -300,46 +300,193 @@ describe("processes surface", () => {
     expect(document.querySelector("[data-proc-details]")).toBeNull();
   });
 
-  it("kill is two presses within two seconds for TERM, and offers KILL only once TERM did nothing for five seconds", async () => {
+  it("kill is two presses within two seconds, sends TERM for the row and everything under it with the row's identity and start, and says what the daemon did", async () => {
     vi.useFakeTimers();
+    wire.replies["proc.kill"] = () => ({ signalled: [50, 52], forced: [52], left: [] });
+    render(<ProcessesSurface workspaceId={WS} />);
+    await feed(PROCS.map(p => (p.pid === 50 ? { ...p, id: "675177110" } : p)));
+    fireEvent.click(row(50));
+    await flush();
+    const button = () => document.querySelector<HTMLButtonElement>("[data-proc-kill] button");
+    expect(button()!.textContent).toBe("kill");
+
+    // Armed, then left alone: the arm lapses without a request.
+    fireEvent.click(button()!);
+    expect(button()!.textContent).toBe("confirm kill");
+    act(() => vi.advanceTimersByTime(2_200));
+    expect(button()!.textContent).toBe("kill");
+    expect(calls("proc.kill")).toEqual([]);
+
+    // Armed and confirmed in time: one request, the daemon escalating on its own, and the button gives way to its answer.
+    fireEvent.click(button()!);
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.click(button()!);
+    await flush();
+    expect(calls("proc.kill")).toEqual([{ pid: 50, signal: "TERM", mode: "tree", startedAt: 1_757_000_000_000, identity: "675177110" }]);
+    expect(button()).toBeNull();
+    expect(document.querySelector("[data-proc-said]")!.textContent).toBe("ended by KILL after TERM's 2 s");
+  });
+
+  it("a process still there after the forced end says so on its row", async () => {
+    wire.replies["proc.kill"] = () => ({ signalled: [50], forced: [50], left: [50] });
+    render(<ProcessesSurface workspaceId={WS} />);
+    await feed(PROCS);
+    fireEvent.click(row(50));
+    await flush();
+    const button = () => document.querySelector<HTMLButtonElement>("[data-proc-kill] button")!;
+    fireEvent.click(button());
+    fireEvent.click(button());
+    await flush();
+    expect(document.querySelector("[data-proc-said]")!.textContent).toBe("still running after a forced end");
+  });
+
+  it("a daemon too old to end what the process started says so with the update line, and offers KILL for it alone after five seconds", async () => {
+    vi.useFakeTimers();
+    act(() =>
+      useStore.setState({
+        workspaces: [{ ...view, kind: "cloud", machineId: "ctr_9f", place: "p_box" }],
+        places: [{ id: "p_box", kind: "computer", name: "hetzner", default: false, present: true }],
+      }),
+    );
     render(<ProcessesSurface workspaceId={WS} />);
     await feed(PROCS);
     fireEvent.click(row(50));
     await flush();
     const button = () => document.querySelector<HTMLButtonElement>("[data-proc-kill] button");
-    expect(button()!.textContent).toBe("kill");
-    expect(button()!.dataset["signal"]).toBe("TERM");
-
-    // Armed, then left alone: the arm lapses without a request.
     fireEvent.click(button()!);
-    expect(button()!.textContent).toBe("confirm TERM");
-    act(() => vi.advanceTimersByTime(1_900));
-    expect(button()!.textContent).toBe("confirm TERM");
-    act(() => vi.advanceTimersByTime(300));
-    expect(button()!.textContent).toBe("kill");
-    expect(calls("proc.kill")).toEqual([]);
-
-    // Armed and confirmed in time: TERM goes out and the button gives way to the word.
-    fireEvent.click(button()!);
-    act(() => vi.advanceTimersByTime(500));
     fireEvent.click(button()!);
     await flush();
-    expect(calls("proc.kill")).toEqual([{ pid: 50, signal: "TERM" }]);
+    // The fake answers with none of the reply's fields, as a daemon from before the modes does.
+    expect(document.querySelector("[data-proc-said]")!.textContent).toBe(killTooOldLine("hetzner"));
     expect(button()).toBeNull();
-    expect(document.querySelector("[data-proc-sent]")!.textContent).toBe("TERM sent");
-    act(() => vi.advanceTimersByTime(4_500));
-    expect(button()).toBeNull();
-    act(() => vi.advanceTimersByTime(750));
+    act(() => vi.advanceTimersByTime(5_000));
     expect(button()!.textContent).toBe("kill -9");
-    expect(button()!.dataset["signal"]).toBe("KILL");
-
-    // KILL takes the same two presses.
     fireEvent.click(button()!);
-    expect(button()!.textContent).toBe("confirm KILL");
+    expect(button()!.textContent).toBe("confirm kill -9");
     fireEvent.click(button()!);
     await flush();
-    expect(calls("proc.kill")).toEqual([{ pid: 50, signal: "TERM" }, { pid: 50, signal: "KILL" }]);
-    expect(document.querySelector("[data-proc-sent]")!.textContent).toBe("KILL sent");
+    expect(calls("proc.kill")).toEqual([
+      { pid: 50, signal: "TERM", mode: "tree", startedAt: 1_757_000_000_000 },
+      { pid: 50, signal: "KILL", startedAt: 1_757_000_000_000 },
+    ]);
+    expect(document.querySelector("[data-proc-said]")!.textContent).toBe("KILL sent");
+  });
+
+  it("the agent its run recorded stops the thread whatever name it runs under, and a claude it ran is killed like any process", async () => {
+    act(() => useStore.setState({ api: { subscribe: () => () => {}, interruptSession: async () => ({ outcome: "accepted" }) } as never }));
+    onThisMac([{ ...session("th_docs", "the docs agent", 100), agentPid: 101 }]);
+    render(<ProcessesSurface workspaceId={WS} />);
+    // A native Claude Code runs as its version; under it, a claude of the agent's own.
+    await feed([...OWN.map(p => (p.pid === 101 ? { ...p, comm: "2.1.296" } : p)), proc(103, 101, "claude", { cmdline: "claude -p hi" })]);
+    for (const pid of [100, 101]) {
+      fireEvent.click(row(pid));
+      await flush();
+      expect(document.querySelector("[data-proc-agent] button")!.textContent).toBe("stop turn");
+      fireEvent.click(row(pid));
+      await flush();
+    }
+    fireEvent.click(row(103));
+    await flush();
+    expect(document.querySelector("[data-proc-agent]")).toBeNull();
+    expect(document.querySelector("[data-proc-kill] button")!.textContent).toBe("kill");
+  });
+
+  it("a thread's kept agent on this computer, its turn over, offers an End that frees it through its thread", async () => {
+    // The reviewer's shape: this computer's folder, the thread's last turn completed, its kept process standing as a
+    // local run lists it: the run script, its shell and claude.
+    const ended: [number, number][] = [];
+    act(() =>
+      useStore.setState({
+        api: { subscribe: () => () => {}, endActivity: async (pid: number, startedAt: number) => (ended.push([pid, startedAt]), { pid, ended: [], forced: [], left: [], freed: "th_docs" }) } as never,
+      }),
+    );
+    onThisMac([session("th_docs", "the docs agent")]);
+    render(<ProcessesSurface workspaceId={WS} />);
+    await feed([
+      ...PROCS,
+      proc(300, DAEMON, "bash", { cmdline: "bash /root/.wsp/runs/7da2859cff3e.sh" }),
+      proc(301, 300, "bash", { cmdline: "bash /root/.wsp/runs/7da2859cff3e.sh" }),
+      proc(302, 301, "claude", { cmdline: "claude -p --input-format stream-json" }),
+    ]);
+    for (const pid of [300, 301, 302]) {
+      fireEvent.click(row(pid));
+      await flush();
+      expect(document.querySelector("[data-proc-agent-unnamed]")).toBeNull();
+      expect(document.querySelector("[data-proc-kept] button")!.textContent).toBe("end");
+      fireEvent.click(row(pid));
+      await flush();
+    }
+    fireEvent.click(row(302));
+    await flush();
+    fireEvent.click(document.querySelector<HTMLButtonElement>("[data-proc-kept] button")!);
+    await flush();
+    expect(ended).toEqual([[302, 1_757_000_000_000]]);
+    expect(document.querySelector("[data-proc-said]")!.textContent).toBe("freed; the thread's next send starts a new one");
+  });
+
+  it("this computer's own panel reads every local thread, so a running turn's agent there offers Stop and no End", async () => {
+    onThisMac([session("th_docs", "the docs agent", 100)]);
+    const here = fakeWire({ "proc.watch": {}, "proc.unwatch": {}, "proc.inspect": p => ({ pid: p["pid"], cwd: "/Users/dev", ports: [], threads: 1, children: [] }), "proc.kill": {} });
+    provideDaemonWire(HERE_KEY, here);
+    act(() => getProcs(HERE_KEY).feedStatus("live"));
+    render(<ProcessesSurface workspaceId={HERE_KEY} />);
+    await act(async () => getProcs(HERE_KEY).feed(snapshot(OWN.map(p => (p.pid === 100 ? { ...p, cmdline: "bash /root/.wsp/runs/7da2859cff3e.sh" } : p)))));
+    fireEvent.click(row(101));
+    await flush();
+    expect(document.querySelector("[data-proc-agent] button")!.textContent).toBe("stop turn");
+    expect(document.querySelector("[data-proc-kept]")).toBeNull();
+  });
+
+  it("a turn's run on a computer whose turns stand in no cgroup offers no kill from its run script down to its agent", async () => {
+    render(<ProcessesSurface workspaceId={WS} />);
+    await feed([
+      ...PROCS,
+      proc(300, 1, "bash", { cmdline: "bash /root/.wsp/run/0123456789ab.sh" }),
+      proc(301, 300, "bash", { cmdline: "bash /root/.wsp/run/0123456789ab.sh" }),
+      proc(302, 301, "2.1.296", { cmdline: "claude -p --input-format stream-json" }),
+      proc(303, 302, "node", { cmdline: "node mcp-server.js" }),
+    ]);
+    for (const pid of [300, 301, 302]) {
+      fireEvent.click(row(pid));
+      await flush();
+      expect(document.querySelector("[data-proc-agent-unnamed]")).not.toBeNull();
+      expect(document.querySelector("[data-proc-kill]")).toBeNull();
+      fireEvent.click(row(pid));
+      await flush();
+    }
+    fireEvent.click(row(303));
+    await flush();
+    expect(document.querySelector("[data-proc-kill] button")!.textContent).toBe("kill");
+  });
+
+  it("a running turn's agent row asks first, then stops its thread and never signals the agent", async () => {
+    const interrupted: string[] = [];
+    act(() => useStore.setState({ api: { subscribe: () => () => {}, interruptSession: async (id: string) => (interrupted.push(id), { outcome: "accepted" }) } as never }));
+    onThisMac([session("th_docs", "the docs agent", 100)]);
+    render(<ProcessesSurface workspaceId={WS} />);
+    await feed(OWN);
+    // The turn's own shell and the agent under it both stop the thread; the tool the agent runs is killed like any process.
+    for (const pid of [100, 101]) {
+      fireEvent.click(row(pid));
+      await flush();
+      expect(document.querySelector("[data-proc-agent] button")!.textContent).toBe("stop turn");
+      fireEvent.click(row(pid));
+      await flush();
+    }
+    fireEvent.click(row(102));
+    await flush();
+    expect(document.querySelector("[data-proc-agent]")).toBeNull();
+    fireEvent.click(row(101));
+    await flush();
+
+    fireEvent.click(document.querySelector<HTMLButtonElement>("[data-proc-agent] button")!);
+    await flush();
+    expect(screen.getByText("Stop the docs agent?")).toBeTruthy();
+    expect(interrupted).toEqual([]);
+    await act(async () => void fireEvent.click(document.querySelector('[data-k="stop-turn"]')!));
+    expect(interrupted).toEqual(["th_docs"]);
+    expect(document.querySelector("[data-proc-said]")!.textContent).toBe("stopped");
+    expect(calls("proc.kill")).toEqual([]);
   });
 
   it("a refused kill shows the daemon's reason on the row", async () => {
@@ -444,7 +591,7 @@ describe("processes surface", () => {
     fireEvent.click(button());
     fireEvent.click(button());
     await flush();
-    expect(here.calls.filter(([op]) => op === "proc.kill").map(([, p]) => p)).toEqual([{ pid: 50, signal: "TERM" }]);
+    expect(here.calls.filter(([op]) => op === "proc.kill").map(([, p]) => p)).toEqual([{ pid: 50, signal: "TERM", mode: "tree", startedAt: 1_757_000_000_000 }]);
     expect(calls("proc.watch")).toEqual([]);
   });
 

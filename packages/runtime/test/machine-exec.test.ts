@@ -6,7 +6,7 @@ import { basename, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EXEC_ENV, ExecFailedError, INLINE_EXEC_MS, MachineUnreachableError, MachineUnreached, PlaceAbsentError, type ExecResult, type Machine } from "@wsp/engine";
 import { EXEC_BODY_MAX, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS, absentComputer, execFailedLine, machineUnreachableLine, machineUnreachedLine, TURN_IDLE_MS, shellQuote, workScoreLine } from "@wsp/protocol";
-import { endRun, type ExecStream } from "@wsp/protocol";
+import { AGENT_PID_FILE_ENV, endRun, type ExecStream } from "@wsp/protocol";
 import { gateLoop } from "../../protocol/test/stub-script.js";
 import { GROUP_WORK_AWK, machineExecStream } from "../src/machine-exec.js";
 import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
@@ -139,7 +139,7 @@ describe("machineExecStream", () => {
     expect(await stream.exited).toBe(0);
     const launch = launchCalls(guest.calls);
     expect(launch).toHaveLength(1);
-    expect(launch[0]).toMatch(/^mkdir -p '\/tmp\/wsp-run'\numask 077\nmkdir '\/tmp\/wsp-run\/[0-9a-f]{12}\.d' 2>\/dev\/null \|\| \{ \[ -d '\/tmp\/wsp-run\/[0-9a-f]{12}\.d' \] && \{ echo WSP_LAUNCHED; exit 0; \}; echo 'no run folder on this machine: \/tmp\/wsp-run\/[0-9a-f]{12}\.d' >&2; exit 1; \}\nset -o pipefail\nprintf %s '[A-Za-z0-9+/=]+' \| base64 -d > '\/tmp\/wsp-run\/[0-9a-f]{12}\.sh' \|\| exit 1\nexport CLAUDE_CONFIG_DIR='\/root\/\.claude-cfg'\nsetsid bash /);
+    expect(launch[0]).toMatch(/^mkdir -p '\/tmp\/wsp-run'\numask 077\nmkdir '\/tmp\/wsp-run\/[0-9a-f]{12}\.d' 2>\/dev\/null \|\| \{ \[ -d '\/tmp\/wsp-run\/[0-9a-f]{12}\.d' \] && \{ echo WSP_LAUNCHED; exit 0; \}; echo 'no run folder on this machine: \/tmp\/wsp-run\/[0-9a-f]{12}\.d' >&2; exit 1; \}\nset -o pipefail\nprintf %s '[A-Za-z0-9+/=]+' \| base64 -d > '\/tmp\/wsp-run\/[0-9a-f]{12}\.sh' \|\| exit 1\nexport WSP_AGENT_PID_FILE='\/tmp\/wsp-run\/[0-9a-f]{12}\.agent'\nexport CLAUDE_CONFIG_DIR='\/root\/\.claude-cfg'\nsetsid bash /);
     expect(solariBody(launch[0]!)).toBeLessThanOrEqual(EXEC_BODY_MAX);
   });
 
@@ -163,8 +163,11 @@ describe("machineExecStream", () => {
       expect(lines[1]).toBe("umask 077");
       expect(lines[2]!.startsWith("printf %s ")).toBe(true);
     }
-    // The exit file is written under the same base as the script, and its path is quoted like every other.
-    expect(guest.getScript()).toBe(`${workScoreLine()}\n${BIG_COMMAND}\necho $? > '${launch.at(-1)!.match(/> '([^']*)\.sh'/)![1]}'.exit\n`);
+    // The exit file is written under the same base as the script, and its path is quoted like every other; the agent's
+    // pid file rides the launch with the rest of the environment, ahead of setsid.
+    const base = launch.at(-1)!.match(/> '([^']*)\.sh'/)![1];
+    expect(guest.getScript()).toBe(`${workScoreLine()}\n${BIG_COMMAND}\necho $? > '${base}'.exit\n`);
+    expect(launch.at(-1)).toContain(`export ${AGENT_PID_FILE_ENV}='${base}.agent'\n`);
   });
 
   it("makes every file of a run under the login's own mask, from the claim folder down", async () => {

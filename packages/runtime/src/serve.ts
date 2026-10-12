@@ -1435,7 +1435,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
                 else {
                   const onLink = places().channel(msg.placeId, onEvent);
                   if (onLink === undefined) throw new Error(absentComputer(places().nameOf(msg.placeId), null).sentence);
-                  ch = onLink;
+                  ch = rt.placeKills(onLink);
                 }
               } else {
                 if (msg.workspaceId === undefined) throw new Error(DAEMON_OPEN_ONE_OF);

@@ -1,5 +1,6 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { once } from "node:events";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -207,6 +208,62 @@ describe("daemon ops: ports, manifest, inbox", () => {
     expect((await a.request("proc.scopes", { scopes: [] })).ok).toBe(true);
     expect((await a.request("proc.unwatch")).ok).toBe(true);
     a.close();
+  });
+
+  it("proc.kill refuses a pid the host's list protects and takes a whole process group with TERM", async () => {
+    // A real group of this test's own, its leader and a child, since a kill signals real pids whatever /proc the watch reads.
+    const group = spawn("bash", ["-c", "sleep 60 & echo $!; wait"], { detached: true, stdio: ["ignore", "pipe", "ignore"] });
+    const kid = Number((await once(group.stdout!, "data"))[0].toString().trim());
+    const a = await connect(daemon.port);
+    try {
+      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "group", protect: [kid] })).toMatchObject({ ok: false, code: "forbidden" });
+      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "group", agents: [group.pid!] })).toMatchObject({ ok: false, code: "forbidden" });
+      // The child is the agent here: the root's own pid and everything down to the named binary is refused.
+      expect(await a.request("proc.kill", { pid: kid, signal: "TERM", agents: [group.pid!], agentBins: ["sleep"] })).toMatchObject({ ok: false, code: "forbidden" });
+      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", startedAt: 1 })).toMatchObject({ ok: false, code: "not-found" });
+      // An identity no process holds: the row's id is what the pid must still be.
+      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", identity: "1" })).toMatchObject({ ok: false, code: "not-found" });
+      const reply = await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "group" });
+      expect(reply).toMatchObject({ ok: true, forced: [], left: [] });
+      expect([...(reply["signalled"] as number[])].sort()).toEqual([group.pid!, kid].sort());
+      await vi.waitFor(() => expect(group.signalCode).toBe("SIGTERM"), { timeout: 5_000, interval: 20 });
+      expect(() => process.kill(kid, 0)).toThrow();
+    } finally {
+      try {
+        process.kill(-group.pid!, "SIGKILL");
+      } catch {}
+      a.close();
+    }
+  });
+
+  it("proc.kill refuses a turn its run folder records, its root and agent, with no list from any host, while the run is held", async () => {
+    // A run as the machine road lays it out on a box or a joined computer: the script's root, and the agent it
+    // started, whose pid agentWord wrote beside the run. No host knows these pids, so the daemon reads them itself.
+    const runs = mkdtempSync(join(tmpdir(), "wsp-runs-"));
+    const run = spawn("bash", ["-c", "sleep 60 & echo $!; wait"], { detached: true, stdio: ["ignore", "pipe", "ignore"] });
+    const agent = Number((await once(run.stdout!, "data"))[0].toString().trim());
+    const id = join(runs, "0123456789ab");
+    mkdirSync(`${id}.d`);
+    writeFileSync(`${id}.pid`, `${run.pid}\n`);
+    writeFileSync(`${id}.agent`, `${agent}\n`);
+    const d = await daemonUnderTest({ port: 0, token: TOKEN, runDir: runs });
+    const a = await connect(d.port);
+    try {
+      for (const pid of [agent, run.pid!]) {
+        expect(await a.request("proc.kill", { pid, signal: "TERM", mode: "tree" })).toMatchObject({ ok: false, code: "forbidden", error: expect.stringContaining("it is a thread's agent") });
+      }
+      expect(() => process.kill(agent, 0)).not.toThrow();
+      // A run no longer held names nothing, so a stranger who later holds its pids is never refused for it.
+      rmSync(`${id}.d`, { recursive: true });
+      expect(await a.request("proc.kill", { pid: agent, signal: "TERM" })).toMatchObject({ ok: true, signalled: [agent] });
+    } finally {
+      try {
+        process.kill(-run.pid!, "SIGKILL");
+      } catch {}
+      a.close();
+      await d.close();
+      rmSync(runs, { recursive: true, force: true });
+    }
   });
 
   it("an exited pty stops labelling its pid, so a stranger who reuses it carries no pty id", async () => {

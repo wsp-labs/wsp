@@ -21,6 +21,7 @@ fn row(pid: u32, ppid: u32, pgid: u32) -> ProcEntry {
         cgroup: None,
         energy_mw: None,
         pgid: Some(pgid),
+        id: None,
         owner: None,
         kind: None,
     }

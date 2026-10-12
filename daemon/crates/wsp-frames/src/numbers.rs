@@ -166,6 +166,10 @@ pub const PORT_CMDLINE_CAP_BYTES: usize = 512;
 pub const PROC_CAP: usize = 1000;
 /// Linux pid_max ceiling; both proc ops refuse anything above it.
 pub const PID_MAX: u32 = 4_194_304;
+/// How many pids the host's protect and agents lists on proc.kill may each name.
+pub const KILL_PIDS_MAX: usize = 256;
+/// How long proc.kill waits after TERM before it sends KILL to whatever of its targets is still there.
+pub const KILL_GRACE_MS: u64 = 2000;
 /// How often a daemon samples the computer it runs on for sys.watch, and how long after the reply to a watch its
 /// first sample lands, proc.watch's first snapshot among them. The protocol's DAEMON_SAMPLER_INTERVAL_MS is the same
 /// figure, held so by the contract fixture.

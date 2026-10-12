@@ -497,6 +497,8 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("portCommandBytes", Value::from(numbers::PORT_CMDLINE_CAP_BYTES));
     m.insert("procCap", Value::from(numbers::PROC_CAP));
     m.insert("pidMax", Value::from(numbers::PID_MAX));
+    m.insert("killPidsMax", Value::from(numbers::KILL_PIDS_MAX));
+    m.insert("killGraceMs", Value::from(numbers::KILL_GRACE_MS));
     m.insert("openBodyMax", Value::from(numbers::OPEN_BODY_CAP));
     m.insert("daemonDefaultHost", Value::from(numbers::DEFAULT_HOST));
     m.insert("daemonDefaultPort", Value::from(numbers::DEFAULT_PORT));

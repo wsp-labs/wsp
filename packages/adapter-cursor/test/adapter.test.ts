@@ -8,7 +8,7 @@
 // headless writer names (src/headless.ts in the bundle).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { AdapterEvent, ExecStream, ExecStreamFactory } from "@wsp/protocol";
+import { agentWord, type AdapterEvent, type ExecStream, type ExecStreamFactory } from "@wsp/protocol";
 import { createCursorAdapter } from "../src/adapter.js";
 
 const CHAT = "c6b62c6f-7ead-4fd6-9922-e952131177ff";
@@ -78,7 +78,7 @@ describe("CursorAdapter over an agent -p stream-json turn", () => {
     const session = adapter.start({ prompt: "summarize the readme", cwd: "/root/app", model: "sonnet-4.5", permissionMode: "force", onEvent: () => {} });
     await session.finished;
     const call = exec.calls[0]!;
-    expect(call.command.startsWith("cd '/root/app' && cursor-agent -p --output-format stream-json --stream-partial-output --trust --workspace '/root/app' --model 'sonnet-4.5' --force <<'WSP_PROMPT_END'")).toBe(true);
+    expect(call.command.startsWith(`cd '/root/app' && ${agentWord("cursor-agent", undefined)} -p --output-format stream-json --stream-partial-output --trust --workspace '/root/app' --model 'sonnet-4.5' --force <<'WSP_PROMPT_END'`)).toBe(true);
     expect(call.command).not.toContain("key_x");
     expect(call.env).toEqual({ PATH: "/root/.local/bin:/usr/bin", CURSOR_API_KEY: "key_x" });
     expect(call.input).toBeUndefined();

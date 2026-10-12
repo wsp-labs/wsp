@@ -17,6 +17,7 @@ mod hash;
 mod hosts;
 mod image;
 mod inbox;
+mod kill;
 #[cfg(target_os = "macos")]
 mod libproc;
 mod link;

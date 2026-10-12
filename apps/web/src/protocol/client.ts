@@ -64,6 +64,7 @@ import {
   type RunStep,
   SessionInterruptOutcome,
   SessionInterruptResult,
+  ActivityEnded,
   SessionRenameResult,
   SessionRestoreResult,
   SessionSettleResult,
@@ -683,6 +684,9 @@ export interface Api {
    * could not end on a computer the person added. With task it stops that one subagent of the turn alone, and error
    * says in the host's words why the agent would not or could not. */
   interruptSession?(sessionId: string, task?: string): Promise<{ outcome: SessionInterruptOutcome; left?: string; error?: string }>;
+  /** Ends a process this computer runs for a thread by its pid and the start it was listed with, as `wsp activity end`
+   * does: a kept or warm agent's rows free that agent for its thread's next send, and a running turn's agent is refused. */
+  endActivity?(pid: number, startedAt: number): Promise<ActivityEnded>;
   /** Sends a message into the session's running turn; takes the runtime's session id, as interruptSession does. accepted
    * means a session.steer event is on the wire; not-running means the turn beat it and the caller starts a turn instead.
    * Optional so fixtures without a steering harness need not fake it; the composer keeps the stop road without it.
@@ -1077,6 +1081,7 @@ export function makeApi(c: ProtocolClient): Api {
     sessionAttachment: async (workspaceId, threadId, requestId, index) => (await c.request<{ attachment: KeptAttachment }>("sessions.attachment", { workspaceId, threadId, requestId, index })).attachment,
     listSessions: async id =>
       (await c.request<{ sessions: SessionView[] }>("sessions.list", id !== undefined ? { workspaceId: id } : {})).sessions,
+    endActivity: async (pid, startedAt) => ActivityEnded.parse(await c.request("activity.end", { pid, startedAt })),
     // Parsed, not trusted: an outcome outside the enum must not read as accepted.
     interruptSession: async (sessionId, task) => {
       const { outcome, left, error } = SessionInterruptResult.pick({ outcome: true, left: true, error: true }).parse(await c.request("sessions.interrupt", { sessionId, ...(task !== undefined ? { task } : {}) }));

@@ -5,7 +5,7 @@
 // CODEX_HOME.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { conversationWrittenElsewhereLine, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
+import { agentWord, conversationWrittenElsewhereLine, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
 import { createCodexAdapter, creditsOf, type CodexSession } from "../src/adapter.js";
 import { LETS_GO } from "../src/conversations.js";
@@ -219,7 +219,7 @@ describe("CodexAdapter over codex app-server", () => {
     const session = adapter.start({ prompt: "list the repo", model: "gpt-5.5", effort: "low", permissionMode: "workspace-write", cwd: "/root/app", onEvent: () => {} });
     await session.finished;
     const call = launch.calls[0]!;
-    expect(call.command).toBe("cd '/root/app' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(call.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
     expect(call.command).not.toContain("list the repo");
     expect(call.env).toEqual({ CODEX_HOME: "/root/.codex" });
     expect(adapter.env).toEqual({ CODEX_HOME: "/root/.codex" });
@@ -1242,7 +1242,7 @@ describe("a side question on a Codex thread", () => {
     const answer = await adapter.aside!({ session: THREAD_ID, question: "which folder are you in?", cwd: "/root/app", model: "gpt-5.5" });
     expect(answer).toEqual({ text: "You are in /root/app; you last asked me to count.", usage: { input: 900, cached: 880, output: 12, reasoning: 0, context: 912 } });
     const call = launch.calls[0]!;
-    expect(call.command).toBe("cd '/root/app' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(call.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
     // A side question is no turn of the account's: it asks neither the account nor its limits.
     expect(call.input?.map(l => parse(l).method)).toEqual(["initialize", "initialized", "thread/fork"]);
     const fork = parse(call.input!.at(-1)!);
@@ -1328,7 +1328,7 @@ describe("what a rewind needs of a Codex turn", () => {
       return w;
     });
     expect(await adapterOver(launch).revert({ session: THREAD_ID, beforeTurn: TURN_ID, cwd: "/root/app" })).toBeUndefined();
-    expect(launch.calls[0]!.command).toBe("cd '/root/app' && codex app-server -c tools.update_plan.enabled='true'");
+    expect(launch.calls[0]!.command).toBe(`cd '/root/app' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
     expect(parse(launch.calls[0]!.input!.at(-1)!)).toMatchObject({ method: "thread/resume", params: { threadId: THREAD_ID } });
     expect(launch.wires[0]!.written.find(m => m.method === "thread/revert")).toEqual({ id: "wsp-revert", method: "thread/revert", params: { threadId: THREAD_ID, beforeTurnId: TURN_ID } });
     expect(launch.wires[0]!.written.some(m => m.method === "turn/start")).toBe(false);
@@ -1426,7 +1426,7 @@ describe("what a rewind needs of a Codex turn", () => {
       const result = await adapterOver(launch).start({ prompt: "list every code word you remember", fork: { session: THREAD_ID, turn: "t8" }, cwd: "/root/app-fork", model: "gpt-5.5", permissionMode: "workspace-write", onEvent }).finished;
       expect(result).toMatchObject({ status: "completed", text: "ALPHA, BETA" });
       expect(launch.calls).toHaveLength(1);
-      expect(launch.calls[0]!.command).toBe("cd '/root/app-fork' && codex app-server -c tools.update_plan.enabled='true'");
+      expect(launch.calls[0]!.command).toBe(`cd '/root/app-fork' && ${agentWord("codex", undefined)} app-server -c tools.update_plan.enabled='true'`);
       const fork = parse(launch.calls[0]!.input!.at(-1)!);
       expect(fork).toEqual({ id: "wsp-thread", method: "thread/fork", params: { threadId: THREAD_ID, lastTurnId: "t8", ephemeral: false, excludeTurns: true, cwd: "/root/app-fork", model: "gpt-5.5", sandbox: "workspace-write", approvalPolicy: "on-request" } });
       expect(launch.wires[0]!.written.some(m => m.method === "thread/start" || m.method === "thread/resume")).toBe(false);

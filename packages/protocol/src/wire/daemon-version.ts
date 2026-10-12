@@ -682,6 +682,10 @@ export const leaveTakes = (report: { wspDaemonVersion?: number }): boolean => (r
  * is behind. */
 export const placeUpdateLine = (name: string): string => `wsp add ${name} --update`;
 
+/** What a process's row says where its computer's daemon is older than a kill that ends what the process started:
+ * TERM reached the process alone, and the fix. */
+export const killTooOldLine = (name: string): string => `TERM went to this process alone: ${name} runs a daemon too old to end what it started; ${placeUpdateLine(name)} updates it`;
+
 /** What the doctor says about one place that is behind: the word above and the line that answers it. */
 export const placeBehindLine = (name: string, word: string): string => `${name} is behind: ${word}; ${placeUpdateLine(name)} puts this wsp's daemon on it`;
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomBytes } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EXEC_CHUNK_BYTES, endRun, shellQuote, turnCutLine, type ExecStream } from "@wsp/protocol";
+import { agentWord, EXEC_CHUNK_BYTES, endRun, shellQuote, turnCutLine, type ExecStream } from "@wsp/protocol";
 import { gateLoop } from "../../protocol/test/stub-script.js";
-import { groupExists, localExecStream, ownOrphans, type GroupWorkReader } from "../src/local-exec.js";
+import { agentPidOf, groupExists, localExecStream, ownOrphans, type GroupWorkReader } from "../src/local-exec.js";
 import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
 import { alive, gone, grandchild, sweepStrays } from "./strays.js";
 
@@ -52,6 +52,41 @@ describe("local exec stream", () => {
     const [lines] = await Promise.all([collect(stream.lines), stream.exited]);
     expect(stream.pid).toBe(Number(lines[0]));
     expect(Number(lines[1]!.trim())).toBe(stream.pid);
+  });
+
+  it("the agent a launch starts through agentWord writes its own pid: the process it runs as, in the run's group, whatever file its name resolves to", async () => {
+    const factory = localExecStream({ root, runDir });
+    // A link named claude to sleep, as a native Claude Code's link to its version file.
+    mkdirSync(join(root, "bin"));
+    symlinkSync("/bin/sleep", join(root, "bin", "claude"));
+    const stream = factory(`echo before; PATH=${shellQuote(join(root, "bin"))}:/usr/bin:/bin ${agentWord("claude", undefined)} 30`, { env: {} });
+    try {
+      await vi.waitFor(() => expect(agentPidOf(stream.run!)).toBeDefined(), { timeout: 5_000 });
+      const pid = agentPidOf(stream.run!)!;
+      const [pgid, ucomm, ...command] = execFileSync("ps", ["-o", "pgid=,ucomm=,command=", "-p", String(pid)], { encoding: "utf8" }).trim().split(/\s+/);
+      // A Mac names a process by the file its link resolves to, Linux by the name exec was handed.
+      expect([Number(pgid), ucomm, command.join(" ")]).toEqual([stream.pid, process.platform === "darwin" ? "sleep" : "claude", "claude 30"]);
+    } finally {
+      stream.kill();
+      await stream.exited;
+    }
+    expect(agentPidOf(stream.run!)).toBeUndefined();
+  });
+
+  it("the pid agentWord writes is the agent's own, and the agent never sees the variable naming the file", async () => {
+    const factory = localExecStream({ root, runDir });
+    const stream = factory(`${agentWord("sh", undefined)} -c ${shellQuote('echo "[${WSP_AGENT_PID_FILE:-}] $$"; sleep 30')}`, { env: {} });
+    try {
+      const line = await vi.waitFor(() => {
+        const said = readFileSync(`${stream.run!}.log`, "utf8").trim();
+        expect(said).not.toBe("");
+        return said;
+      });
+      expect(line).toBe(`[] ${agentPidOf(stream.run!)}`);
+    } finally {
+      stream.kill();
+      await stream.exited;
+    }
   });
 
   it("runs in the workspace folder", async () => {

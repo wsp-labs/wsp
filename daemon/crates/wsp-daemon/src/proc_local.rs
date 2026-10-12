@@ -33,7 +33,7 @@ const PS_COLUMNS: &str = "pid=,ppid=,pgid=,state=,user=,rss=,time=,etime=,args="
 const PS_NAMES: &str = "pid=,ucomm=";
 /// How far a start time read off two scans may drift before the pid counts as a new process: the elapsed column
 /// is whole seconds, so the same process reads up to a second apart from one tick to the next.
-const SAME_START_MS: i64 = 2_000;
+pub(crate) const SAME_START_MS: i64 = 2_000;
 
 /// One process as either road read it, before the sampler's own clock turns its cpu time into a share of the window.
 #[derive(Debug, Clone, PartialEq)]
@@ -52,6 +52,8 @@ pub(crate) struct PsRow {
     pub(crate) started_at: i64,
     /// Nanojoules its cpu work has drawn since it started, where the kernel counts them: a Mac does, ps does not.
     pub(crate) energy_nj: Option<u64>,
+    /// The kernel's unique id where the road reads it (libproc), which a kill checks the pid by.
+    pub(crate) id: Option<String>,
 }
 
 /// Seconds behind a ps time column, `[dd-][hh:]mm:ss[.cc]`: a Mac's ps carries hundredths and Linux's whole
@@ -135,6 +137,7 @@ pub(crate) fn parse_ps(text: &str, at: i64) -> Vec<PsRow> {
             rss: rss * RSS_UNIT,
             started_at: at - (ps_seconds(etime) * 1000.0) as i64,
             energy_nj: None,
+            id: None,
         });
     }
     rows.sort_by_key(|r| r.pid);
@@ -341,6 +344,7 @@ mod mac {
                 rss: spent.map_or(0, |s| s.footprint),
                 started_at: id.started_ms,
                 energy_nj: spent.and_then(|s| s.energy_nj),
+                id: libproc::uniq(pid).map(|u| u.unique.to_string()),
             });
         }
         let seen: HashSet<u32> = rows.iter().map(|r| r.pid).collect();
@@ -460,6 +464,7 @@ impl ProcSource for LocalProcSource {
                 pgid: Some(row.pgid),
                 owner: None,
                 kind: None,
+                id: row.id.clone(),
             });
         }
         spent.retain(|pid, _| seen.contains(pid));
@@ -605,6 +610,7 @@ mod tests {
                 rss: 7040 * 1024,
                 started_at: AT - (5 * 86_400 + 2 * 3600 + 7 * 60 + 19) * 1000,
                 energy_nj: None,
+                id: None,
             }
         );
         // A kernel thread has no argv; ps prints its name in brackets, and the pane draws that from the name itself.
