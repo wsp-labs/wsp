@@ -157,9 +157,9 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   };
 
   /** The road a slate's command server on a workspace's computer runs over, one per server: that computer's link and
-   * the events it carries, or the machine's own daemon dialled for it alone. A daemon too old to hold a command open is
-   * refused before anything is sent. */
-  const stdioRoad = async (entry: LiveWorkspace): Promise<StdioRoad> => {
+   * the events it carries, or the machine's own daemon dialled for it alone. A daemon older than `need`, the first that
+   * serves the ops the server is asked by, is refused before anything is sent. */
+  const stdioRoad = async (entry: LiveWorkspace, need = STDIO_DAEMON_VERSION): Promise<StdioRoad> => {
     const listeners = new Set<(event: Record<string, unknown>) => void>();
     const heard = (event: Record<string, unknown>): void => {
       for (const fn of listeners) fn(event);
@@ -173,7 +173,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     const placeId = entry.record.place;
     if (placeId === undefined || placeDoor === undefined) throw new Error(placeServesDaemonLine(entry.record.name, computerOf(entry)));
     const version = (await placeDoor.reportOf(placeId))?.daemonVersion;
-    if (version !== undefined && version < STDIO_DAEMON_VERSION) throw new Error(slateServerBehindLine(placeDoor.nameOf(placeId)));
+    if (version !== undefined && version < need) throw new Error(slateServerBehindLine(placeDoor.nameOf(placeId)));
     const link = placeDoor.channel(placeId, heard);
     if (link === undefined) throw new Error(absentComputer(placeDoor.nameOf(placeId), null).sentence);
     return { send: async frame => replyOf(frame as DaemonFrame, await served(frame)), listen, closed: link.closed, close: () => link.close() };

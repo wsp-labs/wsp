@@ -259,7 +259,7 @@ async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<R
         Some(name) if GUEST_OPS.contains(&name) && !guest_road_serves(&conn.road, ctx.is_place(), name) => {
             refuse(id, DaemonErrorCode::Forbidden, words::NOT_ON_THIS_ROAD)
         }
-        Some(name @ ("fs.image" | "fs.hash")) => crate::slate_reads::serve(ctx, id, name, frame).await,
+        Some(name @ ("fs.image" | "fs.hash" | "http.post")) => crate::slate_reads::serve(conn, ctx, id, name, frame).await,
         Some(name @ ("stdio.open" | "stdio.write" | "stdio.close")) => crate::stdio::serve(conn, ctx, id, name, frame),
         Some(
             name @ ("pty.create"
@@ -1130,7 +1130,7 @@ pub(crate) mod tests {
 
     /// A daemon of a computer somebody owns: the place file is what the roads table reads, and on this platform
     /// it turns no runtime on, so the bench is the switch alone.
-    pub(super) fn place_bench() -> Bench {
+    pub(crate) fn place_bench() -> Bench {
         let mut token = tempfile::NamedTempFile::new().unwrap();
         writeln!(token, "t").unwrap();
         let root = tempfile::tempdir().unwrap();

@@ -13,7 +13,7 @@ import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLog
 import { MCP_SERVER_NAME, agentVersionWord, compareVersions, controlNameRefusal, hasControlChar, shellQuote, strictVersion, takesMcpServers, type AgentRow, type AgentSignInState, type AgentsProject, type McpRow, type PlaceProvisionRow } from "@wsp/protocol";
 import { GUEST_WSP_MCP, harnessCatalog, projectOf, vaultSignIn, type AgentsOn, type AgentsRead, type AgentsReader } from "@wsp/runtime";
 import { machineHost, type MachineHost } from "./machine-host.js";
-import { resolveServer, serverTools } from "./server-tools.js";
+import { resolveServer, serverTools, signInOf } from "./server-tools.js";
 
 const READ_MS = 20_000;
 /** How long one agent's own version or status command is given where the computer has a timeout command. */
@@ -353,7 +353,9 @@ export function agentsReader(o: {
         // A turn there gets the vault's values; nothing of this computer's login or its files is read for it.
         const { host, login } = await hostOf(on);
         const values = serverValuesOf(o.vault());
-        return { ...(await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) })), env: values, login };
+        const found = await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) });
+        const signIn = signInOf(host, ask.agent, ask.name, found.transport, found.cwd);
+        return { ...found, env: values, login, ...(signIn !== undefined ? { signIn } : {}) };
       }
       const env = (await o.loginEnv?.()) ?? {};
       const values = { ...serverValuesOf(o.vault()), ...env };

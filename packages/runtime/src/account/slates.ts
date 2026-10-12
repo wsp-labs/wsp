@@ -2,9 +2,9 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, folderOnJoined, HERE_PLACE_ID, SETTLE_MS, slateMachineOnBox, type AgentsTarget } from "@wsp/protocol";
+import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, folderOnJoined, HERE_PLACE_ID, HTTP_POST_DAEMON_VERSION, SETTLE_MS, slateMachineOnBox, type AgentsTarget } from "@wsp/protocol";
 import { isServerNotSetUp } from "../agents-read.js";
-import { pipeOn } from "../slate-mcp-on.js";
+import { pipeOn, postOn } from "../slate-mcp-on.js";
 import { lazySlates } from "../lazy-slates.js";
 import type { Slates } from "../slates.js";
 import type { RuntimeContext, SlatesArea } from "../context.js";
@@ -87,7 +87,7 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
         if (machineOnBox(box)) throw new Error(slateMachineOnBox([name], box.record.name, ctx.computerOf(box)));
         const { login, ...spec } = await ctx.agentsRead.server(serversTarget(box), { agent: harness, name });
         if (login === undefined) throw new Error(`${ctx.computerOf(box)} did not say who its lines run as`);
-        return { ...spec, open: pipeOn(ctx.computerOf(box), login, () => ctx.stdioRoad(box)) };
+        return { ...spec, open: pipeOn(ctx.computerOf(box), login, () => ctx.stdioRoad(box)), post: postOn(ctx.computerOf(box), () => ctx.stdioRoad(box, HTTP_POST_DAEMON_VERSION), spec.signIn) };
       }
       const reader = opts.agentsReader;
       if (reader?.server === undefined) throw new Error("this host reads no agent's MCP config");

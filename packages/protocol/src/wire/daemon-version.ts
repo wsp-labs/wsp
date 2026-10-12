@@ -717,6 +717,10 @@ export function placeDaemonBehind(place: { daemonVersion?: number }): string | u
  * machine runs over. */
 export const STDIO_DAEMON_VERSION = 154;
 
+/** The first daemon that posts to an http server from its own computer (http.post), which a slate's http MCP server
+ * on a box or a cloud machine is asked through. */
+export const HTTP_POST_DAEMON_VERSION = DAEMON_VERSION;
+
 /** The first daemon that answers fs.folders. */
 export const FS_FOLDERS_DAEMON_VERSION = 73;
 
