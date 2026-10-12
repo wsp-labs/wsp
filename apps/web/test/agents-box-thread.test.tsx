@@ -6,7 +6,7 @@
 // the host says the box's agents changed.
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { AgentsSignInEvent, AgentsTarget, PlaceView, ServerAsk, WorkspaceView } from "@wsp/protocol";
+import type { AgentRow, AgentsSignInEvent, AgentsTarget, PlaceView, ServerAsk, WorkspaceView } from "@wsp/protocol";
 import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { AGENTS_LIST_WORDS as W } from "../src/components/agents/agentsRows.js";
@@ -16,7 +16,7 @@ import { forgetAgentsReports } from "../src/components/agents/useAgentsReport.js
 import { forgetSignIns } from "../src/components/agents/useAgentActs.js";
 import { TooltipProvider } from "../src/components/ui/tooltip.js";
 import { AGENTS_REPORT } from "./fixtures/agents-report.js";
-import { openRow, panel, stepOf, tab } from "./agents-panel-harness.js";
+import { openRow, panel, stateOf, stepOf, tab } from "./agents-panel-harness.js";
 import { settingsApi, settle } from "./settings-harness.js";
 
 const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", default: true, present: true, takesForks: false, engine: "none", buildsImages: false };
@@ -26,7 +26,8 @@ const NOTION = "server-global-notion-http-mcp.notion.com";
 const METRICS = "server-project-pr_wsp-spoo-metrics-stdio-node scripts/metrics-mcp.js --token ${METRICS_TOKEN}";
 const FRONTEND = "skill-user-frontend-design";
 
-function host() {
+/** The host as the box's read answers it, each agent's sign-in as `said` says where it says one. */
+function host(said: Readonly<Record<string, AgentRow["signIn"]>> = {}) {
   const reads: AgentsTarget[] = [];
   const removes: [AgentsTarget, ServerAsk][] = [];
   const signIns: [AgentsTarget, string, string | undefined][] = [];
@@ -34,7 +35,7 @@ function host() {
   const stopped: string[] = [];
   const skillRemoves: [AgentsTarget, string, boolean][] = [];
   const made = settingsApi({
-    agentsRead: async (target: AgentsTarget) => (reads.push(target), { ...AGENTS_REPORT, target }),
+    agentsRead: async (target: AgentsTarget) => (reads.push(target), { ...AGENTS_REPORT, agents: AGENTS_REPORT.agents.map(a => ({ ...a, signIn: said[a.id] ?? a.signIn })), target }),
     serversAdd: async () => ({ file: "" }),
     skillsPreview: async () => ({ text: "", size: 0 }),
     skillsRemove: async (target: AgentsTarget, name: string, project: boolean) => void skillRemoves.push([target, name, project]),
@@ -125,6 +126,22 @@ describe("a thread on a box", () => {
     fireEvent.click(signIn);
     await settle();
     expect(h.signIns).toEqual([[{ placeId: "p_2" }, "codex", undefined]]);
+  });
+
+  it("reads a token wsp hands an agent and a login on the box as signed in, in the panel and the Sign-ins card alike", async () => {
+    host({ claude: "vault-key", codex: "signed-in" });
+    await drawn();
+    expect([stateOf("claude"), stateOf("codex")]).toEqual([
+      ["Signed in with a token", "good"],
+      ["Signed in", "good"],
+    ]);
+    expect([stepOf("claude", "sign-in"), stepOf("codex", "sign-in")]).toEqual([null, null]);
+    cleanup();
+    render(<ComputerSignIns place={hetzner} now={Date.now()} />);
+    await settle();
+    const codex = document.querySelector<HTMLElement>("[data-settings-row=sign-in-codex]")!;
+    expect(codex.querySelector("[data-settings-word]")?.textContent).toBe("signed in");
+    expect(codex.querySelector("[data-settings-control]")).toBeNull();
   });
 
   it("keeps a sign-in started in the panel going once the box's page opens, where the Sign-ins card shows that run until it lands", async () => {

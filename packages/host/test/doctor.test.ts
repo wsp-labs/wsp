@@ -752,7 +752,7 @@ describe("the doctor's computer road", () => {
       signIns: { claude: "vault-key", codex: "none" },
     });
     expect(await computerDoctor(host.rt, io, said, { vault: () => ({}), plan: async () => onePlan }, 7)).toBe(0);
-    expect(io.lines).toContain(`${agentName("claude")} on spoo: 2.1.270, your key`);
+    expect(io.lines).toContain(`${agentName("claude")} on spoo: 2.1.270, signed in with a token`);
     expect(io.lines).toContain(`${agentName("codex")} on spoo: 0.153.0, not signed in`);
     // The words are the protocol's own, so this step and the table cannot say them two ways.
     expect(io.lines).toContain(`${agentName("codex")} on spoo: ${agentVersionWord("codex-cli 0.153.0")}, ${agentSignInWord("none")}`);

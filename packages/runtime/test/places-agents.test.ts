@@ -77,7 +77,7 @@ describe("the agents on a computer you own", () => {
     expect(answered.ok, String(answered["error"])).toBe(true);
     expect(answered["report"]).toMatchObject({ ...READ, target: { placeId } });
     expect(typeof (answered["report"] as { readAt: unknown }).readAt).toBe("string");
-    expect(asked).toEqual([{ kind: "box", name: "srv", machine: expect.anything(), login: { HOME: "/home/maya", PATH: "/usr/bin" }, signIns: { claude: "none" }, versions: { claude: "2.1.281 (Claude Code)" }, projects: [], stores: { claude: "/home/maya/.claude-cfg", codex: "/home/maya/.codex" } }]);
+    expect(asked).toEqual([{ kind: "box", name: "srv", machine: expect.anything(), login: { HOME: "/home/maya", PATH: "/usr/bin" }, signIns: expect.objectContaining({ claude: "none" }), versions: { claude: "2.1.281 (Claude Code)" }, projects: [], stores: { claude: "/home/maya/.claude-cfg", codex: "/home/maya/.codex" } }]);
     expect(lines).toEqual(["id -un"]);
     expect(said).toEqual(["maya"]);
     expect((await c.request("agents.read", { target: { placeId: HERE_PLACE_ID } })).ok).toBe(true);
@@ -109,19 +109,31 @@ describe("the agents on a computer you own", () => {
       sockets.push(c.ws);
       const signIns = async (): Promise<unknown> => {
         expect((await c.request("agents.read", { target: { placeId } })).ok).toBe(true);
-        return (asked.at(-1) as { signIns?: unknown }).signIns;
+        return (asked.at(-1) as { signIns?: Record<string, unknown> }).signIns?.["codex"];
       };
-      expect(await signIns()).toEqual({ codex: "none" });
+      expect(await signIns()).toBe("none");
       // What `codex login` in a terminal of a thread there writes: every terminal there has CODEX_HOME in that folder.
       mkdirSync(joinPath(logins, "codex"));
       writeFileSync(joinPath(logins, "codex", "auth.json"), "{}");
-      expect(await signIns()).toEqual({ codex: "signed-in" });
+      expect(await signIns()).toBe("signed-in");
       expect(ctx.runtime!.places!.signInsAt(placeId)).toEqual({ codex: "signed-in" });
       rmSync(joinPath(logins, "codex", "auth.json"));
-      expect(await signIns()).toEqual({ codex: "none" });
+      expect(await signIns()).toBe("none");
     } finally {
       rmSync(logins, { recursive: true, force: true });
     }
+  });
+
+  it("word every agent a read can find there, though the report the computer last sent named none of them", async () => {
+    const asked: AgentsOn[] = [];
+    const { hostKey } = await serving({ agentsReader: { read: async on => (asked.push(on), READ), tools: async () => ({ auth: "open", readAt: "2026-10-12T12:00:00.000Z" }) }, vault: { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x" } });
+    const { client, placeId } = await join(hostKey, { code: await code(), name: "srv", report: report("srv", { daemonVersion: DAEMON_VERSION, agents: [], logins: ["codex/auth.json"] }) });
+    sockets.push(client.ws);
+    const c = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
+    sockets.push(c.ws);
+    expect((await c.request("agents.read", { target: { placeId } })).ok).toBe(true);
+    expect((asked.at(-1) as { signIns?: unknown }).signIns).toMatchObject({ claude: "vault-key", codex: "signed-in", gemini: "none" });
+    expect(ctx.runtime!.places!.signInsAt(placeId)).toEqual({});
   });
 
   it("hand the reader the rows that computer's last setup came to, which say the agents wsp installed there", async () => {

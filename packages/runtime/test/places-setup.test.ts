@@ -903,6 +903,18 @@ describe("a computer added with its picks", () => {
     expect(runtime!.places!.signInsAt(place.id)).toEqual({ claude: "vault-key", codex: "signed-in" });
   });
 
+  it("words the sign-in of an agent the setup installed, though the computer's last report named no agent", async () => {
+    const s = signIns();
+    const rows = { ...ROWS, agents: [{ id: "agents/claude", label: "Claude Code", outcome: "installed" as const }, { id: "agents/codex", label: "Codex", outcome: "installed" as const }] };
+    await hosting({ provision: provisioner({ rows }).wired, acts: s.acts, report: report("spoo", { daemonVersion: DAEMON_VERSION, agents: [], logins: [] }) });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: LAPTOP }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.url !== undefined) === true);
+    s.end("codex", { state: "signed-in" });
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    expect((await rowOf(place.id)).signIns).toEqual({ claude: "vault-key", codex: "signed-in" });
+    expect(runtime!.places!.signInsAt(place.id)).toEqual({ claude: "vault-key", codex: "signed-in" });
+  });
+
   it("starts no sign-in for an agent whose own status there says signed in, though the daemon's last list names no login", async () => {
     const s = signIns();
     const cmds: string[] = [];

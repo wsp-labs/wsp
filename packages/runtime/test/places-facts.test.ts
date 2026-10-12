@@ -162,7 +162,7 @@ describe("what stands for each agent on a computer you own", () => {
     const row = (await placesOf()).find(p => p.name === "spoo")!;
     expect(row.agentVersions).toEqual(sent.agentVersions);
     expect(row.signIns).toEqual({ claude: "vault-key", codex: "none" });
-    expect(agentsCell(row)).toBe("claude 2.1.270 your key, codex 0.153.0 not signed in");
+    expect(agentsCell(row)).toBe("claude 2.1.270 signed in with a token, codex 0.153.0 not signed in");
     client.close();
   });
 
