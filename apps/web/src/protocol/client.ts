@@ -6,6 +6,9 @@
 // token; the store re-runs its standing fetches when the status comes back
 // to live.
 import {
+  processesLeftOf,
+  type LeftThread,
+  type ProcessesAsk,
   ConversationsAnswer,
   type ResumeAsk,
   PendingComputer,
@@ -200,11 +203,14 @@ export class DisconnectedError extends Error {
 export class RequestError extends Error {
   readonly kind: string | undefined;
   readonly fix: string | undefined;
-  constructor(message: string, kind?: string, fix?: string) {
+  /** The threads a settle or a delete was refused over, with the processes each still runs. */
+  readonly left: readonly LeftThread[] | undefined;
+  constructor(message: string, kind?: string, fix?: string, left?: readonly LeftThread[]) {
     super(message);
     this.name = "RequestError";
     this.kind = kind;
     this.fix = fix;
+    this.left = left;
   }
 }
 
@@ -477,7 +483,7 @@ export class ProtocolClient {
     const p = this.#pending.get(id);
     if (!p) return;
     this.#pending.delete(id);
-    if (msg.ok === false) p.reject(new RequestError(String(msg.error ?? NO_REASON), typeof msg.kind === "string" ? msg.kind : undefined, typeof msg.fix === "string" ? msg.fix : undefined));
+    if (msg.ok === false) p.reject(new RequestError(String(msg.error ?? NO_REASON), typeof msg.kind === "string" ? msg.kind : undefined, typeof msg.fix === "string" ? msg.fix : undefined, processesLeftOf(msg).left));
     else p.resolve(msg);
   }
 
@@ -714,14 +720,15 @@ export interface Api {
    * host refuses one whose turn reached its agent. Optional so fixtures that never forget one need not fake it; a
    * client without it offers no forget. */
   forgetThread?(threadId: string): Promise<void>;
-  /** Takes a thread in a folder away alone, and the worktree wsp made with the last thread in it. */
-  deleteThread?(threadId: string): Promise<{ workspaceId: string; worktree?: string; threads: number }>;
+  /** Takes a thread in a folder away alone, and the worktree wsp made with the last thread in it. With processes ask it
+   * is refused while the thread runs processes beside its agent, the refusal carrying them; a check deletes nothing. */
+  deleteThread?(threadId: string, o?: { processes?: ProcessesAsk; check?: boolean }): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }>;
   /** Stamps a thread as shown now on the host, which tells every window; takes the thread's fold key. Optional so
    * fixtures that never open one need not fake it. */
   readThread?(threadId: string): Promise<void>;
   /** Settles each thread and every thread under it on the host, which tells every window and answers what it settled
    * and what it left; takes fold keys. A client without it offers no settle. */
-  settleThreads?(threadIds: readonly string[]): Promise<SessionSettleResult>;
+  settleThreads?(threadIds: readonly string[], processes?: ProcessesAsk): Promise<SessionSettleResult>;
   /** Pins, snoozes or places threads, or takes one of those back, on the host, which tells every window; takes fold
    * keys. A client without it offers none of them. */
   markThreads?(threadIds: readonly string[], marks: ThreadMarks): Promise<void>;
@@ -1101,9 +1108,9 @@ export function makeApi(c: ProtocolClient): Api {
     // Parsed, not trusted: an outcome outside the enum must not read as renamed.
     renameSession: async (sessionId, title) => SessionRenameResult.parse(await c.request<Record<string, unknown>>("sessions.rename", { sessionId, title })),
     forgetThread: async threadId => void (await c.request("sessions.forget", { threadId })),
-    deleteThread: async threadId => await c.request<{ workspaceId: string; worktree?: string; threads: number }>("sessions.delete", { threadId }),
+    deleteThread: async (threadId, o = {}) => await c.request<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }>("sessions.delete", { threadId, ...o }),
     readThread: async threadId => void (await c.request("sessions.read", { threadId })),
-    settleThreads: async threadIds => SessionSettleResult.parse(await c.request<Record<string, unknown>>("sessions.settle", { threadIds })),
+    settleThreads: async (threadIds, processes) => SessionSettleResult.parse(await c.request<Record<string, unknown>>("sessions.settle", { threadIds, ...(processes !== undefined ? { processes } : {}) })),
     markThreads: async (threadIds, marks) => void (await c.request("sessions.mark", { threadIds, marks })),
     restoreThreads: async threadIds => SessionRestoreResult.parse(await c.request<Record<string, unknown>>("sessions.restore", { threadIds })),
     // Parsed, not trusted: a hit names a thread the palette opens.

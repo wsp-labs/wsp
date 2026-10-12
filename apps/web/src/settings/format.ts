@@ -531,6 +531,24 @@ export const ACTIVITY_WORDS = {
   endAllSentence: (count: number, memory: string): string => `${count === 1 ? "1 process" : `${count} processes`} holding ${memory} end, and a turn running stops first.`,
   endAllPress: "End all",
   cancel: "Cancel",
+  /** What a settle or a delete asks while the threads it takes still run processes beside their agents. */
+  leftTitle: (threads: number, title: string): string => (threads === 1 ? `Stop what ${title} still runs?` : `Stop what ${threads} threads still run?`),
+  /** What Stop ends: each process and what it started here, and a box thread's cgroup whole on that box. */
+  leftStops: (boxes: readonly string[], here: boolean): string =>
+    boxes.length === 0
+      ? "Stop ends each one and what it started."
+      : here
+        ? `Stop ends each one and what it started, and on ${listWords(boxes)} everything the thread started there.`
+        : `Stop ends everything the thread started on ${listWords(boxes)}.`,
+  leftSettle: (stops: string): string => `Settling leaves these running. ${stops}`,
+  leftDelete: (count: number, stops: string): string => `It still runs ${count === 1 ? "1 process" : `${count} processes`}. ${stops}`,
+  settleStop: "Settle and stop them",
+  settleKeep: "Settle, keep running",
+  deleteStop: "Delete and stop them",
+  deleteKeep: "Delete, keep running",
+  stopping: "Stopping…",
+  standing: (names: readonly string[]): string => `Still running after Stop: ${listWords(names)}.`,
+  close: "Close",
   computerRow: "What runs here",
   computerLine: (threads: number): string => (threads === 0 ? "No thread running, wsp's own parts" : `${threads === 1 ? "1 thread" : `${threads} threads`} running, and wsp's own parts`),
 } as const;

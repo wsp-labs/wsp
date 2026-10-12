@@ -6,8 +6,9 @@
 usage: wsp thread settle <thread>... [--finished] [--processes stop|keep]
   folds each thread and every thread under it into the sidebar's Settled,
   leaving a tree with a thread still working or asking in it; a thread settles
-  itself and the threads it started, never its lead; refused while one on this
-  computer still runs processes, unless --processes says to stop or keep them
+  itself and the threads it started, never its lead; refused while one still
+  runs processes, on this computer or a box, unless --processes says to stop or
+  keep them
 
   --finished     settle the finished threads under each thread named, and not
                  the thread itself; a failed one stays for you to read

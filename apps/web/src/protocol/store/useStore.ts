@@ -23,6 +23,7 @@ import { useSignInStore } from "../../shell/signInStore.js";
 import { newId, useComposerDraftStore } from "../../components/chat/composerDraftStore.js";
 import { useComposerFilesStore } from "../../components/chat/composerFiles.js";
 import { useComposerOptionsStore } from "../../components/chat/composerOptionsStore.js";
+import { askSettleProcesses } from "../../components/procs/leftAsk.js";
 import { transcripts } from "../../components/chat/transcripts.js";
 import { couldNotStart, explainCreateRefusal, keptAtLoad, madeAs, NO_LINES, restored, toKeep } from "./creations.js";
 import { addressed, firstRow, groupSessions, keptRows, keptThread, openThreadOf, remembered } from "./selection.js";
@@ -728,9 +729,11 @@ export const useStore = create<State>((set, get) => {
     async settleThreads(threadIds) {
       const api = get().api;
       if (!api?.settleThreads || threadIds.length === 0) return undefined;
+      const settle = api.settleThreads;
       try {
-        return await api.settleThreads(threadIds);
+        return await settle(threadIds, "ask");
       } catch (e: unknown) {
+        if (e instanceof RequestError && e.left !== undefined) return askSettleProcesses(e.left, choice => settle(threadIds, choice));
         noticeFailure(e);
         return undefined;
       }

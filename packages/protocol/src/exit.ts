@@ -27,13 +27,23 @@ export const EXIT_WORDS: Readonly<Record<ExitClass, string>> = {
 export const VerbFailure = z.object({ error: z.string(), class: ExitClass.exclude(["ok"]), exit: z.number().int() });
 export type VerbFailure = z.infer<typeof VerbFailure>;
 
+/** A settle or a delete refused while a thread still runs processes, carrying them for a client to ask about. */
+export const PROCESSES_LEFT_KIND = "processes-left";
+
 /** Which class each kind an error is stamped with belongs to; a kind missing here is the provider's. */
-export const KIND_CLASS: Readonly<Record<string, Exclude<ExitClass, "ok">>> = { usage: "usage", invalid: "usage", auth: "auth", "not-found": "usage" };
+export const KIND_CLASS: Readonly<Record<string, Exclude<ExitClass, "ok">>> = { usage: "usage", invalid: "usage", auth: "auth", "not-found": "usage", [PROCESSES_LEFT_KIND]: "usage" };
 
 /** The class of an error, by the kind stamped on it; one with no kind, or a kind no class claims, is the provider's. */
 export function exitClassOf(e: unknown): Exclude<ExitClass, "ok"> {
   const kind = typeof e === "object" && e !== null ? (e as { kind?: unknown }).kind : undefined;
   return (typeof kind === "string" ? KIND_CLASS[kind] : undefined) ?? "provider";
+}
+
+/** What a refused reply carries beside its sentence for a client to act on: a slate write's problem lists, and the
+ * threads a settle or a delete was refused over with the processes each still runs, which `processesLeftOf` reads. */
+export function refusalFields(e: unknown): { errors?: unknown[]; warnings?: unknown[]; left?: unknown[] } {
+  const left = typeof e === "object" && e !== null && (e as { kind?: unknown }).kind === PROCESSES_LEFT_KIND ? (e as { left?: unknown }).left : undefined;
+  return { ...problemListsOf(e), ...(Array.isArray(left) ? { left } : {}) };
 }
 
 /** JSON text with DEL and the C1 controls escaped: JSON.stringify escapes C0 alone, and a terminal acts on a raw C1

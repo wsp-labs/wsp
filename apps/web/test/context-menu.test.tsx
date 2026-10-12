@@ -425,7 +425,7 @@ describe("a thread's tile in a project folder two threads share", () => {
     expect(dialog.textContent).toContain("Delete thread A?");
     expect(dialog.textContent).toContain("the folder it worked in is left as it is");
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(api.deleteThread).toHaveBeenCalledWith("thr_a"));
+    await waitFor(() => expect(api.deleteThread).toHaveBeenCalledWith("thr_a", { processes: "ask" }));
     await waitFor(() => expect(screen.queryByText("thread A")).toBeNull());
     expect(screen.getByText("thread B")).toBeDefined();
     expect(api.deleteWorkspace).not.toHaveBeenCalled();

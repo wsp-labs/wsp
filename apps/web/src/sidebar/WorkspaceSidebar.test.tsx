@@ -650,7 +650,7 @@ describe("the sidebar's list of thread tiles", () => {
       settleThreads.mockResolvedValueOnce({ settled: [{ threadId: "th_lead", title: "the lead" }], left: [{ threadId: "th_builder", why: "still working: stop it first" }] } as never);
       choose("settle");
       fireEvent.contextMenu(rowOf("the lead"));
-      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_lead"]));
+      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_lead"], "ask"));
       await waitFor(() => expect(useNotices.getState().notices[0]).toMatchObject({ kind: "done", text: "Settled 1 thread. Left 1 thread: still working: stop it first" }));
       expect(picked[0]).toContain("settle");
       // A finished thread under a root stands behind the lead's Finished fold, and settles alone from its own menu.
@@ -658,12 +658,12 @@ describe("the sidebar's list of thread tiles", () => {
       fireEvent.click(document.querySelector<HTMLElement>("[data-child-fold=finished]")!);
       settleThreads.mockClear();
       fireEvent.contextMenu(await waitFor(() => rowOf("its builder")));
-      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_builder"]));
+      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_builder"], "ask"));
       expect(picked[1]).toContain("settle");
       settleThreads.mockClear();
       choose("settle-read");
       fireEvent.contextMenu(fold);
-      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_lead"]));
+      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_lead"], "ask"));
     } finally {
       delete (window as { wsp?: unknown }).wsp;
     }
@@ -715,7 +715,7 @@ describe("the sidebar's list of thread tiles", () => {
     window.wsp = { contextMenu: async (items: Array<{ id: string }>) => (picked.push(items.map(item => item.id)), "settle-read") } as never;
     try {
       fireEvent.contextMenu(document.querySelector<HTMLElement>("[data-sidebar-tree]")!);
-      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_read"]));
+      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_read"], "ask"));
       expect(picked).toEqual([["settle-read"]]);
     } finally {
       delete (window as { wsp?: unknown }).wsp;
@@ -1009,7 +1009,7 @@ describe("the sidebar's list of thread tiles", () => {
       drag(rowOf("finished unseen"), section("threads"));
       expect(markThreads.mock.calls).toHaveLength(calls);
       drag(rowOf("read already"), () => document.querySelector<HTMLElement>("[data-drop-settled]")!);
-      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_idle"]));
+      await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_idle"], "ask"));
     });
 
     it("a tree with a thread still working dropped on Settled settles nothing and says why in the menu's own sentence", async () => {
@@ -1500,7 +1500,7 @@ describe("a lead's tree in the sidebar", () => {
     // A finished row offers Settle on hover, as a quiet tile does.
     const settle = rows()[1]!.parentElement!.querySelector<HTMLElement>("[data-tile-settle]")!;
     fireEvent.click(settle);
-    await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["f1"]));
+    await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["f1"], "ask"));
   });
 
   it("keeps a child settled under a running lead in the lead's Finished fold, after the finished, muted, and opens it on a click", async () => {
@@ -1591,7 +1591,7 @@ describe("a lead's tree in the sidebar", () => {
     expect(settleOf("still going")).toBeNull();
     expect(settleOf("over a builder")).toBeNull();
     fireEvent.click(settleOf("all quiet")!);
-    await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["quiet"]));
+    await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["quiet"], "ask"));
     expect(useStore.getState().selectedThreadId).toBeNull();
   });
 

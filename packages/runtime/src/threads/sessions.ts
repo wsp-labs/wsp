@@ -1421,13 +1421,13 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // once the delete is decided: a check, or a refusal on its processes, leaves it waiting.
       const held = [...heldSends].filter(([, h]) => h.threadId === threadId);
       if ([...sessions].some(([id, s]) => s.view.threadId === threadId && s.view.status === "running" && !heldSends.has(id))) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
-      if (o.check === true) {
-        if (o.processes !== undefined) await ctx.activity.meet([threadId], o.processes === "stop" ? "keep" : o.processes, "delete", origin);
-        return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads: 1 };
-      }
+      if (o.check === true && o.processes !== undefined) await ctx.activity.meet([threadId], o.processes === "stop" ? "keep" : o.processes, "delete", origin);
+      if (o.check === true) return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads: 1 };
       const ended = o.processes === undefined ? [] : await ctx.activity.meet([threadId], o.processes, "delete", origin);
+      // A box's end takes the thread's cgroup with everything in it, which keep was asked to leave running.
+      const endThread = o.processes === "keep" ? undefined : ctx.moduleOf(entry.record.kind).endThread;
       if (worktree !== undefined) {
-        await ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, { remove: true });
+        await endThread?.(entry, threadId, { remove: true });
         await ctx.endThreadShells(entry, threadId);
         await ctx.workspaces.delete(workspaceId, origin);
         return { workspaceId, worktree, threads: 1, ...(ended.length > 0 ? { ended } : {}) };
@@ -1436,7 +1436,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await Promise.all(held.map(([id]) => sessions.get(id)?.launch));
       if (ctx.threadRuns(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
       ctx.reapKept(threadId);
-      await ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, { remove: true });
+      await endThread?.(entry, threadId, { remove: true });
       await ctx.endThreadShells(entry, threadId);
       await ctx.openThread(workspaceId, threadId);
       await ctx.dropCheckpoints(entry, threadId);
