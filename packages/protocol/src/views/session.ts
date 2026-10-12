@@ -52,14 +52,17 @@ export const ThreadWaitingOn = z.object({
 });
 export type ThreadWaitingOn = z.infer<typeof ThreadWaitingOn>;
 
-/** A turn a computer's threads at once holds back: the computer by its id and its name, and what runs there against
- * its cap as the turn last looked. Read off the live wait and never written down, as waitingOn is, so a host that
- * restarts holds no turn waiting on a slot it no longer counts. */
+/** A turn a computer's threads at once holds back, or a sub-thread's spawn its cloud holds back: the place by its id
+ * and its name, and what runs there against its cap as the turn last looked. Read off the live wait and never written
+ * down, as waitingOn is; a held spawn's own record is, and the next host reads the count again. */
 export const ThreadCapWait = z.object({
   placeId: z.string(),
   place: z.string(),
   running: z.number().int(),
   atOnce: z.number().int(),
+  /** Set where a sub-thread's spawn waits on a cloud rather than a turn on a computer's threads: `slot` counts the
+   * machines running against the cloud's machines at once, `minute` the starts used against its starts a minute. */
+  why: z.enum(["slot", "minute"]).optional(),
 });
 export type ThreadCapWait = z.infer<typeof ThreadCapWait>;
 

@@ -92,7 +92,8 @@ export function subSessionLandCommand(file: { folder: string; name: string; dept
 export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
   const sub = record.sub;
   if (sub === undefined) return undefined;
-  const state: SubState = record.phase === "released" || record.phase === "gone" ? "released" : record.phase === "running" ? "running" : "napping";
+  const state: SubState =
+    record.phase === "released" || record.phase === "gone" ? "released" : record.phase === "queued" ? (record.queue !== undefined ? "waiting" : "starting") : record.phase === "running" ? "running" : "napping";
   return {
     state,
     on: sub.on,
@@ -363,7 +364,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
    * turn ran since it, whose work nothing has read yet; nothing for a released box or a thread that never ran. */
   const subUnpushed = (entry: LiveWorkspace): SubUnpushed | undefined => {
     const sub = entry.record.sub;
-    if (sub === undefined || entry.record.phase === "released") return undefined;
+    // A queued spawn has run nothing, so nothing of it waits to be pushed.
+    if (sub === undefined || entry.record.phase === "released" || entry.record.phase === "queued") return undefined;
     const threadId = threadOf(entry.record.id);
     if (threadId === undefined) return undefined;
     const ran = ctx.latestOn(threadId)?.startedAt;
@@ -417,7 +419,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       await working.get(asked.record.id);
       const entry = live.get(asked.record.id) ?? asked;
       // Never under a turn, and never by a thread's own token over work no remote holds; the caller's reach was read.
-      if (busy(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
+      // A held spawn's row reads running with no turn under it: the delete drops it from the queue.
+      if (entry.record.phase !== "queued" && busy(threadId)) throw Object.assign(new Error(THREAD_WORKING_LINE), { kind: "conflict" });
       const held = subUnpushed(entry);
       if (held !== undefined && scopeOf(origin) !== undefined) throw subHeldDeleteRefusal(threadId, held, entry.record.sub!.branch);
       const workspaceId = entry.record.id;

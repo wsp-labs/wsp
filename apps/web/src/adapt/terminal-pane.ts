@@ -78,6 +78,8 @@ export function terminalPaneState(input: TerminalPaneInput): TerminalPaneState {
     case "gone":
     case "released":
       return { kind: "gone" };
+    case "waiting":
+      return { kind: "waking" };
     case "pausing":
       return { kind: "paused", pausing: true };
     case "paused":

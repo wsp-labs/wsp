@@ -97,6 +97,7 @@
                 "napping",
                 "waking",
                 "gone",
+                "queued",
                 "released"
               ]
             },
@@ -614,6 +615,13 @@
                 },
                 "atOnce": {
                   "type": "integer"
+                },
+                "why": {
+                  "type": "string",
+                  "enum": [
+                    "slot",
+                    "minute"
+                  ]
                 }
               },
               "required": [

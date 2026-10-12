@@ -2,7 +2,12 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENTS_ON,
+  CAP_RAISE_ACT,
   CLOUD_CAP_DEFAULT,
+  capRaiseAct,
+  capRunningLine,
+  capWaitLine,
+  phaseHoldsSlot,
   DAEMON_VERSION,
   HERE_PLACE_ID,
   NAP_AFTER_MS,
@@ -261,5 +266,33 @@ describe("the word a place's row says", () => {
     expect(placeStateOf({ ...unblocked, setup: { ...running, state: "failed", said: "no agent installed" } }, null, 20)).toEqual({ word: "Setup failed", sentence: "no agent installed" });
     const { setup: _s, ...settled } = unblocked;
     expect(placeStateOf({ ...settled, running: 0 }, null).word).toBe(`daemon ${DAEMON_VERSION - 1}, host ${DAEMON_VERSION}`);
+  });
+});
+
+describe("a held spawn's words and the slots a cloud counts", () => {
+  const threads = { placeId: "here", place: "this computer", running: 4, atOnce: 4 };
+  const slot = { placeId: "box", place: "Boat", running: 3, atOnce: 3, why: "slot" as const };
+  const minute = { placeId: "box", place: "Boat", running: 12, atOnce: 12, why: "minute" as const };
+
+  it("says a machine slot and a minute of starts apart, as 05 words them, and threads at once as before", () => {
+    expect(capWaitLine(slot)).toBe("waiting for a machine on Boat: 3 of 3 running");
+    expect(capWaitLine(minute)).toBe("waiting for Boat's next minute of starts: 12 of 12 used");
+    expect(capWaitLine(threads)).toBe("waiting while this computer is running 4 of 4 threads");
+    expect(capRunningLine(slot)).toBe("Boat is running 3 of 3 machines");
+    expect(capRunningLine(minute)).toBe("Boat's starts this minute are used: 12 of 12");
+  });
+
+  it("offers Raise machines at once beside a slot, Raise threads at once beside threads, and nothing beside a minute (Q10)", () => {
+    expect(capRaiseAct(slot)).toBe("Raise machines at once");
+    expect(capRaiseAct(threads)).toBe(CAP_RAISE_ACT);
+    expect(capRaiseAct(minute)).toBeUndefined();
+  });
+
+  it("a queued spawn waiting holds no slot until its machine is being made, and a released one holds none (04, L1)", () => {
+    expect(phaseHoldsSlot({ phase: "queued", queue: { since: "2026-10-12T00:00:00.000Z", why: "slot" } })).toBe(false);
+    expect(phaseHoldsSlot({ phase: "queued" })).toBe(true);
+    expect(phaseHoldsSlot({ phase: "released" })).toBe(false);
+    expect(phaseHoldsSlot({ phase: "napping" })).toBe(false);
+    expect(phaseHoldsSlot({ phase: "running" })).toBe(true);
   });
 });
