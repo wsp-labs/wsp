@@ -240,6 +240,27 @@ describe("machineExecStream", () => {
     expect(guest.files()).toEqual([]);
   });
 
+  it("a run that exits 137 is asked about once, from when the turn started, and one this side killed is never asked", async () => {
+    const { backend, machine } = await makeMachine();
+    const asked: number[] = [];
+    const killedWhy = async (at: number): Promise<string> => (asked.push(at), "killed for memory");
+    scriptGuest(backend, [{ append: "working\n" }, { exit: 137 }, {}]);
+    const stream = machineExecStream(machine, { pollMs: 5, now: () => 1_760_000_000_000, killedWhy })("claude -p 'hi'", { env: {} });
+    const lines: string[] = [];
+    await expect((async () => { for await (const l of stream.lines) lines.push(l); })()).rejects.toThrow("killed for memory");
+    expect(lines).toEqual(["working"]);
+    expect(await stream.exited).toBe(137);
+    expect(asked).toEqual([1_760_000_000_000]);
+
+    const again = await makeMachine();
+    scriptGuest(again.backend, []);
+    const stopped = machineExecStream(again.machine, { pollMs: 5, killedWhy })("sleep 9999", { env: {} });
+    setTimeout(() => stopped.kill(), 25);
+    for await (const _ of stopped.lines) void _;
+    expect(await stopped.exited).toBeNull();
+    expect(asked).toHaveLength(1);
+  });
+
   it("without an input channel the command runs as before: no input file, no tail, and write rejects", async () => {
     const { backend, machine } = await makeMachine();
     const guest = scriptGuest(backend, [{ append: "hi\n", exit: 0 }, {}]);
