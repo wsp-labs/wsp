@@ -66,6 +66,8 @@ export function writeProc(root: string, p: FakeProc): void {
   const dir = join(root, String(p.pid));
   mkdirSync(dir, { recursive: true });
   writeWhole(join(dir, "stat"), statLine(p));
+  // Every resident page private: statm's shared column, the file and shmem pages, is 0.
+  writeWhole(join(dir, "statm"), `${(p.rss ?? 10) * 4} ${p.rss ?? 10} 0 0 0 0 0\n`);
   writeWhole(join(dir, "comm"), `${p.comm ?? `p${p.pid}`}\n`);
   writeFileSync(join(dir, "cmdline"), (p.cmdline ?? [p.comm ?? `p${p.pid}`]).join("\0") + "\0");
   if (p.cwd !== undefined) relink(p.cwd, join(dir, "cwd"));

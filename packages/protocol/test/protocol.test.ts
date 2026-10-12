@@ -937,6 +937,10 @@ describe("runtime wire types", () => {
       // A slate's write and read are its agent's; a press, an approval, a cancel and a revoke start, stop or change what
       // runs on this computer.
       "slates.write", "slates.read", "slates.event", "slates.approve", "slates.cancel", "slates.revoke",
+      // The app's processes name the sites in the person's browser tabs, and only the app on this computer names them.
+      "appProcs.watch", "appProcs.unwatch", "appProcs.offer", "appProcs.set",
+      // A computer's processes carry their command lines, and an End signals a process on this computer.
+      "activity.read", "activity.end",
     ];
     for (const op of held) {
       expect(wire.RUNTIME_OPS, op).toContain(op);
@@ -1320,6 +1324,7 @@ describe("daemon files and diff ops", () => {
       openSocket: "/home/maya/.wsp/open.sock",
       guestSocket: "/home/maya/.wsp/daemon.sock",
       guestBin: "/home/maya/.wsp/place-bin",
+      dockerNotes: "/home/maya/.wsp/docker-notes",
       manifestPath: "/home/maya/.wsp/manifest.json",
       profileFile: "/home/maya/.wsp/profile.sh",
       unitDir: "/home/maya/.config/systemd/user",

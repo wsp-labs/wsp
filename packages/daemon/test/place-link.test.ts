@@ -354,8 +354,8 @@ describe("the socket a place proved, served as an inbound one", () => {
     // The sweep is the real one over that home: the place file, its key, the token and the door the daemon opened for
     // the threads there with its wsp are gone and named, and wsp's own folder goes last and whole, so nothing of
     // wsp's is left under the home.
-    // The door's wsp is written on Linux alone.
-    const shim = process.platform === "linux" ? [`${at.guestBin}/wsp`, at.guestBin] : [];
+    // The door's wsp and the docker beside it are written on Linux alone.
+    const shim = process.platform === "linux" ? [`${at.guestBin}/wsp`, `${at.guestBin}/docker`, at.guestBin] : [];
     const swept = [at.placeFile, at.placeKey, at.tokenPath, at.guestSocket, ...shim, at.wsp];
     expect(answer).toMatchObject({ ok: true, swept });
     for (const path of swept) expect(existsSync(path)).toBe(false);

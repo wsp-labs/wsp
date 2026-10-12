@@ -430,7 +430,7 @@ function ticksOf(used: UsedAnswer): { at: number; word: string }[] {
 
 /** The hues a computer, an account or a project takes by rank: none of them orange, Claude's, nor the done and failed
  * greens and reds; past them the neutral ramp. */
-const SPLIT_INKS = ["text-sky-500", "text-violet-500", "text-amber-500", "text-pink-500", "text-teal-500", "text-muted-foreground"];
+export const SPLIT_INKS = ["text-sky-500", "text-violet-500", "text-amber-500", "text-pink-500", "text-teal-500", "text-muted-foreground"];
 const BRAND_INK = "[--line:var(--line-light)] dark:[--line:var(--line-dark)]";
 /** The shades of one agent's hue its accounts take by rank: its mark's own, then mixed toward the text and toward the
  * page, so two accounts of one agent read apart in either theme. */

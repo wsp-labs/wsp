@@ -34,7 +34,23 @@ pub(crate) struct Identity {
 pub(crate) struct Usage {
     pub(crate) footprint: u64,
     pub(crate) cpu_seconds: f64,
+    /// Nanojoules its cpu work has drawn since it started, where the kernel answers the version that counts them.
+    pub(crate) energy_nj: Option<u64>,
 }
+
+/// RUSAGE_INFO_V6, which the libc crate does not carry: version 4 and the fields after it, in sys/resource.h's order.
+/// ri_energy_nj is the energy the process's cpu work used, the figure Activity Monitor's energy column is built on.
+#[repr(C)]
+struct RusageInfoV6 {
+    v4: libc::rusage_info_v4,
+    /// ri_flags, ri_user_ptime, ri_system_ptime, ri_pinstructions, ri_pcycles.
+    _before: [u64; 5],
+    ri_energy_nj: u64,
+    /// ri_penergy_nj, the secure and neural fields, and nine reserved.
+    _after: [u64; 15],
+}
+const RUSAGE_INFO_V6: c_int = 6;
+const _: () = assert!(size_of::<RusageInfoV6>() == 464);
 
 /// Every pid on the computer, whoever runs it.
 pub(crate) fn pids() -> Vec<u32> {
@@ -110,6 +126,73 @@ pub(crate) fn lineage(pid: u32) -> Option<(u32, u32)> {
     pidinfo::<libc::proc_bsdshortinfo>(pid, libc::PROC_PIDT_SHORTBSDINFO).map(|short| (short.pbsi_ppid, short.pbsi_pgid))
 }
 
+/// The kernel's names for one process, which any account may read: its 64-bit unique id, never reused while the
+/// computer runs, its parent's at its fork or its last exec, its pid version, which every exec moves, and its first
+/// parent's pid version at its fork, which an exec keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Uniq {
+    pub(crate) unique: u64,
+    pub(crate) parent: u64,
+    pub(crate) version: i32,
+    pub(crate) parent_version: i32,
+}
+
+/// `struct proc_uniqidentifierinfo` from XNU's private proc_info header, 56 bytes on arm64 and x86_64.
+#[repr(C)]
+struct UniqIdentifierInfo {
+    uuid: [u8; 16],
+    unique: u64,
+    parent: u64,
+    version: i32,
+    parent_version: i32,
+    reserved: [u64; 2],
+}
+const PROC_PIDUNIQIDENTIFIERINFO: c_int = 17;
+
+pub(crate) fn uniq(pid: u32) -> Option<Uniq> {
+    pidinfo::<UniqIdentifierInfo>(pid, PROC_PIDUNIQIDENTIFIERINFO).map(|u| Uniq {
+        unique: u.unique,
+        parent: u.parent,
+        version: u.version,
+        parent_version: u.parent_version,
+    })
+}
+
+/// The pids whose parent is `pid` now, whoever runs them.
+pub(crate) fn children(pid: u32) -> Vec<u32> {
+    let mut room = 64usize;
+    loop {
+        let mut buf = vec![0 as c_int; room];
+        let n = unsafe { libc::proc_listchildpids(pid as c_int, buf.as_mut_ptr().cast(), (room * size_of::<c_int>()) as c_int) };
+        if n <= 0 {
+            return Vec::new();
+        }
+        let n = n as usize;
+        if n < room {
+            buf.truncate(n);
+            return buf.into_iter().filter(|p| *p > 0).map(|p| p as u32).collect();
+        }
+        room *= 4;
+    }
+}
+
+unsafe extern "C" {
+    fn proc_signal_with_audittoken(token: *mut [u32; 8], sig: c_int) -> c_int;
+}
+
+/// Signals the process this pid and pid version name, and none other: the kernel matches both before the signal, so
+/// a pid reused or exec'd since answers ESRCH. The call returns the errno itself, and EINVAL for signal 0.
+pub(crate) fn signal_exact(pid: u32, version: i32, sig: c_int) -> Result<(), nix::errno::Errno> {
+    // audit_token_t's val[5] is the pid and val[7] the pid version; the kernel reads only those two.
+    let mut token = [0u32; 8];
+    token[5] = pid;
+    token[7] = version as u32;
+    match unsafe { proc_signal_with_audittoken(&mut token, sig) } {
+        0 => Ok(()),
+        e => Err(nix::errno::Errno::from_raw(e)),
+    }
+}
+
 /// Mach time units to nanoseconds, off the kernel's own timebase frequency: one to one on Intel, 125/3 on Apple
 /// silicon. mach_timebase_info is not that under Rosetta, where it answers one to one while the kernel still counts a
 /// process's time in its own units, and an Intel build on Apple silicon read every process at a forty-second of its
@@ -129,15 +212,22 @@ fn ns_per_tick() -> f64 {
 }
 
 /// One process's footprint and cpu time, from proc_pid_rusage, where the cpu times are in mach time units.
+/// A macOS too old for version 6 refuses it, and answers version 4 with no energy.
 pub(crate) fn usage(pid: u32) -> Option<Usage> {
-    let mut info = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
-    let rc = unsafe { libc::proc_pid_rusage(pid as c_int, libc::RUSAGE_INFO_V4, info.as_mut_ptr().cast()) };
-    if rc != 0 {
+    let spent = |info: &libc::rusage_info_v4, energy_nj: Option<u64>| {
+        let ticks = info.ri_user_time.saturating_add(info.ri_system_time);
+        Usage { footprint: info.ri_phys_footprint, cpu_seconds: ticks as f64 * ns_per_tick() / 1e9, energy_nj }
+    };
+    let mut v6 = std::mem::MaybeUninit::<RusageInfoV6>::zeroed();
+    if unsafe { libc::proc_pid_rusage(pid as c_int, RUSAGE_INFO_V6, v6.as_mut_ptr().cast()) } == 0 {
+        let info = unsafe { v6.assume_init() };
+        return Some(spent(&info.v4, Some(info.ri_energy_nj)));
+    }
+    let mut v4 = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
+    if unsafe { libc::proc_pid_rusage(pid as c_int, libc::RUSAGE_INFO_V4, v4.as_mut_ptr().cast()) } != 0 {
         return None;
     }
-    let info = unsafe { info.assume_init() };
-    let ticks = info.ri_user_time.saturating_add(info.ri_system_time);
-    Some(Usage { footprint: info.ri_phys_footprint, cpu_seconds: ticks as f64 * ns_per_tick() / 1e9 })
+    Some(spent(&unsafe { v4.assume_init() }, None))
 }
 
 /// The kernel's cap on a process's argument area, which KERN_PROCARGS2 needs room for.
@@ -160,6 +250,16 @@ fn arg_max() -> usize {
 /// argc, the executable's path, padding, then argv and the environment, each NUL-terminated; only argv is read. None
 /// for a process out of reach or with no argv, a kernel task's or a zombie's.
 pub(crate) fn argv(pid: u32, cap: usize) -> Option<String> {
+    argv_of(&procargs(pid)?, cap)
+}
+
+/// argv[0], the name a process was run by: a link's own name, where the accounting name is the file it resolves to.
+pub(crate) fn arg0(pid: u32) -> Option<String> {
+    let area = procargs(pid)?;
+    args_of(&area)?.first().map(|arg| String::from_utf8_lossy(arg).into_owned())
+}
+
+fn procargs(pid: u32) -> Option<Vec<u8>> {
     let mut buf = vec![0u8; arg_max()];
     let mut mib = [libc::CTL_KERN, libc::KERN_PROCARGS2, pid as c_int];
     let mut len = buf.len();
@@ -167,10 +267,48 @@ pub(crate) fn argv(pid: u32, cap: usize) -> Option<String> {
     if rc != 0 || len < size_of::<c_int>() {
         return None;
     }
-    argv_of(&buf[..len], cap)
+    buf.truncate(len);
+    Some(buf)
+}
+
+/// A process's environment as NUL-separated `NAME=value` entries, the part of KERN_PROCARGS2 after argv up to the
+/// first empty entry, where the loader's own strings begin. macOS 26 answers none for an Apple platform binary, even
+/// to the same account (/bin/bash, /bin/sleep), and the whole of it for node, python and the agents.
+pub(crate) fn environ(pid: u32) -> Option<Vec<u8>> {
+    environ_of(&procargs(pid)?)
+}
+
+fn environ_of(area: &[u8]) -> Option<Vec<u8>> {
+    let argc = c_int::from_ne_bytes(area.get(..size_of::<c_int>())?.try_into().ok()?);
+    let mut rest = &area[size_of::<c_int>()..];
+    let path_end = rest.iter().position(|b| *b == 0)?;
+    rest = &rest[path_end..];
+    let start = rest.iter().position(|b| *b != 0)?;
+    let mut out = Vec::new();
+    for entry in rest[start..].split(|b| *b == 0).skip(argc.max(0) as usize) {
+        if entry.is_empty() {
+            break;
+        }
+        out.extend_from_slice(entry);
+        out.push(0);
+    }
+    Some(out)
+}
+
+/// `PROC_PIDCOALITIONINFO`, answered without root though sys/proc_info.h leaves it out: the resource coalition first,
+/// one per launchd job, which the host and the daemon it starts share.
+const PROC_PIDCOALITIONINFO: c_int = 20;
+
+pub(crate) fn coalition(pid: u32) -> Option<u64> {
+    pidinfo::<[u64; 5]>(pid, PROC_PIDCOALITIONINFO).map(|info| info[0]).filter(|id| *id != 0)
 }
 
 fn argv_of(area: &[u8], cap: usize) -> Option<String> {
+    let joined = args_of(area)?.join(&b' ');
+    Some(String::from_utf8_lossy(&joined[..joined.len().min(cap)]).into_owned())
+}
+
+fn args_of(area: &[u8]) -> Option<Vec<&[u8]>> {
     let argc = c_int::from_ne_bytes(area.get(..size_of::<c_int>())?.try_into().ok()?);
     let mut rest = &area[size_of::<c_int>()..];
     let path_end = rest.iter().position(|b| *b == 0)?;
@@ -181,11 +319,7 @@ fn argv_of(area: &[u8], cap: usize) -> Option<String> {
     for arg in rest.split(|b| *b == 0).take(argc.max(0) as usize) {
         args.push(arg);
     }
-    if args.is_empty() {
-        return None;
-    }
-    let joined = args.join(&b' ');
-    Some(String::from_utf8_lossy(&joined[..joined.len().min(cap)]).into_owned())
+    (!args.is_empty()).then_some(args)
 }
 
 /// The folder a process runs in, for the person's own processes.
@@ -320,6 +454,29 @@ mod tests {
     }
 
     #[test]
+    fn reads_version_6_on_the_same_layout_as_version_4_and_an_energy_that_never_runs_back() {
+        let me = std::process::id();
+        let mut v4 = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
+        assert_eq!(unsafe { libc::proc_pid_rusage(me as c_int, libc::RUSAGE_INFO_V4, v4.as_mut_ptr().cast()) }, 0);
+        let v4 = unsafe { v4.assume_init() };
+        let read = usage(me).unwrap();
+        let before = read.energy_nj.expect("this macOS answers version 6");
+        // The fields both versions share sit at the same offsets: the footprint read twice in a row agrees.
+        let (a, b) = (v4.ri_phys_footprint as f64, read.footprint as f64);
+        assert!((a - b).abs() / a < 0.1, "v4 footprint {a}, v6 footprint {b}");
+        let mut n = 0u64;
+        let until = std::time::Instant::now() + std::time::Duration::from_millis(200);
+        while std::time::Instant::now() < until {
+            n = std::hint::black_box(n.wrapping_add(1));
+        }
+        let after = usage(me).unwrap().energy_nj.unwrap();
+        assert!(after >= before, "energy ran back from {before} to {after} nJ");
+        // A virtual machine may count no energy at all; where it counts, 200 ms of one busy core is 50 mW to 10 W.
+        let drawn = after - before;
+        assert!(drawn == 0 || (10_000_000..2_000_000_000).contains(&drawn), "{drawn} nJ over 200 ms");
+    }
+
+    #[test]
     fn reads_a_footprint_and_the_cpu_time_getrusage_counts_in_seconds_not_in_mach_ticks() {
         let me = std::process::id();
         let mut n = 0u64;
@@ -355,6 +512,33 @@ mod tests {
         assert_eq!(argv_of(&area, 4096).as_deref(), Some("node server.js"));
         assert_eq!(argv_of(&area[..2], 4096), None);
         assert_eq!(argv_of(&2i32.to_ne_bytes(), 4096), None);
+    }
+
+    #[test]
+    fn reads_the_environment_after_argv_up_to_the_loaders_own_strings() {
+        let mut area = 2i32.to_ne_bytes().to_vec();
+        area.extend_from_slice(b"/usr/bin/node\0\0\0\0node\0server.js\0PATH=/bin\0WSP_THREAD=t1\0\0\0executable_path=/usr/bin/node\0");
+        assert_eq!(environ_of(&area).as_deref(), Some(&b"PATH=/bin\0WSP_THREAD=t1\0"[..]));
+        assert_eq!(crate::proc_owner::mark_of(&environ_of(&area).unwrap()).map(|m| m.thread).as_deref(), Some("t1"));
+        assert_eq!(environ_of(&area[..2]), None);
+    }
+
+    #[test]
+    fn a_child_of_this_process_reads_the_mark_it_was_started_with_and_shares_its_coalition() {
+        let mut child = std::process::Command::new("python3")
+            .args(["-c", "import time; time.sleep(30)"])
+            .env("WSP_THREAD", "t_mark")
+            .stdin(Stdio::null())
+            .spawn()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let mark = environ(child.id()).and_then(|bytes| crate::proc_owner::mark_of(&bytes)).map(|m| m.thread);
+        let theirs = coalition(child.id());
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(mark.as_deref(), Some("t_mark"));
+        assert!(theirs.is_some());
+        assert_eq!(theirs, coalition(std::process::id()));
     }
 
     #[test]

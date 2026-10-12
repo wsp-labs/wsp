@@ -20,6 +20,13 @@ import type { GitPrCheckoutReply as WireGitPrCheckoutReply } from "../generated/
 import type { GitPrDiffReply as WireGitPrDiffReply } from "../generated/GitPrDiffReply.js";
 import type { GitPrReviewReply as WireGitPrReviewReply } from "../generated/GitPrReviewReply.js";
 import type { GitPrViewReply as WireGitPrViewReply } from "../generated/GitPrViewReply.js";
+import type { CgroupMemory as WireCgroupMemory } from "../generated/CgroupMemory.js";
+import type { KillMode as WireKillMode } from "../generated/KillMode.js";
+import type { ProcKillReply as WireProcKillReply } from "../generated/ProcKillReply.js";
+import type { ProcKind as WireProcKind } from "../generated/ProcKind.js";
+import type { ProcListReply as WireProcListReply } from "../generated/ProcListReply.js";
+import type { ProcOwnedBy as WireProcOwnedBy } from "../generated/ProcOwnedBy.js";
+import type { ProcSignal as WireProcSignal } from "../generated/ProcSignal.js";
 import type { GitPrReplyReply as WireGitPrReplyReply } from "../generated/GitPrReplyReply.js";
 import type { GitPrResolveReply as WireGitPrResolveReply } from "../generated/GitPrResolveReply.js";
 import type { GitPrReactReply as WireGitPrReactReply } from "../generated/GitPrReactReply.js";
@@ -37,7 +44,7 @@ import type { GitBranchesReply as WireGitBranchesReply } from "../generated/GitB
 import { GitBranchCompareReply, GitMergeInReply, GitStartOnReply } from "../tree.js";
 import { GitPrReadReply, GitPrViewReply, GitPrMergeReply, GitPrReactReply, GitPrReplyReply, GitPrResolveReply, GitRepoReadReply, GitRunLogReply, GitUpdateReply, MergeMethod, PullRequest, PR_REPLY_BODY_MAX, ReactionContent } from "../pull-request.js";
 import { GitIssueReadReply, GitPrCheckoutReply, GitPrDiffReply, GitPrReviewReply } from "../start.js";
-import { SSH_KEY_MAX } from "../daemon-contract.js";
+import { KILL_PIDS_MAX, SSH_KEY_MAX } from "../daemon-contract.js";
 import type { UsageStore as WireUsageStore } from "../generated/UsageStore.js";
 import { cgroupPath, type Held, reqId, type Same, watchName } from "./helpers.js";
 import { EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX } from "./limits.js";
@@ -279,6 +286,33 @@ export type PtyListReply = z.infer<typeof PtyListReply>;
 
 export const ProcSignal = z.enum(["TERM", "KILL"]);
 export type ProcSignal = z.infer<typeof ProcSignal>;
+type ProcSignalHeld = Held<Same<ProcSignal, WireProcSignal>>;
+/** What proc.kill signals: the pid alone, or the pid and every process under it. Never a process group: a thread spans
+ * many, and a group TERM took processes of other threads. */
+export const KillMode = z.enum(["pid", "tree"]);
+export type KillMode = z.infer<typeof KillMode>;
+type KillModeHeld = Held<Same<KillMode, WireKillMode>>;
+
+/** Every kind a process row names, Chrome's task manager's way: by what the person knows it as. The daemon stamps
+ * agent, slate and tool, the three it knows by fact; the page names the rest. */
+export const PROC_KINDS = ["agent", "tool", "dev", "test", "build", "slate", "terminal", "tab", "app", "wsp", "other"] as const;
+export const ProcKind = z.enum(PROC_KINDS);
+export type ProcKind = z.infer<typeof ProcKind>;
+type ProcKindHeld = Held<Same<ProcKind, WireProcKind>>;
+
+/** The rung of the daemon's ladder that named the owner, first match wins: the thread's own process or a parent of
+ * it (`root`), a process a Mac's fork tracker followed from one of those (`fork`), a group seen under the thread
+ * (`group`), the WSP_THREAD mark in its environment (`env`), the thread's
+ * cgroup on a box (`cgroup`), a workspace's folder (`folder`, no thread), wsp's own coalition on a Mac (`coalition`,
+ * no thread). */
+export const ProcOwnedBy = z.enum(["root", "fork", "group", "env", "cgroup", "folder", "coalition"]);
+export type ProcOwnedBy = z.infer<typeof ProcOwnedBy>;
+type ProcOwnedByHeld = Held<Same<ProcOwnedBy, WireProcOwnedBy>>;
+
+/** The owner a row carries; `warm` says the thread is a warm agent's, started ahead of a send, and no thread has
+ * that id until a send claims it. */
+export const ProcOwner = z.object({ by: ProcOwnedBy, thread: z.string().optional(), workspace: z.string().optional(), warm: z.boolean().optional() });
+export type ProcOwner = z.infer<typeof ProcOwner>;
 
 /** One process as /proc/[pid] shows it. cpu is its busy share of one core
  * over the interval (a threaded process can pass 100); rss in bytes;
@@ -299,8 +333,41 @@ export const ProcEntry = z.object({
   /** The cgroup v2 path the process stands in, Linux only: what tells a thread's processes on a computer from
    * another's, a server it detached included. */
   cgroup: z.string().optional(),
+  /** The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a Mac
+   * alone keeps one, so a row elsewhere, and a process's first reading, carry none. */
+  energyMw: z.number().optional(),
+  /** The process group, which outlives the parent a detached child loses. */
+  pgid: z.number().int().optional(),
+  /** Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's, and on a
+   * daemon from before proc.scopes. One named by a rung a newer daemon adds reads as absent, rather than dropping the
+   * frame it rides in. */
+  owner: ProcOwner.optional().catch(undefined),
+  /** A word a newer daemon adds reads as other here, rather than dropping the frame it rides in. */
+  kind: ProcKind.catch("other").optional(),
+  /** What a kill checks the pid still holds this process by, sent back as proc.kill's identity: the unique id on a Mac,
+   * the start ticks on a box; absent on this computer's ps road on Linux. */
+  id: z.string().optional(),
 });
 export type ProcEntry = z.infer<typeof ProcEntry>;
+
+/** How many threads one proc.scopes names, and how many pids each of a thread's lists holds; wsp-frames' proc_owner.rs
+ * holds the same two. */
+export const PROC_SCOPES_MAX = 256;
+export const PROC_SCOPE_PIDS_MAX = 64;
+
+/** One thread as the host names it to the computer its processes run on: its agent processes (the running turn's and
+ * the kept one), the groups its turns led, its folder, its cgroup on a box, and what the host started for it. */
+export const ProcScope = z.object({
+  thread: z.string().min(1).max(64),
+  workspace: z.string().max(64).optional(),
+  agents: z.array(z.number().int().nonnegative()).max(PROC_SCOPE_PIDS_MAX).optional(),
+  groups: z.array(z.number().int().nonnegative()).max(PROC_SCOPE_PIDS_MAX).optional(),
+  folder: z.string().max(4096).optional(),
+  warm: z.boolean().optional(),
+  cgroup: z.string().max(512).optional(),
+  pids: z.array(z.object({ pid: z.number().int().nonnegative(), kind: ProcKind })).max(PROC_SCOPE_PIDS_MAX).optional(),
+});
+export type ProcScope = z.infer<typeof ProcScope>;
 
 /** Which column a list of processes is ordered by: what is spending the cpu, or what is holding the memory. */
 export type ProcSort = "cpu" | "mem";
@@ -327,6 +394,34 @@ export const ProcInspectReply = z.object({
   children: z.array(z.number().int()),
 });
 export type ProcInspectReply = z.infer<typeof ProcInspectReply>;
+
+/** One thread cgroup's memory on a box: its memory.stat anon and kernel bytes, which count what the thread's processes
+ * hold once however many of them share it, and leave out the page cache they read. */
+export const CgroupMemory = z.object({ cgroup: z.string(), memory: z.number().int().nonnegative() });
+export type CgroupMemory = z.infer<typeof CgroupMemory>;
+type CgroupMemoryHeld = Held<Same<CgroupMemory, WireCgroupMemory>>;
+
+/** proc.list's answer: the rows read at `at`, every process up to the cap, how many the machine had, and on a box each
+ * thread cgroup's memory. */
+export const ProcListReply = z.object({
+  at: z.number(),
+  daemon: z.number().int(),
+  total: z.number().int(),
+  procs: z.array(ProcEntry),
+  cgroups: z.array(CgroupMemory).optional(),
+});
+export type ProcListReply = z.infer<typeof ProcListReply>;
+type ProcListReplyHeld = Held<Same<ProcListReply, WireProcListReply>>;
+/** What a proc.kill did: every pid it signalled, those KILL was sent to once TERM's grace was up, and those still
+ * there after it. Absent fields are a daemon that signals one pid and answers nothing more. */
+export const ProcKillReply = z.object({
+  signalled: z.array(z.number().int()).optional(),
+  forced: z.array(z.number().int()).optional(),
+  left: z.array(z.number().int()).optional(),
+});
+export type ProcKillReply = z.infer<typeof ProcKillReply>;
+/** Every field a daemon of this version answers; the schema keeps each optional for the one before. */
+type ProcKillReplyHeld = Held<Same<Required<ProcKillReply>, WireProcKillReply>>;
 
 /** How much of a command's output one exec op carries back, stdout and stderr together. Past it the reply says
  * truncated and the rest is dropped: the road is a WebSocket frame and a turn that cats a log would otherwise put
@@ -418,11 +513,15 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("manifest.restartScript") }),
   z.object({ id: reqId, op: z.literal("inbox.watch") }),
   z.object({ id: reqId, op: z.literal("inbox.rescan") }),
-  /** Streams sys.sample events to this socket every two seconds until it
-   * closes. One sampler serves every subscriber and stops with the last one;
-   * the first sample lands one interval after the reply, since cpu is a delta. */
+  /** Streams sys.sample events to this socket every two seconds until
+   * sys.unwatch or the socket closes. One sampler serves every subscriber and
+   * stops with the last one; a second watch on one socket is no second
+   * subscription. The first sample lands one interval after the reply, since
+   * cpu is a delta. */
   z.object({ id: reqId, op: z.literal("sys.watch") }),
-  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs.
+  z.object({ id: reqId, op: z.literal("sys.unwatch") }),
+  // The computer's readings the daemon kept a minute apart, between two instants, folded into steps of stepMs. A
+  // step under a minute answers the last fifteen minutes of reads as they were taken.
   z.object({ id: reqId, op: z.literal("sys.history"), from: z.number().int(), to: z.number().int(), stepMs: z.number().int().nonnegative() }),
   // What each agent's own store on the daemon's computer counted, for the stores the host names: counts, a model and
   // a folder per session and half hour, and the newest plan reading a store kept, never a line of a transcript.
@@ -436,17 +535,64 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Streams the processes to this socket until proc.unwatch or the socket
    * closes: one whole proc.snapshot first, two seconds after the reply since
    * cpu is a delta (at once where the sampler is already running), then a
-   * proc.changes every five seconds naming the frame it follows. A socket
+   * proc.changes every two seconds naming the frame it follows. A socket
    * already watching that watches again is sent a whole snapshot next. The
-   * daemon reads /proc only while some socket watches. */
-  z.object({ id: reqId, op: z.literal("proc.watch") }),
+   * daemon reads /proc only while some socket watches. With cgroups, each
+   * tick reads only the processes in them and every cgroup under each, and
+   * the daemon's own row: a box's threads, so a busy box is not read whole;
+   * a second watch names the set again. */
+  z.object({ id: reqId, op: z.literal("proc.watch"), cgroups: z.array(cgroupPath).max(16).optional() }),
   z.object({ id: reqId, op: z.literal("proc.unwatch") }),
+  /** The threads whose processes these are, the whole list each time; every row proc.watch sends after it carries
+   * the owner and kind they name. */
+  z.object({ id: reqId, op: z.literal("proc.scopes"), scopes: z.array(ProcScope).max(PROC_SCOPES_MAX) }),
   /** One process in depth, replied as a ProcInspectReply; this is the only op
    * that scans /proc/net, and only for that pid's sockets. */
   z.object({ id: reqId, op: z.literal("proc.inspect"), pid: z.number().int().positive() }),
-  /** Sends the signal. pid 1, the daemon and the daemon's parent are refused
-   * with code forbidden; a pid that is gone answers not-found. */
-  z.object({ id: reqId, op: z.literal("proc.kill"), pid: z.number().int().positive(), signal: ProcSignal }),
+  /** Every process once, replied as a ProcListReply, for a reader that wants no stream: the rows a running sampler
+   * last read, else one scan of its own whose cpu reads 0. */
+  z.object({ id: reqId, op: z.literal("proc.list") }),
+  /** TERM sends TERM and, to whatever of the targets is still there after
+   * KILL_GRACE_MS, KILL; KILL sends KILL at once. mode picks the targets, the
+   * pid alone when absent. An identity that is not the pid's own (the
+   * row's id; the frame's own id is the request's) answers not-found; with
+   * no identity, so does a startedAt off the pid's own: exactly on a Mac or
+   * a box, by more than 2 s where the local Linux road reads starts off ps.
+   * Each target is signalled by the identity it was read with, so a pid that
+   * has since gone to another process is never signalled. On a box whose
+   * daemon is root, a target outside every /wsp-threads cgroup and not under
+   * the daemon is refused, as is a kernel thread on any Linux.
+   * pid 1, the daemon, its parent, every pid in protect, every pid in apps
+   * with everything under it short of the daemon's parent, every pid in
+   * agents (each turn's root and recorded agent) with each process from a
+   * root down to another of them, or past a recorded agent that runs as no
+   * such name (a launcher, npm's codex.js) down to one run as a name in
+   * agentBins, or with none recorded down to one run as such a name (its
+   * accounting name or argv[0]'s basename); the turns the daemon's own run
+   * folder records as held, each its root and agent; and in a /wsp-threads cgroup
+   * each process run as such a name with what stands above it in that
+   * cgroup (a box turn's run script and shell), are refused with code
+   * forbidden, in any mode that would reach them. The host writes agentBins
+   * on every frame, and protect, apps and agents, which are its own
+   * computer's pids, only on a frame for that computer. Replied as a
+   * ProcKillReply. */
+  z.object({
+    id: reqId,
+    op: z.literal("proc.kill"),
+    pid: z.number().int().positive(),
+    signal: ProcSignal,
+    mode: KillMode.optional(),
+    startedAt: z.number().int().optional(),
+    identity: z.string().max(32).optional(),
+    protect: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    apps: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    agents: z.array(z.number().int().nonnegative()).max(KILL_PIDS_MAX).optional(),
+    agentBins: z.array(z.string().max(255)).max(64).optional(),
+  }),
+  /** Stops one container through the engine's own stop, two seconds from its TERM to its KILL, and never removes it.
+   * Named by the full id its row carries, never a name another container could answer to. One no label or compose note
+   * places under a thread, the person's own or a fork's, is refused with code forbidden. */
+  z.object({ id: reqId, op: z.literal("container.stop"), container: z.string().regex(/^[0-9a-f]{64}$/) }),
   z.object({ id: reqId, op: z.literal("ping") }),
   /** Lists one directory's direct children, each request under its own entry
    * cap. Paths are relative to the daemon's home root (HOME unless started

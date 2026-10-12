@@ -13,7 +13,7 @@
 // these into the SessionEvent shapes in index.ts that clients read, which is
 // why the vocabulary they share (DeltaKind, TurnResult, SessionHarness) is
 // declared once there and imported back here.
-import type { DeltaKind, FilePatch, McpServerSpec, PermissionOption, PermissionOutcome, PlanStep, SessionHarness, SubagentState, TurnResult } from "./index.js";
+import type { DeltaKind, FilePatch, McpServerSpec, PermissionOption, PermissionOutcome, PlanStep, SessionHarness, SubagentState, SubagentUsage, TurnResult } from "./index.js";
 import { shellQuote } from "./shell-quote.js";
 import type { HarnessLimit } from "./usage.js";
 
@@ -27,6 +27,15 @@ export interface AgentLaunch {
 
 /** The agent's command word as a line runs it: its own, or the program the person named, quoted as one word. */
 export const programWord = (bin: string, launch: AgentLaunch | undefined): string => (launch?.program === undefined ? bin : shellQuote(launch.program));
+
+/** The variable naming the file a turn's agent writes its own pid to as it starts, where the run names one. */
+export const AGENT_PID_FILE_ENV = "WSP_AGENT_PID_FILE";
+
+/** The agent's command word on a turn's launch: a sh that writes its own pid where the run asks, then execs the agent
+ * under that same pid, so the run knows its agent by fact whatever file its binary resolves to (a native Claude Code
+ * runs as its version, cursor-agent as node). */
+export const agentWord = (bin: string, launch: AgentLaunch | undefined): string =>
+  `sh -c ${shellQuote(`[ -z "\${${AGENT_PID_FILE_ENV}:-}" ] || echo $$ > "$${AGENT_PID_FILE_ENV}"; unset ${AGENT_PID_FILE_ENV}; exec "$0" "$@"`)} ${programWord(bin, launch)}`;
 
 /** The words a setup adds to a turn's launch, each quoted as one word, so none is read as shell. */
 export const launchWords = (launch: AgentLaunch | undefined): string[] => (launch?.args ?? []).map(shellQuote);
@@ -178,6 +187,7 @@ export type AdapterEvent =
        * the agent said them; a model learned after the start comes on one more running event. */
       model?: string;
       asked?: string;
+      usage?: SubagentUsage;
     }
   | { type: "permission.ask"; sessionId: string; ask: PermissionAsk }
   | {

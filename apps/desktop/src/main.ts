@@ -5,8 +5,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adoptLoginPath, agentsHere, aimedHost, appLogsDir, computerNameHere, daemonBinaryHere, dialHost, hostLogPath, installEach, mcpServerSpec, releaseFetch, runningWsp, serviceAddressHere, shimPath, systemService, wspHome, VERSION, type CliIO } from "@wsp/host";
 import { BROWSER_PARTITION, DEFAULT_PREFERENCES, HOME_ENV, type BundleOutcome, HOST_WORDS, OutsideLine, ThemePreference, hostMenuAction, hostsMenuItems } from "@wsp/protocol";
-import { BrowserWindow, Menu, Notification, Tray, app, crashReporter, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, session as sessions, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { BrowserWindow, Menu, Notification, Tray, app, crashReporter, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, session as sessions, shell, webContents, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { APP_LOG, openAppLog, rendererReport } from "./app-log.js";
+import { appProcLabels, pagesOf } from "./app-procs.js";
 import { awakeWanted } from "./awake.js";
 import { chooseFrom, contextMenuTemplate, parseContextMenuItems } from "./context-menu.js";
 import { deepLinks, linkInArgv } from "./deep-link.js";
@@ -671,8 +672,11 @@ function follow(on: HostSession): void {
     },
     event: sayWhileClosed,
     log: io.error,
+    ...(on.remote ? {} : { appProcs: readAppProcs }),
   });
 }
+
+const readAppProcs = () => appProcLabels(app.getAppMetrics(), pagesOf(webContents.getAllWebContents().filter(c => !c.isDestroyed())));
 
 /** The feed's dial on this computer's host, each reconnect included: a host of an earlier release that came up since
  * the window opened is replaced first, and the window moves to the host serving after it. One that serves again after

@@ -14,6 +14,7 @@ import { getBrowser } from "../browser/model.js";
 import { daemonWireHeld, onDaemonWireHeld, provideDaemonHello, provideDaemonWire } from "../files/wire.js";
 import { errorText } from "../lib/utils.js";
 import { getLive } from "../machine/live.js";
+import { feedPortEvent, syncPorts } from "../machine/ports.js";
 import { getProcs } from "../machine/procs.js";
 import type { Api } from "../protocol/client.js";
 import type { useStore } from "../protocol/store.js";
@@ -62,7 +63,10 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
     hereWanted ||=
       selectTerminalUiState(useTerminalDrawerStore.getState().byWorkspaceId, HERE_KEY).terminalOpen ||
       ((panel => panel?.isOpen === true && panel.surfaces.some(s => s.id === panel.activeSurfaceId && paneOf(s.kind).readsHere === true))(useRightPanelStore.getState().byWorkspaceId[HERE_KEY]));
-    if (hostUp && hereWanted && !here.link) {
+    // A page that only reads this computer's daemon holds the link for as long as it stands: the link's readings and
+    // port watch would run on for the window's life after it.
+    const up = hostUp && (hereWanted || daemonWireHeld(HERE_KEY));
+    if (up && !here.link) {
       const link = connectDaemonLink({
         ...linkOpts,
         daemon: api.daemon,
@@ -71,14 +75,18 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
         onEvent: e => {
           if (e.type === "sys.sample") getLive(HERE_KEY).feedSample(e);
           else if (e.type === "proc.snapshot" || e.type === "proc.changes") getProcs(HERE_KEY).feed(e);
+          else if (e.type === "port.open" || e.type === "port.close") feedPortEvent(HERE_KEY, e);
           else here.wt.feedEvent(e);
         },
         onStatus: (s, refusal) => {
-          if (s === "live")
+          if (s === "live") {
             link.request("sys.watch").then(
               () => getLive(HERE_KEY).feedUnavailable(null),
               (e: unknown) => getLive(HERE_KEY).feedUnavailable(errorText(e)),
             );
+            // The daemon's port read runs for the host's own watch whoever else asks; this socket adds its diff.
+            link.request("ports.watch").then(r => syncPorts(HERE_KEY, r["ports"]), () => {});
+          }
           if (s !== "dead") {
             here.wt.feedStatus(s, refusal);
             hereStatus(s);
@@ -86,7 +94,7 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
         },
       });
       here.link = link;
-    } else if (!hostUp && here.link) {
+    } else if (!up && here.link) {
       unlink(here);
       const parked: DaemonLinkStatus = here.wt.everLive() ? "connecting" : NOT_OPENED_YET;
       here.wt.feedStatus(parked);
@@ -147,6 +155,7 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
           onEvent: e => {
             if (e.type === "port.open" || e.type === "port.close") {
               browser.feedEvent({ ...e, workspaceId: w.id });
+              feedPortEvent(w.id, e);
               if (e.type === "port.close") useSignInStore.getState().portClosed(w.id, e.port);
             } else if (e.type === "browser.open") useSignInStore.getState().announce(w.id, e.url, e.port);
             else if (e.type === "daemon.hello") provideDaemonHello(w.id, { root: e.root, version: e.version });
@@ -157,7 +166,10 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
           // "dead" is the link we closed on purpose; the model keeps the word it had instead.
           onStatus: (s, refusal) => {
             if (s === "live") {
-              link.request("ports.watch").then(r => browser.syncPorts(r["ports"]), () => {});
+              link.request("ports.watch").then(r => {
+                browser.syncPorts(r["ports"]);
+                syncPorts(w.id, r["ports"]);
+              }, () => {});
               if (sysFromDaemon)
                 link.request("sys.watch").then(
                   () => getLive(w.id).feedUnavailable(null),

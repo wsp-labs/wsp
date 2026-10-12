@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
-import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, TURN_TOKEN_ENV, type McpServerSpec, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
+import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
@@ -82,7 +82,7 @@ export function launchArea(ctx: RuntimeContext) {
     const { scoped, env: launchEnv, wsp } = await threadLaunch(entry, threadId, threadId);
     try {
       const waiting = { on: false };
-      const { adapter } = ctx.adapterFor(entry, harness, { [TURN_TOKEN_ENV]: turnToken, ...launchEnv }, () => waiting.on, serverValuesOf(opts.vault?.() ?? {}), threadId);
+      const { adapter } = ctx.adapterFor(entry, harness, { [TURN_TOKEN_ENV]: turnToken, [THREAD_ENV]: threadId, ...launchEnv }, () => waiting.on, serverValuesOf(opts.vault?.() ?? {}), threadId);
       const served = adapter.mcpServers === true ? wsp : undefined;
       const serverValues = adapter.mcpServers === true ? await ctx.serverValuesFor(entry, harness, cwd) : undefined;
       const agent = adapter.warm!({

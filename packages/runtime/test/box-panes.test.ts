@@ -9,6 +9,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CATALOG_AGENTS } from "@wsp/catalog";
 import { forkOpRefusedLine, rootsPathIn, type DaemonFrame } from "@wsp/protocol";
 import { fakeProcTree } from "../../daemon/test/fake-proc.js";
 import { daemonUnderTest } from "../../daemon/test/harness.js";
@@ -77,6 +78,16 @@ describe("a pane of a thread in a folder on a computer you joined", () => {
       expect(sent(frame.op).at(-1)).toMatchObject(frame);
       expect(sent(frame.op).at(-1)).not.toHaveProperty("machineId");
     }
+    channel.close();
+  });
+
+  it("sends a kill up the link with the names agents run under and none of this computer's pids, which name other processes there", async () => {
+    const { channel, sent } = await pane();
+    // Lists a page put on the frame go too: the host writes what a kill carries, and nothing of this computer's.
+    expect(await channel.send({ op: "proc.kill", pid: 900, signal: "TERM", mode: "tree", protect: [1], apps: [2], agents: [3] })).toMatchObject({ ok: true });
+    const kill = sent("proc.kill").at(-1)!;
+    expect(kill).toMatchObject({ pid: 900, signal: "TERM", mode: "tree", agentBins: CATALOG_AGENTS.map(a => a.bin) });
+    for (const field of ["protect", "apps", "agents"]) expect(kill).not.toHaveProperty(field);
     channel.close();
   });
 

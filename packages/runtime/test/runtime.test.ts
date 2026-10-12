@@ -7,7 +7,7 @@ import { hostname } from "node:os";
 import { gunzipSync } from "node:zlib";
 import { catalogProbeCommand, createClaudeAdapter, parseCatalogProbe } from "@wsp/adapter-claude";
 import { diskFullLine, execFailedLine, imageServedWaitLine, machineUnreachableLine, STATE_SHAPE, type StateShape } from "@wsp/protocol";
-import { HOST_TOKEN_ENV, DAEMON_RESTART_FAILED, DAEMON_RESTARTING, DAEMON_UPDATE_FAILED, DAEMON_UPDATING, DAEMON_VERSION, NO_SUCH_TURN, NOTIFY_ME, PERMISSION_ALLOW, RUN_GONE_LINE, SessionEvent, TURN_TOKEN_ENV, foldThreads, notifyLine, stillWorkingLine, threadMessages, threadReplyRows, threadResult, threadWordOf, type AdapterEvent, type ExecStream, type EventUnion, type PermissionAsk, type RecipeDigest, type SessionView, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
+import { HOST_TOKEN_ENV, THREAD_ENV, DAEMON_RESTART_FAILED, DAEMON_RESTARTING, DAEMON_UPDATE_FAILED, DAEMON_UPDATING, DAEMON_VERSION, NO_SUCH_TURN, NOTIFY_ME, PERMISSION_ALLOW, RUN_GONE_LINE, SessionEvent, TURN_TOKEN_ENV, foldThreads, notifyLine, stillWorkingLine, threadMessages, threadReplyRows, threadResult, threadWordOf, type AdapterEvent, type ExecStream, type EventUnion, type PermissionAsk, type RecipeDigest, type SessionView, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
 import { BUILDER_IDLE_MS, DISK_SYNC_CMD, DISK_USE_CMD, ExecFailedError, GuestUnusableError, KILL_ASKS, MachineUnreachableError, TOOLS_PATH, type ExecResult, type GoldenDelta, type GoldenImport } from "@wsp/engine";
 import { AGENTS_BIN, DAEMON_TOKEN_PATH } from "@wsp/protocol";
 import { DAEMON_TOKEN_NONE, DAEMON_TOKEN_SET, daemonTokenFor, rotateDaemonTokenScript } from "../src/daemon-token.js";
@@ -410,19 +410,22 @@ describe("runtime", () => {
     expect(result.status).toBe("completed");
     // The adapter is handed the machine's login environment: who the guest runs as, the golden's PATH, so a launch served by a bare-PATH exec still finds the binary, and the variable that points this harness at its store on the guest.
     // Every context, not the first alone: a turn is not the only road that asks a harness something on the machine.
-    // A turn's own launch carries two things over that login, the token naming its turn and the token its thread drives
-    // this host with; no other road carries either.
+    // A turn's own launch carries three things over that login, the token naming its turn, the token its thread drives
+    // this host with, and the thread's id as the label its processes carry; no other road carries any of them.
     expect(contexts.length).toBeGreaterThan(0);
+    const threadId = (await rt.sessions.list())[0]?.threadId;
+    expect(threadId).toBeDefined();
     const project = (await rt.projects.list())[0]!;
     // The key the record was written with is handed to the adapter beside that environment and never in it: the
     // CLI's own strip drops an inherited one, and the adapter sets the key it was told after it.
     expect(project.memoryKey).toMatch(/^-root-/);
     expect(contexts.every(ctx => ctx.projectKey === project.memoryKey)).toBe(true);
     for (const ctx of contexts) {
-      const { [TURN_TOKEN_ENV]: token, [HOST_TOKEN_ENV]: scoped, ...login } = ctx.env;
+      const { [TURN_TOKEN_ENV]: token, [HOST_TOKEN_ENV]: scoped, [THREAD_ENV]: thread, ...login } = ctx.env;
       expect(login).toEqual({ ...GUEST_LOGIN_ENV, CLAUDE_CONFIG_DIR: "/root/.claude-cfg" });
       if (token !== undefined) expect(token).toMatch(/^[0-9a-f]{32}$/);
       expect(scoped !== undefined).toBe(token !== undefined);
+      expect(thread).toBe(token !== undefined ? threadId : undefined);
     }
     expect(contexts.filter(c => c.env[TURN_TOKEN_ENV] !== undefined)).toHaveLength(1);
     const types = events.map(e => e.type);

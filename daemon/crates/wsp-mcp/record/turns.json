@@ -41,6 +41,17 @@
   },
   "threadWithoutId": "{row} is a turn from before threads and carries no thread id of its own; no forget can name it",
   "threadForgot": "forgot thread {thread}: no turn ever ran on it, so nothing of its work is gone",
+  "activity": {
+    "none": "no thread runs a process on {computer}",
+    "wsp": "wsp",
+    "unowned": "no thread",
+    "ended": "ended {pid} {name}",
+    "endedUnder": "ended {pid} {name} and {count} under it",
+    "gone": "nothing was signalled: the process listed as {pid} is gone",
+    "forced": "KILL after TERM's 2 s: {pids}",
+    "left": "still running after KILL: {pids}",
+    "freed": "freed the agent thread {thread} kept"
+  },
   "threadSettled": "settled {thread} {title}",
   "threadLeft": "left {thread}: {why}",
   "nothingSettled": "nothing settled",

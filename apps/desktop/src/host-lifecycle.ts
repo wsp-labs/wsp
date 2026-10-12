@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { STARTED_BY_ENV, accountAim, logSince, logSize, pidAlive, claudeKeyOnlyInThisShell, aimedAlias, aimedHost, computerNameHere, defaultHomeIn, devCheckoutState, dialAddress, dialHost, downCommand, homeNamed, hostLogPath, hostTokenFor, httpProbe, installService, keyOnlyInThisShell, lockPathFor, noManagerLine, ownPid, readHost, runAll, runFailureLine, serviceAddressHere, serviceEnv, serviceStartsAtLogin, servingHost, severalAccountHostsLine, stopService, vanishedHost, VERSION, type CliIO, type HostLock, type HostRecord, type HostProbe, type RunFailure, type ServiceDeps, type ServicePlan } from "@wsp/host";
-import { BOOT_SCRIPT, LOOPBACK, THIS_COMPUTER, authority, bootLineOf, compareVersions, fmtDuration, holdsNothing, isLocalWorkspace, isLoopback, type BootPayload, type GoldenManifest, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { APP_DATA_FOLDER, BOOT_SCRIPT, LOOPBACK, THIS_COMPUTER, authority, bootLineOf, compareVersions, fmtDuration, holdsNothing, isLocalWorkspace, isLoopback, type BootPayload, type GoldenManifest, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { safeEqual, tokenDigest } from "@wsp/runtime";
 
 export interface HostSession {
@@ -152,7 +152,7 @@ export function homeOf(launch: Launch): string {
  * state file the launch serves, so two apps on two homes never share one profile. A shared profile's databases
  * are locked by the first app to open them, and the second launch's page load never came back. */
 export function userDataIn(launch: Launch): string {
-  return join(dirname(statePathIn(homeOf(launch), launch)), "desktop");
+  return join(dirname(statePathIn(homeOf(launch), launch)), APP_DATA_FOLDER);
 }
 
 /** How long this window's one dial at the account's host waits. A line at a terminal gives a relayed road fifteen

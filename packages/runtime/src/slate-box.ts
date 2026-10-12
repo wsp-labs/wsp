@@ -7,8 +7,8 @@
 // The machine runs it detached (a nap stalls the reading, not the command), streams its lines, and kills its group at
 // the deadline or on a cancel. Its output comes back here and is scrubbed here, as a run on this computer's is.
 import { randomBytes } from "node:crypto";
-import { DEADLINE_EXIT, putFiles, type Machine } from "@wsp/engine";
-import { EXEC_OUTPUT_MAX, shellQuote } from "@wsp/protocol";
+import { DEADLINE_EXIT, PlaceFolderMachine, putFiles, type Machine } from "@wsp/engine";
+import { EXEC_OUTPUT_MAX, shellQuote, threadCgroup } from "@wsp/protocol";
 import { reshapeAnswer, type Reshape, type RoadEnd, type RunRoad } from "./slate-runs.js";
 
 /** Where a thread's slate keeps its files on its machine: rewritten from the record before every command and
@@ -96,8 +96,18 @@ export function boxLauncher(o: { payload: string; cwd: string; cmd: string }): s
 }
 
 /** The thread's machine as the road its slate's commands run on. `files` reads the slate's files as they are now;
- * `ready` wakes the machine where it naps, before anything goes up. */
-export function boxRoad(machine: Machine, threadId: string, files: () => Readonly<Record<string, string>>, ready: () => Promise<void> = async () => {}, ledger: BoxLedger = boxLedger()): RunRoad {
+ * `ready` wakes the machine where it naps, before anything goes up. `launchOn` is the machine the launcher's launch
+ * alone goes through: on a computer the person joined, a shell standing in the thread's cgroup, as a turn's launch
+ * does, so the command and what it starts are the thread's. The files, the run's polls, kill and cleanup and the
+ * folder's removal go through the machine itself, which makes no cgroup for a thread that is gone. */
+export function boxRoad(
+  machine: Machine,
+  threadId: string,
+  files: () => Readonly<Record<string, string>>,
+  ready: () => Promise<void> = async () => {},
+  ledger: BoxLedger = boxLedger(),
+  launchOn: Machine = machine instanceof PlaceFolderMachine ? machine.inCgroup(threadCgroup(threadId)) : machine,
+): RunRoad {
   const dir = boxSlateDir(threadId);
   const road: RunRoad = {
     slateDir: dir,
@@ -139,6 +149,7 @@ export function boxRoad(machine: Machine, threadId: string, files: () => Readonl
           ledger.paid(machine, owed);
           const res = await machine.run(boxLauncher({ payload, cwd: o.cwd, cmd: o.cmd }), {
             deadlineMs: o.timeoutS * 1_000,
+            ...(launchOn !== machine ? { launchOn } : {}),
             ...(o.stream ? { onLine: (text: string) => on.line("out", text) } : {}),
             signal: cancel.signal,
             unlogged: true,

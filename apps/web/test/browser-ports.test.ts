@@ -162,7 +162,7 @@ describe("port directory over the daemon link", () => {
 
     setPorts(a, [{ port: 8412 }]);
     await until(() => portsOf(a).includes(8412), 2000);
-    expect(getBrowser(a).ports()).toEqual([{ port: 8412, pid: null, process: null }]);
+    expect(getBrowser(a).ports()).toEqual([{ port: 8412, pid: null, process: null, loopback: expect.any(Boolean) }]);
   }, 20_000);
 
   it("a redial re-subscribes: ports that changed while the channel was down are reconciled", async () => {

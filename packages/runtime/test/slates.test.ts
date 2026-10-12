@@ -956,7 +956,7 @@ describe("the slate v2 host, round 4", () => {
     const seen: EventUnion[] = [];
     const again = host(root, store, [], seen);
     await again.workspaces.list();
-    await vi.waitFor(() => expect(seen.some(e => e.type === "slate.values" && (e.values["$where"] as { runs?: number } | undefined)?.runs === 2)).toBe(true), { timeout: 10_000 });
+    await vi.waitFor(() => expect(seen.flatMap(e => (e.type === "slate.values" ? [e.values["$where"]] : []))).toContainEqual(expect.objectContaining({ state: "done", runs: 2 })), { timeout: 10_000 });
     expect((await again.slates.get(threadId))!.values["where"]).toMatchObject({ state: "done", runs: 2 });
     const out = String(((await again.slates.get(threadId))!.values["where"] as { out: string }).out).trim();
     expect(realpathSync(out)).toBe(realpathSync(inner));
