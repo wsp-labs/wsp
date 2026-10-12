@@ -126,6 +126,12 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     });
   };
 
+  /** The command a thread's agent runs as, which the read finds its agent by. */
+  const binOf = (threadId: string): { bin?: string } => {
+    const bin = CATALOG_AGENTS.find(a => a.id === ctx.threadFacts(threadId)?.harness)?.bin;
+    return bin === undefined ? {} : { bin };
+  };
+
   /** Each thread on this computer: its roots as the daemon is told them (`ctx.scopesHere`, the one rule), with the agent
    * it keeps for its next turn while no turn runs, then every other thread a local folder ran, rootless, so what a
    * finished thread left still lists under it; running threads first, then newest first. A warm agent no send has
@@ -147,10 +153,10 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
       const kept = running.has(s.thread) ? undefined : ctx.keptAgents.get(s.thread)?.pid;
       const roots = [...new Set([...(s.agents ?? []), ...(s.groups ?? [])])];
       const workspaceId = s.workspace ?? latest.get(s.thread)?.workspaceId ?? "";
-      scopes.push({ threadId: s.thread, title: titled(s.thread), workspaceId, roots, ...(kept !== undefined ? { kept } : {}) });
+      scopes.push({ threadId: s.thread, title: titled(s.thread), workspaceId, roots, ...(kept !== undefined ? { kept } : {}), ...binOf(s.thread) });
     }
     const named = new Set(scopes.map(s => s.threadId));
-    for (const [threadId, t] of latest) if (!named.has(threadId)) scopes.push({ threadId, title: titled(threadId), workspaceId: t.workspaceId, roots: [] });
+    for (const [threadId, t] of latest) if (!named.has(threadId)) scopes.push({ threadId, title: titled(threadId), workspaceId: t.workspaceId, roots: [], ...binOf(threadId) });
     const started = (threadId: string): number => latest.get(threadId)?.at ?? 0;
     return scopes.sort((a, b) => Number(running.has(b.threadId)) - Number(running.has(a.threadId)) || started(b.threadId) - started(a.threadId));
   };
@@ -182,7 +188,7 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     });
     if (taken === undefined) return undefined;
     const { snap, ports } = taken;
-    const scopes = threadIds.map(id => ({ threadId: id, title: ctx.threadFacts(id)?.title ?? threadWord(id), workspaceId: boxOf(id)?.entry.record.id ?? "", roots: [], cgroup: threadCgroup(id) }));
+    const scopes = threadIds.map(id => ({ threadId: id, title: ctx.threadFacts(id)?.title ?? threadWord(id), workspaceId: boxOf(id)?.entry.record.id ?? "", roots: [], cgroup: threadCgroup(id), ...binOf(id) }));
     const read: ActivityRead = { computer: door.nameOf(placeId), at: snap.at, procs: snap.procs, daemon: snap.daemon, host: 0, scopes, agentBins: CATALOG_AGENTS.map(a => a.bin), ports };
     return { read, view: activityOf(read) };
   };

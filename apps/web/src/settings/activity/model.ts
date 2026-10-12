@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What Activity draws from one computer's process frame: wsp's own parts, each
 // thread with what it started, what wsp started with no thread known, and the
-// rest of the computer. A row names its thread and kind where the daemon
-// stamped them; until it does the page reads them off what it already knows,
-// the thread's own process, its cgroup on a box, its slate's folder, the daemon
-// and the host, and the parent chain under each. Sort, filter, the Kinds and Ports views and the
+// rest of the computer. Whose each process is and what it is come from
+// placeProcs() in @wsp/protocol, the rule `wsp activity`, settle and delete
+// read too; this file names the rows, folds a thread's run into its agent's row
+// and holds the slate's heading. Sort, filter, the Kinds and Ports views and the
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
 import { ACTIVITY_WORDS } from "../format.js";
-import { agentPath, APP_PROC_WORDS, cgroupMemory, inCgroup, PROC_KINDS, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
+import { APP_PROC_WORDS, cgroupMemory, PROC_KINDS, placeProcs, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
 
 export type { ProcKind };
 
@@ -31,7 +31,11 @@ export interface ActivityThread {
   /** A turn runs on it now: its agent's act is the thread's stop. */
   readonly working: boolean;
   readonly pid?: number;
+  /** The agent its turn's run recorded as it started it, under pid. */
+  readonly agentPid?: number;
   readonly cgroup?: string;
+  /** The thread that started it, under whose row it folds. */
+  readonly parent?: string;
   /** Its slate's title, where this window has read the slate. */
   readonly slate?: string;
   /** Its agent's own subagents of every turn, as its listing carries them. */
@@ -85,6 +89,9 @@ export interface ActivityProc {
   readonly harness?: string;
   /** wsp needs it to run: no End. */
   readonly needed?: boolean;
+  /** A process a thread or wsp started, which End reaches; never an agent, what wsp needs, or a row only wsp's launch
+   * on a Mac places. */
+  readonly endable?: boolean;
   /** A heading over processes and no process itself: a thread's slate, its runs under it. It takes no act, and its
    * figures are its runs' sum, which no total counts twice. */
   readonly heading?: boolean;
@@ -165,17 +172,10 @@ function appName(part: AppProc): string {
   return first === undefined ? APP_PROC_WORDS[part.kind] : `${siteOf(first)}${more.length > 0 ? ` +${more.length}` : ""}`;
 }
 
-const SHELLS = new Set(["sh", "bash", "zsh", "fish", "dash"]);
 /** Named with the subcommand they run: cargo test, pnpm dev. */
 const TOOLS = new Set(["cargo", "npm", "npx", "pnpm", "yarn", "uv", "go", "bunx"]);
 const GENERIC_SCRIPTS = new Set(["bin", "cli", "index", "main"]);
 const BUILD_DIRS = new Set(["dist", "lib", "build", "out", "src", "bin", ".bin", "node_modules"]);
-const TEST_LINE = /\b(vitest|jest|mocha|pytest|playwright test|cargo test|cargo nextest|go test|bun test|node --test)\b/;
-const BUILD_LINE = /\b(rustc|cargo build|cargo check|cc1|cc1plus|clang|ld|tsc|go build|webpack(?! serve)|swiftc)\b/;
-const DEV_LINE = /\b(vite|next dev|next-server|webpack serve|astro dev|nuxt dev|remix dev|wrangler dev|electron-vite|http\.server|flask run|uvicorn|rails server)\b/;
-/** A slate's runs read their files from the slate's folder, the host's `slates/<thread>` or a box's `wsp-slates/<thread>`. */
-const SLATE_FOLDER = /(^|\/)(wsp-)?slates\/[^/\s]+\//;
-const slateFolderOf = (threadId: string): string => `slates/${threadId}/`;
 
 /** What a process is called: the script a runtime runs, a tool with its subcommand, or the command. */
 export function procName(p: Pick<ProcEntry, "comm" | "cmdline">): string {
@@ -199,129 +199,46 @@ export function procName(p: Pick<ProcEntry, "comm" | "cmdline">): string {
   return [pkg ?? base, sub].filter(w => w !== undefined).join(" ");
 }
 
-/** The kind a row reads where the daemon named none: test runs and builds by their command, a dev server by its port
- * or its command, a terminal by its pty, a tool server as an agent's direct child that is not a shell; what a dev
- * server, a test run or a build started is one too. */
-export function kindOf(p: ProcEntry, ports: readonly ActivityPort[], parent: ProcKind | null): ProcKind {
-  if (p.kind !== undefined) return p.kind;
-  if (p.pty !== undefined) return "terminal";
-  if (SLATE_FOLDER.test(p.cmdline)) return "slate";
-  if (TEST_LINE.test(p.cmdline)) return "test";
-  if (BUILD_LINE.test(p.cmdline)) return "build";
-  if (ports.length > 0 || DEV_LINE.test(p.cmdline)) return "dev";
-  if (parent === "dev" || parent === "test" || parent === "build") return parent;
-  if (parent === "agent" && !SHELLS.has(p.comm)) return "tool";
-  return "other";
-}
-
-/** The computer's frame read into groups. A process belongs to the first of: the owner the daemon stamped (an owner
- * that names no thread is No thread), the thread whose process it is or descends from, wsp's parts (the daemon and the
- * host, the processes themselves), the thread whose cgroup it stands in, the thread whose slate folder its command
- * names, and what the daemon, the host or a terminal started with no thread known. */
+/** The computer's frame read into groups by `placeProcs`: wsp's parts, each thread, and No thread. A thread is rooted at
+ * its own process here, which stands for the agent until the agent's binary shows; on a box, whose pids the app is
+ * never told, at the heads of its cgroup. */
 export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Date.now() }: ScopeInput): ActivityScope {
-  // A zombie holds no memory and takes no signal: it waits on its parent and goes with it.
-  const procs = snapshot.procs.filter(p => !p.state.startsWith("Z"));
-  const byPid = new Map(procs.map(p => [p.pid, p]));
   const threadById = new Map(threads.map(t => [t.id, t]));
-  const kids = new Map<number, ProcEntry[]>();
-  for (const p of procs) if (p.ppid !== p.pid && byPid.has(p.ppid)) (kids.get(p.ppid) ?? kids.set(p.ppid, []).get(p.ppid)!).push(p);
-  const kidsOf = (pid: number): readonly ProcEntry[] => kids.get(pid) ?? [];
-  const rootOf = new Map<number, ActivityThread>();
-  for (const t of threads) if (t.pid !== undefined && byPid.has(t.pid)) rootOf.set(t.pid, t);
-  // The agent is the process the daemon names as the thread's agent, or else the shallowest under one of the thread's
-  // roots that runs its harness's binary, the run script and any shell on the way folded into its row. Here a thread is
-  // rooted at its own process, which stands for the agent until the binary shows; on a box, whose pids the app is never
-  // told, at the heads of its cgroup: the run script the launch records, and whatever left it.
-  const agentOf = new Map<number, ActivityThread>();
-  /** Each wrapper on the way down from a thread's root to its agent, by the next process on that way. */
-  const wrapperOf = new Map<number, number>();
-  const findAgent = (root: number, t: ActivityThread, standsIn: boolean): void => {
-    const bin = CATALOG_AGENTS.find(a => a.id === t.harness)?.bin;
-    const isAgent = (p: ProcEntry): boolean => (p.kind === "agent" && p.owner?.thread === t.id) || (bin !== undefined && procBins(p).includes(bin));
-    const path = agentPath(root, kidsOf, isAgent, byPid);
-    if (path === undefined) {
-      if (standsIn) agentOf.set(root, t);
-      return;
-    }
-    agentOf.set(path.at(-1)!, t);
-    for (let i = 0; i + 1 < path.length; i++) wrapperOf.set(path[i]!, path[i + 1]!);
+  const placed = placeProcs({
+    procs: snapshot.procs,
+    daemon: snapshot.daemon,
+    ...(host === undefined ? {} : { host }),
+    threads: threads.map(t => {
+      const bin = CATALOG_AGENTS.find(a => a.id === t.harness)?.bin;
+      return { id: t.id, roots: t.pid === undefined ? [] : [t.pid], ...(t.agentPid !== undefined ? { agents: [t.agentPid] } : {}), ...(t.cgroup !== undefined ? { cgroup: t.cgroup } : {}), ...(bin !== undefined ? { bin } : {}) };
+    }),
+    agentBins: CATALOG_AGENTS.map(a => a.bin),
+    listens: pid => (ports.get(pid)?.length ?? 0) > 0,
+    app: new Map([...app].map(([pid, part]) => [pid, part.kind === "tab" || part.kind === "frame" ? "tab" : "app"])),
+  });
+  const { procs, byPid } = placed;
+  const keyOf = (pid: number): string => {
+    const w = placed.whose.get(pid);
+    return w === undefined ? "" : typeof w === "object" ? `t:${w.thread}` : w;
   };
-  for (const [pid, t] of rootOf) findAgent(pid, t, true);
-  for (const t of threads) {
-    const cgroup = t.cgroup;
-    if (t.pid !== undefined || cgroup === undefined) continue;
-    const inside = procs.filter(p => inCgroup(p.cgroup, cgroup));
-    const members = new Set(inside.map(p => p.pid));
-    for (const p of inside) if (p.ppid === p.pid || !members.has(p.ppid)) findAgent(p.pid, t, false);
-  }
-  const wspPids = new Set<number>([snapshot.daemon, ...(host === undefined ? [] : [host])]);
-
-  const owner = new Map<number, string>();
-  const ownerOf = (p: ProcEntry, seen: Set<number> = new Set()): string | null => {
-    const held = owner.get(p.pid);
-    if (held !== undefined) return held === "" ? null : held;
-    let said: string | null = null;
-    const stamped = p.owner?.thread;
-    if (stamped !== undefined && threadById.has(stamped)) said = `t:${stamped}`;
-    else if (rootOf.has(p.pid)) said = `t:${rootOf.get(p.pid)!.id}`;
-    // Before an owner that names no thread: a Mac's daemon stamps wsp's own parts with wsp's coalition and none.
-    else if (wspPids.has(p.pid) || app.has(p.pid) || p.kind === "app" || p.kind === "wsp") said = "wsp";
-    else if (p.owner !== undefined && p.owner.by !== "coalition") said = "loose";
-    else {
-      const cg = threads.find(t => t.cgroup !== undefined && inCgroup(p.cgroup, t.cgroup));
-      const slate = SLATE_FOLDER.test(p.cmdline) ? threads.find(t => p.cmdline.includes(slateFolderOf(t.id))) : undefined;
-      if (cg !== undefined) said = `t:${cg.id}`;
-      else if (slate !== undefined) said = `t:${slate.id}`;
-      else if (SLATE_FOLDER.test(p.cmdline)) said = "loose";
-      else if (p.pty !== undefined) said = "loose";
-      else {
-        const parent = p.ppid !== p.pid ? byPid.get(p.ppid) : undefined;
-        if (parent !== undefined && !seen.has(parent.pid)) {
-          seen.add(p.pid);
-          // What the host and the app start outside a thread, the guest tool server among them, is wsp's own.
-          said = ownerOf(parent, seen);
-        }
-      }
-      if (said === null && p.owner !== undefined) said = "loose";
-    }
-    owner.set(p.pid, said ?? "");
-    return said;
-  };
-  for (const p of procs) ownerOf(p);
 
   const members = new Map<string, ProcEntry[]>();
   const rest: ProcEntry[] = [];
   for (const p of procs) {
-    const o = owner.get(p.pid) ?? "";
+    const o = keyOf(p.pid);
     if (o === "") rest.push(p);
     else (members.get(o) ?? members.set(o, []).get(o)!).push(p);
   }
 
   const energy = procs.some(p => p.energyMw !== undefined);
-  const kindHeld = new Map<number, ProcKind>();
-  const kindAt = (p: ProcEntry): ProcKind => {
-    const held = kindHeld.get(p.pid);
-    if (held !== undefined) return held;
-    let kind: ProcKind;
-    const part = app.get(p.pid);
-    if (part !== undefined) kind = part.kind === "tab" || part.kind === "frame" ? "tab" : "app";
-    else if (agentOf.has(p.pid)) kind = "agent";
-    else if (wspPids.has(p.pid) && p.kind === undefined) kind = "wsp";
-    else {
-      kindHeld.set(p.pid, "other");
-      const parent = byPid.get(p.ppid);
-      kind = kindOf(p, ports.get(p.pid) ?? [], parent === undefined || parent.pid === p.pid ? null : kindAt(parent));
-    }
-    kindHeld.set(p.pid, kind);
-    return kind;
-  };
   const agentByBin = (p: ProcEntry): string | undefined => {
     const bins = procBins(p);
     return CATALOG_AGENTS.find(a => bins.includes(a.bin))?.id;
   };
   const leaf = (p: ProcEntry, children: readonly ActivityProc[]): ActivityProc => {
-    const kind = kindAt(p);
-    const thread = agentOf.get(p.pid);
+    const kind = placed.kindOf(p.pid);
+    const agentOf = placed.agent.get(p.pid);
+    const thread = agentOf === undefined ? undefined : threadById.get(agentOf);
     const part = app.get(p.pid);
     const name =
       part !== undefined
@@ -347,29 +264,51 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, now = Da
       startedAt: p.startedAt,
       ...(p.id !== undefined ? { id: p.id } : {}),
       ...(thread !== undefined ? { harness: thread.harness } : {}),
-      ...(wspPids.has(p.pid) || kind === "app" || p.kind === "wsp" ? { needed: true } : {}),
+      ...(placed.needed(p.pid) ? { needed: true } : {}),
+      ...(placed.endable(p.pid) ? { endable: true } : {}),
       children,
     };
   };
+  /** A group's trees. Each process its agent's row holds (the run script and shells on the way down, the input pump
+   * left in its group) is no row of its own: its figures join the agent's, and what it started hangs under the agent. */
   const forest = (list: readonly ProcEntry[]): ActivityProc[] => {
     const inside = new Set(list.map(p => p.pid));
+    const into = (pid: number): number | undefined => {
+      const at = placed.foldsInto.get(pid);
+      return at !== undefined && inside.has(at) ? at : undefined;
+    };
+    const parentOf = (p: ProcEntry): number | undefined => {
+      let at = p.ppid !== p.pid && inside.has(p.ppid) ? p.ppid : undefined;
+      for (let n = 0; at !== undefined && n <= list.length; n++) {
+        const agent = into(at);
+        if (agent === undefined) return at;
+        if (agent !== p.pid) return agent;
+        const q = byPid.get(at)!;
+        at = q.ppid !== q.pid && inside.has(q.ppid) ? q.ppid : undefined;
+      }
+      return undefined;
+    };
     const kids = new Map<number, ProcEntry[]>();
+    const held = new Map<number, ProcEntry[]>();
     const heads: ProcEntry[] = [];
     for (const p of list) {
-      if (p.ppid !== p.pid && inside.has(p.ppid)) (kids.get(p.ppid) ?? kids.set(p.ppid, []).get(p.ppid)!).push(p);
-      else heads.push(p);
+      const agent = into(p.pid);
+      if (agent !== undefined) {
+        (held.get(agent) ?? held.set(agent, []).get(agent)!).push(p);
+        continue;
+      }
+      const parent = parentOf(p);
+      if (parent === undefined) heads.push(p);
+      else (kids.get(parent) ?? kids.set(parent, []).get(parent)!).push(p);
     }
-    const build = (p: ProcEntry): ActivityProc => leaf(p, (kids.get(p.pid) ?? []).map(build));
-    return heads.map(build).map(foldWrapper);
-  };
-  /** The run script and the agent under it as the one row a person knows: the agent's, holding what both spend. */
-  const foldWrapper = (head: ActivityProc): ActivityProc => {
-    const nextPid = wrapperOf.get(head.pid);
-    const next = head.children.find(c => c.pid === nextPid);
-    if (next === undefined) return head;
-    const agent = foldWrapper(next);
-    const energySum = agent.energy === null && head.energy === null ? null : (agent.energy ?? 0) + (head.energy ?? 0);
-    return { ...agent, mem: agent.mem + head.mem, cpu: agent.cpu + head.cpu, energy: energySum, children: [...agent.children, ...head.children.filter(c => c !== next)] };
+    const build = (p: ProcEntry): ActivityProc => {
+      const row = leaf(p, (kids.get(p.pid) ?? []).map(build));
+      const folded = held.get(p.pid) ?? [];
+      if (folded.length === 0) return row;
+      const energies = [row.energy, ...folded.map(q => q.energyMw ?? (energy ? 0 : null))].filter((e): e is number => e !== null);
+      return { ...row, mem: folded.reduce((n, q) => n + q.rss, row.mem), cpu: folded.reduce((n, q) => n + q.cpu, row.cpu), energy: energies.length === 0 ? null : energies.reduce((n, e) => n + e, 0) };
+    };
+    return heads.map(build);
   };
   /** A thread's slate runs under one heading beside its agent, since the host and not the agent starts them. */
   const withSlate = (heads: readonly ActivityProc[], t: ActivityThread): ActivityProc[] => {

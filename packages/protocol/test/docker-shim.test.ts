@@ -129,6 +129,24 @@ describe("the docker a thread finds first on its PATH", () => {
     }
   });
 
+  it("notes the folder compose takes for the project: --project-directory's, else the first file's, else this one", () => {
+    mkdirSync(join(folder, "sub", "deeper"), { recursive: true });
+    const elsewhere = realpathSync(mkdtempSync(join(dir, "elsewhere-")));
+    const cases: [string[], Record<string, string>, string][] = [
+      [["compose", "-f", "sub/compose.yaml", "up", "-d"], {}, join(folder, "sub")],
+      [["compose", "--file=sub/deeper/compose.yaml", "-f", "compose.yaml", "up"], {}, join(folder, "sub", "deeper")],
+      [["compose", "-f", `${elsewhere}/compose.yaml`, "up"], {}, elsewhere],
+      [["compose", "--project-directory", "sub", "-f", "sub/deeper/compose.yaml", "up"], {}, join(folder, "sub")],
+      [["compose", "--project-directory=../lab/sub", "up"], {}, join(folder, "sub")],
+      [["compose", "--workdir", "sub/deeper", "create"], {}, join(folder, "sub", "deeper")],
+      [["compose", "up"], { COMPOSE_FILE: "sub/compose.yaml:compose.yaml" }, join(folder, "sub")],
+      [["compose", "-f", "-", "up"], {}, folder],
+      [["compose", "-f", "gone/compose.yaml", "up"], {}, folder],
+    ];
+    for (const [args, env] of cases) expect(inThread(args, env).seen.argv, args.join(" ")).toEqual(args);
+    expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual(cases.map(([, , at]) => at));
+  });
+
   it("hands a second thread's compose up the very words and environment the first one's had, so compose recreates nothing", () => {
     const args = ["compose", "-p", "lab", "up", "-d"];
     const { seen: first, status } = inThread(args, { COMPOSE_PROJECT_NAME: "x" });
@@ -177,5 +195,17 @@ describe("the docker a thread finds first on its PATH", () => {
     expect(run(["compose", "up"], { WSP_THREAD: "t_1f0c-ab" }, `${path}:/usr/bin:/bin`).seen.argv).toEqual(["compose", "up"]);
     expect(notesOf("t_1f0c-ab")).toHaveLength(1);
     expect(existsSync(join(dir, "other-notes"))).toBe(false);
+  });
+
+  it("passes over its own folder however PATH spells it", () => {
+    for (const spelt of [`${bin}/`, `${bin}//`, join(bin, "..", "thread-bin")]) {
+      const { seen, status } = run(["run", "busybox"], { WSP_THREAD: "t_1f0c-ab" }, `${spelt}:${real}`);
+      expect([seen.argv, status], spelt).toEqual([["run", ...label, "busybox"], 7]);
+    }
+    const other = join(dir, "place-bin");
+    mkdirSync(other);
+    writeStub(join(other, "docker"), dockerShim(other, join(dir, "other-notes")));
+    const { seen, status } = run(["run", "busybox"], { WSP_THREAD: "t_1f0c-ab" }, `${bin}/:${other}/:${bin}//:${other}:${real}`);
+    expect([seen.argv, status]).toEqual([["run", ...label, "busybox"], 7]);
   });
 });

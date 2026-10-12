@@ -2,7 +2,7 @@
 // What one of Activity's rows offers, one registry: the act its row shows
 // while pointed at, and its menu, which below 768 px is the only road to the
 // acts. A working agent is stopped through its thread and never signalled; a
-// kept one between turns is freed through its thread; what wsp needs takes no act; a heading over a slate's runs is no process. A
+// kept one between turns is freed through its thread; only a process a thread or wsp started is ended, and what wsp needs never; a heading over a slate's runs is no process. A
 // thread's head has its own two, End all and Open thread.
 import { CircleStopIcon, ClipboardCopyIcon, Globe2Icon, MessageSquareIcon, SquareXIcon } from "lucide-react";
 import type { ActionEntry } from "../../actions/registry.js";
@@ -60,7 +60,7 @@ export const procActions: ReadonlyArray<ActionEntry<ProcTarget, ProcVerbs>> = [
     group: "act",
     icon: () => SquareXIcon,
     destructive: true,
-    applies: t => isProc(t) && t.group !== null && t.p.kind !== "agent" && t.p.needed !== true,
+    applies: t => isProc(t) && t.p.endable === true,
     title: () => W.end,
     rowLabel: () => W.end,
     refusal: busy,

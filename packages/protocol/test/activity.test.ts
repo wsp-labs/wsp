@@ -33,7 +33,7 @@ describe("a snapshot read by thread", () => {
   it("puts everything under a thread's root in its tree, the stretch down to the agent's binary as the agent, and a row the daemon owns beside it", () => {
     const view = activityOf(read());
     expect(view.threads.map(t => [t.threadId, t.processes.map(p => [p.pid, p.depth, p.kind])])).toEqual([
-      [LAB.threadId, [[100, 0, "agent"], [101, 1, "agent"], [102, 2, "agent"], [200, 3, "other"], [201, 4, "other"], [400, 0, "other"]]],
+      [LAB.threadId, [[100, 0, "agent"], [101, 1, "agent"], [102, 2, "agent"], [200, 3, "dev"], [201, 4, "dev"], [400, 0, "other"]]],
       [KEPT.threadId, [[300, 0, "agent"]]],
     ]);
     expect(view.threads[0]!.cpu).toBe(14);
@@ -59,7 +59,7 @@ describe("a snapshot read by thread", () => {
       row(505, 1, "tail", "tail -n +1 -f /tmp/notes.in", { pgid: 500, owner: { by: "group", thread: kept.threadId } }),
     ];
     const view = activityOf({ ...read(procs), scopes: [kept] });
-    expect(view.threads[0]!.processes.map(p => [p.pid, p.kind])).toEqual(expect.arrayContaining([[502, "agent"], [503, "agent"], [504, "other"], [505, "other"]]));
+    expect(view.threads[0]!.processes.map(p => [p.pid, p.kind])).toEqual(expect.arrayContaining([[502, "agent"], [503, "agent"], [504, "dev"], [505, "other"]]));
     expect(processesLeft(view, [kept.threadId])[0]!.processes.map(p => p.pid)).toEqual([504, 505]);
   });
 });
@@ -118,14 +118,14 @@ describe("an End's plan", () => {
     }
   });
 
-  it("refuses for the person a process wsp did not start, one its folder or coalition alone places included, and ends one a thread started", () => {
+  it("refuses for the person a process wsp did not start, one its folder or coalition alone places included, lists the coalition's as wsp's, and ends one a thread started", () => {
     expect(refusal(() => endPlan(read(), 70, START + 70, anyone))).toContain(notStartedLine(70));
     expect(refusal(() => endPlan(read(), 70, 1, anyone))).toContain(notStartedLine(70));
     // The person's own editor in a workspace's folder, and one in wsp's coalition on a Mac: where it runs, not who started it.
     for (const owner of [{ by: "folder", workspace: "ws-1" }, { by: "coalition" }] as const) {
       const placed = read([...PROCS, row(500, 1, "vim", "vim notes.md", { owner })]);
       expect(refusal(() => endPlan(placed, 500, START + 500, anyone))).toContain(notStartedLine(500));
-      expect(activityOf(placed).unowned).toEqual([]);
+      expect(activityOf(placed).unowned.map(p => p.pid)).toEqual(owner.by === "coalition" ? [500] : []);
     }
     // A thread's process the daemon names by its mark, the thread no longer among the read's scopes, is still wsp's.
     const marked = read([...PROCS, row(500, 1, "node", "node vite.js", { owner: { by: "env", thread: "t-gone" } })]);

@@ -15,9 +15,11 @@ const DOCKER_NOTES_KEPT_LINES = 100;
  * the host runs on, `place-bin` on a box. It runs the docker after it on PATH with every word as given, adding the
  * thread's label to `run`, `create`, `container run|create` and `compose run`. `compose up|create` gets no label,
  * since compose hashes labels into a service's config and a second thread's `up` would recreate every container
- * (measured 2026-10-12): the shim appends one note instead, `thread`, folder, project and epoch seconds, tab apart.
- * `WSP_DOCKER_PASSED` names the shim folders a call came through, so a second shim on PATH neither loops back nor
- * labels twice. The daemon's twin is `docker_shim`, held to this text by the contract fixture. */
+ * (measured 2026-10-12): the shim appends one note instead, `thread`, folder, project and epoch seconds, tab apart. The
+ * folder is the one compose labels the project's containers with as `working_dir`: `--project-directory`, else the first
+ * compose file's folder (`-f`, then `COMPOSE_FILE`), else this one, spelt as the shell spells it, links kept.
+ * `WSP_DOCKER_PASSED` names the shim folders a call came through, so a second shim on PATH, however PATH spells its
+ * folder, neither loops back nor labels twice. The daemon's twin is `docker_shim`, held to this text by the contract fixture. */
 export function dockerShim(bin: string, notes: string): string {
   return DOCKER_SHIM.replace("{bin}", shellQuote(bin)).replace("{notes}", shellQuote(notes));
 }
@@ -32,7 +34,7 @@ real=
 set -f
 IFS=:
 for d in $PATH; do
-  case :$WSP_DOCKER_PASSED: in *:"$d":*) continue ;; esac
+  for p in $WSP_DOCKER_PASSED; do [ "$d" -ef "$p" ] && continue 2; done
   if [ -f "$d/docker" ] && [ -x "$d/docker" ]; then real=$d/docker; break; fi
 done
 unset IFS
@@ -45,12 +47,16 @@ thread=\${WSP_THREAD-}
 [ -z "$passed" ] && [ \${#thread} -le 64 ] || thread=
 case $thread in ""|*[!A-Za-z0-9_-]*) exec "$real" "$@" ;; esac
 label=${DOCKER_THREAD_LABEL}=$thread
-at=global want= note= first=1 project=\${COMPOSE_PROJECT_NAME-}
+at=global want= note= first=1 project=\${COMPOSE_PROJECT_NAME-} cfile= cdir=
 for a do
   [ -z "$first" ] || { set --; first=; }
   set -- "$@" "$a"
   if [ -n "$want" ]; then
-    [ "$want" = project ] && project=$a
+    case $want in
+    project) project=$a ;;
+    file) [ -n "$cfile" ] || cfile=$a ;;
+    dir) cdir=$a ;;
+    esac
     want=
     continue
   fi
@@ -76,7 +82,12 @@ for a do
     -p=*) project=\${a#-p=} ;;
     --project-name=*) project=\${a#*=} ;;
     -p*) project=\${a#-p} ;;
-    -f|--file|--project-directory|--workdir|--env-file|--profile|--progress|--ansi|--parallel) want=value ;;
+    -f|--file) want=file ;;
+    -f=*|--file=*) [ -n "$cfile" ] || cfile=\${a#*=} ;;
+    -f*) [ -n "$cfile" ] || cfile=\${a#-f} ;;
+    --project-directory|--workdir) want=dir ;;
+    --project-directory=*|--workdir=*) cdir=\${a#*=} ;;
+    --env-file|--profile|--progress|--ansi|--parallel) want=value ;;
     -*) ;;
     run) set -- "$@" --label "$label"; at=done ;;
     up|create) note=1; at=done ;;
@@ -86,7 +97,13 @@ for a do
 done
 if [ -n "$note" ]; then
   tab=$(printf '\\t')
-  case $PWD$project in
+  folder=$PWD
+  [ -n "$cdir" ] || { cfile=\${cfile:-\${COMPOSE_FILE%%:*}}; case $cfile in ""|-) ;; */*) cdir=\${cfile%/*} cdir=\${cdir:-/} ;; *) cdir=. ;; esac; }
+  if [ -n "$cdir" ]; then
+    case $cdir in /*) ;; *) cdir=$PWD/$cdir ;; esac
+    cdir=$(cd -- "$cdir" 2>/dev/null && pwd) && [ -n "$cdir" ] && folder=$cdir
+  fi
+  case $folder$project in
   *"$tab"*|*"
 "*) ;;
   *)
@@ -94,7 +111,7 @@ if [ -n "$note" ]; then
       mkdir -p "$notes"
       file=$notes/$thread
       [ ! -f "$file" ] || [ "$(wc -c < "$file")" -le ${DOCKER_NOTES_CAP_BYTES} ] || { tail -n ${DOCKER_NOTES_KEPT_LINES} "$file" > "$file.part" && mv "$file.part" "$file"; }
-      printf '%s\\t%s\\t%s\\t%s\\n' "$thread" "$PWD" "$project" "$(date +%s)" >> "$file"
+      printf '%s\\t%s\\t%s\\t%s\\n' "$thread" "$folder" "$project" "$(date +%s)" >> "$file"
     } 2>/dev/null
     ;;
   esac

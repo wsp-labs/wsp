@@ -44,7 +44,7 @@ describe("a thread on a box with a dev server left running", () => {
       (e: unknown) => e,
     );
     expect(refused).toMatchObject({ kind: PROCESSES_LEFT_KIND });
-    expect((refused as Error).message).toContain(`7100 node (other, :5173) of ${b.threadId.slice(0, 8)} on hetzner`);
+    expect((refused as Error).message).toContain(`7100 node (dev, :5173) of ${b.threadId.slice(0, 8)} on hetzner`);
     const left = processesLeftOf(refused).left!;
     expect(left.map(t => ({ threadId: t.threadId, on: t.on, pids: t.processes.map(p => p.pid), ports: t.processes[0]!.ports }))).toEqual([{ threadId: b.threadId, on: "hetzner", pids: [7100, 7101], ports: [5173] }]);
     expect(b.ends()).toEqual([]);
