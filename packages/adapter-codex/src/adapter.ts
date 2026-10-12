@@ -97,6 +97,7 @@ import { LETS_GO, LIST_PAGES, WRITER_HELD, itemsCommand, listCommand, newestLine
 import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "./session-title.js";
 import { shellScriptOf } from "./shell-script.js";
 import { forkSessionOn, revertOn, type SideRunner } from "./turn-pages.js";
+import { startSeeded } from "./lost-session.js";
 
 export interface CodexStartOptions {
   prompt: string;
@@ -130,6 +131,8 @@ export interface CodexStartOptions {
   promptAfter?: Promise<void>;
   /** The server stays up once the turn is over, for the thread's next turn/start: kept() hands it over. */
   keep?: boolean;
+  /** The thread so far, for a new thread to be handed where the server holds no rollout for `resume`. */
+  seed?: () => Promise<string>;
   onEvent: (event: AdapterEvent) => void;
 }
 
@@ -1277,7 +1280,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     });
   };
 
-  const start = (options: CodexStartOptions): CodexSession => {
+  const launchTurn = (options: CodexStartOptions): CodexSession => {
     if (options.contextWindow !== undefined) throw new Error("codex takes no context window");
     const images = options.images?.map(imagePathOf);
     const access = accessParams(options.permissionMode);
@@ -1310,6 +1313,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
       onEvent: options.onEvent,
     });
   };
+
+  const start = (options: CodexStartOptions): CodexSession => startSeeded(launchTurn, sessions, options);
 
   /** A question put to a copy of the thread: an ephemeral fork writes no rollout, so the thread's own history and its
    * store are left as they were, and a read-only sandbox that asks nobody is the nearest a Codex turn comes to having

@@ -173,6 +173,7 @@ export * from "./conversations.js";
 export * from "./daemon-contract.js";
 export * from "./projects.js";
 export * from "./sub-thread.js";
+export * from "./lost-session.js";
 export * from "./views/sub-row.js";
 export * from "./recipe-file.js";
 export { defaultSeedChoice, leftBehindLine, neverGitLine, neverTravelsLine, noRemoteLine, notInTheMenuLine, projectSeedLines, projectSeedOf, SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH, seedBytes, seedChoiceFrom, seedCommitsLandedLine, seedCommitsLostLine, seedConsentLines, seedingLine, seedMenuRows, seedNotHereRefusal, seedPicks, seedRowWords, seedSaveRefusal, seedSummaryLines } from "./project-seed.js";

@@ -46,8 +46,15 @@ export const SubRow = z.object({
   releasedAt: z.number().optional(),
   /** The cloud left this host with the machine: a send waits on the cloud being added again. */
   cloudGone: z.literal(true).optional(),
+  /** Why the agent's session is not kept on the host, so a send after the delete goes on from the transcript. */
+  sessionNotKept: z.string().optional(),
 });
 export type SubRow = z.infer<typeof SubRow>;
 
 /** Whether a read leaves nothing the remote lacks: nothing committed past it, nothing changed, and a read that answered. */
 export const subAllPushed = (r: SubResult): boolean => r.readFailed === undefined && r.unpushed === 0 && r.changed === 0;
+
+/** Whether a turn ran on a sub-thread's machine since deleted: one that started before its last release, or one whose
+ * start is not known on a sub-thread released at all. Its checkpoints went with that machine. */
+export const subTurnGone = (sub: { releasedAt?: number } | undefined, startedAt: number | undefined): boolean =>
+  sub?.releasedAt !== undefined && (startedAt === undefined || startedAt < sub.releasedAt);

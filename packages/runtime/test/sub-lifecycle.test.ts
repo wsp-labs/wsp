@@ -63,7 +63,7 @@ describe("a sub-thread's done", () => {
     expect(pack).toContain("find '/root/.claude-cfg/projects' -maxdepth 2 -type f -name '*s2.jsonl'");
     expect(pack).toContain(`gzip -c "$f" > '/tmp/wsp-session-${held.threadId}.gz'`);
     expect(held.machine.execLog).toContain(`rm -f '/tmp/wsp-session-${held.threadId}.gz'`);
-    expect(session).toMatchObject({ agent: "claude", id: "s2", bytes: held.answers.session!.length, kept: expect.any(Number) });
+    expect(session).toMatchObject({ agent: "claude", id: "s2", bytes: (held.answers.session as Buffer).length, kept: expect.any(Number) });
     expect(await held.store.getBlob(SUB_SESSIONS, held.threadId)).toEqual(held.answers.session);
     // L4: napped at once, Boat asked to stop it.
     expect(r.phase).toBe("napping");
@@ -152,18 +152,12 @@ describe("the delete at deleteAt", () => {
     expect((await held.rt.sessions.history(held.made.id)).length).toBe(transcript);
     const row = (await held.rt.sessions.list()).find(s => s.threadId === held.threadId)!;
     expect(row.sub).toMatchObject({ state: "released", releasedAt: r.sub!.releasedAt, result: before.sub!.result });
-    // A released machine holds no place under its root, and a send is refused until a new machine can be made.
-    const send = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "go on", harness: "claude" }).then(
-      () => undefined,
-      (e: unknown) => e as Error,
-    );
-    expect(send?.message).toBe(subReleasedRefusal(held.threadId, "Boat", BRANCH).message);
-    // The wake a client asks before its send says the same.
+    // There is no machine to wake: a send makes one.
     const wake = await held.rt.workspaces.wake(held.made.id).then(
       () => undefined,
       (e: unknown) => e as Error,
     );
-    expect(wake?.message).toBe(subReleasedRefusal(held.threadId, "Boat", BRANCH).message);
+    expect(wake?.message).toBe(subReleasedRefusal(held.threadId, "Boat").message);
     // A released sub-thread still goes with a delete, its cloud asked nothing, its kept session with it.
     const asked = held.boat.machines.length;
     await held.rt.sessions.delete(held.threadId);
