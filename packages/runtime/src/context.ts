@@ -77,7 +77,7 @@ import type {
   ThreadWaitingOn,
   ThreadCapWait,
 } from "@wsp/protocol";
-import type { CopyBuild, GoneSeenBy, SubUnpushed, WorktreeSettled } from "@wsp/protocol";
+import type { CopyBuild, GoneSeenBy, SubResult, SubUnpushed, WorktreeSettled } from "@wsp/protocol";
 import type { agentsReads } from "./agents-read.js";
 import type { DaemonChannel, DaemonChannelOptions } from "./daemon-channel.js";
 import type { MachineExecOptions, TurnWaiting } from "./machine-exec.js";
@@ -484,6 +484,8 @@ export interface BootArea {
   readonly rowGone: (id: string, at: { workspaceId: string; threadId?: string }) => void;
   readonly setupRefusalMoved: (place: string, harness: string) => void;
   readonly threadFacts: (threadId: string) => ThreadFacts | undefined;
+  /** A sub-thread's facts once the done after its latest turn has read its machine; any other thread's as they stand. */
+  readonly factsAfterRead: (threadId: string, origin: Caller | undefined) => Promise<ThreadFacts | undefined>;
   readonly settledNow: (threadId: string, settleMs: number | null) => boolean;
   readonly pushHead: (threadId: string) => void;
   readonly mark: (threadIds: readonly string[], stamped: ThreadStamps | ((threadId: string) => ThreadStamps), origin: Caller | undefined) => Promise<void>;
@@ -517,6 +519,12 @@ export interface CreateArea {
 export interface SubLifeArea {
   /** A sub-thread's turn ended: read what it pushed, keep its session, arm the delete or hold the machine, nap it. */
   readonly subDone: (workspaceId: string) => Promise<void>;
+  /** The line a sub-thread's finished line to its lead ends with, off the read of the done after its turn ended at
+   * `since`; nothing where none followed. */
+  readonly subLine: (workspaceId: string, since: number) => Promise<string | undefined>;
+  /** What the done after a sub-thread's turn that ended at `since` read off its machine, once it has; nothing where
+   * none followed. */
+  readonly subRead: (workspaceId: string, since: number) => Promise<SubResult | undefined>;
   /** The delete a sub-machine's deleteAt arms, run now. */
   readonly subExpire: (workspaceId: string) => Promise<void>;
   /** Every delete a record holds, armed; one already past runs at once. */
@@ -680,7 +688,7 @@ export interface ThreadsArea {
   readonly notifyOn: (threadId: string) => { notify: readonly string[]; by?: ThreadScope; road?: WorkspaceOrigin } | undefined;
   readonly notifyReach: (from: readonly string[]) => Set<string>;
   readonly tellAs: (s: { notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin }) => { by?: ThreadScope; road?: WorkspaceOrigin };
-  readonly notifyEnd: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult) => void;
+  readonly notifyEnd: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult, o?: { open?: true }) => void;
   readonly deliverOwed: () => Promise<void>;
   readonly sendBack: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, ids: readonly string[], stopped: boolean) => void;
   readonly settleCut: (s: { view: SessionView; turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; turnLive?: TurnLive; snapshot?: string; asked?: TurnAsked }, reason: string, cutLine: (endedAt: number) => string, stopped?: boolean, unreached?: boolean) => void;

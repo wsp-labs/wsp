@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { OWNER_LABEL, goldenHead, isMissing, readGone, sightMachine, type Machine, type MachineBackend, isNoProvider, isPlaceAbsent } from "@wsp/engine";
-import { type AcrossAct, type PlaceKind, type ProjectView, type SessionView, type Caller, type WorkspacePhase, ForkedFrom, ThreadPlacement, ThreadScope, TurnStatus, WorkspaceOrigin, notTheLeadsChildRefusal, foldThreads, threadKeyOf, threadWord, scopeOf, goneWords, NO_IMAGE_YET, noWorkspaceRefusal, notFoundRefusal, goneUnconfirmedLine, type GoneSeenBy, copiesFolder, kindForComputer, RUN_GONE_LINE, HERE_PLACE_ID, workspaceLands, type ThreadFacts, threadSettled, refusal, LIMIT_RESUME_PROMPT, heldUntil, capRestartedLine, tableName, threadsFollowed, LINK_RETRY_WINDOW_MS } from "@wsp/protocol";
+import { type AcrossAct, type PlaceKind, type ProjectView, type SessionView, type Caller, type WorkspacePhase, ForkedFrom, ThreadPlacement, ThreadScope, TurnStatus, WorkspaceOrigin, notTheLeadsChildRefusal, foldThreads, threadKeyOf, threadWord, scopeOf, goneWords, NO_IMAGE_YET, noWorkspaceRefusal, notFoundRefusal, goneUnconfirmedLine, type GoneSeenBy, copiesFolder, kindForComputer, RUN_GONE_LINE, HERE_PLACE_ID, workspaceLands, type ThreadFacts, threadSettled, refusal, LIMIT_RESUME_PROMPT, heldUntil, capRestartedLine, tableName, threadsFollowed, LINK_RETRY_WINDOW_MS, cloudSaid } from "@wsp/protocol";
 import { keyOf } from "../agent-setup.js";
 import { harnessCatalog } from "../harness-catalog.js";
 import { accountOnComputer } from "../usage.js";
@@ -607,7 +607,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const childOf = async (lead: LiveWorkspace, ref: string, origin?: Caller, threads: { lead?: string; child?: string } = {}): Promise<LiveWorkspace> => {
     const named = await ctx.workspaces.resolve(ref, origin);
     const kid = await entryOf(named.id, origin, threads.child === undefined ? {} : { thread: threads.child });
-    if (kid.record.parentWorkspaceId !== lead.record.id) throw Object.assign(new Error(notTheLeadsChildRefusal(labelOf(kid, threads.child), labelOf(lead, threads.lead))), { kind: "invalid" });
+    if ((kid.record.lead?.workspaceId ?? kid.record.parentWorkspaceId) !== lead.record.id) throw Object.assign(new Error(notTheLeadsChildRefusal(labelOf(kid, threads.child), labelOf(lead, threads.lead))), { kind: "invalid" });
     return kid;
   };
   /** Which rows a caller reaches, for the verbs that name a thread rather than a workspace: the thread tree, then
@@ -695,13 +695,27 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     const { subagents: _subagents, ...thread } = listed;
     const latest = held.at(-1)!.view;
     const running = held.filter(s => s.view.status === "running").at(-1);
+    const record = live.get(thread.workspaceId)?.record;
+    const sub = record === undefined ? undefined : subRowOf(record);
     return {
       ...thread,
+      ...(sub !== undefined ? { sub } : {}),
       ...(latest.model !== undefined ? { model: latest.model } : {}),
       ...(latest.effort !== undefined ? { effort: latest.effort } : {}),
       ...(latest.contextWindow !== undefined ? { contextWindow: latest.contextWindow } : {}),
       ...(running !== undefined ? { turnId: running.turnId } : {}),
     };
+  };
+  /** A sub-thread's facts once the done after its latest turn has read its machine; any other thread's as they stand,
+   * and as they stand for a caller that reaches no row of it, which waits on nothing. */
+  const factsAfterRead = async (threadId: string, origin: Caller | undefined): Promise<ThreadFacts | undefined> => {
+    const facts = threadFacts(threadId);
+    // A turn's done is pushed at its result, while the row reads running until the process exits: its read is the next.
+    const since = facts?.status === "running" ? clock.now() : facts?.endedAt;
+    if (facts?.sub === undefined || since === undefined) return facts;
+    if ((await entryOfRow({ threadId: facts.threadId ?? threadId, workspaceId: facts.workspaceId }, origin)) === undefined) return facts;
+    await ctx.subRead(facts.workspaceId, since);
+    return threadFacts(threadId);
   };
   /** Whether a thread reads settled now, by hand or by quiet time, off the facts its listing carries: the host's one
    * read of it. A thread with no row here reads settled only by its stamp. */
@@ -723,10 +737,13 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       const record = live.get(view.workspaceId)?.record;
       const id = record?.project;
       const project = id === undefined ? undefined : projectsHeld.get(id);
-      const computer = computers.find(r => r.id === project?.computer);
       const sub = record === undefined ? undefined : subRowOf(record);
+      // A sub-thread names the lead's project and runs on its cloud, which is the computer its row reads.
+      const at = sub !== undefined && record !== undefined ? ctx.placeIdOf(record) : project?.computer;
+      const computer = computers.find(r => r.id === at);
       const placed = sub === undefined ? view : { ...view, sub };
-      return project === undefined ? placed : { ...placed, project: { id: project.id, name: project.name }, computerName: computer === undefined ? project.computer : tableName(computer) };
+      if (project === undefined) return placed;
+      return { ...placed, project: { id: project.id, name: project.name }, computerName: computer !== undefined ? tableName(computer) : sub !== undefined ? cloudSaid(sub.on) : project.computer };
     });
   };
   /** The row ids pushed once already, whose opening prompt (a builder's brief of kilobytes, repeated on every row of
@@ -986,7 +1003,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   };
   return {
     refreshBuilders, isHeldAway, rereadHeld, hydrateWorkspace, ready, entryOf, childOf, reachesRow, entryOfRow,
-    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, settledNow, pushHead, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
+    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, factsAfterRead, settledNow, pushHead, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
     imageHead, landingPlace,
   };
 }

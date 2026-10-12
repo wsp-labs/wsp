@@ -464,7 +464,8 @@ export interface Runtime {
      * does not reach, as history leaves its events out. */
     page(workspaceId: string, window: { threadId: string; before?: number; limit?: number }, origin?: Caller): Promise<HistoryPage>;
     /** The thread's head, by its fold key; refused as not found where the caller reaches no row of it. */
-    head(threadId: string, origin?: Caller): Promise<ThreadHead>;
+    /** With afterRead, a sub-thread's head once the done after its latest turn has read its machine. */
+    head(threadId: string, origin?: Caller, o?: { afterRead?: boolean }): Promise<ThreadHead>;
     /** One image a person's message carried on that workspace's thread, by the request id its start carries and its
      * place in the message; refused as not found where the host keeps none. */
     attachment(workspaceId: string, threadId: string, requestId: string, index: number, origin?: Caller): Promise<KeptAttachment>;

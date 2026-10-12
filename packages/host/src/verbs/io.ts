@@ -47,6 +47,7 @@ import {
   HERE_PLACE_ID,
   jsonLine,
   SubOut,
+  SubResult,
 } from "@wsp/protocol";
 import type { CliIO } from "../cli.js";
 import { colourDepth, isTTY } from "../init-layout.js";
@@ -258,6 +259,7 @@ const ThreadEndOut = z.object({
   durationMs: z.number().optional(),
   costUsd: z.number().optional(),
   reply: z.string().optional().describe("the last non-empty line of the reply, or the error when there is no reply"),
+  result: SubResult.optional().describe("on a sub-thread, what its machine was read to hold at the end: the branch, the sha pushed, the commits it brings and the work not pushed"),
 });
 export const WaitOut = z.object({
   finished: ThreadEndOut.optional().describe("the thread that left running; absent when the timeout passed first"),
@@ -289,6 +291,7 @@ const endView = (ended: Ended): z.infer<typeof ThreadEndOut> => {
     ...(ended.result.durationMs !== undefined ? { durationMs: ended.result.durationMs } : {}),
     ...(ended.result.costUsd !== undefined ? { costUsd: ended.result.costUsd } : {}),
     ...(reply !== undefined ? { reply } : {}),
+    ...(ended.sub !== undefined ? { result: ended.sub } : {}),
   };
 };
 

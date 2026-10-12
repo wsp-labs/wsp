@@ -942,7 +942,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
         .filter(v => v.workspaceId === lead.record.id && v.status === "running" && v.threadId !== undefined && v.threadId !== asked?.threadId);
       if (busy.length > 0) throw new Error(leadBusyRefusal(labelOf(lead, threadId), busy.map(v => v.threadId!)));
       await ctx.copyBlocked(lead);
-      const branch = (await ctx.readCheckout(kid, true))?.branch ?? kid.record.worktree?.branch ?? "";
+      // A sub-thread's branch is its record's, so a napping machine is not woken and a released one still merges.
+      const sub = kid.record.sub;
+      const branch = sub?.branch ?? (await ctx.readCheckout(kid, true))?.branch ?? kid.record.worktree?.branch ?? "";
       if (branch === "" || branch === DETACHED_HEAD) throw new Error(childOnNoBranchRefusal(labelOf(kid, childThreadId)));
       const project = ctx.projectHeld(lead.record.project);
       // Through the remote, the one place both copies always reach; with none, from the child's folder only where
@@ -962,7 +964,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       } else kept.conflicts = done.conflicts;
       await ctx.readCheckout(lead, true);
       await ctx.keepTree(kid, kept);
-      return { lead: lead.record.name, child: kid.record.name, branch, merged: done.merged, commits: done.commits, conflicts: done.conflicts };
+      const unpushed = sub?.result?.unpushed ?? 0;
+      return { lead: lead.record.name, child: kid.record.name, branch, merged: done.merged, commits: done.commits, conflicts: done.conflicts, ...(unpushed > 0 ? { unpushed } : {}) };
     },
 
     async start({ url, project: named, agent, model, effort, access }, origin) {
