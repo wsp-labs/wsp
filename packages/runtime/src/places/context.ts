@@ -23,7 +23,7 @@ export interface PlaceDoorContext {
   relinkWaitMs: number;
   live: Map<string, Live>;
   kept: Map<string, PlaceRecord>;
-  signInsHere: (placeId: string) => Record<string, AgentSignInState> | undefined;
+  signInsHere: (placeId: string, agents?: readonly string[]) => Record<string, AgentSignInState> | undefined;
   backends: Map<string, MachineBackend>;
   forwards: Map<string, Forward>;
   schedule: (fn: () => void, ms: number) => () => void;
@@ -54,9 +54,9 @@ export function placeDoorContext(opts: PlaceDoorOptions): PlaceDoorContext {
   const kept = new Map<string, PlaceRecord>();
   /** What stands for each agent on that computer as its last report and this host's vault say, the one read the
    * agent row and the setup's sign-ins both take. */
-  const signInsHere = (placeId: string): Record<string, AgentSignInState> | undefined => {
+  const signInsHere = (placeId: string, agents?: readonly string[]): Record<string, AgentSignInState> | undefined => {
     const record = kept.get(placeId);
-    return record === undefined ? undefined : signInsOf(record.report, opts.vault?.() ?? {}, record.applied?.rows);
+    return record === undefined ? undefined : signInsOf(record.report, opts.vault?.() ?? {}, record.applied?.rows, agents);
   };
   /** The backend each place offers, built once from what that place said about it and swapped when it says
    * something else; the link under it is the door's, so the same object serves a place that comes and goes. */

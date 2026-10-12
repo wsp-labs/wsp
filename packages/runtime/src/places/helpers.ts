@@ -15,6 +15,7 @@ import {
   GITHUB_ROW,
   SIGNED_IN_THERE,
   signInOfRow,
+  agentOfRow,
   copiedFromLine,
   keyHeldLine,
   tokenHeldLine,
@@ -117,11 +118,19 @@ export function takenReport(report: PlaceReport): PlaceReport {
   return { ...report, login };
 }
 
-/** What stands for each agent a computer reported, in the one word a person reads: its own login on that computer
- * when the file that login shares is under the logins folder the computer listed, or, for a login kept in the store
- * its threads read rather than that folder, when the computer's last setup signed it in there (`rows`); else the
- * vault's variable for that agent when this host holds one, else nothing. Nothing at all where the report carries no
- * logins list, which is a daemon older than that field: unknown reads as unknown and not as none.
+/** The agents on a computer as this host knows them: the ones its last report named, and the ones its setup put
+ * there or found there since, which that report, read only at a dial, does not name until the next one. */
+export function agentsOn(report: Pick<PlaceReport, "agents">, rows: readonly PlaceProvisionRow[] = []): string[] {
+  const set = new Set(rows.flatMap(r => (r.outcome === "installed" || r.outcome === "present" ? [agentOfRow(r)] : [])));
+  return [...new Set([...report.agents, ...CATALOG_AGENTS.flatMap(a => (set.has(a.id) ? [a.id] : []))])];
+}
+
+/** What stands for each agent on a computer (`agents`, by default agentsOn), in the one word a person reads: its own
+ * login on that computer when the file that login shares is under the logins folder the computer listed, or, for a
+ * login kept in the store its threads read rather than that folder, when the computer's last setup signed it in
+ * there (`rows`); else the vault's variable for that agent when this host holds one, else nothing. Nothing at all
+ * where the report carries no logins list, which is a daemon older than that field: unknown reads as unknown and
+ * not as none.
  *
  * The computer knows no catalog and the host does, so the list of files goes on the wire and the words are worked
  * out here, off the same sign-in rows the sign-in screens and the turns read. */
@@ -129,12 +138,13 @@ export function signInsOf(
   report: Pick<PlaceReport, "agents" | "logins">,
   vault: Readonly<Record<string, string>>,
   rows: readonly PlaceProvisionRow[] = [],
+  agents: readonly string[] = agentsOn(report, rows),
 ): Record<string, AgentSignInState> | undefined {
   if (report.logins === undefined) return undefined;
   const stands = new Set(report.logins);
   const signedInThere = new Set(rows.filter(r => r.note === SIGNED_IN_THERE && (r.outcome === "installed" || r.outcome === "present")).map(r => signInOfRow(r.id)));
   const words: Record<string, AgentSignInState> = {};
-  for (const id of report.agents) {
+  for (const id of agents) {
     const file = sharedLoginFile(id);
     if (file !== undefined ? stands.has(file) : signedInThere.has(id)) {
       words[id] = "signed-in";

@@ -6,7 +6,7 @@
 import { randomBytes } from "node:crypto";
 import { AgentsReport, GITHUB_CLI, HERE_PLACE_ID, installingFirstLine, refusal, toolNotInstalledFix, toolNotInstalledLine, lastLine, type McpServerSpec as LaunchServer, type PlaceProvisionRow, ptyBareOn, type AgentRow, type AgentSetupSet, type AgentSetupView, THIS_COMPUTER, noSuchAgentsProjectRefusal, sharedAgentsProjectRefusal, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview, isJoinedComputer, nappingAgentsRefusal, nappingPluginsRefusal, nappingServersRefusal, nappingSignInRefusal, nappingSkillsRefusal, nappingToolsRefusal, noSignInRefusal, noSuchPlaceRefusal, tableName, providerAgentsRefusal, type AgentSignInState, type AgentsProject, type AgentsSignInEvent, type AgentsTarget, type DaemonFrame, type PageReach, type PluginAsk, PluginRow, type ServerAdd, type ServerAsk, type WorkspacePhase, withoutControlChars, SIGN_IN_ENDED_KEPT_MS, type AgentsSignInRun, type McpScope } from "@wsp/protocol";
 import type { Machine } from "@wsp/engine";
-import { catalogEntry, mintsToken } from "@wsp/catalog";
+import { CATALOG_AGENTS, catalogEntry, mintsToken } from "@wsp/catalog";
 import type { DaemonChannel } from "./daemon-channel.js";
 import type { McpServerSpec } from "./slate-mcp.js";
 import { NO_PLACE_DOOR, type PlaceDoor } from "./places.js";
@@ -376,7 +376,8 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       if (!isJoinedComputer(row)) throw usage(providerAgentsRefusal(tableName(row)));
       const report = await door.reportOf(row.id);
       if (read) await door.loginsAgain(row.id);
-      const signIns = door.signInsAt(row.id);
+      // The read finds which agents stand there itself, so each one is worded and not only those the report named.
+      const signIns = door.signInsAt(row.id, CATALOG_AGENTS.map(a => a.id));
       const machine = { exec: (cmd: string, opts?: { timeoutMs?: number; stdin?: Uint8Array }) => door.exec(row.id, cmd, opts ?? {}) };
       const login = { ...(report?.login["HOME"] !== undefined ? { HOME: report.login["HOME"] } : {}), ...(report?.login["PATH"] !== undefined ? { PATH: report.login["PATH"] } : {}) };
       return {
