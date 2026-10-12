@@ -23,6 +23,8 @@ pub struct PlaceDaemonPaths {
     /// Where the wsp that dials it sits, first on such a thread's PATH: the place's own, never `~/.wsp/bin`, where
     /// the app and the install line keep the person's wsp on the same login.
     pub guest_bin: PathBuf,
+    /// Where the docker beside that wsp appends a thread's compose notes, one file per thread.
+    pub docker_notes: PathBuf,
     pub manifest_path: PathBuf,
     pub profile_file: PathBuf,
     pub unit_dir: PathBuf,
@@ -47,6 +49,8 @@ pub struct PlaceDaemonPaths {
 pub const READINGS_FOLDER: &str = "readings";
 /// The folder of the sshd a daemon starts for a workspace, beside its token file.
 pub const SSH_FOLDER: &str = "ssh";
+/// The folder a thread's compose notes go in, beside the folder its docker sits in.
+pub const DOCKER_NOTES_FOLDER: &str = "docker-notes";
 
 /// The home with its trailing slashes gone, as the protocol strips them before it joins.
 fn trimmed(home: &Path) -> PathBuf {
@@ -69,6 +73,7 @@ pub fn place_daemon_paths(home: &Path) -> PlaceDaemonPaths {
         open_socket: wsp.join("open.sock"),
         guest_socket: wsp.join("daemon.sock"),
         guest_bin: wsp.join("place-bin"),
+        docker_notes: wsp.join(DOCKER_NOTES_FOLDER),
         manifest_path: wsp.join("manifest.json"),
         profile_file: wsp.join("profile.sh"),
         unit_dir: at.join(".config/systemd/user"),
@@ -142,7 +147,9 @@ pub fn place_owned_paths(home: &Path) -> Vec<PathBuf> {
         at.open_socket,
         at.guest_socket,
         at.guest_bin.join("wsp"),
+        at.guest_bin.join("docker"),
         at.guest_bin,
+        at.docker_notes,
         at.run_dir,
         at.port_file,
         at.manifest_path,

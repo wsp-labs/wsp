@@ -457,6 +457,9 @@ impl Ctx {
             }
         };
         let _ = self.computer_door.set(kept);
+        if let Err(e) = write_docker_shim(&at.guest_bin, &at.docker_notes) {
+            self.log(&format!("this computer's threads run docker unlabelled: {}: {e}", at.guest_bin.join("docker").display()));
+        }
     }
 
     /// The door goes with the workspace it was inside: this ends the loop, and the file it was bound on is the
@@ -787,6 +790,20 @@ fn write_wsp_shim(helper: Option<&Path>, bin: &Path, door: &Path, unit: Option<&
     std::fs::create_dir_all(bin)?;
     let shim = wsp_frames::computer_wsp_shim(&exe.to_string_lossy(), &door.to_string_lossy(), unit);
     wsp_runtime::bundle::write_file_in(bin, "wsp", shim.as_bytes(), 0o755).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+/// The docker a thread on this computer finds beside its wsp, which labels the containers it makes. Apart from the
+/// door: a thread without its wsp tools still runs docker.
+#[cfg(target_os = "linux")]
+fn write_docker_shim(bin: &Path, notes: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(bin)?;
+    let shim = wsp_frames::docker_shim(&bin.to_string_lossy(), &notes.to_string_lossy());
+    wsp_runtime::bundle::write_file_in(bin, "docker", shim.as_bytes(), 0o755).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn write_docker_shim(_: &Path, _: &Path) -> std::io::Result<()> {
+    Ok(())
 }
 
 #[cfg(not(target_os = "linux"))]
