@@ -100,6 +100,8 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
    * or the same folder inside the worktree the record names. A worktree that is gone answers the project's path, so
    * its threads go on there. */
   const checkoutOf = (r: WorkspaceRecord): string => {
+    // A sub-machine names its lead's project and works in a folder of its own on its machine.
+    if (r.sub !== undefined) return r.sub.folder;
     const project = projectHeld(r.project);
     const tree = r.worktree;
     if (tree === undefined || tree.gone === true) return project.path;

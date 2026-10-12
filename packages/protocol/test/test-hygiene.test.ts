@@ -120,6 +120,7 @@ const SHARED_STARTERS = new Set([
   "gitCopier",
   "grandchild",
   "leadAndBox",
+  "leadOnThisComputer",
   "loginShell",
   "mcpBinNamed",
   "projectOn",

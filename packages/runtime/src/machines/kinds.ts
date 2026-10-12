@@ -264,7 +264,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
         return at;
       },
       execStream: (entry, o, waiting) => machineExecStream(entry.machine, { reading: machineReading, ...o }, waiting),
-      folder: () => undefined,
+      folder: record => record.sub?.folder,
       home: (_entry, id) => cloudHome(id),
       homeDir: () => GUEST_HOME,
       env: (entry, id) => cloudEnv(entry.record, id),

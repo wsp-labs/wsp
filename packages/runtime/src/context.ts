@@ -514,6 +514,11 @@ export interface CreateArea {
   readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;
 }
 
+export interface SubSpawnArea {
+  /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
+  readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
+}
+
 export interface FoldersArea {
   readonly projectFolder: (project: ProjectView) => Promise<LiveWorkspace>;
   readonly worktreeFolder: (project: ProjectView, top: string, branch: string, parent?: string, madeFor?: string, checkpoint?: string) => Promise<LiveWorkspace>;
@@ -822,4 +827,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
