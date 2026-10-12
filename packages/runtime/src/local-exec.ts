@@ -70,9 +70,6 @@ const POLL_MS = 100;
 /** How often a process kept between turns is read while no turn is open: it prints nothing then, and its next turn
  * wakes the reader at once. */
 const RESTING_POLL_MS = 1_000;
-/** How often, and how many times, the group is read while the input pump's launcher is still standing. */
-const LAUNCHER_READ_MS = 50;
-const LAUNCHER_READS = 40;
 /** How often the reap looks at the group it asked to go, while it waits out the one stop grace both roads give. */
 const GRACE_POLL_MS = 200;
 /** A handle this factory could have minted: a name of this shape inside the run folder it launches into. Read off
@@ -209,21 +206,14 @@ function groupRows(pgid: number): Promise<GroupRow[]> {
 /** The group's processes whose parent is not in it, the leader aside: one whose parent went is the system's now. */
 const orphansOf = (rows: readonly GroupRow[], leader: number): number[] => rows.filter(r => r.pid !== leader && !rows.some(o => o.pid === r.ppid)).map(r => r.pid);
 
-/** The orphans a run starts with: its input pump, read once the subshell that backgrounded it has gone. Until then
- * the pump is that subshell's child and no orphan, and on a loaded computer the subshell can still stand when the
- * agent first prints; a pump missed there is ended as the turn's leftover, and the kept agent with its input. */
-export async function ownOrphans(read: () => Promise<GroupRow[]>, leader: number): Promise<Set<number>> {
-  for (let tries = 1; ; tries++) {
-    const rows = await read();
-    const orphans = orphansOf(rows, leader);
-    if (orphans.length > 0 || rows.length === 0 || tries >= LAUNCHER_READS) return new Set(orphans);
-    await sleep(LAUNCHER_READ_MS);
-  }
+/** The input pump's two processes, tail and the read loop, as the pump wrote them before it carried a message. */
+function pumpOf(base: string): Set<number> {
+  return new Set((readFile(`${base}.pump`) ?? "").split("\n").map(Number).filter(pid => Number.isSafeInteger(pid) && pid > 0));
 }
 
-/** What a turn left running in its run's group: every orphan the run did not start with, and every process under one. */
-function leftovers(rows: readonly GroupRow[], leader: number, own: ReadonlySet<number>): number[] {
-  const left = new Set(orphansOf(rows, leader).filter(pid => !own.has(pid)));
+/** What a turn left running in its run's group: every orphan that is not the input pump, and every process under one. */
+function leftovers(rows: readonly GroupRow[], leader: number, pump: ReadonlySet<number>): number[] {
+  const left = new Set(orphansOf(rows, leader).filter(pid => !pump.has(pid)));
   for (let grew = true; grew; ) {
     grew = false;
     for (const r of rows) {
@@ -339,7 +329,7 @@ async function reapRun(base: string, lastRead: (end: number) => Promise<void> = 
     signalGroup(pid, "SIGKILL");
   }
   await lastRead(logSize(base));
-  for (const suffix of ["sh", "log", "pid", "agent", "exit", "in", "held", "late", "fifo", "tail"]) rmSync(`${base}.${suffix}`, { force: true });
+  for (const suffix of ["sh", "log", "pid", "agent", "exit", "in", "held", "late", "fifo", "tail", "pump"]) rmSync(`${base}.${suffix}`, { force: true });
   rmSync(`${base}.d`, { recursive: true, force: true });
 }
 
@@ -443,17 +433,13 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     const readWork = opts.readWork ?? treeWork();
     /** Between two turns of a process kept for the next one: no limit reads the quiet, since no turn is open to be stuck. */
     let resting = false;
-    /** The run's own orphans, read from when its process first printed, before any turn of it could run a tool: the
-     * input pump, which the launch backgrounds out of its parent on purpose. An orphan after that is what a turn left. */
-    let startedWith: Promise<Set<number>> | undefined;
     /** A turn's end on a kept process ends what the turn left running in the group, as the reap of a turn's whole group
      * did: a command the agent left going holds the turn's token, which otherwise would outlive the turn by the keep.
      * The agent, the servers it started and its input stay. */
     const endLeftovers = async (): Promise<void> => {
       const pid = leader();
-      if (pid === undefined || startedWith === undefined) return;
-      const own = await startedWith;
-      const left = leftovers(await groupRows(pid), pid, own);
+      if (pid === undefined) return;
+      const left = leftovers(await groupRows(pid), pid, pumpOf(base));
       for (const stray of left) signalPid(stray, "SIGTERM");
       if (left.length > 0) setTimeout(() => left.filter(alive).forEach(stray => signalPid(stray, "SIGKILL")), RUN_STOP_MS).unref();
     };
@@ -572,7 +558,6 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
         const ended = readFile(`${base}.exit`)?.trim();
         const chunk = readLog();
         if (chunk.length > 0) {
-          if (startedWith === undefined && hasInput && pid !== undefined) startedWith = ownOrphans(() => groupRows(pid), pid);
           activity.touch(now());
           lines.feed(decoder.write(chunk));
           if (chunk.length < EXEC_CHUNK_BYTES) caughtUp = true;
@@ -676,10 +661,12 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     // The command runs in a subshell, so a turn whose own line ends in `exit` leaves the script standing and its
     // code still reaches the exit file: a run whose code nobody wrote reads as a run that answered nothing.
     // Stdin is a pipe only the backgrounded pump holds: node on macOS never reads the end of a named fifo (2026-10-03).
+    // The pump is an orphan in the run's group, as a command a turn leaves is: each of its two processes writes its own
+    // pid before it carries a message, since a read of the group can come before the launcher has forked either.
     const body =
       input === undefined
         ? `( ${command}\n)\necho $? > ${shellQuote(`${base}.exit`)}\n`
-        : `( ${command}\n) < <(tail -n +1 -f ${shellQuote(`${base}.in`)} | { while IFS= read -r l; do [ "$l" = ${shellQuote(endMarker(base))} ] && break; printf '%s\\n' "$l"; done; } &)\n` +
+        : `( ${command}\n) < <(sh -c ${shellQuote(`echo $$ >> ${shellQuote(`${base}.pump`)}; exec tail -n +1 -f ${shellQuote(`${base}.in`)}`)} | { sh -c ${shellQuote(`echo $PPID >> ${shellQuote(`${base}.pump`)}`)}; while IFS= read -r l; do [ "$l" = ${shellQuote(endMarker(base))} ] && break; printf '%s\\n' "$l"; done; } &)\n` +
           `echo $? > ${shellQuote(`${base}.exit`)}\n`;
     // The three files that carry what a turn is: the script holds the command, the input channel holds every
     // message a person sends and the log holds everything the agent prints. The mode goes on at the open, never by
