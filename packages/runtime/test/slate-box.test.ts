@@ -12,6 +12,7 @@ import type { ExecResult, Machine, RunOptions } from "@wsp/engine";
 import type { Caller } from "@wsp/protocol";
 import { boxLauncher, boxLedger, boxRoad, boxSlateDir } from "../src/slate-box.js";
 import { FS_HASH_CAP_BYTES, FS_HASH_FILES_MAX, FS_HASH_PATHS_MAX } from "@wsp/protocol";
+import { slateToolAway } from "@wsp/protocol/slate";
 import { boxPins, type HashOn, type HashRead } from "../src/slate-files.js";
 import { createSlateRuns, type RoadEnd } from "../src/slate-runs.js";
 import { SLATES } from "../src/lazy-slates.js";
@@ -379,6 +380,64 @@ describe("a box thread's slate", () => {
     expect({ woke, scripts: scripts.length }).toEqual({ woke: 1, scripts: 1 });
     slates.close();
   }, 30_000);
+});
+
+describe("a box thread's tool run", () => {
+  const TOOLS = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" every={60} /><run name="dns" resource="cloudflare:cf://dns" />
+  <column><output run={$zones} /></column></slate>`;
+  const slatesOn = (away: string | undefined) => {
+    const thread = `t-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const servers: string[] = [];
+    const slates = createSlates({
+      store: memoryStore(),
+      now: () => Date.now(),
+      record: () => {},
+      emit: () => {},
+      thread: () => ({ workspaceId: "w1", rootThreadId: thread, sessionId: "s1", folder: temp(), hostFolder: temp(), computer: away ?? "this-mac" }),
+      ...(away !== undefined ? { machineOf: () => bashMachine(), away: () => away } : {}),
+      under: lead => [lead],
+      threadOfToken: () => thread,
+      sources: (threadId, workspaceId) => ({ threadId, workspaceId, now: Date.now(), rows: () => [] }) as never,
+      deliver: async () => ({ outcome: "started" }),
+      runEnv: () => ({ PATH: process.env["PATH"] ?? "/usr/bin:/bin" }),
+      mcpServer: async (_t, name) => (servers.push(name), Promise.reject(new Error("no server in this test"))),
+    });
+    const asThread: Caller = { origin: "relayed", by: { kind: "thread", threadId: thread, workspaceId: "w1", rootThreadId: thread } };
+    return { slates, thread, asThread, servers };
+  };
+  const refusal = `slate refused: 1 error: K710 tool-away $zones and $dns call an MCP server: ${slateToolAway("hetzner")}`;
+
+  it("is refused as the slate is written, checked or patched in, naming what works instead, and no server is asked for", async () => {
+    const { slates, thread, asThread, servers } = slatesOn("hetzner");
+    expect(slateToolAway("hetzner")).toContain('<secret name="token" />');
+    expect(slateToolAway("hetzner")).toContain("start the thread on the host's computer");
+    await expect(slates.write({ text: TOOLS, check: true }, asThread)).rejects.toMatchObject({ kind: "invalid", message: refusal });
+    await expect(slates.write({ text: TOOLS }, asThread)).rejects.toMatchObject({ kind: "invalid", message: refusal });
+    expect(await slates.get(thread)).toBeNull();
+    // A slate of commands writes, and a tool run patched into it is refused the same way.
+    await slates.write({ text: `<slate title="Zones"><column><text id="t">none yet</text></column></slate>` }, asThread);
+    await expect(slates.write({ text: `<run name="zones" tool="cloudflare.zones_list" />` }, asThread)).rejects.toMatchObject({ kind: "invalid", message: `slate refused: 1 error: K710 tool-away $zones calls an MCP server: ${slateToolAway("hetzner")}` });
+    expect(Object.keys(((await slates.get(thread))!.document as { runs: object }).runs)).toEqual([]);
+    expect(servers).toEqual([]);
+    slates.close();
+  });
+
+  it("is told to the agent there by the catalog's index and its runs entry, and to one on the host's computer by neither", async () => {
+    const box = slatesOn("hetzner");
+    const said = `\nnote tools: ${slateToolAway("hetzner")}.`;
+    expect((await box.slates.catalog({}, box.asThread)).text).toContain(said);
+    expect((await box.slates.catalog({ name: "runs" }, box.asThread)).text).toContain(said);
+    expect((await box.slates.catalog({ name: "text" }, box.asThread)).text).not.toContain(said);
+    // Asked for a server's tools, it gets the same line and no server starts.
+    expect((await box.slates.catalog({ name: "cloudflare" }, box.asThread)).text).toContain(slateToolAway("hetzner"));
+    expect(box.servers).toEqual([]);
+    const here = slatesOn(undefined);
+    expect((await here.slates.catalog({}, here.asThread)).text).not.toContain("this thread runs on");
+    await here.slates.write({ text: TOOLS }, here.asThread);
+    expect(Object.keys(((await here.slates.get(here.thread))!.document as { runs: object }).runs)).toEqual(["zones", "dns"]);
+    box.slates.close();
+    here.slates.close();
+  });
 });
 
 describe("a box thread's image", () => {

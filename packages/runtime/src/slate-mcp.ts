@@ -10,8 +10,17 @@ import { createHash } from "node:crypto";
 import type { McpTransport } from "@wsp/catalog";
 import { EXEC_OUTPUT_MAX, fmtBytes, runOutputTail } from "@wsp/protocol";
 import type { SlateAsk } from "@wsp/protocol";
-import type { SlateJson, SlateRunDecl } from "@wsp/protocol/slate";
+import { slateProblem, slateToolAway, type SlateDoc, type SlateJson, type SlateProblem, type SlateRunDecl } from "@wsp/protocol/slate";
 import { HELD_APPROVAL, HELD_BUDGET, HELD_PRESSED, lastResult, mapStrings, runningRecord, SECRET_DOTS, spent, stableJson, type Reshape, type RunResult, type RunApprovals, type RunBy, type RunRecord, type RunStartAnswer } from "./slate-runs.js";
+
+/** A slate's tool and resource runs, refused as it is written where the thread runs on another computer. */
+export function toolsAway(doc: SlateDoc | null | undefined, computer: string | undefined): SlateProblem[] {
+  if (computer === undefined || !doc) return [];
+  const named = Object.keys(doc.runs).filter(name => doc.runs[name]!.kind !== "cmd");
+  if (named.length === 0) return [];
+  const runs = named.map(n => `$${n}`).join(named.length === 2 ? " and " : ", ");
+  return [slateProblem("K710", `${runs} ${named.length === 1 ? "calls" : "call"} an MCP server: ${slateToolAway(computer)}`)];
+}
 
 /** `files` is the text of each slate file its then reads, as on a command. */
 export type McpRunDecl = Extract<SlateRunDecl, { kind: "tool" | "resource" }> & { files?: Record<string, string> };

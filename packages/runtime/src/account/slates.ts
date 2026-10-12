@@ -70,10 +70,13 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
       const harness = ctx.latestOn(threadId)?.harness ?? threadRecords.get(threadId)?.harness;
       const entry = workspaceId === undefined ? undefined : live.get(workspaceId);
       if (entry === undefined || harness === undefined) throw new Error(`this host holds no folder for thread ${threadId}`);
-      if (!isLocalWorkspace(entry.record)) throw new Error("a slate's tool runs start their server on this computer, and this thread runs on another");
       const reader = opts.agentsReader;
       if (reader?.server === undefined) throw new Error("this host reads no agent's MCP config");
       return reader.server({ kind: "here", projects: [{ id: workspaceId!, name: "thread", path: ctx.checkoutOf(entry.record) }] }, { agent: harness, name });
+    },
+    away: threadId => {
+      const entry = ctx.boxOf(threadId);
+      return entry === undefined ? undefined : ctx.computerOf(entry);
     },
     sources: (threadId, workspaceId) => ({
       threadId,
