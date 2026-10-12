@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -8,7 +8,7 @@ import { EXEC_ENV, ExecFailedError, INLINE_EXEC_MS, MachineUnreachableError, Mac
 import { EXEC_BODY_MAX, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS, absentComputer, execFailedLine, machineUnreachableLine, machineUnreachedLine, TURN_IDLE_MS, shellQuote, workScoreLine } from "@wsp/protocol";
 import { endRun, type ExecStream } from "@wsp/protocol";
 import { gateLoop } from "../../protocol/test/stub-script.js";
-import { GROUP_WORK_AWK, machineExecStream } from "../src/machine-exec.js";
+import { TREE_WORK_AWK, machineExecStream } from "../src/machine-exec.js";
 import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
 import { scriptGuest, type Step } from "./script-guest.js";
 import { stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
@@ -555,7 +555,7 @@ describe("machineExecStream", () => {
     expect(guest.files()).toEqual([]);
   });
 
-  it("the poll asks for the group's work only once the stream has been quiet for half the idle limit, and never on a stream with no idle limit", async () => {
+  it("the poll asks for the tree's work only once the stream has been quiet for half the idle limit, and never on a stream with no idle limit", async () => {
     const { backend, machine } = await makeMachine();
     const { guest, clock } = minuteGuest(backend, 0, 8 * 60_000, CORE_MINUTE);
     const stream = machineExecStream(machine, { pollMs: 1, now: () => clock.now })("claude -p 'hi'", { env: {} });
@@ -563,7 +563,7 @@ describe("machineExecStream", () => {
     // One poll a minute on a silent stream, so the first five are inside the half of a ten minute limit.
     const polls = guest.calls.filter(c => c.includes("__WSP_EOF_"));
     expect(polls.slice(0, 5).some(c => c.includes("awk -v p="))).toBe(false);
-    expect(polls[5]).toContain(`W=$(awk -v p="$P" ${shellQuote(GROUP_WORK_AWK)} /proc/[0-9]*/stat 2>/dev/null)`);
+    expect(polls[5]).toContain(`W=$(awk -v p="$P" ${shellQuote(TREE_WORK_AWK)} /proc/[0-9]*/stat 2>/dev/null)`);
 
     // The exec verb hands both limits infinite on purpose, and no reading could cut such a stream.
     const forever = await makeMachine();
@@ -583,10 +583,78 @@ describe("machineExecStream", () => {
       return join(dir, String(pid), "stat");
     };
     const files = [proc(11, "bash", 11, 30, 12, [2 * 1_048_576, 1_048_576]), proc(12, "node (2)", 11, 400, 100), proc(13, "daemon", 13, 9_000, 9_000, [99 * 1_048_576, 0])];
-    const read = (pgrp: number): number => Number(execFileSync("awk", ["-v", `p=${pgrp}`, GROUP_WORK_AWK, ...files], { encoding: "utf8" }).trim());
+    const read = (pgrp: number): number => Number(execFileSync("awk", ["-v", `p=${pgrp}`, TREE_WORK_AWK, ...files], { encoding: "utf8" }).trim());
     expect(read(11)).toBe(30 + 12 + 400 + 100 + 3);
     expect(read(13)).toBe(9_000 + 9_000 + 99);
     expect(read(99)).toBe(0);
+  });
+
+  /** Every awk a guest may carry that this computer has, each as the words that run it. */
+  const awksHere = (): string[][] =>
+    [["awk"], ["gawk"], ["mawk"], ["busybox", "awk"]].filter(([bin]) => {
+      try {
+        execFileSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" });
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  /** A fake /proc entry, given what the reading looks at in it. */
+  const fakeStat = (dir: string, pid: number, ppid: number, pgrp: number, utime: number, cutime = 0): string => {
+    mkdirSync(join(dir, String(pid)));
+    writeFileSync(join(dir, String(pid), "stat"), `${pid} (rustc) S ${ppid} ${pgrp} 0 0 -1 0 0 0 0 0 ${utime} 0 ${cutime} 0 20 0 1 0 0\n`);
+    return join(dir, String(pid), "stat");
+  };
+  const readWith = (awk: string[], root: number, files: string[]): string =>
+    execFileSync("sh", ["-c", `"$@" 2>/dev/null; true`, "sh", ...awk, "-v", `p=${root}`, TREE_WORK_AWK, ...files], { encoding: "utf8" }).trim();
+
+  it("a process that exits between the shell's glob and the read leaves the run's other processes counted, in every awk a guest may carry", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-proc-"));
+    dirs.push(dir);
+    const files = [fakeStat(dir, 21, 1, 21, 60), join(dir, "22", "stat"), fakeStat(dir, 23, 21, 21, 740)];
+    const awks = awksHere();
+    expect(awks.length).toBeGreaterThan(0);
+    for (const awk of awks) expect({ awk, work: readWith(awk, 21, files) }).toEqual({ awk, work: String(60 + 740) });
+  });
+
+  it("the run's whole tree counts, a tool command in a session of its own and an orphan left in the group included, and nothing outside it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-proc-"));
+    dirs.push(dir);
+    const files = [
+      fakeStat(dir, 30, 1, 30, 10),
+      fakeStat(dir, 31, 30, 30, 20, 100),
+      fakeStat(dir, 32, 31, 32, 40),
+      fakeStat(dir, 33, 32, 32, 300),
+      fakeStat(dir, 34, 1, 30, 5),
+      fakeStat(dir, 35, 1, 35, 9_000),
+      fakeStat(dir, 36, 35, 36, 7_000),
+    ];
+    for (const awk of awksHere()) expect({ awk, work: readWith(awk, 30, files) }).toEqual({ awk, work: String(10 + 20 + 100 + 40 + 300 + 5) });
+  });
+
+  it.skipIf(!existsSync("/proc/1/stat"))("a child in a session of its own counts while it burns CPU, as an agent's tool command does", async () => {
+    const group = spawn("sh", ["-c", `setsid sh -c 'while :; do :; done' & echo $!; exec sleep 30`], { detached: true, stdio: ["ignore", "pipe", "ignore"] });
+    const spinner = Number((await new Promise<Buffer>(resolve => group.stdout!.once("data", resolve))).toString().trim());
+    const read = (): number => Number(execFileSync("sh", ["-c", `awk -v p="$1" "$2" /proc/[0-9]*/stat 2>/dev/null`, "sh", String(group.pid), TREE_WORK_AWK], { encoding: "utf8" }).trim());
+    try {
+      const before = read();
+      await new Promise(resolve => setTimeout(resolve, 600));
+      expect(read() - before).toBeGreaterThanOrEqual(15);
+    } finally {
+      process.kill(-spinner, "SIGKILL");
+      process.kill(-group.pid!, "SIGKILL");
+    }
+  });
+
+  it.skipIf(!existsSync("/proc/1/stat"))("a child that burned CPU and was reaped stays in its run's reading, so a build's exiting compilers do not lower it", async () => {
+    const group = spawn("sh", ["-c", `timeout 0.5 sh -c 'while :; do :; done'; exec sleep 30`], { detached: true, stdio: "ignore" });
+    try {
+      await new Promise(resolve => setTimeout(resolve, 900));
+      const out = execFileSync("sh", ["-c", `awk -v p="$1" "$2" /proc/[0-9]*/stat 2>/dev/null`, "sh", String(group.pid), TREE_WORK_AWK], { encoding: "utf8" });
+      expect(Number(out.trim())).toBeGreaterThanOrEqual(20);
+    } finally {
+      process.kill(-group.pid!, "SIGKILL");
+    }
   });
 
   it("a stream that never goes quiet is still cut at the wall cap, and the error names the cap", async () => {
