@@ -146,7 +146,8 @@ describe("a project golden", () => {
         if (cmd.startsWith("ls -A ") && cmd.includes(PROJECT.dest)) return { exitCode: 0, stdout: "package.json\npnpm-lock.yaml\nsrc\n", stderr: "" };
         if (!cmd.includes("pnpm --version")) return plain(m, cmd);
         const home = cmd.includes("bash -lc") ? loginHome : threadHome;
-        const res = spawnSync("bash", ["-c", 'cd "$1" && pnpm --version', "check", proj], { env: { PATH: `${bin}:/usr/bin:/bin`, PNPM_HOME: home }, encoding: "utf8" });
+        // No stdin: a socket there, which node hands a child on a Mac, makes bash read ~/.bashrc as for an ssh login.
+        const res = spawnSync("bash", ["-c", 'cd "$1" && pnpm --version', "check", proj], { env: { PATH: `${bin}:/usr/bin:/bin`, PNPM_HOME: home }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
         return { exitCode: res.status ?? 1, stdout: res.stdout, stderr: res.stderr };
       };
       const machine = backend.machines[0]!;
@@ -202,7 +203,8 @@ describe("a project golden", () => {
       backend.execImpl = (m, cmd) => {
         if (cmd.startsWith("ls -A ") && cmd.includes(PROJECT.dest)) return { exitCode: 0, stdout: "package.json\npnpm-lock.yaml\n", stderr: "" };
         if (!cmd.includes("pnpm --version")) return plain(m, cmd);
-        const res = spawnSync("bash", ["-c", 'cd "$1" && pnpm --version', "check", proj], { env: { PATH: `${bin}:/usr/bin:/bin`, PNPM_HOME: home }, encoding: "utf8" });
+        // No stdin: a socket there, which node hands a child on a Mac, makes bash read ~/.bashrc as for an ssh login.
+        const res = spawnSync("bash", ["-c", 'cd "$1" && pnpm --version', "check", proj], { env: { PATH: `${bin}:/usr/bin:/bin`, PNPM_HOME: home }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
         return { exitCode: res.status ?? 1, stdout: res.stdout, stderr: res.stderr };
       };
       await expect(rt.workspaces.snapshot(ws.id)).rejects.toThrow(`; remove ${version}, run pnpm --version in /root/proj to fetch it again, then snapshot again`);
