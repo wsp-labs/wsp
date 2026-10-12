@@ -3,7 +3,7 @@
 // screen and left alone when the person is already looking at it, the waits
 // keyed until the event that closes them, and the noise said nowhere.
 import { act, render } from "@testing-library/react";
-import { NEEDS_YOU, askingLine, initNeedsYouLine, setupNeedsYouLine, setupReadyLine, waitLine, type InitJob, type PlaceView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { NEEDS_YOU, SKIPPED_FOR_NOW, askingLine, initNeedsYouLine, setupNeedsYouLine, waitLine, type InitJob, type PlaceView, type ReleaseView, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Api, ProtocolEvent } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
@@ -112,17 +112,66 @@ describe("a computer's install and its link", () => {
     emit({ type: "place.stage", addId: "a_1", placeId: "pl_box", step: "join", state: "done", note: "engine none" });
     emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "failed", said: "the base tools did not install: curl" });
     emit({ type: "place.setup", addId: "a_2", placeId: "pl_box", end: "needs-you", said: "Codex waits on you to sign in" });
-    emit({ type: "place.setup", addId: "a_3", placeId: "pl_box", end: "ready", said: "1 row did not install" });
     expect(notices().map(n => [n.kind, n.text, n.where])).toEqual([
-      ["done", setupReadyLine("spoo", "1 row did not install"), "spoo"],
       ["note", setupNeedsYouLine("spoo", "Codex waits on you to sign in"), "spoo"],
       ["error", HOST_NOTICE_WORDS.notSetUp("spoo", "the base tools did not install: curl"), "spoo"],
       ["done", HOST_NOTICE_WORDS.joined("spoo"), "spoo"],
     ]);
-    expect(texts()[0]).toBe("spoo is ready; 1 row did not install");
     // The Open lands on Add a computer, open on that computer's running steps.
     act(() => notices()[0]!.action!.run());
     expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+  });
+
+  it("a setup that ended is said ready once its rows are read, with the Computers list showing too: what it left, and where to finish it", () => {
+    const steps = [{ step: "floor" as const, state: "done" as const }, { step: "agents" as const, state: "done" as const }];
+    const skipped: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "signins/claude", label: "Claude Code", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW }] };
+    const read = (): void => act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "done", addId: "a_1", startedAt: "x", steps, waiting: [] }, applied: skipped }] }));
+    act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "running", addId: "a_1", startedAt: "x", steps, waiting: [] } }] }));
+    openComputers();
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "ready" });
+    // The end rides ahead of the rows it ended with, which the list's next read brings.
+    expect(notices()).toEqual([]);
+    read();
+    expect(notices().map(n => [n.kind, n.text, n.detail, n.where])).toEqual([["done", "spoo is ready: threads you start on it run there", "Claude Code sign-in skipped. Finish it from spoo's page in Settings.", "spoo"]]);
+    // Read again, or ended again, it is not said twice.
+    read();
+    emit({ type: "place.setup", addId: "a_1", placeId: "pl_box", end: "ready" });
+    read();
+    expect(notices()).toHaveLength(1);
+    act(() => notices()[0]!.action!.run());
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+  });
+
+  it("a setup that ended with a folder not moved and no sign-in waiting says it needs you, as the notification outside does, once, with the Computers list showing", () => {
+    const failed: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "folders/wsp", label: "wsp", outcome: "failed", step: "folders", note: "the clone failed" }] };
+    const read = (): void => act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "done", addId: "a_folder", startedAt: "x", steps: [{ step: "folders", state: "failed" }], waiting: [] }, applied: failed }] }));
+    act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "running", addId: "a_folder", startedAt: "x", steps: [], waiting: [] } }] }));
+    openComputers();
+    emit({ type: "place.setup", addId: "a_folder", placeId: "pl_box", end: "needs-you", said: "wsp: the clone failed" });
+    read();
+    read();
+    expect(notices().map(n => [n.kind, n.text, n.detail, n.where])).toEqual([["note", setupNeedsYouLine("spoo", "wsp: the clone failed"), undefined, "spoo"]]);
+    act(() => notices()[0]!.action!.run());
+    expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+  });
+
+  it("a setup that ended with nothing left says the ready line alone, its Open on the dialog's ready steps", () => {
+    emit({ type: "place.setup", addId: "a_2", placeId: "pl_box", end: "ready" });
+    act(() => useStore.setState({ places: [{ ...BOX, setup: { state: "done", addId: "a_2", startedAt: "x", steps: [{ step: "floor", state: "done" }], waiting: [] }, applied: { hash: "h", at: "x", rows: [] } }] }));
+    expect(notices().map(n => [n.kind, n.text, n.detail])).toEqual([["done", "spoo is ready: threads you start on it run there", undefined]]);
+    act(() => notices()[0]!.action!.run());
+    expect(useAddFlow.getState()).toMatchObject({ open: true, placeId: "pl_box", step: "running" });
+  });
+
+  it("a setup's ready line waits on the read that brings its end: not the computer coming back, not a read asked before the end", () => {
+    const run = (state: "running" | "done"): PlaceView => ({ ...BOX, setup: { state, addId: "a_3", startedAt: "x", steps: [{ step: "floor", state: "done" }], waiting: [] }, applied: { hash: "h", at: "x", rows: state === "running" ? [] : [{ id: "signins/claude", label: "Claude Code", outcome: "skipped", step: "signins", note: SKIPPED_FOR_NOW }] } });
+    act(() => useStore.setState({ places: [run("running")] }));
+    emit({ type: "place.setup", addId: "a_3", placeId: "pl_box", end: "ready" });
+    emit({ type: "place.present", placeId: "pl_box", from: "x" });
+    act(() => useStore.setState({ places: [run("running")] }));
+    expect(notices()).toEqual([]);
+    act(() => useStore.setState({ places: [run("done")] }));
+    expect(notices().map(n => [n.text, n.detail])).toEqual([["spoo is ready: threads you start on it run there", "Claude Code sign-in skipped. Finish it from spoo's page in Settings."]]);
   });
 
   it("a setup's steps say nothing, and a sign-in that waits on the person says so once, opening the dialog there", () => {

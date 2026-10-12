@@ -26,7 +26,6 @@ import { Spinner } from "../../components/ui/spinner.js";
 import { desktopBridge } from "../../lib/desktopShell.js";
 import { APP_LOCALE } from "../../lib/timestampFormat.js";
 import { cn } from "../../lib/utils.js";
-import { addNotice } from "../../notices/store.js";
 import { useStore } from "../../protocol/store.js";
 import { failureOf, type Failure } from "../../protocol/failure.js";
 import { PROJECT_GLYPHS } from "../../projects/look.js";
@@ -40,7 +39,7 @@ import { placeName } from "../places.js";
 import { readRecipes, useRecipes } from "../recipesStore.js";
 import { Card, Line } from "../rows.js";
 import { CopyRow, DeviceCode, RefusalSlot } from "../sheetParts.js";
-import { STEP_TITLES, askedHostKey, askedSudo, closeAdd, connect, copyKeysOn, firstCloseOf, firstPick, go, openSetup, readOptions, retrySetup, setupWithWay, setPicks, skipRow, setSaveAs, setUp, stepLine, stepsFor, tooBig, useAddFlow, weigh, type AddStep } from "./addFlow.js";
+import { STEP_TITLES, askedHostKey, askedSudo, closeAdd, connect, copyKeysOn, firstPick, go, readOptions, retrySetup, sayClosed, setupWithWay, setPicks, skipRow, setSaveAs, setUp, stepLine, stepsFor, tooBig, useAddFlow, weigh, type AddStep } from "./addFlow.js";
 import { everything, folderKey, folderLooks, fromRecipe, githubPick, noPicks, servable, tickUsedClis } from "./choices.js";
 import { AgentsPicks, Choice, ClisPicks, GitHubPicks, OtherPicks, PluginsPicks, ProjectsPicks, ServersPicks, SkillsPicks, type FolderOption } from "./PickLists.js";
 import { PickLine, PickRow } from "./PickRow.js";
@@ -582,10 +581,7 @@ export function AddComputerDialog() {
   const picks = flow.picks ?? noPicks(box);
   const change = (next: RecipeFile): void => setPicks(api, next);
   const close = (): void => {
-    if (flow.step === "running" && place?.setup !== undefined && setupStanding(place) === "running" && firstCloseOf(place.setup.addId)) {
-      const placeId = place.id;
-      addNotice({ kind: "note", text: ADD_COMPUTER_WORDS.keepsGoing, where: box, action: { word: "Open", run: () => openSetup(placeId) } });
-    }
+    if ((flow.step === "running" || flow.step === "ready") && place !== undefined) sayClosed(place);
     closeAdd();
   };
   const next = (): void => {
