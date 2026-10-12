@@ -26,6 +26,7 @@ export const KEYBINDING_WORDS: Record<KeybindingCommand, string> = {
   "rightPanel.toggle": "Toggle the right panel",
   "rightPanel.nextTab": "Next panel tab",
   "rightPanel.previousTab": "Previous panel tab",
+  "rightPanel.closeTab": "Close panel tab",
   "preview.toggle": "Toggle the preview",
   "chat.new": "New thread",
   "workspace.next": "Next task",
