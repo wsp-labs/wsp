@@ -850,7 +850,7 @@ describe("Add a computer while the setup runs", () => {
     }
   });
 
-  it("offers Retry on a row that did not land, which runs the setup again for what is missing", async () => {
+  it("offers Retry on a row that did not land, which runs that row again and no other", async () => {
     const fake = host();
     const done: PlaceSetup = { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done" }, { step: "skills", state: "failed", note: "1 of 2 failed" }] };
     useStore.setState({ places: [here, placed(done, { hash: "h", at: "x", rows: [{ id: "skills/a", label: "unslop", outcome: "installed", step: "skills" }, { id: "skills/b", label: "taste", outcome: "failed", step: "skills", note: "a link inside points at a folder" }] })] });
@@ -862,10 +862,10 @@ describe("Add a computer while the setup runs", () => {
     const row = dialog()!.querySelector<HTMLElement>("[data-step-row='skills/b']")!;
     expect(row.querySelector("[data-k=step-refusal]")?.textContent).toBe("a link inside points at a folder");
     await press(row.querySelector("[data-k=retry]"));
-    expect(fake.asked.setups).toEqual([{ ref: studio.id, o: {} }]);
+    expect(fake.asked.setups).toEqual([{ ref: studio.id, o: { row: "skills/b" } }]);
   });
 
-  it("offers Copy the keys on a server set aside for its keys where the computer follows no recipe, which sets it up again with the yes", async () => {
+  it("offers Copy the keys on a server set aside for its keys where the computer follows no recipe, which runs that server's row again with the yes", async () => {
     const fake = host();
     const done: PlaceSetup = { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done" }, { step: "mcp", state: "done" }] };
     const applied: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "agents/mcp/codex/sentry", label: "Codex sentry", outcome: "skipped", kind: "server", step: "mcp", note: "not copied: it needs SENTRY_ACCESS_TOKEN", keys: ["SENTRY_ACCESS_TOKEN"] }] };
@@ -877,7 +877,7 @@ describe("Add a computer while the setup runs", () => {
     const row = dialog()!.querySelector<HTMLElement>("[data-step-row='agents/mcp/codex/sentry']")!;
     expect(row.textContent).toContain("Not copied: it needs SENTRY_ACCESS_TOKEN.");
     await press(row.querySelector("[data-k=copy-keys]"));
-    expect(fake.asked.setups).toEqual([{ ref: studio.id, o: { choices: { ...picks, copyKeys: true } } }]);
+    expect(fake.asked.setups).toEqual([{ ref: studio.id, o: { choices: { ...picks, copyKeys: true }, row: "agents/mcp/codex/sentry" } }]);
   });
 
   it("offers no Copy the keys on a computer that follows a recipe, whose page gives the yes for every computer that follows it", async () => {
@@ -1205,8 +1205,8 @@ describe("Add a computer, the running sheet as the host has it", () => {
   });
 
   it("offers Claude Code's three ways on its failed row, each button named by the row's line, the detected one first", async () => {
-    const setups: { ref: string; o: { choices?: RecipeFile } }[] = [];
-    const fake = signInHost({ agentsRead: async () => boxReport(), placesSetup: async (ref: string, o: { choices?: RecipeFile }) => (setups.push({ ref, o }), { addId: "a_key", place: studio }) } as Partial<Api>);
+    const setups: { ref: string; o: { choices?: RecipeFile; row?: string } }[] = [];
+    const fake = signInHost({ agentsRead: async () => boxReport(), placesSetup: async (ref: string, o: { choices?: RecipeFile; row?: string }) => (setups.push({ ref, o }), { addId: "a_key", place: studio }) } as Partial<Api>);
     const fix = signInWaysFix(["key", "token", "machine"], { name: "Claude Code", here: "zingzy's MacBook Pro", box: "studio", mint: "claude setup-token", keyEnv: "ANTHROPIC_API_KEY" });
     const run: PlaceView["applied"] = { hash: "h", at: "x", rows: [{ id: "signins/claude", label: "Claude Code", outcome: "failed", step: "signins", note: noKeyLine("ANTHROPIC_API_KEY", "zingzy's MacBook Pro"), fix }] };
     const picks = RecipeFile.parse({ name: "studio", agents: { claude: { signin: "key" } } });
@@ -1223,9 +1223,9 @@ describe("Add a computer, the running sheet as the host has it", () => {
     expect(fake.signIns).toEqual([{ target: { placeId: "here" }, agent: "claude" }]);
     await press(claude().querySelector("[data-k=sign-in]"));
     expect(fake.signIns.at(-1)).toEqual({ target: { placeId: studio.id }, agent: "claude" });
-    // The key is put in the wsp home's .env by the person; the button runs the setup again with that way picked.
+    // The key is put in the wsp home's .env by the person; the button runs that sign-in's row again with that way picked.
     await press(claude().querySelector("[data-k=sign-in-key]"));
-    expect(setups.map(s => [s.ref, s.o.choices?.agents["claude"]?.signin])).toEqual([[studio.id, "key"]]);
+    expect(setups.map(s => [s.ref, s.o.choices?.agents["claude"]?.signin, s.o.row])).toEqual([[studio.id, "key", "signins/claude"]]);
   });
 
   it("opens OpenCode's sign-in in place as its own terminal on the computer, since it asks which provider: no line to copy", async () => {

@@ -27,6 +27,7 @@ import {
   editedThereLine,
   wasThereLine,
   noAgentLine,
+  noSetupRowRefusal,
   pendingHeldLine,
   noPendingRefusal,
   projectInUseRefusal,
@@ -1776,6 +1777,116 @@ describe("what the picks weigh before Set up", () => {
     const picks = RecipeFile.parse({ name: "laptop", agents: { claude: {}, codex: {} } });
     // A tenth of 75 GB is kept free, past the 2 GB floor: 9 GB free does not take 2 GB of picks.
     expect(await runtime!.places!.estimate(added.place.id, picks)).toEqual({ neededBytes: 2 * GB, keptBytes: ownedFloorBytes(75 * GB), freeBytes: 9 * GB, unmeasured: 0 });
+  });
+});
+
+describe("one row of a setup that ended, run again", () => {
+  it("runs a CLI's step again on that row's Retry and no other, every other step's rows and lines standing", async () => {
+    const clis: PlaceProvisionRow[] = [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "failed", note: "no bottle" }];
+    const p = provisioner({ rows: { clis } });
+    await hosting({ provision: p.wired });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: { ...LAPTOP, agents: { claude: { signin: "vault" } } } }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    const before = await rowOf(place.id);
+    const others = <T extends { step?: PlaceSetupStep }>(rows: readonly T[] | undefined): T[] => (rows ?? []).filter(r => r.step === undefined || !["clis", "mcp", "folderServers", "context"].includes(r.step));
+    p.ran.length = 0;
+    clis[0] = { id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed" };
+    const again = await runtime!.places!.setUp(place.id, { row: "tools/brew/gh" });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    // The servers step follows the CLIs, since a server whose command a CLI brings is dropped while that CLI is not on.
+    expect(p.ran).toEqual(["clis", "mcp", "context"]);
+    const after = await rowOf(place.id);
+    expect(after.applied?.rows.find(r => r.id === "tools/brew/gh")).toMatchObject({ outcome: "installed", step: "clis" });
+    expect(others(after.applied?.rows)).toEqual(others(before.applied?.rows));
+    expect(others(after.setup?.steps)).toEqual(others(before.setup?.steps));
+  });
+
+  it("puts a server dropped for its missing command back on with a Retry of the CLI that brings it", async () => {
+    const clis: PlaceProvisionRow[] = [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "failed", note: "no bottle" }];
+    const mcp: PlaceProvisionRow[] = [{ id: "mcp/github", label: "github", outcome: "skipped", note: "github-mcp-server is not on the machine" }];
+    const p = provisioner({ rows: { clis, mcp } });
+    await hosting({ provision: p.wired });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: { ...LAPTOP, agents: { claude: { signin: "vault" } } } }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "mcp/github")?.outcome).toBe("skipped");
+    clis[0] = { id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed" };
+    mcp[0] = { id: "mcp/github", label: "github", outcome: "installed" };
+    const again = await runtime!.places!.setUp(place.id, { row: "tools/brew/gh" });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "mcp/github")).toMatchObject({ outcome: "installed", step: "mcp" });
+  });
+
+  it("carries no project's servers into the agents' files on a folders Retry after a servers step that failed", async () => {
+    const { folder, seed } = seededFolder();
+    const p = provisioner({ projectServers: true, rows: { mcp: [{ id: "files/.claude-cfg/.claude.json", label: "Claude Code", outcome: "failed", note: "the landing failed" }] } });
+    await hosting({ provision: p.wired, checkouts: {}, seed });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => ["done", "failed"].includes((await rowOf(place.id)).setup?.state ?? ""));
+    const again = await runtime!.places!.setUp(place.id, { row: "folders" });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && ["done", "failed"].includes((await rowOf(place.id)).setup?.state ?? ""));
+    expect(p.carried).toEqual([]);
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app/servers")).toMatchObject({ outcome: "skipped", note: FOLDER_SERVERS_WAIT_LINE });
+  });
+
+  it("runs one agent's sign-in again on its way's change, and starts no login for another the person set aside", async () => {
+    const s = signIns();
+    const vault: Record<string, string> = {};
+    const p = provisioner();
+    await hosting({ provision: p.wired, acts: s.acts, vault, report: report("spoo", { daemonVersion: DAEMON_VERSION, agents: ["claude", "codex"], logins: [] }) });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "token" }, codex: { signin: "machine" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.row === "signins/codex" && w.code !== undefined) === true);
+    await runtime!.places!.skip(place.id, "signins/codex");
+    expect(s.started).toEqual(["codex"]);
+    p.ran.length = 0;
+    vault["ANTHROPIC_API_KEY"] = "sk-ant-api03-x";
+    const again = await runtime!.places!.setUp(place.id, { choices: { ...picks, agents: { ...picks.agents, claude: { signin: "key" } } }, row: "signins/claude" });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    expect(p.ran).toEqual(["context"]);
+    expect(s.started).toEqual(["codex"]);
+    const after = await rowOf(place.id);
+    expect(after.applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect(after.applied?.rows.find(r => r.id === "signins/codex")).toMatchObject({ outcome: "skipped", note: SKIPPED_FOR_NOW });
+    expect(after.setup?.waiting).toEqual([]);
+  });
+
+  it("runs every step a stopped setup never reached on a Retry of the row it stopped at, and not the steps that ended", async () => {
+    const agents: PlaceProvisionRow[] = [{ id: "agents/claude", label: "Claude Code", outcome: "failed", note: "exit 1" }];
+    const p = provisioner({ rows: { agents } });
+    await hosting({ provision: p.wired });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: { ...LAPTOP, agents: { claude: { signin: "vault" } } } }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "failed");
+    p.ran.length = 0;
+    agents[0] = { id: "agents/claude", label: "Claude Code", outcome: "installed" };
+    const again = await runtime!.places!.setUp(place.id, { row: "agents" });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    expect(p.ran.filter(s => s === "floor" || s === "skills")).toEqual([]);
+    expect(p.ran).toEqual(expect.arrayContaining(["agents", "clis", "mcp", "configs", "plugins", "context"]));
+  });
+
+  it("runs the folders again with a Retry of the GitHub row, since a folder may wait on it, and no other step", async () => {
+    const vault: Record<string, string> = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-x" };
+    const { frames } = await hosting({ provision: provisioner().wired, vault });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { gone: { from: "/nowhere/at/all", keep: [] } }, configs: { github: { signin: "vault" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    vault["GH_TOKEN"] = "gho_x";
+    const again = await runtime!.places!.setUp(place.id, { row: "github" });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    const ran = frames.filter(f => f.addId === again.addId && f.line?.state === "running").map(f => f.line!.step);
+    expect(ran.sort()).toEqual(["context", "folderServers", "folders", "github"]);
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "github")).toMatchObject({ outcome: "present" });
+  });
+
+  it("refuses a row the setup holds nothing under", async () => {
+    await hosting({ provision: provisioner().wired });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: { ...LAPTOP, agents: { claude: { signin: "vault" } } } }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    await expect(runtime!.places!.setUp(place.id, { row: "tools/brew/jq" })).rejects.toThrow(noSetupRowRefusal("tools/brew/jq", "spoo"));
+    // A name every object answers to is no step.
+    await expect(runtime!.places!.setUp(place.id, { row: "constructor" })).rejects.toThrow(noSetupRowRefusal("constructor", "spoo"));
   });
 });
 
