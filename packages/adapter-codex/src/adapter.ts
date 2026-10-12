@@ -1390,7 +1390,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
       if (opened === "gone" || opened === "open") return opened;
       let page = parseTurns(first);
       const turns = [...page.turns];
-      for (let read = 1; page.next !== undefined && read < LIST_PAGES; read++) {
+      // The newest page holds the turns a preview shows; the pages after it are read only to count what came before.
+      for (let read = 1; o.count !== false && page.next !== undefined && read < LIST_PAGES; read++) {
         page = parseTurns(await road.exec(turnsCommand({ threadId, probe: false, cursor: page.next, ...launch }), questionEnv()));
         turns.push(...page.turns);
       }
@@ -1414,7 +1415,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
         if (items.next === undefined) break;
         cursor = items.next;
       }
-      return { ...opened, ...newestLines(lines, total, o.last) };
+      const newest = newestLines(lines, total, o.last);
+      return { ...opened, ...newest, ...(o.count === false ? { earlier: 0 } : {}) };
     },
   };
   const probeCatalog = (exec: HarnessExec): Promise<HarnessCatalogAnswer> => exec(catalogProbeCommand(launch), questionEnv()).then(stdout => parseCatalogProbe(stdout, deps.login));

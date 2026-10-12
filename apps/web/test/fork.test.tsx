@@ -5,7 +5,7 @@
 // and the tile card's line. A fixture api; no live host.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { FORK_BRANCH_DAEMON_VERSION, FORK_BRANCH_HEAD_NOTE, FORK_BRANCH_NOTE, HERE_PLACE_ID, forkBranchName, forkDialogLine, forkFolderNote, forkOfLine, forkWhereLine, forkedFromLine, type HarnessCatalog, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { CONVERSATION_WORDS, FORK_BRANCH_DAEMON_VERSION, FORK_BRANCH_HEAD_NOTE, FORK_BRANCH_NOTE, HERE_PLACE_ID, forkBranchName, forkDialogLine, forkFolderNote, forkOfLine, forkWhereLine, forkedFromLine, type HarnessCatalog, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { installFakeLayout } from "./fake-layout.js";
 import { TABLE_CATALOG, whenAgentsAnswered } from "./agents.js";
 import { caps } from "./caps.js";
@@ -203,6 +203,7 @@ describe("Fork from here on the first message the view holds", () => {
     ];
     const { api } = fixtureApi({ history: [...earlier, ...HISTORY] });
     await mount(api);
+    fireEvent.click(await screen.findByRole("button", { name: CONVERSATION_WORDS.earlierFold }));
     await screen.findAllByText("ALPHA kept.");
     await waitFor(() => expect(forkButtons().map(rowOf).map(t => t.match(/(ask|reply) \d/)?.[0]).sort()).toEqual(["ask 2", "reply 1", "reply 3"]));
   });

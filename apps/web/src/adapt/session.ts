@@ -23,6 +23,10 @@ import type {
   WorkLogEntry,
 } from "./view-model.js";
 
+const EARLIER_PREFIX = "earlier:";
+/** A row of the conversation the thread was opened on, which ran outside wsp before it. */
+export const isEarlierEntry = (entry: { readonly id: string }): boolean => entry.id.startsWith(EARLIER_PREFIX);
+
 export interface SessionModel {
   readonly turns: ReadonlyArray<TurnSummary>;
   readonly messages: ReadonlyArray<ChatMessage>;
@@ -554,7 +558,7 @@ export function createSessionFold(): SessionFold {
         // The conversation the thread was opened on, as it ran outside wsp: rows of no turn of the thread's, so no turn
         // draws a footer under them and none is left running.
         earlier += 1;
-        const id = `earlier:${event.sessionId}:${event.pos ?? `n${earlier}`}`;
+        const id = `${EARLIER_PREFIX}${event.sessionId}:${event.pos ?? `n${earlier}`}`;
         if (event.who === "person" || event.who === "agent") push(messageEntry({ id, role: event.who === "person" ? "user" : "assistant", text: event.text, turnId: null, streaming: false, createdAt: at, updatedAt: at }));
         else push(workEntry({ id, turnId: null, createdAt: at, label: event.text, tone: event.who === "note" ? "notice" : "tool", sourceActivityKind: event.who === "note" ? "runtime.resume" : "tool.completed" }, at));
         return;

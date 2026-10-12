@@ -530,8 +530,9 @@ export const DaemonRequest = z.discriminatedUnion("op", [
    * recorded cwd is one of cwds, read off the first and last 64 KB of its file, never the conversation. */
   z.object({ id: reqId, op: z.literal("transcripts.list"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), cwds: z.array(z.string().max(4096)).max(TRANSCRIPT_DIRS_MAX) }),
   /** One Claude Code session's conversation along the branch the CLI resumes: its newest `last` messages, each tool
-   * call one row, and how many messages came before them. */
-  z.object({ id: reqId, op: z.literal("transcripts.read"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), session: z.string().min(1).max(64), last: z.number().int().positive() }),
+   * call one row, and how many messages came before them; with `tail`, off the file's last `tail` bytes alone, which a
+   * daemon before it ignores and reads the whole file. */
+  z.object({ id: reqId, op: z.literal("transcripts.read"), root: z.string().min(1).max(4096), dirs: z.array(z.string().max(255)).max(TRANSCRIPT_DIRS_MAX), session: z.string().min(1).max(64), last: z.number().int().positive(), tail: z.number().int().positive().optional() }),
   /** Streams the processes to this socket until proc.unwatch or the socket
    * closes: one whole proc.snapshot first, two seconds after the reply since
    * cpu is a delta (at once where the sampler is already running), then a

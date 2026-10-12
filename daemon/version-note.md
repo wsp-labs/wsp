@@ -1,0 +1,1 @@
+transcripts.read takes tail, a byte count, and reads only that much of the transcript's end, walking the branch as far up as the window holds it; a daemon before it ignores tail and reads the whole file.

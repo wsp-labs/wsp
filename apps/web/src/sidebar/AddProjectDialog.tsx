@@ -27,6 +27,7 @@ import { cn, errorText } from "../lib/utils.js";
 import { useStore } from "../protocol/store.js";
 import { isProviderPlace, placeName, placeTakesWorkspaces } from "../settings/places.js";
 import { ADD_PROJECT_WORDS } from "./words.js";
+import { tilde } from "../lib/tilde.js";
 
 /** How the field names a repository: by its address, which nothing else looks like, as owner/repo, which a search
  * of paths can look like too, or not at all. */
@@ -57,7 +58,6 @@ function pathParts(typed: string, home: string): { dir: string; stem: string } {
   return { dir: full.slice(0, cut) || "/", stem: full.slice(cut + 1).toLowerCase() };
 }
 
-const tilde = (path: string, home: string): string => (home !== "" && (path === home || path.startsWith(`${home}/`)) ? `~${path.slice(home.length)}` : path);
 
 const PANE_ROW = "flex h-10 w-full min-w-0 items-center gap-3 rounded-lg px-3 text-left text-sm outline-none transition-colors duration-150";
 const SIDE_ROW = "flex h-9 w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-left text-sm outline-none transition-colors duration-150";

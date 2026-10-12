@@ -905,6 +905,11 @@ describe("runtime wire types", () => {
     for (const op of ["daemon.open", "daemon.send", "daemon.close", "workspaces.daemonReach"]) expect(THREAD_OPS).not.toContain(op);
   });
 
+  it("a conversation kept outside wsp is read for the picker by the app alone: no verb or tool asks it, so no thread does", () => {
+    expect(THREAD_OPS).not.toContain("conversations.read");
+    expect(wire.DEVICE_OPS).toContain("conversations.read");
+  });
+
   it("the device list holds only ops the host serves, none of the ops that start a process, touch a computer, write keys or read this disk, and both route ops", () => {
     for (const op of wire.DEVICE_OPS) expect(wire.RUNTIME_OPS, op).toContain(op);
     expect(new Set(wire.DEVICE_OPS).size).toBe(wire.DEVICE_OPS.length);
