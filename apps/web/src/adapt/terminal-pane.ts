@@ -76,6 +76,7 @@ export function terminalPaneState(input: TerminalPaneInput): TerminalPaneState {
   if (input.absent != null) return { kind: "absent", absent: input.absent };
   switch (input.state) {
     case "gone":
+    case "released":
       return { kind: "gone" };
     case "pausing":
       return { kind: "paused", pausing: true };

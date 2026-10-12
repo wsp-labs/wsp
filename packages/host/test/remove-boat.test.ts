@@ -3,13 +3,13 @@
 // asked to remove the provider row, and the line says how many machines went;
 // a machine Boat would not delete fails the line with the host's own words.
 import { describe, expect, it } from "vitest";
-import { exitClassOf, providerForgetQuestion, providerForgotLine, providerKeptLine, providerKeyStillLine, providerRemoveQuestion, providerRemovedLine } from "@wsp/protocol";
+import { exitClassOf, providerForgetQuestion, providerForgotLine, providerKeptLine, providerKeyStillLine, providerRemoveQuestion, providerRemovedLine, subHeldLine } from "@wsp/protocol";
 import { removeCommand } from "../src/places.js";
 import { captured } from "./verbs-fixture.js";
 
 type Dial = NonNullable<Parameters<typeof removeCommand>[4]>["dial"];
 
-function boatHost(answer: Record<string, unknown>): { dial: Dial; asked: Record<string, unknown>[] } {
+function boatHost(answer: Record<string, unknown>, rows: Record<string, unknown>[] = [], unsaved: string[] = []): { dial: Dial; asked: Record<string, unknown>[] } {
   const asked: Record<string, unknown>[] = [];
   const dial: Dial = () =>
     Promise.resolve({
@@ -17,6 +17,8 @@ function boatHost(answer: Record<string, unknown>): { dial: Dial; asked: Record<
         if (op === "places.list") return Promise.resolve({ places: [{ id: "here", kind: "computer", name: "zingzys-mac", default: true }, { id: "box", kind: "provider", name: "box", default: false }] } as never);
         // Two tasks on Boat and one here: the question counts Boat's alone, as the app's dialog does.
         if (op === "workspaces.list") return Promise.resolve({ workspaces: [{ id: "w1", kind: "box", provider: "box", machineId: "m1" }, { id: "w2", kind: "box", provider: "box", machineId: "m2" }, { id: "w3", kind: "local", machineId: "" }] } as never);
+        if (op === "sessions.list") return Promise.resolve({ sessions: rows } as never);
+        if (op === "places.holds") return Promise.resolve({ forks: [], projects: [], unsaved } as never);
         if (op === "places.remove") {
           asked.push(params ?? {});
           return Promise.resolve(answer as never);
@@ -67,6 +69,24 @@ describe("wsp remove boat", () => {
     expect(await removeCommand(io, opts, ["boat"], {}, deps(host.dial))).toBe(0);
     expect(asked).toEqual([providerRemoveQuestion("Boat", 2)]);
     expect(asked[0]).toBe("Remove Boat?\nIts 2 tasks are deleted at Boat, and once Boat reads them gone the key is forgotten.");
+  });
+
+  it("names the sub-threads whose machines hold work not pushed in the question, since it goes with them", async () => {
+    const io = captured();
+    const asked: string[] = [];
+    Object.assign(io, { isTTY: true, ask: async (q: string) => (asked.push(q), "yes") });
+    const sub = (held?: { files: number; commits: number }, state = "napping") => ({ state, on: "boat", machine: "m", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", ...(held !== undefined ? { held } : {}) });
+    const rows = [
+      { id: "s1", workspaceId: "w1", harness: "claude", status: "completed", threadId: "e17a90c3-0000", sub: sub({ files: 3, commits: 2 }) },
+      { id: "s2", workspaceId: "w2", harness: "claude", status: "completed", threadId: "5b2d8e41-0000", sub: sub() },
+    ];
+    const host = boatHost({ removed: true, swept: [], deleted: 2 }, rows, [subHeldLine("e17a90c3-0000", { files: 3, commits: 2 }, "wsp/fix-it")]);
+    expect(await removeCommand(io, opts, ["boat"], {}, deps(host.dial))).toBe(0);
+    expect(asked).toEqual([`${providerRemoveQuestion("Boat", 2)}\nWork not pushed goes with its machine: sub-thread e17a90c3 holds 2 commits and 3 changed files not pushed on wsp/fix-it.`]);
+    // A forget leaves both sub-threads' records, released, so it counts them among no records that leave.
+    const forgot = captured();
+    expect(await removeCommand(forgot, opts, ["boat"], { yes: true, forget: true }, deps(boatHost({ removed: true, swept: [] }, rows).dial))).toBe(0);
+    expect(forgot.lines).toEqual([providerForgotLine("Boat", 0)]);
   });
 
   it("refuses --force on Boat as usage, asking the host nothing", async () => {

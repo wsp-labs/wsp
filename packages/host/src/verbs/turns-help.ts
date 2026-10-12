@@ -339,12 +339,21 @@ export function projectOfFolder(projects: readonly ProjectView[], folder: string
 
 /** A thread on this computer a word names, with the worktree wsp made that it runs in; nothing where the word names
  * no thread, or one on a box, which a workspace delete takes. */
-export async function threadHere(client: HostClient, ref: string): Promise<{ id: string; workspaceId: string; worktree?: string } | undefined> {
-  const thread = await threadOf(client, ref).catch(() => undefined);
+export async function threadHere(client: HostClient, ref: string | ThreadView | undefined): Promise<{ id: string; workspaceId: string; worktree?: string } | undefined> {
+  const thread = typeof ref === "string" ? await threadOf(client, ref).catch(() => undefined) : ref;
   if (thread === undefined) return undefined;
   const at = (await workspaces(client)).find(w => w.id === thread.workspaceId);
   if (at === undefined || !runsInFolder(workspaceKind(at))) return undefined;
   return { id: threadIdOf(thread), workspaceId: at.id, ...(at.worktree?.made === true && at.worktree.gone !== true ? { worktree: at.worktree.path } : {}) };
+}
+
+/** A sub-thread's delete as the host reads it before anything goes: the refusals it would meet, then the question a
+ * person is put, naming its machine and any work no remote has; nothing for a thread that is no sub-thread. */
+export async function subDeleting(client: HostClient, thread: ThreadView | undefined): Promise<{ id: string; workspaceId: string; question: string } | undefined> {
+  if (thread?.sub === undefined) return undefined;
+  const id = threadIdOf(thread);
+  const { question } = await client.request<{ question: string }>("sessions.delete", { threadId: id, check: true });
+  return { id, workspaceId: thread.workspaceId, question };
 }
 
 /** Refuses a thread on a box's machine, which goes with its machine, in the runtime's own words; nothing for any
@@ -396,9 +405,9 @@ export async function sharingWith(client: HostClient, at: { thread: ThreadView; 
 }
 
 /** What the host took with a thread it deleted: the record's id, the worktree that went with it, and how many threads. */
-export async function threadDeleted(client: HostClient, threadId: string): Promise<{ workspaceId: string; worktree?: string; threads: number }> {
-  const { workspaceId, worktree, threads } = await client.request<{ workspaceId: string; worktree?: string; threads: number }>("sessions.delete", { threadId });
-  return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads };
+export async function threadDeleted(client: HostClient, threadId: string): Promise<{ workspaceId: string; worktree?: string; threads: number; machine?: "deleted"; on?: string }> {
+  const { workspaceId, worktree, threads, machine, on } = await client.request<{ workspaceId: string; worktree?: string; threads: number; machine?: "deleted"; on?: string }>("sessions.delete", { threadId });
+  return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads, ...(machine === "deleted" ? { machine } : {}), ...(on !== undefined ? { on } : {}) };
 }
 
 /** The worktree holding a branch of a project here, as the host answers it. */

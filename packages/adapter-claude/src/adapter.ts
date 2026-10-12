@@ -182,6 +182,8 @@ export interface ClaudeAdapter {
   probeVersion(exec: HarnessExec): Promise<string | null>;
   /** What the CLI's own session file calls a session: its generated title, or the person's rename inside the CLI. */
   sessionTitle: SessionTitleReader;
+  /** The session's one file, under the config dir's projects folder keyed by the folder it ran in. */
+  sessionFile(sessionId: string): { folder: string; name: string; depth: number };
   /** Names the session in that same file, with the record the CLI's own rename appends. */
   renameSession: SessionRenamer;
   /** Asks the CLI itself, in one print-mode turn, for a name for a thread it has just replied in. */
@@ -615,6 +617,9 @@ async function settlesWithin(turn: Promise<unknown>, ms: number): Promise<boolea
   clearTimeout(timer);
   return settled;
 }
+
+/** A session's one file: `<config>/projects/<folder key>/<id>.jsonl`, the key being the folder it ran in. */
+const sessionFileIn = (configDir: string, sessionId: string): { folder: string; name: string; depth: number } => ({ folder: `${configDir}/projects`, name: `${sessionId}.jsonl`, depth: 1 });
 
 export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
   if (!deps.configDir.trim().startsWith("/")) throw new Error(`configDir must be an absolute path, got "${deps.configDir}"`);
@@ -1235,7 +1240,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
           next: turn => nextOn(keeper, localId, sessionId, after, turn),
           close: c => keeper.close(c?.now === true ? 0 : exitMs, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS),
           exited: keeper.exited,
-          sessionFile: { folder: `${deps.configDir}/projects`, name: `${sessionId}.jsonl`, depth: 1 },
+          sessionFile: sessionFileIn(deps.configDir, sessionId),
         };
       },
       ...(o.from !== undefined ? { from: o.from } : {}),
@@ -1443,6 +1448,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     probeCatalog: exec => exec(catalogProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseCatalogProbe),
     probeVersion: exec => exec(versionProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseVersion),
     sessionTitle: (sessionId, exec) => exec(sessionTitleCommand({ configDir: deps.configDir, sessionId })).then(parseSessionTitle),
+    sessionFile: sessionId => sessionFileIn(deps.configDir, sessionId),
     renameSession: (sessionId, title, exec) => exec(renameCommand({ configDir: deps.configDir, sessionId, title })).then(parseRename),
     titleFor: (turn, exec) =>
       exec(

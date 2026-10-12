@@ -1555,7 +1555,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: true });
               return;
             case "sessions.delete":
-              send({ id: msg.id, ok: true, ...(await rt.sessions.delete(msg.threadId, origin)) });
+              send({ id: msg.id, ok: true, ...(await rt.sessions.delete(msg.threadId, origin, msg.check === true ? { check: true } : {})) });
               return;
             case "sessions.read":
               await rt.sessions.read(msg.threadId, origin);

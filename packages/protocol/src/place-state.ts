@@ -86,7 +86,7 @@ export function settingFor<T>(own: T | undefined, placed: T | undefined, fallbac
  * provider about every machine. */
 export const phaseHoldsSlot = (w: Pick<WorkspaceView, "phase">): boolean => {
   const state = workspaceState({ phase: w.phase });
-  return state !== "paused" && state !== "gone";
+  return state !== "paused" && state !== "gone" && state !== "released";
 };
 
 /** What the count reads of a workspace and of a thread. */

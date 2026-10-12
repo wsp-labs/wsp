@@ -26,6 +26,7 @@ export function machineStateOf(phase: WorkspacePhase): MachineState {
     case "waking":
       return "starting";
     case "gone":
+    case "released":
       return "gone";
     default: {
       const _exhaustive: never = phase;
@@ -660,8 +661,8 @@ export function createStatusTracker(o: StatusTrackerOptions): StatusApi {
           return { ...base, machineState: state === "gone" ? machineStateOf(view.phase) : state, reach };
         };
 
-        // A gone record already holds the provider's last word; asking again would only 404.
-        if (view.phase === "gone") {
+        // A gone record already holds the provider's last word, and a released one stands on no machine; asking again would only 404.
+        if (view.phase === "gone" || view.phase === "released") {
           suspects.delete(r.id);
           return { ...base, machineState: "gone", reach: { state: "gone" }, ...(view.gone !== undefined ? { reason: view.gone } : {}) };
         }
@@ -789,7 +790,7 @@ export function createStatusTracker(o: StatusTrackerOptions): StatusApi {
       if (view.phase === "running") m.mark ??= now;
       // A gone record's stretch is over and its end unknown (the host may have been down when the provider lost the
       // machine): the mark goes without folding, so no tick after a rebuild bills the gap.
-      else if (view.phase === "gone") m.mark = undefined;
+      else if (view.phase === "gone" || view.phase === "released") m.mark = undefined;
       // A pausing machine runs until the provider has paused it, and only workspace.napped closes its stretch.
       const running = (view.phase === "running" || view.phase === "pausing") && m.mark !== undefined;
       const rate = view.rateUsdPerHour;
