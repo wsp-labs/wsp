@@ -68,6 +68,10 @@ export interface MachineExecOptions {
    * line's try, which the line's own hour stops, and which a second launch beside a run that is there would deliver
    * twice. */
   asksUntilStopped?: true;
+  /** The words a run the kernel may have killed fails with instead of its exit code, where the kind has any: asked
+   * once, with when the turn started, when the run's exit file says 137 or its group went with none, and never once
+   * this side signalled it. An answer of nothing leaves the exit code to say how it ended. */
+  killedWhy?: (startedAt: number) => Promise<string | undefined>;
 }
 
 /** A launch whose posts went out with no answer, and whose run the machine then said it does not hold: nothing ran
@@ -172,6 +176,8 @@ const HURRIED_POLL_MS = 200;
 const HURRIED_FOR_MS = 3_000;
 /** That grace as the shell's own counter, since a guest has no seq to lean on. */
 const GRACE_CHECKS = Array.from({ length: Math.round(RUN_STOP_MS / GRACE_POLL_MS) }, (_, i) => String(i + 1)).join(" ");
+/** What bash writes as the exit of a command SIGKILL ended, the kernel's memory killer included: 128 plus 9. */
+const SIGKILL_EXIT = 137;
 
 /** Whether the run is stopped on a question only a person can answer. A harness blocked on a permission prompt
  * prints nothing and burns nothing, so the idle limit would cut the very turn the question is waiting for; the idle
@@ -264,6 +270,8 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     const reapMark = `__WSP_REAPED_${randomBytes(6).toString("hex")}__`;
 
     let killed = false;
+    /** Set once this side sent the run a signal: a run it ended is not one the kernel killed. */
+    let signalled = false;
     let inputClosed = false;
     /** Set when this process lets go of the run: the poll ends where it stands, nothing is reaped and no exit is
      * written, since ending the run here would take a turn its own owner is still waiting on. */
@@ -327,6 +335,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     });
 
     const signal = (sig: "TERM" | "KILL"): void => {
+      signalled = true;
       void opened
         .catch(() => undefined)
         .then(() =>
@@ -372,6 +381,13 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
       (work ? `W=$(awk -v p="$P" ${shellQuote(GROUP_WORK_AWK)} /proc/[0-9]*/stat 2>/dev/null); ` : "") +
       `printf '\\n${sentinel} %s %s %s\\n' "$E" ` +
       `"$([ -n "$P" ] && kill -0 "$P" 2>/dev/null && echo up || echo down)" "$W"`;
+
+    /** Throws the kind's words for a run that ended by a signal nobody here sent, where it has any. */
+    const killedHere = async (): Promise<void> => {
+      if (opts.killedWhy === undefined || signalled) return;
+      const why = await opts.killedWhy(startedAt);
+      if (why !== undefined) throw new Error(why);
+    };
 
     async function* lines(): AsyncGenerator<string> {
       let offset = 0;
@@ -477,7 +493,9 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
 
         if (exitStr !== "") {
           yield* reaped();
-          finish(Number.parseInt(exitStr, 10));
+          const code = Number.parseInt(exitStr, 10);
+          finish(code);
+          if (code === SIGKILL_EXIT) await killedHere();
           return;
         }
         caughtUp = true;
@@ -486,6 +504,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         if (live === "down" && ++downs > 1) {
           yield* reaped();
           finish(null);
+          await killedHere();
           return;
         }
         await nap(gap());
