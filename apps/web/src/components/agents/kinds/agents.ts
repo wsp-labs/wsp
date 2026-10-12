@@ -22,7 +22,7 @@ export const signedIn = (row: Pick<AgentRow, "signIn">): boolean => row.signIn =
 
 /** The one word for where an agent's sign-in stands, which every row that draws an agent's state reads. */
 export const signInWord = (row: Pick<AgentRow, "signIn">): string =>
-  row.signIn === "signed-in" ? W.signedIn : row.signIn === "vault-key" ? W.yourKey : row.signIn === "none" ? W.needsSignIn : W.notChecked;
+  row.signIn === "signed-in" ? W.signedIn : row.signIn === "vault-key" ? W.withToken : row.signIn === "none" ? W.needsSignIn : W.notChecked;
 
 /** Where an agent's sign-in stands as a dot and its word: working, waiting on a sign-in, or not known. */
 export const signInStatus = (row: Pick<AgentRow, "signIn">): Status => ({
