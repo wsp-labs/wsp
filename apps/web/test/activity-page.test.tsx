@@ -419,6 +419,9 @@ describe("Activity's threads", () => {
     expect(document.querySelector("[data-group=t_two] [data-col=mem]")!.textContent).toBe(fmtBytes(400 * MB + 9 * GB));
     toggle("t_one");
     expect(groups()).toEqual(["wsp", "t_one"]);
+    fireEvent.click(document.querySelector("[data-group=t_one] [data-act=end-all]")!);
+    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(screen.getByText(/The threads it started are left as they are/)).toBeTruthy();
   });
 
   it("draws again only the rows whose words a frame moved", () => {

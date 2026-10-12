@@ -2,8 +2,9 @@
 // What one of Activity's rows offers, one registry: the act its row shows
 // while pointed at, and its menu, which below 768 px is the only road to the
 // acts. A working agent is stopped through its thread and never signalled; a
-// kept one between turns is freed through its thread; only a process a thread or wsp started is ended, and what wsp needs never; a heading over a slate's runs is no process. A
-// thread's head has its own two, End all and Open thread.
+// kept one between turns is freed through its thread; only a process a thread
+// or wsp started is ended, and what wsp needs never; a heading over a slate's
+// runs is no process. A thread's head has its own two, End all and Open thread.
 import { CircleStopIcon, ClipboardCopyIcon, Globe2Icon, MessageSquareIcon, SquareXIcon } from "lucide-react";
 import type { ActionEntry } from "../../actions/registry.js";
 import { ACTIVITY_WORDS as W } from "../format.js";

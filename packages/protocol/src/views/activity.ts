@@ -97,6 +97,8 @@ export interface ActivityScope {
   cgroup?: string;
   /** The command its agent puts on PATH, where the read knows the thread's agent. */
   bin?: string;
+  /** The agent each running turn's run recorded as it started it. */
+  agents?: readonly number[];
 }
 
 export interface ActivityRead {
@@ -235,15 +237,23 @@ export function placeProcs(input: PlaceInput): Placement {
   const rootOf = new Map<number, number>();
   const standIns: [number, PlaceThread][] = [];
   for (const t of input.threads) {
-    const isAgent = (p: ProcEntry): boolean => t.agents?.includes(p.pid) === true || (p.kind === "agent" && p.owner?.thread === t.id) || procBins(p).some(b => (t.bin !== undefined ? b === t.bin : bins.has(b)));
-    let roots = t.roots.filter(r => byPid.has(r));
+    const recorded = new Set(t.agents ?? []);
+    const byName = (p: ProcEntry): boolean => procBins(p).some(b => (t.bin !== undefined ? b === t.bin : bins.has(b)));
+    // The daemon stamps kind agent on the root the host named, the run script, never on the agent under it.
+    const stamped = procs.filter(p => p.kind === "agent" && p.owner?.thread === t.id).map(p => p.pid);
+    const named = [...new Set([...t.roots, ...stamped])].filter(r => byPid.has(r));
+    standIns.push(...named.map((r): [number, PlaceThread] => [r, t]));
     const cgroup = t.cgroup;
-    if (roots.length === 0 && cgroup !== undefined) {
+    let heads: number[] = [];
+    if (t.roots.length === 0 && cgroup !== undefined) {
       const inside = new Set(procs.filter(p => inCgroup(p.cgroup, cgroup)).map(p => p.pid));
-      roots = [...inside].filter(pid => !inside.has(byPid.get(pid)!.ppid));
-    } else standIns.push(...roots.map((r): [number, PlaceThread] => [r, t]));
-    for (const root of roots) {
-      const path = agentPath(root, kidsOf, isAgent, byPid);
+      heads = [...inside].filter(pid => !inside.has(byPid.get(pid)!.ppid));
+    }
+    for (const root of new Set([...named, ...heads])) {
+      // The pid the run recorded is the agent whatever it runs as; its name is read only where none was recorded.
+      let path = agentPath(root, kidsOf, p => recorded.has(p.pid), byPid);
+      if (path === undefined) path = agentPath(root, kidsOf, byName, byPid);
+      else for (let kids = kidsOf(path.at(-1)!); kids.length === 1 && byName(kids[0]!) && !path.includes(kids[0]!.pid); kids = kidsOf(kids[0]!.pid)) path.push(kids[0]!.pid);
       if (path === undefined) continue;
       const at = path.at(-1)!;
       agent.set(at, t.id);
@@ -355,7 +365,7 @@ const readPlaced = (read: ActivityRead): Placement =>
     procs: read.procs,
     daemon: read.daemon,
     host: read.host,
-    threads: read.scopes.map(s => ({ id: s.threadId, roots: s.roots, ...(s.cgroup !== undefined ? { cgroup: s.cgroup } : {}), ...(s.bin !== undefined ? { bin: s.bin } : {}) })),
+    threads: read.scopes.map(s => ({ id: s.threadId, roots: s.roots, ...(s.cgroup !== undefined ? { cgroup: s.cgroup } : {}), ...(s.bin !== undefined ? { bin: s.bin } : {}), ...(s.agents !== undefined ? { agents: s.agents } : {}) })),
     agentBins: read.agentBins,
     listens: pid => (read.ports?.get(pid)?.length ?? 0) > 0,
   });

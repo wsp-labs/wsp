@@ -405,12 +405,43 @@ export function sortContainers(containers: readonly ActivityContainer[], sort: A
   return [...containers].sort((a, b) => of(b) - of(a) || a.name.localeCompare(b.name));
 }
 
-/** wsp's parts stay first and No thread last; the threads between them heaviest first by their totals. */
+/** Each thread group under the lead that started it, where the lead has a group too; the rest stand at the top. */
+export function nestGroups(groups: readonly ActivityGroup[]): { tops: ActivityGroup[]; kids: ReadonlyMap<string, ActivityGroup[]> } {
+  const shown = new Set(groups.map(g => g.id));
+  const leadOf = (g: ActivityGroup): string | undefined => {
+    const lead = g.thread?.parent;
+    return lead !== undefined && shown.has(lead) && lead !== g.id ? lead : undefined;
+  };
+  const tops: ActivityGroup[] = [];
+  const kids = new Map<string, ActivityGroup[]>();
+  for (const g of groups) {
+    const lead = leadOf(g);
+    // A lead whose chain comes back to it stands at the top, so no group hides under itself.
+    const seen = new Set([g.id]);
+    let up = lead;
+    while (up !== undefined && !seen.has(up)) {
+      seen.add(up);
+      up = leadOf(groups.find(x => x.id === up)!);
+    }
+    if (lead === undefined || up !== undefined) tops.push(g);
+    else (kids.get(lead) ?? kids.set(lead, []).get(lead)!).push(g);
+  }
+  return { tops, kids };
+}
+
+/** Every group folded under a group, at every depth. */
+export function groupsUnder(kids: ReadonlyMap<string, readonly ActivityGroup[]>, id: string): ActivityGroup[] {
+  return (kids.get(id) ?? []).flatMap(k => [k, ...groupsUnder(kids, k.id)]);
+}
+
+/** wsp's parts stay first and No thread last; the threads between them heaviest first by the totals their heads draw,
+ * a lead's holding the threads folded under it. */
 export function sortGroups(groups: readonly ActivityGroup[], sort: ActivitySort): ActivityGroup[] {
   const of = figure(sort);
   const rank = (g: ActivityGroup): number => (g.kind === "wsp" ? 0 : g.kind === "thread" ? 1 : 2);
+  const { kids } = nestGroups(groups);
   return [...groups]
-    .map(g => ({ g: { ...g, procs: sortProcs(g.procs, sort), containers: sortContainers(g.containers, sort) }, total: of(groupSpent(g)) }))
+    .map(g => ({ g: { ...g, procs: sortProcs(g.procs, sort), containers: sortContainers(g.containers, sort) }, total: of(totalSpent([g, ...groupsUnder(kids, g.id)])) }))
     .sort((a, b) => rank(a.g) - rank(b.g) || b.total - a.total || a.g.id.localeCompare(b.g.id))
     .map(x => x.g);
 }

@@ -29,7 +29,9 @@ import {
   energyWord,
   flat,
   groupSpent,
+  groupsUnder,
   KIND_WORDS,
+  nestGroups,
   memoryTint,
   portsWord,
   spent,
@@ -485,37 +487,13 @@ const GroupBlock = memo(
 
 const NONE_OPEN: readonly string[] = [];
 
-/** Each thread group under the lead that started it, where the lead has a group too; the rest stand at the top. */
-function nestGroups(groups: readonly ActivityGroup[]): { tops: ActivityGroup[]; kids: ReadonlyMap<string, ActivityGroup[]> } {
-  const shown = new Set(groups.map(g => g.id));
-  const leadOf = (g: ActivityGroup): string | undefined => {
-    const lead = g.thread?.parent;
-    return lead !== undefined && shown.has(lead) && lead !== g.id ? lead : undefined;
-  };
-  const tops: ActivityGroup[] = [];
-  const kids = new Map<string, ActivityGroup[]>();
-  for (const g of groups) {
-    const lead = leadOf(g);
-    // A lead whose chain comes back to it stands at the top, so no group hides under itself.
-    const seen = new Set([g.id]);
-    let up = lead;
-    while (up !== undefined && !seen.has(up)) {
-      seen.add(up);
-      up = leadOf(groups.find(x => x.id === up)!);
-    }
-    if (lead === undefined || up !== undefined) tops.push(g);
-    else (kids.get(lead) ?? kids.set(lead, []).get(lead)!).push(g);
-  }
-  return { tops, kids };
-}
-
 /** The Threads view: wsp's own parts, each thread heaviest first with the threads it started folded under it, then No
  * thread. A filter opens every group it left. */
 export function ThreadsTable({ name, groups, statusOf, ageOf, box, cost, filtering, acts, look, opened = NONE_OPEN }: ThreadsProps) {
   const [open, setOpen] = useState<readonly string[]>(opened);
   const toggle = useCallback((id: string) => setOpen(o => (o.includes(id) ? o.filter(x => x !== id) : [...o, id])), []);
   const { tops, kids } = useMemo(() => nestGroups(groups), [groups]);
-  const below = (id: string): ActivityGroup[] => (kids.get(id) ?? []).flatMap(k => [k, ...below(k.id)]);
+  const below = (id: string): ActivityGroup[] => groupsUnder(kids, id);
   const block = (g: ActivityGroup, nest: number): ReactNode => {
     const under = below(g.id);
     const isOpen = filtering || open.includes(g.id);
