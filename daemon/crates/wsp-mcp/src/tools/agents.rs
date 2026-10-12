@@ -342,7 +342,7 @@ fn lines(facts: &Facts, own: &RawValue, rows: Rows) -> Option<Vec<String>> {
                 (false, _) => "not found",
                 (true, "unknown") => "sign-in unknown",
                 (true, "signed-in") => "signed in",
-                (true, "vault-key") => "your key",
+                (true, "vault-key") => "signed in with a token",
                 (true, _) => "not signed in",
             };
             let mut all = vec![row(&["AGENT", "VERSION", "LATEST", "SIGN-IN", "WSP TOOLS", "UPDATE", "PATH"])];

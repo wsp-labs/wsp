@@ -250,7 +250,7 @@ describe("what a computer says about its agents, and what a person reads off it"
 
   it("the agents cell names each agent, its version and its sign-in, and says nothing for a row that reported none", () => {
     const row = { agents: ["claude", "codex"], agentVersions: { claude: "2.1.270 (Claude Code)", codex: "codex-cli 0.153.0" }, signIns: { claude: "vault-key" as const, codex: "none" as const } };
-    expect(wire.agentsCell(row)).toBe("claude 2.1.270 your key, codex 0.153.0 not signed in");
+    expect(wire.agentsCell(row)).toBe("claude 2.1.270 signed in with a token, codex 0.153.0 not signed in");
     expect(wire.agentsCell({ agents: ["codex"], signIns: { codex: "signed-in" } })).toBe("codex signed in");
     expect(wire.agentsCell({})).toBe("");
     expect(wire.agentSignInWord("signed-in")).toBe("signed in");

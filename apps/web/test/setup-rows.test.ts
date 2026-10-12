@@ -4,7 +4,7 @@
 // per frame, the pending adds kept off their own events, and the record drawn
 // as the rows every list of steps shows.
 import { afterEach, describe, expect, it } from "vitest";
-import { AT_ITS_TERMINAL, copiedFromLine, GITHUB_SKIPPED_LINE, waitsForInstallLine, RecipeFile, SIGNED_IN_THERE, SKIPPED_FOR_NOW, type EventUnion, type PendingComputer, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupStep, type PlaceView } from "@wsp/protocol";
+import { AT_ITS_TERMINAL, copiedFromLine, tokenHeldLine, GITHUB_SKIPPED_LINE, waitsForInstallLine, RecipeFile, SIGNED_IN_THERE, SKIPPED_FOR_NOW, type EventUnion, type PendingComputer, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupStep, type PlaceView } from "@wsp/protocol";
 import type { Api } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { checkRows, foldSetup, leftRows, runningSince, setupCount, setupRows, setupStanding } from "../src/settings/add/setup.js";
@@ -230,6 +230,26 @@ describe("a setup as rows", () => {
     expect([at("github").state, at("github").note, at("github").signIn]).toEqual(["skipped", "Skipped.", "gh"]);
     expect(rows.filter(r => r.id === "github")).toHaveLength(1);
     expect(setupCount(rows)).toEqual({ done: 3, of: 10 });
+  });
+
+  it("words a landed sign-in as the host reads that agent there: a token wsp hands it, or a login on that computer", () => {
+    const rows = setupRows(
+      {
+        setup: { ...RUNNING, state: "done", steps: [{ step: "floor", state: "done" }, { step: "signins", state: "done" }] },
+        applied: {
+          hash: "h",
+          at: "x",
+          rows: [
+            { id: "signins/claude", label: "Claude Code", outcome: "present", step: "signins", note: tokenHeldLine("zingzy's MacBook Pro") },
+            { id: "signins/codex", label: "Codex", outcome: "installed", step: "signins", note: copiedFromLine("zingzy's MacBook Pro") },
+          ],
+        },
+        signIns: { claude: "vault-key", codex: "signed-in" },
+      },
+      "hetzner",
+    );
+    const at = (id: string) => rows.find(r => r.id === id)!;
+    expect([at("signins/claude").note, at("signins/codex").note]).toEqual(["Signed in with a token.", "Signed in on hetzner."]);
   });
 
   it("offers every sign-in row that did not land its sign-in, Claude Code's token and OpenCode's too, while the setup still runs", () => {

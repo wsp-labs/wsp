@@ -8,7 +8,7 @@ import { addFix } from "../adds.js";
 import { ADD_COMPUTER_WORDS } from "../format.js";
 import { githubPick } from "./choices.js";
 import { agentName } from "@wsp/catalog";
-import { AT_ITS_TERMINAL, GITHUB_ROW, MCP_ID_PREFIX, NO_RECIPE, agentOfRow, waitsForInstallLine, SETUP_STEP_WORDS, SETUP_WORDS, SIGNED_IN_THERE, placeWord, signInOfRow, plural, type RecipeFile, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupEvent, type PlaceSetupStep, type PlaceView, type PlaceWait } from "@wsp/protocol";
+import { AT_ITS_TERMINAL, GITHUB_ROW, MCP_ID_PREFIX, NO_RECIPE, agentOfRow, waitsForInstallLine, SETUP_STEP_WORDS, SETUP_WORDS, SIGNED_IN_THERE, placeWord, signInOfRow, plural, type AgentSignInState, type RecipeFile, type PlaceAddJob, type PlaceProvisionRow, type PlaceSetup, type PlaceSetupEvent, type PlaceSetupStep, type PlaceView, type PlaceWait } from "@wsp/protocol";
 
 /** A row's state as the marks draw it: a sign-in the person set aside reads skipped. */
 export type StepState = "waiting" | "working" | "done" | "skipped" | "needs-you" | "failed";
@@ -140,7 +140,7 @@ function countLine(step: PlaceSetupStep, rows: readonly PlaceProvisionRow[]): st
 /** The setup on a computer as rows: Install wsp, then each step with the items of it that did not land under it,
  * the sign-ins under Agents. A step not started reads waiting; a running one says what it is putting on; a sign-in
  * that waits on the person carries its wait. `box` is the computer's name, for the words that name it. */
-export function setupRows(place: Pick<PlaceView, "setup" | "applied" | "picks" | "recipe">, box = ""): StepLine[] {
+export function setupRows(place: Pick<PlaceView, "setup" | "applied" | "picks" | "recipe" | "signIns">, box = ""): StepLine[] {
   const setup = place.setup;
   const recipe = place.recipe === undefined || place.recipe === NO_RECIPE ? undefined : place.picks?.name;
   const rows = place.applied?.rows ?? [];
@@ -166,17 +166,25 @@ export function setupRows(place: Pick<PlaceView, "setup" | "applied" | "picks" |
           : doingLine(doing, place.picks, mine)
         : (ended?.(mine, place.picks, box) ?? countLine(step, landed) ?? line?.note);
     out.push({ id: step, name, state, ...(note === undefined ? {} : { note }), ...(line?.ms === undefined ? {} : { ms: line.ms }), ...(stopped && setup?.said !== undefined ? { said: setup.said } : {}), ...githubSaid, ...(step === "github" && ran !== "working" ? signInOffer(github) : {}) });
-    if (step === "agents") out.push(...signInRows(setup, rows, box));
+    if (step === "agents") out.push(...signInRows(setup, rows, box, place.signIns));
     if (!stopped) for (const r of mine) if (r.outcome === "failed" && r !== github) out.push({ id: r.id, name: r.label, state: "failed", sub: true, ...(r.note === undefined ? {} : { said: r.note }), ...(r.fix === undefined ? {} : { fix: r.fix }) });
     if (!stopped) for (const r of mine) if (r.outcome === "skipped" && r.keys !== undefined) out.push({ id: r.id, name: r.label, state: "skipped", sub: true, note: ADD_COMPUTER_WORDS.keysNotCopied(r.keys, recipe), copyKeys: true });
   }
   return out;
 }
 
+/** What a sign-in that landed says: the word the host reads for that agent there, the one the Sign-ins card and the
+ * agents panel read, or the row's own note before the host has one. */
+function landedNote(row: PlaceProvisionRow, state: AgentSignInState | undefined, box: string): string {
+  if (state === "vault-key") return ADD_COMPUTER_WORDS.signedInWithToken;
+  if (state === "none") return ADD_COMPUTER_WORDS.notSignedInYet;
+  return state === "signed-in" || row.note === SIGNED_IN_THERE ? ADD_COMPUTER_WORDS.signedInOn(box) : ADD_COMPUTER_WORDS.tokenCopied;
+}
+
 /** The sign-ins under Agents, each by its agent: one that waits on the person off its wait, any other off its row.
  * One that landed says where it signed in, one set aside says so, and either that did not land offers its sign-in
  * on the computer, once its agent is there to run it. */
-function signInRows(setup: PlaceSetup | undefined, rows: readonly PlaceProvisionRow[], box: string): StepLine[] {
+function signInRows(setup: PlaceSetup | undefined, rows: readonly PlaceProvisionRow[], box: string, signIns: PlaceView["signIns"]): StepLine[] {
   const waits = setup?.waiting ?? [];
   // A login runs where its agent is: where that agent did not install, its row waits. A Retry's rows start from the
   // steps that ended, so while it reinstalls the agent the record holds no row for either.
@@ -190,7 +198,7 @@ function signInRows(setup: PlaceSetup | undefined, rows: readonly PlaceProvision
       const base = { id: r.id, name, sub: true as const, ...(r.ms === undefined ? {} : { ms: r.ms }), ...signInOffer(r) };
       if (r.outcome === "failed") return { ...base, state: "failed" as const, ...(r.note === undefined ? {} : { said: r.note }), ...(r.fix === undefined ? {} : { fix: r.fix }) };
       if (r.outcome === "skipped") return { ...base, state: "skipped" as const, note: skippedNote(r) };
-      return { ...base, state: "done" as const, note: r.note === SIGNED_IN_THERE ? ADD_COMPUTER_WORDS.signedInOn(box) : ADD_COMPUTER_WORDS.tokenCopied };
+      return { ...base, state: "done" as const, note: landedNote(r, signIns?.[signInOfRow(r.id) ?? ""], box) };
     });
   // The relay opens a waiting sign-in's page in the browser on this computer as the wait starts.
   for (const w of waits) out.push({ id: w.row, name: `${w.label} sign-in`, state: "needs-you", sub: true, wait: w, ...(w.url !== undefined && w.state === "waiting" ? { note: ADD_COMPUTER_WORDS.tabOpened } : {}) });
