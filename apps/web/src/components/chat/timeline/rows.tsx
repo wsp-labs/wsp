@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Adapted from pingdotgg/t3code apps/web/src/components/chat/MessagesTimeline.tsx at 57a66608 (MIT).
 // Differs from upstream: store hooks are props (threadKey replaces the route and thread refs, expansion state is local, checkpoint data and callbacks arrive as optional props); rows come from the adapter; attachments, subagent rows, citations, user-message decorations, artifact templates, editor menus and the load-earlier header are removed.
+import { SpawnLine } from "../SpawnLine";
 import { type MessageId, type ProviderSkill, type TurnDiffSummary, type TurnId } from "../adapt";
 import { memo, use, useMemo, useState, type ReactNode } from "react";
 import ChatMarkdown from "../../ChatMarkdown";
@@ -90,6 +91,7 @@ export const TimelineRowContent = memo(function TimelineRowContent({ row }: { ro
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "thinking" ? <ThinkingTimelineRow /> : null}
       {row.kind === "fork" ? <ForkRuleRow /> : null}
+      {row.kind === "machine-start" ? <MachineStartRow /> : null}
     </div>
   );
 });
@@ -469,3 +471,10 @@ const UserMessageBody = memo(function UserMessageBody(props: {
     />
   );
 });
+
+/** The line under a sub-thread's brief: its machine being made, or made, read off the thread's own key. */
+function MachineStartRow() {
+  const ctx = use(TimelineRowCtx);
+  const workspaceId = ctx.threadKey.split("/")[0]!;
+  return <SpawnLine workspaceId={workspaceId} />;
+}

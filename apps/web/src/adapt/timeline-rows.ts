@@ -30,6 +30,8 @@ export interface DeriveRowsInput {
   readonly openRun?: boolean;
   /** A fork's page: the rule line saying where it came from stands after the turns it was handed. */
   readonly forked?: boolean;
+  /** A sub-thread whose machine was made for it: the line saying so stands after its first message, the brief. */
+  readonly machineStart?: boolean;
 }
 
 export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTimelineRow[] {
@@ -135,11 +137,17 @@ export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTime
   const pushRule = (): void => {
     rows.push({ kind: "fork", id: "fork-rule", createdAt: null });
   };
+  const brief = input.machineStart === true ? entries.findIndex(e => e.kind === "message" && e.message.role === "user") : -1;
+  const startAt = brief === -1 ? -1 : brief + 1;
+  const pushStart = (): void => {
+    rows.push({ kind: "machine-start", id: "machine-start", createdAt: null });
+  };
 
   for (let index = 0; index < entries.length; index++) {
     const entry = entries[index]!;
     sayStopsBefore(index);
     if (index === ruleAt) pushRule();
+    if (index === startAt) pushStart();
     if (input.isWorking && index === activeTurnHeaderIndex) pushWorking();
     if (entry.id === activePlacementId) pushActive();
 
@@ -237,6 +245,7 @@ export function deriveMessagesTimelineRows(input: DeriveRowsInput): MessagesTime
 
   sayStopsBefore(entries.length);
   if (ruleAt === entries.length) pushRule();
+  if (startAt === entries.length) pushStart();
   if (input.isWorking && activeTurnHeaderIndex === entries.length) pushWorking();
   if (behind !== null) rows.push({ kind: "permission", id: `waiting-on:${behind.threadId}:${behind.prompt.askId}`, createdAt: input.activeTurnStartedAt ?? "", permission: borrowedPrompt(behind), asker: waitingAskerLine(behind.title) });
   // A turn stopped on a prompt is waiting, not thinking: the live row would say the agent is at work while it is not.

@@ -326,15 +326,18 @@ export const subPushAgainPrompt = (branch: string): string => `Push ${branch} ag
 /** Whether a turn's failure is subOomLine's, which the strip over the composer says in its place. */
 export const isSubOomLine = (line: string): boolean => /^the agent on .+ was killed for memory: /i.test(line);
 
-/** The spawning view's lines, the stages the spawn reports with the facts it read: done in the past tense, under way
- * in the present, so the view and the command line name the same steps. */
+/** The line under a sub-thread's brief and the steps it opens to, the stages the spawn reports with the facts it read:
+ * done in the past tense, under way in the present, so the thread and the command line name the same steps. */
 export const SUB_SPAWN_WORDS = {
   branch: (done: boolean): string => (done ? "Checked the branch" : "Checking the branch"),
   branchFact: (branch: string, sha: string): string => `${branch} is pushed at ${sha.slice(0, 7)}`,
   machine: (on: string, done: boolean): string => (done ? `Asked ${on} for a machine` : `Asking ${on} for a machine`),
   files: (n: number, done: boolean): string => `${done ? "Copied" : "Copying"} ${n} picked ${n === 1 ? "file" : "files"}`,
   agent: (agent: string): string => `Starting ${agent}`,
-  agentFact: (model: string, effort: string): string => `${model}, ${effort}, with the lead's brief`,
+  agentFact: (model: string, effort: string): string => `${model}, ${effort}`,
+  starting: (on: string): string => `Starting a machine on ${on}`,
+  started: (on: string, took: string): string => `Started on ${on} in ${took}`,
+  failed: (on: string): string => `Could not start a machine on ${on}`,
   details: "Show details",
   hideDetails: "Hide details",
   tryAgain: "Try again",

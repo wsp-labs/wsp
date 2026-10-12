@@ -305,6 +305,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
     case "thinking":
     case "fork":
+    case "machine-start":
       return a.createdAt === (b as typeof a).createdAt;
 
     case "turn-fold": {
