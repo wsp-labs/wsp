@@ -1,4 +1,5 @@
-// A tiny MCP server over stdio for the slate's tool runs: one read-only tool, one destructive tool, one resource.
+// A tiny MCP server over stdio for the slate's tool runs: one read-only tool, one destructive tool, one tool that
+// publishes no hints, one resource.
 // Every start appends a line to $STUB_STARTS, so a test can count connections.
 import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -31,6 +32,11 @@ const TOOLS = [
     annotations: { destructiveHint: true, readOnlyHint: false },
     inputSchema: { type: "object", required: ["id"], properties: { id: { type: "integer" } } },
   },
+  {
+    name: "touch_item",
+    description: "Marks one item as seen.",
+    inputSchema: { type: "object", required: ["id"], properties: { id: { type: "integer" } } },
+  },
 ];
 
 let calls = 0;
@@ -52,6 +58,7 @@ createInterface({ input: process.stdin }).on("line", line => {
         return answer({ content: [{ type: "text", text: `listed ${items.length} with key ${args.key}` }], structuredContent: { account: args.params?.account, items, call: calls, key: args.key } });
       }
       if (name === "delete_item") return answer({ content: [{ type: "text", text: `deleted ${args.id}` }] });
+      if (name === "touch_item") return answer({ content: [{ type: "text", text: `touched ${args.id} on call ${calls}` }] });
       return answer({ content: [{ type: "text", text: `no tool ${name}` }], isError: true });
     }
     case "resources/list":

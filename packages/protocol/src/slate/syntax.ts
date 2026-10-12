@@ -339,7 +339,7 @@ class Compiler {
   declaration(el: El): void {
     const allowed: Record<string, readonly string[]> = {
       value: ["name", "start"], secret: ["name", "keep"], derived: ["name", "value"],
-      run: ["name", "cmd", "tool", "resource", "env", "args", "stdin", "on", "cwd", "timeout", "stream", "confirm", "every", "once", "always", "then"],
+      run: ["name", "cmd", "tool", "resource", "env", "args", "stdin", "on", "cwd", "timeout", "stream", "confirm", "every", "once", "always", "then", "description"],
       when: ["id", "change", "done", "do"],
     };
     const ok = allowed[el.tag]!;
@@ -417,6 +417,13 @@ class Compiler {
       else common.then = text;
     }
     const kind = kinds[0]!;
+    const described = attr("description");
+    let description: string | undefined;
+    if (described !== undefined) {
+      if (kind === "cmd") this.error("K701", "a cmd run takes no description: its sheet shows the command itself", described.line, { piece: key, prop: "description" });
+      else if (described.kind !== "string" || described.value.trim() === "") this.error("T303", "description is one literal line: description=\"Reads the last hour of traffic\"", described.line, { piece: key, prop: "description" });
+      else description = described.value.trim();
+    }
     let run: SlateRunDecl;
     if (kind === "cmd") {
       const cmd = attr("cmd");
@@ -454,7 +461,7 @@ class Compiler {
       const tool = agents !== null && named.kind === "string" ? { ...named, value: `${agents[1]}.${agents[2]}` } : named;
       const dot = tool.value.indexOf(".");
       if (tool.kind !== "string" || dot <= 0 || dot === tool.value.length - 1) this.error("K705", "tool names a server and a tool as \"server.tool\"", tool.line, { piece: key, prop: "tool" });
-      const r: Extract<SlateRunDecl, { kind: "tool" }> = { kind: "tool", server: tool.value.slice(0, Math.max(0, dot)), tool: tool.value.slice(dot + 1), ...common };
+      const r: Extract<SlateRunDecl, { kind: "tool" }> = { kind: "tool", server: tool.value.slice(0, Math.max(0, dot)), tool: tool.value.slice(dot + 1), ...common, ...(description !== undefined ? { description } : {}) };
       const args = attr("args");
       if (args !== undefined) { const o = this.object(args, key); if (o !== undefined) r.args = o; }
       for (const n of ["env", "stdin", "on", "cwd", "timeout", "stream"]) if (attr(n) !== undefined) this.error("K701", `a tool run takes no ${n}`, el.line, { piece: key });
@@ -463,7 +470,7 @@ class Compiler {
       const res = attr("resource")!;
       const colon = res.value.indexOf(":");
       if (res.kind !== "string" || colon <= 0) this.error("K705", "resource names a server and a uri as \"server:uri\"", res.line, { piece: key, prop: "resource" });
-      run = { kind: "resource", server: res.value.slice(0, Math.max(0, colon)), uri: res.value.slice(colon + 1), ...(common.every !== undefined ? { every: common.every } : {}), ...(common.always ? { always: true as const } : {}), ...(common.then !== undefined ? { then: common.then } : {}) };
+      run = { kind: "resource", server: res.value.slice(0, Math.max(0, colon)), uri: res.value.slice(colon + 1), ...(common.every !== undefined ? { every: common.every } : {}), ...(common.always ? { always: true as const } : {}), ...(common.then !== undefined ? { then: common.then } : {}), ...(description !== undefined ? { description } : {}) };
       for (const n of ["env", "args", "stdin", "on", "cwd", "timeout", "stream", "confirm", "once"]) if (attr(n) !== undefined) this.error("K701", `a resource run takes no ${n}`, el.line, { piece: key });
     }
     this.doc.runs[name] = run;
@@ -1107,6 +1114,7 @@ export function printSlate(doc: SlateDoc): string {
     if ("once" in r && r.once === true) parts.push("once");
     if (r.always === true) parts.push("always");
     if (r.then !== undefined) parts.push(commandAttr("then", r.then));
+    if (r.kind !== "cmd" && r.description !== undefined) parts.push(`description=${quoteAttr(r.description)}`);
     line(1, parts, " />");
   }
   for (const r of doc.reactions) {

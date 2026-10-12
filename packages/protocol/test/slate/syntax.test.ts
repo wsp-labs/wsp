@@ -236,6 +236,21 @@ describe("text with holes", () => {
   });
 });
 
+describe("a run's description", () => {
+  const run = (attrs: string) => parseSlate(`<slate><run name="r" ${attrs} /><column><output run={$r} /></column></slate>`);
+
+  it("is one literal line on a tool or resource run, trimmed", () => {
+    expect(run(`tool="cf.execute" description="  Reads the last hour of traffic "`).document!.runs["r"]).toMatchObject({ kind: "tool", description: "Reads the last hour of traffic" });
+    expect(run(`resource="cf:cf://zones" description="Reads the zones"`).document!.runs["r"]).toMatchObject({ kind: "resource", description: "Reads the zones" });
+  });
+
+  it("is refused on a command, as a formula and when empty", () => {
+    expect(run(`cmd="true" description="Does nothing"`).errors.map(e => [e.code, e.message])).toEqual([["K701", "a cmd run takes no description: its sheet shows the command itself"]]);
+    expect(run(`tool="cf.execute" description={$x}`).errors.map(e => e.code)).toEqual(["T303"]);
+    expect(run(`tool="cf.execute" description=" "`).errors.map(e => e.code)).toEqual(["T303"]);
+  });
+});
+
 describe("printing, then parsing again", () => {
   const doc = (pieces: Record<string, unknown>, extra: object = {}): SlateDoc => validateSlate({ schema: 2, root: "top", values: { v: { start: 1 } }, derived: {}, runs: {}, reactions: [], pieces: { top: { type: "column", children: Object.keys(pieces) }, ...pieces }, ...extra }).document!;
 
@@ -246,6 +261,7 @@ describe("printing, then parsing again", () => {
       doc({ s: { type: "section", props: { title: "Q&amp;A" } } }, { values: { v: { start: "a &amp; b" } } }),
       doc({ s: { type: "section", props: { title: "x", note: { format: "a `b` ${$v} $${c}" } } } }),
       doc({ o: { type: "output", props: { run: "$r" } } }, { runs: { r: { kind: "cmd", cmd: "echo '&amp;' \"x\"" } } }),
+      doc({ o: { type: "output", props: { run: "$r" } } }, { runs: { r: { kind: "tool", server: "cf", tool: "execute", args: { code: "1" }, description: `Reads the "last" hour` }, s: { kind: "resource", server: "cf", uri: "cf://z", description: "Reads the zones" } } }),
     ];
     for (const d of docs) {
       expect(d).toBeDefined();

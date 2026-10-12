@@ -736,7 +736,7 @@ function shapeProblems(issue: ShapeIssue, doc: Record<string, unknown>): SlatePr
   if ((area === "values" || area === "derived" || area === "runs") && name !== undefined) {
     const piece = `$${name}`;
     if (keys.length > 0) {
-      const takes = area === "values" ? "start, secret and keep" : area === "runs" ? "kind, cmd, env, args, stdin, on, cwd, timeout, stream, confirm, every, once, always and then" : "an expression";
+      const takes = area === "values" ? "start, secret and keep" : area === "runs" ? "kind, cmd, env, args, stdin, on, cwd, timeout, stream, confirm, every, once, always, then and description" : "an expression";
       return keys.map(k => slateProblem(area === "runs" ? "K704" : "T302", `${piece} has no ${k}; it takes ${takes}`, { piece, prop: k }));
     }
     if (area === "runs" && issue.code === "invalid_union_discriminator") return [slateProblem("K701", `${piece} takes kind "cmd", "tool" or "resource"`, { piece, prop: "kind" })];

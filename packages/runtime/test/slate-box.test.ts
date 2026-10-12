@@ -471,7 +471,7 @@ describe("a box thread's slate", () => {
 });
 
 describe("a box thread's tool run", () => {
-  const TOOLS = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" every={60} /><run name="repos" resource="github:gh://repos" />
+  const TOOLS = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" every={60} description="Lists the account's zones" /><run name="repos" resource="github:gh://repos" />
   <column><output run={$zones} /></column></slate>`;
   const AWAY = { computer: "hetzner", host: "studio" };
   const CLAUDE = { id: "claude", name: "Claude Code" };
@@ -508,7 +508,7 @@ describe("a box thread's tool run", () => {
     expect(await slates.get(thread)).toBeNull();
     // A server it has writes; a patch naming one it lacks is refused the same way; one keeping its servers asks nothing.
     await slates.write({ text: `<slate title="Zones"><run name="repos" resource="github:gh://repos" /><column><text id="t">none yet</text></column></slate>` }, asThread);
-    await expect(slates.write({ text: `<run name="zones" tool="cloudflare.zones_list" />` }, asThread)).rejects.toMatchObject({ kind: "invalid", message: notSetUp(thread) });
+    await expect(slates.write({ text: `<run name="zones" tool="cloudflare.zones_list" description="Lists the account's zones" />` }, asThread)).rejects.toMatchObject({ kind: "invalid", message: notSetUp(thread) });
     const before = asked.length;
     await slates.write({ text: `<text id="t">two</text>` }, asThread);
     expect(asked.length).toBe(before);
@@ -564,7 +564,7 @@ describe("a box thread's tool run", () => {
       };
     };
     const { slates, thread, asThread } = slatesOn({ ...AWAY }, open);
-    await slates.write({ text: `<slate title="Repos"><run name="repos" tool="github.list" /><column><button id="go" label="Go" onPress={start($repos)} /></column></slate>` }, asThread);
+    await slates.write({ text: `<slate title="Repos"><run name="repos" tool="github.list" description="Lists the repositories" /><column><button id="go" label="Go" onPress={start($repos)} /></column></slate>` }, asThread);
     const view = async () => (await slates.get(thread))!;
     const press = async (n: number) => slates.event({ threadId: thread, version: (await view()).version, piece: "go", event: "press", requestId: `go-${n}` });
     await slates.approve({ threadId: thread, key: (await press(0)).ask!.key, scope: "thread" });
@@ -608,7 +608,7 @@ describe("a box thread's tool run", () => {
     };
     const machine = bashMachine();
     const { slates, thread, asThread } = slatesOn({ ...AWAY }, open, machine);
-    await slates.write({ text: `<slate title="Repos"><run name="repos" tool="github.list" /><run name="nap" cmd="sleep 2" /><column><button id="go" label="Go" onPress={start($repos)} /><button id="nap" label="Nap" onPress={start($nap)} /></column></slate>` }, asThread);
+    await slates.write({ text: `<slate title="Repos"><run name="repos" tool="github.list" description="Lists the repositories" /><run name="nap" cmd="sleep 2" /><column><button id="go" label="Go" onPress={start($repos)} /><button id="nap" label="Nap" onPress={start($nap)} /></column></slate>` }, asThread);
     const view = async () => (await slates.get(thread))!;
     const press = async (piece: string, n: number) => slates.event({ threadId: thread, version: (await view()).version, piece, event: "press", requestId: `${piece}-${n}` });
     for (const piece of ["go", "nap"]) {
