@@ -519,7 +519,7 @@ export interface SubSpawnArea {
   /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
   /** The machine of a spawn the queue let through, made as a spawn makes one, the picked files packed fresh. */
-  readonly standUpQueued: (record: WorkspaceRecord) => Promise<void>;
+  readonly standUpQueued: (record: WorkspaceRecord, posted: () => void) => Promise<void>;
   /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
   readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
 }
@@ -527,6 +527,10 @@ export interface SubSpawnArea {
 export interface SubQueueArea {
   /** What holds a spawn on a cloud back now, a slot, the minute's starts or spawns ahead of it; nothing where none. */
   readonly queueWait: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait | undefined;
+  /** A spawn let past the count holds its slot, and its start until `posted`, from now until `release`. */
+  readonly claimStart: (workspaceId: string, placeId: string) => { posted: () => void; release: () => void };
+  /** A delete of a held spawn's record: stopped as a stop does, answered once it is gone; nothing where none is held. */
+  readonly deleteQueued: (workspaceId: string) => Promise<void> | undefined;
   /** The wait a create the cloud refused at its machines at once is held under. */
   readonly cloudFull: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait;
   /** A spawn's record stored queued with no machine, for the wait it met; at the head of the line, a read on, where

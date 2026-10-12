@@ -18,6 +18,9 @@ type StartOptions = Parameters<RuntimeContext["sessionsApi"]["start"]>[1];
  * of starts, which the cloud's own read keeps no longer than its cache (`LIMITS_KEPT_MS`). */
 export const QUEUE_SLOT_READ_MS = 30_000;
 export const QUEUE_MINUTE_READ_MS = 10_000;
+/** How long a queued record waits for its first turn, which the line that made it sends straight after the create;
+ * one whose start never came goes, as at boot. */
+export const QUEUE_START_WAIT_MS = 30_000;
 
 /** What of a start rides the written record: the words and picks the person or the lead gave, never a callback or the
  * asking turn's token, which a restart outlives. */
@@ -32,6 +35,7 @@ interface Held {
   failed?: (e: Error) => void;
   /** Settled once the start leaves the queue either way, which a stop of its row waits on as it waits on a launch. */
   left: () => void;
+  gone: Promise<void>;
   /** A stop that came once its machine was being made: the machine goes as it lands, and no thread starts on it. */
   stopped?: string;
 }
@@ -41,11 +45,17 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   const held = new Map<string, Held>();
   /** The count each held record's row says, as the queue last read it. */
   const lastWait = new Map<string, ThreadCapWait>();
-  /** The machines let through whose create has not landed: each is a start of this minute the cloud's read may not count yet. */
-  const landing = new Set<string>();
+  /** The spawns let past the count whose machine has no record live yet, by workspace id, with their place, and whether
+   * their machine has bound: each holds a slot from the read on, and a start of this minute until its machine binds.
+   * The cloud's kept read counts the start once its create is posted, which is before the box is ready, so until then
+   * the start counts in both places and a spawn at the minute's last start may wait one read longer than it needs. */
+  const starting = new Map<string, { placeId: string; posted: boolean }>();
   /** A spawn the cloud refused at its cap, by when it is let through again: the slot went to another client, and asking
    * again at once would only be refused again. */
   const refusedUntil = new Map<string, number>();
+  /** When each record was queued on this host, which its start's bound counts from; its `since` may sit earlier, at the
+   * head of the line. */
+  const queuedAt = new Map<string, number>();
 
   const queued = (): LiveWorkspace[] =>
     [...live.values()].filter(e => e.record.phase === "queued" && e.record.queue !== undefined).sort((a, b) => a.record.queue!.since.localeCompare(b.record.queue!.since) || a.record.id.localeCompare(b.record.id));
@@ -54,7 +64,9 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   const slots = (placeId: string): ThreadCapWait => ({
     placeId,
     place: ctx.placeDoor?.nameOf(placeId) ?? providerKeyName(placeId),
-    running: [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId && ctx.holdsSlot(e.record)).length,
+    running:
+      [...live.values()].filter(e => ctx.placeIdOf(e.record) === placeId && ctx.holdsSlot(e.record)).length +
+      [...starting].filter(([id, s]) => s.placeId === placeId && !live.has(id)).length,
     atOnce: ctx.placeDoor?.machinesAt(placeId) ?? CLOUD_CAP_DEFAULT.machines,
     why: "slot",
   });
@@ -68,13 +80,33 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     const active = limits?.activeBoxes;
     if (atOnce !== undefined && active !== undefined && active >= atOnce) return { ...mine, running: active, atOnce };
     const minute = limits?.starts?.minute;
-    const used = minute === undefined ? 0 : minute.used + landing.size;
+    const used = minute === undefined ? 0 : minute.used + [...starting.values()].filter(s => s.placeId === placeId && !s.posted).length;
     if (minute !== undefined && used >= minute.limit) return { ...mine, running: used, atOnce: minute.limit, why: "minute" };
     return undefined;
   };
 
-  /** Whether a spawn about to start on a cloud has to wait: no room there, or spawns already waiting ahead of it. */
-  const queueWait = (placeId: string, limits: BoxLimits | undefined): ThreadCapWait | undefined => waitOn(placeId, limits) ?? (queued().length > 0 ? slots(placeId) : undefined);
+  /** Whether a spawn about to start on a cloud has to wait: no room there, or spawns already waiting ahead of it, whose
+   * wait it says, so a start limit is never called a slot (Q18). */
+  const queueWait = (placeId: string, limits: BoxLimits | undefined): ThreadCapWait | undefined => {
+    const wait = waitOn(placeId, limits);
+    if (wait !== undefined) return wait;
+    const ahead = queued().find(e => ctx.placeIdOf(e.record) === placeId);
+    return ahead === undefined ? undefined : (lastWait.get(ahead.record.id) ?? slots(placeId));
+  };
+
+  /** A spawn let past the count takes its slot and its start in the same step, so one asked beside it reads them; the
+   * create's answer gives the start back to the cloud's read, and the release drops both once its record is live or
+   * it failed. */
+  const claimStart: SubQueueArea["claimStart"] = (workspaceId, placeId) => {
+    starting.set(workspaceId, { placeId, posted: false });
+    return {
+      posted: () => {
+        const s = starting.get(workspaceId);
+        if (s !== undefined) s.posted = true;
+      },
+      release: () => void starting.delete(workspaceId),
+    };
+  };
 
   /** The cloud refused a create at its machines at once, which another client took between the read and the create:
    * the count its plan holds full. */
@@ -90,6 +122,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     // Two spawns in one millisecond still keep the order they came in.
     const since = new Date(refused && line.length > 0 ? line[0]! - 1 : Math.max(clock.now(), (line.at(-1) ?? 0) + 1)).toISOString();
     if (refused) refusedUntil.set(record.id, clock.now() + QUEUE_SLOT_READ_MS);
+    queuedAt.set(record.id, clock.now());
     record.phase = "queued";
     record.queue = { since, why: wait.why ?? "slot" };
     record.machineId = "";
@@ -97,6 +130,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     attachQueued(record, wait);
     await ctx.persist(record);
     bus.emit({ type: "workspace.created", workspace: ctx.view(record) });
+    void pump();
   };
 
   const attachQueued = (record: WorkspaceRecord, wait: ThreadCapWait | undefined): void => {
@@ -131,7 +165,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   const holdOf = (record: SubStartRecord, caller?: Pick<Held, "started" | "failed">): Held => {
     let left!: () => void;
     const gone = new Promise<void>(r => (left = r));
-    const h: Held = { record, name: live.get(record.workspaceId)?.record.name ?? record.workspaceId, left, ...caller };
+    const h: Held = { record, name: live.get(record.workspaceId)?.record.name ?? record.workspaceId, left, gone, ...caller };
     held.set(record.workspaceId, h);
     showRow(h, lastWait.get(record.workspaceId), gone);
     return h;
@@ -174,6 +208,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     held.delete(workspaceId);
     lastWait.delete(workspaceId);
     refusedUntil.delete(workspaceId);
+    queuedAt.delete(workspaceId);
   };
 
   /** The thread's targets hear a spawn that failed as its turn's end, since no turn of it will tell them. */
@@ -201,9 +236,21 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   const dropQueued: SubQueueArea["dropQueued"] = async turnId => {
     const h = [...held.values()].find(x => x.record.turnId === turnId);
     if (h === undefined) return false;
-    if (live.get(h.record.workspaceId)?.record.queue === undefined) h.stopped = SUB_DROPPED_LINE;
-    else await drop(h, SUB_DROPPED_LINE, false);
+    await stop(h, SUB_DROPPED_LINE);
     return true;
+  };
+
+  const stop = async (h: Held, reason: string): Promise<void> => {
+    if (live.get(h.record.workspaceId)?.record.queue === undefined) h.stopped = reason;
+    else await drop(h, reason, false);
+  };
+
+  /** A delete of a held spawn's record stops it as a stop does, and answers once it is gone, its machine with it where
+   * one was being made; nothing for a record the queue holds no start of. */
+  const deleteQueued: SubQueueArea["deleteQueued"] = workspaceId => {
+    const h = held.get(workspaceId);
+    if (h === undefined) return undefined;
+    return stop(h, deletedBeforeStartLine(h.name)).then(() => h.gone);
   };
 
   /** The head of the queue, let through where its cloud has room: its machine made, then its thread started as asked.
@@ -239,15 +286,25 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   };
 
   const pumpOnce = async (): Promise<boolean> => {
-    const head = queued()[0];
+    // A record whose first turn has not reached the host yet is passed over, since the line that made it sends it
+    // straight after; one whose start never came within the bound goes, as at boot.
+    const line = queued();
+    const startless = line.filter(e => !held.has(e.record.id));
+    const due = (e: LiveWorkspace): number => (queuedAt.get(e.record.id) ?? Date.parse(e.record.queue!.since)) + QUEUE_START_WAIT_MS;
+    for (const e of startless.filter(x => clock.now() >= due(x))) {
+      console.warn(`workspace ${e.record.id}: its first turn never came, so its queued spawn is dropped`);
+      forget(e.record.id);
+      await ctx.drop(e.record.id);
+      return true;
+    }
+    const head = line.find(e => held.has(e.record.id));
     if (head === undefined) {
       timer?.();
       timer = undefined;
+      if (startless.length > 0) arm(Math.min(...startless.map(due)) - clock.now());
       return false;
     }
-    const h = held.get(head.record.id);
-    // Its start has not reached the host yet: the run's create answered, and its start follows in a moment.
-    if (h === undefined) return false;
+    const h = held.get(head.record.id)!;
     const until = refusedUntil.get(head.record.id);
     if (until !== undefined && clock.now() < until) {
       arm(until - clock.now());
@@ -260,16 +317,19 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     if (live.get(head.record.id) !== head || held.get(head.record.id) !== h) return true;
     const wait = waitOn(placeId, limits);
     if (wait !== undefined) {
-      const said = lastWait.get(head.record.id);
-      lastWait.set(head.record.id, wait);
-      if (said === undefined || said.running !== wait.running || said.atOnce !== wait.atOnce || said.why !== wait.why) {
-        const row = sessions.get(h.record.turnId);
+      // Every held row on the place says the head's count, so no two figures of one moment disagree (U5).
+      for (const e of line.filter(x => ctx.placeIdOf(x.record) === placeId)) {
+        const x = held.get(e.record.id);
+        const said = lastWait.get(e.record.id);
+        if (x === undefined || (said !== undefined && said.running === wait.running && said.atOnce === wait.atOnce && said.why === wait.why)) continue;
+        lastWait.set(e.record.id, wait);
+        const row = sessions.get(x.record.turnId);
         if (row !== undefined) row.view.capped = wait;
-        if (head.record.queue!.why !== wait.why) {
-          head.record.queue = { ...head.record.queue!, why: wait.why ?? "slot" };
-          await ctx.persist(head.record);
+        if (e.record.queue!.why !== wait.why) {
+          e.record.queue = { ...e.record.queue!, why: wait.why ?? "slot" };
+          await ctx.persist(e.record);
         }
-        ctx.record({ type: "session.capped", workspaceId: head.record.id, sessionId: h.record.turnId, turnId: h.record.turnId, threadId: h.record.threadId, ...wait });
+        ctx.record({ type: "session.capped", workspaceId: e.record.id, sessionId: x.record.turnId, turnId: x.record.turnId, threadId: x.record.threadId, ...wait });
       }
       arm(wait.why === "minute" ? QUEUE_MINUTE_READ_MS : QUEUE_SLOT_READ_MS);
       return false;
@@ -284,7 +344,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     const record = entry.record;
     delete record.queue;
     lastWait.delete(record.id);
-    landing.add(record.id);
+    const claim = claimStart(record.id, ctx.placeIdOf(record)!);
     // Its row waits no more: the machine is being made.
     const waiting = sessions.get(h.record.turnId);
     if (waiting !== undefined) {
@@ -294,8 +354,8 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     let handle: SessionHandle;
     try {
       await ctx.persist(record);
-      await ctx.standUpQueued(record);
-      landing.delete(record.id);
+      await ctx.standUpQueued(record, claim.posted);
+      claim.release();
       if (held.get(record.id) !== h) return;
       if (h.stopped !== undefined) {
         const standing = live.get(record.id);
@@ -311,7 +371,11 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       const origin: Caller | undefined = r.by !== undefined ? { origin: r.road ?? "here", by: r.by } : r.road;
       handle = await ctx.sessionsApi.start(record.id, { ...r.opts, ...(r.notify !== undefined ? { notify: r.notify } : {}), as: { threadId: r.threadId, turnId: r.turnId } } as StartOptions, origin);
     } catch (e) {
-      landing.delete(record.id);
+      claim.release();
+      if (h.stopped !== undefined && held.get(record.id) === h) {
+        await drop(h, h.stopped, false);
+        return;
+      }
       if (isCapRefusal(e) && held.get(record.id) === h && h.stopped === undefined) {
         const at = ctx.backendFor(record);
         const wait = cloudFull(ctx.placeIdOf(record)!, at.limits === undefined ? undefined : await at.limits().catch(() => undefined));
@@ -363,6 +427,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   // A machine stopping, going or a setting moving may free a slot; a lead's workspace going drops what it was owed,
   // and a held spawn's own record deleted takes its start with it.
   bus.on("*", e => {
+    if (e.type === "workspace.deleted") queuedAt.delete(e.workspaceId);
     if (held.size === 0) return;
     if (e.type === "workspace.deleted") {
       const own = held.get(e.workspaceId);
@@ -380,5 +445,5 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     if (e.type === "workspace.napped" || e.type === "workspace.deleted" || e.type === "workspace.gone" || e.type === "place.changed") void pump();
   });
 
-  return { queueWait, cloudFull, enqueue, attachQueued, holdQueued, dropQueued, resumeQueue, pumpQueue: pump };
+  return { queueWait, claimStart, deleteQueued, cloudFull, enqueue, attachQueued, holdQueued, dropQueued, resumeQueue, pumpQueue: pump };
 }
