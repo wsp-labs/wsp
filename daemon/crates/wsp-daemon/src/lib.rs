@@ -45,6 +45,7 @@ mod roads;
 pub use wsp_seal as seal;
 mod slate_reads;
 mod ssh;
+mod stdio;
 mod sys;
 mod sys_local;
 mod transcripts;

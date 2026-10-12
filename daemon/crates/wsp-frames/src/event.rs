@@ -235,6 +235,20 @@ pub enum DaemonEvent {
         #[ts(optional)]
         machine_id: Option<String>,
     },
+    /// What a stdio.open command wrote on stdout, base64, as it came.
+    #[serde(rename = "stdio.out", rename_all = "camelCase")]
+    StdioOut { stdio_id: String, data: String },
+    /// What it wrote on stderr, base64, kept apart from stdout.
+    #[serde(rename = "stdio.err", rename_all = "camelCase")]
+    StdioErr { stdio_id: String, data: String },
+    /// The command is gone, by its own exit or a close; no code where a signal ended it.
+    #[serde(rename = "stdio.exit", rename_all = "camelCase")]
+    StdioExit {
+        stdio_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        code: Option<i32>,
+    },
     #[serde(rename = "localhost.url")]
     LocalhostUrl { port: RelayPort },
     #[serde(rename = "sys.sample")]

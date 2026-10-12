@@ -7,6 +7,16 @@ import { slateTable } from "./paths.js";
 /** Why a run refuses a secret among its arguments, at write and at start alike. */
 export const SLATE_SECRET_IN_ARGS = "a secret reaches a command through env or stdin, never as an argument, which ps can read";
 
+/** Why a slate is refused a tool or resource run on a server the agent's config on its thread's computer does not
+ * name, and the line that sets it up there. */
+export const slateServerNotSetUp = (server: string, computer: string, agent: { id: string; name: string }, thread: string): string =>
+  `${server} is not set up on ${computer}: add it to ${agent.name}'s MCP config there with wsp servers add ${server} ${thread} --agent ${agent.id} --command "<its command line>" (or --url <its address>), then write the run again`;
+
+/** Why a thread off the host's computer is refused a command run on="host": it would run there with the sign-ins
+ * there. */
+export const slateHostAway = (run: string, computer: string, host: string): string =>
+  `${run} runs on="host", which is ${host} with the sign-ins there, and this thread runs on ${computer}: drop on="host" and it runs on ${computer}`;
+
 export const SLATE_CODES = {
   P100: "bad-syntax", P102: "bare-not-boolean", P103: "bad-id", P104: "duplicate-id", P105: "bad-patch-op", P107: "reaction-without-id",
   D200: "schema-unknown", D201: "kit-unknown", D202: "root-ambiguous", D203: "piece-missing", D205: "cycle", D206: "too-deep",
@@ -21,7 +31,7 @@ export const SLATE_CODES = {
   A600: "step-unknown", A601: "step-arg", A602: "event-unknown", A603: "text-not-literal", A606: "too-many-steps", A607: "set-not-value",
   A608: "window-step-in-reaction", A610: "reaction-cycle", A611: "reaction-shape",
   K700: "cmd-not-literal", K701: "run-kind", K702: "run-name", K703: "timer", K704: "run-arg", K705: "tool-name", K706: "tool-unknown",
-  K707: "too-many-runs", K708: "file-name", K709: "files-too-big",
+  K707: "too-many-runs", K708: "file-name", K709: "files-too-big", K710: "server-not-set-up", K711: "host-away", K712: "machine-on-box",
   V750: "version-behind", V751: "write-rate", V752: "nothing-to-undo", V753: "send-rate", V754: "event-rate",
   Z800: "thread-not-yours", Z801: "thread-not-in-tree", Z802: "no-slate", Z803: "sub-thread", Z804: "rewound-before",
   R900: "data-missing", R901: "data-late", R902: "eval-failed", R903: "source-unavailable", R904: "consent-refused", R905: "draw-failed",
