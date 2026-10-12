@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
 import { CATALOG_AGENTS, type ThreadAgent } from "@wsp/catalog";
-import { MachineUnreachableError, MachineUnreached, isPlaceAbsent } from "@wsp/engine";
+import { INLINE_EXEC_MS, MachineUnreachableError, MachineUnreached, isPlaceAbsent } from "@wsp/engine";
 import {
-  AGENT_KEEP_MS, AGENT_WARM_MS, AGENTS_KEPT, AGENTS_WARM, type PermissionAsk, type SessionRenameWrite, type SessionView, type TurnResult,
+  AGENT_KEEP_MS, AGENT_WARM_MS, AGENTS_KEPT, AGENTS_WARM, agentsKeptOn, shellQuote, workspacePlace, type PermissionAsk, type SessionRenameWrite, type SessionView, type TurnResult,
   type Caller, SessionOrigin, ThreadScope, WorkspaceOrigin, GitDiffReply, GitWorktreesReply, repoPathOf, worktreeOf, foldThreads, threadWord, threadsFollowed, scopeOf,
   type ThreadWaitingOn, isLocalWorkspace, NO_SUCH_TURN, NOTIFY_ME, notifyLine, runsInFolder, DEVICE_OPS, sendRefusal,
   workspaceState, HERE_PLACE_ID, runningOn as runningOnPlace, type ThreadCapWait, roadOf, unreadLine, turnLines,
@@ -95,10 +95,10 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     }
     return latest;
   };
-  /** Each thread's agent process kept up between its turns on this computer, by thread: what its launch fixed, which a
-   * next turn has to match to run on it, and the turn token and device its environment still carries, which name the
-   * thread for as long as the process is kept and are taken away when it goes. A thread's running turn holds its
-   * process and is not in here; its end puts the process back. */
+  /** Each thread's agent process kept up between its turns, on this computer or a joined one, by thread: what its
+   * launch fixed, which a next turn has to match to run on it, and the turn token and device its environment still
+   * carries, which name the thread for as long as the process is kept and are taken away when it goes. A thread's
+   * running turn holds its process and is not in here; its end puts the process back. */
   const keptAgents = new Map<string, KeptProcess>();
 
   /** Ends one thread's kept process and takes its token and device away with it. */
@@ -111,7 +111,58 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
   const endKept = (threadId: string, kept: KeptProcess, o?: { now: true }): void => {
     kept.cancel();
     if (kept.scopeDeviceId !== undefined) void deviceDoor.revoke(kept.scopeDeviceId).catch((e: unknown) => console.warn(`the token of thread ${threadWord(threadId)} was not taken away: ${e instanceof Error ? e.message : String(e)}`));
-    void kept.agent.close(o).catch((e: unknown) => console.warn(`the kept agent of thread ${threadWord(threadId)} did not end: ${e instanceof Error ? e.message : String(e)}`));
+    const close = (): void =>
+      void kept.agent.close(o).catch((e: unknown) => console.warn(`the kept agent of thread ${threadWord(threadId)} did not end: ${e instanceof Error ? e.message : String(e)}`));
+    // Nothing reaches a joined computer that is away, so the agent's close waits for its next link, and ends the run's
+    // own group then as it would have now. Never the thread's end, which takes every process the thread left there, a
+    // server the person had it start included: that end is a stop's and a delete's. A host closing leaves the run to
+    // the next host's sweep.
+    const place = ctx.state.closing ? undefined : keptBox(kept.workspaceId)?.place;
+    const door = ctx.placeDoor;
+    if (place === undefined || door === undefined || door.link(place) !== undefined) return close();
+    const off = door.on(e => {
+      if ((e.type !== "place.present" && e.type !== "place.removed") || e.placeId !== place) return;
+      off();
+      if (e.type === "place.present") close();
+    });
+  };
+
+  /** The joined computer a workspace's kept processes stand on, and how many it keeps at once off its memory; nothing
+   * for one on the computer the host runs on, which keeps AGENTS_KEPT. */
+  const keptBox = (workspaceId: string): { place: string; cap: number } | undefined => {
+    const record = live.get(workspaceId)?.record;
+    const place = record === undefined ? undefined : workspacePlace(record);
+    if (place === undefined) return undefined;
+    return { place, cap: agentsKeptOn(ctx.placeDoor?.folderComputer(place)?.shape.memMb ?? 0) };
+  };
+  /** The size of a kept agent's session file on the joined computer it runs on, read there in one shell as
+   * stampSessionFile reads one here: -1 where the agent wrote none, nothing where the computer did not answer. */
+  const boxFileSize = (workspaceId: string, at: NonNullable<KeptProcess["agent"]["sessionFile"]>): Promise<number | undefined> => {
+    const entry = live.get(workspaceId);
+    if (entry === undefined) return Promise.resolve(undefined);
+    const glob = `${shellQuote(at.folder)}${"/*".repeat(at.depth)}/${shellQuote(at.name)}`;
+    return entry.machine.exec(`for f in ${glob}; do [ -f "$f" ] && { wc -c < "$f"; exit 0; }; done; echo -1`, { timeoutMs: INLINE_EXEC_MS }).then(
+      res => {
+        const size = Number.parseInt(res.stdout.trim(), 10);
+        return res.exitCode === 0 && Number.isSafeInteger(size) ? size : undefined;
+      },
+      () => undefined,
+    );
+  };
+  /** A thread's kept process on a joined computer is ended before a send would take it where that computer is away,
+   * since its message would reach nothing, and where the session file changed there since its last turn, as takeKept
+   * ends one here: the person resumed the session in a terminal there. Either way the send boots cold. A send asks
+   * before its turn's synchronous run, since the read is a trip to that computer, and after the host's own write into
+   * that file, which restamps the process, as takeKept reads after it. */
+  const keptCheck = async (threadId: string): Promise<void> => {
+    const kept = keptAgents.get(threadId);
+    const box = kept === undefined ? undefined : keptBox(kept.workspaceId);
+    if (kept === undefined || box === undefined) return;
+    if (ctx.placeDoor?.link(box.place) === undefined) return reapKept(threadId);
+    if (kept.session !== undefined) await hostWrites.get(kept.session);
+    if (keptAgents.get(threadId) !== kept || kept.boxFile === undefined || kept.agent.sessionFile === undefined) return;
+    const [was, now] = await Promise.all([kept.boxFile, boxFileSize(kept.workspaceId, kept.agent.sessionFile)]);
+    if (was !== undefined && now !== undefined && was !== now && keptAgents.get(threadId) === kept) reapKept(threadId);
   };
 
   /** The host's own writes into a harness session's file still going, by session. Their bytes land before the write
@@ -121,13 +172,20 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
    * the file again once it is in, or the next send would read the host's own write as the person resuming the session
    * elsewhere. */
   const writeSession = (harnessSessionId: string, write: () => Promise<SessionRenameWrite>): Promise<SessionRenameWrite> => {
-    const wrote = write().then(w => {
+    const wrote = write().then(async w => {
       if (w.kind !== "written") return w;
+      const read: Promise<unknown>[] = [];
       for (const kept of keptAgents.values()) {
         if (kept.session !== harnessSessionId) continue;
+        if (kept.boxFile !== undefined && kept.agent.sessionFile !== undefined) {
+          kept.boxFile = boxFileSize(kept.workspaceId, kept.agent.sessionFile);
+          read.push(kept.boxFile);
+          continue;
+        }
         const file = stampSessionFile(kept.agent.sessionFile, kept.file?.path);
         if (file !== undefined) kept.file = file;
       }
+      await Promise.all(read);
       return w;
     });
     const settled: Promise<void> = Promise.all([hostWrites.get(harnessSessionId), wrote.catch(() => {})]).then(() => {
@@ -157,23 +215,26 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
   };
 
   /** A turn's process put back in the keep once the turn is over: the thread's next send runs on it until the keep
-   * runs out, the thread goes, or a seventh would be kept, which ends the one idle longest. Answers whether it was
-   * kept, since the turn's token and device stay with the process only then. */
-  const holdKept = (threadId: string, o: Omit<KeptProcess, "file" | "usedAt" | "cancel">): boolean => {
+   * runs out, the thread goes, or its computer would keep one more than it takes, which ends the one idle longest
+   * there. Answers whether it was kept, since the turn's token and device stay with the process only then. The
+   * session file is stamped where it lives: here at once, on a joined computer by a read there. */
+  const holdKept = (threadId: string, o: Omit<KeptProcess, "file" | "boxFile" | "usedAt" | "cancel">): boolean => {
     if (ctx.state.closing || !threadRecords.has(threadId)) {
       void o.agent.close().catch(() => {});
       return false;
     }
     reapKept(threadId);
-    const file = stampSessionFile(o.agent.sessionFile);
-    keep(threadId, { ...o, ...(file !== undefined ? { file } : {}), usedAt: clock.now(), cancel: () => {} }, AGENT_KEEP_MS);
+    const onBox = keptBox(o.workspaceId) !== undefined;
+    const file = onBox ? undefined : stampSessionFile(o.agent.sessionFile);
+    const boxFile = onBox && o.agent.sessionFile !== undefined ? boxFileSize(o.workspaceId, o.agent.sessionFile) : undefined;
+    keep(threadId, { ...o, ...(file !== undefined ? { file } : {}), ...(boxFile !== undefined ? { boxFile } : {}), usedAt: clock.now(), cancel: () => {} }, AGENT_KEEP_MS);
     return true;
   };
 
   /** A process launched ahead of a new thread's first send, kept under the thread id its launch was minted for: it
    * counts against the same cap, ends after AGENT_WARM_MS unless the composer asks for it again, and the one asked for
    * longest ago ends once more than AGENTS_WARM stand. */
-  const holdWarm = (threadId: string, o: Omit<KeptProcess, "file" | "usedAt" | "cancel">): void => {
+  const holdWarm = (threadId: string, o: Omit<KeptProcess, "file" | "boxFile" | "usedAt" | "cancel">): void => {
     if (ctx.state.closing) {
       endKept(threadId, { ...o, usedAt: 0, cancel: () => {} });
       return;
@@ -222,9 +283,13 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
       kept.cancel();
       if (kept.scopeDeviceId !== undefined) void deviceDoor.revoke(kept.scopeDeviceId).catch(() => {});
     });
-    while (keptAgents.size > AGENTS_KEPT) {
-      const [oldest] = [...keptAgents].reduce((a, b) => (b[1].usedAt < a[1].usedAt ? b : a));
-      reapKept(oldest);
+    // Each computer holds its own kept processes' memory, so each is capped alone: this one at AGENTS_KEPT, a joined
+    // one off its memory.
+    const box = keptBox(kept.workspaceId);
+    for (;;) {
+      const there = [...keptAgents].filter(([, other]) => keptBox(other.workspaceId)?.place === box?.place);
+      if (there.length <= (box?.cap ?? AGENTS_KEPT)) return;
+      reapKept(there.reduce((a, b) => (b[1].usedAt < a[1].usedAt ? b : a))[0]);
     }
   };
 
@@ -1107,7 +1172,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
   };
   return {
     threadRuns, launchingOn, runningOn, latestOn, keptAgents, reapKept, endKept, hostWrites, writeSession, takeKept,
-    holdKept, holdWarm, warmOn, rewarm, claimWarm, threadOfToken, treeUnder, restarts, drivesThread, settlesThread, leadAsks, capHeld, capHold, capLend, capFull, capWait, capStop, capStopping, capLeft, stoppedBehind, stopUnder, notifyOn, notifyReach, tellAs,
+    holdKept, holdWarm, keptBox, keptCheck, warmOn, rewarm, claimWarm, threadOfToken, treeUnder, restarts, drivesThread, settlesThread, leadAsks, capHeld, capHold, capLend, capFull, capWait, capStop, capStopping, capLeft, stoppedBehind, stopUnder, notifyOn, notifyReach, tellAs,
     notifyEnd, deliverOwed, sendBack, settleCut, notARepo, checkpointsLanding, keepCheckpoint, takenTurn, keepSteer, steerAnswered, steerLost, recordSteer, lineTry, promptHeld, tryStopped, snapshotOf,
     readTurnChanges, usageComputerOf, vaultedFor, usageAccountOf, limitDetailsDue,
   };

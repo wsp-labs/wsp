@@ -34,16 +34,30 @@ export const TURN_IDLE_MS = 10 * 60_000;
  * percent of one core clears it, which a vitest batch or a packager does many times over; a harness process waking
  * on its own timers stays under it, so a turn nothing is working on is still cut at TURN_IDLE_MS. */
 export const TURN_WORK_TICKS_PER_S = 5;
-/** How long a thread's agent process is kept up after its turn on the computer the host runs on, for the next send
- * to skip the agent's boot. Half of the gaps from a turn's end to the thread's next send were under 30 minutes across
- * 299 turns on 147 threads (2026-09-27 to 10-04). */
+/** How long a thread's agent process is kept up after its turn, on the computer the host runs on and on a joined
+ * computer alike, for the next send to skip the agent's boot. Half of the gaps from a turn's end to the thread's next
+ * send were under 30 minutes across 299 turns on 147 threads (2026-09-27 to 10-04). */
 export const AGENT_KEEP_MS = 30 * 60_000;
-/** The most agent processes kept up between turns on that computer at once, the one idle longest ended first: an
+/** The most agent processes kept up between turns on one computer at once, the one idle longest ended first: an
  * idle one holds 200 to 400 MB with its MCP servers. */
 export const AGENTS_KEPT = 6;
+/** What one kept agent process is budgeted on a joined computer: Claude Code 2.1.296 idle on stream-json held 242 MB
+ * resident before its first turn and 251 MB after one, with no MCP server of its own, on a 2-core 3.9 GB Linux
+ * computer (2026-10-12); one with its MCP servers held about 380 MB. */
+export const KEPT_AGENT_MB = 400;
+/** The share of a joined computer's memory its kept agent processes may hold together: the rest is its running turns',
+ * its builds' and its own. */
+export const KEPT_MEMORY_SHARE = 0.25;
+
+/** How many agent processes a joined computer keeps between turns at once, off its total memory: a 4 GB computer
+ * keeps two, an 8 GB one five, and one under 1.6 GB none. */
+export function agentsKeptOn(memMb: number): number {
+  return Math.min(AGENTS_KEPT, Math.max(0, Math.floor((memMb * KEPT_MEMORY_SHARE) / KEPT_AGENT_MB)));
+}
 /** How long an agent process started ahead of a new thread's first send waits for that send, from the last time the
  * composer asked for it. Claude Code under -p waits on its MCP servers and SessionStart hooks before its first turn:
- * 4.2 s on one person's config against 1.0 s with neither (2026-10-10). It counts against AGENTS_KEPT. */
+ * 4.2 s on one person's config against 1.0 s with neither (2026-10-10). It counts against its computer's cap of kept
+ * processes: AGENTS_KEPT on the one the host runs on, agentsKeptOn() on a joined one. */
 export const AGENT_WARM_MS = 3 * 60_000;
 /** The least time between the composer's asks for that process from typing, so a person writing a long first message
  * keeps it without a request per keystroke. */

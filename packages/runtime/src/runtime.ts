@@ -1210,20 +1210,21 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
       await Promise.allSettled([...ctx.daemonSyncs.values()]);
       await Promise.allSettled([...ctx.keptWrites.values()]);
       await Promise.allSettled([...ctx.agentAsks]);
-      // The turns running on machines are not ended: each leads a process group on its own machine and its log is
-      // there to be read again, so what this host lets go of is the reading of them, which is what holds this
-      // process open after its last line.
-      for (const stop of [...ctx.machineReading]) stop();
-      ctx.machineReading.clear();
       // A kept agent is no turn: it is ended rather than left idle with nothing to send to it, its tree at once, since
       // an agent slow to exit on its EOF would outlast the reader that reaps its group (a tail pump was left behind
-      // so); the wait for it is short, and the next host's sweep ends what is left.
+      // so); the wait for it is short, and the next host's sweep ends what is left. Before the machines' readers go,
+      // since one on a joined computer is read through one, and its reader reaps its group and files there.
       const keptGoing = [...ctx.keptAgents.keys()].map(threadId => {
         const exited = ctx.keptAgents.get(threadId)!.agent.exited;
         ctx.reapKept(threadId, { now: true });
         return exited;
       });
       if (keptGoing.length > 0) await Promise.race([Promise.allSettled(keptGoing), new Promise(resolve => setTimeout(resolve, KEPT_CLOSE_WAIT_MS).unref())]);
+      // The turns running on machines are not ended: each leads a process group on its own machine and its log is
+      // there to be read again, so what this host lets go of is the reading of them, which is what holds this
+      // process open after its last line.
+      for (const stop of [...ctx.machineReading]) stop();
+      ctx.machineReading.clear();
       await local?.close?.();
       await placeDoor?.close();
       ctx.state.closed = true;

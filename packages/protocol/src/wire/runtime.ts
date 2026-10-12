@@ -610,7 +610,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * machine: refused as sessions.start's replaces is, and answers nothing else. Takes the runtime's thread id. */
   z.object({ id: reqId, op: z.literal("sessions.replaceable"), threadId: z.string() }),
   /** The composer of a new thread took focus or changed a pick: the agent's process for the thread its send will open
-   * starts now, on this computer, so its own startup is behind it by the send. One stands per workspace and agent; one
+   * starts now, on the workspace's computer, so its own startup is behind it by the send. One stands per workspace and agent; one
    * launched with other picks is ended and replaced. A send opening a thread there with the same picks runs on it, and
    * one nobody sends to ends after AGENT_WARM_MS. Where is read as on sessions.start, less branch: a worktree is made by
    * a send alone. Replies with a SessionWarmResult; none where the workspace's computer or the agent keeps no process. */
