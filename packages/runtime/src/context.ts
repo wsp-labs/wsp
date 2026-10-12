@@ -355,6 +355,8 @@ export interface ChannelsArea {
   readonly WORKSPACE_FRAMES: string[];
   readonly GUEST_ROAD_FRAMES: string[];
   readonly portPids: Map<string, Map<string, number>>;
+  /** Each shell a thread's pane opened, by the pid it leads and the workspace it was opened in. */
+  readonly threadTerminals: () => { thread: string; workspace: string; pid: number }[];
   readonly heldToOwner: (owner: string, channel: DaemonChannel) => DaemonChannel;
   readonly killGuarded: (channel: DaemonChannel, here: boolean) => DaemonChannel;
   readonly threadTagged: (workspaceId: string, channel: DaemonChannel) => DaemonChannel;

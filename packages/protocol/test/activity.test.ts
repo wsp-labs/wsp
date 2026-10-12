@@ -169,3 +169,41 @@ describe("what a thread leaves running", () => {
     expect(endHeads(left[0]!.processes).map(p => p.pid)).toEqual([200, 300]);
   });
 });
+
+describe("what a thread's pane and its slate started", () => {
+  const root = (thread: string) => ({ by: "root" as const, thread });
+  const procs = [
+    ...PROCS,
+    row(600, 60, "zsh", "-zsh", { pty: "pty_1", kind: "terminal", owner: root(LAB.threadId) }),
+    row(601, 600, "node", "node /lab/node_modules/.bin/vite --port 5199", { kind: "terminal", owner: root(LAB.threadId) }),
+    row(602, 60, "zsh", "-zsh", { pty: "pty_2" }),
+    row(700, 50, "python3", "python3 /state/slates/lab-thread-1/feed.py", { kind: "slate", owner: root(LAB.threadId) }),
+    row(701, 50, "node", "node /state/servers/github/index.js", { kind: "tool", owner: root(LAB.threadId) }),
+  ];
+
+  it("puts a shell its pane opened under the thread as a terminal, what runs in it by its own kind, and a shell no pane named under no thread", () => {
+    const view = activityOf(read(procs));
+    const lab = view.threads.find(t => t.threadId === LAB.threadId)!;
+    expect(lab.processes.filter(p => p.pid >= 600).map(p => [p.pid, p.kind])).toEqual([
+      [600, "terminal"],
+      [601, "dev"],
+      [700, "slate"],
+      [701, "tool"],
+    ]);
+    expect(view.unowned.map(p => [p.pid, p.kind])).toEqual([[602, "terminal"]]);
+  });
+
+  it("lets the person end a shell its pane opened, and what runs in it, and never the thread itself", () => {
+    const person = (threadId: string | undefined): boolean => threadId === undefined;
+    const thread = (threadId: string | undefined): boolean => threadId === LAB.threadId;
+    expect(endPlan(read(procs), 601, START + 601, person)).toMatchObject({ targets: [{ pid: 601 }] });
+    expect(endPlan(read(procs), 600, START + 600, person)).toMatchObject({ targets: [{ pid: 600 }, { pid: 601 }] });
+    for (const pid of [600, 601]) expect(() => endPlan(read(procs), pid, START + pid, thread)).toThrow(notThreadsLine(pid));
+    expect(endPlan(read(procs), 700, START + 700, thread)).toMatchObject({ targets: [{ pid: 700 }] });
+  });
+
+  it("leaves a settle what its slate runs and not its pane's shells, which its delete ends with the pane", () => {
+    const left = processesLeft(activityOf(read(procs)), [LAB.threadId]);
+    expect(left[0]!.processes.map(p => p.pid)).toEqual([400, 700, 701]);
+  });
+});

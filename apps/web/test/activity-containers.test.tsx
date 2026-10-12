@@ -2,7 +2,8 @@
 // A computer's containers in Activity: each under the thread the daemon placed it
 // with, or under No thread with its compose folder named, its own memory and CPU
 // counted in its group's figures, and End, which asks the daemon to stop it.
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
+import { fromMenu } from "./row-menu.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { applyProcChanges, fmtUptime, type ProcChanges, type ProcContainer, type ProcEntry, type ProcSnapshot } from "@wsp/protocol";
 import { filterGroups, groupSpent, NO_PICKS, scopeOf, sortGroups, totalSpent, type ActivityContainer, type ActivityThread } from "../src/settings/activity/model.js";
@@ -52,7 +53,7 @@ describe("where Activity puts a container", () => {
   it("lets a filter find a container by its name, image or folder, and a kind chip drop it", () => {
     expect(filterGroups(scope.groups, "postgres", NO_PICKS).map(g => [g.id, g.containers.map(c => c.name)])).toEqual([["t1", ["lab-db-1"]]]);
     expect(filterGroups(scope.groups, "/srv/other", NO_PICKS).map(g => [g.id, g.containers.map(c => c.name)])).toEqual([["loose", ["other-web-1"]]]);
-    expect(filterGroups(scope.groups, "", { ...NO_PICKS, kinds: ["dev"] }).flatMap(g => g.containers)).toEqual([]);
+    expect(filterGroups(scope.groups, "", { ...NO_PICKS, kind: "dev" }).flatMap(g => g.containers)).toEqual([]);
   });
 
   it("holds the containers a changes frame carried, and those of the snapshot where it carried none", () => {
@@ -69,7 +70,7 @@ describe("a container's row", () => {
   const acts = (endContainer: (c: ActivityContainer) => void, stopping: ReadonlySet<string> = new Set()): Acts => ({ ending: new Set(), end: () => {}, stop: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, endAll: () => {}, workspaceOf: () => "ws_lab", stopping, endContainer, free: () => {} });
   const scope = scopeOf({ snapshot: snap(PROCS, CONTAINERS), threads: [thread("t1", { pid: 30 }), thread("t2")], ports: new Map(), now: NOW });
 
-  it("names its image and time up, under No thread its folder, carries its own figures, and End asks for its stop", () => {
+  it("names its image and time up, under No thread its folder, carries its own figures, and End in its menu asks for its stop", async () => {
     const asked: string[] = [];
     const { container } = render(<ThreadsTable name="Here" groups={scope.groups} statusOf={() => undefined} ageOf={() => undefined} box cost={null} filtering acts={acts(c => asked.push(c.id))} look={look} />);
     const row = (c: string) => container.querySelector<HTMLElement>(`[data-container-row="${id(c)}"]`)!;
@@ -82,14 +83,15 @@ describe("a container's row", () => {
     expect(row("d").querySelector('[data-col="mem"]')!.textContent).toBe("");
     expect(row("a").closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("t1");
     expect(row("c").closest("[data-activity-group]")!.getAttribute("data-activity-group")).toBe("loose");
-    fireEvent.click(row("b").querySelector('[data-act="end-container"]')!);
-    expect(asked).toEqual([id("b")]);
+    expect(row("b").querySelector('[data-act="end-container"]')).toBeNull();
+    await fromMenu(row("b"), "end");
+    await waitFor(() => expect(asked).toEqual([id("b")]));
   });
 
-  it("shows the spinner in place of End while its stop is under way", () => {
+  it("shows the spinner in place of its menu while its stop is under way", () => {
     const { container } = render(<ThreadsTable name="Here" groups={scope.groups} statusOf={() => undefined} ageOf={() => undefined} box cost={null} filtering acts={acts(() => {}, new Set([id("b")]))} look={look} />);
     const row = container.querySelector<HTMLElement>(`[data-container-row="${id("b")}"]`)!;
-    expect(row.querySelector('[data-act="end-container"]')).toBeNull();
+    expect(row.querySelector('[data-act="menu"]')).toBeNull();
     expect(row.textContent).toContain("Ending");
   });
 });

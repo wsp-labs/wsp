@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Activity's End and End all against the daemon's answer: End all stops the turn or frees the kept agent first and
-// only then ends what outlives the agent, its tool servers and input pump left to it; an End a daemon from before kill
-// modes answered says its update line and offers KILL.
+// Activity's End and a slate's End all against the daemon's answer: End all ends each run and server the slate keeps
+// in one tree kill by its identity, and never the agent; an End a daemon from before kill modes answered says its
+// update line and offers KILL.
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fmtBytes, killTooOldOfLine, type ActivityEnded, type PlaceView, type ProcEntry, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { fmtBytes, killTooOldOfLine, type PlaceView, type ProcEntry, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { provideDaemonWire } from "../src/files/wire.js";
 import { getProcs, resetProcs } from "../src/machine/procs.js";
 import { useNotices } from "../src/notices/store.js";
@@ -12,6 +12,8 @@ import { useStore } from "../src/protocol/store.js";
 import { HERE_KEY } from "../src/terminal/computer.js";
 import { mountSettings, resetSettings, settingsApi, settle } from "./settings-harness.js";
 import { fakeWire, type FakeWire } from "./surface-harness.js";
+import { fromMenu, menuOf } from "./row-menu.js";
+import { useContextMenuStore } from "../src/actions/contextMenu.js";
 
 const MB = 1024 * 1024;
 const HERE: PlaceView = { id: "here", kind: "computer", name: "lab-mbp", default: true, present: true } as PlaceView;
@@ -21,8 +23,9 @@ const session = (id: string, pid: number, status: SessionView["status"]): Sessio
   ({ id: `s_${id}`, workspaceId: WS, threadId: id, harness: "claude", status, prompt: id, startedBy: "person", startedAt: Date.parse("2026-10-11T00:00:00.000Z"), pid }) as SessionView;
 const proc = (pid: number, ppid: number, comm: string, extra: Partial<ProcEntry> = {}): ProcEntry => ({ pid, ppid, user: "dev", state: "S", comm, cmdline: comm, cpu: 0, rss: MB, startedAt: 0, ...extra });
 
-/** A resting thread whose kept agent has a tool server under it and its turn's input pump under pid 1, and a dev server
- * with its child that outlive the agent; a working thread with a dev server of its own. */
+/** A resting thread whose kept agent has a tool server under it and its turn's input pump under pid 1, a dev server
+ * with its child that outlive the agent, and its slate's run with a child and the tool server the slate keeps; a
+ * working thread with a dev server of its own. */
 const PROCS: ProcEntry[] = [
   proc(10, 1, "node", { cmdline: "node wsp host" }),
   proc(20, 10, "wsp-daemon"),
@@ -33,6 +36,9 @@ const PROCS: ProcEntry[] = [
   proc(51, 50, "esbuild", { cmdline: "esbuild --service", rss: 20 * MB, owner: { by: "fork", thread: "t_rest" }, startedAt: 5_100, id: "5100" }),
   proc(40, 10, "claude", { rss: 500 * MB, startedAt: 4_000 }),
   proc(60, 1, "node", { cmdline: "node node_modules/.bin/vitest --watch", rss: 200 * MB, owner: { by: "fork", thread: "t_work" }, startedAt: 6_000, id: "6000" }),
+  proc(70, 10, "python3", { cmdline: "python3 /Users/dev/.wsp/slates/t_rest/feed.py", rss: 18 * MB, owner: { by: "root", thread: "t_rest" }, kind: "slate", startedAt: 7_000, id: "7000" }),
+  proc(71, 70, "curl", { cmdline: "curl -s https://api.acme.dev/price", owner: { by: "root", thread: "t_rest" }, kind: "slate", startedAt: 7_100, id: "7100" }),
+  proc(72, 10, "node", { cmdline: "node /Users/dev/.wsp/servers/feed/index.js", rss: 40 * MB, owner: { by: "root", thread: "t_rest" }, kind: "tool", startedAt: 7_200, id: "7200" }),
 ];
 const frame = { type: "proc.snapshot" as const, at: 3_000, daemon: 20, total: PROCS.length, procs: PROCS, seq: 1 };
 
@@ -64,36 +70,25 @@ const open = async (over: Parameters<typeof settingsApi>[0] = {}): Promise<void>
 const toggle = (id: string) => fireEvent.click(document.querySelector(`[data-group="${id}"]`)!);
 const kills = () => wire.calls.filter(([op]) => op === "proc.kill").map(([, p]) => p as Record<string, unknown>);
 
-describe("End all", () => {
-  it("frees a resting thread's kept agent first, then ends each tree that outlives it in one kill by its identity, never the agent's tool server or input pump", async () => {
-    const endActivity = vi.fn(async (pid: number): Promise<ActivityEnded> => {
-      order.push(`free ${pid}`);
-      return { pid, ended: [], forced: [], left: [], freed: "t_rest" };
-    });
-    await open({ endActivity });
-    fireEvent.click(document.querySelector("[data-group=t_rest] [data-act=end-all]")!);
-    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
-    expect(screen.getByText(`2 processes holding ${fmtBytes(320 * MB)} end, after the agent it keeps for its next turn.`)).toBeTruthy();
-    fireEvent.click(document.querySelector("[data-k=activity-confirm]")!);
-    await settle();
-    expect(endActivity).toHaveBeenCalledWith(30, 3_000);
-    expect(order).toEqual(["free 30", "kill 50"]);
-    expect(kills()).toEqual([{ pid: 50, signal: "TERM", mode: "tree", startedAt: 5_000, identity: "5000" }]);
-  });
+const heading = () => document.querySelector("[data-activity-group=t_rest] [data-proc-row=slate-heading]")!;
 
-  it("waits for a working thread's stop before it signals anything", async () => {
-    let stopped: () => void = () => {};
-    const interruptSession = vi.fn(() => new Promise<{ outcome: "accepted" }>(resolve => (stopped = () => (order.push("stopped"), resolve({ outcome: "accepted" })))));
-    await open({ interruptSession });
-    fireEvent.click(document.querySelector("[data-group=t_work] [data-act=end-all]")!);
+describe("End all on a slate", () => {
+  it("ends each run and server the slate keeps in one tree kill by its identity, after asking, and never the agent or what it started", async () => {
+    await open();
+    toggle("t_rest");
+    expect([...heading().parentElement!.querySelectorAll<HTMLElement>("[data-proc-row]")].map(r => r.dataset["procRow"])).toEqual(expect.arrayContaining(["slate-heading", "70", "71", "72"]));
+    await fromMenu(heading(), "end-all");
     await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(screen.getByText(`2 processes holding ${fmtBytes(59 * MB)} end, and what each started.`)).toBeTruthy();
     fireEvent.click(document.querySelector("[data-k=activity-confirm]")!);
     await settle();
-    expect(interruptSession).toHaveBeenCalledWith("s_t_work");
-    expect(kills()).toEqual([]);
-    await act(async () => stopped());
-    await settle();
-    expect(order).toEqual(["stopped", "kill 60"]);
+    expect(order.sort()).toEqual(["kill 70", "kill 72"]);
+    expect(kills()).toEqual(
+      expect.arrayContaining([
+        { pid: 70, signal: "TERM", mode: "tree", startedAt: 7_000, identity: "7000" },
+        { pid: 72, signal: "TERM", mode: "tree", startedAt: 7_200, identity: "7200" },
+      ]),
+    );
   });
 });
 
@@ -102,8 +97,9 @@ describe("End on a daemon from before kill modes", () => {
     wire.replies["proc.kill"] = (p: Record<string, unknown>) => (order.push(`${String(p["signal"])} ${String(p["pid"])}`), {});
     await open();
     toggle("t_rest");
+    expect(await menuOf(document.querySelector("[data-proc-row='50']")!)).toContain("end");
     vi.useFakeTimers();
-    fireEvent.click(document.querySelector("[data-proc-row='50'] [data-act=end]")!);
+    act(() => useContextMenuStore.getState().choose("end"));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
@@ -119,12 +115,11 @@ describe("End on a daemon from before kill modes", () => {
 
   it("End all says it once for the computer, naming each process TERM went to alone, and Force end sends KILL to each still listed", async () => {
     wire.replies["proc.kill"] = (p: Record<string, unknown>) => (order.push(`${String(p["signal"])} ${String(p["pid"])}`), {});
-    const endActivity = vi.fn(async (pid: number): Promise<ActivityEnded> => ({ pid, ended: [], forced: [], left: [], freed: "t_rest" }));
-    await open({ endActivity });
-    const worker = proc(52, 1, "node", { cmdline: "node worker.js", owner: { by: "fork", thread: "t_rest" }, startedAt: 5_200, id: "5200" });
-    act(() => getProcs(HERE_KEY).feed({ ...frame, seq: 2, at: 5_000, procs: [...PROCS, worker], total: PROCS.length + 1 }));
+    await open();
+    toggle("t_rest");
+    expect(await menuOf(heading())).toContain("end-all");
     vi.useFakeTimers();
-    fireEvent.click(document.querySelector("[data-group=t_rest] [data-act=end-all]")!);
+    act(() => useContextMenuStore.getState().choose("end-all"));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -136,11 +131,11 @@ describe("End on a daemon from before kill modes", () => {
     expect(toasts).toHaveLength(1);
     expect(toasts[0]!.text).toBe(
       killTooOldOfLine("lab-mbp", [
-        { pid: 50, command: "node node_modules/.bin/vite" },
-        { pid: 52, command: "node worker.js" },
+        { pid: 72, command: "node /Users/dev/.wsp/servers/feed/index.js" },
+        { pid: 70, command: "python3 /Users/dev/.wsp/slates/t_rest/feed.py" },
       ]),
     );
     await act(async () => toasts[0]!.action!.run());
-    expect(order.filter(o => o.startsWith("KILL")).sort()).toEqual(["KILL 50", "KILL 52"]);
+    expect(order.filter(o => o.startsWith("KILL")).sort()).toEqual(["KILL 70", "KILL 72"]);
   });
 });
