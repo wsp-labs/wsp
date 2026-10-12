@@ -39,10 +39,14 @@ const mount = async (over: Partial<Api>, group: "general" | "projects" | "device
 };
 
 beforeEach(() => {
+  // The page's minute clock and these fixtures each read the clock, and a minute turning between two reads moves every "ago".
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse("2026-10-12T10:00:30Z"));
   resetSettings();
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   document.body.innerHTML = "";
   delete window.wsp;
   delete (window as unknown as { __WSP__?: unknown }).__WSP__;
