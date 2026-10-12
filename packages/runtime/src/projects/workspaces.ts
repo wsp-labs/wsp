@@ -494,6 +494,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       }
       const entry = await ctx.entryOf(id, origin);
       if (entry.deleting) return entry.deleting;
+      // A held spawn is stopped as a stop does, its machine going as it lands where one is being made.
+      const held = entry.record.phase === "queued" ? ctx.deleteQueued(id) : undefined;
+      if (held !== undefined) return held;
       // A worktree wsp made goes with its record, never over files no commit holds; the project folder, and a
       // worktree somebody else made, are never touched.
       const tree = entry.record.worktree;
@@ -509,9 +512,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
           if (takes) await ctx.removeWorktree(entry, false, { ending: true });
           // Before the machine goes: on a computer somebody owns the folders the files landed in outlive the workspace.
           await ctx.dropThreadFiles(entry, [...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
-          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back; a
-          // released record's box is gone already, and a record whose cloud left this host has nobody to ask.
-          const standing = entry.record.phase !== "released" && entry.record.sub?.cloudGone !== true;
+          // A machine wsp never forked reads running whatever is asked of it, so only a forked one is read back; a spawn
+          // still waiting has none, a released record's box is gone already, and a record whose cloud left this host
+          // has nobody to ask.
+          const standing = entry.record.phase !== "released" && entry.record.phase !== "queued" && entry.record.sub?.cloudGone !== true;
           if (standing && !kindWords(entry.record.kind).driven) {
             await entry.machine.kill().catch((e: unknown) => {
               if (!isMissing(e)) throw e;

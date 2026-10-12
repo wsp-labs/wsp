@@ -42,6 +42,8 @@ export interface WorkspaceTarget {
   /** What kind of machine it is; the verbs only wsp's own forks take read it. */
   readonly kind: WorkspaceKind;
   readonly phase: WorkspacePhase;
+  /** What a queued spawn waits for; absent on every record that is not waiting. */
+  readonly queue?: WorkspaceView["queue"];
   readonly machineState: MachineState | null;
   readonly reach: ReachState | null;
   /** The provider's or the runtime's words on why the machine is gone or a zombie; null while it answers. */
@@ -66,6 +68,7 @@ export function workspaceTarget(workspace: WorkspaceView, status: WorkspaceStatu
     machineId: status?.machineId ?? workspace.machineId,
     kind: workspaceKind(workspace),
     phase: status?.phase ?? workspace.phase,
+    ...((status?.queue ?? workspace.queue) !== undefined ? { queue: status?.queue ?? workspace.queue } : {}),
     machineState: status?.machineState ?? null,
     reach: status?.reach.state ?? null,
     reason: status?.reason ?? workspace.gone ?? null,
@@ -122,7 +125,7 @@ export const workspaceActions: ReadonlyArray<ActionEntry<WorkspaceTarget, Worksp
     // A machine wsp neither forked nor pays for is neither paused nor woken by wsp, so the row offers neither verb
     // rather than offering one it would refuse whatever the person did.
     applies: target => kindWords(target.kind).driven,
-    refusal: target => phaseRefusal(stateOf(target)),
+    refusal: target => phaseRefusal(stateOf(target), target.queue?.why),
     run: (target, verbs) => verbs.togglePhase(target.id),
   },
   {

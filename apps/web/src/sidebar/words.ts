@@ -98,7 +98,7 @@ export const SNOOZE_WORDS = {
 
 /** What a held thread's card says under the reason: the setting that lets it start before a thread there ends. */
 export const CAP_WAIT_WORDS = {
-  raise: (place: string): string => `${CAP_RAISE_ACT} on ${place} in Settings to start it now`,
+  raise: (place: string, act: string = CAP_RAISE_ACT): string => `${act} on ${place} in Settings to start it now`,
 } as const;
 
 /** The card's line on a thread in the Needs you inbox that names the threads it hangs under, from its tree's top down. */
