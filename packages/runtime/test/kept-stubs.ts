@@ -110,7 +110,11 @@ const THREAD = "019fd0aa-0000-7000-8000-00000000c0de";
 
 /** codex app-server: one thread, each turn/start answered with a reply, turn/interrupt completing the open turn as
  * interrupted. "hang command" starts a real command in a process group of its own, which turn/interrupt leaves running
- * and the server's exit ends, as codex-cli 0.155.1 was seen to do; its pid goes to STUB_HEARD. */
+ * and the server's exit ends, as codex-cli 0.155.1 was seen to do; its pid goes to STUB_HEARD. "background <n>" leaves
+ * n real commands running past the turn as background terminals, each "terminal <pid>" to STUB_HEARD, whose item
+ * completes only once it exits, with a line in the thread's session file under CODEX_HOME then and "ended <pid>" to
+ * STUB_HEARD after it; thread/unsubscribe goes to STUB_HEARD as "unsubscribe" and ends every such command
+ * STUB_UNLOAD_MS later, as 0.155.1's unload of a thread nobody is subscribed to does (60 s there). */
 export function codexKeeper(path: string): string {
   return writeStub(
     path,
@@ -120,8 +124,19 @@ ${COMMON}
 let turns = 0;
 let open;
 let command;
+const terminals = new Set();
+const record = text => {
+  if (!process.env.CODEX_HOME) return;
+  const sessions = require("node:path").join(process.env.CODEX_HOME, "sessions", "2026", "10", "12");
+  fs.mkdirSync(sessions, { recursive: true });
+  fs.appendFileSync(require("node:path").join(sessions, "rollout-${THREAD}.jsonl"), JSON.stringify({ text }) + "\\n");
+};
+const endTerminals = () => {
+  for (const t of terminals) try { process.kill(-t.pid, "SIGKILL"); } catch {}
+};
 const quit = () => {
   if (command !== undefined) process.kill(-command.pid, "SIGTERM");
+  endTerminals();
   process.exit(0);
 };
 process.on("SIGTERM", quit);
@@ -130,6 +145,11 @@ require("node:readline").createInterface({ input: process.stdin }).on("line", li
   if (m.method === "initialize") say({ id: m.id, result: {} });
   if (m.method === "account/read" || m.method === "account/rateLimits/read") say({ id: m.id, error: { code: -32600, message: "no account here" } });
   if (m.method === "thread/start" || m.method === "thread/resume") say({ id: m.id, result: { thread: { id: "${THREAD}", turns: [] }, model: "gpt-5.5" } });
+  if (m.method === "thread/unsubscribe") {
+    heard("unsubscribe");
+    say({ id: m.id, result: { status: "unsubscribed" } });
+    setTimeout(endTerminals, Number(process.env.STUB_UNLOAD_MS || 60000));
+  }
   if (m.method === "turn/interrupt") {
     say({ id: m.id, result: {} });
     if (open !== undefined && m.params.turnId === open && !process.env.STUB_DEAF) {
@@ -154,6 +174,22 @@ require("node:readline").createInterface({ input: process.stdin }).on("line", li
         }
         return;
       }
+      if (text.startsWith("background")) {
+        for (let n = 0; n < Number(text.split(" ")[1]); n++) {
+          const item = { type: "commandExecution", id: "bg" + turns + "-" + n, command: "sleep 30", source: "unifiedExecStartup" };
+          const terminal = require("node:child_process").spawn("sleep", ["30"], { detached: true, stdio: "ignore" });
+          terminals.add(terminal);
+          heard("terminal " + terminal.pid);
+          say({ method: "item/started", params: { threadId: "${THREAD}", turnId: id, item: { ...item, status: "inProgress" } } });
+          terminal.on("exit", () => {
+            terminals.delete(terminal);
+            say({ method: "item/completed", params: { threadId: "${THREAD}", turnId: id, item: { ...item, status: "completed" } } });
+            record("ended " + item.id);
+            heard("ended " + terminal.pid);
+          });
+        }
+      }
+      record(text);
       say({ method: "item/completed", params: { threadId: "${THREAD}", turnId: id, item: { type: "agentMessage", id: "m" + turns, text: signed(text, turns) } } });
       say({ method: "turn/completed", params: { threadId: "${THREAD}", turn: { id, items: [], status: "completed" } } });
     });
