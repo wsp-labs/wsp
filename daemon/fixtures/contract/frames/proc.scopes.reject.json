@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "op": "proc.scopes"
+  },
+  {
+    "id": 1,
+    "op": "proc.scopes",
+    "scopes": [{ "workspace": "ws_1" }]
+  },
+  {
+    "id": 1,
+    "op": "proc.scopes",
+    "scopes": [{ "thread": "" }]
+  },
+  {
+    "id": 1,
+    "op": "proc.scopes",
+    "scopes": [{ "thread": "t_1", "pids": [{ "pid": 4300, "kind": "browser" }] }]
+  },
+  {
+    "id": 1,
+    "op": "proc.scopes",
+    "scopes": [{ "thread": "t_1", "agents": [-1] }]
+  }
+]

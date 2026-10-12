@@ -544,8 +544,8 @@ describe("the agent contract on the command line and the tool door", () => {
     // The fixture's agents keep no store of their own, so the project's list is empty and says no agent went unread.
     expect(await last("conversations", "conversations", "here")).toEqual({ rows: [], held: [] });
     expect(await last("delete", "delete", inFolder.threadId, "--yes")).toEqual({ threadId: inFolder.threadId, workspaceId: expect.any(String), threads: 1 });
-    // This computer's daemon lists one process wsp started in a folder with no thread, which an End may take.
-    procs.procs = [procRow({ pid: 4242, cmdline: "node watch.js", owner: { by: "folder", workspace: alpha } })];
+    // This computer's daemon lists one process a thread now gone started, which an End may take.
+    procs.procs = [procRow({ pid: 4242, cmdline: "node watch.js", owner: { by: "env", thread: "t-gone", workspace: alpha } })];
     expect(await last("activity", "activity")).toMatchObject({ threads: [], unowned: [{ pid: 4242, kind: "other", command: "node watch.js" }] });
     expect(await last("activity end", "activity", "end", "4242", "--started", String(procRow({ pid: 4242 }).startedAt))).toEqual({ pid: 4242, ended: [expect.objectContaining({ pid: 4242 })], forced: [], left: [] });
     // A launch that never started its agent leaves a row with no turn on it, which is the one a forget takes.

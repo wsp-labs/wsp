@@ -41,6 +41,7 @@ import {
   WORKSPACE_OVERLAID,
   DAEMON_TOKEN_REFUSED,
   DAEMON_VERSION,
+  THREAD_ENV,
   CopyReport,
   DaemonAuthRequest,
   DaemonErrorResponse,
@@ -1042,6 +1043,11 @@ describe("the words and numbers are what this package exports", () => {
     });
     // The binary the host deploys is not one of them: it is the host's to land and sits beside the folder.
     expect(GUEST_DAEMON_DIR.startsWith(GUEST_WSP_HOME)).toBe(false);
+  });
+
+  it("reads a process's thread out of the variable a turn's launch names it in", () => {
+    const daemonSource = readFileSync(fileURLToPath(new URL("../../../daemon/crates/wsp-daemon/src/proc_owner.rs", import.meta.url)), "utf8");
+    expect(daemonSource).toContain(`pub(crate) const THREAD_MARK: &str = "${THREAD_ENV}";`);
   });
 
   it("holds every 4401 reason once, and the listening line names a host and a port", () => {

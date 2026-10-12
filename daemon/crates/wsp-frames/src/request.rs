@@ -5,10 +5,11 @@ use std::num::{NonZeroU16, NonZeroU32};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::proc_owner::scopes;
 use crate::validate::{bounded, bounded_list, bounded_opt, capped_list, cgroup_paths, exec_timeout, sha256_hex, upload_word, watch_name};
 use crate::{
-    FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, MergeMethod, ProcSignal, ReactionContent, RequestId, ReviewEvent, ReviewSide,
-    UsageLogFormat,
+    FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, MergeMethod, ProcScope, ProcSignal, ReactionContent, RequestId, ReviewEvent,
+    ReviewSide, UsageLogFormat,
 };
 
 /// One request on an authed socket: the id the reply echoes and the op with its parameters.
@@ -213,6 +214,13 @@ pub enum DaemonOp {
     },
     #[serde(rename = "proc.unwatch")]
     ProcUnwatch,
+    /// The threads whose processes these are, the whole list each time: every row proc.watch sends after it carries
+    /// the owner and kind they name.
+    #[serde(rename = "proc.scopes")]
+    ProcScopes {
+        #[serde(deserialize_with = "scopes")]
+        scopes: Vec<ProcScope>,
+    },
     #[serde(rename = "proc.inspect")]
     ProcInspect { pid: NonZeroU32 },
     #[serde(rename = "proc.list")]
@@ -906,7 +914,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 79] = [
+pub const DAEMON_OPS: [&str; 80] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -928,6 +936,7 @@ pub const DAEMON_OPS: [&str; 79] = [
     "transcripts.read",
     "proc.watch",
     "proc.unwatch",
+    "proc.scopes",
     "proc.inspect",
     "proc.list",
     "proc.kill",

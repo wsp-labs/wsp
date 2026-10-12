@@ -18,11 +18,14 @@ export function inCgroup(at: string | undefined, cgroup: string): boolean {
 }
 
 /** The line a launch runs as root before it hands its command to the login: the shell stands itself in the thread's
- * cgroup, so what it starts stands there too. A computer with no cgroup v2, or one that will not take the folder,
- * launches the same command where it stands, since the cgroup tracks and never gates. */
+ * cgroup, so what it starts stands there too. The folder above it turns on the memory and pids controllers for its
+ * children, which is what gives each thread's cgroup `memory.stat` and `pids.current`; that folder holds no process
+ * of its own, as the kernel asks of one that does. A computer with no cgroup v2, or one that will not take the folder
+ * or the controllers, launches the same command where it stands, since the cgroup tracks and never gates. */
 export function cgroupJoinLine(cgroup: string): string {
   const at = shellQuote(`${CGROUP_MOUNT}${cgroup}`);
-  return `[ -f ${CGROUP_MOUNT}/cgroup.controllers ] && mkdir -p ${at} 2>/dev/null && echo $$ > ${at}/cgroup.procs 2>/dev/null; true`;
+  const above = shellQuote(`${CGROUP_MOUNT}${cgroup.slice(0, cgroup.lastIndexOf("/"))}`);
+  return `[ -f ${CGROUP_MOUNT}/cgroup.controllers ] && mkdir -p ${at} 2>/dev/null && { echo '+memory +pids' > ${above}/cgroup.subtree_control; echo $$ > ${at}/cgroup.procs; } 2>/dev/null; true`;
 }
 
 /** How long a thread's processes get between TERM and KILL, and after KILL, in tenths of a second. */

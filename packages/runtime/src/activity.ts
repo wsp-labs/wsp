@@ -114,30 +114,33 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
     });
   };
 
-  /** The runs of each thread on this computer, newest first: a turn's process while it runs, and the agent a thread
-   * keeps for its next turn while none runs. */
+  /** Each thread on this computer: its roots as the daemon is told them (`ctx.scopesHere`, the one rule), with the agent
+   * it keeps for its next turn while no turn runs, then every other thread a local folder ran, rootless, so what a
+   * finished thread left still lists under it; running threads first, then newest first. A warm agent no send has
+   * claimed names no thread yet. */
   const scopesHere = (): ActivityScope[] => {
-    const threads = new Map<string, { workspaceId: string; roots: Set<number>; latest?: { at: number; pid?: number }; running: boolean; at: number }>();
-    for (const s of ctx.sessions.values()) {
-      const { threadId, workspaceId, status, startedAt = 0 } = s.view;
-      const record = ctx.live.get(workspaceId)?.record;
-      if (threadId === undefined || record === undefined || !isLocalWorkspace(record)) continue;
-      const t = threads.get(threadId) ?? { workspaceId, roots: new Set<number>(), running: false, at: 0 };
-      threads.set(threadId, t);
-      t.at = Math.max(t.at, startedAt);
-      if (status === "running") {
-        t.running = true;
-        if (s.pid !== undefined) t.roots.add(s.pid);
-      }
-      if (t.latest === undefined || startedAt >= t.latest.at) t.latest = { at: startedAt, ...(s.pid !== undefined ? { pid: s.pid } : {}) };
+    const running = new Set<string>();
+    const latest = new Map<string, { workspaceId: string; at: number }>();
+    for (const { view } of ctx.sessions.values()) {
+      const record = ctx.live.get(view.workspaceId)?.record;
+      if (view.threadId === undefined || record === undefined || !isLocalWorkspace(record)) continue;
+      if (view.status === "running") running.add(view.threadId);
+      const at = view.startedAt ?? 0;
+      if ((latest.get(view.threadId)?.at ?? -1) <= at) latest.set(view.threadId, { workspaceId: view.workspaceId, at });
     }
-    return [...threads]
-      .sort(([, a], [, b]) => Number(b.running) - Number(a.running) || b.at - a.at)
-      .map(([threadId, t]) => {
-        const kept = !t.running && ctx.keptAgents.has(threadId) ? t.latest?.pid : undefined;
-        if (kept !== undefined) t.roots.add(kept);
-        return { threadId, title: ctx.threadFacts(threadId)?.title ?? threadWord(threadId), workspaceId: t.workspaceId, roots: [...t.roots], ...(kept !== undefined ? { kept } : {}) };
-      });
+    const titled = (threadId: string): string => ctx.threadFacts(threadId)?.title ?? threadWord(threadId);
+    const scopes: ActivityScope[] = [];
+    for (const s of ctx.scopesHere()) {
+      if (s.warm === true) continue;
+      const kept = running.has(s.thread) ? undefined : ctx.keptAgents.get(s.thread)?.pid;
+      const roots = [...new Set([...(s.agents ?? []), ...(s.groups ?? [])])];
+      const workspaceId = s.workspace ?? latest.get(s.thread)?.workspaceId ?? "";
+      scopes.push({ threadId: s.thread, title: titled(s.thread), workspaceId, roots, ...(kept !== undefined ? { kept } : {}) });
+    }
+    const named = new Set(scopes.map(s => s.threadId));
+    for (const [threadId, t] of latest) if (!named.has(threadId)) scopes.push({ threadId, title: titled(threadId), workspaceId: t.workspaceId, roots: [] });
+    const started = (threadId: string): number => latest.get(threadId)?.at ?? 0;
+    return scopes.sort((a, b) => Number(running.has(b.threadId)) - Number(running.has(a.threadId)) || started(b.threadId) - started(a.threadId));
   };
 
   const readOf = async (computer: string, once = false): Promise<ActivityRead> => {

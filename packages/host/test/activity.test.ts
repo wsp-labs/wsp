@@ -70,6 +70,19 @@ describe("activity on the command line", () => {
     expect(prose.io.lines.join("\n")).toContain("4200  dev  node /lab/node_modules/.bin/vite  :5173");
   });
 
+  it("lists the newest thread first", async () => {
+    const ids: string[] = [];
+    for (const name of ["one", "two"]) {
+      const folder = realpathSync(mkdtempSync(join(h.dir, `repo-${name}-`)));
+      execFileSync("git", ["init", "-q", folder]);
+      await projectOn(h.rt, HERE_PLACE_ID, folder, { name });
+      ids.push((h.json((await h.run("run", name, "go", "--json")).io).at(-1) as { threadId: string }).threadId);
+    }
+    h.daemon.procs.procs = ids.map((thread, i) => procRow({ pid: 4100 + i, owner: { by: "fork", thread } }));
+    const view = ActivityView.parse(h.json((await h.run("activity", "--json")).io).at(-1));
+    expect(view.threads.map(t => t.threadId)).toEqual([...ids].reverse());
+  });
+
   it("end refuses the agent, sending nothing, and points at the thread's stop", async () => {
     const { threadId, title } = await threadWithServer();
     const agent = await h.run("activity", "end", "4100", "--started", String(STARTED), "--json");

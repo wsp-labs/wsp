@@ -189,6 +189,26 @@ describe("daemon ops: ports, manifest, inbox", () => {
     a.close();
   });
 
+  it("proc.scopes names whose each row is: what the host started reads its kind, and what that started follows it", async () => {
+    const a = await connect(daemon.port);
+    expect(await a.request("proc.scopes", { scopes: [{ workspace: "ws_1" }] })).toMatchObject({ ok: false, code: "bad-request" });
+    expect(await a.request("proc.scopes", { scopes: [{ thread: "t_1", workspace: "ws_1", pids: [{ pid: 50, kind: "slate" }] }] })).toMatchObject({ ok: true });
+    expect((await a.request("proc.watch")).ok).toBe(true);
+    await vi.waitFor(() => expect(a.events.some(e => e.type === "proc.snapshot")).toBe(true), { timeout: 5_000, interval: 10 });
+    type Row = { pid: number; pgid?: number; owner?: unknown; kind?: string };
+    const rows = (a.events.find(e => e.type === "proc.snapshot") as unknown as { procs: Row[] }).procs;
+    const owner = { by: "root", thread: "t_1", workspace: "ws_1" };
+    expect(rows.find(p => p.pid === 50)).toMatchObject({ owner, kind: "slate" });
+    expect(rows.find(p => p.pid === 51)).toMatchObject({ owner, kind: "slate" });
+    expect(rows.find(p => p.pid === 1)?.owner).toBeUndefined();
+    // A tool server the host started under another thread: the next frame moves both rows.
+    expect(await a.request("proc.scopes", { scopes: [{ thread: "t_2", pids: [{ pid: 51, kind: "tool" }] }] })).toMatchObject({ ok: true });
+    await vi.waitFor(() => expect(a.events.some(e => e.type === "proc.changes" && (e["procs"] as Row[]).some(p => p.pid === 51 && p.kind === "tool"))).toBe(true), { timeout: 5_000, interval: 10 });
+    expect((await a.request("proc.scopes", { scopes: [] })).ok).toBe(true);
+    expect((await a.request("proc.unwatch")).ok).toBe(true);
+    a.close();
+  });
+
   it("an exited pty stops labelling its pid, so a stranger who reuses it carries no pty id", async () => {
     const a = await connect(daemon.port);
     const created = await a.request("pty.create", { shell: "bash", cols: 40, rows: 10 });

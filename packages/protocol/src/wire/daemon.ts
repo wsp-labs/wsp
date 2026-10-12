@@ -319,6 +319,8 @@ export const ProcEntry = z.object({
   /** The power its cpu work drew over the interval in milliwatts, from the kernel's per process energy counter: a Mac
    * alone keeps one, so a row elsewhere, and a process's first reading, carry none. */
   energyMw: z.number().optional(),
+  /** The process group, which outlives the parent a detached child loses. */
+  pgid: z.number().int().optional(),
   /** Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's, and on a
    * daemon from before proc.scopes. One named by a rung a newer daemon adds reads as absent, rather than dropping the
    * frame it rides in. */
@@ -327,6 +329,25 @@ export const ProcEntry = z.object({
   kind: ProcKind.catch("other").optional(),
 });
 export type ProcEntry = z.infer<typeof ProcEntry>;
+
+/** How many threads one proc.scopes names, and how many pids each of a thread's lists holds; wsp-frames' proc_owner.rs
+ * holds the same two. */
+export const PROC_SCOPES_MAX = 256;
+export const PROC_SCOPE_PIDS_MAX = 64;
+
+/** One thread as the host names it to the computer its processes run on: its agent processes (the running turn's and
+ * the kept one), the groups its turns led, its folder, its cgroup on a box, and what the host started for it. */
+export const ProcScope = z.object({
+  thread: z.string().min(1).max(64),
+  workspace: z.string().max(64).optional(),
+  agents: z.array(z.number().int().nonnegative()).max(PROC_SCOPE_PIDS_MAX).optional(),
+  groups: z.array(z.number().int().nonnegative()).max(PROC_SCOPE_PIDS_MAX).optional(),
+  folder: z.string().max(4096).optional(),
+  warm: z.boolean().optional(),
+  cgroup: z.string().max(512).optional(),
+  pids: z.array(z.object({ pid: z.number().int().nonnegative(), kind: ProcKind })).max(PROC_SCOPE_PIDS_MAX).optional(),
+});
+export type ProcScope = z.infer<typeof ProcScope>;
 
 /** Which column a list of processes is ordered by: what is spending the cpu, or what is holding the memory. */
 export type ProcSort = "cpu" | "mem";
@@ -483,6 +504,9 @@ export const DaemonRequest = z.discriminatedUnion("op", [
    * a second watch names the set again. */
   z.object({ id: reqId, op: z.literal("proc.watch"), cgroups: z.array(cgroupPath).max(16).optional() }),
   z.object({ id: reqId, op: z.literal("proc.unwatch") }),
+  /** The threads whose processes these are, the whole list each time; every row proc.watch sends after it carries
+   * the owner and kind they name. */
+  z.object({ id: reqId, op: z.literal("proc.scopes"), scopes: z.array(ProcScope).max(PROC_SCOPES_MAX) }),
   /** One process in depth, replied as a ProcInspectReply; this is the only op
    * that scans /proc/net, and only for that pid's sockets. */
   z.object({ id: reqId, op: z.literal("proc.inspect"), pid: z.number().int().positive() }),

@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { THREAD_ENV } from "@wsp/protocol";
 import { BACKED_OFF, createSlateRuns, restartedRecord, rewoundRecord, type CmdRunDecl, type RunRoad, type RunInputs, type RunRecord, type RunStart, type SlateRuns, type SlateRunsDeps } from "../src/slate-runs.js";
 
 const THREAD = "t1";
@@ -489,5 +490,40 @@ describe("timers", () => {
     vi.advanceTimersByTime(120_000);
     expect(h.timers.filter(t => t === "shown")).toHaveLength(4);
     expect(h.timers.filter(t => t === "always")).toHaveLength(4);
+  });
+});
+
+describe("a command's process", () => {
+  it("is named as the thread's slate run while it runs, the pid its own, and released when it ends", async () => {
+    const owned: { threadId: string; pid: number; kind: string; released: boolean }[] = [];
+    const h = harness({
+      own: (threadId, pid, kind) => {
+        const row = { threadId, pid, kind, released: false };
+        owned.push(row);
+        return () => void (row.released = true);
+      },
+    });
+    const done = await runAllowed(h, "pid", cmd("echo $$"));
+    expect(owned.map(o => [o.threadId, o.kind, o.released])).toEqual([[THREAD, "slate", true]]);
+    expect(done.out?.trim()).toBe(String(owned[0]!.pid));
+  });
+
+  it("on the thread's own machine carries the thread's mark, for the command and its then, which the machine's daemon names it by", async () => {
+    const envs: Record<string, string>[] = [];
+    const road: RunRoad = {
+      slateDir: "/tmp/wsp-slates/t1",
+      start(o, on) {
+        envs.push(o.env);
+        queueMicrotask(() => on.end({ code: 0, out: "{}", err: "", cut: false, timedOut: false }));
+        return { kill: () => {} };
+      },
+      reshape(o) {
+        envs.push(o.env);
+        return { done: Promise.resolve({ json: {} }), kill: () => {} };
+      },
+    };
+    const h = harness({ road: () => road });
+    await runAllowed(h, "there", cmd("true", { then: "cat" }));
+    expect(envs).toEqual([{ SLATE_DIR: "/tmp/wsp-slates/t1", [THREAD_ENV]: THREAD }, { SLATE_DIR: "/tmp/wsp-slates/t1", [THREAD_ENV]: THREAD }]);
   });
 });

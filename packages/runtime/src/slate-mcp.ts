@@ -63,6 +63,8 @@ export interface SlateMcpDeps {
   /** A run's `then` on this computer, in the thread's folder, the raw result already scrubbed on its stdin. */
   reshape(threadId: string, cmd: string, input: string): Reshape;
   computer(threadId: string): string;
+  /** Names a stdio server's process as the thread's tool server until the returned release. */
+  own?: (threadId: string, pid: number, kind: "tool") => () => void;
   now?: () => number;
   /** How long a connection lives unused while its slate is not shown and no `always` timer keeps it. */
   idleMs?: number;
@@ -206,6 +208,8 @@ interface Client {
   readonly closed: boolean;
   /** What the server said on stderr, its tail, for a failure's why. */
   said(): string;
+  /** The server's process on this computer, for a stdio server. */
+  readonly pid?: number;
 }
 
 class RpcFailed extends Error {
@@ -299,6 +303,7 @@ function stdioClient(t: Extract<McpTransport, { kind: "stdio" }>, spec: McpServe
       return closed;
     },
     said: () => err,
+    ...(child.pid !== undefined ? { pid: child.pid } : {}),
   };
 }
 
@@ -517,10 +522,13 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
     if (was !== undefined) return was;
     const made = (async (): Promise<Conn> => {
       const spec = await deps.server(threadId, server);
+      let release: (() => void) | undefined;
       const gone = (): void => {
+        release?.();
         if (t.conns.get(server) === made) t.conns.delete(server);
       };
       const client = spec.transport.kind === "stdio" ? stdioClient(spec.transport, spec, gone) : httpClient(spec.transport, gone);
+      if (!client.closed && client.pid !== undefined) release = deps.own?.(threadId, client.pid, "tool");
       try {
         const init = (await client.request("initialize", { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } }, CONNECT_MS).answer) as { capabilities?: { resources?: unknown } } | undefined;
         client.notify("notifications/initialized");

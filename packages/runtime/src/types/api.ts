@@ -56,7 +56,7 @@ import type { DeviceDoor } from "../devices.js";
 import type { PlaceDoor } from "../places.js";
 import type { Slates } from "../slates.js";
 import type { GitPrDiffReply, ReviewDraft, ReviewPostResult, ReviewVerdict, StartResult } from "@wsp/protocol";
-import type { HistoryPage, ThreadHead } from "@wsp/protocol";
+import type { HistoryPage, ProcKind, ThreadHead } from "@wsp/protocol";
 import type { StartPicksAsked } from "./harness.js";
 import type { EventBus } from "./events.js";
 import type { ActivityDoor } from "../activity.js";
@@ -77,6 +77,9 @@ export interface Runtime {
   /** A computer's live readings, this one or one the person added, off the one watch the host holds of it for every
    * reader until the returned detach runs. */
   watchPlaceSys(placeId: string, fn: (s: SysSample) => void): Promise<() => void>;
+  /** Names a process this host started for a thread, a guest's tool server, to the daemon's owner ladder until the
+   * returned release. */
+  ownProcess(threadId: string, pid: number, kind: ProcKind): () => void;
   /** The agents, skills and MCP servers on one computer or workspace, read as that computer's login. A napping
    * workspace answers the last report read while it ran and is never woken for this. */
   readonly agents: {

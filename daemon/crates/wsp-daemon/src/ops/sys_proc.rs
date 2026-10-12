@@ -72,6 +72,7 @@ pub(super) fn serves(op: &DaemonOp) -> bool {
             | DaemonOp::SysHistory { .. }
             | DaemonOp::ProcWatch { .. }
             | DaemonOp::ProcUnwatch
+            | DaemonOp::ProcScopes { .. }
             | DaemonOp::ProcInspect { .. }
             | DaemonOp::ProcList
             | DaemonOp::ProcKill { .. }
@@ -138,6 +139,7 @@ pub(super) async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId
             conn.proc_watch.unwatch();
             ok(id)
         }
+        DaemonOp::ProcScopes { scopes } => answer(id, ctx.proc_sampler().map(|sampler| sampler.set_scopes(scopes)).map(|()| Empty {})),
         DaemonOp::ProcInspect { pid } => {
             let inspected = async { ctx.proc_sampler()?.inspect(pid_in_range(pid)?).await };
             answer(id, inspected.await)

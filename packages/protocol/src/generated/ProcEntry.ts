@@ -18,7 +18,10 @@ cgroup?: string,
  */
 energyMw?: number, 
 /**
- * Whose it is, where the daemon could tell; absent for a process that is not wsp's, and on a daemon that names
- * no owners.
+ * The process group, which outlives the parent a detached child loses.
+ */
+pgid?: number, 
+/**
+ * Whose it is, off the threads the host named in proc.scopes; absent for a process that is not wsp's.
  */
 owner?: ProcOwner, kind?: ProcKind, };
