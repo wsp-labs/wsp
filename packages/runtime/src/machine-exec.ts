@@ -41,7 +41,7 @@ import type { ExecStream, ExecStreamFactory, TurnCutRule } from "@wsp/protocol";
 export interface MachineExecOptions {
   /** Delay between log polls. */
   pollMs?: number;
-  /** How long the log may stay quiet, write() and the run group's own work included, before the stream ends with
+  /** How long the log may stay quiet, write() and the work of the run's tree included, before the stream ends with
    * exit null and the idle line. */
   idleMs?: number;
   /** The cap on one stream however much it prints; the stream ends with exit null and the wall line past it. */
@@ -121,7 +121,7 @@ export interface TurnActivity {
    * quiet and the clock goes on from where it stood. */
   hold(ms: number): void;
   /** One reading of the turn's tree. The first, and any that undercuts the one before it, is only what the next is
-   * measured from: a group whose members exited carries less work than it did and is no baseline. */
+   * measured from: a tree whose members exited carries less work than it did and is no baseline. */
   read(ticks: number, atMs: number): void;
 }
 
@@ -156,13 +156,23 @@ export function readsWork(idleMs: number, quietMs: number): boolean {
   return Number.isFinite(idleMs) && quietMs >= idleMs / 2;
 }
 
-/** What the guest counts a run's work by, given the run's process group id in `p`: for every process in that group,
- * the CPU ticks it has burned and the megabytes it has read or written, summed into one number the next poll is
- * compared with. /proc is the only road to it, since the guests have no pgrep, and the comm field is stripped by its
- * last bracket because a process may be named `(sh (2))`. A guest that answers nothing here (no awk, no /proc)
- * leaves the turn's idle clock on bytes alone. */
-export const GROUP_WORK_AWK =
-  'FNR==1{s=$0;sub(/^[0-9]+ \\(.*\\) /,"",s);split(s,f," ");if(f[3]==p){t+=f[12]+f[13];i=FILENAME;sub(/stat$/,"io",i);while((getline l<i)>0)if(l~/^[rw]char:/){split(l,g," ");t+=int(g[2]/1048576)}close(i)}}END{print t+0}';
+/** What the guest counts a run's work by, given the pid of the run's script in `p`, which also leads the run's
+ * process group: every process whose parent chain reaches that pid or a member of that group, each counted once
+ * for the CPU ticks it and the children it has reaped have burned and the megabytes it has read or written,
+ * summed into one number the next poll is compared with. The chain matters because Claude Code starts every Bash
+ * tool command, foreground or background, in a session and group of its own, so a build an agent runs is never in
+ * the run's group; the group keeps the members whose parent went, the run's input pump among them. The reaped
+ * children's ticks (cutime, cstime) keep the sum from falling each time a compiler exits, since a reading below the
+ * last is only a new baseline; the kernel folds a reaped child's bytes into its parent's io already. /proc is the
+ * only road to it, since the guests have no pgrep, and the comm field is stripped by its last bracket because a
+ * process may be named `(sh (2))`. Each file is opened by getline rather than handed to awk as input: every awk
+ * aborts on an input file it cannot open, so one process exiting between the shell's glob and the read would void
+ * the whole reading. A guest with no /proc reads 0 on every poll, and one with no awk reads nothing; either leaves
+ * the turn's idle clock on bytes alone. */
+export const TREE_WORK_AWK =
+  "BEGIN{for(k=1;k<ARGC;k++){if((getline s<ARGV[k])>0){n=s+0;sub(/^[0-9]+ \\(.*\\) /,\"\",s);split(s,f,\" \");up[n]=f[2];g[n]=f[3];c[n]=f[12]+f[13]+f[14]+f[15];at[n]=ARGV[k]}close(ARGV[k])}" +
+  "for(n in up){q=n;for(d=0;d<64;d++){if(q==p||((q in g)&&g[q]==p)){t+=c[n];i=at[n];sub(/stat$/,\"io\",i);while((getline l<i)>0)if(l~/^[rw]char:/){split(l,h,\" \");t+=int(h[2]/1048576)}close(i);break}if(!(q in up))break;q=up[q]}}" +
+  "print t+0}";
 
 const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** What a launch mints a run's name from, so a handle read back off the sessions index is checked against the shape
@@ -371,14 +381,14 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
       machine.exec(`${reapScript(base, "", false)}; true`, { timeoutMs: execTimeoutMs }).then(() => undefined, () => undefined);
 
     // The exit file is read before the log, so a poll that sees an exit code reads a log that is complete. The
-    // group's work rides the same poll when it is worth reading, so a turn working in silence costs no exec of its
+    // tree's work rides the same poll when it is worth reading, so a turn working in silence costs no exec of its
     // own and a stream nothing could cut asks the guest for nothing; unasked, $W is empty and the reader sees no
     // reading.
     const pollCmd = (offset: number, work: boolean): string =>
       `E=$(cat ${q(base)}.exit 2>/dev/null); ` +
       `tail -c +${offset + 1} ${q(base)}.log 2>/dev/null | head -c ${EXEC_CHUNK_BYTES} | base64 -w0; ` +
       `P=$(cat ${q(base)}.pid 2>/dev/null); ` +
-      (work ? `W=$(awk -v p="$P" ${shellQuote(GROUP_WORK_AWK)} /proc/[0-9]*/stat 2>/dev/null); ` : "") +
+      (work ? `W=$(awk -v p="$P" ${shellQuote(TREE_WORK_AWK)} /proc/[0-9]*/stat 2>/dev/null); ` : "") +
       `printf '\\n${sentinel} %s %s %s\\n' "$E" ` +
       `"$([ -n "$P" ] && kill -0 "$P" 2>/dev/null && echo up || echo down)" "$W"`;
 
