@@ -149,6 +149,9 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
       () => undefined,
     );
   };
+  /** A kept process still running work a turn of it left going: idle does not end it, and it holds its session for
+   * that work, so a change to the session file since its last turn is its own. */
+  const working = (kept: KeptProcess): boolean => kept.agent.working?.() === true;
   /** A thread's kept process on a joined computer is ended before a send would take it where that computer is away,
    * since its message would reach nothing, and where the session file changed there since its last turn, as takeKept
    * ends one here: the person resumed the session in a terminal there. Either way the send boots cold. A send asks
@@ -160,7 +163,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     if (kept === undefined || box === undefined) return;
     if (ctx.placeDoor?.link(box.place) === undefined) return reapKept(threadId);
     if (kept.session !== undefined) await hostWrites.get(kept.session);
-    if (keptAgents.get(threadId) !== kept || kept.boxFile === undefined || kept.agent.sessionFile === undefined) return;
+    if (keptAgents.get(threadId) !== kept || kept.boxFile === undefined || kept.agent.sessionFile === undefined || working(kept)) return;
     const [was, now] = await Promise.all([kept.boxFile, boxFileSize(kept.workspaceId, kept.agent.sessionFile)]);
     if (was !== undefined && now !== undefined && was !== now && keptAgents.get(threadId) === kept) reapKept(threadId);
   };
@@ -205,7 +208,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     if (kept === undefined) return undefined;
     const asked = kept.warm === undefined ? launch : whole;
     const matches = asked !== undefined && launchesAs(kept.launch, asked) && (kept.warm === undefined || launchesAs(asked, kept.launch));
-    if (!matches || kept.session !== session || !sameSessionFile(kept.agent.sessionFile, kept.file)) {
+    if (!matches || kept.session !== session || (!working(kept) && !sameSessionFile(kept.agent.sessionFile, kept.file))) {
       reapKept(threadId);
       return undefined;
     }
@@ -270,7 +273,9 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
 
   const arm = (threadId: string, kept: KeptProcess, ms: number): void => {
     kept.cancel = clock.schedule(() => {
-      if (keptAgents.get(threadId) === kept) reapKept(threadId);
+      if (keptAgents.get(threadId) !== kept) return;
+      if (working(kept)) arm(threadId, kept, ms);
+      else reapKept(threadId);
     }, ms, { unref: true });
   };
   const keep = (threadId: string, kept: KeptProcess, ms: number): void => {
@@ -289,7 +294,9 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     for (;;) {
       const there = [...keptAgents].filter(([, other]) => keptBox(other.workspaceId)?.place === box?.place);
       if (there.length <= (box?.cap ?? AGENTS_KEPT)) return;
-      reapKept(there.reduce((a, b) => (b[1].usedAt < a[1].usedAt ? b : a))[0]);
+      const idle = there.filter(([, other]) => !working(other));
+      if (idle.length === 0) return;
+      reapKept(idle.reduce((a, b) => (b[1].usedAt < a[1].usedAt ? b : a))[0]);
     }
   };
 

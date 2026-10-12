@@ -78,6 +78,9 @@ const groupAlive = (leader: number): boolean => {
   }
 };
 
+/** The commands the Codex stub left running as background terminals, by the pids it said. */
+const terminalsOf = (): number[] => [...readFileSync(heard, "utf8").matchAll(/^terminal (\d+)$/gm)].map(m => Number(m[1]));
+
 /** One send into a thread, run to its reply. */
 const send = async (rt: Runtime, workspaceId: string, prompt: string, more: { thread?: string; model?: string; harness?: string } = {}): Promise<{ result: TurnResult; threadId: string }> => {
   const handle = await rt.sessions.start(workspaceId, { prompt, ...more });
@@ -218,6 +221,66 @@ describe("a thread on this computer keeps its agent process between turns", () =
     await gone(pids[0]!);
     expect(pids.slice(1).every(alive)).toBe(true);
     await rt.close();
+  }, 60_000);
+
+  it("keeps a Codex thread and its server past the keep while background commands its turn left run, and lets both go once the last ends", async () => {
+    const fc = fakeClock();
+    const rt = host({ clock: fc.clock, env: { STUB_UNLOAD_MS: "200" } });
+    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac" });
+    const one = await send(rt, ws.id, "background 2", { harness: "codex" });
+    expect(one.result.status).toBe("completed");
+    const server = pidOf(one.result.text);
+    const [first, second] = terminalsOf() as [number, number];
+    try {
+      // Past the whole keep, and past the unload a thread let go of gets.
+      fc.advance(AGENT_KEEP_MS);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      expect([first, second, server].every(alive)).toBe(true);
+      // One ends between turns and the server writes that into the thread's session file, which is no other writer's.
+      process.kill(first, "SIGTERM");
+      await until(() => readFileSync(heard, "utf8").includes(`ended ${first}`), 10_000);
+      const two = await send(rt, ws.id, "two", { thread: one.threadId });
+      expect(pidOf(two.result.text)).toBe(server);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      expect(alive(second)).toBe(true);
+      expect(readFileSync(heard, "utf8")).not.toContain("unsubscribe");
+      // The last ends between turns: the thread is let go, and the keep runs out as it does for any idle server.
+      process.kill(second, "SIGTERM");
+      await until(() => readFileSync(heard, "utf8").includes("unsubscribe"), 10_000);
+      fc.advance(AGENT_KEEP_MS);
+      await gone(server);
+    } finally {
+      for (const pid of [first, second]) if (alive(pid)) process.kill(pid, "SIGKILL");
+      await rt.close();
+    }
+  }, 30_000);
+
+  it("lets go of a Codex thread whose command ends in the same read as its turn's end, and the keep then runs out", async () => {
+    const fc = fakeClock();
+    const rt = host({ clock: fc.clock });
+    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac" });
+    const one = await send(rt, ws.id, "raced", { harness: "codex" });
+    expect(one.result.status).toBe("completed");
+    await until(() => readFileSync(heard, "utf8").includes("unsubscribe"), 5_000);
+    fc.advance(AGENT_KEEP_MS);
+    await gone(pidOf(one.result.text));
+    await rt.close();
+  }, 30_000);
+
+  it(`ends the idle one at the cap of ${AGENTS_KEPT}, never a server a background command keeps`, async () => {
+    const rt = host();
+    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac" });
+    const server = pidOf((await send(rt, ws.id, "background 1", { harness: "codex" })).result.text);
+    const [terminal] = terminalsOf() as [number];
+    try {
+      const pids: number[] = [];
+      for (let n = 0; n < AGENTS_KEPT; n++) pids.push(pidOf((await send(rt, ws.id, `thread ${n}`)).result.text));
+      await gone(pids[0]!);
+      expect([server, terminal, ...pids.slice(1)].every(alive)).toBe(true);
+    } finally {
+      if (alive(terminal)) process.kill(terminal, "SIGKILL");
+      await rt.close();
+    }
   }, 60_000);
 
   it("ends the kept process when its thread is settled, and when it is deleted", async () => {
