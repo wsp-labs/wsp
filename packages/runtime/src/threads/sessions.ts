@@ -965,9 +965,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       });
     },
 
-    async head(threadId, origin) {
+    async head(threadId, origin, o = {}) {
       await ctx.ready();
-      const facts = ctx.threadFacts(threadId);
+      const facts = o.afterRead === true ? await ctx.factsAfterRead(threadId, origin) : ctx.threadFacts(threadId);
       if (facts === undefined || (await ctx.entryOfRow({ threadId: facts.threadId ?? threadId, workspaceId: facts.workspaceId }, origin)) === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       // The events take what the facts leave of the head's bytes, less the reply's own keys and numbers.
       const room = HEAD_BYTES - Buffer.byteLength(JSON.stringify(facts)) - 100;

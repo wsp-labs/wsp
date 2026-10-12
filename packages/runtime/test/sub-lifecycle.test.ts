@@ -11,7 +11,7 @@ import type { Clock } from "../src/clock.js";
 import { SUB_SESSIONS, subResultCommand } from "../src/machines/sub-life.js";
 import type { Runtime } from "../src/runtime.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
-import { PUSHED, UNPUSHED, answering, leadOnThisComputer, type Answers } from "./sub-fixture.js";
+import { PUSHED, UNPUSHED, answering, jumpClock, leadOnThisComputer, until, type Answers } from "./sub-fixture.js";
 import type { StubMachine } from "./stub-backend.js";
 
 const NAME = "Fix the flaky upload test";
@@ -19,45 +19,6 @@ const BRANCH = "wsp/fix-the-flaky-upload-test";
 const BASE = "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a";
 const PUSHED_SHA = "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e";
 const MIN = 60_000;
-
-/** Real timers, and a now the test can move on: a jump fires every timer it passes at once. */
-function jumpClock(): { clock: Clock; jump(ms: number): void } {
-  let offset = 0;
-  const pending = new Set<{ at: number; fn: () => void; timer: ReturnType<typeof setTimeout> }>();
-  const clock: Clock = {
-    now: () => Date.now() + offset,
-    schedule: (fn, ms, o) => {
-      const p = { at: Date.now() + offset + ms, fn, timer: setTimeout(() => (pending.delete(p), fn()), ms) };
-      if (o?.unref === true) p.timer.unref();
-      pending.add(p);
-      return () => {
-        clearTimeout(p.timer);
-        pending.delete(p);
-      };
-    },
-  };
-  const jump = (ms: number): void => {
-    offset += ms;
-    for (const p of [...pending].sort((a, b) => a.at - b.at)) {
-      if (p.at > Date.now() + offset) continue;
-      clearTimeout(p.timer);
-      pending.delete(p);
-      p.fn();
-    }
-  };
-  return { clock, jump };
-}
-
-/** Waits for a condition with a time limit, polling. */
-async function until<T>(read: () => Promise<T | undefined> | T | undefined, what: string, ms = 5_000): Promise<T> {
-  const end = Date.now() + ms;
-  for (;;) {
-    const got = await read();
-    if (got !== undefined && got !== false) return got;
-    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
-    await new Promise(r => setTimeout(r, 10));
-  }
-}
 
 let open: Runtime[] = [];
 afterEach(async () => {

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
 use super::named::{child_of, thread_at, thread_label, Aim};
+use super::said::js_head;
 use super::workspace::{self, awake, counted_number, params, read, Workspace};
 use super::{input, Answer, Refused, Tool};
 use crate::host::Host;
@@ -31,6 +32,9 @@ pub struct MergeInOut {
     #[cfg_attr(test, schemars(with = "i64"))]
     commits: Number,
     conflicts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<i64>"))]
+    unpushed: Option<Number>,
 }
 
 const MERGE_IN_NAME: &str = "merge_in";
@@ -41,17 +45,25 @@ pub const MERGE_IN: Tool = Tool {
     call: |host, args| Box::pin(merge_in(host, args)),
 };
 
-/// The one line a merge reads as: the files it stopped on, the commits it brought, or that there was nothing to take.
-fn merge_in_line(done: &MergeInOut) -> String {
+/// The line a merge reads as: the files it stopped on, the commits it brought, or that there was nothing to take; and
+/// under it the commits a sub-thread's machine holds that no remote has, which the merge could not take.
+fn merge_in_line(done: &MergeInOut, child_id: &str) -> String {
     let words = workspace::words();
-    if !done.merged {
-        return fill(&words.merge_conflicts, &[("lead", &done.lead), ("branch", &done.branch), ("paths", &done.conflicts.join(", "))]);
+    let line = if !done.merged {
+        fill(&words.merge_conflicts, &[("lead", &done.lead), ("branch", &done.branch), ("paths", &done.conflicts.join(", "))])
+    } else if done.commits.as_f64() == Some(0.0) {
+        fill(&words.nothing_to_merge, &[("lead", &done.lead), ("child", &done.child)])
+    } else {
+        let merged = counted_number(&done.commits, &words.merged_in_one, &words.merged_in_many);
+        fill(&merged, &[("lead", &done.lead), ("branch", &done.branch), ("child", &done.child)])
+    };
+    match &done.unpushed {
+        Some(n) if n.as_f64().is_some_and(|n| n > 0.0) => {
+            let held = counted_number(n, &words.not_in_merge_one, &words.not_in_merge_many);
+            format!("{line}\n{}", fill(&held, &[("thread", &js_head(child_id, 8))]))
+        }
+        _ => line,
     }
-    if done.commits.as_f64() == Some(0.0) {
-        return fill(&words.nothing_to_merge, &[("lead", &done.lead), ("child", &done.child)]);
-    }
-    let merged = counted_number(&done.commits, &words.merged_in_one, &words.merged_in_many);
-    fill(&merged, &[("lead", &done.lead), ("branch", &done.branch), ("child", &done.child)])
 }
 
 async fn merge_in(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
@@ -76,7 +88,10 @@ async fn merge_in(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> 
             ]),
         )
         .await?;
-    Ok(Answer::text(merge_in_line(&MergeInOut { lead: thread_label(&lead), child: thread_label(&kid), ..done.clone() }), &done))
+    Ok(Answer::text(
+        merge_in_line(&MergeInOut { lead: thread_label(&lead), child: thread_label(&kid), ..done.clone() }, kid.runtime_id()),
+        &done,
+    ))
 }
 
 #[cfg(test)]
