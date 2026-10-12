@@ -7,8 +7,9 @@
 // "later" waits for the file STUB_GATE names before the agent says anything at all. The Claude stub takes
 // STUB_EXIT_MS to exit once its input closes, as a CLI running its exit hooks does. It appends each message to its
 // session file under STUB_SESSIONS where that is set, answers the title question with STUB_TITLE after STUB_TITLE_MS,
-// says "up", its pid and its arguments to STUB_HEARD as it starts, and on "leave a child" starts a command that
-// outlives the tool that started it, its pid to STUB_HEARD.
+// says "up", its pid and its arguments to STUB_HEARD as it starts, prints a SessionStart hook's line before it reads
+// anything where STUB_EARLY is set, and on "leave a child" starts a command that outlives the tool that started it,
+// its pid to STUB_HEARD.
 import { TURN_TOKEN_ENV } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
@@ -43,6 +44,7 @@ if (!sid && args.includes("--safe-mode") && process.env.STUB_TITLE) {
 if (!sid) { console.log("2.1.289 (Claude Code)"); process.exit(0); }
 ${COMMON}
 heard("up " + process.pid + " " + args.join(" "));
+if (process.env.STUB_EARLY) say({ type: "system", subtype: "hook_started", hook_id: "h1", hook_name: "SessionStart:startup", hook_event: "SessionStart", session_id: sid });
 let cost = 0;
 let turns = 0;
 let hanging = false;
