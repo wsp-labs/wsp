@@ -15,7 +15,7 @@ import {
   usageRefusal,
   absentComputer,
   ACCOUNT_UNSERVED,
-  AUTH_DEADLINE_MS,
+  AUTH_DEADLINE_CLOSE, AUTH_DEADLINE_MS,
   DAEMON_AUTH_DEADLINE_PASSED,
   DAEMON_PRE_AUTH_BYTES_EXCEEDED,
   PRE_AUTH_MAX_BYTES,
@@ -591,7 +591,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
       ? undefined
       : setTimeout(() => {
           throughDoor();
-          ws.close(4401, DAEMON_AUTH_DEADLINE_PASSED);
+          ws.close(AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED);
         }, opts.authDeadlineMs ?? AUTH_DEADLINE_MS);
     // A deadline nobody is waiting on holds no process open.
     byDeadline?.unref();
