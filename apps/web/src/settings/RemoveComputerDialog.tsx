@@ -13,12 +13,14 @@
 //
 // A computer that is not answering cannot be swept from here, so the dialog
 // hands over the line that sweeps it on the computer itself. One with forks or
-// projects on it, which go over its link, is only forgotten here. Where the login
-// it was added over runs sudo only with a password, the refusal asks for it
-// in a field under the slot, held in this dialog alone and sent with the next
-// Remove.
+// projects on it, which go over its link, is only forgotten here, and so is a
+// cloud that refused its key: the key and the records go and nothing there is
+// asked. Where the login it was added over runs sudo only with a password, the
+// refusal asks for it in a field under the slot, held in this dialog alone and
+// sent with the next Remove.
 import { useEffect, useState } from "react";
-import { PLACE_SUDO_KIND, PLACES_WORDS, placeForgetsOnly, placeUnsavedRefusal, type PlaceHolds, type PlaceView } from "@wsp/protocol";
+import { useSettingsStore } from "./settingsStore.js";
+import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, placeUnsavedRefusal, type PlaceHolds, type PlaceView } from "@wsp/protocol";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
@@ -27,7 +29,7 @@ import { failureOf } from "../protocol/failure.js";
 import { useStore } from "../protocol/store.js";
 import { ADD_COMPUTER_WORDS, WHERE_WORDS } from "./format.js";
 import { ROW_FIELD } from "./layout.js";
-import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, removeSentence, removeTitle, type PlaceHolding } from "./places.js";
+import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, providerForgetSentence, removeSentence, removeTitle, type PlaceHolding } from "./places.js";
 import { CopyRow, RefusalSlot } from "./sheetParts.js";
 
 /** What the app says when its own client carries no remove road: the same shape the forget dialog's refusal has. */
@@ -41,8 +43,11 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
   const [asksSudo, setAsksSudo] = useState(false);
   const [password, setPassword] = useState("");
   const [holds, setHolds] = useState<PlaceHolds | null>(null);
+  const [keyRefused, setKeyRefused] = useState(false);
+  const [madeNote, setMadeNote] = useState<string | null>(null);
+  const holdParting = useSettingsStore(s => s.holdParting);
   const unsaved = holds?.unsaved ?? [];
-  const forgets = holds !== null && placeForgetsOnly(holds);
+  const forgets = keyRefused || (holds !== null && placeForgetsOnly(holds));
   const reading = open && api?.placeHolds !== undefined && holds === null && refusal === null;
   const projects = useStore(s => s.projects).filter(p => p.computer === place.id).map(p => p.name);
 
@@ -64,11 +69,18 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
     };
   }, [open, api, place.id]);
 
+  useEffect(() => () => holdParting(null), [holdParting]);
+
   const change = (next: boolean): void => {
+    if (!next && madeNote !== null) {
+      holdParting(null);
+      onRemoved?.();
+    }
     if (!next) {
       setRefusal(null);
       setAsksSudo(false);
       setPassword("");
+      setKeyRefused(false);
     }
     onOpenChange(next);
   };
@@ -82,20 +94,33 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
     setPassword("");
     setBusy(true);
     setRefusal(null);
+    // Held from the ask on: the host drops the place from the list before its answer lands.
+    holdParting(place.id);
     try {
       const answer = await api.removePlace(place.id, typed, unsaved.length > 0, forgets);
-      // A remove the host did not make is not a failure to report twice: the row is already gone from the list.
-      if (answer.note !== undefined && !answer.removed) setRefusal({ said: answer.note });
+      // A remove made with something still to say, where the key still is, stays open on it until Done.
+      if (answer.removed && answer.note !== undefined) {
+        setMadeNote(answer.note);
+        return;
+      }
+      holdParting(null);
+      // A remove the host did not make stays on screen with its reason: a provider that would not delete a machine
+      // keeps its key, and a dialog that closed read as done while that machine billed on.
+      if (!answer.removed) setRefusal({ said: answer.note ?? WHERE_WORDS.removeUnmade(placeName(place)) });
       else {
         onRemoved?.();
         change(false);
       }
     } catch (e) {
+      holdParting(null);
       const failure = failureOf(e);
       // The host's fix names the terminal and this confirm for a client with no field; here the field is the fix.
       const sudo = failure.kind === PLACE_SUDO_KIND;
+      // A cloud that refused its key cannot be read or emptied, so the confirm turns to its Forget, which asks nothing there.
+      const refusedKey = failure.kind === "auth" && isProviderPlace(place);
       setAsksSudo(sudo);
-      setRefusal({ said: failure.said, ...(sudo ? { fix: ADD_COMPUTER_WORDS.sudoFix } : failure.fix === undefined ? {} : { fix: failure.fix }) });
+      if (refusedKey) setKeyRefused(true);
+      setRefusal({ said: failure.said, ...(sudo ? { fix: ADD_COMPUTER_WORDS.sudoFix } : refusedKey ? { fix: WHERE_WORDS.keyRefusedFix(placeName(place)) } : failure.fix === undefined ? {} : { fix: failure.fix }) });
       // The link may have come or gone since the dialog opened, which moves the road the host takes.
       api.placeHolds?.(place.id).then(setHolds, () => undefined);
     } finally {
@@ -108,7 +133,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
       <AlertDialogPopup data-remove-place-dialog>
         <AlertDialogHeader>
           <AlertDialogTitle data-k="remove-title">{forgets ? forgetTitle(place) : removeTitle(place)}</AlertDialogTitle>
-          <AlertDialogDescription data-k="remove-sentence">{forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects }, hereName(places), imageBytes)}</AlertDialogDescription>
+          <AlertDialogDescription data-k="remove-sentence">{keyRefused ? providerForgetSentence(place, holding, hereName(places)) : forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects }, hereName(places), imageBytes)}</AlertDialogDescription>
         </AlertDialogHeader>
         {placeIsOffline(place) ? (
           <div className="flex flex-col gap-3 px-5 pt-2">
@@ -119,20 +144,30 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
         <div className="flex flex-col gap-2 px-5 pt-2">
           <RefusalSlot
             k="remove-refusal"
-            {...(refusal ??
-              (reading
-                ? { waiting: WHERE_WORDS.readingHolds }
-                : unsaved.length > 0
-                  ? { note: <span data-k="unsaved" className="block max-h-9 overflow-y-auto">{`${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
-                  : {}))}
+            {...(madeNote !== null
+              ? { note: <span data-k="remove-made-note">{madeNote}</span> }
+              : (refusal ??
+                (reading
+                  ? { waiting: WHERE_WORDS.readingHolds }
+                  : unsaved.length > 0
+                    ? { note: <span data-k="unsaved" className="block max-h-9 overflow-y-auto">{`${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
+                    : {})))}
           />
           {asksSudo ? <Input data-k="sudo-password" aria-label="Password for sudo" type="password" autoFocus autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && password !== "" && void remove()} className={cn(ROW_FIELD, "w-44")} /> : null}
         </div>
         <AlertDialogFooter>
-          <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{WHERE_WORDS.cancel}</AlertDialogClose>
-          <Button data-k="remove-confirm" variant="destructive" disabled={busy || reading || (asksSudo && password === "")} onClick={() => void remove()}>
-            {busy ? (forgets ? WHERE_WORDS.forgetting : WHERE_WORDS.removing) : forgets ? WHERE_WORDS.forget : unsaved.length > 0 ? WHERE_WORDS.removeAnyway : WHERE_WORDS.remove}
-          </Button>
+          {madeNote !== null ? (
+            <Button data-k="remove-done" variant="outline" className={NEUTRAL_RING} onClick={() => change(false)}>
+              {WHERE_WORDS.done}
+            </Button>
+          ) : (
+            <>
+              <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{WHERE_WORDS.cancel}</AlertDialogClose>
+              <Button data-k="remove-confirm" variant="destructive" disabled={busy || reading || (asksSudo && password === "")} onClick={() => void remove()}>
+                {busy ? (forgets ? WHERE_WORDS.forgetting : WHERE_WORDS.removing) : forgets ? WHERE_WORDS.forget : unsaved.length > 0 ? WHERE_WORDS.removeAnyway : WHERE_WORDS.remove}
+              </Button>
+            </>
+          )}
         </AlertDialogFooter>
       </AlertDialogPopup>
     </AlertDialog>

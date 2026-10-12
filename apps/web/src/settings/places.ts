@@ -35,8 +35,9 @@ export const heldThreads = (holding: PlaceHolding): number => holding.workspaces
 export const threadWord = (n: number): string => `${n} ${n === 1 ? "thread" : "threads"}`;
 
 /** What a remove takes, computed from what the computer holds. A computer keeps its own files and is left as it
- * was; a provider's workspaces are deleted where they stand and its key is forgotten here. The second sentence is
- * about the computer the host runs on alone, so a computer holding nothing gets no second sentence.
+ * was; a provider's workspaces are deleted where they stand and its key is forgotten here, its threads kept. The
+ * second sentence is about the computer the host runs on alone, so a computer holding nothing gets no second
+ * sentence.
  *
  * The copy of the image sits in the runtime's folder there, which the leave takes whole only where that computer
  * says it will: one added over ssh, whose add wrote down what stood before it. One joined with a code keeps it. The
@@ -52,7 +53,7 @@ export function removeSentence(place: PlaceView, holding: PlaceHolding, here: st
   const lines: string[] = [];
   if (isProviderPlace(place)) {
     lines.push(count === 0 ? `The key for ${name} is forgotten on ${here}.` : `Its ${count === 1 ? "task is" : `${count} tasks are`} deleted at ${name} and the key is forgotten on ${here}.`);
-    if (count > 0) lines.push(`${count === 1 ? "Its record" : "Their records"} and ${threadWord(threads)} leave ${here}.`);
+    if (threads > 0) lines.push(`${threads === 1 ? "Its thread stays" : `The ${threads} threads stay`} with ${threads === 1 ? "its transcript" : "their transcripts"}.`);
   } else {
     const copy = imageCopyLine(imageBytes === undefined ? undefined : fmtBytes(imageBytes));
     if (offline && ssh === undefined) lines.push(`${name} is offline, so nothing comes off it: run ${PLACE_LEAVE_LINE} on that computer once it is back.`);
@@ -71,6 +72,15 @@ export function removeSentence(place: PlaceView, holding: PlaceHolding, here: st
 export const removeTitle = (place: PlaceView): string => `Remove ${placeName(place)}?`;
 
 export const forgetTitle = (place: PlaceView): string => `Forget ${placeName(place)}?`;
+
+/** What forgetting a cloud does once it refused its key: the key and the tasks' records leave, and nothing there is
+ * asked, so what wsp made there runs on until the cloud's own timer. */
+export function providerForgetSentence(place: PlaceView, holding: PlaceHolding, here: string): string {
+  const name = placeName(place);
+  const count = holding.workspaces.length;
+  const leaves = count === 0 ? "The key leaves" : `The key and ${count === 1 ? "its task's record" : `its ${count} tasks' records`} leave`;
+  return `${leaves} ${here}. Nothing at ${name} is touched, so what wsp made there may bill until ${name}'s own timer ends it.`;
+}
 
 /** What a forget does, in its order: why a remove cannot, then the protocol's own sentence for the forget. */
 export function forgetSentence(place: PlaceView, holds: PlaceHolds): string {
