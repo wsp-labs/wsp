@@ -959,7 +959,7 @@ describe("a subagent's frames on its lead's stream", () => {
       title: "Sleep 20 s and say done.",
       asked: "Sleep 20 s and say done.\nEnd without waiting.",
     });
-    expect(subagents(events).at(-1)).toMatchObject({ task: CHILD, state: "running", depth: 1 });
+    expect(subagents(events).filter(e => e.usage === undefined).at(-1)).toMatchObject({ task: CHILD, state: "running", depth: 1 });
     expect(deltasOf(events).filter(d => d.toolUseId === SPAWN)).toEqual([
       { type: "turn.delta", sessionId: THREAD_ID, kind: "tool_use", text: JSON.stringify({ prompt: "Sleep 20 s and say done.\nEnd without waiting." }), toolName: "spawn_agent", toolUseId: SPAWN },
       { type: "turn.delta", sessionId: THREAD_ID, kind: "tool_result", text: "", toolUseId: SPAWN, isError: false },
@@ -967,7 +967,11 @@ describe("a subagent's frames on its lead's stream", () => {
 
     live.wires[0]!.push(childSays("done"), childEnded("completed"));
     const result = await session.finished;
-    expect(subagents(events).at(-1)).toEqual({ type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "done", parentToolUseId: SPAWN, summary: "done" });
+    const usage = { tokens: { input: 900, cached: 0, cacheWrite: 0, output: 0, reasoning: 0 } };
+    expect(subagents(events).filter(e => e.usage !== undefined)).toEqual([
+      { type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "running", parentToolUseId: SPAWN, usage },
+      { type: "subagent", sessionId: THREAD_ID, task: CHILD, state: "done", parentToolUseId: SPAWN, summary: "done", usage },
+    ]);
     expect(result).toMatchObject({ status: "completed", text: "spawned it" });
     expect(result.tokens).toMatchObject({ input: 18_900, context: 18_000, window: 258_400 });
     expect(tasks(events).at(-1)).toBe(0);
@@ -1145,17 +1149,20 @@ describe("a recorded Codex turn whose lead spawned an agent and ended first", ()
   const LEAD = "01a100dc-e1f0-7183-94f1-048611cff500";
   const CHILD = "01a100dd-0379-7f91-bd7d-76a0d1bcb962";
 
-  it("holds the lead's reply until the child's own turn completes, and says the child's start, with what its spawn asked and the model it named, and its end once each", async () => {
+  it("holds the lead's reply until the child's own turn completes, and says the child's start, with what its spawn asked and the model it named, what its thread spent, and its end once each", async () => {
     const launch = launcher(server(fixtureLines("app-server-subagent")));
     const { events, onEvent } = collect();
     const result = await adapterOver(launch).start({ prompt: "spawn one agent and end your turn", onEvent }).finished;
     const said = events.filter((e): e is Extract<AdapterEvent, { type: "subagent" }> => e.type === "subagent");
+    // The child's row carries its own thread's total; the lead's turn still counts the child's calls in its tokens.
+    const usage = { tokens: { input: 19_515, cached: 19_200, cacheWrite: 0, output: 5, reasoning: 0 } };
     expect(said).toEqual([
       { type: "subagent", sessionId: LEAD, task: CHILD, state: "running", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", title: "Reply with the single word done and nothing else.", model: "gpt-5.6-luna", asked: "Reply with the single word done and nothing else." },
-      { type: "subagent", sessionId: LEAD, task: CHILD, state: "done", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", summary: "done" },
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "running", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", usage },
+      { type: "subagent", sessionId: LEAD, task: CHILD, state: "done", parentToolUseId: "exec-c2242f64-3c99-4c9b-be0d-2132497b24ef", summary: "done", usage },
     ]);
     const at = (type: string) => events.findIndex(e => e.type === type);
-    expect(at("turn.done")).toBeGreaterThan(events.lastIndexOf(said[1]!));
+    expect(at("turn.done")).toBeGreaterThan(events.lastIndexOf(said[2]!));
     expect(events.flatMap(e => (e.type === "turn.tasks" ? [e.running] : []))).toEqual([1, 0]);
     expect(result).toMatchObject({ status: "completed", text: "spawned", tokens: { input: 77_535 + 19_515, window: 258_400 } });
     expect(deltasOf(events).map(d => d.text)).not.toContain("done");

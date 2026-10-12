@@ -346,6 +346,48 @@
                     },
                     "failure": {
                       "type": "string"
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "number"
+                            },
+                            "output": {
+                              "type": "number"
+                            },
+                            "cached": {
+                              "type": "number"
+                            },
+                            "cacheWrite": {
+                              "type": "number"
+                            },
+                            "reasoning": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "output",
+                            "cached",
+                            "cacheWrite",
+                            "reasoning"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "toolUses": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "durationMs": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -749,6 +791,48 @@
                     },
                     "failure": {
                       "type": "string"
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "number"
+                            },
+                            "output": {
+                              "type": "number"
+                            },
+                            "cached": {
+                              "type": "number"
+                            },
+                            "cacheWrite": {
+                              "type": "number"
+                            },
+                            "reasoning": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "output",
+                            "cached",
+                            "cacheWrite",
+                            "reasoning"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "toolUses": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "durationMs": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
                     }
                   },
                   "required": [

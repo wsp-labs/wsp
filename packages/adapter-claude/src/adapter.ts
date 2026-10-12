@@ -20,6 +20,8 @@ import { newPlanBook, readPlanCall, type PlanBook } from "./plans.js";
 import { flattenContent, resultFacts } from "./tool-results.js";
 import { endAnswer, heldCall, interimEnd, laterEnd, newHandbackBook, noteLine, readAnswer, taskEnded, type HandbackBook, type TurnDelta } from "./handback.js";
 import { shellCwdAfter } from "./shell-cwd.js";
+import { heldTokens, inputTokens, plusTokens, usageOf, usageTokens } from "./tokens.js";
+import { newSpendBook, noteChildCall, noteProgress, subagentSpent, subagentSpentAtEnd } from "./subagent-spend.js";
 
 export interface StartOptions {
   prompt: string;
@@ -226,17 +228,6 @@ function resultStatus(event: Record<string, unknown>, errorsText: string): TurnS
   return "failed";
 }
 
-/** Every token a call's usage says the model read: the fresh input, the part written to the cache and the part read
- * back from it. */
-function inputTokens(usage: Record<string, unknown>): number {
-  return (num(usage.input_tokens) ?? 0) + (num(usage.cache_creation_input_tokens) ?? 0) + (num(usage.cache_read_input_tokens) ?? 0);
-}
-
-/** What the model held after one call, off that call's own usage: what it read and what it wrote. */
-function heldTokens(usage: Record<string, unknown>): number {
-  return inputTokens(usage) + (num(usage.output_tokens) ?? 0);
-}
-
 type ModelUse = NonNullable<TurnResult["models"]>[number];
 
 const MODEL_FIELDS = ["input", "output", "cached", "cacheWrite", "reasoning"] as const;
@@ -254,22 +245,6 @@ function modelsOf(raw: unknown): ModelUse[] {
     return [{ model, tokens, ...(costUsd !== undefined ? { costUsd } : {}) }];
   });
 }
-
-/** The tokens one usage counts, as a turn's tokens read. */
-function usageTokens(usage: Record<string, unknown>): TurnTokens {
-  const cached = num(usage.cache_read_input_tokens);
-  const cacheWrite = num(usage.cache_creation_input_tokens);
-  return { input: inputTokens(usage), output: num(usage.output_tokens) ?? 0, ...(cached !== undefined ? { cached } : {}), ...(cacheWrite !== undefined ? { cacheWrite } : {}) };
-}
-
-function plusTokens(a: TurnTokens | undefined, b: TurnTokens): TurnTokens {
-  if (a === undefined) return b;
-  const sum = (k: "cached" | "cacheWrite" | "reasoning"): Partial<TurnTokens> => (a[k] === undefined && b[k] === undefined ? {} : { [k]: (a[k] ?? 0) + (b[k] ?? 0) });
-  return { input: a.input + b.input, output: a.output + b.output, ...sum("cached"), ...sum("cacheWrite"), ...sum("reasoning") };
-}
-
-/** A turn's tokens as one model's entry holds them, every count present. */
-const usageOf = (t: TurnTokens): ModelUse["tokens"] => ({ input: t.input, output: t.output, cached: t.cached ?? 0, cacheWrite: t.cacheWrite ?? 0, reasoning: t.reasoning ?? 0 });
 
 /** A model's entry in running totals: by its own name, else by the model it names, since a result keys a model with
  * its context window (`claude-opus-5-5[1m]`) where its calls and the totals they joined name it bare. */
@@ -758,6 +733,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     const askedBy = new Map<string, string>();
     /** The subagents whose model has been said: the first line of each that names one says it, and no later line. */
     const modelSaid = new Set<string>();
+    const spend = newSpendBook();
     /** Set once the turn is in the mode that asks nobody, launched there or moved there: every prompt the CLI raises
      * from then is allowed by this host, and only a question reaches the person. */
     let skipsPrompts = false;
@@ -895,6 +871,8 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
           for (const [call, prompt] of subagentPrompts(event)) askedBy.set(call, prompt);
           noteLine(book, event);
           const childLine = str(event.type) === "assistant" && event.is_api_error_message !== true ? str(event.parent_tool_use_id) : undefined;
+          const childTask = childLine === undefined ? undefined : [...launchedBy].find(([id, call]) => call === childLine && subagents.has(id))?.[0];
+          if (childTask !== undefined) noteChildCall(spend, childTask, event);
           const childModel = childLine === undefined ? undefined : str(rec(event.message)?.model);
           if (childLine !== undefined && childModel !== undefined) {
             const task = [...launchedBy].find(([id, call]) => call === childLine && subagents.get(id) === "running" && !modelSaid.has(id))?.[0];
@@ -936,6 +914,11 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
             }
             continue;
           }
+          const progressed = noteProgress(spend, event, subagents);
+          if (progressed !== undefined && str(event.subtype) === "task_progress" && subagents.get(progressed) === "running") {
+            const parent = launchedBy.get(progressed);
+            onEvent({ type: "subagent", sessionId: claudeSessionId, task: progressed, state: "running", ...(parent !== undefined ? { parentToolUseId: parent } : {}), usage: subagentSpent(spend, progressed)! });
+          }
           const launch = subagentLaunch(event);
           if (launch !== undefined) {
             launchedBy.set(launch.agentId, launch.toolUseId);
@@ -968,7 +951,8 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
           if (ended !== undefined && (subagents.get(ended.task) === "running" || (subagents.has(ended.task) && laterEnd(book, event)))) {
             subagents.set(ended.task, ended.state);
             const parent = launchedBy.get(ended.task);
-            onEvent({ type: "subagent", sessionId: claudeSessionId, task: ended.task, state: ended.state, ...(parent !== undefined ? { parentToolUseId: parent } : {}), ...(ended.summary !== undefined ? { summary: ended.summary } : {}) });
+            const usage = subagentSpentAtEnd(spend, ended.task, event);
+            onEvent({ type: "subagent", sessionId: claudeSessionId, task: ended.task, state: ended.state, ...(parent !== undefined ? { parentToolUseId: parent } : {}), ...(ended.summary !== undefined ? { summary: ended.summary } : {}), ...(usage !== undefined ? { usage } : {}) });
           }
           for (const answer of endAnswer(book, event, claudeSessionId)) onEvent(answer);
           const over = taskFinishedOf(event);
