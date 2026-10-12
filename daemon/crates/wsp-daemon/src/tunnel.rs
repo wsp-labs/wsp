@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::{Arc, Mutex};
 
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use base64::Engine;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -26,6 +27,22 @@ pub(crate) struct Tunnels {
 
 fn lock(map: &Mutex<HashMap<String, (u64, Writes)>>) -> std::sync::MutexGuard<'_, HashMap<String, (u64, Writes)>> {
     map.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Base64 as node's Buffer reads it: padding optional, characters outside the alphabet skipped. What a tunnel, an
+/// exec's stdin and a stdio command's writes carry.
+pub(crate) fn lenient_base64(text: &str) -> Vec<u8> {
+    let clean: String = text
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '-' | '_'))
+        .map(|c| match c {
+            '-' => '+',
+            '_' => '/',
+            c => c,
+        })
+        .collect();
+    let config = GeneralPurposeConfig::new().with_decode_allow_trailing_bits(true).with_decode_padding_mode(DecodePaddingMode::Indifferent);
+    GeneralPurpose::new(&base64::alphabet::STANDARD, config).decode(&clean).unwrap_or_default()
 }
 
 /// 127.0.0.1 first, then ::1: a Node 22 tool listening on "localhost" binds [::1] only (measured, wrangler).
