@@ -43,7 +43,7 @@ describe("workspaceState", () => {
   });
 
   it("every state has a capitalised word, and a caller holding no pause mode reads the stopping words", () => {
-    const words: Record<WorkspaceState, string> = { running: "Running", pausing: "Stopping", paused: "Stopped", waking: "Waking", unreachable: "Unreachable", gone: "Gone", waiting: "Waiting", released: "Deleted" };
+    const words: Record<WorkspaceState, string> = { running: "Running", pausing: "Stopping", paused: "Stopped", waking: "Waking", unreachable: "Unreachable", gone: "Gone", waiting: "Waiting", released: "Released" };
     for (const [state, word] of Object.entries(words)) expect(workspaceWord(state as WorkspaceState)).toBe(word);
   });
 
@@ -73,7 +73,7 @@ describe("workspaceState", () => {
   it("a sub-machine's record reads waiting while its spawn is queued and released once its machine is deleted (04, L3)", () => {
     expect(workspaceState({ phase: "queued" })).toBe("waiting");
     expect(workspaceState({ phase: "released" })).toBe("released");
-    expect(workspaceWord("released")).toBe("Deleted");
+    expect(workspaceWord("released")).toBe("Released");
   });
 
   it("sendRefusal is one table over everything that refuses a send: the socket, the lookup, the transcript, the agents, the thread, then the states", () => {

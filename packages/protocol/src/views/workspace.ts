@@ -21,7 +21,8 @@ import { WorkspaceSize } from "../wire/capabilities.js";
  * gone: the provider no longer knows the machine (deleted behind wsp, or expired); nothing bills and nothing
  * runs until a rebuild puts a fresh fork under the record or the workspace is deleted.
  * queued: a sub-machine's record before its machine is made, waiting with `queue` for a slot or a start.
- * released: a sub-machine whose machine was deleted after its work was pushed; the record and its threads stay. */
+ * released: a sub-thread's machine was deleted at its cloud once the thread was done, or lost there; the record, its
+ * thread and its transcript stay, and no machine stands under it. */
 export const WorkspacePhase = z.enum(["running", "pausing", "napping", "waking", "gone", "queued", "released"]);
 export type WorkspacePhase = z.infer<typeof WorkspacePhase>;
 

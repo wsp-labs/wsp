@@ -201,6 +201,69 @@
       ]
     },
     {
+      "case": "sub-thread unconfirmed",
+      "arguments": {
+        "thread": "t-9"
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-9\",\"workspaceId\":\"ws-9\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9 \u0085\",\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \u0085\",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000}}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":true,\"workspaceId\":\"ws-9\",\"threads\":1,\"on\":\"Boat\",\"question\":\"Delete sub-thread t-9 \u0085 (Fix it) and its machine on Boat?\\n2 commits on wsp/fix-it are not pushed and go with it.\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread t-9 \\u0085 kept. 2 commits on wsp/fix-it are not pushed and go with it. Ask the person, then call delete again with confirm true.\"}],\"structuredContent\":{\"threadId\":\"t-9 \\u0085\",\"workspaceId\":\"ws-9\",\"threads\":1},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-9 \u0085",
+          "check": true
+        }
+      ]
+    },
+    {
+      "case": "sub-thread deleted",
+      "arguments": {
+        "thread": "t-9",
+        "confirm": true
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-9\",\"workspaceId\":\"ws-9\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9 \u0085\",\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \u0085\",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000}}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":true,\"workspaceId\":\"ws-9\",\"threads\":1,\"machine\":\"deleted\",\"on\":\"Boat\",\"extra\":1}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"deleted sub-thread t-9 \\u0085 and its machine on Boat\"}],\"structuredContent\":{\"threadId\":\"t-9 \\u0085\",\"workspaceId\":\"ws-9\",\"threads\":1,\"machine\":\"deleted\"}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-9 \u0085"
+        }
+      ]
+    },
+    {
+      "case": "sub-thread refused over work not pushed",
+      "arguments": {
+        "thread": "t-9",
+        "confirm": true
+      },
+      "replies": {
+        "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"id\":\"s-9\",\"workspaceId\":\"ws-9\",\"harness\":\"claude\",\"status\":\"completed\",\"threadId\":\"t-9 \u0085\",\"sub\":{\"state\":\"napping\",\"on\":\"boat\",\"machine\":\"Fix it \u0085\",\"size\":{\"cpu\":2,\"memMb\":4096},\"rateUsdPerHour\":0.018,\"branch\":\"wsp/fix-it\",\"deleteAt\":1790000000000}}]}",
+        "sessions.delete": "{\"id\":1,\"ok\":false,\"error\":\"sub-thread t-9 \u0085 holds 2 commits not pushed on wsp/fix-it. Send it a push, or ask the person to delete it.\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"sub-thread t-9 \\u0085 holds 2 commits not pushed on wsp/fix-it. Send it a push, or ask the person to delete it.\"}],\"structuredContent\":{\"error\":\"sub-thread t-9 \\u0085 holds 2 commits not pushed on wsp/fix-it. Send it a push, or ask the person to delete it.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "sessions.list"
+        },
+        {
+          "op": "sessions.delete",
+          "threadId": "t-9 \u0085"
+        }
+      ]
+    },
+    {
       "case": "thread refused",
       "arguments": {
         "thread": "t-2",

@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { gitHostOf, remoteHost, type GitHost } from "@wsp/catalog";
 import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type BoxLimits, type MachineBackend } from "@wsp/engine";
 import {
-  DETACHED_HEAD, GitStatusReply, SUB_DELETE_AFTER_MIN, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
+  DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
   providerKeyName, scopeOf, shellLine, capWaitLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
@@ -47,7 +47,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       : at.capabilities.sizes.map(s => ({ name: subSizeWord(s), cpu: s.cpu, memMb: s.memMb, rateUsdPerHour: s.rateUsdPerHour ?? at.pricing.rateUsdPerHour(s) }));
 
   /** A setting a person keeps on the cloud's row beyond the ones every place reads, where one is set. */
-  const settingOf = (placeId: string, key: "size" | "deleteAfterMs"): unknown => {
+  const settingOf = (placeId: string, key: "size"): unknown => {
     const held = placeDoor?.settingsAt(placeId);
     return held !== undefined && key in held ? (held as Record<string, unknown>)[key] : undefined;
   };
@@ -136,8 +136,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const nameTaken = ctx.nameRefusal(name);
       if (nameTaken !== undefined) throw Object.assign(new Error(nameTaken), { kind: "conflict" });
       const folder = subFolderOf(project.remote);
-      const deleteAfterMs = settingOf(place, "deleteAfterMs");
-      const deleteAfterMinutes = typeof deleteAfterMs === "number" ? Math.round(deleteAfterMs / 60_000) : SUB_DELETE_AFTER_MIN;
+      const deleteAfterMinutes = Math.round((ctx.settingsAt(place)?.deleteAfterMs ?? DELETE_AFTER_MS) / 60_000);
       const id = `ws_${randomBytes(4).toString("hex")}`;
       const report = ctx.stageReporter(id, name, clock.now(), scope);
       const machineRecord: WorkspaceRecord = {
@@ -157,7 +156,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         // Its own switch, off: a sub-thread starts nothing of its own.
         agents: { ...AGENTS_ON, spawn: false } satisfies WorkspaceAgents,
         lead: { threadId: scope.threadId, workspaceId: lead.record.id },
-        sub: { on: on.toLowerCase(), repo, base, branch: result, folder },
+        sub: { on: on.toLowerCase(), repo, base, branch: result, folder, rateUsdPerHour: size.rateUsdPerHour },
       };
       // Past the machines at once or the minute's starts the spawn waits its turn, its record queued with no machine
       // (05, Q4); the queue makes the machine and starts the thread when its turn comes.
@@ -256,18 +255,17 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     }
   };
 
-  /** The default result branch, numbered past a name the remote holds or another sub-machine of this host was given.
-   * The remote is read from the lead's folder on this computer, with no prompt and a bounded wait; a lead elsewhere,
-   * or a remote that does not answer, leaves the records alone to say what is taken. */
+  /** The default result branch, numbered past a name the remote holds or another sub-machine of this host was given:
+   * a record deleted with its thread no longer names its branch, and the remote still holds it. The remote is read
+   * from the lead's folder where it is, on this computer or over its box's own road, with no prompt and a bounded
+   * wait; a remote that does not answer leaves the records alone to say what is taken. */
   const freeBranch = async (wanted: string, lead: LiveWorkspace): Promise<string> => {
     const taken = new Set([...live.values()].map(e => e.record.sub?.branch).filter(b => b !== undefined));
-    if (copiesFolder(kindForComputer(ctx.projectHeld(lead.record.project).computer))) {
-      const machine = await ctx.moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID);
-      const heads = await machine.exec(`GIT_TERMINAL_PROMPT=0 ${shellLine(["git", "-C", ctx.checkoutOf(lead.record), "ls-remote", "--heads", "origin"])}`, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
-      for (const line of heads?.exitCode === 0 ? heads.stdout.split("\n") : []) {
-        const ref = line.split("\t")[1];
-        if (ref?.startsWith("refs/heads/") === true) taken.add(ref.slice("refs/heads/".length));
-      }
+    const machine = copiesFolder(kindForComputer(ctx.projectHeld(lead.record.project).computer)) ? await ctx.moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID) : lead.machine;
+    const heads = await machine.exec(`GIT_TERMINAL_PROMPT=0 ${shellLine(["git", "-C", ctx.checkoutOf(lead.record), "ls-remote", "--heads", "origin"])}`, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
+    for (const line of heads?.exitCode === 0 ? heads.stdout.split("\n") : []) {
+      const ref = line.split("\t")[1];
+      if (ref?.startsWith("refs/heads/") === true) taken.add(ref.slice("refs/heads/".length));
     }
     if (!taken.has(wanted)) return wanted;
     for (let n = 2; ; n++) if (!taken.has(`${wanted}-${n}`)) return `${wanted}-${n}`;

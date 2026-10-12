@@ -286,7 +286,7 @@ const WORDS: Record<WorkspaceState, string> = {
   unreachable: "Unreachable",
   gone: "Gone",
   waiting: "Waiting",
-  released: "Deleted",
+  released: "Released",
 };
 
 /** The two words a computer that keeps the processes and the bytes of a paused machine reads instead: a nap there
@@ -532,7 +532,7 @@ export function actionRefusal(state: WorkspaceState, action: string, goneWords?:
     case "waiting":
       return action === "send" ? null : `Workspace is waiting for a machine; ${action}s open when it is running`;
     case "released":
-      return `${name ?? "Workspace"}'s machine was deleted, so there is nothing to ${action} on`;
+      return `${name ?? "This workspace"}'s machine was deleted once its sub-thread was done, so there is none to ${action} on`;
     default: {
       const _exhaustive: never = state;
       return null;

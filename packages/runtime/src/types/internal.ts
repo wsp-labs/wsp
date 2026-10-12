@@ -4,6 +4,7 @@ import { readdirSync, statSync, type Dirent } from "node:fs";
 import { join } from "node:path";
 import {
   CREATED_AT_LABEL,
+  NoProviderBackend,
   type Builder,
   type ImportLedger,
   type Machine,
@@ -936,6 +937,10 @@ export function deadMachine(id: string): Machine {
     },
   };
 }
+
+/** What a released record stands on: no machine and nothing billed. The box was deleted at the cloud, which may no
+ * longer be on this host at all, so nothing here asks it anything. */
+export const RELEASED_BACKEND: MachineBackend = new NoProviderBackend("this sub-thread's machine was deleted at its cloud, so there is none to ask");
 
 /** The mark a stand-in for an absent place's machine carries, so the one reading of "nothing about this machine is
  * known yet" is a fact of the handle rather than a guess from the record's phase. */

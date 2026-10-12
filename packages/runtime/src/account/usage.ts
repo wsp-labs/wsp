@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomUUID } from "node:crypto";
 import { CATALOG_AGENTS, type ThreadAgent, loginHomeIn, sharedOn } from "@wsp/catalog";
-import { type DaemonFrame, type HarnessLimit, type ResetRoad, THIS_COMPUTER, underProject, absentComputer, HERE_PLACE_ID, isJoinedComputer, workspacePlace, RANGE_DAYS, READINGS_STEP_MS, SysHistoryReply, resetNoLoginsLine, USAGE_WORDS, UsageLogsReply, unknownOpLine, type UsageStore, type ReadingsAnswer, type PlaceView, type AccountsAnswer, type AgentSignInState, type ResetAnswer, type UsageSplit } from "@wsp/protocol";
+import { cloudSaid, subCloudGoneLine, type DaemonFrame, type HarnessLimit, type ResetRoad, THIS_COMPUTER, underProject, absentComputer, HERE_PLACE_ID, isJoinedComputer, workspacePlace, RANGE_DAYS, READINGS_STEP_MS, SysHistoryReply, resetNoLoginsLine, USAGE_WORDS, UsageLogsReply, unknownOpLine, type UsageStore, type ReadingsAnswer, type PlaceView, type AccountsAnswer, type AgentSignInState, type ResetAnswer, type UsageSplit } from "@wsp/protocol";
 import { envInput, withEnvFromInput } from "@wsp/engine";
 import { NO_PLACE_DOOR } from "../places.js";
 import { harnessCatalog, modelLabel } from "../harness-catalog.js";
@@ -30,6 +30,8 @@ export function usageArea(ctx: RuntimeContext): UsageArea {
    * road to it, the provider read included, rides that computer's link, so the row says so rather than reading a
    * silence as a machine that died. */
   const awayLine = (record: WorkspaceRecord): string | undefined => {
+    // A sub-machine whose cloud a forget took off this host: nothing there is asked again.
+    if (record.sub?.cloudGone === true && record.phase !== "released") return subCloudGoneLine(cloudSaid(record.sub.on));
     const at = workspacePlace(record);
     if (at === undefined || placeDoor === undefined || !placeAway(at)) return undefined;
     return absentComputer(placeDoor.nameOf(at), null).sentence;

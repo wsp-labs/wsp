@@ -442,7 +442,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
         if (lead !== undefined && lead.workspaceId === e.workspaceId) void drop(h, "its lead's folder was deleted", false);
       }
     }
-    if (e.type === "workspace.napped" || e.type === "workspace.deleted" || e.type === "workspace.gone" || e.type === "place.changed") void pump();
+    if (e.type === "workspace.napped" || e.type === "workspace.deleted" || e.type === "workspace.gone" || e.type === "workspace.released" || e.type === "place.changed") void pump();
   });
 
   return { queueWait, claimStart, deleteQueued, cloudFull, enqueue, attachQueued, holdQueued, dropQueued, resumeQueue, pumpQueue: pump };
