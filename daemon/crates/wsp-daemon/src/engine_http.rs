@@ -16,38 +16,84 @@ const ASK_TIMEOUT: Duration = Duration::from_secs(5);
 const BODY_CAP: usize = 4 << 20;
 const HEAD_CAP: usize = 64 << 10;
 
+/// The most of a Docker config or a context's meta file read: each is a few hundred bytes.
+const CONFIG_CAP: u64 = 64 << 10;
+
+/// An engine's socket, and the account its listener must run as where the login named it to a root daemon.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Engine {
+    pub(crate) path: PathBuf,
+    pub(crate) owner: Option<u32>,
+}
+
 /// The engine's socket on this computer: `DOCKER_HOST` where it names a unix socket, the current Docker context's,
-/// then the system's, Docker Desktop's and Podman's. None where no such socket is there.
-pub(crate) fn engine_socket(home: Option<&Path>, docker_host: Option<&str>) -> Option<PathBuf> {
+/// then the system's, Docker Desktop's and Podman's. None where no such socket is there. The two the home names are
+/// the login's to point anywhere, so a root daemon dials them only where the login serves them.
+pub(crate) fn engine_socket(home: Option<&Path>, docker_host: Option<&str>) -> Option<Engine> {
     let unix = |host: &str| host.strip_prefix("unix://").map(PathBuf::from);
-    let mut tried: Vec<PathBuf> = Vec::new();
-    tried.extend(docker_host.and_then(unix));
+    let plain = |path: PathBuf| Engine { path, owner: None };
+    let owner = home.and_then(login_of);
+    let mut tried: Vec<Engine> = Vec::new();
+    tried.extend(docker_host.and_then(unix).map(plain));
     if let Some(home) = home {
-        tried.extend(context_host(home).as_deref().and_then(unix));
+        tried.extend(context_socket(home, owner).map(|path| Engine { path, owner }));
     }
-    tried.push(PathBuf::from("/var/run/docker.sock"));
+    tried.push(plain(PathBuf::from("/var/run/docker.sock")));
     if let Some(home) = home {
-        tried.push(home.join(".docker/run/docker.sock"));
+        tried.push(Engine { path: home.join(".docker/run/docker.sock"), owner });
     }
-    tried.push(PathBuf::from("/run/podman/podman.sock"));
-    tried.into_iter().find(|p| std::fs::metadata(p).is_ok_and(|m| std::os::unix::fs::FileTypeExt::is_socket(&m.file_type())))
+    tried.push(plain(PathBuf::from("/run/podman/podman.sock")));
+    tried.into_iter().find(|e| std::fs::metadata(&e.path).is_ok_and(|m| std::os::unix::fs::FileTypeExt::is_socket(&m.file_type())))
+}
+
+/// On a daemon that is root, the account the home belongs to, which is what wrote its Docker setup; none on a daemon
+/// that runs as the person, who can dial nothing they could not dial themselves.
+fn login_of(home: &Path) -> Option<u32> {
+    use std::os::unix::fs::MetadataExt;
+    nix::unistd::geteuid().is_root().then(|| std::fs::symlink_metadata(home).map(|m| m.uid()).unwrap_or(0))
+}
+
+/// The unix socket the current Docker context names. With an owner, as on a root daemon, only a socket that account
+/// owns: the login writes the context, and a root daemon dialling the socket it names would otherwise send its
+/// requests to any root service's socket.
+fn context_socket(home: &Path, owner: Option<u32>) -> Option<PathBuf> {
+    use std::os::unix::fs::MetadataExt;
+    let sock = PathBuf::from(context_host(home)?.strip_prefix("unix://")?);
+    let meta = std::fs::symlink_metadata(&sock).ok()?;
+    let theirs = owner.is_none_or(|uid| meta.uid() == uid && std::os::unix::fs::FileTypeExt::is_socket(&meta.file_type()));
+    theirs.then_some(sock)
 }
 
 /// The host the person's current Docker context names, off `~/.docker/config.json` and the context's meta file, which
-/// the Docker CLI files under the sha256 of the context's name. None for the default context.
+/// the Docker CLI files under the sha256 of the context's name. None for the default context. Both are read beneath
+/// the home through `beneath::file()`, so a link, a fifo or a file past the cap names no context and nothing waits.
 fn context_host(home: &Path) -> Option<String> {
-    let read = |p: PathBuf| std::fs::read(p).ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
-    let config = read(home.join(".docker/config.json"))?;
+    use std::io::Read;
+    let held = nix::fcntl::open(home, crate::beneath::dir_flags(), nix::sys::stat::Mode::empty()).ok()?;
+    let read = |rel: &str| {
+        let mut bytes = Vec::new();
+        crate::beneath::file(&held, rel).ok()??.take(CONFIG_CAP).read_to_end(&mut bytes).ok()?;
+        serde_json::from_slice::<serde_json::Value>(&bytes).ok()
+    };
+    let config = read(".docker/config.json")?;
     let name = config.get("currentContext")?.as_str().filter(|n| !n.is_empty() && *n != "default")?;
     let digest = Sha256::digest(name.as_bytes());
     let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
-    let meta = read(home.join(".docker/contexts/meta").join(hex).join("meta.json"))?;
+    let meta = read(&format!(".docker/contexts/meta/{hex}/meta.json"))?;
     meta.pointer("/Endpoints/docker/Host")?.as_str().map(str::to_owned)
 }
 
 /// A response's status, whether its body is chunked, and the bytes read past its head.
-async fn open(sock: &Path, method: &str, path: &str) -> Result<(UnixStream, u16, bool, Vec<u8>), String> {
-    let mut stream = UnixStream::connect(sock).await.map_err(|e| format!("{}: {e}", sock.display()))?;
+/// The listener's account is checked once connected where the engine names one, since the login can put a link to
+/// another socket in place of the one checked before the dial.
+async fn open(sock: &Engine, method: &str, path: &str) -> Result<(UnixStream, u16, bool, Vec<u8>), String> {
+    let mut stream = UnixStream::connect(&sock.path).await.map_err(|e| format!("{}: {e}", sock.path.display()))?;
+    if let Some(owner) = sock.owner {
+        let peer = stream.peer_cred().map_err(|e| format!("{}: {e}", sock.path.display()))?.uid();
+        if peer != owner {
+            return Err(format!("{} is served by another account than the one its Docker context belongs to", sock.path.display()));
+        }
+    }
     let request = format!("{method} {path} HTTP/1.1\r\nHost: docker\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
     stream.write_all(request.as_bytes()).await.map_err(|e| e.to_string())?;
     let mut buf = Vec::new();
@@ -80,7 +126,7 @@ async fn open(sock: &Path, method: &str, path: &str) -> Result<(UnixStream, u16,
 }
 
 /// One request: the status and the body as JSON, null where there was none.
-pub(crate) async fn ask(sock: &Path, method: &str, path: &str) -> Result<(u16, serde_json::Value), String> {
+pub(crate) async fn ask(sock: &Engine, method: &str, path: &str) -> Result<(u16, serde_json::Value), String> {
     let asked = async {
         let (mut stream, status, chunked, mut rest) = open(sock, method, path).await?;
         let mut chunk = [0u8; 8192];
@@ -156,7 +202,7 @@ pub(crate) struct Events {
 
 impl Events {
     /// Subscribes to what `query` names; a status other than 200 is the engine's refusal.
-    pub(crate) async fn open(sock: &Path, query: &str) -> Result<Events, String> {
+    pub(crate) async fn open(sock: &Engine, query: &str) -> Result<Events, String> {
         let path = format!("/events?{query}");
         let (stream, status, chunked, rest) = tokio::time::timeout(ASK_TIMEOUT, open(sock, "GET", &path))
             .await
@@ -230,9 +276,79 @@ mod tests {
         std::fs::write(meta.join("meta.json"), format!(r#"{{"Endpoints":{{"docker":{{"Host":"unix://{}"}}}}}}"#, context.display()))
             .unwrap();
         let host = format!("unix://{}", named.display());
-        assert_eq!(engine_socket(Some(home.path()), Some(&host)), Some(named.clone()));
-        assert_eq!(engine_socket(Some(home.path()), Some("tcp://10.0.0.1:2375")), Some(context.clone()));
+        let path = |e: Option<Engine>| e.map(|e| e.path);
+        assert_eq!(path(engine_socket(Some(home.path()), Some(&host))), Some(named.clone()));
+        assert_eq!(path(engine_socket(Some(home.path()), Some("tcp://10.0.0.1:2375"))), Some(context.clone()));
         // A DOCKER_HOST naming no socket that is there falls through to the context's.
-        assert_eq!(engine_socket(Some(home.path()), Some("unix:///nowhere/docker.sock")), Some(context));
+        assert_eq!(path(engine_socket(Some(home.path()), Some("unix:///nowhere/docker.sock"))), Some(context));
+    }
+
+    #[test]
+    fn a_fifo_or_a_link_where_the_context_is_read_names_no_context_and_never_holds_the_read() {
+        let home = tempfile::tempdir().unwrap();
+        let docker = home.path().join(".docker");
+        std::fs::create_dir_all(&docker).unwrap();
+        let fifo = |p: &Path| nix::unistd::mkfifo(p, nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap();
+        fifo(&docker.join("config.json"));
+        let at = home.path().to_path_buf();
+        assert_eq!(crate::kill::tests::within("a fifo at config.json", move || context_host(&at)), None);
+        std::fs::remove_file(docker.join("config.json")).unwrap();
+        std::fs::write(docker.join("config.json"), r#"{"currentContext":"colima"}"#).unwrap();
+        let digest: String = Sha256::digest(b"colima").iter().map(|b| format!("{b:02x}")).collect();
+        let meta = docker.join("contexts/meta").join(digest);
+        std::fs::create_dir_all(&meta).unwrap();
+        fifo(&meta.join("meta.json"));
+        let at = home.path().to_path_buf();
+        assert_eq!(crate::kill::tests::within("a fifo at meta.json", move || context_host(&at)), None);
+        // A link where the meta file goes names nothing either.
+        std::fs::remove_file(meta.join("meta.json")).unwrap();
+        std::fs::write(home.path().join("meta.json"), r#"{"Endpoints":{"docker":{"Host":"unix:///x.sock"}}}"#).unwrap();
+        std::os::unix::fs::symlink(home.path().join("meta.json"), meta.join("meta.json")).unwrap();
+        assert_eq!(context_host(home.path()), None);
+        std::fs::remove_file(meta.join("meta.json")).unwrap();
+        std::fs::rename(home.path().join("meta.json"), meta.join("meta.json")).unwrap();
+        assert_eq!(context_host(home.path()).as_deref(), Some("unix:///x.sock"));
+    }
+
+    #[test]
+    fn a_root_daemon_dials_a_contexts_socket_only_where_the_login_owns_it() {
+        let home = tempfile::tempdir().unwrap();
+        let context = home.path().join("context.sock");
+        let _listening = std::os::unix::net::UnixListener::bind(&context).unwrap();
+        let docker = home.path().join(".docker");
+        std::fs::create_dir_all(&docker).unwrap();
+        std::fs::write(docker.join("config.json"), r#"{"currentContext":"colima"}"#).unwrap();
+        let digest: String = Sha256::digest(b"colima").iter().map(|b| format!("{b:02x}")).collect();
+        let meta = docker.join("contexts/meta").join(digest);
+        std::fs::create_dir_all(&meta).unwrap();
+        std::fs::write(meta.join("meta.json"), format!(r#"{{"Endpoints":{{"docker":{{"Host":"unix://{}"}}}}}}"#, context.display()))
+            .unwrap();
+        let mine = nix::unistd::geteuid().as_raw();
+        assert_eq!(context_socket(home.path(), Some(mine)), Some(context.clone()));
+        // A socket some other account owns, a root service's, is never one the login's context points the root daemon at.
+        assert_eq!(context_socket(home.path(), Some(mine + 1)), None);
+        assert_eq!(context_socket(home.path(), None), Some(context));
+    }
+
+    #[tokio::test]
+    async fn a_dial_the_login_named_to_a_root_daemon_is_dropped_where_another_account_serves_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("engine.sock");
+        let listener = tokio::net::UnixListener::bind(&path).unwrap();
+        let served = tokio::spawn(async move {
+            for _ in 0..2 {
+                let (mut s, _) = listener.accept().await.unwrap();
+                let mut b = [0u8; 4096];
+                if s.read(&mut b).await.unwrap_or(0) > 0 {
+                    let _ = s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").await;
+                }
+            }
+        });
+        let mine = nix::unistd::geteuid().as_raw();
+        let theirs = Engine { path: path.clone(), owner: Some(mine + 1) };
+        let err = ask(&theirs, "GET", "/containers/json").await.unwrap_err();
+        assert!(err.ends_with("is served by another account than the one its Docker context belongs to"), "{err}");
+        assert_eq!(ask(&Engine { path, owner: Some(mine) }, "GET", "/containers/json").await.unwrap().0, 200);
+        served.await.unwrap();
     }
 }

@@ -23,6 +23,8 @@ pub struct FakeProc {
     pub starttime: Option<u64>,
     /// Resident pages.
     pub rss: Option<u64>,
+    /// Of those, the file and shmem pages statm counts as shared; none by default, so every resident page is private.
+    pub shared: Option<u64>,
     pub cmdline: Option<Vec<String>>,
     pub cwd: Option<String>,
     pub socket_inodes: Option<Vec<u64>>,
@@ -91,6 +93,8 @@ pub fn write_proc(root: &Path, p: &FakeProc) {
     let dir = root.join(p.pid.to_string());
     std::fs::create_dir_all(&dir).unwrap();
     write_whole(&dir.join("stat"), &stat_line(p));
+    let rss = p.rss.unwrap_or(10);
+    write_whole(&dir.join("statm"), &format!("{} {rss} {} 0 0 0 0\n", rss * 4, p.shared.unwrap_or(0)));
     write_whole(&dir.join("comm"), &format!("{}\n", comm_of(p)));
     let argv = p.cmdline.clone().unwrap_or_else(|| vec![comm_of(p)]);
     let mut cmdline: Vec<u8> = argv.join("\0").into_bytes();

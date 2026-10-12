@@ -3,8 +3,9 @@ import type { ProcKind } from "./ProcKind.js";
 import type { ProcOwner } from "./ProcOwner.js";
 
 /**
- * One process as /proc/[pid] shows it. cpu is its busy share of one core over the interval; rss in bytes;
- * startedAt epoch milliseconds; pty names the daemon pty whose shell this is.
+ * One process as /proc/[pid] shows it. cpu is its busy share of one core over the interval; rss the memory it holds in
+ * bytes: its physical footprint on a Mac, its private resident memory (RssAnon) where /proc is read, ps's resident
+ * figure on this computer's Linux road; startedAt epoch milliseconds; pty names the daemon pty whose shell this is.
  */
 export type ProcEntry = { pid: number, ppid: number, user: string, state: string, comm: string, cmdline: string, cpu: number, rss: number, startedAt: number, pty?: string, 
 /**

@@ -472,7 +472,14 @@ mod shapes {
 
     fn stamped(source: &dyn ProcSource, ownership: &mut Ownership, scopes: &[ProcScope]) -> Vec<ProcEntry> {
         let mut scan = source
-            .scan(&ProcScanInput { at: crate::sys::now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: std::process::id() })
+            .scan(&ProcScanInput {
+                at: crate::sys::now_ms(),
+                elapsed_ms: 0,
+                pty: HashMap::new(),
+                only: None,
+                daemon: std::process::id(),
+                scopes: Default::default(),
+            })
             .unwrap();
         ownership.stamp(&mut scan.procs, scopes, source, std::process::id());
         scan.procs
@@ -746,7 +753,14 @@ for call in calls:
         }
         std::thread::sleep(Duration::from_millis(500));
         let mut scan = source
-            .scan(&ProcScanInput { at: crate::sys::now_ms(), elapsed_ms: 0, pty: HashMap::new(), only: None, daemon: std::process::id() })
+            .scan(&ProcScanInput {
+                at: crate::sys::now_ms(),
+                elapsed_ms: 0,
+                pty: HashMap::new(),
+                only: None,
+                daemon: std::process::id(),
+                scopes: Default::default(),
+            })
             .unwrap();
         Ownership::default().stamp(&mut scan.procs, &scopes, &source, std::process::id());
         let mut table = Vec::new();
