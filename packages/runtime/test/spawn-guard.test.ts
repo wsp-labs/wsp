@@ -50,6 +50,7 @@ import { HERE_PLACE_ID,
   type ThreadScope,
   type TurnResult,
 } from "@wsp/protocol";
+import { slateToolAway } from "@wsp/protocol/slate";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type LocalWiring, type Runtime } from "../src/runtime.js";
 import { localExecStream } from "../src/local-exec.js";
 import { serveRuntime } from "../src/serve.js";
@@ -705,6 +706,26 @@ describe("agents spawning agents", () => {
     await rt.workspaces.delete(box.id);
     expect(await rt.slates.get(threadId)).toBeNull();
     expect(await store.get("slates", threadId)).toBeUndefined();
+    await rt.close();
+  });
+
+  it("a thread on a machine is refused a slate's tool run as it writes it, and one on this computer is not", async () => {
+    const held = heldAdapter();
+    const rt = runtimeWith({ claude: held.factory });
+    const box = await createOn(rt, { golden: "snap_g", name: "box", agents: AGENTS_ON });
+    const mac = await createOn(rt, { on: HERE_PLACE_ID, name: "mac", agents: AGENTS_ON });
+    const onBox = await rt.sessions.start(box.id, { prompt: "lead" });
+    const onMac = await rt.sessions.start(mac.id, { prompt: "lead" });
+    const slate = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" every={60} /><column><output run={$zones} /></column></slate>`;
+    const boxThread = onBox.view().threadId!;
+    await expect(rt.slates.write({ text: slate }, asThread({ kind: "thread", threadId: boxThread, workspaceId: box.id, rootThreadId: boxThread }))).rejects.toMatchObject({ kind: "invalid", message: `slate refused: 1 error: K710 tool-away $zones calls an MCP server: ${slateToolAway(MACHINE_WSP_FORKS)}` });
+    expect(await rt.slates.get(boxThread)).toBeNull();
+    const macThread = onMac.view().threadId!;
+    await rt.slates.write({ text: slate }, asThread({ kind: "thread", threadId: macThread, workspaceId: mac.id, rootThreadId: macThread }));
+    expect(Object.keys(((await rt.slates.get(macThread))!.document as { runs: object }).runs)).toEqual(["zones"]);
+    held.end(0);
+    held.end(1);
+    await Promise.all([onBox.finished, onMac.finished]);
     await rt.close();
   });
 

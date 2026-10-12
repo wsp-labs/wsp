@@ -7,6 +7,10 @@ import { slateTable } from "./paths.js";
 /** Why a run refuses a secret among its arguments, at write and at start alike. */
 export const SLATE_SECRET_IN_ARGS = "a secret reaches a command through env or stdin, never as an argument, which ps can read";
 
+/** Why a thread on another computer gets no tool or resource run, at write, in the catalog and at the call alike. */
+export const slateToolAway = (computer: string): string =>
+  `a tool or resource run starts its MCP server on the host's computer, with the sign-ins there, so it needs a thread on that computer, and this thread runs on ${computer}. Instead, use a cmd run whose script reads a token the person types into the panel (<secret name="token" /> with env={{ TOKEN: $token }} on the run), or start the thread on the host's computer`;
+
 export const SLATE_CODES = {
   P100: "bad-syntax", P102: "bare-not-boolean", P103: "bad-id", P104: "duplicate-id", P105: "bad-patch-op", P107: "reaction-without-id",
   D200: "schema-unknown", D201: "kit-unknown", D202: "root-ambiguous", D203: "piece-missing", D205: "cycle", D206: "too-deep",
@@ -21,7 +25,7 @@ export const SLATE_CODES = {
   A600: "step-unknown", A601: "step-arg", A602: "event-unknown", A603: "text-not-literal", A606: "too-many-steps", A607: "set-not-value",
   A608: "window-step-in-reaction", A610: "reaction-cycle", A611: "reaction-shape",
   K700: "cmd-not-literal", K701: "run-kind", K702: "run-name", K703: "timer", K704: "run-arg", K705: "tool-name", K706: "tool-unknown",
-  K707: "too-many-runs", K708: "file-name", K709: "files-too-big",
+  K707: "too-many-runs", K708: "file-name", K709: "files-too-big", K710: "tool-away",
   V750: "version-behind", V751: "write-rate", V752: "nothing-to-undo", V753: "send-rate", V754: "event-rate",
   Z800: "thread-not-yours", Z801: "thread-not-in-tree", Z802: "no-slate", Z803: "sub-thread", Z804: "rewound-before",
   R900: "data-missing", R901: "data-late", R902: "eval-failed", R903: "source-unavailable", R904: "consent-refused", R905: "draw-failed",
