@@ -107,7 +107,7 @@ const runtimeProjectOf = (checkout: string | undefined): string | undefined => {
 export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "add" | "dial" | "road" | "exec" | "adds" | "reportOf" | "homeOf" | "list" | "rows" | "set" | "update" | "holds" | "remove" | "find" | "pending" | "choose" | "setUp" | "follow" | "recipeChanged" | "followers" | "skip" | "estimate" | "setupLog" | "unfollow" | "picksOf" | "on" | "close"> {
   const { opts, store, devices, wiring, recording, clockNow, dialWaitMs, live, kept, forwards, watchers, emit } = ctx;
   const {
-    records, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, rowIds, withCap, untilDaemonVersion, awaiting, adds,
+    records, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, rowIds, withCap, withLimits, untilDaemonVersion, awaiting, adds,
     putAdd, loginOf, rootOver, loginAnswers, reachedOver, holdBack, defaultId, inTurn, markHeld, change,
   } = recordArea;
   const {
@@ -413,7 +413,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       const room = new Map(await Promise.all(held.map(async r => [r.id, await forksOf(r)] as const)));
       return (await rowsOf(held)).map(row => {
         const forks = room.get(row.id);
-        return forks !== undefined ? { ...row, forks } : row;
+        return withLimits(forks !== undefined ? { ...row, forks } : row);
       });
     },
 
@@ -469,7 +469,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
         holdBack(moved);
       }
       if (also.recipe !== undefined) moved = (await followTo(placeId, also.recipe)) ?? moved;
-      const place = await withCap(moved === undefined ? row : joinedRow(moved, marked), await rowIds());
+      const place = withLimits(await withCap(moved === undefined ? row : joinedRow(moved, marked), await rowIds()));
       emit({ type: "place.changed", place });
       return { place };
     },
@@ -542,7 +542,9 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
 
     holds: async placeId => {
       const held = await recordOf(placeId);
-      return held === undefined ? { forks: [], projects: [], unsaved: [] } : holdsOf(placeId, held);
+      if (held !== undefined) return holdsOf(placeId, held);
+      // A cloud holds no project and no folder; what a remove takes from it unsaved is its sub-threads' work.
+      return { forks: [], projects: [], unsaved: providerIds().includes(placeId) ? ((await recording.subHoldsOn?.(placeId)) ?? []) : [] };
     },
 
     async remove(placeId, ask = {}) {
@@ -558,7 +560,10 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       if (provider !== undefined) {
         const forgetKey = wiring.forgetKey?.bind(wiring);
         const answer = await removeProvider({ placeId, backend: provider, owner: (await opts.owner?.()) ?? "", known: (await recording.machinesOn?.(placeId)) ?? [], ...(forgetKey === undefined ? {} : { forgetKey }), ...(opts.killConfirm === undefined ? {} : { confirm: opts.killConfirm }) });
-        if (answer.removed) emit({ type: "place.removed", placeId });
+        if (answer.removed) {
+          await recording.releaseRecordsOn?.(placeId);
+          emit({ type: "place.removed", placeId });
+        }
         return answer;
       }
       if (held === undefined) return { removed: false, swept: [] };

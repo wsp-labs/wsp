@@ -33,6 +33,8 @@ pub struct Schema {
     exclusive_minimum: Option<Number>,
     #[serde(default)]
     maximum: Option<Number>,
+    #[serde(default)]
+    pattern: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -130,6 +132,13 @@ fn check<'a>(schema: &'a Schema, value: &'a Value, path: &mut Vec<Step<'a>>, sai
     };
     match t {
         "string" | "boolean" if !takes(t, value) => say(format!("Expected {t}, received {}", kind(value)), path),
+        "string" => {
+            if let (Some(pattern), Some(text)) = (&schema.pattern, value.as_str()) {
+                if matches(pattern, text) == Some(false) {
+                    say("Invalid".to_owned(), path);
+                }
+            }
+        }
         "integer" | "number" => {
             let Some(n) = value.as_f64() else { return say(format!("Expected number, received {}", kind(value)), path) };
             if t == "integer" && n.fract() != 0.0 {
@@ -172,6 +181,48 @@ fn check<'a>(schema: &'a Schema, value: &'a Value, path: &mut Vec<Step<'a>>, sai
         }
         _ => {}
     }
+}
+
+#[derive(Clone, Copy)]
+enum Atom {
+    Digit,
+    Char(char),
+}
+
+impl Atom {
+    fn takes(self, c: char) -> bool {
+        match self {
+            Atom::Digit => c.is_ascii_digit(),
+            Atom::Char(own) => own == c,
+        }
+    }
+}
+
+/// Whether text matches a pattern, for the patterns the tools' inputs use: anchored at both ends, each atom `\d` or a
+/// plain character, each maybe followed by `+`, as JavaScript reads them. None for any other pattern; a test holds
+/// every recorded one to this set.
+fn matches(pattern: &str, text: &str) -> Option<bool> {
+    let body = pattern.strip_prefix('^')?.strip_suffix('$')?;
+    let mut atoms = Vec::new();
+    let mut chars = body.chars().peekable();
+    while let Some(c) = chars.next() {
+        let atom = match c {
+            '\\' => match chars.next()? {
+                'd' => Atom::Digit,
+                _ => return None,
+            },
+            '.' | '*' | '?' | '+' | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '^' | '$' => return None,
+            c => Atom::Char(c),
+        };
+        atoms.push((atom, chars.next_if_eq(&'+').is_some()));
+    }
+    Some(matched(&atoms, &text.chars().collect::<Vec<_>>()))
+}
+
+fn matched(atoms: &[(Atom, bool)], text: &[char]) -> bool {
+    let Some((&(atom, more), rest)) = atoms.split_first() else { return text.is_empty() };
+    let run = text.iter().take(if more { text.len() } else { 1 }).take_while(|c| atom.takes(**c)).count();
+    (1..=run).rev().any(|n| matched(rest, &text[n..]))
 }
 
 /// The bound a number is past, by the comparison that bound makes.
@@ -229,7 +280,8 @@ mod tests {
     use crate::tools::input_refusal;
 
     /// The keywords this reads, and the ones it may pass over because they say nothing about what is taken.
-    const READ: &[&str] = &["type", "properties", "required", "items", "minItems", "enum", "minimum", "maximum", "exclusiveMinimum"];
+    const READ: &[&str] =
+        &["type", "properties", "required", "items", "minItems", "enum", "minimum", "maximum", "exclusiveMinimum", "pattern"];
     const PASSED_OVER: &[&str] = &["$schema", "description", "additionalProperties"];
 
     fn crate_file(rel: &str) -> String {
@@ -267,6 +319,39 @@ mod tests {
         }
     }
 
+    fn patterns_in<'a>(schema: &'a Value, into: &mut Vec<&'a str>) {
+        if let Some(pattern) = schema["pattern"].as_str() {
+            into.push(pattern);
+        }
+        schema["properties"].as_object().into_iter().flatten().for_each(|(_, field)| patterns_in(field, into));
+        if !schema["items"].is_null() {
+            patterns_in(&schema["items"], into);
+        }
+    }
+
+    #[test]
+    fn a_pattern_matches_as_javascript_matches_it() {
+        let size = r"^\d+x\d+$";
+        for (text, taken) in [
+            ("4x8", true),
+            ("16x32", true),
+            ("4x", false),
+            ("x8", false),
+            ("4x8\n", false),
+            ("4X8", false),
+            ("44", false),
+            ("", false),
+            ("٤x8", false),
+        ] {
+            assert_eq!(matches(size, text), Some(taken), "{text:?}");
+        }
+        assert_eq!(matches(r"^a+b$", "aaab"), Some(true));
+        assert_eq!(matches(r"^\d+\d$", "12"), Some(true));
+        assert_eq!(matches(r"^\d+\d$", "1"), Some(false));
+        assert_eq!(matches(r"\d+", "1"), None);
+        assert_eq!(matches(r"^[0-9]$", "1"), None);
+    }
+
     #[test]
     fn every_recorded_input_schema_uses_only_the_keywords_this_reads() {
         for file in std::fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("record/tools")).unwrap() {
@@ -280,6 +365,11 @@ mod tests {
                         "{}: {keyword} is not read; add it with a refusal it words",
                         entry["name"]
                     );
+                }
+                let mut patterns = Vec::new();
+                patterns_in(&entry["inputSchema"], &mut patterns);
+                for pattern in patterns {
+                    assert!(matches(pattern, "").is_some(), "{}: the pattern {pattern} is not one this reads", entry["name"]);
                 }
             }
         }

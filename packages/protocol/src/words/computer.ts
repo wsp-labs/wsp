@@ -145,6 +145,7 @@ export const SPAWN_ACTS = {
   review: "start a review",
   review_post: "post a review",
   delete: "delete anything",
+  delete_sub: "delete a sub-thread it started",
   pause: "pause a machine",
   import: "import a folder",
   export: "export a folder",
@@ -154,7 +155,7 @@ export const SPAWN_ACTS = {
 export type SpawnAct = keyof typeof SPAWN_ACTS;
 
 /** The acts a thread may ask for at all; every other act in the table is refused whatever the caps say. */
-export const SPAWN_ACTS_ALLOWED: readonly SpawnAct[] = ["thread_new", "fork", "send", "bring_back", "commit", "fix", "update", "merge_in"];
+export const SPAWN_ACTS_ALLOWED: readonly SpawnAct[] = ["thread_new", "fork", "send", "bring_back", "commit", "fix", "update", "merge_in", "delete_sub"];
 
 /** The one sentence a thread's own token is refused with when the folder or machine it runs on was made with its
  * agents' switch off, which no line turns on again. */

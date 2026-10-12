@@ -133,6 +133,10 @@ const BOX_CHILD = [
 const ON_CLOUD = [
   { id: "s-11", workspaceId: "ws-cloud", harness: "claude", status: "completed", threadId: "t-11", prompt: "look", project: { id: "proj-4", name: "cloud-api" }, computerName: "Solari" },
 ];
+/** A sub-thread on Boat under t-1111aaaa, its machine napping until its delete, with what its last done read. */
+const SUB_CHILD = [
+  { id: "s-12", workspaceId: "ws-sub", harness: "claude", status: "completed", threadId: "t-12", prompt: "fix it", startedBy: "agent", parentThreadId: "t-1111aaaa", rootThreadId: "t-0", cwd: "/root/wsp", project: { id: "proj-1", name: "wsp" }, computerName: "Boat", sub: { ...{ state: "napping", on: "boat", machine: "Fix it \u0085", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", deleteAt: 1_790_000_000_000 }, result: { branch: "wsp/fix-it", pushedSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", commits: 3, unpushed: 0, changed: 0, onBranch: "wsp/fix-it", readAt: "2026-10-12T09:44:10.512Z" } } },
+];
 const WITH_CLOUD = reply({ workspaces: [{ id: "ws-cloud", name: "cloudwork", kind: "cloud", project: { id: "proj-4", name: "cloud-api", computer: "solari" } }] });
 
 /** A thread whose marks and picks moved between its turns: the latest turn's stand, and the opening turn's attempt. */
@@ -338,6 +342,7 @@ export const READS: Record<string, Case[]> = {
     { case: "a word naming no project", arguments: { project: "wsp@feat" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }) } },
     { case: "a lead's child in a box folder", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: BOX_CHILD }) } },
     { case: "a thread on a cloud project", arguments: {}, replies: { "workspaces.list": WITH_CLOUD, "sessions.list": reply({ sessions: ON_CLOUD }) } },
+    { case: "a sub-thread on Boat", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SUB_CHILD }) } },
     { case: "within a box folder's project", arguments: { project: "lab-box" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: BOX_CHILD }) } },
     { case: "empty", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: [] }) } },
     { case: "pinned, snoozed and in a section", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: PLACED }) } },
@@ -359,6 +364,7 @@ export const READS: Record<string, Case[]> = {
   ],
   thread_head: [
     { case: "head", arguments: { thread: "t-1111" }, replies: { "sessions.list": reply({ sessions: SESSIONS }), "sessions.head": reply({ total: 31, facts: HEAD_FACTS, unnamed: true, events: HEAD_EVENTS, pos: 40 }) } },
+    { case: "a sub-thread on Boat", arguments: { thread: "t-1111" }, replies: { "sessions.list": reply({ sessions: SESSIONS }), "sessions.head": reply({ total: 0, facts: { ...HEAD_FACTS, sub: { ...{ state: "napping", on: "boat", machine: "Fix it \u0085", size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018, branch: "wsp/fix-it", deleteAt: 1_790_000_000_000 }, result: { branch: "wsp/fix-it", pushedSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", commits: 3, unpushed: 0, changed: 0, onBranch: "wsp/fix-it", readAt: "2026-10-12T09:44:10.512Z" } } }, events: [], pos: 0 }) } },
     { case: "no model, access or folder, and no events", arguments: { thread: "t-1111aaaa" }, replies: { "sessions.list": reply({ sessions: SESSIONS }), "sessions.head": reply({ facts: { id: "t-1111aaaa", workspaceId: "ws-1", harness: "codex", startedBy: "person", status: "running", title: "look", sessionId: "s-3", turns: 1, ran: true }, events: [], pos: 0, total: 0 }) } },
     { case: "no such thread", arguments: { thread: "zz" }, replies: { "sessions.list": reply({ sessions: SESSIONS }) } },
     { case: "refused", arguments: { thread: "t-1111aaaa" }, replies: { "sessions.list": reply({ sessions: SESSIONS }), "sessions.head": refused("no thread t-1111aa", "not-found") } },

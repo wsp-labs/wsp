@@ -4,7 +4,7 @@
 // fold its own live rows through the same function, so the two cannot count
 // one computer two ways. One rule per kind of place, so a third kind is one
 // entry in the table below.
-import { agentsLine, fmtCost, fmtDuration, fmtLimit, plural, SPEND_LIMIT_LINE } from "./format.js";
+import { agentsLine, fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
 import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
 import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
@@ -59,6 +59,11 @@ export const NAP_AFTER_MAX_MS = 3 * 60 * 60_000;
 /** The nap window a person names in minutes: none of them never naps. */
 export const napMsOf = (minutes: number): number | null => (minutes === 0 ? null : minutes * 60_000);
 
+/** How long a finished sub-thread's machine stays before it is deleted until the person sets another delay. */
+export const DELETE_AFTER_MS = 30 * 60_000;
+/** The longest delete delay a person may set: a day. */
+export const DELETE_AFTER_MAX_MS = 24 * 60 * 60_000;
+
 /** The turn limit on a cloud account until the person sets one: what a forgotten turn there can bill by the hour. A
  * computer the person owns has none by default, since TURN_IDLE_MS already ends a stuck turn and nothing there bills. */
 export const TURN_WALL_MS = 6 * 60 * 60_000;
@@ -76,16 +81,16 @@ export function settingFor<T>(own: T | undefined, placed: T | undefined, fallbac
   return own !== undefined ? own : placed !== undefined ? placed : fallback;
 }
 
-/** Whether a machine in this phase holds one of its cloud's slots: a napping machine holds none and a gone one is
- * not there, while one creating or waking already does. Phase alone, so a refusal can read it without asking the
- * provider about every machine. */
-export const phaseHoldsSlot = (w: Pick<WorkspaceView, "phase">): boolean => {
+/** Whether a machine in this phase holds one of its cloud's slots: a napping machine holds none, a gone or released
+ * one is not there and a queued one waiting with `queue` has none yet, while one creating or waking already does.
+ * Phase alone, so a refusal can read it without asking the provider about every machine. */
+export const phaseHoldsSlot = (w: Pick<WorkspaceView, "phase" | "queue">): boolean => {
   const state = workspaceState({ phase: w.phase });
-  return state !== "paused" && state !== "gone";
+  return state !== "paused" && state !== "gone" && state !== "released" && !(w.phase === "queued" && w.queue !== undefined);
 };
 
 /** What the count reads of a workspace and of a thread. */
-export type PlacedWorkspace = Pick<WorkspaceView, "id" | "kind" | "machineId" | "place" | "provider" | "phase">;
+export type PlacedWorkspace = Pick<WorkspaceView, "id" | "kind" | "machineId" | "place" | "provider" | "phase" | "queue">;
 export type PlacedThread = Pick<ThreadView, "workspaceId" | "status">;
 
 /** A dollar figure a person typed, in whole dollars where it has no cents. */
@@ -95,7 +100,7 @@ const dollars = (usd: number): string => (Number.isInteger(usd) ? `$${usd}` : fm
 const capNumber = (cap: PlaceCap | undefined, key: "threads" | "machines" | "spendPerDayUsd"): number | undefined =>
   cap !== undefined && key in cap ? (cap as Record<string, number>)[key] : undefined;
 
-type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault">;
+type SettingView = Pick<PlaceView, "cap" | "capDefault" | "napMs" | "napDefault" | "turnLimitMs" | "turnLimitDefault" | "spawn" | "spawnDefault" | "size" | "sizeDefault" | "deleteAfterMs">;
 /** What a row says a setting runs at: the whole phrase, and the figure alone that a default beside it takes. */
 type SettingSaid = { long: string; short: string };
 
@@ -110,6 +115,23 @@ const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: rea
     reads: (p, fallback) => {
       const usd = capNumber(fallback ? p.capDefault : p.cap, "spendPerDayUsd");
       return usd === undefined ? undefined : { long: `${dollars(usd)} a day`, short: dollars(usd) };
+    },
+  },
+  size: {
+    key: "size",
+    words: "size",
+    reads: (p, fallback) => {
+      const size = fallback ? p.sizeDefault : p.size;
+      return size === undefined ? undefined : { long: `size ${fmtSize(size)}`, short: sizeWord(size) };
+    },
+  },
+  "delete-after": {
+    key: "deleteAfterMs",
+    words: "delete after",
+    reads: (p, fallback) => {
+      const ms = fallback ? DELETE_AFTER_MS : p.deleteAfterMs;
+      if (ms === undefined) return undefined;
+      return ms === 0 ? { long: "deleted once done", short: "at once" } : { long: `deleted after ${ms / 60_000} min`, short: `${ms / 60_000} min` };
     },
   },
   nap: {
@@ -205,7 +227,7 @@ const PLACE_CAPS: Record<PlaceKind, PlaceCapRule> = {
     },
   },
   provider: {
-    keys: ["machines", "spend", "nap", "turn-limit", "spawn", "max-depth"],
+    keys: ["machines", "spend", "size", "delete-after", "nap", "turn-limit", "spawn", "max-depth"],
     turnLimit: TURN_WALL_MS,
     capOf: (_place, set) => ({ machines: set.machines ?? CLOUD_CAP_DEFAULT.machines, spendPerDayUsd: set.spendPerDayUsd ?? CLOUD_CAP_DEFAULT.spendPerDayUsd }),
     atOnce: cap => ("machines" in cap ? cap.machines : 0),
@@ -228,7 +250,7 @@ export function placeTurnLimit(kind: PlaceKind, settings: PlaceSettings): number
 
 /** Why a set is refused on this place: nothing set or reset at all, a setting its kind does not take, or one both
  * set and reset. Nothing when every key fits. */
-export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
+export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | "takesForks" | "sizes">, set: PlaceSettingsAsk, reset: readonly PlaceSettingWord[] = []): string | undefined {
   const takes = settingsOn(place);
   const said = (words: readonly PlaceSettingWord[]): string => andList(words.map(word => SETTINGS[word].words));
   const named = (Object.keys(SETTINGS) as PlaceSettingWord[]).filter(word => placeSettingNamed(set, word));
@@ -238,18 +260,24 @@ export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | 
   const wrong = [...new Set([...named, ...reset])].filter(word => !takes.includes(word));
   if (wrong.length > 0) return `${placeSaid(place)} takes ${said(takes)}, not ${said(wrong)}`;
   const both = named.filter(word => reset.includes(word));
-  return both.length === 0 ? undefined : `${placeSaid(place)}: ${said(both)} is both set and reset; name it once`;
+  if (both.length > 0) return `${placeSaid(place)}: ${said(both)} is both set and reset; name it once`;
+  const size = set.size;
+  if (size !== undefined && sizeOffer(place.sizes ?? [], size) === undefined) return refusalLine(sizeRefusal(sizeWord(size), place.sizes ?? []), SIZE_PICK_FIX);
+  return undefined;
 }
 
 /** The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
  * folders on the computer itself and never nap. */
-function settingsOn(place: Pick<PlaceView, "kind" | "takesForks">): readonly PlaceSettingWord[] {
+function settingsOn(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">): readonly PlaceSettingWord[] {
   return PLACE_CAPS[place.kind].keys.filter(word => placeTakes(place, word));
 }
 
-/** Whether a place takes one setting: its kind's, less the nap where it forks nothing. */
-export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks">, word: PlaceSettingWord): boolean {
-  return PLACE_CAPS[place.kind].keys.includes(word) && (word !== "nap" || place.takesForks === true);
+/** Whether a place takes one setting: its kind's, less the nap where it forks nothing and the size where its row
+ * offers none. */
+export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">, word: PlaceSettingWord): boolean {
+  if (!PLACE_CAPS[place.kind].keys.includes(word)) return false;
+  if (word === "nap") return place.takesForks === true;
+  return word !== "size" || (place.sizes ?? []).length > 0;
 }
 
 const andList = (words: readonly string[]): string => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);
@@ -297,11 +325,14 @@ export function placeFullLine(place: Pick<PlaceView, "kind" | "name" | "cap" | "
 }
 
 /** What holds a turn back while its computer's threads at once is met: the computer and what runs there against its
- * cap. Threads and never machines, since a thread on a box or on this computer makes none. */
-export const capRunningLine = (w: ThreadCapWait): string => `${w.place} is running ${w.running} of ${plural(w.atOnce, "thread")}`;
+ * cap; for a sub-thread's spawn, the cloud's machines running or its starts this minute used. */
+export const capRunningLine = (w: ThreadCapWait): string =>
+  w.why === "minute" ? `${w.place}'s starts this minute are used: ${w.running} of ${w.atOnce}` : `${w.place} is running ${w.running} of ${plural(w.atOnce, w.why === "slot" ? "machine" : "thread")}`;
 
-/** The line a held turn says where nothing beside it says it waits: the chat's working row and the command line. */
-export const capWaitLine = (w: ThreadCapWait): string => `waiting while ${capRunningLine(w)}`;
+/** The line a held turn says where nothing beside it says it waits: the chat's working row and the command line. A
+ * spawn says a machine slot and a minute of starts apart, since raising one does nothing for the other (05, Q18). */
+export const capWaitLine = (w: ThreadCapWait): string =>
+  w.why === "slot" ? `waiting for a machine on ${w.place}: ${w.running} of ${w.atOnce} running` : w.why === "minute" ? `waiting for ${w.place}'s next minute of starts: ${w.running} of ${w.atOnce} used` : `waiting while ${capRunningLine(w)}`;
 
 /** Why a held turn ended with nothing started: the person or its lead stopped it while it waited, or before it had
  * looked at its computer's threads at once and had no count to say. */
@@ -317,6 +348,10 @@ export const capRestartedLine = (place: string): string => `the host restarted w
 
 /** The act that ends the wait without one of those threads ending, as the app's button and a tile's card name it. */
 export const CAP_RAISE_ACT = "Raise threads at once";
+
+/** The act a held wait offers beside its count: threads or machines at once, and none for a minute of starts, which
+ * the cloud's plan sets and no setting here moves. */
+export const capRaiseAct = (w: ThreadCapWait): string | undefined => (w.why === undefined ? CAP_RAISE_ACT : w.why === "slot" ? "Raise machines at once" : undefined);
 
 /** The act that wakes a napping machine, as the chat's working row names it beside the line that it naps. */
 export const WAKE_ACT = "Wake";

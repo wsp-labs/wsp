@@ -68,6 +68,7 @@ import {
   type SessionView,
   type TurnRefusal,
   type TurnResult,
+  type SubResult,
   Preferences,
   homeShortened,
   BRANCH_HERE_ONLY_LINE,
@@ -126,6 +127,8 @@ export interface Turn {
   reason?: string;
   /** The thread's previous turn ended without a result, as the turn's session.start said. */
   afterCut?: true;
+  /** What making the turn's machine said beside it, as the start's answer carried it. */
+  notice?: string;
 }
 
 /** The model, effort and access a start names: the model and effort as the composer's pickers name them, which the
@@ -341,12 +344,21 @@ export function projectOfFolder(projects: readonly ProjectView[], folder: string
 
 /** A thread on this computer a word names, with the worktree wsp made that it runs in; nothing where the word names
  * no thread, or one on a box, which a workspace delete takes. */
-export async function threadHere(client: HostClient, ref: string): Promise<{ id: string; workspaceId: string; worktree?: string } | undefined> {
-  const thread = await threadOf(client, ref).catch(() => undefined);
+export async function threadHere(client: HostClient, ref: string | ThreadView | undefined): Promise<{ id: string; workspaceId: string; worktree?: string } | undefined> {
+  const thread = typeof ref === "string" ? await threadOf(client, ref).catch(() => undefined) : ref;
   if (thread === undefined) return undefined;
   const at = (await workspaces(client)).find(w => w.id === thread.workspaceId);
   if (at === undefined || !runsInFolder(workspaceKind(at))) return undefined;
   return { id: threadIdOf(thread), workspaceId: at.id, ...(at.worktree?.made === true && at.worktree.gone !== true ? { worktree: at.worktree.path } : {}) };
+}
+
+/** A sub-thread's delete as the host reads it before anything goes: the refusals it would meet, then the question a
+ * person is put, naming its machine and any work no remote has; nothing for a thread that is no sub-thread. */
+export async function subDeleting(client: HostClient, thread: ThreadView | undefined): Promise<{ id: string; workspaceId: string; question: string } | undefined> {
+  if (thread?.sub === undefined) return undefined;
+  const id = threadIdOf(thread);
+  const { question } = await client.request<{ question: string }>("sessions.delete", { threadId: id, check: true });
+  return { id, workspaceId: thread.workspaceId, question };
 }
 
 /** Refuses a thread on a box's machine, which goes with its machine, in the runtime's own words; nothing for any
@@ -398,9 +410,9 @@ export async function sharingWith(client: HostClient, at: { thread: ThreadView; 
 }
 
 /** What the host took with a thread it deleted: the record's id, the worktree that went with it, and how many threads. */
-export async function threadDeleted(client: HostClient, threadId: string, o: { processes?: ProcessesAsk; check?: boolean } = {}): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[] }> {
-  const { workspaceId, worktree, threads, ended } = await client.request<{ workspaceId: string; worktree?: string; threads: number; ended?: unknown }>("sessions.delete", { threadId, ...o });
-  return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads, ...(ended !== undefined ? { ended: z.array(ActivityEnded).parse(ended) } : {}) };
+export async function threadDeleted(client: HostClient, threadId: string, o: { processes?: ProcessesAsk; check?: boolean } = {}): Promise<{ workspaceId: string; worktree?: string; threads: number; ended?: ActivityEnded[]; machine?: "deleted"; on?: string }> {
+  const { workspaceId, worktree, threads, ended, machine, on } = await client.request<{ workspaceId: string; worktree?: string; threads: number; ended?: unknown; machine?: "deleted"; on?: string }>("sessions.delete", { threadId, ...o });
+  return { workspaceId, ...(worktree !== undefined ? { worktree } : {}), threads, ...(ended !== undefined ? { ended: z.array(ActivityEnded).parse(ended) } : {}), ...(machine === "deleted" ? { machine } : {}), ...(on !== undefined ? { on } : {}) };
 }
 
 /** The worktree holding a branch of a project here, as the host answers it. */
@@ -550,12 +562,12 @@ async function begin(client: HostClient, start: Sent, startedBy: SessionOrigin, 
     offStarting();
     throw new Error(OTHER_VERSION);
   }
-  const { session, outcome, turnId } = reply.data;
+  const { session, outcome, turnId, notice } = reply.data;
   turnOf = turnId;
   if (outcome === "steered") offStarting();
   const threadId = session.threadId;
   if (threadId === undefined) throw new Error("the runtime stamped no thread on the session");
-  return { turn: { session, threadId, outcome }, turnId };
+  return { turn: { session, threadId, outcome, ...(notice !== undefined ? { notice } : {}) }, turnId };
 }
 
 /** A start as it goes out: with the request id its every send carries, so the host that answers it, or a host that
@@ -673,7 +685,7 @@ export async function waitThrough(deps: Pick<VerbDeps, "client" | "hostWaitMs">,
   for (;;) {
     try {
       const waited = await firstEnded(client, named, left());
-      return "timedOutMs" in waited ? { timedOutMs: timeoutMs! } : waited;
+      return "timedOutMs" in waited ? { timedOutMs: timeoutMs! } : await withSubResult(client, named, waited.ended);
     } catch (e) {
       if (!(await stoppedUnder(client))) throw e;
       redialed?.();
@@ -710,10 +722,21 @@ export async function restartHost(deps: Pick<VerbDeps, "client" | "hostWaitMs">)
   return { running: (await threads(back)).filter(t => t.status === "running").map(threadIdOf) };
 }
 
-/** A thread's turn as it ended, for whoever waited on it: the thread and the runtime's result for the turn. */
+/** A thread's turn as it ended, for whoever waited on it: the thread and the runtime's result for the turn, and for a
+ * sub-thread what the done after it read off its machine. */
 export interface Ended {
   threadId: string;
   result: TurnResult;
+  sub?: SubResult;
+}
+
+/** A sub-thread's end with what the done after it read off its machine, asked of the host once that read is in; any
+ * other thread's end as it came. */
+async function withSubResult(client: HostClient, named: readonly ThreadView[], ended: Ended): Promise<{ ended: Ended }> {
+  const row = named.find(t => threadIdOf(t) === ended.threadId);
+  if (row?.sub === undefined) return { ended };
+  const { facts } = await client.request<ThreadHead>("sessions.head", { threadId: row.id, afterRead: true });
+  return { ended: { ...ended, ...(facts.sub?.result !== undefined ? { sub: facts.sub.result } : {}) } };
 }
 
 /** What a wait came to: the thread that left running, or the deadline that passed first. */
@@ -1058,6 +1081,7 @@ export async function followVerb(ctx: VerbContext, client: HostClient, start: Re
         // The live turn, which follow fills in as its events land: whoever waited on it reads its end off this.
         onTurn?.(t);
         if (announce) ctx.out.emit({ type: "thread", id: t.threadId, workspaceId: t.session.workspaceId, harness: t.session.harness, startedBy: t.session.startedBy }, openedThreadSaid(t.threadId, opened, t.session.cwd));
+        for (const line of t.notice?.split("\n") ?? []) ctx.io.error(line);
         if (t.outcome !== "started" && t.outcome !== "held") ctx.io.error(JOINED[t.outcome](picks, waitedFor));
         if (joinedWaiting) ctx.io.error(WAITING_ON_A_PERSON);
       },
@@ -1126,6 +1150,7 @@ export async function detachVerb(ctx: VerbContext, client: HostClient, start: Re
     waitedFor = e.waitsFor;
     waitSaid(ctx, waitingLine(e));
   }, () => hostBack(ctx));
+  for (const line of turn.notice?.split("\n") ?? []) ctx.io.error(line);
   if (turn.outcome === "held" && turn.session.capped !== undefined) ctx.io.error(capWaitLine(turn.session.capped));
   else if (turn.outcome !== "started" && turn.outcome !== "held") ctx.io.error(JOINED[turn.outcome](picks, waitedFor));
   ctx.out.emit({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}) }, openedThreadSaid(turn.threadId, opened, turn.session.cwd));

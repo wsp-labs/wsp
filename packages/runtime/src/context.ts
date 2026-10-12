@@ -16,6 +16,7 @@ import type {
   ReapFailure,
   ReapedMachine,
   VaultOptions,
+  BoxLimits,
 } from "@wsp/engine";
 import type { DaemonFrame, PlaceKind, ProcKind, ProcScope } from "@wsp/protocol";
 import type {
@@ -78,7 +79,7 @@ import type {
   ThreadWaitingOn,
   ThreadCapWait,
 } from "@wsp/protocol";
-import type { CopyBuild, GoneSeenBy, WorktreeSettled } from "@wsp/protocol";
+import type { CopyBuild, GoneSeenBy, SubResult, SubUnpushed, WorktreeSettled } from "@wsp/protocol";
 import type { agentsReads } from "./agents-read.js";
 import type { DaemonChannel, DaemonChannelOptions } from "./daemon-channel.js";
 import type { MachineExecOptions, TurnWaiting } from "./machine-exec.js";
@@ -497,6 +498,8 @@ export interface BootArea {
   readonly rowGone: (id: string, at: { workspaceId: string; threadId?: string }) => void;
   readonly setupRefusalMoved: (place: string, harness: string) => void;
   readonly threadFacts: (threadId: string) => ThreadFacts | undefined;
+  /** A sub-thread's facts once the done after its latest turn has read its machine; any other thread's as they stand. */
+  readonly factsAfterRead: (threadId: string, origin: Caller | undefined) => Promise<ThreadFacts | undefined>;
   readonly settledNow: (threadId: string, settleMs: number | null) => boolean;
   readonly pushHead: (threadId: string) => void;
   readonly mark: (threadIds: readonly string[], stamped: ThreadStamps | ((threadId: string) => ThreadStamps), origin: Caller | undefined) => Promise<void>;
@@ -527,9 +530,75 @@ export interface CreateArea {
   readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;
 }
 
+export interface SubLifeArea {
+  /** A sub-thread's turn ended: read what it pushed, keep its session, arm the delete or hold the machine, nap it. */
+  readonly subDone: (workspaceId: string) => Promise<void>;
+  /** The line a sub-thread's finished line to its lead ends with, off the read of the done after its turn ended at
+   * `since`; nothing where none followed. */
+  readonly subLine: (workspaceId: string, since: number) => Promise<string | undefined>;
+  /** What the done after a sub-thread's turn that ended at `since` read off its machine, once it has; nothing where
+   * none followed. */
+  readonly subRead: (workspaceId: string, since: number) => Promise<SubResult | undefined>;
+  /** The delete a sub-machine's deleteAt arms, run now. */
+  readonly subExpire: (workspaceId: string) => Promise<void>;
+  /** Every delete a record holds, armed; one already past runs at once. */
+  readonly armSubs: () => void;
+  /** The cloud lost a sub-machine: the record is released, the thread kept. */
+  readonly subLost: (entry: LiveWorkspace, reason: string) => Promise<GoneOutcome>;
+  /** The cloud left this host: every sub-machine it held is released and says so; after a forget, which deleted
+   * nothing there, each keeps its phase and says its cloud is gone. */
+  readonly releaseSubsOn: (placeId: string, o?: { forgot?: true }) => Promise<void>;
+  /** The work a sub-machine's last read found not pushed; nothing where it holds none. */
+  readonly subUnpushed: (entry: LiveWorkspace) => SubUnpushed | undefined;
+  /** A sub-thread and its machine taken away, refused under a turn and to a thread's own token over work not pushed;
+   * with check, the question a person is put and nothing deleted. */
+  readonly subDelete: (entry: LiveWorkspace, threadId: string, origin: Caller | undefined, o: { check?: boolean }) => Promise<{ workspaceId: string; threads: number; machine?: "deleted"; on: string; question?: string }>;
+  /** Refuses a send into a sub-thread whose cloud left this host; a released one's send makes it a new machine. */
+  readonly refuseSubSend: (entry: LiveWorkspace) => void;
+  /** Refuses a wake of a released sub-thread, which has no machine to wake, or of one whose cloud left this host. */
+  readonly refuseSubWake: (entry: LiveWorkspace) => void;
+  /** Whether the caller is the lead that started the sub-thread on this record: a lead deletes its own sub-threads, as
+   * the person does, and no thread deletes anything else. */
+  readonly leadOfSub: (workspaceId: string | undefined, origin: Caller | undefined) => boolean;
+}
+
 export interface SubSpawnArea {
   /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
+  /** The machine of a spawn the queue let through, made as a spawn makes one, the picked files packed fresh. */
+  readonly standUpQueued: (record: WorkspaceRecord, posted: () => void) => Promise<void>;
+  /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
+  readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
+  /** A released sub-thread on a new machine forked from the image head as it stands, the picked files and the kept
+   * session landed on it, the checks that still apply read first: the live entry now, and the head its send opens with.
+   * A send that meets a resume in flight waits for it and opens with no head of its own; any other is answered as it is. */
+  readonly resumeSub: (entry: LiveWorkspace, threadId: string, harness: string) => Promise<{ entry: LiveWorkspace; preamble?: string; notices: string[] }>;
+}
+
+export interface SubQueueArea {
+  /** What holds a spawn on a cloud back now, a slot, the minute's starts or spawns ahead of it; nothing where none. */
+  readonly queueWait: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait | undefined;
+  /** A spawn let past the count holds its slot, and its start until `posted`, from now until `release`. */
+  readonly claimStart: (workspaceId: string, placeId: string) => { posted: () => void; release: () => void };
+  /** A delete of a held spawn's record: stopped as a stop does, answered once it is gone; nothing where none is held. */
+  readonly deleteQueued: (workspaceId: string) => Promise<void> | undefined;
+  /** The wait a create the cloud refused at its machines at once is held under. */
+  readonly cloudFull: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait;
+  /** A spawn's record stored queued with no machine, for the wait it met; at the head of the line, a read on, where
+   * the cloud refused its create at its cap. */
+  readonly enqueue: (record: WorkspaceRecord, wait: ThreadCapWait, refused?: boolean) => Promise<void>;
+  /** A queued record read at load, held live with no machine. */
+  readonly attachQueued: (record: WorkspaceRecord, wait: ThreadCapWait | undefined) => void;
+  /** The first turn of a queued sub-machine's thread, written down and started once its machine stands. */
+  readonly holdQueued: (
+    at: { workspaceId: string; threadId: string; tree: { parentThreadId?: string; rootThreadId?: string }; o: Parameters<RuntimeContext["sessionsApi"]["start"]>[1]; notify: readonly string[] | undefined },
+    origin: Caller | undefined,
+  ) => Promise<SessionHandle>;
+  /** A stop on a held spawn's row: dropped with no start spent; false for any other row. */
+  readonly dropQueued: (turnId: string) => Promise<boolean>;
+  /** At boot: every queued record's written start back in line. */
+  readonly resumeQueue: () => Promise<void>;
+  readonly pumpQueue: () => Promise<void>;
 }
 
 export interface FoldersArea {
@@ -667,7 +736,7 @@ export interface ThreadsArea {
   readonly notifyOn: (threadId: string) => { notify: readonly string[]; by?: ThreadScope; road?: WorkspaceOrigin } | undefined;
   readonly notifyReach: (from: readonly string[]) => Set<string>;
   readonly tellAs: (s: { notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin }) => { by?: ThreadScope; road?: WorkspaceOrigin };
-  readonly notifyEnd: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult) => void;
+  readonly notifyEnd: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, notify: readonly string[], named: { by?: ThreadScope; road?: WorkspaceOrigin }, result: TurnResult, o?: { open?: true }) => void;
   readonly deliverOwed: () => Promise<void>;
   readonly sendBack: (s: { view: SessionView; turnId: string; turnLive?: TurnLive }, ids: readonly string[], stopped: boolean) => void;
   readonly settleCut: (s: { view: SessionView; turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; turnLive?: TurnLive; snapshot?: string; asked?: TurnAsked }, reason: string, cutLine: (endedAt: number) => string, stopped?: boolean, unreached?: boolean) => void;
@@ -840,4 +909,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;

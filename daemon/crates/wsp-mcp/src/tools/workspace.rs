@@ -79,6 +79,8 @@ pub struct Words {
     pub merged_in_many: String,
     pub merge_conflicts: String,
     pub nothing_to_merge: String,
+    pub not_in_merge_one: String,
+    pub not_in_merge_many: String,
     pub made_bare: String,
     pub made_issue: String,
     pub made_pull_request: String,
@@ -86,6 +88,8 @@ pub struct Words {
     pub posted_many: String,
     pub first_turn_failed: String,
     pub thread_kept_folder: String,
+    pub sub_kept: String,
+    pub sub_deleted: String,
     pub thread_kept_worktree: String,
     pub no_thread_here: String,
     pub thread_on_machine: String,
@@ -188,6 +192,7 @@ pub enum Phase {
     Napping,
     Waking,
     Gone,
+    Released,
 }
 
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -257,6 +262,7 @@ pub fn state_of(phase: Phase, machine: Option<&str>, reach: Option<&str>) -> &'s
         Phase::Napping => "paused",
         Phase::Waking => "waking",
         Phase::Gone => "gone",
+        Phase::Released => "released",
         Phase::Running => match (machine, reach) {
             (Some("paused"), _) => "paused",
             (Some("starting"), _) => "waking",

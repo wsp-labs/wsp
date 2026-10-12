@@ -45,7 +45,7 @@ import {
 } from "@wsp/protocol";
 import { hostBack, type VerbDeps, type VerbContext, usageIs, tool, type CliVerb, type Verb, PICK_OPTIONS, SEND_OPTIONS, flag, flagList, absolutePath, absoluteFolder } from "./client.js";
 import { workspaceOf, threadOf, threadCwd, SSH_PIPES_HERE_LINE, sshWorkspaceOf, pipeBytes, awake, napAfterDeadLaunch, withLine, stop, stopLine, forgetThread, threadForgotLine, rename, renameLine, threadsOf, settleThreads, restoreThreads, settledLines, restoredLines } from "./workspaces-help.js";
-import { type Turn, threadAt, pickFlags, checkedStart, runTarget, forkFor, subFor, worktreeFor, openingOf, threadFork, notifyOf, replacedOf, messageTo, startDetached, follow, hostRestartedLine, restartHost, readThread, readLine, threadHead, headLine, resumeAsked, type AnswerRoad, ANSWER_ROADS, answerOpenAsk, followVerb, beforeSending, detachVerb, turnView } from "./turns-help.js";
+import { type Turn, threadAt, pickFlags, checkedStart, filesFrom, runTarget, forkFor, subFor, worktreeFor, openingOf, threadFork, notifyOf, replacedOf, messageTo, startDetached, follow, hostRestartedLine, restartHost, readThread, readLine, threadHead, headLine, resumeAsked, type AnswerRoad, ANSWER_ROADS, answerOpenAsk, followVerb, beforeSending, detachVerb, turnView } from "./turns-help.js";
 import { confirmed, execOn, type ExportRequest, exportProject, withReplaceHint, agentsFlag, QUIET_LINE, QUIET_TURN, SEND_MEETS, CAP_MEETS, TurnOut, RunOut, Argv, asJson, asText, turnText, detachedOut, turnOut, WorkspaceIn, ThreadIn, AgentIn, NotifyIn, RunProjectIn, BesideIn, BranchIn, OnIn, SubSizeIn, RunCwdIn, ExecCwdIn, DetachIn, TitleIn, ReplacesIn, ForkIn, AtIn, FilesIn, FastIn, ResumeIn, CopyIn, PICK_INPUTS, SEND_INPUTS, schemeFlag, hostFolders, initSetup, folderLines, REASON_FLAG } from "./io.js";
 import { SLATE_VERBS } from "./slate.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
@@ -93,6 +93,8 @@ async function subStart(
   say: (line: string) => void,
 ): Promise<{ opening: Record<string, unknown>; sub: SubOut; opened: (threadId: string) => string }> {
   await checkedStart(client, message, o.harness, o.picks);
+  // A file that is not there is refused before the create, so it leaves no record for the queue to hold.
+  filesFrom(o.files ?? [], o.elsewhere);
   const made = await subFor(client, { ...ask, harness: o.harness }, message, o.title, say);
   const opening = openingOf(env, { id: made.workspace.id }, subOpening(made.sub.preamble, message), { harness: made.sub.harness, ...o.picks, ...(o.notify !== undefined ? { notify: o.notify } : {}), title: made.workspace.name, files: o.files ?? [], elsewhere: o.elsewhere, cwd: made.sub.folder });
   return { opening, sub: made.sub.out, opened: threadId => subOpenedLine(threadId, made.sub.out.on, made.sub.folder) };

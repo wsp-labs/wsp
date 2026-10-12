@@ -402,8 +402,15 @@ export interface PlaceRecording {
    * provider's listing names, since that listing can miss a row. */
   machinesOn?(placeId: string): Promise<string[]>;
   /** Drops every workspace record at that place from this host, its threads ended, asking nothing of the place: a
-   * provider forgotten rather than removed. Absent, the records stay. */
+   * provider forgotten rather than removed. A sub-thread's record stays, in its phase, its cloud said gone.
+   * Absent, the records stay. */
   forgetRecordsOn?(placeId: string): Promise<void>;
+  /** One line for each sub-thread at that place whose machine holds work no remote has, or may: what a remove of
+   * that cloud takes with it. */
+  subHoldsOn?(placeId: string): Promise<string[]>;
+  /** Marks every sub-thread's record at that place released with its cloud gone, its thread and transcript kept: the
+   * provider's machines are deleted and its key forgotten. */
+  releaseRecordsOn?(placeId: string): Promise<void>;
   /** Signs an agent in on that computer through the sign-in relay, as the app's own sign-in does: every step it
    * reaches, the page and the code among them, goes to `emit`. Absent, a machine sign-in fails its row. */
   signIn?(placeId: string, agent: string, emit: (e: AgentsSignInEvent) => void): Promise<{ leave(): void; stop?(): void }>;
@@ -576,6 +583,9 @@ export interface PlaceDoor {
    * Nothing for a cloud, whose cap counts machines, and for a computer whose shape this host has not heard yet.
    * Answered without a read, since every turn's launch asks it. */
   threadsAt(placeId: string): number | undefined;
+  /** How many machines may run at once on a cloud: the number the person set there, else the default. Nothing for a
+   * computer, whose cap counts threads. Answered without a read, since every sub-thread's spawn asks it. */
+  machinesAt(placeId: string): number | undefined;
   /** The sign-in word per agent on one computer, off the report it last sent and the vault this host holds: the
    * same reading its row carries, so what a turn is handed and what the screen says cannot part ways. Answered
    * without a read of the store, since every launch on that computer asks it. Nothing for a place this host holds

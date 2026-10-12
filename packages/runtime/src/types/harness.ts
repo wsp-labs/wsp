@@ -235,6 +235,9 @@ export interface HarnessAdapter {
   probeVersion?(exec: HarnessExec): Promise<string | null>;
   /** Reads the harness's own title for a session out of its store on the machine; absent on a harness that keeps none. */
   sessionTitle?: SessionTitleReader;
+  /** Where one session's own file sits on the machine: under `folder`, `depth` folders down, its name ending in
+   * `name`. The one file a resume of that session elsewhere needs; absent on a harness whose session is no one file. */
+  sessionFile?(sessionId: string): { folder: string; name: string; depth: number };
   /** Writes a person's name for a session into that same store; absent on a harness that keeps no name of a person's. */
   renameSession?: SessionRenamer;
   /** Asks the harness itself for a name for a thread it has just replied in; absent on a harness that cannot answer a

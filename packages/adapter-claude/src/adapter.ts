@@ -4,7 +4,7 @@
 // recorded in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, LOST_SESSION_NOTE, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, lostSessionPrompt, refusedTurn, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
+import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
 import type { AdapterAttachOptions, AdapterEvent, AgentLaunch, KeptAgent, KeptRun, KeptTurn, SubagentState, TaskStop, AsideAnswer, AsideQuestion, ExecStream, ExecStreamFactory, HarnessCatalogProbe, HarnessExec, McpServerSpec, PermissionAsk, PermissionOutcome, ScreenCommand, SessionAsker, SessionForker, SessionHarness, SessionRenamer, SessionTitleMaker, SessionTitleReader, TurnImage, TurnRefusal, TurnResult, TurnStatus, CommitDrafter, ConversationStore, TurnTokens } from "@wsp/protocol";
 import { SKIP_PROMPTS_MODE, controlAllowLine, controlAnswerLine, controlErrorLine, controlLine, interruptLine, modeOptionOn, setModeLine, stopTaskLine } from "./permissions.js";
 import { CLAUDE_SCREEN_COMMANDS, catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
@@ -184,6 +184,8 @@ export interface ClaudeAdapter {
   probeVersion(exec: HarnessExec): Promise<string | null>;
   /** What the CLI's own session file calls a session: its generated title, or the person's rename inside the CLI. */
   sessionTitle: SessionTitleReader;
+  /** The session's one file, under the config dir's projects folder keyed by the folder it ran in. */
+  sessionFile(sessionId: string): { folder: string; name: string; depth: number };
   /** Names the session in that same file, with the record the CLI's own rename appends. */
   renameSession: SessionRenamer;
   /** Asks the CLI itself, in one print-mode turn, for a name for a thread it has just replied in. */
@@ -590,6 +592,9 @@ async function settlesWithin(turn: Promise<unknown>, ms: number): Promise<boolea
   clearTimeout(timer);
   return settled;
 }
+
+/** A session's one file: `<config>/projects/<folder key>/<id>.jsonl`, the key being the folder it ran in. */
+const sessionFileIn = (configDir: string, sessionId: string): { folder: string; name: string; depth: number } => ({ folder: `${configDir}/projects`, name: `${sessionId}.jsonl`, depth: 1 });
 
 export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
   if (!deps.configDir.trim().startsWith("/")) throw new Error(`configDir must be an absolute path, got "${deps.configDir}"`);
@@ -1219,7 +1224,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
           next: turn => nextOn(keeper, localId, sessionId, after, turn),
           close: c => keeper.close(c?.now === true ? 0 : exitMs, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS),
           exited: keeper.exited,
-          sessionFile: { folder: `${deps.configDir}/projects`, name: `${sessionId}.jsonl`, depth: 1 },
+          sessionFile: sessionFileIn(deps.configDir, sessionId),
         };
       },
       ...(o.from !== undefined ? { from: o.from } : {}),
@@ -1271,55 +1276,31 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
   const start = (options: StartOptions): ClaudeSession => {
     const { resume, seed } = options;
     if (resume === undefined || seed === undefined) return launch(options);
-    let lost = false;
-    const first = launch({
-      ...options,
-      onEvent: event => {
-        if (event.type === "turn.done" && event.result.error === `${NO_CONVERSATION} ${resume}`) lost = true;
-        else if (!(lost && event.type === "session.end")) options.onEvent(event);
-      },
-    });
-    let current = first;
-    const finished = first.finished.then(async result => {
-      if (!lost) return result;
-      const { resume: _gone, seed: _seed, ...fresh } = options;
-      let noted = false;
-      current = launch({
-        ...fresh,
-        prompt: lostSessionPrompt(await seed(), options.prompt),
-        onEvent: event => {
-          options.onEvent(event);
-          if (event.type !== "session.start" || noted) return;
-          noted = true;
-          options.onEvent({ type: "turn.delta", sessionId: event.sessionId, kind: "note", text: LOST_SESSION_NOTE });
-        },
-      });
-      return current.finished;
-    });
+    const { first, now, finished } = startAfterLoss({ ...options, resume, seed }, `${NO_CONVERSATION} ${resume}`, launch);
     const session: ClaudeSession = {
       localId: first.localId,
       get claudeSessionId() {
-        return current.claudeSessionId;
+        return now().claudeSessionId;
       },
       get command() {
-        return current.command;
+        return now().command;
       },
       get run() {
-        return current.run;
+        return now().run;
       },
       get pid() {
-        return current.pid;
+        return now().pid;
       },
       get tellsUnread() {
-        return current.tellsUnread;
+        return now().tellsUnread;
       },
       finished,
-      kept: () => current.kept?.(),
-      interrupt: () => current.interrupt(),
-      steer: (prompt, id, images) => current.steer(prompt, id, images),
-      answer: (askId, answer) => current.answer(askId, answer),
-      setAccess: mode => current.setAccess(mode),
-      stopTask: task => current.stopTask(task),
+      kept: () => now().kept?.(),
+      interrupt: () => now().interrupt(),
+      steer: (prompt, id, images) => now().steer(prompt, id, images),
+      answer: (askId, answer) => now().answer(askId, answer),
+      setAccess: mode => now().setAccess(mode),
+      stopTask: task => now().stopTask(task),
     };
     sessions.set(first.localId, session);
     return session;
@@ -1427,6 +1408,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     probeCatalog: exec => exec(catalogProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseCatalogProbe),
     probeVersion: exec => exec(versionProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseVersion),
     sessionTitle: (sessionId, exec) => exec(sessionTitleCommand({ configDir: deps.configDir, sessionId })).then(parseSessionTitle),
+    sessionFile: sessionId => sessionFileIn(deps.configDir, sessionId),
     renameSession: (sessionId, title, exec) => exec(renameCommand({ configDir: deps.configDir, sessionId, title })).then(parseRename),
     titleFor: (turn, exec) =>
       exec(

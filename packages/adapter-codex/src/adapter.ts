@@ -98,6 +98,7 @@ import { LETS_GO, LIST_PAGES, WRITER_HELD, itemsCommand, listCommand, newestLine
 import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "./session-title.js";
 import { shellScriptOf } from "./shell-script.js";
 import { forkSessionOn, revertOn, type SideRunner } from "./turn-pages.js";
+import { startSeeded } from "./lost-session.js";
 
 export interface CodexStartOptions {
   prompt: string;
@@ -131,6 +132,8 @@ export interface CodexStartOptions {
   promptAfter?: Promise<void>;
   /** The server stays up once the turn is over, for the thread's next turn/start: kept() hands it over. */
   keep?: boolean;
+  /** The thread so far, for a new thread to be handed where the server holds no rollout for `resume`. */
+  seed?: () => Promise<string>;
   onEvent: (event: AdapterEvent) => void;
 }
 
@@ -212,6 +215,8 @@ export interface CodexAdapter {
   probeVersion(exec: HarnessExec): Promise<string | null>;
   /** What the CLI's thread index calls a thread: the name the person gave it, or the title it derived. */
   sessionTitle: SessionTitleReader;
+  /** The thread's rollout file, under the home's sessions folder by date. */
+  sessionFile(threadId: string): { folder: string; name: string; depth: number };
   /** Names the thread through the app server's own rename, which writes the column that read takes. */
   renameSession: SessionRenamer;
   /** Asks the CLI itself, in one read-only turn, for a name for a thread it has just replied in. */
@@ -558,6 +563,9 @@ const isTurnStart = (line: string): boolean => {
     return false;
   }
 };
+
+/** A thread's rollout: `<home>/sessions/YYYY/MM/DD/rollout-<stamp>-<thread id>.jsonl`. */
+const rolloutIn = (home: string, threadId: string): { folder: string; name: string; depth: number } => ({ folder: `${home}/sessions`, name: `-${threadId}.jsonl`, depth: 3 });
 
 export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
   const sessions = new Map<string, CodexSession>();
@@ -1245,7 +1253,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           next: turn => nextOn(keeper, threadId, thread, turn, o.threadOptions),
           close: c => keeper.close(c?.now === true ? 0 : (deps.resultExitMs ?? RUN_EXIT_MS), graceMs),
           exited: keeper.exited,
-          sessionFile: { folder: `${deps.home}/sessions`, name: `-${threadId}.jsonl`, depth: 3 },
+          sessionFile: rolloutIn(deps.home, threadId),
         };
       },
       ...(o.from !== undefined ? { from: o.from } : {}),
@@ -1286,7 +1294,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     });
   };
 
-  const start = (options: CodexStartOptions): CodexSession => {
+  const launchTurn = (options: CodexStartOptions): CodexSession => {
     if (options.contextWindow !== undefined) throw new Error("codex takes no context window");
     const images = options.images?.map(imagePathOf);
     const access = accessParams(options.permissionMode);
@@ -1319,6 +1327,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
       onEvent: options.onEvent,
     });
   };
+
+  const start = (options: CodexStartOptions): CodexSession => startSeeded(launchTurn, sessions, options);
 
   /** A question put to a copy of the thread: an ephemeral fork writes no rollout, so the thread's own history and its
    * store are left as they were, and a read-only sandbox that asks nobody is the nearest a Codex turn comes to having
@@ -1446,6 +1456,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     probeCatalog,
     probeVersion: (exec: HarnessExec) => exec(versionProbeCommand(launch), questionEnv()).then(parseVersion),
     sessionTitle: (threadId, exec) => exec(sessionTitleCommand({ home: deps.home, threadId })).then(parseSessionTitle),
+    sessionFile: threadId => rolloutIn(deps.home, threadId),
     renameSession: (threadId, title, exec) =>
       exec(renameCommand({ threadId, title, ...launch }), questionEnv()).then(parseRename),
     titleFor: (turn, exec) =>

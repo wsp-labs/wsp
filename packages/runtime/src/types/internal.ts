@@ -4,6 +4,7 @@ import { readdirSync, statSync, type Dirent } from "node:fs";
 import { join } from "node:path";
 import {
   CREATED_AT_LABEL,
+  NoProviderBackend,
   type Builder,
   type ImportLedger,
   type Machine,
@@ -30,7 +31,7 @@ import type {
   WorkspaceKind,
   WorkspaceSize,
 } from "@wsp/protocol";
-import { AttachmentRecord, type ForkedFrom, type ThreadPlacement, SessionOrigin, ThreadScope, WorkspaceOrigin } from "@wsp/protocol";
+import { type AccessChoice, type Attachment, AttachmentRecord, type ForkedFrom, type ThreadPlacement, SessionOrigin, ThreadScope, WorkspaceOrigin } from "@wsp/protocol";
 import { EXEC_OUTPUT_MAX, fmtBytes, fmtDuration, type WorktreeFolder, type DefaultBranchRoad, defaultBranchFix, defaultBranchRefusal, refusal } from "@wsp/protocol";
 import type { MachineExecOptions, TurnWaiting } from "../machine-exec.js";
 import { copiedFromOf, listedFailure, listedLastLine, threadWord, type SubagentView } from "@wsp/protocol";
@@ -112,6 +113,22 @@ export interface HeldStartRecord {
   notify?: readonly string[];
   notifyBy?: unknown;
   notifyRoad?: unknown;
+}
+/** The first turn of each sub-thread whose spawn waits for a machine, by its workspace id: written as the start
+ * arrives and gone once the queue starts it or drops it, so the next host starts it as asked. The asking turn's token
+ * is not kept: the targets are kept as the start resolved them, and the lead's scope beside them. */
+export const SUB_STARTS = "sub-starts";
+export interface SubStartRecord {
+  workspaceId: string;
+  threadId: string;
+  turnId: string;
+  /** When the start arrived, ISO. */
+  at: string;
+  opts: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice; contextWindow?: string; fast?: boolean; startedBy?: SessionOrigin; requestId?: string; attempt?: string; title?: string; cwd?: string; attachments?: Attachment[] };
+  tree: { parentThreadId?: string; rootThreadId?: string };
+  notify?: readonly string[];
+  by?: ThreadScope;
+  road?: WorkspaceOrigin;
 }
 /** The name a person gave a workspace, keyed by its id, which its machines carry as a label across every rebuild:
  * the sweep reads it when it records a machine whose workspace document this store lost, so a restored record keeps
@@ -930,6 +947,10 @@ export function deadMachine(id: string): Machine {
     },
   };
 }
+
+/** What a released record stands on: no machine and nothing billed. The box was deleted at the cloud, which may no
+ * longer be on this host at all, so nothing here asks it anything. */
+export const RELEASED_BACKEND: MachineBackend = new NoProviderBackend("this sub-thread's machine was deleted at its cloud, so there is none to ask");
 
 /** The mark a stand-in for an absent place's machine carries, so the one reading of "nothing about this machine is
  * known yet" is a fact of the handle rather than a guess from the record's phase. */

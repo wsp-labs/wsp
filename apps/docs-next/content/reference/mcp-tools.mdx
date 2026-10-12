@@ -166,6 +166,11 @@ Adds a computer of the person's over ssh and sets it up from a saved recipe, as 
 | `computer.spawn` | object |  |  |
 | `computer.spawnDefault` | object |  |  |
 | `computer.running` | integer |  |  |
+| `computer.plan` | object |  |  |
+| `computer.starts` | object |  |  |
+| `computer.size` | object |  |  |
+| `computer.sizeDefault` | object |  |  |
+| `computer.deleteAfterMs` | integer |  |  |
 | `setup` | object[] | yes |  |
 | `setup[].step` | `connect`, `host-key`, `check`, `chip`, `root`, `system`, `disk`, `reach`, `wsp`, `service`, `join`, `floor`, `agents`, `signins`, `clis`, `skills`, `mcp`, `plugins`, `configs`, `folders`, `folderServers`, `github`, `context` | yes |  |
 | `setup[].state` | `running`, `done`, `failed`, `skipped` | yes |  |
@@ -417,6 +422,11 @@ Nothing.
 | `computers[].spawn` | object |  |  |
 | `computers[].spawnDefault` | object |  |  |
 | `computers[].running` | integer |  |  |
+| `computers[].plan` | object |  |  |
+| `computers[].starts` | object |  |  |
+| `computers[].size` | object |  |  |
+| `computers[].sizeDefault` | object |  |  |
+| `computers[].deleteAfterMs` | integer |  |  |
 | `spend` | object[] | yes |  |
 | `spend[].place` | string | yes |  |
 | `spend[].todayUsd` | number | yes |  |
@@ -436,7 +446,7 @@ Nothing.
 
 ## computers_set
 
-Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it. A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.
+Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as \<cpu>x\<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.
 
 **Takes**
 
@@ -446,13 +456,17 @@ Sets what the person may set on one computer and answers its row as it now reads
 | `name` | string |  | what to call a computer the person added from now |
 | `ssh` | string |  | the login user@host the host reaches that computer by over ssh from now, saved once it reads as the same computer |
 | `threads` | integer |  | how many threads may run on that computer at once |
+| `machines` | integer |  | how many machines may run on that cloud at once |
+| `spend` | number |  | the dollars a day that cloud may spend before it starts no new machine |
+| `size` | string |  | on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as \<cpu>x\<memGb> |
+| `delete_after` | integer |  | on a cloud, the minutes a finished sub-thread's machine stays before it is deleted; 0 deletes it once it is done |
 | `nap` | integer |  | the minutes a quiet machine there runs before it naps; 0 never naps it |
 | `turn_limit` | integer |  | the hours one turn there may run before it is stopped; 0 never stops one |
 | `spawn` | `on`, `off` |  | whether agents there may open threads and fork machines under the thread they run in, capped, where the folder or the machine they run in holds no switch of its own |
 | `max_machines` | integer |  | how many machines may stand at once under one root thread there while spawn is on |
 | `max_depth` | integer |  | how many levels deep the tree under a root thread there may go while spawn is on |
 | `recipe` | string |  | the saved recipe it follows from now, as recipes lists it, or none: one it follows syncs to it, a change to the recipe reaching it with no step, and none keeps what it has |
-| `reset` | `threads`, `nap`, `turn-limit`, `spawn`, `max-depth`[] |  | the settings to take back to their defaults, by the same words |
+| `reset` | `threads`, `machines`, `spend`, `size`, `delete-after`, `nap`, `turn-limit`, `spawn`, `max-depth`[] |  | the settings to take back to their defaults, by the same words |
 
 **Answers**
 
@@ -509,6 +523,11 @@ Sets what the person may set on one computer and answers its row as it now reads
 | `computer.spawn` | object |  |  |
 | `computer.spawnDefault` | object |  |  |
 | `computer.running` | integer |  |  |
+| `computer.plan` | object |  |  |
+| `computer.starts` | object |  |  |
+| `computer.size` | object |  |  |
+| `computer.sizeDefault` | object |  |  |
+| `computer.deleteAfterMs` | integer |  |  |
 
 ## conversations
 
@@ -546,7 +565,7 @@ The conversations the agents kept in a project's folder and its worktrees on the
 
 ## delete
 
-Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.
+Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.
 
 **Takes**
 
@@ -572,6 +591,7 @@ Takes a thread away, named by thread: its turns and checkpoints go, and where it
 | `ended[].forced` | integer[] | yes |  |
 | `ended[].left` | integer[] | yes |  |
 | `ended[].freed` | string |  |  |
+| `machine` | `"deleted"` |  | on a sub-thread: its machine on Boat was deleted with it |
 
 ## discard
 
@@ -638,6 +658,7 @@ Asks the thread's agent to fix the pull request of the folder it works in. With 
 | `capped.place` | string | yes |  |
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
+| `capped.why` | `slot`, `minute` |  |  |
 
 ## folders
 
@@ -745,7 +766,7 @@ Merges the pull request of the branch the thread's folder is on as the person, b
 
 ## merge_in
 
-Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.
+Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.
 
 **Takes**
 
@@ -764,6 +785,7 @@ Merges a child thread's branch into the folder its lead works in with a merge co
 | `merged` | boolean | yes |  |
 | `commits` | integer | yes |  |
 | `conflicts` | string[] | yes |  |
+| `unpushed` | integer |  |  |
 
 ## plugins
 
@@ -1320,7 +1342,7 @@ Starts a reviewer thread on a pull request, off its link or off the pull request
 | `workspace.id` | string | yes |  |
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
-| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone` | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
 | `workspace.kind` | `cloud`, `local`, `place` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
@@ -1413,6 +1435,7 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `capped.place` | string | yes |  |
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
+| `capped.why` | `slot`, `minute` |  |  |
 | `afterCut` | `true` |  |  |
 | `sub` | object |  | on a sub-thread's start: the machine, the branches and the files sent |
 | `sub.on` | string | yes |  |
@@ -1456,6 +1479,7 @@ Sends a message to an existing thread (by id, or a prefix of it) and returns the
 | `capped.place` | string | yes |  |
 | `capped.running` | integer | yes |  |
 | `capped.atOnce` | integer | yes |  |
+| `capped.why` | `slot`, `minute` |  |  |
 | `afterCut` | `true` |  |  |
 
 ## servers
@@ -1911,7 +1935,7 @@ Opens a thread off a GitHub issue or pull request link, returning as soon as the
 | `workspace.id` | string | yes |  |
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
-| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone` | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
 | `workspace.kind` | `cloud`, `local`, `place` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
@@ -2087,6 +2111,7 @@ The thread's head (by id, or a prefix of it): facts, the thread as threads lists
 | `facts.asking` | string |  |  |
 | `facts.waitingOn` | object |  |  |
 | `facts.setupRefusal` | string |  |  |
+| `facts.sub` | object |  |  |
 | `facts.capped` | object |  |  |
 | `facts.limit` | object |  |  |
 | `facts.resumeAt` | number |  |  |
@@ -2242,6 +2267,7 @@ Every thread as the sidebar lists it: its project, the folder it works in (the p
 | `threads[].asking` | string |  |  |
 | `threads[].waitingOn` | object |  |  |
 | `threads[].setupRefusal` | string |  |  |
+| `threads[].sub` | object |  |  |
 | `threads[].capped` | object |  |  |
 | `threads[].limit` | object |  |  |
 | `threads[].resumeAt` | number |  |  |
@@ -2272,7 +2298,7 @@ Every thread as the sidebar lists it: its project, the folder it works in (the p
 
 ## threads_wait
 
-Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.
+Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, and on a sub-thread result, what its machine was read to hold, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.
 
 **Takes**
 
@@ -2291,6 +2317,7 @@ Blocks until one of the named threads leaves running and answers with that threa
 | `finished.durationMs` | number |  |  |
 | `finished.costUsd` | number |  |  |
 | `finished.reply` | string |  | the last non-empty line of the reply, or the error when there is no reply |
+| `finished.result` | object |  | on a sub-thread, what its machine was read to hold at the end: the branch, the sha pushed, the commits it brings and the work not pushed |
 | `timedOut` | `true` |  | set when the timeout passed with every named thread still running |
 
 ## update

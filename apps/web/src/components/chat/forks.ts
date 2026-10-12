@@ -5,7 +5,7 @@
 // with that message in it. Nothing reaches the host until the send, so a draft
 // dismissed leaves nothing anywhere.
 import { create } from "zustand";
-import type { AttachmentRecord, ForkSource } from "@wsp/protocol";
+import { subTurnGone, type AttachmentRecord, type ForkSource } from "@wsp/protocol";
 import type { TimelineEntry, TurnSummary } from "./adapt";
 import type { ComposerDraft } from "./composerDraftStore";
 import type { ComposerFile } from "./composerFiles";
@@ -56,6 +56,13 @@ export function forkableMessages(turns: ReadonlyArray<TurnSummary>, entries: Rea
     else if (i > 0 && cuts(turns[i - 1]!)) out.set(e.message.id, { ...pick(i - 1), message });
   }
   return out;
+}
+
+/** The turns that ran on a sub-thread's machine since deleted, which offer neither Fork from here nor Rewind: their
+ * checkpoints went with that machine. */
+export function goneTurns(turns: ReadonlyArray<Pick<TurnSummary, "turnId" | "startedAt">>, sub: { readonly releasedAt?: number } | undefined): ReadonlySet<string> {
+  if (sub?.releasedAt === undefined) return new Set();
+  return new Set(turns.filter(t => subTurnGone(sub, t.startedAt === null ? undefined : Date.parse(t.startedAt))).map(t => t.turnId));
 }
 
 /** A fork's draft, held by the workspace its composer opens in until the send or the dismiss. */

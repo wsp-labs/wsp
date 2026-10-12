@@ -259,11 +259,11 @@ mod tests {
 
     #[test]
     fn a_key_the_entry_does_not_list_reaches_no_tool() {
-        let set = include_str!(concat!(env!("OUT_DIR"), "/record/tools/computers_set.json"));
-        let asked = json!({ "computer": "c", "machines": 2, "nothing": 1 });
-        let off = refused_before_call("computers_set", tools::entry_in(set, false).unwrap(), Some(asked.clone()));
-        assert_eq!(off, Ok(json!({ "computer": "c" })));
-        let on = refused_before_call("computers_set", tools::entry_in(set, true).unwrap(), Some(asked));
-        assert_eq!(on, Ok(json!({ "computer": "c", "machines": 2 })));
+        let delete = include_str!(concat!(env!("OUT_DIR"), "/record/tools/delete.json"));
+        let asked = json!({ "thread": "t", "workspace": "w", "nothing": 1 });
+        let off = refused_before_call("delete", tools::entry_in(delete, false).unwrap(), Some(asked.clone()));
+        assert_eq!(off, Ok(json!({ "thread": "t" })));
+        let on = refused_before_call("delete", tools::entry_in(delete, true).unwrap(), Some(asked));
+        assert_eq!(on, Ok(json!({ "thread": "t", "workspace": "w" })));
     }
 }

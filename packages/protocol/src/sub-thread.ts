@@ -8,10 +8,11 @@ import { z } from "zod";
 import { refusal, refusalParts } from "./exit.js";
 import { seedNotHereRefusal } from "./project-seed.js";
 import { ownerRepoOf } from "./start.js";
+import { cloudNamed, PROVIDER_KEY_WORDS, providerKeyName } from "./place-word.js";
+import { plural } from "./words/base.js";
 import { fmtMemGb, sizeFromWord, sizeWord } from "./words/units.js";
+import { subAllPushed, type SubResult } from "./views/sub-row.js";
 
-/** The minutes a finished sub-thread's machine stays before it is deleted, until the person sets another. */
-export const SUB_DELETE_AFTER_MIN = 30;
 /** The most a sub-thread's picked files may come to, packed: the files worth picking are a few KB of `.env` style
  * configs, so anything past this is a data folder picked by mistake. */
 export const SUB_SEED_MAX_BYTES = 20 * 1024 * 1024;
@@ -57,7 +58,7 @@ export const subSizeWord = (size: { cpu: number; memMb: number }): string => siz
 export const subSizeOf = (word: string): { cpu: number; memMb: number } | undefined => sizeFromWord(word);
 
 /** A size in the words the preamble and the card say it in: `small, 2 vCPU, 4 GB`. */
-export const subSizeWords = (size: SubSize): string => `${size.name}, ${size.cpu} vCPU, ${fmtMemGb(size.memMb)}`;
+export const subSizeWords = (size: Pick<SubSize, "name" | "cpu" | "memMb">): string => `${size.name}, ${size.cpu} vCPU, ${fmtMemGb(size.memMb)}`;
 
 const rateWord = (usdPerHour: number): string => `$${usdPerHour.toFixed(3)}/h`;
 
@@ -98,8 +99,8 @@ export function subPreamble(o: {
   deleteAfterMinutes: number;
 }): string {
   const lead = o.lead.slice(0, 8);
-  const folder = o.sent.length === 0 ? `The folder you are in, ${o.folder}, is empty.` : `The folder you are in, ${o.folder}, holds only the git-ignored files the person picked: ${o.sent.join(", ")}.`;
-  const deleted = o.deleteAfterMinutes === 0 ? "as soon as your last turn ends" : `${o.deleteAfterMinutes} minutes after your last turn ends`;
+  const folder = folderWords(o.folder, o.sent);
+  const deleted = deletedWords(o.deleteAfterMinutes);
   return [
     `This thread runs on a machine of its own on ${o.on} (${subSizeWords(o.size)}), started by thread ${lead}. The code is not here yet. ${folder} Get the code first, in this folder:`,
     "",
@@ -114,6 +115,52 @@ export function subPreamble(o: {
     "The task:",
   ].join("\n");
 }
+
+/** The folder a sub-thread's machine opens in, as its preamble says it: empty, or holding the files picked. */
+const folderWords = (folder: string, sent: readonly string[]): string =>
+  sent.length === 0 ? `The folder you are in, ${folder}, is empty.` : `The folder you are in, ${folder}, holds only the git-ignored files the person picked: ${sent.join(", ")}.`;
+
+/** When a sub-thread's machine goes, as its preamble says it. */
+const deletedWords = (minutes: number): string => (minutes === 0 ? "as soon as your last turn ends" : `${minutes} minutes after your last turn ends`);
+
+/** The head of a send into a sub-thread whose machine was deleted, on the new machine it runs on now: the conversation
+ * came and the code did not, so the git lines get its pushed branch back, or start it again from the lead's commit
+ * where it pushed nothing. The message follows it after a blank line. */
+export function subResumePreamble(o: {
+  on: string;
+  size: Pick<SubSize, "name" | "cpu" | "memMb">;
+  folder: string;
+  sent: readonly string[];
+  setupGit: string;
+  repo: string;
+  base: { branch: string; sha: string };
+  branch: string;
+  pushed: boolean;
+  deleteAfterMinutes: number;
+}): string {
+  const fetch = o.pushed ? [`git fetch -q --filter=blob:none origin ${o.branch}`, `git checkout -q -b ${o.branch} FETCH_HEAD`] : [`git fetch -q --filter=blob:none origin ${o.base.branch}`, `git checkout -q -b ${o.branch} ${o.base.sha}`];
+  const push = o.pushed ? `Push to ${o.branch} as before.` : `Work on ${o.branch}, then commit and run git push -u origin ${o.branch} before your turn ends.`;
+  return [
+    `This thread's machine was deleted after its last turn, and the thread goes on here, on a new machine on ${o.on} (${subSizeWords(o.size)}). Your conversation came with it; the code did not. ${folderWords(o.folder, o.sent)} Get your branch back first, in this folder:`,
+    "",
+    o.setupGit,
+    "git init -q",
+    `git remote add origin ${o.repo}`,
+    ...fetch,
+    "",
+    `${push} This machine is deleted ${deletedWords(o.deleteAfterMinutes)}.`,
+    "",
+    "The message:",
+  ].join("\n");
+}
+
+/** A sub-thread's session past what the host keeps, as its row says it. */
+export const subSessionTooLargeLine = (size: string): string => `the agent's session was too large to keep (${size}); a send continues from the transcript`;
+/** A sub-thread's session the host could not keep, as its row says it. */
+export const subSessionNotKeptLine = (why: string): string => `the agent's session was not kept (${why}); a send continues from the transcript`;
+
+/** A rewind or a fork asked of a turn that ran on a sub-thread's machine since deleted: its checkpoints went with it. */
+export const SUB_TURN_GONE_LINE = "that turn ran on a machine since deleted, so its files cannot be rewound; send to the thread to go on from where it stands.";
 
 /** The first message whole: the preamble, a blank line, and the lead's task as given. */
 export const subOpening = (preamble: string, task: string): string => `${preamble}\n\n${task}`;
@@ -172,6 +219,11 @@ export const subLeadBranchRefusal = (name: string): Error => usage(`the sub-thre
 /** S9: a sub-machine runs its sub-thread alone. */
 export const subMachineTakenRefusal = (machine: string, thread: string): Error =>
   usage(`${machine} is the machine of sub-thread ${thread.slice(0, 8)} and runs that thread alone`, `Send to ${thread.slice(0, 8)} to continue it.`);
+/** A second message into a sub-thread whose first is still waiting for its machine. */
+export const subWaitingRefusal = (machine: string): Error =>
+  usage(`${machine} is waiting for a machine, and its sub-thread's first message waits with it`, "Send again once it starts.");
+/** Why a held spawn went with no start spent: its row, or the thread above it, was stopped while it waited. */
+export const SUB_DROPPED_LINE = "stopped while it waited for a machine, so no machine was started";
 /** S11: the agent named is not on the image. */
 export const subNoAgentRefusal = (on: string, agent: string, carried: readonly string[]): Error =>
   usage(`the image on ${on} carries no ${agent}`, `Add it to the recipe and build the image again, or name one it carries: ${carried.join(", ")}.`);
@@ -186,6 +238,13 @@ export function subReplacedLine(f: SubFault, machine: string, on: string): strin
   if (f.kind === "unusable") return `${on} gave ${f.box} with nothing able to run on it (${f.why}); wsp deleted it and started another.`;
   if (f.kind === "env") return `${on}'s machine ${f.box} did not take wsp's setup within 2 minutes (exit 124); wsp deleted it and started another.`;
   return `${on} could not get a machine for ${machine} and cancelled the create (${f.why}); wsp started another.`;
+}
+
+/** A sub-thread's turn the kernel ended for memory, as its finished line says it: the machine's size, that the
+ * cloud's own processes hold part of it, and the next size up to start the work again at, where the cloud sells one. */
+export function subOomLine(machine: string, on: string, size: Pick<SubSize, "name" | "cpu" | "memMb">, bigger: string | undefined): string {
+  const again = bigger !== undefined ? `Start the work again with size ${bigger}.` : `${on} sells no bigger size, so the work has to use less memory.`;
+  return `the agent on ${machine} was killed for memory: its machine is ${subSizeWords(size)}, and ${on}'s own processes hold part of that. ${again}`;
 }
 
 /** The refusal a second failure in a row fails the spawn with, naming both machines. */
@@ -215,3 +274,95 @@ export const subNotSentLine = (why: string, project: string): string =>
 export const subCopyingLine = (files: number): string => `copying ${files} ${files === 1 ? "file" : "files"}`;
 /** The first line a terminal prints: where the sub-thread runs. */
 export const subOpenedLine = (threadId: string, on: string, folder: string): string => `thread ${threadId.slice(0, 8)} on ${on.toLowerCase()} in ${folder}`;
+
+/** The work a done read found not pushed, in the words the delete's question and the lead's refusal give it. */
+function heldWords(held: { files: number; commits: number }): string {
+  const parts = [held.commits > 0 ? `${held.commits} ${held.commits === 1 ? "commit" : "commits"}` : "", held.files > 0 ? `${held.files} changed ${held.files === 1 ? "file" : "files"}` : ""].filter(Boolean);
+  return parts.length === 0 ? "work" : parts.join(" and ");
+}
+
+/** What a sub-thread holds that no remote has: the counts its last read found, or that the read did not answer. */
+export interface SubUnpushed {
+  files: number;
+  commits: number;
+  readFailed?: string;
+  /** A turn ran since the last read, so what it left is not known yet. */
+  unread?: true;
+}
+
+/** The second line of the delete's question, and the half of the lead's refusal that says what is not pushed. */
+export function subUnpushedLine(held: SubUnpushed, branch: string): string {
+  if (held.unread === true) return `its machine has not been read since its last turn, so work on ${branch} may not be pushed and would go with it.`;
+  if (held.readFailed !== undefined) return `its machine could not be read (${held.readFailed}), so work on ${branch} may not be pushed and would go with it.`;
+  return `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed and go with it.`;
+}
+
+/** The question a person answers before a sub-thread and its machine go. */
+export function subDeleteQuestion(o: { threadId: string; title: string; on: string; branch: string; held?: SubUnpushed }): string {
+  const first = `Delete sub-thread ${o.threadId.slice(0, 8)} (${o.title}) and its machine on ${o.on}?`;
+  const second = o.held === undefined ? `Its turns leave this computer and its machine is deleted; what it pushed to ${o.branch} stays on the remote.` : subUnpushedLine(o.held, o.branch);
+  return `${first}\n${second.charAt(0).toUpperCase()}${second.slice(1)}`;
+}
+
+/** What a sub-thread's machine holds that no remote has, or may: the line a remove of its cloud lists, and the half
+ * of the lead's refusal that says what happened. */
+export function subHeldLine(threadId: string, held: SubUnpushed, branch: string): string {
+  const id8 = threadId.slice(0, 8);
+  if (held.unread === true) return `sub-thread ${id8}'s machine has not been read since its last turn, so work on ${branch} may not be pushed`;
+  if (held.readFailed !== undefined) return `sub-thread ${id8}'s machine could not be read (${held.readFailed}), so work on ${branch} may not be pushed`;
+  return `sub-thread ${id8} holds ${heldWords(held)} not pushed on ${branch}`;
+}
+
+/** A lead's own token asking the delete of a sub-thread whose work is not pushed: losing it is the person's call. */
+export const subHeldDeleteRefusal = (threadId: string, held: SubUnpushed, branch: string): Error =>
+  usage(subHeldLine(threadId, held, branch), "Send it a push, or ask the person to delete it.");
+
+/** A sub-thread whose cloud this host no longer holds, as its row says it. */
+export const subCloudGoneLine = (on: string): string => `${on} is no longer on this host`;
+
+/** A send into a sub-thread whose cloud this host no longer holds. */
+export const subCloudGoneRefusal = (on: string): Error => usage(subCloudGoneLine(on), `Add it with wsp add ${on.toLowerCase()} and send again.`);
+
+/** A wake of a sub-thread whose machine was deleted after it was done: there is none to wake, and a send makes one. */
+export const subReleasedRefusal = (threadId: string, on: string): Error =>
+  usage(`sub-thread ${threadId.slice(0, 8)}'s machine on ${on} was deleted after it was done, so there is none to wake`, `Send to it with wsp send ${threadId.slice(0, 8)} "<message>", which starts a new one.`);
+
+/** What a delete Boat refused says, and when it is asked again. */
+export const subDeleteRefusedLine = (on: string, machine: string, said: string, retryMinutes: number): string =>
+  `${on} would not delete ${machine} (${said}); it is tried again in ${retryMinutes} minutes`;
+
+/** The line a cloud's remove adds to its question for sub-threads whose machines hold work no remote has: it goes
+ * with them. Names five and counts the rest. */
+export function subHeldOnRemoveLine(held: readonly string[]): string | undefined {
+  if (held.length === 0) return undefined;
+  const rest = held.length > 5 ? `; and ${held.length - 5} more` : "";
+  return `Work not pushed goes with ${held.length === 1 ? "its machine" : "their machines"}: ${held.slice(0, 5).join("; ")}${rest}.`;
+}
+
+/** A sub-thread's cloud as a line names it, off the word its record keeps: `boat` is Boat. */
+export function cloudSaid(on: string): string {
+  const id = cloudNamed(Object.keys(PROVIDER_KEY_WORDS), on);
+  return id === undefined ? on : providerKeyName(id);
+}
+
+/** What a sub-thread's delete did. */
+export const subDeletedLine = (threadId: string, on: string): string => `deleted sub-thread ${threadId.slice(0, 8)} and its machine on ${on}`;
+
+/** The line a sub-thread's finished line to its lead ends with, off the done's read: the branch pushed and the merge
+ * that takes it, the work not pushed that keeps the machine, or nothing to merge. `deleteInMs` is how long the machine
+ * stays, absent where it goes at once; a span, never a clock time, since an agent and a person read it in any zone. */
+export function subResultLine(o: { threadId: string; lead: string; result: SubResult; base: string; deleteInMs?: number }): string {
+  const { result: r } = o;
+  const id8 = o.threadId.slice(0, 8);
+  const minutes = o.deleteInMs === undefined ? 0 : Math.round(o.deleteInMs / 60_000);
+  const goes = minutes > 0 ? `Its machine naps now and is deleted in ${plural(minutes, "minute")} unless you send to ${id8} first.` : `Its machine is deleted now; a send to ${id8} starts a new one with the conversation kept.`;
+  if (r.readFailed !== undefined) return `its machine could not be read (${r.readFailed}), so work on ${r.branch} may not be pushed and its machine is kept, napping at no cost. Send to ${id8} to have it pushed, or ask the person to delete it.`;
+  if (!subAllPushed(r)) {
+    const parts = [r.unpushed > 0 ? plural(r.unpushed, "commit") : "", r.changed > 0 ? plural(r.changed, "changed file") : ""].filter(Boolean);
+    const one = r.unpushed + r.changed === 1;
+    return `${parts.join(" and ")} on ${r.branch} ${one ? "is" : "are"} not pushed, so its machine is kept, napping at no cost. Send to ${id8} to have ${one ? "it" : "them"} pushed, or ask the person to delete it.`;
+  }
+  if (r.pushedSha === null || r.commits === 0) return `no commits on ${r.branch}, so there is nothing to merge. ${goes}`;
+  return `branch ${r.branch} pushed at ${r.pushedSha.slice(0, 7)}, ${plural(r.commits, "commit")} on ${o.base}; merge it with wsp merge in ${o.lead.slice(0, 8)} ${id8}. ${goes}`;
+}
+

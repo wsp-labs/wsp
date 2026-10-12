@@ -2,12 +2,13 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { OWNER_LABEL, goldenHead, isMissing, readGone, sightMachine, type Machine, type MachineBackend, isNoProvider, isPlaceAbsent } from "@wsp/engine";
-import { type AcrossAct, type PlaceKind, type ProjectView, type SessionView, type Caller, type WorkspacePhase, ForkedFrom, ThreadPlacement, ThreadScope, TurnStatus, WorkspaceOrigin, notTheLeadsChildRefusal, foldThreads, threadKeyOf, threadWord, scopeOf, goneWords, NO_IMAGE_YET, noWorkspaceRefusal, notFoundRefusal, goneUnconfirmedLine, type GoneSeenBy, copiesFolder, kindForComputer, RUN_GONE_LINE, HERE_PLACE_ID, workspaceLands, type ThreadFacts, threadSettled, refusal, LIMIT_RESUME_PROMPT, heldUntil, capRestartedLine, tableName, threadsFollowed, LINK_RETRY_WINDOW_MS } from "@wsp/protocol";
+import { type AcrossAct, type PlaceKind, type ProjectView, type SessionView, type Caller, type WorkspacePhase, ForkedFrom, ThreadPlacement, ThreadScope, TurnStatus, WorkspaceOrigin, notTheLeadsChildRefusal, foldThreads, threadKeyOf, threadWord, scopeOf, goneWords, NO_IMAGE_YET, noWorkspaceRefusal, notFoundRefusal, goneUnconfirmedLine, type GoneSeenBy, copiesFolder, kindForComputer, RUN_GONE_LINE, HERE_PLACE_ID, workspaceLands, type ThreadFacts, threadSettled, refusal, LIMIT_RESUME_PROMPT, heldUntil, capRestartedLine, tableName, threadsFollowed, LINK_RETRY_WINDOW_MS, cloudSaid } from "@wsp/protocol";
 import { keyOf } from "../agent-setup.js";
 import { harnessCatalog } from "../harness-catalog.js";
 import { accountOnComputer } from "../usage.js";
 import { phaseLeavingGone, providerSaid } from "../status.js";
 import type { WorkspaceRecord, LiveWorkspace, FoundMachine } from "../types/wiring.js";
+import { subRowOf } from "./sub-life.js";
 import { WORKSPACES, PROJECTS, TRANSCRIPTS, SESSIONS, HELD_STARTS, type HeldStartRecord, READS, READS_ID, RESTARTED_REASON, goneLogLine, labelOf, restartCutLine, turnWritten, type TranscriptRecord, type TurnLive, type TurnAsked, readAsked, readScope, readRoad, readSteered, type ThreadRecord, type ThreadStamps, type TreeTalk, type SessionIndexRecord, BUILDERS, OWNER, HELD_TTL_MS, pidAlive, type BuilderRecord, type LiveBuilder, deadMachine, isAbsentMachine, absentMachine, type StoredBuilder } from "../types/internal.js";
 import type { RuntimeContext, BootArea } from "../context.js";
 import { agentPidOf } from "../local-exec.js";
@@ -176,10 +177,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
 
   /** Whether this host holds that workspace by a stand-in for a machine it could not ask anything about: the one
    * reading of "nothing is known about this one yet", which is what a place dialling in is the moment to fix. A
-   * record with no live entry at all reads the same, since a hydration that never ran holds nothing either. */
+   * record with no live entry at all reads the same, since a hydration that never ran holds nothing either. A queued
+   * spawn's stand-in is no such thing: it has no machine yet. */
   const isHeldAway = (id: string): boolean => {
     const entry = live.get(id);
-    return entry === undefined || isAbsentMachine(entry.machine);
+    return entry === undefined || (isAbsentMachine(entry.machine) && entry.record.phase !== "queued");
   };
 
   /** What the provider said to the load's one read of a record now held, quoted when the record settles gone. */
@@ -189,7 +191,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
    * read that fails leaves the record held for the next sweep. */
   const rereadHeld = async (id: string, by: GoneSeenBy): Promise<void> => {
     const entry = live.get(id);
-    if (entry === undefined || !isAbsentMachine(entry.machine) || ctx.rereading.has(id)) return;
+    if (entry === undefined || !isHeldAway(id) || ctx.rereading.has(id)) return;
     ctx.rereading.add(id);
     try {
       const machineId = entry.record.machineId;
@@ -219,6 +221,13 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const hydrateWorkspace = async (raw: unknown, seen?: FoundMachine, load?: LoadReads, asked?: Promise<Machine>): Promise<LiveWorkspace | undefined> => {
     const stored = raw as WorkspaceRecord;
     const kind = stored.kind;
+    // A spawn waiting for a machine has none to read: it waits on as it was, and the queue reads its cloud again.
+    if (stored.phase === "queued") return void ctx.attachQueued(stored, undefined);
+    // A released record stands on no machine, and one whose cloud left this host has nothing to ask: neither is read.
+    if (stored.phase === "released" || stored.sub?.cloudGone === true) {
+      ctx.attach({ ...stored }, deadMachine(stored.machineId));
+      return undefined;
+    }
     // A record whose kind this host wired no module for, or whose place forks nothing any more, is left as it
     // was: only the host that owns that machine can serve it.
     let at: MachineBackend;
@@ -538,6 +547,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         })();
         ctx.bootWork.set(id, work.catch((e: unknown) => console.warn(`the turns and runs on ${id} were not settled: ${e instanceof Error ? e.message : String(e)}`)).finally(() => ctx.bootWork.delete(id)));
       }
+      await ctx.resumeQueue();
       // A start a computer's threads at once held back lived in the old host's memory alone, so each ends here with the
       // restart named: a follower reads its end off the transcript, and the thread it was to report to is told.
       for (const raw of await store.list(HELD_STARTS)) {
@@ -559,6 +569,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       }
       await deviceDoor.revokeAsides();
       // Each start waits for its thread's workspace to settle its turns, so a line meets the turn re-opened there.
+      ctx.armSubs();
       void ctx.deliverOwed().catch((e: unknown) => console.warn(`the lines owed to threads were not sent: ${e instanceof Error ? e.message : String(e)}`));
       // Each builder is read beside the others, and the load waits for them no later than its one deadline: one still
       // out is admitted when its read lands, and a refresh before that waits on the same read.
@@ -601,7 +612,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const childOf = async (lead: LiveWorkspace, ref: string, origin?: Caller, threads: { lead?: string; child?: string } = {}): Promise<LiveWorkspace> => {
     const named = await ctx.workspaces.resolve(ref, origin);
     const kid = await entryOf(named.id, origin, threads.child === undefined ? {} : { thread: threads.child });
-    if (kid.record.parentWorkspaceId !== lead.record.id) throw Object.assign(new Error(notTheLeadsChildRefusal(labelOf(kid, threads.child), labelOf(lead, threads.lead))), { kind: "invalid" });
+    if ((kid.record.lead?.workspaceId ?? kid.record.parentWorkspaceId) !== lead.record.id) throw Object.assign(new Error(notTheLeadsChildRefusal(labelOf(kid, threads.child), labelOf(lead, threads.lead))), { kind: "invalid" });
     return kid;
   };
   /** Which rows a caller reaches, for the verbs that name a thread rather than a workspace: the thread tree, then
@@ -691,13 +702,27 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     const { subagents: _subagents, ...thread } = listed;
     const latest = held.at(-1)!.view;
     const running = held.filter(s => s.view.status === "running").at(-1);
+    const record = live.get(thread.workspaceId)?.record;
+    const sub = record === undefined ? undefined : subRowOf(record);
     return {
       ...thread,
+      ...(sub !== undefined ? { sub } : {}),
       ...(latest.model !== undefined ? { model: latest.model } : {}),
       ...(latest.effort !== undefined ? { effort: latest.effort } : {}),
       ...(latest.contextWindow !== undefined ? { contextWindow: latest.contextWindow } : {}),
       ...(running !== undefined ? { turnId: running.turnId } : {}),
     };
+  };
+  /** A sub-thread's facts once the done after its latest turn has read its machine; any other thread's as they stand,
+   * and as they stand for a caller that reaches no row of it, which waits on nothing. */
+  const factsAfterRead = async (threadId: string, origin: Caller | undefined): Promise<ThreadFacts | undefined> => {
+    const facts = threadFacts(threadId);
+    // A turn's done is pushed at its result, while the row reads running until the process exits: its read is the next.
+    const since = facts?.status === "running" ? clock.now() : facts?.endedAt;
+    if (facts?.sub === undefined || since === undefined) return facts;
+    if ((await entryOfRow({ threadId: facts.threadId ?? threadId, workspaceId: facts.workspaceId }, origin)) === undefined) return facts;
+    await ctx.subRead(facts.workspaceId, since);
+    return threadFacts(threadId);
   };
   /** Whether a thread reads settled now, by hand or by quiet time, off the facts its listing carries: the host's one
    * read of it. A thread with no row here reads settled only by its stamp. */
@@ -716,10 +741,16 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   const placedRows = async (listed: SessionView[]): Promise<SessionView[]> => {
     const computers = listed.length === 0 ? [] : await computerRows();
     return listed.map(view => {
-      const id = live.get(view.workspaceId)?.record.project;
+      const record = live.get(view.workspaceId)?.record;
+      const id = record?.project;
       const project = id === undefined ? undefined : projectsHeld.get(id);
-      const computer = computers.find(r => r.id === project?.computer);
-      return project === undefined ? view : { ...view, project: { id: project.id, name: project.name }, computerName: computer === undefined ? project.computer : tableName(computer) };
+      const sub = record === undefined ? undefined : subRowOf(record);
+      // A sub-thread names the lead's project and runs on its cloud, which is the computer its row reads.
+      const at = sub !== undefined && record !== undefined ? ctx.placeIdOf(record) : project?.computer;
+      const computer = computers.find(r => r.id === at);
+      const placed = sub === undefined ? view : { ...view, sub };
+      if (project === undefined) return placed;
+      return { ...placed, project: { id: project.id, name: project.name }, computerName: computer !== undefined ? tableName(computer) : sub !== undefined ? cloudSaid(sub.on) : project.computer };
     });
   };
   /** The row ids pushed once already, whose opening prompt (a builder's brief of kilobytes, repeated on every row of
@@ -979,7 +1010,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
   };
   return {
     refreshBuilders, isHeldAway, rereadHeld, hydrateWorkspace, ready, entryOf, childOf, reachesRow, entryOfRow,
-    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, settledNow, pushHead, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
+    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, factsAfterRead, settledNow, pushHead, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
     imageHead, landingPlace,
   };
 }

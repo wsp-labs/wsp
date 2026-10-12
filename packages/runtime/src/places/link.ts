@@ -42,7 +42,7 @@ import type { PlaceSetupArea } from "./setup.js";
 import type { PlaceViewsArea } from "./views.js";
 
 /** The door's half that joins, proves and holds each computer's link, and answers what a link and a place say. */
-export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "answerChallenge" | "join" | "auth" | "hostKey" | "prove" | "attach" | "link" | "channel" | "watchSys" | "load" | "nameOf" | "settingsAt" | "turnLimitAt" | "threadsAt" | "signInsAt" | "vaultAt" | "githubFromVault" | "loginLanded" | "loginsAgain" | "keyLanded" | "ghThere" | "offerOf" | "backendOf" | "forkingBackend" | "joined" | "folderComputer" | "forward" | "paneForwards" | "placeFor" | "defaultPlace" | "markUsed" | "markDefaultIfNone"> {
+export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, setupArea: PlaceSetupArea, viewArea: PlaceViewsArea): Pick<PlaceDoor, "answerChallenge" | "join" | "auth" | "hostKey" | "prove" | "attach" | "link" | "channel" | "watchSys" | "load" | "nameOf" | "settingsAt" | "turnLimitAt" | "threadsAt" | "machinesAt" | "signInsAt" | "vaultAt" | "githubFromVault" | "loginLanded" | "loginsAgain" | "keyLanded" | "ghThere" | "offerOf" | "backendOf" | "forkingBackend" | "joined" | "folderComputer" | "forward" | "paneForwards" | "placeFor" | "defaultPlace" | "markUsed" | "markDefaultIfNone"> {
   const { opts, store, wiring, clockNow, seenEveryMs, live, kept, signInsHere, backends, forwards, asking, emit } = ctx;
   const panes = panePorts({ forwards, now: clockNow, schedule: ctx.schedule });
   const readings = placeReadings(ctx);
@@ -328,6 +328,12 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
       const shape = placeId === HERE_PLACE_ID ? wiring.here().shape : kept.get(placeId)?.report.shape;
       const cap = placeCapOf({ kind: "computer", ...(shape !== undefined ? { shape } : {}) }, settingsHeld.get(placeId) ?? {});
       return cap !== undefined && "threads" in cap ? cap.threads : undefined;
+    },
+
+    machinesAt: placeId => {
+      if (!providerIds().includes(placeId)) return undefined;
+      const cap = placeCapOf({ kind: "provider" }, settingsHeld.get(placeId) ?? {});
+      return cap !== undefined && "machines" in cap ? cap.machines : undefined;
     },
 
     signInsAt: signInsHere,
