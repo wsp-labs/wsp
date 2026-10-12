@@ -22,6 +22,13 @@ export interface StdioRoad {
   close(): void;
 }
 
+/** Where a thread's slate keeps its files on its machine: rewritten from the record before every command and
+ * removed with the thread, so losing it costs nothing. Here, beside its server's start, since the host loads this at
+ * its own start and the slate's code only when a thread uses a slate. */
+export const BOX_SLATES = "/tmp/wsp-slates";
+
+export const boxSlateDir = (threadId: string): string => `${BOX_SLATES}/${threadId}`;
+
 const ENV_THEN_SERVER = `while IFS= read -r -d '' k && [ -n "$k" ] && IFS= read -r -d '' v; do export "$k=$v"; done; `;
 
 /** The command stdio.open runs: the server as that login, in its folder, its variables off its stdin first. */
@@ -32,11 +39,13 @@ export const envPairs = (env: Readonly<Record<string, string>>): string => `${Ob
 
 const base64 = (text: string): string => Buffer.from(text).toString("base64");
 
-/** Starts a server through `road`, the writes before the start answers held and sent after the variables. */
-export function pipeOn(computer: string, login: TargetLogin, road: () => Promise<StdioRoad>): McpPipeOpen {
+/** Starts a server through `road`, the writes before the start answers held and sent after the variables. `mark` goes
+ * last, over anything the server's config names: the daemon there starts the server in a group of its own, outside
+ * the thread's cgroup, and reads its thread off this mark. */
+export function pipeOn(computer: string, login: TargetLogin, road: () => Promise<StdioRoad>, mark: Readonly<Record<string, string>> = {}): McpPipeOpen {
   return (t, spec, on) => {
     const stdioId = randomBytes(8).toString("hex");
-    const held: string[] = [envPairs({ ...spec.env, ...t.env })];
+    const held: string[] = [envPairs({ ...spec.env, ...t.env, ...mark })];
     let dialled: StdioRoad | undefined;
     let opened: StdioRoad | undefined;
     let killed = false;

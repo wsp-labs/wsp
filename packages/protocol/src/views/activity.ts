@@ -231,8 +231,7 @@ export interface Placement {
   /** Whether End reaches it: a process a thread or wsp started, never an agent or what wsp needs. */
   endable: (pid: number) => boolean;
   /** The thread whose End may reach it: its thread, but never by the WSP_THREAD mark alone, which any process can carry
-   * with any id; there its agent's stretch, its thread's cgroup or its parent's reach, or none. A shell a pane opened,
-   * and what runs in it, is the person's alone. */
+   * with any id; there its agent's stretch, its thread's cgroup or its parent's reach, or none. */
   reachOf: (pid: number) => string | undefined;
 }
 
@@ -375,17 +374,10 @@ export function placeProcs(input: PlaceInput): Placement {
     const w = whose.get(pid);
     return p !== undefined && w !== undefined && kindOf(pid) !== "agent" && !needed(pid) && !app.has(pid) && (typeof w === "object" || startedByWsp(p));
   };
-  /** Whether it is a shell a pane opened or runs in one: the person's, whichever thread's pane holds it. */
-  const inShell = (pid: number): boolean => {
-    for (let at = byPid.get(pid), steps = 0; at !== undefined && steps <= procs.length; at = at.ppid === at.pid ? undefined : byPid.get(at.ppid), steps++) {
-      if (at.pty !== undefined) return true;
-    }
-    return false;
-  };
   const reachOf = (pid: number, seen = new Set<number>()): string | undefined => {
     const w = whose.get(pid);
     const p = byPid.get(pid);
-    if (typeof w !== "object" || p === undefined || inShell(pid)) return undefined;
+    if (typeof w !== "object" || p === undefined) return undefined;
     if (p.owner?.by !== "env") return w.thread;
     const stretch = agent.get(pid) ?? agent.get(foldsInto.get(pid) ?? -1);
     if (stretch !== undefined) return stretch;
@@ -525,19 +517,19 @@ export function endPlan(read: ActivityRead, pid: number, startedAt: number, may:
 /** Each thread's processes a settle, a delete or End all would leave running: what outlives its agent. The agent and
  * everything under it, its tool servers among them, end with the agent, which the thread ends itself; so do the
  * turn's run script and input pump, which stand under pid 1 once the script's own shell is gone. A shell its pane
- * opened, and what runs in it, is the pane's: a delete ends it with the thread's shells and a settle leaves it. */
+ * opened, and what runs in it, is the thread's like any other process it left, and is asked about. */
 export function processesLeft(view: ActivityView, threadIds: readonly string[]): ActivityThread[] {
   const asked = new Set(threadIds);
   return view.threads.flatMap(t => {
     if (!asked.has(t.threadId)) return [];
     const byPid = new Map(t.processes.map(p => [p.pid, p]));
-    const endsOnItsOwn = (p: ActivityProc): boolean => {
+    const underAgent = (p: ActivityProc): boolean => {
       for (let at: ActivityProc | undefined = p, steps = 0; at !== undefined && steps <= t.processes.length; at = byPid.get(at.ppid), steps++) {
-        if (at.kind === "agent" || at.kind === "terminal" || isTurnPlumbing(at.command)) return true;
+        if (at.kind === "agent" || isTurnPlumbing(at.command)) return true;
       }
       return false;
     };
-    const processes = t.processes.filter(p => !endsOnItsOwn(p));
+    const processes = t.processes.filter(p => !underAgent(p));
     return processes.length === 0 ? [] : [{ ...t, processes }];
   });
 }

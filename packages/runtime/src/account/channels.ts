@@ -331,7 +331,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     });
     return read;
   };
-  /** Each shell a thread's pane opened, by the pid it leads and the folder it was opened in: the daemon is told it is
+  /** Each shell a thread's pane opened, by the pid it leads and the workspace it was opened in: the daemon is told it is
    * that thread's, so it and what it starts stand under the thread. The New thread page's shells wait for the thread
    * its first send makes. */
   const threadTerminals = (): { thread: string; workspace: string; pid: number }[] =>
