@@ -686,6 +686,10 @@ export const placeUpdateLine = (name: string): string => `wsp add ${name} --upda
  * TERM reached the process alone, and the fix. */
 export const killTooOldLine = (name: string): string => `TERM went to this process alone: ${name} runs a daemon too old to end what it started; ${placeUpdateLine(name)} updates it`;
 
+/** The same said away from the rows, once for a computer, naming each process TERM reached alone. */
+export const killTooOldOfLine = (name: string, procs: readonly { pid: number; command: string }[]): string =>
+  `TERM went to ${procs.map(p => `${p.pid} (${p.command})`).join(" and ")} alone: ${name} runs a daemon too old to end what ${procs.length === 1 ? "it" : "they"} started; ${placeUpdateLine(name)} updates it`;
+
 /** What the doctor says about one place that is behind: the word above and the line that answers it. */
 export const placeBehindLine = (name: string, word: string): string => `${name} is behind: ${word}; ${placeUpdateLine(name)} puts this wsp's daemon on it`;
 

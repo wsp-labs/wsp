@@ -11,9 +11,11 @@
 // End names the start it read, and a pid that now names another process is
 // refused.
 import { z } from "zod";
-import { byProcColumn, PROC_KINDS, type ProcEntry, type ProcKind } from "../wire/daemon.js";
+import { byProcColumn, PROC_KINDS, type CgroupMemory, type ProcEntry, type ProcKind } from "../wire/daemon.js";
+import { KILL_GRACE_MS } from "../daemon-contract.js";
 import { PROCESSES_LEFT_KIND, refusal } from "../exit.js";
-import { inCgroup } from "../thread-cgroup.js";
+import { cgroupMemory, inCgroup } from "../thread-cgroup.js";
+import { placeBehindLine } from "../wire/daemon-version.js";
 import { threadWord } from "../words/computer.js";
 
 /** One process as Activity draws it, in the order of its thread's tree: depth counts the steps under the first of
@@ -78,8 +80,10 @@ export type ProcessesChoice = (typeof PROCESSES_CHOICES)[number];
 export const ProcessesAsk = z.enum(["ask", ...PROCESSES_CHOICES]);
 export type ProcessesAsk = z.infer<typeof ProcessesAsk>;
 
-/** How long TERM is given before KILL. */
-export const END_GRACE_MS = 2_000;
+/** How long TERM is given before KILL: the daemon's own grace, which it waits out itself. */
+export const END_GRACE_MS = KILL_GRACE_MS;
+/** The grace as every sentence says it. */
+export const endGraceWord = `${END_GRACE_MS / 1000} s`;
 /** How far two reads of one process's start may sit apart: this computer's daemon reads a start off ps's elapsed
  * time, which a second sampler reads again a second off. */
 export const SAME_START_MS = 2_000;
@@ -112,6 +116,8 @@ export interface ActivityRead {
   /** The command each agent puts on PATH, which ends the stretch from a root down to the agent. */
   agentBins: readonly string[];
   ports?: ReadonlyMap<number, readonly number[]>;
+  /** On a box, each thread cgroup's memory as the daemon read it, which a box thread's total is. */
+  cgroups?: readonly CgroupMemory[];
 }
 
 /** What a script is run by, so the script it runs names the process. */
@@ -157,6 +163,8 @@ export function agentPath(root: number, kidsOf: (pid: number) => readonly ProcEn
  * in the turn's group: they are the agent's, and end with it. */
 export const RUN_SCRIPT = /^bash \S*\/[0-9a-f]{12}\.sh$/;
 const RUN_PUMP = /^tail -n \+1 -f \S*\/[0-9a-f]{12}\.in$/;
+/** Whether a command line is a turn's run script or its input pump, which belong to the agent wherever they stand. */
+export const isTurnPlumbing = (command: string): boolean => RUN_SCRIPT.test(command) || RUN_PUMP.test(command);
 
 const SHELLS = new Set(["sh", "bash", "zsh", "fish", "dash"]);
 const TEST_LINE = /\b(vitest|jest|mocha|pytest|playwright test|cargo test|cargo nextest|go test|bun test|node --test)\b/;
@@ -220,6 +228,9 @@ export interface Placement {
   needed: (pid: number) => boolean;
   /** Whether End reaches it: a process a thread or wsp started, never an agent or what wsp needs. */
   endable: (pid: number) => boolean;
+  /** The thread whose End may reach it: its thread, but never by the WSP_THREAD mark alone, which any process can carry
+   * with any id; there its agent's stretch, its thread's cgroup or its parent's reach, or none. */
+  reachOf: (pid: number) => string | undefined;
 }
 
 export function placeProcs(input: PlaceInput): Placement {
@@ -281,7 +292,7 @@ export function placeProcs(input: PlaceInput): Placement {
     if (root !== undefined && !groupAgent.has(root)) groupAgent.set(root, at);
   }
   for (const p of procs) {
-    if (p.pgid === undefined || agent.has(p.pid) || foldsInto.has(p.pid) || !(RUN_SCRIPT.test(p.cmdline) || RUN_PUMP.test(p.cmdline))) continue;
+    if (p.pgid === undefined || agent.has(p.pid) || foldsInto.has(p.pid) || !isTurnPlumbing(p.cmdline)) continue;
     const at = groupAgent.get(p.pgid);
     const stamped = p.owner?.thread;
     if (at === undefined || (stamped !== undefined && threadById.has(stamped) && stamped !== agent.get(at))) continue;
@@ -356,7 +367,19 @@ export function placeProcs(input: PlaceInput): Placement {
     const w = whose.get(pid);
     return p !== undefined && w !== undefined && kindOf(pid) !== "agent" && !needed(pid) && (typeof w === "object" || startedByWsp(p));
   };
-  return { procs, byPid, kidsOf, whose, agent, foldsInto, rootOf, kindOf, needed, endable };
+  const reachOf = (pid: number, seen = new Set<number>()): string | undefined => {
+    const w = whose.get(pid);
+    const p = byPid.get(pid);
+    if (typeof w !== "object" || p === undefined) return undefined;
+    if (p.owner?.by !== "env") return w.thread;
+    const stretch = agent.get(pid) ?? agent.get(foldsInto.get(pid) ?? -1);
+    if (stretch !== undefined) return stretch;
+    const cg = input.threads.find(t => t.cgroup !== undefined && inCgroup(p.cgroup, t.cgroup));
+    if (cg !== undefined) return cg.id;
+    const parent = p.ppid !== p.pid ? byPid.get(p.ppid) : undefined;
+    return parent === undefined || seen.has(parent.pid) ? undefined : reachOf(parent.pid, seen.add(pid));
+  };
+  return { procs, byPid, kidsOf, whose, agent, foldsInto, rootOf, kindOf, needed, endable, reachOf: pid => reachOf(pid) };
 }
 
 /** The read's threads as the placement takes them. */
@@ -400,6 +423,9 @@ export function activityOf(read: ActivityRead): ActivityView {
       memory += p.rss;
       cpu += p.cpu;
     }
+    // A box thread's memory is its cgroup's, as Settings > Activity totals it (`cgroupMemory`); its rows' resident sum
+    // stands where the daemon read none.
+    memory = cgroupMemory(read.cgroups, scope.cgroup) ?? memory;
     threads.push({ threadId: scope.threadId, title: scope.title, workspaceId: scope.workspaceId, memory, cpu, processes: treeRows(placed, members, read.ports) });
   }
   const of = (w: "wsp" | "loose"): ProcEntry[] => placed.procs.filter(p => placed.whose.get(p.pid) === w);
@@ -413,14 +439,22 @@ export type EndPlan = { targets: ProcEntry[] } | { kept: ActivityScope };
 
 const at = (ms: number): string => new Date(ms).toISOString();
 
-export const boxActivityLine = (name: string): string => `${name} is a box, and wsp activity reads this computer's processes:`;
-export const elsewhereActivityLine = (threadId: string): string => `thread ${threadWord(threadId)} runs on a box, and wsp activity reads this computer's processes:`;
-export const BOX_ACTIVITY_FIX = "open that computer's Processes pane in the app for its processes.";
-
-/** An End that read no list after its signal in time signals nothing more, since it cannot tell what is still there. */
-export const listLateLine = (after: number): string => `this computer's daemon listed no processes read after ${at(after)}, so nothing more was signalled`;
+export const boxEndLine = (name: string): string => `${name} is a box, and wsp activity end ends processes on this computer:`;
+export const BOX_END_FIX = "end it from that computer's Processes pane in the app, or settle its thread with --processes stop.";
+export const cloudActivityLine = (threadId: string): string => `thread ${threadWord(threadId)} runs on a cloud machine, and wsp activity reads this computer's processes and a box's:`;
+export const CLOUD_ACTIVITY_FIX = "open that thread's Processes pane in the app for its processes.";
+export const notJoinedActivityLine = (threadId: string, name: string): string => `thread ${threadWord(threadId)} runs on ${name}, which this host has not joined:`;
+export const notJoinedActivityFix = (name: string): string => `add ${name} again with wsp add, then read its processes.`;
+/** A box whose daemon has no one-shot list is one version behind, which its update answers. */
+export const boxBehindActivityLine = (name: string): string => `${placeBehindLine(name, "its daemon reads no processes in one read")}, so wsp activity reads nothing there:`;
+export const BOX_BEHIND_ACTIVITY_FIX = "update it, then read wsp activity again.";
+export const notReadLine = (name: string): string => `${name} is no box this host joined, and wsp activity reads this computer's processes and a box's:`;
+export const NOT_READ_FIX = "name this computer or a box wsp computers lists.";
 
 export const END_AGAIN_FIX = "read wsp activity again and end it by the pid and start it lists now.";
+
+/** What an End answers when the daemon found the pid holding another process by the signal. */
+export const endGoneSaid = (pid: number): string => `nothing was signalled: the process listed as ${pid} is gone`;
 
 export const agentEndLine = (pid: number, scope: ActivityScope): string => `${pid} is the agent of thread ${threadWord(scope.threadId)} "${scope.title}", which only its thread's stop ends:`;
 export const agentUnderLine = (pid: number, scope: ActivityScope): string => `${pid} has the agent of thread ${threadWord(scope.threadId)} "${scope.title}" under it, which only its thread's stop ends:`;
@@ -445,7 +479,7 @@ export function endPlan(read: ActivityRead, pid: number, startedAt: number, may:
   const scopeOf = (threadId: string | undefined): ActivityScope | undefined => read.scopes.find(s => s.threadId === threadId);
   // Reach before the start, so a caller learns nothing of a process it may not end, not even its name.
   const owner = threadIdOf(placed.whose.get(pid));
-  if (!may(owner)) throw refusal(notThreadsLine(pid), NOT_THREADS_FIX, "usage");
+  if (!may(placed.reachOf(pid))) throw refusal(notThreadsLine(pid), NOT_THREADS_FIX, "usage");
   if (pid === read.daemon || pid === read.host) throw refusal(wspOwnLine(pid), WSP_OWN_FIX, "usage");
   if (owner === undefined && !startedByWsp(p)) throw refusal(notStartedLine(pid), NOT_STARTED_FIX, "usage");
   if (Math.abs(p.startedAt - startedAt) > SAME_START_MS) throw refusal(endReusedLine(pid, p, startedAt), END_AGAIN_FIX, "not-found");
@@ -473,15 +507,18 @@ export function endPlan(read: ActivityRead, pid: number, startedAt: number, may:
   return { targets };
 }
 
-/** Each thread's processes a settle or a delete would leave running: what outlives its agent. The agent and
- * everything under it, its tool servers among them, end with the agent, which the thread ends itself. */
+/** Each thread's processes a settle, a delete or End all would leave running: what outlives its agent. The agent and
+ * everything under it, its tool servers among them, end with the agent, which the thread ends itself; so do the
+ * turn's run script and input pump, which stand under pid 1 once the script's own shell is gone. */
 export function processesLeft(view: ActivityView, threadIds: readonly string[]): ActivityThread[] {
   const asked = new Set(threadIds);
   return view.threads.flatMap(t => {
     if (!asked.has(t.threadId)) return [];
     const byPid = new Map(t.processes.map(p => [p.pid, p]));
     const underAgent = (p: ActivityProc): boolean => {
-      for (let at: ActivityProc | undefined = p, steps = 0; at !== undefined && steps <= t.processes.length; at = byPid.get(at.ppid), steps++) if (at.kind === "agent") return true;
+      for (let at: ActivityProc | undefined = p, steps = 0; at !== undefined && steps <= t.processes.length; at = byPid.get(at.ppid), steps++) {
+        if (at.kind === "agent" || isTurnPlumbing(at.command)) return true;
+      }
       return false;
     };
     const processes = t.processes.filter(p => !underAgent(p));
@@ -489,21 +526,33 @@ export function processesLeft(view: ActivityView, threadIds: readonly string[]):
   });
 }
 
+/** The tops of a set of processes, each a tree kill whose tree takes the rest: those whose parent is not among them. */
+export const endHeads = <P extends { pid: number; ppid: number }>(processes: readonly P[]): P[] => {
+  const ending = new Set(processes.map(p => p.pid));
+  return processes.filter(p => !ending.has(p.ppid));
+};
+
 /** The most processes a refusal names before it counts the rest. */
 const LEFT_NAMED = 8;
 
-export const processesLeftLine = (verb: "settle" | "delete", left: readonly LeftThread[]): string => {
+/** What a settle or a delete would leave running, each process named; `theirs` holds the pids the caller may not end,
+ * which a thread hears as the person's to end before it asks for a stop that would refuse them. */
+export const processesLeftLine = (verb: "settle" | "delete", left: readonly LeftThread[], theirs: ReadonlySet<number> = new Set()): string => {
   const rows = left.flatMap(t => t.processes.map(p => ({ t, p })));
-  const named = rows.slice(0, LEFT_NAMED).map(({ t, p }) => `${p.pid} ${p.name} (${p.kind}${p.ports.length > 0 ? `, :${p.ports.join(" :")}` : ""}) of ${threadWord(t.threadId)}${t.on !== undefined ? ` on ${t.on}` : ""}`);
+  const named = rows
+    .slice(0, LEFT_NAMED)
+    .map(({ t, p }) => `${p.pid} ${p.name} (${[p.kind, ...(p.ports.length > 0 ? [`:${p.ports.join(" :")}`] : []), ...(theirs.has(p.pid) ? ["the person's to end"] : [])].join(", ")}) of ${threadWord(t.threadId)}${t.on !== undefined ? ` on ${t.on}` : ""}`);
   const more = rows.length > LEFT_NAMED ? ` and ${rows.length - LEFT_NAMED} more` : "";
   return `${verb === "settle" ? "a thread to settle" : "the thread to delete"} still runs ${rows.length === 1 ? "a process" : `${rows.length} processes`}: ${named.join(", ")}${more}:`;
 };
 
-export const processesLeftFix = (verb: "settle" | "delete"): string =>
-  `${verb} it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).`;
+export const processesLeftFix = (verb: "settle" | "delete", theirs: ReadonlySet<number> = new Set()): string =>
+  theirs.size > 0
+    ? `a thread ends only what it and the threads under it started, so ask the person to end ${[...theirs].join(" ")}, or ${verb} it again with processes keep to leave them running (--processes on the command line).`
+    : `${verb} it again with processes stop to end them first, or processes keep to leave them running (--processes on the command line).`;
 
-export const processesLeftRefusal = (verb: "settle" | "delete", left: readonly LeftThread[]): Error =>
-  Object.assign(refusal(processesLeftLine(verb, left), processesLeftFix(verb), PROCESSES_LEFT_KIND), { left });
+export const processesLeftRefusal = (verb: "settle" | "delete", left: readonly LeftThread[], theirs?: ReadonlySet<number>): Error =>
+  Object.assign(refusal(processesLeftLine(verb, left, theirs), processesLeftFix(verb, theirs), PROCESSES_LEFT_KIND), { left });
 
 /** The threads a refusal over processes left running carries, as a reply puts them beside its error. */
 export function processesLeftOf(e: unknown): { left?: LeftThread[] } {

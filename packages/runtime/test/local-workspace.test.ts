@@ -656,7 +656,7 @@ describe("local workspace", () => {
     symlinkSync(`${hostname()}-${app.pid}`, lock);
     const turn = await rt.sessions.start(ws.id, { prompt: "work" });
     const kills = (): Record<string, unknown>[] => sent.filter(f => f["op"] === "proc.kill");
-    const asked = { id: null, op: "proc.kill", pid: 50, signal: "TERM", mode: "group", startedAt: 1, protect: [], agents: [], agentBins: [] };
+    const asked = { id: null, op: "proc.kill", pid: 50, signal: "TERM", mode: "tree", startedAt: 1, protect: [], agents: [], agentBins: [] };
     for (const channel of [await rt.workspaces.daemonChannel(ws.id, () => {}), await rt.hereChannel(() => {})]) await channel.send(asked as never);
     const guarded = { ...asked, protect: [process.pid, process.ppid], apps: [app.pid], agents: [AGENT, agent.pid], agentBins: CATALOG_AGENTS.map(a => a.bin) };
     expect(guarded.agentBins).toContain("claude");

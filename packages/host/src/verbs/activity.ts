@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Activity on the command line and the tools: this computer's processes by
-// the thread that started them, the End of one by the pid and start a read
-// listed, and the --processes choice settle and delete hand the host.
+// Activity on the command line and the tools: this computer's processes and a
+// box's by the thread that started them, the End of one by the pid and start a
+// read listed, and the --processes choice settle and delete hand the host.
 import { z } from "zod";
 import {
   ActivityEnded,
   ActivityView,
   PROCESSES_CHOICES,
+  endGoneSaid,
+  endGraceWord,
   fmtBytes,
   threadWord,
   usageRefusal,
@@ -47,8 +49,9 @@ export function activityLines(view: ActivityView): string {
 export function endedLines(e: ActivityEnded): string {
   if (e.freed !== undefined) return `freed the agent thread ${threadWord(e.freed)} kept`;
   const [first, ...under] = e.ended;
-  const lines = [`ended ${first === undefined ? e.pid : `${first.pid} ${first.name}`}${under.length > 0 ? ` and ${under.length} under it` : ""}`];
-  if (e.forced.length > 0) lines.push(`KILL after TERM's 2 s: ${e.forced.join(" ")}`);
+  if (first === undefined) return endGoneSaid(e.pid);
+  const lines = [`ended ${first.pid} ${first.name}${under.length > 0 ? ` and ${under.length} under it` : ""}`];
+  if (e.forced.length > 0) lines.push(`KILL after TERM's ${endGraceWord}: ${e.forced.join(" ")}`);
   if (e.left.length > 0) lines.push(`still running after KILL: ${e.left.join(" ")}`);
   return lines.join("\n");
 }
@@ -66,7 +69,7 @@ export const ACTIVITY_VERBS: readonly CliVerb[] = [
   {
     name: "activity",
     usage: "wsp activity [<thread>] [--computer <computer>]",
-    about: "this computer's processes by the thread that started them, each with its kind, memory, CPU and ports, then wsp's own; a thread named shows its own alone",
+    about: "this computer's processes, or a box's, by the thread that started them, each with its kind, memory, CPU and ports, then wsp's own; a thread named shows its own alone, on this computer or the box it runs on",
     page: "agent",
     options: { computer: { type: "string" } },
     run: async ctx => {
@@ -77,10 +80,10 @@ export const ACTIVITY_VERBS: readonly CliVerb[] = [
     },
     tool: tool({
       description:
-        "This computer's processes, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone. A thread reads itself and the threads under it alone. A box's processes are refused here, and so is a thread on one.",
+        "This computer's processes, or a box's with computer, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone, on the computer it runs on. On a box a thread's processes are what stands in its cgroup there. A thread reads itself and the threads under it alone.",
       input: {
         thread: z.string().optional().describe("the thread, by its id or a prefix of it that names one, whose processes alone to list"),
-        computer: z.string().optional().describe("the computer, which must be this one; a box is refused"),
+        computer: z.string().optional().describe("the computer: this one, which is the default, or a box wsp computers lists"),
       },
       output: ActivityView.shape,
       call: async ({ thread, computer }, deps) => {
@@ -92,7 +95,7 @@ export const ACTIVITY_VERBS: readonly CliVerb[] = [
   {
     name: "activity end",
     usage: "wsp activity end <pid> --started <ms> [--computer <computer>]",
-    about: "ends one process and everything under it, by the pid and the start wsp activity --json listed: TERM, then KILL after 2 s; refuses a process wsp did not start, an agent, which wsp stop ends, and a pid that names another process now",
+    about: `ends one process on this computer and everything under it, by the pid and the start wsp activity --json listed: TERM, then KILL after ${endGraceWord}; refuses a process wsp did not start, an agent, which wsp stop ends, and a pid that names another process now`,
     page: "agent",
     options: { started: { type: "string" }, computer: { type: "string" } },
     run: async ctx => {
@@ -108,12 +111,11 @@ export const ACTIVITY_VERBS: readonly CliVerb[] = [
       return 0;
     },
     tool: tool({
-      description:
-        "Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after 2 s, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.",
+      description: `Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after ${endGraceWord}, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.`,
       input: {
         pid: z.number().int().positive().describe("the process's pid, as activity lists it"),
         started: z.number().describe(STARTED_WORDS),
-        computer: z.string().optional().describe("the computer, which must be this one; a box is refused"),
+        computer: z.string().optional().describe("the computer, which must be this one; a box ends a thread's processes when its thread settles with processes stop"),
       },
       output: ActivityEnded.shape,
       call: async ({ pid, started, computer }, deps) => {

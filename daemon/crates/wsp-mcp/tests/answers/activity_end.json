@@ -92,6 +92,44 @@
           "startedAt": 5
         }
       ]
+    },
+    {
+      "case": "the process listed is gone by the signal",
+      "arguments": {
+        "pid": 4200,
+        "started": 1760000001000
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":true,\"pid\":4200,\"ended\":[],\"forced\":[],\"left\":[]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"nothing was signalled: the process listed as 4200 is gone\"}],\"structuredContent\":{\"pid\":4200,\"ended\":[],\"forced\":[],\"left\":[]}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4200,
+          "startedAt": 1760000001000
+        }
+      ]
+    },
+    {
+      "case": "a box refused",
+      "arguments": {
+        "pid": 4200,
+        "started": 1760000001000,
+        "computer": "hetzner"
+      },
+      "replies": {
+        "activity.end": "{\"id\":1,\"ok\":false,\"error\":\"hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop.\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop.\"}],\"structuredContent\":{\"error\":\"hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "activity.end",
+          "pid": 4200,
+          "startedAt": 1760000001000,
+          "computer": "hetzner"
+        }
+      ]
     }
   ]
 }

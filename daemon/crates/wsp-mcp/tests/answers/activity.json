@@ -66,14 +66,14 @@
       ]
     },
     {
-      "case": "a box refused",
+      "case": "a box",
       "arguments": {
         "computer": "hetzner"
       },
       "replies": {
-        "activity.read": "{\"id\":1,\"ok\":false,\"error\":\"hetzner is a box, and wsp activity reads this computer's processes: open that computer's Processes pane in the app for its processes.\",\"kind\":\"usage\"}"
+        "activity.read": "{\"id\":1,\"ok\":true,\"activity\":{\"computer\":\"hetzner\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \u0085 build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"ports\":[],\"cpu\":3,\"memory\":300000000,\"command\":\"claude -p --input-format stream-json\",\"name\":\"2.1.296\",\"kind\":\"agent\",\"startedAt\":1760000000000,\"depth\":0,\"ppid\":1,\"pid\":4100},{\"ports\":[5173,24678],\"cpu\":10.05,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0,\"memory\":20000000,\"command\":\"esbuild --service=0.25.0 --ping\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000002000,\"depth\":2,\"ppid\":4200,\"pid\":4300}]}],\"wsp\":[],\"unowned\":[{\"ports\":[],\"cpu\":0,\"memory\":512,\"command\":\"naïve \\\"résumé\\\"\",\"name\":\"naïve\",\"kind\":\"other\",\"startedAt\":1760000001000,\"depth\":0,\"ppid\":1,\"pid\":5000}]}}"
       },
-      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"hetzner is a box, and wsp activity reads this computer's processes: open that computer's Processes pane in the app for its processes.\"}],\"structuredContent\":{\"error\":\"hetzner is a box, and wsp activity reads this computer's processes: open that computer's Processes pane in the app for its processes.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"thread thread-7 fix the \\u0085 build  381 MB  13.1%\\n  4100  agent  claude -p --input-format stream-json  286 MB  3.0%\\n    4200  dev  node /lab/node_modules/.bin/vite  :5173 :24678  76 MB  10.1%\\n      4300  other  esbuild --service=0.25.0 --ping  19 MB  0.0%\\nno thread\\n  5000  other  naïve \\\"résumé\\\"  512 B  0.0%\"}],\"structuredContent\":{\"computer\":\"hetzner\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \\u0085 build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"pid\":4100,\"ppid\":1,\"depth\":0,\"startedAt\":1760000000000,\"kind\":\"agent\",\"name\":\"2.1.296\",\"command\":\"claude -p --input-format stream-json\",\"memory\":300000000,\"cpu\":3,\"ports\":[]},{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":10.05,\"ports\":[5173,24678]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000002000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service=0.25.0 --ping\",\"memory\":20000000,\"cpu\":0,\"ports\":[]}]}],\"wsp\":[],\"unowned\":[{\"pid\":5000,\"ppid\":1,\"depth\":0,\"startedAt\":1760000001000,\"kind\":\"other\",\"name\":\"naïve\",\"command\":\"naïve \\\"résumé\\\"\",\"memory\":512,\"cpu\":0,\"ports\":[]}]}},\"jsonrpc\":\"2.0\",\"id\":1}",
       "asked": [
         {
           "op": "activity.read",

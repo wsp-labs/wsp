@@ -155,7 +155,7 @@ function Scoped({ computer, computers, ctx }: { computer: ActivityComputer; comp
   }
   const cost: SamplerCost | null = snapshot?.cost === undefined ? null : { cpu: (snapshot.cost.cpuMs / history.interval) * 100, held: snapshot.cost.held };
 
-  const { acts, dialog } = useActivityActs(key, computer.workspaceId, snapshot);
+  const { acts, dialog } = useActivityActs(key, computer.workspaceId, snapshot, placeName(computer.place));
 
   const energy = scope?.energy ?? false;
   const look: Look = useMemo(() => ({ sort, onSort: setSort, energy }), [sort, energy]);
