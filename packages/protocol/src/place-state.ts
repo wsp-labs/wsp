@@ -5,7 +5,7 @@
 // one computer two ways. One rule per kind of place, so a third kind is one
 // entry in the table below.
 import { agentsLine, fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
-import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
+import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, SessionUncappedEvent, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
 import { HERE_PLACE_ID, placeSaid } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
 
@@ -333,6 +333,10 @@ export const capRunningLine = (w: ThreadCapWait): string =>
  * spawn says a machine slot and a minute of starts apart, since raising one does nothing for the other (05, Q18). */
 export const capWaitLine = (w: ThreadCapWait): string =>
   w.why === "slot" ? `waiting for a machine on ${w.place}: ${w.running} of ${w.atOnce} running` : w.why === "minute" ? `waiting for ${w.place}'s next minute of starts: ${w.running} of ${w.atOnce} used` : `waiting while ${capRunningLine(w)}`;
+
+/** Why a held turn left its wait, as the transcript's one line before its start. */
+export const capStartedLine = (e: Pick<SessionUncappedEvent, "why" | "atOnce">): string =>
+  e.why === "raised" ? `started: threads raised to ${e.atOnce}` : e.why === "lent" ? "started: a thread waiting on it lent its slot" : "started: a thread slot freed";
 
 /** Why a held turn ended with nothing started: the person or its lead stopped it while it waited, or before it had
  * looked at its computer's threads at once and had no count to say. */

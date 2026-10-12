@@ -220,6 +220,49 @@ describe("workspace creation view", () => {
     expect(document.querySelector("[data-chat-view]")!.textContent).toContain("yo");
   });
 
+  it("a new thread its computer's threads at once holds shows the person's message once, marked waiting, until it is let through", async () => {
+    let finish!: (w: WorkspaceView) => void;
+    const api = fakeApi([workspace]);
+    const listeners = new Set<(e: EventUnion) => void>();
+    api.subscribe = fn => { listeners.add(fn as (e: EventUnion) => void); return () => void listeners.delete(fn as (e: EventUnion) => void); };
+    const bus = (e: EventUnion) => act(() => { for (const fn of [...listeners]) fn(e); });
+    let requestId: string | undefined;
+    const capped = { placeId: "here", place: "studio", running: 6, atOnce: 6 };
+    const row = { id: "t1", workspaceId: "ws_beta", harness: "claude", status: "running" as const, threadId: "th_1", prompt: "yo", startedAt: Date.now(), capped };
+    let held = false;
+    api.createWorkspace = () => new Promise<WorkspaceView>(resolve => { finish = resolve; });
+    api.startSession = () => new Promise(() => {});
+    api.listSessions = async id => (held && id === "ws_beta" ? [row] : []);
+    api.listHarnesses = async () => [TABLE_CATALOG];
+    const asked = api.startSession;
+    api.startSession = o => { requestId = o.requestId; return asked(o); };
+    useStore.getState().bind(api);
+    await whenAgentsAnswered();
+    render(<Shell />);
+    await screen.findByRole("heading", { level: 1 });
+    void useStore.getState().createWorkspace("pr_1", "beta");
+    const view = await screen.findByTestId("workspace-creation");
+    const editor = within(view).getByTestId("composer-editor");
+    await typeInto(editor, "yo");
+    await press(editor, "Enter");
+    const created: WorkspaceView = { ...workspace, id: "ws_beta", name: "beta" };
+    bus({ type: "workspace.created", workspace: created });
+    await act(async () => { finish(created); });
+    await waitFor(() => expect(requestId).toBeDefined());
+
+    held = true;
+    const sc = { workspaceId: "ws_beta", sessionId: "t1", turnId: "t1", threadId: "th_1" };
+    bus({ type: "session.held", workspaceId: "ws_beta", threadId: "th_1", requestId: requestId! });
+    bus({ type: "session.row", workspaceId: "ws_beta", threadId: "th_1", id: "t1", row });
+    bus({ type: "session.capped", ...sc, at: Date.now(), ...capped, requestId: requestId!, prompt: "yo", seq: 1 } as EventUnion);
+    const chat = () => document.querySelector<HTMLElement>("[data-chat-view]")!;
+    await waitFor(() => expect(chat().querySelector("[data-user-message-waiting]")?.textContent).toContain("yo"));
+    expect(within(chat()).getAllByText("yo")).toHaveLength(1);
+    bus({ type: "session.uncapped", ...sc, at: Date.now(), why: "raised", atOnce: 8, seq: 2 } as EventUnion);
+    await waitFor(() => expect(chat().querySelector("[data-user-message-waiting]")).toBeNull());
+    expect(within(chat()).getAllByText("yo")).toHaveLength(1);
+  });
+
   it("with nothing typed the landed workspace keeps the finished setup as its first content and the composer at the foot, until the person leaves it", async () => {
     let finish!: (w: WorkspaceView) => void;
     const api = fakeApi([workspace]);
