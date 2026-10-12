@@ -7,10 +7,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use serde_json::{Map, Number, Value};
 
 use super::named::{history, threads, threads_of, Thread};
 use super::said::{fmt_cost, fmt_duration, js_head, last_line, turns};
+use super::workspace::params;
 use super::{input, Answer, Refused, Tool};
 use crate::client::Client;
 use crate::failure::Failure;
@@ -61,6 +63,34 @@ pub struct Finished {
     pub cost_usd: Option<Number>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reply: Option<String>,
+    /// On a sub-thread, what the done after its turn read off its machine.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
+    pub result: Option<Box<RawValue>>,
+}
+
+/// A sub-thread's end with what the done after it read off its machine, asked of the host once that read is in, as
+/// packages/host/src/verbs/turns-help.ts `withSubResult` asks it; nothing for any other thread.
+async fn sub_result(client: &Client, named: &[Thread], thread_id: &str) -> Result<Option<Box<RawValue>>, Failure> {
+    // Raw, so the result goes on in the host's own key order, as the command line passes it.
+    #[derive(Deserialize)]
+    struct Head {
+        facts: Facts,
+    }
+    #[derive(Deserialize)]
+    struct Facts {
+        #[serde(default)]
+        sub: Option<Sub>,
+    }
+    #[derive(Deserialize)]
+    struct Sub {
+        #[serde(default)]
+        result: Option<Box<RawValue>>,
+    }
+    let Some(row) = named.iter().find(|t| t.runtime_id() == thread_id && t.sub) else { return Ok(None) };
+    let head: Head =
+        client.request("sessions.head", params([("threadId", Value::from(row.id.clone())), ("afterRead", Value::from(true))])).await?;
+    Ok(head.facts.sub.and_then(|s| s.result))
 }
 
 /// A turn's result as the runtime reports it, as far as an end is said from it.
@@ -141,13 +171,13 @@ pub fn thread_result(events: &[Value], thread_id: &str) -> Option<TurnResult> {
 }
 
 enum Waited {
-    Ended { thread_id: String, result: TurnResult },
+    Ended { thread_id: String, result: TurnResult, sub: Option<Box<RawValue>> },
     TimedOut { ms: f64 },
 }
 
 async fn ended_of(client: &Client, workspace_id: &str, thread_id: &str, ended: TurnResult) -> Result<Waited, Failure> {
     let result = thread_result(&history(client, workspace_id, thread_id).await?, thread_id).unwrap_or(ended);
-    Ok(Waited::Ended { thread_id: thread_id.to_owned(), result })
+    Ok(Waited::Ended { thread_id: thread_id.to_owned(), result, sub: None })
 }
 
 #[derive(Deserialize)]
@@ -195,7 +225,7 @@ async fn first_ended(client: &Client, named: &[Thread], timeout_ms: Option<f64>)
                 let Ok(pushed) = serde_json::from_str::<Pushed>(&text) else { continue };
                 let Some(thread_id) = pushed.thread_id.filter(|id| ids.contains(&id.as_str())) else { continue };
                 match pushed.kind.as_str() {
-                    "session.done" => return Ok(Waited::Ended { thread_id, result: pushed.result.unwrap_or_default() }),
+                    "session.done" => return Ok(Waited::Ended { thread_id, result: pushed.result.unwrap_or_default(), sub: None }),
                     "session.end" => return ended_of(client, &pushed.workspace_id, &thread_id, TurnResult::failed(pushed.reason)).await,
                     _ => {}
                 }
@@ -219,7 +249,14 @@ async fn wait(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let waited = loop {
         match first_ended(&client, &named, left().map(|d| d.as_secs_f64() * 1_000.0)).await {
             Ok(Waited::TimedOut { .. }) => break Waited::TimedOut { ms: timeout_ms.unwrap_or_default() },
-            Ok(waited) => break waited,
+            Ok(Waited::Ended { thread_id, result, .. }) => match sub_result(&client, &named, &thread_id).await {
+                Ok(sub) => break Waited::Ended { thread_id, result, sub },
+                Err(failure) if !client.stopped_under() => return Err(failure.into()),
+                Err(_) => match host.back_within(left().map_or(start_wait(), |left| left.min(start_wait()))).await {
+                    Ok(back) => client = back,
+                    Err(refused) => return Err(refused.into()),
+                },
+            },
             Err(failure) if !client.stopped_under() => return Err(failure.into()),
             Err(_) => match host.back_within(left().map_or(start_wait(), |left| left.min(start_wait()))).await {
                 Ok(back) => client = back,
@@ -230,13 +267,14 @@ async fn wait(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     };
     let words = turns();
     Ok(match waited {
-        Waited::Ended { thread_id, result } => {
+        Waited::Ended { thread_id, result, sub } => {
             let line = result.notify_line(&thread_id);
             let finished = Finished {
                 status: result.status.clone(),
                 duration_ms: result.duration_ms.clone(),
                 cost_usd: result.cost_usd.clone(),
                 reply: result.tail(),
+                result: sub,
                 thread_id,
             };
             Answer::text(line, &WaitOut { finished: Some(finished), timed_out: None })
