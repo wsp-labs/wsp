@@ -9,7 +9,7 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type StartWindow } from "@wsp/protocol";
+import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
 import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
@@ -169,6 +169,18 @@ const textOf = (v: unknown): string | undefined => (typeof v === "string" && v !
 export function planSizes(trial: boolean, planUsd: number | undefined): BoxClass["type"][] {
   if (trial) return ["small", "default"];
   return planUsd !== undefined && planUsd >= 100 ? ["small", "default", "large", "xlarge"] : ["small", "default", "large"];
+}
+
+/** The plan and the starts as a cloud's row carries them, the sizes the plan sells as <cpu>x<memGb>: nothing where
+ * the read named no machine cap. */
+export function placeLimitsOf(limits: BoxLimits): CloudLimits | undefined {
+  if (limits.machinesAtOnce === undefined) return undefined;
+  const sizes = BOX_CLASSES.filter(c => limits.sizes.includes(c.type)).map(c => sizeWord(c));
+  const starts = limits.starts;
+  return {
+    plan: { ...(limits.planKey !== undefined ? { key: limits.planKey } : {}), trial: limits.trial, machinesAtOnce: limits.machinesAtOnce, sizes },
+    ...(starts !== undefined ? { starts: { minute: { ...starts.minute }, hour: { ...starts.hour }, day: { ...starts.day } } } : {}),
+  };
 }
 
 export function limitsOf(raw: RawLimits): BoxLimits {
@@ -607,6 +619,11 @@ export class BoxBackend implements MachineBackend {
     const kept = this.limitsKept;
     if (kept !== undefined && this.clock.now() - kept.at < LIMITS_KEPT_MS) return Promise.resolve(kept.limits);
     return this.readLimits();
+  }
+
+  /** The account's limits as a cloud's row carries them; nothing where the read failed. */
+  placeLimits(): Promise<CloudLimits | undefined> {
+    return this.limits().then(placeLimitsOf, () => undefined);
   }
 
   /** One read of /limits, shared by every caller while it is out. A read that failed is not kept: one that ended at
