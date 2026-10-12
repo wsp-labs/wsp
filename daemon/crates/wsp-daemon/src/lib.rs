@@ -17,6 +17,7 @@ mod git;
 mod guest;
 mod hash;
 mod hosts;
+mod http_post;
 mod image;
 mod inbox;
 mod kill;

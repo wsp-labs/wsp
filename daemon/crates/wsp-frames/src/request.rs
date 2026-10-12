@@ -7,8 +7,8 @@ use ts_rs::TS;
 
 use crate::proc_owner::scopes;
 use crate::validate::{
-    bounded, bounded_list, bounded_list_opt, bounded_opt, capped_list, capped_pids, cgroup_paths, container_id, exec_timeout, sha256_hex,
-    upload_word, watch_name,
+    bounded, bounded_list, bounded_list_opt, bounded_map, bounded_opt, capped_list, capped_pids, cgroup_paths, container_id, exec_timeout,
+    http_url, sha256_hex, upload_word, watch_name,
 };
 use crate::{
     FsReadEncoding, FsSearchMode, GitDiffScope, GuestKind, KillMode, MergeMethod, ProcScope, ProcSignal, ReactionContent, RequestId,
@@ -879,6 +879,25 @@ pub enum DaemonOp {
     /// Kills that command's process group; stdio.exit follows.
     #[serde(rename = "stdio.close", rename_all = "camelCase")]
     StdioClose { stdio_id: String },
+    /// One POST to an http MCP server, made from this computer: its address is dialled from here, a loopback one
+    /// included, with the headers named, and with the bearer of a sign-in the agent keeps here where `bearer` names
+    /// one and no Authorization header is given. No redirect is followed. Answers the status, the content type, the
+    /// session id and the body, which may be no longer than EXEC_OUTPUT_MAX.
+    #[serde(rename = "http.post", rename_all = "camelCase")]
+    HttpPost {
+        #[serde(deserialize_with = "http_url")]
+        url: String,
+        #[serde(deserialize_with = "bounded_map::<_, 8192, 64>")]
+        headers: BTreeMap<String, String>,
+        #[serde(deserialize_with = "bounded::<_, 0, { crate::numbers::EXEC_OUTPUT_MAX }>")]
+        body: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        bearer: Option<HttpBearer>,
+        #[serde(default, deserialize_with = "exec_timeout", skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        timeout_ms: Option<u32>,
+    },
     #[serde(rename = "exec", rename_all = "camelCase")]
     Exec {
         #[serde(deserialize_with = "bounded::<_, 0, { crate::numbers::EXEC_BODY_MAX }>")]
@@ -980,6 +999,20 @@ pub struct UsageStore {
     pub root: String,
 }
 
+/// Where a sign-in the agent keeps on this computer holds its bearer: a JSON file under the home this daemon serves,
+/// as `~/`, the keys down to the server's entry, and the entry's field holding the token. Read as the home's owner
+/// through no link; a file, an entry or a token that is not there sends the request without one.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct HttpBearer {
+    #[serde(deserialize_with = "bounded::<_, 3, 4096>")]
+    pub file: String,
+    #[serde(deserialize_with = "bounded_list::<_, 1024, 8>")]
+    pub at: Vec<String>,
+    #[serde(deserialize_with = "bounded::<_, 1, 255>")]
+    pub field: String,
+}
+
 fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore>, D::Error> {
     let list = Vec::<UsageStore>::deserialize(d)?;
     if list.len() > crate::numbers::USAGE_STORES_MAX {
@@ -988,7 +1021,7 @@ fn usage_stores<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<UsageStore
     Ok(list)
 }
 
-pub const DAEMON_OPS: [&str; 84] = [
+pub const DAEMON_OPS: [&str; 85] = [
     "pty.create",
     "pty.attach",
     "pty.detach",
@@ -1073,6 +1106,7 @@ pub const DAEMON_OPS: [&str; 84] = [
     "stdio.open",
     "stdio.write",
     "stdio.close",
+    "http.post",
 ];
 
 /// The five of those that belong to the road a client of this machine dials in on: a guest process's two and the

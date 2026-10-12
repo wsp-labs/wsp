@@ -46,8 +46,10 @@ import { GitPrReadReply, GitPrViewReply, GitPrMergeReply, GitPrReactReply, GitPr
 import { GitIssueReadReply, GitPrCheckoutReply, GitPrDiffReply, GitPrReviewReply } from "../start.js";
 import { KILL_PIDS_MAX, SSH_KEY_MAX } from "../daemon-contract.js";
 import type { UsageStore as WireUsageStore } from "../generated/UsageStore.js";
+import type { HttpBearer as WireHttpBearer } from "../generated/HttpBearer.js";
+import type { HttpPostReply as WireHttpPostReply } from "../generated/HttpPostReply.js";
 import { cgroupPath, type Held, reqId, type Same, watchName } from "./helpers.js";
-import { EXEC_BODY_MAX, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX } from "./limits.js";
+import { EXEC_BODY_MAX, isHttpUrl, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX } from "./limits.js";
 
 // --- daemon wire protocol (ws://0.0.0.0:7070, auth frame first, 4401 on anything else) ---
 
@@ -467,6 +469,16 @@ export const UsageStore = z.object({ agent: z.string().min(1).max(64), format: z
 export type UsageStore = WireUsageStore;
 type UsageStoreHeld = Held<Same<z.infer<typeof UsageStore>, UsageStore>>;
 
+/** Where a sign-in the agent keeps on that computer holds an http MCP server's bearer: a JSON file under the home the
+ * daemon serves, as `~/`, the keys down to the server's entry, and the field holding the token. */
+export const HttpBearer = z.object({ file: z.string().min(3).max(4096), at: z.array(z.string().min(1).max(1024)).max(8), field: z.string().min(1).max(255) });
+export type HttpBearer = WireHttpBearer;
+type HttpBearerHeld = Held<Same<z.infer<typeof HttpBearer>, HttpBearer>>;
+/** What an http MCP server answered an http.post made from that computer. */
+export const HttpPostReply = z.object({ status: z.number().int(), contentType: z.string().optional(), sessionId: z.string().optional(), body: z.string() });
+export type HttpPostReply = WireHttpPostReply;
+type HttpPostReplyHeld = Held<Same<z.infer<typeof HttpPostReply>, HttpPostReply>>;
+
 export const DaemonRequest = z.discriminatedUnion("op", [
   /** machineId, on these seven and on no other op of this road: the workspace the pty belongs to, on a daemon
    * that runs workspaces. A workspace on a computer somebody owns runs no daemon of its own, so the daemon of
@@ -850,6 +862,17 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("stdio.open"), stdioId: z.string(), cmd: z.string().min(1).max(EXEC_BODY_MAX) }),
   z.object({ id: reqId, op: z.literal("stdio.write"), stdioId: z.string(), data: z.string() }),
   z.object({ id: reqId, op: z.literal("stdio.close"), stdioId: z.string() }),
+  /** One POST to an http MCP server made from that computer, with the bearer of a sign-in the agent keeps there read
+   * there and put on the request alone. */
+  z.object({
+    id: reqId,
+    op: z.literal("http.post"),
+    url: z.string().refine(isHttpUrl, "http or https URL"),
+    headers: z.record(z.string(), z.string().max(8192)).refine(h => Object.keys(h).length <= 64, "at most 64 headers"),
+    body: z.string().max(EXEC_OUTPUT_MAX),
+    bearer: HttpBearer.optional(),
+    timeoutMs: z.number().int().positive().max(EXEC_TIMEOUT_MAX_MS).optional(),
+  }),
   DaemonExecRequest,
   /** Sweeps wsp off this computer and answers what it took, then the agent exits: the one op whose handler belongs
    * to the link a place opened and not to the daemon's own switch. */
