@@ -508,7 +508,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
             turnLive.toldAs = { status: replied.status, body: notifyBody(reply, "whole"), said, ...(replied !== reply ? { promised: true as const } : {}) };
             if (replayingTold > 0) replayingTold--;
             else if (notify !== undefined) {
-              ctx.notifyEnd({ view, turnId, turnLive }, notify, ctx.tellAs(t), replied);
+              ctx.notifyEnd({ view, turnId, turnLive }, notify, ctx.tellAs(t), replied, replied !== reply ? { open: true } : {});
               turnLive.told = (turnLive.told ?? 0) + 1;
             }
             void ctx.persistSessions(workspaceId);

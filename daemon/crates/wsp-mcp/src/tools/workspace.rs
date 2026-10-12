@@ -79,6 +79,8 @@ pub struct Words {
     pub merged_in_many: String,
     pub merge_conflicts: String,
     pub nothing_to_merge: String,
+    pub not_in_merge_one: String,
+    pub not_in_merge_many: String,
     pub made_bare: String,
     pub made_issue: String,
     pub made_pull_request: String,

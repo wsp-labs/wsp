@@ -542,8 +542,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
     whole: z.literal(true).optional(),
   }),
   /** Replies with the thread's ThreadHead, by its fold key as sessions.read takes it; refused as not found where the
-   * caller reaches no such thread. */
-  z.object({ id: reqId, op: z.literal("sessions.head"), threadId: z.string() }),
+   * caller reaches no such thread. With afterRead, a sub-thread's once the done after its latest turn has read its
+   * machine, so facts.sub.result is that turn's. */
+  z.object({ id: reqId, op: z.literal("sessions.head"), threadId: z.string(), afterRead: z.literal(true).optional() }),
   /** Replies with { attachment: KeptAttachment }: one image a person's message carried, by the thread, the request id
    * its start carries and its place in the message, which the host keeps until the thread or its workspace goes. */
   z.object({ id: reqId, op: z.literal("sessions.attachment"), workspaceId: z.string(), threadId: z.string(), requestId: z.string(), index: z.number().int().nonnegative() }),

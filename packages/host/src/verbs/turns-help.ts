@@ -68,6 +68,7 @@ import {
   type SessionView,
   type TurnRefusal,
   type TurnResult,
+  type SubResult,
   Preferences,
   homeShortened,
   BRANCH_HERE_ONLY_LINE,
@@ -682,7 +683,7 @@ export async function waitThrough(deps: Pick<VerbDeps, "client" | "hostWaitMs">,
   for (;;) {
     try {
       const waited = await firstEnded(client, named, left());
-      return "timedOutMs" in waited ? { timedOutMs: timeoutMs! } : waited;
+      return "timedOutMs" in waited ? { timedOutMs: timeoutMs! } : await withSubResult(client, named, waited.ended);
     } catch (e) {
       if (!(await stoppedUnder(client))) throw e;
       redialed?.();
@@ -719,10 +720,21 @@ export async function restartHost(deps: Pick<VerbDeps, "client" | "hostWaitMs">)
   return { running: (await threads(back)).filter(t => t.status === "running").map(threadIdOf) };
 }
 
-/** A thread's turn as it ended, for whoever waited on it: the thread and the runtime's result for the turn. */
+/** A thread's turn as it ended, for whoever waited on it: the thread and the runtime's result for the turn, and for a
+ * sub-thread what the done after it read off its machine. */
 export interface Ended {
   threadId: string;
   result: TurnResult;
+  sub?: SubResult;
+}
+
+/** A sub-thread's end with what the done after it read off its machine, asked of the host once that read is in; any
+ * other thread's end as it came. */
+async function withSubResult(client: HostClient, named: readonly ThreadView[], ended: Ended): Promise<{ ended: Ended }> {
+  const row = named.find(t => threadIdOf(t) === ended.threadId);
+  if (row?.sub === undefined) return { ended };
+  const { facts } = await client.request<ThreadHead>("sessions.head", { threadId: row.id, afterRead: true });
+  return { ended: { ...ended, ...(facts.sub?.result !== undefined ? { sub: facts.sub.result } : {}) } };
 }
 
 /** What a wait came to: the thread that left running, or the deadline that passed first. */
