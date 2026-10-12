@@ -517,6 +517,8 @@ export interface CreateArea {
 export interface SubSpawnArea {
   /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
+  /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
+  readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
 }
 
 export interface FoldersArea {
