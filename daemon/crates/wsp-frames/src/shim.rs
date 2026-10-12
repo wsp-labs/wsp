@@ -50,7 +50,7 @@ thread=${WSP_THREAD-}
 [ -z "$passed" ] && [ ${#thread} -le 64 ] || thread=
 case $thread in ""|*[!A-Za-z0-9_-]*) exec "$real" "$@" ;; esac
 label=wsp.thread=$thread
-at=global want= note= first=1 project=${COMPOSE_PROJECT_NAME-} cfile= cdir=
+at=global want= note= first=1 project=${COMPOSE_PROJECT_NAME-} cfile= cdir= efile=
 for a do
   [ -z "$first" ] || { set --; first=; }
   set -- "$@" "$a"
@@ -59,6 +59,7 @@ for a do
     project) project=$a ;;
     file) [ -n "$cfile" ] || cfile=$a ;;
     dir) cdir=$a ;;
+    envfile) efile=$a ;;
     esac
     want=
     continue
@@ -90,7 +91,9 @@ for a do
     -f*) [ -n "$cfile" ] || cfile=${a#-f} ;;
     --project-directory|--workdir) want=dir ;;
     --project-directory=*|--workdir=*) cdir=${a#*=} ;;
-    --env-file|--profile|--progress|--ansi|--parallel) want=value ;;
+    --env-file) want=envfile ;;
+    --env-file=*) efile=${a#*=} ;;
+    --profile|--progress|--ansi|--parallel) want=value ;;
     -*) ;;
     run) set -- "$@" --label "$label"; at=done ;;
     up|create) note=1; at=done ;;
@@ -101,6 +104,11 @@ done
 if [ -n "$note" ]; then
   tab=$(printf '\t')
   folder=$PWD
+  if [ -z "$cdir$cfile" ] && [ -z "${COMPOSE_FILE+set}" ]; then
+    case ${efile:=.env} in /*) ;; *) efile=$PWD/$efile ;; esac
+    [ ! -f "$efile" ] || cfile=$(sed -n 's/^[[:space:]]*\(export[[:space:]][[:space:]]*\)\{0,1\}COMPOSE_FILE[[:space:]]*=[[:space:]]*//p' "$efile" 2>/dev/null | tail -n 1 | tr -d '\r' | sed -e 's/[[:space:]]*$//' -e "s/^\"\(.*\)\"$/\1/" -e "s/^'\(.*\)'$/\1/")
+    cfile=${cfile%%:*}
+  fi
   [ -n "$cdir" ] || { cfile=${cfile:-${COMPOSE_FILE%%:*}}; case $cfile in ""|-) ;; */*) cdir=${cfile%/*} cdir=${cdir:-/} ;; *) cdir=. ;; esac; }
   if [ -n "$cdir" ]; then
     case $cdir in /*) ;; *) cdir=$PWD/$cdir ;; esac

@@ -17,7 +17,9 @@ const DOCKER_NOTES_KEPT_LINES = 100;
  * since compose hashes labels into a service's config and a second thread's `up` would recreate every container
  * (measured 2026-10-12): the shim appends one note instead, `thread`, folder, project and epoch seconds, tab apart. The
  * folder is the one compose labels the project's containers with as `working_dir`: `--project-directory`, else the first
- * compose file's folder (`-f`, then `COMPOSE_FILE`), else this one, spelt as the shell spells it, links kept.
+ * compose file's folder (`-f`, then `COMPOSE_FILE`, then the `COMPOSE_FILE` line of the env file compose reads, `.env`
+ * or `--env-file`'s, which the shim reads for that line alone and only where it is a plain file), else this one, spelt
+ * as the shell spells it, links kept.
  * `WSP_DOCKER_PASSED` names the shim folders a call came through, so a second shim on PATH, however PATH spells its
  * folder, neither loops back nor labels twice. The daemon's twin is `docker_shim`, held to this text by the contract fixture. */
 export function dockerShim(bin: string, notes: string): string {
@@ -47,7 +49,7 @@ thread=\${WSP_THREAD-}
 [ -z "$passed" ] && [ \${#thread} -le 64 ] || thread=
 case $thread in ""|*[!A-Za-z0-9_-]*) exec "$real" "$@" ;; esac
 label=${DOCKER_THREAD_LABEL}=$thread
-at=global want= note= first=1 project=\${COMPOSE_PROJECT_NAME-} cfile= cdir=
+at=global want= note= first=1 project=\${COMPOSE_PROJECT_NAME-} cfile= cdir= efile=
 for a do
   [ -z "$first" ] || { set --; first=; }
   set -- "$@" "$a"
@@ -56,6 +58,7 @@ for a do
     project) project=$a ;;
     file) [ -n "$cfile" ] || cfile=$a ;;
     dir) cdir=$a ;;
+    envfile) efile=$a ;;
     esac
     want=
     continue
@@ -87,7 +90,9 @@ for a do
     -f*) [ -n "$cfile" ] || cfile=\${a#-f} ;;
     --project-directory|--workdir) want=dir ;;
     --project-directory=*|--workdir=*) cdir=\${a#*=} ;;
-    --env-file|--profile|--progress|--ansi|--parallel) want=value ;;
+    --env-file) want=envfile ;;
+    --env-file=*) efile=\${a#*=} ;;
+    --profile|--progress|--ansi|--parallel) want=value ;;
     -*) ;;
     run) set -- "$@" --label "$label"; at=done ;;
     up|create) note=1; at=done ;;
@@ -98,6 +103,11 @@ done
 if [ -n "$note" ]; then
   tab=$(printf '\\t')
   folder=$PWD
+  if [ -z "$cdir$cfile" ] && [ -z "\${COMPOSE_FILE+set}" ]; then
+    case \${efile:=.env} in /*) ;; *) efile=$PWD/$efile ;; esac
+    [ ! -f "$efile" ] || cfile=$(sed -n 's/^[[:space:]]*\\(export[[:space:]][[:space:]]*\\)\\{0,1\\}COMPOSE_FILE[[:space:]]*=[[:space:]]*//p' "$efile" 2>/dev/null | tail -n 1 | tr -d '\\r' | sed -e 's/[[:space:]]*$//' -e "s/^\\"\\(.*\\)\\"$/\\1/" -e "s/^'\\(.*\\)'$/\\1/")
+    cfile=\${cfile%%:*}
+  fi
   [ -n "$cdir" ] || { cfile=\${cfile:-\${COMPOSE_FILE%%:*}}; case $cfile in ""|-) ;; */*) cdir=\${cfile%/*} cdir=\${cdir:-/} ;; *) cdir=. ;; esac; }
   if [ -n "$cdir" ]; then
     case $cdir in /*) ;; *) cdir=$PWD/$cdir ;; esac

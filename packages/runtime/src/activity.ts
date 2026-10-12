@@ -43,6 +43,7 @@ import {
   threadCgroup,
   unknownOpLine,
 } from "@wsp/protocol";
+import { agentPidOf } from "./local-exec.js";
 import { DaemonRefusal } from "./types/internal.js";
 import type { LiveWorkspace } from "./types/wiring.js";
 import type { DaemonChannel } from "./daemon-channel.js";
@@ -139,10 +140,14 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
   const scopesHere = (): ActivityScope[] => {
     const running = new Set<string>();
     const latest = new Map<string, { workspaceId: string; at: number }>();
-    for (const { view } of ctx.sessions.values()) {
+    /** The agent each running turn's run recorded, the read's first word on which process is the agent. */
+    const recorded = new Map<string, number[]>();
+    for (const { view, run } of ctx.sessions.values()) {
       const record = ctx.live.get(view.workspaceId)?.record;
       if (view.threadId === undefined || record === undefined || !isLocalWorkspace(record)) continue;
       if (view.status === "running") running.add(view.threadId);
+      const agent = view.status === "running" && run !== undefined ? agentPidOf(run) : undefined;
+      if (agent !== undefined) recorded.set(view.threadId, [...(recorded.get(view.threadId) ?? []), agent]);
       const at = view.startedAt ?? 0;
       if ((latest.get(view.threadId)?.at ?? -1) <= at) latest.set(view.threadId, { workspaceId: view.workspaceId, at });
     }
@@ -153,7 +158,8 @@ export function activityDoor(ctx: RuntimeContext): ActivityDoor {
       const kept = running.has(s.thread) ? undefined : ctx.keptAgents.get(s.thread)?.pid;
       const roots = [...new Set([...(s.agents ?? []), ...(s.groups ?? [])])];
       const workspaceId = s.workspace ?? latest.get(s.thread)?.workspaceId ?? "";
-      scopes.push({ threadId: s.thread, title: titled(s.thread), workspaceId, roots, ...(kept !== undefined ? { kept } : {}), ...binOf(s.thread) });
+      const agents = recorded.get(s.thread);
+      scopes.push({ threadId: s.thread, title: titled(s.thread), workspaceId, roots, ...(kept !== undefined ? { kept } : {}), ...(agents !== undefined ? { agents } : {}), ...binOf(s.thread) });
     }
     const named = new Set(scopes.map(s => s.threadId));
     for (const [threadId, t] of latest) if (!named.has(threadId)) scopes.push({ threadId, title: titled(threadId), workspaceId: t.workspaceId, roots: [], ...binOf(threadId) });

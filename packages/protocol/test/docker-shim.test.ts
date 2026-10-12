@@ -147,6 +147,35 @@ describe("the docker a thread finds first on its PATH", () => {
     expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual(cases.map(([, , at]) => at));
   });
 
+  it("takes COMPOSE_FILE from the env file compose reads when nothing else names the file, and prints none of that file", () => {
+    mkdirSync(join(folder, "sub", "deeper"), { recursive: true });
+    const cases: [string, string[], Record<string, string>, string][] = [
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "up", "-d"], {}, join(folder, "sub")],
+      ['A=1\nexport COMPOSE_FILE = "sub/deeper/compose.yaml:compose.yaml"\r', ["compose", "up"], {}, join(folder, "sub", "deeper")],
+      ["COMPOSE_FILE='sub/compose.yaml'", ["compose", "create"], {}, join(folder, "sub")],
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "up"], { COMPOSE_FILE: "sub/deeper/compose.yaml" }, join(folder, "sub", "deeper")],
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "-f", "compose.yaml", "up"], {}, folder],
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "--env-file", "other.env", "up"], {}, join(folder, "sub", "deeper")],
+      ["SECRET=hunter2", ["compose", "up"], {}, folder],
+    ];
+    writeFileSync(join(folder, "other.env"), "COMPOSE_FILE=sub/deeper/compose.yaml\n");
+    for (const [line, args, env] of cases) {
+      writeFileSync(join(folder, ".env"), `SECRET=hunter2\n${line}\n`);
+      const r = spawnSync(join(bin, "docker"), args, { env: { PATH: `${bin}:${real}:/usr/bin:/bin`, WSP_THREAD: "t_1f0c-ab", ...env }, cwd: folder, encoding: "utf8", timeout: 5_000 });
+      expect([r.status, JSON.parse(r.stdout).argv], line).toEqual([7, args]);
+      expect(r.stdout + r.stderr).not.toContain("hunter2");
+    }
+    expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual(cases.map(([, , , at]) => at));
+  });
+
+  it("never waits on an env file that is a pipe", () => {
+    rmSync(join(folder, ".env"), { force: true });
+    expect(spawnSync("mkfifo", [join(folder, ".env")]).status).toBe(0);
+    const r = spawnSync(join(bin, "docker"), ["compose", "up"], { env: { PATH: `${bin}:${real}:/usr/bin:/bin`, WSP_THREAD: "t_1f0c-ab" }, cwd: folder, encoding: "utf8", timeout: 5_000 });
+    expect([r.error, r.status]).toEqual([undefined, 7]);
+    expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual([folder]);
+  });
+
   it("hands a second thread's compose up the very words and environment the first one's had, so compose recreates nothing", () => {
     const args = ["compose", "-p", "lab", "up", "-d"];
     const { seen: first, status } = inThread(args, { COMPOSE_PROJECT_NAME: "x" });

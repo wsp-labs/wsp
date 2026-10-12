@@ -70,8 +70,9 @@ const AGENT_BINS = CATALOG_AGENTS.map(a => a.bin);
 const isAgent = (p: ProcEntry): boolean => procBins(p).some(b => AGENT_BINS.includes(b));
 
 /** The rows that are a running turn's agent, each with its thread, as `placeProcs` reads them: the process the host
- * started for the turn and every process from it down to the agent its run recorded, or the agent's binary. A signal to any of them ends the turn as
- * failed, so the pane stops the thread instead. A tool server under the agent is none of them. */
+ * started for the turn and every process from it down to the agent its run recorded, or the agent's binary. A signal
+ * to any of them ends the turn as failed, so the pane stops the thread instead. A tool server under the agent is none
+ * of them. */
 export function agentRows(procs: readonly ProcEntry[], threads: readonly ProcThread[]): Map<number, ProcThread> {
   const running = new Map(threads.filter(t => t.sessionId !== undefined).map(t => [t.threadId, t]));
   const placed = placeProcs({ procs, daemon: -1, threads: [...running.values()].map(t => ({ id: t.threadId, roots: [t.pid], ...(t.agentPid !== undefined ? { agents: [t.agentPid] } : {}) })), agentBins: AGENT_BINS, listens: () => false });
