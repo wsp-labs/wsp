@@ -96,7 +96,9 @@
                 "pausing",
                 "napping",
                 "waking",
-                "gone"
+                "gone",
+                "queued",
+                "released"
               ]
             },
             "kind": {
@@ -613,6 +615,13 @@
                 },
                 "atOnce": {
                   "type": "integer"
+                },
+                "why": {
+                  "type": "string",
+                  "enum": [
+                    "slot",
+                    "minute"
+                  ]
                 }
               },
               "required": [

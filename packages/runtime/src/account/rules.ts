@@ -316,7 +316,8 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     // enters the live map only after the provider has answered, so two forks asked for in one tick would both read
     // the same count and both pass; the place is taken here, in the same step the count is read, and handed back by
     // the caller's own finally, the way the name a fork is landing under already is.
-    const standing = [...live.values()].filter(e => e.record.rootThreadId === scope.rootThreadId && workspaceState({ phase: e.record.phase }) !== "gone").length;
+    // A queued spawn counts, since it is a machine on its way; a released one's machine is deleted, so it does not (04, L2).
+    const standing = [...live.values()].filter(e => e.record.rootThreadId === scope.rootThreadId && !["gone", "released"].includes(workspaceState({ phase: e.record.phase }))).length;
     const held = landing.get(scope.rootThreadId) ?? 0;
     if (standing + held >= policy.maxMachines) throw new Error(spawnCapRefusal(scope.rootThreadId, standing + held, policy.maxMachines));
     landing.set(scope.rootThreadId, held + 1);

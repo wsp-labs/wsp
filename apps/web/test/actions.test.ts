@@ -28,7 +28,7 @@ const workspace = (state: WorkspaceState, over: Partial<WorkspaceTarget> = {}): 
   displayName: "api",
   machineId: "m_a",
   kind: "cloud",
-  phase: state === "paused" ? "napping" : state === "unreachable" ? "running" : state,
+  phase: state === "paused" ? "napping" : state === "unreachable" ? "running" : state === "waiting" ? "queued" : state,
   machineState: state === "gone" ? "gone" : null,
   reach: state === "gone" ? "gone" : state === "paused" ? "napping" : state === "unreachable" ? "unreachable" : "reachable",
   reason: null,

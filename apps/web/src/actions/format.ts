@@ -113,6 +113,8 @@ const PHASE_SLOT: Record<WorkspaceState, { button: string; cannot: string }> = {
   gone: { button: "Wake", cannot: "be woken" },
   pausing: { button: "Pausing…", cannot: "be paused" },
   waking: { button: "Stop", cannot: "be woken" },
+  waiting: { button: "Waiting…", cannot: "be woken" },
+  released: { button: "Wake", cannot: "be woken" },
 };
 
 /** The word the phase button on the machine's own surface shows: the verb, or the moving state while it moves. */
@@ -148,6 +150,10 @@ export function phaseRefusal(state: WorkspaceState): string | null {
       return null;
     case "gone":
       return goneRefusal(undefined, "wake");
+    case "waiting":
+      return "Task is waiting for a slot on its cloud; it starts on its own when one frees";
+    case "released":
+      return "This task's computer was deleted";
     default: {
       const _exhaustive: never = state;
       return null;

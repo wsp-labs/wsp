@@ -15,6 +15,7 @@ import type {
   ReapFailure,
   ReapedMachine,
   VaultOptions,
+  BoxLimits,
 } from "@wsp/engine";
 import type { DaemonFrame, PlaceKind } from "@wsp/protocol";
 import type {
@@ -517,6 +518,30 @@ export interface CreateArea {
 export interface SubSpawnArea {
   /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
+  /** The machine of a spawn the queue let through, made as a spawn makes one, the picked files packed fresh. */
+  readonly standUpQueued: (record: WorkspaceRecord) => Promise<void>;
+}
+
+export interface SubQueueArea {
+  /** What holds a spawn on a cloud back now, a slot, the minute's starts or spawns ahead of it; nothing where none. */
+  readonly queueWait: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait | undefined;
+  /** The wait a create the cloud refused at its machines at once is held under. */
+  readonly cloudFull: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait;
+  /** A spawn's record stored queued with no machine, for the wait it met; at the head of the line, a read on, where
+   * the cloud refused its create at its cap. */
+  readonly enqueue: (record: WorkspaceRecord, wait: ThreadCapWait, refused?: boolean) => Promise<void>;
+  /** A queued record read at load, held live with no machine. */
+  readonly attachQueued: (record: WorkspaceRecord, wait: ThreadCapWait | undefined) => void;
+  /** The first turn of a queued sub-machine's thread, written down and started once its machine stands. */
+  readonly holdQueued: (
+    at: { workspaceId: string; threadId: string; tree: { parentThreadId?: string; rootThreadId?: string }; o: Parameters<RuntimeContext["sessionsApi"]["start"]>[1]; notify: readonly string[] | undefined },
+    origin: Caller | undefined,
+  ) => Promise<SessionHandle>;
+  /** A stop on a held spawn's row: dropped with no start spent; false for any other row. */
+  readonly dropQueued: (turnId: string) => Promise<boolean>;
+  /** At boot: every queued record's written start back in line. */
+  readonly resumeQueue: () => Promise<void>;
+  readonly pumpQueue: () => Promise<void>;
 }
 
 export interface FoldersArea {
@@ -827,4 +852,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;

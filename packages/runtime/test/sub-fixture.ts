@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { afterEach } from "vitest";
 import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
 import { boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult } from "@wsp/protocol";
+import type { Clock } from "../src/clock.js";
 import { createRuntime, copyKey, wiredPlace, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 // The key the picks are kept under, as the seed verb writes it and the spawn reads it: through the folder's links.
 import { folderNamed } from "../src/types/wiring.js";
@@ -179,6 +180,9 @@ export interface Setup {
   served?: true;
   /** Branches the remote holds already. */
   remoteHeads?: string[];
+  /** Boat's machines at once as the person set it, which wires the place door that keeps it. */
+  machines?: number;
+  clock?: Clock;
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -199,16 +203,19 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
   const leadTurn: { end?: () => void } = {};
   const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
-  const placeLinks = o.spendPerDayUsd === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
+  const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
-  const rt: Runtime = createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts, leadTurn), codex: harness(starts, leadTurn) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents });
+  const make = (): Runtime =>
+    createRuntime({ backend: boat, places: wiredPlace("box", boat), store, adapters: { claude: harness(starts, leadTurn), codex: harness(starts, leadTurn) }, local, daemonChannel: daemon.open, seed: seedWiring(sizes), ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) });
+  const rt = make();
   if (o.served === true) {
     ctx.runtime = rt;
     ctx.srv = await serveRuntime(rt, { port: 0, authToken: "host-token", devices: rt.devices });
     here.url = `ws://127.0.0.1:${ctx.srv.port}`;
   }
   if (o.spendPerDayUsd !== undefined) await rt.places!.set("box", { spendPerDayUsd: o.spendPerDayUsd });
+  if (o.machines !== undefined) await rt.places!.set("box", { machines: o.machines });
   const project = await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "web" });
   // The remote, recorded on the project as GitHub's, answers from a bare repo here, so no read leaves this computer.
   if (o.remote === undefined) {
@@ -222,6 +229,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const turn = await rt.sessions.start(folder.id, { prompt: "coordinate", harness: "claude" });
   const threadId = turn.view().threadId!;
   const lead: Caller = { origin: "here", by: { kind: "thread", threadId, workspaceId: folder.id, rootThreadId: threadId } };
-  return { rt, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo };
+  // A second host on the same state file, Boat and agents, as a restart brings one up.
+  return { rt, make, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo };
 }
 
