@@ -39,6 +39,11 @@ export const BOX_CLASSES: readonly BoxClass[] = [
   { type: "xlarge", cpu: 16, memMb: 32768, diskGb: 251, rateUsdPerHour: 0.2 },
 ];
 
+/** The root disk a box of each class reads, in GB as lsblk counts /dev/vda inside one (2026-10-12): a box made at
+ * default has small's disk, and a resume at large grows it in place with the files kept. xlarge was never measured, so
+ * it is never offered as more room. Boat's own diskGb above is its "for your own files" figure, not the disk that fills. */
+export const BOX_ROOT_DISK_GB: Readonly<Partial<Record<BoxClass["type"], number>>> = { small: 75, default: 75, large: 160 };
+
 /** The class a size names: the one it matches, else the smallest that holds both figures, else the largest sold. */
 export function boxClassFor(size: { cpu?: number; memMb?: number }): BoxClass {
   const exact = BOX_CLASSES.find(c => c.cpu === size.cpu && c.memMb === size.memMb);
@@ -519,6 +524,12 @@ export class BoxBackend implements MachineBackend {
   }
 
   readonly pricing = BOX_PRICING;
+
+  rootDiskOf(size: { cpu: number; memMb: number }): { name: string; diskGb: number } | undefined {
+    const cls = BOX_CLASSES.find(c => c.cpu === size.cpu && c.memMb === size.memMb);
+    const diskGb = cls === undefined ? undefined : BOX_ROOT_DISK_GB[cls.type];
+    return diskGb === undefined ? undefined : { name: cls!.type, diskGb };
+  }
 
   readonly lifecycle: Lifecycle = {
     budgets: BOX_BUDGETS,
@@ -1110,9 +1121,11 @@ export class BoxMachine implements Machine {
    * read until it does; archiving is the stop under way and a box already archived needs none. A stop the
    * provider refuses is thrown as itself, and one it takes back (the snapshot behind it failing leaves the box
    * running, which the provider does rather than lose work) is thrown with the provider's own reading of its
-   * snapshots; nothing here sends force, which would drop what was written since the last one. */
-  async pause(): Promise<void> {
-    const { pauseMs, pollMs } = this.backend.budgets;
+   * snapshots; nothing here sends force, which would drop what was written since the last one. `waitMs` stands in for
+   * the pause budget. */
+  async pause(o: { waitMs?: number } = {}): Promise<void> {
+    const { pollMs } = this.backend.budgets;
+    const pauseMs = o.waitMs ?? this.backend.budgets.pauseMs;
     const now = this.backend.clock.now;
     const started = now();
     let view = await this.backend.view(this.id);
@@ -1138,13 +1151,24 @@ export class BoxMachine implements Machine {
   /** Returns when the box reads ready. A resume is a 202 onto a fresh machine with the same id; the address changes
    * every time, so nothing here keeps one, and the daemon's own answer is the runtime's to wait for through the
    * hosted route. A resume of a running box is the provider's free no-op. */
-  async resume(signal?: AbortSignal): Promise<void> {
+  resume(signal?: AbortSignal): Promise<void> {
+    return this.resumeAs(undefined, signal);
+  }
+
+  /** Boat resizes no disk under a running box: a stopped one resumes onto a machine of the class this size names,
+   * which comes with that class's disk. A smaller class that cannot hold the data is refused with type_too_small and
+   * the box stays as it was. */
+  resumeAt(size: { cpu: number; memMb: number }, signal?: AbortSignal): Promise<void> {
+    return this.resumeAs(boxClassFor(size).type, signal);
+  }
+
+  private async resumeAs(type: BoxClass["type"] | undefined, signal?: AbortSignal): Promise<void> {
     // The timer the box last had, armed again from now, so a host that dies before the wake's first arming leaves
     // the box a stop; with none on record, the account's cap.
     await this.backend.beforeStart();
     const last = this.backend.lastTimer(this.id);
     const ttlSeconds = await this.backend.ttlSecondsFor(last === undefined ? undefined : this.backend.clock.now() + last.spanMs);
-    await this.backend.request("POST", this.path("/resume"), { body: { ttlSeconds }, signal }).catch((e: unknown) => this.backend.startRefused(e, this.labels?.[NAME_LABEL]));
+    await this.backend.request("POST", this.path("/resume"), { body: { ttlSeconds, ...(type !== undefined ? { type } : {}) }, signal }).catch((e: unknown) => this.backend.startRefused(e, this.labels?.[NAME_LABEL]));
     this.backend.counted();
     await this.backend.settle(this.id, v => STATE_MAP[v.state] === "running", this.backend.budgets.resumeMs, "resume", signal);
     await this.proveRoad(signal);

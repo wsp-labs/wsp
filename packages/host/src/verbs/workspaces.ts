@@ -21,6 +21,10 @@ import {
   deleteNotice,
   goneRefusal,
   usageRefusal,
+  resizedLine,
+  resizeWordLine,
+  RESIZE_WORD_FIX,
+  sizeFromWord,
   workspaceKind,
   workspaceState,
   threadDeleteQuestion,
@@ -44,7 +48,7 @@ import {
   StartResult,
 } from "@wsp/protocol";
 import { hostBack, usageIs, tool, type Verb, PICK_FLAGS, PICK_OPTIONS, flag, flagList, absoluteFolder, openedThreadLine, threadIdOf } from "./client.js";
-import { workspaceOf, threadOf, pauseModeOf, stateLine, wokeLine, nap, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
+import { workspaceOf, threadOf, pauseModeOf, stateLine, wokeLine, nap, resize, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
 import { pickFlags, checkedStart, threadHere, subDeleting, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
 import { confirmed, QUIET, QUIET_LINE, QUIET_TURN, Created, TurnOut, asJson, asText, WorkspaceIn, ThreadIn, SHARED_WITH, AgentIn, NotifyIn, CwdIn, ConfirmIn, PICK_INPUTS, SizeIn, SpawnIn, MaxMachinesIn, MaxDepthIn } from "./io.js";
@@ -493,6 +497,34 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       input: { workspace: WorkspaceIn },
       output: { workspace: WorkspaceOut },
       call: async ({ workspace: ref }, deps) => asJson({ workspace: await nap(await deps.client(), ref) }),
+    }),
+  },
+  {
+    name: "resize",
+    usage: "wsp resize <thread> --size <cpu>x<memGb>",
+    about: "moves the machine a thread runs on to another size its provider sells: a stop, then a resume at that size",
+    page: "app",
+    options: { size: { type: "string" } },
+    run: async ctx => {
+      const [ref] = ctx.args;
+      const word = flag(ctx.flags, "size");
+      if (ref === undefined || word === undefined || ctx.args.length !== 1) throw usageRefusal("wsp resize takes one thread and --size.", usageIs(ctx));
+      const size = sizeFromWord(word);
+      if (size === undefined) throw usageRefusal(resizeWordLine(word), RESIZE_WORD_FIX);
+      const workspace = await resize(await ctx.client(), ref, size);
+      ctx.out.emit({ workspace }, resizedLine(workspace.name, size));
+      return 0;
+    },
+    tool: tool({
+      description:
+        "Moves the machine a thread runs on to another size its provider sells, as a stop and then a resume at that size, and returns its record once it runs again. On Boat small and default share a 75 GB root disk and a move to large grows it to 160 GB with the files kept; xlarge's was never measured. Refused while a turn runs on it, since the stop would end it, and on a provider that changes no machine's size; a machine already at that size comes back unchanged. A thread's own token is refused: the bigger size is the person's spend.",
+      input: { thread: ThreadIn, size: z.string().regex(/^\d+x\d+$/).describe("the size to move to, as <cpu>x<memGb>, like 4x8") },
+      output: { workspace: WorkspaceOut },
+      call: async ({ thread: ref, size: word }, deps) => {
+        const size = sizeFromWord(word);
+        if (size === undefined) throw usageRefusal(resizeWordLine(word), RESIZE_WORD_FIX);
+        return asJson({ workspace: await resize(await deps.client(), ref, size) });
+      },
     }),
   },
   {

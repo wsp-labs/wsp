@@ -564,6 +564,8 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
       ctx.idle.release(workspaceId);
       throw e;
     }
+    // A re-opened turn too, so the disk's beat runs through the turns that fill it.
+    ctx.armDiskWatch();
     started.finished.then(
       () => {
         ctx.idle.release(workspaceId);

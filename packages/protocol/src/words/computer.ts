@@ -147,6 +147,7 @@ export const SPAWN_ACTS = {
   delete: "delete anything",
   delete_sub: "delete a sub-thread it started",
   pause: "pause a machine",
+  resize: "move a machine to another size",
   import: "import a folder",
   export: "export a folder",
   agents: "change what agents may do",

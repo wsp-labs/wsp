@@ -2,7 +2,7 @@
 
 {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
 
-`wsp mcp` serves these 75 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+`wsp mcp` serves these 76 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
 
 Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
 
@@ -1307,6 +1307,51 @@ One recipe by its name: file is the recipe as saved, every row by kind (agents w
 | `recipe.file` | object | yes |  |
 | `hash` | string | yes |  |
 
+## resize
+
+Moves the machine a thread runs on to another size its provider sells, as a stop and then a resume at that size, and returns its record once it runs again. On Boat small and default share a 75 GB root disk and a move to large grows it to 160 GB with the files kept; xlarge's was never measured. Refused while a turn runs on it, since the stop would end it, and on a provider that changes no machine's size; a machine already at that size comes back unchanged. A thread's own token is refused: the bigger size is the person's spend.
+
+**Takes**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `thread` | string | yes | the thread, by its id or a prefix of it that names one, as threads lists them |
+| `size` | string | yes | the size to move to, as \<cpu>x\<memGb>, like 4x8 |
+
+**Answers**
+
+| Field | Type | Required | What it is |
+|---|---|---|---|
+| `workspace` | object | yes |  |
+| `workspace.id` | string | yes |  |
+| `workspace.name` | string | yes |  |
+| `workspace.machineId` | string | yes |  |
+| `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
+| `workspace.kind` | `cloud`, `local`, `place` |  |  |
+| `workspace.golden` | string | yes |  |
+| `workspace.createdAt` | string | yes |  |
+| `workspace.project` | object | yes |  |
+| `workspace.folder` | string |  |  |
+| `workspace.home` | string |  |  |
+| `workspace.claudeSessionId` | string |  |  |
+| `workspace.gone` | string |  |  |
+| `workspace.theme` | object |  |  |
+| `workspace.glyph` | `terminal`, `code`, `bug`, `wrench`, `hammer`, `rocket`, `flask`, `database`, `cloud`, `globe`, `compass`, `map`, `book`, `feather`, `palette`, `leaf`, `star`, `bolt`, `key`, `shield`, `box`, `folder`, `chip`, `lamp` |  |  |
+| `workspace.daemonNote` | string |  |  |
+| `workspace.daemonRefusedAt` | object |  |  |
+| `workspace.vaultedAt` | string |  |  |
+| `workspace.vaultRefused` | string |  |  |
+| `workspace.wakeRefused` | string |  |  |
+| `workspace.agents` | object |  |  |
+| `workspace.parentThreadId` | string |  |  |
+| `workspace.rootThreadId` | string |  |  |
+| `workspace.parentWorkspaceId` | string |  |  |
+| `workspace.place` | string |  |  |
+| `workspace.provider` | string |  |  |
+| `workspace.worktree` | object |  |  |
+| `workspace.from` | object |  |  |
+| `workspace.review` | object or object |  |  |
+
 ## restart
 
 Stops the host and brings it back on the road it came up on: its service's manager, the verb that started it, or the app. Running turns go on across it and the host that comes back re-opens them, your own turn included, so a coordinator thread lands a host change with this and keeps working. Answers once that host serves, with running the ids of the threads running on it then. A run, send or wait this cut dials the host again and carries on. Refused for a host wsp up holds in a terminal, which only that terminal brings back.
@@ -2138,7 +2183,7 @@ The thread's head (by id, or a prefix of it): facts, the thread as threads lists
 | `facts.effort` | string |  |  |
 | `facts.contextWindow` | string |  |  |
 | `facts.turnId` | string |  |  |
-| `events` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object[] | yes |  |
+| `events` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object[] | yes |  |
 | `pos` | integer | yes |  |
 | `total` | integer | yes |  |
 | `trimmed` | `true` |  |  |

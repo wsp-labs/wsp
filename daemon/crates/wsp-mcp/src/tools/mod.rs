@@ -116,6 +116,7 @@ pub const TOOLS: &[Tool] = &[
     pull_request::UPDATE,
     tree::MERGE_IN,
     machine::PAUSE,
+    machine::RESIZE,
     machine::WAKE,
     machine::REBUILD,
     image::IMAGE,

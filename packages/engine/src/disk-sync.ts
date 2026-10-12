@@ -43,14 +43,17 @@ export async function syncDisk(machine: Machine): Promise<DiskReading | undefine
 /** The guest's root filesystem as df counts it, in kB: what is used and what is still free to its users. */
 export const DISK_USE_CMD = "df -Pk / | awk 'NR==2 {print $3, $4}'";
 
-/** How full that reading says the disk is, in percent and unrounded, so a line drawn at a figure is crossed only past
- * it; undefined for a reading that is not two counts. */
-export function diskUsePct(stdout: string): number | undefined {
+/** That reading's two counts in bytes, df's own share of them in percent and unrounded, so a line drawn at a figure is
+ * crossed only past it; undefined for a reading that is not two counts. */
+export function diskUseOf(stdout: string): { usedBytes: number; freeBytes: number; pct: number } | undefined {
   const m = /^(\d+) (\d+)$/m.exec(stdout.trim());
   if (m === null) return undefined;
   const [used, free] = [Number(m[1]), Number(m[2])];
-  return used + free === 0 ? undefined : (used * 100) / (used + free);
+  return used + free === 0 ? undefined : { usedBytes: used * 1024, freeBytes: free * 1024, pct: (used * 100) / (used + free) };
 }
+
+/** How full that reading says the disk is, in percent. */
+export const diskUsePct = (stdout: string): number | undefined => diskUseOf(stdout)?.pct;
 
 /** Whether a reading left anything unwritten. */
 export const diskUnsettled = (r: DiskReading | undefined): r is DiskReading => r !== undefined && (r.dirtyKb > 0 || r.writebackKb > 0);

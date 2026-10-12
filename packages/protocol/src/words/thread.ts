@@ -4,7 +4,7 @@ import { namesPlace, placeSaid } from "../place-word.js";
 import { shellLine } from "../shell-quote.js";
 import { plural } from "./base.js";
 import { threadWord } from "./computer.js";
-import { chargesNothing, fmtBytes, fmtBytesOf, fmtDuration, fmtRate, fmtSize, fmtUptime } from "./units.js";
+import { chargesNothing, fmtBytes, fmtBytesOf, fmtDuration, fmtRate, fmtSize, fmtMemGb, fmtUptime, sizeWord } from "./units.js";
 /** A limit as one unit: whole hours when it is hours, else whole minutes. */
 export function fmtLimit(ms: number): string {
   return ms >= 3_600_000 && ms % 3_600_000 === 0 ? `${ms / 3_600_000}h` : `${Math.round(ms / 60_000)}m`;
@@ -164,6 +164,52 @@ export const DISK_FULL_PCT = 90;
 export function diskFullLine(pct: number): string {
   return `its disk is ${Math.floor(pct * 10) / 10}% full: a stop snapshots the disk and fails once it is full, so free space on it (build output, caches) before it naps`;
 }
+
+/** How far under DISK_FULL_PCT a disk falls before the next crossing is said again: a build refilling its caches at the
+ * line would otherwise be swept under and announced every other beat. */
+export const DISK_REARM_PCT = 85;
+
+/** The size a full disk can move to: the first one up whose measured root disk is bigger, and the thread whose line it
+ * is, which wsp resize takes. */
+export interface DiskMove {
+  thread: string;
+  name: string;
+  cpu: number;
+  memMb: number;
+  diskGb: number;
+}
+
+/** What a thread on a machine whose stop snapshots its disk is told once the disk passes DISK_FULL_PCT, once per
+ * crossing: how full by df, what wsp cleared of its own there, what the person can do, and a move only to a size whose
+ * root disk is measured bigger. A stop that cannot save a full disk is refused, and Boat dropped a machine whose stops
+ * kept failing with its disk (2026-10-01). */
+export function diskMarkLine(o: { machine: string; on: string; pct: number; usedBytes: number; sizeBytes: number; freedBytes: number; machineGoes: boolean; move?: DiskMove }): string {
+  const full = `The disk of ${o.machine} is ${Math.floor(o.pct * 10) / 10}% used (${fmtBytesOf(o.usedBytes, o.sizeBytes)}) and still filling. ${o.on} cannot save a stop of a full disk, and deletes one whose stops keep failing with its disk.`;
+  const cleared = o.freedBytes > 0 ? ` wsp cleared ${fmtBytes(o.freedBytes)} of its own staging and build caches there.` : " wsp found none of its own staging or build caches there to clear.";
+  const free = ` Free space on its disk${o.machineGoes ? ", or let the thread finish: its machine is deleted once it is done." : "."}`;
+  const m = o.move;
+  const move = m === undefined ? "" : ` Or move it to ${m.name} (${m.cpu} vCPU, ${fmtMemGb(m.memMb)}, ${m.diskGb} GB disk): ${shellLine(["wsp", "resize", m.thread, "--size", sizeWord(m)])} stops it and resumes it at that size, with its files, which ends a turn running there.`;
+  return `${full}${cleared}${free}${move}`;
+}
+
+/** A move to another size asked of a provider that changes no machine's size. */
+export const resizeNoMoveLine = (on: string): string => `${on} changes no machine's size once it is made`;
+export const RESIZE_NO_MOVE_FIX = "Start a new thread at the size you want instead.";
+
+/** A move to another size while a turn runs there: the stop it takes ends every process on the machine. */
+export const resizeBusyLine = (name: string): string => `${name} has a turn running, and the stop a move to another size takes would end it`;
+export const RESIZE_BUSY_FIX = "Stop the turn or wait for it to end, then move it.";
+
+/** A move whose machine came back at another size than asked: a plain resume someone else sent was the one it joined. */
+export const resizeLandedLine = (name: string, got: WorkspaceSize, asked: WorkspaceSize): string => `${name} came back at ${sizeWord(got)}, not the ${sizeWord(asked)} asked for`;
+export const RESIZE_AGAIN_FIX = "Run wsp resize again.";
+
+/** What wsp resize prints once the machine runs again at the size it was moved to. */
+export const resizedLine = (name: string, size: WorkspaceSize): string => `${name} runs at ${sizeWord(size)} now, on a machine of that size`;
+
+/** A --size word that names no size at all, on the command line and in the tool alike. */
+export const resizeWordLine = (word: string): string => `${JSON.stringify(word)} names no size`;
+export const RESIZE_WORD_FIX = "A size is <cpu>x<memGb> with neither figure 0, like 4x8.";
 
 /** The turn's error when nothing on the machine answered a launch from this computer for the whole reach window:
  * how many times it was tried and over how long. The fetch's own words name a Node error and the machine id,

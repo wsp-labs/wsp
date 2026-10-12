@@ -271,6 +271,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("workspaces.resolve"), ref: z.string() }),
   z.object({ id: reqId, op: z.literal("workspaces.get"), workspaceId: z.string(), threadId: z.string().optional() }),
   z.object({ id: reqId, op: z.literal("workspaces.nap"), workspaceId: z.string() }),
+  z.object({ id: reqId, op: z.literal("workspaces.resize"), workspaceId: z.string(), size: z.object({ cpu: z.number().int().positive(), memMb: z.number().int().positive() }) }),
   z.object({ id: reqId, op: z.literal("workspaces.wake"), workspaceId: z.string() }),
   /** Starts another daemon for a workspace whose daemon this host owns as a child of its own process, replacing
    * one that is not running. The one kind that has such a daemon is the workspace that is this computer; every
