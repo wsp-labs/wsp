@@ -46,11 +46,12 @@ export interface OpenHostOptions {
   ask(prompt: ReplacePrompt): Promise<boolean>;
 }
 
-/** The page served at this authority, or nothing where nothing there answers. */
+/** The page served at this authority, empty where it answered with an error, or nothing where nothing there answers:
+ * a port that answers 404 is something else's, while one that gives no answer may be a host still starting. */
 async function pageAt(at: string): Promise<string | undefined> {
   try {
     const res = await fetch(`http://${at}/`, { signal: AbortSignal.timeout(2000) });
-    return res.ok ? await res.text() : undefined;
+    return res.ok ? await res.text() : "";
   } catch {
     return undefined;
   }
@@ -93,6 +94,17 @@ export function hostTokenMatches(statePath: string, digest: string): boolean {
 const wontAttach = (statePath: string, lock: HostLock, why: string): Error =>
   new Error(`a host (pid ${lock.pid}) holds ${lockPathFor(statePath)} on port ${lock.port} but ${why}: stop that process or run wsp down, then open wsp again`);
 
+/** A lock whose port gave no answer at all, which is a host starting (not yet bound, or busy sweeping its machines)
+ * as often as a stuck one, and is waited on rather than refused. */
+class NotAnswering extends Error {
+  constructor(
+    message: string,
+    readonly lock: HostLock,
+  ) {
+    super(message);
+  }
+}
+
 /** The bin's rule, read from the bin: a checkout of wsp in cwd marks a dev run on the checkout's own .wsp state. It
  * holds for a development run and nothing else, since a packaged app is launched from a folder it did not choose,
  * and WSP_HOME names the home over it in every case, which is what the locate doc says. */
@@ -122,6 +134,7 @@ async function lockedHost(statePath: string): Promise<{ session: HostSession; lo
     throw new Error(`a wsp older than this app's ${VERSION} (pid ${held.pid}) serves ${statePath} on port ${held.port}, and its page names no release: stop that process, then open wsp again`);
   }
   if (isLoopback(held.address ?? LOOPBACK)) {
+    if (page === undefined) throw new NotAnswering(wontAttach(statePath, held, "no wsp host answers there").message, held);
     if (boot === undefined) throw wontAttach(statePath, held, "no wsp host answers there");
     if (boot.tokenHash === undefined || !hostTokenMatches(statePath, boot.tokenHash)) throw wontAttach(statePath, held, "the page it serves carries another token's digest than the file beside this state");
   }
@@ -538,6 +551,31 @@ async function settles(statePath: string, until: number): Promise<boolean> {
   }
 }
 
+/** When the host's log last grew, kept across every wait of one open. */
+interface LogMoved {
+  size: number;
+  at: number;
+}
+
+/** Waits on a host that holds the lock and has not answered: until something answers on its port, its process lets
+ * the lock go or another takes it, or its log has not moved for the longer wait. False on that last one, which is
+ * read before the probe so a host that answers the probe and misses every read after it still runs out. */
+async function untilAnswers(statePath: string, lock: HostLock, waitMs: number, moved: LogMoved): Promise<boolean> {
+  const logPath = hostLogPath(statePath);
+  for (;;) {
+    await pause();
+    const now = servingHost(statePath);
+    if (now?.pid !== lock.pid || now.port !== lock.port) return true;
+    const size = logSize(logPath);
+    if (size !== moved.size) Object.assign(moved, { size, at: Date.now() });
+    if (Date.now() - moved.at >= waitMs * STARTING_WAITS) return false;
+    if (await httpProbe(now)) return true;
+  }
+}
+
+/** A dial that got no answer within its window, as against one the host answered and refused. */
+const unanswered = (e: unknown): boolean => (e as { kind?: unknown }).kind === "unreachable";
+
 /** The host the window opens on and whether it holds nothing yet, read across a restart. A launch that meets the
  * host on its way down (launchctl kickstart -k, a Restart host) finds its lock and its page still up for a moment,
  * attaches, and then reads nothing from it, or finds the lock with no page behind it; the host after it holds the
@@ -546,12 +584,18 @@ async function settles(statePath: string, until: number): Promise<boolean> {
 export async function openHostReady(opts: OpenHostOptions, dial: typeof dialHost = dialHost): Promise<{ session: HostSession; first: boolean }> {
   const from = Date.now();
   const until = from + opts.service.waitMs * STARTING_WAITS;
-  const gaveUp = (e: unknown): unknown => (Date.now() < until ? e : new Error(`after ${fmtDuration(Date.now() - from)} of waiting, ${e instanceof Error ? e.message : String(e)}`));
+  const moved: LogMoved = { size: logSize(hostLogPath(opts.statePath)), at: from };
+  const waited = (e: unknown): Error => new Error(`after ${fmtDuration(Date.now() - from)} of waiting, ${e instanceof Error ? e.message : String(e)}`);
+  const gaveUp = (e: unknown): unknown => (Date.now() < until ? e : waited(e));
   for (;;) {
     let session: HostSession;
     try {
       session = await openHost(opts);
     } catch (e) {
+      if (e instanceof NotAnswering) {
+        if (await untilAnswers(opts.statePath, e.lock, opts.service.waitMs, moved)) continue;
+        throw waited(e);
+      }
       // A lock whose page answers is a host that is up and refused this window; one with nothing behind it is a host
       // closing or still binding. The start's own wait has already covered a host still binding.
       const lock = servingHost(opts.statePath);
@@ -564,10 +608,17 @@ export async function openHostReady(opts: OpenHostOptions, dial: typeof dialHost
     try {
       return { session, first: await firstLaunch(opts.statePath, opts.home, dial) };
     } catch (e) {
-      // The host that answered and still serves refused the read. Any other failure is a host closing (its page
-      // shuts before its lock goes) or the one after it still binding.
+      // The host that answered and still serves refused the read, or went quiet after its page (a restarted host
+      // sweeping its machines), which is waited on as one that has not answered yet. Any other failure is a host
+      // closing (its page shuts before its lock goes) or the one after it still binding.
       const now = servingHost(opts.statePath);
-      if (now !== undefined && now.pid === answered?.pid && (await httpProbe(now))) throw e;
+      if (now !== undefined && now.pid === answered?.pid) {
+        if (unanswered(e)) {
+          if (await untilAnswers(opts.statePath, now, opts.service.waitMs, moved)) continue;
+          throw waited(e);
+        }
+        if (await httpProbe(now)) throw e;
+      }
       if (!(await settles(opts.statePath, until))) throw gaveUp(e);
     }
   }
