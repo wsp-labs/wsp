@@ -63,11 +63,12 @@ let boat: PlaceView = {
   cap: BOAT_DEFAULTS.cap,
   capDefault: BOAT_DEFAULTS.cap,
   settings: {},
-  // The machines holding a slot: the two running sub-threads, as the Machines column counts them; &near=1 has the
-  // day's starts and the machines at once both near their limits, to show the warning ink.
-  running: params.get("near") === "1" ? 3 : 2,
-  plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"] },
-  starts: { minute: { used: 3, limit: 12 }, hour: { used: 14, limit: 60 }, day: { used: params.get("near") === "1" ? 187 : 62, limit: 200 } },
+  // The machines holding a slot: the two running sub-threads, as the Machines column counts them.
+  running: 2,
+  // As Boat's own plan panel reads it: every machine the account runs against the plan's, and the starts in each
+  // window; &near=1 puts the day near its limit and the minute at it.
+  plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4", "4x8", "8x16"], running: 7 },
+  starts: params.get("near") === "1" ? { minute: { used: 12, limit: 12 }, hour: { used: 41, limit: 60 }, day: { used: 187, limit: 200 } } : { minute: { used: 1, limit: 12 }, hour: { used: 4, limit: 60 }, day: { used: 66, limit: 200 } },
   creditHours: 41.5,
   spentTodayUsd: 1.2,
   size: SMALL,

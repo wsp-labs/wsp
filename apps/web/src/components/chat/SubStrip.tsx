@@ -2,8 +2,8 @@
 // The one row over a sub-thread's composer while its machine holds or blocks
 // it, in the usage limit strip's grammar (#1705): the composer's own frame
 // holding a settings row, the state's glyph in its frame, the state as the
-// title with the why under it, and in the row's slot its one or two acts. A
-// state with nothing to do draws no slot. The thread says each of these here
+// title with the why under it, and in the row's slot its act, or two acts
+// standing under the words. A state with nothing to do draws no slot. The thread says each of these here
 // and nowhere else.
 import { CloudOffIcon, HourglassIcon, MemoryStickIcon, TimerIcon, UnplugIcon, UploadIcon, type LucideIcon } from "lucide-react";
 import { SUB_STRIP, cloudSaid, hereName, isSubOomLine, sizeWord, subPushAgainPrompt, type SessionView, type SubStripWords } from "@wsp/protocol";
@@ -33,7 +33,7 @@ export function SubStrip({ k, glyph: Glyph, words, acts = [] }: { k: string; gly
       <ComposerSurface.Shell data-sub-strip={k} className="mx-auto w-full min-w-0 max-w-3xl">
         <ComposerSurface.Host>
           <ComposerSurface.Main>
-            <div className={cn("min-h-15 px-5 py-3", acts.length === 0 ? "flex items-center" : SPLIT_CLASS)}>
+            <div className={cn("min-h-15 px-5 py-3", acts.length === 0 ? "flex items-center" : acts.length > 1 ? "flex flex-col gap-3" : SPLIT_CLASS)}>
               <div className="flex min-w-0 items-center gap-3">
                 <GlyphFrame>
                   <Glyph aria-hidden className="size-4 text-foreground/80" />
@@ -48,7 +48,7 @@ export function SubStrip({ k, glyph: Glyph, words, acts = [] }: { k: string; gly
                 </span>
               </div>
               {acts.length === 0 ? null : (
-                <div data-sub-strip-slot className={cn(SLOT_CLASS, LED_SLOT_INDENT)}>
+                <div data-sub-strip-slot className={acts.length > 1 ? "flex flex-wrap items-center gap-2 pl-11" : cn(SLOT_CLASS, LED_SLOT_INDENT)}>
                   {acts.map(act => (
                     <Button key={act.k} size="xs" variant="outline" data-sub-strip-act={act.k} onClick={act.run}>
                       {act.word}
@@ -115,7 +115,7 @@ export function SubThreadStrip({ workspaceId, row }: { workspaceId: string; row:
         glyph={UploadIcon}
         words={SUB_STRIP.notPushed(sub.held, sub.branch, sub.result?.pushRefused)}
         acts={[
-          { k: "bring-home", word: SUB_STRIP.bringHome, run: () => void verbs.exportProject?.(workspaceId) },
+          { k: "copy-home", word: SUB_STRIP.copyTo(hereName(places)), run: () => void verbs.exportProject?.(workspaceId) },
           { k: "push-again", word: SUB_STRIP.pushAgain, run: () => send(subPushAgainPrompt(sub.branch)) },
         ]}
       />
