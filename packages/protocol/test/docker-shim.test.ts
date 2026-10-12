@@ -129,6 +129,53 @@ describe("the docker a thread finds first on its PATH", () => {
     }
   });
 
+  it("notes the folder compose takes for the project: --project-directory's, else the first file's, else this one", () => {
+    mkdirSync(join(folder, "sub", "deeper"), { recursive: true });
+    const elsewhere = realpathSync(mkdtempSync(join(dir, "elsewhere-")));
+    const cases: [string[], Record<string, string>, string][] = [
+      [["compose", "-f", "sub/compose.yaml", "up", "-d"], {}, join(folder, "sub")],
+      [["compose", "--file=sub/deeper/compose.yaml", "-f", "compose.yaml", "up"], {}, join(folder, "sub", "deeper")],
+      [["compose", "-f", `${elsewhere}/compose.yaml`, "up"], {}, elsewhere],
+      [["compose", "--project-directory", "sub", "-f", "sub/deeper/compose.yaml", "up"], {}, join(folder, "sub")],
+      [["compose", "--project-directory=../lab/sub", "up"], {}, join(folder, "sub")],
+      [["compose", "--workdir", "sub/deeper", "create"], {}, join(folder, "sub", "deeper")],
+      [["compose", "up"], { COMPOSE_FILE: "sub/compose.yaml:compose.yaml" }, join(folder, "sub")],
+      [["compose", "-f", "-", "up"], {}, folder],
+      [["compose", "-f", "gone/compose.yaml", "up"], {}, folder],
+    ];
+    for (const [args, env] of cases) expect(inThread(args, env).seen.argv, args.join(" ")).toEqual(args);
+    expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual(cases.map(([, , at]) => at));
+  });
+
+  it("takes COMPOSE_FILE from the env file compose reads when nothing else names the file, and prints none of that file", () => {
+    mkdirSync(join(folder, "sub", "deeper"), { recursive: true });
+    const cases: [string, string[], Record<string, string>, string][] = [
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "up", "-d"], {}, join(folder, "sub")],
+      ['A=1\nexport COMPOSE_FILE = "sub/deeper/compose.yaml:compose.yaml"\r', ["compose", "up"], {}, join(folder, "sub", "deeper")],
+      ["COMPOSE_FILE='sub/compose.yaml'", ["compose", "create"], {}, join(folder, "sub")],
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "up"], { COMPOSE_FILE: "sub/deeper/compose.yaml" }, join(folder, "sub", "deeper")],
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "-f", "compose.yaml", "up"], {}, folder],
+      ["COMPOSE_FILE=sub/compose.yaml", ["compose", "--env-file", "other.env", "up"], {}, join(folder, "sub", "deeper")],
+      ["SECRET=hunter2", ["compose", "up"], {}, folder],
+    ];
+    writeFileSync(join(folder, "other.env"), "COMPOSE_FILE=sub/deeper/compose.yaml\n");
+    for (const [line, args, env] of cases) {
+      writeFileSync(join(folder, ".env"), `SECRET=hunter2\n${line}\n`);
+      const r = spawnSync(join(bin, "docker"), args, { env: { PATH: `${bin}:${real}:/usr/bin:/bin`, WSP_THREAD: "t_1f0c-ab", ...env }, cwd: folder, encoding: "utf8", timeout: 5_000 });
+      expect([r.status, JSON.parse(r.stdout).argv], line).toEqual([7, args]);
+      expect(r.stdout + r.stderr).not.toContain("hunter2");
+    }
+    expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual(cases.map(([, , , at]) => at));
+  });
+
+  it("never waits on an env file that is a pipe", () => {
+    rmSync(join(folder, ".env"), { force: true });
+    expect(spawnSync("mkfifo", [join(folder, ".env")]).status).toBe(0);
+    const r = spawnSync(join(bin, "docker"), ["compose", "up"], { env: { PATH: `${bin}:${real}:/usr/bin:/bin`, WSP_THREAD: "t_1f0c-ab" }, cwd: folder, encoding: "utf8", timeout: 5_000 });
+    expect([r.error, r.status]).toEqual([undefined, 7]);
+    expect(notesOf("t_1f0c-ab").map(([, at]) => at)).toEqual([folder]);
+  });
+
   it("hands a second thread's compose up the very words and environment the first one's had, so compose recreates nothing", () => {
     const args = ["compose", "-p", "lab", "up", "-d"];
     const { seen: first, status } = inThread(args, { COMPOSE_PROJECT_NAME: "x" });
@@ -177,5 +224,17 @@ describe("the docker a thread finds first on its PATH", () => {
     expect(run(["compose", "up"], { WSP_THREAD: "t_1f0c-ab" }, `${path}:/usr/bin:/bin`).seen.argv).toEqual(["compose", "up"]);
     expect(notesOf("t_1f0c-ab")).toHaveLength(1);
     expect(existsSync(join(dir, "other-notes"))).toBe(false);
+  });
+
+  it("passes over its own folder however PATH spells it", () => {
+    for (const spelt of [`${bin}/`, `${bin}//`, join(bin, "..", "thread-bin")]) {
+      const { seen, status } = run(["run", "busybox"], { WSP_THREAD: "t_1f0c-ab" }, `${spelt}:${real}`);
+      expect([seen.argv, status], spelt).toEqual([["run", ...label, "busybox"], 7]);
+    }
+    const other = join(dir, "place-bin");
+    mkdirSync(other);
+    writeStub(join(other, "docker"), dockerShim(other, join(dir, "other-notes")));
+    const { seen, status } = run(["run", "busybox"], { WSP_THREAD: "t_1f0c-ab" }, `${bin}/:${other}/:${bin}//:${other}:${real}`);
+    expect([seen.argv, status]).toEqual([["run", ...label, "busybox"], 7]);
   });
 });

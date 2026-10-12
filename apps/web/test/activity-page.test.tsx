@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { fmtBytes, type PlaceView, type ProcEntry, type SessionView, type WorkspaceView } from "@wsp/protocol";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fmtBytes, type PlaceView, type ProcEntry, type ProcSnapshot, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { provideDaemonWire } from "../src/files/wire.js";
 import { wireAppProcs } from "../src/machine/appProcs.js";
 import { syncPorts } from "../src/machine/ports.js";
@@ -11,6 +11,8 @@ import { useBrowserTabs } from "../src/browser/tabs.js";
 import { useSlateStore } from "../src/slate/store.js";
 import { useStore } from "../src/protocol/store.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
+import { scopeOf, sortGroups } from "../src/settings/activity/model.js";
+import { ThreadsTable, type Acts, type Look } from "../src/settings/activity/tables.js";
 import { HERE_KEY } from "../src/terminal/computer.js";
 import { SidebarCorner } from "../src/sidebar/SidebarCorner.js";
 import { TooltipProvider } from "../src/components/ui/tooltip.js";
@@ -398,5 +400,46 @@ describe("Settings > Activity", () => {
     fireEvent.click(document.querySelector("[data-proc-row='30'] [data-act=stop]")!);
     await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
     expect(screen.getByText(/The dev server and tool servers it started keep running/)).toBeTruthy();
+  });
+});
+
+describe("Activity's threads", () => {
+  it("folds a child thread under its lead, its figures in the lead's total, drawn when the lead opens", async () => {
+    useStore.setState({ sessions: { [WS]: [session("t_one", "Wire the page", 30), session("t_two", "Fast build", 40, { harness: "codex", parentThreadId: "t_one" })] } });
+    await open();
+    feed(1);
+    expect(groups()).toEqual(["wsp", "t_one"]);
+    const lead = PROCS(1).filter(p => [30, 31, 32, 33, 34, 40, 41].includes(p.pid)).reduce((n, p) => n + p.rss, 0);
+    expect(document.querySelector("[data-group=t_one] [data-col=mem]")!.textContent).toBe(fmtBytes(lead));
+    toggle("t_one");
+    expect(groups()).toEqual(["wsp", "t_one", "t_two"]);
+    expect(document.querySelector("[data-activity-lead=t_one] [data-activity-group=t_two]")).not.toBeNull();
+    toggle("t_two");
+    expect(document.querySelector("[data-activity-lead=t_one] [data-activity-group=t_two] [data-proc-row='41']")).not.toBeNull();
+    expect(document.querySelector("[data-group=t_two] [data-col=mem]")!.textContent).toBe(fmtBytes(400 * MB + 9 * GB));
+    toggle("t_one");
+    expect(groups()).toEqual(["wsp", "t_one"]);
+    fireEvent.click(document.querySelector("[data-group=t_one] [data-act=end-all]")!);
+    await waitFor(() => expect(document.querySelector("[data-k=activity-confirm]")).not.toBeNull());
+    expect(screen.getByText(/The threads it started are left as they are/)).toBeTruthy();
+  });
+
+  it("draws again only the rows whose words a frame moved", () => {
+    const snap = (procs: ProcEntry[]): ProcSnapshot => ({ type: "proc.snapshot", at: 1, daemon: 20, total: procs.length, procs, seq: 1 });
+    const threads = [{ id: "t_one", title: "Wire the page", harness: "claude", project: "lab", workspaceId: WS, sessionId: "s_t_one", working: true, pid: 30 }];
+    const groupsOf = (procs: ProcEntry[]) => sortGroups(scopeOf({ snapshot: snap(procs), threads, ports: new Map(), host: 10 }).groups, "mem");
+    const workspaceOf = vi.fn(() => WS);
+    const acts: Acts = { ending: new Set(), end: () => {}, free: () => {}, stop: () => {}, endAll: () => {}, openPort: () => {}, openThread: () => {}, copy: () => {}, stopping: new Set(), endContainer: () => {}, workspaceOf };
+    const look: Look = { sort: "mem", onSort: () => {}, energy: true };
+    const table = (procs: ProcEntry[]) => <ThreadsTable name="lab" groups={groupsOf(procs)} statusOf={() => undefined} ageOf={() => undefined} box={false} cost={null} filtering={false} acts={acts} look={look} opened={["wsp", "t_one"]} />;
+    const view = render(table(PROCS(0)));
+    const drawn = workspaceOf.mock.calls.length;
+    expect(drawn).toBeGreaterThan(0);
+    // Every figure moves, by less than any word it is drawn in.
+    view.rerender(table(PROCS(0).map(p => ({ ...p, rss: p.rss + 1, cpu: p.cpu + 0.001, ...(p.energyMw === undefined || p.energyMw < 1 ? {} : { energyMw: p.energyMw + 0.1 }) }))));
+    expect(workspaceOf.mock.calls.length).toBe(drawn);
+    // vite's memory moves a word: its row alone draws again.
+    view.rerender(table(PROCS(0).map(p => (p.pid === 32 ? { ...p, rss: 500 * MB } : p))));
+    expect(workspaceOf.mock.calls.slice(drawn)).toHaveLength(1);
   });
 });

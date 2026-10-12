@@ -53,7 +53,8 @@ export function useActivityThreads(placeId: string, here: boolean, on: ThreadsOn
           workspaceId: w.id,
           sessionId: t.sessionId,
           working: t.status === "running",
-          ...(here ? (t.pid === undefined ? {} : { pid: t.pid }) : { cgroup: threadCgroup(t.id) }),
+          ...(here ? { ...(t.pid === undefined ? {} : { pid: t.pid }), ...(t.agentPid === undefined ? {} : { agentPid: t.agentPid }) } : { cgroup: threadCgroup(t.id) }),
+          ...(t.parentThreadId === undefined ? {} : { parent: t.parentThreadId }),
           ...(slate === undefined ? {} : { slate }),
           ...(t.subagents === undefined ? {} : { subagents: t.subagents }),
         });
@@ -225,12 +226,13 @@ function AskDialog({ asking, onClose, onConfirm }: { asking: { kind: "stop" | "e
   const procs = asking === null ? [] : endsOf(asking.group);
   const containers = asking === null ? [] : asking.group.containers.filter(c => c.owned);
   const title = t?.title ?? W.loose;
+  const leads = useStore(s => t !== undefined && Object.values(s.sessions).some(rows => rows.some(r => r.parentThreadId === t.id)));
   return (
     <AlertDialog open={asking !== null} onOpenChange={o => (o ? undefined : onClose())}>
       <AlertDialogPopup>
         <AlertDialogHeader>
           <AlertDialogTitle>{asking?.kind === "endAll" ? W.endAllTitle(title) : W.stopTitle(title)}</AlertDialogTitle>
-          <AlertDialogDescription>{asking?.kind === "endAll" ? W.endAllSentence(procs.length, containers.length, fmtBytes(heldBy(procs, containers))) : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
+          <AlertDialogDescription>{asking?.kind === "endAll" ? `${W.endAllSentence(procs.length, containers.length, fmtBytes(heldBy(procs, containers)))}${leads ? ` ${W.endAllLeaves}` : ""}` : W.stopSentence(agentName(t?.harness ?? "claude"), t?.cgroup !== undefined)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogClose render={<Button variant="outline" className={NEUTRAL_RING} />}>{W.cancel}</AlertDialogClose>

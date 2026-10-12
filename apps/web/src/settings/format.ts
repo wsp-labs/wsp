@@ -542,6 +542,7 @@ export const ACTIVITY_WORDS = {
   endAllTitle: (title: string): string => `End everything ${title} started?`,
   endAllSentence: (procs: number, containers: number, memory: string): string =>
     `${[...(procs > 0 || containers === 0 ? [procs === 1 ? "1 process" : `${procs} processes`] : []), ...(containers > 0 ? [containers === 1 ? "1 container" : `${containers} containers`] : [])].join(" and ")} holding ${memory} end, and a turn running stops first.`,
+  endAllLeaves: "The threads it started are left as they are.",
   endAllPress: "End all",
   cancel: "Cancel",
   /** What a settle or a delete asks while the threads it takes still run processes beside their agents. */
