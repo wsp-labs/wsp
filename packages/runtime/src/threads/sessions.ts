@@ -22,6 +22,7 @@ import {
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
   replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX,
+  subMachineTakenRefusal,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readyFork } from "./forks.js";
@@ -317,6 +318,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const opens = !threadRecords.has(threadId) && ctx.rowsOn(threadId).length === 0;
       // A send goes into a thread the caller drives, read on the thread it lands in.
       const opening = live.get(workspaceId)?.record;
+      // A sub-machine runs the one sub-thread its start opened, and nothing beside it.
+      const subThread = opens && opening?.lead !== undefined ? [...threadRecords].find(([, r]) => r.workspaceId === workspaceId)?.[0] : undefined;
+      if (subThread !== undefined) throw subMachineTakenRefusal(opening!.name, subThread);
       const opensThere = opening !== undefined && ctx.opensIn(opening, origin);
       // A workspace of its repository on another computer than the asking thread's, its tree's or not, is refused by
       // the computer rule: a folder in the words the run road refuses its project in, a machine in the words of a

@@ -10,7 +10,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
-import { GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
+import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
@@ -715,7 +715,7 @@ export class BoxBackend implements MachineBackend {
       const view = await this.view(id);
       if (done(view)) return view;
       if (view.state === "error") throw new Error(`box ${id} reads error during ${what}${view.error ? `: ${view.error}` : ""}`);
-      if (view.state === "cancelled") throw new Error(boatCancelledLine(name, view.error ?? undefined));
+      if (view.state === "cancelled") throw new CreateCancelledError(id, view.error ?? "", boatCancelledLine(name, view.error ?? undefined));
       if (this.clock.now() - started >= budgetMs) throw new Error(`${what} of ${id} still reads ${view.state} after ${Math.round(budgetMs / 1000)} s`);
       await this.clock.sleep(this.budgets.pollMs);
     }
@@ -1083,7 +1083,7 @@ export class BoxMachine implements Machine {
       const res = await this.exec(envLandingScript(envs), { timeoutMs: ENV_LANDING_MS });
       if (res.exitCode === 0) return;
       if (res.exitCode !== DEADLINE_EXIT || this.backend.clock.now() - started >= this.backend.budgets.restoreMs) {
-        throw new Error(`environment did not land on ${this.id} (exit ${res.exitCode}): ${res.stderr.trim() || res.stdout.trim()}`);
+        throw new EnvNotLandedError(this.id, res.exitCode, res.stderr.trim() || res.stdout.trim());
       }
       await this.backend.clock.sleep(this.backend.budgets.pollMs);
     }

@@ -3,6 +3,7 @@
 // another's machines and two copies would drift the day a field is added on
 // one side; what stays here is the interfaces with methods, which no wire
 // carries.
+import type { BoxLimits } from "./box-backend.js";
 import type {
   Capabilities,
   CloudLimits,
@@ -261,6 +262,9 @@ export interface MachineBackend {
   /** Optional: what the computer holding this backend has left for one more machine. Only a backend on a computer
    * the person owns answers; a provider's room is its own cap and its own refusal. */
   capacity?(): Promise<PlaceCapacity>;
+  /** Optional: a provider that sells sizes by plan and counts starts (Boat). The account's plan, the classes it sells
+   * and the starts used in each window, as the provider's own read keeps them. */
+  limits?(): Promise<BoxLimits>;
   /** Optional: only backends whose capabilities include snapshotListing have it. Every snapshot on the account, with its size. */
   listSnapshots?(): Promise<SnapshotRow[]>;
   /** Optional, the four together: only backends whose capabilities include templates have them. Promotes a snapshot
