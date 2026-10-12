@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { ALREADY_JOINED_LINE, CODE_FROM_ROW, GITHUB_CLI, signInOfRow, waitsForInstallLine, type PlaceProvisionRow, isHttpUrl, PLACE_LEAVE_LINE, fmtPrice, joinRoads, PlaceView, type PlaceFile, fmtBytes, fmtDuration, shellQuote, BACK_OVER_SSH, backUrl, dialsBackWord, PLACE_SUDO_KIND, refusal, twoPlacesRefusal, relayUrlOf, providerKeyName, TOOL_PREFIX, placeHoldsLine, pluginOffLine, type PlaceHolds, type PlaceRemoved } from "@wsp/protocol";
+import { ALREADY_JOINED_LINE, CODE_FROM_ROW, GITHUB_CLI, saysNoKey, signInOfRow, waitsForInstallLine, type PlaceProvisionRow, isHttpUrl, PLACE_LEAVE_LINE, fmtPrice, joinRoads, PlaceView, type PlaceFile, fmtBytes, fmtDuration, shellQuote, BACK_OVER_SSH, backUrl, dialsBackWord, PLACE_SUDO_KIND, refusal, twoPlacesRefusal, relayUrlOf, providerKeyName, TOOL_PREFIX, placeHoldsLine, pluginOffLine, type PlaceHolds, type PlaceRemoved } from "@wsp/protocol";
 import { prefixVolume, SSH_LINE_CAP, boxWord, keyFingerprint, type SshReach, type SshSudo } from "@wsp/engine";
 import { CATALOG_AGENTS, agentName, keyEnvOf, loginThere, mintsToken, sharedOn } from "@wsp/catalog";
 import { cappedLine } from "../doctor.js";
@@ -233,7 +233,8 @@ export function signInRowCommand(computer: string, row: Pick<PlaceProvisionRow, 
   // A row set aside for its own sign-in there was picked to sign in on that computer, not to take the vault's.
   if (row.note === CODE_FROM_ROW && signsInOnComputer().includes(id)) return `wsp add ${computer} --sign-in ${id}`;
   // A token this host makes, or a key, is the first way for an agent that mints one; its row's fix names the others.
-  if (signIn !== undefined && mintsToken(signIn)) return `wsp agents key ${id}`;
+  // A row picked to take the key wants the API key, which the token's paste refuses.
+  if (signIn !== undefined && mintsToken(signIn)) return saysNoKey(row.note, keyEnvOf(signIn) ?? "") ? `wsp agents key ${id} --api-key` : `wsp agents key ${id}`;
   if (signsInOnComputer().includes(id)) return `wsp add ${computer} --sign-in ${id}`;
   return signIn !== undefined && keyEnvOf(signIn) !== undefined ? `wsp agents key ${id}` : undefined;
 }

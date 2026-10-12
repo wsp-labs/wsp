@@ -1749,7 +1749,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
                 send({ id: msg.id, ok: false, error: AGENTS_KEY_REFUSAL });
                 return;
               }
-              await rt.agents.key(msg.agent, msg.key);
+              await rt.agents.key(msg.agent, msg.key, msg.way);
               send({ id: msg.id, ok: true });
               return;
             case "agents.setup": {
