@@ -415,7 +415,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
             wspMcp: entry => (entry.record.place !== undefined && placeDoor.folderComputer(entry.record.place)?.tools === true ? GUEST_WSP_MCP : undefined),
             turnReach: () => ({}),
             turnRoad: "relayed",
-            keepsAgents: false,
+            keepsAgents: true,
             serverValues: "launch",
             // That computer's own daemon answers for the folder over its link: nothing is dialled.
             hasDaemon: () => false,

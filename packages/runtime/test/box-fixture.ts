@@ -12,7 +12,7 @@ import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.
 import type { Store } from "../src/store.js";
 import type { Clock } from "../src/clock.js";
 import type { ServersActs } from "../src/agents-read.js";
-import { MCP_READ_END } from "@wsp/engine";
+import { HANDSHAKE, MCP_READ_END } from "@wsp/engine";
 import { ctx, sockets, serving, code, join, KEEPS_NO_IMAGE } from "./places-fixture.js";
 import { branchDaemons, fakeLocal } from "./stub-backend.js";
 import { report } from "./place-join.js";
@@ -58,6 +58,22 @@ export interface Box {
   cgroups?: { cgroup: string; memory: number }[];
   /** The branches the folders' remote holds, as git ls-remote --heads lists them there. */
   remoteHeads?: string[];
+  /** With `agent`, the runs launched there by their path, each Claude Code on stream-json answering every message its
+   * input takes from one process, as `<message> from run <n> turn <t>`. */
+  runs: Map<string, AgentRun>;
+  /** With `agent`, the size a read of an agent's session file there answers; none answers nothing. A title written into
+   * that file grows it by 200 bytes and answers after `titleMs`. */
+  sessionBytes?: number;
+  titleMs?: number;
+}
+
+/** One agent process a launch started there: the launch it was, how many messages it answered, what it printed, and
+ * the exit its run left once its input closed or a signal reached its group. */
+export interface AgentRun {
+  n: number;
+  turns: number;
+  log: Buffer;
+  exit?: string;
 }
 
 export interface BoxLogin {
@@ -76,9 +92,73 @@ export const handedLine = (cmd: string): string => {
 /** The frames a pane sends its shells by, which a box whose `ptys` is given hands to that real daemon. */
 const PTY_OPS = new Set(["pty.create", "pty.attach", "pty.write", "pty.resize", "pty.kill", "pty.detach", "pty.list", "pty.tab"]);
 
-export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys } = {}): Box {
+/** The files an upload lands, each by its path, decoded, and whether it is appended. */
+const landed = (cmd: string): { path: string; text: string; append: boolean }[] =>
+  [...cmd.matchAll(/printf %s '([A-Za-z0-9+/=]*)' \| base64 -d (>>?) '([^']+)'/g)].map(([, b64, how, path]) => ({ path: path!, text: Buffer.from(b64!, "base64").toString("utf8"), append: how === ">>" }));
+
+/** Claude Code on stream-json answering one line of its input, onto its run's log. */
+function answer(run: AgentRun, at: { session: string; cwd: string }, line: string): void {
+  const m = JSON.parse(line) as { type?: string; message?: { content?: { text?: string }[] } };
+  if (m.type !== "user") return;
+  run.turns += 1;
+  const text = `${m.message?.content?.at(-1)?.text ?? ""} from run ${run.n} turn ${run.turns}`;
+  const say = (o: Record<string, unknown>): void => void (run.log = Buffer.concat([run.log, Buffer.from(`${JSON.stringify(o)}\n`)]));
+  say({ type: "system", subtype: "init", session_id: at.session, cwd: at.cwd, model: "claude-sonnet-4-5", tools: [], permissionMode: "default", slash_commands: [], apiKeySource: "none" });
+  say({ type: "result", subtype: "success", is_error: false, duration_ms: 5, num_turns: 1, result: text, session_id: at.session, total_cost_usd: 0, usage: { input_tokens: 1, output_tokens: 1 } });
+}
+
+/** What a computer running agent processes answers about them: a launch, a message written to one, a poll of its log,
+ * its input closed, a signal to its group, the reap of its files and a read of its session file. Nothing for any
+ * other command. */
+function agentAnswers(seen: Box, sessions: Map<string, { session: string; cwd: string }>, cmd: string, login: BoxLogin): string | undefined {
+  const files = landed(cmd);
+  if (cmd.includes("WSP_LAUNCHED")) {
+    const script = files.find(f => f.path.endsWith(".sh"));
+    if (script === undefined) return undefined;
+    const base = script.path.slice(0, -".sh".length);
+    const run: AgentRun = { n: seen.runs.size + 1, turns: 0, log: Buffer.alloc(0) };
+    seen.runs.set(base, run);
+    sessions.set(base, { session: /--(?:session-id|resume) '?([0-9a-f-]{36})/.exec(script.text)?.[1] ?? "", cwd: /cd '([^']+)' && /.exec(script.text)?.[1] ?? login.home });
+    for (const line of (files.find(f => f.path === `${base}.in`)?.text ?? "").split("\n").filter(Boolean)) answer(run, sessions.get(base)!, line);
+    return "WSP_LAUNCHED\n";
+  }
+  const write = files.find(f => f.append && f.path.endsWith(".in"));
+  if (write !== undefined) {
+    const base = write.path.slice(0, -".in".length);
+    const run = seen.runs.get(base);
+    if (run === undefined || run.exit !== undefined) return `${HANDSHAKE.gone}\n`;
+    for (const line of write.text.split("\n").filter(Boolean)) answer(run, sessions.get(base)!, line);
+    return `${HANDSHAKE.written}\n`;
+  }
+  const sentinel = /(__WSP_EOF_[0-9a-f]+__)/.exec(cmd)?.[1];
+  const polled = /tail -c \+(\d+) '([^']+)'\.log/.exec(cmd);
+  if (sentinel !== undefined && polled !== null) {
+    const run = seen.runs.get(polled[2]!);
+    if (run === undefined) return `\n${sentinel}  down \n`;
+    return `${run.log.subarray(Number(polled[1]) - 1).toString("base64")}\n${sentinel} ${run.exit ?? ""} ${run.exit === undefined ? "up" : "down"} \n`;
+  }
+  const base = /cat '([^']+)'\.(?:pid|tail)/.exec(cmd)?.[1];
+  const run = base === undefined ? undefined : seen.runs.get(base);
+  if (base !== undefined && cmd.includes("read -r s")) return "";
+  if (run !== undefined && /\.tail 2>\/dev\/null\); \[ -n "\$P" \] && kill -TERM "\$P"/.test(cmd)) {
+    run.exit ??= "0";
+    return "";
+  }
+  if (run !== undefined && (cmd.includes("kill -TERM -- -$P") || cmd.includes("kill -KILL -- -$P"))) {
+    seen.kills.push(cmd);
+    run.exit ??= "143";
+    if (cmd.includes(`rm -rf '${base}'.*`)) seen.runs.delete(base!);
+    return "";
+  }
+  if (base === undefined && /rm -rf '([^']+)'\.\*/.test(cmd)) return "";
+  if (cmd.includes("wc -c <")) return seen.sessionBytes === undefined ? "" : `${seen.sessionBytes}\n`;
+  return undefined;
+}
+
+export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean; logins?: string; ptys?: Ptys; agent?: boolean; runs?: Map<string, AgentRun> } = {}): Box {
   let ptys = 0;
-  const seen: Box = { ops: [], execs: [], frames: [], taken: new Set(), kills: [], push: event => client.say(event), configs: new Map(), order: [], procs: [], ports: [] };
+  const seen: Box = { ops: [], execs: [], frames: [], taken: new Set(), kills: [], push: event => client.say(event), configs: new Map(), order: [], procs: [], ports: [], runs: o.runs ?? new Map() };
+  const sessions = new Map<string, { session: string; cwd: string }>();
   /** The runs a signal reached, by the run's own path off the command. */
   const stopped = new Set<string>();
   const runOf = (cmd: string): string | undefined => /cat (\S+)\.pid/.exec(cmd)?.[1];
@@ -114,6 +194,17 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
       return out(`${at}\n`);
     }
     if (o.failClone === true && line.includes("git clone")) return out("", 128);
+    if (o.agent === true && line.includes("custom-title") && line.includes(`>> "$f"`)) {
+      seen.sessionBytes = (seen.sessionBytes ?? 0) + 200;
+      return void setTimeout(() => out("wrote\n"), seen.titleMs ?? 0);
+    }
+    if (o.agent === true) {
+      const said = agentAnswers(seen, sessions, line, login);
+      if (said !== undefined) {
+        if (cmd.includes("WSP_LAUNCHED")) seen.order.push("launch");
+        return out(said);
+      }
+    }
     if (line.includes("ls-remote") && line.includes("--heads")) return out((seen.remoteHeads ?? []).map(h => `${"0".repeat(40)}\trefs/heads/${h}\n`).join(""));
     if (line.includes("symbolic-ref --quiet --short HEAD")) return seen.head === undefined ? out("", 1) : out(`${seen.head}\n`);
     if (line.includes("wsp_mcp_read()")) {
@@ -194,15 +285,15 @@ export async function pickSignIn(store: Store, placeId: string, agent: string, s
   await ctx.runtime!.places!.load();
 }
 
-export async function joined(o: { login?: BoxLogin; adapters?: Record<string, HarnessAdapterFactory>; taken?: string[]; store?: Store; vault?: Record<string, string>; failClone?: boolean; serversActs?: ServersActs; logins?: string; clock?: Clock; ptys?: Ptys; github?: "vault" | "machine" | "skip" } = {}) {
+export async function joined(o: { login?: BoxLogin; adapters?: Record<string, HarnessAdapterFactory>; taken?: string[]; store?: Store; vault?: Record<string, string>; failClone?: boolean; serversActs?: ServersActs; logins?: string; clock?: Clock; ptys?: Ptys; github?: "vault" | "machine" | "skip"; agent?: boolean; memMb?: number } = {}) {
   const login = o.login ?? HETZNER;
   const { hostKey, store } = await serving({ adapters: o.adapters ?? {}, ...(o.store !== undefined ? { store: o.store } : {}), ...(o.vault !== undefined ? { vault: o.vault } : {}), ...(o.serversActs !== undefined ? { serversActs: o.serversActs } : {}), ...(o.clock !== undefined ? { clock: o.clock } : {}) });
   let seen!: Box;
   const { client, placeId, pair } = await join(hostKey, {
     code: await code(),
-    report: report("hetzner", { login: { HOME: login.home, USER: "root", PATH: "/usr/bin" } }),
+    report: report("hetzner", { login: { HOME: login.home, USER: "root", PATH: "/usr/bin" }, ...(o.memMb !== undefined ? { shape: { cpu: 2, memMb: o.memMb } } : {}) }),
     answers: c => {
-      seen = box(c, login, { ...(o.failClone === true ? { failClone: true } : {}), ...(o.logins !== undefined ? { logins: o.logins } : {}), ...(o.ptys !== undefined ? { ptys: o.ptys } : {}) });
+      seen = box(c, login, { ...(o.failClone === true ? { failClone: true } : {}), ...(o.logins !== undefined ? { logins: o.logins } : {}), ...(o.ptys !== undefined ? { ptys: o.ptys } : {}), ...(o.agent === true ? { agent: true } : {}) });
       for (const path of o.taken ?? []) seen.taken.add(path);
     },
   });

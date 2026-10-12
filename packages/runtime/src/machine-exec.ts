@@ -31,7 +31,10 @@
 // would end the very turn the attach exists to save. The same fact cuts the
 // other way once a host has finished connecting: a run no row of that host
 // holds is a harness process nobody will ever read again, so the sweep ends
-// every claim on the machine that the caller did not name.
+// every claim on the machine that the caller did not name. A process kept
+// for a thread's next turn rests between turns: no limit reads its quiet, its
+// log is polled slowly until the next turn's message wakes the reader, and
+// what the turn left running beside the agent is ended.
 
 import { randomBytes } from "node:crypto";
 import { ENV_FROM_INPUT, HANDSHAKE, INLINE_EXEC_MS, envInput, farEndAnswered, MachineUnreachableError, MachineUnreached, RUN_DIR, execFits, isPlaceAbsent, machineAnswer, neverSent, putFiles, realRetryClock, untilReached, type ExecResult, type GuestWrite, type Machine } from "@wsp/engine";
@@ -174,6 +177,14 @@ export const TREE_WORK_AWK =
   "for(n in up){q=n;for(d=0;d<64;d++){if(q==p||((q in g)&&g[q]==p)){t+=c[n];i=at[n];sub(/stat$/,\"io\",i);while((getline l<i)>0)if(l~/^[rw]char:/){split(l,h,\" \");t+=int(h[2]/1048576)}close(i);break}if(!(q in up))break;q=up[q]}}" +
   "print t+0}";
 
+/** What a turn on a kept process left running in its run's group, off one /proc/[pid]/stat line per process on stdin,
+ * given the group in `p` and the input pump's pid in `t`: every process whose parent is outside the group, the leader
+ * and the pump aside, and everything under each. The agent and the servers it started have their parents in the
+ * group, so they stay. The lines come from the shell, since gawk ends at a stat file whose process went after the glob. */
+export const LEFTOVERS_AWK =
+  '{s=$0;sub(/^[0-9]+ \\(.*\\) /,"",s);split(s,f," ");if(f[3]==p)up[$1]=f[2]}' +
+  'END{for(x in up)if(!(up[x] in up)&&x!=p&&x!=t)l[x]=1;do{g=0;for(x in up)if((up[x] in l)&&!(x in l)){l[x]=1;g=1}}while(g);for(x in l)printf "%s ",x}';
+
 const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** What a launch mints a run's name from, so a handle read back off the sessions index is checked against the shape
  * this code writes before it reaches shell text: a value that has been to a file on disk is no longer this code's. */
@@ -184,6 +195,10 @@ const GRACE_POLL_MS = 200;
  * turn, nearly all of it waiting for the poll after the agent's reply had landed (240 ms at these figures). */
 const HURRIED_POLL_MS = 200;
 const HURRIED_FOR_MS = 3_000;
+/** How often a process kept between turns is read while no turn is open: it prints nothing then, and its next turn
+ * wakes the reader at once, so the poll is there only to see the process go on its own. Each poll is a shell on the
+ * computer, one per kept process. */
+const RESTING_POLL_MS = 10_000;
 /** That grace as the shell's own counter, since a guest has no seq to lean on. */
 const GRACE_CHECKS = Array.from({ length: Math.round(RUN_STOP_MS / GRACE_POLL_MS) }, (_, i) => String(i + 1)).join(" ");
 /** What bash writes as the exit of a command SIGKILL ended, the kernel's memory killer included: 128 plus 9. */
@@ -275,7 +290,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
    * host process left behind. `opened` settles once the run is known to be on the machine and rejects with the words
    * the turn fails on when it is not. The log is read from its first byte either way, so a run that printed while no
    * host was listening is replayed to whoever attaches. */
-  const open = (base: string, hasInput: boolean, launched: Promise<void>, turnStartedAt?: number, taken?: readonly string[], posting?: Posting): ExecStream => {
+  const open = (base: string, hasInput: boolean, launched: Promise<void>, turnStartedAt?: number, taken?: readonly string[], posting?: Posting, from?: number): ExecStream => {
     const sentinel = `__WSP_EOF_${randomBytes(6).toString("hex")}__`;
     const reapMark = `__WSP_REAPED_${randomBytes(6).toString("hex")}__`;
 
@@ -290,7 +305,12 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     // The agent's reply to a write (a stop, a steer, an answer, or an adapter's own line) would otherwise wait out a
     // whole poll: the polls run at HURRIED_POLL_MS for a while after any write.
     let hurriedUntil = 0;
-    const gap = (): number => (now() < hurriedUntil ? Math.min(pollMs, HURRIED_POLL_MS) : pollMs);
+    const gap = (): number => (now() < hurriedUntil ? Math.min(pollMs, HURRIED_POLL_MS) : resting ? RESTING_POLL_MS : pollMs);
+    /** The polls run at HURRIED_POLL_MS from now for a while, the one under way woken. */
+    const hurryPolls = (): void => {
+      hurriedUntil = now() + HURRIED_FOR_MS;
+      hurry();
+    };
     const drop = (): void => {
       dropped = true;
       opts.reading?.delete(drop);
@@ -299,8 +319,13 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     opts.reading?.add(drop);
     // The idle clock runs from this reader's first second, since nothing on the machine records when the run's last
     // byte landed; the wall runs from the turn's own start, which an attach is handed.
-    const startedAt = turnStartedAt ?? now();
-    const activity = turnActivity(now());
+    let startedAt = turnStartedAt ?? now();
+    let activity = turnActivity(now());
+    /** Between two turns of a process kept for the next one: no limit reads the quiet, since no turn is open to be stuck. */
+    let resting = false;
+    /** How much of the log this reader has taken: a turn on a process that served earlier turns starts where its
+     * re-open was told to. */
+    let offset = from ?? 0;
     let finishCode: number | null | undefined;
     let resolveExit: (code: number | null) => void = () => {};
     const exited = new Promise<number | null>(resolve => {
@@ -346,6 +371,8 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
 
     const signal = (sig: "TERM" | "KILL"): void => {
       signalled = true;
+      // A process resting between turns is read at RESTING_POLL_MS, and its end is waited on.
+      if (resting) hurryPolls();
       void opened
         .catch(() => undefined)
         .then(() =>
@@ -400,7 +427,6 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     };
 
     async function* lines(): AsyncGenerator<string> {
-      let offset = 0;
       let downs = 0;
       let pending = Buffer.alloc(0);
       /** Every line the log held past the last poll once the KILL went out, read by the reap, and the one it ended on
@@ -458,12 +484,12 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         const at = now();
         if (waiting()) activity.touch(at);
         const quietMs = activity.quietMs(at);
-        const cut = turnCut({ idleMs, deadlineMs }, at - startedAt, quietMs);
+        const cut = resting ? undefined : turnCut({ idleMs, deadlineMs }, at - startedAt, quietMs);
         if (cut !== undefined && caughtUp && !exitSeen) yield* cutHere(cut);
 
         let res: ExecResult;
         try {
-          res = await machine.exec(pollCmd(offset, readsWork(idleMs, quietMs)), { timeoutMs: execTimeoutMs });
+          res = await machine.exec(pollCmd(offset, !resting && readsWork(idleMs, quietMs)), { timeoutMs: execTimeoutMs });
         } catch {
           // Machine likely napping; polls recover after wake (P10 semantics). A poll that never reached the machine
           // says nothing about the process it was sent to read, so the stretch the road was dark is no part of the
@@ -521,6 +547,21 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
       }
     }
 
+    /** Ends what the turn just over left running beside the agent, TERM then KILL once the stop grace passes: a command
+     * it left going holds the turn's token, which would otherwise outlive the turn by the keep. */
+    const endLeftovers = (): void => {
+      const script =
+        `P=$(cat ${q(base)}.pid 2>/dev/null); T=$(cat ${q(base)}.tail 2>/dev/null); [ -n "$P" ] || exit 0; ` +
+        `L=$(for f in /proc/[0-9]*/stat; do read -r s < "$f" && printf '%s\\n' "$s"; done 2>/dev/null | awk -v p="$P" -v t="$T" ${shellQuote(LEFTOVERS_AWK)}); [ -n "$L" ] || exit 0; ` +
+        `kill -TERM $L 2>/dev/null; ` +
+        `for i in ${GRACE_CHECKS}; do S=; for x in $L; do kill -0 $x 2>/dev/null && S=1; done; [ -n "$S" ] || break; sleep ${GRACE_POLL_MS / 1000}; done; ` +
+        `kill -KILL $L 2>/dev/null; true`;
+      void opened
+        .catch(() => undefined)
+        .then(() => machine.exec(script, { timeoutMs: execTimeoutMs }))
+        .catch(() => undefined);
+    };
+
     const stream: ExecStream = {
       lines: lines(),
       run: base,
@@ -544,17 +585,28 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         if (res.exitCode !== 0 || !res.stdout.includes(HANDSHAKE.written)) throw new Error(`remote write failed on ${machine.id}: nothing came back saying ${HANDSHAKE.written}, the word the guest prints once the message landed; ${machineAnswer(res)}`);
         // The person just acted, so the turn gets its idle time over.
         activity.touch(now());
-        hurriedUntil = now() + HURRIED_FOR_MS;
-        hurry();
+        hurryPolls();
         return "written";
       },
       closeInput: () => {
         if (!hasInput || inputClosed || finishCode !== undefined) return;
         inputClosed = true;
+        if (resting) hurryPolls();
         void opened
           .catch(() => undefined)
           .then(() => machine.exec(`P=$(cat ${q(base)}.tail 2>/dev/null); [ -n "$P" ] && kill -TERM "$P" 2>/dev/null; true`, { timeoutMs: execTimeoutMs }))
           .catch(() => undefined);
+      },
+      rest: () => {
+        resting = true;
+        endLeftovers();
+      },
+      nextTurn: () => {
+        resting = false;
+        startedAt = now();
+        activity = turnActivity(now());
+        hurry();
+        return offset;
       },
       exited,
       ...(taken !== undefined ? { taken } : {}),
@@ -633,7 +685,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     return open(base, input !== undefined, opened, undefined, undefined, { since, posts: () => posts, mayHaveRun: () => mayHaveRun });
   };
 
-  factory.attach = async (run, { input, startedAt }) => {
+  factory.attach = async (run, { input, startedAt, from }) => {
     if (!minted(run)) throw new Error(`${run} is not a run this host could have launched`);
     // With the run's channel read back under the answer: the lines it took, which a re-opened turn reads for what its
     // harness was handed before this host came up. The agent can write that file, so only its last EXEC_CHUNK_BYTES
@@ -648,7 +700,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     // alone, so nothing here can take a live turn's process group with it.
     const said = res.stdout.split("\n");
     const at = said.findIndex(line => line.includes(HANDSHAKE.run));
-    if (at >= 0) return open(run, input, Promise.resolve(), startedAt, input ? said.slice(at + 1).filter(line => line !== "") : undefined);
+    if (at >= 0) return open(run, input, Promise.resolve(), startedAt, input ? said.slice(at + 1).filter(line => line !== "") : undefined, undefined, from);
     if (res.stdout.includes(HANDSHAKE.gone)) return "gone";
     throw new Error(`the machine did not answer whether it still holds ${run}; ${machineAnswer(res)}`);
   };
