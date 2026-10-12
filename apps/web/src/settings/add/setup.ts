@@ -204,9 +204,8 @@ export function setupCount(rows: readonly StepLine[]): { done: number; of: numbe
 }
 
 /** The rows still waiting on the person, a sign-in's wait or a row that did not land: an item by its own name, and a
- * step only where no item under it is named. */
-export function rowsLeft(rows: readonly StepLine[]): StepLine[] {
-  const asks = (row: StepLine): boolean => row.state === "needs-you" || row.state === "failed";
+ * step only where no item under it is named. `asks` is which rows count. */
+export function rowsLeft(rows: readonly StepLine[], asks: (row: StepLine) => boolean = row => row.state === "needs-you" || row.state === "failed"): StepLine[] {
   const named = new Set<StepLine>();
   let step: StepLine | undefined;
   for (const row of rows) {
@@ -215,6 +214,10 @@ export function rowsLeft(rows: readonly StepLine[]): StepLine[] {
   }
   return rows.filter(row => asks(row) && !named.has(row));
 }
+
+/** What a setup that ended left for the person, as the ready line names it: each row skipped or failed with its state,
+ * by the same rule. */
+export const leftRows = (rows: readonly StepLine[]): string[] => rowsLeft(rows, row => row.state === "skipped" || row.state === "failed").map(row => `${row.name} ${row.state}`);
 
 /** How a setup stands as one of the dialog's headers reads it. */
 export type SetupStanding = "running" | "needs-you" | "failed" | "ready";
