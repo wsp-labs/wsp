@@ -25,6 +25,7 @@ import { goldenName } from "./snapshot-names.js";
 import { recipeOwnedFiles } from "./recipe-owned.js";
 import { exportImageVault, presentPaths, type ImageVault } from "./image-vault.js";
 import { importInto } from "./vault.js";
+import { putImagePlugins, type ImagePlugins } from "./plugins-install.js";
 
 export { goldenHead, type GoldenLeftBehind, type GoldenLogin, type GoldenManifest, type GoldenMissingTool, type GoldenStage, type GoldenVersion };
 
@@ -506,6 +507,8 @@ export interface GoldenImport {
   baseTools?: { id: string; label: string; note: string }[];
   /** The MCP servers to keep in or take out of each agent's config once it is on the machine; absent when no row is one. */
   mcp?: McpPlan;
+  /** The plugins of the ticked agent that takes them, put on once it installs; absent when no ticked agent does. */
+  plugins?: ImagePlugins;
   /** Called once per prepare that ran anything; a re-run that skipped every stage has nothing to report. */
   onResult?: (result: ImportResult) => void;
   /** Called when a pass that reports no result wrote the machine context, so the saved result can take the write's
@@ -735,6 +738,7 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
         const header = failed.length > 0 ? `${failed.length === 1 ? "an agent" : `${failed.length} agents`} did not install, so nothing is sealed:` : "no agent installed, so there is nothing to seal:";
         throw new Error([header, ...result.agents.filter(r => r.outcome !== "installed").map(a => `${a.name}: ${a.note ?? "unknown reason"}`)].join("\n"));
       }
+      const plugins = imp.plugins !== undefined && installed.some(a => a.id === imp.plugins!.agent) ? await putImagePlugins(machine, imp.plugins, PATH_LINE, d => stage("installing-harness", d)) : undefined;
       ledger.smoke = joinSmoke(installed.map(a => a.smoke));
       const summary = result.agents.length === 0 ? "no agent ticked" : summarizeAgents(result.agents);
       const pinned = result.agents.filter(a => a.pin !== undefined);
@@ -743,7 +747,7 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
         pinned.filter(a => a.pin!.latest !== true).map(a => ({ name: a.name, tag: a.pin!.tag })),
         pinned.filter(a => a.pin!.latest === true).map(a => ({ name: a.name, tag: a.pin!.tag, ...(wordsOf(a.id) !== undefined ? { words: wordsOf(a.id)! } : {}) })),
       );
-      stage("installing-harness", imp.agents.length > 0 || node !== undefined ? closing(summary, pins, await sweepCaches(machine), await freeNote(machine)) : summary);
+      stage("installing-harness", imp.agents.length > 0 || node !== undefined ? closing(summary, pins, plugins, await sweepCaches(machine), await freeNote(machine)) : summary);
     }
     mark("installing-harness");
   }

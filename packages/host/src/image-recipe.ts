@@ -29,7 +29,7 @@ export interface BuildContext {
 /** What the ticked rows come to on the builder: the files plan, the installs and the MCP plan. `picked` is the rows
  * this import carries, which is every ticked row on a full build and a subset of them on a delta; `rows` is every
  * row with its tick and its answer, since the MCP stage reads the unticked ones too. */
-export function planImport(picked: readonly ManifestEntry[], o: BuildContext & { rows: readonly ManifestEntry[]; small: Recipe } & Pick<ImportOptions, "keepFile" | "onResult" | "onContext" | "path" | "prefix">): GoldenImport {
+export function planImport(picked: readonly ManifestEntry[], o: BuildContext & { rows: readonly ManifestEntry[]; small: Recipe } & Pick<ImportOptions, "keepFile" | "plugins" | "onResult" | "onContext" | "path" | "prefix">): GoldenImport {
   return importFor(picked, {
     home: o.home,
     ...(o.path !== undefined ? { path: o.path } : {}),
@@ -41,6 +41,7 @@ export function planImport(picked: readonly ManifestEntry[], o: BuildContext & {
     brew: o.brew,
     custom: customRows(o.small),
     ...(o.keepFile !== undefined ? { keepFile: o.keepFile } : {}),
+    ...(o.plugins !== undefined ? { plugins: o.plugins } : {}),
     ...(o.onResult !== undefined ? { onResult: o.onResult } : {}),
     ...(o.onContext !== undefined ? { onContext: o.onContext } : {}),
   });
