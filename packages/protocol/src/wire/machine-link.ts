@@ -403,10 +403,11 @@ export const localRunsOneFix = (workspace: string): string => `Use ${workspace},
 
 /** What a computer's kernel must have before wsp runs workspaces on it, asked in this order so the reason a person
  * reads is the first thing missing rather than the last. `read` answers a file's text or nothing when it is not
- * there; `euid` is the effective user the check runs as. Nothing here touches a disk: the two sides that ask (the
- * daemon on the box, and the join typed at it) each read their own files and share this one rule, so what the
- * doctor says and what a create does cannot part ways. */
-export function workspacesBlockedBy(at: { platform: string; read: (path: string) => string | undefined; euid?: number }): string | undefined {
+ * there; `modprobe` runs the kernel's module loader; `euid` is the effective user the check runs as. Nothing here
+ * touches a disk: the join typed at a box reads its own files through this rule, and its steps and words are the
+ * daemon doctor's (`daemon/crates/wsp-runtime/src/doctor.rs`), so what the join says and what a create does
+ * cannot part ways. */
+export function workspacesBlockedBy(at: { platform: string; read: (path: string) => string | undefined; modprobe: ModprobeRun; euid?: number }): string | undefined {
   if (at.platform !== "linux") return "wsp runs workspaces on a Linux computer";
   const controllers = at.read(CGROUP_CONTROLLERS_PATH);
   if (controllers === undefined) {
@@ -414,17 +415,40 @@ export function workspacesBlockedBy(at: { platform: string; read: (path: string)
   }
   const has = new Set(controllers.split(/\s+/));
   for (const wanted of ["memory", "cpu"]) if (!has.has(wanted)) return `this computer's cgroup root offers no ${wanted} controller, which wsp needs to run workspaces here`;
-  const filesystems = at.read(PROC_FILESYSTEMS_PATH);
-  if (filesystems === undefined || !filesystems.split(/\s+/).includes("overlay")) {
-    return "this computer's kernel has no overlay filesystem, which a workspace here reads this computer's own directories through";
-  }
+  const overlay = overlayMissing(at.read, at.modprobe);
+  if (overlay !== undefined) return overlay;
   if (at.euid !== 0) return "wsp runs workspaces on this computer as root, and this daemon is not root";
   return undefined;
 }
 
-/** The two files that check reads, named once so the daemon and the host ask the same kernel the same question. */
+/** One run of the kernel's module loader with these arguments: whether it exited 0 and what it wrote on stderr, or
+ * why it could not run at all. */
+export type ModprobeRun = (args: readonly string[]) => { ok: boolean; stderr: string } | { error: string };
+
+/** Why this kernel cannot mount an overlay, or nothing when it lists one, loading the module first where it does not
+ * yet: a box that booted a new kernel has the module on disk and lists nothing until something mounts one. A load
+ * that fails is told apart by modprobe's dry run, which fails only where there is no module to load. */
+function overlayMissing(read: (path: string) => string | undefined, modprobe: ModprobeRun): string | undefined {
+  const listed = (): boolean => read(PROC_FILESYSTEMS_PATH)?.split(/\s+/).includes("overlay") === true;
+  if (listed()) return undefined;
+  const load = modprobe(["overlay"]);
+  if ("error" in load) return overlayWontLoad(`${MODPROBE_PATH} could not run: ${load.error}`);
+  if (load.ok && listed()) return undefined;
+  const dry = modprobe(["-n", "overlay"]);
+  if ("error" in dry || !dry.ok) {
+    return "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through";
+  }
+  return overlayWontLoad(load.stderr.trimEnd().split("\n").at(-1)?.trim() || "modprobe loaded it and the kernel still lists no overlay");
+}
+
+const overlayWontLoad = (said: string): string =>
+  `this computer's kernel has an overlay module that would not load (${said}), and a workspace here reads this computer's own directories through an overlay`;
+
+/** The two files that check reads and the loader it runs, named once so the daemon and the host ask the same kernel
+ * the same question. */
 export const CGROUP_CONTROLLERS_PATH = "/sys/fs/cgroup/cgroup.controllers";
 export const PROC_FILESYSTEMS_PATH = "/proc/filesystems";
+export const MODPROBE_PATH = "/sbin/modprobe";
 
 /** What a join of a computer whose kernel cannot boot the image is refused with, in the one sentence the daemon's
  * own doctor named the reason in. A computer that cannot boot your image is not a place, so the join stops here
