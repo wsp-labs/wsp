@@ -19,7 +19,7 @@ import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { capRaiseAct, cloudSaid, subStartingLine, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { openComputerSettings } from "../../settings/openAt";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
@@ -97,6 +97,7 @@ export function ChatView({
   // A turn its computer's threads at once holds back has no start in the transcript yet, and still reads as working:
   // the timeline's working row says what holds it, with the setting that lets it start.
   const capped = turnRows.at(-1)?.capped;
+  const sub = turnRows.at(-1)?.sub;
   // The subagent's own fold in the lead's transcript, and what the listing says it was asked while that fold is unread.
   const run = useMemo(() => (subagent === null ? null : subagentRunOf(view.entries, subagent)), [subagent, view.entries]);
   const listed = subagent === null ? undefined : turnRows.flatMap(row => row.subagents ?? []).find(sub => sub.parentToolUseId === subagent);
@@ -174,15 +175,17 @@ export function ChatView({
   const runs = useMemo(() => ({ name: workspace?.name ?? workspaceId, where }), [workspace, workspaceId, where]);
   const machineWait = useMemo<MachineWait | null>(() => {
     if (state === null || !working) return null;
+    if (sub?.state === "starting") return { label: subStartingLine(cloudSaid(sub.on)), elapsed: true, act: null };
     const wait = turnWait(state, runs);
     if (wait !== null) return { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
     if (capped === undefined) return null;
     const raise = capRaiseAct(capped);
     return { label: capWaitLine(capped), elapsed: true, act: raise === undefined ? null : { label: raise, run: () => openComputerSettings(capped.placeId) } };
-  }, [state, working, wake, workspaceId, runs, capped]);
+  }, [state, working, wake, workspaceId, runs, capped, sub]);
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.
-  const paused = state === "paused" && !working ? workspaceWord(state, capabilities?.pauseMode) : null;
+  // A sub-machine's nap is its delete timer's, with no Wake of its own: the line above the composer says what holds it.
+  const paused = state === "paused" && !working && sub === undefined ? workspaceWord(state, capabilities?.pauseMode) : null;
   const { startNewThread, hydrated, threadKey } = thread;
   // A reply's shell blocks run in the thread the view holds, in its folder: the one its start named, else the
   // workspace's thread folder, as a file named in the transcript opens. Neither known, or no thread yet, offers no Run.
@@ -379,7 +382,7 @@ export function ChatView({
           </Button>
         </TimelineRuleLine>
       ) : null}
-      {machine !== null ? <TimelineRuleLine data-machine-line line={machine} /> : null}
+      {machine !== null ? <TimelineRuleLine data-machine-line line={machine} wraps /> : null}
     </div>
   ) : null;
 

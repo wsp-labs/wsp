@@ -397,9 +397,11 @@ export function ChatComposer({
   // rather than about a machine to wait for; a window on another computer whose wsp has gone quiet says which
   // computer is asleep rather than that wsp is not running, nothing there being broken.
   const heldForAnswer = blocked === "unreachable";
+  // A sub-thread whose machine was deleted takes a message, which starts a new machine on its cloud.
+  const startsMachine = blocked === "released";
   // A home's composer has no workspace to be blocked by: its send is what makes one.
   const unavailable =
-    onStart !== undefined || waits || blocked === null || wakesFirst
+    onStart !== undefined || waits || blocked === null || wakesFirst || startsMachine
       ? null
       : heldForAnswer
         ? composerHeldLine(computer)

@@ -36,7 +36,10 @@ import { ProjectGlyph } from "../projects/look.js";
 import { ComputerGlyph } from "../settings/ComputerGlyph.js";
 import { cn } from "../lib/utils.js";
 import { RowNameInput } from "./RowNameInput.js";
-import { tileCardLines, tilePrIcon, type TileCardLine } from "./tileCard.js";
+import { subMachineLine, tileCardLines, tilePrIcon, type TileCardLine } from "./tileCard.js";
+import { useCost, useStore } from "../protocol/store.js";
+import { useMinuteClockWhen } from "../components/status/useMinuteClock.js";
+import { hereName } from "../settings/places.js";
 import type { TileCheckout } from "./tileCheckout.js";
 import { CAP_WAIT_WORDS, SNOOZE_WORDS, TREE_WORDS } from "./words.js";
 import type { InboxMark } from "./threadTree.js";
@@ -326,6 +329,9 @@ function sameData(a: unknown, b: unknown): boolean {
 export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
   const { thread, place, checkout = NO_CHECKOUT, model = null, time, depth, active, settled = false, snoozedWorking, renaming, saving, onSelect, onContextMenu, onRename, onRenameCancel, onRenameOpen, drags = false, label, inboxOf, openers, finished, fold, onSettle, onStop, stopsTree = false, onFold } = props;
   const snoozed = snoozedWorking !== undefined;
+  const cost = useCost(thread.sub === undefined ? null : thread.workspaceId);
+  const places = useStore(s => s.places);
+  const now = useMinuteClockWhen(thread.sub !== undefined);
   const slim = settled || finished !== undefined;
   const status = settled || snoozed ? RESTING : threadStatusOf(thread);
   // A working or read row recedes unless it is the one open, as T3 Code's shouldRecede; a row that calls for the
@@ -336,9 +342,10 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
   const card = tileCardLines({
     title: thread.title,
     place,
+    machine: thread.sub === undefined ? undefined : subMachineLine(thread.sub, thread.status === "running", cost?.accruedUsd ?? null, hereName(places), now),
     ...(path === undefined ? {} : { startedBy: TREE_WORDS.startedBy(path) }),
     ...(thread.forkedFrom === undefined ? {} : { forkedFrom: thread.forkedFrom.title }),
-    folder: checkout.folder, branch: checkout.branch,
+    folder: checkout.folder, branch: checkout.branch === "" ? (thread.sub?.branch ?? "") : checkout.branch,
     harness: thread.harness,
     model,
     pr: checkout.pr,
@@ -395,7 +402,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
       {LINK_DOWN_WORDS.refused}
     </span>
   ) : (
-    <ThreadStatus thread={thread} age={time} settled={settled} crab={false} />
+    <ThreadStatus thread={thread} age={time} settled={settled} crab={status === STARTING} />
   );
   if (slim)
     return item(
