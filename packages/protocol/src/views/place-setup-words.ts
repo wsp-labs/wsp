@@ -223,6 +223,9 @@ export const SKIPPED_FOR_NOW = "skipped for now; finish it from the computer's p
 /** The refusal a skip naming no row that waits or failed gets. */
 export const nothingToSkipLine = (row: string, name: string): string => `nothing waits or failed under ${row} on ${name}`;
 
+/** What a run of one row of a setup says where the setup holds no such row: no step by that name, no row on the record, no wait. */
+export const noSetupRowRefusal = (row: string, name: string): string => `${name}'s setup holds no row ${row} to run again`;
+
 /** What the GitHub row says where the person skipped it, and a folder whose repository needs it to clone. */
 export const GITHUB_SKIPPED_LINE = "skipped; gh is not signed in there";
 export const NEEDS_GITHUB_LINE = "private; needs GitHub to clone";

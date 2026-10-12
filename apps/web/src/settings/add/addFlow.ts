@@ -304,36 +304,36 @@ export async function skipRow(api: Api | null, placeId: string, row: string): Pr
   }
 }
 
-/** Copy the keys on a computer that follows no recipe: its picks with the yes, set up again, which puts on the servers
- * that waited on it. */
-export async function copyKeysOn(api: Api | null, place: Pick<PlaceView, "id" | "picks">): Promise<Failure | null> {
+/** Copy the keys on a computer that follows no recipe: its picks with the yes, and the server's row run again, which
+ * puts on the servers that waited on it. */
+export async function copyKeysOn(api: Api | null, place: Pick<PlaceView, "id" | "picks">, row: string): Promise<Failure | null> {
   if (api?.placesSetup === undefined || place.picks === undefined) return null;
   try {
-    showSetup(await api.placesSetup(place.id, { choices: { ...place.picks, copyKeys: true } }));
+    showSetup(await api.placesSetup(place.id, { choices: { ...place.picks, copyKeys: true }, row }));
     return null;
   } catch (e) {
     return failureOf(e);
   }
 }
 
-/** Retry on a computer whose setup missed something: the host runs again whatever is not there. */
-export async function retrySetup(api: Api | null, placeId: string): Promise<Failure | null> {
+/** Retry on one row of a computer's setup: the host runs that row's step again, and every other row stands. */
+export async function retrySetup(api: Api | null, placeId: string, row: string): Promise<Failure | null> {
   if (api?.placesSetup === undefined) return null;
   try {
-    showSetup(await api.placesSetup(placeId, {}));
+    showSetup(await api.placesSetup(placeId, { row }));
     return null;
   } catch (e) {
     return failureOf(e);
   }
 }
 
-/** A computer's setup run again with one agent's sign-in moved to another way. The host sets a computer up from a
- * saved recipe's own file, so a computer that followed one follows its own picks from here. */
-export async function setupWithWay(api: Api | null, place: PlaceView, agent: string, way: RecipeSignIn): Promise<Failure | null> {
+/** One agent's sign-in row run again on another way. The host sets a computer up from a saved recipe's own file, so a
+ * computer that followed one follows its own picks from here. */
+export async function setupWithWay(api: Api | null, place: PlaceView, agent: string, way: RecipeSignIn, row: string): Promise<Failure | null> {
   if (api?.placesSetup === undefined || place.picks === undefined) return null;
   const choices: RecipeFile = { ...place.picks, agents: { ...place.picks.agents, [agent]: { ...place.picks.agents[agent], signin: way } } };
   try {
-    showSetup(await api.placesSetup(place.id, { choices }));
+    showSetup(await api.placesSetup(place.id, { choices, row }));
     return null;
   } catch (e) {
     return failureOf(e);

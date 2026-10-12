@@ -1539,7 +1539,7 @@ pub async fn remove_all(engine: &Path, workspace: &str) -> Result<(usize, usize,
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {super::*, crate::doctor::Overlay::Known};
 
     fn no_binds(source: &str) -> Result<PathBuf, String> {
         Ok(PathBuf::from(format!("/box/rootfs{source}")))
@@ -1942,7 +1942,7 @@ mod tests {
 
     #[test]
     fn the_engine_socket_follows_the_doctor_and_a_box_without_one_gets_the_sentence() {
-        let facts = |engine| Facts { linux: true, cgroup2: true, controllers: vec![], overlay: true, root: true, kvm: false, engine };
+        let facts = |engine| Facts { linux: true, cgroup2: true, controllers: vec![], overlay: Known, root: true, kvm: false, engine };
         assert_eq!(socket_of(&facts(Engine::None)).unwrap_err(), NO_ENGINE);
         assert_eq!(engine_socket(Engine::Docker), Some(Path::new("/var/run/docker.sock")));
         assert_eq!(engine_socket(Engine::Podman), Some(Path::new("/run/podman/podman.sock")));
