@@ -62,9 +62,9 @@
       },
       "replies": {
         "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"place-solari\",\"kind\":\"provider\",\"name\":\"solari\",\"default\":true,\"rateUsdPerHour\":0.30000000000000004}]}",
-        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"solari takes machines at once, spend per day, size, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"kind\":\"usage\"}"
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"kind\":\"usage\"}"
       },
-      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"solari takes machines at once, spend per day, size, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\"}],\"structuredContent\":{\"error\":\"solari takes machines at once, spend per day, size, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\"}],\"structuredContent\":{\"error\":\"solari takes machines at once, spend per day, delete after, nap after, turn limit, agents may start agents and levels deep, not threads at once\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
       "asked": [
         {
           "op": "places.list"
@@ -143,9 +143,9 @@
       },
       "replies": {
         "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
-        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr)\",\"kind\":\"usage\"}"
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\",\"kind\":\"usage\"}"
       },
-      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr)\"}],\"structuredContent\":{\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr)\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\"}],\"structuredContent\":{\"error\":\"3x5 is not a size this provider offers; the sizes are 2x4 ($0.018/hr), 4x8 ($0.036/hr), 8x16 ($0.072/hr). Ask for one of those instead.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
       "asked": [
         {
           "op": "places.list"
@@ -173,6 +173,30 @@
       "asked": [
         {
           "op": "places.list"
+        }
+      ]
+    },
+    {
+      "case": "a size word on a computer, which takes no size",
+      "arguments": {
+        "computer": "attic",
+        "size": "0x4"
+      },
+      "replies": {
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic\",\"label\":\"zingzy's \u0085box\u007f \\\"one\\\" \\\\ two\\nthree 🧪\",\"default\":false,\"os\":\"linux\",\"shape\":{\"cpu\":8,\"memMb\":16384},\"diskFreeBytes\":123456789012,\"present\":true,\"agentVersions\":{\"2\":\"an index key\",\"claude\":\"2.1.0\"},\"forks\":{\"running\":1,\"room\":2}},{\"id\":\"box\",\"kind\":\"provider\",\"name\":\"box\",\"default\":false,\"rateUsdPerHour\":0.018,\"sizes\":[{\"cpu\":2,\"memMb\":4096,\"rateUsdPerHour\":0.018},{\"cpu\":4,\"memMb\":8192,\"rateUsdPerHour\":0.036},{\"cpu\":8,\"memMb\":16384,\"rateUsdPerHour\":0.072}],\"plan\":{\"key\":\"box_20\",\"trial\":false,\"machinesAtOnce\":100,\"sizes\":[\"2x4\",\"4x8\",\"8x16\"]},\"starts\":{\"minute\":{\"used\":0,\"limit\":12},\"hour\":{\"used\":9,\"limit\":60},\"day\":{\"used\":187,\"limit\":200}},\"size\":{\"cpu\":2,\"memMb\":4096},\"sizeDefault\":{\"cpu\":2,\"memMb\":4096},\"deleteAfterMs\":1800000}]}",
+        "places.set": "{\"id\":1,\"ok\":false,\"error\":\"attic takes threads at once, nap after, turn limit, agents may start agents and levels deep, not size\",\"kind\":\"usage\"}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"attic takes threads at once, nap after, turn limit, agents may start agents and levels deep, not size\"}],\"structuredContent\":{\"error\":\"attic takes threads at once, nap after, turn limit, agents may start agents and levels deep, not size\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "places.list"
+        },
+        {
+          "op": "places.set",
+          "placeId": "place-9",
+          "reset": [
+            "size"
+          ]
         }
       ]
     },

@@ -4,7 +4,7 @@
 // fold its own live rows through the same function, so the two cannot count
 // one computer two ways. One rule per kind of place, so a third kind is one
 // entry in the table below.
-import { agentsLine, fmtBytes, fmtCost, fmtDuration, fmtLimit, plural, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
+import { agentsLine, fmtCost, fmtDuration, fmtLimit, fmtSize, plural, refusalLine, SIZE_PICK_FIX, sizeOffer, sizeRefusal, sizeWord, SPEND_LIMIT_LINE } from "./format.js";
 import type { CloudCap, PlaceCap, PlaceCapSet, PlaceKind, PlaceSettings, PlaceSettingsAsk, PlaceSettingWord, PlaceView, ThreadCapWait, ThreadView, WorkspaceAgents, WorkspaceSize, WorkspaceView } from "./index.js";
 import { HERE_PLACE_ID } from "./place-word.js";
 import { isLocalWorkspace, workspaceState } from "./workspace-state.js";
@@ -122,7 +122,7 @@ const SETTINGS: Record<PlaceSettingWord, { key: keyof PlaceSettings; parts?: rea
     words: "size",
     reads: (p, fallback) => {
       const size = fallback ? p.sizeDefault : p.size;
-      return size === undefined ? undefined : { long: `size ${size.cpu} vCPU, ${fmtBytes(size.memMb * 1024 * 1024)}`, short: sizeWord(size) };
+      return size === undefined ? undefined : { long: `size ${fmtSize(size)}`, short: sizeWord(size) };
     },
   },
   "delete-after": {
@@ -262,19 +262,22 @@ export function placeSetRefusal(place: Pick<PlaceView, "id" | "kind" | "name" | 
   const both = named.filter(word => reset.includes(word));
   if (both.length > 0) return `${place.name}: ${said(both)} is both set and reset; name it once`;
   const size = set.size;
-  if (size !== undefined && sizeOffer(place.sizes ?? [], size) === undefined) return sizeRefusal(sizeWord(size), place.sizes ?? []);
+  if (size !== undefined && sizeOffer(place.sizes ?? [], size) === undefined) return refusalLine(sizeRefusal(sizeWord(size), place.sizes ?? []), SIZE_PICK_FIX);
   return undefined;
 }
 
 /** The settings a place takes: its kind's, less the nap on a place that forks nothing, whose workspaces are
  * folders on the computer itself and never nap. */
-function settingsOn(place: Pick<PlaceView, "kind" | "takesForks">): readonly PlaceSettingWord[] {
+function settingsOn(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">): readonly PlaceSettingWord[] {
   return PLACE_CAPS[place.kind].keys.filter(word => placeTakes(place, word));
 }
 
-/** Whether a place takes one setting: its kind's, less the nap where it forks nothing. */
-export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks">, word: PlaceSettingWord): boolean {
-  return PLACE_CAPS[place.kind].keys.includes(word) && (word !== "nap" || place.takesForks === true);
+/** Whether a place takes one setting: its kind's, less the nap where it forks nothing and the size where its row
+ * offers none. */
+export function placeTakes(place: Pick<PlaceView, "kind" | "takesForks" | "sizes">, word: PlaceSettingWord): boolean {
+  if (!PLACE_CAPS[place.kind].keys.includes(word)) return false;
+  if (word === "nap") return place.takesForks === true;
+  return word !== "size" || (place.sizes ?? []).length > 0;
 }
 
 const andList = (words: readonly string[]): string => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);

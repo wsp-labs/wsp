@@ -1024,7 +1024,6 @@
                 }
               },
               "required": [
-                "key",
                 "trial",
                 "machinesAtOnce",
                 "sizes"
@@ -2147,7 +2146,6 @@
                 }
               },
               "required": [
-                "key",
                 "trial",
                 "machinesAtOnce",
                 "sizes"
