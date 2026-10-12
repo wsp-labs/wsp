@@ -29,7 +29,7 @@ import { failureOf } from "../protocol/failure.js";
 import { useStore } from "../protocol/store.js";
 import { ADD_COMPUTER_WORDS, WHERE_WORDS } from "./format.js";
 import { ROW_FIELD } from "./layout.js";
-import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, providerForgetSentence, removeSentence, removeTitle, type PlaceHolding } from "./places.js";
+import { forgetSentence, forgetTitle, hereName, placeIsOffline, placeName, providerForgetSentence, removeSentence, removeTitle, removedTitle, type PlaceHolding } from "./places.js";
 import { CopyRow, RefusalSlot } from "./sheetParts.js";
 
 /** What the app says when its own client carries no remove road: the same shape the forget dialog's refusal has. */
@@ -132,7 +132,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
     <AlertDialog open={open} onOpenChange={change}>
       <AlertDialogPopup data-remove-place-dialog>
         <AlertDialogHeader>
-          <AlertDialogTitle data-k="remove-title">{forgets ? forgetTitle(place) : removeTitle(place)}</AlertDialogTitle>
+          <AlertDialogTitle data-k="remove-title">{madeNote !== null ? removedTitle(place, forgets) : forgets ? forgetTitle(place) : removeTitle(place)}</AlertDialogTitle>
           <AlertDialogDescription data-k="remove-sentence">{keyRefused ? providerForgetSentence(place, holding, hereName(places)) : forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects }, hereName(places), imageBytes)}</AlertDialogDescription>
         </AlertDialogHeader>
         {placeIsOffline(place) ? (

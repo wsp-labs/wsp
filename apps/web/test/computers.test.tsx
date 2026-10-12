@@ -7,7 +7,7 @@
 // that adds another computer.
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, providerKeptLine, providerKeyRefused, providerKeyStillLine, refusal, type PlaceHolds, type ProjectView } from "@wsp/protocol";
+import { type InitJob, COPY_CURRENT, DAEMON_VERSION, DEFAULT_PREFERENCES, PLACES_TICKET_REFUSAL, PLACES_WORDS, PLACE_LOGIN_REFUSED_KIND, placeSshOtherRefusal, placeSshUncheckedRefusal, usageRefusal, PLACE_SUDO_KIND, PlaceAddStep, absentRoad, fmtBytes, fmtMemGb, fmtSize, imageCopyLine, placeAddSheetWord, placeDaemonBehind, placeNoDialLine, placeSettingDropped, setupWord, type PlaceSettings, type AgentsReport, type AgentsTarget, type EventUnion, type InitSetup, type PlaceAddJob, type PlaceApplied, type PlaceSetup, type PlaceView, type SealedImage, type SessionView, type WorkspaceStatus, type WorkspaceView, PLACE_INSTALL, PROVIDER_KEY_WORDS, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgottenLine, placeStillInstalledLine, providerKeptLine, providerKeyRefused, providerKeyStillLine, refusal, type PlaceHolds, type ProjectView } from "@wsp/protocol";
 import { render } from "@testing-library/react";
 import { makeApi, ProtocolClient, RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useContextMenuStore } from "../src/actions/contextMenu.js";
@@ -663,7 +663,7 @@ describe("a computer's own page", () => {
     await waitFor(() => expect(pageAt()).toBe("computers"));
   });
 
-  it("stays open on a forget that went through with the key still elsewhere, the note in the slot and one Done", async () => {
+  it("stays open on a remove that went through with the key still elsewhere, titled as done, the note in the slot and one Done", async () => {
     const note = providerKeyStillLine([{ file: "/work/acme/.env" }]);
     useStore.setState({ places: [here, ascii], workspaces: [] });
     await mountComputers(
@@ -679,6 +679,7 @@ describe("a computer's own page", () => {
     fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
     fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
     await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toBe(note));
+    expect(document.querySelector("[data-k='remove-title']")?.textContent).toBe("Boat removed");
     expect(document.querySelector("[data-k='remove-made-note']")).toBeTruthy();
     expect(document.querySelector("[data-k='remove-confirm']")).toBeNull();
     expect([...document.querySelectorAll("[data-remove-place-dialog] button")].map(b => b.textContent)).toEqual([WHERE_WORDS.done]);
@@ -686,6 +687,35 @@ describe("a computer's own page", () => {
     fireEvent.click(document.querySelector("[data-k='remove-done']")!);
     await waitFor(() => expect(pageAt()).toBe("computers"));
     expect(document.querySelector("[data-remove-place-dialog]")).toBeNull();
+  });
+
+  it("titles a joined computer's remove or forget that went through with a note as done, the note in the slot and one Done", async () => {
+    const cases = [
+      { holds: { forks: [], projects: [], unsaved: [] } as PlaceHolds, note: placeStillInstalledLine("old-macbook"), title: "old-macbook removed" },
+      { holds: { forks: [], projects: [{ name: "spoo-landing", threads: 3 }], unsaved: [], away: true } as PlaceHolds, note: placeForgottenLine("old-macbook", false), title: "old-macbook forgotten" },
+    ];
+    for (const c of cases) {
+      cleanup();
+      useStore.setState({ places: [here, laptop], projects: [], workspaces: [] });
+      await mountComputers(
+        computersApi({
+          placeHolds: async () => c.holds,
+          removePlace: async () => {
+            useStore.setState(st => ({ places: st.places.filter(p => p.id !== "p_1") }));
+            return { removed: true, swept: [], note: c.note };
+          },
+        } as unknown as Partial<Api>).api,
+        { kind: "computer", id: "p_1" },
+      );
+      fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+      await waitFor(() => expect(document.querySelector<HTMLButtonElement>("[data-k='remove-confirm']")?.disabled).toBe(false));
+      fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+      await waitFor(() => expect(document.querySelector("[data-k='remove-refusal']")?.textContent).toBe(c.note));
+      expect(document.querySelector("[data-k='remove-title']")?.textContent).toBe(c.title);
+      expect([...document.querySelectorAll("[data-remove-place-dialog] [data-slot='alert-dialog-footer'] button")].map(b => b.textContent)).toEqual([WHERE_WORDS.done]);
+      fireEvent.click(document.querySelector("[data-k='remove-done']")!);
+      await waitFor(() => expect(document.querySelector("[data-remove-place-dialog]")).toBeNull());
+    }
   });
 
   it("keeps the dialog open on a remove the host answers as not made with no reason, and says why", async () => {
