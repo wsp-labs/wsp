@@ -376,6 +376,45 @@ suite("the everyday flows in the packaged app, on $page", { timeout: 90_000 }, (
   });
 });
 
+// A window of its own: the crash takes the page down mid-flow, which no case sharing the window should meet.
+(FLOWS ? describe : describe.skip)("a window whose page dies", { timeout: 90_000 }, () => {
+  let flow: Flow;
+  beforeAll(async () => {
+    flow = await openFlow(undefined);
+  }, 300_000);
+  afterAll(async () => {
+    if (flow !== undefined) await closeFlow(flow);
+  }, 60_000);
+
+  it("comes back on the thread it was on, and the app log says it was reloaded", async () => {
+    const { win, app, home } = flow;
+    const thread = threadIdOf(wsp(flow, "run", PROJECT, "--agent", "claude", "before the crash"));
+    await openFromSidebar(win, thread);
+    await expect.poll(() => paneText(win), { timeout: 20_000 }).toContain(`${FLOW_WORDS.reply} before the crash`);
+    const at = win.url();
+    expect(at).toContain(thread);
+    const dead = await app.evaluate(({ BrowserWindow }, url) => {
+      const contents = BrowserWindow.getAllWindows().find(w => w.webContents.getURL() === url)!.webContents;
+      const pid = contents.getOSProcessId();
+      contents.forcefullyCrashRenderer();
+      return pid;
+    }, at);
+    // Read through the main process; a read that reaches the dying renderer never settles, so its pid reads as nothing and each read gives up after 2 s.
+    const shown = (): Promise<{ url: string; text: string }> =>
+      app.evaluate(async ({ BrowserWindow }, dead) => {
+        const w = BrowserWindow.getAllWindows().find(w => !w.webContents.getURL().startsWith("devtools:"));
+        const pid = w?.webContents.getOSProcessId() ?? 0;
+        if (w === undefined || pid === 0 || pid === dead || w.webContents.isCrashed() || w.webContents.isLoading()) return { url: "", text: "" };
+        const text = await Promise.race([w.webContents.executeJavaScript(`document.querySelector("main")?.innerText ?? ""`).then(String), new Promise<string>(resolve => setTimeout(() => resolve(""), 2_000))]);
+        return { url: w.webContents.getURL(), text };
+      }, dead);
+    await expect.poll(shown, { timeout: 20_000, interval: 250 }).toEqual({ url: at, text: expect.stringContaining(`${FLOW_WORDS.reply} before the crash`) });
+    const log = readFileSync(join(home, "logs", "app.log"), "utf8");
+    expect(log).toMatch(new RegExp(`renderer gone: \\S+ \\(exit -?\\d+\\) at ${at.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}`));
+    expect(log).toContain(`reloading ${at}`);
+  });
+});
+
 (FLOWS ? describe : describe.skip)("a flow whose host dies before it writes its lock", () => {
   it("fails with the host's own words and leaves nothing running", async () => {
     const flowDirs = (): string[] => readdirSync(tmpdir()).filter(name => name.startsWith("wsp-flows-") && !name.startsWith("wsp-flows-devpage-"));

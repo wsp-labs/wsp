@@ -430,7 +430,7 @@ export const PROC_FILESYSTEMS_PATH = "/proc/filesystems";
  * own doctor named the reason in. A computer that cannot boot your image is not a place, so the join stops here
  * and nothing is written on it. */
 export const placeCannotBootLine = (place: string, reason?: string): string =>
-  reason === undefined ? `${place} cannot run wsp workspaces, so it cannot be a place` : `${place} cannot run wsp workspaces: ${reason.replace("this computer", "it")}`;
+  reason === undefined ? `${place} cannot run wsp workspaces, so it cannot be a place` : `${place} cannot run wsp workspaces: ${reason.replace(/this computer('s)?/g, (_, owns) => (owns === undefined ? "it" : "its"))}`;
 
 /** The same sentence off a computer's own report, or nothing while it runs workspaces: one reading for the join's
  * refusal, the row, and every act that runs inside a copy there. */

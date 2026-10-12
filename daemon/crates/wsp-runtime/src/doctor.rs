@@ -37,14 +37,24 @@ pub struct Facts {
     pub cgroup2: bool,
     /// The controllers the cgroup root delegates, when it is v2.
     pub controllers: Vec<String>,
-    /// overlay is a filesystem this kernel knows.
-    pub overlay: bool,
+    /// overlay is a filesystem this kernel knows, or why it is not.
+    pub overlay: Overlay,
     /// This process is root, which is the mode the daemon runs workspaces in on a box.
     pub root: bool,
     /// /dev/kvm is here, so the microVM road is open on this box.
     pub kvm: bool,
     /// The engine a project's own containers would run on.
     pub engine: Engine,
+}
+
+/// Whether this kernel can mount an overlay, and when it cannot, which of the two ways it is missing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Overlay {
+    Known,
+    /// The kernel has no overlay built in and no module of it to load.
+    Absent,
+    /// The module is there and would not load, in modprobe's own last line.
+    WontLoad(String),
 }
 
 /// What the doctor tells the host about this box: enough for the three sentences, no English of its own, since the
@@ -85,11 +95,19 @@ fn blocking_reason(facts: &Facts) -> Option<String> {
             return Some(format!("this computer's cgroup root offers no {wanted} controller, which wsp needs to run workspaces here"));
         }
     }
-    if !facts.overlay {
-        return Some(
-            "this computer's kernel has no overlay filesystem, which a workspace here reads this computer's own directories through"
-                .to_owned(),
-        );
+    match &facts.overlay {
+        Overlay::Known => {}
+        Overlay::Absent => {
+            return Some(
+                "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through"
+                    .to_owned(),
+            );
+        }
+        Overlay::WontLoad(said) => {
+            return Some(format!(
+                "this computer's kernel has an overlay module that would not load ({said}), and a workspace here reads this computer's own directories through an overlay"
+            ));
+        }
     }
     if !facts.root {
         return Some("wsp runs workspaces on this computer as root, and this daemon is not root".to_owned());
@@ -98,7 +116,8 @@ fn blocking_reason(facts: &Facts) -> Option<String> {
 }
 
 /// The facts read off this box: nothing is mounted, created or written, so it costs a few file reads and can
-/// run at every dial and on every engine socket lookup. Off Linux only the engine is read; the rest stand false,
+/// run at every dial and on every engine socket lookup; the one act is loading the overlay module where the
+/// kernel does not list it yet. Off Linux only the engine is read; the rest stand false,
 /// and the doctor names Linux as the reason a workspace does not run here, since youki's kernel work has no
 /// answer on another kernel. How a copy is made here is not a kernel fact but a probe on the disk, so it is read
 /// where it is reported and where a copy is about to be made, never here.
@@ -112,7 +131,7 @@ pub fn read_facts() -> Facts {
             linux: true,
             cgroup2,
             controllers: controllers.map(|text| text.split_whitespace().map(str::to_owned).collect()).unwrap_or_default(),
-            overlay: kernel_knows_overlay(),
+            overlay: overlay_on(Path::new("/proc/filesystems"), Path::new(MODPROBE)),
             root: euid_is_root(),
             kvm: Path::new("/dev/kvm").exists(),
             engine,
@@ -120,14 +139,34 @@ pub fn read_facts() -> Facts {
     }
     #[cfg(not(target_os = "linux"))]
     {
-        Facts { linux: false, cgroup2: false, controllers: Vec::new(), overlay: false, root: false, kvm: false, engine }
+        Facts { linux: false, cgroup2: false, controllers: Vec::new(), overlay: Overlay::Absent, root: false, kvm: false, engine }
     }
 }
 
-/// Whether the kernel lists overlay in /proc/filesystems, built in or as a module already loaded.
+/// The kernel's own module loader on a merged-usr computer, which is the only kind a workspace runs on.
 #[cfg(target_os = "linux")]
-fn kernel_knows_overlay() -> bool {
-    std::fs::read_to_string("/proc/filesystems").is_ok_and(|text| text.split_whitespace().any(|word| word == "overlay"))
+const MODPROBE: &str = "/sbin/modprobe";
+
+/// Whether the kernel lists overlay in /proc/filesystems, loading the module first where it does not yet: a box that
+/// booted a new kernel has the module on disk and lists nothing until something mounts one. A load that fails is
+/// told apart by modprobe's dry run, which fails only where there is no module to load.
+#[cfg(any(target_os = "linux", test))]
+fn overlay_on(filesystems: &Path, modprobe: &Path) -> Overlay {
+    use std::process::{Command, Stdio};
+    let listed = || std::fs::read_to_string(filesystems).is_ok_and(|text| text.split_whitespace().any(|word| word == "overlay"));
+    if listed() {
+        return Overlay::Known;
+    }
+    let said = match Command::new(modprobe).arg("overlay").stdin(Stdio::null()).output() {
+        Ok(out) if out.status.success() && listed() => return Overlay::Known,
+        Ok(out) => String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or_default().trim().to_owned(),
+        Err(e) => return Overlay::WontLoad(format!("{} could not run: {e}", modprobe.display())),
+    };
+    let dry = Command::new(modprobe).args(["-n", "overlay"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    if !dry.is_ok_and(|status| status.success()) {
+        return Overlay::Absent;
+    }
+    Overlay::WontLoad(if said.is_empty() { "modprobe loaded it and the kernel still lists no overlay".to_owned() } else { said })
 }
 
 /// The effective uid is root, the mode the daemon runs workspaces in on a box. nix is here on Linux, which is the
@@ -207,7 +246,7 @@ mod tests {
             linux: true,
             cgroup2: true,
             controllers: ["cpuset", "cpu", "io", "memory", "pids"].iter().map(|s| (*s).to_owned()).collect(),
-            overlay: true,
+            overlay: Overlay::Known,
             root: true,
             kvm: true,
             engine: Engine::None,
@@ -256,8 +295,74 @@ mod tests {
 
     #[test]
     fn a_box_without_an_overlay_or_without_root_cannot_and_each_reason_is_its_own() {
-        assert!(assess(&Facts { overlay: false, ..box_that_runs() }).blocked.as_deref().unwrap().contains("overlay filesystem"));
+        assert!(assess(&Facts { overlay: Overlay::Absent, ..box_that_runs() }).blocked.as_deref().unwrap().contains("overlay filesystem"));
         assert!(assess(&Facts { root: false, ..box_that_runs() }).blocked.as_deref().unwrap().contains("as root"));
+    }
+
+    /// A kernel that lists no overlay, beside a modprobe that answers as kmod 31 does (measured on 6.8.0-117):
+    /// a module it loads lands in /proc/filesystems, one with no file fails both the load and the dry run with
+    /// "not found", and one that is there but refused fails the load alone.
+    fn kernel_and_modprobe(modprobe: &str) -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let filesystems = dir.path().join("filesystems");
+        std::fs::write(&filesystems, "nodev\tsysfs\n\text4\n").unwrap();
+        let script = dir.path().join("modprobe");
+        let body = modprobe.replace("FILESYSTEMS", &filesystems.to_string_lossy());
+        let text = format!("#!/bin/sh\necho \"$*\" >> {}/asked\n{body}\n", dir.path().display());
+        // A child writes it: a fork in this binary while it was open here for writing would make its exec read ETXTBSY.
+        let wrote = std::process::Command::new("/bin/sh")
+            .args(["-c", "printf %s \"$1\" > \"$2\" && chmod 755 \"$2\"", "sh", text.as_str()])
+            .arg(&script)
+            .status()
+            .unwrap();
+        assert!(wrote.success());
+        (dir, filesystems, script)
+    }
+
+    fn asked(dir: &tempfile::TempDir) -> String {
+        std::fs::read_to_string(dir.path().join("asked")).unwrap_or_default()
+    }
+
+    #[test]
+    fn an_overlay_the_kernel_lists_is_known_without_asking_modprobe() {
+        let (dir, filesystems, modprobe) = kernel_and_modprobe("exit 1");
+        std::fs::write(&filesystems, "nodev\tsysfs\nnodev\toverlay\n").unwrap();
+        assert_eq!(overlay_on(&filesystems, &modprobe), Overlay::Known);
+        assert_eq!(asked(&dir), "");
+    }
+
+    #[test]
+    fn an_overlay_module_not_loaded_yet_is_loaded_and_read_again() {
+        let (dir, filesystems, modprobe) = kernel_and_modprobe("[ \"$1\" = -n ] && exit 0\nprintf 'nodev\\toverlay\\n' >> FILESYSTEMS");
+        assert_eq!(overlay_on(&filesystems, &modprobe), Overlay::Known);
+        assert_eq!(asked(&dir), "overlay\n");
+        assert!(assess(&Facts { overlay: overlay_on(&filesystems, &modprobe), ..box_that_runs() }).runs_workspaces);
+    }
+
+    #[test]
+    fn a_kernel_with_no_overlay_module_is_refused_as_absent() {
+        let (dir, filesystems, modprobe) =
+            kernel_and_modprobe("echo 'modprobe: FATAL: Module overlay not found in directory /lib/modules/6.8.0-146-generic' >&2\nexit 1");
+        assert_eq!(overlay_on(&filesystems, &modprobe), Overlay::Absent);
+        assert_eq!(asked(&dir), "overlay\n-n overlay\n");
+        let said = assess(&Facts { overlay: Overlay::Absent, ..box_that_runs() }).blocked.unwrap();
+        assert_eq!(
+            said,
+            "this computer's kernel has no overlay filesystem and no overlay module to load, which a workspace here reads this computer's own directories through"
+        );
+    }
+
+    #[test]
+    fn an_overlay_module_that_will_not_load_is_refused_in_modprobes_own_words() {
+        let (_dir, filesystems, modprobe) = kernel_and_modprobe(
+            "[ \"$1\" = -n ] && exit 0\necho 'modprobe: ERROR: could not insert '\"'\"'overlay'\"'\"': Operation not permitted' >&2\nexit 1",
+        );
+        let overlay = overlay_on(&filesystems, &modprobe);
+        assert_eq!(overlay, Overlay::WontLoad("modprobe: ERROR: could not insert 'overlay': Operation not permitted".to_owned()));
+        assert_eq!(
+            assess(&Facts { overlay, ..box_that_runs() }).blocked.unwrap(),
+            "this computer's kernel has an overlay module that would not load (modprobe: ERROR: could not insert 'overlay': Operation not permitted), and a workspace here reads this computer's own directories through an overlay"
+        );
     }
 
     #[test]
@@ -335,7 +440,7 @@ mod tests {
             assess(&facts).runs_workspaces,
             facts.linux
                 && facts.cgroup2
-                && facts.overlay
+                && facts.overlay == Overlay::Known
                 && facts.root
                 && ["memory", "cpu"].iter().all(|w| facts.controllers.iter().any(|c| c == w))
         );
@@ -350,7 +455,7 @@ mod tests {
             linux: false,
             cgroup2: false,
             controllers: vec![],
-            overlay: false,
+            overlay: Overlay::Absent,
             root: false,
             kvm: false,
             engine: Engine::Docker,

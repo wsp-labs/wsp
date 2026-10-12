@@ -409,7 +409,7 @@ export function backRefusedLine(address: string, urls: readonly string[], why: s
 
 /** The reach step's note for a box that dials back over the forward: after the relay where it reached that. */
 export const dialsBackOverSshNote = (urls: readonly string[], relay: string | undefined): string =>
-  relay !== undefined ? `${relay}, and ${BACK_OVER_SSH}` : fittedList(urls, list => `cannot reach this computer at ${list}, so it dials ${BACK_OVER_SSH}`);
+  relay !== undefined ? `${relay}, and ${BACK_OVER_SSH}` : fittedList(urls, list => `dials ${BACK_OVER_SSH}, since this computer is not reachable at ${list}`);
 
 /** How long taking a failed add back off a box may run, as long as the ssh road's own removal. */
 export const UNDO_MS = 120_000;

@@ -210,18 +210,33 @@ describe("a thread on a project on this computer", () => {
     expect(copier.asks).toEqual([]);
   });
 
-  it("answers the project folder's start under the budget, with no git asked of a start that names nothing", async () => {
-    const { rt, starts } = here();
+  it("asks no git of a start that names nothing and the daemon nothing but the turn's snapshot", async () => {
+    const backend = new LocalBackend({ root: scratch() });
+    const machine = await backend.get();
+    const exec = machine.exec.bind(machine);
+    const ran: string[] = [];
+    machine.exec = async (cmd, o) => {
+      ran.push(cmd);
+      return exec(cmd, o);
+    };
+    const { rt, starts, daemon, copier } = here({ backend });
     const project = await rt.projects.add({ source: repo() });
     const at = await rt.workspaces.folderFor({ project: project.id });
     await (await rt.sessions.start(at.workspace.id, { prompt: "warm" })).finished;
-    const began = performance.now();
+    // A turn's checkpoint and the read of its checkout go off its road after it ends.
+    await vi.waitFor(() => expect(daemon.frames.map(f => f["op"])).toEqual(expect.arrayContaining(["git.checkpoint", "git.status"])), { timeout: 10_000 });
+    const before = { ran: ran.length, frames: daemon.frames.length };
+    holding.on = true;
     const found = await rt.workspaces.folderFor({ project: project.id });
     const handle = await rt.sessions.start(found.workspace.id, { prompt: "hello" });
-    const took = performance.now() - began;
+    // The look at the agent's launcher goes off the start's road, at the launch or once the start is slow.
+    expect(ran.slice(before.ran).filter(c => !c.includes("command -v"))).toEqual([]);
+    expect(daemon.frames.slice(before.frames).map(f => f["op"])).toEqual(["git.snapshot"]);
+    expect(copier.asks).toEqual([]);
+    expect(copier.worktrees).toEqual([]);
+    holding.waiting.splice(0).forEach(go => go());
     await handle.finished;
     expect(starts).toHaveLength(2);
-    expect(took).toBeLessThan(50);
   });
 });
 

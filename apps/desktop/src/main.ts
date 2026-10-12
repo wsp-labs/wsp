@@ -23,6 +23,7 @@ import { hostFeed, type FeedEvent, type FeedState, type HostFeed } from "./host-
 import { guardWorkers, loadHostPage } from "./page-session.js";
 import { pagePreviews } from "./previews.js";
 import { QUIT_WORD, quitAnswer, quitChoice, quitPrompt } from "./quit.js";
+import { RELOADS_PER_MINUTE, reloadAfter, reloadPacer } from "./revive.js";
 import { bundleOf, discardStage, inPlaceRefusal, settleStage, stageOf, stageUpdate, startSwap } from "./self-update.js";
 import { installShim, keepAppImage, replaceOlderOnPath, shimText, type ShimTarget } from "./shim.js";
 import { sayStartFailed, startingAfter } from "./starting.js";
@@ -86,7 +87,16 @@ process.on("unhandledRejection", e => appLog.write("error", `main: unhandled rej
 // Before the app is ready, as Electron asks of both. The dumps stay on this computer: nothing is ever uploaded.
 app.setPath("crashDumps", join(LOGS, "crashes"));
 crashReporter.start({ uploadToServer: false });
-app.on("render-process-gone", (_event, contents, details) => appLog.write("error", `renderer gone: ${details.reason} (exit ${details.exitCode}) at ${contents.getURL()}; dumps in ${app.getPath("crashDumps")}`));
+const reloadWait = reloadPacer();
+app.on("render-process-gone", (_event, contents, details) => {
+  const url = contents.getURL();
+  appLog.write("error", `renderer gone: ${details.reason} (exit ${details.exitCode}) at ${url}; dumps in ${app.getPath("crashDumps")}`);
+  // A browser tab's guest is its embedding page's to show; a clean exit is a page meant to end.
+  if (quitting || details.reason === "clean-exit" || contents.getType() !== "window") return;
+  const wait = reloadWait();
+  appLog.write("info", wait === 0 ? `reloading ${url}` : `reloading ${url} in ${Math.ceil(wait / 1000)} s: ${RELOADS_PER_MINUTE} reloads in the last minute`);
+  reloadAfter(contents, wait);
+});
 app.on("child-process-gone", (_event, details) => appLog.write("error", `${details.type} process gone: ${details.reason} (exit ${details.exitCode}); dumps in ${app.getPath("crashDumps")}`));
 
 /** The host the window is on; every bridge call is gated on its origin and on what a page on it may ask for. */

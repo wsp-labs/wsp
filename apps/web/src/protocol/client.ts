@@ -395,7 +395,7 @@ export class ProtocolClient {
       this.#ws = null;
       this.#unclaimed.clear();
       this.#failAll(new DisconnectedError("lost"));
-      // 4401 is the runtime refusing the token; redialling cannot fix that.
+      // 4401 is the runtime refusing the token; redialling cannot fix that. A deadline it missed closes 4408.
       if (ev.code === 4401) this.#die("unauthorized");
       else this.#scheduleRedial();
     };
@@ -782,7 +782,7 @@ export interface Api {
   placesList?(): Promise<{ places: PlaceView[]; adds: PlaceAddJob[]; pending?: PendingComputer[] }>;
   /** Sets a computer up from the picks given, a saved recipe, or the choices its pending add holds; the steps ride
    * place.setup events under `addId`. */
-  placesSetup?(ref: string, o: { choices?: RecipeFile; recipe?: string; addId?: string }): Promise<{ addId: string; place: PlaceView; setup?: PlaceSetup; said?: string }>;
+  placesSetup?(ref: string, o: { choices?: RecipeFile; recipe?: string; addId?: string; row?: string }): Promise<{ addId: string; place: PlaceView; setup?: PlaceSetup; said?: string }>;
   /** Moves a computer onto a saved recipe, or onto none. Absent until the host serves it; the picker is held. */
   placesFollow?(placeId: string, recipe: string): Promise<PlaceView>;
   /** Skip for now on one row of a computer's setup, a sign-in that waits or a row that failed; answers its row. */

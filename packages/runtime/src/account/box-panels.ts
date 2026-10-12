@@ -53,14 +53,15 @@ export function namedWatchRefusal(name: string, daemonVersion: number | undefine
 
 /** One opener per runtime, holding what every pane on one computer shares: how many panes watch processes over each
  * of its links. `watchers` is the push each channel registers under its workspace to name its ports again when a
- * thread there starts. */
-export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<() => void>>): (entry: LiveWorkspace, placeId: string, served: Served, folder: string) => BoxPanels {
+ * thread there starts. `placements` is the watch each thread's cgroup is in, per folder, kept while the thread is: the
+ * watch names are the folder's on every pane, and one that moved would close its servers in one watch and open them in
+ * another, so a thread that starts takes room where there is some. */
+export function boxPanelsOpener(ctx: RuntimeContext, watchers: Map<string, Set<() => void>>, placements: Map<string, Map<string, number>>): (entry: LiveWorkspace, placeId: string, served: Served, folder: string) => BoxPanels {
   /** Each link's watching panes and what each asked its process watch to read. */
   const procAsks = new WeakMap<object, Map<object, readonly string[] | null>>();
-  /** The watch each thread's cgroup is in, per folder, kept while the thread is: the watch names are the folder's on
-   * every pane, and one that moved would close its servers in one watch and open them in another, so a thread that
-   * starts takes room where there is some. */
-  const placements = new Map<string, Map<string, number>>();
+  ctx.bus.on("workspace.deleted", e => {
+    if (e.type === "workspace.deleted") placements.delete(e.workspaceId);
+  });
 
   /** The cgroups of the folder's threads, newest first. */
   const cgroupsOf = (workspaceId: string): string[] => {

@@ -343,10 +343,11 @@ function StepLog({ lines }: { lines: readonly string[] | undefined }) {
   );
 }
 
-/** The steps of a setup with what each row asks: Retry where a row did not land, Skip where it is an item the host can
- * set aside, the wait where a sign-in does, and Sign in on the computer where a sign-in was skipped or failed, or each
- * way of an agent that has several, its page and code drawn under the row as the computer's own Sign-ins draw them. A
- * step that ran opens on a click to its last lines of output, and one that failed stands open until it is closed. */
+/** The steps of a setup with what each row asks, each act running its own row again and no other: Retry where a row
+ * did not land, Skip where it is an item the host can set aside, the wait where a sign-in does, and Sign in on the
+ * computer where a sign-in was skipped or failed, or each way of an agent that has several, its page and code drawn
+ * under the row as the computer's own Sign-ins draw them. A step that ran opens on a click to its last lines of
+ * output, and one that failed stands open until it is closed. */
 export function SetupList({ place, id = "setup", rows = setupRows(place, placeName(place)) }: { place: PlaceView; id?: string; rows?: readonly StepLine[] }) {
   const api = useStore(s => s.api);
   const box = placeName(place);
@@ -366,10 +367,10 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
       setRefused(failure);
     });
   };
-  const retry = (): void => ask(() => retrySetup(api, place.id));
+  const retry = (row: string) => (): void => ask(() => retrySetup(api, place.id, row));
   // The yes lives on the picks a computer follows: a recipe's page gives it for every computer that follows one.
   const ownPicks = place.recipe === undefined || place.recipe === NO_RECIPE;
-  const copyKeys = (): void => ask(() => copyKeysOn(api, place));
+  const copyKeys = (row: string) => (): void => ask(() => copyKeysOn(api, place, row));
   const skip = (row: string) => (): void => ask(() => skipRow(api, place.id, row));
   const ctx: RowsContext = { where: "box", computer: box, heldWhy: null, ...(signIns === undefined ? {} : { acts: signIns }) };
   // A token is made on the computer the host runs on, so its sign-in is that computer's.
@@ -385,7 +386,7 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
   };
   const wayAct = (row: StepLine, way: SignInWay): ReturnType<typeof signInAct> => {
     const agent = row.signIn!;
-    if (way === "key") return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, run: () => ask(() => setupWithWay(api, place, agent, "key")) } };
+    if (way === "key") return { act: { id: "key", label: signInWayLabel("key", box), icon: KeyRoundIcon, run: () => ask(() => setupWithWay(api, place, agent, "key", row.id)) } };
     const made = signInAct(row.id, wayStart(agent, way), way === "token" ? hereCtx : ctx);
     return made.act.id === "sign-in" ? { ...made, act: { ...made.act, label: signInWayLabel(way, box) } } : made;
   };
@@ -416,12 +417,12 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
     }
     const signIn = signInOf(row);
     const signInButton = signIn === undefined ? null : <ActButton act={actOf(row, signIn)} k="sign-in" />;
-    if (row.state === "skipped" && row.copyKeys === true && ownPicks) return <CopyKeysAct onCopy={copyKeys} busy={busy} />;
+    if (row.state === "skipped" && row.copyKeys === true && ownPicks) return <CopyKeysAct onCopy={copyKeys(row.id)} busy={busy} />;
     if (row.state === "skipped") return signInButton ?? undefined;
     if (row.state !== "failed" || row.wait !== undefined) return undefined;
     return (
       <>
-        {signInButton ?? <RetryActs onRetry={retry} busy={busy} />}
+        {signInButton ?? <RetryActs onRetry={retry(row.id)} busy={busy} />}
         {row.sub === true ? <SkipAct word={ADD_COMPUTER_WORDS.skip} onSkip={skip(row.id)} busy={busy} /> : null}
       </>
     );
@@ -437,7 +438,7 @@ export function SetupList({ place, id = "setup", rows = setupRows(place, placeNa
       <Grid id={id}>
         {rows.map(row => (
           <StepRow key={row.id} row={row} acts={acts(row)} toggle={toggle(row)}>
-            {row.wait !== undefined ? <WaitBlock row={row} onRetry={retry} onSkip={skip(row.id)} busy={busy} /> : (flowOf(row) ?? (isOpen(row) && logs !== null ? <StepLog lines={logs[row.id as PlaceSetupStep]} /> : undefined))}
+            {row.wait !== undefined ? <WaitBlock row={row} onRetry={retry(row.id)} onSkip={skip(row.id)} busy={busy} /> : (flowOf(row) ?? (isOpen(row) && logs !== null ? <StepLog lines={logs[row.id as PlaceSetupStep]} /> : undefined))}
           </StepRow>
         ))}
       </Grid>
