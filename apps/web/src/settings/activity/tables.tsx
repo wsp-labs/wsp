@@ -6,7 +6,7 @@
 import { memo, useCallback, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { ActivityIcon, AppWindowIcon, ArrowDownIcon, BotIcon, ChevronRightIcon, CircleDashedIcon, CogIcon, ContainerIcon, EllipsisIcon, EthernetPortIcon, FlaskConicalIcon, Globe2Icon, GaugeIcon, HammerIcon, PanelsTopLeftIcon, ServerIcon, TerminalSquareIcon, type LucideIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
-import { fmtBytes, fmtDuration, fmtTokens, fmtUptime } from "@wsp/protocol";
+import { ACTIVITY_KIND_WORDS, fmtBytes, fmtDuration, fmtTokens, fmtUptime, UNTAGGED_KINDS } from "@wsp/protocol";
 import { HarnessMark } from "../../components/chat/HarnessMark.js";
 import { useSubagentModel } from "../../components/threads/SubagentCard.js";
 import { LINE_SLOT_CLASS, ThreadStatus } from "../../components/status/ThreadStatus.js";
@@ -31,7 +31,6 @@ import {
   flat,
   groupSpent,
   groupsUnder,
-  KIND_WORDS,
   nestGroups,
   memoryTint,
   portsWord,
@@ -99,9 +98,6 @@ const MENU = "flex justify-end opacity-0 transition-opacity duration-150 group-h
 const MENU_BUTTON = "-mx-1 flex size-5 items-center justify-center rounded text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 /** The one act a row shows beside its menu: a port's Open. */
 const PORT_ACTS: readonly string[] = ["open-port"];
-
-/** Kinds whose word says nothing beside the name or the group: an agent is named, wsp's parts stand under wsp. */
-export const UNTAGGED: ReadonlySet<ProcKind> = new Set(["agent", "other", "wsp", "app"]);
 
 /** What a row's acts reach; the page holds the dialogs, the signals and where a browser tab opens. */
 export interface Acts extends ProcVerbs, GroupVerbs, ContainerVerbs {
@@ -211,7 +207,7 @@ const ProcRow = memo(ProcRowView, (a, b) => procSig(a.p) === procSig(b.p) && a.d
 function ProcRowView({ p, depth, group, acts, look }: ProcRowProps) {
   const ending = acts.ending.has(p.pid);
   const heading = p.heading === true;
-  const tag = ending ? W.ending : (p.note ?? (UNTAGGED.has(p.kind) || heading ? undefined : KIND_WORDS[p.kind]));
+  const tag = ending ? W.ending : (p.note ?? (UNTAGGED_KINDS.has(p.kind) || heading ? undefined : ACTIVITY_KIND_WORDS[p.kind]));
   const target = targetOf(p, group, acts);
   return (
     <div
@@ -549,7 +545,7 @@ function FlatRowView({ row, acts, look, sub = false }: { row: PlacedProc; acts: 
         <span className="flex min-w-0 flex-col">
           <span className="flex min-w-0 items-baseline gap-2">
             <span className={cn("min-w-0 truncate text-sm leading-5", outside ? "text-muted-foreground" : "text-foreground/80")}>{p.name}</span>
-            {outside || sub || (UNTAGGED.has(p.kind) && p.note === undefined) ? null : <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground max-sm:hidden">{ending ? W.ending : (p.note ?? KIND_WORDS[p.kind])}</span>}
+            {outside || sub || (UNTAGGED_KINDS.has(p.kind) && p.note === undefined) ? null : <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground max-sm:hidden">{ending ? W.ending : (p.note ?? ACTIVITY_KIND_WORDS[p.kind])}</span>}
             {p.ports.length === 0 ? null : <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{portsWord(p.ports)}</span>}
           </span>
           {outside ? null : <span className="truncate text-xs leading-4 text-muted-foreground">{whereOf(group)}</span>}

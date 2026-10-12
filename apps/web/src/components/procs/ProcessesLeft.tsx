@@ -7,14 +7,14 @@
 // another thread in the same folder; on a box, what stands in the thread's
 // cgroup there, which Stop ends whole.
 import { useState, type CSSProperties } from "react";
-import { fmtBytes, type ActivityProc, type LeftThread, type ProcessesChoice } from "@wsp/protocol";
+import { ACTIVITY_KIND_WORDS, fmtBytes, procName, UNTAGGED_KINDS, type ActivityProc, type LeftThread, type ProcessesChoice } from "@wsp/protocol";
 import { errorText, cn } from "../../lib/utils.js";
 import { ACTIVITY_WORDS as W, VALUE } from "../../settings/format.js";
 import { CARD_INSET } from "../../settings/layout.js";
 import { CARD_SURFACE } from "../../settings/rows.js";
 import { RefusalSlot } from "../../settings/sheetParts.js";
-import { KIND_GLYPHS, TINT_INK, UNTAGGED } from "../../settings/activity/tables.js";
-import { KIND_WORDS, memoryTint, portsWord, procName } from "../../settings/activity/model.js";
+import { KIND_GLYPHS, TINT_INK } from "../../settings/activity/tables.js";
+import { memoryTint, portsWord } from "../../settings/activity/model.js";
 import { AlertDialog, AlertDialogClose, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../ui/button.js";
 import { useSettleAsk, type SettleAsk } from "./leftAsk.js";
@@ -33,7 +33,7 @@ function LeftRow({ p, depth }: { p: ActivityProc; depth: number }) {
       <Glyph aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className="flex min-w-0 flex-1 items-baseline gap-2">
         <span className="min-w-0 truncate text-sm leading-5 text-foreground/80">{procName({ comm: p.name, cmdline: p.command })}</span>
-        {UNTAGGED.has(p.kind) ? null : <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground">{KIND_WORDS[p.kind]}</span>}
+        {UNTAGGED_KINDS.has(p.kind) ? null : <span className="min-w-0 shrink-[3] truncate text-xs text-muted-foreground">{ACTIVITY_KIND_WORDS[p.kind]}</span>}
         {p.ports.length === 0 ? null : <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{portsWord(p.ports.map(port => ({ port, loopback: null })))}</span>}
       </span>
       <span data-col="mem" className={cn(VALUE, "shrink-0", tint === null ? undefined : TINT_INK[tint])}>
