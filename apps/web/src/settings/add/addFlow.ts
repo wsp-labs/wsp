@@ -6,13 +6,15 @@
 // Set up hands them to the host. Which step a pending add was left at is this
 // window's own, kept beside its id.
 import { create } from "zustand";
-import { PLACE_HOST_KEY_KIND, PLACE_SUDO_KIND, type PendingComputer, type RecipeSignIn, type PlaceAddJob, type PlaceEstimate, type PlaceSetup, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions } from "@wsp/protocol";
-import { noticeFailure } from "../../notices/store.js";
+import { PLACE_HOST_KEY_KIND, PLACE_SUDO_KIND, SETUP_WORDS, placeName, placeWord, setupNeedsYouLine, waitLine, type PendingComputer, type RecipeSignIn, type PlaceAddJob, type PlaceEstimate, type PlaceSetup, type PlaceView, type ProjectIcon, type RecipeFile, type RecipeOptions } from "@wsp/protocol";
+import { addNotice, noticeFailure } from "../../notices/store.js";
 import type { Api } from "../../protocol/client.js";
 import { useStore } from "../../protocol/store.js";
 import { failureOf, type Failure } from "../../protocol/failure.js";
 import { addOverSsh, useAdds } from "../adds.js";
 import { ADD_COMPUTER_WORDS } from "../format.js";
+import { useSettingsStore } from "../settingsStore.js";
+import { leftRows, setupRows } from "./setup.js";
 
 /** The steps a person walks, in the order they run. Start from stands only where a recipe is saved. */
 export const ADD_STEPS = ["where", "checks", "startfrom", "agents", "mcp", "clis", "skills", "plugins", "github", "projects", "other", "summary"] as const;
@@ -166,14 +168,45 @@ export function openSetup(placeId: string): void {
   useAddFlow.setState({ ...fresh(), open: true, placeId, step: "running" });
 }
 
-/** The setups whose close was already said to keep going, by the run's id: said once a setup, not on every close. */
-const toldGoing = new Set<string>();
+/** What was said of each setup, by the run's id and the line: each line once a run, whichever road says it first. */
+const told = new Set<string>();
 
-/** Whether a close of a running setup says it keeps going: the first close of that run alone. */
-export function firstCloseOf(addId: string): boolean {
-  if (toldGoing.has(addId)) return false;
-  toldGoing.add(addId);
+const firstTold = (addId: string, line: "going" | "end"): boolean => {
+  const key = `${line}:${addId}`;
+  if (told.has(key)) return false;
+  told.add(key);
   return true;
+};
+
+/** A setup's dialog closed, said where the person lands: one still running or waiting on a sign-in goes on, and says
+ * so with what waits; one that ended says how it ended. A failed one says nothing more than its row. */
+export function sayClosed(place: PlaceView): void {
+  const setup = place.setup;
+  if (setup === undefined || setup.state === "failed") return;
+  // The host ends a setup's steps with a sign-in still waiting on the person: that setup is not over.
+  const wait = setup.waiting[0];
+  if (setup.state !== "running" && wait === undefined) return sayEnded(place);
+  if (!firstTold(setup.addId, "going")) return;
+  const name = placeName(place);
+  const placeId = place.id;
+  addNotice({ kind: "note", text: ADD_COMPUTER_WORDS.beingSetUp(name), detail: wait === undefined ? ADD_COMPUTER_WORDS.saysWhenReady : `${waitLine(wait)}.`, where: name, action: { word: "Open", run: () => openSetup(placeId) } });
+}
+
+/** A setup that ended, said once a run in the words the notification outside the app says it in: Needs you where a
+ * folder or the GitHub sign-in did not land, else ready, with what it left and the computer's page to finish it on,
+ * or the dialog's ready steps where it left nothing. */
+export function sayEnded(place: PlaceView): void {
+  if (place.setup === undefined || !firstTold(place.setup.addId, "end")) return;
+  const name = placeName(place);
+  const placeId = place.id;
+  const state = placeWord(place, null);
+  if (state.word === SETUP_WORDS.needsYou) return void addNotice({ kind: "note", text: setupNeedsYouLine(name, state.sentence ?? ""), where: name, action: { word: "Open", run: () => openSetup(placeId) } });
+  const left = leftRows(setupRows(place, name));
+  const open = (): void => {
+    useSettingsStore.getState().go({ kind: "computer", id: placeId });
+    useStore.getState().openSettings();
+  };
+  addNotice({ kind: "done", text: ADD_COMPUTER_WORDS.ready(name), where: name, ...(left.length === 0 ? { action: { word: "Open", run: () => openSetup(placeId) } } : { detail: ADD_COMPUTER_WORDS.left(left, name), action: { word: "Open", run: open } }) });
 }
 
 /** Closes the dialog: picks not yet kept are kept now, and the next open starts from what it opens on. */

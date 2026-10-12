@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The words the settings page and its palette row say, one place, keyed by the
 // preference value where a value has words of its own.
-import { COPY_KEYS_WORD, fmtPx, keysKeptLine, listWords, offlineFor, type MidTurn, type NewThreadIn, type NotifyChoice, type OnQuit, type PlaceDialRoad, type PlaceProvisionRow, type ProductUsageOff, type SendKey, type ServerSignIn, type SettleAfter, type TerminalSizeSource, type ThemePreference } from "@wsp/protocol";
+import { COPY_KEYS_WORD, fmtPx, keysKeptLine, listWords, nameList, offlineFor, type MidTurn, type NewThreadIn, type NotifyChoice, type OnQuit, type PlaceDialRoad, type PlaceProvisionRow, type ProductUsageOff, type SendKey, type ServerSignIn, type SettleAfter, type TerminalSizeSource, type ThemePreference } from "@wsp/protocol";
 
 /** The muted sans with tabular figures a state word or a description of machine words wears, and the foreground one
  * a value a person reads wears: an address, a size, a path, a time, a version. Two class strings the page, the sheet
@@ -152,6 +152,9 @@ export const SETUP_CARD_WORDS = {
   failed: (names: string): string => `${names} failed`,
 } as const;
 
+/** How many of the rows a setup left the ready line names before it counts the rest. */
+const LEFT_NAMED = 3;
+
 /** What Add a computer says beyond PLACES_WORDS.sheet and the roads' own names. */
 export const ADD_COMPUTER_WORDS = {
   title: "Add a computer",
@@ -159,7 +162,14 @@ export const ADD_COMPUTER_WORDS = {
   where: "A Linux box you have root on.",
   saved: "Saved, you can finish later",
   restDone: "Everything else is done.",
-  keepsGoing: "Setup keeps going. wsp pings you when it needs you.",
+  /** A setup closed while it runs or a sign-in waits, said where the person lands. */
+  beingSetUp: (box: string): string => `${box} is being set up; you can close this`,
+  saysWhenReady: "wsp says when it is ready.",
+  /** A setup that ended, said once, and what it left with where to finish it: the rows that missed, the first few by
+   * name. */
+  ready: (box: string): string => `${box} is ready: threads you start on it run there`,
+  left: (left: readonly string[], box: string): string =>
+    `${nameList(left.slice(0, LEFT_NAMED))}${left.length > LEFT_NAMED ? ` and ${left.length - LEFT_NAMED} more` : ""}. Finish ${left.length === 1 ? "it" : "them"} from ${box}'s page in Settings.`,
   /** The act a sign-in that was skipped or failed offers: its own sign-in, run on the computer. */
   signInOn: (box: string): string => `Sign in on ${box}`,
   signInLater: "You can sign in later in Settings.",
