@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AT_ITS_TERMINAL, CODE_FROM_ROW, DAEMON_VERSION, waitsForInstallLine, placeCurrentLine, placeProvisioningLine, type PlaceProvisionRow, type PlaceSetup, PlaceReport, placeDaemonPaths, placeNoChipLine, placeOwnedPaths, placeUpdateLine, shellQuote, type PlaceView, type SignInLine } from "@wsp/protocol";
+import { AT_ITS_TERMINAL, CODE_FROM_ROW, DAEMON_VERSION, noKeyLine, waitsForInstallLine, placeCurrentLine, placeProvisioningLine, type PlaceProvisionRow, type PlaceSetup, PlaceReport, placeDaemonPaths, placeNoChipLine, placeOwnedPaths, placeUpdateLine, shellQuote, type PlaceView, type SignInLine } from "@wsp/protocol";
 import { type PlaceUpdateRequest } from "@wsp/runtime";
 import { type SshRiding } from "@wsp/engine";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noPlaceSystemLine } from "../src/daemon-binary.js";
@@ -115,6 +115,8 @@ describe("wsp add <place> --sign-in <agent>", () => {
     expect(signInRowCommand("spoo", { id: "signins/opencode", label: "OpenCode", note: AT_ITS_TERMINAL })).toBe("wsp add spoo --sign-in opencode");
     // Claude Code has no login to run there: its token goes in this host's vault, which every turn there reads.
     expect(signInRowCommand("spoo", { id: "signins/claude", label: "Claude Code" })).toBe("wsp agents key claude");
+    // Picked to take the key and the vault holds none: the API key is what it wants, and the token's paste refuses one.
+    expect(signInRowCommand("spoo", { id: "signins/claude", label: "Claude Code", note: noKeyLine("ANTHROPIC_API_KEY", "zingzy's MacBook Pro") })).toBe("wsp agents key claude --api-key");
     // Picked to sign in on that computer, its row was set aside for that sign-in, which the vault's token would bill over.
     expect(signInRowCommand("spoo", { id: "signins/claude", label: "Claude Code", note: CODE_FROM_ROW })).toBe("wsp add spoo --sign-in claude");
     expect(signInRowCommand("spoo", { id: "tools/brew/jq", label: "jq" })).toBeUndefined();

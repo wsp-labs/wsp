@@ -439,7 +439,7 @@ describe("the agents on a computer you own", () => {
         await run.stop;
         ended += 1;
       },
-      key: async (agent, key) => void keys.push(`${agent} ${key}`),
+      key: async (agent, key, way) => void keys.push(`${agent} ${key}${way === undefined ? "" : ` as the ${way}`}`),
       addTools: async () => ({ file: "~/.codex/config.toml" }),
     };
     const { hostKey } = await serving({ agentsReader: reading([], []), agentsActs: acts, vault: {} });
@@ -487,7 +487,8 @@ describe("the agents on a computer you own", () => {
     }
     expect(await ticketed.request("agents.key", { agent: "claude", key: "sk-ant-oat01-x" })).toMatchObject({ ok: false, error: AGENTS_KEY_REFUSAL });
     expect((await c.request("agents.key", { agent: "claude", key: "sk-ant-oat01-x" })).ok).toBe(true);
-    expect(keys).toEqual(["claude sk-ant-oat01-x"]);
+    expect((await c.request("agents.key", { agent: "claude", key: "sk-ant-api03-x", way: "key" })).ok).toBe(true);
+    expect(keys).toEqual(["claude sk-ant-oat01-x", "claude sk-ant-api03-x as the key"]);
     // The change goes on the one stream every socket follows; the page and the code went to the asker alone.
     await until(() => other.events.some(e => e.type === "agents.changed"));
     expect(other.events.some(e => e.type === "agents.signIn")).toBe(false);
@@ -513,7 +514,7 @@ describe("the agents on a computer you own", () => {
     sockets.push(browser.ws);
     expect(await browser.request("agents.signInLine", { target: { placeId }, agent: "codex" })).toMatchObject({ ok: false, error: SIGN_IN_LINE_REFUSAL });
     expect(await browser.request("agents.key", { agent: "claude", key: "sk-ant-oat01-z" })).toMatchObject({ ok: false, error: AGENTS_KEY_REFUSAL });
-    expect(keys).toEqual(["claude sk-ant-oat01-x"]);
+    expect(keys).toEqual(["claude sk-ant-oat01-x", "claude sk-ant-api03-x as the key"]);
     expect((await c.request("agents.signInLine", { target: { placeId }, agent: "codex" }))["line"]).toEqual({ command: "codex login --device-auth" });
     // A window that goes leaves what it alone followed running, and another window joins it where it stands.
     const left = await c.request("agents.signIn", { target: { placeId }, agent: "codex" });

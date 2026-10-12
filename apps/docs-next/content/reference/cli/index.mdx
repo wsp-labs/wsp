@@ -54,7 +54,7 @@ wsp --version
 | [`wsp agents`](/reference/cli/agents) | the coding agents on this computer, a box you added or where a thread runs: each one's version and the newest out, whether it is signed in there, and whether it carries the wsp tools |
 | [`wsp agents addtools`](/reference/cli/agents-addtools) | writes the wsp server into an agent's own config on this computer, the entry wsp mcp install writes, with the wsp skill beside it |
 | [`wsp agents default`](/reference/cli/agents-default) | the agent a new thread runs when neither the line nor its project names one; the catalog's first without it |
-| [`wsp agents key`](/reference/cli/agents-key) | puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints |
+| [`wsp agents key`](/reference/cli/agents-key) | puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints, and --api-key takes its API key instead |
 | [`wsp agents set`](/reference/cli/agents-set) | an agent's defaults on every computer: the model, effort and access a new thread on it starts on, and which models its picker lists |
 | [`wsp agents setup`](/reference/cli/agents-setup) | how an agent runs on one computer: on or off there, the program run in its place, its config folder, words added to every launch and variables every launch carries, each value typed where nothing echoes it |
 | [`wsp agents signin`](/reference/cli/agents-signin) | signs an agent in on this computer or where a thread runs, its own sign-in run there and shown in this terminal; a box you added takes wsp add \<computer> --sign-in \<agent> |
@@ -275,10 +275,10 @@ up and down for the host, recipe and image for what a machine starts from.
       signs an agent in on this computer or where a thread runs, its own sign-in
       run there and shown in this terminal; a box you added takes wsp add
       <computer> --sign-in <agent>
-  wsp agents key <agent>
+  wsp agents key <agent> [--api-key]
       puts an agent's token or API key into this host's vault, typed where
       nothing echoes it; Claude Code's token is the one claude setup-token
-      prints
+      prints, and --api-key takes its API key instead
   wsp agents addtools <agent>
       writes the wsp server into an agent's own config on this computer, the
       entry wsp mcp install writes, with the wsp skill beside it
