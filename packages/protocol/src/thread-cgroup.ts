@@ -6,10 +6,19 @@
 // process the turn starts, a server it detached included, stands there too.
 import { CGROUP_MOUNT, THREAD_CGROUPS as THREADS } from "./daemon-contract.js";
 import { shellQuote } from "./shell-quote.js";
+import type { CgroupMemory } from "./wire/daemon.js";
 
 /** The cgroup a thread's processes stand in, as /proc/[pid]/cgroup names it and a process row carries it. */
 export function threadCgroup(threadId: string): string {
   return `${THREADS}/${threadId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+}
+
+/** A box thread's memory: its cgroup's anon and kernel bytes as the daemon read them, which count what its processes
+ * hold once however many share it and leave out the page cache they read, where its rows' resident figures would count
+ * each shared library again in every process. Undefined where the daemon read none (a daemon a version behind, a cgroup
+ * made before its folder turned the memory controller on), and the rows' own figures stand. */
+export function cgroupMemory(cgroups: readonly CgroupMemory[] | undefined, cgroup: string | undefined): number | undefined {
+  return cgroup === undefined ? undefined : cgroups?.find(c => c.cgroup === cgroup)?.memory;
 }
 
 /** Whether a process row's cgroup is this one or one under it. */

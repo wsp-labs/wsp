@@ -16,7 +16,8 @@ use std::time::Duration;
 use tokio::task::AbortHandle;
 use tokio::time::MissedTickBehavior;
 use wsp_frames::{
-    numbers, words, DaemonErrorCode, DaemonEvent, ProcContainer, ProcCost, ProcEntry, ProcInspectReply, ProcListReply, ProcScope,
+    numbers, words, CgroupMemory, DaemonErrorCode, DaemonEvent, ProcContainer, ProcCost, ProcEntry, ProcInspectReply, ProcListReply,
+    ProcScope,
 };
 
 use crate::containers::ContainerReader;
@@ -43,7 +44,6 @@ pub(crate) struct ProcStat {
     pub(crate) threads: u32,
     /// Ticks after boot.
     pub(crate) starttime: u64,
-    pub(crate) rss_pages: u64,
 }
 
 /// The comm sits in parens and may hold anything, so the split runs from the last one.
@@ -63,7 +63,6 @@ pub(crate) fn parse_proc_pid_stat(text: &str) -> Result<ProcStat, String> {
         ticks: n(11)? + n(12)?,
         threads: u32::try_from(n(17)?).map_err(|_| malformed())?,
         starttime: n(19)?,
-        rss_pages: n(21)?,
     })
 }
 
@@ -160,6 +159,8 @@ pub(crate) struct ProcScan {
     /// The cpu milliseconds the processes the scan ran and reaped spent, `ps` on the road that runs it, which the
     /// thread's own clock leaves out.
     pub(crate) child_ms: f64,
+    /// Every thread cgroup's memory, where the computer puts its threads in cgroups.
+    pub(crate) cgroups: Option<Vec<CgroupMemory>>,
 }
 
 pub(crate) struct ProcScanInput {
@@ -174,6 +175,8 @@ pub(crate) struct ProcScanInput {
     pub(crate) only: Option<Vec<String>>,
     /// The daemon's own pid, which a scan narrowed to cgroups keeps.
     pub(crate) daemon: u32,
+    /// The threads the host named, whose own processes a read past its cap keeps ahead of the rest.
+    pub(crate) scopes: Arc<Vec<ProcScope>>,
 }
 
 /// One kind's road to the processes on its machine, and to one of them in depth, run off the runtime thread. A
@@ -263,6 +266,28 @@ impl ProcFsSource {
         pids
     }
 
+    /// Every thread cgroup's memory, `anon + kernel` off its memory.stat, which holds every cgroup under it; one whose
+    /// memory controller is off has no memory.stat and is left out. None where the computer has no thread cgroups.
+    fn thread_memory(&self) -> Option<Vec<CgroupMemory>> {
+        let under = self.cgroup_root.join(numbers::THREAD_CGROUPS.trim_start_matches('/'));
+        let mut read: Vec<CgroupMemory> = std::fs::read_dir(under)
+            .ok()?
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+            .filter_map(|e| {
+                let name = e.file_name().into_string().ok()?;
+                let mut stat = String::new();
+                std::fs::File::open(e.path().join("memory.stat")).ok()?.take(MEMORY_STAT_BYTES).read_to_string(&mut stat).ok()?;
+                Some(CgroupMemory {
+                    cgroup: format!("{}/{name}", numbers::THREAD_CGROUPS),
+                    memory: crate::containers::cgroup_memory(&stat)?,
+                })
+            })
+            .collect();
+        read.sort_unstable_by(|a, b| a.cgroup.cmp(&b.cgroup));
+        Some(read)
+    }
+
     fn prime(&self, state: &mut FsState) -> Result<(), String> {
         state.btime = Some(parse_btime(&read_named(&self.proc_root.join("stat"))?)?);
         let auxv = std::fs::read(self.proc_root.join("self/auxv")).unwrap_or_default();
@@ -274,6 +299,7 @@ impl ProcFsSource {
     fn read_one(&self, state: &mut FsState, pid: u32, elapsed_ticks: f64, pty: Option<&String>) -> Option<ProcEntry> {
         let dir = self.proc_root.join(pid.to_string());
         let st = parse_proc_pid_stat(&std::fs::read_to_string(dir.join("stat")).ok()?).ok()?;
+        let private = parse_statm_private(&std::fs::read_to_string(dir.join("statm")).ok()?)?;
         let mut cpu = 0.0;
         let same_image = state.known.get(&pid).is_some_and(|k| k.starttime == st.starttime && k.comm == st.comm);
         if let Some(k) = state.known.get(&pid) {
@@ -301,7 +327,7 @@ impl ProcFsSource {
             comm: st.comm,
             cmdline: k.cmdline.clone(),
             cpu,
-            rss: st.rss_pages * state.page_size,
+            rss: private * state.page_size,
             started_at: started_ms(state.btime.unwrap_or(0), st.starttime),
             pty: pty.cloned(),
             cgroup: read_cgroup(&dir),
@@ -313,6 +339,18 @@ impl ProcFsSource {
         })
     }
 }
+
+/// A process's private resident pages off /proc/[pid]/statm, `resident - shared`: what RssAnon counts, since shared is
+/// the file and shmem pages. Resident memory counts each shared binary and library in every process that maps it, so
+/// one idle node read 41.6 MB resident against 6.2 MB private on a box.
+pub(crate) fn parse_statm_private(text: &str) -> Option<u64> {
+    let mut fields = text.split_ascii_whitespace().skip(1).map(|f| f.parse::<u64>().ok());
+    let (resident, shared) = (fields.next()??, fields.next()??);
+    Some(resident.saturating_sub(shared))
+}
+
+/// The most of a thread cgroup's memory.stat read: the kernel writes about 1.5 KB.
+const MEMORY_STAT_BYTES: u64 = 16 << 10;
 
 /// The longest cgroup path a row carries; a deeper one is left off rather than cut, since a cut path names
 /// another cgroup.
@@ -391,7 +429,7 @@ impl ProcSource for ProcFsSource {
         }
         procs.sort_unstable_by_key(|p| p.pid);
         state.known.retain(|pid, _| seen.contains(pid));
-        Ok(ProcScan { total: pids.len() as u64, procs, child_ms: 0.0 })
+        Ok(ProcScan { total: pids.len() as u64, procs, child_ms: 0.0, cgroups: self.thread_memory() })
     }
 
     fn inspect(&self, pid: u32, procs: &[ProcEntry]) -> Result<ProcInspectReply, OpError> {
@@ -434,6 +472,7 @@ struct Inner {
     last_at: Option<i64>,
     last_procs: Vec<ProcEntry>,
     last_total: u64,
+    last_cgroups: Option<Vec<CgroupMemory>>,
     /// Whether the last tick read every process, so a list may ride it; a tick narrowed to cgroups read only theirs.
     last_whole: bool,
     /// What the last tick said, so a watch that arrives mid-stream inherits it; None until one has finished.
@@ -455,6 +494,7 @@ struct Sent {
     total: u64,
     procs: Vec<ProcEntry>,
     containers: Option<Vec<ProcContainer>>,
+    cgroups: Option<Vec<CgroupMemory>>,
 }
 
 /// The cpu time the calling thread has spent, in milliseconds; zero where the clock cannot be read.
@@ -544,6 +584,7 @@ impl ProcSampler {
                 seq: Some(sent.seq),
                 cost: None,
                 containers: sent.containers.clone(),
+                cgroups: sent.cgroups.clone(),
             };
             out.send_text(&frame_text(&snapshot));
         }
@@ -644,7 +685,7 @@ impl ProcSampler {
         let ownership = Arc::clone(&self.ownership);
         tokio::task::spawn_blocking(move || {
             let from = thread_cpu_ms();
-            let mut scan = source.scan(&ProcScanInput { at, elapsed_ms, pty, only, daemon })?;
+            let mut scan = source.scan(&ProcScanInput { at, elapsed_ms, pty, only, daemon, scopes: Arc::clone(&threads) })?;
             if stamp {
                 ownership.lock().unwrap_or_else(|e| e.into_inner()).stamp(&mut scan.procs, &threads, source.as_ref(), daemon);
             }
@@ -676,6 +717,7 @@ impl ProcSampler {
         inner.last_at = Some(at);
         inner.last_procs.clone_from(&scan.procs);
         inner.last_total = scan.total;
+        inner.last_cgroups.clone_from(&scan.cgroups);
         inner.last_whole = whole;
         if first {
             return;
@@ -696,6 +738,7 @@ impl ProcSampler {
             seq: Some(seq),
             cost: cost.clone(),
             containers: containers.clone(),
+            cgroups: scan.cgroups.clone(),
         });
         // The containers ride a changes frame whole, and only where they moved; a reader that lost the engine sends []
         // once, so the rows it held go.
@@ -715,6 +758,7 @@ impl ProcSampler {
                 base,
                 cost: cost.clone(),
                 containers: moved_containers.clone(),
+                cgroups: scan.cgroups.clone(),
             })
         });
         let owed = std::mem::take(&mut inner.owed);
@@ -724,7 +768,7 @@ impl ProcSampler {
                 _ => out.send_text(&whole),
             };
         }
-        inner.sent = Some(Sent { seq, at, total: scan.total, procs: scan.procs, containers });
+        inner.sent = Some(Sent { seq, at, total: scan.total, procs: scan.procs, containers, cgroups: scan.cgroups });
     }
 
     pub(crate) async fn inspect(&self, pid: u32) -> Result<ProcInspectReply, OpError> {
@@ -747,18 +791,21 @@ impl ProcSampler {
     pub(crate) async fn list(&self) -> Result<ProcListReply, OpError> {
         let held = {
             let inner = self.lock();
-            inner.last_at.filter(|_| inner.last_whole).map(|at| (at, inner.last_total, inner.last_procs.clone()))
+            inner
+                .last_at
+                .filter(|_| inner.last_whole)
+                .map(|at| (at, inner.last_total, inner.last_procs.clone(), inner.last_cgroups.clone()))
         };
         let daemon = self.opts.self_pid;
-        let (at, total, procs) = match held {
+        let (at, total, procs, cgroups) = match held {
             Some(held) => held,
             None => {
                 let at = (self.opts.now)();
                 let (scan, _) = self.scan(0, at, None, true).await.map_err(OpError::plain)?;
-                (at, scan.total, scan.procs)
+                (at, scan.total, scan.procs, scan.cgroups)
             }
         };
-        Ok(ProcListReply { at, daemon, total, procs })
+        Ok(ProcListReply { at, daemon, total, procs, cgroups })
     }
 
     fn start(self: &Arc<Self>, inner: &mut Inner) {

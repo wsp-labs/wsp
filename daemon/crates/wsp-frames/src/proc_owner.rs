@@ -12,6 +12,10 @@ use crate::validate::{bounded, bounded_opt};
 pub const PROC_SCOPES_MAX: usize = 256;
 pub const PROC_SCOPE_PIDS_MAX: usize = 64;
 
+/// The label a fork's engine fence puts on every container, network and volume it makes, the workspace's id its value:
+/// a container wearing it is that workspace's, and no thread's compose note places it.
+pub const WORKSPACE_LABEL: &str = "wsp.workspace";
+
 /// What a process is to the person, the way Chrome's task manager names its rows: one list the daemon and the page
 /// share. The daemon stamps only what it knows by fact, a thread's agent, a slate's
 /// run and a tool server wsp started; the page names the rest.

@@ -210,20 +210,20 @@ describe("daemon ops: ports, manifest, inbox", () => {
     a.close();
   });
 
-  it("proc.kill refuses a pid the host's list protects and takes a whole process group with TERM", async () => {
+  it("proc.kill refuses a pid the host's list protects and takes the pid and what it started with TERM", async () => {
     // A real group of this test's own, its leader and a child, since a kill signals real pids whatever /proc the watch reads.
     const group = spawn("bash", ["-c", "sleep 60 & echo $!; wait"], { detached: true, stdio: ["ignore", "pipe", "ignore"] });
     const kid = Number((await once(group.stdout!, "data"))[0].toString().trim());
     const a = await connect(daemon.port);
     try {
-      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "group", protect: [kid] })).toMatchObject({ ok: false, code: "forbidden" });
-      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "group", agents: [group.pid!] })).toMatchObject({ ok: false, code: "forbidden" });
+      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "tree", protect: [kid] })).toMatchObject({ ok: false, code: "forbidden" });
+      expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "tree", agents: [group.pid!] })).toMatchObject({ ok: false, code: "forbidden" });
       // The child is the agent here: the root's own pid and everything down to the named binary is refused.
       expect(await a.request("proc.kill", { pid: kid, signal: "TERM", agents: [group.pid!], agentBins: ["sleep"] })).toMatchObject({ ok: false, code: "forbidden" });
       expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", startedAt: 1 })).toMatchObject({ ok: false, code: "not-found" });
       // An identity no process holds: the row's id is what the pid must still be.
       expect(await a.request("proc.kill", { pid: group.pid!, signal: "TERM", identity: "1" })).toMatchObject({ ok: false, code: "not-found" });
-      const reply = await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "group" });
+      const reply = await a.request("proc.kill", { pid: group.pid!, signal: "TERM", mode: "tree" });
       expect(reply).toMatchObject({ ok: true, forced: [], left: [] });
       expect([...(reply["signalled"] as number[])].sort()).toEqual([group.pid!, kid].sort());
       await vi.waitFor(() => expect(group.signalCode).toBe("SIGTERM"), { timeout: 5_000, interval: 20 });
@@ -263,6 +263,47 @@ describe("daemon ops: ports, manifest, inbox", () => {
       a.close();
       await d.close();
       rmSync(runs, { recursive: true, force: true });
+    }
+  });
+
+  it("a fifo the login put in place of a run's pid files holds no proc.kill and no proc.list", async () => {
+    const runs = mkdtempSync(join(tmpdir(), "wsp-runs-"));
+    const id = join(runs, "0123456789ab");
+    mkdirSync(`${id}.d`);
+    for (const name of [`${id}.pid`, `${id}.agent`]) execFileSync("mkfifo", [name]);
+    const target = spawn("sleep", ["60"], { detached: true, stdio: "ignore" });
+    const d = await daemonUnderTest({ port: 0, token: TOKEN, runDir: runs });
+    const a = await connect(d.port);
+    try {
+      // A daemon that opened the fifo would wait on a writer, and every op after it with it.
+      const answered = <T,>(p: Promise<T>): Promise<T | "no answer"> => Promise.race([p, new Promise<"no answer">(r => setTimeout(() => r("no answer"), 3_000))]);
+      expect(await answered(a.request("proc.kill", { pid: target.pid!, signal: "TERM" }))).toMatchObject({ ok: true, signalled: [target.pid!] });
+      // Answered at all is what a fifo took away; what this computer's reader answers is another test's.
+      expect(await answered(a.request("proc.list"))).toHaveProperty("ok");
+    } finally {
+      try {
+        process.kill(target.pid!, "SIGKILL");
+      } catch {}
+      a.close();
+      await d.close();
+      rmSync(runs, { recursive: true, force: true });
+    }
+  });
+
+  it("a fifo the login put in place of its Docker config holds no process watch", async () => {
+    const home = mkdtempSync(join(tmpdir(), "wsp-home-"));
+    mkdirSync(join(home, ".docker"));
+    execFileSync("mkfifo", [join(home, ".docker", "config.json")]);
+    const d = await daemonUnderTest({ port: 0, token: TOKEN, kind: "place", home, procRoot });
+    const a = await connect(d.port);
+    try {
+      expect((await a.request("proc.watch")).ok).toBe(true);
+      await vi.waitFor(() => expect(a.events.some(e => e.type === "proc.snapshot")).toBe(true), { timeout: 3_000, interval: 20 });
+      expect((await a.request("proc.unwatch")).ok).toBe(true);
+    } finally {
+      a.close();
+      await d.close();
+      rmSync(home, { recursive: true, force: true });
     }
   });
 

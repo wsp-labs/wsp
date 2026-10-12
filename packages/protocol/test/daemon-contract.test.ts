@@ -117,6 +117,8 @@ import {
   FsFilesReply,
   GitSnapshotReply,
   SysHistoryReply,
+  ProcKillReply,
+  ProcListReply,
   TranscriptsListReply,
   TranscriptsReadReply,
   UsageLogsReply,
@@ -858,6 +860,30 @@ const REPLIES: Record<string, { schema: ZodTypeAny; samples: unknown[] }> = {
     samples: [
       { path: "/Users/dev/.wsp/worktrees/pr_9eb41ab3/feat-pricing" },
       { path: "/Users/dev/.wsp/worktrees/pr_9eb41ab3/loose", rescued: "refs/rescue/pr_9eb41ab3/loose/5f1c0e2b9a7d" },
+    ],
+  },
+  ProcKillReply: {
+    schema: ProcKillReply,
+    samples: [
+      { signalled: [4103, 4104], forced: [4104], left: [] },
+      // A daemon a version behind signals the pid alone and answers nothing more.
+      {},
+    ],
+  },
+  ProcListReply: {
+    schema: ProcListReply,
+    samples: [
+      {
+        at: 1_790_640_000_000,
+        daemon: 812,
+        total: 214,
+        procs: [
+          { pid: 4103, ppid: 4100, user: "dev", state: "S", comm: "node", cmdline: "node node_modules/.bin/vite --port 5199", cpu: 2.5, rss: 6_184_960, startedAt: 1_790_639_000_000, pty: "p1", cgroup: "/wsp-threads/t_lab1", energyMw: 12.5, pgid: 4103, owner: { by: "cgroup", thread: "t_lab1", workspace: "ws_lab", warm: true }, kind: "dev", id: "675177110" },
+          { pid: 4104, ppid: 1, user: "dev", state: "S", comm: "tail", cmdline: "tail -f /dev/null", cpu: 0, rss: 0, startedAt: 1_790_639_000_000, owner: { by: "folder" } },
+        ],
+        cgroups: [{ cgroup: "/wsp-threads/t_lab1", memory: 258_998_272 }],
+      },
+      { at: 1_790_640_000_000, daemon: 812, total: 1, procs: [{ pid: 1, ppid: 0, user: "root", state: "S", comm: "init", cmdline: "/sbin/init", cpu: 0, rss: 0, startedAt: 1_790_600_000_000 }] },
     ],
   },
   SysHistoryReply: {

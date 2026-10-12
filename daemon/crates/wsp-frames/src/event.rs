@@ -18,8 +18,9 @@ pub struct Usage {
     pub total: u64,
 }
 
-/// One process as /proc/[pid] shows it. cpu is its busy share of one core over the interval; rss in bytes;
-/// startedAt epoch milliseconds; pty names the daemon pty whose shell this is.
+/// One process as /proc/[pid] shows it. cpu is its busy share of one core over the interval; rss the memory it holds in
+/// bytes: its physical footprint on a Mac, its private resident memory (RssAnon) where /proc is read, ps's resident
+/// figure on this computer's Linux road; startedAt epoch milliseconds; pty names the daemon pty whose shell this is.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +64,15 @@ pub struct ProcEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub id: Option<String>,
+}
+
+/// One thread cgroup's memory on a box: its `memory.stat` anon and kernel bytes, which count what the thread's processes
+/// hold once however many of them share it, and leave out the page cache they read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CgroupMemory {
+    pub cgroup: String,
+    pub memory: u64,
 }
 
 /// How a container came to stand under its thread: its `wsp.thread` label, or a thread's compose note.
@@ -257,6 +267,11 @@ pub enum DaemonEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         containers: Option<Vec<ProcContainer>>,
+        /// Every thread cgroup's memory, on a box whose thread cgroups count it; absent elsewhere and on a daemon a
+        /// version behind.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cgroups: Option<Vec<CgroupMemory>>,
     },
     /// What moved since frame `base`: the rows new or changed, whole, and the pids gone. A client holding any other
     /// frame than `base` applies nothing and watches again for a whole snapshot.
@@ -276,6 +291,10 @@ pub enum DaemonEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         containers: Option<Vec<ProcContainer>>,
+        /// Every thread cgroup's memory, whole on every frame since it moves every tick; absent where none is read.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        cgroups: Option<Vec<CgroupMemory>>,
     },
     /// A process inside the machine opened a session; this one goes up to the watcher alone.
     #[serde(rename = "guest.opened", rename_all = "camelCase")]

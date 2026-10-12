@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use ts_rs::TS;
 
 use crate::{
-    CheckState, DaemonErrorCode, FsEntryType, HostItemKind, MachineErrorKind, MergeMethod, Mergeable, ProcEntry, PullRequestState,
-    ReactionContent, RequestId, ReviewState, TranscriptVoice, Usage,
+    CgroupMemory, CheckState, DaemonErrorCode, FsEntryType, HostItemKind, MachineErrorKind, MergeMethod, Mergeable, ProcEntry,
+    PullRequestState, ReactionContent, RequestId, ReviewState, TranscriptVoice, Usage,
 };
 
 /// The literal `true` the ok envelope carries.
@@ -214,6 +214,10 @@ pub struct ProcListReply {
     pub daemon: u32,
     pub total: u64,
     pub procs: Vec<ProcEntry>,
+    /// Every thread cgroup's memory, on a box whose thread cgroups count it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cgroups: Option<Vec<CgroupMemory>>,
 }
 
 /// cwd is null when unreadable; threads is absent where the machine's processes module cannot count them.
