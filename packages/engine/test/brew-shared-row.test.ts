@@ -10,6 +10,7 @@ import { BREW } from "@wsp/catalog";
 import { toolInstallsFor, type RecipeEntry } from "../src/golden-import.js";
 import { installTools } from "../src/golden-tools.js";
 import type { ExecResult, Machine } from "../src/machine.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 const row = (formula: string): RecipeEntry => ({ rung: "tools", id: `tools/brew/${formula}`, label: formula, paths: [], bytes: 0, default: "bring", bring: true, linux: "yes" });
@@ -31,7 +32,7 @@ function box(install: "lands" | "fails", awk = AWKS[0]!): { machine: Machine; lo
     `#!/bin/sh\ncase "$1" in\n  deps) printf '%s\\n' 'zig: llvm@21 z3 zstd' 'cargo-zigbuild: llvm@21 z3 zstd zig' 'gh:' ;;\n  list) printf '%s\\n' 'z3 4.15.3' 'zstd 1.5.7'; exit 1 ;;\n  install) ${failing} ;;\nesac\nexit 0\n`,
   );
   const real = (cmd: string): ExecResult => {
-    const r = spawnSync("bash", ["-c", cmd.replaceAll(BREW, join(dir, "brew")).replaceAll("export PATH=", `export PATH=${dir}:`)], { encoding: "utf8" });
+    const r = spawnSync("bash", ["-c", LINUX_SHELL_PRELUDE + cmd.replaceAll(BREW, join(dir, "brew")).replaceAll("export PATH=", `export PATH=${dir}:`)], { encoding: "utf8" });
     return { exitCode: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
   };
   const machine = {

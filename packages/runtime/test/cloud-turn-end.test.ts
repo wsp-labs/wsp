@@ -13,7 +13,7 @@ import { createRuntime, type Runtime } from "../src/runtime.js";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { createOn, stubBackend } from "./stub-backend.js";
-import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 import { until } from "./until.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { backgroundTasksLine, stillRunningLine } from "@wsp/protocol";

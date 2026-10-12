@@ -4,7 +4,7 @@
 // and fails a create as told, and the lead's daemon a fake that keeps every frame.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
@@ -217,7 +217,8 @@ export interface Setup {
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
 export async function leadOnThisComputer(o: Setup = {}) {
-  root = mkdtempSync(join(tmpdir(), "wsp-sub-spawn-"));
+  // The real path, as a project here records it: a Mac reaches its temporary folder through a link.
+  root = realpathSync(mkdtempSync(join(tmpdir(), "wsp-sub-spawn-")));
   const repo = join(root, "web");
   mkdirSync(repo);
   execFileSync("git", ["init", "-q", "-b", "feat/upload", repo]);

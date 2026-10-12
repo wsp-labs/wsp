@@ -2,14 +2,14 @@
 // A process kept between a thread's turns on a joined computer's road: this computer's bash stands in for that
 // computer, and an agent that answers each line of its input serves one turn after another from one process.
 import { execFile } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExecResult, Machine } from "@wsp/engine";
 import { keepRun, shellQuote, type ExecStream } from "@wsp/protocol";
 import { machineExecStream } from "../src/machine-exec.js";
-import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 
 const dirs: string[] = [];
 const pids: number[] = [];
@@ -107,7 +107,8 @@ describe("a process kept between turns on a joined computer's road", () => {
     await keeper.close(1_000, 500);
   }, 20_000);
 
-  it("ends what a turn left running beside the agent once that turn is over, and keeps the agent up", async () => {
+  // What a turn left is read off /proc, which a joined computer has and a Mac standing in for one does not.
+  it.skipIf(!existsSync("/proc/1/stat"))("ends what a turn left running beside the agent once that turn is over, and keeps the agent up", async () => {
     const { machine, runDir, root } = guest();
     const left = join(root, "left");
     const stream = machineExecStream(machine, { pollMs: 20, runDir })(agent(left), { env: {}, input: ["leave"] });

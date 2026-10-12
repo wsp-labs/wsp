@@ -1028,7 +1028,8 @@ describe("an Always for a command on the box, pinned by its daemon's hash", () =
         const first = await s.press("r");
         expect(first.ask).not.toHaveProperty("noAlways");
         await slates.approve({ threadId: box.thread, key: first.ask!.key, scope: "thread" });
-        await vi.waitFor(async () => expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ runs: 1 }), { timeout: 10_000 });
+        // A run counts at its start, so the wait is for its end: a press while it runs would read running, not held.
+        await vi.waitFor(async () => expect((await slates.get(box.thread))!.values["run"]).toMatchObject({ runs: 1, state: expect.stringMatching(/^(done|failed)$/) }), { timeout: 10_000 });
         lay(box.folder);
         expect((await s.press("r")).ask).toMatchObject({ run: "run", noAlways: true });
         expect(await s.askOf("run")).toMatchObject({ why });

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { agentWord, EXEC_CHUNK_BYTES, endRun, shellQuote, turnCutLine, type ExecStream } from "@wsp/protocol";
 import { gateLoop, writeStub } from "../../protocol/test/stub-script.js";
 import { agentPidOf, groupExists, localExecStream, treeWork, type TreeWorkReader } from "../src/local-exec.js";
-import { LINUX_SHELL_PRELUDE } from "./linux-shell.js";
+import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
 import { alive, gone, grandchild, sweepStrays } from "./strays.js";
 
 async function collect(lines: AsyncIterable<string>): Promise<string[]> {
