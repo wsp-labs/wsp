@@ -346,6 +346,7 @@ import { projectsArea } from "./projects/projects.js";
 
 import { usageArea } from "./account/usage.js";
 import { conversationsArea } from "./threads/conversations.js";
+import { waitsArea } from "./threads/waits.js";
 import { activityDoor } from "./activity.js";
 
 import { statusArea } from "./account/status.js";
@@ -469,6 +470,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
 
   Object.assign(ctx, turnsArea(ctx));
 
+  Object.assign(ctx, waitsArea(ctx));
   Object.assign(ctx, sessionsArea(ctx));
 
   Object.assign(ctx, buildersArea(ctx));

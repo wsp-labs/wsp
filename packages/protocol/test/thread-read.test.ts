@@ -129,6 +129,22 @@ describe("a thread's messages", () => {
     expect(threadMovedLine("/w/tree", "/w/proj", false)).toBe("its worktree at /w/tree is gone, so it goes on in /w/proj");
   });
 
+  it("prints how long a turn waited for this host, and the sentence the host answered with instead, where they landed", () => {
+    const said = "Codex's sign-in for cloud threads on acme's laptop ended. Sign in again in Settings, Agents.";
+    const events = [
+      { type: "session.start", ...SCOPE, turnId: "u1", prompt: "fix the upload test", at: AT },
+      { type: "thread.waited", ...SCOPE, turnId: "u1", ms: 14 * 60_000, at: AT },
+      { type: "thread.waited", ...SCOPE, turnId: "u1", ms: 0, said, at: AT },
+      { type: "session.notice", ...SCOPE, turnId: "u1", text: "a host notice", at: AT },
+    ] as SessionEvent[];
+    expect(threadMessages(events, "t1").map(m => [m.who, m.text])).toEqual([
+      ["person", "fix the upload test"],
+      ["turn", "Waited 14 min for your computer"],
+      ["turn", said],
+      ["turn", "a host notice"],
+    ]);
+  });
+
   it("reads only the named thread's events, and none of a row the runtime stamped no thread on", () => {
     const other: SessionEvent[] = [
       { type: "session.start", workspaceId: "w1", sessionId: "s2", threadId: "t2", at: AT, prompt: "someone else's task" },
