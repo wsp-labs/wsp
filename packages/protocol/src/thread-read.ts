@@ -9,6 +9,7 @@
 // to megabytes.
 import { z } from "zod";
 import { threadMovedLine } from "./projects.js";
+import { waitedLine } from "./workspace-state.js";
 import { NEWER_TURN_LINE, NO_RESULT_LINE, compactedLine, fmtClock, notifyBody, notifyReply, planStepsLine, toolActivityLine, toolDoneLine, turnChangesLine, turnEndLine } from "./format.js";
 import type { SessionEvent, SessionPermissionEvent, TurnResult } from "./index.js";
 
@@ -94,6 +95,9 @@ export function threadMessages(events: ReadonlyArray<SessionEvent>, threadId: st
       case "session.behind":
       case "session.notice":
         say("turn", event.at, event.text);
+        continue;
+      case "thread.waited":
+        say("turn", event.at, event.said ?? waitedLine(event.ms));
         continue;
       case "session.earlier":
         say(event.who === "note" ? "turn" : event.who, event.at, event.text);

@@ -916,6 +916,10 @@ export interface ConversationsArea {
   readonly conversations: Runtime["conversations"];
 }
 
+export interface WaitsArea {
+  readonly noteWaited: Runtime["sessions"]["noteWaited"];
+}
+
 export interface StatusArea {
   readonly status: StatusApi;
   readonly adoptLost: (listing: ListedMachine[], known: Set<string>, failed: ReapFailure[]) => Promise<AdoptedMachine[]>;
@@ -930,4 +934,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & WaitsArea & StatusArea & PreferencesArea;
