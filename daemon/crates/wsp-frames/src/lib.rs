@@ -26,7 +26,7 @@ mod shim;
 mod validate;
 pub mod words;
 
-pub use auth::DaemonAuthRequest;
+pub use auth::{DaemonAuthRequest, PipeDoor, PipeOpen};
 pub use checkpoint::{checkpoint_copy_part, checkpoint_id_ok, checkpoint_prefix, CHECKPOINT_REFS};
 pub use copy::{Carried, CarryModule, CopyAsk, CopyReport, CopyRoadName, FoundModule, WorktreeRemoval, WorktreeReport};
 pub use enums::{

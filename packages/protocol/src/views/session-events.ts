@@ -538,6 +538,17 @@ export const SessionNoticeEvent = z.object({
 });
 export type SessionNoticeEvent = z.infer<typeof SessionNoticeEvent>;
 
+/** How long a turn on a machine whose credentials the host keeps waited for this host, written once after the wait:
+ * a request held while the host was away, or `said`, the sentence the host answered with instead. */
+export const ThreadWaitedEvent = z.object({
+  type: z.literal("thread.waited"),
+  ...sessionScope,
+  threadId: z.string(),
+  ms: z.number().int().nonnegative(),
+  said: z.string().optional(),
+});
+export type ThreadWaitedEvent = z.infer<typeof ThreadWaitedEvent>;
+
 /** One row of a conversation the thread was opened on, which ran outside wsp before it: written once, ahead of the
  * thread's first prompt, oldest first. A tool row's text is the call's one line; the note says how many earlier
  * messages stay in the agent's own history. */
@@ -631,6 +642,7 @@ export const SessionEvent = z.discriminatedUnion("type", [
   SessionUncappedEvent,
   SessionSubagentEvent,
   SessionSlateEvent,
+  ThreadWaitedEvent,
 ]);
 export type SessionEvent = z.infer<typeof SessionEvent>;
 

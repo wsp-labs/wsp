@@ -9,5 +9,11 @@
     "op": "auth",
     "token": "t",
     "port": 8123
+  },
+  {
+    "id": 0,
+    "op": "auth",
+    "token": "t",
+    "pipe": true
   }
 ]

@@ -11,5 +11,12 @@
     "cwd": "/root/r",
     "number": 7,
     "machineId": "wsp-a"
+  },
+  {
+    "id": 9,
+    "op": "git.prCheckout",
+    "cwd": "/root/acme",
+    "number": 7,
+    "token": "wsp-op-token-1"
   }
 ]

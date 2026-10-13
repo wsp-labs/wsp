@@ -419,6 +419,9 @@
                 },
                 "place": {
                   "type": "string"
+                },
+                "noSecrets": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -981,6 +984,9 @@
                 },
                 "place": {
                   "type": "string"
+                },
+                "noSecrets": {
+                  "type": "boolean"
                 }
               },
               "required": [

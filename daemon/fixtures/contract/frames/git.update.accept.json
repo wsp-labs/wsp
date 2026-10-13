@@ -10,5 +10,11 @@
     "cwd": "/root/wsp-boat",
     "base": "main",
     "machineId": "wsp-a"
+  },
+  {
+    "id": 9,
+    "op": "git.update",
+    "cwd": "/root/acme",
+    "token": "wsp-op-token-1"
   }
 ]

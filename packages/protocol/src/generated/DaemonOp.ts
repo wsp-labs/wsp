@@ -152,6 +152,11 @@ machineId?: string, } | { "op": "git.push", cwd: string,
  */
 base?: string, 
 /**
+ * The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+ * gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+ */
+token?: string, 
+/**
  * The workspace this frame is for, as on fs.list above.
  */
 machineId?: string, } | { "op": "git.discard", cwd: string, 
@@ -171,6 +176,11 @@ paths: Array<string>,
  * The workspace this frame is for, as on fs.list above.
  */
 machineId?: string, } | { "op": "git.pr", cwd: string, base?: string, title?: string, body?: string, 
+/**
+ * The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+ * gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+ */
+token?: string, 
 /**
  * The workspace this frame is for, as on fs.list above.
  */
@@ -204,6 +214,11 @@ machineId?: string, } | { "op": "git.issueRead", cwd: string, remote: string, nu
  * The workspace this frame is for, as on fs.list above.
  */
 machineId?: string, } | { "op": "git.prCheckout", cwd: string, number: number, 
+/**
+ * The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+ * gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+ */
+token?: string, 
 /**
  * The workspace this frame is for, as on fs.list above.
  */
@@ -241,9 +256,19 @@ machineId?: string, } | { "op": "git.update", cwd: string,
  */
 base?: string, 
 /**
+ * The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+ * gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+ */
+token?: string, 
+/**
  * The workspace this frame is for, as on fs.list above.
  */
 machineId?: string, } | { "op": "git.startOn", cwd: string, branch: string, 
+/**
+ * The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+ * gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+ */
+token?: string, 
 /**
  * The workspace this frame is for, as on fs.list above.
  */
@@ -252,6 +277,11 @@ machineId?: string, } | { "op": "git.branchCompare", cwd: string, remote: string
  * A checkout's folder on this computer to fetch from in place of the remote; refused on any other daemon.
  */
 from?: string, 
+/**
+ * The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+ * gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+ */
+token?: string, 
 /**
  * The workspace this frame is for, as on fs.list above.
  */
