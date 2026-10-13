@@ -639,6 +639,8 @@ export interface FoldersArea {
  * pull request, and what a worktree made for this start ran. */
 export interface Placed {
   readonly entry: LiveWorkspace;
+  /** The thread and turn ids a start picked before its workspace was made, which it opens under. */
+  readonly as?: { threadId: string; turnId: string };
   readonly behind?: string;
   readonly setup?: string;
 }

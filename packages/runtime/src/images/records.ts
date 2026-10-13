@@ -55,6 +55,7 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
     ...(r.worktree !== undefined ? { worktree: r.worktree } : {}),
     ...(r.from !== undefined ? { from: r.from } : {}),
     ...(r.review !== undefined ? { review: r.review } : {}),
+    ...(r.branchOfRecord !== undefined ? { branchOfRecord: r.branchOfRecord } : {}),
     ...(r.claudeSessionId !== undefined ? { claudeSessionId: r.claudeSessionId } : {}),
     ...(r.screen !== undefined ? { screen: r.screen } : {}),
     ...(r.queue !== undefined ? { queue: r.queue } : {}),
