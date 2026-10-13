@@ -189,7 +189,7 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
         throw conflict(e instanceof Error ? e.message : String(e));
       }
     }
-    const recipe = await ctx.copyRecipeOrThrow()(record);
+    const recipe = await ctx.copyRecipeOrThrow()(record, { cloud: ctx.placeKindOf(place) === "provider" });
     const view = await ctx.golden.prepare({ name, place, copy: true, recipe, ...(o.signal !== undefined ? { signal: o.signal } : {}) });
     const entry = builders.get(view.id);
     if (entry === undefined) throw new Error(`the builder ${view.id} prepared at ${where} left no record here; nothing was sealed`);
