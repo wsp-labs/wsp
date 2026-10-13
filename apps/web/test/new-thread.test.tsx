@@ -486,6 +486,72 @@ describe("New thread's send", () => {
   });
 });
 
+describe("New thread on a computer whose agent is older than wsp's table", () => {
+  const MADE: WorkspaceView = { id: "ws_new", name: "say hi", machineId: "local", project: { id: SPOO.id, name: SPOO.name, path: SPOO.path, computer: "here" }, phase: "running", golden: "", createdAt: "2026-10-13T00:00:00Z" };
+  /** wsp's own table, read off a newer Claude Code, and the lists Claude Code 2.1.278 answers on the project's computer. */
+  const TABLE: HarnessCatalog = { ...CLAUDE, source: "table", version: "--help 2.1.296, 2026-10-10" };
+  const OLDER: HarnessCatalog = { ...CLAUDE, version: "2.1.278", models: [{ value: "claude-opus-5", label: "Opus 5", isDefault: true }, { value: "claude-sonnet-5", label: "Sonnet 5" }] };
+  const shownModel = () => document.querySelector<HTMLElement>("[data-k=project-home] [data-composer-picker=model]")?.dataset["value"];
+
+  async function sendFromHome(lists: Api["listHarnesses"]): Promise<StartSessionOptions[]> {
+    const starts: StartSessionOptions[] = [];
+    const api: Api = {
+      ...fakeApi([WSP, SPOO], CURRENT),
+      listHarnesses: lists,
+      createWorkspace: async () => MADE,
+      startSession: async o => {
+        starts.push(o);
+        return { id: "s1", workspaceId: o.workspaceId, harness: "claude", status: "running", prompt: o.prompt, startedAt: 0 };
+      },
+    };
+    useStore.setState({ api: null, conn: "live", workspaces: [], statuses: {}, creations: [], sessions: {}, ready: false, selectedId: null, selectedThreadId: null, projectHome: null, freshThread: false, preferences: CURRENT, projects: [], places: [], landings: {}, harnessesByWorkspace: {} });
+    useStore.getState().bind(api);
+    render(<Shell />);
+    await waitFor(() => expect(useStore.getState().ready).toBe(true));
+    act(() => useStore.setState({ projects: [WSP, SPOO], places: PLACES }));
+    act(() => useStore.getState().openProjectHome(SPOO.id));
+    await waitFor(() => expect(document.querySelector("[data-k=project-home]")).not.toBeNull());
+    return starts;
+  }
+
+  it("offers the models the agent on the project's computer runs, its own default first, never the table's", async () => {
+    const asked: (string | undefined)[] = [];
+    // The new folder's own lists never answer, so what it holds is what the home handed over.
+    const starts = await sendFromHome(async (workspaceId, at) => {
+      asked.push(at?.project);
+      if (workspaceId === MADE.id) return new Promise<HarnessCatalog[]>(() => {});
+      return workspaceId === undefined && at?.project === SPOO.id ? [OLDER] : [TABLE];
+    });
+    await waitFor(() => expect(shownModel()).toBe("claude-opus-5"));
+    expect(asked).toContain(SPOO.id);
+    await typeInto(composerEditor(), "say hi");
+    await press(composerEditor(), "Enter");
+    await waitFor(() => expect(starts).toHaveLength(1));
+    expect(starts[0]!.model).toBeUndefined();
+    expect(useStore.getState().harnessesByWorkspace[MADE.id]?.[0]).toMatchObject({ source: "harness", version: "2.1.278" });
+  });
+
+  it("names a default set in Settings that the computer cannot run, in one line under the box, with the model that runs", async () => {
+    const OPUS_55: Preferences = { ...CURRENT, agentDefaults: { claude: { model: "claude-opus-5-5" } } };
+    const line = () => document.querySelector("[data-k=project-home] [data-k=default-not-run]")?.textContent;
+    await sendFromHome(async (workspaceId, at) => (workspaceId === undefined && at?.project === SPOO.id ? [OLDER] : [TABLE]));
+    act(() => useStore.setState({ preferences: OPUS_55 }));
+    await waitFor(() => expect(shownModel()).toBe("claude-opus-5"));
+    expect(line()).toBe("Opus 5.5 needs a newer Claude Code here; running Opus 5");
+    act(() => useStore.setState({ preferences: CURRENT }));
+    expect(line()).toBeUndefined();
+  });
+
+  it("sends the model it shows while that computer has not answered, so the host refuses it rather than running another", async () => {
+    const starts = await sendFromHome(async (workspaceId, at) => (workspaceId === undefined && at !== undefined ? new Promise<HarnessCatalog[]>(() => {}) : [TABLE]));
+    await waitFor(() => expect(shownModel()).toBe("claude-opus-5-5"));
+    await typeInto(composerEditor(), "say hi");
+    await press(composerEditor(), "Enter");
+    await waitFor(() => expect(starts).toHaveLength(1));
+    expect(starts[0]!.model).toBe("claude-opus-5-5");
+  });
+});
+
 describe("one road to New thread from every screen", () => {
   const LINUX = "Linux x86_64";
   const SPOO_RUN: WorkspaceView = { id: "ws_spoo", name: "py_spoo_url", machineId: "local", project: { id: SPOO.id, name: SPOO.name, path: SPOO.path, computer: "here" }, phase: "running", golden: "", createdAt: "2026-10-01T00:00:00Z" };

@@ -1490,7 +1490,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               return;
             }
             case "harnesses.list":
-              send({ id: msg.id, ok: true, harnesses: await rt.harnesses.list(msg.workspaceId, origin) });
+              send({ id: msg.id, ok: true, harnesses: await rt.harnesses.list(msg.workspaceId, origin, { ...(msg.project !== undefined ? { project: msg.project } : {}), ...(msg.computer !== undefined ? { computer: msg.computer } : {}) }) });
               return;
             case "sessions.list":
               send({ id: msg.id, ok: true, sessions: await rt.sessions.list(msg.workspaceId, origin) });

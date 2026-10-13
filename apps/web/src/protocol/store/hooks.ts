@@ -89,6 +89,16 @@ export function useGoldenFrames(): Record<string, GoldenStageEvent[]> { return u
 export function useHarnessCatalogs(workspaceId: string | null): HarnessCatalog[] {
   return useStore(s => catalogsIn(s, workspaceId));
 }
+/** The lists kept under a key the host is asked for while it is drawn, a project's home or a computer: the table's
+ * until the computer there answers. */
+export function useAskedCatalogs(key: string): HarnessCatalog[] {
+  const conn = useStore(s => s.conn);
+  const load = useStore(s => s.loadHarnesses);
+  useEffect(() => {
+    if (conn === "live") void load(key);
+  }, [conn, key, load]);
+  return useHarnessCatalogs(key);
+}
 export function useHarnessCatalog(harness: string | null, workspaceId: string | null = null): HarnessCatalog | null {
   return useStore(s => (harness === null ? null : catalogIn(s, workspaceId, harness)));
 }

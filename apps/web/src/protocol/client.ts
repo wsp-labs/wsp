@@ -770,9 +770,10 @@ export interface Api {
   undoRewind?(threadId: string): Promise<SessionRewindResult>;
   /** What each harness's CLI takes at launch; the composer's pickers render from it, and every start rides the model,
    * effort, context window and access resolved out of it. With a workspace the runtime asks the binaries on its
-   * machine, else its table answers. Optional so fixtures without pickers need not fake it; without it the composer
-   * has no agent to send to and is held with that reason. */
-  listHarnesses?(workspaceId?: string): Promise<HarnessCatalog[]>;
+   * machine, with a project those on the computer its new thread runs on, with a computer those on it, else its
+   * table answers. Optional so fixtures without pickers need not fake it; without it the composer has no agent to
+   * send to and is held with that reason. */
+  listHarnesses?(workspaceId?: string, at?: { project?: string; computer?: string }): Promise<HarnessCatalog[]>;
   /** One level of the folders on the computer running the host, for the picker a browser tab has instead of the
    * desktop shell's dialog. `dir` absent, or a folder inside the roots that is gone, answers with the first root; a
    * path outside them is refused. Optional so fixtures that never browse need not fake it; without it the folder
@@ -1140,8 +1141,8 @@ export function makeApi(c: ProtocolClient): Api {
     // Parsed, not trusted: the block draws the step the thread holds, which a newer host may have widened.
     recordRun: async step => SessionRunEvent.parse((await c.request<{ run?: unknown }>("sessions.run", { ...step })).run),
     // Parsed, not trusted: a picker renders only values the wire type vouches for.
-    listHarnesses: async workspaceId =>
-      HarnessCatalog.array().parse((await c.request<{ harnesses?: unknown }>("harnesses.list", workspaceId !== undefined ? { workspaceId } : {})).harnesses),
+    listHarnesses: async (workspaceId, at) =>
+      HarnessCatalog.array().parse((await c.request<{ harnesses?: unknown }>("harnesses.list", { ...(workspaceId !== undefined ? { workspaceId } : {}), ...at })).harnesses),
     // Parsed, not trusted: the picker walks and names only paths the wire type vouches for.
     hostFolders: async (dir, hidden, repos) =>
       HostFolderListing.parse((await c.request<{ listing?: unknown }>("host.folders", { ...(dir !== undefined ? { dir } : {}), ...(hidden !== undefined ? { hidden } : {}), ...(repos === true ? { repos } : {}) })).listing),

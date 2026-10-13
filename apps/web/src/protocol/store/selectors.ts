@@ -41,7 +41,12 @@ function hostWide(catalogs: HarnessCatalog[]): HarnessCatalog[] {
  * reading its own read the same thing. */
 export const catalogsIn = (s: Catalogs, workspaceId: string | null): HarnessCatalog[] =>
   (workspaceId !== null ? s.harnessesByWorkspace[workspaceId] : undefined) ??
-  (workspaceId !== null && (isProjectHomeKey(workspaceId) || isCreationKey(workspaceId)) ? s.harnesses : hostWide(s.harnesses));
+  (workspaceId !== null && (isProjectHomeKey(workspaceId) || isCreationKey(workspaceId) || computerOfKey(workspaceId) !== undefined) ? s.harnesses : hostWide(s.harnesses));
+
+/** The key a computer's own agent lists are kept under, which Settings reads for the computer its page names. */
+const COMPUTER_PREFIX = "computer:";
+export const computerKey = (placeId: string): string => `${COMPUTER_PREFIX}${placeId}`;
+export const computerOfKey = (key: string): string | undefined => (key.startsWith(COMPUTER_PREFIX) ? key.slice(COMPUTER_PREFIX.length) : undefined);
 
 /** The key a project's home composer keeps its draft and picks under until its send makes a workspace. A home has
  * no machine of its own, so it reads the host-wide lists whole, access modes included, which is what the workspace
