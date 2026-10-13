@@ -2,9 +2,9 @@
 // The composer on its own: keys, the slash menu over the harness catalog, the
 // disabled reasons, and the draft that outlives a tab switch. Same fixture api
 // shape as chat.test.tsx; no live daemon.
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_PREFERENCES, HERE_PLACE_ID, HOST_ASLEEP_SEND, composerHeldLine, screenCommandLine, SEND_BLOCK_WORDS, sendRefusal, type EventUnion, type HarnessCatalog, type HostItem, type ProjectView, type SessionEvent, type SessionView, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { DEFAULT_PREFERENCES, HERE_PLACE_ID, HOST_ASLEEP_SEND, composerHeldLine, screenCommandLine, SEND_BLOCK_WORDS, sendRefusal, type EventUnion, type HarnessCatalog, type HostItem, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { installFakeLayout } from "./fake-layout.js";
 import { clickIntoEditor, composerEditor, isEditable, press, typeInto } from "./composer-harness.js";
 import { useStore } from "../src/protocol/store.js";
@@ -21,6 +21,7 @@ import { provideDaemonWire } from "../src/files/wire.js";
 import { SEND_LABEL, WAKE_AND_SEND_LABEL } from "../src/components/chat/ComposerPrimaryActions.js";
 import { COMPOSER_STATE_WORDS } from "../src/composer-state-words.js";
 import { NOT_READY_NAMES } from "../screenshots/ready.mjs";
+import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { useComposerModesStore } from "../src/components/chat/composerModesStore.js";
 import { useComposerOptionsStore } from "../src/components/chat/composerOptionsStore.js";
 import { composerKeyIn, useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
@@ -1373,10 +1374,53 @@ describe("a turn its computer's threads at once holds back", () => {
     const held: SessionView = { id: "turn_held", workspaceId: WS, harness: "claude", status: "running", threadId: "thr_held", prompt: "fix the build", capped };
     const { api, interrupted } = fixtureApi([workspace], { [WS]: [{ type: "session.capped", ...sc, at: Date.now(), ...capped }] }, [], { listSessions: async () => [held] });
     await setup(api);
-    await screen.findByText("waiting while hetzner is running 2 of 2 threads");
+    await screen.findByText("hetzner is running 2 of 2 threads");
     const stop = await screen.findByRole("button", { name: "Stop generation" });
     fireEvent.click(stop);
     await waitFor(() => expect(interrupted).toEqual(["turn_held"]));
+  });
+
+  it("says what holds it in one drawer row above the composer by the computer's own name, its bar's Raise opens the computer's settings, and the transcript says nothing of it", async () => {
+    const sc = { workspaceId: WS, sessionId: "turn_held", turnId: "turn_held", threadId: "thr_held" };
+    const here: PlaceView = { id: HERE_PLACE_ID, kind: "computer", name: "zingzys-macbook-pro.local", label: "zingzy's MacBook Pro", default: true, present: true, takesForks: false };
+    const capped = { placeId: HERE_PLACE_ID, place: here.name, running: 6, atOnce: 6 };
+    const held: SessionView = { id: "turn_held", workspaceId: WS, harness: "claude", status: "running", threadId: "thr_held", prompt: "fix the build", capped };
+    const rows: SessionView[] = [held];
+    const { api, emit } = fixtureApi([workspace], { [WS]: [{ type: "session.capped", ...sc, at: Date.now(), ...capped, prompt: "fix the build" }] }, [], {
+      listSessions: async () => rows,
+      placesList: async () => ({ places: [here], pending: [], adds: [] }),
+    });
+    useSettingsStore.getState().go({ kind: "group", group: "general" });
+    await setup(api);
+
+    const row = await waitFor(() => {
+      const drawn = document.querySelector<HTMLElement>("[data-drawer-row=capped]");
+      expect(drawn?.querySelector("[data-drawer-name]")?.textContent).toBe("Waiting for a slot");
+      expect(drawn?.querySelector("[data-drawer-line]")?.textContent).toBe("zingzy's MacBook Pro is running 6 of 6 threads");
+      return drawn!;
+    });
+    expect(document.body.textContent).not.toContain("zingzys-macbook-pro.local");
+    const transcript = () => [...document.querySelectorAll<HTMLElement>("[data-timeline-row-id]")].map(row => row.textContent).join("\n");
+    expect(transcript()).toContain("fix the build");
+    expect(document.querySelector("[data-machine-wait]")).toBeNull();
+    expect(transcript()).not.toMatch(/waiting|Working for|Thinking|threads/i);
+
+    fireEvent.click(row);
+    const bar = document.querySelector<HTMLElement>("[data-composer-bar=capped]")!;
+    expect(bar.querySelector("[data-cap-title]")!.textContent).toBe("Waiting for a thread slot on zingzy's MacBook Pro");
+    expect(bar.querySelector("[data-cap-note]")!.textContent).toBe("6 of 6 threads are running. It starts on its own when one ends.");
+    expect(document.body.textContent).not.toContain("zingzys-macbook-pro.local");
+    fireEvent.click(within(bar).getByRole("button", { name: "Raise threads at once" }));
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: HERE_PLACE_ID });
+    expect(useStore.getState().settingsOpen).toBe(true);
+    act(() => useStore.setState({ settingsOpen: false }));
+
+    rows[0] = { ...held, capped: undefined };
+    emit({ type: "session.uncapped", ...sc, at: Date.now(), why: "raised", atOnce: 7 });
+    emit({ type: "session.row", workspaceId: WS, threadId: "thr_held", id: "turn_held", row: rows[0] });
+    await waitFor(() => expect(document.querySelector("[data-drawer-row=capped]")).toBeNull());
+    expect(document.querySelector("[data-composer-bar=capped]")).toBeNull();
+    expect(transcript()).not.toMatch(/started:|waiting/i);
   });
 });
 

@@ -24,7 +24,7 @@ import { TreeCounts } from "../components/threads/TreeCounts.js";
 import { Button } from "../components/ui/button.js";
 import { useStore } from "../protocol/store.js";
 import { TRANSCRIPT_ITEM_CLASS, TRANSCRIPT_LIST_CLASS } from "../sidebar/rowGrammar.js";
-import { computerName, computerOf } from "../sidebar/workspaceRows.js";
+import { computerName, computerOf, useNamedCap } from "../sidebar/workspaceRows.js";
 
 /** A child as the transcript holds it: the thread, the computer it runs on and the threads it opened. */
 export interface ChildNode {
@@ -98,7 +98,7 @@ function Level({ nodes, depth, at, top }: { nodes: ReadonlyArray<LeadNode<ChildN
 /** One child's row with its own children under it; alone, the row without them. */
 function Item({ node, part, depth, at, alone = false }: { node: LeadNode<ChildNode>; part: ChildPart; depth: number; at: Drawing; alone?: boolean }) {
   const [sending, setSending] = useState(false);
-  const note = noteOf(node, part);
+  const note = noteOf(node, part, useNamedCap("thread" in node ? node.thread?.capped : undefined));
   const target = childTarget(node, part, at.tree);
   const kind = kindOf(node, part);
   let row: ReactNode;

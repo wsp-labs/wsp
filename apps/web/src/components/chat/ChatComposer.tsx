@@ -76,12 +76,12 @@
 import { cn, isMacPlatform } from "../../lib/utils";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type ClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { PaperclipIcon, SplitIcon } from "lucide-react";
-import { AGENT_WARM_TYPED_MS, ASIDE_NO_SESSION_LINE, forkOfLine, forkWhereLine, composerHeldLine, HERE_PLACE_ID, hereName, HOST_ASLEEP_SEND, isLocalWorkspace, signedOutLine, type AgentsTarget, FILES_MAX, FILE_MAX_WORDS, IMAGE_MAX_WORDS, IMAGE_TYPE_WORDS, TURN_IN_FLIGHT, movesRunningAccess, noImagesLine, readsImages, screenCommandLine, screenCommandTyped, screenCommandsOf, sendRefusal, steerFilesBlocked, type SendRefusalKind, type TurnLimit, type WorkspaceState } from "@wsp/protocol";
+import { AGENT_WARM_TYPED_MS, ASIDE_NO_SESSION_LINE, capRunningLine, forkOfLine, forkWhereLine, composerHeldLine, HERE_PLACE_ID, hereName, HOST_ASLEEP_SEND, isLocalWorkspace, signedOutLine, type AgentsTarget, FILES_MAX, FILE_MAX_WORDS, IMAGE_MAX_WORDS, IMAGE_TYPE_WORDS, TURN_IN_FLIGHT, movesRunningAccess, noImagesLine, readsImages, screenCommandLine, screenCommandTyped, screenCommandsOf, sendRefusal, steerFilesBlocked, type SendRefusalKind, type TurnLimit, type WorkspaceState } from "@wsp/protocol";
 import type { ConnStatus, WarmAgentOptions } from "../../protocol/client";
 import { hostAsleep } from "../../boot";
 import { startFailureSays } from "./spawnLog";
 import { projectHomeKey, useAbsentComputer, useHarnessCatalogs, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
-import { useComputerName } from "../../sidebar/workspaceRows";
+import { useComputerName, useNamedCap } from "../../sidebar/workspaceRows";
 import { useThreadFolder, useThreadStart } from "../../files/root";
 import { useDaemonWire } from "../../files/wire";
 import { DaemonOpError, fsFiles, gitPrList } from "../../terminal/daemon-fs";
@@ -128,6 +128,7 @@ import { ComposerDrawer, hasRows, type DrawerRows } from "./ComposerDrawer";
 import { firstLine, QueueBar, QUEUE_WORDS } from "./bars/QueueBar";
 import { TasksBar } from "./bars/TasksBar";
 import { limitWords, UsageBar } from "./bars/UsageBar";
+import { CapBar } from "./bars/CapBar";
 import { foldBar, useComposerBarStore, useOpenBar } from "./composerBar";
 import { ComposerSurface } from "./ComposerSurface";
 import { ACCESS_IN_BAR_PX, useAnimatedHeight, useFlip, useTallDraft, useWiderThan } from "./composerMotion";
@@ -438,6 +439,8 @@ export function ChatComposer({
   // ends before it starts, and there is nothing in it to steer.
   const lastRow = useThreadSessions(workspaceId, thread.threadKey, thread.fresh).at(-1);
   const heldRow = !thread.view.running && lastRow?.status === "running" && lastRow.capped !== undefined ? lastRow : null;
+  // A sub-thread's spawn says its cloud's wait in the strip over its composer instead.
+  const capWait = useNamedCap(heldRow?.sub === undefined ? heldRow?.capped : undefined);
   const runningTurn: Pick<TurnSummary, "turnId" | "sessionId"> | null = thread.view.running ? thread.view.latestTurn : heldRow === null ? null : { turnId: heldRow.id, sessionId: heldRow.id };
   // The runtime keys sessions.interrupt by its own session id; the events carry the harness id, which differs after a
   // resume, so the row from sessions.list maps one to the other. Without a row the events' id goes, and the runtime answers.
@@ -899,6 +902,7 @@ export function ChatComposer({
   const drawer: DrawerRows = {
     question,
     usage: limit === null ? null : { name: limitWords(limit.agent, limit.limit, limit.resumeAt).title, agent: limit.agent, resetsAt: limit.limit.resetsAt ?? null },
+    capped: capWait === undefined ? null : capRunningLine(capWait),
     tasks: tasks === null ? null : { step: tasks.step, count: `${tasks.done}/${tasks.total}` },
     queue: head === undefined ? null : { name: head.id === next ? QUEUE_WORDS.sending : QUEUE_WORDS.waiting(queue.length), line: firstLine(head.prompt), ...(waiting === undefined ? {} : { hover: waiting.line }) },
   };
@@ -909,6 +913,8 @@ export function ChatComposer({
       <QueueBar rows={queue} files={queuedFiles} waits={steerWaits} threadKey={threadKey} workspaceId={workspaceId} onEdit={editCard} onRemove={removeCard} />
     ) : openBar === "usage" && limit !== null ? (
       <UsageBar agent={limit.agent} limit={limit.limit} resumeAt={limit.resumeAt} threadKey={threadKey} workspaceId={workspaceId} />
+    ) : openBar === "capped" && capWait !== undefined ? (
+      <CapBar wait={capWait} threadKey={threadKey} workspaceId={workspaceId} />
     ) : null;
   // A bar whose thing went (the turn ended, the last message left) gives the place back, and stays shut after.
   const barGone = openBar !== null && bar === null;

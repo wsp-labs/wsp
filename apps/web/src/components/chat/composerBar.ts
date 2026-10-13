@@ -9,7 +9,7 @@ import { ownsKeys } from "../../keyOwners";
 import { requestComposerFocus } from "../../shell/shellRequests";
 
 /** A bar a drawer row opens; the question is the prompt dock, which opens itself. */
-export type ComposerBar = "usage" | "tasks" | "queue";
+export type ComposerBar = "usage" | "capped" | "tasks" | "queue";
 
 interface ComposerBarState {
   /** The bar open on each thread, by thread key. */
