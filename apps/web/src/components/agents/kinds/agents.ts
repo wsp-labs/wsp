@@ -6,7 +6,8 @@
 import { CircleArrowUpIcon, DownloadIcon, SquareTerminalIcon, Trash2Icon } from "lucide-react";
 import { catalogEntry, installShown, MCP_AGENTS, runsThreads, type AgentEntry } from "@wsp/catalog";
 import { addToolsNoConfigRefusal, compareVersions, FIRST_RUN_WORD, MCP_SERVER_NAME, VERSION_UNREAD_WORD, type AgentRow, type AgentsReport } from "@wsp/protocol";
-import { AGENTS_LIST_WORDS as W, agentSignInStart, editImageAct, heldReason, holdAll, notYet, onImage, signInAct, waitingFlow, type RowAct, type RowsContext } from "../agentsRows.js";
+import { capitalised } from "../../../settings/format.js";
+import { AGENTS_LIST_WORDS as W, agentSignInStart, brokerRow, editImageAct, heldReason, holdAll, notYet, onImage, signInAct, waitingFlow, type RowAct, type RowsContext } from "../agentsRows.js";
 import { kind, matchesAny, rowKey, type Fact, type KindModule, type Status } from "./kind.js";
 
 export interface AgentItem {
@@ -30,6 +31,13 @@ export const signInStatus = (row: Pick<AgentRow, "signIn">): Status => ({
   tone: signedIn(row) ? "good" : row.signIn === "none" ? "waiting" : "quiet",
   words: signInWord(row),
 });
+
+/** Where an agent's sign-in stands on its row: the broker's word where it speaks for the row, else the row's own. */
+const rowStatus = (row: AgentRow, ctx: RowsContext): Status => {
+  const cloud = brokerRow(row, ctx);
+  if (cloud === undefined) return signInStatus(row);
+  return cloud.held === null ? { state: "none", tone: "waiting", words: W.needsSignIn } : { state: "signed-in", tone: "good", words: cloud.held };
+};
 
 /** The newer version its vendor publishes, where one is newer than what stands there. */
 const newerThan = (row: AgentRow): string | undefined => (row.version !== undefined && row.latest !== undefined && compareVersions(row.latest, row.version) > 0 ? row.latest : undefined);
@@ -76,9 +84,10 @@ function actsOf(item: AgentItem, ctx: RowsContext) {
   const tools = row.wspTools ? [] : [addTools];
   const updates = latest === undefined ? [] : [update];
   const open = openAct(row, ctx);
+  const cloud = brokerRow(row, ctx);
   // Signed in, the next sign-in step is Sign out, which has no road yet; the agent itself is the step.
   const [step, acts]: [RowAct | undefined, RowAct[]] =
-    signedIn(row) && !running
+    (cloud === undefined ? signedIn(row) : cloud.held !== null) && !running
       ? [open, [...updates, ...tools, open, uninstall]]
       : row.signInRoad === "none" && !running
         ? [undefined, [...updates, ...tools, uninstall]]
@@ -110,6 +119,15 @@ function installFact(entry: AgentEntry | undefined): Fact[] {
   return [{ id: "install", label: W.install, ...("line" in said ? { value: said.line, line: true } : { value: said.words, muted: true }) }];
 }
 
+/** The line under an installed agent's name: its version, and where machines at a provider use it, that clause and
+ * the roads besides Sign in. */
+function versionLine(row: AgentRow, cloud: { readonly otherRoads?: string } | undefined): { subtext?: string } {
+  const version = row.version !== undefined ? `v${row.version}` : row.installsOnFirstRun === true ? FIRST_RUN_WORD : row.versionUnread === true ? VERSION_UNREAD_WORD : undefined;
+  if (cloud === undefined) return version === undefined ? {} : { subtext: version };
+  const clouds = cloud.otherRoads === undefined ? W.usedByClouds : `${W.usedByClouds}; ${cloud.otherRoads}`;
+  return { subtext: version === undefined ? capitalised(clouds) : `${version}, ${clouds}` };
+}
+
 export const AGENTS_KIND: KindModule<AgentItem> = {
   id: "agents",
   items: (report: AgentsReport) =>
@@ -136,8 +154,8 @@ export const AGENTS_KIND: KindModule<AgentItem> = {
       key: rowId(row),
       title: row.name,
       lead: { kind: "agent", agent: row.id },
-      ...(row.version !== undefined ? { subtext: `v${row.version}` } : row.installsOnFirstRun === true ? { subtext: FIRST_RUN_WORD } : row.versionUnread === true ? { subtext: VERSION_UNREAD_WORD } : {}),
-      status: waitingFlow(flow) ? { ...signInStatus(row), words: W.waitingOnYou } : signInStatus(row),
+      ...versionLine(row, brokerRow(row, ctx)),
+      status: waitingFlow(flow) ? { ...rowStatus(row, ctx), words: W.waitingOnYou } : rowStatus(row, ctx),
       ...(quick === undefined ? {} : { quick }),
     };
   },
