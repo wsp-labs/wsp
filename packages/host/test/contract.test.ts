@@ -148,6 +148,7 @@ const RECORD = {
   logins: [],
   sealedAt: "2026-09-12T00:00:00.000Z",
   sealedFrom: "h1",
+  noSecrets: true as const,
   vault: { sha256: "b".repeat(64), bytes: 10, paths: 1, takenAt: "2026-09-12T00:00:00.000Z" },
 };
 
@@ -465,6 +466,8 @@ describe("the agent contract on the command line and the tool door", () => {
     // A place already standing on the record answers with the copy it holds and builds nothing, which is the road
     // that costs no machine: the record and that place's copy are written here at one hash.
     await store.put("images", "default", RECORD);
+    // The record is a provider's seal, so the versions forks at the provider boot carry its mark too.
+    await store.put("goldens", copyKey("default", "default"), { ...SEALED_GOLDEN, versions: SEALED_GOLDEN.versions.map(v => ({ ...v, noSecrets: true })) });
     await store.put("goldens", copyKey("elsewhere", "default"), { ...SEALED_GOLDEN, versions: [{ ...SEALED_GOLDEN.versions[0]!, snapshotId: "snap_elsewhere", imageHash: RECORD.hash }] });
     expect(await last("image build", "image", "build", "elsewhere")).toEqual({ copy: expect.objectContaining({ place: "elsewhere", version: 1, hash: RECORD.hash }), built: false });
     const opened = (await last("run", "run", "--beside", lead, "hello")) as { threadId: string; text: string };

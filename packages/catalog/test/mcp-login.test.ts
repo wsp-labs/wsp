@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { CLAUDE_MCP_LOGIN, CODEX_MCP_LOGIN, GEMINI_MCP_LOGIN, MCP_AGENTS, OPENCODE_MCP_LOGIN, SIGN_IN_ROWS, serverSignInRoad, signInRoadOf, type SignIn } from "../src/index.js";
+import { exitClassOf } from "@wsp/protocol";
+import { BROKERED_SERVER_SIGN_IN_FIX, CLAUDE_MCP_LOGIN, CODEX_MCP_LOGIN, GEMINI_MCP_LOGIN, MCP_AGENTS, OPENCODE_MCP_LOGIN, SIGN_IN_ROWS, brokeredServerSignInLine, serverSignInRoad, signInRoadOf, type SignIn } from "../src/index.js";
 
 describe("how one MCP server of an agent is signed in", () => {
   it("is each harness's own command, measured off its help, or the line its own session takes", () => {
@@ -28,6 +29,23 @@ describe("how one MCP server of an agent is signed in", () => {
     expect(serverSignInRoad("opencode", "notion", "none")).toMatchObject({ kind: "copy", line: "opencode mcp auth 'notion'", why: "callback" });
     expect(serverSignInRoad("gemini", "notion", "here")).toMatchObject({ kind: "copy", line: "/mcp auth notion" });
     expect(serverSignInRoad("hermes", "notion", "here")).toBeUndefined();
+  });
+
+  it("is refused with the reason on a machine whose credentials the host keeps, under every harness and every reach", () => {
+    for (const agent of ["claude", "codex", "opencode", "gemini"]) {
+      for (const reach of ["here", "relay", "none"] as const) {
+        let refused: unknown;
+        try {
+          serverSignInRoad(agent, "notion", reach, true);
+        } catch (e) {
+          refused = e;
+        }
+        expect(refused).toBeInstanceOf(Error);
+        expect((refused as Error).message).toBe(`${brokeredServerSignInLine("notion")}. ${BROKERED_SERVER_SIGN_IN_FIX}`);
+        expect(exitClassOf(refused)).toBe("usage");
+      }
+    }
+    expect(brokeredServerSignInLine("notion")).toBe("A cloud machine holds no sign-in, so notion cannot be signed in on it");
   });
 });
 

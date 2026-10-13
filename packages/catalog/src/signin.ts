@@ -570,6 +570,13 @@ export const LOGIN_PATHS: readonly string[] = [
   ...new Set([...NEVER_IN_IMAGE, ...Object.values(SIGN_IN_ROWS as Record<string, SignIn>).flatMap(signIn => loginStatePaths({ signIn })), SECRETS_FILES.sh, SECRETS_FILES.fish]),
 ];
 
+/** Every path a machine whose credentials the host keeps may never be sealed holding: every login path, the tokens
+ * MCP servers' OAuth sign-ins keep, and the passwords git's store helper keeps. */
+export const NEVER_ON_BROKERED: readonly string[] = [...new Set([...LOGIN_PATHS, `${GUEST_HOME}/.mcp-auth`, `${GUEST_HOME}/.git-credentials`])];
+
+/** Where gh keeps its login on a machine: an image still carries it until the host's broker serves gh and git. */
+export const GH_LOGIN_PATHS: readonly string[] = loginStatePaths({ signIn: SIGN_IN_ROWS.gh });
+
 /** Every variable the vault hands a turn: each row's token variable and each row's key variable, derived from the
  * rows and nowhere else, so a tool that reads a new one declares it on its own row and the vault carries it. */
 const rowVariables = (s: SignIn): string[] => {
