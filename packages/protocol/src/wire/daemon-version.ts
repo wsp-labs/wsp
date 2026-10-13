@@ -168,6 +168,7 @@ const DAEMON_CONTENTS = [
   "8f5ebfb509af2c03e578fbd6c091e22527d9a7eb8f8afcf87982cfe7ba3ffff7",
   "c6218b1e50a45fa78731253dc6ee5bdce98d6e59e4f5eba251a4980dc7aa81fe",
   "fa46ca2eff81cc70bfc3837b9b3bed3c6fa6e7a600537e43bc91ac1c881772e5",
+  "d7a4dc027ccea22f54871bead4913dae834634809d6fb0a9356b6b36c58fee7f",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -673,7 +674,16 @@ const DAEMON_CONTENTS = [
  * Version 158: The auth frame takes pipe, which asks for a pipe rather than a control socket; pipe.open is the one text
  * frame a pipe opens with, naming its door and how long the connection waited; and git.push, git.startOn, git.update,
  * git.mergeIn, git.pr and git.prCheckout take a token for that one op. The daemon reads them and serves nothing on them
- * yet. */
+ * yet.
+ * Version 159: A cloud machine's daemon serves two doors on the machine itself: the HTTP door on 127.0.0.1:7071 and
+ * [::1]:7071, and the gh door on /root/.wsp/broker.sock, which writes /root/.wsp/gh/config.yml naming itself as it
+ * opens. A socket whose auth frame says pipe is parked, at most 64 at once, and hears nothing until a connection on
+ * either door takes it: then one pipe.open frame naming the door and how long the connection waited, and the
+ * connection's bytes both ways as binary frames until either end closes. With no pipe parked a connection is held
+ * unread for at most an hour, dropped as soon as its client is gone, and never sent twice: a pipe that drops closes its
+ * connection at once. git.push, git.startOn, git.update, git.mergeIn, git.pr and git.prCheckout with a token run their
+ * git, where the HTTP door is bound, with that door as the proxy for github.com and the token as its password, and
+ * their gh with the token as GH_TOKEN through the gh door. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
@@ -737,10 +747,11 @@ export const STDIO_DAEMON_VERSION = 154;
  * on a box or a cloud machine is asked through. */
 export const HTTP_POST_DAEMON_VERSION = 155;
 
-/** The first daemon that reads `pipe` on an auth frame and `token` on git.push, git.startOn, git.update,
- * git.mergeIn, git.pr and git.prCheckout. One before it drops both unread: a pipe becomes a control socket, which
- * pipeOpenOf reads as no pipe, and a token never reaches git. The host sends neither below it. */
-export const PIPE_DAEMON_VERSION = 158;
+/** The first daemon that serves pipes, parking them for its two doors on a cloud machine, and runs the git and gh of
+ * git.push, git.startOn, git.update, git.mergeIn, git.pr and git.prCheckout with their `token`. One before it acts
+ * on neither: a pipe becomes a control socket, which pipeOpenOf reads as no pipe, and a token never reaches git.
+ * The host sends neither below it. */
+export const PIPE_DAEMON_VERSION = 159;
 
 /** The first daemon whose ports.watch takes a name and cgroups, which a box thread's panes watch its ports by. */
 export const NAMED_WATCH_DAEMON_VERSION = 136;

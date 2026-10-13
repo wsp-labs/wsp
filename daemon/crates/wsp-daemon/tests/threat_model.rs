@@ -65,6 +65,7 @@ const EXEMPT: &[(&str, &str, &str)] = &[
     ("wsp-daemon/src/lib.rs", "write_wsp_shim", OWN),
     ("wsp-daemon/src/lib.rs", "write_docker_shim", OWN),
     ("wsp-daemon/src/manifest.rs", "save", OWN),
+    ("wsp-daemon/src/pipe.rs", "write_config", OWN),
     ("wsp-daemon/src/place.rs", "install_daemon", INSTALL),
     ("wsp-daemon/src/place.rs", "sweep_tool_prefix", INSTALL),
     ("wsp-daemon/src/place.rs", "sweep_updates", INSTALL),
