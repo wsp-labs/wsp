@@ -2,7 +2,8 @@
 // Activity's reading of one snapshot: a thread's tree from its roots and the daemon's owners, the stretch from a root
 // to the agent's binary, and the rules an End meets before anything is signalled.
 import { describe, expect, it } from "vitest";
-import { activityOf, agentEndLine, foldTree, agentUnderLine, endGoneLine, endHeads, endPlan, endReusedLine, notStartedLine, notThreadsLine, processesLeft, processesLeftLine, wspOwnLine, type ActivityProc, type ActivityRead, type ActivityScope, type ActivityView, type ProcEntry } from "../src/index.js";
+import { activityOf, agentEndLine, foldTree, agentUnderLine, endGoneLine, endHeads, endPlan, endReusedLine, notStartedLine, notThreadsLine, placeProcs, processesLeft, processesLeftLine, wspOwnLine, type ActivityProc, type ActivityRead, type ActivityScope, type ActivityView, type ProcEntry } from "../src/index.js";
+import { OUTSIDE_PORTS, OUTSIDE_PROCS, OUTSIDE_START } from "./fixtures/activity-outside.js";
 
 const START = 1_760_000_000_000;
 const row = (pid: number, ppid: number, comm: string, cmdline: string, over: Partial<ProcEntry> = {}): ProcEntry => ({ pid, ppid, user: "ada", state: "S", comm, cmdline, cpu: 1, rss: 1_000, startedAt: START + pid, ...over });
@@ -222,5 +223,32 @@ describe("one fold walk for the page and the command line", () => {
   });
   it("leaves a row whose target is outside the list standing on its own", () => {
     expect(foldTree([row(10, 1)], () => 99).map(f => f.p.pid)).toEqual([10]);
+  });
+});
+
+describe("an agent outside this host's threads", () => {
+  const anyone = (): boolean => true;
+  const outside: ActivityRead = { computer: "lab-mac", at: OUTSIDE_START, procs: OUTSIDE_PROCS, daemon: 20, host: 10, scopes: [], agentBins: ["claude", "codex"], ports: OUTSIDE_PORTS };
+  const kinds = (rows: readonly ActivityProc[]) => Object.fromEntries(rows.map(p => [p.pid, p.kind]));
+
+  it("reads a Claude Code another wsp's thread runs as an agent, though a listening process stands above it, and its servers as tool servers", () => {
+    expect(kinds(activityOf(outside).unowned)).toEqual({ 450: "dev", 500: "agent", 510: "tool", 511: "other", 520: "tool", 530: "other", 600: "agent", 601: "agent" });
+  });
+
+  it("leaves an agent binary a thread of this host left running to its settle, as no agent of that thread", () => {
+    const orphan: ActivityRead = { ...read([...PROCS, row(900, 1, "2.1.296", "claude -p summarise the diff", { owner: { by: "env", thread: "th_1" } })]), scopes: [LAB, KEPT, { threadId: "th_1", title: "summary", workspaceId: "ws-1", roots: [] }] };
+    const view = activityOf(orphan);
+    expect(view.threads.find(t => t.threadId === "th_1")!.processes.map(p => [p.pid, p.kind])).toEqual([[900, "other"]]);
+    expect(processesLeft(view, ["th_1"]).flatMap(t => t.processes.map(p => p.pid))).toEqual([900]);
+  });
+
+  it("reads the person's own Claude Code as an agent too, and offers no End on it", () => {
+    const placed = placeProcs({ procs: OUTSIDE_PROCS, daemon: 20, host: 10, threads: [], agentBins: ["claude", "codex"], listens: pid => OUTSIDE_PORTS.has(pid) });
+    expect([placed.whose.get(700), placed.kindOf(700), placed.endable(700)]).toEqual([undefined, "agent", false]);
+  });
+
+  it("still ends it from No thread, since no thread's stop will", () => {
+    const plan = endPlan(outside, 500, OUTSIDE_START + 500, anyone);
+    expect("targets" in plan && plan.targets.map(p => p.pid)).toEqual([500, 510, 511, 520, 530]);
   });
 });

@@ -4,7 +4,9 @@
 // a title longer than any terminal, wsp's host and daemon, and a test run with no
 // thread. It reads as Settings > Activity names it at 80 and 160 columns.
 import { describe, expect, it } from "vitest";
-import type { ActivityProc, ActivityView } from "@wsp/protocol";
+import { CATALOG_AGENTS } from "@wsp/catalog";
+import { ACTIVITY_GROUP_WORDS, ACTIVITY_KIND_WORDS, activityOf, UNTAGGED_KINDS, type ActivityProc, type ActivityView } from "@wsp/protocol";
+import { OUTSIDE_NO_THREAD, OUTSIDE_PORTS, OUTSIDE_PROCS, OUTSIDE_START } from "../../protocol/test/fixtures/activity-outside.js";
 import { activityTable } from "../src/verbs/activity-table.js";
 import { cellWidth } from "../src/init-layout.js";
 
@@ -159,5 +161,22 @@ describe("wsp activity's table", () => {
 
   it("says so when nothing runs", () => {
     expect(activityTable({ computer: "lab-mac.local", at: 0, threads: [], wsp: [], unowned: [] }, { width: 80, wide: false })).toBe("no thread runs a process on lab-mac.local");
+  });
+});
+
+describe("wsp activity's table over an agent outside this host's threads", () => {
+  const view = activityOf({ computer: "lab-mac.local", at: OUTSIDE_START, procs: OUTSIDE_PROCS, daemon: 20, host: 10, scopes: [], agentBins: CATALOG_AGENTS.map(a => a.bin), ports: OUTSIDE_PORTS });
+
+  it("names a Claude Code another wsp's thread runs by its agent and its servers as tool servers, under a listening process, as the page does", () => {
+    const lines = activityTable(view, { width: 100, wide: false }).split("\n");
+    const loose = lines.slice(lines.findIndex(l => l.startsWith(ACTIVITY_GROUP_WORDS.loose)) + 1);
+    const rows = loose.map(l => {
+      const [, lead, name, tag] = /^( +)(\S+(?: \S+)*?)(?: :\d+)*(?: {2,}(\S+(?: \S+)?))? {2,}[\d.]+ [KMG]?B/.exec(l)!;
+      return [lead!.length / 2 - 1, name, tag ?? ""];
+    });
+    const tagOf = (kind: ActivityProc["kind"]): string => (UNTAGGED_KINDS.has(kind) ? "" : ACTIVITY_KIND_WORDS[kind]);
+    expect(rows.sort()).toEqual(OUTSIDE_NO_THREAD.map(([depth, name, kind]) => [depth, name, tagOf(kind)]).sort());
+    expect(lines.join("\n")).not.toContain("2.1.296");
+    expect(loose.find(l => l.includes("Claude Code"))).toMatch(/^ {4}Claude Code {2,}640 MB {2}3\.0%$/);
   });
 });
