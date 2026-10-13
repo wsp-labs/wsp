@@ -10,7 +10,7 @@ import { up, type CliIO } from "../src/cli.js";
 import { STARTED_BY_ENV } from "../src/host-lock.js";
 import { cliSource } from "./cli-source.js";
 import { stateWriterHere } from "../src/version.js";
-import { LAUNCHD_PATH, loginEnvOf, needsLoginPath, takeLoginPath } from "../src/login-path.js";
+import { LAUNCHD_PATH, loginEnvOf, loginFolders, needsLoginPath, takeLoginPath } from "../src/login-path.js";
 import type { HostHandle } from "../src/server.js";
 import { SEALED_GOLDEN } from "./sealed-golden.js";
 import { stubBackend } from "./stub-backend.js";
@@ -270,6 +270,21 @@ describe("the agents' keys in the login shell", () => {
     expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-handed");
     expect(env["OPENAI_API_KEY"]).toBe("sk-x-openai-rc");
     expect(env["AWS_SECRET_ACCESS_KEY"]).toBeUndefined();
+  });
+
+  it("keeps the folders the agents keep their logins in apart, off the environment, and a folder the launch was handed stands", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: LAUNCHD_PATH.join(":"), SHELL: "/bin/zsh", CODEX_HOME: "/Users/dev/.codex-handed" };
+    const out = ["PATH=/Users/dev/.local/bin:/usr/bin", "CLAUDE_CONFIG_DIR=/Users/dev/.claude-cfg", "CODEX_HOME=/Users/dev/.codex-rc", ""].join("\0");
+    const folders: Record<string, string> = {};
+    const taken = await takeLoginPath({ env, log: () => {}, read: () => Promise.resolve(out), folders });
+    expect(folders).toEqual({ CLAUDE_CONFIG_DIR: "/Users/dev/.claude-cfg" });
+    // On the environment it would move where local turns keep their agents' stores, so it is never put there.
+    expect(env["CLAUDE_CONFIG_DIR"]).toBeUndefined();
+    expect(env["CODEX_HOME"]).toBe("/Users/dev/.codex-handed");
+    expect(taken).toEqual({});
+    // The collector is handed them as its host's own folders, which is where it looks for the logins.
+    expect(loginFolders(folders)).toEqual({ claudeConfigDir: "/Users/dev/.claude-cfg" });
+    expect(loginFolders({ CLAUDE_CONFIG_DIR: "/a", CODEX_HOME: "/b" })).toEqual({ claudeConfigDir: "/a", codexHome: "/b" });
   });
 
   it("a host whose PATH was meant takes no key from the login shell either", async () => {
