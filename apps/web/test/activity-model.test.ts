@@ -34,8 +34,10 @@ import {
   totalSpent,
   type ActivityGroup,
   type ActivityPort,
+  type ActivityProc,
   type ActivityThread,
 } from "../src/settings/activity/model.js";
+import { OUTSIDE_NO_THREAD, OUTSIDE_PORTS, OUTSIDE_PROCS, OUTSIDE_START } from "../../../packages/protocol/test/fixtures/activity-outside.js";
 
 const MB = 1024 * 1024;
 const proc = (pid: number, ppid: number, comm: string, extra: Partial<ProcEntry> = {}): ProcEntry => ({ pid, ppid, user: "me", state: "S", comm, cmdline: comm, cpu: 0, rss: 0, startedAt: 0, ...extra });
@@ -543,5 +545,32 @@ describe("pushHistory", () => {
     for (let at = 2; at <= HISTORY_POINTS + 10; at++) h = pushHistory(h, { at, mem: at, cpu: at, energy: null });
     expect(h.length).toBe(HISTORY_POINTS);
     expect(h[0]!.at).toBe(11);
+  });
+});
+
+describe("an agent outside this host's threads", () => {
+  const page = scopeOf({ snapshot: snap(OUTSIDE_PROCS), threads: [], ports: new Map([...OUTSIDE_PORTS].map(([pid, ports]) => [pid, ports.map(port => ({ port, loopback: true }))])), host: 10 });
+  const tree = (rows: readonly ActivityProc[], depth = 0): (readonly [number, string, string])[] => rows.flatMap(p => [[depth, p.name, p.kind] as const, ...tree(p.children, depth + 1)]);
+
+  it("names a Claude Code another wsp's thread runs by its agent and its servers as tool servers, as wsp activity does", () => {
+    expect(tree(page.groups.find(g => g.id === "loose")!.procs).sort()).toEqual([...OUTSIDE_NO_THREAD].sort());
+  });
+
+  it("names the person's own Claude Code by its agent among the rest of the computer, with no End", () => {
+    expect(page.rest.filter(p => p.pid === 700).map(p => [p.name, p.kind, p.endable === true])).toEqual([["Claude Code", "agent", false]]);
+  });
+
+  it("offers End on an agent no thread of this host holds, and its servers, exactly where wsp activity end would signal", () => {
+    const read = { computer: "lab", at: OUTSIDE_START, procs: OUTSIDE_PROCS, daemon: 20, host: 10, scopes: [], agentBins: CATALOG_AGENTS.map(a => a.bin), ports: OUTSIDE_PORTS };
+    const ends = (pid: number): boolean => {
+      try {
+        return "targets" in endPlan(read, pid, OUTSIDE_START + pid, () => true);
+      } catch {
+        return false;
+      }
+    };
+    const offered = [...page.groups.flatMap(g => g.procs.flatMap(flat)), ...page.rest];
+    for (const p of offered) expect(p.endable === true, `${p.pid} ${p.name}`).toBe(ends(p.pid));
+    expect(offered.filter(p => p.endable === true).map(p => p.pid).sort()).toEqual([450, 500, 510, 511, 520, 530, 600, 601]);
   });
 });
