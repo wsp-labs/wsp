@@ -562,6 +562,15 @@ describe("exportFolder", () => {
   async function guest(chunkBytes?: number) {
     const server = createServer((req, res) => {
       const path = new URL(req.url!, "http://x").searchParams.get("path")!;
+      if (req.method === "PUT") {
+        const parts: Buffer[] = [];
+        req.on("data", (c: Buffer) => parts.push(c));
+        req.on("end", () => {
+          writeFileSync(path, Buffer.concat(parts));
+          res.writeHead(200).end();
+        });
+        return;
+      }
       if (!existsSync(path)) {
         res.writeHead(404).end();
         return;
@@ -690,6 +699,101 @@ describe("exportFolder", () => {
       expect(script).toContain(`find ${where} -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o ${cache} -prune -o -print0 >> `);
       expect(script).toMatch(/tar czf '\/tmp\/wsp-vault-[^']+\.tgz' --no-recursion --null -T '\/tmp\/wsp-vault-[^']+\.tgz\.keep'\n/);
       expect(g.cmds.filter(c => c.startsWith("rm -f"))).toHaveLength(2);
+    } finally {
+      g.close();
+    }
+  });
+
+  /** A home holding two sign-ins beside the work around them, one a file in a folder that also holds config and one
+   * a whole folder, with a sibling whose name only starts like it. */
+  function signedInHome(): { root: string; leave: string[] } {
+    const root = mkdtempSync(join(tmpdir(), "wsp-vault-logins-"));
+    dirs.push(root);
+    const put = (rel: string, text: string): void => {
+      mkdirSync(join(root, rel, ".."), { recursive: true });
+      writeFileSync(join(root, rel), text);
+    };
+    put("home/.codex/auth.json", "{\"OPENAI_API_KEY\":\"x\"}\n");
+    put("home/.codex/config.toml", "model = \"x\"\n");
+    put("home/.aws/credentials", "[default]\n");
+    put("home/.aws-notes/x", "kept\n");
+    put("home/notes.md", "kept\n");
+    return { root, leave: [join(root, "home/.codex/auth.json"), join(root, "home/.aws")] };
+  }
+  const KEPT = ["home", "home/.aws-notes", "home/.aws-notes/x", "home/.codex", "home/.codex/config.toml", "home/notes.md"];
+
+  it("exportPaths leaves each path it is told to leave out of the archive, everything under it too, with a cache rule and without", async () => {
+    const g = await guest();
+    const { root, leave } = signedInHome();
+    const rel = (p: string): string => p.replace(/^\//, "");
+    const names = (tar: Buffer): string[] => listing(tar).filter(l => l.startsWith(`${rel(root)}/`)).map(l => l.slice(rel(root).length + 1));
+    try {
+      const plain = await exportPaths(g.machine, [join(root, "home")], { fetch: globalThis.fetch, leave });
+      expect(names(plain)).toEqual(KEPT);
+      const ruled = await exportPaths(g.machine, [join(root, "home")], { fetch: globalThis.fetch, leave, exclude: { dirs: ["node_modules"], files: [], markers: [] } });
+      expect(names(ruled)).toEqual(KEPT);
+      expect(g.cmds.filter(c => c.includes("tar czf")).every(c => c.includes(`--exclude='${rel(root)}/home/.codex/auth.json' --exclude='${rel(root)}/home/.aws'`))).toBe(true);
+    } finally {
+      g.close();
+    }
+  });
+
+  it("importInto leaves the same paths out of an archive that holds them, so a vault written before the rule lands without them", async () => {
+    const g = await guest();
+    const { root, leave } = signedInHome();
+    const dest = mkdtempSync(join(tmpdir(), "wsp-vault-land-"));
+    dirs.push(dest);
+    const tar = execFileSync("tar", ["-czf", "-", "-C", root, "home"]);
+    try {
+      // The overlay road, since --recursive-unlink is GNU tar's alone; the excludes stand in the same place on both.
+      await importInto(g.machine, tar, dest, { fetch: globalThis.fetch, overlay: true, leave: leave.map(p => p.replace(root, dest)) });
+      const landed = execFileSync("find", [".", "-mindepth", "1"], { cwd: dest }).toString().trim().split("\n").map(l => l.replace(/^\.\//, "")).sort();
+      expect(landed).toEqual(KEPT);
+    } finally {
+      g.close();
+    }
+  });
+
+  /** Whether this computer's tar is GNU's, the only one that takes the --recursive-unlink a replacing import runs. */
+  const gnuTar = execFileSync("tar", ["--version"]).toString().includes("GNU tar");
+
+  it.skipIf(!gnuTar)("a replacing import keeps what the destination holds at each path it leaves, while every other folder it lands is replaced whole", async () => {
+    const g = await guest();
+    const { root, leave } = signedInHome();
+    const dest = mkdtempSync(join(tmpdir(), "wsp-vault-keep-"));
+    dirs.push(dest);
+    const put = (rel: string, text: string): void => {
+      mkdirSync(join(dest, rel, ".."), { recursive: true });
+      writeFileSync(join(dest, rel), text);
+    };
+    put("home/.codex/auth.json", "the replacement's own\n");
+    put("home/.codex/stale.toml", "replaced with its folder\n");
+    put("home/.aws/credentials", "the replacement's own\n");
+    const tar = execFileSync("tar", ["-czf", "-", "-C", root, "home"]);
+    try {
+      await importInto(g.machine, tar, dest, { fetch: globalThis.fetch, leave: leave.map(p => p.replace(root, dest)) });
+      const landed = execFileSync("find", [".", "-mindepth", "1"], { cwd: dest }).toString().trim().split("\n").map(l => l.replace(/^\.\//, "")).sort();
+      expect(landed).toEqual([...KEPT, "home/.aws", "home/.aws/credentials", "home/.codex/auth.json"].sort());
+      expect(readFileSync(join(dest, "home/.codex/auth.json"), "utf8")).toBe("the replacement's own\n");
+      expect(readFileSync(join(dest, "home/.aws/credentials"), "utf8")).toBe("the replacement's own\n");
+      expect(readFileSync(join(dest, "home/.codex/config.toml"), "utf8")).toBe("model = \"x\"\n");
+    } finally {
+      g.close();
+    }
+  });
+
+  it("an import whose extract fails still puts back what it moved aside", async () => {
+    const g = await guest();
+    const dest = mkdtempSync(join(tmpdir(), "wsp-vault-keep-"));
+    dirs.push(dest);
+    mkdirSync(join(dest, "home/.codex"), { recursive: true });
+    writeFileSync(join(dest, "home/.codex/auth.json"), "the replacement's own\n");
+    const scratch = mkdtempSync(join(tmpdir(), "wsp-vault-scratch-"));
+    dirs.push(scratch);
+    try {
+      await expect(importInto(g.machine, Buffer.from("not a gzip at all"), dest, { fetch: globalThis.fetch, tmpDir: scratch, leave: [join(dest, "home/.codex/auth.json")] })).rejects.toThrow(/vault import untar failed/);
+      expect(readFileSync(join(dest, "home/.codex/auth.json"), "utf8")).toBe("the replacement's own\n");
+      expect(readdirSync(scratch)).toEqual([]);
     } finally {
       g.close();
     }

@@ -537,8 +537,8 @@ describe("runtime upgrade vault", () => {
       const tar = tarCmds.find(c => c.startsWith("m1:"));
       expect(tar).toContain("'root/notes.md'");
       expect(tar).toContain("'root/.claude-cfg'");
-      expect(tar).not.toContain(".local");
-      expect(tar).not.toContain(".npm");
+      expect(tar).not.toContain("'root/.local'");
+      expect(tar).not.toContain("'root/.npm'");
       expect(untarCmds.some(c => c.startsWith("m2:"))).toBe(true);
     } finally {
       vi.unstubAllGlobals();
