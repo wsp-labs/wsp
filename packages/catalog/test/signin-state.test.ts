@@ -2,7 +2,7 @@
 // Where each tool's login lives on the machine: every row that has one names
 // it, the paths are home-relative, and the reader turns them into guest paths.
 import { describe, expect, it } from "vitest";
-import { CATALOG, CATALOG_AGENTS, GUEST_HOME, NEVER_IN_IMAGE, NO_SIGN_IN, SHARED_LOGINS, SIGN_IN_ROWS, VAULT_VARIABLES, catalogEntry, hasLogin, keyEnvOf, livesOnComputer, loginHomeIn, loginSignIn, loginStatePaths, mintsToken, sharedLoginOf, sharesIn, tokenIn, type SignIn } from "../src/index.js";
+import { CATALOG, CATALOG_AGENTS, GUEST_HOME, LOGIN_PATHS, NEVER_IN_IMAGE, NO_SIGN_IN, SHARED_LOGINS, SIGN_IN_ROWS, VAULT_VARIABLES, catalogEntry, hasLogin, keyEnvOf, livesOnComputer, loginHomeIn, loginSignIn, loginStatePaths, mintsToken, sharedLoginOf, sharesIn, tokenIn, type SignIn } from "../src/index.js";
 
 describe("sign-in state on the machine", () => {
   it("every row with a login or a source names at least one path, home-relative and with no ..", () => {
@@ -93,6 +93,13 @@ describe("the token sign-in and the vault", () => {
     for (const p of NEVER_IN_IMAGE) expect(p.startsWith(`${GUEST_HOME}/`)).toBe(true);
     // The shared login's own path is not spelled twice: what a workspace reads it at is what may not be sealed.
     for (const shared of SHARED_LOGINS) expect(NEVER_IN_IMAGE).toContain(shared.target);
+  });
+
+  it("the login paths a provider's nap and snapshot read are every row's state, every path the seal refuses and both secrets files, each once", () => {
+    const rows = Object.values(SIGN_IN_ROWS as Record<string, SignIn>).flatMap(signIn => loginStatePaths({ signIn }));
+    expect(new Set(LOGIN_PATHS)).toEqual(new Set([...NEVER_IN_IMAGE, ...rows, "/etc/profile.d/wsp-secrets.sh", "/etc/fish/conf.d/wsp-secrets.fish"]));
+    expect(LOGIN_PATHS).toHaveLength(new Set(LOGIN_PATHS).size);
+    expect(LOGIN_PATHS).toEqual(expect.arrayContaining([`${GUEST_HOME}/.config/gh/hosts.yml`, `${GUEST_HOME}/.config/gcloud`, `${GUEST_HOME}/.aws`, `${GUEST_HOME}/.hermes/.env`]));
   });
 });
 

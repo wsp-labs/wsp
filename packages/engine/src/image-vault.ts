@@ -30,7 +30,7 @@ export async function presentPaths(machine: Machine, paths: readonly string[]): 
   const probe = `for p in ${paths.map(shellQuote).join(" ")}; do [ -e "$p" ] && echo "$p"; done; exit 0`;
   const read = await machine.exec(probe, { timeoutMs: INLINE_EXEC_MS });
   if (read.exitCode !== 0) {
-    throw new Error(`the machine would not say which of the image's sign-in paths it holds (exit ${read.exitCode}): ${read.stderr.slice(-200)}`);
+    throw new Error(`the machine would not say which sign-in paths it holds (exit ${read.exitCode}): ${read.stderr.slice(-200)}`);
   }
   const found = new Set(read.stdout.split("\n").map(l => l.trim()).filter(l => l !== ""));
   return paths.filter(p => found.has(p));

@@ -560,6 +560,16 @@ export const NEVER_IN_IMAGE: readonly string[] = [
   ...SHARED_LOGINS.map(s => s.target),
 ];
 
+/** Where the secrets step of an image build writes the values typed at it: login shells read profile.d, and fish
+ * reads its conf.d instead, so a fish machine gets the value twice. */
+export const SECRETS_FILES = { sh: "/etc/profile.d/wsp-secrets.sh", fish: "/etc/fish/conf.d/wsp-secrets.fish" } as const;
+
+/** Every path a sign-in or a typed secret leaves on a machine: each row's login state, every file the seal refuses,
+ * and both secrets files. A provider's nap leaves them behind and a snapshot there refuses while one stands. */
+export const LOGIN_PATHS: readonly string[] = [
+  ...new Set([...NEVER_IN_IMAGE, ...Object.values(SIGN_IN_ROWS as Record<string, SignIn>).flatMap(signIn => loginStatePaths({ signIn })), SECRETS_FILES.sh, SECRETS_FILES.fish]),
+];
+
 /** Every variable the vault hands a turn: each row's token variable and each row's key variable, derived from the
  * rows and nowhere else, so a tool that reads a new one declares it on its own row and the vault carries it. */
 const rowVariables = (s: SignIn): string[] => {
