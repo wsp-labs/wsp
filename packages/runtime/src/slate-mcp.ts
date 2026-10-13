@@ -2,16 +2,16 @@
 // The tool and resource runs a slate starts on its thread's own MCP servers (07, "MCP tools and resources"), on the
 // computer the thread runs on. The host hands over a server as the thread's agent configures it there, already
 // resolved, with the road its command starts by on another computer (slate-mcp-on.ts); this file holds one
-// live client per server per thread, asks the person once per server per thread for reading and calling, asks on
-// every start of a destructive tool, calls the tool with the arguments the declaration evaluates to, and writes the
-// result into the run's record scrubbed of every secret. A secret reaches a server only inside a call's arguments,
-// which ride the server's stdin or the request body, never a command line.
+// live client per server per thread, asks the person exactly where the thread's agent would ask before that tool (once
+// per piece of code, never at the agent's bypass), calls the tool with the arguments the declaration evaluates to, and
+// writes the result into the run's record scrubbed of every secret. A secret reaches a server only inside a call's
+// arguments, which ride the server's stdin or the request body, never a command line.
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import type { McpTransport } from "@wsp/catalog";
 import { EXEC_OUTPUT_MAX, fmtBytes, runOutputTail, slateMachineOnBox } from "@wsp/protocol";
 import type { HttpBearer, SlateAsk } from "@wsp/protocol";
-import { slateHostAway, slateProblem, slateServerNotSetUp, type SlateDoc, type SlateJson, type SlateProblem, type SlateRunDecl } from "@wsp/protocol/slate";
+import { slateDescriptionMissing, slateHostAway, slateProblem, slateServerNotSetUp, type SlateDoc, type SlateJson, type SlateProblem, type SlateRunDecl } from "@wsp/protocol/slate";
 import { HELD_APPROVAL, HELD_BUDGET, HELD_PRESSED, lastResult, mapStrings, runningRecord, SECRET_DOTS, spent, stableJson, type Reshape, type RunResult, type RunApprovals, type RunBy, type RunRecord, type RunStartAnswer } from "./slate-runs.js";
 
 /** The thread's computer where it is not this one, and this one's name. */
@@ -131,12 +131,17 @@ export interface McpRunStart {
   last?: RunRecord;
 }
 
+/** When the thread's agent asks before an MCP tool at its mode now: never (its bypass), before every tool, or before
+ * every tool its server does not mark read-only. */
+export type ToolAsks = "never" | "every" | "unless-read-only";
+
 export interface SlateMcpDeps {
   /** The thread's agent's server by name, resolved; throws with the reason where there is none. */
   server(threadId: string, name: string): Promise<McpServerSpec>;
   onRecord(threadId: string, run: string, record: RunRecord): void;
-  /** The thread's held asks changed after the fact (a tool list arrived, a destructive tool was found). */
+  /** The thread's held asks changed after the fact (a tool list arrived, a tool that asks was found). */
   onAsks?(threadId: string): void;
+  asks(threadId: string): ToolAsks;
   approvals: RunApprovals;
   secrets: { plaintext(threadId: string, name: string): string | undefined; scrub(threadId: string, text: string): string };
   /** A run's `then` on this computer, in the thread's folder, the raw result already scrubbed on its stdin. */
@@ -152,16 +157,18 @@ export interface SlateMcpDeps {
 }
 
 export interface SlateMcp {
-  /** What a start inside a batch will give, before it is started: running where the server is allowed and nothing
-   * known asks on this start, else held. */
-  provisional(threadId: string, decl: McpRunDecl, last: RunRecord | undefined): RunRecord;
+  /** What a start inside a batch will give, before it is started, with the arguments it would send: held where it is
+   * known to ask, else running. */
+  provisional(threadId: string, decl: McpRunDecl, last: RunRecord | undefined, args: Record<string, SlateJson>): RunRecord;
   start(req: McpRunStart): RunStartAnswer;
   /** The person's answer to a held run, by the key its ask carried. Every run held on that key moves. */
   approve(threadId: string, key: string, scope: "once" | "thread"): void;
   deny(threadId: string, key: string): void;
-  /** Whether a key is one of this module's: a server's consent or a held tool's confirm. */
+  /** Whether a key is one of this module's: a tool or resource run's code. */
   owns(threadId: string, key: string): boolean;
   held(threadId: string): SlateAsk[];
+  /** The held run a key asks for and what it sends, a secret as dots, so two allowed of one tool read apart. */
+  named(threadId: string, key: string): { run: string; cmd: string } | undefined;
   /** Settles once every tool list and connect a start of this thread is waiting on has, or after `ms`. */
   pending(threadId: string, ms?: number): Promise<void>;
   cancel(threadId: string, run: string): void;
@@ -171,21 +178,26 @@ export interface SlateMcp {
   shown(threadId: string, shown: boolean): void;
   /** Closes the thread's servers and keeps its runs: its machine napped, and the next start opens them again. */
   closeServers(threadId: string): void;
-  /** slate_catalog <server>: its tools, each input schema folded to a line per property, and whether consent stands. */
+  /** slate_catalog <server>: its tools, each input schema folded to a line per property, and how this thread asks. */
   catalog(threadId: string, server: string): Promise<string>;
+  /** What a write is refused for its runs: what the thread's computer refused (`away`), else each tool run the write
+   * adds or changes that says nothing of what it does, on a tool its server does not mark read-only. A run kept as it
+   * was is never judged; a server is asked when its list is not held, and one that does not answer marks nothing
+   * read-only. */
+  refusedRuns(threadId: string, before: SlateDoc | null, doc: SlateDoc | null | undefined, away: SlateProblem[]): Promise<SlateProblem[]>;
   /** Forgets the thread's runs and servers; with `keep`, a server and a run going on are left running. */
   drop(threadId: string, keep?: boolean): void;
   close(): void;
 }
 
-export const serverKey = (server: string): string => `mcp:${server}`;
-
-/** A run's consent: its server's, and with a `then` that command's and the files it reads too, so a new reshape asks
- * again. */
-export const consentKey = (decl: McpRunDecl): string =>
-  decl.then === undefined
-    ? serverKey(decl.server)
-    : `${serverKey(decl.server)}#then:${createHash("sha256").update(decl.files === undefined ? decl.then : JSON.stringify([decl.then, Object.entries(decl.files).sort()])).digest("hex").slice(0, 16)}`;
+/** What the person allows of a tool or resource run: its server, its tool or uri, the arguments as they will be sent (a
+ * secret as its mark, which names it and never holds its value), and its then with the files that reads. Anything
+ * that changes what is sent, a value or a formula alike, asks again. */
+export const codeKey = (decl: McpRunDecl, args: Record<string, SlateJson>): string =>
+  `mcp:${decl.server}#${createHash("sha256")
+    .update(stableJson([decl.kind, decl.server, decl.kind === "tool" ? decl.tool : decl.uri, decl.kind === "tool" ? args : null, decl.then ?? null, Object.entries(decl.files ?? {}).sort()]))
+    .digest("hex")
+    .slice(0, 32)}`;
 
 const SECRET_MARK = "\u0000wsp-secret:";
 /** Where a secret stands in a tool's evaluated arguments: replaced by its plaintext at the call, by dots on a sheet. */
@@ -198,8 +210,8 @@ const CALL_MS = 60_000;
 const IDLE_MS = 5 * 60_000;
 const SWEEP_MS = 30_000;
 const ERR_KEPT = 4_000;
-/** Why a destructive tool's start waits: its sheet opens on every start. */
-export const HELD_CONFIRM = "asks every time";
+/** How long a write waits for a server's tool list to tell whether a new run needs its description. */
+const DESCRIBE_MS = 10_000;
 /** The most one message from a server may be, on either transport: a command's own cap, eight times what a slate's
  * values hold, so any answer worth keeping fits and a runaway one is cut off before it is parsed. */
 const MESSAGE_MAX_BYTES = EXEC_OUTPUT_MAX;
@@ -258,23 +270,15 @@ async function boundedText(res: Response): Promise<string> {
 }
 
 
-/** A tool run's confirm key: the server, the tool and the argument names, so new values never ask again. */
-export const toolKey = (decl: McpRunDecl): string =>
-  `tool:${createHash("sha256")
-    .update(stableJson([...(decl.kind === "tool" ? ["tool", decl.server, decl.tool, Object.keys(decl.args ?? {}).sort(), decl.confirm ?? null] : ["resource", decl.server, decl.uri]), ...(decl.then !== undefined ? [decl.then] : [])]))
-    .digest("hex")
-    .slice(0, 32)}`;
-
-/** Whether a tool asks on every start: it says it is destructive, or its annotations stop short of read-only. */
-export const isDestructive = (tool: McpToolInfo | undefined): boolean => {
-  const a = tool?.annotations;
-  if (a === undefined) return false;
-  if (a.destructiveHint === true) return true;
-  return a.readOnlyHint !== true && a.destructiveHint !== false;
-};
-
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** How this thread's tool runs ask, as slate_catalog tells the agent. */
+const ASKS_LINE: Record<ToolAsks, string> = {
+  never: "This thread's agent runs every tool without asking, and so do its slate's runs.",
+  every: "This thread's agent asks before every tool, so the person allows each run's code once, on the slate: new arguments, a new then or a new tool ask again.",
+  "unless-read-only": "This thread's agent asks before a tool not marked read-only, so the person allows each such run's code once, on the slate: new arguments, a new then or a new tool ask again.",
+};
 
 // ---- the client ----
 
@@ -544,7 +548,7 @@ const hintsOf = (tool: McpToolInfo, structured: boolean | undefined): string[] =
   const shape = tool.outputSchema !== undefined || structured === true ? "returns data" : "text only";
   const a = tool.annotations;
   if (a === undefined) return [shape];
-  return [shape, ...(a.readOnlyHint === true ? ["read-only"] : []), ...(isDestructive(tool) ? ["destructive, asks on every start"] : []), ...(a.idempotentHint === true ? ["idempotent"] : []), ...(a.openWorldHint === true ? ["reaches outside"] : [])];
+  return [shape, ...(a.readOnlyHint === true ? ["read-only"] : []), ...(a.destructiveHint === true ? ["destructive"] : []), ...(a.idempotentHint === true ? ["idempotent"] : []), ...(a.openWorldHint === true ? ["reaches outside"] : [])];
 };
 
 // ---- the runs ----
@@ -557,13 +561,14 @@ interface Live {
   reshaping?: Reshape;
   /** The last call's result, kept in view while the next one runs and through a hold. */
   result?: RunResult;
-  held?: { req: McpRunStart; ask: HeldAsk };
+  /** A held start, its arguments read once so the person allows exactly what then goes, and the key it asks by. */
+  held?: { req: McpRunStart; ask: HeldAsk; key?: string };
   starts: number[];
   /** The person's own starts, on a budget of their own. */
   pressed?: number[];
 }
 
-type HeldAsk = "server" | "tool" | "budget" | "pressed";
+type HeldAsk = "code" | "budget" | "pressed";
 
 interface ThreadMcp {
   runs: Map<string, Live>;
@@ -688,31 +693,46 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
       }),
     ) as Record<string, SlateJson>;
 
-  const askOf = (threadId: string, run: string, req: McpRunStart, kind: "server" | "tool"): SlateAsk => {
+  const listed = (threadId: string, decl: McpRunDecl): McpToolInfo | undefined => (decl.kind === "tool" ? lists.get(listKey(threadId, decl.server))?.find(t => t.name === decl.tool) : undefined);
+
+  /** Whether this start waits for the person: every start of a run that names confirm; else, where the thread's agent
+   * asks before this tool, until its code is allowed. Undefined where only the hints of a tool not listed yet decide. */
+  const asksNow = (threadId: string, decl: McpRunDecl, info: McpToolInfo | undefined, args: Record<string, SlateJson>): boolean | undefined => {
+    if (decl.kind === "tool" && decl.confirm !== undefined) return true;
+    const rule = deps.asks(threadId);
+    if (rule === "never" || deps.approvals.has(threadId, codeKey(decl, args))) return false;
+    if (rule === "every") return true;
+    if (decl.kind === "resource") return false;
+    return info === undefined ? undefined : info.annotations?.readOnlyHint !== true;
+  };
+
+  const askOf = (threadId: string, run: string, req: McpRunStart, key: string): SlateAsk => {
     const d = req.decl;
-    const computer = deps.computer(threadId);
-    const args = d.kind === "tool" ? shownArgs(threadId, req.args()) : undefined;
-    if (kind === "server") {
-      const tools = (lists.get(listKey(threadId, d.server)) ?? []).map(tool => ({
-        name: tool.name,
-        ...((tool.title ?? tool.annotations?.title) !== undefined ? { title: (tool.title ?? tool.annotations?.title)! } : {}),
-        ...(sentence(tool.description, 240) !== undefined ? { description: sentence(tool.description, 240)! } : {}),
-        ...(tool.annotations?.readOnlyHint !== undefined ? { readOnly: tool.annotations.readOnlyHint } : {}),
-        ...(tool.annotations !== undefined ? { destructive: isDestructive(tool) } : {}),
-      }));
-      return { key: consentKey(d), run, kind: "server", server: d.server, computer, why: HELD_APPROVAL, tools, tool: d.kind === "tool" ? d.tool : d.uri, ...(args !== undefined ? { args } : {}), ...(d.then !== undefined ? { then: d.then } : {}), ...(d.files !== undefined ? { files: d.files } : {}) };
-    }
-    const tool = d as Extract<McpRunDecl, { kind: "tool" }>;
-    return { key: toolKey(d), run, kind: "tool", server: d.server, tool: tool.tool, computer, why: HELD_CONFIRM, args: args ?? {}, ...(typeof tool.confirm === "string" ? { confirm: tool.confirm } : {}), ...(tool.then !== undefined ? { then: tool.then } : {}) };
+    const description = d.description ?? sentence(listed(threadId, d)?.description, 240);
+    return {
+      key,
+      run,
+      kind: "tool",
+      server: d.server,
+      tool: d.kind === "tool" ? d.tool : d.uri,
+      ...(d.kind === "resource" ? { resource: true as const } : {}),
+      computer: deps.computer(threadId),
+      why: HELD_APPROVAL,
+      ...(description !== undefined ? { description } : {}),
+      args: d.kind === "tool" ? shownArgs(threadId, req.args()) : {},
+      ...(d.kind === "tool" && typeof d.confirm === "string" ? { confirm: d.confirm } : {}),
+      ...(d.then !== undefined ? { then: d.then } : {}),
+      ...(d.files !== undefined ? { files: d.files } : {}),
+    };
   };
 
   const hold = (req: McpRunStart, l: Live, ask: HeldAsk, runs: number, beside = false): RunStartAnswer => {
-    l.held = { req, ask };
+    l.held = { req, ask, ...(ask === "code" ? { key: codeKey(req.decl, req.args()) } : {}) };
     // A start held beside a call still running leaves that call and its record be: it stops only once the new start
     // launches.
-    const record = beside ? l.record : write(req.threadId, req.run, l, { ...(l.result ?? {}), state: "held", why: ask === "server" ? HELD_APPROVAL : ask === "tool" ? HELD_CONFIRM : ask === "pressed" ? HELD_PRESSED : HELD_BUDGET, runs });
-    if (ask === "budget" || ask === "pressed") return { outcome: "held", record };
-    if (ask === "server" && !lists.has(listKey(req.threadId, req.decl.server))) void listFor(req.threadId, req.decl.server).then(() => deps.onAsks?.(req.threadId));
+    const record = beside ? l.record : write(req.threadId, req.run, l, { ...(l.result ?? {}), state: "held", why: ask === "code" ? HELD_APPROVAL : ask === "pressed" ? HELD_PRESSED : HELD_BUDGET, runs });
+    // The sheet says what the tool does in the server's words where the agent gave none, off its list.
+    if (ask === "code" && !lists.has(listKey(req.threadId, req.decl.server))) void listFor(req.threadId, req.decl.server).then(() => deps.onAsks?.(req.threadId));
     return { outcome: "held", record };
   };
 
@@ -754,7 +774,7 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
     return { record: { state: "done", exit: 0, out: runOutputTail(text), ...(json !== undefined ? { json } : {}), ...(structured ? {} : { text: true as const }) }, raw: structured ? JSON.stringify(json) : text };
   };
 
-  /** The run goes running now and its call follows; a destructive tool found on the way holds it for the confirm. */
+  /** The run goes running now and its call follows; a tool found on the way to be one that asks holds it for the person. */
   const launch = (req: McpRunStart, l: Live, confirmed: boolean): RunStartAnswer => {
     const { threadId, run, decl } = req;
     // Starting again stops the call still running, now that this one goes.
@@ -779,8 +799,8 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
             if (l.gen !== gen) return;
             const info = tools.find(x => x.name === decl.tool);
             if (info === undefined) throw new Error(`${decl.server} has no tool ${decl.tool}; slate_catalog ${decl.server} lists its tools`);
-            if (!confirmed && (decl.confirm !== undefined || isDestructive(info))) {
-              hold(req, l, "tool", prior);
+            if (!confirmed && asksNow(threadId, decl, info, req.args()) === true) {
+              hold(req, l, "code", prior);
               deps.onAsks?.(threadId);
               return;
             }
@@ -862,20 +882,19 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
   sweep.unref();
 
   const heldOn = (threadId: string, key: string): [string, Live][] =>
-    [...(threads.get(threadId)?.runs ?? [])].filter(([, l]) => l.held !== undefined && l.held.ask !== "budget" && l.held.ask !== "pressed" && (l.held.ask === "server" ? consentKey(l.held.req.decl) : toolKey(l.held.req.decl)) === key);
+    [...(threads.get(threadId)?.runs ?? [])].filter(([, l]) => l.held?.ask === "code" && l.held.key === key);
 
   return {
-    provisional(threadId, decl, last) {
+    provisional(threadId, decl, last, args) {
       const runs = last?.runs ?? 0;
-      if (!deps.approvals.has(threadId, consentKey(decl))) return { state: "held", why: HELD_APPROVAL, runs };
-      if (decl.kind === "tool") {
-        const info = lists.get(listKey(threadId, decl.server))?.find(x => x.name === decl.tool);
-        if (decl.confirm !== undefined || isDestructive(info)) return { state: "held", why: HELD_CONFIRM, runs };
-      }
+      if (asksNow(threadId, decl, listed(threadId, decl), args) === true) return { state: "held", why: HELD_APPROVAL, runs };
       return runningRecord(last === undefined ? undefined : lastResult(last), runs + 1, now());
     },
 
-    start(req) {
+    start(asked) {
+      // Read once, so the arguments the person allows are the ones the call sends.
+      const sent = asked.args();
+      const req: McpRunStart = { ...asked, args: () => sent };
       const l = live(req.threadId, req.run, req.last);
       const beside = l.record.state === "running";
       if (beside && req.decl.kind === "tool" && req.decl.once === true) return { outcome: "noop", record: l.record };
@@ -886,27 +905,20 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
       if (times === undefined) return hold(req, l, person ? "pressed" : "budget", l.record.runs, beside);
       if (person) l.pressed = times;
       else l.starts = times;
-      if (!deps.approvals.has(req.threadId, consentKey(req.decl))) return hold(req, l, "server", l.record.runs, beside);
-      // The call still running read the server's tools, so a confirm this start needs is asked before that call stops.
-      if (beside && req.decl.kind === "tool" && (req.decl.confirm !== undefined || isDestructive(lists.get(listKey(req.threadId, req.decl.server))?.find(t => t.name === (req.decl as { tool: string }).tool)))) {
-        const asked = hold(req, l, "tool", l.record.runs, true);
-        deps.onAsks?.(req.threadId);
+      // Beside a call still running, the ask comes before that call stops.
+      if (asksNow(req.threadId, req.decl, listed(req.threadId, req.decl), sent) === true) {
+        const asked = hold(req, l, "code", l.record.runs, beside);
+        if (beside) deps.onAsks?.(req.threadId);
         return asked;
       }
       return launch(req, l, false);
     },
 
     approve(threadId, key, scope) {
-      if (scope === "thread" && key.startsWith("mcp:")) {
-        deps.approvals.allow(threadId, key);
-        // A reshape's sheet named the server and its tools too, so it stands for the server's own consent.
-        const at = key.indexOf("#then:");
-        if (at > 0) deps.approvals.allow(threadId, key.slice(0, at));
-      }
+      if (scope === "thread") deps.approvals.allow(threadId, key);
       for (const [, l] of heldOn(threadId, key)) {
         const req = l.held!.req;
         delete l.held;
-        // The server's sheet named the tool and its arguments, so it stands for this start's confirm too.
         launch(req, l, true);
       }
     },
@@ -919,14 +931,19 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
       }
     },
 
-    owns(threadId, key) {
-      return key.startsWith("mcp:") || heldOn(threadId, key).length > 0;
+    owns(_threadId, key) {
+      return key.startsWith("mcp:");
     },
 
     held(threadId) {
       const t = threads.get(threadId);
       if (t === undefined) return [];
-      return [...t.runs].flatMap(([run, l]) => (l.held !== undefined && (l.held.ask === "server" || l.held.ask === "tool") ? [askOf(threadId, run, l.held.req, l.held.ask)] : []));
+      return [...t.runs].flatMap(([run, l]) => (l.held?.ask === "code" && l.held.key !== undefined ? [askOf(threadId, run, l.held.req, l.held.key)] : []));
+    },
+
+    named(threadId, key) {
+      const asked = this.held(threadId).find(a => a.key === key);
+      return asked?.kind === "tool" ? { run: asked.run, cmd: `${asked.server}.${asked.tool} ${JSON.stringify(asked.args)}`.slice(0, 120) } : undefined;
     },
 
     async pending(threadId, ms = CONNECT_MS) {
@@ -977,10 +994,10 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
         }
       }
       conn.usedAt = now();
-      const allowed = deps.approvals.has(threadId, serverKey(server));
       const head = [
         `${server}: an MCP server of this thread's agent, ${tools.length} tool${tools.length === 1 ? "" : "s"}${resources.length > 0 ? `, ${resources.length} resource${resources.length === 1 ? "" : "s"}` : ""}.`,
-        allowed ? "Allowed in this thread: its runs start without asking, but a destructive tool asks on every start." : "Not allowed in this thread yet: the first run on it asks the person once, for reading and calling.",
+        ASKS_LINE[deps.asks(threadId)],
+        `A run on a tool not marked read-only takes description="what it does, in one plain line", which the person reads before allowing it; a write without one is refused.`,
         `A run calls a tool: <run name="x" tool="${server}.<tool>" args={{ <property>: <expression> }} every={60} />; a resource: <run name="x" resource="${server}:<uri>" />. $x.json holds the structured result (else the text parsed as JSON), $x.out the text, $x.err the error.`,
         "Each tool says whether it returns data (a structured result fills $x.json) or text only (prose for a model: draw $x.out, or reshape it with then=).",
       ];
@@ -992,6 +1009,18 @@ export function createSlateMcp(deps: SlateMcpDeps): SlateMcp {
       });
       const res = resources.slice(0, 20).map(r => `resource ${r.uri}${r.mimeType !== undefined ? ` (${r.mimeType})` : ""}${sentence(r.description) !== undefined ? `: ${sentence(r.description)}` : ""}`);
       return clean(threadId, conn.spec, [...head, "", ...body, ...(res.length > 0 ? ["", ...res] : [])].join("\n"));
+    },
+
+    async refusedRuns(threadId, before, doc, away) {
+      if (away.length > 0 || !doc) return away;
+      const bare = Object.entries(doc.runs).flatMap(([name, d]) =>
+        d.kind === "tool" && d.description === undefined && stableJson(before?.runs[name] ?? null) !== stableJson(d) ? [{ name, server: d.server, tool: d.tool }] : [],
+      );
+      if (bare.length === 0) return [];
+      const deadline = (): Promise<McpToolInfo[]> => new Promise(r => setTimeout(() => r([]), DESCRIBE_MS).unref());
+      const servers = [...new Set(bare.map(b => b.server))];
+      const tools = new Map(await Promise.all(servers.map(async server => [server, lists.get(listKey(threadId, server)) ?? (await Promise.race([listFor(threadId, server), deadline()]))] as const)));
+      return bare.filter(b => tools.get(b.server)?.find(t => t.name === b.tool)?.annotations?.readOnlyHint !== true).map(b => slateProblem("K713", slateDescriptionMissing(`$${b.name}`, b.server, b.tool)));
     },
 
     drop(threadId, keep = false) {

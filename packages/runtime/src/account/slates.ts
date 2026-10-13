@@ -6,6 +6,7 @@ import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, folderOnJoined
 import { isServerNotSetUp } from "../agents-read.js";
 import { boxSlateDir, pipeOn, postOn } from "../slate-mcp-on.js";
 import { lazySlates } from "../lazy-slates.js";
+import { toolAsks } from "../harness-catalog.js";
 import type { Slates } from "../slates.js";
 import type { RuntimeContext, SlatesArea } from "../context.js";
 import type { LiveWorkspace } from "../types/wiring.js";
@@ -33,7 +34,9 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
       // A run starts where the thread's next turn would: the folder its session ran in, a --cwd or a worktree, else
       // the folder the workspace's kind holds its project in, on that kind's computer.
       const ranIn = latest?.cwd ?? (latest?.claudeSessionId === undefined ? undefined : ctx.folderOf(workspaceId, latest.claudeSessionId));
-      if (entry === undefined) return { workspaceId, rootThreadId: ctx.rootOf(threadId), sessionId: latest?.claudeSessionId ?? latest?.id ?? threadId, ...(running !== undefined ? { turnId: running.turnId } : {}) };
+      // The mode the thread's next turn runs at, as a send that names none keeps it.
+      const asks = toolAsks(harnessOf(threadId), threadRecords.get(threadId)?.permissionMode ?? latest?.permissionMode);
+      if (entry === undefined) return { workspaceId, rootThreadId: ctx.rootOf(threadId), sessionId: latest?.claudeSessionId ?? latest?.id ?? threadId, ...(running !== undefined ? { turnId: running.turnId } : {}), toolAsks: asks };
       const folder = ctx.runsIn(entry, ranIn, ctx.moduleOf(entry.record.kind).folder(entry.record) ?? ctx.checkoutOf(entry.record));
       // A run on the host from a thread on a box starts in the project's folder here, where the project is also here.
       const here = isLocalWorkspace(entry.record) ? folder : existsSync(ctx.checkoutOf(entry.record)) ? ctx.checkoutOf(entry.record) : homedir();
@@ -45,6 +48,7 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
         folder,
         hostFolder: here,
         computer: ctx.computerOf(entry),
+        toolAsks: asks,
       };
     },
     machineOf: threadId => {

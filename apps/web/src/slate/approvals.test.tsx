@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Several commands waiting at once ask in one sheet: each row shows its command, how often it runs and whether off
-// screen, its env with secrets as dots, and a switch; Allow all, Run once and Don't answer each switched-on row by its
-// own key, the way one sheet at a time would. A server waiting for consent is a row of the same sheet.
+// screen, its env with secrets as dots, and a switch; Allow all, Run once and Not now answer each switched-on row by its
+// own key, the way one sheet at a time would. A tool run waiting for the person is a row of the same sheet.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type SessionView, type SlateAsk } from "@wsp/protocol";
@@ -36,7 +36,8 @@ const base = { computer: "zingzy's MacBook Pro", folder: "~/spoo", timeoutS: 60,
 const LINK: SlateAsk = { ...base, key: "k-link", run: "link", kind: "cmd", cmd: 'vercel link --yes --project "$PROJECT"', env: { PROJECT: "spoo-web", VERCEL_TOKEN: "•••••••••••• (24)" } };
 const DISK: SlateAsk = { ...base, key: "k-disk", run: "disk", kind: "cmd", cmd: "df -h /", env: {} };
 const WIPE: SlateAsk = { ...base, key: "k-wipe", run: "wipe", kind: "cmd", cmd: "rm -rf .vercel", env: {}, confirm: "Remove the local link?" };
-const INBOX: SlateAsk = { key: "mcp:zoho-mail", run: "inbox", kind: "server", server: "zoho-mail", computer: "zingzy's MacBook Pro", why: "needs your approval", tool: "zoho_list_emails", tools: [{ name: "zoho_list_emails" }, { name: "zoho_send_email", destructive: true }] };
+const INBOX_KEY = "mcp:zoho-mail#00000000000000000000000000000001";
+const INBOX: SlateAsk = { key: INBOX_KEY, run: "inbox", kind: "tool", server: "zoho-mail", tool: "zoho_list_emails", computer: "zingzy's MacBook Pro", why: "needs your approval", description: "Lists the newest emails", args: {} };
 
 const held = (...runs: string[]): Record<string, SlateJson> => Object.fromEntries(runs.map(run => [run, { state: "held", why: "needs your approval", runs: 0 }]));
 
@@ -64,20 +65,21 @@ describe("several commands waiting", () => {
     return slates;
   }
 
-  it("lists every command and the server in one sheet, each with its command, cadence and env", async () => {
+  it("lists every command and the tool run in one sheet, each with its command, cadence and env", async () => {
     open(record(DOC, held("link", "disk", "inbox"), [LINK, DISK, INBOX]));
     const sheet = await screen.findByRole("dialog", { name: "Let this slate run these 3?" });
     const rows = [...sheet.querySelectorAll<HTMLElement>("[data-slate-approval]")];
-    expect(rows.map(r => r.dataset["slateApproval"])).toEqual(["k-link", "k-disk", "mcp:zoho-mail"]);
+    expect(rows.map(r => r.dataset["slateApproval"])).toEqual(["k-link", "k-disk", INBOX_KEY]);
     const [link, disk, inbox] = rows as [HTMLElement, HTMLElement, HTMLElement];
     expect(link.querySelector("[data-slate-consent-cmd]")!.textContent).toBe('vercel link --yes --project "$PROJECT"');
     expect(link.querySelector("[data-slate-consent-cadence]")!.textContent).toBe("Runs when you press it");
     expect(link.querySelector('[data-slate-consent-env="PROJECT"] dd')!.textContent).toBe("spoo-web");
     expect(link.querySelector('[data-slate-consent-env="VERCEL_TOKEN"] dd')!.textContent).toBe("•••••••••••• (24)");
     expect(disk.querySelector("[data-slate-consent-cadence]")!.textContent).toBe("Runs every 60 s, also while this slate is not on screen");
-    expect(inbox.textContent).toContain("Use zoho-mail");
+    expect(inbox.textContent).toContain("Run zoho_list_emails on Zoho-mail");
     expect(inbox.querySelector("[data-slate-consent-tool]")!.textContent).toBe("zoho_list_emails");
-    expect(inbox.querySelector("[data-slate-consent-cadence]")!.textContent).toBe("Runs every 5 min, only while this slate is on screen");
+    expect(inbox.querySelector("[data-slate-consent-description]")!.textContent).toBe("Lists the newest emails");
+    expect(inbox.querySelector("[data-slate-consent-where]")!.textContent).toBe("On zingzy's MacBook Pro. Runs every 5 min, only while this slate is on screen.");
     expect(within(sheet).getAllByRole("switch")).toHaveLength(3);
     expect(within(sheet).getAllByRole("switch").every(s => s.getAttribute("aria-checked") === "true")).toBe(true);
     expect(within(sheet).getByRole("button", { name: "Allow all" })).toBeTruthy();
@@ -93,23 +95,29 @@ describe("several commands waiting", () => {
     expect(link.querySelector("[data-slate-consent-where]")!.textContent).toBe("on zingzy's MacBook Pro, in ~/spoo, 300 s at most");
   });
 
-  it("shows each file a run reads, whole, and why it waits, on the one-command, several-commands and server sheets", async () => {
+  it("shows each file a run reads, whole, on the one-command, several-commands and tool sheets, and why a command waits", async () => {
     const parse: SlateAsk = { ...DISK, cmd: 'python3 "$SLATE_DIR/parse.py"', files: { "parse.py": "import json\nprint(json.dumps({}))" }, why: "parse.py changed since you allowed it" };
-    const shaped: SlateAsk = { ...(INBOX as Extract<SlateAsk, { kind: "server" }>), then: 'python3 "$SLATE_DIR/shape.py"', files: { "shape.py": "print('shaped')" } };
+    const shaped: SlateAsk = { ...(INBOX as Extract<SlateAsk, { kind: "tool" }>), then: 'python3 "$SLATE_DIR/shape.py"', files: { "shape.py": "print('shaped')" } };
     const shows = (at: Element, file: string, text: string, why: string) => {
       expect(at.querySelector(`[data-slate-consent-file="${file}"] pre`)!.textContent).toBe(text);
       expect(at.querySelector("[data-slate-consent-why]")!.textContent).toBe(why);
+    };
+    // A tool run's files sit in its code, behind Show code, and its sheet says nothing of why it waits.
+    const showsCode = async (at: HTMLElement, file: string, text: string) => {
+      await act(async () => fireEvent.click(within(at).getByRole("button", { name: "Show code" })));
+      await waitFor(() => expect(at.querySelector(`[data-slate-consent-file="${file}"] pre`)!.textContent).toBe(text));
+      expect(at.querySelector("[data-slate-consent-why]")).toBeNull();
     };
     open(record(DOC, held("disk"), [parse]));
     shows(await screen.findByRole("dialog", { name: "Run this command?" }), "parse.py", "import json\nprint(json.dumps({}))", "Parse.py changed since you allowed it.");
     cleanup();
     open(record(DOC, held("inbox"), [shaped]));
-    shows(await screen.findByRole("dialog", { name: "Let this slate use zoho-mail?" }), "shape.py", "print('shaped')", "Needs your approval.");
+    await showsCode(await screen.findByRole("dialog", { name: "Let this panel run zoho_list_emails on Zoho-mail?" }), "shape.py", "print('shaped')");
     cleanup();
     open(record(DOC, held("disk", "inbox"), [parse, shaped]));
     const sheet = await screen.findByRole("dialog", { name: "Let this slate run these 2?" });
     shows(sheet.querySelector('[data-slate-approval="k-disk"]')!, "parse.py", "import json\nprint(json.dumps({}))", "Parse.py changed since you allowed it.");
-    shows(sheet.querySelector('[data-slate-approval="mcp:zoho-mail"]')!, "shape.py", "print('shaped')", "Needs your approval.");
+    await showsCode(sheet.querySelector<HTMLElement>(`[data-slate-approval="${INBOX_KEY}"]`)!, "shape.py", "print('shaped')");
   });
 
   it("starts a row that arrives while the sheet is open switched off, so Allow answers only the rows the person saw", async () => {
@@ -121,7 +129,7 @@ describe("several commands waiting", () => {
         return { byThread: { ...s.byThread, [row.threadId!]: { ...entry, record: { ...entry.record!, asks: [LINK, DISK, INBOX], values: { ...entry.record!.values, ...held("inbox") } } } } };
       }),
     );
-    const late = await within(document.body).findByRole("switch", { name: "Use zoho-mail" });
+    const late = await within(document.body).findByRole("switch", { name: "zoho-mail.zoho_list_emails" });
     expect(late.getAttribute("aria-checked")).toBe("false");
     await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Allow 2" })));
     expect(vi.mocked(slates.approve).mock.calls.map(c => c[1])).toEqual(["k-link", "k-disk"]);
@@ -166,7 +174,7 @@ describe("several commands waiting", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("answers only the rows switched on, and Run once and Don't go row by row too", async () => {
+  it("answers only the rows switched on, and Run once and Not now go row by row too", async () => {
     const slates = open(record(DOC, held("link", "disk", "inbox"), [LINK, DISK, INBOX]));
     const sheet = await screen.findByRole("dialog", { name: "Let this slate run these 3?" });
     fireEvent.click(within(sheet.querySelector<HTMLElement>('[data-slate-approval="k-disk"]')!).getByRole("switch"));
@@ -175,11 +183,11 @@ describe("several commands waiting", () => {
     await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Run once" })));
     expect(vi.mocked(slates.approve).mock.calls).toEqual([
       [row.threadId, "k-link", "once"],
-      [row.threadId, "mcp:zoho-mail", "once"],
+      [row.threadId, INBOX_KEY, "once"],
     ]);
     cleanup();
     const again = open(record(DOC, held("link", "disk"), [LINK, DISK]));
-    await act(async () => fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Don't" })));
+    await act(async () => fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Not now" })));
     expect(vi.mocked(again.approve).mock.calls).toEqual([
       [row.threadId, "k-link", "refuse"],
       [row.threadId, "k-disk", "refuse"],
