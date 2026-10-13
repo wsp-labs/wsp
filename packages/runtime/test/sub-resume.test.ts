@@ -5,13 +5,15 @@
 // session at the path it was kept from, one copy, and resuming the same session
 // under the resume preamble; a box that fails before the turn replaced once;
 // and no rewind or fork of a turn the deleted machine ran.
+import { rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR } from "@wsp/engine";
-import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { copyKey, type Runtime } from "../src/runtime.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
-import { CLAUDE_SESSION_FILE, CODEX_SESSION_FILE, PUSHED, answering, jumpClock, leadOnThisComputer, sessionPathOf, until, type Answers } from "./sub-fixture.js";
+import { CLAUDE_SESSION_FILE, CODEX_SESSION_FILE, PUSHED, answering, jumpClock, leadOnThisComputer, sessionPathOf, until, type Answers, type Setup } from "./sub-fixture.js";
 
 const NAME = "Fix the flaky upload test";
 const BRANCH = "wsp/fix-the-flaky-upload-test";
@@ -25,11 +27,11 @@ afterEach(async () => {
 });
 
 /** A sub-thread on Boat whose first turn ended, its done read and its session kept, on the agent named. */
-async function doneOnce(o: { agent?: "claude" | "codex"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } = {}) {
+async function doneOnce(o: { agent?: "claude" | "codex" | "opencode"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } & Pick<Setup, "broker" | "hostGh" | "image"> = {}) {
   const agent = o.agent ?? "claude";
   const answers: Answers = { read: PUSHED, session: Buffer.from(`gzipped ${agent} session`), ...o.answers };
   const { clock, jump } = jumpClock();
-  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}) });
+  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}), ...(o.broker !== undefined ? { broker: o.broker } : {}), ...(o.hostGh !== undefined ? { hostGh: o.hostGh } : {}), ...(o.image !== undefined ? { image: o.image } : {}) });
   open.push(held.rt);
   if (o.deleteAfterMs !== undefined) await held.rt.places!.set("box", { deleteAfterMs: o.deleteAfterMs });
   answering(held.boat, answers);
@@ -303,6 +305,32 @@ describe("a send into a released sub-thread", () => {
     expect(failed).toEqual({ step: "machine", said: e!.message.slice(0, -" Start it again in a few minutes.".length), fix: "Start it again in a few minutes." });
     await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
     expect(held.starts.at(-1)!.o.resume).toBe("s2");
+  });
+
+  it("asks gh on this computer again before a new machine while the broker is ready, and refuses with no machine made where it holds no login", async () => {
+    const held = await released({ broker: true, hostGh: true });
+    const machines = held.boat.machines.length;
+    rmSync(join(dirname(held.repo), "gh-signed-in"));
+    const e = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" }).then(
+      () => undefined,
+      (x: unknown) => x as Error,
+    );
+    expect(e?.message).toBe(subHostNoSignInRefusal("Boat", "acme/web").message);
+    expect(held.boat.machines).toHaveLength(machines);
+    expect(await held.record()).toMatchObject({ phase: "released", machineId: "" });
+  });
+
+  it("refuses a sub-thread on an agent the broker adds no key for before a new machine once the broker is ready", async () => {
+    // Started on OpenCode while the broker was not up, then the broker came up.
+    const held = await released({ agent: "opencode", broker: false, hostGh: true, image: { agents: ["claude", "codex", "opencode"] } });
+    held.brokerSwitch.ready = true;
+    const machines = held.boat.machines.length;
+    const e = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "opencode" }).then(
+      () => undefined,
+      (x: unknown) => x as Error,
+    );
+    expect(e?.message).toBe(brokeredAgentRefusal("OpenCode", ["Claude Code", "Codex"]).message);
+    expect(held.boat.machines).toHaveLength(machines);
   });
 
   it("with no session kept lands none and resumes by the id with the transcript at hand, which the agent falls back to", async () => {

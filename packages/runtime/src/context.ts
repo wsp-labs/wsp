@@ -145,7 +145,7 @@ import type {
   SESSION_FACTS,
 } from "./types/internal.js";
 import type { EventBus } from "./types/events.js";
-import type { HarnessAdapterFactory } from "./types/harness.js";
+import type { HarnessAdapterContext, HarnessAdapterFactory } from "./types/harness.js";
 import type { LocalWiring } from "./types/wiring.js";
 import type { AgentSetups } from "./agent-setup.js";
 import type { PairedDevice } from "./devices.js";
@@ -251,6 +251,9 @@ export interface KindsArea {
   readonly moduleOf: (kind: WorkspaceKind) => KindModule;
   readonly placeAgentHome: (place: string | undefined, home: string, id: string) => string;
   readonly vaultOn: (entry: LiveWorkspace) => Readonly<Record<string, string>>;
+  readonly brokered: (record: Pick<WorkspaceRecord, "kind" | "place">) => boolean;
+  readonly readBroker: (record: Pick<WorkspaceRecord, "kind" | "place">) => Promise<void>;
+  readonly brokeredLaunch: (entry: LiveWorkspace, harness: string, token: string | undefined) => { env: Readonly<Record<string, string>>; vault: Readonly<Record<string, string>>; claude?: NonNullable<HarnessAdapterContext["brokered"]> } | undefined;
   readonly backendFor: (record: WorkspaceRecord) => MachineBackend;
   readonly openChannel: (o: DaemonChannelOptions) => Promise<DaemonChannel>;
   readonly backendOfKind: (kind: WorkspaceKind, place?: string) => MachineBackend;
