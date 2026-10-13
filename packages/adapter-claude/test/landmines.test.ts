@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, userMessageLine } from "../src/landmines.js";
+import { BROKER_DOOR_URL, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
 import { agentWord, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -88,6 +88,79 @@ describe("buildEnv", () => {
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-TESTONLY");
     expect(buildEnv({ base: { ...base, CLAUDE_CODE_OAUTH_TOKEN: "inherited" }, apiKey: "sk-ant-x" }).CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
     expect(buildEnv({ base: {} }).CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+  });
+});
+
+describe("a brokered launch", () => {
+  const token = "turn-token-TESTONLY";
+  const real = {
+    ANTHROPIC_API_KEY: "sk-ant-api03-REAL",
+    CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-REAL",
+    ANTHROPIC_AUTH_TOKEN: "gateway-REAL",
+    ANTHROPIC_CUSTOM_HEADERS: "x-gateway-key: REAL",
+    ANTHROPIC_FOUNDRY_API_KEY: "foundry-REAL",
+    AWS_BEARER_TOKEN_BEDROCK: "bedrock-REAL",
+    ANTHROPIC_BASE_URL: "https://gateway.acme.example",
+  };
+  const base = { ...real, HOME: "/root", PATH: "/usr/bin", IS_SANDBOX: "1", DISABLE_AUTOUPDATER: "1", WSP_HOST_TOKEN: token };
+  const shared = {
+    ANTHROPIC_BASE_URL: BROKER_DOOR_URL,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1",
+    DISABLE_UPDATES: "1",
+    API_TIMEOUT_MS: "3600000",
+  };
+
+  it("carries the placeholder of the credential's kind and every variable of the brokered road", () => {
+    expect(buildEnv({ base, brokered: { token, kind: "token" } })).toMatchObject({ ...shared, CLAUDE_CODE_OAUTH_TOKEN: token, ENABLE_TOOL_SEARCH: "true" });
+    expect(buildEnv({ base, brokered: { token, kind: "login" } })).toEqual(buildEnv({ base, brokered: { token, kind: "token" } }));
+    expect(buildEnv({ base, brokered: { token, kind: "key" } })).toMatchObject({ ...shared, ANTHROPIC_API_KEY: token, ENABLE_TOOL_SEARCH: "true" });
+    expect(buildEnv({ base, brokered: { token, kind: "gateway" } })).toMatchObject({ ...shared, ANTHROPIC_AUTH_TOKEN: token, ANTHROPIC_API_KEY: "" });
+  });
+
+  it("sends one placeholder per kind, since the CLI picks its header and betas by which one it finds", () => {
+    expect(buildEnv({ base, brokered: { token, kind: "token" } })).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(buildEnv({ base, brokered: { token, kind: "token" } })).not.toHaveProperty("ANTHROPIC_AUTH_TOKEN");
+    expect(buildEnv({ base, brokered: { token, kind: "key" } })).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
+    expect(buildEnv({ base, brokered: { token, kind: "key" } })).not.toHaveProperty("ANTHROPIC_AUTH_TOKEN");
+    expect(buildEnv({ base, brokered: { token, kind: "gateway" } })).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
+  });
+
+  it("turns tool search on only where the upstream is first party, which a gateway's is not", () => {
+    expect(buildEnv({ base, brokered: { token, kind: "gateway" } })).not.toHaveProperty("ENABLE_TOOL_SEARCH");
+  });
+
+  it("holds no real credential, whatever the login or the vault carried", () => {
+    for (const kind of ["login", "token", "key", "gateway"] as const) {
+      const env = buildEnv({ base, apiKey: "sk-ant-api03-VAULT", oauthToken: "sk-ant-oat01-VAULT", brokered: { token, kind } });
+      const values = Object.values(env);
+      for (const value of [...Object.values(real), "sk-ant-api03-VAULT", "sk-ant-oat01-VAULT"]) expect(values).not.toContain(value);
+      expect(env).not.toHaveProperty("ANTHROPIC_CUSTOM_HEADERS");
+      expect(env).not.toHaveProperty("ANTHROPIC_FOUNDRY_API_KEY");
+      expect(env).not.toHaveProperty("AWS_BEARER_TOKEN_BEDROCK");
+    }
+  });
+
+  it("keeps the rest of the launch: the login's own variables, the headless flags and the project key", () => {
+    const env = buildEnv({ base, brokered: { token, kind: "token" }, projectDirName: "-root-lab" });
+    expect(env).toMatchObject({ HOME: "/root", PATH: "/usr/bin", IS_SANDBOX: "1", DISABLE_AUTOUPDATER: "1", WSP_HOST_TOKEN: token });
+    expect(env).toMatchObject({ CLAUDE_CODE_AUTO_CONNECT_IDE: "0", CLAUDE_CODE_ENABLE_TODO_TOOLS: "1", [PROJECT_DIR_ENV]: "-root-lab" });
+  });
+
+  it("asks the CLI about no other login, since the placeholder is the only sign-in it may use", () => {
+    expect(signInGuard({ base, brokered: { token, kind: "token" } })).toBe("");
+    expect(signInGuard({ base })).not.toBe("");
+  });
+
+  it("leaves a launch that is not brokered as it was", () => {
+    const vaulted = buildEnv({ base, oauthToken: "sk-ant-oat01-VAULT" });
+    const inherited = buildEnv({ base });
+    for (const env of [vaulted, inherited]) {
+      for (const name of ["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST", "DISABLE_UPDATES", "API_TIMEOUT_MS", "ENABLE_TOOL_SEARCH"]) expect(env).not.toHaveProperty(name);
+      expect(env).toMatchObject({ ANTHROPIC_BASE_URL: real.ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN: real.ANTHROPIC_AUTH_TOKEN });
+    }
+    expect(vaulted.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-VAULT");
+    expect(inherited.CLAUDE_CODE_OAUTH_TOKEN).toBe(real.CLAUDE_CODE_OAUTH_TOKEN);
   });
 });
 

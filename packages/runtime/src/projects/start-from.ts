@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { randomUUID } from "node:crypto";
 import type { ProjectView, Caller } from "@wsp/protocol";
 import { GitPrReadReply, GitUpdateReply, GitStartOnReply, isPullRequestFact } from "@wsp/protocol";
 import { noBranchesLine, PR_BEHIND_WORDS, copiesFolder, kindForComputer, placeBranchLine, runsInFolder, startPicks, HERE_PLACE_ID } from "@wsp/protocol";
@@ -9,6 +10,7 @@ import { GitIssueReadReply, GitPrDiffReply, START_WORDS, isReviewRead, lineInDif
 import type { StartPicksAsked } from "../types/harness.js";
 import { type LiveWorkspace, CLONE_MS } from "../types/wiring.js";
 import type { Placed, RuntimeContext, StartFromArea } from "../context.js";
+import { brokeredStart, pullRequestOfRecord } from "./branch-of-record.js";
 
 export function startFromArea(ctx: RuntimeContext): StartFromArea {
   const { bus, clock, live, projectsHeld } = ctx;
@@ -59,7 +61,14 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
     }
     const taken = new Set([...live.values()].map(e => e.record.name));
     const name = takenNameAfter(startName(kind, from.number, from.title), taken);
-    const made = await ctx.workspaces.create({ project: project.id, name }, origin);
+    // Where the host keeps the machine's credentials, a pull request's head is the one branch its pushes may land on,
+    // read before anything is made, so a fork that takes no maintainer's push is refused with nothing to take back.
+    const { at: landing, placeId } = await ctx.landingDeps(project.computer);
+    const brokered = brokeredStart(ctx, ctx.landingKind(project.computer, landing) === "provider");
+    const head = fact !== undefined && brokered ? await pullRequestOfRecord(ctx, project.remote, fact.number, project.name, ctx.placeName(placeId ?? ctx.places.wired), kind === "start") : undefined;
+    // A brokered clone runs under a token scoped to the thread this start opens, so that thread's id is picked first.
+    const as = brokered ? { threadId: randomUUID(), turnId: randomUUID() } : undefined;
+    const made = await ctx.workspaces.create({ project: project.id, name, ...(head !== undefined ? { branchOfRecord: head } : {}), ...(as !== undefined ? { opensThread: as.threadId } : {}) }, origin);
     const entry = live.get(made.id);
     if (entry === undefined) throw new Error(`${name} was made and then not found`);
     entry.record.from = from;
@@ -69,7 +78,8 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
       entry.pr = { ...fact, readAt: clock.now() };
     }
     await ctx.persist(entry.record);
-    if (fact !== undefined) {
+    // A brokered clone already stands on the pull request's head, fetched at depth 1 from the repo that holds it.
+    if (fact !== undefined && head === undefined) {
       try {
         await ctx.withDaemon(entry, ask => ask({ op: "git.prCheckout", cwd: ctx.checkoutOf(entry.record), number: fact.number }));
       } catch (e) {
@@ -77,7 +87,7 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
         throw e;
       }
     }
-    return { entry };
+    return { entry, ...(as !== undefined ? { as } : {}) };
   };
 
   /** Where a start or a review on this computer runs: an issue in the project folder; a pull request in a worktree on
@@ -180,12 +190,13 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
   };
 
   /** The thread a start or a review opens, detached: the turn goes on without the caller. */
-  const openWith = async ({ entry, behind, setup }: Placed, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined): Promise<StartResult> => {
+  const openWith = async ({ entry, behind, setup, as }: Placed, o: { prompt: string; harness?: string; model?: string; effort?: string; permissionMode?: string; access?: AccessChoice }, origin: Caller | undefined): Promise<StartResult> => {
     const handle = await ctx.sessionsApi.start(
       entry.record.id,
       {
         ...(behind !== undefined ? { behind } : {}),
         ...(setup !== undefined ? { setup } : {}),
+        ...(as !== undefined ? { as } : {}),
         prompt: o.prompt,
         ...(o.harness !== undefined ? { harness: o.harness } : {}),
         ...(o.model !== undefined ? { model: o.model } : {}),
