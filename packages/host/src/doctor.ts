@@ -12,7 +12,7 @@ import { dirname, join, posix } from "node:path";
 import { promisify } from "node:util";
 import { agentName, CATALOG_AGENTS, CLAUDE_CONFIG_DIR, GOLDEN_SETUP, GOLDEN_SMOKE, keyEnvOf, mintsToken, VAULT_VARIABLES } from "@wsp/catalog";
 import { CREATED_AT_LABEL, DAEMON_ENV_FILE, DAEMON_LISTENING_CHECK, DAEMON_PORT, DOCTOR_LABEL, EXEC_ENV, GUEST_USER_ENV, OWNER_LABEL, RUN_DIR, TOOLS_PATH, WSP_LABEL, clientWords, isMissing, isReserved, landBytes, presenceTests, presentElsewhere, presentSteps, whoseMachine, type DaemonSupervisor, type Machine, type MachineBackend, type ProvisionPlan } from "@wsp/engine";
-import { ALREADY_JOINED_LINE, capWaitLine, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
+import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
 import { goldenHead, writeDaemonTokenScript, type AccountOrphans, type GoldenVersion, type HereDaemon, type Runtime } from "@wsp/runtime";
 import { keyIn } from "./env-keys.js";
 import WebSocket from "ws";
@@ -20,6 +20,7 @@ import { assetDir, assetName, assetProof, copyAsset, stagedAsset } from "./asset
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, type DaemonTarget } from "./daemon-binary.js";
 import { ANTHROPIC_KEY, KEY_LAYER_WORDS } from "./env-keys.js";
 import { describeDeleted, describeOrphanOffer, describeOrphans, describeStorage } from "./storage.js";
+import { forkPlaceOf, MODEL_CALL_STEP, modelCall, type DoctorBroker } from "./doctor-fork.js";
 import { Timings } from "./doctor-timings.js";
 import type { CliIO } from "./cli.js";
 import type { HostClient } from "./verbs.js";
@@ -1440,6 +1441,8 @@ export interface DoctorOptions {
   hereDaemon?: HereDaemon;
   /** The newest release as the command line read it off the host's file, worded; absent where none was kept. */
   latest?: string;
+  /** The broker that adds the credential to a machine's calls; absent or not ready, the fork proves today's road. */
+  broker?: DoctorBroker;
 }
 
 /** The repo the doctor's own project clones when nobody names one: a public repo of one commit, small enough that
@@ -1818,15 +1821,6 @@ export async function doctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {}): 
   return opts.computer?.kind === "provider" ? forkDoctor(rt, io, opts) : localDoctor(rt, io, opts);
 }
 
-/** The cloud account a fork-road run forks on: the one named, else the only one this host holds. With more than one
- * and none named the run is refused with their names, since a fork on the wrong one proves the wrong cloud. */
-function forkPlaceOf(named: PlaceView | undefined, rows: readonly PlaceView[]): string | undefined {
-  if (named !== undefined) return named.id;
-  const clouds = rows.filter(r => r.kind === "provider" && r.takesForks === true);
-  if (clouds.length > 1) throw new Error(`this host forks on ${clouds.length} cloud accounts, so wsp doctor proves the one you name: ${clouds.map(c => `wsp doctor ${c.name}`).join(" or ")}`);
-  return clouds[0]?.id;
-}
-
 /** The doctor's fork road: this host's own image, a machine forked from it at the provider, wsp deployed on that
  * machine, the connection, a file coming back and the teardown. It forks a live machine and bills while it runs,
  * which is why only a named cloud row takes it. */
@@ -1853,7 +1847,8 @@ export async function forkDoctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {
   try {
     io.log("doctor: proving one live workspace end to end, from your image to the machine it forks and back");
 
-    const on = forkPlaceOf(opts.computer, (await rt.places?.list(Date.now())) ?? []);
+    const rows = (await rt.places?.list(Date.now())) ?? [];
+    const on = forkPlaceOf(opts.computer, rows);
 
     // Before the first thing that bills: a computer on an older daemon than this wsp deploys is a fact a person
     // came here for, and a run that stops later must still have said it.
@@ -1881,7 +1876,7 @@ export async function forkDoctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {
           golden,
           project: project.id,
           name: `doctor-${Date.now().toString(36)}`,
-          ...(opts.envs !== undefined ? { envs: opts.envs } : {}),
+          ...(opts.envs !== undefined && opts.broker?.ready() !== true ? { envs: opts.envs } : {}),
           labels: { [WSP_LABEL]: "1", [DOCTOR_LABEL]: "1", [CREATED_AT_LABEL]: new Date().toISOString() },
         };
         try {
@@ -1944,6 +1939,8 @@ export async function forkDoctor(rt: Runtime, io: CliIO, opts: DoctorOptions = {
       },
       () => "socket alive past the ~30s idle sweep",
     );
+
+    await timings.time(MODEL_CALL_STEP, () => modelCall(cmd => rt.workspaces.exec(workspaceId!, cmd), workspaceId!, opts.broker, hereName(rows) || THIS_COMPUTER), note => note);
 
     await timings.time(
       "a file written there reaches this computer",

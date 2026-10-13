@@ -340,7 +340,7 @@
     "plugins_enable": "wsp plugins enable <id> --agent <id> [<thread>] [--on <computer>]",
     "projects": "wsp projects",
     "projects_remove": "wsp projects remove <project> [--yes] [--force]",
-    "projects_set": "wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--reset <field>]...",
+    "projects_set": "wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]...",
     "projects_seed": "wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]",
     "threads": "wsp threads [<project>] [--tree] [--watch]",
     "threads_wait": "wsp threads wait <thread>... [--timeout <s>] [--tail]",
@@ -388,8 +388,9 @@
   "defaults": {
     "agentSetNothing": "wsp agents set takes --model, --effort, --access, a model to --hide, --show, --add-model or --drop-model, --order or --reset. Name at least one; with none of them there is nothing to change.",
     "agentSetupNothing": "wsp agents setup takes --enable or --disable, --program, --config, --arg, --env, --unset-env or --reset. Name at least one; with none of them there is nothing to change.",
-    "projectSetNothing": "wsp projects set takes --agent, --model, --effort, --access, --after-worktree or --reset. Name at least one; with none of them there is nothing to change.",
+    "projectSetNothing": "wsp projects set takes --agent, --model, --effort, --access, --after-worktree, --tracker or --reset. Name at least one; with none of them there is nothing to change.",
     "afterWorktreeBlank": "--after-worktree was given a blank command, which a new worktree cannot run. Name the shell line a new worktree runs, or take the command away with --reset after-worktree.",
+    "trackerShape": "--tracker {quoted} names no repo. Name it as owner/name, the way gh repo view does.",
     "defaultAgent": "A new thread that names no agent runs {agent}, where its project names none.",
     "startsOwn": "{agent} starts on its own defaults.",
     "startsOn": "{agent} starts on {said}.",
@@ -409,6 +410,7 @@
     "signInAgain": "{agent} keeps its sign-in under its config folder, so sign it in again there before its next thread.",
     "newThreadsHead": "A new thread on {project} starts on:",
     "afterWorktree": "after a new worktree: {command}",
+    "trackers": "gh on a sub-thread's machine may also comment on: {trackers}",
     "from": {
       "named": "named on the start",
       "project": "this project's",

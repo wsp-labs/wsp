@@ -580,7 +580,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
   {
     name: "image",
     usage: "wsp image",
-    about: "the image this host owns: its version, its hash, whether it holds your sign-ins, and the copy each place has built of it",
+    about: "the image this host owns: its version, its hash, whether it holds your sign-ins (an image built on Boat holds none), and the copy each place has built of it",
     page: "agent",
     options: {},
     run: async ctx => {
@@ -591,7 +591,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them.<!-- cloud --> The project images taken off workspaces are listed under it, each with its snapshot id, the workspace it was taken off, its size where the provider lists one and its date.<!-- /cloud -->",
+        "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them. An image built on Boat holds no sign-in: its machines use the sign-ins on this computer through wsp.<!-- cloud --> The project images taken off workspaces are listed under it, each with its snapshot id, the workspace it was taken off, its size where the provider lists one and its date.<!-- /cloud -->",
       input: {},
       output: { image: SealedImage.nullable(), copies: z.array(SealedImageCopy), projects: z.array(SealedProjectImage) },
       call: async (_args, deps) => {

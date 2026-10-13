@@ -17,6 +17,7 @@ import { AGENTS_KIND, signInWord } from "../components/agents/kinds/agents.js";
 import { AGENTS_KINDS } from "../components/agents/kinds/index.js";
 import { SignInFlowView } from "../components/agents/SignInFlowView.js";
 import { useAgentActs } from "../components/agents/useAgentActs.js";
+import { useBrokerStatus } from "../components/agents/useBrokerStatus.js";
 import { keptAgentsReport, useAgentsReport } from "../components/agents/useAgentsReport.js";
 import { HarnessMark } from "../components/chat/HarnessMark.js";
 import { Button } from "../components/ui/button.js";
@@ -249,8 +250,9 @@ function AgentLine({ row, rows, computer, notify, open }: { row: AgentRow; rows:
   const step = quick !== undefined && (quick.id === "sign-in" || quick.id === "cancel") && (quick.run !== undefined || quick.busy === true) ? quick : undefined;
   const terminal = quick?.id === "open-terminal" && quick.run !== undefined ? quick : undefined;
   const waiting = waitingFlow(flow);
-  const tone = waiting || row.signIn === "none" ? "waiting" : row.signIn === "unknown" ? "quiet" : "good";
-  const word = waiting ? capitalised(AGENTS_LIST_WORDS.waitingOnYou) : capitalised(signInWord(row));
+  const status = kindRow.status;
+  const tone = waiting || status?.tone === "waiting" ? "waiting" : status?.tone === "quiet" ? "quiet" : "good";
+  const word = capitalised(status?.words ?? signInWord(row));
   return (
     <>
       <Row
@@ -312,10 +314,11 @@ function AgentsTabBody({ place, ctx }: { place: PlaceView; ctx: SettingsContext 
   const target = { placeId: place.id };
   const read = useAgentsReport(target);
   const acts = useAgentActs(target);
+  const broker = useBrokerStatus(target);
   const here = place.id === HERE_PLACE_ID;
   const name = placeName(place);
   const away = here ? null : absentOf(place, ctx.now);
-  const rows: RowsContext = { where: here ? "here" : "box", ...(here ? {} : { computer: name }), heldWhy: away?.away ?? null, on: name, ...(acts === undefined ? {} : { acts }) };
+  const rows: RowsContext = { where: here ? "here" : "box", ...(here ? {} : { computer: name }), heldWhy: away?.away ?? null, on: name, ...(acts === undefined ? {} : { acts }), ...(broker === undefined ? {} : { broker }) };
   return (
     <>
       <NewThreadsCard ctx={ctx} />
