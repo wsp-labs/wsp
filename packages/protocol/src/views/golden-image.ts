@@ -388,6 +388,9 @@ export const SealedImage = z.object({
   /** The place the image's own seal stands at, by the id its copies are filed under: a joined computer's id or a
    * provider's. Absent on a record sealed before places, which stands at the provider the host forks on. */
   place: z.string().optional(),
+  /** True on an image sealed with no sign-in, key or login file on it; absent on every image sealed before the mark,
+   * which a machine whose credentials the host keeps is never forked from. */
+  noSecrets: z.boolean().optional(),
 });
 export type SealedImage = z.infer<typeof SealedImage>;
 

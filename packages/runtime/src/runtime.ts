@@ -396,6 +396,7 @@ export {
   type HereDaemon,
   type SeedWiring,
   type RuntimeOptions,
+  type CodexClaims,
   type WakeOptions,
   ADD_IS_A_COMPUTER_LINE,
   NO_COPIER_HERE,

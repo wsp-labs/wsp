@@ -20,6 +20,7 @@ import {
   REPO_DEPTH,
   DAEMON_AUTH_DEADLINE_PASSED,
   DAEMON_TOKEN_ROTATED,
+  PIPE_POOL_FULL,
   DAEMON_DEFAULT_HOST,
   DAEMON_DEFAULT_PORT,
   DAEMON_FIRST_FRAME_NOT_AUTH,
@@ -70,6 +71,10 @@ import {
   GUEST_CWD_MAX,
   GUEST_DAEMON_DIR,
   GUEST_DAEMON_SOCKET_PATH,
+  BROKER_PORT,
+  BROKER_SOCKET_PATH,
+  PIPE_POOL_MAX,
+  PIPE_HOLD_MAX_MS,
   GUEST_INBOX_DIR,
   GUEST_MANIFEST_PATH,
   GUEST_FRAME_CAP_BYTES,
@@ -165,6 +170,7 @@ import {
   PTY_SCROLLBACK_CAP_BYTES,
   PlaceAuthRequest,
   PlaceProveRequest,
+  PipeOpen,
   SYS_SAMPLER_STARTED,
   SYS_SAMPLER_STOPPED,
   TUNNEL_CAP,
@@ -246,11 +252,11 @@ const filed = (dir: string): string[] => [...new Set(readdirSync(join(CONTRACT, 
 /** Which schema reads a frame by its op: every op the daemon answers inbound is one DaemonRequest option, the auth
  * frame is its own, the two the place sends outward to its host are theirs, and the machine ops the host sends a
  * place over the link are the link's own union. */
-const OUTBOUND: Record<string, ZodTypeAny> = { auth: DaemonAuthRequest, "place.auth": PlaceAuthRequest, "place.prove": PlaceProveRequest };
+const OUTBOUND: Record<string, ZodTypeAny> = { auth: DaemonAuthRequest, "place.auth": PlaceAuthRequest, "place.prove": PlaceProveRequest, "pipe.open": PipeOpen };
 const schemaFor = (op: string): ZodTypeAny => OUTBOUND[op] ?? (op.startsWith("machine.") ? MachineLinkRequest : DaemonRequest);
 
 describe("every op and every event has its accept and reject frames", () => {
-  it("names one file pair per op the daemon answers, per machine op on the link, plus auth and the two frames a place sends its host", () => {
+  it("names one file pair per op the daemon answers, per machine op on the link, plus auth, the two frames a place sends its host and the one a pipe opens with", () => {
     expect(filed("frames")).toEqual([...namesOf(DaemonRequest, "op"), ...namesOf(MachineLinkRequest, "op"), ...Object.keys(OUTBOUND)].sort());
   });
 
@@ -304,6 +310,7 @@ const words = (): Record<string, string> => ({
   preAuthBytesExceeded: DAEMON_PRE_AUTH_BYTES_EXCEEDED,
   authDeadlinePassed: DAEMON_AUTH_DEADLINE_PASSED,
   tokenRotated: DAEMON_TOKEN_ROTATED,
+  pipePoolFull: PIPE_POOL_FULL,
   invalidJson: DAEMON_INVALID_JSON,
   noToken: DAEMON_NO_TOKEN,
   unknownOp: unknownOpLine("{op}"),
@@ -448,6 +455,10 @@ const numbers = (): Record<string, number | string | readonly string[]> => ({
   placeFoundMaxBytes: PLACE_FOUND_MAX_BYTES,
   openSocketPath: OPEN_SOCKET_PATH,
   guestDaemonSocketPath: GUEST_DAEMON_SOCKET_PATH,
+  brokerPort: BROKER_PORT,
+  brokerSocketPath: BROKER_SOCKET_PATH,
+  pipePoolMax: PIPE_POOL_MAX,
+  pipeHoldMaxMs: PIPE_HOLD_MAX_MS,
   guestDaemonDir: GUEST_DAEMON_DIR,
   guestWspPath: GUEST_WSP_PATH,
   daemonOomScoreAdj: DAEMON_OOM_SCORE_ADJ,

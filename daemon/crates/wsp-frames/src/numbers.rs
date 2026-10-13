@@ -28,6 +28,14 @@ pub const GUEST_WSP_PATH: &str = "/usr/local/bin/wsp";
 /// inside it, so the file is in that workspace's view and in no other's and nowhere on the computer's own. The
 /// file itself is the gate and no token rides this road; a fork has no such socket and dials the port instead.
 pub const GUEST_DAEMON_SOCKET_PATH: &str = "/root/.wsp/daemon.sock";
+/// The two doors a machine whose credentials the host keeps serves on its own loopback, never on the public route:
+/// the HTTP door for model calls and git as its proxy, and the gh door gh reaches through its http_unix_socket.
+pub const BROKER_PORT: u16 = 7071;
+pub const BROKER_SOCKET_PATH: &str = "/root/.wsp/broker.sock";
+/// Idle pipes the daemon parks at once; one dialled past it is closed with words::PIPE_POOL_FULL.
+pub const PIPE_POOL_MAX: usize = 64;
+/// The longest a local connection on a door waits for a pipe before it is closed: the host away an hour.
+pub const PIPE_HOLD_MAX_MS: u64 = 60 * 60 * 1000;
 pub const DAEMON_ROOTS_PATH: &str = "/root/.wsp/roots";
 pub const OPEN_SHIM_PATH: &str = "/usr/local/bin/wsp-open";
 pub const XDG_OPEN_PATH: &str = "/usr/local/bin/xdg-open";
@@ -269,6 +277,7 @@ mod tests {
             DAEMON_ROOTS_PATH,
             OPEN_SOCKET_PATH,
             GUEST_DAEMON_SOCKET_PATH,
+            BROKER_SOCKET_PATH,
         ] {
             assert!(path.starts_with(&format!("{GUEST_WSP_HOME}/")), "{path} is not under {GUEST_WSP_HOME}");
         }

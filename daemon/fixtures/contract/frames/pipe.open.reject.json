@@ -1,0 +1,20 @@
+[
+  {
+    "op": "pipe.open",
+    "door": "ssh",
+    "heldMs": 0
+  },
+  {
+    "op": "pipe.open",
+    "door": "http"
+  },
+  {
+    "op": "pipe.open",
+    "door": "http",
+    "heldMs": -1
+  },
+  {
+    "op": "pipe.open",
+    "heldMs": 0
+  }
+]

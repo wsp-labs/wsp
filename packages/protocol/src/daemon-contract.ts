@@ -68,6 +68,14 @@ export const OPEN_SOCKET_PATH = `${GUEST_WSP_HOME}/open.sock`;
  * inside it, so the file is in that workspace's view and in no other's and nowhere on the computer's own. The file
  * itself is the gate and no token rides this road; a fork has no such socket and dials the port instead. */
 export const GUEST_DAEMON_SOCKET_PATH = `${GUEST_WSP_HOME}/daemon.sock`;
+/** The two doors a machine whose credentials the host keeps serves on its own loopback, never on the public route:
+ * the HTTP door for model calls and git as its proxy, and the gh door gh reaches through its http_unix_socket. */
+export const BROKER_PORT = 7071;
+export const BROKER_SOCKET_PATH = `${GUEST_WSP_HOME}/broker.sock`;
+/** Idle pipes a daemon parks at once; one dialled past it is closed with PIPE_POOL_FULL. */
+export const PIPE_POOL_MAX = 64;
+/** The longest a local connection on a door waits for a pipe before it is closed: the host away an hour. */
+export const PIPE_HOLD_MAX_MS = 60 * 60 * 1_000;
 /** The whole of the wsp a machine carries at GUEST_WSP_PATH: two lines handing the line to the binary named, which
  * opens a session on the daemon that serves this machine. The fork's deploy writes it onto the binary its bundle
  * left, and the workspace runtime writes it into a workspace's own upper onto the init already bound inside; one
@@ -195,6 +203,8 @@ export const DAEMON_AUTH_DEADLINE_PASSED = "no auth frame arrived in time";
  * rotation takes the sockets the old token opened with it, rather than leaving them answering for the life of the
  * connection. Under the same close code the four above travel with. */
 export const DAEMON_TOKEN_ROTATED = "the daemon token was rotated; dial again with the current one";
+/** What a pipe dialled past PIPE_POOL_MAX is closed with. */
+export const PIPE_POOL_FULL = "pipe pool full";
 /** Whether a daemon's close refused the token, rather than cutting a socket whose auth frame came late: every daemon
  * closes both 4401, and a host that stood still past the deadline holds a token the daemon never read. */
 export const daemonRefusedToken = (code: number, reason: string): boolean => code === 4401 && reason !== DAEMON_AUTH_DEADLINE_PASSED;

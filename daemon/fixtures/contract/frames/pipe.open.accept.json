@@ -1,0 +1,12 @@
+[
+  {
+    "op": "pipe.open",
+    "door": "http",
+    "heldMs": 0
+  },
+  {
+    "op": "pipe.open",
+    "door": "gh",
+    "heldMs": 840000
+  }
+]
