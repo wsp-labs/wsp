@@ -319,7 +319,7 @@ async function addProject(io: CliIO, opts: PlaceOpts, aim: HostAim, source: stri
     const seeding = sourceKindOf(source) === "folder" && onComputer !== undefined && !(await copiesFolderOn(client, onComputer));
     let seed: SeedChoice | undefined;
     if (seeding && onComputer !== undefined) {
-      const { plan } = await client.request<{ plan: SeedPlan }>("project.seed.plan", { source });
+      const { plan } = await client.request<{ plan: SeedPlan }>("project.seed.plan", { source, on: onComputer });
       // What would travel: their own words where they gave any, else what the catalogue ticks itself. Read before
       // the menu is drawn, so a word naming a path that never travels is refused rather than shown as ticked.
       const choice = flags.yes === true ? choiceFrom(plan, flags) : defaultSeedChoice(plan);

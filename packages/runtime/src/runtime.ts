@@ -716,7 +716,7 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
         addFolder: async (placeId, key, folder, move, stage) => {
           const source = folder.from.replace(/^~(?=\/|$)/, homedir());
           if (!existsSync(source)) throw new Error(recipeFolderGoneLine(source));
-          const plan = await ctx.projectsDoor.seedPlan(source);
+          const plan = await ctx.projectsDoor.seedPlan(source, placeId);
           if (plan.remote === null) throw new Error(noRemoteLine(source));
           const seed = seedChoiceFrom(plan, folder.keep, []);
           const old = move === undefined ? undefined : projectsHeld.get(move.id);

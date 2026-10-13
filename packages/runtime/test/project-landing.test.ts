@@ -4,7 +4,7 @@
 // image every workspace of the project forks. Over the stub backend, so every
 // command the machine was asked to run is read back here.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -53,8 +53,9 @@ afterEach(() => {
 });
 
 /** A git repo in a folder of its own on this computer: the source a seed reads. */
+/** Resolved, as the host keys a folder's remembered picks: a Mac's tmpdir sits behind the /var link. */
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), "wsp-seed-add-"));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "wsp-seed-add-")));
   roots.push(dir);
   execFileSync("git", ["init", "-q", dir]);
   return dir;
@@ -168,7 +169,7 @@ describe("a folder seeding a project on a computer that clones", () => {
     const { rt, backend, packs } = await withImage({ plan: plan(folder) });
     answering(backend, cmd => (cmd.startsWith("ls -A") ? { exitCode: 0, stdout: "package.json\nREADME.md\n", stderr: "" } : undefined));
     const project = await rt.projects.add({ source: folder, on: "default", seed: TICKED });
-    expect(packs).toEqual([{ plan: plan(folder), choice: TICKED }]);
+    expect(packs).toEqual([{ plan: { ...plan(folder), provider: true }, choice: TICKED }]);
     expect(project.installed).toBeUndefined();
     expect(commands(backend)).not.toContain("npm ci");
   });
@@ -178,7 +179,7 @@ describe("a folder seeding a project on a computer that clones", () => {
     const { rt, backend } = await withImage({ plan: plan(folder), left: ["config/.netrc"] });
     answering(backend, () => ({ exitCode: 0, stdout: "", stderr: "" }));
     const project = await rt.projects.add({ source: folder, on: "default", seed: { files: ["config"], memory: false, commits: false } });
-    expect(project.notice).toBe("1 login inside the folders you ticked stayed on this computer: config/.netrc");
+    expect(project.notice).toBe("1 file inside the folders you ticked stayed on this computer: config/.netrc");
   });
 
   it("says nothing of the kind where every ticked path travelled", async () => {
@@ -441,6 +442,34 @@ describe("the menu a folder's add reads", () => {
     await rt.projects.add({ source: folder, on: "default", seed: { files: [".git-credentials"], memory: false, commits: false, remember: true } });
     const again = await rt.projects.seedPlan(folder);
     expect(again.files.every(f => !f.ticked)).toBe(true);
+  });
+});
+
+describe("a file of values or a key on the menu", () => {
+  const values = { path: ".env", dir: false, bytes: 120, kind: "secret" as const, row: { id: "node", name: "Node" }, ticked: true };
+
+  it("stays ticked for a computer of the person's own, remembered or not, and is unticked for a provider place, which the plan names", async () => {
+    const folder = repo();
+    const { rt, backend, store } = await withImage({ plan: plan(folder, { files: [values] }) });
+    answering(backend, () => ({ exitCode: 0, stdout: "", stderr: "" }));
+    expect((await rt.projects.seedPlan(folder)).files.filter(f => f.ticked).map(f => f.path)).toEqual([".env"]);
+    const cloud = await rt.projects.seedPlan(folder, "default");
+    expect(cloud.provider).toBe(true);
+    expect(cloud.files.filter(f => f.ticked)).toEqual([]);
+    // A choice remembered from an add to a box keeps the file ticked for the next box, and no provider gets it.
+    await store.put("seed-choices", folder, { files: [".env"], memory: false, commits: false, remember: true });
+    const box = await rt.projects.seedPlan(folder);
+    expect([box.remembered, box.files.filter(f => f.ticked).map(f => f.path)]).toEqual([true, [".env"]]);
+    const remembered = await rt.projects.seedPlan(folder, "default");
+    expect([remembered.remembered, remembered.files.filter(f => f.ticked)]).toEqual([true, []]);
+  });
+
+  it("is packed for an add to a provider place on a plan that says so, so the pack leaves it here", async () => {
+    const folder = repo();
+    const { rt, backend, packs } = await withImage({ plan: plan(folder, { files: [values] }) });
+    answering(backend, () => ({ exitCode: 0, stdout: "", stderr: "" }));
+    await rt.projects.add({ source: folder, on: "default", seed: { files: [], memory: false, commits: false } });
+    expect(packs.map(p => [p.plan.provider, p.plan.files.map(f => f.ticked)])).toEqual([[true, [false]]]);
   });
 });
 

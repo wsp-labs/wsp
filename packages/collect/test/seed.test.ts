@@ -49,13 +49,13 @@ function laptop(over: Record<string, string> = {}, files: FakeLaptop["files"] = 
 }
 
 describe("the seed menu for a folder on this computer", () => {
-  it("shows every path git ignores, sized once, with the ticks the catalog's rows decide", async () => {
+  it("shows every path git ignores, sized once, with the ticks the catalog's rows decide: a file of values ticked as configuration is, the host unticking it for a provider", async () => {
     const host = fakeHost(laptop());
     const plan = await seedMenu(host, FOLDER, { claudeStateHome: CLAUDE });
     expect(plan.files.map(f => [f.path, f.kind, f.bytes, f.ticked])).toEqual([
       [".claude", "unknown", 40 * 1024, false],
       [".claude/settings.local.json", "config", 4 * 1024, true],
-      [".env.local", "config", 4 * 1024, true],
+      [".env.local", "secret", 4 * 1024, true],
       [".next-mock", "unknown", 3_200_000 * 1024, false],
       ["docs", "unknown", 18_000 * 1024, false],
       ["next-env.d.ts", "rebuilt", 4 * 1024, false],

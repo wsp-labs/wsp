@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
-import { claudeMemoryDir, claudeProjectKey, defaultSeedChoice, exitClassOf, neverGitLine, notInTheMenuLine, projectSeedLines, projectSeedOf, type SeedFile, type SeedPlan, seedChoiceFrom, seedPicks, seedCommitsLandedLine, seedingLine, seedRowWords, seedSummaryLines } from "../src/index.js";
+import { claudeMemoryDir, claudeProjectKey, defaultSeedChoice, exitClassOf, neverGitLine, notInTheMenuLine, projectSeedLines, projectSeedOf, type SeedFile, type SeedPlan, seedChoiceFrom, seedPicks, seedCommitsLandedLine, seedingLine, seedMenuRows, seedRowWords, seedSummaryLines, staysHereLine } from "../src/index.js";
 
 const file = (path: string, kind: SeedFile["kind"], bytes: number, row?: { id: string; name: string }): SeedFile => ({
   path,
@@ -128,6 +128,34 @@ describe("a project's seed picks", () => {
     const some = projectSeedLines(projectSeedOf("lab", PLAN, { files: [".env.local"], missing: ["old.env"] }, true));
     expect(some.rows[1]![0]).toBe("x");
     expect(some.foot).toEqual(["Picked but not in the folder now, so a sub-thread starts without: old.env.", "1 picked, 4 KB. Saved: every later sub-thread of lab gets these."]);
+  });
+});
+
+describe("a file of values or a key", () => {
+  const values = (provider: boolean): SeedPlan => ({
+    ...PLAN,
+    files: [{ ...file(".env", "secret", 120, { id: "node", name: "Node" }), ticked: true }, file(".claude/settings.local.json", "config", 4096, { id: "agents", name: "agents" })],
+    ...(provider ? { provider: true } : {}),
+  });
+
+  it("is ticked for a box as configuration is, and named by its row", () => {
+    const box = values(false);
+    expect(defaultSeedChoice(box).files).toEqual([".env", ".claude/settings.local.json"]);
+    expect(seedChoiceFrom(box, [], []).files).toContain(".env");
+    expect(seedRowWords(box.files[0]!, box)).toBe("Node");
+  });
+
+  it("never goes to a provider place: unticked whatever was remembered, shown as staying here, and refused by name", () => {
+    const cloud = values(true);
+    expect(defaultSeedChoice(cloud).files).toEqual([".claude/settings.local.json"]);
+    expect(seedMenuRows(cloud, defaultSeedChoice(cloud))).toContainEqual(["[ ]", ".env", "120 B", "stays on this computer"]);
+    expect(() => seedChoiceFrom(cloud, [".env"], [])).toThrow(staysHereLine(".env"));
+    expect(exitClassOf((() => { try { return seedChoiceFrom(cloud, [".env"], []); } catch (e) { return e; } })())).toBe("usage");
+  });
+
+  it("drops out of saved picks for a provider place and stays in them for a box", () => {
+    expect(seedPicks(values(true), [".env", ".claude/settings.local.json"], [], [])).toEqual({ files: [".claude/settings.local.json"], missing: [] });
+    expect(seedPicks(values(false), [".env", ".claude/settings.local.json"], [], [])).toEqual({ files: [".env", ".claude/settings.local.json"], missing: [] });
   });
 });
 

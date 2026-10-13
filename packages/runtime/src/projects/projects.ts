@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CATALOG_AGENTS, DEFAULT_AGENT } from "@wsp/catalog";
 import { INLINE_EXEC_MS, BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, WSP_LABEL, destExists, exportFolder, exportPathsInto, importInto, landBundle, landBytes, plural, agentsOnMachine, guestAgentHomes, guestTmpPath, parseStateListing, stateListing, type MachineBackend, type MachineSpec, GUEST_TMP, syncDisk } from "@wsp/engine";
-import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSeed, ProjectSource, ProjectView, ProjectPlan, SeedChoice, SeedPlan, Caller } from "@wsp/protocol";
+import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSeed, ProjectSource, ProjectView, ProjectPlan, SeedChoice, SeedFile, SeedPlan, Caller } from "@wsp/protocol";
 import { projectLanding, type Landed, type LandingDeps, type ProjectLanding } from "../project-landing.js";
 import { projectSource } from "../project-sources.js";
-import { projectSeedOf, projectUnsavedRefusal, refusal, scopeOf, seedNotHereRefusal, seedPicks, seedSaveRefusal, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
+import { projectSeedOf, projectUnsavedRefusal, refusal, scopeOf, seedNotHereRefusal, heldBackPicks, seedPicks, seedSaveRefusal, seedTravels, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
 import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, namesPlace, noSuchPlaceRefusal } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV } from "@wsp/engine";
 import { resolveThreadDefaults, withCustomModels } from "@wsp/protocol";
@@ -29,8 +29,12 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
     const rewrite = new Set(o.rewrite ?? []);
     const rewriting = plan.secrets.flatMap(s => (s.rewrite !== undefined && rewrite.has(s.path) ? [{ path: s.path, ...s.rewrite }] : []));
     const rewritten = new Set(rewriting.map(r => r.path));
-    const carried = plan.secrets.filter(s => carry.has(s.path) && !rewritten.has(s.path)).map(s => s.path);
-    const cut = plan.secrets.filter(s => !carry.has(s.path) && !rewritten.has(s.path)).map(s => s.path);
+    const row = (await ctx.computerRows()).find(r => r.id === ctx.placeIdOf(entry.record) || r.id === entry.record.provider);
+    const provider = row !== undefined && isProviderPlace(row);
+    // A provider place gets no file of values and no key, carried or flagged or neither, and the consented line says so.
+    const held = seedTravels({ provider }, { kind: "secret" }) ? [] : (plan.values ?? []);
+    const carried = plan.secrets.filter(s => carry.has(s.path) && !rewritten.has(s.path) && !held.includes(s.path)).map(s => s.path);
+    const cut = [...new Set([...plan.secrets.filter(s => !carry.has(s.path) && !rewritten.has(s.path)).map(s => s.path), ...held])].sort();
     const clauses = [
       ...(carried.length > 0 ? [`carrying ${carried.join(", ")}`] : []),
       ...(rewriting.length > 0 ? [`rewriting ${rewriting.map(r => `${r.path}${r.urls.length > 0 ? ` to ${r.urls.join(", ")}` : ""}${r.drop.length > 0 ? ` without ${r.drop.join(", ")}` : ""}`).join(", ")}`] : []),
@@ -49,9 +53,9 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       ...unreadable.map(a => `${a.name} could not be read (${a.error})`),
     ];
     const agentsLine = notes.length === 0 ? "" : ` ${notes.join("; ")}.`;
-    report("consented", `${plan.secrets.length === 0 ? "No secret-shaped files." : `${clauses.charAt(0).toUpperCase()}${clauses.slice(1)}.`}${agentsLine}`);
+    report("consented", `${plan.secrets.length === 0 && cut.length === 0 ? "No secret-shaped files." : `${clauses.charAt(0).toUpperCase()}${clauses.slice(1)}.`}${agentsLine}`);
     report("packing", `Packing ${plural(plan.files - cut.length, "file")}.`);
-    const packed = await o.bundler.pack(carry, rewrite);
+    const packed = await o.bundler.pack(carry, rewrite, provider);
     let state: PackedState | undefined;
     if (travelling.length > 0) {
       const present = await agentsOnMachine(entry.machine, travelling.map(a => a.agent));
@@ -186,16 +190,18 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
    * Named apart from the door below so the create and the landing can resolve a project without reaching through
    * the public object. */
   const projectsDoor = {
-    /** What a seed of a folder on this computer would carry, with the ticks a choice remembered for that folder
-     * leaves on it. Nothing is read whole and nothing leaves this computer: the menu is git's own listing of what
-     * it ignores, one size pass and the agent's memory folder. */
-    async seedPlan(source: string): Promise<SeedPlan> {
+    /** What a seed of a folder on this computer would carry to the computer `on` names, with the ticks a choice
+     * remembered for that folder leaves on it. Nothing is read whole and nothing leaves this computer: the menu is
+     * git's own listing of what it ignores, one size pass and the agent's memory folder. */
+    async seedPlan(source: string, on?: string): Promise<SeedPlan> {
       await ctx.ready();
       const folder = folderNamed(source);
-      const plan = await seedWiring().plan(folder, await ctx.homesHere());
+      const read = await seedWiring().plan(folder, await ctx.homesHere());
+      const place = on === undefined ? undefined : (await ctx.computerRows()).find(r => namesPlace(r, on));
+      const plan = place !== undefined && isProviderPlace(place) ? { ...read, provider: true } : read;
       const remembered = (await store.get(SEED_CHOICES, folder)) as SeedChoice | undefined;
-      if (remembered === undefined) return plan;
-      return { ...plan, remembered: true, files: plan.files.map(f => ({ ...f, ticked: f.kind !== "never" && remembered.files.includes(f.path) })) };
+      const ticked = (f: SeedFile): boolean => seedTravels(plan, f) && (remembered === undefined ? f.ticked : remembered.files.includes(f.path));
+      return { ...plan, ...(remembered === undefined ? {} : { remembered: true }), files: plan.files.map(f => ({ ...f, ticked: ticked(f) })) };
     },
 
     /** The seed picks of a project whose folder is on this computer, moved by the person's words and, with `save`,
@@ -205,12 +211,16 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       if (project.computer !== HERE_PLACE_ID || project.source.kind !== "folder") throw seedNotHereRefusal(project.name, ctx.nameOfComputer(project.computer, await ctx.computerRows()));
       if (o.save === true && scopeOf(origin) !== undefined) throw seedSaveRefusal(project.name, o);
       const folder = folderNamed(project.source.path);
-      const plan = await projectsDoor.seedPlan(folder);
+      // These picks feed sub-threads alone, and a sub-thread only runs on a provider.
+      const plan = { ...(await projectsDoor.seedPlan(folder)), provider: true };
       const prior = (await store.get(SEED_CHOICES, folder)) as SeedChoice | undefined;
       // The saved picks, else nothing: nothing git ignores goes to a sub-thread's machine before the person picked it.
       const picks = seedPicks(plan, o.none === true ? [] : (prior?.files ?? []), o.keep ?? [], o.cut ?? []);
       if (o.save === true) {
-        await store.put(SEED_CHOICES, folder, { files: [...picks.files, ...picks.missing], memory: prior?.memory ?? false, commits: prior?.commits ?? false, remember: true } satisfies SeedChoice);
+        // The record is the folder's for every add too, so a box's files of values stay in it unless cut by name.
+        const cuts = (o.cut ?? []).map(path => path.replace(/\/+$/, ""));
+        const held = heldBackPicks(plan, prior?.files ?? []).filter(path => !cuts.includes(path));
+        await store.put(SEED_CHOICES, folder, { files: [...picks.files, ...picks.missing, ...held], memory: prior?.memory ?? false, commits: prior?.commits ?? false, remember: true } satisfies SeedChoice);
       }
       return projectSeedOf(project.name, plan, picks, o.save === true);
     },
@@ -268,7 +278,7 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
         // A folder is seeded only onto a computer that clones it; the computer the app runs on copies it beside
         // itself and reads nothing of it but its own remote.
         seeding: road.kind !== "mac",
-        seedPlan: folder => projectsDoor.seedPlan(folder),
+        seedPlan: folder => projectsDoor.seedPlan(folder, computer),
         folderRemote: folder => ctx.remoteHere(folder),
       });
       // Nothing of the person's folder leaves this computer unasked: a seed onto a computer that clones needs the
@@ -318,7 +328,12 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
         const recorded: ProjectView = { ...project, ...fields };
         await ctx.rememberProject(recorded);
         // Kept under the folder as this host resolved it, which is the word the next menu is looked up by.
-        if (o.seed?.remember === true && source.kind === "folder") await store.put(SEED_CHOICES, source.path, o.seed);
+        if (o.seed?.remember === true && source.kind === "folder") {
+          // A provider's add holds a box's files of values back rather than unticking them for the next box.
+          const prior = (await store.get(SEED_CHOICES, source.path)) as SeedChoice | undefined;
+          const held = resolved.seed === undefined ? [] : heldBackPicks(resolved.seed, prior?.files ?? []);
+          await store.put(SEED_CHOICES, source.path, { ...o.seed, files: [...new Set([...o.seed.files, ...held])] } satisfies SeedChoice);
+        }
         bus.emit({ type: "project.added", project: recorded });
         return recorded;
       };
