@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import { randomUUID } from "node:crypto";
 import { killUntilGone, type Machine, type WspError } from "@wsp/engine";
-import { type ProjectView, type WorkspaceKind, type WorkspaceView, type WorkspaceCreatingEvent, ThreadScope, agentsFrom, copyFirstLine, namesSize, BLANK_NAME_REFUSAL, CREATE_READY, machineCapRefusal, nameDeletingRefusal, nameTakenRefusal, offeredSize, refusalLine, runsInFolder, SIZE_PICK_FIX, sizeGotLine, sizeRefusal, sizeWord, startingLine } from "@wsp/protocol";
+import { type ProjectView, type WorkspaceKind, type WorkspaceView, type WorkspaceCreatingEvent, ThreadScope, agentsFrom, imageCarriesCheckout, copyFirstLine, namesSize, BLANK_NAME_REFUSAL, CREATE_READY, machineCapRefusal, nameDeletingRefusal, nameTakenRefusal, offeredSize, refusalLine, runsInFolder, SIZE_PICK_FIX, sizeGotLine, sizeRefusal, sizeWord, startingLine } from "@wsp/protocol";
 import { projectLanding } from "../project-landing.js";
+import { brokeredStart, namedOfRecord } from "../projects/branch-of-record.js";
 import { type CreatedWorkspace, type CreateWorkspaceOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, until } from "../types/wiring.js";
 import { isCapRefusal } from "../types/internal.js";
 import type { RuntimeContext, CreateArea } from "../context.js";
@@ -52,6 +54,14 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     // current copy of the image, built there first when it holds none, and everywhere else the snapshot asked for.
     const golden = fromImage ? await ctx.copyForFork(o.golden ?? project.image?.snapshotId ?? (await ctx.imageHead()), placeId, (where, rate) => report("fork-requested", copyFirstLine(where, o.name, rate))) : "";
     const inherited = fromImage ? (await ctx.imageOf(golden)).version?.size : undefined;
+    // Where the host keeps the machine's credentials, the branch its pushes may land on, named before the first write.
+    const brokered = brokeredStart(ctx, road.kind === "provider");
+    // A checkout the image holds starts where it stands, which only the machine can say; a fork starts from its parent.
+    const carried = childBase === undefined && (project.image !== undefined || project.checkout !== undefined || (fromImage && imageCarriesCheckout((await ctx.imageOf(golden)).projects, project.path)));
+    const branchOfRecord = brokered ? (o.branchOfRecord ?? (await namedOfRecord(ctx, { remote: project.remote, name: o.name, project: project.name, on: ctx.placeName(placeId ?? places.wired), base: childBase ?? project.base, carried }))) : undefined;
+    // The clone's token is scoped to a thread: the one asking, else the one the person's create is made to open, whose
+    // id is picked here for the first thread opened on it to take.
+    const opensThread = o.opensThread ?? (brokered && spawned === undefined ? randomUUID() : undefined);
     const record: WorkspaceRecord = {
       id,
       name: o.name,
@@ -85,6 +95,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
       // The branch this copy starts from, kept because a bring back measures against it long after the parent may
       // have moved on or gone to sleep; nothing reads the parent's machine for it again.
       ...((childBase ?? project.base) !== undefined ? { base: childBase ?? project.base } : {}),
+      ...(branchOfRecord !== undefined ? { branchOfRecord } : {}),
       // A fork a thread asked for stores no switch of its own: it carries the tree it belongs to, and the switch is
       // read off that tree's root wherever it is asked for, so one workspace holds the answer for the whole tree.
       ...(spawned === undefined && o.agents !== undefined ? { agents: agentsFrom(ctx.spawnAt(placeId ?? places.wired), o.agents) } : {}),
@@ -95,7 +106,10 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     }
     const bind = (m: Machine): void => {
       record.machineId = m.id;
-      ctx.attach(record, m).creating = true;
+      const entry = ctx.attach(record, m);
+      entry.creating = true;
+      if (opensThread !== undefined) entry.opensThread = opensThread;
+      if (o.branchOfRecord !== undefined) entry.ofRecordHeld = true;
       // The record is in the live map from here, so the place the guard took for it is handed back in the same
       // step: one fork counts as one from the reservation through to the machine being ready, never as two while
       // it boots. A create that never binds hands its place back in the caller's finally instead.

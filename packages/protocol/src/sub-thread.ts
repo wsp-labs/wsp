@@ -6,8 +6,9 @@
 // lead's task, and every line the start refuses or passes with.
 import { z } from "zod";
 import { refusal, refusalParts } from "./exit.js";
+import { shellQuote } from "./shell-quote.js";
 import { seedNotHereRefusal } from "./project-seed.js";
-import { ownerRepoOf } from "./start.js";
+import { ownerRepoOf, START_WORDS } from "./start.js";
 import { cloudNamed, PROVIDER_KEY_WORDS, providerKeyName } from "./place-word.js";
 import { plural } from "./words/base.js";
 import { fmtMemGb, sizeFromWord, sizeWord } from "./words/units.js";
@@ -109,6 +110,19 @@ export function subBranchNameOk(name: string): boolean {
   return name.split("/").every(part => part !== "" && !part.startsWith(".") && !part.endsWith(".lock"));
 }
 
+/** The git lines that put a sub-thread's folder on its branch. Where the host keeps the machine's credentials, the
+ * remote tracks the branch alone and the one commit to start from is fetched at depth 1 by its id, which serves a
+ * branch, a tag and a bare commit alike. The refspec is a pattern on the branch's name, since a plain fetch refuses a
+ * refspec naming a branch the remote does not hold yet, and a wider one would pull every branch. Elsewhere the
+ * image's login is pointed at git and the start's branch fetched without blobs. */
+function subGitLines(o: { setupGit: string; repo: string; branch: string; brokered?: true; fetch: { ref: string; blobless: string; checkout: string } }): string[] {
+  if (o.brokered === true) return ["git init -q", `git remote add -t ${shellQuote(`${o.branch}*`)} origin ${o.repo}`, `git fetch -q --depth 1 origin ${o.fetch.ref}`, `git checkout -q -b ${o.branch} FETCH_HEAD`];
+  return [o.setupGit, "git init -q", `git remote add origin ${o.repo}`, `git fetch -q --filter=blob:none origin ${o.fetch.blobless}`, `git checkout -q -b ${o.branch} ${o.fetch.checkout}`];
+}
+
+/** What a sub-thread whose clone is one commit deep is told about its history. */
+export const SUB_SHALLOW_LINE = "The history here is one commit deep: pass --depth to every git fetch, and run git fetch --deepen=<n> when you need older commits.";
+
 /** The first message's head on a sub-thread: where it runs, the git lines that fetch the lead's pushed commit onto a
  * branch of its own, and the rule to push that branch before the turn ends. Names the files sent, never their
  * contents. The task follows it after a blank line. */
@@ -123,6 +137,8 @@ export function subPreamble(o: {
   base: { branch: string; sha: string };
   branch: string;
   deleteAfterMinutes: number;
+  /** The host keeps the machine's credentials, so its clone is one commit deep. */
+  brokered?: true;
 }): string {
   const lead = o.lead.slice(0, 8);
   const folder = folderWords(o.folder, o.sent);
@@ -130,13 +146,9 @@ export function subPreamble(o: {
   return [
     `This thread runs on a machine of its own on ${o.on} (${subSizeWords(o.size)}), started by thread ${lead}. The code is not here yet. ${folder} Get the code first, in this folder:`,
     "",
-    o.setupGit,
-    "git init -q",
-    `git remote add origin ${o.repo}`,
-    `git fetch -q --filter=blob:none origin ${o.base.branch}`,
-    `git checkout -q -b ${o.branch} ${o.base.sha}`,
+    ...subGitLines({ ...o, fetch: { ref: o.base.sha, blobless: o.base.branch, checkout: o.base.sha } }),
     "",
-    `Work on ${o.branch}, then commit and run git push -u origin ${o.branch} before your turn ends. Thread ${lead} merges that branch. This machine is deleted ${deleted}, and anything not pushed is lost with it.`,
+    `Work on ${o.branch}, then commit and run git push -u origin ${o.branch} before your turn ends. Thread ${lead} merges that branch. This machine is deleted ${deleted}, and anything not pushed is lost with it.${o.brokered === true ? ` ${SUB_SHALLOW_LINE}` : ""}`,
     "",
     "The task:",
   ].join("\n");
@@ -163,18 +175,16 @@ export function subResumePreamble(o: {
   branch: string;
   pushed: boolean;
   deleteAfterMinutes: number;
+  brokered?: true;
 }): string {
-  const fetch = o.pushed ? [`git fetch -q --filter=blob:none origin ${o.branch}`, `git checkout -q -b ${o.branch} FETCH_HEAD`] : [`git fetch -q --filter=blob:none origin ${o.base.branch}`, `git checkout -q -b ${o.branch} ${o.base.sha}`];
+  const fetch = o.pushed ? { ref: o.branch, blobless: o.branch, checkout: "FETCH_HEAD" } : { ref: o.base.sha, blobless: o.base.branch, checkout: o.base.sha };
   const push = o.pushed ? `Push to ${o.branch} as before.` : `Work on ${o.branch}, then commit and run git push -u origin ${o.branch} before your turn ends.`;
   return [
     `This thread's machine was deleted after its last turn, and the thread goes on here, on a new machine on ${o.on} (${subSizeWords(o.size)}). Your conversation came with it; the code did not. ${folderWords(o.folder, o.sent)} Get your branch back first, in this folder:`,
     "",
-    o.setupGit,
-    "git init -q",
-    `git remote add origin ${o.repo}`,
-    ...fetch,
+    ...subGitLines({ ...o, fetch }),
     "",
-    `${push} This machine is deleted ${deletedWords(o.deleteAfterMinutes)}.`,
+    `${push} This machine is deleted ${deletedWords(o.deleteAfterMinutes)}.${o.brokered === true ? ` ${SUB_SHALLOW_LINE}` : ""}`,
     "",
     "The message:",
   ].join("\n");
@@ -218,6 +228,22 @@ export const subOtherHostRefusal = (folder: string, host: string, on: string): E
   usage(`${folder}'s remote is on ${host}, and a machine on ${on} signs in to GitHub and GitLab only`, "Run this work on this computer.");
 /** The other road past a lead branch the remote cannot give: a ref it holds already, the default branch for one. */
 const fromRoad = (pushed: string): string => `or start it from a ref the remote holds with --from ${pushed}`;
+/** A start on a machine whose credentials the host keeps, for a repo on a host other than GitHub: the host adds a
+ * credential for GitHub alone. */
+export const brokeredGitHubOnlyRefusal = (project: string, host: string, on: string): Error =>
+  usage(`${project}'s remote is on ${host}, and a machine on ${on} reaches GitHub alone, through this host`, "Run this work on this computer.");
+/** GitHub could not say which repository a start pushes to, read by gh on this computer: the push rule names the
+ * repository by GitHub's id, so nothing starts without it. */
+export const branchOfRecordUnreadRefusal = (repo: string, why: string): Error =>
+  provider(`gh on this computer could not read ${repo} (${why}), and a machine whose credentials this host keeps pushes only to a repository GitHub names`, "Run gh auth status on this computer, then start it again.");
+/** A pull request whose fork GitHub no longer holds: there is no branch left to push to. */
+export const forkHeadGoneRefusal = (number: number): Error => usage(`pull request #${number}'s fork was deleted, so there is no branch to push to`, "Start the work from an issue or a branch instead.");
+/** A command on a machine whose credentials the host keeps, for a workspace with no thread to scope its token to: the
+ * same sentence every op token refuses with. */
+export const cloneNoThreadRefusal = (name: string): Error => usage(`${name} has no thread yet, so wsp cannot reach GitHub for it`, "Start a thread on it first.");
+/** A start that would push to a fork whose author allowed no edits from maintainers. */
+export const forkNotPushableRefusal = (owner: string, number: number): Error =>
+  usage(START_WORDS.forkNotPushable(owner), `Ask ${owner} to allow edits from maintainers on pull request #${number}, or review it with wsp review instead.`);
 /** S5: the lead is on no branch. */
 export const subDetachedRefusal = (folder: string, pushed: string): Error => usage(`${folder} is on no branch`, `Check one out and push it, ${fromRoad(pushed)}.`);
 /** S5: the lead's branch is not on the remote. */
