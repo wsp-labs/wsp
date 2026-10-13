@@ -15,6 +15,7 @@ import { copyCleanupCommand, copySession } from "./chain.js";
 import { claudeConversations } from "./conversations.js";
 import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "./session-title.js";
 import { buildEnv, launchCommand, newSessionId, savedSpendCommand, serverValuesFile, signInGuard, terminalResumeCommand, userMessageLine } from "./landmines.js";
+import type { BrokeredSignIn } from "./landmines.js";
 import { steersOf } from "./steers.js";
 import { newPlanBook, readPlanCall, type PlanBook } from "./plans.js";
 import { flattenContent, resultFacts } from "./tool-results.js";
@@ -123,6 +124,8 @@ export interface AdapterDeps {
   apiKey?: string;
   /** The long-lived token the vault holds for this agent; set on every turn's environment. */
   oauthToken?: string;
+  /** A launch on a brokered place: the turn token and the kind of credential the host adds for it. */
+  brokered?: BrokeredSignIn;
   interruptGraceMs?: number;
   /** How long the CLI gets to exit on the EOF its result closed the channel with, before its process and its tree
    * are ended for it. The same window it gets to wake its agent in once the background tasks of a held reply are
@@ -599,7 +602,7 @@ const sessionFileIn = (configDir: string, sessionId: string): { folder: string; 
 export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
   if (!deps.configDir.trim().startsWith("/")) throw new Error(`configDir must be an absolute path, got "${deps.configDir}"`);
   const sessions = new Map<string, ClaudeSession>();
-  const signIn = { base: deps.baseEnv, apiKey: deps.apiKey, ...(deps.oauthToken !== undefined ? { oauthToken: deps.oauthToken } : {}) };
+  const signIn = { base: deps.baseEnv, apiKey: deps.apiKey, ...(deps.oauthToken !== undefined ? { oauthToken: deps.oauthToken } : {}), ...(deps.brokered !== undefined ? { brokered: deps.brokered } : {}) };
   const env = buildEnv({ ...signIn, ...(deps.projectDirName !== undefined ? { projectDirName: deps.projectDirName } : {}) });
   const guard = signInGuard({ ...signIn, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
   const memory = deps.projectDirName === undefined ? {} : { memoryDir: claudeMemoryDir(deps.configDir, deps.projectDirName) };

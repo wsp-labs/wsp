@@ -10,7 +10,7 @@ import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
 import type { ExecStream, ExecStreamFactory } from "@wsp/protocol";
 import { createClaudeAdapter } from "../src/adapter.js";
-import { buildEnv, signInGuard } from "../src/landmines.js";
+import { type BrokeredSignIn, buildEnv, signInGuard } from "../src/landmines.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 const RC_KEY = "sk-ant-x-from-zshrc";
@@ -58,7 +58,7 @@ const inherited = (bin: string, lent: Record<string, string>): Record<string, st
 
 /** The turn's launch line as the adapter hands it to the exec, run the way this computer runs one: its environment as
  * the process's own. Answers what the stand-in signed in with. */
-function launchSignsInWith(base: Record<string, string>, vault: { oauthToken?: string; apiKey?: string } = {}): string {
+function launchSignsInWith(base: Record<string, string>, vault: { oauthToken?: string; apiKey?: string; brokered?: BrokeredSignIn } = {}): string {
   const calls: { command: string; env: Readonly<Record<string, string>> }[] = [];
   const factory: ExecStreamFactory = (command, { env }) => {
     calls.push({ command, env: env ?? {} });
@@ -85,7 +85,7 @@ const run = promisify(execFile);
 /** A title question and a commit-message draft as this computer's exec runs them: bash under the host's own
  * environment, which holds what the login shell lent it, with the question's variables on its input as NAME=value NUL
  * entries. Answers what the stand-in signed in with, which must be the same for both. */
-async function titleSignsInWith(base: Record<string, string>, vault: { oauthToken?: string } = {}): Promise<string> {
+async function titleSignsInWith(base: Record<string, string>, vault: { oauthToken?: string; brokered?: BrokeredSignIn } = {}): Promise<string> {
   const adapter = createClaudeAdapter({ exec: () => { throw new Error("no turns here"); }, configDir: join(base["HOME"]!, ".claude"), baseEnv: base, ...vault });
   const seen: string[] = [];
   const exec = async (cmd: string, env?: Readonly<Record<string, string>>): Promise<string> => {
@@ -109,6 +109,16 @@ describe("the order a Claude launch signs in by", () => {
     expect(signInGuard({ base, oauthToken: WSP_TOKEN })).toBe("");
     expect(launchSignsInWith(base, { oauthToken: WSP_TOKEN })).toBe(`key=none token=${WSP_TOKEN}`);
     expect(await titleSignsInWith(base, { oauthToken: WSP_TOKEN })).toBe(`key=none token=${WSP_TOKEN}`);
+  });
+
+  it("a brokered launch signs in with the turn token alone, above the vault, the person's own login and the login shell", async () => {
+    const { bin } = standIn("login");
+    const base = inherited(bin, { CLAUDE_CODE_OAUTH_TOKEN: RC_TOKEN, ANTHROPIC_API_KEY: RC_KEY });
+    const turn = "wsp-turn-x-placeholder";
+    const signIn = { oauthToken: WSP_TOKEN, brokered: { token: turn, kind: "login" as const } };
+    expect(launchSignsInWith(base, signIn)).toBe(`key=none token=${turn}`);
+    expect(await titleSignsInWith(base, signIn)).toBe(`key=none token=${turn}`);
+    expect(launchSignsInWith(base, { brokered: { token: turn, kind: "key" } })).toBe(`key=${turn} token=none`);
   });
 
   it("the person's own Claude sign-in stands above a key or a token from the login shell, which are dropped", async () => {
