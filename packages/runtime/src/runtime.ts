@@ -254,7 +254,7 @@ import { makePlaceDoor, NO_PLACE_DOOR, PlaceForksNowhereError, PlaceProvisioning
 import type { BlobMark, Store } from "./store.js";
 import { memoryGitHubCache, type GitHubCache } from "./github-cache.js";
 import { RANGE_DAYS, READINGS_STEP_MS, SysHistoryReply, resetNoLoginsLine, type ReadingsAnswer, type PlaceView, type AccountsAnswer, type AgentSignInState, type ResetAnswer, type UsageRange, type UsageSplit, type UsedAnswer } from "@wsp/protocol";
-import { HARNESS_CATALOGS, catalogFromProbe, harnessCatalog, modelLabel, smallestModel } from "./harness-catalog.js";
+import { catalogFromProbe, harnessCatalog, modelLabel, smallestModel } from "./harness-catalog.js";
 import {
   GitIssueReadReply,
   GitPrDiffReply,
@@ -1067,23 +1067,17 @@ function runtimeOf(ctx: RuntimeContext): Runtime {
       },
     },
     harnesses: {
-      list: async (workspaceId, origin) => {
+      list: async (workspaceId, origin, at) => {
         const prefs = await ctx.preferences.get();
-        const entry = workspaceId === undefined ? undefined : await ctx.entryOf(workspaceId, ctx.talksToTreeOn(workspaceId, origin) ? undefined : origin);
-        // Only a harness with an adapter can run a turn, and one the person turned off on that computer runs none
-        // there; the rest of the table waits.
-        const table = HARNESS_CATALOGS.filter(c => c.harness in adapters && (entry === undefined || !ctx.agentOff(entry, c.harness)));
-        // A record answers what its threads start at whether or not its machine is up; only the rest of the lists
-        // waits on the binary, so a picker on a paused workspace still reads the access its next thread would run.
-        // An agent whose kept config folder is refused, or cannot be read there, answers with why instead of its
-        // lists. A link that dropped under the check is its computer's state and none of the agent's: the row answers
-        // wsp's own lists, and the app says that computer from its own reading of it.
-        const listsOn = async (c: HarnessCatalog, on: LiveWorkspace): Promise<HarnessCatalog> => {
-          const refusal = await ctx.setupRefusal(on, c.harness).catch((e: unknown) => (isPlaceAbsent(e) ? undefined : e instanceof Error ? e.message : String(e)));
-          if (refusal === undefined) return c;
-          return refusal !== null ? { ...c, refusal } : ctx.catalogOn(c, on, ctx.adapterFor(on, c.harness).adapter);
-        };
-        const lists = entry === undefined || entry.record.phase !== "running" ? table : await Promise.all(table.map(c => listsOn(c, entry)));
+        const entry =
+          workspaceId !== undefined
+            ? await ctx.entryOf(workspaceId, ctx.talksToTreeOn(workspaceId, origin) ? undefined : origin)
+            : at?.project !== undefined
+              ? await ctx.projectHome(at.project, origin)
+              : at?.computer !== undefined
+                ? await ctx.computerHome(at.computer, origin)
+                : undefined;
+        const lists = await ctx.agentLists(entry);
         const project = entry === undefined ? undefined : prefs.projectDefaults[entry.record.project];
         const agent = ctx.defaultAgentOf(prefs, entry);
         return lists.map(c => {

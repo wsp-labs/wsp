@@ -550,8 +550,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
     attachments: z.array(Attachment).optional(),
   }),
   /** Replies with { harnesses: HarnessCatalog[] }, one per harness the runtime knows. With a workspace, the lists come
-   * from the binaries on its machine where they answer; without one, from the runtime's table. */
-  z.object({ id: reqId, op: z.literal("harnesses.list"), workspaceId: z.string().optional() }),
+   * from the binaries on its machine where they answer; with a project instead, from those on the computer whose
+   * folder its new thread runs in; with a computer, from those on it; without any, from the runtime's table. */
+  z.object({ id: reqId, op: z.literal("harnesses.list"), workspaceId: z.string().optional(), project: z.string().optional(), computer: z.string().optional() }),
   z.object({ id: reqId, op: z.literal("sessions.list"), workspaceId: z.string().optional() }),
   /** Replies with the workspace's persisted SessionEvent[] (oldest first, capped by the runtime). With threadId,
    * replies with a HistoryPage of that thread instead: its newest events under `before` (every one when absent), at

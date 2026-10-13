@@ -2,18 +2,18 @@
 import { homedir } from "node:os";
 import { dirname, join, posix, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, checkoutArgs, checkoutOf, installsOnFirstRun, serverValuesOf, turnServerFiles } from "@wsp/catalog";
-import { INLINE_EXEC_MS, harnessExec, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole } from "@wsp/engine";
+import { INLINE_EXEC_MS, harnessExec, isPlaceAbsent, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole } from "@wsp/engine";
 import {
   type AttachmentRoad, type HarnessCatalog, type HarnessCatalogProbe, type Preferences, type SessionView, type TitleSource, type Attachment,
   type TurnImage, threadKeyOf, isLocalWorkspace, catalogRefused, imagePathIn, noAdapterLine, shellQuote,
   signInRefusalLine, storedTitleSource, workspaceState, HERE_PLACE_ID, filePathIn, landFilesLine, filesNotLandedLine,
   dropFilesLine, accessMode, accessRefusal, configDirLaunchRefusal, configDirRefusal, markedFor, openDefaults,
-  resolveThreadDefaults, withCustomModels, type AccessChoice, type ProjectOverrides, type ResolvedFolder,
+  resolveThreadDefaults, withCustomModels, runsInFolder, type AccessChoice, type Caller, type ProjectOverrides, type ResolvedFolder,
 } from "@wsp/protocol";
 import type { TurnWaiting } from "../machine-exec.js";
 import { keyOf, realFolderHere, realFolderScript } from "../agent-setup.js";
 import { providerSaid } from "../status.js";
-import { catalogFromProbe, harnessCatalog, smallestModel } from "../harness-catalog.js";
+import { HARNESS_CATALOGS, catalogFromProbe, harnessCatalog, smallestModel } from "../harness-catalog.js";
 import type { HarnessAdapter, HarnessStartOptions } from "../types/harness.js";
 import {
   AGENT_VERSION_READ_MS, CATALOG_TTL_MS, CATALOG_PROBE_TIMEOUT_MS, FIRST_RUN_READ_MS, SESSION_TITLE_TTL_MS, SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_REFRESH_MAX,
@@ -570,9 +570,41 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
       }),
     };
   };
+  /** The record a new thread on a project runs on, where it runs in the project's folder: its lists are the binaries'
+   * on that computer, which the composer offers before the send makes the thread. Nothing for a project whose threads
+   * run on machines of their own, and nothing where the folder cannot be held now, and wsp's table answers. */
+  const projectHome = async (ref: string, origin: Caller | undefined): Promise<LiveWorkspace | undefined> => {
+    const project = await ctx.projectsDoor.resolve(ref, origin);
+    if (!runsInFolder(ctx.kindOf(project.computer))) return undefined;
+    return ctx.projectFolder(project).catch(() => undefined);
+  };
+  /** The record a computer's agents are read through: the folder of a project on it whose threads run there. Nothing
+   * on a computer holding no such project, and wsp's table answers for it. */
+  const computerHome = async (computer: string, origin: Caller | undefined): Promise<LiveWorkspace | undefined> => {
+    const project = (await ctx.projectsDoor.list(origin)).find(p => p.computer === computer && runsInFolder(ctx.kindOf(p.computer)));
+    return project === undefined ? undefined : projectHome(project.id, origin);
+  };
+  /** Each agent's lists as the binaries at a record answer them, before the person's defaults mark them; wsp's table
+   * where no record is named or its machine is not up. Only a harness with an adapter can run a turn, and one the
+   * person turned off on that computer runs none there. A record answers what its threads start at whether or not its
+   * machine is up; only the rest of the lists waits on the binary, so a picker on a paused workspace still reads the
+   * access its next thread would run. An agent whose kept config folder is refused, or cannot be read there, answers
+   * with why instead of its lists. A link that dropped under the check is its computer's state and none of the
+   * agent's: the row answers wsp's own lists, and the app says that computer from its own reading of it. */
+  const agentLists = async (entry: LiveWorkspace | undefined): Promise<HarnessCatalog[]> => {
+    const table = HARNESS_CATALOGS.filter(c => c.harness in adapters && (entry === undefined || !agentOff(entry, c.harness)));
+    if (entry === undefined || entry.record.phase !== "running") return table;
+    const listsOn = async (c: HarnessCatalog, on: LiveWorkspace): Promise<HarnessCatalog> => {
+      const refusal = await setupRefusal(on, c.harness).catch((e: unknown) => (isPlaceAbsent(e) ? undefined : e instanceof Error ? e.message : String(e)));
+      if (refusal === undefined) return c;
+      return refusal !== null ? { ...c, refusal } : catalogOn(c, on, adapterFor(on, c.harness).adapter);
+    };
+    return Promise.all(table.map(c => listsOn(c, entry)));
+  };
   return {
     catalogOn, firstRunHere, refreshTitle, sourceOf, rowsOn, carriedTitle, nameInHarness, makeTitle, agentAsks, holdAsk, titleRows, setupPlace, agentOff,
     agentLabel, configFolderOn, setupRefusals, setupRefusal, homesHere, storesHere, confineSetup, launchAdapterFor, defaultAgentOf,
     defaultsOn, namedMode, landImages, landFiles, dropThreadFiles, dropImages, threadEnv, placeStores, serverValuesFor, adapterFor,
+    projectHome, computerHome, agentLists,
   };
 }

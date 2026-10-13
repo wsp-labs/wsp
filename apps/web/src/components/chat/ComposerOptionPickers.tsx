@@ -115,17 +115,25 @@ export function useComposerPicks(workspaceId: string, thread: ChatThreadHandle):
   const catalog = useMemo(() => (listed === null ? null : markedFor(listed, resolveThreadDefaults({ firstAgent: harness, named: harness, catalogOf: () => listed, ...ask }))), [ask, harness, listed]);
   const model = useMemo(() => (catalog === null ? null : resolveModel(catalog, { picked: picked.model, thread: onThread.model })), [catalog, picked.model, onThread.model]);
   const picks = useMemo(() => (catalog === null ? null : effectivePicks(catalog, { picked, thread: onThread })), [catalog, picked, onThread]);
-  const startOptions = useMemo(() => (catalog === null ? {} : startOptionsFrom(catalog, picked, onThread)), [catalog, picked, onThread]);
+  // Until the computer a new thread runs on answers, its lists are wsp's table, which may offer a model the agent there
+  // does not run: the model on screen then rides the send, so the host refuses it in words rather than running another.
+  const heard = useStore(s => s.harnessesByWorkspace[workspaceId] !== undefined);
+  const startOptions = useMemo(() => {
+    if (catalog === null) return {};
+    const options = startOptionsFrom(catalog, picked, onThread);
+    return !pinned && !heard && options.model === undefined && model !== null ? { ...options, model: model.value } : options;
+  }, [catalog, heard, model, picked, onThread, pinned]);
   return { harness, catalog, model, picks, startOptions, pinned, latestRow };
 }
 
 /** Asks the workspace's machine for its catalogs once it runs, and again when its computer answers after a silence;
- * the table shows until then and stays when it does not answer. */
+ * the table shows until then and stays when it does not answer. A project's home asks for the lists of the computer
+ * its send runs on, since the table was read off a binary that may be newer than the one there. */
 function useMachineCatalogs(workspaceId: string, answering: boolean): void {
   const workspace = useWorkspace(workspaceId);
   const conn = useStore(s => s.conn);
   const load = useStore(s => s.loadHarnesses);
-  const running = workspace?.phase === "running";
+  const running = workspace?.phase === "running" || isProjectHomeKey(workspaceId);
   useEffect(() => {
     if (running && answering && conn === "live") void load(workspaceId);
   }, [answering, conn, load, running, workspaceId]);
