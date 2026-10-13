@@ -11,13 +11,14 @@ import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableErro
 import {
   DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, lastLine, subFromNotOnRemoteRefusal, subFromUnreadRefusal, type ExecResult, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
   providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
-  subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal, subOtherProjectRefusal,
+  subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subHostNoSignInRefusal, subHostOtherGitRefusal, subNoThreadRefusal, subNoUpstreamRefusal, subOtherProjectRefusal,
   subNotSentLine, subNothingPickedWhy, subStayedLine, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   seedTravels, subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES, deadMachine, isAbsentMachine, isCapRefusal } from "../types/internal.js";
 import { SUB_SESSIONS, subSessionLandCommand } from "./sub-life.js";
 import { brokeredStart, freeBranchName, repoOfRecord } from "../projects/branch-of-record.js";
+import { unbrokeredRefusal } from "./brokered.js";
 import { folderNamed, type CreateWorkspaceOptions, type CreatedWorkspace, type LiveWorkspace, type StageReport, type WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubSpawnArea } from "../context.js";
 
@@ -87,12 +88,29 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     return held !== undefined && key in held ? (held as Record<string, unknown>)[key] : undefined;
   };
 
-  /** S6: the setup image's head on the cloud, holding the sign-in of the remote's git host. */
-  const imageAt = async (place: string, on: string, host: GitHost, remote: string) => {
+  /** S6, on a cloud whose credentials the host keeps: gh on this computer signed in to GitHub, asked as the host's
+   * broker asks for the token it adds, the token itself never leaving gh's own output here. */
+  const hostSignedIn = async (): Promise<boolean> => {
+    try {
+      const machine = await ctx.moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID);
+      return (await machine.exec("gh auth token --hostname github.com > /dev/null 2>&1", { timeoutMs: INLINE_EXEC_MS })).exitCode === 0;
+    } catch {
+      return false;
+    }
+  };
+
+  /** S6: the setup image's head on the cloud, holding the sign-in of the remote's git host; on a cloud whose
+   * credentials the host keeps the image holds none, and the sign-in is gh's on this computer. */
+  const imageAt = async (place: string, on: string, host: GitHost, remote: string, brokered: boolean) => {
     const head = goldenHead(await ctx.copyOf(place, SETUP_IMAGE));
     if (head === undefined) throw subNoImageRefusal(on);
     const record = await ctx.recordOf(SETUP_IMAGE);
     const label = HOST_WORDS[host.id];
+    if (brokered) {
+      if (host.id !== "github") throw subHostOtherGitRefusal(on, label, ownerRepoOf(remote)!);
+      if (!(await hostSignedIn())) throw subHostNoSignInRefusal(on, ownerRepoOf(remote)!);
+      return { head, record };
+    }
     const logins = head.logins ?? record?.logins ?? [];
     if (!logins.some(l => (l.name === host.cli || l.name.startsWith(`${label} CLI`)) && LOGIN_HELD.has(l.state))) {
       throw subNoSignInRefusal(on, { label, cli: host.cli, login: `${label} CLI login` }, ownerRepoOf(remote)!);
@@ -100,8 +118,11 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     return { head, record };
   };
 
-  /** S11: the agent on the image, where the image says which it carries. */
-  const agentOn = (record: Awaited<ReturnType<RuntimeContext["recordOf"]>>, on: string, harness: string): void => {
+  /** S11: the agent on the image, where the image says which it carries; on a cloud whose credentials the host keeps,
+   * one the host's broker adds a credential for, before the cloud is asked for a machine. */
+  const agentOn = (record: Awaited<ReturnType<RuntimeContext["recordOf"]>>, on: string, harness: string, brokered: boolean): void => {
+    const refused = brokered ? unbrokeredRefusal(harness) : undefined;
+    if (refused !== undefined) throw refused;
     const carried = (record?.recipe?.rows ?? []).filter(r => r.kind === "agent" && r.on).map(r => r.id);
     if (carried.length > 0 && !carried.includes(harness)) throw subNoAgentRefusal(on, harness, carried);
   };
@@ -168,7 +189,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       // Changes left uncommitted in the lead's folder are not on a ref --from names either, so nothing says they stayed.
       const uncommitted = ask.from === undefined ? read.entries.filter(e => e.xy !== "!!").length : 0;
       // S6: the image on the cloud, holding the sign-in of the remote's host.
-      const { head, record } = await imageAt(place, on, host, project.remote);
+      const brokered = ctx.brokered({ kind: "cloud", ...(placeId !== undefined ? { place: placeId } : {}) });
+      const { head, record } = await imageAt(place, on, host, project.remote, brokered);
       // S7: a size the plan sells, read off the cloud now.
       const limits = at.limits === undefined ? undefined : await at.limits();
       const sold = soldBy(at, limits);
@@ -187,7 +209,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       await ctx.placeGuard(place);
       // S11: the agent on the image, where the image says which it carries.
       const harness = ask.harness ?? ctx.defaultAgentOf(ctx.state.preferencesHeld ?? (await ctx.preferences.get()), lead);
-      agentOn(record, on, harness);
+      agentOn(record, on, harness, brokered);
       // S12: the picked files, packed fresh from the lead's folder on this computer.
       const seed = await seedOf(project);
       // S13: the hour's and the day's starts.
@@ -502,9 +524,9 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     const project = ctx.projectHeld(record.project);
     const host = gitHostOf(sub.repo);
     if (host === undefined) throw subOtherHostRefusal(project.name, remoteHost(sub.repo) ?? sub.repo, on);
-    const { head, record: image } = await imageAt(place, on, host, sub.repo);
+    const { head, record: image } = await imageAt(place, on, host, sub.repo, ctx.brokered(record));
     await ctx.placeGuard(place);
-    agentOn(image, on, harness);
+    agentOn(image, on, harness, ctx.brokered(record));
     const seed = await seedOf(project);
     const limits = at.limits === undefined ? undefined : await at.limits();
     startsLeft(limits, record.name);

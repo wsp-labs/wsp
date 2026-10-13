@@ -272,6 +272,14 @@ export const subNoSignInRefusal = (on: string, host: { label: string; cli: strin
     `the image on ${on} holds no ${host.label} sign-in (${host.cli}), so a sub-thread could neither clone ${repo} nor push its branch`,
     `Run wsp init --on ${on.toLowerCase()} again with the ${host.login} set to copy.`,
   );
+/** S6, on a cloud whose credentials the host keeps: gh on this computer, whose login the host adds to every git and gh
+ * request a sub-thread sends, holds none. */
+export const subHostNoSignInRefusal = (on: string, repo: string): Error =>
+  usage(`gh on this computer is not signed in to GitHub, so a sub-thread on ${on} could neither clone ${repo} nor push its branch`, "Run gh auth login in a terminal on this computer, then start the sub-thread again.");
+/** S6, on a cloud whose credentials the host keeps: a remote on a git host other than GitHub, which the host adds no
+ * credential for. */
+export const subHostOtherGitRefusal = (on: string, host: string, repo: string): Error =>
+  usage(`a sub-thread on ${on} reaches GitHub alone through this computer, so it could not clone ${repo} on ${host}`, "Run this work on this computer.");
 /** S7: a size the plan does not sell, or no class's figures at all. */
 export const subSizeRefusal = (on: string, word: string, sold: readonly SubSize[]): Error => {
   const named = sold.map(s => `${s.name} ${subSizeWord(s)} (${rateWord(s.rateUsdPerHour)})`);
