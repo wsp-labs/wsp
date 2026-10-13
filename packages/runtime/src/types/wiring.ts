@@ -74,7 +74,7 @@ import type { PlaceWiring } from "../places.js";
 import type { Store } from "../store.js";
 import type { GitHubCache } from "../github-cache.js";
 import type { ReadingsAnswer, ReadingsRange, AccountsAnswer, ResetAnswer, UsageRange, UsageSplit, UsedAnswer } from "@wsp/protocol";
-import type { BranchOfRecord, BrokerStatus, PipeOpen, ReviewDraft, WorkspaceFrom } from "@wsp/protocol";
+import type { BranchOfRecord, BrokerStatus, CodexClaims, PipeOpen, ReviewDraft, WorkspaceFrom } from "@wsp/protocol";
 import type { HarnessAdapterFactory } from "./harness.js";
 
 // --- runtime ------------------------------------------------------------------
@@ -796,14 +796,7 @@ export interface RuntimeOptions {
   };
 }
 
-/** The claims of the host's own ChatGPT login, copied into the placeholder login Codex runs on such a machine: the
- * `https://api.openai.com/auth` claim's account, plan, user and whether the account is FedRAMP. */
-export interface CodexClaims {
-  accountId: string;
-  planType?: string;
-  userId?: string;
-  fedramp?: boolean;
-}
+export type { CodexClaims };
 
 export interface WakeOptions {
   /** How long after a wake gave up the provider is read once more for a resume that landed late (tests shrink it). */
