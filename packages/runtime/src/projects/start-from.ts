@@ -4,7 +4,7 @@ import { GitPrReadReply, GitUpdateReply, GitStartOnReply, isPullRequestFact } fr
 import { noBranchesLine, PR_BEHIND_WORDS, copiesFolder, kindForComputer, placeBranchLine, runsInFolder, startPicks, HERE_PLACE_ID } from "@wsp/protocol";
 import { holdsRepo, projectForRepo } from "@wsp/protocol";
 import { accessWordRefusal, type AccessChoice, pickRefusal } from "@wsp/protocol";
-import { HARNESS_CATALOGS, harnessCatalog } from "../harness-catalog.js";
+import { HARNESS_CATALOGS, harnessCatalog, notRunRefused } from "../harness-catalog.js";
 import { GitIssueReadReply, GitPrDiffReply, START_WORDS, isReviewRead, lineInDiff, reviewFromReply, reviewReaskPrompt, startName, takenNameAfter, type IssueRead, PullRequest, type StartResult, type WorkspaceFrom } from "@wsp/protocol";
 import type { StartPicksAsked } from "../types/harness.js";
 import { type LiveWorkspace, CLONE_MS } from "../types/wiring.js";
@@ -125,7 +125,7 @@ export function startFromArea(ctx: RuntimeContext): StartFromArea {
     try {
       startPicks(resolved.catalog, { ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(named !== undefined ? { permissionMode: named } : {}), ...(o.fast === true ? { fast: true } : {}) }, true);
     } catch (e) {
-      throw pickRefusal(e, resolved.catalog);
+      throw notRunRefused(resolved.catalog, model) ?? pickRefusal(e, resolved.catalog);
     }
   };
 

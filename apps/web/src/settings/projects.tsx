@@ -28,7 +28,7 @@ import { hereName, isProviderPlace, placeName } from "./places.js";
 import { CARD_SURFACE, Card, Cards, HeadRow, Row, type SettingsCardData } from "./rows.js";
 import { VALUE } from "./format.js";
 import { cn } from "../lib/utils.js";
-import { useSidebarProjects } from "../protocol/store.js";
+import { projectHomeKey, useAskedCatalogs, useSidebarProjects } from "../protocol/store.js";
 import type { SettingsContext } from "./settingsContext.js";
 import type { SettingsAt } from "./settingsStore.js";
 
@@ -181,7 +181,8 @@ function ProjectNewThreads({ project, ctx }: { project: ProjectView; ctx: Settin
   const set = (patch: ProjectOverridesPatch): void => ctx.setPreferences({ projectDefaults: { [project.id]: patch } });
   const globalAgent = defaultAgentOf(ctx);
   const agentId = resolved?.agent.value ?? own.agent ?? globalAgent?.harness;
-  const catalog = ctx.harnesses.find(c => c.harness === agentId);
+  // The models the project's computer runs, as its New thread offers them, never wsp's table alone.
+  const catalog = useAskedCatalogs(projectHomeKey(project.id)).find(c => c.harness === agentId);
   if (globalAgent === undefined || catalog === undefined) return null;
   const agentPicks = newThreadDefaults(catalog, ctx.preferences);
   // A word no agent, model or access is spelled as: the select's empty value reads as a placeholder.

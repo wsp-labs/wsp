@@ -8,6 +8,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CATALOG_AGENTS } from "@wsp/catalog";
+import { writeStub } from "../../protocol/test/stub-script.js";
 import { cli, localWiring, makeRuntime, noClaudeKeyNote, up } from "../src/cli.js";
 import { NO_PROJECT_YET } from "../src/verbs.js";
 import { noProviderStorageLine } from "../src/storage.js";
@@ -37,6 +39,12 @@ describe("a computer with no machine provider key", () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "");
     vi.stubEnv("HOME", home);
     vi.stubEnv("WSP_HOME", join(dir, "home"));
+    // `wsp projects` reads what each agent on this computer runs, so every agent is a stub of the case's own that is
+    // not installed, first on the PATH, and the host answers wsp's own lists.
+    const agents = join(dir, "agents");
+    mkdirSync(agents);
+    for (const bin of new Set(CATALOG_AGENTS.map(a => a.bin))) writeStub(join(agents, bin), "#!/bin/sh\nexit 127\n");
+    vi.stubEnv("PATH", `${agents}:${process.env["PATH"] ?? ""}`);
   });
   afterEach(async () => {
     await handle?.close();

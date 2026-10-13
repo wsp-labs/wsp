@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
 import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
-import { harnessCatalog } from "../harness-catalog.js";
+import { harnessCatalog, notRunRefused } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
 import { launchesAs, type KeptLaunch } from "../types/internal.js";
@@ -47,7 +47,12 @@ export function launchArea(ctx: RuntimeContext) {
       const open = session === undefined && ran.model === undefined && ran.effort === undefined ? (resolved?.open ?? {}) : {};
       const model = kept.model ?? open.model;
       const effort = kept.effort ?? open.effort;
-      const picks = startPicks(catalog, { ...o, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: access }, session === undefined, session === undefined ? undefined : ctx.resumedFact(workspaceId, session, "model"));
+      let picks: StartPicks;
+      try {
+        picks = startPicks(catalog, { ...o, ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), permissionMode: access }, session === undefined, session === undefined ? undefined : ctx.resumedFact(workspaceId, session, "model"));
+      } catch (e) {
+        throw notRunRefused(catalog, model ?? o.model) ?? e;
+      }
       return { ...picks, ...(kept.contextWindow !== undefined ? { contextWindow: kept.contextWindow } : {}) };
     };
     return { catalog, picksFor };

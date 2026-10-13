@@ -27,7 +27,7 @@ import { askSettleProcesses } from "../../components/procs/leftAsk.js";
 import { transcripts } from "../../components/chat/transcripts.js";
 import { couldNotStart, explainCreateRefusal, keptAtLoad, madeAs, NO_LINES, restored, toKeep } from "./creations.js";
 import { addressed, firstRow, groupSessions, keptRows, keptThread, openThreadOf, remembered } from "./selection.js";
-import { CREATION_PREFIX, NO_SESSIONS } from "./selectors.js";
+import { CREATION_PREFIX, NO_SESSIONS, computerOfKey, isProjectHomeKey, projectHomeKey, projectOfKey } from "./selectors.js";
 import type { CostTick, Creation, CreationLine, Opens, State } from "./types.js";
 import { followProjectIcons } from "../../projects/images.js";
 import { heldFrom, landedHolds, markTaken, type HeldKeys } from "./heldKeys.js";
@@ -81,10 +81,12 @@ function handOver(key: string, workspaceId: string): void {
   }
   movePicks(key, workspaceId);
   // The lists the creation's composer drew stand for the workspace until its machine answers with its own, so the
-  // footer it lands with is the one that was on screen.
+  // footer it lands with is the one that was on screen: its project home's, where that computer answered. A home not
+  // answered yet hands on nothing, so the composer still knows its lists are wsp's table and not that computer's.
   const s = useStore.getState();
-  if (s.creations.some(c => c.key === key) && s.harnessesByWorkspace[workspaceId] === undefined) {
-    useStore.setState(now => ({ harnessesByWorkspace: { ...now.harnessesByWorkspace, [workspaceId]: now.harnesses } }));
+  const drawn = creation?.project === undefined ? s.harnesses : s.harnessesByWorkspace[projectHomeKey(creation.project)];
+  if (creation !== undefined && drawn !== undefined && s.harnessesByWorkspace[workspaceId] === undefined) {
+    useStore.setState(now => ({ harnessesByWorkspace: { ...now.harnessesByWorkspace, [workspaceId]: drawn } }));
   }
 }
 
@@ -803,7 +805,12 @@ export const useStore = create<State>((set, get) => {
       const api = get().api;
       if (!api?.listHarnesses) return;
       try {
-        const harnesses = await api.listHarnesses(workspaceId);
+        // A project's home has no machine yet: its lists are those of the computer its send's thread runs on. A
+        // computer's key, which Settings reads, asks for that computer's.
+        const project = isProjectHomeKey(workspaceId) ? projectOfKey(get(), workspaceId) : undefined;
+        const computer = computerOfKey(workspaceId);
+        const at = project !== undefined ? { project } : computer !== undefined ? { computer } : undefined;
+        const harnesses = at !== undefined ? await api.listHarnesses(undefined, at) : await api.listHarnesses(workspaceId);
         // The composer asks at every thread it opens; an answer that reads the same keeps the record, which the
         // sidebar reads, so its tiles do not all draw again.
         if (JSON.stringify(get().harnessesByWorkspace[workspaceId]) === JSON.stringify(harnesses)) return;
