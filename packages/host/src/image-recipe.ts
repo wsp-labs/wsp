@@ -24,6 +24,16 @@ export interface BuildContext {
   secrets: ReadonlyMap<string, string>;
   /** Where the values the copied MCP servers read by name are kept. */
   vault?: ImportOptions["vault"];
+  /** The build lands at a provider, whose machines get no secret value the copied configs hold (see cloudCut).
+   * Absent keeps every value, the road to a computer the person owns. */
+  cloud?: boolean;
+}
+
+/** Where wsp init builds, as its caller read the place. */
+export interface BuildsAt {
+  /** False for a computer the person owns, which keeps every value the configs hold; absent is the provider the
+   * runtime forks on, and a provider's machines get no secret value. */
+  cloud?: boolean;
 }
 
 /** What the ticked rows come to on the builder: the files plan, the installs and the MCP plan. `picked` is the rows
@@ -36,6 +46,7 @@ export function planImport(picked: readonly ManifestEntry[], o: BuildContext & {
     ...(o.prefix !== undefined ? { prefix: o.prefix } : {}),
     secrets: o.secrets,
     ...(o.vault !== undefined ? { vault: o.vault } : {}),
+    ...(o.cloud === true ? { cloud: true } : {}),
     platform: o.platform,
     rows: o.rows,
     brew: o.brew,
@@ -75,7 +86,7 @@ export async function brewTableFor(manifest: Manifest, brew: (() => Promise<Brew
 
 /** What a copy's build reads off this computer: the collector and the Homebrew table where there is one. The same
  * readers wsp init takes, minus the ones that only a person's screens use. */
-export interface CopyReaders extends Pick<BuildContext, "home" | "platform" | "vault"> {
+export interface CopyReaders extends Pick<BuildContext, "home" | "platform" | "vault" | "cloud"> {
   collect(): Promise<Manifest>;
   brew?: () => Promise<BrewTable>;
   deployDaemon?: (machine: Machine) => Promise<void | string>;
@@ -140,6 +151,7 @@ export async function copyGoldenRecipe(image: SealedImage, o: CopyReaders): Prom
     // reading the Keychain again would raise macOS's consent dialog for a build nobody is sitting at.
     secrets: new Map(),
     ...(o.vault !== undefined ? { vault: o.vault } : {}),
+    ...(o.cloud === true ? { cloud: true } : {}),
     ...(o.deployDaemon !== undefined ? { deployDaemon: o.deployDaemon } : {}),
   }).recipe;
 }

@@ -133,7 +133,7 @@ const flagName = (arg: string): string | undefined => /^(--?[A-Za-z][\w-]*)(=|$)
 /** The variable an `API_KEY=...` argument sets. */
 const assignName = (arg: string): string | undefined => /^([A-Za-z_]\w*)=/.exec(arg)?.[1];
 /** A flag whose value is never shown: one that hides it whatever its name says, or a secret-shaped name. */
-const hidesValue = (flag: string): boolean => HIDDEN_FLAGS.has(flag) || secretNamed(flag.replace(/-/g, "_"));
+export const hidesValue = (flag: string): boolean => HIDDEN_FLAGS.has(flag) || secretNamed(flag.replace(/-/g, "_"));
 
 const shownUrl = (url: string): string => {
   try {
@@ -149,21 +149,24 @@ const RUNNERS = new Set(["npx", "uvx", "uv"]);
 
 /** What one argument of a stdio definition comes to: the words the detail line shows for it, and how the count of
  * what the row carries names it. */
-interface ArgRead {
+export interface ArgRead {
   /** Nothing where the line drops the argument. */
   show?: string;
   /** Nothing where the argument carries no value of the person's. */
   secret?: string;
   /** What the value goes by where it is one: its variable, its flag or its place among the arguments. */
   key?: string;
+  /** Where the value is: a flag's (`--token x`, `--token=x`), an assignment's (`NAME=x`), or the argument itself. */
+  kind?: "flag" | "assign" | "positional";
 }
 
 const size = (v: string): string => `(${Buffer.byteLength(v)} B)`;
 
 /** An address under any scheme: `https://`, `postgres://`. */
 const ADDRESS = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
-/** A path segment long and token-like enough to be a key the address carries, as Zapier's per-person path is. */
-const KEYLIKE_SEGMENT = /^[A-Za-z0-9_=-]{24,}$/;
+/** A path segment long and token-like enough to be a key the address carries, as Zapier's per-person path is; a key
+ * carries a digit, where a long slug such as a repository's name does not. */
+export const KEYLIKE_SEGMENT = /^(?=.*\d)[A-Za-z0-9_=-]{24,}$/;
 
 /** An address that carries nothing of the person's: no login, no query and no path segment shaped like a key. One that
  * carries any of them is a value, since asking costs a question and not asking can carry a key. */
@@ -183,18 +186,18 @@ const assignRead = (arg: string): ArgRead | undefined => {
   const name = assignName(arg);
   if (name === undefined) return undefined;
   const value = arg.slice(arg.indexOf("=") + 1);
-  return secretNamed(name) || (ADDRESS.test(value) && !plainAddress(value)) ? { show: `${name}=…`, secret: `arg ${name} ${size(value)}`, key: name } : { show: arg };
+  return secretNamed(name) || (ADDRESS.test(value) && !plainAddress(value)) ? { show: `${name}=…`, secret: `arg ${name} ${size(value)}`, key: name, kind: "assign" } : { show: arg };
 };
 
 /** A positional argument that is the definition's own word and no value of the person's: a path, or a plain address. */
-const plainArg = (arg: string): boolean => arg.startsWith("/") || arg.startsWith("~/") || (ADDRESS.test(arg) && plainAddress(arg));
+export const plainArg = (arg: string): boolean => arg.startsWith("/") || arg.startsWith("~/") || (ADDRESS.test(arg) && plainAddress(arg));
 
 /** The one reading of a definition's arguments, for the line a person reads and for what the row carries alike.
  * npx's own yes switch is dropped and takes no value. A dashed flag's next argument is that flag's value, read
  * like any other argument and shown unless the flag is secret-named or hides its value whatever its name says.
  * `--` ends the flags. A path or a plain address past the program is shown; every other argument there is a value
  * this definition does not name, so it is hidden and counted, and the row takes the copy answer. */
-function readArgs(t: { command: string; args: readonly string[] }, home: string): ArgRead[] {
+export function readArgs(t: { command: string; args: readonly string[] }, home: string): ArgRead[] {
   const out: ArgRead[] = [];
   const shown = (a: string): string => (isUrl(a) ? `(${shownUrl(a)})` : tilde(home, a));
   let program = RUNNERS.has(binaryOf(t.command, home));
@@ -216,7 +219,7 @@ function readArgs(t: { command: string; args: readonly string[] }, home: string)
       if (a.includes("=")) {
         const value = a.slice(a.indexOf("=") + 1);
         if (hides) {
-          out.push({ show: `${flag!}=…`, secret: `flag ${flag!} ${size(value)}`, key: flag! });
+          out.push({ show: `${flag!}=…`, secret: `flag ${flag!} ${size(value)}`, key: flag!, kind: "flag" });
           continue;
         }
         // `--env=NAME=value` is the spaced spelling written short: its value is read the same way.
@@ -228,7 +231,7 @@ function readArgs(t: { command: string; args: readonly string[] }, home: string)
       const value = t.args[i + 1];
       if (!takesValue(value)) continue;
       i++;
-      out.push(hides ? { show: "…", secret: `flag ${a} ${size(value)}`, key: a } : (assignRead(value) ?? { show: shown(value) }));
+      out.push(hides ? { show: "…", secret: `flag ${a} ${size(value)}`, key: a, kind: "flag" } : (assignRead(value) ?? { show: shown(value) }));
       continue;
     }
     const assigned = assignRead(a);
@@ -241,7 +244,7 @@ function readArgs(t: { command: string; args: readonly string[] }, home: string)
       out.push({ show: shown(a) });
       continue;
     }
-    out.push({ show: "…", secret: `arg ${i + 1} ${size(a)}`, key: `argument ${i + 1}` });
+    out.push({ show: "…", secret: `arg ${i + 1} ${size(a)}`, key: `argument ${i + 1}`, kind: "positional" });
   }
   return out;
 }

@@ -94,7 +94,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       const runs = (place: string, at: MachineBackend): { place: string; name: string; kind: PlaceKind; backend: MachineBackend } => {
         const name = ctx.placeName(place);
         if (forksNoMachines(at.capabilities)) throw Object.assign(new PlaceForksNowhereError(`${name} forks no machines, so your image cannot be built there`), { kind: "conflict" });
-        return { place, name, kind: places.list().includes(place) ? "provider" : "computer", backend: at };
+        return { place, name, kind: ctx.placeKindOf(place), backend: at };
       };
       // A rebuild seals over the record, so building it anywhere else would move the image's home.
       const target = (await ctx.recordOf("default")) !== undefined ? await ctx.imagePlace("default") : word;

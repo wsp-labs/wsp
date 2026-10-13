@@ -22,7 +22,7 @@ export * from "./history/index.js";
 export { type CommandCount, type RecipeOptions, computeRecipe, floorApplies, unknownCommands, withProject } from "./recipe.js";
 export { PROJECT_READERS, type ProjectNeed, type ProjectScan, scanProject } from "./project/index.js";
 export type { ProjectFile, ProjectFinding, ProjectReader } from "./project/reader.js";
-export { MCP_BIN_DIRS, MCP_REMOTE_ID, MCP_REMOTE_LABEL, detectMcp, homePaths, linuxFit, mcpRemoteHash, mcpRemoteOf, mcpRemoteTokenFile, secretNamed, stdioLine, type LinuxFit } from "./detect/mcp.js";
+export { KEYLIKE_SEGMENT, MCP_BIN_DIRS, MCP_REMOTE_ID, MCP_REMOTE_LABEL, detectMcp, hidesValue, homePaths, linuxFit, mcpRemoteHash, mcpRemoteOf, mcpRemoteTokenFile, plainArg, readArgs, secretNamed, stdioLine, type ArgRead, type LinuxFit } from "./detect/mcp.js";
 export { SWITCHED_OFF_HERE, detectProjectMcp, outsideProjectLine, type ProjectServer } from "./detect/mcp-project.js";
 export { readCheckout, readTurnServers } from "./detect/turn-servers.js";
 export { detectPlugins, pluginIo, pluginRow, type AgentPlugins, type PluginsRead } from "./detect/plugins.js";
