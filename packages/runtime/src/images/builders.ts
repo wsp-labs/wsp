@@ -38,7 +38,7 @@ import {
   placeBuildsNoImageLine,
   placeForksNothingPickLine,
 } from "@wsp/protocol";
-import { type GoldenRecipe, GRACE_MS } from "../types/wiring.js";
+import { atProvider, type GoldenRecipe, GRACE_MS } from "../types/wiring.js";
 import {
   IMAGES,
   NO_COPY_RECIPE,
@@ -239,7 +239,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
    * sealed before places. The manifest there is the one wsp init built and updates. */
   const imagePlace = async (name: string): Promise<string> => (await ctx.recordOf(name))?.place ?? places.wired;
   /** A place this host has a provider row for is a provider; any other place an image builds at is a computer. */
-  const placeKindOf = (place: string): PlaceKind => (places.list().includes(place) ? "provider" : "computer");
+  const placeKindOf = (place: string): PlaceKind => (atProvider(place, places) ? "provider" : "computer");
   /** Every place an image can be built at: the provider rows that fork, and the joined computers whose daemon runs
    * workspaces, this computer left out since it is never forked into. */
   const buildPlaces = async (): Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]> => {

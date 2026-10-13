@@ -7,7 +7,7 @@
 // the person's files take (an exec body has a cap a six-agent set exceeded)
 // through a hook per agent without any file of the person's being touched. A
 // hook the person's own file already claims is left alone and named in the result.
-import { BREW_PREFIX, CATALOG_AGENTS, CONTEXT_MARKER, MODE, SKILL_NAME, agentName, type AgentContext, type AgentEntry, type ContextHooks, type ContextOutcomeKind, type GuestFile, type GuestRoots } from "@wsp/catalog";
+import { BREW_PREFIX, CATALOG_AGENTS, CONTEXT_MARKER, MODE, SECRETS_FILES, SKILL_NAME, agentName, type AgentContext, type AgentEntry, type ContextHooks, type ContextOutcomeKind, type GuestFile, type GuestRoots } from "@wsp/catalog";
 import { ANOTHER_AGENT_WORDS, backgroundWorkWords, RUN_BLOCK_WORDS, TURN_END_WORDS, fmtBytes, onNpmBin, shellQuote, type GoldenBaseTool, type GoldenVersion } from "@wsp/protocol";
 import { INLINE_EXEC_MS } from "./exec-detached.js";
 import { SHELL_READ } from "./machine-facts.js";
@@ -43,8 +43,7 @@ const turnFact = (agent: ContextAgent | undefined): string =>
 export const contextPath = (roots: GuestRoots = GUEST_ROOTS): string => `${roots.etc}/wsp/machine-context.md`;
 export const skillPath = (roots: GuestRoots = GUEST_ROOTS): string => `${roots.etc}/wsp/skills/${SKILL_NAME}/SKILL.md`;
 const factsPath = (roots: GuestRoots): string => `${roots.etc}/wsp/machine-context.json`;
-const SECRETS_SH = "/etc/profile.d/wsp-secrets.sh";
-const SECRETS_FISH = "/etc/fish/conf.d/wsp-secrets.fish";
+const { sh: SECRETS_SH, fish: SECRETS_FISH } = SECRETS_FILES;
 
 /** Mirrors OPEN_SHIM_PATH in @wsp/protocol (the engine sits under the protocol and cannot import it); a host test pins the two equal. */
 export const BROWSER_SHIM_PATH = "/usr/local/bin/wsp-open";
@@ -224,7 +223,7 @@ export function probeCommand(roots: GuestRoots = GUEST_ROOTS, path: string = TOO
     `if [ -x ${BROWSER_SHIM_PATH} ]; then echo "HAS wsp-open"; fi`,
     BASE_VERSION_LINES,
     ...CONTEXT_AGENTS.map(a => `if command -v ${shellQuote(a.bin)} >/dev/null 2>&1; then echo "AGENT ${a.id}"; fi`),
-    `sed -n 's/^export \\([A-Za-z_][A-Za-z0-9_]*\\)=.*/SECRET \\1/p' ${e}/profile.d/wsp-secrets.sh 2>/dev/null`,
+    `sed -n 's/^export \\([A-Za-z_][A-Za-z0-9_]*\\)=.*/SECRET \\1/p' ${e}${SECRETS_SH.slice("/etc".length)} 2>/dev/null`,
     SHELL_READ,
     'echo "SHELL $shell"',
     ...(shells === "none"

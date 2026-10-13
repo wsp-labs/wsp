@@ -512,7 +512,7 @@ describe("runtime verified wake", () => {
       expect((await rt.workspaces.get(ws.id)).vaultRefused).toBeUndefined();
       const script = backend.machines[0]!.runLog.find(s => s.includes("tar czf"))!;
       expect(script).toContain(`find 'root/notes.md' -mindepth 1 -path '*/.git' -prune -o \\( \\( -type d \\( -name 'node_modules' -o -name 'dist' \\) \\) -o \\( -type f \\( -name '.DS_Store' \\) \\) -o \\( -type d -exec test -f '{}/.git' \\; \\) \\) -prune -print > `);
-      expect(script).toMatch(/tar czf '[^']+' --no-recursion --null -T '[^']+\.keep'/);
+      expect(script).toMatch(/tar czf '[^']+'( --exclude='[^']+')+ --no-recursion --null -T '[^']+\.keep'/);
       await rt.workspaces.wake(ws.id);
       setTgzBytes(6_000);
       await rt.workspaces.nap(ws.id);
