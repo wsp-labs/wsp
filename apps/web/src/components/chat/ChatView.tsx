@@ -135,7 +135,8 @@ export function ChatView({
   // A sub-thread waiting for its machine or watching it be made is not at work: its strip or its spawn view says so.
   const spawning = sub?.state === "starting" || sub?.state === "waiting";
   const working = subagent === null && !spawning && (view.running || capped !== undefined);
-  const empty = pageEntries === null && view.entries.length === 0 && !working;
+  // A sub-thread whose first start failed has no message in its transcript: its start's line says why, with Try again.
+  const empty = pageEntries === null && view.entries.length === 0 && !working && sub?.spawn?.failed === undefined;
   // A workspace an agent forked out of a thread stands before its thread's row is listed. The fork opens that thread
   // inside the parent's own turn, so it is on its way while that turn runs; after it, nothing is coming. The host
   // stamps the fork's createdAt and each row's startedAt off one clock, so a later turn of the parent never counts.

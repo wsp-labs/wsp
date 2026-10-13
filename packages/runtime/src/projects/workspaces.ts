@@ -1180,7 +1180,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     },
 
     creating() {
-      return [...ctx.createStages.values()];
+      // A sub-thread's record stands under its lead before its machine is made and its row carries the steps, so a
+      // stage of it replayed ahead of a window's list would be filed there as a create at the root.
+      return [...ctx.createStages.values()].filter(s => live.get(s.workspaceId)?.record.lead === undefined);
     },
 
     seenBy(event, origin) {
