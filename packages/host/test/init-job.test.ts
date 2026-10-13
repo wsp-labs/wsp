@@ -1802,6 +1802,25 @@ describe("the init job, terminal road", () => {
     expect(f.jobs.view()).toMatchObject({ phase: "answering", place: { id: "box", name: "box", kind: "provider" } });
   });
 
+  it("a build at a joined computer keeps the configs as they are, and one at a provider cuts what holds a secret", async () => {
+    const urlNotes = async (kind: "computer" | "provider"): Promise<string[]> => {
+      const f = fake();
+      writeFileSync(join(f.home, ".gitconfig"), '[user]\n\tname = Me\n[url "git@github.com:"]\n\tinsteadOf = https://github.com/\n');
+      saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+      const real = f.rt.golden.buildPlace.bind(f.rt.golden);
+      f.rt.golden.buildPlace = async (on?: string) => ({ ...(await real(on)), kind });
+      await f.jobs.start({ road: "terminal" });
+      await f.settled();
+      await f.jobs.build({});
+      await f.settled();
+      expect(f.jobs.view()!.phase).toBe("done");
+      const results = JSON.parse(readFileSync(join(f.statePath, "..", "golden-import.json"), "utf8")) as { files: { blanked?: { path: string; note: string }[] } };
+      return (results.files.blanked ?? []).filter(b => b.path === "~/.gitconfig").map(b => b.note);
+    };
+    expect(await urlNotes("computer")).toEqual([]);
+    expect(await urlNotes("provider")).toEqual([expect.stringMatching(/\[url\].*on this computer/)]);
+  });
+
   it("the job names the place its build was sent to, and once the image stands a build named at another place goes to the image's own", async () => {
     const box = stubBackend();
     const f = fake({ places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });

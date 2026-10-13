@@ -3420,6 +3420,21 @@ describe("pack size before the boot", () => {
   });
 });
 
+describe("the copy of the configs to where the image is built", () => {
+  const skippedAt = async (cloud?: false): Promise<{ path: string; note: string }[]> => {
+    const f = fake({ yes: true, ...(cloud !== undefined ? { cloud } : {}) });
+    writeFileSync(join(f.opts.home, ".gitconfig"), '[user]\n\tname = Me\n[url "git@github.com:"]\n\tinsteadOf = https://github.com/\n');
+    expect((await runInit(f.opts, f.io)).code).toBe(0);
+    const results = JSON.parse(readFileSync(join(dirname(f.opts.statePath), "golden-import.json"), "utf8")) as { files: { blanked?: { path: string; note: string }[] } };
+    return (results.files.blanked ?? []).filter(s => s.path === "~/.gitconfig");
+  };
+
+  it("leaves git's url rewrites here on the provider the run forks on, and keeps them for a computer the person owns", async () => {
+    expect(await skippedAt()).toEqual([{ id: "identity/git-user", path: "~/.gitconfig", note: expect.stringMatching(/\[url\].*on this computer/) }]);
+    expect(await skippedAt(false)).toEqual([]);
+  });
+});
+
 describe("disk estimate before the boot", () => {
   it("the seal records the tag and the asset's checksum a release install read into the recipe file, and the saved manifest carries none", async () => {
     // gh with no formula row here: the recipe's bare row installs it from its GitHub release.

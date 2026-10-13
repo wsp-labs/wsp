@@ -238,6 +238,8 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
   /** Where the image's own seal stands: the place the record names, or the provider this host forks on for a record
    * sealed before places. The manifest there is the one wsp init built and updates. */
   const imagePlace = async (name: string): Promise<string> => (await ctx.recordOf(name))?.place ?? places.wired;
+  /** A place this host has a provider row for is a provider; any other place an image builds at is a computer. */
+  const placeKindOf = (place: string): PlaceKind => (places.list().includes(place) ? "provider" : "computer");
   /** Every place an image can be built at: the provider rows that fork, and the joined computers whose daemon runs
    * workspaces, this computer left out since it is never forked into. */
   const buildPlaces = async (): Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]> => {
@@ -257,7 +259,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
 
   /** How a copy of the image is planned off the record. The runtime writes no recipe of its own, so a host that
    * wired none builds no copy anywhere, and every road that needs one says so in the one sentence. */
-  const copyRecipeOrThrow = (): ((image: SealedImage) => Promise<GoldenRecipe> | GoldenRecipe) => {
+  const copyRecipeOrThrow = (): ((image: SealedImage, at: { cloud: boolean }) => Promise<GoldenRecipe> | GoldenRecipe) => {
     const compose = opts.copyRecipe;
     if (compose === undefined) throw new Error(NO_COPY_RECIPE);
     return compose;
@@ -457,7 +459,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
   };
   return {
     builderView, graceTimers, armGrace, inWindow, expireGrace, hold, refuseUntouchable, forgetBuilder, forgetIfGone,
-    stageOf, backendAt, placeAt, landingBackend, forkingAt, placeName, imagePlace, buildPlaces, copyRecipeOrThrow,
+    stageOf, backendAt, placeAt, landingBackend, forkingAt, placeName, imagePlace, buildPlaces, placeKindOf, copyRecipeOrThrow,
     recipeOrThrow, builderLabels, recordingCreates, settleBuilder, sealEntry, dropImage,
   };
 }

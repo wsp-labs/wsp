@@ -452,6 +452,8 @@ export interface PackedFiles {
   stood?: string[];
   /** The skips a fork should know about, stamped on the sealed version: a hook whose script did not travel. */
   leftBehind?: GoldenLeftBehind[];
+  /** Files that travelled with values cut out, each with what stayed on this computer: a copy to a provider's machine. */
+  blanked?: SkippedPath[];
 }
 
 /** One file staged for that computer as the archive would carry it: where it lands under the home there, and the
@@ -544,7 +546,7 @@ export interface AgentResult {
 
 export interface ImportResult {
   recipeHash: string;
-  files?: { bytes: number; skipped: SkippedPath[]; cut?: CutNames[] };
+  files?: { bytes: number; skipped: SkippedPath[]; cut?: CutNames[]; blanked?: SkippedPath[] };
   /** The Homebrew checkout the formulae installed under, when the tools stage put one on the machine. */
   homebrew?: { tag: string; commit: string };
   tools: ToolResult[];
@@ -673,7 +675,8 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
       const notes = packed.skipped.map(s => `${s.path} (${s.note})`);
       const silenced = packed.silenced.length > 0 ? `; silenced in the shell: ${packed.silenced.join(", ")}` : "";
       const macPaths = packed.macPaths.length > 0 ? `; Mac paths: ${packed.macPaths.join(", ")}` : "";
-      stage("applying-setup", `${fmtBytes(packed.bytes)} packed${notes.length > 0 ? `; skipped ${notes.join(", ")}` : ""}${silenced}${macPaths}`);
+      const blanked = (packed.blanked ?? []).length > 0 ? `; copied with values cut: ${packed.blanked!.map(s => `${s.path} (${s.note})`).join(", ")}` : "";
+      stage("applying-setup", `${fmtBytes(packed.bytes)} packed${notes.length > 0 ? `; skipped ${notes.join(", ")}` : ""}${blanked}${silenced}${macPaths}`);
       if (packed.silenced.length > 0) ledger.silenced = packed.silenced;
       else delete ledger.silenced;
       mark("applying-setup");
@@ -690,7 +693,7 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
       stage("uploading-files", fmtBytes(packed.bytes));
       ran = true;
       await upload(packed, "");
-      result.files = { bytes: packed.bytes, skipped: packed.skipped, cut: packed.cut };
+      result.files = { bytes: packed.bytes, skipped: packed.skipped, cut: packed.cut, ...(packed.blanked !== undefined && packed.blanked.length > 0 ? { blanked: packed.blanked } : {}) };
       mark("uploading-files");
     }
   }
