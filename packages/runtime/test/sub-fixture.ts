@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach } from "vitest";
+import { seedRowFor } from "@wsp/catalog";
 import { BOX_CLASSES, BOX_WORK_DIR, NAME_LABEL, CreateCancelledError, EnvNotLandedError, GuestUnusableError, tarOf, type BoxLimits, type Machine, type MachineSpec } from "@wsp/engine";
 import { boatBoxStateLine, boatCancelledLine, HERE_PLACE_ID, HOST_TOKEN_ENV, type SubSize, TURN_TOKEN_ENV, type Caller, type DaemonResponse, type McpServerSpec, type SeedPlan, type TurnResult, type AdapterEvent } from "@wsp/protocol";
 import type { Clock } from "../src/clock.js";
@@ -174,8 +175,9 @@ function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, 
   });
 }
 
-/** The menu of what git ignores in the lead's folder, read off the files standing there, and a real packed archive. */
-function seedWiring(sizes: Record<string, number>) {
+/** The menu of what git ignores in the lead's folder, read off the files standing there and judged by the catalog's
+ * own rows, and a real packed archive. */
+function seedWiring(sizes: Record<string, number>, left: string[] = []) {
   return {
     plan: async (folder: string): Promise<SeedPlan> => ({
       source: folder,
@@ -186,12 +188,15 @@ function seedWiring(sizes: Record<string, number>) {
       uncommitted: 0,
       memory: null,
       remembered: false,
-      files: Object.entries(sizes).map(([path, bytes]) => ({ path, dir: false, bytes, kind: "config" as const, ticked: true })),
+      files: Object.entries(sizes).map(([path, bytes]) => {
+        const kind = seedRowFor(path, false)?.kind;
+        return { path, dir: false, bytes, kind: kind === undefined || kind === "junk" ? ("unknown" as const) : kind, ticked: true };
+      }),
     }),
     pack: async (o: { plan: SeedPlan; choice: { files: string[] } }) => {
       // Random bytes, so the archive is as big packed as the files are.
       const entries = o.choice.files.map(path => ({ path, mode: 0o600, content: randomBytes(sizes[path]!) }));
-      return { tar: tarOf(entries), files: entries.length, bytes: o.choice.files.reduce((n, p) => n + sizes[p]!, 0), commits: 0, left: [] };
+      return { tar: tarOf(entries), files: entries.length, bytes: o.choice.files.reduce((n, p) => n + sizes[p]!, 0), commits: 0, left };
     },
   };
 }
@@ -201,6 +206,8 @@ export interface Setup {
   git?: Partial<LeadGit>;
   picks?: string[];
   sizes?: Record<string, number>;
+  /** What the pack finds inside a picked folder and leaves here, as the host's pack names it. */
+  left?: string[];
   image?: false | Parameters<typeof sealImage>[1];
   agents?: { spawn: boolean; maxMachines?: number };
   /** Boat's spend per day, which wires the place door that keeps it. */
@@ -226,7 +233,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   execFileSync("git", ["init", "-q", "-b", "feat/upload", repo]);
   execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "first"]);
   if (o.remote !== null) execFileSync("git", ["-C", repo, "remote", "add", "origin", o.remote ?? "git@github.com:acme/web.git"]);
-  const sizes = o.sizes ?? { ".env": 1100, ".env.local": 143 };
+  const sizes = o.sizes ?? { "CLAUDE.local.md": 1100, "local.properties": 143 };
   for (const [path, bytes] of Object.entries(sizes)) writeFileSync(join(repo, path), "x".repeat(bytes));
   const store = memoryStore();
   if (o.image !== false) await sealImage(store, o.image);
@@ -242,7 +249,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const claude = harness(starts, leadTurn, CLAUDE_SESSION_FILE);
   const onBoat = o.subAdapter;
   const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE) };
-  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
+  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);
   if (o.served === true) {

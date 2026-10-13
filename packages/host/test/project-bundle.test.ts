@@ -405,6 +405,22 @@ describe("packProject", () => {
     expect(git(out, "log", "--format=%H")).toBe(git(root, "log", "--format=%H"));
   });
 
+  it("for a provider place cuts every file of values and every key, carried or not and flagged or not, where a box gets what was carried and what was never flagged", async () => {
+    const root = fixture();
+    put(root, ".envrc", "export API_TOKEN=sk-ant-x\n");
+    put(root, "certs/dev.pem", "not a real certificate\n");
+    put(root, "infra/prod.tfvars", 'db_password = "x"\n');
+    const listing = await planProject(root, {});
+    const values = [".env", ".envrc", "certs/dev.pem", "infra/prod.tfvars"];
+    expect(listing.plan.values).toEqual(values);
+    const box = packProject(listing, new Set([".env", "certs/dev.pem"]), new Set());
+    expect(listed(box.tar).filter(name => values.includes(name))).toEqual(values);
+    const cloud = packProject(listing, new Set([".env", "certs/dev.pem"]), new Set(), true);
+    expect(cloud.cut).toEqual([".env", ".envrc", "certs/dev.pem", "config/secrets.json", "infra/prod.tfvars", "keys/id_ed25519"]);
+    expect(listed(cloud.tar).filter(name => values.includes(name))).toEqual([]);
+    expect(listed(cloud.tar)).toContain(".env.example");
+  });
+
   it("with nothing named every secret-shaped file is cut", async () => {
     const listing = await planProject(fixture(), {});
     const packed = packProject(listing, new Set(), new Set());

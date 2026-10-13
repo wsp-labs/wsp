@@ -64,7 +64,7 @@ const TASK = "Fix the flaky upload test";
 
 describe("wsp run --on boat from a lead thread on this computer", () => {
   it("answers 03's object at once, opens the sub-thread in /root/web under the lead with the preamble, and says its stages on stderr", async () => {
-    const { rt, boat, starts, threadId, launch } = await leadOnThisComputer({ served: true, picks: [".env", ".env.local"], git: { uncommitted: 2 } });
+    const { rt, boat, starts, threadId, launch } = await leadOnThisComputer({ served: true, picks: ["CLAUDE.local.md", "local.properties"], git: { uncommitted: 2 } });
     const ran = await wsp(launch, "run", "--on", "boat", "--detach", "--notify", "me", TASK, "--json");
     expect(ran.io.lines.length, ran.io.errors.join("\n")).toBe(1);
     expect(ran.code).toBe(0);
@@ -78,7 +78,7 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
       repo: "https://github.com/acme/web.git",
       base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" },
       branch: "wsp/fix-the-flaky-upload-test",
-      sent: { paths: [".env", ".env.local"], bytes: 1243, missing: [] },
+      sent: { paths: ["CLAUDE.local.md", "local.properties"], bytes: 1243, missing: [] },
       notSent: { uncommitted: 2 },
       deleteAfterMinutes: 30,
     });

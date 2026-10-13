@@ -164,7 +164,8 @@ export interface PackedState {
  * homes for their state for the folder, re-keyed to the destination for the agents on the machine. */
 export interface ProjectBundler {
   plan(): Promise<ProjectPlan>;
-  pack(carry: ReadonlySet<string>, rewrite: ReadonlySet<string>): Promise<PackedProject>;
+  /** `provider` cuts every file of values and every key, whatever `carry` names. */
+  pack(carry: ReadonlySet<string>, rewrite: ReadonlySet<string>, provider?: boolean): Promise<PackedProject>;
   packState(req: StateRequest): Promise<PackedState>;
 }
 

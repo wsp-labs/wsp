@@ -1915,7 +1915,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               return;
             }
             case "project.seed.plan":
-              send({ id: msg.id, ok: true, plan: await rt.projects.seedPlan(msg.source) });
+              send({ id: msg.id, ok: true, plan: await rt.projects.seedPlan(msg.source, msg.on) });
               return;
             case "project.plan":
               send({ id: msg.id, ok: true, plan: await bundler(msg.source).plan() });

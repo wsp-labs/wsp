@@ -8,7 +8,7 @@ import { lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { seedRowFor } from "@wsp/catalog";
 import { runChild, tarOf, type TarEntry } from "@wsp/engine";
-import { claudeMemoryDir, SEED_MEMORY_DIR, SEED_PATCH, seedPicks, type SeedChoice, type SeedPlan } from "@wsp/protocol";
+import { claudeMemoryDir, SEED_MEMORY_DIR, SEED_PATCH, seedPicks, seedTravels, type SeedChoice, type SeedPlan } from "@wsp/protocol";
 
 /** What a pack of one seed carries and how much of it, for the record's own seeded row, and the paths it left
  * behind inside a folder somebody ticked. */
@@ -17,7 +17,8 @@ export interface PackedSeed {
   files: number;
   bytes: number;
   commits: number;
-  /** Logins found inside a ticked folder, which never travel: the add says them, so nothing is quietly dropped. */
+  /** Logins, and keys bound for a provider, found inside a ticked folder: the add says them, so nothing is quietly
+   * dropped. */
   left: string[];
 }
 
@@ -43,8 +44,10 @@ export async function packSeed(o: {
     for (const found of filesAt(join(plan.source, path))) {
       const rel = relative(plan.source, found);
       // Every file a ticked folder holds is judged by the catalogue as a menu row is: a login inside a folder
-      // somebody ticked is still a login, and it stays here and is named rather than travelling unseen.
-      if (seedRowFor(rel, false)?.kind === "never") {
+      // somebody ticked is still a login, and a key bound for a provider is still a key, so either stays here and is
+      // named rather than travelling unseen.
+      const kind = seedRowFor(rel, false)?.kind;
+      if (kind !== undefined && kind !== "junk" && !seedTravels(plan, { kind })) {
         left.push(rel);
         continue;
       }
