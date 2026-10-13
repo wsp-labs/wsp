@@ -4,8 +4,9 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, sharedOn } from "@wsp/catalog";
 import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
-import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup } from "@wsp/protocol";
+import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf } from "@wsp/protocol";
 import { cloneLines, underLoginHome } from "../project-landing.js";
+import { landOnRecord } from "../projects/branch-of-record.js";
 import { threadEnds } from "./thread-ends.js";
 import { PANE_HOLD_MS } from "../places/pane-ports.js";
 import { projectRemote, projectSource } from "../project-sources.js";
@@ -39,16 +40,28 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
   /** The clone inside a copy: git's own last line is the failure, so a person reads what git said and not that a
    * stage failed. */
   const cloneProject = async (entry: LiveWorkspace, project: ProjectView, report: StageReport): Promise<void> => {
+    // A machine whose credentials the host keeps works on its branch of record, cloned there or put on it in the
+    // checkout its image holds.
+    const ofRecord = entry.record.branchOfRecord;
     // A copy forked from the project's own image already holds the checkout and its dependencies, and so does one
     // the computer copied the checkout into; there is nothing to clone and nothing to install in either.
-    if (project.image !== undefined || project.checkout !== undefined) return;
     // And neither has a fork of a project image that carried this checkout: the snapshot is the whole disk, so the
     // project stands at its path with its dependencies installed, and a clone over it is what git refuses. The
     // image the machine was forked from is what says so, read off this workspace's own record.
-    if (imageCarriesCheckout((await ctx.imageOf(entry.record.golden)).projects, project.path)) return;
+    if (project.image !== undefined || project.checkout !== undefined || imageCarriesCheckout((await ctx.imageOf(entry.record.golden)).projects, project.path)) {
+      if (ofRecord !== undefined) await landOnRecord(ctx, entry, project, undefined);
+      return;
+    }
     report("project-cloned", `Cloning ${project.remote} into ${project.path}.`);
-    const cloned = await entry.machine.exec(cloneOnMachine(project, ctx.placeName(entry.record.place ?? places.wired)), { timeoutMs: CLONE_MS });
-    if (cloned.exitCode !== 0) throw new Error(lastLineOf(cloned.stderr) || lastLineOf(cloned.stdout) || `git clone exited ${cloned.exitCode}`);
+    const computer = ctx.placeName(entry.record.place ?? places.wired);
+    if (ofRecord !== undefined) {
+      // A fork of a thread's workspace starts from the branch its parent was on, which its record names as its base.
+      const base = entry.record.base ?? project.base;
+      await landOnRecord(ctx, entry, project, cloneLines({ source: projectSource(project.source.kind), remote: project.remote, checkout: project.path, computer, ...(base !== undefined ? { branch: base } : {}), brokered: { ofRecord, origin: ownerRepoOf(project.remote) ?? "", held: entry.ofRecordHeld === true } }));
+    } else {
+      const cloned = await entry.machine.exec(cloneOnMachine(project, computer), { timeoutMs: CLONE_MS });
+      if (cloned.exitCode !== 0) throw new Error(lastLineOf(cloned.stderr) || lastLineOf(cloned.stdout) || `git clone exited ${cloned.exitCode}`);
+    }
     // Fresh dependencies on the machine holding the checkout: the catalog's row for whichever lockfile the repo's
     // own root carries, run once, its output in wsp's own folder and never inside the project. A repo no row names
     // an install for installs nothing.

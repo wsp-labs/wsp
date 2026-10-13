@@ -7,7 +7,7 @@
 // module and its row.
 import { CLAUDE_CONFIG_DIR, GUEST_HOME } from "@wsp/catalog";
 import { envInput, INLINE_EXEC_MS, INSTALL_MS, INSTALL_STORES, installScript, projectInstalls, withEnvFromInput, type Machine } from "@wsp/engine";
-import { claudeMemoryDir, claudeProjectKey, NO_IMAGE_FOR_SEED, placeDaemonPaths, placeInstallLog, projectLeftOnComputerLine, projectPathOn, projectRemovedAtProviderLine, projectRemovedHereLine, unpushedUnreadLine, seedBytes, seedCommitsLandedLine, seedCommitsLostLine, SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH, seedingLine, seedMemoryKeptLine, SEEDED_REFS, projectFolderNamed, shellLine, shellQuote, unpushedLine, type ExecResult, type MachineBind, type ProjectAddStage, type ProjectBranch, type ProjectSource, type ProjectView, type SeedChoice, type SeedPlan } from "@wsp/protocol";
+import { BROKER_PORT, claudeMemoryDir, claudeProjectKey, NO_IMAGE_FOR_SEED, placeDaemonPaths, placeInstallLog, projectLeftOnComputerLine, projectPathOn, projectRemovedAtProviderLine, projectRemovedHereLine, unpushedUnreadLine, seedBytes, seedCommitsLandedLine, seedCommitsLostLine, SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH, seedingLine, seedMemoryKeptLine, SEEDED_REFS, projectFolderNamed, shellLine, shellQuote, unpushedLine, type BranchOfRecord, type ExecResult, type MachineBind, type ProjectAddStage, type ProjectBranch, type ProjectSource, type ProjectView, type SeedChoice, type SeedPlan } from "@wsp/protocol";
 import type { ProjectSourceModule } from "./project-sources.js";
 
 /** How far the add has got, as the door turns each one into an event. */
@@ -131,8 +131,18 @@ const STEP_MS = 120_000;
 /** The lines every clone on a computer runs, in order: the check that the command the source clones through is
  * there at all, the line pointing git at that command's login, the folder above the checkout, and the clone. The
  * add reads them with a seed on top; a workspace whose own create clones reads them alone, so the two roads
- * cannot differ about what cloning a project means. */
-export function cloneLines(o: { source: ProjectSourceModule; remote: string; checkout: string; computer: string; branch?: string; setupGit?: boolean }): string[] {
+ * cannot differ about what cloning a project means. Where the host keeps the machine's credentials (`brokered`,
+ * the record's branch of record and the project's own owner/name) git itself clones one commit deep through the
+ * host and the checkout is put on that branch. */
+export function cloneLines(o: { source: ProjectSourceModule; remote: string; checkout: string; computer: string; branch?: string; setupGit?: boolean; brokered?: { ofRecord: BranchOfRecord; origin: string; held?: boolean } }): string[] {
+  if (o.brokered !== undefined) {
+    return [
+      "set -e",
+      `mkdir -p ${shellQuote(o.checkout.replace(/\/[^/]+$/, ""))}`,
+      shellLine(["git", "clone", "--depth", "1", ...(o.branch !== undefined ? ["--branch", o.branch] : []), "--", o.remote, o.checkout]),
+      ...onRecordLines({ checkout: o.checkout, ...o.brokered }),
+    ];
+  }
   const cli = o.source.cli;
   return [
     "set -e",
@@ -144,6 +154,46 @@ export function cloneLines(o: { source: ProjectSourceModule; remote: string; che
     `mkdir -p ${shellQuote(o.checkout.replace(/\/[^/]+$/, ""))}`,
     o.source.cloneCommand({ remote: o.remote, dest: o.checkout, ...(o.branch !== undefined ? { branch: o.branch } : {}) }),
   ];
+}
+
+/** The lines that put a checkout on its branch of record, the clone's or one an image already holds, ending with the
+ * commit it stands on. The fetch refspec is a pattern on the branch's name, beside the base's that --force-with-lease
+ * needs, so a plain fetch before the first push finds nothing to refuse. A branch on another repo than the project's,
+ * a fork's pull request head, gets a remote of its own named for its owner, which the branch pushes to. The start
+ * commit is fetched at depth 1 by its id where the checkout lacks it; with none recorded the branch starts where the
+ * checkout stands, and the last line says where that is. A branch the remote already holds (`held`, a pull request's
+ * head) tracks it from its start commit, since a fetch by id writes no remote-tracking ref and a plain push or a
+ * first --force-with-lease needs one; a new branch tracks nothing until its first push. */
+export function onRecordLines(o: { checkout: string; ofRecord: BranchOfRecord; origin: string; held?: boolean }): string[] {
+  const { branch, owner, name, startSha } = o.ofRecord;
+  const git = (...args: string[]): string => shellLine(["git", "-C", o.checkout, ...args]);
+  const fork = `${owner}/${name}`.toLowerCase() !== o.origin.toLowerCase();
+  const remote = fork ? owner : "origin";
+  return [
+    fork ? git("remote", "add", "-t", `${branch}*`, remote, `https://github.com/${owner}/${name}.git`) : git("config", "--add", "remote.origin.fetch", `+refs/heads/${branch}*:refs/remotes/origin/${branch}*`),
+    ...(startSha === undefined ? [git("checkout", "-q", "-B", branch)] : [`${git("cat-file", "-e", `${startSha}^{commit}`)} 2>/dev/null || ${git("fetch", "-q", "--depth", "1", remote, startSha)}`, git("checkout", "-q", "-B", branch, startSha)]),
+    ...(o.held === true && startSha !== undefined ? [git("update-ref", `refs/remotes/${remote}/${branch}`, startSha)] : []),
+    ...(fork || o.held === true ? [git("config", `branch.${branch}.remote`, remote), git("config", `branch.${branch}.merge`, `refs/heads/${branch}`)] : []),
+    git("rev-parse", "HEAD"),
+  ];
+}
+
+/** git's configuration on a machine whose credentials the host keeps, as GIT_CONFIG_COUNT pairs and no file: every
+ * GitHub remote form rewritten to plain http, so `git remote -v` still names github.com and gh still reads the remote
+ * as GitHub's, and the daemon's HTTP door as git's proxy for it, the token its password. No credential helper is
+ * asked and git never prompts. */
+export function brokeredGitEnv(token: string): Record<string, string> {
+  const pairs: [string, string][] = [
+    ...["https://github.com/", "git@github.com:", "ssh://git@github.com/", "ssh://git@ssh.github.com:443/"].map((from): [string, string] => ["url.http://github.com/.insteadOf", from]),
+    ["http.http://github.com/.proxy", `http://wsp:${token}@127.0.0.1:${BROKER_PORT}`],
+    ["http.proxyAuthMethod", "basic"],
+    ["credential.helper", ""],
+  ];
+  return {
+    GIT_CONFIG_COUNT: String(pairs.length),
+    ...Object.fromEntries(pairs.flatMap(([key, value], i) => [[`GIT_CONFIG_KEY_${i}`, key], [`GIT_CONFIG_VALUE_${i}`, value]])),
+    GIT_TERMINAL_PROMPT: "0",
+  };
 }
 
 /** The clone with the person's ticked files unpacked on top of it, which is the add's own road. The commits and

@@ -21,6 +21,8 @@ import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
 import { wiring } from "./place-join.js";
 import { ctx } from "./places-fixture.js";
+import { LocalBackend } from "@wsp/engine";
+import { writeStub } from "../../protocol/test/stub-script.js";
 import { fakeLocal, stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
 
 let root: string | undefined;
@@ -222,6 +224,10 @@ export interface Setup {
   clock?: Clock;
   /** The agent a turn on a Boat machine runs, where it is not the stub that answers at once. */
   subAdapter?: HarnessAdapterFactory;
+  /** The host's broker answers ready, so a start takes the road where the host keeps the machine's credentials. */
+  broker?: true;
+  /** gh on this computer, as a stub script on the PATH its commands run with. */
+  gh?: string;
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -242,7 +248,10 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const daemon = leadDaemon(git);
   const starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[] = [];
   const leadTurn: LeadTurn = {};
-  const local = { ...fakeLocal(join(root, "home")), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  if (o.gh !== undefined) writeStub(join(bin, "gh"), o.gh);
+  const local = { ...fakeLocal(join(root, "home")), ...(o.gh !== undefined ? { backend: new LocalBackend({ root: join(root, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } : {}), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
   const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
@@ -250,6 +259,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const onBoat = o.subAdapter;
   const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE) };
   const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
+  if (o.broker === true) Object.assign(options, { broker: { ready: () => true, codexClaims: async () => undefined } });
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);
   if (o.served === true) {
