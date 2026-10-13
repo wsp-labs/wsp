@@ -2,8 +2,8 @@
 // NOTICE; logic only) and measured behavior in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { agentWord, inFolder, launchHasSlate, MCP_SERVER_NAME, programWord, shellLine, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
-import type { AgentLaunch, McpServerSpec, TurnImage } from "@wsp/protocol";
+import { agentWord, BROKER_PORT, inFolder, launchHasSlate, MCP_SERVER_NAME, programWord, shellLine, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
+import type { AgentLaunch, BrokerStatus, McpServerSpec, TurnImage } from "@wsp/protocol";
 import { PERMISSION_PROMPT_TOOL, SKIP_PROMPTS_MODE } from "./permissions.js";
 
 // Inherited CLAUDE_CODE_*/CLAUDECODE mark the child as nested inside another
@@ -54,6 +54,49 @@ export interface ClaudeEnvOptions {
    * only beside CLAUDE_CONFIG_DIR; the launch names the memory folder as well, see memorySettings. Absent leaves the
    * CLI keying off the folder the turn runs in. */
   projectDirName?: string;
+  /** A launch on a brokered place: the host holds the credential and adds it at the door, so the launch carries the
+   * turn token in a placeholder of the credential's kind and nothing the vault or the login holds. Wins over apiKey
+   * and oauthToken. */
+  brokered?: BrokeredSignIn;
+}
+
+/** The turn token and the kind of credential the host holds for it, as broker.status answers it. A borrowed claude.ai
+ * login reaches the CLI as a setup-token does. */
+export interface BrokeredSignIn {
+  token: string;
+  kind: NonNullable<BrokerStatus["claude"]>;
+}
+
+/** The daemon's HTTP door on the machine's loopback, where the host adds the real credential. */
+export const BROKER_DOOR_URL = `http://127.0.0.1:${BROKER_PORT}`;
+
+/** Each variable through which a credential, or a route around the door, would reach the CLI. */
+const BROKERED_DROP = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS", "ANTHROPIC_FOUNDRY_API_KEY", "AWS_BEARER_TOKEN_BEDROCK"] as const;
+
+/** The placeholder per kind, which must match the credential the host adds: the CLI sends a token as a Bearer with the
+ * oauth beta and a key as x-api-key without it (2.1.296). A gateway's Bearer needs the key set empty. */
+const PLACEHOLDER: Readonly<Record<BrokeredSignIn["kind"], (token: string) => Record<string, string>>> = {
+  login: token => ({ CLAUDE_CODE_OAUTH_TOKEN: token }),
+  token: token => ({ CLAUDE_CODE_OAUTH_TOKEN: token }),
+  key: token => ({ ANTHROPIC_API_KEY: token }),
+  gateway: token => ({ ANTHROPIC_AUTH_TOKEN: token, ANTHROPIC_API_KEY: "" }),
+};
+
+/** A brokered launch's own variables. Without the nonessential-traffic switch side calls carry the placeholder
+ * straight to api.anthropic.com; without the provider switch a copied settings env block's base URL beats the
+ * door's and the turn hangs; DISABLE_AUTOUPDATER leaves `claude update` working where DISABLE_UPDATES does not; the
+ * client waits API_TIMEOUT_MS on a request the host holds; and a base URL that is not first party turns MCP tool
+ * search off, which only a gateway's upstream should. */
+function brokeredEnv(b: BrokeredSignIn): Record<string, string> {
+  return {
+    ANTHROPIC_BASE_URL: BROKER_DOOR_URL,
+    ...PLACEHOLDER[b.kind](b.token),
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: "1",
+    DISABLE_UPDATES: "1",
+    API_TIMEOUT_MS: "3600000",
+    ...(b.kind === "gateway" ? {} : { ENABLE_TOOL_SEARCH: "true" }),
+  };
 }
 
 export function stripLandmineEnv(
@@ -78,6 +121,15 @@ export function stripLandmineEnv(
  */
 export function buildEnv(options: ClaudeEnvOptions = {}): Record<string, string> {
   const { [KEY_ENV]: _inherited, ...base } = stripLandmineEnv(options.base ?? {});
+  if (options.brokered !== undefined) {
+    for (const name of BROKERED_DROP) delete base[name];
+    return {
+      ...base,
+      ...HEADLESS_OVERRIDES,
+      ...brokeredEnv(options.brokered),
+      ...(options.projectDirName === undefined ? {} : { [PROJECT_DIR_ENV]: options.projectDirName }),
+    };
+  }
   return {
     ...base,
     ...HEADLESS_OVERRIDES,
@@ -91,7 +143,7 @@ export function buildEnv(options: ClaudeEnvOptions = {}): Record<string, string>
 export const KEY_ENV = "ANTHROPIC_API_KEY";
 const TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN";
 
-const vaulted = (options: ClaudeEnvOptions): boolean => options.apiKey !== undefined || options.oauthToken !== undefined;
+const vaulted = (options: ClaudeEnvOptions): boolean => options.brokered !== undefined || options.apiKey !== undefined || options.oauthToken !== undefined;
 
 /** A token or key the launch inherited, from the login shell or the terminal that started the host: the token where
  * both are, since inside the CLI the key outranks it and the token would never be used. */
