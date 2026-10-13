@@ -666,7 +666,9 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
   // nothing else. A session's end is written at once, anything before it waits
   // for the debounce.
   const record = (unstamped: SessionEvent): void => {
-    const event: SessionEvent = { ...unstamped, at: Date.now(), pos: indexFor(unstamped.workspaceId).pos + 1 };
+    // A row of a conversation from outside wsp keeps the time its agent wrote it.
+    const at = unstamped.type === "session.earlier" ? (unstamped.at ?? Date.now()) : Date.now();
+    const event: SessionEvent = { ...unstamped, at, pos: indexFor(unstamped.workspaceId).pos + 1 };
     append(event);
     bus.emit(event);
     if ((event.type === "session.start" || event.type === "session.end") && event.threadId !== undefined) ctx.pushHead(event.threadId);

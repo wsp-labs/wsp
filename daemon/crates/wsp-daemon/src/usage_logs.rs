@@ -720,7 +720,7 @@ fn sqlite_json(db: File, wal: Option<File>, parser: Parser, bin: &Path, scratch:
 
 /// An RFC 3339 instant, as the stores write it, in ms epoch: a date, a time with or without its fraction, and Z or
 /// an offset.
-fn epoch_ms(text: &str) -> Option<i64> {
+pub(crate) fn epoch_ms(text: &str) -> Option<i64> {
     let b = text.as_bytes();
     let num = |from: usize, len: usize| -> Option<i64> {
         let part = text.get(from..from + len)?;

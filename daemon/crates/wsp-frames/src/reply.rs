@@ -562,7 +562,7 @@ pub struct TranscriptsReadReply {
 }
 
 /// One row of a transcript read: a message's words, or a tool call's name with its input as the CLI recorded it, cut
-/// to a few thousand characters.
+/// to a few thousand characters. `at` is when the CLI wrote the row's line, ms epoch, where the line says.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct TranscriptMessage {
@@ -571,6 +571,9 @@ pub struct TranscriptMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub tool: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub at: Option<i64>,
 }
 
 /// One session's use in one half hour under one model, as its agent's own store counted it. `at` is the newest
