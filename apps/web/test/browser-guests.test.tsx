@@ -213,6 +213,27 @@ describe("the browser tab on the desktop app", () => {
     expect(guest().loadURL).not.toHaveBeenCalled();
   });
 
+  it("reads localhost:<port>, a bare port, host:port and ip:port as addresses over http, and searches only for plain words", async () => {
+    useStore.setState({ api: routeApi() });
+    const { tabId } = mountOn(null);
+    const place = () => currentPlace(useBrowserTabs.getState().byWorkspaceId[WS]![tabId]!);
+    type("localhost:8090");
+    await settle();
+    expect(place()).toEqual({ port: 8090, path: "/" });
+    expect(guest().getAttribute("src")).toBe(ROUTE);
+    type("8091");
+    expect(place()).toEqual({ port: 8091, path: "/" });
+    type("devbox:3000");
+    expect(place()).toEqual({ url: "http://devbox:3000/" });
+    expect(guest().loadURL).toHaveBeenLastCalledWith("http://devbox:3000/");
+    type("10.0.0.2:8080/a");
+    expect(place()).toEqual({ url: "http://10.0.0.2:8080/a" });
+    expect(guest().loadURL).toHaveBeenLastCalledWith("http://10.0.0.2:8080/a");
+    type("tic tac toe");
+    expect(place()).toEqual({ url: `${SEARCH_URL}tic%20tac%20toe` });
+    expect(guest().loadURL).toHaveBeenLastCalledWith(`${SEARCH_URL}tic%20tac%20toe`);
+  });
+
   it("a tab not shown for five minutes is unloaded, and loads where it was when shown again", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     const { tabId, rerender } = mountOn({ url: "https://github.com/" });
