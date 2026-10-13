@@ -125,7 +125,7 @@ import { appProcsHubOf, isAppProcsRequest } from "./serve-app-procs.js";
 import { answerProcesses, isProcessesRequest } from "./serve-processes.js";
 import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
-import { answerProject, isProjectRequest } from "./serve-projects.js";
+import { answerProject, isProjectRequest, threadPlaces } from "./serve-projects.js";
 import { answerConversations, isConversationsRequest } from "./serve-conversations.js";
 import { answerSlate, isSlateRequest, type SlateHolds } from "./serve-slates.js";
 import { serveStart } from "./serve-start.js";
@@ -916,6 +916,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               send({ id: msg.id, ok: false, error: PLACE_UNKNOWN_REFUSAL });
               return;
             case "places.list":
+              if (by !== undefined) return void send({ id: msg.id, ok: true, places: await threadPlaces(rt, origin, now()), adds: [], pending: [] });
               if (refusedOffOwnRoad()) return;
               send({ id: msg.id, ok: true, places: await places().list(now()), adds: places().adds(), pending: await places().pending() });
               return;
@@ -1610,8 +1611,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               return;
             }
             case "cost.spend":
-              // What the person's computers and providers have cost them is read on the same road their list is:
-              // a socket let in on a ticket sees neither.
+              // Read on the road the list is: a socket let in on a ticket sees neither, a thread the rows its list holds.
+              if (by !== undefined) return void send({ id: msg.id, ok: true, places: await rt.status.spend(await threadPlaces(rt, origin, now())) });
               if (refusedOffOwnRoad()) return;
               send({ id: msg.id, ok: true, places: await rt.status.spend((await rt.places?.list(now())) ?? []) });
               return;

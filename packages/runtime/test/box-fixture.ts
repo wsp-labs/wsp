@@ -320,6 +320,8 @@ export const asThread = (scope: ThreadScope): Caller => ({ origin: "relayed", by
 export const HOLD = "hold: ";
 /** What a message starts with for a turn that fails at once. */
 export const FAIL = "fail: ";
+/** What a message holds for a launch the agent never starts, anywhere in it, since the host may put a line ahead. */
+export const NO_START = "no start: ";
 
 export interface Held {
   o: HarnessStartOptions;
@@ -333,6 +335,7 @@ export function leading(starts: Held[]): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
     start: o => {
+      if (o.prompt.includes(NO_START)) throw new Error("the agent did not start");
       const sessionId = randomUUID();
       let answer = (_text: string): void => {};
       const finished = new Promise<TurnResult>(resolve => {

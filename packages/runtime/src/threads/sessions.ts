@@ -31,7 +31,7 @@ import type { Runtime } from "../types/api.js";
 import {
   ATTACHMENTS, ATTACHMENT_KEYS, searchIndex, type SearchedHit, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages, type LiveSession, type SessionEntry, stopLogLine,
 } from "../types/internal.js";
-import { launchArea, servedTo } from "./launch.js";
+import { cloudsTold, launchArea, servedTo } from "./launch.js";
 import { trimmedRow } from "./trimmed-row.js";
 import type { RuntimeContext, SessionsArea } from "../context.js";
 
@@ -405,9 +405,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // its end delivers starts the target's turn under it; one the person made carries none and goes as theirs. A
       // send into a thread takes what the thread's opener registered, this beside the targets themselves.
       const notifyBy = asked === undefined ? registered?.by : scopeOf(origin);
-      // And the road they were named from, beside the thread: the line's own start reads the same rules the
-      // registration did, so a road that may not start a process on the target's workspace does not get one
-      // started for it a turn later.
+      // And the road they were named from: the line's own start reads the same rules the registration did, so a road
+      // that may not start a process on the target's workspace does not get one started for it a turn later.
       const notifyRoad = asked === undefined ? registered?.road : roadOf(origin);
       // The last check before anything is minted for the launch, which is made for the machine the turn runs on: a
       // released sub-thread's send makes it one, and a send meeting that waits for it.
@@ -418,6 +417,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (resumed.preamble !== undefined) o.prompt = subOpening(resumed.preamble, o.prompt);
         if (resumed.notices.length > 0) notice = resumed.notices.join("\n");
       }
+      const clouds = runsInFolder(entry.record.kind) && entry.record.sub === undefined ? await cloudsTold(ctx.placeDoor, threadRecords, threadId, o) : undefined;
       if (entry.record.queue !== undefined) return ctx.holdQueued({ workspaceId, threadId, tree, o: { ...o, ...(title !== undefined ? { title } : {}) }, notify: asked }, origin);
       const turnToken = randomBytes(16).toString("hex");
       const { scoped, env: launchEnv, wsp } = await threadLaunch(entry, threadId, tree.rootThreadId ?? threadId);
@@ -828,7 +828,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         // its rows said this turn runs at, so it is read the one way from now on. Persisted with the row as the turn
         // announces itself and at its end.
         if (!threadRecords.has(threadId)) threadRecords.set(threadId, { workspaceId, harness, ...tree, ...(picks.permissionMode !== undefined ? { permissionMode: picks.permissionMode } : {}), ...(replaces !== undefined ? { replaces } : {}), ...(plan !== undefined ? { forkedFrom: plan.forkedFrom } : {}), worked: threadRan(ctx.rowsOn(threadId).filter(r => r.status !== "running")) });
-        const thread = threadRecords.get(threadId)!;
+        const thread = Object.assign(threadRecords.get(threadId)!, clouds !== undefined ? { clouds } : {});
         // A newer turn leaves Resume at reset nothing to resume.
         if (thread.limitResume !== undefined) {
           delete thread.limitResume;
