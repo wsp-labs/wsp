@@ -187,6 +187,8 @@ export const subNoThreadRefusal = (on: string): Error =>
   usage(`run --on ${on} starts a sub-thread of the thread that asks, and this line came from no thread`, "Start it from a thread, or run the work on this computer with wsp run <project>.");
 /** `size` from a terminal with no cloud named. */
 export const subSizeNoCloudRefusal = (): Error => usage("--size sizes a sub-thread's machine, and this line starts none", "Add --on boat.");
+/** `from` from a terminal with no cloud named. */
+export const subFromNoCloudRefusal = (): Error => usage("--from names the commit a sub-thread's machine starts from, and this line starts none", "Add --on boat.");
 /** A lead runs on this computer or on a computer the person added, never on a machine wsp forked. */
 export const subLeadOnMachineRefusal = (on: string, thread: string, machine: string): Error =>
   usage(`run --on ${on} starts a sub-thread of a thread on this computer or on a computer you added, and thread ${thread.slice(0, 8)} runs on ${machine}, a machine wsp forked`, "Start it from a thread on this computer.");
@@ -202,16 +204,28 @@ export const subNoRemoteRefusal = (folder: string, on: string): Error =>
 /** S4: a remote on a host the image signs in to no command for. */
 export const subOtherHostRefusal = (folder: string, host: string, on: string): Error =>
   usage(`${folder}'s remote is on ${host}, and a machine on ${on} signs in to GitHub and GitLab only`, "Run this work on this computer.");
+/** The other road past a lead branch the remote cannot give: a ref it holds already, the default branch for one. */
+const fromRoad = (pushed: string): string => `or start it from a ref the remote holds with --from ${pushed}`;
 /** S5: the lead is on no branch. */
-export const subDetachedRefusal = (folder: string): Error => usage(`${folder} is on no branch`, "Check one out and push it.");
+export const subDetachedRefusal = (folder: string, pushed: string): Error => usage(`${folder} is on no branch`, `Check one out and push it, ${fromRoad(pushed)}.`);
 /** S5: the lead's branch is not on the remote. */
-export const subNoUpstreamRefusal = (branch: string): Error => usage(`${branch} is not on the remote yet`, `Run git push -u origin ${branch}, then start the sub-thread again.`);
+export const subNoUpstreamRefusal = (branch: string, pushed: string): Error =>
+  usage(`${branch} is not on the remote yet`, `Run git push -u origin ${branch} and start the sub-thread again, ${fromRoad(pushed)}.`);
 /** S5: the lead holds commits the remote lacks, which the sub-thread could not fetch. */
-export const subAheadRefusal = (branch: string, ahead: number): Error =>
-  usage(`${branch} has ${ahead} ${ahead === 1 ? "commit" : "commits"} the remote does not`, "Run git push, then start the sub-thread again.");
+export const subAheadRefusal = (branch: string, ahead: number, pushed: string): Error =>
+  usage(`${branch} has ${ahead} ${ahead === 1 ? "commit" : "commits"} the remote does not`, `Run git push and start the sub-thread again, ${fromRoad(pushed)}.`);
 /** S5: git could not count the lead's commits against the remote, so some may not be on it. */
-export const subAheadUnknownRefusal = (branch: string): Error =>
-  usage(`git could not count ${branch}'s commits against the remote, so some of them may not be on it`, "Run git fetch, then git push, then start the sub-thread again.");
+export const subAheadUnknownRefusal = (branch: string, pushed: string): Error =>
+  usage(`git could not count ${branch}'s commits against the remote, so some of them may not be on it`, `Run git fetch, then git push, and start the sub-thread again, ${fromRoad(pushed)}.`);
+/** S5: --from names a ref the remote does not hold: a branch or tag it lacks, pushed by its name with origin/ dropped,
+ * or a commit no branch of it holds, which has no name to push. */
+export const subFromNotOnRemoteRefusal = (ref: string, name: string | undefined): Error =>
+  usage(
+    `${ref} is not on the remote`,
+    name === undefined ? "Run git fetch if a branch holding it was pushed since, else push one with git push -u origin <branch>, then start the sub-thread again." : `Run git push -u origin ${name}, then start the sub-thread again.`,
+  );
+/** S5: the remote did not answer the read of the ref --from names. */
+export const subFromUnreadRefusal = (ref: string, said: string): Error => provider(`the remote did not say where ${ref} stands (${said})`, "Check the remote answers with git ls-remote origin, then start the sub-thread again.");
 /** S6: no image on the cloud. */
 export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}, or run wsp init --on ${on.toLowerCase()}.`);
 /** S6: the image holds no sign-in for the remote's git host, so the sub-thread could fetch nothing private and push nothing. */

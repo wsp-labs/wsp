@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { gitHostOf, remoteHost, type GitHost } from "@wsp/catalog";
 import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type BoxLimits, type MachineBackend } from "@wsp/engine";
 import {
-  DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
+  DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, lastLine, subFromNotOnRemoteRefusal, subFromUnreadRefusal, type ExecResult, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
   providerKeyName, scopeOf, shellLine, capWaitLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
@@ -147,19 +147,24 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       const host = gitHostOf(project.remote);
       if (host === undefined) throw subOtherHostRefusal(project.name, remoteHost(project.remote) ?? project.remote, on);
       const repo = host.httpsUrl(ownerRepoOf(project.remote)!);
-      // S5: the lead's branch, pushed, with nothing ahead of the remote, read through the lead's own daemon.
+      // S5: the lead's branch, pushed, with nothing ahead of the remote, read through the lead's own daemon; or the ref
+      // --from names, read off the remote.
       await ctx.copyBlocked(lead);
       const said = await ctx.withDaemon(lead, send => send({ op: "git.status", cwd: ctx.checkoutOf(lead.record) })).catch((e: unknown) => {
         throw new Error(branchUnreadRefusal(lead.record.name, e instanceof Error ? e.message : String(e)));
       });
       const read = GitStatusReply.parse(said);
       const branch = read.branch.head;
-      if (branch === "" || branch === DETACHED_HEAD) throw subDetachedRefusal(project.name);
-      if (read.branch.upstream === undefined) throw subNoUpstreamRefusal(branch);
-      if (read.branch.ahead > 0) throw subAheadRefusal(branch, read.branch.ahead);
-      if (read.countsUnknown === true) throw subAheadUnknownRefusal(branch);
-      const base = { branch, sha: read.branch.oid };
-      const uncommitted = read.entries.filter(e => e.xy !== "!!").length;
+      if (ask.from === undefined) {
+        const pushed = `origin/${read.defaultBranch ?? "main"}`;
+        if (branch === "" || branch === DETACHED_HEAD) throw subDetachedRefusal(project.name, pushed);
+        if (read.branch.upstream === undefined) throw subNoUpstreamRefusal(branch, pushed);
+        if (read.branch.ahead > 0) throw subAheadRefusal(branch, read.branch.ahead, pushed);
+        if (read.countsUnknown === true) throw subAheadUnknownRefusal(branch, pushed);
+      }
+      const base = ask.from === undefined ? { branch, sha: read.branch.oid } : await fromRef(ask.from, lead, read.defaultBranch);
+      // Changes left uncommitted in the lead's folder are not on a ref --from names either, so nothing says they stayed.
+      const uncommitted = ask.from === undefined ? read.entries.filter(e => e.xy !== "!!").length : 0;
       // S6: the image on the cloud, holding the sign-in of the remote's host.
       const { head, record } = await imageAt(place, on, host, project.remote);
       // S7: a size the plan sells, read off the cloud now.
@@ -332,14 +337,51 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
    * wait; a remote that does not answer leaves the records alone to say what is taken. */
   const freeBranch = async (wanted: string, lead: LiveWorkspace): Promise<string> => {
     const taken = new Set([...live.values()].map(e => e.record.sub?.branch).filter(b => b !== undefined));
-    const machine = copiesFolder(kindForComputer(ctx.projectHeld(lead.record.project).computer)) ? await ctx.moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID) : lead.machine;
-    const heads = await machine.exec(`GIT_TERMINAL_PROMPT=0 ${shellLine(["git", "-C", ctx.checkoutOf(lead.record), "ls-remote", "--heads", "origin"])}`, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
+    const heads = await gitAtLead(lead, ["ls-remote", "--heads", "origin"]).catch(() => undefined);
     for (const line of heads?.exitCode === 0 ? heads.stdout.split("\n") : []) {
       const ref = line.split("\t")[1];
       if (ref?.startsWith("refs/heads/") === true) taken.add(ref.slice("refs/heads/".length));
     }
     if (!taken.has(wanted)) return wanted;
     for (let n = 2; ; n++) if (!taken.has(`${wanted}-${n}`)) return `${wanted}-${n}`;
+  };
+
+  /** A git line in the lead's folder where that folder is, on this computer or over its box's own road, with no prompt
+   * and a bounded wait. */
+  const gitAtLead = async (lead: LiveWorkspace, args: readonly string[]): Promise<ExecResult> => {
+    const machine = copiesFolder(kindForComputer(ctx.projectHeld(lead.record.project).computer)) ? await ctx.moduleOf("local").backend({ kind: "local" } as WorkspaceRecord).get(LOCAL_MACHINE_ID) : lead.machine;
+    return machine.exec(`GIT_TERMINAL_PROMPT=0 ${shellLine(["git", "-C", ctx.checkoutOf(lead.record), ...args])}`, { timeoutMs: INLINE_EXEC_MS });
+  };
+
+  /** A read of the remote from the lead's folder, its output, refused naming the ref --from gave where it fails. */
+  const remoteRead = async (lead: LiveWorkspace, from: string, args: readonly string[]): Promise<string> => {
+    const read = await gitAtLead(lead, ["ls-remote", ...args]).catch((e: unknown): ExecResult => ({ exitCode: -1, stdout: "", stderr: e instanceof Error ? e.message : String(e) }));
+    if (read.exitCode !== 0) throw subFromUnreadRefusal(from, lastLine(read.stderr) ?? `git ls-remote exited ${read.exitCode}`);
+    return read.stdout;
+  };
+
+  /** S5: the commit --from names, read off the remote: a branch or a tag by its name there, origin/ dropped, or a commit
+   * that a branch the remote still holds contains, as the lead's folder last fetched it, the default branch first. A
+   * commit is fetched by that branch, since GitHub serves a commit by its full id alone and GitLab need not at all. */
+  const fromRef = async (from: string, lead: LiveWorkspace, preferred: string | undefined): Promise<{ branch: string; sha: string }> => {
+    const name = from.startsWith("origin/") ? from.slice("origin/".length) : from;
+    const listed = await remoteRead(lead, from, ["origin", name, `${name}^{}`]);
+    // ls-remote matches a name's tail too, release/v1 for v1, so only the ref the name is counts; an annotated tag by
+    // its commit, which ls-remote lists only for the name with ^{}.
+    const held = new Map(listed.split("\n").map(l => l.split("\t")).filter(([sha, ref]) => sha !== undefined && ref !== undefined).map(([sha, ref]) => [ref!, sha!]));
+    const ref = [name, `refs/heads/${name}`, `refs/tags/${name}^{}`, `refs/tags/${name}`].find(r => held.has(r));
+    if (ref !== undefined) return { branch: name, sha: held.get(ref)! };
+    if (!/^[0-9a-f]{7,40}$/i.test(name)) throw subFromNotOnRemoteRefusal(from, name);
+    const commit = await gitAtLead(lead, ["rev-parse", "--verify", "--quiet", `${name}^{commit}`]);
+    const sha = commit.stdout.trim();
+    const holding = commit.exitCode === 0 ? await gitAtLead(lead, ["for-each-ref", "--contains", sha, "--format=%(refname:lstrip=3)", "refs/remotes/origin"]) : undefined;
+    const tracked = holding?.exitCode === 0 ? holding.stdout.split("\n").filter(b => b !== "" && b !== "HEAD") : [];
+    if (tracked.length === 0) throw subFromNotOnRemoteRefusal(from, undefined);
+    // A branch deleted on the remote stays tracked here until a prune, and the machine could not fetch it.
+    const live = new Set((await remoteRead(lead, from, ["--heads", "origin"])).split("\n").map(l => l.split("\t")[1]?.slice("refs/heads/".length)));
+    const branches = tracked.filter(b => live.has(b));
+    if (branches.length === 0) throw subFromNotOnRemoteRefusal(from, undefined);
+    return { branch: preferred !== undefined && branches.includes(preferred) ? preferred : branches[0]!, sha };
   };
 
   /** The files picked for the lead's project folder on this computer, packed now; nothing and why for a project with
