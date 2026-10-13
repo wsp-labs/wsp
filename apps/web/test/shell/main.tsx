@@ -587,6 +587,7 @@ const diagramHistory: SessionEvent[] = [
 const conversationsShown = params.get("conversations") === "1";
 const outside = (id: string, title: string, minutes: number) => ({ agent: "claude", id, title, firstPrompt: title, branch: "main", cwd: "/Users/dev/wsp", lastAt: Date.now() - minutes * 60_000, bytes: 40_960, origin: "terminal" as const, live: false });
 const OUTSIDE = [outside("c1", "Resume picker plan", 12), outside("c2", "WSP website rework", 50), outside("c3", "Slate launch video scripts", 120)];
+const readMs = Number(params.get("readMs") ?? 0);
 const outsideRead = (title: string) => ({ cwd: "/Users/dev/wsp", title, rows: [{ who: "person" as const, text: `${title}: where were we?` }, { who: "agent" as const, text: `We were halfway through ${title}.` }] });
 
 // ?marks=1 lets a thread be pinned and snoozed and a project be exported, so the Snooze and Export dialogs open.
@@ -595,7 +596,17 @@ const api: Api = {
   ...(conversationsShown
     ? {
         conversationsList: async (project: string) => ({ rows: project === "pr_wsp" ? OUTSIDE : [], held: [] }),
-        conversationRead: async (o: { id: string }) => outsideRead(OUTSIDE.find(r => r.id === o.id)?.title ?? o.id),
+        conversationRead: async (o: { id: string; preview?: boolean }) => {
+          // ?readMs=<n> holds the draft's whole read that long, so a send can go while it is still out.
+          if (o.preview !== true) await new Promise(r => setTimeout(r, readMs));
+          return outsideRead(OUTSIDE.find(r => r.id === o.id)?.title ?? o.id);
+        },
+        // Each send off the draft is kept on the window for the test to count, and never answered, so the page holds still.
+        resumeConversation: o => {
+          const w = window as unknown as { __resumes?: string[] };
+          (w.__resumes ??= []).push(o.prompt);
+          return new Promise<never>(() => {});
+        },
       }
     : {}),
   ...(params.get("marks") === "1" ? { markThreads: async () => {}, exportProject: async opts => ({ dest: opts.dest, files: 0, bytes: 0, excluded: [], agents: [] }) } : {}),

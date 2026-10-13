@@ -258,7 +258,7 @@ jobs:
       - name: Render tests
         env:
           WSP_RENDER: "1"
-        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=2 apps/web/test/slate- apps/web/test/project-icon.browser.test.ts apps/web/test/resume-picker.browser.test.ts
+        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=2 apps/web/test/slate- apps/web/test/project-icon.browser.test.ts apps/web/test/resume-picker.browser.test.ts apps/web/test/resume-continue.browser.test.ts
 
   types:
     name: Types
