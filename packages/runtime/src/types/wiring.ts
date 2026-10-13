@@ -121,6 +121,9 @@ export interface CreateWorkspaceOptions extends WorkspaceSpec {
   name: string;
   /** A sub-thread of the asking thread on a cloud: a machine of its own from the image, in no project's place. */
   sub?: SubAsk;
+  /** The thread the start making this workspace opens on it, by the id it will take: what a brokered clone's token is
+   * scoped to where no thread asked for the workspace. */
+  opensThread?: string;
   /** What the agents on the new workspace may ask of this host; absent takes the default, and on a fork a thread asked for it
    * is the forking workspace's own switch, so a tree of machines carries one rule rather than needing it set again.
    * A key left out takes the default. */
@@ -432,6 +435,11 @@ export interface SubSession {
 
 export interface LiveWorkspace {
   record: WorkspaceRecord;
+  /** The thread the start that made it opens, which its clone's token is scoped to; the first thread opened on it takes
+   * that id while no thread holds it. */
+  opensThread?: string;
+  /** Its branch of record is one the remote already holds, the pull request's head the start named. */
+  ofRecordHeld?: true;
   ws: Workspace;
   machine: Machine;
   /** Moves with every write of the record; the status poll drops a row it built under an older one. */

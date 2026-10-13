@@ -17,6 +17,7 @@ import {
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES, deadMachine, isAbsentMachine, isCapRefusal } from "../types/internal.js";
 import { SUB_SESSIONS, subSessionLandCommand } from "./sub-life.js";
+import { brokeredStart, freeBranchName, repoOfRecord } from "../projects/branch-of-record.js";
 import { folderNamed, type CreateWorkspaceOptions, type CreatedWorkspace, type LiveWorkspace, type StageReport, type WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubSpawnArea } from "../context.js";
 
@@ -180,6 +181,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       if (ask.branch !== undefined && !subBranchNameOk(ask.branch)) throw subBranchNameRefusal(ask.branch);
       if (ask.branch === branch) throw subLeadBranchRefusal(ask.branch);
       const result = ask.branch ?? (await freeBranch(subBranchOf(name), lead));
+      // Where the host keeps the machine's credentials, the branch its pushes may land on and the repo by GitHub's id.
+      const branchOfRecord = brokeredStart(ctx, true) ? { ...(await repoOfRecord(ctx, project.remote, project.name, on)), branch: result, startSha: base.sha } : undefined;
       // S10: the cloud's spend today.
       await ctx.placeGuard(place);
       // S11: the agent on the image, where the image says which it carries.
@@ -212,6 +215,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         // Its own switch, off: a sub-thread starts nothing of its own.
         agents: { ...AGENTS_ON, spawn: false } satisfies WorkspaceAgents,
         lead: { threadId: scope.threadId, workspaceId: lead.record.id },
+        ...(branchOfRecord !== undefined ? { branchOfRecord } : {}),
         sub: {
           on: on.toLowerCase(),
           repo,
@@ -248,7 +252,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         notSent: { uncommitted, ...(seed.why !== undefined ? { why: seed.why } : {}) },
         deleteAfterMinutes,
       };
-      const preamble = subPreamble({ on, size, lead: scope.threadId, folder, sent: seed.paths, setupGit: host.setupGit, repo, base, branch: result, deleteAfterMinutes });
+      const preamble = subPreamble({ on, size, lead: scope.threadId, folder, sent: seed.paths, setupGit: host.setupGit, repo, base, branch: result, deleteAfterMinutes, ...(branchOfRecord !== undefined ? { brokered: true as const } : {}) });
       const view = ctx.view(machineRecord);
       return { ...view, ...(notices.length > 0 ? { notice: notices.join("\n") } : {}), sub: { out, folder, preamble, harness } };
     } finally {
@@ -316,19 +320,13 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     }
   };
 
-  /** The default result branch, numbered past a name the remote holds or another sub-machine of this host was given:
+  /** The default result branch, numbered past a name the remote holds or another thread of this host was given:
    * a record deleted with its thread no longer names its branch, and the remote still holds it. The remote is read
    * from the lead's folder where it is, on this computer or over its box's own road, with no prompt and a bounded
    * wait; a remote that does not answer leaves the records alone to say what is taken. */
   const freeBranch = async (wanted: string, lead: LiveWorkspace): Promise<string> => {
-    const taken = new Set([...live.values()].map(e => e.record.sub?.branch).filter(b => b !== undefined));
     const heads = await gitAtLead(lead, ["ls-remote", "--heads", "origin"]).catch(() => undefined);
-    for (const line of heads?.exitCode === 0 ? heads.stdout.split("\n") : []) {
-      const ref = line.split("\t")[1];
-      if (ref?.startsWith("refs/heads/") === true) taken.add(ref.slice("refs/heads/".length));
-    }
-    if (!taken.has(wanted)) return wanted;
-    for (let n = 2; ; n++) if (!taken.has(`${wanted}-${n}`)) return `${wanted}-${n}`;
+    return freeBranchName(ctx, wanted, heads?.exitCode === 0 ? heads.stdout : undefined);
   };
 
   /** A git line in the lead's folder where that folder is, on this computer or over its box's own road, with no prompt
@@ -552,7 +550,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     await landSession(entry, threadId);
     const deleteAfterMinutes = Math.round((ctx.settingsAt(place)?.deleteAfterMs ?? DELETE_AFTER_MS) / 60_000);
     const pushed = sub.result?.pushedSha != null;
-    const preamble = subResumePreamble({ on, size, folder: sub.folder, sent: seed.paths, setupGit: host.setupGit, repo: sub.repo, base: sub.base, branch: sub.branch, pushed, deleteAfterMinutes });
+    const preamble = subResumePreamble({ on, size, folder: sub.folder, sent: seed.paths, setupGit: host.setupGit, repo: sub.repo, base: sub.base, branch: sub.branch, pushed, deleteAfterMinutes, ...(record.branchOfRecord !== undefined ? { brokered: true as const } : {}) });
     return { entry, preamble, notices };
   };
 
