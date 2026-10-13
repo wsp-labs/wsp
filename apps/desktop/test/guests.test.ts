@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // A browser tab's guest runs on its own partition, sandboxed and isolated with no preload, made only by the app's own
-// host's page; its new windows become tabs and a link to another app asks first.
-import { BROWSER_PARTITION, type GuestOpen } from "@wsp/protocol";
+// host's page; its new windows become tabs, a link to another app asks first and the close chords go to the window.
+import { BROWSER_PARTITION, type GuestOpen, type ShellChord } from "@wsp/protocol";
 import { describe, expect, it } from "vitest";
+import type { CloseChord } from "../src/close.js";
 import { attachGuest, guardGuestSession, guestGuards, guestWindow, type GuestContents, type GuestPreferences, type GuestSession, type GuestShell } from "../src/guests.js";
+import type { ShellKeyInput } from "../src/zoom.js";
 
 const APP_PAGE = "http://127.0.0.1:4400/";
 
-function fakeShell(answer = false): GuestShell & { tabs: GuestOpen[]; asked: string[]; opened: string[] } {
+function fakeShell(answer = false): GuestShell & { tabs: GuestOpen[]; asked: string[]; opened: string[]; closes: [CloseChord, ShellChord][] } {
   const tabs: GuestOpen[] = [];
   const asked: string[] = [];
   const opened: string[] = [];
+  const closes: [CloseChord, ShellChord][] = [];
   return {
     tabs,
     asked,
     opened,
+    closes,
+    close: (chord, press) => closes.push([chord, press]),
     mayHold: url => url === APP_PAGE,
     newTab: open => tabs.push(open),
     ask: async url => {
@@ -26,9 +31,10 @@ function fakeShell(answer = false): GuestShell & { tabs: GuestOpen[]; asked: str
 }
 
 /** A window on a page, with the guards set on it: whether an attach went through, and a guest's new-window handler. */
-function fakeWindow(shell: GuestShell, pageUrl = APP_PAGE): { attach(prefs: GuestPreferences, at?: string): boolean; attached(id: number): (url: string) => { action: string } } {
+function fakeWindow(shell: GuestShell, pageUrl = APP_PAGE, platform: NodeJS.Platform = "darwin"): { attach(prefs: GuestPreferences, at?: string): boolean; attached(id: number): (url: string) => { action: string }; press(id: number, input: ShellKeyInput): boolean } {
   let page = pageUrl;
-  const guards = guestGuards({ getURL: () => page }, shell);
+  const guards = guestGuards({ getURL: () => page }, shell, platform);
+  const keys = new Map<number, (event: { preventDefault(): void }, input: ShellKeyInput) => void>();
   return {
     attach(prefs, at = pageUrl) {
       page = at;
@@ -38,9 +44,14 @@ function fakeWindow(shell: GuestShell, pageUrl = APP_PAGE): { attach(prefs: Gues
     },
     attached(id) {
       let handler: ((details: { url: string }) => { action: "deny" }) | undefined;
-      const guest: GuestContents = { id, setWindowOpenHandler: h => (handler = h) };
+      const guest: GuestContents = { id, setWindowOpenHandler: h => (handler = h), on: (_event, listener) => keys.set(id, listener) };
       guards.didAttach({}, guest);
       return url => handler!({ url });
+    },
+    press(id, input) {
+      let taken = false;
+      keys.get(id)!({ preventDefault: () => (taken = true) }, input);
+      return taken;
     },
   };
 }
@@ -134,5 +145,41 @@ describe("the guest session", () => {
       expect(session.check(permission), permission).toBe(false);
     }
     expect(await session.request("fullscreen")).toBe(true);
+  });
+});
+
+describe("a close chord pressed in a guest", () => {
+  const press = (key: string, over: Partial<ShellKeyInput> = {}): ShellKeyInput => ({ type: "keyDown", key, code: `Key${key.toUpperCase()}`, control: false, meta: false, shift: false, alt: false, ...over });
+
+  it("goes to the window and never to the guest's page: mod+w to the page as its chord, mod+shift+w to close the window", () => {
+    const shell = fakeShell();
+    const win = fakeWindow(shell);
+    win.attached(7);
+    expect(win.press(7, press("w", { meta: true }))).toBe(true);
+    expect(win.press(7, press("W", { meta: true, shift: true }))).toBe(true);
+    expect(shell.closes).toEqual([
+      ["tab", { key: "w", code: "KeyW", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false }],
+      ["window", { key: "W", code: "KeyW", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false }],
+    ]);
+  });
+
+  it("reads the platform's mod, Control off macOS", () => {
+    const shell = fakeShell();
+    const win = fakeWindow(shell, APP_PAGE, "linux");
+    win.attached(7);
+    expect(win.press(7, press("w", { meta: true }))).toBe(false);
+    expect(win.press(7, press("w", { control: true }))).toBe(true);
+    expect(shell.closes.map(([chord]) => chord)).toEqual(["tab"]);
+  });
+
+  it("leaves every other press, a key up and an Option chord to the guest's page", () => {
+    const shell = fakeShell();
+    const win = fakeWindow(shell);
+    win.attached(7);
+    expect(win.press(7, press("w"))).toBe(false);
+    expect(win.press(7, press("t", { meta: true }))).toBe(false);
+    expect(win.press(7, press("w", { meta: true, alt: true }))).toBe(false);
+    expect(win.press(7, { ...press("w", { meta: true }), type: "keyUp" })).toBe(false);
+    expect(shell.closes).toEqual([]);
   });
 });

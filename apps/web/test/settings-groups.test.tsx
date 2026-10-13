@@ -640,6 +640,8 @@ describe("Keybindings", () => {
     expect(label("workspace.next")).toEqual([["⌥⌘Right"], ["⌃Tab"]]);
     expect(label("rightPanel.nextTab")).toEqual([["⌃Tab"]]);
     expect(label("rightPanel.previousTab")).toEqual([["⌃⇧Tab"]]);
+    expect(label("rightPanel.closeTab")).toEqual([["⌘W"]]);
+    expect(label("rightPanel.closeTab", { platform: "Linux x86_64", desktopShell: true })).toEqual([["Ctrl+W"]]);
     expect(label("terminal.zoomIn")).toEqual([["⌘="], ["⇧⌘="]]);
     expect(label("workspace.select.1")).toEqual([["⌘1"], ["⌘9"]]);
     // On another platform the same rules read Ctrl.
@@ -650,11 +652,12 @@ describe("Keybindings", () => {
     expect(label("chat.new", tab)).toEqual([]);
     expect(label("workspace.next", tab)).toEqual([]);
     expect(label("rightPanel.nextTab", tab)).toEqual([]);
+    expect(label("rightPanel.closeTab", tab)).toEqual([]);
     expect(label("thread.next", tab)).toEqual([["⌥⌘Down"]]);
     expect(label("workspace.select.1", tab)).toEqual([]);
     const cards = keybindingCards(DEFAULT_KEYBINDINGS, mac);
     expect(cards.map(card => card.head)).toEqual([KEYBINDINGS_WORDS.windowAndPanels, KEYBINDINGS_WORDS.workspacesAndThreads, KEYBINDINGS_WORDS.terminal, KEYBINDINGS_WORDS.fixed]);
-    expect(cards[0]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["Search", "Find a file", "Search in files", "Settings", "Toggle the sidebar", "Toggle the terminal drawer", "Toggle the right panel", "Next panel tab", "Previous panel tab", "Toggle the preview"]);
+    expect(cards[0]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["Search", "Find a file", "Search in files", "Settings", "Toggle the sidebar", "Toggle the terminal drawer", "Toggle the right panel", "Next panel tab", "Previous panel tab", "Close panel tab", "Toggle the preview"]);
     expect(cards[1]!.items.map(item => (item.kind === "line" ? item.label : ""))).toEqual(["New thread", "Next task", "Previous task", "Next thread", "Previous thread", "Settle thread", "Next thread that needs you", "Find in thread", "Step to the older match", "Step to the newer match", "Open in editor", JUMP_WORD]);
     expect(label("thread.find")).toEqual([["⌘F"]]);
     expect(label("thread.findOlder")).toEqual([["⌘G"], ["F3"]]);
@@ -662,7 +665,11 @@ describe("Keybindings", () => {
       [KEYBINDINGS_WORDS.sendMessage, [["Enter"]]],
       [KEYBINDINGS_WORDS.submitComment, [["⌘Enter"]]],
       [KEYBINDINGS_WORDS.leaveSettings, [["Esc"]]],
+      [KEYBINDINGS_WORDS.closeWindow, [["⇧⌘W"]]],
     ]);
+    // The window's own chord is the desktop shell's: a browser tab closes itself on its own keys.
+    expect(keybindingCards(DEFAULT_KEYBINDINGS, { platform: "Linux x86_64", desktopShell: true })[3]!.items.find(item => item.id === "close-window")).toMatchObject({ keys: [["Ctrl+Shift+W"]] });
+    expect(keybindingCards(DEFAULT_KEYBINDINGS, tab)[3]!.items.map(item => item.id)).not.toContain("close-window");
     // The send line reads the key the person picked on General, in the platform's spelling.
     const sendKeys = (platform: string) => keybindingCards(DEFAULT_KEYBINDINGS, { platform, desktopShell: true }, undefined, "mod-enter")[3]!.items.find(item => item.id === "send");
     expect(sendKeys("MacIntel")).toMatchObject({ keys: [["⌘Enter"]] });
