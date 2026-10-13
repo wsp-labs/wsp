@@ -236,7 +236,7 @@ describe("the list of every place", () => {
     expect((await placesOf()).find(p => p.id === joined.placeId)!.signIns?.["codex"]).toBe("signed-in");
   });
 
-  it("is refused on a socket let in on a ticket, and is no op a thread may send", async () => {
+  it("is refused on a socket let in on a ticket, and a thread may read it but send no op that changes a place", async () => {
     await serving();
     const host = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
     const { ticket } = (await host.request("ticket.issue", { purpose: "relay" })) as { ticket: string };
@@ -249,7 +249,7 @@ describe("the list of every place", () => {
     expect(await relayed.request("places.loginLanded", { placeId: "p_1", agent: "codex" })).toMatchObject({ ok: false, error: PLACES_TICKET_REFUSAL });
     expect(await relayed.request("places.set", { placeId: "p_1", threads: 1 })).toMatchObject({ ok: false, error: PLACES_TICKET_REFUSAL, kind: "ticket" });
     relayed.close();
-    expect(THREAD_OPS).not.toContain("places.list");
+    expect(THREAD_OPS).toContain("places.list");
     expect(THREAD_OPS).not.toContain("places.remove");
     expect(THREAD_OPS).not.toContain("places.add");
   });

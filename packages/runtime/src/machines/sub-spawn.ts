@@ -11,7 +11,7 @@ import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableErro
 import {
   DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, lastLine, subFromNotOnRemoteRefusal, subFromUnreadRefusal, type ExecResult, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
   providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
-  subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
+  subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal, subOtherProjectRefusal,
   subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
@@ -142,6 +142,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       // A lead is a thread on this computer or on a computer the person added (01, M4).
       if (!runsInFolder(lead.record.kind)) throw subLeadOnMachineRefusal(on, scope.threadId, lead.record.name);
       const project = ctx.projectHeld(lead.record.project);
+      if (opts.project !== "" && opts.project !== project.id && opts.project !== project.name) throw subOtherProjectRefusal(ask.on, opts.project, project.name);
       // S4: a remote on a host whose command the image signs in to.
       if (project.remote === "") throw subNoRemoteRefusal(project.name, on);
       const host = gitHostOf(project.remote);

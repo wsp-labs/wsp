@@ -70,6 +70,7 @@ import {
   subBesideRefusal,
   subOpenedLine,
   subOpening,
+  subOtherProjectRefusal,
   subSizeNoCloudRefusal,
   subFromNoCloudRefusal,
 } from "@wsp/protocol";
@@ -640,7 +641,9 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "a sub-thread on Boat, detached", arguments: { on: "boat", size: "4x8", message: "fix it", notify: ["me"], detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
     { case: "a sub-thread on Boat followed to its reply", arguments: { on: "boat", message: "fix it", title: "the upload test" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") }, pushed: { "sessions.start": TURN } },
     { case: "a size with no cloud", arguments: { size: "4x8", message: "t" }, replies: {} },
-    { case: "a cloud beside a project", arguments: { on: "boat", project: "attic-work", message: "t" }, replies: {} },
+    { case: "a cloud beside another thread's folder", arguments: { on: "boat", beside: "thread-7f", message: "t" }, replies: {} },
+    { case: "a cloud beside the thread's own project", arguments: { on: "boat", project: "web", message: "fix it", detach: true }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
+    { case: "a cloud beside another project", arguments: { on: "boat", project: "attic-work", message: "t" }, replies: { ...SUB_REPLIES, "workspaces.create": no(subOtherProjectRefusal("boat", "attic-work", "web").message, "usage") } },
     { case: "followed to its reply", arguments: { project: "attic-work", message: "fix it", model: "claude-opus-5-5", effort: "max" }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": TURN } },
     { case: "detached", arguments: { project: "attic-work", message: "fix it", detach: true, agent: "codex", notify: ["me", "thread-7f"] }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.list": listed(), "sessions.start": START } },
     { case: "a restart of a stopped thread, named by a prefix", arguments: { project: "attic-work", message: "fix it", detach: true, replaces: "thread-b0b0" }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "sessions.replaceable": ok({}), "workspaces.wake": resolved(), "sessions.list": listed(), "sessions.start": START } },

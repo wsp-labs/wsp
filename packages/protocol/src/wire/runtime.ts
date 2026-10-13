@@ -221,8 +221,9 @@ const RuntimeOp = z.discriminatedUnion("op", [
      * thread asked for names none and is refused where it does: it takes the image its own workspace's project
      * runs, which is the only image a thread reaches. */
     golden: z.string().optional(),
-    /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. Empty
-     * beside `sub`, whose project is the asking thread's own, read off its token. */
+    /** The project this workspace is made for, by id or by name. Its computer is where the workspace lands. Beside
+     * `sub` the project is the asking thread's own, read off its token: empty or that project's id or name, any
+     * other refused. */
     project: z.string(),
     name: z.string(),
     cpu: z.number().optional(),
@@ -1055,6 +1056,10 @@ export const THREAD_OPS: readonly string[] = [
   // thread there starts on; the host answers a thread those and no other, and refuses a name outside them by the
   // rule a start reads, which is how a fork names the project of the workspace it forks.
   "projects.list",
+  // The computers and clouds a thread may start work on, and what each cloud spent, so it knows where --on can go;
+  // the host answers a thread those rows and none of the person's adds.
+  "places.list",
+  "cost.spend",
   "conversations.list",
   "projects.defaults",
   "projects.resolve",
