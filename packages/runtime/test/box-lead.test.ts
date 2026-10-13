@@ -15,7 +15,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { agentsOffComputerRefusal, agentsOffRefusal, childToLeadsComputerLine, elsewhereWorkspaceLine, HERE_PLACE_ID, noWorkspaceRefusal, refusalLine, rootGoneRefusal, sendFilesAcrossLine, SEND_FILES_ACROSS_FIX, spawnDepthRefusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, TURN_TOKEN_ENV, waitAcrossLine, WAIT_ACROSS_FIX, type AcrossAct, type Caller, type ThreadScope } from "@wsp/protocol";
 import { copyKey } from "../src/runtime.js";
-import { code, join as joinHost, placesOf, sockets } from "./places-fixture.js";
+import { code, ctx, join as joinHost, placesOf, sockets } from "./places-fixture.js";
+import { WsClient } from "./ws-client.js";
 import { report } from "./place-join.js";
 import { box, HETZNER, HOLD, leadAndBox as leading } from "./box-fixture.js";
 
@@ -111,6 +112,32 @@ describe("a lead thread on the computer the app runs on, starting children on a 
     expect((await rt.projects.list(asChild)).map(p => p.name)).toEqual(["lab-box"]);
     // Beside itself it starts freely, in the same folder there.
     expect((await rt.workspaces.folderFor({}, asChild)).workspace.id).toBe(at.workspace.id);
+  });
+
+  it("answers a thread's own token the computers it may start work on: the lead this computer and the box, the child on the box the box alone, and no add of the person's", async () => {
+    const { rt, onBox, threadId, lead, folder, placeId } = await leadAndBox();
+    const at = await rt.workspaces.folderFor({ project: onBox.id }, lead);
+    const child = await rt.sessions.start(at.workspace.id, { prompt: "build it", harness: "claude" }, lead);
+    await child.finished;
+    const listed = async (scope: ThreadScope): Promise<Record<string, unknown>[]> => {
+      const { deviceToken } = await rt.devices.mint(`thread ${scope.threadId.slice(0, 8)}`, scope, Date.now(), { road: "here" });
+      const socket = await WsClient.connect(ctx.srv!.port, { token: deviceToken });
+      try {
+        const places = await socket.request("places.list");
+        expect(places, String(places["error"])).toMatchObject({ ok: true, adds: [], pending: [] });
+        const spend = await socket.request("cost.spend");
+        expect(spend.ok, String(spend["error"])).toBe(true);
+        return [places, spend];
+      } finally {
+        socket.close();
+      }
+    };
+    const ids = (answer: Record<string, unknown>): string[] => (answer["places"] as { id: string }[]).map(p => p.id).sort();
+    const [leadSees, leadSpend] = await listed({ kind: "thread", threadId, workspaceId: folder.id, rootThreadId: threadId });
+    expect(ids(leadSees!)).toEqual([HERE_PLACE_ID, placeId].sort());
+    expect((leadSpend!["places"] as { place: string }[]).map(p => p.place).sort()).toEqual(ids(leadSees!));
+    const [childSees] = await listed({ kind: "thread", threadId: child.view().threadId!, workspaceId: at.workspace.id, rootThreadId: threadId });
+    expect(ids(childSees!)).toEqual([placeId]);
   });
 });
 

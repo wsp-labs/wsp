@@ -1283,7 +1283,7 @@ describe("status.history", () => {
     expect(await spendOn(rt, "default", Date.parse("2026-10-15T09:00:00.000Z"))).toEqual(zeros("default"));
   });
 
-  it("is refused on a socket let in on a ticket, as the places list it feeds is", async () => {
+  it("is refused on a socket let in on a ticket, as the places list it feeds is, and read by a thread as that list is", async () => {
     const { rt } = testRuntime({ costIntervalMs: 15, pollIntervalMs: 60_000 });
     await createOn(rt, { golden: "snap_g", name: "alpha" });
     srv = await serveRuntime(rt, { port: 0, authToken: "secret" });
@@ -1297,7 +1297,7 @@ describe("status.history", () => {
     const relayed = await WsClient.connect(srv.port, { ticket });
     expect(await relayed.request("cost.spend")).toMatchObject({ ok: false, error: PLACES_TICKET_REFUSAL });
     relayed.close();
-    expect(THREAD_OPS).not.toContain("cost.spend");
+    expect(THREAD_OPS).toContain("cost.spend");
   });
 });
 

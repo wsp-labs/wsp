@@ -147,6 +147,23 @@ describe("Boat's settings and its limits on the command line", () => {
     expect((await boat())?.starts).toBeUndefined();
   });
 
+  it("answers a thread's own token wsp computers with Boat beside the computer its project is on", async () => {
+    await withBoat();
+    expect((await h.macProject("alpha")).code).toBe(0);
+    const alpha = (await h.rt.workspaces.list()).find(w => w.name === "alpha")!;
+    const scoped = await h.rt.devices.mint("thread t_lead", { kind: "thread", threadId: "t_lead", workspaceId: alpha.id, rootThreadId: "t_lead" }, Date.now());
+    const env = { [HOST_URL_ENV]: `ws://127.0.0.1:${h.handle!.port}`, [HOST_TOKEN_ENV]: scoped.deviceToken, [HOST_KEY_ENV]: hostKeyHere(h.statePath) };
+    const io = captured();
+    const code = await cli(["computers", "--json"], io, undefined, env);
+    expect(io.errors).toEqual([]);
+    expect(code).toBe(0);
+    const read = h.json(io).at(-1) as { computers: PlaceView[]; spend: { placeId: string }[]; pending: unknown[] };
+    expect(read.computers.map(c => c.id)).toEqual(expect.arrayContaining([HERE_PLACE_ID, "box"]));
+    expect(read.computers.find(c => c.id === "box")).toMatchObject({ kind: "provider", label: "Boat" });
+    expect(read.computers.filter(c => c.road !== undefined)).toEqual([]);
+    expect(read.pending).toEqual([]);
+  });
+
   it("refuses a thread's own token every set on Boat, and changes nothing", async () => {
     await withBoat();
     expect((await h.macProject("alpha")).code).toBe(0);
@@ -168,7 +185,7 @@ describe("Boat's settings and its limits on the command line", () => {
       const io = captured();
       const code = await cli(["computers", "set", "boat", ...flags], io, undefined, env);
       expect(code, flags.join(" ")).not.toBe(0);
-      expect(io.errors, flags.join(" ")).toEqual([`wsp computers set: ${threadOpRefusal("places.list", "t_lead", here)}`]);
+      expect(io.errors, flags.join(" ")).toEqual([`wsp computers set: ${threadOpRefusal("places.set", "t_lead", here)}`]);
     }
     expect((await boatRow()).settings).toBeUndefined();
   });

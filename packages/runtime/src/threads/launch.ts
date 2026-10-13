@@ -3,11 +3,12 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
-import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
+import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, cloudAddedLine, cloudRemovedLine, placeSaid, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
 import { harnessCatalog, notRunRefused } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
-import { launchesAs, type KeptLaunch } from "../types/internal.js";
+import { launchesAs, type KeptLaunch, type ThreadRecord } from "../types/internal.js";
+import type { PlaceDoor } from "../places.js";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
 
@@ -18,6 +19,18 @@ import type { RuntimeContext } from "../context.js";
 export function servedTo(wsp: McpServerSpec | undefined, rootThreadId: string, threadId: string): McpServerSpec | undefined {
   if (wsp === undefined || rootThreadId === threadId) return wsp;
   return { ...wsp, noSlate: true as const, ...(wsp.args.includes(SCOPED_MCP_ARG) ? { args: [...wsp.args, NO_SLATE_MCP_ARG] } : {}) };
+}
+
+/** Puts a line ahead of a send's message for each cloud added or taken away since the thread last knew them, and answers
+ * the clouds held, which the thread's record takes once its turn is launched, so a launch that fails leaves the line for
+ * the next send. The caller asks it only for a thread that may start sub-threads: one in a folder, never a sub-thread.
+ * A thread with no record yet is told nothing, and a record from before the clouds were kept starts keeping them. */
+export async function cloudsTold(door: PlaceDoor | undefined, records: Map<string, ThreadRecord & { workspaceId: string }>, threadId: string, o: { prompt: string }): Promise<string[]> {
+  const held = ((await door?.rows()) ?? []).filter(p => p.kind === "provider").map(placeSaid).sort();
+  const seen = records.get(threadId)?.clouds;
+  const lines = seen === undefined ? [] : [...held.filter(c => !seen.includes(c)).map(cloudAddedLine), ...seen.filter(c => !held.includes(c)).map(cloudRemovedLine)];
+  if (lines.length > 0) o.prompt = `${lines.join("\n")}\n\n${o.prompt}`;
+  return held;
 }
 
 /** The picks a launch names, each left to the thread's own or the defaults where absent. */
