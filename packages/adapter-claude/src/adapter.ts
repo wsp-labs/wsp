@@ -14,7 +14,7 @@ import { ASIDE_HOOKS_ID, asideAnswer, asideCommand, asideHooksLine, asidePrompt,
 import { copyCleanupCommand, copySession } from "./chain.js";
 import { claudeConversations } from "./conversations.js";
 import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "./session-title.js";
-import { buildEnv, launchCommand, newSessionId, savedSpendCommand, serverValuesFile, terminalResumeCommand, userMessageLine } from "./landmines.js";
+import { buildEnv, launchCommand, newSessionId, savedSpendCommand, serverValuesFile, signInGuard, terminalResumeCommand, userMessageLine } from "./landmines.js";
 import { steersOf } from "./steers.js";
 import { newPlanBook, readPlanCall, type PlanBook } from "./plans.js";
 import { flattenContent, resultFacts } from "./tool-results.js";
@@ -599,12 +599,9 @@ const sessionFileIn = (configDir: string, sessionId: string): { folder: string; 
 export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
   if (!deps.configDir.trim().startsWith("/")) throw new Error(`configDir must be an absolute path, got "${deps.configDir}"`);
   const sessions = new Map<string, ClaudeSession>();
-  const env = buildEnv({
-    base: deps.baseEnv,
-    apiKey: deps.apiKey,
-    ...(deps.oauthToken !== undefined ? { oauthToken: deps.oauthToken } : {}),
-    ...(deps.projectDirName !== undefined ? { projectDirName: deps.projectDirName } : {}),
-  });
+  const signIn = { base: deps.baseEnv, apiKey: deps.apiKey, ...(deps.oauthToken !== undefined ? { oauthToken: deps.oauthToken } : {}) };
+  const env = buildEnv({ ...signIn, ...(deps.projectDirName !== undefined ? { projectDirName: deps.projectDirName } : {}) });
+  const guard = signInGuard({ ...signIn, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
   const memory = deps.projectDirName === undefined ? {} : { memoryDir: claudeMemoryDir(deps.configDir, deps.projectDirName) };
 
   /** wsp's half for a refusal the CLI named a cause for: the road the caller handed this adapter, which is the one
@@ -1253,7 +1250,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     const command = launchCommand({ ...asked, ...(resume !== undefined ? { resume } : {}), ...(copyOf !== undefined ? { copyOf } : {}), ...memory, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) }, localId, valued !== undefined);
     const launch = resume === undefined ? command : `${savedSpendCommand({ configDir: deps.configDir, sessionId: resume })}${command}`;
     const line = userMessageLine(options.prompt, localId, options.images);
-    const run = deps.exec(launch, { env: { ...env }, input: [line], ...(options.promptAfter !== undefined ? { inputAfter: options.promptAfter } : {}), ...(valued !== undefined ? { secret: valued } : {}) });
+    const run = deps.exec(`${guard}${launch}`, { env: { ...env }, input: [line], ...(options.promptAfter !== undefined ? { inputAfter: options.promptAfter } : {}), ...(valued !== undefined ? { secret: valued } : {}) });
     const keeper = options.keep === true ? keepRun(run) : undefined;
     const stream = keeper === undefined ? run : keeper.turn().stream;
     return follow({ stream, localId, announced: false, fresh: resume === undefined, command: launch, ...(keeper !== undefined ? { keeper } : {}), onEvent: options.onEvent });
@@ -1263,7 +1260,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     const localId = newSessionId();
     const valued = serverValuesFile(options.serverValues);
     const command = launchCommand({ ...options, ...memory, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) }, localId, valued !== undefined);
-    const keeper = keepRun(deps.exec(command, { env: { ...env }, input: [], ...(valued !== undefined ? { secret: valued } : {}) }));
+    const keeper = keepRun(deps.exec(`${guard}${command}`, { env: { ...env }, input: [], ...(valued !== undefined ? { secret: valued } : {}) }));
     // Its launch's view closes at once: the process rests as between turns, and its hooks' lines are no turn's.
     keeper.turn().stream.closeInput();
     const close = (c?: { now?: true }): Promise<void> => keeper.close(c?.now === true ? 0 : (deps.resultExitMs ?? RUN_EXIT_MS), deps.interruptGraceMs ?? INTERRUPT_GRACE_MS);
@@ -1334,7 +1331,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     const picks = { ...(q.cwd !== undefined ? { cwd: q.cwd } : {}), ...(q.model !== undefined ? { model: q.model } : {}), ...(q.effort !== undefined ? { effort: q.effort } : {}), ...(q.contextWindow !== undefined ? { contextWindow: q.contextWindow } : {}), ...(q.fast === true ? { fast: true } : {}) };
     const valued = serverValuesFile(q.serverValues);
     const command = asideCommand({ fork, ...picks, ...(q.mcpServers !== undefined ? { mcpServers: q.mcpServers } : {}), ...(valued !== undefined ? { serverValues: true as const } : {}), ...memory, ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
-    const stream = deps.exec(command, { env: { ...env }, input: [asideHooksLine(), userMessageLine(asidePrompt(q.question, running), fork)], ...(valued !== undefined ? { secret: valued } : {}) });
+    const stream = deps.exec(`${guard}${command}`, { env: { ...env }, input: [asideHooksLine(), userMessageLine(asidePrompt(q.question, running), fork)], ...(valued !== undefined ? { secret: valued } : {}) });
     const wall = setTimeout(() => {
       walled = true;
       void endRun(stream, deps.interruptGraceMs ?? INTERRUPT_GRACE_MS).catch(() => {});
@@ -1410,14 +1407,16 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     sessionTitle: (sessionId, exec) => exec(sessionTitleCommand({ configDir: deps.configDir, sessionId })).then(parseSessionTitle),
     sessionFile: sessionId => sessionFileIn(deps.configDir, sessionId),
     renameSession: (sessionId, title, exec) => exec(renameCommand({ configDir: deps.configDir, sessionId, title })).then(parseRename),
+    // Side questions sign in as the thread's turns do, in the same order, so an inherited key never answers one either.
     titleFor: (turn, exec) =>
       exec(
         titleForCommand({
           prompt: titlePrompt(turn.opening, turn.reply),
           ...(turn.model !== undefined ? { model: turn.model } : {}),
           ...(deps.launch !== undefined ? { launch: deps.launch } : {}),
+          signIn: guard,
         }),
-        buildEnv({ base: deps.baseEnv }),
+        buildEnv(signIn),
       ).then(parseTitleFor),
     draftFor: (ask, exec) =>
       exec(
@@ -1425,8 +1424,9 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
           promptFile: ask.promptFile,
           ...(ask.model !== undefined ? { model: ask.model } : {}),
           ...(deps.launch !== undefined ? { launch: deps.launch } : {}),
+          signIn: guard,
         }),
-        buildEnv({ base: deps.baseEnv }),
+        buildEnv(signIn),
       ).then(parseDraftFor),
     aside,
     asideServers: true,

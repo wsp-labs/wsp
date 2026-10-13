@@ -113,7 +113,7 @@ describe("the title Claude Code makes for a thread", () => {
     for (const { cmd, env } of asked) {
       expect(env).toMatchObject({ CLAUDE_CONFIG_DIR: "/root/it's here", CLAUDE_CODE_AUTO_CONNECT_IDE: "0" });
       expect(env).not.toHaveProperty("CLAUDE_CODE_ENTRYPOINT");
-      expect(cmd).toContain(`unset \${!CLAUDE_CODE_@} CLAUDECODE FORCE_CODE_TERMINAL; ${ENV_FROM_INPUT}`);
+      expect(cmd).toContain(`unset \${!CLAUDE_CODE_@} CLAUDECODE FORCE_CODE_TERMINAL ANTHROPIC_API_KEY; ${ENV_FROM_INPUT}`);
       expect(cmd.replace(ENV_FROM_INPUT, "")).not.toMatch(/CLAUDE_CONFIG_DIR|it's here|export /);
     }
   });
