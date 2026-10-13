@@ -860,7 +860,8 @@ export interface BuildersArea {
   readonly placeName: (place: string) => string;
   readonly imagePlace: (name: string) => Promise<string>;
   readonly buildPlaces: () => Promise<{ place: string; name: string; kind: PlaceKind; backend: MachineBackend }[]>;
-  readonly copyRecipeOrThrow: () => ((image: SealedImage) => Promise<GoldenRecipe> | GoldenRecipe);
+  readonly placeKindOf: (place: string) => PlaceKind;
+  readonly copyRecipeOrThrow: () => ((image: SealedImage, at: { cloud: boolean }) => Promise<GoldenRecipe> | GoldenRecipe);
   readonly recipeOrThrow: (named?: GoldenRecipe) => GoldenRecipe;
   readonly builderLabels: (extra: Record<string, string> | undefined) => Record<string, string>;
   readonly recordingCreates: (b: MachineBackend, name: string, imp: Pick<GoldenImport, "recipeHash" | "recipe"> | undefined, made: (placeholder: LiveBuilder) => void, stop: { signal: AbortSignal | undefined; began: (creating: Promise<Machine>) => void } | undefined, place: string) => MachineBackend;

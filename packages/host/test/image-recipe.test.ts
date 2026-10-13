@@ -96,6 +96,13 @@ describe("the recipe a copy at another place is built from", () => {
     expect(ticked).not.toContain("logins/gh");
   });
 
+  it("cuts the secret values out of the configs it copies for a provider, and keeps them for a computer the person owns", async () => {
+    writeFileSync(join(home, ".gitconfig"), '[user]\n\tname = Test\n[url "git@github.com:"]\n\tinsteadOf = https://github.com/\n');
+    const skipped = async (cloud: boolean) => ((await (await copyGoldenRecipe(RECORD, { ...readers(), cloud })).import!.files!.pack()).blanked ?? []).filter(s => s.path === "~/.gitconfig");
+    expect(await skipped(true)).toEqual([expect.objectContaining({ note: expect.stringMatching(/\[url\].*on this computer/) })]);
+    expect(await skipped(false)).toEqual([]);
+  });
+
   it("carries the same rows and envs as the seal's own plan, and only the sign-ins differ", async () => {
     const copy = await copyGoldenRecipe(RECORD, readers());
     const seal = sealPlan();

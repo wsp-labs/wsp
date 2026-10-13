@@ -8,7 +8,7 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readF
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { AGENTS, FISH_CONF_D, MCP_BIN_DIRS, type ManifestEntry, RC_NAMES, SSH_CONFIG_PATH, calledCommands, dropPlugins, guardCommands, guardSources, isRcPath, rcFiles, sourcedPaths, stripExports, withIgnoreUnknown } from "@wsp/collect";
+import { AGENTS, FISH_CONF_D, MCP_BIN_DIRS, MCP_REMOTE_ID, type ManifestEntry, RC_NAMES, SSH_CONFIG_PATH, calledCommands, dropPlugins, guardCommands, guardSources, isRcPath, rcFiles, sourcedPaths, stripExports, withIgnoreUnknown } from "@wsp/collect";
 import {
   agentInstallsFor,
   imageCommands,
@@ -41,6 +41,7 @@ import {
 } from "@wsp/engine";
 import { baseNote, CATALOG_AGENTS, CLAUDE_SETTINGS_FILE, GUEST_HOME, GUEST_REWRITES, MCP_AGENTS, rewrittenRel, serversByName } from "@wsp/catalog";
 import type { GoldenLeftBehind, RecipeCustomRow } from "@wsp/protocol";
+import { cloudCut, leftWhole, SIGN_INS_STAY, stayedLine } from "./cloud-configs.js";
 import { tarPackCommand } from "./doctor.js";
 import type { ServerVault } from "./env-keys.js";
 import { keyOwner } from "./providers.js";
@@ -271,6 +272,45 @@ export interface PackOptions {
   /** Asked once the staged tree is what would land, before it is tarred: which of those files need not travel at
    * all. Left out, every staged file is packed, which is the image. */
   leaveOut?: LeaveOut;
+  /** The files land on a provider's machine: every secret value the configs hold stays here (see cloudCut). Absent
+   * keeps every value, the road to a computer the person owns. */
+  cloud?: boolean;
+}
+
+/** On a provider's machine no secret lands: mcp-remote's sign-ins, fish's universal variables and a file holding a
+ * private key stay here whole, and every other file is cut by cloudCut; each is noted under the path it has here.
+ * A login the person answered copy is left as the copy wrote it: whether a login reaches a provider is the sign-in
+ * road's question, and a file with its token blanked would answer it neither way. */
+function leaveSecretsHome(stage: string, files: readonly PlannedFile[], placed: ReadonlySet<string>, home: string): { skipped: SkippedPath[]; blanked: SkippedPath[] } {
+  const skipped: SkippedPath[] = [];
+  const blanked: SkippedPath[] = [];
+  const ownerOf = (rel: string): PlannedFile | undefined => files.find(f => rel === f.dest || rel.startsWith(`${f.dest}/`));
+  const shown = (rel: string, f: PlannedFile | undefined): string => `~/${f === undefined ? rel : relative(home, join(f.source, rel.slice(f.dest.length)))}`;
+  for (const f of files) {
+    if (f.id !== MCP_REMOTE_ID || !existsSync(join(stage, f.dest))) continue;
+    rmSync(join(stage, f.dest), { recursive: true, force: true });
+    skipped.push({ id: f.id, path: shown(f.dest, f), note: SIGN_INS_STAY });
+  }
+  for (const rel of stagedPaths(stage)) {
+    const abs = join(stage, rel);
+    const owner = ownerOf(rel);
+    if (placed.has(rel) || owner?.rung === "logins") continue;
+    const path = shown(rel, owner);
+    const bytes = readFileSync(abs);
+    const text = bytes.includes(0) ? undefined : bytes.toString("utf8");
+    const whole = leftWhole(basename(rel), text);
+    if (whole !== undefined) {
+      rmSync(abs);
+      skipped.push({ id: owner?.id ?? path, path, note: whole });
+      continue;
+    }
+    if (text === undefined) continue;
+    const cut = cloudCut(path, text, home);
+    if (cut.text === text) continue;
+    rewriteStaged(abs, cut.text);
+    blanked.push({ id: owner?.id ?? path, path, note: stayedLine(cut.names) });
+  }
+  return { skipped, blanked };
 }
 
 /** Copies the planned files into a staging tree, renders each secret into it,
@@ -468,6 +508,8 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
       }
     }
     for (const server of new Set([...held.values()].map(at => at.by))) opts.vault?.hold(Object.fromEntries([...held].filter(([, at]) => at.by === server).map(([name, at]) => [name, at.value])), server);
+    const cloud = opts.cloud === true ? leaveSecretsHome(stage, files, new Set(plan.secrets.filter(s => opts.secrets.has(secretKey(s))).map(s => s.dest)), opts.home) : undefined;
+    skipped.push(...(cloud?.skipped ?? []));
     // Last over the staged tree, so a hook's script and a login's own file are repointed too and nothing written
     // after this can put a Mac path back.
     const repoint = (dir: string): void => {
@@ -502,7 +544,7 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
     const { file, args, env } = tarPackCommand(stage, tgz);
     await execFileAsync(file, args, { env });
     const tar = readFileSync(tgz);
-    return { tar, bytes: tar.length, unpacked, files: paths.length - stood.length, stood, skipped, cut, silenced, macPaths, ...(left.length > 0 ? { leftBehind: left } : {}) };
+    return { tar, bytes: tar.length, unpacked, files: paths.length - stood.length, stood, skipped, cut, silenced, macPaths, ...(left.length > 0 ? { leftBehind: left } : {}), ...(cloud !== undefined && cloud.blanked.length > 0 ? { blanked: cloud.blanked } : {}) };
   } finally {
     rmSync(stage, { recursive: true, force: true });
     rmSync(out, { recursive: true, force: true });
@@ -545,6 +587,7 @@ export interface ImportOptions {
   prefix?: string;
   /** Where the pack keeps the values the copied MCP servers read by name. */
   vault?: PackOptions["vault"];
+  cloud?: PackOptions["cloud"];
 }
 
 /** What is at a laptop path: a link is followed and reports where it lands. */
@@ -697,7 +740,7 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
     });
   const hash = recipeHash(recipeDigest(bring, digested, custom, brew));
   const settingsSource = join(home, CLAUDE_SETTINGS_FILE.slice(2));
-  const packOpts: PackOptions = { secrets: opts.secrets, home, settingsPlanned: plan.files.some(f => f.source === settingsSource || f.source === dirname(settingsSource)), onImage: imageCommands(bring, tools, brew), tools: toolNames(opts.rows ?? bring, brew), ...(opts.vault !== undefined ? { vault: opts.vault } : {}) };
+  const packOpts: PackOptions = { secrets: opts.secrets, home, settingsPlanned: plan.files.some(f => f.source === settingsSource || f.source === dirname(settingsSource)), onImage: imageCommands(bring, tools, brew), tools: toolNames(opts.rows ?? bring, brew), ...(opts.vault !== undefined ? { vault: opts.vault } : {}), ...(opts.cloud === true ? { cloud: true } : {}) };
   const packWith = (files: FilesPlan): PackFiles => leaveOut => packPlan(files, { ...packOpts, ...(leaveOut !== undefined ? { leaveOut } : {}) });
   const pack = packWith(plan);
   const volatileFiles = files.filter(f => f.volatile);
