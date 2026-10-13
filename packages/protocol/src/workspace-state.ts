@@ -387,6 +387,16 @@ export function ownDaemonDown(name: string): AbsentComputer {
  * the one thing the person can act on; the state word belongs to the row. */
 export const composerHeldLine = (computer: string): string => `held until ${computer} answers`;
 
+/** A hold this long or shorter writes no row into the thread: a pipe the host is still dialling takes seconds anyway. */
+export const WAITED_ROW_MS = 5_000;
+
+/** The row a thread shows after one of its turns on a cloud machine waited for this host: nothing can show while the
+ * host is away, so it is said once the turn goes on. Seconds under a minute, whole minutes after; a hold ends at an hour. */
+export function waitedLine(ms: number): string {
+  const seconds = Math.round(ms / 1_000);
+  return `Waited ${seconds < 60 ? `${seconds} s` : `${Math.round(ms / 60_000)} min`} for your computer`;
+}
+
 /** How long this host has not heard from a computer, off the row it holds for it; null on a row that never
  * reported. One spelling of the silence's length, so the table and the sidebar date it alike. */
 export function awayMsOf(place: { readonly lastSeenAt?: string | undefined }, now: number): number | null {
