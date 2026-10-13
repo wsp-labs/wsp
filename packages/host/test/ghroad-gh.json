@@ -1,0 +1,845 @@
+{
+ "gh": "2.97.0",
+ "recorded": "2026-10-13, through http_unix_socket with GH_CONFIG_DIR, GH_TOKEN and GH_TELEMETRY alone; names and ids replaced",
+ "requests": [
+  {
+   "label": "pr-view",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {url,number,title,state,body,author{login,...on User{id,name}},autoMergeRequest {authorEmail,commitBody,commitHeadline,mergeMethod,enabledAt,enabledBy{login,...on User{id,name}}},isDraft,maintainerCanModify,mergeable,additions,deletions,commits{totalCount},baseRefName,headRefName,headRepositoryOwner{id,login,...on User{name}},headRepository{id,name,nameWithOwner},isCrossRepository,reviewRequests(first: 100) {nodes {requestedReviewer {__typename,...on User{login,name},...on Bot{login},...on Team{organization{login}name,slug}}}},reviews(first: 100) {nodes {id,author{login},authorAssociation,submittedAt,body,state,commit{oid},reactionGroups{content,users{totalCount}}}pageInfo{hasNextPage,endCursor}totalCount},assignees(first:100){nodes{id,login,name,databaseId},totalCount},labels(first:100){nodes{id,name,description,color},totalCount},milestone{number,title,description,dueOn},comments(first: 100) {nodes {id,author{login,...on User{id,name}},authorAssociation,body,createdAt,includesCreatedEdit,isMinimized,minimizedReason,reactionGroups{content,users{totalCount}},url,viewerDidAuthor},pageInfo{hasNextPage,endCursor},totalCount},reactionGroups{content,users{totalCount}},createdAt,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-view",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \\\"Status\\\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}\",\"variables\":{\"endCursor\":null,\"name\":\"lab\",\"number\":7,\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-view-comments",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {url,number,title,state,body,author{login,...on User{id,name}},autoMergeRequest {authorEmail,commitBody,commitHeadline,mergeMethod,enabledAt,enabledBy{login,...on User{id,name}}},isDraft,maintainerCanModify,mergeable,additions,deletions,commits{totalCount},baseRefName,headRefName,headRepositoryOwner{id,login,...on User{name}},headRepository{id,name,nameWithOwner},isCrossRepository,reviewRequests(first: 100) {nodes {requestedReviewer {__typename,...on User{login,name},...on Bot{login},...on Team{organization{login}name,slug}}}},reviews(first: 100) {nodes {id,author{login},authorAssociation,submittedAt,body,state,commit{oid},reactionGroups{content,users{totalCount}}}pageInfo{hasNextPage,endCursor}totalCount},assignees(first:100){nodes{id,login,name,databaseId},totalCount},labels(first:100){nodes{id,name,description,color},totalCount},milestone{number,title,description,dueOn},comments(first: 100) {nodes {id,author{login,...on User{id,name}},authorAssociation,body,createdAt,includesCreatedEdit,isMinimized,minimizedReason,reactionGroups{content,users{totalCount}},url,viewerDidAuthor},pageInfo{hasNextPage,endCursor},totalCount},reactionGroups{content,users{totalCount}},createdAt,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-view-comments",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \\\"Status\\\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}\",\"variables\":{\"endCursor\":null,\"name\":\"lab\",\"number\":7,\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-list",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"fragment pr on PullRequest{number,title,state,url,headRefName,headRepositoryOwner{id,login,...on User{name}},isCrossRepository,isDraft,createdAt}\\n\\t\\tquery PullRequestList(\\n\\t\\t\\t$owner: String!,\\n\\t\\t\\t$repo: String!,\\n\\t\\t\\t$limit: Int!,\\n\\t\\t\\t$endCursor: String,\\n\\t\\t\\t$baseBranch: String,\\n\\t\\t\\t$headBranch: String,\\n\\t\\t\\t$state: [PullRequestState!] = OPEN\\n\\t\\t) {\\n\\t\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\t\\tpullRequests(\\n\\t\\t\\t\\t\\tstates: $state,\\n\\t\\t\\t\\t\\tbaseRefName: $baseBranch,\\n\\t\\t\\t\\t\\theadRefName: $headBranch,\\n\\t\\t\\t\\t\\tfirst: $limit,\\n\\t\\t\\t\\t\\tafter: $endCursor,\\n\\t\\t\\t\\t\\torderBy: {field: CREATED_AT, direction: DESC}\\n\\t\\t\\t\\t) {\\n\\t\\t\\t\\t\\ttotalCount\\n\\t\\t\\t\\t\\tnodes {\\n\\t\\t\\t\\t\\t\\t...pr\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\tpageInfo {\\n\\t\\t\\t\\t\\t\\thasNextPage\\n\\t\\t\\t\\t\\t\\tendCursor\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\",\"variables\":{\"limit\":3,\"owner\":\"acme\",\"repo\":\"lab\",\"state\":[\"OPEN\"]}}",
+   "read": true
+  },
+  {
+   "label": "pr-status",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query PullRequest_fields2{WorkflowRun: __type(name: \\\"WorkflowRun\\\"){fields(includeDeprecated: true){name}}}\"}",
+   "read": true
+  },
+  {
+   "label": "pr-status",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query PullRequest_fields{PullRequest: __type(name: \\\"PullRequest\\\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \\\"StatusCheckRollupContextConnection\\\"){fields(includeDeprecated: true){name}}}\"}",
+   "read": true
+  },
+  {
+   "label": "pr-status",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tfragment pr on PullRequest {number,title,state,url,isDraft,isCrossRepository,headRefName,headRepositoryOwner{id,login,...on User{name}},mergeStateStatus,baseRef{branchProtectionRule{requiresStrictStatusChecks}},autoMergeRequest {authorEmail,commitBody,commitHeadline,mergeMethod,enabledAt,enabledBy{login,...on User{id,name}}},statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts {checkRunCount,checkRunCountsByState {state,count},statusContextCount,statusContextCountsByState {state,count}}}}}}}\\n\\tfragment prWithReviews on PullRequest {...pr,reviewDecision,latestReviews(first: 100) {nodes {author{login},authorAssociation,submittedAt,body,state}}}\\n\\t\\n\\tquery PullRequestStatus($owner: String!, $repo: String!, $headRefName: String!, $viewerQuery: String!, $reviewerQuery: String!, $per_page: Int = 10) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tdefaultBranchRef {\\n\\t\\t\\t\\tname\\n\\t\\t\\t}\\n\\t\\t\\tpullRequests(headRefName: $headRefName, first: $per_page, orderBy: { field: CREATED_AT, direction: DESC }) {\\n\\t\\t\\t\\ttotalCount\\n\\t\\t\\t\\tedges {\\n\\t\\t\\t\\t\\tnode {\\n\\t\\t\\t\\t\\t\\t...prWithReviews\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\\n\\t\\t\\tviewerCreated: search(query: $viewerQuery, type: ISSUE, first: $per_page) {\\n\\t\\t\\t\\ttotalCount: issueCount\\n\\t\\t\\t\\tedges {\\n\\t\\t\\t\\t\\tnode {\\n\\t\\t\\t\\t\\t...prWithReviews\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t\\treviewRequested: search(query: $reviewerQuery, type: ISSUE, first: $per_page) {\\n\\t\\t\\t\\ttotalCount: issueCount\\n\\t\\t\\t\\tedges {\\n\\t\\t\\t\\t\\tnode {\\n\\t\\t\\t\\t\\t...pr\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t\",\"variables\":{\"headRefName\":\"\",\"number\":0,\"owner\":\"acme\",\"repo\":\"lab\",\"reviewerQuery\":\"repo:acme/lab state:open review-requested:@me\",\"viewerQuery\":\"repo:acme/lab state:open is:pr author:@me\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-checks",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {number,headRefName,id}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-checks",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestStatusChecks($id: ID!, $endCursor: String) {\\n\\t\\tnode(id: $id) {\\n\\t\\t\\t...on PullRequest {\\n\\t\\t\\t\\tstatusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100,after:$endCursor) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description,isRequired(pullRequestId: $id)},...on CheckRun {name,checkSuite{workflowRun{event,workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl,isRequired(pullRequestId: $id)}},pageInfo{hasNextPage,endCursor}}}}}}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\",\"variables\":{\"id\":\"PR_acmelab7\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-diff",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {number,id}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-diff",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/pulls/7",
+   "read": true
+  },
+  {
+   "label": "issue-view",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery IssueByNumber($owner: String!, $repo: String!, $number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\thasIssuesEnabled\\n\\t\\t\\tissue: issueOrPullRequest(number: $number) {\\n\\t\\t\\t\\t__typename\\n\\t\\t\\t\\t...on Issue{number,url,state,createdAt,title,body,author{login,...on User{id,name}},milestone{number,title,description,dueOn},assignees(first:100){nodes{id,login,name,databaseId},totalCount},labels(first:100){nodes{id,name,description,color},totalCount},reactionGroups{content,users{totalCount}},comments(last: 1) {nodes {author{login,...on User{id,name}},authorAssociation,body,createdAt,includesCreatedEdit,isMinimized,minimizedReason,reactionGroups{content,users{totalCount}}},totalCount},stateReason,issueType{id,name,description,color},parent{id,number,title,url,state,repository{nameWithOwner}},subIssues(first:100){nodes{id,number,title,url,state,repository{nameWithOwner}},totalCount},subIssuesSummary{total,completed,percentCompleted},blockedBy(first:50){nodes{id,number,title,url,state,repository{nameWithOwner}},totalCount},blocking(first:50){nodes{id,number,title,url,state,repository{nameWithOwner}},totalCount},id}\\n\\t\\t\\t\\t...on PullRequest{number,url,state,createdAt,title,body,author{login,...on User{id,name}},milestone{number,title,description,dueOn},assignees(first:100){nodes{id,login,name,databaseId},totalCount},labels(first:100){nodes{id,name,description,color},totalCount},reactionGroups{content,users{totalCount}},comments(last: 1) {nodes {author{login,...on User{id,name}},authorAssociation,body,createdAt,includesCreatedEdit,isMinimized,minimizedReason,reactionGroups{content,users{totalCount}}},totalCount},id}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\",\"variables\":{\"number\":3,\"owner\":\"acme\",\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "issue-view",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query IssueProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){issue(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \\\"Status\\\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}\",\"variables\":{\"endCursor\":null,\"name\":\"lab\",\"number\":3,\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "issue-list",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"fragment issue on Issue {number,title,url,state,updatedAt,labels(first:100){nodes{id,name,description,color},totalCount},stateReason}\\n\\tquery IssueList($owner: String!, $repo: String!, $limit: Int, $endCursor: String, $states: [IssueState!] = OPEN, $assignee: String, $author: String, $mention: String) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\thasIssuesEnabled\\n\\t\\t\\tissues(first: $limit, after: $endCursor, orderBy: {field: CREATED_AT, direction: DESC}, states: $states, filterBy: {assignee: $assignee, createdBy: $author, mentioned: $mention}) {\\n\\t\\t\\t\\ttotalCount\\n\\t\\t\\t\\tnodes {\\n\\t\\t\\t\\t\\t...issue\\n\\t\\t\\t\\t}\\n\\t\\t\\t\\tpageInfo {\\n\\t\\t\\t\\t\\thasNextPage\\n\\t\\t\\t\\t\\tendCursor\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n\\t\",\"variables\":{\"limit\":3,\"owner\":\"acme\",\"repo\":\"lab\",\"states\":[\"OPEN\"]}}",
+   "read": true
+  },
+  {
+   "label": "run-list",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs?exclude_pull_requests=true&per_page=3",
+   "read": true
+  },
+  {
+   "label": "run-list",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows?page=1&per_page=100",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11?exclude_pull_requests=true",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows/41",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11/jobs?per_page=100",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\t\\tquery PullRequestForRun($owner: String!, $repo: String!, $headRefName: String!) {\\n\\t\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\t\\tpullRequests(headRefName: $headRefName, first: 1, orderBy: { field: CREATED_AT, direction: DESC }) {\\n\\t\\t\\t\\t\\tnodes {\\n\\t\\t\\t\\t\\t\\tnumber\\n\\t\\t\\t\\t\\t\\theadRepository {\\n\\t\\t\\t\\t\\t\\t\\towner {\\n\\t\\t\\t\\t\\t\\t\\t\\tlogin\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\tname\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t\\t}\",\"variables\":{\"headRefName\":\"wsp/fix-login\",\"owner\":\"acme\",\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11/artifacts?per_page=100",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/31/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/32/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/33/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/34/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/35/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/36/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/check-runs/37/annotations",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/jobs/21",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11?exclude_pull_requests=true",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows/41",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11/logs",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "results-receiver.actions.githubusercontent.com",
+   "path": "/placeholder",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/jobs/21/logs",
+   "read": true
+  },
+  {
+   "label": "run-view-log",
+   "method": "GET",
+   "host": "productionresultssa18.blob.core.windows.net",
+   "path": "/placeholder",
+   "read": true
+  },
+  {
+   "label": "repo-view",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query RepositoryInfo($owner: String!, $name: String!) {\\n\\t\\trepository(owner: $owner, name: $name) {name,owner{id,login},description}\\n\\t}\",\"variables\":{\"name\":\"lab\",\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "repo-view",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/readme",
+   "read": true
+  },
+  {
+   "label": "release-list",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query Release_fields{Release: __type(name: \\\"Release\\\"){fields{name}}}\"}",
+   "read": true
+  },
+  {
+   "label": "release-list",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query RepositoryReleaseList($direction:OrderDirection!$endCursor:String$name:String!$owner:String!$perPage:Int!){repository(owner: $owner, name: $name){releases(first: $perPage, orderBy: {field: CREATED_AT, direction: $direction}, after: $endCursor){nodes{name,tagName,isDraft,immutable,isLatest,isPrerelease,createdAt,publishedAt},pageInfo{hasNextPage,endCursor}}}}\",\"variables\":{\"direction\":\"DESC\",\"endCursor\":null,\"name\":\"lab\",\"owner\":\"acme\",\"perPage\":2}}",
+   "read": true
+  },
+  {
+   "label": "release-download",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/releases/latest",
+   "read": true
+  },
+  {
+   "label": "release-download",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/releases/assets/51",
+   "read": true
+  },
+  {
+   "label": "release-download",
+   "method": "GET",
+   "host": "release-assets.githubusercontent.com",
+   "path": "/placeholder",
+   "read": true
+  },
+  {
+   "label": "api-user",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/user",
+   "read": true
+  },
+  {
+   "label": "auth-status",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query UserCurrent{viewer{login}}\"}",
+   "read": true
+  },
+  {
+   "label": "auth-status",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/",
+   "read": true
+  },
+  {
+   "label": "search-prs",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query SearchType_enumValues{SearchType: __type(name: \\\"SearchType\\\"){enumValues(includeDeprecated: true){name}}}\"}",
+   "read": true
+  },
+  {
+   "label": "search-prs",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/search/issues?advanced_search=true&page=1&per_page=1&q=%28+refresh+%29+repo%3Acli%2Fcli+type%3Apr",
+   "read": true
+  },
+  {
+   "label": "workflow-list",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows?page=1&per_page=50",
+   "read": true
+  },
+  {
+   "label": "pr-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tfragment repo on Repository {\\n\\t\\tid\\n\\t\\tname\\n\\t\\towner { login }\\n\\t\\thasIssuesEnabled\\n\\t\\tdescription\\n\\t\\thasWikiEnabled\\n\\t\\tviewerPermission\\n\\t\\tdefaultBranchRef {\\n\\t\\t\\tname\\n\\t\\t}\\n\\t}\\n\\n\\tquery RepositoryInfo($owner: String!, $name: String!) {\\n\\t\\trepository(owner: $owner, name: $name) {\\n\\t\\t\\t...repo\\n\\t\\t\\tparent {\\n\\t\\t\\t\\t...repo\\n\\t\\t\\t}\\n\\t\\t\\tmergeCommitAllowed\\n\\t\\t\\trebaseMergeAllowed\\n\\t\\t\\tsquashMergeAllowed\\n\\t\\t}\\n\\t}\",\"variables\":{\"name\":\"lab\",\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestForBranch($owner: String!, $repo: String!, $headRefName: String!, $states: [PullRequestState!]) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequests(headRefName: $headRefName, states: $states, first: 30, orderBy: { field: CREATED_AT, direction: DESC }) {\\n\\t\\t\\t\\tnodes {url,id,number,state,baseRefName,headRefName,isCrossRepository,headRepositoryOwner{id,login,...on User{name}}}\\n\\t\\t\\t}\\n\\t\\t\\tdefaultBranchRef { name }\\n\\t\\t}\\n\\t}\",\"variables\":{\"headRefName\":\"wsp/fix-login\",\"owner\":\"acme\",\"repo\":\"lab\",\"states\":[\"OPEN\"]}}",
+   "read": true
+  },
+  {
+   "label": "pr-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\t\\tmutation PullRequestCreate($input: CreatePullRequestInput!) {\\n\\t\\t\\tcreatePullRequest(input: $input) {\\n\\t\\t\\t\\tpullRequest {\\n\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\turl\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t}\",\"variables\":{\"input\":{\"baseRefName\":\"trunk\",\"body\":\"Body\",\"draft\":false,\"headRefName\":\"wsp/fix-login\",\"maintainerCanModify\":true,\"repositoryId\":\"R_acmelab\",\"title\":\"Fix login\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-edit",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,author{login,...on User{id,name}},url,title,body,baseRefName,reviewRequests(first: 100) {nodes {requestedReviewer {__typename,...on User{login,name},...on Bot{login},...on Team{organization{login}name,slug}}}},labels(first:100){nodes{id,name,description,color},totalCount},milestone{number,title,description,dueOn},assignedActors(first: 10) {nodes {...on User {id,login,name,__typename}...on Bot {id,login,__typename}},totalCount},number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-edit",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \\\"Status\\\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}\",\"variables\":{\"endCursor\":null,\"name\":\"lab\",\"number\":7,\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-edit",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestUpdate($input:UpdatePullRequestInput!){updatePullRequest(input: $input){__typename}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\",\"title\":\"New title\",\"body\":\"New body\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-edit-reviewer",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,author{login,...on User{id,name}},url,title,body,baseRefName,reviewRequests(first: 100) {nodes {requestedReviewer {__typename,...on User{login,name},...on Bot{login},...on Team{organization{login}name,slug}}}},labels(first:100){nodes{id,name,description,color},totalCount},milestone{number,title,description,dueOn},assignedActors(first: 10) {nodes {...on User {id,login,name,__typename}...on Bot {id,login,__typename}},totalCount},number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-edit-reviewer",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query PullRequestProjectItems($endCursor:String$name:String!$number:Int!$owner:String!){repository(owner: $owner, name: $name){pullRequest(number: $number){projectItems(first: 100, after: $endCursor){totalCount,nodes{id,project{id,title},status:fieldValueByName(name: \\\"Status\\\"){... on ProjectV2ItemFieldSingleSelectValue{optionId,name}}},pageInfo{hasNextPage,endCursor}}}}}\",\"variables\":{\"endCursor\":null,\"name\":\"lab\",\"number\":7,\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-edit-reviewer",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation RequestReviewsByLogin($input:RequestReviewsByLoginInput!){requestReviewsByLogin(input: $input){clientMutationId}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\",\"userLogins\":[\"octocat\",\"hubot\"],\"botLogins\":[],\"teamSlugs\":[],\"union\":false}}}",
+   "read": false
+  },
+  {
+   "label": "pr-edit-reviewer",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestUpdate($input:UpdatePullRequestInput!){updatePullRequest(input: $input){__typename}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-ready-undo",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number,state,isDraft}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-ready-undo",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation ConvertPullRequestToDraft($input:ConvertPullRequestToDraftInput!){convertPullRequestToDraft(input: $input){pullRequest{id}}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\"}}}",
+   "read": false
+  },
+  {
+   "label": "issue-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery IssueByNumber($owner: String!, $repo: String!, $number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\thasIssuesEnabled\\n\\t\\t\\tissue: issueOrPullRequest(number: $number) {\\n\\t\\t\\t\\t__typename\\n\\t\\t\\t\\t...on Issue{id,url}\\n\\t\\t\\t\\t...on PullRequest{id,url}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\",\"variables\":{\"number\":3,\"owner\":\"acme\",\"repo\":\"map\"}}",
+   "read": true
+  },
+  {
+   "label": "issue-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation CommentCreate($input:AddCommentInput!){addComment(input: $input){commentEdge{node{url}}}}\",\"variables\":{\"input\":{\"subjectId\":\"I_acmemap3\",\"body\":\"A comment\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,url,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation CommentCreate($input:AddCommentInput!){addComment(input: $input){commentEdge{node{url}}}}\",\"variables\":{\"input\":{\"subjectId\":\"PR_acmelab7\",\"body\":\"A comment\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-merge-auto",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number,state,title,commits(last:1){nodes{commit{oid}}},mergeStateStatus,headRepositoryOwner{id,login,...on User{name}},headRefName,baseRefName,headRefOid,isInMergeQueue,isMergeQueueEnabled}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-merge-auto",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestAutoMerge($input:EnablePullRequestAutoMergeInput!){enablePullRequestAutoMerge(input: $input){clientMutationId}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\",\"mergeMethod\":\"SQUASH\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-close",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,number,title,isCrossRepository,headRefName,id}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-close",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestClose($input:ClosePullRequestInput!){closePullRequest(input: $input){pullRequest{id}}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-review-approve",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-review-approve",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestReviewAdd($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){clientMutationId}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\",\"body\":\"\",\"event\":\"APPROVE\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-review-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-review-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestReviewAdd($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){clientMutationId}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\",\"body\":\"looks fine\",\"event\":\"COMMENT\"}}}",
+   "read": false
+  },
+  {
+   "label": "release-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/releases",
+   "body": "{\"body\":\"x\",\"draft\":false,\"prerelease\":false,\"tag_name\":\"v9.9.9\"}",
+   "read": false
+  },
+  {
+   "label": "api-patch-ref",
+   "method": "PATCH",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/git/refs/heads/trunk",
+   "body": "{\"sha\":\"0000000000000000000000000000000000000000\"}",
+   "read": false
+  },
+  {
+   "label": "workflow-run",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tfragment repo on Repository {\\n\\t\\tid\\n\\t\\tname\\n\\t\\towner { login }\\n\\t\\thasIssuesEnabled\\n\\t\\tdescription\\n\\t\\thasWikiEnabled\\n\\t\\tviewerPermission\\n\\t\\tdefaultBranchRef {\\n\\t\\t\\tname\\n\\t\\t}\\n\\t}\\n\\n\\tquery RepositoryInfo($owner: String!, $name: String!) {\\n\\t\\trepository(owner: $owner, name: $name) {\\n\\t\\t\\t...repo\\n\\t\\t\\tparent {\\n\\t\\t\\t\\t...repo\\n\\t\\t\\t}\\n\\t\\t\\tmergeCommitAllowed\\n\\t\\t\\trebaseMergeAllowed\\n\\t\\t\\tsquashMergeAllowed\\n\\t\\t}\\n\\t}\",\"variables\":{\"name\":\"lab\",\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "workflow-run",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows/triage.yml",
+   "read": true
+  },
+  {
+   "label": "workflow-run",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows/42/dispatches",
+   "body": "{\"inputs\":{},\"ref\":\"trunk\",\"return_run_details\":true}",
+   "read": false
+  },
+  {
+   "label": "run-rerun",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11?exclude_pull_requests=true",
+   "read": true
+  },
+  {
+   "label": "run-rerun",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/workflows/41",
+   "read": true
+  },
+  {
+   "label": "run-rerun",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/11/rerun",
+   "read": false
+  },
+  {
+   "label": "repo-delete",
+   "method": "DELETE",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab",
+   "read": false
+  },
+  {
+   "label": "repo-edit",
+   "method": "PATCH",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab",
+   "body": "{\"description\":\"x\"}",
+   "read": false
+  },
+  {
+   "label": "issue-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery IssueRepositoryInfo($owner: String!, $name: String!) {\\n\\t\\trepository(owner: $owner, name: $name) {\\n\\t\\t\\tid\\n\\t\\t\\tname\\n\\t\\t\\towner { login }\\n\\t\\t\\thasIssuesEnabled\\n\\t\\t\\tviewerPermission\\n\\t\\t}\\n\\t}\",\"variables\":{\"name\":\"lab\",\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "issue-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tmutation IssueCreate($input: CreateIssueInput!) {\\n\\t\\tcreateIssue(input: $input) {\\n\\t\\t\\tissue {\\n\\t\\t\\t\\tid\\n\\t\\t\\t\\turl\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\",\"variables\":{\"input\":{\"body\":\"b\",\"repositoryId\":\"R_acmelab\",\"title\":\"t\"}}}",
+   "read": false
+  },
+  {
+   "label": "issue-close",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery IssueByNumber($owner: String!, $repo: String!, $number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\thasIssuesEnabled\\n\\t\\t\\tissue: issueOrPullRequest(number: $number) {\\n\\t\\t\\t\\t__typename\\n\\t\\t\\t\\t...on Issue{id,number,title,state}\\n\\t\\t\\t\\t...on PullRequest{id,number,title,state}\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\",\"variables\":{\"number\":3,\"owner\":\"acme\",\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "issue-close",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation IssueClose($input:CloseIssueInput!){closeIssue(input: $input){issue{id}}}\",\"variables\":{\"input\":{\"issueId\":\"I_acmelab3\"}}}",
+   "read": false
+  },
+  {
+   "label": "label-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/labels",
+   "body": "{\"color\":\"FEF2C0\",\"description\":\"\",\"name\":\"wsp-x\"}",
+   "read": false
+  },
+  {
+   "label": "variable-set",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/variables",
+   "body": "{\"name\":\"FOO\",\"value\":\"x\"}",
+   "read": false
+  },
+  {
+   "label": "deploy-key-add",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/keys",
+   "body": "{\"key\":\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl placeholder\\n\",\"read_only\":true,\"title\":\"\"}",
+   "read": false
+  },
+  {
+   "label": "ssh-key-add",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/user/keys?per_page=100",
+   "read": true
+  },
+  {
+   "label": "ssh-key-add",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/user/keys",
+   "body": "{\"key\":\"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl placeholder\\n\",\"title\":\"\"}",
+   "read": false
+  },
+  {
+   "label": "api-graphql-merge",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation { mergePullRequest(input:{pullRequestId:\\\"PR_x\\\"}) { clientMutationId } }\"}",
+   "read": false
+  },
+  {
+   "label": "pr-ready-draft",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number,state,isDraft}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":8,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-ready-draft",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestReadyForReview($input:MarkPullRequestReadyForReviewInput!){markPullRequestReadyForReview(input: $input){pullRequest{id}}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab8\"}}}",
+   "read": false
+  },
+  {
+   "label": "pr-merge-admin",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number,state,title,commits(last:1){nodes{commit{oid}}},mergeStateStatus,headRepositoryOwner{id,login,...on User{name}},headRefName,baseRefName,headRefOid,isInMergeQueue,isMergeQueueEnabled}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-merge-admin",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"mutation PullRequestMerge($input:MergePullRequestInput!){mergePullRequest(input: $input){clientMutationId}}\",\"variables\":{\"input\":{\"pullRequestId\":\"PR_acmelab7\",\"mergeMethod\":\"SQUASH\"}}}",
+   "read": false
+  },
+  {
+   "label": "release-download-archive",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/releases/tags/v2.102.0",
+   "read": true
+  },
+  {
+   "label": "release-download-archive",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"query RepositoryReleaseByTag($name:String!$owner:String!$tagName:String!){repository(owner: $owner, name: $name){release(tagName: $tagName){databaseId,isDraft}}}\",\"variables\":{\"name\":\"lab\",\"owner\":\"acme\",\"tagName\":\"v2.102.0\"}}",
+   "read": true
+  },
+  {
+   "label": "release-download-archive",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/zipball/v2.102.0",
+   "read": true
+  },
+  {
+   "label": "release-download-archive",
+   "method": "GET",
+   "host": "codeload.github.com",
+   "path": "/acme/lab/zip/refs/tags/v2.102.0",
+   "read": true
+  },
+  {
+   "label": "run-download",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/runs/12/artifacts?per_page=100",
+   "read": true
+  },
+  {
+   "label": "run-download",
+   "method": "GET",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/actions/artifacts/61/zip",
+   "read": true
+  },
+  {
+   "label": "run-download",
+   "method": "GET",
+   "host": "productionresultssa16.blob.core.windows.net",
+   "path": "/placeholder",
+   "read": true
+  },
+  {
+   "label": "pr-create-draft",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tfragment repo on Repository {\\n\\t\\tid\\n\\t\\tname\\n\\t\\towner { login }\\n\\t\\thasIssuesEnabled\\n\\t\\tdescription\\n\\t\\thasWikiEnabled\\n\\t\\tviewerPermission\\n\\t\\tdefaultBranchRef {\\n\\t\\t\\tname\\n\\t\\t}\\n\\t}\\n\\n\\tquery RepositoryInfo($owner: String!, $name: String!) {\\n\\t\\trepository(owner: $owner, name: $name) {\\n\\t\\t\\t...repo\\n\\t\\t\\tparent {\\n\\t\\t\\t\\t...repo\\n\\t\\t\\t}\\n\\t\\t\\tmergeCommitAllowed\\n\\t\\t\\trebaseMergeAllowed\\n\\t\\t\\tsquashMergeAllowed\\n\\t\\t}\\n\\t}\",\"variables\":{\"name\":\"lab\",\"owner\":\"acme\"}}",
+   "read": true
+  },
+  {
+   "label": "pr-create-draft",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestForBranch($owner: String!, $repo: String!, $headRefName: String!, $states: [PullRequestState!]) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequests(headRefName: $headRefName, states: $states, first: 30, orderBy: { field: CREATED_AT, direction: DESC }) {\\n\\t\\t\\t\\tnodes {url,id,number,state,baseRefName,headRefName,isCrossRepository,headRepositoryOwner{id,login,...on User{name}}}\\n\\t\\t\\t}\\n\\t\\t\\tdefaultBranchRef { name }\\n\\t\\t}\\n\\t}\",\"variables\":{\"headRefName\":\"wsp/fix-login\",\"owner\":\"acme\",\"repo\":\"lab\",\"states\":[\"OPEN\"]}}",
+   "read": true
+  },
+  {
+   "label": "pr-create-draft",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\t\\tmutation PullRequestCreate($input: CreatePullRequestInput!) {\\n\\t\\t\\tcreatePullRequest(input: $input) {\\n\\t\\t\\t\\tpullRequest {\\n\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\turl\\n\\t\\t\\t\\t}\\n\\t\\t\\t}\\n\\t}\",\"variables\":{\"input\":{\"baseRefName\":\"trunk\",\"body\":\"Body\",\"draft\":true,\"headRefName\":\"wsp/fix-login\",\"maintainerCanModify\":true,\"repositoryId\":\"R_acmelab\",\"title\":\"Fix login\"}}}",
+   "read": false
+  },
+  {
+   "label": "api-rest-pr-create",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/lab/pulls",
+   "body": "{\"base\":\"trunk\",\"head\":\"wsp/fix-login\",\"title\":\"t\"}",
+   "read": false
+  },
+  {
+   "label": "api-rest-issue-comment",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/repos/acme/map/issues/3/comments",
+   "body": "{\"body\":\"hi\"}",
+   "read": false
+  },
+  {
+   "label": "pr-view-json",
+   "method": "POST",
+   "host": "api.github.com",
+   "path": "/graphql",
+   "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {title,body,headRefName,state,reviews(first: 100) {nodes {id,author{login},authorAssociation,submittedAt,body,state,commit{oid},reactionGroups{content,users{totalCount}}}pageInfo{hasNextPage,endCursor}totalCount},statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"acme\",\"pr_number\":7,\"repo\":\"lab\"}}",
+   "read": true
+  }
+ ]
+}
