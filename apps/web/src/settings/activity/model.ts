@@ -8,7 +8,7 @@
 // tints are pure functions of that, so the page draws and the tests read one rule.
 import { agentName, CATALOG_AGENTS } from "@wsp/catalog";
 import { ACTIVITY_WORDS } from "../format.js";
-import { APP_PROC_WORDS, cgroupMemory, PROC_KINDS, placeProcs, procBins, SCRIPT_RUNTIMES, type AppProc, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
+import { ACTIVITY_KIND_WORDS, activityName, agentByBin, APP_PROC_WORDS, cgroupMemory, foldTree, PROC_KINDS, placeProcs, type AppProc, type Folded, type ContainerPlacedBy, type ProcContainer, type ProcEntry, type ProcKind, type ProcSnapshot, type SubagentState, type SubagentView } from "@wsp/protocol";
 
 export type { ProcKind };
 
@@ -179,33 +179,6 @@ function appName(part: AppProc): string {
   return first === undefined ? APP_PROC_WORDS[part.kind] : `${siteOf(first)}${more.length > 0 ? ` +${more.length}` : ""}`;
 }
 
-/** Named with the subcommand they run: cargo test, pnpm dev. */
-const TOOLS = new Set(["cargo", "npm", "npx", "pnpm", "yarn", "uv", "go", "bunx"]);
-const GENERIC_SCRIPTS = new Set(["bin", "cli", "index", "main"]);
-const BUILD_DIRS = new Set(["dist", "lib", "build", "out", "src", "bin", ".bin", "node_modules"]);
-
-/** What a process is called: the script a runtime runs, a tool with its subcommand, or the command. */
-export function procName(p: Pick<ProcEntry, "comm" | "cmdline">): string {
-  const argv = p.cmdline.split(" ").filter(w => w !== "");
-  const bin = (argv[0] ?? p.comm).split("/").at(-1) ?? p.comm;
-  const comm = p.comm !== "" ? p.comm : bin;
-  if (TOOLS.has(comm)) {
-    const sub = argv.slice(1).find(w => !w.startsWith("-"));
-    return sub === undefined ? comm : `${comm} ${sub}`;
-  }
-  if (!SCRIPT_RUNTIMES.has(comm) && !SCRIPT_RUNTIMES.has(bin)) return comm;
-  const at = argv.findIndex((w, i) => i > 0 && !w.startsWith("-"));
-  if (at === -1) return comm;
-  const parts = argv[at]!.split("/");
-  const base = (parts.at(-1) ?? "").replace(/\.(m?js|cjs|ts)$/, "");
-  if (/\.py$/.test(base)) return `${comm} ${base}`;
-  if (!GENERIC_SCRIPTS.has(base)) return base;
-  // bin.js, cli.js and index.js say nothing: the package folder above them does, with the subcommand it was given.
-  const pkg = parts.slice(0, -1).reverse().find(d => d !== "" && !BUILD_DIRS.has(d));
-  const sub = argv.slice(at + 1).find(w => !w.startsWith("-"));
-  return [pkg ?? base, sub].filter(w => w !== undefined).join(" ");
-}
-
 /** The computer's frame read into groups by `placeProcs`: wsp's parts, each thread, and No thread. A thread is rooted at
  * its own process here, which stands for the agent until the agent's binary shows; on a box, whose pids the app is
  * never told, at the heads of its cgroup. */
@@ -230,7 +203,7 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, guests =
     listens: pid => (ports.get(pid)?.length ?? 0) > 0,
     app: new Map([...app].map(([pid, part]) => [pid, part.kind === "tab" || part.kind === "frame" ? "tab" : "app"])),
   });
-  const { procs, byPid } = placed;
+  const { procs } = placed;
   const keyOf = (pid: number): string => {
     const w = placed.whose.get(pid);
     return w === undefined ? "" : typeof w === "object" ? `t:${w.thread}` : w;
@@ -245,27 +218,14 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, guests =
   }
 
   const energy = procs.some(p => p.energyMw !== undefined);
-  const agentByBin = (p: ProcEntry): string | undefined => {
-    const bins = procBins(p);
-    return CATALOG_AGENTS.find(a => bins.includes(a.bin))?.id;
-  };
   const leaf = (p: ProcEntry, children: readonly ActivityProc[]): ActivityProc => {
     const kind = placed.kindOf(p.pid);
     const agentOf = placed.agent.get(p.pid);
     const thread = agentOf === undefined ? undefined : threadById.get(agentOf);
     const part = app.get(p.pid);
-    const name =
-      part !== undefined
-        ? appName(part)
-        : thread !== undefined
-          ? agentName(thread.harness)
-          : p.pid === snapshot.daemon
-            ? "Daemon"
-            : p.pid === host
-              ? "Host"
-              : kind === "agent" && agentByBin(p) !== undefined
-                ? agentName(agentByBin(p)!)
-                : procName(p);
+    const byBin = kind === "agent" ? agentByBin(p, CATALOG_AGENTS) : undefined;
+    const agent = thread !== undefined ? agentName(thread.harness) : byBin !== undefined ? agentName(byBin) : undefined;
+    const name = part !== undefined ? appName(part) : activityName(p, { daemon: snapshot.daemon, ...(host !== undefined ? { host } : {}), ...(agent !== undefined ? { agent } : {}) });
     return {
       pid: p.pid,
       name,
@@ -287,43 +247,13 @@ export function scopeOf({ snapshot, threads, ports, host, app = NO_APP, guests =
   /** A group's trees. Each process its agent's row holds (the run script and shells on the way down, the input pump
    * left in its group) is no row of its own: its figures join the agent's, and what it started hangs under the agent. */
   const forest = (list: readonly ProcEntry[]): ActivityProc[] => {
-    const inside = new Set(list.map(p => p.pid));
-    const into = (pid: number): number | undefined => {
-      const at = placed.foldsInto.get(pid);
-      return at !== undefined && inside.has(at) ? at : undefined;
+    const build = ({ p, held, kids }: Folded<ProcEntry>): ActivityProc => {
+      const row = leaf(p, kids.map(build));
+      if (held.length === 0) return row;
+      const energies = [row.energy, ...held.map(q => q.energyMw ?? (energy ? 0 : null))].filter((e): e is number => e !== null);
+      return { ...row, mem: held.reduce((n, q) => n + q.rss, row.mem), cpu: held.reduce((n, q) => n + q.cpu, row.cpu), energy: energies.length === 0 ? null : energies.reduce((n, e) => n + e, 0) };
     };
-    const parentOf = (p: ProcEntry): number | undefined => {
-      let at = p.ppid !== p.pid && inside.has(p.ppid) ? p.ppid : undefined;
-      for (let n = 0; at !== undefined && n <= list.length; n++) {
-        const agent = into(at);
-        if (agent === undefined) return at;
-        if (agent !== p.pid) return agent;
-        const q = byPid.get(at)!;
-        at = q.ppid !== q.pid && inside.has(q.ppid) ? q.ppid : undefined;
-      }
-      return undefined;
-    };
-    const kids = new Map<number, ProcEntry[]>();
-    const held = new Map<number, ProcEntry[]>();
-    const heads: ProcEntry[] = [];
-    for (const p of list) {
-      const agent = into(p.pid);
-      if (agent !== undefined) {
-        (held.get(agent) ?? held.set(agent, []).get(agent)!).push(p);
-        continue;
-      }
-      const parent = parentOf(p);
-      if (parent === undefined) heads.push(p);
-      else (kids.get(parent) ?? kids.set(parent, []).get(parent)!).push(p);
-    }
-    const build = (p: ProcEntry): ActivityProc => {
-      const row = leaf(p, (kids.get(p.pid) ?? []).map(build));
-      const folded = held.get(p.pid) ?? [];
-      if (folded.length === 0) return row;
-      const energies = [row.energy, ...folded.map(q => q.energyMw ?? (energy ? 0 : null))].filter((e): e is number => e !== null);
-      return { ...row, mem: folded.reduce((n, q) => n + q.rss, row.mem), cpu: folded.reduce((n, q) => n + q.cpu, row.cpu), energy: energies.length === 0 ? null : energies.reduce((n, e) => n + e, 0) };
-    };
-    return heads.map(build);
+    return foldTree(list, pid => placed.foldsInto.get(pid)).map(build);
   };
   /** A thread's slate runs and the tool servers it keeps under one heading beside its agent, since the host and not
    * the agent starts them: a tool server the agent started stands under the agent, never at the top. */
@@ -463,25 +393,10 @@ export function sortGroups(groups: readonly ActivityGroup[], sort: ActivitySort)
     .map(x => x.g);
 }
 
-/** The words a filter reads a process by: its name, command, kind and ports. */
-export const KIND_WORDS: Record<ProcKind, string> = {
-  agent: "Agent",
-  tool: "Tool server",
-  dev: "Dev server",
-  test: "Test run",
-  build: "Build",
-  slate: "Slate run",
-  terminal: "Terminal",
-  tab: "Browser tab",
-  app: "App",
-  wsp: "wsp",
-  other: "Other",
-};
-
 /** What a filter reads a container by: its name, image and folder, and the word its row draws. */
 const containerHit = (c: ActivityContainer, needle: string): boolean => [c.name, c.image, c.folder ?? "", ACTIVITY_WORDS.container].some(s => s.toLowerCase().includes(needle));
 
-const procHit = (p: ActivityProc, needle: string): boolean => [p.name, p.command, KIND_WORDS[p.kind], String(p.pid), ...p.ports.map(x => String(x.port))].some(s => s.toLowerCase().includes(needle));
+const procHit = (p: ActivityProc, needle: string): boolean => [p.name, p.command, ACTIVITY_KIND_WORDS[p.kind], String(p.pid), ...p.ports.map(x => String(x.port))].some(s => s.toLowerCase().includes(needle));
 
 /** A tree cut to what matches and the parents above each match. */
 function prune(procs: readonly ActivityProc[], keep: (p: ActivityProc) => boolean): ActivityProc[] {

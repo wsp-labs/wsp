@@ -86,6 +86,8 @@ export * from "./views/preferences.js";
 export * from "./views/desktop-bridge.js";
 export * from "./views/app-procs.js";
 export * from "./views/activity.js";
+export * from "./views/activity-names.js";
+export * from "./views/activity-fold.js";
 export * from "./views/golden-image.js";
 export * from "./views/place.js";
 export * from "./wire/events-union.js";

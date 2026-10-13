@@ -2,7 +2,7 @@
 // Activity's reading of one snapshot: a thread's tree from its roots and the daemon's owners, the stretch from a root
 // to the agent's binary, and the rules an End meets before anything is signalled.
 import { describe, expect, it } from "vitest";
-import { activityOf, agentEndLine, agentUnderLine, endGoneLine, endHeads, endPlan, endReusedLine, notStartedLine, notThreadsLine, processesLeft, processesLeftLine, wspOwnLine, type ActivityProc, type ActivityRead, type ActivityScope, type ActivityView, type ProcEntry } from "../src/index.js";
+import { activityOf, agentEndLine, foldTree, agentUnderLine, endGoneLine, endHeads, endPlan, endReusedLine, notStartedLine, notThreadsLine, processesLeft, processesLeftLine, wspOwnLine, type ActivityProc, type ActivityRead, type ActivityScope, type ActivityView, type ProcEntry } from "../src/index.js";
 
 const START = 1_760_000_000_000;
 const row = (pid: number, ppid: number, comm: string, cmdline: string, over: Partial<ProcEntry> = {}): ProcEntry => ({ pid, ppid, user: "ada", state: "S", comm, cmdline, cpu: 1, rss: 1_000, startedAt: START + pid, ...over });
@@ -208,5 +208,19 @@ describe("what a thread's pane and its slate started", () => {
     const left = processesLeft(activityOf(read(procs)), [LAB.threadId]);
     expect(left[0]!.processes.map(p => p.pid)).toEqual([400, 600, 601, 700, 701]);
     expect(endHeads(left[0]!.processes).map(p => p.pid)).toEqual([400, 600, 700, 701]);
+  });
+});
+
+describe("one fold walk for the page and the command line", () => {
+  const row = (pid: number, ppid: number) => ({ pid, ppid });
+  it("hangs each process under its parent, a folded row held by the row it folds into, and what a folded row started under that row", () => {
+    // 10 run script, 11 its fork, 12 the agent, 13 a tool server, 14 the pump under pid 1, 20 a dev server under the script
+    const list = [row(10, 1), row(11, 10), row(12, 11), row(13, 12), row(14, 1), row(20, 10)];
+    const into = new Map([[10, 12], [11, 12], [14, 12]]);
+    const shape = (f: ReturnType<typeof foldTree<{ pid: number; ppid: number }>>[number]): unknown => ({ pid: f.p.pid, held: f.held.map(h => h.pid), kids: f.kids.map(shape) });
+    expect(foldTree(list, pid => into.get(pid)).map(shape)).toEqual([{ pid: 12, held: [10, 11, 14], kids: [{ pid: 13, held: [], kids: [] }, { pid: 20, held: [], kids: [] }] }]);
+  });
+  it("leaves a row whose target is outside the list standing on its own", () => {
+    expect(foldTree([row(10, 1)], () => 99).map(f => f.p.pid)).toEqual([10]);
   });
 });

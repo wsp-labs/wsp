@@ -70,8 +70,24 @@ describe("activity on the command line", () => {
     expect(JSON.stringify(view)).not.toContain("-zsh");
     const one = await h.run("activity", threadId.slice(0, 8), "--json");
     expect((h.json(one.io).at(-1) as ActivityView).threads.map(t => t.threadId)).toEqual([threadId]);
-    const prose = await h.run("activity");
-    expect(prose.io.lines.join("\n")).toContain("4200  dev  node /lab/node_modules/.bin/vite  :5173");
+    const prose = (await h.run("activity")).io.lines.join("\n");
+    expect(prose).toMatch(/^ {2}Claude Code {2,}\S/m);
+    expect(prose).toMatch(/^ {2}vite :5173 {2,}Dev server {2,}76 MB {2}10\.0%$/m);
+    expect(prose).toMatch(/^ {2}Daemon {2,}9 MB {2,}0\.0%$/m);
+    expect(prose).not.toContain("claude -p");
+    const wide = (await h.run("activity", "--wide")).io.lines.join("\n");
+    expect(wide).toMatch(/^ {2}vite :5173 {2,}Dev server {2,}4200 {2,}76 MB {2,}10\.0% {2}node \/lab\/node_modules\/\.bin\/vite$/m);
+  });
+
+  it("--json prints the host's read whole and alone, --wide or not: the tool and every agent read what they read before", async () => {
+    await threadWithServer();
+    const plain = await h.run("activity", "--json");
+    const wide = await h.run("activity", "--json", "--wide");
+    expect(plain.io.lines).toHaveLength(1);
+    // Each read stamps its own time.
+    const timeless = (lines: string[]): string[] => lines.map(l => l.replace(/"at":\d+/, '"at":0'));
+    expect(timeless(wide.io.lines)).toEqual(timeless(plain.io.lines));
+    expect(plain.io.lines[0]).toBe(JSON.stringify(ActivityView.strict().parse(JSON.parse(plain.io.lines[0]!))));
   });
 
   it("lists the newest thread first", async () => {

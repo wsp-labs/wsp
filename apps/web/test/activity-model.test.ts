@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { CATALOG_AGENTS } from "@wsp/catalog";
-import { ProcSnapshot, activityOf, endPlan, type ProcEntry } from "@wsp/protocol";
+import { ProcSnapshot, activityOf, agentByBin, endPlan, procName, type ProcEntry } from "@wsp/protocol";
 import { resolveActions } from "../src/actions/registry.js";
 import { procActions, type ProcVerbs } from "../src/settings/activity/actions.js";
 import {
@@ -27,7 +27,6 @@ import {
   nestGroups,
   pickChoices,
   portRows,
-  procName,
   pushHistory,
   scopeOf,
   sortGroups,
@@ -500,6 +499,30 @@ describe("totals, sort and the views", () => {
     expect(procName(proc(1, 0, "node", { cmdline: "node" }))).toBe("node");
     expect(procName(proc(1, 0, "node", { cmdline: "/usr/local/bin/node /opt/wsp/packages/host/dist/bin.js mcp --scoped" }))).toBe("host mcp");
     expect(procName(proc(1, 0, "node", { cmdline: "node /home/dev/.npm/_npx/playwright-mcp/cli.js" }))).toBe("playwright-mcp");
+  });
+
+  it("names what a runner fetches and runs by its package, its version left off", () => {
+    expect(procName(proc(1, 0, "uv", { cmdline: "/opt/homebrew/bin/uv tool uvx mcp-search-console" }))).toBe("mcp-search-console");
+    expect(procName(proc(1, 0, "uv", { cmdline: "/opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://example.test/mcp" }))).toBe("mcp-proxy-for-aws");
+    expect(procName(proc(1, 0, "npx", { cmdline: "npx -y @acme/lab-mcp@1.2.0" }))).toBe("@acme/lab-mcp");
+    expect(procName(proc(1, 0, "pnpm", { cmdline: "pnpm dlx lab-tool" }))).toBe("lab-tool");
+    expect(procName(proc(1, 0, "pnpm", { cmdline: "pnpm run dev" }))).toBe("pnpm run");
+    expect(procName(proc(1, 0, "uv", { cmdline: "uv sync" }))).toBe("uv sync");
+  });
+
+  it("skips a runner's flags and the values they take, and never names a process by a URL or a version", () => {
+    expect(procName(proc(1, 0, "uv", { cmdline: "/opt/homebrew/bin/uv tool uvx --python 3.12 mcp-server-time" }))).toBe("mcp-server-time");
+    expect(procName(proc(1, 0, "uv", { cmdline: "/opt/homebrew/bin/uv tool uvx --from git+https://github.com/acme/lab-tool lab-tool" }))).toBe("lab-tool");
+    expect(procName(proc(1, 0, "uv", { cmdline: "/opt/homebrew/bin/uv tool uvx --from git+https://github.com/acme/lab-tool" }))).toBe("uv tool");
+    expect(procName(proc(1, 0, "uv", { cmdline: "uv run --with rich python app.py" }))).toBe("uv run");
+    expect(procName(proc(1, 0, "npx", { cmdline: "npx -p @acme/cli acme serve" }))).toBe("acme");
+    expect(procName(proc(1, 0, "uvx", { cmdline: "uvx 3.12" }))).toBe("uvx 3.12");
+  });
+
+  it("names an agent by the binary its command runs, the one lookup the command line reads too", () => {
+    expect(agentByBin(proc(1, 0, "2.1.296", { cmdline: "claude -p --input-format stream-json" }), CATALOG_AGENTS)).toBe("claude");
+    expect(agentByBin(proc(1, 0, "node", { cmdline: "node /opt/homebrew/bin/codex exec" }), CATALOG_AGENTS)).toBe("codex");
+    expect(agentByBin(proc(1, 0, "bash", { cmdline: "bash /lab/runs/af35cb2fea39.sh" }), CATALOG_AGENTS)).toBeUndefined();
   });
 });
 

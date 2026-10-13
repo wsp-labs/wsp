@@ -4,7 +4,7 @@ import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
 import { isCancel } from "@clack/core";
 import { unicode } from "@clack/prompts";
-import { S_BAR_FOCUS, S_BAR_FOCUS_END, card, colourDepth, confirmPrompt, ellipsize, helpLine, muted, passwordPrompt, plainLine, rowsOf, summarize, table, textPrompt, viewport, widthOf, wrap } from "../src/init-layout.js";
+import { S_BAR_FOCUS, S_BAR_FOCUS_END, card, cellWidth, colourDepth, confirmPrompt, ellipsize, helpLine, muted, passwordPrompt, plainLine, rowsOf, summarize, table, textPrompt, viewport, widthOf, wrap } from "../src/init-layout.js";
 
 describe("init layout", () => {
   it("plainLine leaves what a terminal would: later carriage-return segments overprint earlier ones, escapes and controls go, a tab is a space", () => {
@@ -477,5 +477,22 @@ describe("text prompt", () => {
     await press(input, KEY.esc);
     expect(isCancel(await p)).toBe(true);
     expect(text()).toContain("~/proj");
+  });
+});
+
+describe("cells a terminal gives text", () => {
+  it("counts East Asian wide characters and emoji as two, combining marks as none", () => {
+    expect(cellWidth("abc")).toBe(3);
+    expect(cellWidth("修复")).toBe(4);
+    expect(cellWidth("🚀a")).toBe(3);
+    expect(cellWidth("👩‍💻")).toBe(2);
+    expect(cellWidth("e\u0301")).toBe(1);
+  });
+  it("ellipsize cuts to cells, never through a character", () => {
+    expect(ellipsize("修复实验室", 5)).toBe("修复…");
+    expect(cellWidth(ellipsize("修复实验室", 6))).toBeLessThanOrEqual(6);
+    expect(ellipsize("🚀🔥✅x", 4)).toBe("🚀…");
+    expect(ellipsize("👩‍💻👩‍💻", 3)).toBe("👩‍💻…");
+    expect(ellipsize("abcdef", 4)).toBe("abc…");
   });
 });
