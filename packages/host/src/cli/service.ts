@@ -7,7 +7,7 @@ import { holdsNothing, fmtDuration, isLoopback, listenBeyondLoopbackLine, loopba
 import { providerEnvWith, providerKeyRow, type ProviderEnv } from "../providers.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
 import { envFileFor, keyIn } from "../env-keys.js";
-import { adoptLoginPath } from "../login-path.js";
+import { adoptLoginPath, loginKeysNow, withLoginKeys } from "../login-path.js";
 import { hereAnswering, hereLines, openHere, type HereWatch } from "../place-here.js";
 import { watchBlock, watchOn, type Redraw, type WatchSignals } from "../watch.js";
 import { addressLines, hostLogPath, SERVICE_WAIT_MS, servingHost, STARTED_BY_ENV, type HostLock, type HostStarted } from "../host-lock.js";
@@ -45,10 +45,10 @@ async function servesNothing(rt: Runtime): Promise<boolean> {
 }
 
 export async function up(io: CliIO, opts: ServeOptions): Promise<HostHandle> {
-  await adoptLoginPath(line => io.log(line));
+  const taken = await adoptLoginPath(line => io.log(line));
   // A state file with nothing but this computer in it is served with no provider key: wsp init's local road is
   // what wrote it, and asking for a key to serve it would take that road away the next morning.
-  const { keys, env: providerEnv } = await loadKeys(io, keySources(opts.providerEnv ?? process.env, opts.statePath), { anthropic: false, noProviderKey: "local" });
+  const { keys, env: providerEnv } = await loadKeys(io, keySources(withLoginKeys(opts.providerEnv ?? process.env, taken), opts.statePath), { anthropic: false, noProviderKey: "local" });
   // Read first, for the reason readOnce carries. A runtime handed in holds its own store, so no other is read.
   const store = opts.runtime === undefined ? await readOnce(opts.statePath, providerEnv) : undefined;
   const links = placeWiring(opts.statePath, opts.advertise);
@@ -108,7 +108,7 @@ export const hostStoppedLine = (started: HostStarted, pid: number, statePath: st
 
 export function systemService(): ServiceDeps {
   const os = platform();
-  return { platform: os, manager: serviceManagerFor(os), run: systemRunner, waitMs: SERVICE_WAIT_MS, keys: { env: process.env, cwd: process.cwd() }, answers: httpProbe, dial: dialHost, stop: pid => process.kill(pid, "SIGTERM"), here: home => openHere(home) };
+  return { platform: os, manager: serviceManagerFor(os), run: systemRunner, waitMs: SERVICE_WAIT_MS, keys: { env: process.env, cwd: process.cwd(), login: () => loginKeysNow() }, answers: httpProbe, dial: dialHost, stop: pid => process.kill(pid, "SIGTERM"), here: home => openHere(home) };
 }
 
 /** The line the service runs: this node and this wsp, or the app's shim where this wsp runs behind one, serving the
@@ -154,9 +154,11 @@ export function keyOnlyInThisShell(sources: KeySources, env: ProviderEnv = sourc
 }
 
 /** The Claude key is not needed to serve, so it is a word rather than a refusal; without it no thread the service
- * runs has a Claude key, and the installing shell is the one place the reading looks complete. */
-export function claudeKeyOnlyInThisShell(sources: KeySources): string | undefined {
+ * runs has a Claude key, and the installing shell is the one place the reading looks complete. A key the login shell
+ * exports is not lost: the service's host reads that shell at its start. */
+export async function claudeKeyOnlyInThisShell(sources: KeySources): Promise<string | undefined> {
   if (!onlyInThisShell("ANTHROPIC_API_KEY", sources)) return undefined;
+  if (keyIn((await sources.login?.()) ?? {}, "ANTHROPIC_API_KEY") !== undefined) return undefined;
   return `note: ANTHROPIC_API_KEY is only in this shell's environment, so the service starts without it and its threads get no Claude key. Put it in ${envFileFor(sources.statePath)} to carry it over.`;
 }
 
@@ -182,7 +184,7 @@ export async function upServiceCommand(io: CliIO, opts: ServeAsked & Pick<Shared
     io.error(shellOnly);
     return 1;
   }
-  const claudeOnly = claudeKeyOnlyInThisShell(sources);
+  const claudeOnly = await claudeKeyOnlyInThisShell(sources);
   if (claudeOnly !== undefined) io.log(claudeOnly);
   const at = serviceAddressHere(opts.statePath);
   const logPath = hostLogPath(opts.statePath);
