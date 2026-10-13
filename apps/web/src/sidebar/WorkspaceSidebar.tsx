@@ -24,7 +24,7 @@ import { openResumePicker } from "../shell/conversations.js";
 import { openProjectSettings } from "../settings/openAt.js";
 import { ChevronDownIcon, CopyIcon, PlusIcon, SquarePenIcon, Trash2Icon } from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { HOST_ASLEEP_LINE, SETTLE_MS, copiesFolder, isHere, kindForComputer, modelOf, runsInFolder, modelPicks, workspaceKind, workspaceState, type WorkspaceState, type WorkspaceView } from "@wsp/protocol";
+import { HOST_ASLEEP_LINE, SETTLE_MS, copiesFolder, isHere, kindForComputer, modelOf, runsInFolder, modelPicks, startFailed, workspaceKind, workspaceState, type WorkspaceState, type WorkspaceView } from "@wsp/protocol";
 import { openContextMenu, runAction } from "../actions/contextMenu.js";
 import { THREAD_TREE_WORKING, rebuildRefusedLine, rowNewThread } from "../actions/format.js";
 import { CREATE_ASKED, CREATE_STEP_WORDS, currentStep, stepWords, stoppedStep } from "../shell/creationLog.js";
@@ -425,6 +425,7 @@ export function WorkspaceSidebar() {
           onContextMenu={event => void openContextMenu(event, copyActions())}
           onRename={name => void sendName(item.id, () => renameWorkspace({ workspaceId: runs.id, name }))}
           onRenameCancel={() => setRenaming(null)}
+          failed={startFailed(runs.workspace) ? (runs.workspace.gone ?? "") : undefined}
         />
       );
     } else {

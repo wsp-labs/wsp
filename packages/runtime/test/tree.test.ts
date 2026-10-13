@@ -288,7 +288,11 @@ describe("where a child's branch comes from", () => {
     const daemons = fakeDaemons({ m1: { "git.status": () => status("tree/lead", { ahead: 1 }), "git.push": PUSHED("tree/lead") }, m2: { "git.startOn": () => refused(why) } });
     const { backend, scope } = await withLead(daemons);
     await expect(createOn(rt!, { name: "helper" }, asThread(scope))).rejects.toThrow(forkNeedsPushLine("lead", why));
-    expect((await rt!.workspaces.list()).map(w => w.name)).toEqual(["lead"]);
+    // The fork stays under the thread that asked, failed with why, its machine gone.
+    expect((await rt!.workspaces.list()).map(w => [w.name, w.phase, w.machineId, w.gone ?? null, w.parentThreadId ?? null])).toEqual([
+      ["lead", "running", backend.machines[0]!.id, null, null],
+      ["helper", "gone", "", forkNeedsPushLine("lead", why), scope.threadId],
+    ]);
     await until(() => backend.machines[1]?.killed === true);
   });
 });

@@ -129,6 +129,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
         // is asked of a machine.
         // Only a fork names its parent; a create that names none is a thread's start, a child of its own workspace.
         const start = parent === undefined ? undefined : await ctx.leadStart(parent, o.name, opts.parent !== undefined ? "fork" : "run");
+        // A fork a thread asked for stands under that thread before its first stage, as a sub-thread's record does.
+        if (spawned !== undefined) {
+          ctx.showCreate({ id, name: o.name, machineId: "", phase: "queued", kind, golden: o.golden ?? "", createdAt: new Date(began).toISOString(), project: ctx.refOf(project), ...ctx.treeOf(spawned), ...(o.parent !== undefined ? { parentWorkspaceId: o.parent } : {}) });
+        }
         const made = await ctx.createStaged(o, project, id, report, spawned, freePlace, start?.base);
         if (start === undefined) return made;
         // A brokered child's clone already stands on its parent's commit, on its own branch of record.
@@ -156,11 +160,19 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
         // attempt whose answer was lost and whose bytes are kept, and deletes the machine it made.
         if (((await store.get(CREATES, `workspace/${id}`)) as PendingCreate | undefined)?.request === undefined) await store.delete(CREATES, `workspace/${id}`);
         const said = e instanceof Error ? e.message : String(e);
+        const shown = ctx.shownCreates.get(id);
+        ctx.shownCreates.delete(id);
+        if (kept === undefined) {
+          // A fork a thread asked for stays under that thread, failed with why, until the person deletes it.
+          const failed = shown === undefined ? ctx.failedView(id, o.name, kind, o.golden ?? "", began, project, said) : { ...shown, phase: "gone" as const, gone: said };
+          ctx.failedCreates.set(id, failed);
+          if (shown !== undefined) bus.emit({ type: "workspace.created", workspace: failed });
+        }
         report("failed", said);
         if (kept !== undefined) bus.emit({ type: "workspace.created", workspace: ctx.view(kept.record) });
-        else ctx.failedCreates.set(id, ctx.failedView(id, o.name, kind, o.golden ?? "", began, project, said));
         throw e;
       } finally {
+        ctx.shownCreates.delete(id);
         ctx.forking.delete(o.name);
         freePlace();
       }
@@ -174,7 +186,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
 
     async list(origin) {
       await ctx.ready();
-      return ctx.listedFor(origin).map(e => ctx.view(e.record));
+      const listed = ctx.listedFor(origin).map(e => ctx.view(e.record));
+      if (scopeOf(origin) !== undefined) return listed;
+      const forks = [...ctx.shownCreates.values(), ...[...ctx.failedCreates.values()].filter(v => v.parentThreadId !== undefined)];
+      return [...listed, ...forks.filter(v => ctx.drives(v, origin) && !listed.some(l => l.id === v.id))];
     },
 
     async resolve(ref, origin) {
@@ -1188,9 +1203,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     },
 
     creating() {
-      // A sub-thread's record stands under its lead before its machine is made and its row carries the steps, so a
-      // stage of it replayed ahead of a window's list would be filed there as a create at the root.
-      return [...ctx.createStages.values()].filter(s => live.get(s.workspaceId)?.record.lead === undefined);
+      // A sub-thread's record and a thread's fork stand under their lead before their machine is made, so a stage of
+      // one replayed ahead of a window's list would be filed there as a create at the root.
+      return [...ctx.createStages.values()].filter(s => live.get(s.workspaceId)?.record.lead === undefined && !ctx.shownCreates.has(s.workspaceId));
     },
 
     seenBy(event, origin) {
