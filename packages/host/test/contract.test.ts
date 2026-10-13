@@ -491,7 +491,7 @@ describe("the agent contract on the command line and the tool door", () => {
       [["--size", "4x8"], subSizeNoCloudRefusal().message],
       [["--from", "origin/main"], subFromNoCloudRefusal().message],
       [["--on", "boat", "--beside", lead], subBesideRefusal("--beside").message],
-      [["alpha", "--on", "boat"], subBesideRefusal("a project").message],
+      [["alpha", "--on", "boat"], subNoThreadRefusal("boat").message],
     ] as const) {
       const refused = await run("run", ...words, "x", "--json");
       expect(refused.code, `wsp run ${words.join(" ")}`).toBe(EXIT_CODES.usage);

@@ -14,12 +14,13 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR, placeLimitsOf } from "@wsp/engine";
 import {
-  agentsOffRefusal, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
+  agentsOffRefusal, placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
   subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
   subNoUpstreamRefusal, subFromNotOnRemoteRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
 } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import { copyKey } from "../src/runtime.js";
+import { threadPlaces } from "../src/serve-projects.js";
 import { PAID, PAID_SIZES, TRIAL, TRIAL_SIZES, leadOnThisComputer, until, type Boat, type Fault, type Setup } from "./sub-fixture.js";
 import { leadAndBox } from "./box-fixture.js";
 
@@ -171,6 +172,23 @@ describe("run --on boat from a thread on this computer", () => {
     const made = await spawn(rt, project.id, lead);
     expect(made.sub!.out.branch).toBe("wsp/fix-the-flaky-upload-test-3");
     expect(made.sub!.preamble).toContain("git checkout -q -b wsp/fix-the-flaky-upload-test-3 ");
+  });
+
+  it("takes the lead's own project beside the cloud, by its id, its name or none, and refuses another naming the one it carries", async () => {
+    const { rt, boat, project, lead } = await leadOnThisComputer();
+    expect((await spawn(rt, project.name, lead)).sub!.out.repo).toBe((await spawn(rt, "", lead, {}, "Another one")).sub!.out.repo);
+    const records = (await rt.workspaces.list()).length;
+    const other = await refused(spawn(rt, "api", lead, {}, "A third one"));
+    expect(other).toEqual({ said: subOtherProjectRefusal("boat", "api", "web").message, cls: "usage" });
+    expect(other.said).toBe(refusalLine("run --on boat starts a sub-thread of the thread asking, on that thread's project web, and api is another project", "Leave the project out, or run the work on api without --on."));
+    // Refused before the record is announced, so no window draws a row for it and nothing is asked of Boat.
+    expect((await rt.workspaces.list()).length).toBe(records);
+    expect(boat.creates).toEqual([]);
+  });
+
+  it("says the word beside --on it cannot take as each caller names it", () => {
+    expect(subBesideRefusal("--beside").message).toBe(refusalLine("--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it cannot also take --beside", "Drop --beside, or run the work without --on."));
+    expect(subBesideRefusal("replaces").message).toBe(refusalLine("--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it cannot also take replaces", "Drop replaces, or run the work without --on."));
   });
 
   it("refuses a size the plan does not sell, naming the ones it does, before any create", async () => {
@@ -450,6 +468,22 @@ describe("a lead off this computer", () => {
     expect(made.notice).toBe(subNotSentLine(subPickedElsewhereWhy("lab-box", "hetzner"), "lab-box"));
     expect(made.notice).toBe("no git-ignored files were sent: lab-box lives on hetzner, and picks are read from folders on this computer only.");
     expect(made.sub!.folder).toBe("/root/lab");
+  });
+
+  it("answers its sub-thread on the cloud the cloud rows alone, and no row a thread reads carries the road to it", async () => {
+    root = mkdtempSync(join(tmpdir(), "wsp-sub-box-"));
+    const held = await leadAndBox(root);
+    await held.store.put("goldens", copyKey("default", "default"), { head: 1, versions: [{ version: 1, snapshotId: "snap_image-v1", baseTemplate: "base", setupSha: "abc", createdAt: "2026-09-01T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins: [{ name: "GitHub CLI login", state: "copied" }] }] });
+    const at = await held.rt.workspaces.folderFor({ project: held.onBox.id }, held.lead);
+    const child = await held.rt.sessions.start(at.workspace.id, { prompt: "build it", harness: "claude", turnToken: held.launch[TURN_TOKEN_ENV]! }, held.lead);
+    await child.finished;
+    const onBox: Caller = { origin: "relayed", by: { kind: "thread", threadId: child.view().threadId!, workspaceId: at.workspace.id, rootThreadId: held.threadId } };
+    const made = await held.rt.workspaces.create({ project: "", name: NAME, sub: { on: "default" } }, onBox);
+    const onCloud: Caller = { origin: "relayed", by: { kind: "thread", threadId: "t_sub", workspaceId: made.id, rootThreadId: held.threadId } };
+    const boxRows = await threadPlaces(held.rt, onBox, Date.now());
+    expect(boxRows.map(p => p.id)).toEqual([held.placeId]);
+    expect(await threadPlaces(held.rt, onCloud, Date.now())).toEqual((await held.rt.places!.list(Date.now())).filter(p => p.kind === "provider").map(p => ({ ...p, label: placeSaid(p) })));
+    expect([...boxRows, ...(await threadPlaces(held.rt, held.lead, Date.now()))].filter(p => p.road !== undefined)).toEqual([]);
   });
 
   it("numbers the default branch past the branches the remote holds, read in the lead's folder on its box", async () => {

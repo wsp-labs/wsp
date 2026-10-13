@@ -345,7 +345,7 @@ export const BranchIn = z.string().optional().describe("a branch other than the 
 export const OnIn = z
   .string()
   .optional()
-  .describe("boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. Never with project, beside, fork, at, cwd, resume, copy or replaces");
+  .describe("boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. It carries the thread's own project, which project may name or leave out; another project is refused. Never with beside, fork, at, cwd, resume, copy or replaces");
 export const SubSizeIn = z
   .string()
   .optional()

@@ -786,6 +786,9 @@ export interface ThreadRecord {
   /** How the thread's newest turn ended, kept as the cap drops a row of it, so a listing that names the thread off
    * this record once its rows are all gone says that end. */
   ended?: TurnStatus;
+  /** The clouds the thread last knew of, by the names every table says them, for a thread that may start sub-threads:
+   * a send names each one added or taken away since. Absent on a record from before it was kept. */
+  clouds?: string[];
 }
 
 /** The stamps a mark moves on a thread's record; one left undefined is taken off. */

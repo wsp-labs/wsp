@@ -39,9 +39,21 @@ export type SubOut = z.infer<typeof SubOut>;
 export const SubStarted = z.object({ out: SubOut, folder: z.string(), preamble: z.string(), harness: z.string() });
 export type SubStarted = z.infer<typeof SubStarted>;
 
-/** Why a word beside --on is refused: the sub-thread runs in a folder of its own on the cloud, under the asking thread. */
+/** Why a word beside --on is refused, the word a flag or a tool input: the sub-thread runs in a folder of its own on the
+ * cloud, under the asking thread. */
 export const subBesideRefusal = (word: string): Error =>
-  refusal(`--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it takes no ${word}`, `Drop ${word}, or run the work without --on.`, "usage");
+  refusal(`--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it cannot also take ${word}`, `Drop ${word}, or run the work without --on.`, "usage");
+
+/** A project named beside --on that is not the asking thread's: the sub-thread carries that thread's project alone. */
+export const subOtherProjectRefusal = (on: string, word: string, carried: string): Error =>
+  refusal(`run --on ${on} starts a sub-thread of the thread asking, on that thread's project ${carried}, and ${word} is another project`, `Leave the project out, or run the work on ${word} without --on.`, "usage");
+
+/** The line ahead of the next message of a thread that started before a cloud was added: its agent read the computers
+ * and its tool words at its start and keeps them. */
+export const cloudAddedLine = (name: string): string => `${name} was added since this thread started: run with on ${name.toLowerCase()} starts a sub-thread there.`;
+
+/** The same for a cloud taken away. */
+export const cloudRemovedLine = (name: string): string => `${name} was removed since this thread started: run with on ${name.toLowerCase()} starts nothing there now.`;
 
 /** One size a cloud sells a sub-thread, by its class's own name. */
 export interface SubSize {
