@@ -47,8 +47,8 @@ async function doneOnce(o: { answers?: Partial<Answers>; clock?: Clock; deleteAf
   const backstops: { machine: string; until: number; exact: boolean }[] = [];
   held.boat.lifecycle.backstop = async (m, at, x) => void backstops.push({ machine: m.id, until: at, exact: x?.exact === true });
   const made = await held.rt.workspaces.create({ project: held.project.id, name: NAME, sub: { on: "boat" } }, held.lead);
-  const machine = held.boat.machines.at(-1)!;
   const child = await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Fix it."), harness: "claude", notify: ["me"], turnToken: held.token, title: NAME, cwd: made.sub!.folder }, held.lead);
+  const machine = held.boat.machines.at(-1)!;
   const threadId = child.view().threadId!;
   await child.finished;
   const record = (): Promise<WorkspaceRecord> => held.store.get("workspaces", made.id) as Promise<WorkspaceRecord>;
@@ -431,22 +431,28 @@ describe("a restart that cut a done short", () => {
     const held = await leadOnThisComputer();
     open.push(held.rt);
     answering(held.boat, { read: PUSHED, session: Buffer.from("s") });
+    // The session's read never answers on the machine the start makes, as a host cut short in it leaves it.
+    const create = held.boat.create.bind(held.boat);
+    let read!: NonNullable<StubMachine["readBytes"]>;
+    held.boat.create = async spec => {
+      const m = (await create(spec)) as StubMachine;
+      read = m.readBytes!.bind(m);
+      m.readBytes = () => new Promise<Buffer>(() => {});
+      return m;
+    };
     const made = await held.rt.workspaces.create({ project: held.project.id, name: NAME, sub: { on: "boat" } }, held.lead);
-    const machine = held.boat.machines.at(-1)!;
-    const read = machine.readBytes!.bind(machine);
-    machine.readBytes = () => new Promise<Buffer>(() => {});
     await (await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Fix it."), harness: "claude", turnToken: held.token, cwd: made.sub!.folder }, held.lead)).finished;
     await sleep(100);
     const record = async (): Promise<WorkspaceRecord> => (await held.store.get("workspaces", made.id)) as WorkspaceRecord;
     expect((await record()).sub!.result).toBeUndefined();
     await held.rt.close();
-    machine.readBytes = read;
+    held.boat.machines.at(-1)!.readBytes = read;
     const again = held.restart();
     open.push(again);
     await again.workspaces.list();
     const r = await until(async () => ((await record()).sub?.deleteAt !== undefined ? record() : undefined), "the done at boot");
     expect(r.sub!.result).toMatchObject({ pushedSha: expect.any(String), unpushed: 0 });
-    expect(r.phase).toBe("napping");
+    await settled({ record });
   });
 });
 
