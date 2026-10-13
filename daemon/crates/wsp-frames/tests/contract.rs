@@ -18,8 +18,8 @@ use wsp_frames::{
     GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply, GitStartOnReply,
     GitUpdateReply, GitWorktreesReply, GuestCliMessage, GuestOpenReply, HostFolderListing, MachineAnswersReply, MachineExecReply,
     MachineHandleReply, MachineLinkRequest, MachineListReply, MachineReachReply, MachineReadingReply, MachineShapeReply, MachineStateReply,
-    PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, ProcKillReply, ProcListReply, SshStartReply, SysHistoryReply, TranscriptsListReply,
-    TranscriptsReadReply, UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
+    PipeOpen, PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, ProcKillReply, ProcListReply, SshStartReply, SysHistoryReply,
+    TranscriptsListReply, TranscriptsReadReply, UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
 };
 
 fn fixtures() -> PathBuf {
@@ -98,6 +98,10 @@ fn every_request_frame_reads_as_the_protocol_does() {
                     round_trip::<PlaceProveRequest>(&frame, &at);
                 }
                 ("place.prove", false) => refuses::<PlaceProveRequest>(&frame, &at),
+                ("pipe.open", true) => {
+                    round_trip::<PipeOpen>(&frame, &at);
+                }
+                ("pipe.open", false) => refuses::<PipeOpen>(&frame, &at),
                 (name, true) if name.starts_with("machine.") => {
                     round_trip::<MachineLinkRequest>(&frame, &at);
                 }
@@ -112,8 +116,12 @@ fn every_request_frame_reads_as_the_protocol_does() {
             }
         }
     }
-    let mut expected: Vec<String> =
-        DAEMON_OPS.iter().chain(MACHINE_OPS.iter()).chain(["auth", "place.auth", "place.prove"].iter()).map(|s| (*s).to_owned()).collect();
+    let mut expected: Vec<String> = DAEMON_OPS
+        .iter()
+        .chain(MACHINE_OPS.iter())
+        .chain(["auth", "place.auth", "place.prove", "pipe.open"].iter())
+        .map(|s| (*s).to_owned())
+        .collect();
     expected.sort();
     assert_eq!(seen, expected, "every op has one accept file and every accept file names an op");
 }
@@ -409,6 +417,7 @@ fn rendered_words() -> BTreeMap<&'static str, String> {
     m.insert("preAuthBytesExceeded", words::AUTH_TOO_MANY_BYTES.to_owned());
     m.insert("authDeadlinePassed", words::AUTH_NO_FRAME_IN_TIME.to_owned());
     m.insert("tokenRotated", words::AUTH_TOKEN_ROTATED.to_owned());
+    m.insert("pipePoolFull", words::PIPE_POOL_FULL.to_owned());
     m.insert("invalidJson", words::INVALID_JSON.to_owned());
     m.insert("noToken", words::NO_TOKEN_AT_START.to_owned());
     m.insert("unknownOp", words::unknown_op("{op}"));
@@ -544,6 +553,10 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("placeFoundMaxBytes", Value::from(numbers::PLACE_FOUND_MAX_BYTES));
     m.insert("openSocketPath", Value::from(numbers::OPEN_SOCKET_PATH));
     m.insert("guestDaemonSocketPath", Value::from(numbers::GUEST_DAEMON_SOCKET_PATH));
+    m.insert("brokerPort", Value::from(numbers::BROKER_PORT));
+    m.insert("brokerSocketPath", Value::from(numbers::BROKER_SOCKET_PATH));
+    m.insert("pipePoolMax", Value::from(numbers::PIPE_POOL_MAX));
+    m.insert("pipeHoldMaxMs", Value::from(numbers::PIPE_HOLD_MAX_MS));
     m.insert("guestDaemonDir", Value::from(numbers::GUEST_DAEMON_DIR));
     m.insert("guestWspPath", Value::from(numbers::GUEST_WSP_PATH));
     m.insert("daemonOomScoreAdj", Value::from(numbers::DAEMON_OOM_SCORE_ADJ));

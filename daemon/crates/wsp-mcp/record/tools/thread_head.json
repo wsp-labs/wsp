@@ -2129,6 +2129,51 @@
                   "pieces"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "thread.waited"
+                  },
+                  "workspaceId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/workspaceId"
+                  },
+                  "sessionId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/sessionId"
+                  },
+                  "at": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/at"
+                  },
+                  "turnId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/turnId"
+                  },
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "pos": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
+                  "ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "said": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "workspaceId",
+                  "sessionId",
+                  "threadId",
+                  "ms"
+                ],
+                "additionalProperties": false
               }
             ]
           }
@@ -4290,6 +4335,51 @@
                   "version",
                   "by",
                   "pieces"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "thread.waited"
+                  },
+                  "workspaceId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/workspaceId"
+                  },
+                  "sessionId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/sessionId"
+                  },
+                  "at": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/at"
+                  },
+                  "turnId": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/turnId"
+                  },
+                  "threadId": {
+                    "type": "string"
+                  },
+                  "pos": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/pos"
+                  },
+                  "copiedFrom": {
+                    "$ref": "#/properties/events/items/anyOf/0/properties/copiedFrom"
+                  },
+                  "ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "said": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "workspaceId",
+                  "sessionId",
+                  "threadId",
+                  "ms"
                 ],
                 "additionalProperties": false
               }

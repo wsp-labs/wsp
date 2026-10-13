@@ -447,6 +447,15 @@ pub enum DaemonOp {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         base: Option<String>,
+        /// The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+        /// gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "bounded_opt::<_, { crate::numbers::GUEST_TOKEN_MAX }>"
+        )]
+        #[ts(optional)]
+        token: Option<String>,
         /// The workspace this frame is for, as on fs.list above.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
@@ -490,6 +499,15 @@ pub enum DaemonOp {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         body: Option<String>,
+        /// The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+        /// gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "bounded_opt::<_, { crate::numbers::GUEST_TOKEN_MAX }>"
+        )]
+        #[ts(optional)]
+        token: Option<String>,
         /// The workspace this frame is for, as on fs.list above.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
@@ -575,6 +593,15 @@ pub enum DaemonOp {
     GitPrCheckout {
         cwd: String,
         number: u64,
+        /// The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+        /// gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "bounded_opt::<_, { crate::numbers::GUEST_TOKEN_MAX }>"
+        )]
+        #[ts(optional)]
+        token: Option<String>,
         /// The workspace this frame is for, as on fs.list above.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
@@ -680,6 +707,15 @@ pub enum DaemonOp {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         base: Option<String>,
+        /// The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+        /// gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "bounded_opt::<_, { crate::numbers::GUEST_TOKEN_MAX }>"
+        )]
+        #[ts(optional)]
+        token: Option<String>,
         /// The workspace this frame is for, as on fs.list above.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
@@ -691,6 +727,15 @@ pub enum DaemonOp {
     GitStartOn {
         cwd: String,
         branch: String,
+        /// The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+        /// gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "bounded_opt::<_, { crate::numbers::GUEST_TOKEN_MAX }>"
+        )]
+        #[ts(optional)]
+        token: Option<String>,
         /// The workspace this frame is for, as on fs.list above.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
@@ -712,6 +757,15 @@ pub enum DaemonOp {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         from: Option<String>,
+        /// The host's token for this one op on a machine whose credentials the host keeps: git's proxy password and
+        /// gh's GH_TOKEN for the commands this op runs, and nothing else; absent, the op runs as it always has.
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "bounded_opt::<_, { crate::numbers::GUEST_TOKEN_MAX }>"
+        )]
+        #[ts(optional)]
+        token: Option<String>,
         /// The workspace this frame is for, as on fs.list above.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]

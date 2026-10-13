@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { connect, createServer, type Server, type Socket } from "node:net";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
-import { DAEMON_AUTH_DEADLINE_PASSED, DAEMON_FIRST_FRAME_NOT_AUTH, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DAEMON_TOKEN_REFUSED, DAEMON_VERSION, TUNNEL_CAP, portScopeRefusal, unknownOpLine } from "@wsp/protocol";
+import { DAEMON_AUTH_DEADLINE_PASSED, DAEMON_FIRST_FRAME_NOT_AUTH, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DAEMON_TOKEN_REFUSED, DAEMON_VERSION, TUNNEL_CAP, pipeOpenOf, portScopeRefusal, unknownOpLine } from "@wsp/protocol";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { fakeProcTree, fakeStty, writeProc } from "./fake-proc.js";
@@ -369,6 +369,29 @@ describe("daemon WS server", () => {
       { type: "daemon.hello", root: resolve(process.env["HOME"] ?? homedir()), version: DAEMON_VERSION },
     ]);
     c.close();
+  });
+
+  it("answers a pipe auth as a control socket while it serves no pipes, whose hello reads as no pipe, and the link stands", async () => {
+    const link = await Client.connect(daemon.port, TOKEN);
+    const pipe = new WebSocket(`ws://127.0.0.1:${daemon.port}/`);
+    try {
+      const frames: string[] = [];
+      const two = new Promise<void>(resolve => pipe.on("message", raw => frames.push(String(raw)) === 2 && resolve()));
+      await new Promise<void>((resolve, reject) => {
+        pipe.once("open", resolve);
+        pipe.once("error", reject);
+      });
+      pipe.send(JSON.stringify({ id: 0, op: "auth", token: TOKEN, pipe: true }));
+      await two;
+      expect(JSON.parse(frames[0]!)).toEqual({ id: 0, ok: true });
+      expect(JSON.parse(frames[1]!)).toMatchObject({ type: "daemon.hello" });
+      expect(pipeOpenOf(frames[1]!)).toBeUndefined();
+      pipe.close();
+      expect((await link.request("ping")).ok).toBe(true);
+    } finally {
+      pipe.terminate();
+      link.close();
+    }
   });
 
   it("answers an op it does not know with an error naming it, never with silence", async () => {

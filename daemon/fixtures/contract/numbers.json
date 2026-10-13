@@ -1,5 +1,5 @@
 {
-  "daemonVersion": 157,
+  "daemonVersion": 158,
   "execBodyMax": 16384,
   "prReplyBodyMax": 65536,
   "guestMessageCapBytes": 4194304,
@@ -90,6 +90,10 @@
   "placeFoundMaxBytes": 33554432,
   "openSocketPath": "/root/.wsp/open.sock",
   "guestDaemonSocketPath": "/root/.wsp/daemon.sock",
+  "brokerPort": 7071,
+  "brokerSocketPath": "/root/.wsp/broker.sock",
+  "pipePoolMax": 64,
+  "pipeHoldMaxMs": 3600000,
   "guestDaemonDir": "/root/wsp-daemon",
   "guestWspPath": "/usr/local/bin/wsp",
   "daemonOomScoreAdj": -999,
