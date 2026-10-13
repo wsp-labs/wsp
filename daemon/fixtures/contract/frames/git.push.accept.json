@@ -16,5 +16,12 @@
     "cwd": "/root/repo",
     "base": "main",
     "machineId": "wsp-a"
+  },
+  {
+    "id": 9,
+    "op": "git.push",
+    "cwd": "/root/acme",
+    "base": "main",
+    "token": "wsp-op-token-1"
   }
 ]

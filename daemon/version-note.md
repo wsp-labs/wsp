@@ -1,0 +1,1 @@
+The auth frame takes pipe, which asks for a pipe rather than a control socket; pipe.open is the one text frame a pipe opens with, naming its door and how long the connection waited; and git.push, git.startOn, git.update, git.mergeIn, git.pr and git.prCheckout take a token for that one op. The daemon reads them and serves nothing on them yet.

@@ -550,6 +550,7 @@ export function createSessionFold(): SessionFold {
       case "session.behind":
       case "session.capped":
       case "session.subagent":
+      case "thread.waited":
         return;
       case "session.slate": {
         // One line per turn however many writes it made; a person's write and the host's draw none.

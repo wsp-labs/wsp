@@ -4,6 +4,7 @@
   "preAuthBytesExceeded": "too many bytes before the auth frame",
   "authDeadlinePassed": "no auth frame arrived in time",
   "tokenRotated": "the daemon token was rotated; dial again with the current one",
+  "pipePoolFull": "pipe pool full",
   "invalidJson": "invalid json",
   "noToken": "daemon refuses to start without an auth token",
   "unknownOp": "unknown op: {op}",

@@ -846,14 +846,14 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
             };
             answer(id, diff.await)
         }
-        DaemonOp::GitPush { cwd, base, machine_id } => {
+        DaemonOp::GitPush { cwd, base, machine_id, token: _ } => {
             let pushed = async {
                 let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
                 bring_back::push(&runner, &at, base.as_deref()).await
             };
             answer(id, pushed.await)
         }
-        DaemonOp::GitPr { cwd, base, title, body, machine_id } => {
+        DaemonOp::GitPr { cwd, base, title, body, machine_id, token: _ } => {
             let opened = async {
                 let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
                 let (remote, remote_url) = bring_back::remote_url(&runner, &at).await?;
@@ -911,7 +911,7 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
         }
         // The one git host line run inside a copy rather than beside it: the copy is the one just made from a project
         // the person added, and the host is read off its own remote.
-        DaemonOp::GitPrCheckout { cwd, number, machine_id } => {
+        DaemonOp::GitPrCheckout { cwd, number, machine_id, token: _ } => {
             let checked = async {
                 let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
                 hosts::checkout(&runner, &at, number).await
@@ -960,14 +960,14 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
             };
             answer(id, read.await)
         }
-        DaemonOp::GitUpdate { cwd, base, machine_id } => {
+        DaemonOp::GitUpdate { cwd, base, machine_id, token: _ } => {
             let updated = async {
                 let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
                 git::write::update(&runner, &at, base.as_deref()).await
             };
             answer(id, updated.await)
         }
-        DaemonOp::GitStartOn { cwd, branch, machine_id } => {
+        DaemonOp::GitStartOn { cwd, branch, machine_id, token: _ } => {
             let put = async {
                 let (runner, _, at) = road(ctx, machine_id.as_deref(), &cwd, Works).await?;
                 git::write::start_on(&runner, &at, &branch).await
@@ -981,7 +981,7 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
             };
             answer(id, read.await)
         }
-        DaemonOp::GitMergeIn { cwd, branch, from, machine_id } => {
+        DaemonOp::GitMergeIn { cwd, branch, from, machine_id, token: _ } => {
             let merged = async {
                 // A copy's folder is fetched from only where both copies sit on the computer this daemon is, never
                 // inside a workspace, where no other copy is visible.

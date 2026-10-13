@@ -23,5 +23,11 @@
     "id": 1,
     "op": "auth",
     "token": 5
+  },
+  {
+    "id": 0,
+    "op": "auth",
+    "token": "t",
+    "pipe": "yes"
   }
 ]

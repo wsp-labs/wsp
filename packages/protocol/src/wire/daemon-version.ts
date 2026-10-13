@@ -732,6 +732,11 @@ export const STDIO_DAEMON_VERSION = 154;
  * on a box or a cloud machine is asked through. */
 export const HTTP_POST_DAEMON_VERSION = 155;
 
+/** The first daemon that reads `pipe` on an auth frame and `token` on git.push, git.startOn, git.update,
+ * git.mergeIn, git.pr and git.prCheckout. One before it drops both unread: a pipe becomes a control socket, which
+ * pipeOpenOf reads as no pipe, and a token never reaches git. The host sends neither below it. */
+export const PIPE_DAEMON_VERSION = DAEMON_VERSION;
+
 /** The first daemon whose ports.watch takes a name and cgroups, which a box thread's panes watch its ports by. */
 export const NAMED_WATCH_DAEMON_VERSION = 136;
 

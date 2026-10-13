@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { realpathSync } from "node:fs";
+import type { Duplex } from "node:stream";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve as resolvePathOn } from "node:path";
 import {
@@ -73,7 +74,7 @@ import type { PlaceWiring } from "../places.js";
 import type { Store } from "../store.js";
 import type { GitHubCache } from "../github-cache.js";
 import type { ReadingsAnswer, ReadingsRange, AccountsAnswer, ResetAnswer, UsageRange, UsageSplit, UsedAnswer } from "@wsp/protocol";
-import type { ReviewDraft, WorkspaceFrom } from "@wsp/protocol";
+import type { BranchOfRecord, BrokerStatus, PipeOpen, ReviewDraft, WorkspaceFrom } from "@wsp/protocol";
 import type { HarnessAdapterFactory } from "./harness.js";
 
 // --- runtime ------------------------------------------------------------------
@@ -130,6 +131,9 @@ export interface CreateWorkspaceOptions extends WorkspaceSpec {
    * branch that workspace is on right now. A create a thread asked for is a child of the thread's own workspace
    * whether or not this names one. */
   parent?: string;
+  /** On a machine whose credentials the host keeps: the one branch its pushes may land on, written in the create's
+   * first write. */
+  branchOfRecord?: BranchOfRecord;
 }
 
 /** A folder's archive as the host packs it: the bytes, what went in, the secret-shaped paths left out, and the ones
@@ -771,6 +775,25 @@ export interface RuntimeOptions {
   /** Whether a project may be recorded on a cloud, which is the cloud's top-level road: the host says so where its
    * cloud is on. True when unset. */
   cloudProjects?: boolean;
+  /** The host's broker, which adds the real credential to each request a machine whose credentials the host keeps
+   * sends. ready() is the switch: until it answers true every turn keeps today's road. Absent, never ready. */
+  broker?: {
+    ready(): boolean;
+    codexClaims(): Promise<CodexClaims | undefined>;
+    /** Each pipe a daemon hands over, under the workspace whose link it was dialled on, read through pipeOpenOf. */
+    pipe?(workspaceId: string, open: PipeOpen, duplex: Duplex): void;
+    /** The kind of credential the host holds for each road, so a brokered turn picks the placeholder it runs on. */
+    status?(): Promise<BrokerStatus>;
+  };
+}
+
+/** The claims of the host's own ChatGPT login, copied into the placeholder login Codex runs on such a machine: the
+ * `https://api.openai.com/auth` claim's account, plan, user and whether the account is FedRAMP. */
+export interface CodexClaims {
+  accountId: string;
+  planType?: string;
+  userId?: string;
+  fedramp?: boolean;
 }
 
 export interface WakeOptions {

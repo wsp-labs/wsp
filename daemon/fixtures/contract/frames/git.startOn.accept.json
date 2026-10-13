@@ -11,5 +11,12 @@
     "cwd": "/root/wsp-boat",
     "branch": "tree/lead",
     "machineId": "wsp-a"
+  },
+  {
+    "id": 9,
+    "op": "git.startOn",
+    "cwd": "/root/acme",
+    "branch": "wsp/fix-login",
+    "token": "wsp-op-token-1"
   }
 ]
