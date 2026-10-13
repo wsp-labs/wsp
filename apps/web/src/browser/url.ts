@@ -84,16 +84,19 @@ export const isSite = (place: Place): place is Site => "url" in place;
 
 export const SEARCH_URL = "https://www.google.com/search?q=";
 
-/** A host as typed with no scheme: a dotted name ending in letters or an IPv4 address, with an optional port and path. */
-const BARE_HOST = /^(?:[a-z0-9-]+\.)+(?:[a-z]{2,}|\d{1,3})(?::\d{1,5})?(?:[/?#].*)?$/i;
+/** A host as typed with no scheme: a dotted name ending in letters or an IPv4 address, with an optional path. */
+const BARE_HOST = /^(?:[a-z0-9-]+\.)+(?:[a-z]{2,}|\d{1,3})(?:[/?#].*)?$/i;
+/** Any host with a port typed and no scheme, one word or dotted: a server someone runs, so http, but on 443. */
+const HOST_PORT = /^[a-z0-9][a-z0-9.-]*:(\d{1,5})(?:[/?#].*)?$/i;
 
-/** What the bar means by what was typed: a port of the thread's computer, a web address (https when no scheme was
- * typed, as a browser's bar does), or a search for the words. */
+/** What the bar means by what was typed: a port of the thread's computer, a web address (http for a host with a port
+ * but 443, else https when no scheme was typed, as a browser's bar does), or a search for the words. */
 export function parseTarget(raw: string): Place {
   const port = parseAddress(raw);
   if (port !== null) return port;
   const text = raw.trim();
-  const candidate = /^https?:\/\//i.test(text) ? text : BARE_HOST.test(text) ? `https://${text}` : null;
+  const typedPort = HOST_PORT.exec(text)?.[1];
+  const candidate = /^https?:\/\//i.test(text) ? text : typedPort !== undefined ? `${typedPort === "443" ? "https" : "http"}://${text}` : BARE_HOST.test(text) ? `https://${text}` : null;
   if (candidate !== null) {
     try {
       return { url: new URL(candidate).toString() };

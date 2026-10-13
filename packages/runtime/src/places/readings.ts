@@ -4,10 +4,10 @@
 // socket: a computer's row on the list, a folder's panes there, a channel. So
 // the watch is counted here, asked on the first reader and stopped with
 // sys.unwatch after the last, and asked again on the link that replaces one
-// that dropped while somebody was still reading. A daemon behind this host
-// refuses sys.unwatch and counts a second sys.watch on its socket as a second
+// that dropped while somebody was still reading. A daemon from before
+// sys.unwatch refuses it and counts a second sys.watch on its socket as a second
 // subscriber, so its watch is left running and the next reader rides it.
-import { noSuchPlaceRefusal, placeDaemonBehind, type DaemonEvent, type SysSample } from "@wsp/protocol";
+import { noSuchPlaceRefusal, SYS_UNWATCH_DAEMON_VERSION, type DaemonEvent, type SysSample } from "@wsp/protocol";
 import type { DaemonReach } from "../reach.js";
 import type { PlaceDoorContext } from "./context.js";
 
@@ -34,7 +34,7 @@ export function placeReadings(ctx: PlaceDoorContext): PlaceReadings {
   const stillSending = new WeakSet<DaemonReach>();
   const unwatches = (placeId: string): boolean => {
     const version = ctx.kept.get(placeId)?.report.daemonVersion;
-    return version !== undefined && placeDaemonBehind({ daemonVersion: version }) === undefined;
+    return version !== undefined && version >= SYS_UNWATCH_DAEMON_VERSION;
   };
 
   const ask = (w: Watched, on: DaemonReach): Promise<Record<string, unknown>> => {
