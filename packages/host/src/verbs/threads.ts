@@ -92,13 +92,13 @@ async function subStart(
   message: string,
   o: { harness?: string | undefined; picks: Parameters<typeof checkedStart>[3]; notify?: readonly string[] | undefined; title?: string | undefined; files?: readonly string[] | undefined; elsewhere?: boolean | undefined },
   say: (line: string) => void,
-): Promise<{ opening: Record<string, unknown>; sub: SubOut; opened: (threadId: string) => string }> {
+): Promise<{ opening: Record<string, unknown>; sub: SubOut; opened: (threadId: string) => string; stop: () => void }> {
   await checkedStart(client, message, o.harness, o.picks);
   // A file that is not there is refused before the create, so it leaves no record for the queue to hold.
   filesFrom(o.files ?? [], o.elsewhere);
   const made = await subFor(client, { ...ask, harness: o.harness }, message, o.title, say);
   const opening = openingOf(env, { id: made.workspace.id }, subOpening(made.sub.preamble, message), { harness: made.sub.harness, ...o.picks, ...(o.notify !== undefined ? { notify: o.notify } : {}), title: made.workspace.name, files: o.files ?? [], elsewhere: o.elsewhere, cwd: made.sub.folder });
-  return { opening, sub: made.sub.out, opened: threadId => subOpenedLine(threadId, made.sub.out.on, made.sub.folder) };
+  return { opening, sub: made.sub.out, opened: threadId => subOpenedLine(threadId, made.sub.out.on, made.sub.folder), stop: made.stop };
 }
 
 export const THREAD_VERBS: readonly Verb[] = [
@@ -123,11 +123,15 @@ export const THREAD_VERBS: readonly Verb[] = [
       if (on !== undefined) {
         const word = besideOn([["a project", ref], ...["beside", "fork", "at", "cwd", "resume", "copy", "replaces"].map((f): [string, unknown] => [`--${f}`, ctx.flags[f]])]);
         if (word !== undefined) throw subBesideRefusal(word);
-        const { opening, sub, opened } = await beforeSending(client, async () =>
+        const { opening, sub, opened, stop } = await beforeSending(client, async () =>
           subStart(client, ctx.env, { on, size: flag(ctx.flags, "size"), from: flag(ctx.flags, "from"), branch: where.branch }, message, { harness, picks, notify: await notifyOf(client, flagList(ctx.flags, "notify")), title: flag(ctx.flags, "title"), files: flagList(ctx.flags, "file"), elsewhere: ctx.elsewhere }, line => ctx.io.error(line)),
         );
-        if (ctx.flags["detach"] === true) await detachVerb(ctx, client, opening, {}, opened, sub);
-        else ctx.out.emit({ ...turnView(await followVerb(ctx, client, opening, true, {}, { opened, spend: turnSpendWord({ kind: "cloud" }) })), sub });
+        try {
+          if (ctx.flags["detach"] === true) await detachVerb(ctx, client, opening, {}, opened, sub);
+          else ctx.out.emit({ ...turnView(await followVerb(ctx, client, opening, true, {}, { opened, spend: turnSpendWord({ kind: "cloud" }) })), sub });
+        } finally {
+          stop();
+        }
         return 0;
       }
       const beside = flag(ctx.flags, "beside");
@@ -171,10 +175,14 @@ export const THREAD_VERBS: readonly Verb[] = [
           const word = besideOn([["project", ref], ["beside", beside], ["fork", forks], ["at", at], ["cwd", cwd], ["resume", conversation], ["copy", copy], ["replaces", replaces]]);
           if (word !== undefined) throw subBesideRefusal(word);
           const client = await deps.client();
-          const { opening, sub, opened } = await beforeSending(client, async () => subStart(client, deps.env, { on, size, from, branch }, message, { harness, picks: input, notify: await notifyOf(client, tell ?? []), title, files, elsewhere: deps.elsewhere }, QUIET_LINE));
-          if (detach === true) return detachedOut(await startDetached(client, opening, "agent", undefined, () => hostBack(deps)), opened, sub);
-          const out = { ...turnOut(await follow(client, opening, "agent", QUIET_TURN, () => hostBack(deps))), sub };
-          return asText(`${opened(out.threadId)}\n${turnText(out)}`, out);
+          const { opening, sub, opened, stop } = await beforeSending(client, async () => subStart(client, deps.env, { on, size, from, branch }, message, { harness, picks: input, notify: await notifyOf(client, tell ?? []), title, files, elsewhere: deps.elsewhere }, QUIET_LINE));
+          try {
+            if (detach === true) return detachedOut(await startDetached(client, opening, "agent", undefined, () => hostBack(deps)), opened, sub);
+            const out = { ...turnOut(await follow(client, opening, "agent", QUIET_TURN, () => hostBack(deps))), sub };
+            return asText(`${opened(out.threadId)}\n${turnText(out)}`, out);
+          } finally {
+            stop();
+          }
         }
         if (beside !== undefined && (ref !== undefined || branch !== undefined)) throw usageRefusal(BESIDE_ALONE_LINE, BESIDE_ALONE_FIX);
         if (at !== undefined && forks === undefined) throw usageRefusal(AT_WITHOUT_FORK_LINE, AT_WITHOUT_FORK_FIX);

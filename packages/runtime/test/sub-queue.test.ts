@@ -17,7 +17,11 @@ const TASK = "Fix the flaky upload test in packages/upload.";
 /** A sub-thread's machine and its first turn, as `run --on boat --detach --notify me` asks for them: the turn answered
  * held where the queue holds it, with the count it waits on. */
 async function spawnAndStart(rt: Runtime, project: string, lead: Caller, token: string, name: string) {
-  const made = await rt.workspaces.create({ project, name, sub: { on: "boat" } }, lead);
+  return startOf(rt, await rt.workspaces.create({ project, name, sub: { on: "boat" } }, lead), lead, token, name);
+}
+
+/** The start of a spawn's thread, answered held where it waits, else once it starts. */
+async function startOf(rt: Runtime, made: Awaited<ReturnType<Runtime["workspaces"]["create"]>>, lead: Caller, token: string, name: string) {
   let held: ThreadCapWait | undefined;
   let answered!: () => void;
   const heard = new Promise<void>(r => (answered = r));
@@ -246,6 +250,8 @@ describe("a create Boat refuses at its machines at once", () => {
     // The third is not let through past it while it waits its read.
     expect(named()).toEqual(["Second"]);
     expect(await recordOf(rt, b.made.id)).toMatchObject({ phase: "queued", queue: { why: "slot" } });
+    // It waits again; it did not fail.
+    expect((await rt.sessions.list()).find(r => r.workspaceId === b.made.id)?.sub?.spawn?.failed).toBeUndefined();
     expect((await rt.workspaces.list()).filter(w => w.queue !== undefined).sort((x, y) => x.queue!.since.localeCompare(y.queue!.since)).map(w => w.name)).toEqual(["Second", "Third"]);
     fc.advance(30_000);
     await expect.poll(() => named().slice(0, 2)).toEqual(["Second", "Second"]);
@@ -265,23 +271,41 @@ function slowCreates(boat: { create: (spec: MachineSpec) => Promise<unknown> }, 
 
 describe("spawns asked together, and a spawn whose start never comes", () => {
   it("two spawns asked at the same moment under --machines 1: one machine, the other queued", async () => {
-    const { rt, store, boat, project, lead } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    const { rt, turns, store, boat, project, lead, token } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    turns.hold = true;
     slowCreates(boat, 200);
-    const both = await Promise.allSettled(["First", "Second"].map(name => rt.workspaces.create({ project: project.id, name, sub: { on: "boat" } }, lead)));
-    expect(both.map(b => b.status)).toEqual(["fulfilled", "fulfilled"]);
+    const both = await Promise.all(["First", "Second"].map(name => spawnAndStart(rt, project.id, lead, token, name)));
     expect(boat.creates).toHaveLength(1);
-    const phases = await Promise.all(both.map(async b => ((await store.get("workspaces", (b as PromiseFulfilledResult<{ id: string }>).value.id)) as { phase: string }).phase));
+    expect(both.map(b => b.held()?.why ?? "none").sort()).toEqual(["none", "slot"]);
+    const phases = await Promise.all(both.map(async b => ((await store.get("workspaces", b.made.id)) as { phase: string }).phase));
     expect(phases.sort()).toEqual(["queued", "running"]);
   });
 
-  it("two spawns asked at the same moment on the minute's last start: one machine, the other held for the minute", async () => {
-    const { rt, store, boat, project, lead } = await leadOnThisComputer({ agents: { spawn: true, maxMachines: 5 } });
-    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 11 } } };
-    slowCreates(boat, 200);
-    const both = await Promise.allSettled(["First", "Second"].map(name => rt.workspaces.create({ project: project.id, name, sub: { on: "boat" } }, lead)));
-    expect(both.map(b => b.status)).toEqual(["fulfilled", "fulfilled"]);
+  it("answers held a start that came with room and met the wait in the queue, where a spawn beside it took the slot", async () => {
+    const { rt, turns, boat, project, lead, token } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    turns.hold = true;
+    const first = await rt.workspaces.create({ project: project.id, name: "First", sub: { on: "boat" } }, lead);
+    const second = await rt.workspaces.create({ project: project.id, name: "Second", sub: { on: "boat" } }, lead);
+    // A slow read of Boat's limits, so the second start is written down before the queue finds it has to wait.
+    const limits = boat.limits!.bind(boat);
+    boat.limits = async () => (await new Promise(r => setTimeout(r, 100)), limits());
+    const [a, b] = await Promise.all([startOf(rt, first, lead, token, "First"), startOf(rt, second, lead, token, "Second")]);
+    expect(a.held()).toBeUndefined();
+    expect(b.held()).toEqual({ placeId: "box", place: "Boat", running: 1, atOnce: 1, why: "slot" });
     expect(boat.creates).toHaveLength(1);
-    const records = await Promise.all(both.map(async b => (await store.get("workspaces", (b as PromiseFulfilledResult<{ id: string }>).value.id)) as { phase: string; queue?: { why: string } }));
+  });
+
+  it("two spawns asked at the same moment on the minute's last start: one machine, the other held for the minute", async () => {
+    const { rt, turns, store, boat, project, lead, token } = await leadOnThisComputer({ agents: { spawn: true, maxMachines: 5 } });
+    boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 11 } } };
+    // Boat counts a start once its create is posted, as its own read does.
+    const create = boat.create.bind(boat);
+    boat.create = async spec => ((boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 12 } } }), create(spec));
+    turns.hold = true;
+    slowCreates(boat, 200);
+    const both = await Promise.all(["First", "Second"].map(name => spawnAndStart(rt, project.id, lead, token, name)));
+    expect(boat.creates).toHaveLength(1);
+    const records = await Promise.all(both.map(async b => (await store.get("workspaces", b.made.id)) as { phase: string; queue?: { why: string } }));
     expect(records.find(r => r.phase === "queued")?.queue?.why).toBe("minute");
   });
 

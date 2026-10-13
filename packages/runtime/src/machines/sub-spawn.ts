@@ -10,7 +10,7 @@ import { gitHostOf, remoteHost, type GitHost } from "@wsp/catalog";
 import { BOX_CLASSES, CreateCancelledError, EnvNotLandedError, GuestUnusableError, INLINE_EXEC_MS, LOCAL_MACHINE_ID, goldenHead, isMissing, type BoxLimits, type MachineBackend } from "@wsp/engine";
 import {
   DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, lastLine, subFromNotOnRemoteRefusal, subFromUnreadRefusal, type ExecResult, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
-  providerKeyName, scopeOf, shellLine, capWaitLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
+  providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal,
   subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
   subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
@@ -222,34 +222,14 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
           spawn: { startedAt: began, branch: { ...base, ms: clock.now() - began }, ...(uncommitted > 0 ? { uncommitted } : {}), ...(seed.why !== undefined ? { notSent: seed.why } : {}), log: [] },
         },
       };
-      const report = logged(machineRecord, ctx.stageReporter(id, name, clock.now(), scope));
-      // Past the machines at once or the minute's starts the spawn waits its turn, its record queued with no machine
-      // (05, Q4); the queue makes the machine and starts the thread when its turn comes.
-      const wait = ctx.queueWait(place, limits);
-      // Taken in the same step as the read, with no await between, so a spawn asked beside this one counts it.
-      const claim = wait === undefined ? ctx.claimStart(id, place) : undefined;
+      // The record stands, under its lead, before the cloud is asked for anything: its thread is held on it and shows
+      // the start's steps from its first frame, and the queue makes the machine once the thread's start comes, at once
+      // where the cloud has room, else when its turn comes (05, Q4).
       ctx.forking.add(name);
       ctx.supersedeFailed(name);
       try {
-        if (wait !== undefined) {
-          report("fork-requested", capWaitLine(wait), { waiting: true });
-          await ctx.enqueue(machineRecord, wait);
-        } else {
-          // Another client took the last slot between the read and the create: the spawn waits at the head (Q9).
-          const made = await machineFor(machineRecord, at, on, seed, report, () => (freePlace(), claim!.posted())).catch(async (e: unknown) => {
-            if (!isCapRefusal(e)) throw e;
-            const full = ctx.cloudFull(place, limits);
-            report("fork-requested", capWaitLine(full), { waiting: true });
-            await ctx.enqueue(machineRecord, full, true);
-            return [];
-          });
-          notices.push(...made);
-        }
-      } catch (e) {
-        report("failed", e instanceof Error ? e.message : String(e));
-        throw e;
+        await ctx.enqueue(machineRecord, ctx.queueWait(place, limits));
       } finally {
-        claim?.release();
         ctx.forking.delete(name);
       }
       if (uncommitted > 0) notices.push(subUncommittedLine(uncommitted, project.name, base.branch, base.sha));
@@ -305,16 +285,16 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
 
   /** The machine of a spawn the queue let through: the cloud and the picked files read again now, since the files
    * are packed fresh at each start (S21), and the stages said under the lead that asked. */
-  const standUpQueued = async (record: WorkspaceRecord, posted: () => void): Promise<void> => {
+  const standUpQueued = async (record: WorkspaceRecord, posted: () => void, waited: boolean): Promise<void> => {
     const placeId = ctx.placeIdOf(record)!;
     const row = (await ctx.computerRows()).find(r => r.id === placeId || r.id === record.provider);
     const on = row === undefined ? record.sub!.on : providerKeyName(row.name);
     const at = ctx.backendFor(record);
     const seed = await seedOf(ctx.projectHeld(record.project));
     const lead = record.lead!;
-    // The queue's wait is the strip's to say: the start's own time counts from here.
+    // A wait in the queue is the strip's to say: the start's own time counts from its end.
     step(record, spawn => {
-      spawn.startedAt = clock.now();
+      if (waited) spawn.startedAt = clock.now();
       if (seed.why !== undefined) spawn.notSent = seed.why;
       else delete spawn.notSent;
     });
@@ -323,8 +303,11 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     try {
       await machineFor(record, at, on, seed, report, posted);
     } catch (e) {
-      spawnFailed(record, e);
-      report("failed", e instanceof Error ? e.message : String(e));
+      // A create the cloud refused at its cap waits in the queue again; it did not fail.
+      if (!isCapRefusal(e)) {
+        spawnFailed(record, e);
+        report("failed", e instanceof Error ? e.message : String(e));
+      }
       throw e;
     } finally {
       ctx.forking.delete(record.name);
@@ -528,7 +511,9 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     record.phase = "running";
     record.firstLife = true;
     delete sub.lost;
-    sub.spawn = { startedAt: clock.now(), ...(prompt !== undefined ? { asked: prompt } : {}), ...(seed.why !== undefined ? { notSent: seed.why } : {}), log: [] };
+    // A thread whose first start failed has run nothing: what Try again sends stays that start's own message.
+    const tried = sub.opening ?? prompt;
+    sub.spawn = { startedAt: clock.now(), ...(tried !== undefined ? { asked: tried } : {}), ...(seed.why !== undefined ? { notSent: seed.why } : {}), log: [] };
     told(record);
     const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), undefined));
     ctx.forking.add(record.name);
@@ -550,8 +535,16 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       ctx.forking.delete(record.name);
     }
     const entry = live.get(record.id)!;
-    await landSession(entry, threadId);
     if (seed.why !== undefined) notices.push(subNotSentLine(seed.why, project.name));
+    // A thread whose first start failed has run nothing: its send opens with that start's own message, preamble and
+    // task, and Try again's is that message alone.
+    const opening = sub.opening;
+    if (opening !== undefined) {
+      delete sub.opening;
+      await ctx.persist(record);
+      return { entry, notices, ...(prompt === opening ? {} : { preamble: opening }) };
+    }
+    await landSession(entry, threadId);
     const deleteAfterMinutes = Math.round((ctx.settingsAt(place)?.deleteAfterMs ?? DELETE_AFTER_MS) / 60_000);
     const pushed = sub.result?.pushedSha != null;
     const preamble = subResumePreamble({ on, size, folder: sub.folder, sent: seed.paths, setupGit: host.setupGit, repo: sub.repo, base: sub.base, branch: sub.branch, pushed, deleteAfterMinutes });

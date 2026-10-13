@@ -407,6 +407,9 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
     session?: SubSession;
     /** The latest start of its machine, step by step, written as it goes. */
     spawn?: SubSpawn;
+    /** Its first start's message, kept while that start failed and the thread has run no turn: every send opens
+     * with it, the preamble and the task, until a machine stands. */
+    opening?: string;
   };
 }
 

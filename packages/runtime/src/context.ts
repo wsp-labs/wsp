@@ -576,10 +576,11 @@ export interface SubLifeArea {
 }
 
 export interface SubSpawnArea {
-  /** A sub-thread's machine on a cloud, every refusal read before the cloud is asked for a start. */
+  /** A sub-thread's record on a cloud, under its lead, every refusal read before the cloud is asked for a start; the
+   * queue makes its machine once its thread's start comes. */
   readonly spawnSub: (opts: CreateWorkspaceOptions, origin: Caller | undefined) => Promise<CreatedWorkspace>;
   /** The machine of a spawn the queue let through, made as a spawn makes one, the picked files packed fresh. */
-  readonly standUpQueued: (record: WorkspaceRecord, posted: () => void) => Promise<void>;
+  readonly standUpQueued: (record: WorkspaceRecord, posted: () => void, waited: boolean) => Promise<void>;
   /** The words a sub-machine's run fails with when the kernel killed it for memory since `startedAt`, else nothing. */
   readonly subKilledWhy: (entry: LiveWorkspace, startedAt: number) => Promise<string | undefined>;
   /** A released sub-thread on a new machine forked from the image head as it stands, the picked files and the kept
@@ -597,9 +598,9 @@ export interface SubQueueArea {
   readonly deleteQueued: (workspaceId: string) => Promise<void> | undefined;
   /** The wait a create the cloud refused at its machines at once is held under. */
   readonly cloudFull: (placeId: string, limits: BoxLimits | undefined) => ThreadCapWait;
-  /** A spawn's record stored queued with no machine, for the wait it met; at the head of the line, a read on, where
-   * the cloud refused its create at its cap. */
-  readonly enqueue: (record: WorkspaceRecord, wait: ThreadCapWait, refused?: boolean) => Promise<void>;
+  /** A spawn's record stored queued with no machine until its start comes, and for the wait it met where one; at the
+   * head of the line, a read on, where the cloud refused its create at its cap. */
+  readonly enqueue: (record: WorkspaceRecord, wait: ThreadCapWait | undefined, refused?: boolean) => Promise<void>;
   /** A queued record read at load, held live with no machine. */
   readonly attachQueued: (record: WorkspaceRecord, wait: ThreadCapWait | undefined) => void;
   /** The first turn of a queued sub-machine's thread, written down and started once its machine stands. */
