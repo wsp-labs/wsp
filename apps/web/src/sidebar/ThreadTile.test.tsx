@@ -104,6 +104,25 @@ describe("a thread tile", () => {
     }
   });
 
+  it("a hold on this computer names it on the card by the name its owner gave it, never its host name", async () => {
+    vi.useFakeTimers();
+    act(() => useStore.setState({ places: [HERE] }));
+    try {
+      mount({ over: { status: "running", capped: { placeId: "here", place: HERE.name, running: 6, atOnce: 6 } } });
+      fireEvent.pointerEnter(tile(), { pointerType: "mouse" });
+      fireEvent.mouseEnter(tile());
+      fireEvent.mouseMove(tile());
+      await act(async () => void vi.advanceTimersByTime(600));
+      const notes = [...document.querySelectorAll<HTMLElement>('[data-tile-card] [data-tile-card-line="note"]')].map(line => line.textContent);
+      expect(document.querySelector("[data-tile-card] [data-status-line=waiting] [data-status-reason]")!.textContent).toBe("zingzy's MacBook Pro is running 6 of 6 threads");
+      expect(notes).toEqual(["Raise threads at once on zingzy's MacBook Pro in Settings to start it now"]);
+      expect(document.body.textContent).not.toContain(HERE.name);
+    } finally {
+      act(() => useStore.setState({ places: [] }));
+      vi.useRealTimers();
+    }
+  });
+
   it("in the Settled fold rests whatever its state: its age in the row's ink, no tone, no glyph, and a muted title", () => {
     mount({ over: { status: "failed", endedAt: "2026-09-17T00:05:00.000Z" }, settled: true });
     expect(slot().textContent).toBe("3m");

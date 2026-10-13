@@ -5,12 +5,13 @@
 // read here and never respelled. Pure but for the one hook beside the where
 // word, which reads that word off the store for the surfaces that hold a
 // workspace's id and no snapshot.
-import { HERE_PLACE_ID, isLocalWorkspace, portsWord, workspaceComputerName, workspaceKind, type Capabilities, type PlaceView } from "@wsp/protocol";
+import { useMemo } from "react";
+import { HERE_PLACE_ID, isLocalWorkspace, portsWord, workspaceComputerName, workspaceKind, type Capabilities, type PlaceView, type ThreadCapWait } from "@wsp/protocol";
 import type { SidebarProjectSnapshot } from "../adapt/index.js";
 import type { ProjectRef } from "./threadTree.js";
 import { PLACE_KIND_WORDS, isHere, placeName, placeOf } from "../settings/places.js";
 import { formatRelativeTimeLabel } from "../lib/timestampFormat.js";
-import { usePlaces, useStatus, useWorkspace } from "../protocol/store.js";
+import { usePlaces, useStatus, useStore, useWorkspace } from "../protocol/store.js";
 
 /** The new thread button's hover: its words, then the chord New thread is on. */
 export const newThreadTitle = (shortcut: string | null): string => (shortcut === null ? "New thread" : `New thread (${shortcut})`);
@@ -71,6 +72,16 @@ export function useComputerName(workspaceId: string): string {
   const workspace = useWorkspace(workspaceId);
   const status = useStatus(workspaceId);
   return workspace === null ? workspaceId : computerName(places, { workspace, status });
+}
+
+/** A held turn's wait with its computer named as its row in the places list names it: the host words this computer
+ * by its host name, the name typed after --on, where the app says the name its owner gave it. */
+export function useNamedCap(capped: ThreadCapWait | undefined): ThreadCapWait | undefined {
+  const name = useStore(s => {
+    const at = capped === undefined ? undefined : s.places.find(p => p.id === capped.placeId);
+    return at === undefined ? undefined : placeName(at);
+  });
+  return useMemo(() => (capped === undefined || name === undefined || name === capped.place ? capped : { ...capped, place: name }), [capped, name]);
 }
 
 /** The row of the places list a workspace runs on, by its id. */
