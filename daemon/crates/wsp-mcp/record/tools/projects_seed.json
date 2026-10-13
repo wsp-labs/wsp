@@ -65,6 +65,7 @@
                 "type": "string",
                 "enum": [
                   "config",
+                  "secret",
                   "rebuilt",
                   "data",
                   "never",
@@ -202,6 +203,7 @@
                 "type": "string",
                 "enum": [
                   "config",
+                  "secret",
                   "rebuilt",
                   "data",
                   "never",

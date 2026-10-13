@@ -609,6 +609,17 @@ describe("a remove of a computer set up with picks", () => {
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app/servers")).toMatchObject({ outcome: "skipped", note: FOLDER_SERVERS_WAIT_LINE, step: "folderServers" });
   });
 
+  it("lands a file of values a recipe folder keeps on a box, as a box of the person's own gets one", async () => {
+    const { folder, seed } = seededFolder([{ path: ".env", dir: false, bytes: 120, kind: "secret", row: { id: "node", name: "Node" }, ticked: true }]);
+    const packed: string[][] = [];
+    await hosting({ provision: provisioner().wired, checkouts: {}, seed: { ...seed, pack: async o => (packed.push(o.choice.files), seed.pack(o)) } });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [".env"] } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    expect(packed).toEqual([[".env"]]);
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed" });
+  });
+
   it("reads a folder a setup made as wsp's through a second setup, which ends ready, and the remove takes its project off", async () => {
     const { folder, seed } = seededFolder();
     const { frames } = await hosting({ provision: provisioner().wired, checkouts: {}, seed });

@@ -5,7 +5,7 @@
 // since installing a launchd agent is not this test's business.
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { addedProjectLine, addedProjectOn, type PlaceView } from "@wsp/protocol";
+import { addedProjectLine, addedProjectOn, staysHereLine, type PlaceView } from "@wsp/protocol";
 import { hostPlatform } from "../src/verbs.js";
 import { addCommand, addFlags } from "../src/places.js";
 import { captured } from "./verbs-fixture.js";
@@ -48,7 +48,7 @@ describe("wsp add <folder> --on <computer>: the menu before anything travels", (
   };
 
   /** A host answering the menu and the add, keeping what it was asked. */
-  const menuClient = (): { dial: NonNullable<Parameters<typeof addCommand>[4]>["dial"]; asked: { op: string; params?: Record<string, unknown> }[] } => {
+  const menuClient = (plan: object = PLAN): { dial: NonNullable<Parameters<typeof addCommand>[4]>["dial"]; asked: { op: string; params?: Record<string, unknown> }[] } => {
     const asked: { op: string; params?: Record<string, unknown> }[] = [];
     return {
       asked,
@@ -56,7 +56,7 @@ describe("wsp add <folder> --on <computer>: the menu before anything travels", (
         Promise.resolve({
           request: (op: string, params?: Record<string, unknown>) => {
             asked.push({ op, ...(params === undefined ? {} : { params }) });
-            if (op === "project.seed.plan") return Promise.resolve({ plan: PLAN } as never);
+            if (op === "project.seed.plan") return Promise.resolve({ plan } as never);
             if (op === "projects.add") return Promise.resolve({ project } as never);
             if (op === "places.list") return Promise.resolve({ places: PLACES } as never);
             return Promise.reject(new Error(`unexpected op ${op}`));
@@ -128,6 +128,21 @@ describe("wsp add <folder> --on <computer>: the menu before anything travels", (
     const { dial, asked } = menuClient();
     expect(await addCommand(captured(), opts(home), [FOLDER], { on: "spoo", yes: true, noMemory: true, noCommits: true, remember: true }, menuDeps(dial))).toBe(0);
     expect(asked.find(a => a.op === "projects.add")?.params).toMatchObject({ seed: { files: [".env.local"], memory: false, commits: false, remember: true } });
+  });
+
+  it("asks the menu for the computer named, and on a provider's shows a file of values staying here, sends it with nothing and refuses it by name", async () => {
+    const cloud = { ...PLAN, provider: true, files: [{ path: ".env", dir: false, bytes: 120, kind: "secret", row: { id: "node", name: "Node" }, ticked: false }, ...PLAN.files] };
+    const shown = menuClient(cloud);
+    const io = captured();
+    expect(await addCommand(io, opts(tmp("add-seed-cloud")), [FOLDER], { on: "boat" }, menuDeps(shown.dial))).toBe(0);
+    expect(shown.asked.find(a => a.op === "project.seed.plan")?.params).toEqual({ source: FOLDER, on: "boat" });
+    expect(io.lines.find(line => line.includes(" .env "))).toMatch(/^\[ \]\s+\.env\s+120 B\s+stays on this computer$/);
+    const sent = menuClient(cloud);
+    expect(await addCommand(captured(), opts(tmp("add-seed-cloud-yes")), [FOLDER], { on: "boat", yes: true }, menuDeps(sent.dial))).toBe(0);
+    expect(sent.asked.find(a => a.op === "projects.add")?.params).toMatchObject({ seed: { files: [".env.local"] } });
+    const kept = menuClient(cloud);
+    await expect(addCommand(captured(), opts(tmp("add-seed-cloud-keep")), [FOLDER], { on: "boat", yes: true, keep: [".env"] }, menuDeps(kept.dial))).rejects.toThrow(staysHereLine(".env"));
+    expect(kept.asked.map(a => a.op)).toEqual(["places.list", "project.seed.plan"]);
   });
 
   it("refuses to carry a login by name, whatever was kept", async () => {
@@ -353,7 +368,7 @@ describe("what wsp add prints while a project lands on a computer", () => {
 
   it("says where the project is itself, with what did not travel, where the host sent no stage of this add", async () => {
     const io = captured();
-    const lost = "1 login inside the folders you ticked stayed on this computer: config/.netrc";
+    const lost = "1 file inside the folders you ticked stayed on this computer: config/.netrc";
     // Another session's add finishing on the same computer while this one runs: its done line is that project's,
     // so this add still says its own.
     const theirs = { type: "project.add", projectId: "pr_someone", computer: "p_1", stage: "done", message: "theirs is on spoo.", elapsedMs: 1 };

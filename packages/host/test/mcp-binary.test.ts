@@ -151,6 +151,19 @@ const GHOSTTY: Record<string, string> = {
 /** Folders a row's given made, which the case's end takes away. */
 const madeRepos: string[] = [];
 
+/** A folder project here named lab, ignoring a file of values, a config file and an install tree. */
+async function seedLab(rt: Runtime): Promise<void> {
+  const repo = mkdtempSync(join(tmpdir(), "wsp-seed-lab-"));
+  madeRepos.push(repo);
+  execFileSync("git", ["init", "-q", repo]);
+  writeFileSync(join(repo, ".gitignore"), ".env\nCLAUDE.local.md\nnode_modules/\n");
+  writeFileSync(join(repo, ".env"), "A=1\n");
+  writeFileSync(join(repo, "CLAUDE.local.md"), "notes\n");
+  mkdirSync(join(repo, "node_modules", "left-pad"), { recursive: true });
+  writeFileSync(join(repo, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
+  await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
+}
+
 const CALLED: readonly Called[] = [
   { tool: "computers", argv: ["computers"], arguments: {} },
   { tool: "computers_set", argv: ["computers", "set", "here", "--threads", "2"], arguments: { computer: "here", threads: 2 } },
@@ -180,21 +193,9 @@ const CALLED: readonly Called[] = [
     },
   },
   { tool: "projects_seed", argv: ["projects", "seed", "nowhere"], arguments: { project: "nowhere" }, refused: true },
-  {
-    tool: "projects_seed",
-    argv: ["projects", "seed", "lab", "--keep", ".env", "--yes"],
-    arguments: { project: "lab", keep: [".env"], confirm: true },
-    given: async rt => {
-      const repo = mkdtempSync(join(tmpdir(), "wsp-seed-lab-"));
-      madeRepos.push(repo);
-      execFileSync("git", ["init", "-q", repo]);
-      writeFileSync(join(repo, ".gitignore"), ".env\nnode_modules/\n");
-      writeFileSync(join(repo, ".env"), "A=1\n");
-      mkdirSync(join(repo, "node_modules", "left-pad"), { recursive: true });
-      writeFileSync(join(repo, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
-      await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
-    },
-  },
+  { tool: "projects_seed", argv: ["projects", "seed", "lab", "--keep", "CLAUDE.local.md", "--yes"], arguments: { project: "lab", keep: ["CLAUDE.local.md"], confirm: true }, given: async rt => seedLab(rt) },
+  // A sub-thread only runs on a provider, so a file of values is refused by name on both doors.
+  { tool: "projects_seed", argv: ["projects", "seed", "lab", "--keep", ".env"], arguments: { project: "lab", keep: [".env"] }, refused: true, given: async rt => seedLab(rt) },
   { tool: "threads", argv: ["threads"], arguments: {} },
   { tool: "setup", argv: ["setup"], arguments: {} },
   { tool: "terminal_config", argv: ["terminal", "config"], arguments: {}, text: "prose" },

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeMemoryDir, claudeProjectKey, defaultSeedChoice, type SeedFile, type SeedPlan } from "@wsp/protocol";
+import { claudeMemoryDir, claudeProjectKey, defaultSeedChoice, staysHereLine, type SeedFile, type SeedPlan } from "@wsp/protocol";
 import { afterAll, describe, expect, it } from "vitest";
 import { packSeed } from "../src/project-seed.js";
 
@@ -26,6 +26,11 @@ mkdirSync(join(folder, "config"), { recursive: true });
 writeFileSync(join(folder, "config", "app.json"), "{}\n");
 // A login inside a folder the person ticks, which the catalogue's logins row names wherever it sits.
 writeFileSync(join(folder, "config", ".netrc"), "machine github.com password x\n");
+// A folder holding a file of values and a key beside its configuration.
+mkdirSync(join(folder, "deploy"), { recursive: true });
+writeFileSync(join(folder, "deploy", "app.json"), "{}\n");
+writeFileSync(join(folder, "deploy", ".env"), "DATABASE_URL=postgres://localhost/dev\n");
+writeFileSync(join(folder, "deploy", "tls.key"), "not a real key\n");
 mkdirSync(join(folder, "linked"), { recursive: true });
 writeFileSync(join(folder, "linked", "own.txt"), "mine\n");
 // What a link would reach if one were followed: a file and a folder outside the project.
@@ -85,6 +90,21 @@ describe("the archive a folder seeds a project with", () => {
     expect(inside(packed.tar).sort()).toEqual(["config/app.json"]);
     expect(packed.left).toEqual(["config/.netrc"]);
     expect(packed.files).toBe(1);
+  });
+
+  it("sends a file of values and a key to a box, ticked or inside a ticked folder", async () => {
+    const plan: SeedPlan = { ...PLAN, files: [{ ...file(".env.local", "secret"), ticked: true }, file("deploy", "unknown", true)] };
+    const packed = await packSeed({ plan, choice: { files: [".env.local", "deploy"], memory: false, commits: false }, claudeStateHome: claude, run: fakeGit });
+    expect(inside(packed.tar).sort()).toEqual([".env.local", "deploy/.env", "deploy/app.json", "deploy/tls.key"]);
+    expect(packed.left).toEqual([]);
+  });
+
+  it("sends neither to a provider place: one named is refused, and one inside a ticked folder stays here and is named", async () => {
+    const plan: SeedPlan = { ...PLAN, provider: true, files: [{ ...file(".env.local", "secret"), ticked: true }, file("deploy", "unknown", true)] };
+    await expect(packSeed({ plan, choice: { files: [".env.local"], memory: false, commits: false }, claudeStateHome: claude, run: fakeGit })).rejects.toThrow(staysHereLine(".env.local"));
+    const packed = await packSeed({ plan, choice: { files: ["deploy"], memory: false, commits: false }, claudeStateHome: claude, run: fakeGit });
+    expect(inside(packed.tar).sort()).toEqual(["deploy/app.json"]);
+    expect(packed.left).toEqual(["deploy/.env", "deploy/tls.key"]);
   });
 
   it("follows no link out of the folder: a link is left behind, whatever it points at", async () => {

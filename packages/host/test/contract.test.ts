@@ -562,12 +562,12 @@ describe("the agent contract on the command line and the tool door", () => {
     // The fixture's agents keep no store of their own, so the project's list is empty and says no agent went unread.
     expect(await last("conversations", "conversations", "here")).toEqual({ rows: [], held: [] });
     // Its seed picks off git's own listing of what it ignores: nothing picked until saved, then the save.
-    writeFileSync(join(here, ".gitignore"), ".env\nnode_modules/\n");
-    writeFileSync(join(here, ".env"), "A=1\n");
+    writeFileSync(join(here, ".gitignore"), "CLAUDE.local.md\nnode_modules/\n");
+    writeFileSync(join(here, "CLAUDE.local.md"), "notes\n");
     mkdirSync(join(here, "node_modules", "left-pad"), { recursive: true });
     writeFileSync(join(here, "node_modules", "left-pad", "index.js"), "module.exports = 1;\n");
     expect(await last("projects seed", "projects", "seed", "here")).toMatchObject({ project: "here", folder: realpathSync(here), picked: { paths: [], bytes: 0 }, saved: false });
-    expect(await last("projects seed", "projects", "seed", "here", "--keep", ".env", "--yes")).toMatchObject({ picked: { paths: [".env"] }, saved: true });
+    expect(await last("projects seed", "projects", "seed", "here", "--keep", "CLAUDE.local.md", "--yes")).toMatchObject({ picked: { paths: ["CLAUDE.local.md"] }, saved: true });
     expect(await last("delete", "delete", inFolder.threadId, "--yes")).toEqual({ threadId: inFolder.threadId, workspaceId: expect.any(String), threads: 1 });
     // This computer's daemon lists one process a thread now gone started, which an End may take.
     procs.procs = [procRow({ pid: 4242, cmdline: "node watch.js", owner: { by: "env", thread: "t-gone", workspace: alpha } })];
@@ -741,8 +741,8 @@ describe("the agent contract on the command line and the tool door", () => {
     const here = join(dir, "seed-here");
     mkdirSync(here, { recursive: true });
     execFileSync("git", ["init", "-q", here]);
-    writeFileSync(join(here, ".gitignore"), ".env\n");
-    writeFileSync(join(here, ".env"), "A=1\n");
+    writeFileSync(join(here, ".gitignore"), "CLAUDE.local.md\n");
+    writeFileSync(join(here, "CLAUDE.local.md"), "notes\n");
     const project = await rt.projects.add({ source: here, name: "lab" });
     const made = await rt.workspaces.create({ project: project.id, name: "lab-lead" });
     const scope = { kind: "thread", threadId: "lab-lead-thread", workspaceId: made.id, rootThreadId: "lab-lead-thread" } as const;
@@ -752,17 +752,17 @@ describe("the agent contract on the command line and the tool door", () => {
       const code = await cli(argv, io, undefined, { [HOST_URL_ENV]: `http://127.0.0.1:${handle!.port}`, [HOST_TOKEN_ENV]: minted.deviceToken, HOME: join(dir, "agent"), WSP_HOME: join(dir, "agent", ".wsp") });
       return { code, io };
     };
-    const read = await asThread("projects", "seed", "lab", "--keep", ".env", "--json");
+    const read = await asThread("projects", "seed", "lab", "--keep", "CLAUDE.local.md", "--json");
     expect(read.code).toBe(0);
-    expect(objects(read.io).at(-1)).toMatchObject({ project: "lab", picked: { paths: [".env"] }, saved: false });
+    expect(objects(read.io).at(-1)).toMatchObject({ project: "lab", picked: { paths: ["CLAUDE.local.md"] }, saved: false });
     // The same picks as a terminal reads them: the head, the table with the pick marked, and nothing saved.
-    const text = await asThread("projects", "seed", "lab", "--keep", ".env");
+    const text = await asThread("projects", "seed", "lab", "--keep", "CLAUDE.local.md");
     const row = (objects(read.io).at(-1) as { rows: { bytes: number; why: string }[] }).rows[0]!;
     const size = fmtBytes(row.bytes).padEnd(4);
-    expect(text.io.lines).toEqual([`lab, ${realpathSync(here)}: what git ignores, and what goes to a sub-thread's machine.\n\n     PATH  ${"SIZE".padEnd(size.length)}  WHY\n  x  .env  ${size}  ${row.why}\n\n1 picked, ${fmtBytes(row.bytes)}. Nothing was saved; add --yes to save these picks.`]);
-    const save = await asThread("projects", "seed", "lab", "--keep", ".env", "--yes", "--json");
+    expect(text.io.lines).toEqual([`lab, ${realpathSync(here)}: what git ignores, and what goes to a sub-thread's machine.\n\n     ${"PATH".padEnd(15)}  ${"SIZE".padEnd(size.length)}  WHY\n  x  CLAUDE.local.md  ${size}  ${row.why}\n\n1 picked, ${fmtBytes(row.bytes)}. Nothing was saved; add --yes to save these picks.`]);
+    const save = await asThread("projects", "seed", "lab", "--keep", "CLAUDE.local.md", "--yes", "--json");
     expect(save.code).toBe(EXIT_CODES.usage);
-    expect(failure(save.io)).toEqual({ error: seedSaveRefusal("lab", { keep: [".env"] }).message, class: "usage", exit: EXIT_CODES.usage });
+    expect(failure(save.io)).toEqual({ error: seedSaveRefusal("lab", { keep: ["CLAUDE.local.md"] }).message, class: "usage", exit: EXIT_CODES.usage });
     expect((await rt.projects.seed("lab", {})).picked.paths).toEqual([]);
   });
 
