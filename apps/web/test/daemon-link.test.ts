@@ -56,7 +56,8 @@ describe("connectDaemonLink over the host's relay", () => {
     // The daemon's hello is the first thing on a fresh channel, so the pane knows the root before anything else.
     expect(events[0]).toMatchObject({ type: "daemon.hello" });
 
-    const created = await link.request("pty.create", { cols: 80, rows: 24, shell: "/bin/sh" });
+    // A folder this computer has: the one a stand-in fork's threads work in is a path inside a fork.
+    const created = await link.request("pty.create", { cols: 80, rows: 24, shell: "/bin/sh", cwd: tmpdir() });
     const ptyId = String(created["ptyId"]);
     await link.request("pty.attach", { ptyId });
     await link.request("pty.write", { ptyId, data: "echo link-mark-$((40 + 2))\r" });

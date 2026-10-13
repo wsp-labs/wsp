@@ -125,7 +125,8 @@ describe("daemon.open", () => {
     const second = String((await c.request("daemon.open", { workspaceId }))["channel"]);
     expect(second).not.toBe(first);
 
-    const created = await c.request("daemon.send", { channel: first, frame: { op: "pty.create", cols: 80, rows: 24, shell: "/bin/sh" } });
+    // A folder this computer has: the one a stand-in fork's threads work in is a path inside a fork.
+    const created = await c.request("daemon.send", { channel: first, frame: { op: "pty.create", cols: 80, rows: 24, shell: "/bin/sh", cwd: tmpdir() } });
     expect(created.ok).toBe(true);
     const ptyId = String((created["reply"] as Record<string, unknown>)["ptyId"]);
     await c.request("daemon.send", { channel: first, frame: { op: "pty.attach", ptyId } });
