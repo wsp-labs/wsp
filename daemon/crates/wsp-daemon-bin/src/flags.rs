@@ -174,6 +174,8 @@ impl Flags {
             readings_dir: self.readings_dir,
             readings_interval_ms: None,
             docker_notes: self.docker_notes,
+            // The daemon serves them only where it is a provider's machine's, which the kind and the place file say.
+            doors: Some(wsp_daemon::Doors::guest()),
         }
     }
 }
