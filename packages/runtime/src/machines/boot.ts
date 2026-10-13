@@ -505,11 +505,13 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         const unanswered = answers.filter(a => a.answer === "unreached").map(a => a.row);
         for (const row of unanswered) row.unanswered = true;
         if (unanswered.length > 0) askAgain(unanswered);
-        // The token of a turn cut here dies with it, as the boot's own pass below takes the tokens of turns not running.
+        // The token of a turn cut here dies with it, as the boot's own pass below takes the tokens of turns not running,
+        // and a shell still open on that thread keeps its own, as it does there.
         if (cut.size === 0) return;
+        const shells = await ctx.shellHeldDevices();
         for (const device of await deviceDoor.list()) {
           const thread = device.scope?.threadId;
-          if (thread !== undefined && cut.has(thread) && !ctx.threadRuns(thread)) await deviceDoor.revoke(device.id);
+          if (thread !== undefined && cut.has(thread) && !ctx.threadRuns(thread) && !shells.has(device.id)) await deviceDoor.revoke(device.id);
         }
       };
       /** A run its machine said nothing about is asked after again a link window on, for as long as its row runs here:
@@ -563,9 +565,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       }
       // A turn's token dies with the turn, and a host that went down under one never reached that exit: every scoped
       // device whose thread is not running now is taken away here, so a restart is not how a token outlives its turn.
+      // A shell's token lives as long as its shell, which outlives this host, so its end takes it away instead.
+      const shells = await ctx.shellHeldDevices();
       for (const device of await deviceDoor.list()) {
         const thread = device.scope?.threadId;
-        if (thread !== undefined && !ctx.threadRuns(thread)) await deviceDoor.revoke(device.id);
+        if (thread !== undefined && !ctx.threadRuns(thread) && !shells.has(device.id)) await deviceDoor.revoke(device.id);
       }
       await deviceDoor.revokeAsides();
       // Each start waits for its thread's workspace to settle its turns, so a line meets the turn re-opened there.
