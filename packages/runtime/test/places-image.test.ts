@@ -85,6 +85,8 @@ describe("the image build and the computer whose doctor said no, or that does no
 });
 
 describe("a computer joining a host that holds a sealed image", () => {
+  /** What each copy's recipe was composed for: a computer the person owns is no provider. */
+  const composedFor: { cloud: boolean }[] = [];
   /** A host that forks at a provider stub and composes the recipe a copy builds from; with `sealed`, its image is
    * sealed at that provider before anything joins. The key and the store are handed in for a host that comes back. */
   async function imageHost(o: { sealed: boolean; store?: Store; hostKey?: PlaceKeyPair; relinkWaitMs?: number }): Promise<{ hostKey: PlaceKeyPair; store: Store }> {
@@ -97,7 +99,10 @@ describe("a computer joining a host that holds a sealed image", () => {
       store,
       adapters: {},
       goldenRecipe: recipeWith(),
-      copyRecipe: () => COPY_RECIPE,
+      copyRecipe: (_image, at) => {
+        composedFor.push(at);
+        return COPY_RECIPE;
+      },
       hostId: "h1",
       places: wiredPlace("solari", backend),
       placeLinks: wiring(hostKey, { id: "solari", rateUsdPerHour: 0.11 }),
@@ -146,8 +151,10 @@ describe("a computer joining a host that holds a sealed image", () => {
     expect(linked.proved.ok, String(linked.proved["error"])).toBe(true);
     await settled();
     expect(place.asked["machine.create"]).toBeUndefined();
+    composedFor.length = 0;
     void ctx.runtime!.image.build({ place: placeId }).catch(() => undefined);
     await until(() => place.asked["machine.create"] === 1, 5000);
+    expect(composedFor).toEqual([{ cloud: false }]);
     expect(frames.some(f => f.place === placeId && f.stage === "creating")).toBe(true);
     // The fake computer runs no builder's setup, so the build stops there: the row says so in the seal's own
     // words, and the stopped build starts no second one on its own.

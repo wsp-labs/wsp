@@ -380,9 +380,10 @@ export function hostSeed(): SeedWiring {
 
 /** How a copy of the image is planned on this computer for a serving host: the same readers wsp init builds from,
  * the keys as they stand at the ask rather than at the start, and the daemon deploy every build made here gets. */
-function hostCopyRecipe(statePath: string): (image: SealedImage) => Promise<GoldenRecipe> {
-  return image =>
+function hostCopyRecipe(statePath: string): (image: SealedImage, at: { cloud: boolean }) => Promise<GoldenRecipe> {
+  return (image, at) =>
     copyGoldenRecipe(image, {
+      cloud: at.cloud,
       collect: () => collectThisComputer(() => {}),
       brew: () => readBrewTable(nodeHost()),
       home: homedir(),

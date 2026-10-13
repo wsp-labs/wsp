@@ -39,7 +39,8 @@ export const CONFIG_PATHS: Record<ConfigFiles, readonly string[]> = {
 
 /** Names inside a shell folder that are state rather than config: fish keeps its universal variables, secrets
  * among them, in fish_variables, and a plugin checked out under oh-my-zsh carries its own history. */
-const NEVER_NAMES = new Set(["fish_variables", ".git"]);
+export const FISH_VARIABLES = "fish_variables";
+const NEVER_NAMES = new Set([FISH_VARIABLES, ".git"]);
 
 /** A file past this is no config a shell reads and stays here. */
 const CONFIG_MAX_BYTES = 1024 * 1024;
@@ -75,9 +76,24 @@ export const GH_CREDENTIAL_HELPER = "!gh auth git-credential";
 
 const GIT_HEADER = /^\s*\[\s*([^\]\s"]+)(\s+"[^"]*")?\s*\]/;
 
+/** What a git config loses on its way: the sections that go whole, whether the keys a box's root git would run go
+ * too, and whether the gh helper is added always or only in place of a credential section that went. */
+export interface GitCuts {
+  sections: RegExp;
+  runs: boolean;
+  helper: "always" | "replacing";
+}
+
+const BOX_GIT_CUTS: GitCuts = { sections: GIT_DROPPED_SECTIONS, runs: true, helper: "always" };
+/** A provider's machine keeps the person's git as it is, less what holds or points at a credential: a credential
+ * helper, and a url rewrite, whose section name can carry a token. A config that loses nothing lands as it is. */
+export const CLOUD_GIT_CUTS: GitCuts = { sections: /^(credential|url)$/i, runs: false, helper: "replacing" };
+
 /** A git config with what never travels cut, and on the main file the gh credential helper added. */
-export function gitCut(text: string, main: boolean): string {
+export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS): string {
   const out: string[] = [];
+  let dropped = false;
+  let credential = false;
   let section = "";
   let named = false;
   let dropping = false;
@@ -91,27 +107,36 @@ export function gitCut(text: string, main: boolean): string {
     if (header !== null) {
       section = header[1]!.toLowerCase();
       named = header[2] !== undefined;
-      dropping = GIT_DROPPED_SECTIONS.test(section);
-      if (!dropping) out.push(line);
+      dropping = cuts.sections.test(section);
+      if (dropping && section === "credential") credential = true;
+      if (dropping) dropped = true;
+      else out.push(line);
       continue;
     }
     if (dropping) continue;
     const pair = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/.exec(line);
     const key = pair?.[1]?.toLowerCase();
-    if (key !== undefined) {
-      if (!named && GIT_DROPPED_KEYS.has(`${section}.${key}`)) continue;
-      // A secret never lands: a key named like one, a value shaped like a token, a URL carrying a login.
-      const value = pair?.[2] ?? "";
-      if (isSecretName(key) || (section === "sendemail" && key === "smtppass") || tokenShaped(value) || /[a-z][a-z0-9+.-]*:\/\/[^/\s@]+@/i.test(value)) continue;
-      if (named && (section === "diff" || section === "merge") && GIT_DRIVER_KEYS.has(key)) continue;
-      // An alias that starts with ! is a shell command.
-      if (section === "alias" && pair?.[2]?.trim().startsWith("!") === true) continue;
+    if (key !== undefined && gitKeyCut(section, named, key, pair?.[2] ?? "", cuts.runs)) {
+      dropped = true;
+      continue;
     }
     out.push(line);
   }
+  if (cuts.helper === "replacing" && !dropped) return text;
   while (out.length > 0 && out[out.length - 1]!.trim() === "") out.pop();
-  if (main) out.push("[credential]", `\thelper = ${GH_CREDENTIAL_HELPER}`);
+  if (main && (cuts.helper === "always" || credential)) out.push("[credential]", `\thelper = ${GH_CREDENTIAL_HELPER}`);
   return `${out.join("\n")}\n`;
+}
+
+/** Whether one key of a section that travels is cut: a secret always, a key git runs only where `runs` says. */
+function gitKeyCut(section: string, named: boolean, key: string, value: string, runs: boolean): boolean {
+  // A secret never lands: a key named like one, a value shaped like a token, a URL carrying a login.
+  if (isSecretName(key) || (section === "sendemail" && key === "smtppass") || tokenShaped(value) || /[a-z][a-z0-9+.-]*:\/\/[^/\s@]+@/i.test(value)) return true;
+  if (!runs) return false;
+  if (!named && GIT_DROPPED_KEYS.has(`${section}.${key}`)) return true;
+  if (named && (section === "diff" || section === "merge") && GIT_DRIVER_KEYS.has(key)) return true;
+  // An alias that starts with ! is a shell command.
+  return section === "alias" && value.trim().startsWith("!");
 }
 
 /** One file a config row lands: home-relative, with the bytes that land. */
