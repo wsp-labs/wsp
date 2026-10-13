@@ -434,6 +434,11 @@ pub fn fetch_branch_refused(branch: &str, said: &str) -> String {
     format!("{branch} was not fetched: {said}")
 }
 
+/// An op that carries a token on a daemon whose HTTP door is not bound: the proxy git would be pointed at is not
+/// this daemon's, so the token goes nowhere.
+pub const OP_TOKEN_NO_DOOR: &str = "an op token came, and this machine's HTTP door is not bound";
+/// An op that carries a token for a workspace on a computer, which keeps its own credentials.
+pub const OP_TOKEN_ON_A_COMPUTER: &str = "an op token came for a workspace on a computer";
 /// Why a merge from a copy's folder is refused anywhere but the computer both copies sit on.
 pub const MERGE_FROM_HERE_ONLY: &str =
     "a merge from a copy's folder runs only on the computer the copies sit on; merge from the remote here";

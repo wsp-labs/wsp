@@ -199,6 +199,11 @@ pub(crate) async fn serve(mut tcp: TcpStream, ctx: Arc<Ctx>) {
     if ws.send(text(&Reply::new(Some(auth.id), Empty {}))).await.is_err() {
         return;
     }
+    // A pipe hears nothing after its answer until the open, and never the hello. A daemon serving no doors answers it
+    // as the control socket a daemon before pipes made of it: the hello is how the host reads that it serves none.
+    if auth.pipe == Some(true) && ctx.options.serves_doors() {
+        return crate::pipe::park(ws, &ctx, auth.token).await;
+    }
     let (tx, rx) = mpsc::unbounded_channel();
     // The token this socket came in on is held: a rotation takes the sockets the old one opened, and one let in
     // on the new token in the same breath as the write stays.
