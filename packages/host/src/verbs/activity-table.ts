@@ -96,17 +96,18 @@ export function activityTable(view: ActivityView, o: { width: number; wide: bool
     cpu += figures.cpu;
     processes += procs.length;
   };
+  // Only a thread's agent has a stretch to fold, as on the page: an agent outside one stands as every process it runs as.
   if (view.wsp.length > 0) {
     // The daemon runs the binary of that name; the host, on the computer it runs on, is the other row of kind wsp. A
     // box runs no host, so a group with none is a box's.
     const daemon = view.wsp.find(p => p.kind === "wsp" && procBins(asEntry(p)).includes("wsp-daemon"))?.pid;
     const host = view.wsp.find(p => p.kind === "wsp" && p.pid !== daemon)?.pid;
     const note = host === undefined ? ACTIVITY_GROUP_WORDS.wspNoteBox : ACTIVITY_GROUP_WORDS.wspNote;
-    group(`${ACTIVITY_GROUP_WORDS.wsp}  ${note}`, sum(view.wsp), procRows(treeOf(view.wsp, fold), o.wide, { ...(daemon !== undefined ? { daemon } : {}), ...(host !== undefined ? { host } : {}) }));
+    group(`${ACTIVITY_GROUP_WORDS.wsp}  ${note}`, sum(view.wsp), procRows(treeOf(view.wsp, false), o.wide, { ...(daemon !== undefined ? { daemon } : {}), ...(host !== undefined ? { host } : {}) }));
   }
   const threads = [...view.threads].sort((a, b) => b.memory - a.memory || a.threadId.localeCompare(b.threadId));
   for (const t of threads) group(t.title, { mem: t.memory, cpu: t.cpu }, procRows(treeOf(t.processes, fold), o.wide, {}));
-  if (view.unowned.length > 0) group(`${ACTIVITY_GROUP_WORDS.loose}  ${ACTIVITY_GROUP_WORDS.looseNote}`, sum(view.unowned), procRows(treeOf(view.unowned, fold), o.wide, {}));
+  if (view.unowned.length > 0) group(`${ACTIVITY_GROUP_WORDS.loose}  ${ACTIVITY_GROUP_WORDS.looseNote}`, sum(view.unowned), procRows(treeOf(view.unowned, false), o.wide, {}));
   if (rows.length === 0) return `no thread runs a process on ${view.computer}`;
 
   const totals = [view.computer, `${ACTIVITY_GROUP_WORDS.wsp} ${fmtBytes(mem)}`, `CPU ${Math.round(cpu)}%`, `${processes} ${processes === 1 ? "process" : "processes"}`, `${threads.length} ${threads.length === 1 ? "thread" : "threads"}`].join("   ");
