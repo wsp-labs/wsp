@@ -96,6 +96,8 @@ describe.skipIf(renderSkipped !== undefined)("the composer's tray, placeholder, 
 
   it("with the panel launcher open, a word typed with the transcript focused lands in the box and opens no panel, and the launcher's letters still answer inside the panel", async () => {
     const page = await open("dark", 1440);
+    // A thread's pane opens shut, so the launcher shows only once the person opens the panel.
+    await page.getByRole("button", { name: /^Toggle right panel/ }).click();
     await page.waitForSelector("text=Open a panel");
     await page.locator(".chat-markdown").first().click();
     // T opens the Terminal from the launcher; here it is the first letter of a message.
