@@ -14,6 +14,8 @@ import {
   vaultUnlistedRefusal,
   COPY_BUILD_FIX,
   copyAsksSignIns,
+  imageHeldSignInsLine,
+  imageRebuildFix,
   refusal,
   buildsImages,
   copyIsCurrent,
@@ -177,14 +179,16 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
    * hash. Called once every refusal has passed and only while no build for the same place and name is in flight. */
   const buildCopy = async (o: { place: string; where: string; at: MachineBackend; name: string; record: SealedImage; signal?: AbortSignal }): Promise<SealedImageBuilt> => {
     const { place, where, at, name, record } = o;
+    // A provider's machine never holds a sign-in, whatever the record it is copied from holds.
+    const vault = ctx.placeKindOf(place) === "provider" ? undefined : record.vault;
     // Read before the blob and before a builder is asked for: a record with no path list cannot have its archive
     // judged anywhere, and an archive carrying a member the seal never asked for boots nothing here.
-    if (record.vault !== undefined && record.vault.held === undefined) throw conflict(vaultUnlistedRefusal(name, record.version));
-    const tar = record.vault === undefined ? undefined : await store.getBlob(IMAGE_VAULTS, vaultKey(name, record.version));
-    if (record.vault !== undefined && tar === undefined) throw conflict(`the vault of ${name} v${record.version} is not on this computer any more; cut the next version to take it again`);
-    if (tar !== undefined && record.vault?.held !== undefined) {
+    if (vault !== undefined && vault.held === undefined) throw conflict(vaultUnlistedRefusal(name, record.version));
+    const tar = vault === undefined ? undefined : await store.getBlob(IMAGE_VAULTS, vaultKey(name, record.version));
+    if (vault !== undefined && tar === undefined) throw conflict(`the vault of ${name} v${record.version} is not on this computer any more; cut the next version to take it again`);
+    if (tar !== undefined && vault?.held !== undefined) {
       try {
-        refuseForeignMembers("import", tar, record.vault.held);
+        refuseForeignMembers("import", tar, vault.held);
       } catch (e) {
         throw conflict(e instanceof Error ? e.message : String(e));
       }
@@ -223,12 +227,44 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
     return undefined;
   };
 
+  /** The record a version is a copy of: the one whose hash it was built at, else the one whose own place lists it,
+   * else the one image this host owns. */
+  const recordOfVersion = async (records: readonly SealedImage[], version: GoldenVersion | undefined): Promise<SealedImage | undefined> => {
+    if (version !== undefined) {
+      const built = records.find(r => version.imageHash !== undefined && version.imageHash === r.hash);
+      if (built !== undefined) return built;
+      for (const r of records) if ((await ctx.copyOf(r.place ?? places.wired, r.name))?.versions.some(v => v.snapshotId === version.snapshotId)) return r;
+    }
+    return records.length === 1 ? records[0] : undefined;
+  };
+
+  /** A fork at a provider boots only a version a provider's seal marked, or a project image taken from one: any other
+   * may hold sign-ins. The refusal names the place the image was sealed at, where a rebuild clears it. A snapshot that
+   * no manifest and no project image names is not one wsp sealed, and a host that owns no image record holds only
+   * images from before records; neither is judged. */
+  const refuseHeldSignIns = async (snapshot: string, place: string): Promise<void> => {
+    const records = (await store.list(IMAGES)) as SealedImage[];
+    if (records.length === 0) return;
+    const { version, projects } = await ctx.imageOf(snapshot);
+    if (version?.noSecrets === true || (version === undefined && projects === undefined)) return;
+    const record = await recordOfVersion(records, version);
+    const home = record === undefined ? place : (record.place ?? places.wired);
+    throw refusal(imageHeldSignInsLine(ctx.placeName(home)), imageRebuildFix(home), "conflict");
+  };
+
   /** The snapshot a fork names at the place it lands on. A place that is not the image's own forks its own copy: the
    * one a build running there seals, which the create waits for, or the one standing there on the record. A caller
    * that can say so before anything bills has a place holding no current copy build one first, through the same
-   * build a press starts; everywhere else the snapshot asked for goes through as it is. */
+   * build a press starts; everywhere else the snapshot asked for goes through as it is. At a provider the snapshot
+   * picked is refused unless a provider's seal marked it. */
   const copyForFork = async (golden: string, placeId: string | undefined, announce?: (where: string, rateUsdPerHour: number) => void): Promise<string> => {
     const place = placeId ?? places.wired;
+    const snapshot = await snapshotForFork(golden, place, announce);
+    if (ctx.placeKindOf(place) === "provider") await refuseHeldSignIns(snapshot, place);
+    return snapshot;
+  };
+
+  const snapshotForFork = async (golden: string, place: string, announce?: (where: string, rateUsdPerHour: number) => void): Promise<string> => {
     const name = await imageHeadNamed(golden);
     if (name === undefined || place === (await ctx.imagePlace(name))) return golden;
     if (announce === undefined) {

@@ -2,7 +2,7 @@
 // Where each tool's login lives on the machine: every row that has one names
 // it, the paths are home-relative, and the reader turns them into guest paths.
 import { describe, expect, it } from "vitest";
-import { CATALOG, CATALOG_AGENTS, GUEST_HOME, LOGIN_PATHS, NEVER_IN_IMAGE, NO_SIGN_IN, SHARED_LOGINS, SIGN_IN_ROWS, VAULT_VARIABLES, catalogEntry, hasLogin, keyEnvOf, livesOnComputer, loginHomeIn, loginSignIn, loginStatePaths, mintsToken, sharedLoginOf, sharesIn, tokenIn, type SignIn } from "../src/index.js";
+import { CATALOG, CATALOG_AGENTS, GH_LOGIN_PATHS, GUEST_HOME, LOGIN_PATHS, NEVER_IN_IMAGE, NEVER_ON_BROKERED, NO_SIGN_IN, SHARED_LOGINS, SIGN_IN_ROWS, VAULT_VARIABLES, catalogEntry, hasLogin, keyEnvOf, livesOnComputer, loginHomeIn, loginSignIn, loginStatePaths, mintsToken, sharedLoginOf, sharesIn, tokenIn, type SignIn } from "../src/index.js";
 
 describe("sign-in state on the machine", () => {
   it("every row with a login or a source names at least one path, home-relative and with no ..", () => {
@@ -100,6 +100,13 @@ describe("the token sign-in and the vault", () => {
     expect(new Set(LOGIN_PATHS)).toEqual(new Set([...NEVER_IN_IMAGE, ...rows, "/etc/profile.d/wsp-secrets.sh", "/etc/fish/conf.d/wsp-secrets.fish"]));
     expect(LOGIN_PATHS).toHaveLength(new Set(LOGIN_PATHS).size);
     expect(LOGIN_PATHS).toEqual(expect.arrayContaining([`${GUEST_HOME}/.config/gh/hosts.yml`, `${GUEST_HOME}/.config/gcloud`, `${GUEST_HOME}/.aws`, `${GUEST_HOME}/.hermes/.env`]));
+  });
+
+  it("what a provider's machine is never sealed holding is every login path, Claude's own files, a Codex login, MCP servers' OAuth tokens and git's stored passwords, each once", () => {
+    expect(new Set(NEVER_ON_BROKERED)).toEqual(new Set([...LOGIN_PATHS, "/root/.mcp-auth", "/root/.git-credentials"]));
+    expect(NEVER_ON_BROKERED).toHaveLength(new Set(NEVER_ON_BROKERED).size);
+    expect(NEVER_ON_BROKERED).toEqual(expect.arrayContaining(["/root/.claude-cfg/.credentials.json", "/root/.claude-cfg/anthropic-api-key", "/root/.codex/auth.json", "/etc/profile.d/wsp-secrets.sh", "/etc/fish/conf.d/wsp-secrets.fish"]));
+    expect(GH_LOGIN_PATHS).toEqual(["/root/.config/gh/hosts.yml"]);
   });
 });
 

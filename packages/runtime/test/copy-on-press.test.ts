@@ -7,7 +7,7 @@
 // the default when nothing is marked.
 import { describe, expect, it } from "vitest";
 import { NoProviderBackend, type MachineSpec } from "@wsp/engine";
-import { COPY_BUILD_FIX, HERE_PLACE_ID, copyStoppedLine, type GoldenStageEvent, type PlaceView } from "@wsp/protocol";
+import { HERE_PLACE_ID, copyStoppedLine, imageHeldSignInsLine, imageRebuildFix, refusalLine, type GoldenStageEvent, type PlaceView } from "@wsp/protocol";
 import { copyKey, createRuntime, type PlaceBackends } from "../src/runtime.js";
 import { goldenHead } from "../src/index.js";
 import { PlaceProvisioningError, newPlaceKeyPair, type PlaceWiring } from "../src/places.js";
@@ -65,6 +65,27 @@ function providers() {
   };
   const head = async (): Promise<string> => goldenHead(await rt.golden.get())!.snapshotId;
   return { fake, solari, box, rt, store, composed, frames, sent, row, marked, current, seal, head };
+}
+
+/** What a host before the mark left: no mark on the record or on any version, or on the one version named, and with
+ * every version the record and its copies under a hash the next seal will not have, since such a record held a vault. */
+async function unmarked(store: ReturnType<typeof memoryStore>, snapshotId?: string): Promise<void> {
+  const old = "e".repeat(64);
+  if (snapshotId === undefined) {
+    const record = (await store.get("images", "default")) as Record<string, unknown>;
+    delete record["noSecrets"];
+    record["hash"] = old;
+    await store.put("images", "default", record);
+  }
+  for (const key of await store.keys("goldens")) {
+    const manifest = (await store.get("goldens", key)) as { versions: Record<string, unknown>[] };
+    for (const v of manifest.versions) {
+      if (snapshotId !== undefined && v["snapshotId"] !== snapshotId) continue;
+      delete v["noSecrets"];
+      if (snapshotId === undefined) v["imageHash"] = old;
+    }
+    await store.put("goldens", key, manifest);
+  }
 }
 
 /** Holds a stub's creates until released: a build blocked on its first machine, so what happens beside it is read
@@ -351,16 +372,58 @@ describe("a fork at a place that holds no copy of the image", () => {
     await rt.close();
   });
 
-  it("a record holding no sign-ins is refused at the fork as the build refuses it, never forced, and nothing is said about a build", async () => {
+  it("a fork at a provider of an image sealed before the mark is refused naming the place it was sealed at, at that place and at a copy elsewhere, and a rebuild there clears both", async () => {
+    const { fake, box, rt, store, seal, head } = providers();
+    await seal();
+    await rt.image.build({ place: "box" });
+    await unmarked(store);
+    const machines = [fake.machines.length, box.machines.length];
+    const line = refusalLine(imageHeldSignInsLine("fake"), imageRebuildFix("fake"));
+    for (const on of ["fake", "box"]) {
+      await expect(createOn(rt, { golden: await head(), name: `x-${on}`, on })).rejects.toMatchObject({ kind: "conflict", message: line, fix: imageRebuildFix("fake") });
+    }
+    expect([fake.machines.length, box.machines.length]).toEqual(machines);
+    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. Rebuild it: wsp init --on boat --rebuild.");
+    // The rebuild at the image's own place marks the record and its version; the copy on Boat reads stale against the
+    // new hash and is built again, clean, before the fork there.
+    await seal();
+    expect(((await store.get("images", "default")) as { noSecrets?: boolean }).noSecrets).toBe(true);
+    await createOn(rt, { golden: await head(), name: "y-fake", on: "fake" });
+    const made = await createOn(rt, { golden: await head(), name: "y-box", on: "box" });
+    const copy = goldenHead((await store.get("goldens", copyKey("box", "default"))) as never)!;
+    expect(copy).toMatchObject({ noSecrets: true, snapshotId: made.golden });
+    await rt.close();
+  });
+
+  it("a fork at a provider of a project image is refused unless the version it was taken from carries the mark, and so is a fork of an older version", async () => {
+    const { rt, store, seal, head } = providers();
+    await seal();
+    const root = await head();
+    const project = (snapshotId: string, golden: string) => ({ snapshotId, projects: [], golden, version: 1, workspaceId: "ws_p", workspaceName: "p", createdAt: "2026-10-13T00:00:00.000Z", place: "fake" });
+    await store.put("project-goldens", "snap_proj", project("snap_proj", root));
+    await store.put("project-goldens", "snap_orphan", project("snap_orphan", "snap_gone"));
+    expect((await createOn(rt, { golden: "snap_proj", name: "p1", on: "fake" })).golden).toBe("snap_proj");
+    const line = refusalLine(imageHeldSignInsLine("fake"), imageRebuildFix("fake"));
+    // A project image whose root no manifest knows any more cannot be judged, so it is not booted.
+    await expect(createOn(rt, { golden: "snap_orphan", name: "p2", on: "fake" })).rejects.toMatchObject({ message: line });
+    // The version under the project image was sealed before the mark; so was the older version a fork names.
+    await seal();
+    await unmarked(store, root);
+    await expect(createOn(rt, { golden: "snap_proj", name: "p3", on: "fake" })).rejects.toMatchObject({ kind: "conflict", message: line });
+    await expect(createOn(rt, { golden: root, name: "p4", on: "fake" })).rejects.toMatchObject({ kind: "conflict", message: line });
+    // The head the second seal marked still forks.
+    await createOn(rt, { golden: await head(), name: "p5", on: "fake" });
+    await rt.close();
+  });
+
+  it("a record sealed at a provider holds no vault and still copies with no force, since nothing is missing from it", async () => {
     const { box, rt, store, seal, head } = providers();
     await seal();
     const record = (await store.get("images", "default")) as Record<string, unknown>;
-    delete record["vault"];
-    await store.put("images", "default", record);
-    const lines = said(rt);
-    await expect(createOn(rt, { golden: await head(), name: "x", on: "box" })).rejects.toMatchObject({ message: expect.stringContaining("holds no sign-ins"), fix: COPY_BUILD_FIX.noVault });
-    expect(box.snapshots).toHaveLength(0);
-    expect(lines.filter(l => l.name === "x").some(l => l.message.includes("building your image"))).toBe(false);
+    expect(record["vault"]).toBeUndefined();
+    const made = await createOn(rt, { golden: await head(), name: "x", on: "box" });
+    expect(made.golden).toBe((await rt.image.get()).copies.find(c => c.place === "box")!.snapshotId);
+    expect(box.snapshots).toHaveLength(1);
     await rt.close();
   });
 
