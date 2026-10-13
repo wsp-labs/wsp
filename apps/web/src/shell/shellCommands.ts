@@ -44,7 +44,7 @@ import { getTerminals, type OpenOpts, type WorkspaceTerminals } from "../termina
 import { stateKeyOf } from "../stateKey.js";
 import { openNewThread } from "./NewThreadPicks.js";
 import { openThreadFind, stepThreadFind } from "../components/chat/find/store.js";
-import { requestComposerFocus } from "./shellRequests.js";
+import { requestClosePanelTab, requestComposerFocus } from "./shellRequests.js";
 import { recentThreads, useThreadHistory } from "./threadHistory.js";
 import { highlightedTarget, stepSwitcherAt, useWorkspaceSwitcher } from "./workspaceSwitcher.js";
 
@@ -353,6 +353,9 @@ export function runShellCommand(command: KeybindingCommand, target: ShellCommand
       return;
     case "rightPanel.previousTab":
       stepPanelTab(workspaceOrHere(workspaceId), -1);
+      return;
+    case "rightPanel.closeTab":
+      requestClosePanelTab();
       return;
     case "preview.toggle":
       if (workspaceId && !useStore.getState().settingsOpen) useRightPanelStore.getState().toggle(workspaceId, "preview");

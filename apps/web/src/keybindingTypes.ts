@@ -26,6 +26,7 @@ export const KEYBINDING_COMMANDS = [
   "rightPanel.toggle",
   "rightPanel.nextTab",
   "rightPanel.previousTab",
+  "rightPanel.closeTab",
   "preview.toggle",
   "commandPalette.toggle",
   "files.quickOpen",
