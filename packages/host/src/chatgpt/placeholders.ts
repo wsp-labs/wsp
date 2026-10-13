@@ -2,7 +2,7 @@
 // The tokens a brokered Codex holds instead of a login. Codex reads the JWTs' claims and never checks a signature
 // (codex login/src/auth/token_data.rs), so the real account, plan, user and FedRAMP claims ride unsigned beside the
 // turn token, and the host reads the turn back on every request.
-import type { CodexClaims } from "./types.js";
+import type { CodexClaims } from "@wsp/runtime";
 
 export const TURN_CLAIM = "https://wsp.dev/turn";
 const AUTH_CLAIM = "https://api.openai.com/auth";

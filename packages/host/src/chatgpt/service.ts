@@ -7,9 +7,10 @@
 // codex-mcp/src/mcp/mod.rs).
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
+import type { PipeDoor } from "@wsp/protocol";
 import { outgoingHeaders, passHttp, passUpgrade, responseOn, type Sentences, type Target } from "./forward.js";
 import { codexPlaceholders, turnOfRefreshToken } from "./placeholders.js";
-import type { BrokerContext, BrokerRequest, BrokerService, ChatgptCredential, Door, OpenaiCredential } from "./types.js";
+import type { BrokerContext, BrokerRequest, BrokerService, ChatgptCredential, OpenaiCredential } from "./types.js";
 
 const CHATGPT_ORIGIN = "https://chatgpt.com";
 const OPENAI_BASE = "https://api.openai.com/v1";
@@ -163,7 +164,7 @@ export function chatgptService(opts: { dial?: (url: URL) => URL; now?: () => num
   const routed = (req: IncomingMessage, cred: ChatgptCredential) => target(req, origins.get(cred.accountId) ?? CHATGPT_ORIGIN);
   return {
     id: "chatgpt",
-    claims(req: IncomingMessage, door: Door, agent) {
+    claims(req: IncomingMessage, door: PipeDoor, agent) {
       if (door !== "http" || agent !== "codex") return false;
       const path = pathOf(req);
       return path.startsWith(BACKEND) || path === TOKEN_PATH || path === REVOKE_PATH;
@@ -196,7 +197,7 @@ export function chatgptService(opts: { dial?: (url: URL) => URL; now?: () => num
 export function openaiService(): BrokerService {
   return {
     id: "openai",
-    claims(req: IncomingMessage, door: Door, agent) {
+    claims(req: IncomingMessage, door: PipeDoor, agent) {
       return door === "http" && agent === "codex" && pathOf(req).startsWith(V1);
     },
     async serve(r, ctx) {
