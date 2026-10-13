@@ -37,6 +37,18 @@ export function onNewThreadRequest(listener: (detail: NewThreadRequest) => void)
   return () => window.removeEventListener(NEW_THREAD_EVENT, handler);
 }
 
+const CLOSE_PANEL_TAB_EVENT = "wsp:close-panel-tab";
+
+/** Asks the right panel on screen to close its open tab; the panel answers, since how a tab closes is its pane's. */
+export function requestClosePanelTab(): void {
+  window.dispatchEvent(new CustomEvent(CLOSE_PANEL_TAB_EVENT));
+}
+
+export function onClosePanelTabRequest(listener: () => void): () => void {
+  window.addEventListener(CLOSE_PANEL_TAB_EVENT, listener);
+  return () => window.removeEventListener(CLOSE_PANEL_TAB_EVENT, listener);
+}
+
 const FORK_EVENT = "wsp:fork";
 
 /** What Fork from here asks the fork dialog for: the thread and the message's pick, and the folder a new branch is named

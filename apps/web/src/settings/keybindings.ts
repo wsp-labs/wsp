@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Settings > Keybindings: one line per default rule, the label at the left
 // and the chord's keycaps at the right, worded per platform, a command with
-// two chords showing both, and the three keys that are not rules under them.
+// two chords showing both, and the keys that are not rules under them.
 // A rule whose chord a browser tab keeps for itself is not drawn in a tab.
 // A command's keycaps are the button that changes its chord, the person's own
 // chord replacing all of its defaults; the nine jumps share a line one chord
@@ -19,7 +19,7 @@ import type { SettingsCardData, SettingsLineData } from "./rows.js";
 import type { SettingsContext } from "./settingsContext.js";
 
 /** The cards, each the commands it lists in the order they are read. */
-const SHELL: readonly KeybindingCommand[] = ["commandPalette.toggle", "files.quickOpen", "files.search", "settings.toggle", "sidebar.toggle", "terminal.toggle", "rightPanel.toggle", "rightPanel.nextTab", "rightPanel.previousTab", "preview.toggle"];
+const SHELL: readonly KeybindingCommand[] = ["commandPalette.toggle", "files.quickOpen", "files.search", "settings.toggle", "sidebar.toggle", "terminal.toggle", "rightPanel.toggle", "rightPanel.nextTab", "rightPanel.previousTab", "rightPanel.closeTab", "preview.toggle"];
 const WORK: readonly KeybindingCommand[] = ["chat.new", "workspace.next", "workspace.previous", "thread.next", "thread.previous", "thread.settle", "thread.nextNeedsYou", "thread.find", "thread.findOlder", "thread.findNewer", "editor.open", workspaceSelectCommand(WORKSPACE_SELECT_SLOTS[0])];
 const TERMINAL: readonly KeybindingCommand[] = ["terminal.split", "terminal.new", "terminal.zoomIn", "terminal.zoomOut", "terminal.zoomReset"];
 
@@ -66,15 +66,18 @@ function linesOf(rules: ReadonlyArray<KeybindingRule>, commands: readonly Keybin
   });
 }
 
-/** The three keys that are not rules, in the platform's own spelling of the chords among them; the send is the key
- * the person picked on General. */
+/** The keys that are not rules, in the platform's own spelling of the chords among them; the send is the key the
+ * person picked on General. The window closes on the desktop shell's own chord, which a browser tab never sees. */
 function fixedLines(read: KeybindingsRead, sendWith: SendKey): SettingsLineData[] {
   const submit = parseKeybindingShortcut("mod+enter");
   const modEnter = submit === null ? "Enter" : formatShortcutLabel(submit, read.platform);
+  const shiftW = parseKeybindingShortcut("mod+shift+w");
+  const closeWindow = read.desktopShell && shiftW !== null ? formatShortcutLabel(shiftW, read.platform) : null;
   return [
     { kind: "line", id: "send", label: KEYBINDINGS_WORDS.sendMessage, keys: [[sendWith === "mod-enter" ? modEnter : "Enter"]] },
     { kind: "line", id: "submit-comment", label: KEYBINDINGS_WORDS.submitComment, keys: [[modEnter]] },
     { kind: "line", id: "leave-settings", label: KEYBINDINGS_WORDS.leaveSettings, keys: [["Esc"]] },
+    ...(closeWindow === null ? [] : [{ kind: "line" as const, id: "close-window", label: KEYBINDINGS_WORDS.closeWindow, keys: [[closeWindow]] }]),
   ];
 }
 

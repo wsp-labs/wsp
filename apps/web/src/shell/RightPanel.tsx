@@ -30,9 +30,10 @@ import { PANE_KINDS, paneOf, type PaneContext, type RightPanelKind } from "../pa
 import { isOpenable, selectPanelBrowserTabIds, useRightPanelStore, type RightPanelSurface, type WorkspaceRightPanelState } from "../rightPanelStore.js";
 import { useShallow } from "zustand/react/shallow";
 import { HERE_KEY } from "../terminal/computer.js";
+import { focusPanelSurface } from "../lib/panelFocus.js";
 import { getTerminals } from "../terminal/link.js";
 import { openPanelTerminal } from "./shellCommands.js";
-import { onComposerFocusAsked } from "./shellRequests.js";
+import { onClosePanelTabRequest, onComposerFocusAsked } from "./shellRequests.js";
 import { useTerminalSurfaces, WorkspaceTerminalPanel } from "../components/WorkspaceTerminalPanel.js";
 import { AsideSurface } from "../components/chat/AsideSurface.js";
 import { useAside, useAsideStore } from "../components/chat/asideStore.js";
@@ -88,6 +89,12 @@ const PANE_VIEWS: { readonly [K in RightPanelKind]: PaneView<K> } = {
 };
 const viewOf = (kind: RightPanelKind): PaneView<RightPanelKind> => PANE_VIEWS[kind] as PaneView<RightPanelKind>;
 
+function closeTab(workspaceId: string, surface: RightPanelSurface): void {
+  const closes = viewOf(surface.kind).close;
+  if (closes) closes(workspaceId, surface);
+  else useRightPanelStore.getState().closeSurface(workspaceId, surface.id);
+}
+
 function AsidePane({ workspaceId }: { workspaceId: string }) {
   const aside = useAside(workspaceId);
   if (aside === null) return null;
@@ -116,7 +123,6 @@ export function RightPanel({
   const theme = useAppDark() ? "dark" : "light";
   const open = useRightPanelStore(s => s.open);
   const activateSurface = useRightPanelStore(s => s.activateSurface);
-  const closeSurface = useRightPanelStore(s => s.closeSurface);
   const close = useRightPanelStore(s => s.close);
   const terminalLabelsById = useTerminalSurfaces(workspaceId);
   const active = state.surfaces.find(surface => surface.id === state.activeSurfaceId) ?? null;
@@ -130,6 +136,16 @@ export function RightPanel({
   }, [pruneBrowserTabs, workspaceId, openBrowserTabIds]);
   // A narrow window's sheet stands over the composer, so a road to the caret there has to take the sheet away.
   useEffect(() => (mode === "sheet" && !hidden ? onComposerFocusAsked(workspaceId, () => close(workspaceId)) : undefined), [mode, hidden, workspaceId, close]);
+  // The focus goes into the tab that takes the closed one's place, so the next press closes that one.
+  useEffect(
+    () =>
+      onClosePanelTabRequest(() => {
+        if (active === null) return;
+        closeTab(workspaceId, active);
+        focusPanelSurface();
+      }),
+    [workspaceId, active],
+  );
 
   const pr = useStatus(here ? null : workspaceId)?.pr;
   const threadId = useSelectedThreadId();
@@ -153,11 +169,7 @@ export function RightPanel({
       previewSessions={previewSessions}
       terminalLabelsById={terminalLabelsById}
       onActivate={surface => activateSurface(workspaceId, surface.id)}
-      onCloseSurface={surface => {
-        const closes = viewOf(surface.kind).close;
-        if (closes) closes(workspaceId, surface);
-        else closeSurface(workspaceId, surface.id);
-      }}
+      onCloseSurface={surface => closeTab(workspaceId, surface)}
       onAdd={kind => {
         const opens = viewOf(kind).open;
         if (opens) opens(workspaceId);

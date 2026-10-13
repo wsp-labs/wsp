@@ -9,6 +9,7 @@ import { BrowserWindow, Menu, Notification, Tray, app, crashReporter, dialog, ip
 import { APP_LOG, openAppLog, rendererReport } from "./app-log.js";
 import { appProcLabels, pagesOf } from "./app-procs.js";
 import { awakeWanted } from "./awake.js";
+import { closeChordOf } from "./close.js";
 import { chooseFrom, contextMenuTemplate, parseContextMenuItems } from "./context-menu.js";
 import { deepLinks, linkInArgv } from "./deep-link.js";
 import { fontDirs, fontFamilies, indexFonts, localFontFaces, type FontFile } from "./fonts.js";
@@ -21,6 +22,7 @@ import { noticeWindowOf, sayOutside, showBadge, type Notifier } from "./needs-yo
 import { allowed, fromAppPage, fromOnboardingPage, hostsViewFor, notForThisPage } from "./origin.js";
 import { hostFeed, type FeedEvent, type FeedState, type HostFeed } from "./host-feed.js";
 import { guardWorkers, loadHostPage } from "./page-session.js";
+import { shellMenu } from "./menu.js";
 import { pagePreviews } from "./previews.js";
 import { QUIT_WORD, quitAnswer, quitChoice, quitPrompt } from "./quit.js";
 import { RELOADS_PER_MINUTE, reloadAfter, reloadPacer } from "./revive.js";
@@ -288,6 +290,7 @@ const guestShell = (page: BrowserWindow): GuestShell => ({
     return (await dialog.showMessageBox(page, { type: "question", message: message(url), detail, buttons: [open, cancel], defaultId: 1, cancelId: 1 })).response === 0;
   },
   openOutside: url => void shell.openExternal(url),
+  close: (chord, press) => (chord === "window" ? page.close() : page.webContents.send("shell:chord", press)),
 });
 
 function holdGuests(page: BrowserWindow, guests: GuestShell): void {
@@ -367,33 +370,26 @@ answer("hosts:switch", async (_event, alias) => {
 if (!setsMenu(process.platform)) Menu.setApplicationMenu(null);
 
 /** The shell's own menu bar: the platform's rows by their roles, and Hosts, drawn from the same list the sidebar's
- * foot draws its menu from. Rebuilt whenever the list or the current host moves, since a native menu is a copy. */
+ * foot draws its menu from once the app window has a host to switch from. Rebuilt whenever the list or the current
+ * host moves, since a native menu is a copy. */
 function refreshMenu(): void {
+  if (!setsMenu(process.platform)) return;
   const hostsHeld = switcher;
-  if (hostsHeld === undefined || !setsMenu(process.platform)) return;
-  const hosts = contextMenuTemplate(hostsMenuItems(hostsHeld.view()), id => {
-    const action = hostMenuAction(id);
-    if (action === undefined) return;
-    void hostsHeld.to(action.alias).then(answer => {
-      if (!answer.ok) io.error(answer.error);
-      refreshMenu();
-    });
-  });
+  const hosts =
+    hostsHeld === undefined
+      ? undefined
+      : contextMenuTemplate(hostsMenuItems(hostsHeld.view()), id => {
+          const action = hostMenuAction(id);
+          if (action === undefined) return;
+          void hostsHeld.to(action.alias).then(answer => {
+            if (!answer.ok) io.error(answer.error);
+            refreshMenu();
+          });
+        });
   // Quit is the one row drawn by hand: it asks whether to stop wsp too. Every other road out of the app, a signal, an
   // update, the last window closing, quits with nothing asked and leaves wsp running.
   const quit: Electron.MenuItemConstructorOptions = { label: QUIT_WORD, accelerator: "CmdOrCtrl+Q", click: () => void askQuit() };
-  const template: Electron.MenuItemConstructorOptions[] = [
-    ...(process.platform === "darwin"
-      ? [
-          { label: app.name, submenu: [{ role: "about" as const }, { type: "separator" as const }, { role: "services" as const }, { type: "separator" as const }, { role: "hide" as const }, { role: "hideOthers" as const }, { role: "unhide" as const }, { type: "separator" as const }, quit] },
-          { role: "fileMenu" as const },
-        ]
-      : [{ label: "File", submenu: [quit] }]),
-    { role: "editMenu" },
-    { role: "viewMenu" },
-    { label: HOST_WORDS.hosts, submenu: hosts },
-    { role: "windowMenu" },
-  ];
+  const template = shellMenu(process.platform, { appName: app.name, quit, ...(hosts === undefined ? {} : { hosts: { label: HOST_WORDS.hosts, submenu: hosts } }) });
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
@@ -466,7 +462,13 @@ async function showApp(on: HostSession): Promise<void> {
   const contentsId = page.webContents.id;
   // The menu's zoom rows are registered chords, so the page never receives them; while a terminal has focus they mean
   // that pane's text size, so the window's zoom stands aside and the press goes to the page's own keybindings.
+  // Mod+shift+w closes the window here as well as from the menu, which Linux does not set.
   page.webContents.on("before-input-event", (event, input) => {
+    if (closeChordOf(input, process.platform) === "window") {
+      event.preventDefault();
+      page.close();
+      return;
+    }
     if (!terminalFocus.has(contentsId) || !isShellZoomChord(input, process.platform)) return;
     event.preventDefault();
     page.webContents.send("shell:chord", shellChordOf(input));
@@ -835,6 +837,9 @@ function moveGate(): MoveGate {
 app
   .whenReady()
   .then(async () => {
+    // Before any window, onboarding and starting included: Electron's default menu, set at ready, closes a window on
+    // mod+w.
+    refreshMenu();
     // First, before any dialog can hold the launch: a swap that opened this bundle waits on this to keep it, and
     // any other launch clears what an earlier update left beside the bundle.
     if (ownBundle !== undefined) settleStage(ownBundle, app.getVersion());
