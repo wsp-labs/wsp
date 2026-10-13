@@ -11,6 +11,7 @@
 
 import { ENV_FROM_INPUT, generatedTitle, programWord, shellQuote } from "@wsp/protocol";
 import type { AgentLaunch, SessionRenameWrite } from "@wsp/protocol";
+import { KEY_ENV } from "./landmines.js";
 
 const AI_TITLE = '"type":"ai-title"';
 const CUSTOM_TITLE = '"type":"custom-title"';
@@ -70,12 +71,14 @@ export function parseSessionTitle(stdout: string): string | null {
  * environment as a session, the login's config dir included, so the question reads the sign-in a turn there reads
  * and never runs as a nested Claude Code: `buildEnv` is the input it reads that environment off.
  */
-export function titleForCommand(options: { prompt: string; model?: string; launch?: AgentLaunch }): string {
-  return `cd ~ && ${CLEAN}; printf '%s' ${shellQuote(options.prompt)} | ${questionLine(options.model, options.launch)}`;
+export function titleForCommand(options: { prompt: string; model?: string; launch?: AgentLaunch; signIn?: string }): string {
+  return `cd ~ && ${CLEAN}; ${options.signIn ?? ""}printf '%s' ${shellQuote(options.prompt)} | ${questionLine(options.model, options.launch)}`;
 }
 
-/** Inherited Claude Code marks dropped, then the question's own environment read off its input. */
-const CLEAN = `unset \${!CLAUDE_CODE_@} CLAUDECODE FORCE_CODE_TERMINAL; ${ENV_FROM_INPUT}`;
+/** Inherited Claude Code marks dropped, and the key the line inherited with them, since on this computer it runs under
+ * the host's own environment; then the question's own environment read off its input, so the only sign-in it holds is
+ * the one buildEnv chose. A sign-in check that reads that environment (signInGuard) goes after it. */
+const CLEAN = `unset \${!CLAUDE_CODE_@} CLAUDECODE FORCE_CODE_TERMINAL ${KEY_ENV}; ${ENV_FROM_INPUT}`;
 
 /** The print-mode question as the title asks it: the person's customizations off, no tool, their sign-in read, and
  * no session kept, since 2.1.296 writes every print-mode run into the projects store as an sdk-cli session. */
@@ -87,8 +90,8 @@ const questionLine = (model: string | undefined, launch: AgentLaunch | undefined
  * with no thread, no tool and the person's customizations off, reading the question from the file the runtime put on
  * the machine, since a diff is longer than any command line may be.
  */
-export function draftForCommand(options: { promptFile: string; model?: string; launch?: AgentLaunch }): string {
-  return `cd ~ && ${CLEAN}; ${questionLine(options.model, options.launch)} < ${shellQuote(options.promptFile)}`;
+export function draftForCommand(options: { promptFile: string; model?: string; launch?: AgentLaunch; signIn?: string }): string {
+  return `cd ~ && ${CLEAN}; ${options.signIn ?? ""}${questionLine(options.model, options.launch)} < ${shellQuote(options.promptFile)}`;
 }
 
 /** The message out of the print-mode answer, its result field whole; null when the CLI errored or answered nothing. */
