@@ -59,6 +59,8 @@ interface LeadGit {
   uncommitted: number;
   /** git could not count the branch against its upstream. */
   countsUnknown?: true;
+  /** The remote's default branch, as the daemon reads it off origin/HEAD. */
+  defaultBranch?: string;
 }
 
 /** One failure Boat gives a create: a box that runs nothing, one whose environment did not land, a cancelled create;
@@ -114,7 +116,7 @@ function leadDaemon(git: LeadGit) {
       if (f["op"] === "git.mergeIn") return { id: 1, ok: true, branch: String(f["branch"]), merged: true, commits: 3, oid: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", conflicts: [] } as unknown as DaemonResponse;
       if (f["op"] === "git.status") {
         const entries = Array.from({ length: git.uncommitted }, (_, i) => ({ path: `f${i}`, xy: " M" }));
-        return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]), ...(git.countsUnknown === true ? { countsUnknown: true } : {}) } as unknown as DaemonResponse;
+        return { id: 1, ok: true, branch: { oid: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", head: git.head, ...(git.upstream !== undefined ? { upstream: git.upstream } : {}), ahead: git.ahead, behind: 0 }, entries, root: String(f["cwd"]), ...(git.countsUnknown === true ? { countsUnknown: true } : {}), ...(git.defaultBranch !== undefined ? { defaultBranch: git.defaultBranch } : {}) } as unknown as DaemonResponse;
       }
       return { id: 1, ok: false, error: `${String(f["op"])} was not answered` } as unknown as DaemonResponse;
     },

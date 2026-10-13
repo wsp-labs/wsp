@@ -100,10 +100,12 @@ export interface CreatedWorkspace extends WorkspaceView {
   sub?: SubStarted;
 }
 
-/** What a start with `sub` asks: the cloud by its word, the size and result branch the lead named, and its agent. */
+/** What a start with `sub` asks: the cloud by its word, the size, start ref and result branch the lead named, and its agent. */
 export interface SubAsk {
   on: string;
   size?: string;
+  /** A branch, tag or commit the remote holds, which the sub-thread starts from in place of the lead's branch. */
+  from?: string;
   branch?: string;
   harness?: string;
 }

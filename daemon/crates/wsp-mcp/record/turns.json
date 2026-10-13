@@ -143,6 +143,7 @@
   "openedThread": "thread {thread}",
   "sub": {
     "sizeNoCloud": "--size sizes a sub-thread's machine, and this line starts none. Add --on boat.",
+    "fromNoCloud": "--from names the commit a sub-thread's machine starts from, and this line starts none. Add --on boat.",
     "beside": "--on starts a sub-thread of the thread asking, in a folder of its own on its own machine, so it takes no {word}. Drop {word}, or run the work without --on.",
     "opened": "thread {thread} on {on} in {folder}",
     "opening": "{preamble}\n\n{task}"

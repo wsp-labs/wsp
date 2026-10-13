@@ -7,16 +7,16 @@
 // once. The lead's folder is a real repo here; Boat is a stub backend that
 // keeps every create, command and file, and the lead's daemon a fake that keeps
 // every frame.
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR, placeLimitsOf } from "@wsp/engine";
 import {
   agentsOffRefusal, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
   subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
-  subNoUpstreamRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
+  subNoUpstreamRefusal, subFromNotOnRemoteRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
 } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import { copyKey } from "../src/runtime.js";
@@ -36,7 +36,7 @@ const CONTEXT_ARCHIVE = "/tmp/wsp-vault-in-";
 const forkRoad = (cmd: string): boolean => cmd.startsWith("hostname ") || cmd.includes("WSP_CTX") || cmd.includes(CONTEXT_ARCHIVE);
 const seedFiles = (boat: Boat): string[] => boat.files.map(f => f.path).filter(p => !p.startsWith(CONTEXT_ARCHIVE));
 const NAME = "Fix the flaky upload test";
-const spawn = (rt: Runtime, project: string, lead: Caller | undefined, sub: { on?: string; size?: string; branch?: string; harness?: string } = {}, name = NAME) =>
+const spawn = (rt: Runtime, project: string, lead: Caller | undefined, sub: { on?: string; size?: string; from?: string; branch?: string; harness?: string } = {}, name = NAME) =>
   rt.workspaces.create({ project, name, sub: { on: "boat", ...sub } }, lead);
 
 /** What a refusal threw, as a terminal reads it, and the class it exits with. */
@@ -203,6 +203,69 @@ describe("run --on boat from a thread on this computer", () => {
   });
 });
 
+describe("run --on boat --from a ref the remote holds", () => {
+  /** A commit on the remote alone, made off the lead's head without moving it, pushed to `ref` there. */
+  const pushedElsewhere = (repo: string, ref: string, message: string): string => {
+    const sha = execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", message]).toString().trim();
+    execFileSync("git", ["-C", repo, "push", "-q", "origin", `${sha}:${ref}`]);
+    return sha;
+  };
+
+  it("starts at origin/main's commit while the lead's branch holds commits the remote does not, and says nothing of the lead's uncommitted changes", async () => {
+    const { rt, boat, daemon, project, lead, repo } = await leadOnThisComputer({ picks: [".env"], git: { ahead: 1, uncommitted: 2 } });
+    const main = pushedElsewhere(repo, "refs/heads/main", "the suite moved to tests/k6");
+    const before = daemon.frames.length;
+    const made = await spawn(rt, project.id, lead, { from: "origin/main" });
+    expect(boat.creates).toHaveLength(1);
+    expect(made.sub!.out).toMatchObject({ base: { branch: "main", sha: main }, branch: "wsp/fix-the-flaky-upload-test", notSent: { uncommitted: 0 } });
+    expect(made.sub!.preamble).toContain(["gh auth setup-git", "git init -q", "git remote add origin https://github.com/acme/web.git", "git fetch -q --filter=blob:none origin main", `git checkout -q -b wsp/fix-the-flaky-upload-test ${main}`].join("\n"));
+    expect(made.notice).toBeUndefined();
+    expect(daemon.frames.slice(before).map(f => f["op"])).toEqual(["git.status"]);
+  });
+
+  it("takes a tag by the commit it names and a commit by the remote branch holding it, the default branch first", async () => {
+    const { rt, project, lead, repo } = await leadOnThisComputer({ git: { upstream: undefined, defaultBranch: "trunk" }, agents: { spawn: true, maxMachines: 5 } });
+    const tagged = pushedElsewhere(repo, "refs/heads/trunk", "the release");
+    execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "tag", "-a", "-m", "v1", "v1", tagged]);
+    execFileSync("git", ["-C", repo, "push", "-q", "origin", "v1", `${tagged}:refs/heads/a-side`]);
+    // A branch whose name ends in v1 is not the tag v1, though ls-remote lists it for that name.
+    pushedElsewhere(repo, "refs/heads/release/v1", "not the tag");
+    const byTag = await spawn(rt, project.id, lead, { from: "v1" }, "From the tag");
+    expect(byTag.sub!.out.base).toEqual({ branch: "v1", sha: tagged });
+    execFileSync("git", ["-C", repo, "fetch", "-q", "origin"]);
+    const byCommit = await spawn(rt, project.id, lead, { from: tagged.slice(0, 9) }, "From the commit");
+    expect(byCommit.sub!.out.base).toEqual({ branch: "trunk", sha: tagged });
+    expect(byCommit.sub!.preamble).toContain(`git fetch -q --filter=blob:none origin trunk\ngit checkout -q -b wsp/from-the-commit ${tagged}`);
+    // A branch deleted on the remote that this folder still tracks, sorting first, is no branch to fetch the commit by.
+    const aside = pushedElsewhere(repo, "refs/heads/z-live", "on a live branch alone");
+    execFileSync("git", ["-C", repo, "push", "-q", "origin", `${aside}:refs/heads/a-gone`]);
+    execFileSync("git", ["-C", repo, "fetch", "-q", "origin"]);
+    execFileSync("git", ["-C", join(dirname(repo), "remote.git"), "update-ref", "-d", "refs/heads/a-gone"]);
+    expect(execFileSync("git", ["-C", repo, "branch", "-r", "--contains", aside]).toString()).toContain("origin/a-gone");
+    const byLive = await spawn(rt, project.id, lead, { from: aside.slice(0, 9) }, "From the live branch");
+    expect(byLive.sub!.out.base).toEqual({ branch: "z-live", sha: aside });
+  });
+
+  it("refuses a commit no remote branch holds, and a ref the remote lacks, with the push line, before any create", async () => {
+    const { rt, boat, project, lead, repo } = await leadOnThisComputer();
+    const local = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"]).toString().trim();
+    const commit = await refused(spawn(rt, project.id, lead, { from: local.slice(0, 12) }));
+    expect(commit).toEqual({ said: subFromNotOnRemoteRefusal(local.slice(0, 12), undefined).message, cls: "usage" });
+    const branch = (await spawn(rt, project.id, lead, { from: "feat/later" }).then(() => undefined, (x: unknown) => x)) as Error;
+    expect(branch.message).toBe("feat/later is not on the remote. Run git push -u origin feat/later, then start the sub-thread again.");
+    // The form the refusals teach: the push line names the branch, which git takes, and not origin/, which it refuses.
+    const tracked = (await spawn(rt, project.id, lead, { from: "origin/feat/later" }).then(() => undefined, (x: unknown) => x)) as Error;
+    expect(tracked.message).toBe("origin/feat/later is not on the remote. Run git push -u origin feat/later, then start the sub-thread again.");
+    expect(boat.creates).toEqual([]);
+  });
+
+  it("names --from beside the push line where the lead's branch is not pushed", async () => {
+    const { rt, project, lead } = await leadOnThisComputer({ git: { ahead: 1, defaultBranch: "trunk" } });
+    const e = (await spawn(rt, project.id, lead).then(() => undefined, (x: unknown) => x)) as Error & { fix: string };
+    expect(e.message).toBe("feat/upload has 1 commit the remote does not. Run git push and start the sub-thread again, or start it from a ref the remote holds with --from origin/trunk.");
+  });
+});
+
 describe("Boat's row", () => {
   it("carries the account's machines running, the hours its credit buys and what Boat spent today, as its plan panel and wsp computers read them", async () => {
     const { rt, boat } = await leadOnThisComputer({ spendPerDayUsd: 10 });
@@ -216,16 +279,17 @@ describe("Boat's row", () => {
 });
 
 describe("every check refuses before Boat is asked for a start", () => {
-  const cases: { name: string; setup?: Setup; sub?: { on?: string; size?: string; branch?: string; harness?: string }; asked?: "terminal"; expect: (f: Awaited<ReturnType<typeof leadOnThisComputer>>) => { said: string; cls: string }; before?: (f: Awaited<ReturnType<typeof leadOnThisComputer>>) => void | Promise<void> }[] = [
+  const cases: { name: string; setup?: Setup; sub?: { on?: string; size?: string; from?: string; branch?: string; harness?: string }; asked?: "terminal"; expect: (f: Awaited<ReturnType<typeof leadOnThisComputer>>) => { said: string; cls: string }; before?: (f: Awaited<ReturnType<typeof leadOnThisComputer>>) => void | Promise<void> }[] = [
     { name: "S1 a line from no thread", asked: "terminal", expect: () => ({ said: subNoThreadRefusal("boat").message, cls: "usage" }) },
     { name: "S2 the lead's switch off", setup: { agents: { spawn: false } }, expect: () => ({ said: agentsOffRefusal("web", "fork"), cls: "usage" }) },
     { name: "S3 a cloud this host holds no key for", sub: { on: "solari" }, expect: () => ({ said: subNoCloudRefusal("solari", ["Boat"]).message, cls: "usage" }) },
     { name: "S4 a folder with no remote", setup: { remote: null }, expect: () => ({ said: subNoRemoteRefusal("web", "Boat").message, cls: "usage" }) },
     { name: "S4 a remote on another host", setup: { remote: "https://git.example.com/acme/web.git" }, expect: () => ({ said: subOtherHostRefusal("web", "git.example.com", "Boat").message, cls: "usage" }) },
-    { name: "S5 a lead on no branch", setup: { git: { head: "(detached)" } }, expect: () => ({ said: subDetachedRefusal("web").message, cls: "usage" }) },
-    { name: "S5 a branch the remote lacks", setup: { git: { upstream: undefined } }, expect: () => ({ said: subNoUpstreamRefusal("feat/upload").message, cls: "usage" }) },
-    { name: "S5 commits the remote lacks", setup: { git: { ahead: 2 } }, expect: () => ({ said: subAheadRefusal("feat/upload", 2).message, cls: "usage" }) },
-    { name: "S5 commits git could not count", setup: { git: { countsUnknown: true } }, expect: () => ({ said: subAheadUnknownRefusal("feat/upload").message, cls: "usage" }) },
+    { name: "S5 a lead on no branch", setup: { git: { head: "(detached)" } }, expect: () => ({ said: subDetachedRefusal("web", "origin/main").message, cls: "usage" }) },
+    { name: "S5 a branch the remote lacks", setup: { git: { upstream: undefined } }, expect: () => ({ said: subNoUpstreamRefusal("feat/upload", "origin/main").message, cls: "usage" }) },
+    { name: "S5 commits the remote lacks", setup: { git: { ahead: 2 } }, expect: () => ({ said: subAheadRefusal("feat/upload", 2, "origin/main").message, cls: "usage" }) },
+    { name: "S5 commits git could not count", setup: { git: { countsUnknown: true } }, expect: () => ({ said: subAheadUnknownRefusal("feat/upload", "origin/main").message, cls: "usage" }) },
+    { name: "S5 a ref --from names the remote lacks", sub: { from: "origin/nope" }, expect: () => ({ said: subFromNotOnRemoteRefusal("origin/nope", "nope").message, cls: "usage" }) },
     { name: "S6 no image on Boat", setup: { image: false }, expect: () => ({ said: subNoImageRefusal("Boat").message, cls: "usage" }) },
     { name: "S6 an image with no GitHub sign-in", setup: { image: { logins: [{ name: "GitHub CLI login", state: "skipped" }] } }, expect: () => ({ said: subNoSignInRefusal("Boat", { label: "GitHub", cli: "gh", login: "GitHub CLI login" }, "acme/web").message, cls: "usage" }) },
     { name: "S7 a size the plan does not sell", sub: { size: "16x32" }, expect: () => ({ said: subSizeRefusal("Boat", "16x32", PAID_SIZES).message, cls: "usage" }) },
