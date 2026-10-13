@@ -286,7 +286,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           ? ctx.claimWarm(workspaceId, opened.harness)
           : undefined;
       if (warmed !== undefined) claimedBy.set(opened, warmed);
-      const threadId = opened.thread ?? opened.as?.threadId ?? warmed ?? randomUUID();
+      const threadId = opened.thread ?? opened.as?.threadId ?? warmed ?? [live.get(workspaceId)?.opensThread].find(made => made !== undefined && !threadRecords.has(made) && ctx.rowsOn(made).length === 0) ?? randomUUID();
       // A message into a thread that already has turns is a send; anything else opens one, and only one of those
       // two is what a thread's own token is capped on. Read before the machine is asked for anything. The thread's
       // record answers before its rows, since the rows are capped and the record is not.
