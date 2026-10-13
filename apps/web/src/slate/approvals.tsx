@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Several commands and servers waiting at once ask in one sheet: each its own row with what the one-at-a-time sheet
-// would show and a switch, and Allow all, Run once and Don't answer the rows switched on, each by its own key, so an
-// approval reads exactly as if it had been given one sheet at a time. A command that names confirm, and a tool's
-// confirm, still ask alone, since they ask on every start.
+// Several commands and tool runs waiting at once ask in one sheet: each its own row with what the one-at-a-time sheet
+// would show and a switch, and Allow all, Run once and Not now answer the rows switched on, each by its own key, so an
+// approval reads exactly as if it had been given one sheet at a time. A run that names confirm still asks alone, since
+// it asks on every start.
 import { useState } from "react";
 import { Button } from "../components/ui/button.js";
 import { Dialog, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../components/ui/dialog.js";
@@ -13,7 +13,7 @@ import { CONSENT_WORDS } from "./consent.js";
 import { useAnswer } from "./mcp.js";
 import type { SlateApproval, SlateAsk } from "./model.js";
 
-export type BatchAsk = Extract<SlateAsk, { kind: "cmd" | "server" }>;
+export type BatchAsk = SlateAsk;
 
 export const APPROVALS_WORDS = {
   title: (asks: readonly BatchAsk[]) =>
@@ -21,13 +21,13 @@ export const APPROVALS_WORDS = {
   allowAll: "Allow all",
   allow: (n: number) => `Allow ${n}`,
   once: CONSENT_WORDS.once,
-  dont: CONSENT_WORDS.dont,
+  notNow: CONSENT_WORDS.notNow,
 } as const;
 
-/** The asks one sheet can answer together, one row per key: commands with no confirm, and servers. */
+/** The asks one sheet can answer together, one row per key: runs that name no confirm. */
 export function batchable(asks: readonly SlateAsk[]): BatchAsk[] {
   const rows = new Map<string, BatchAsk>();
-  for (const ask of asks) if (askKind(ask).row?.batchable(ask) === true && !rows.has(ask.key)) rows.set(ask.key, ask as BatchAsk);
+  for (const ask of asks) if (askKind(ask).row?.batchable(ask) === true && !rows.has(ask.key)) rows.set(ask.key, ask);
   return [...rows.values()];
 }
 
@@ -69,7 +69,7 @@ export function ApprovalsSheet({ asks, cadence, answer, onClose }: { asks: reado
         </DialogPanel>
         <DialogFooter>
           <Button variant="outline" disabled={busy || chosen.length === 0} onClick={() => decide("refuse")}>
-            {APPROVALS_WORDS.dont}
+            {APPROVALS_WORDS.notNow}
           </Button>
           <Button variant="outline" disabled={busy || chosen.length === 0} onClick={() => decide("thread")}>
             {chosen.length === asks.length ? APPROVALS_WORDS.allowAll : APPROVALS_WORDS.allow(chosen.length)}

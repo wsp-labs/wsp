@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// MCP runs in the renderer: a tool run's result drawn by its shape through the kit's pieces, the once-per-server
-// sheet naming the server, the call and the tools it lists, and the destructive confirm with the arguments as sent.
+// MCP runs in the renderer: a tool run's result drawn by its shape through the kit's pieces, and the plain sheet before
+// a tool run goes, naming the tool and its server, what the run does, and its code folded.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type SessionView } from "@wsp/protocol";
@@ -10,7 +10,7 @@ import { useStore } from "../protocol/store";
 import { useRightPanelStore } from "../rightPanelStore";
 import { ActionRunner, StateSender } from "./actions";
 import { SlateEngine } from "./engine";
-import { ServerConsentSheet, ToolConfirmSheet, type SlateServerAsk, type SlateToolAsk } from "./mcp";
+import { ToolSheet, type SlateToolAsk } from "./mcp";
 import { SLATE_VIEWS } from "./pieces";
 import { SlateSurface } from "./SlateSurface";
 import { SlateView } from "./SlateView";
@@ -102,114 +102,101 @@ describe("a tool run's result by its shape", () => {
   });
 });
 
-const SERVER_ASK: SlateServerAsk = {
-  key: "mcp:zoho-mail",
-  run: "inbox",
-  kind: "server",
-  server: "zoho-mail",
-  computer: "zingzy's MacBook Pro",
-  why: "needs your approval",
-  tool: "zoho_list_emails",
-  args: { params: { account: "admin", limit: 12 }, token: "•••••••••••• (12)" },
-  tools: [
-    { name: "zoho_list_emails", title: "List emails", readOnly: true },
-    { name: "zoho_send_email", description: "Send an email from the account", destructive: true },
-    { name: "zoho_get_email" },
-  ],
-};
-
 const TOOL_ASK: SlateToolAsk = {
-  key: "tk-3f9a",
-  run: "trash",
+  key: "mcp:cloudflare#0123456789abcdef0123456789abcdef",
+  run: "traffic",
   kind: "tool",
-  server: "zoho-mail",
-  tool: "zoho_delete_email",
-  computer: "zingzy's MacBook Pro",
+  server: "cloudflare",
+  tool: "execute",
+  computer: "hetzner",
   why: "needs your approval",
-  args: { messageId: "m2", account: "admin" },
+  description: "Reads the last hour of requests to the site",
+  args: { code: "return await cf.graphql(query)", token: "•••••••••••• (12)" },
 };
+const CADENCE = "Runs every 60 s, only while this slate is on screen";
 
-describe("the once-per-server sheet", () => {
-  it("names the server, the call and its arguments, and every tool it lists", () => {
-    render(<ServerConsentSheet ask={SERVER_ASK} cadence="Runs every 60 s, only while this slate is on screen" answer={vi.fn(async () => {})} onClose={vi.fn()} />);
-    const sheet = document.querySelector<HTMLElement>('[data-slate-consent-server="zoho-mail"]')!;
-    expect(screen.getByRole("dialog", { name: "Let this slate use zoho-mail?" })).toBeTruthy();
-    expect(sheet.querySelector("[data-slate-consent-tool]")!.textContent).toBe("zoho_list_emails");
-    expect(sheet.querySelector('[data-slate-arg="params"] dd')!.textContent).toBe('{"account":"admin","limit":12}');
-    const token = sheet.querySelector<HTMLElement>('[data-slate-arg="token"] dd')!;
-    expect(token.textContent).toBe("•••••••••••• (12)");
-    expect(token.className).toContain("text-muted-foreground");
-    expect(sheet.querySelector("[data-slate-consent-cadence]")!.textContent).toBe("Runs every 60 s, only while this slate is on screen");
-    expect(within(sheet).getByText("zoho-mail lists 3 tools")).toBeTruthy();
-    const listed = [...sheet.querySelectorAll<HTMLElement>("[data-slate-consent-lists]")];
-    expect(listed.map(li => li.dataset["slateConsentLists"])).toEqual(["zoho_list_emails", "zoho_send_email", "zoho_get_email"]);
-    expect(listed[0]!.textContent).toContain("List emails");
-    expect(listed[0]!.textContent).toContain("read only");
-    expect(listed[1]!.textContent).toContain("Send an email from the account");
-    expect(listed[1]!.textContent).toContain("asks each time");
-    expect(sheet.querySelector("[data-slate-consent-where]")!.textContent).toBe("on zingzy's MacBook Pro");
+describe("the sheet before a tool run", () => {
+  it("says in plain words what runs, where and how often, with its code folded behind Show code", async () => {
+    render(<ToolSheet ask={TOOL_ASK} cadence={CADENCE} answer={vi.fn(async () => {})} onClose={vi.fn()} />);
+    const dialog = screen.getByRole("dialog", { name: "Let this panel run execute on Cloudflare?" });
+    expect(dialog.querySelector("[data-slate-consent-description]")!.textContent).toBe("Reads the last hour of requests to the site");
+    expect(dialog.querySelector("[data-slate-consent-where]")!.textContent).toBe(`On hetzner. ${CADENCE}.`);
+    expect(dialog.querySelector("[data-slate-consent-code]")).toBeNull();
+    expect(dialog.querySelector("[data-slate-arg]")).toBeNull();
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Show code" })));
+    const code = await waitFor(() => dialog.querySelector<HTMLElement>("[data-slate-consent-code]")!);
+    expect(code.querySelector("code")!.textContent).toBe("cloudflare.execute");
+    expect([...code.querySelectorAll("dt")].map(d => d.textContent)).toEqual(["code", "token"]);
+    expect(code.querySelector('[data-slate-arg="code"] dd')!.textContent).toBe("return await cf.graphql(query)");
+    expect(code.querySelector('[data-slate-arg="token"] dd')!.className).toContain("text-muted-foreground");
+    const words = dialog.textContent ?? "";
+    for (const word of ["Call", "Don't", "Asks every time", "asks each time", "destructive"]) expect(words).not.toContain(word);
+    expect(within(dialog).getByRole("button", { name: "Allow" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Not now" })).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Always in this thread" })).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it.each([
-    ["Once", "once"],
-    ["Always in this thread", "thread"],
-    ["Don't", "refuse"],
+    ["Allow", "thread"],
+    ["Not now", "refuse"],
   ] as const)("%s answers %s and closes", async (label, scope) => {
     const answer = vi.fn(async () => {});
     const onClose = vi.fn();
-    render(<ServerConsentSheet ask={SERVER_ASK} cadence="" answer={answer} onClose={onClose} />);
+    render(<ToolSheet ask={TOOL_ASK} cadence="" answer={answer} onClose={onClose} />);
     await act(async () => fireEvent.click(screen.getByRole("button", { name: label })));
     expect(answer).toHaveBeenCalledWith(scope);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("asks a run that names confirm in the red confirm, its sentence under the title, and Run lets this start go alone", async () => {
+    const answer = vi.fn(async () => {});
+    render(<ToolSheet ask={{ ...TOOL_ASK, confirm: "Purge the cache for the site?" }} cadence={CADENCE} answer={answer} onClose={vi.fn()} />);
+    const dialog = screen.getByRole("alertdialog", { name: "Let this panel run execute on Cloudflare?" });
+    expect(within(dialog).getByText("Purge the cache for the site?")).toBeTruthy();
+    expect(dialog.querySelector("[data-slate-consent-description]")!.textContent).toBe("Reads the last hour of requests to the site");
+    expect(within(dialog).queryByRole("button", { name: "Allow" })).toBeNull();
+    const run = within(dialog).getByRole("button", { name: "Run" });
+    expect(run.getAttribute("data-variant") ?? run.className).toMatch(/destructive/);
+    await act(async () => fireEvent.click(run));
+    expect(answer).toHaveBeenCalledWith("once");
+  });
+
+  it("refuses a confirm's start on Not now", async () => {
+    const answer = vi.fn(async () => {});
+    render(<ToolSheet ask={{ ...TOOL_ASK, confirm: "Purge the cache for the site?" }} cadence="" answer={answer} onClose={vi.fn()} />);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Not now" })));
+    expect(answer).toHaveBeenCalledWith("refuse");
+  });
+
   it("keeps the sheet open with the host's refusal", async () => {
     const onClose = vi.fn();
-    render(<ServerConsentSheet ask={SERVER_ASK} cadence="" answer={vi.fn(async () => Promise.reject(new Error("the slate changed; look again")))} onClose={onClose} />);
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Once" })));
+    render(<ToolSheet ask={TOOL_ASK} cadence="" answer={vi.fn(async () => Promise.reject(new Error("the slate changed; look again")))} onClose={onClose} />);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Allow" })));
     expect(screen.getByText("the slate changed; look again")).toBeTruthy();
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("says Reads for a resource", () => {
-    render(<ServerConsentSheet ask={{ ...SERVER_ASK, tool: "mail://inbox/admin", args: undefined, tools: [] }} cadence="" answer={vi.fn(async () => {})} onClose={vi.fn()} />);
-    expect(document.querySelector("[data-slate-consent-tool]")!.parentElement!.textContent).toBe("Reads mail://inbox/admin");
-    expect(document.querySelector("[data-slate-arg]")).toBeNull();
+  it("says read for a resource, and its code holds the uri and no arguments", async () => {
+    render(<ToolSheet ask={{ ...TOOL_ASK, tool: "cf://zones", resource: true, args: {}, description: undefined }} cadence="" answer={vi.fn(async () => {})} onClose={vi.fn()} />);
+    const dialog = screen.getByRole("dialog", { name: "Let this panel read cf://zones on Cloudflare?" });
+    expect(dialog.querySelector("[data-slate-consent-description]")).toBeNull();
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Show code" })));
+    const code = await waitFor(() => dialog.querySelector<HTMLElement>("[data-slate-consent-code]")!);
+    expect(code.querySelector("code")!.textContent).toBe("cloudflare:cf://zones");
+    expect(code.querySelector("[data-slate-arg]")).toBeNull();
   });
 
-  it("shows a run's then as the command its result goes to, and nothing without one", () => {
-    render(<ServerConsentSheet ask={{ ...SERVER_ASK, key: "mcp:zoho-mail#then:0123456789abcdef", then: "python3 inbox.py" }} cadence="" answer={vi.fn(async () => {})} onClose={vi.fn()} />);
-    expect(document.querySelector("[data-slate-consent-then]")!.textContent).toBe("Then its result goes on stdin topython3 inbox.py");
-    cleanup();
-    render(<ServerConsentSheet ask={SERVER_ASK} cadence="" answer={vi.fn(async () => {})} onClose={vi.fn()} />);
+  it("folds a run's then and the files it reads into its code", async () => {
+    render(<ToolSheet ask={{ ...TOOL_ASK, then: 'python3 "$SLATE_DIR/shape.py"', files: { "shape.py": "print('shaped')" } }} cadence="" answer={vi.fn(async () => {})} onClose={vi.fn()} />);
     expect(document.querySelector("[data-slate-consent-then]")).toBeNull();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show code" })));
+    await waitFor(() => expect(document.querySelector("[data-slate-consent-then]")!.textContent).toBe('Then its result goes on stdin topython3 "$SLATE_DIR/shape.py"'));
+    expect(document.querySelector('[data-slate-consent-file="shape.py"]')!.textContent).toContain("print('shaped')");
   });
 });
 
-describe("the destructive confirm", () => {
-  it("shows the tool and its arguments as sent, with one red Call", async () => {
-    const answer = vi.fn(async () => {});
-    render(<ToolConfirmSheet ask={TOOL_ASK} answer={answer} onClose={vi.fn()} />);
-    expect(screen.getByRole("alertdialog", { name: "Call zoho_delete_email?" })).toBeTruthy();
-    expect(screen.getByText("zoho-mail on zingzy's MacBook Pro")).toBeTruthy();
-    const box = document.querySelector<HTMLElement>('[data-slate-confirm-tool="zoho_delete_email"]')!;
-    expect([...box.querySelectorAll("dt")].map(d => d.textContent)).toEqual(["messageId", "account"]);
-    expect([...box.querySelectorAll("dd")].map(d => d.textContent)).toEqual(["m2", "admin"]);
-    const call = screen.getByRole("button", { name: "Call" });
-    expect(call.getAttribute("data-variant") ?? call.className).toMatch(/destructive/);
-    expect(screen.queryByRole("button", { name: "Always in this thread" })).toBeNull();
-    await act(async () => fireEvent.click(call));
-    expect(answer).toHaveBeenCalledWith("once");
-  });
-
-  it("puts the run's confirm sentence in the body and Don't refuses the start", async () => {
-    const answer = vi.fn(async () => {});
-    render(<ToolConfirmSheet ask={{ ...TOOL_ASK, confirm: "Delete this email for good?" }} answer={answer} onClose={vi.fn()} />);
-    expect(screen.getByText("Delete this email for good?")).toBeTruthy();
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Don't" })));
-    expect(answer).toHaveBeenCalledWith("refuse");
-  });
-});
+const INBOX_ASK: SlateToolAsk = { ...TOOL_ASK, key: "mcp:zoho-mail#00000000000000000000000000000001", run: "inbox", server: "zoho-mail", tool: "zoho_list_emails", description: "Lists the newest emails", args: { params: { account: "admin", limit: 12 } } };
 
 describe("in the Slate tab", () => {
   let thread = 0;
@@ -236,40 +223,42 @@ describe("in the Slate tab", () => {
     useRightPanelStore.setState({ byWorkspaceId: {} });
   };
 
-  it("opens the server's sheet for a timer's held tool run, names it on the held row, and approves by the server's key", async () => {
+  it("opens the sheet for a timer's held tool run, names it on the held row, and Allow keeps its code by its key", async () => {
     next();
-    const slates = open(record(INBOX, { inbox: { state: "held", why: "needs your approval", runs: 0 } }, { asks: [SERVER_ASK] }));
-    const sheet = await screen.findByRole("dialog", { name: "Let this slate use zoho-mail?" });
+    const slates = open(record(INBOX, { inbox: { state: "held", why: "needs your approval", runs: 0 } }, { asks: [INBOX_ASK] }));
+    const sheet = await screen.findByRole("dialog", { name: "Let this panel run zoho_list_emails on Zoho-mail?" });
     const held = document.querySelector<HTMLElement>('[data-slate-held="inbox"]')!;
     expect(within(held).getByText("zoho-mail.zoho_list_emails")).toBeTruthy();
-    expect(sheet.querySelector("[data-slate-consent-cadence]")!.textContent).toBe("Runs every 60 s, only while this slate is on screen");
-    await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Always in this thread" })));
-    expect(slates.approve).toHaveBeenCalledWith(row.threadId, "mcp:zoho-mail", "thread");
+    expect(within(held).getByRole("button", { name: "Not now", hidden: true })).toBeTruthy();
+    expect(sheet.querySelector("[data-slate-consent-where]")!.textContent).toBe("On hetzner. Runs every 60 s, only while this slate is on screen.");
+    await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Allow" })));
+    expect(slates.approve).toHaveBeenCalledWith(row.threadId, INBOX_ASK.key, "thread");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("reads the record again on an empty values push, so tools that arrive late fill the open sheet", async () => {
+  it("reads the record again on an empty values push, so the tool's own line that arrives late fills the open sheet", async () => {
     next();
     const held = { inbox: { state: "held", why: "needs your approval", runs: 0 } };
-    const slates = open(record(INBOX, held, { asks: [{ ...SERVER_ASK, tools: [] }] }));
-    const sheet = await screen.findByRole("dialog", { name: "Let this slate use zoho-mail?" });
-    expect(sheet.querySelector("[data-slate-consent-lists]")).toBeNull();
-    vi.mocked(slates.get).mockResolvedValue({ record: record(INBOX, held, { asks: [SERVER_ASK] }) });
+    const slates = open(record(INBOX, held, { asks: [{ ...INBOX_ASK, description: undefined }] }));
+    const sheet = await screen.findByRole("dialog", { name: "Let this panel run zoho_list_emails on Zoho-mail?" });
+    expect(sheet.querySelector("[data-slate-consent-description]")).toBeNull();
+    vi.mocked(slates.get).mockResolvedValue({ record: record(INBOX, held, { asks: [INBOX_ASK] }) });
     act(() => useStore.getState().applyEvent({ type: "slate.values", workspaceId: "ws", threadId: row.threadId, version: 1, revision: 2, values: {} } as unknown as ProtocolEvent));
-    await waitFor(() => expect(sheet.querySelectorAll("[data-slate-consent-lists]")).toHaveLength(3));
+    await waitFor(() => expect(sheet.querySelector("[data-slate-consent-description]")!.textContent).toBe("Lists the newest emails"));
     expect(slates.get).toHaveBeenCalledTimes(2);
   });
 
-  it("opens the destructive confirm when a press brings back a tool's ask", async () => {
+  it("opens the sheet when a press brings back a tool's ask", async () => {
     next();
     const doc = compiled(`<slate title="Mail">
   <run name="trash" tool="zoho-mail.zoho_delete_email" args={{ messageId: "m2", account: "admin" }} />
   <button label="Delete" onPress={start($trash)} />
 </slate>`);
-    const slates = open(record(doc, {}), { event: vi.fn(async () => ({ outcome: "held" as const, said: "", ask: TOOL_ASK })) });
+    const ask: SlateToolAsk = { ...TOOL_ASK, key: "mcp:zoho-mail#00000000000000000000000000000002", run: "trash", server: "zoho-mail", tool: "zoho_delete_email", description: "Moves the email to the trash", args: { messageId: "m2", account: "admin" } };
+    const slates = open(record(doc, {}), { event: vi.fn(async () => ({ outcome: "held" as const, said: "", ask })) });
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
-    const sheet = await screen.findByRole("alertdialog", { name: "Call zoho_delete_email?" });
-    await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Call" })));
-    expect(slates.approve).toHaveBeenCalledWith(row.threadId, "tk-3f9a", "once");
+    const sheet = await screen.findByRole("dialog", { name: "Let this panel run zoho_delete_email on Zoho-mail?" });
+    await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Allow" })));
+    expect(slates.approve).toHaveBeenCalledWith(row.threadId, ask.key, "thread");
   });
 });

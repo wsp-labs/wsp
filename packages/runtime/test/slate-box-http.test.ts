@@ -117,7 +117,7 @@ async function boxThread(o: { renews: (home: string) => boolean; daemonVersion?:
   const started: Started[] = [];
   const { rt, project, seen } = await joined({ adapters: { claude: answering(started) }, agentsReader, store, posts: daemonThere(boxHome), daemonVersion: o.daemonVersion ?? HTTP_POST_DAEMON_VERSION });
   const at = await rt.workspaces.folderFor({ project: project.id });
-  const first = await rt.sessions.start(at.workspace.id, { prompt: "list my zones", harness: "claude" });
+  const first = await rt.sessions.start(at.workspace.id, { prompt: "list my zones", harness: "claude", permissionMode: "default" });
   await first.finished;
   const threadId = first.view().threadId!;
   const caller = asThread({ kind: "thread", threadId, workspaceId: at.workspace.id, rootThreadId: threadId });
@@ -125,7 +125,7 @@ async function boxThread(o: { renews: (home: string) => boolean; daemonVersion?:
     await rt.slates.settled();
     return (await rt.slates.get(threadId))!;
   };
-  await rt.slates.write({ text: `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" /><column><button id="go" label="Go" onPress={start($zones)} /></column></slate>` }, caller);
+  await rt.slates.write({ text: `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" description="Lists the account's zones" /><column><button id="go" label="Go" onPress={start($zones)} /></column></slate>` }, caller);
   const press = async (n: number) => rt.slates.event({ threadId, version: (await view()).version, piece: "go", event: "press", requestId: `go-${n}` });
   return { rt, seen, server, state, asked, view, press, threadId, renewed: () => renewed };
 }

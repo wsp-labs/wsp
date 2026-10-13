@@ -17,6 +17,11 @@ export const slateServerNotSetUp = (server: string, computer: string, agent: { i
 export const slateHostAway = (run: string, computer: string, host: string): string =>
   `${run} runs on="host", which is ${host} with the sign-ins there, and this thread runs on ${computer}: drop on="host" and it runs on ${computer}`;
 
+/** Why a slate is refused a tool run that says nothing of what it does, on a tool its server does not mark read-only:
+ * the person reads that line before allowing the run. */
+export const slateDescriptionMissing = (run: string, server: string, tool: string): string =>
+  `${run} calls ${server}.${tool}, which its server does not mark read-only, so it needs description="..." saying in one plain line what it does; the person reads it before allowing the run`;
+
 export const SLATE_CODES = {
   P100: "bad-syntax", P102: "bare-not-boolean", P103: "bad-id", P104: "duplicate-id", P105: "bad-patch-op", P107: "reaction-without-id",
   D200: "schema-unknown", D201: "kit-unknown", D202: "root-ambiguous", D203: "piece-missing", D205: "cycle", D206: "too-deep",
@@ -31,7 +36,7 @@ export const SLATE_CODES = {
   A600: "step-unknown", A601: "step-arg", A602: "event-unknown", A603: "text-not-literal", A606: "too-many-steps", A607: "set-not-value",
   A608: "window-step-in-reaction", A610: "reaction-cycle", A611: "reaction-shape",
   K700: "cmd-not-literal", K701: "run-kind", K702: "run-name", K703: "timer", K704: "run-arg", K705: "tool-name", K706: "tool-unknown",
-  K707: "too-many-runs", K708: "file-name", K709: "files-too-big", K710: "server-not-set-up", K711: "host-away", K712: "machine-on-box",
+  K707: "too-many-runs", K708: "file-name", K709: "files-too-big", K710: "server-not-set-up", K711: "host-away", K712: "machine-on-box", K713: "description-missing",
   V750: "version-behind", V751: "write-rate", V752: "nothing-to-undo", V753: "send-rate", V754: "event-rate",
   Z800: "thread-not-yours", Z801: "thread-not-in-tree", Z802: "no-slate", Z803: "sub-thread", Z804: "rewound-before",
   R900: "data-missing", R901: "data-late", R902: "eval-failed", R903: "source-unavailable", R904: "consent-refused", R905: "draw-failed",

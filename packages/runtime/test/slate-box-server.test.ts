@@ -81,7 +81,7 @@ async function boxThread(o: { daemonVersion?: number } = {}) {
   const { stdio, running, marked, closing } = commands();
   const { rt, project, seen } = await joined({ adapters: { claude: answering(started) }, agentsReader, stdio, daemonVersion: o.daemonVersion ?? STDIO_DAEMON_VERSION });
   const at = await rt.workspaces.folderFor({ project: project.id });
-  const first = await rt.sessions.start(at.workspace.id, { prompt: "show my zones", harness: "claude" });
+  const first = await rt.sessions.start(at.workspace.id, { prompt: "show my zones", harness: "claude", permissionMode: "default" });
   await first.finished;
   const threadId = first.view().threadId!;
   const caller = asThread({ kind: "thread", threadId, workspaceId: at.workspace.id, rootThreadId: threadId });
@@ -103,7 +103,7 @@ function holds(pid: number, has: (entry: string) => boolean): boolean {
 describe("a box slate's runs and the server it keeps", () => {
   it("carry the thread's mark, so the box's daemon names the kept server the thread's, and Activity draws both under the thread", async () => {
     const { rt, seen, running, marked: atSpawn, threadId, caller } = await boxThread();
-    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
+    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} description="Lists the newest items" /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
     await rt.slates.settled();
     const view = async (): Promise<SlateView> => (await rt.slates.get(threadId))!;
     const ask = await rt.slates.event({ threadId, version: (await view()).version, piece: "go", event: "press", requestId: "go-0" });
@@ -146,7 +146,7 @@ describe("a settle or a delete of a box thread whose slate keeps a server there"
    * stamped as the box's daemon stamps it off its mark; a close takes the server's row. */
   async function keeping() {
     const b = await boxThread();
-    await b.rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, b.caller);
+    await b.rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} description="Lists the newest items" /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, b.caller);
     await b.rt.slates.settled();
     const view = async (): Promise<SlateView> => (await b.rt.slates.get(b.threadId))!;
     const ask = await b.rt.slates.event({ threadId: b.threadId, version: (await view()).version, piece: "go", event: "press", requestId: "go-0" });
@@ -195,7 +195,7 @@ describe("a settle or a delete of a box thread whose slate keeps a server there"
 describe("a slate's tool run from a thread on a computer you joined", () => {
   it("starts its server on that computer through the daemon with that computer's config, answers the tool, and keeps the one server between calls", async () => {
     const { rt, seen, running, asked, starts, threadId, caller } = await boxThread();
-    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
+    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" args={{ params: { account: "admin", limit: 2 } }} description="Lists the newest items" /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
     const view = async (): Promise<SlateView> => {
       await rt.slates.settled();
       return (await rt.slates.get(threadId))!;
@@ -228,20 +228,20 @@ describe("a slate's tool run from a thread on a computer you joined", () => {
 
   it("refuses at write a server that computer's config does not name, and a command run on the host, naming that computer", async () => {
     const { rt, seen, threadId, caller } = await boxThread();
-    const missing = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" /><run name="items" tool="stub.list_items" /><column><output run={$zones} /></column></slate>`;
+    const missing = `<slate title="Zones"><run name="zones" tool="cloudflare.zones_list" description="Lists the account's zones" /><run name="items" tool="stub.list_items" description="Lists the newest items" /><column><output run={$zones} /></column></slate>`;
     await expect(rt.slates.write({ text: missing }, caller)).rejects.toMatchObject({ kind: "invalid", message: `slate refused: 1 error: K710 server-not-set-up ${slateServerNotSetUp("cloudflare", "hetzner", { id: "claude", name: "Claude Code" }, threadId)}` });
     const onHost = `<slate title="Me"><run name="me" cmd="whoami" on="host" /><column><output run={$me} /></column></slate>`;
     await expect(rt.slates.write({ text: onHost }, caller)).rejects.toThrow(/K711 host-away \$me runs on="host", which is .+ with the sign-ins there, and this thread runs on hetzner: drop on="host" and it runs on hetzner$/);
     expect(await rt.slates.get(threadId)).toBeNull();
     // A server it does have writes, and nothing starts until the slate runs it.
-    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" /><column><output run={$items} /></column></slate>` }, caller);
+    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" description="Lists the newest items" /><column><output run={$items} /></column></slate>` }, caller);
     expect(seen.frames.filter(f => f["op"] === "stdio.open")).toHaveLength(0);
     await rt.close();
   }, 40_000);
 
   it("is refused on a computer whose daemon cannot hold a command open, naming the update, and sends it nothing", async () => {
     const { rt, seen, threadId, caller } = await boxThread({ daemonVersion: STDIO_DAEMON_VERSION - 1 });
-    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
+    await rt.slates.write({ text: `<slate title="Items"><run name="items" tool="stub.list_items" description="Lists the newest items" /><column><button id="go" label="Go" onPress={start($items)} /></column></slate>` }, caller);
     const view = async (): Promise<SlateView> => {
       await rt.slates.settled();
       return (await rt.slates.get(threadId))!;
