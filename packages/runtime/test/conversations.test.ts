@@ -583,6 +583,19 @@ describe("a thread opened on a conversation from outside wsp", () => {
     expect(seen.starts[1]).toMatchObject({ resume: ID });
   });
 
+  it("keeps on each earlier message the time it was written, not the time of the resume, the count at the first of them", async () => {
+    const { folder } = repoWithTree();
+    const written = Date.parse("2026-10-12T23:44:39.454Z");
+    const lines = earlier(folder).lines.map((l, i) => ({ ...l, at: written + i * 1000 }));
+    const { rt } = here({ claude: fakeStore({ earlier: { ...earlier(folder), lines }, live: [] }) });
+    const project = await rt.projects.add({ source: folder });
+    const before = Date.now();
+    const { workspace } = await startOn(rt, project.id, { id: ID });
+    const events = await rt.sessions.history(workspace.id);
+    expect(events.filter(e => e.type === "session.earlier").map(e => e.at)).toEqual([written, written, written + 1000, written + 2000]);
+    expect(events.find(e => e.type === "session.start")!.at).toBeGreaterThanOrEqual(before);
+  });
+
   it("hands a lost session's seed the earlier messages it opened with", async () => {
     const { folder } = repoWithTree();
     const { rt, seen } = here({ claude: fakeStore({ earlier: earlier(folder), live: [] }) });

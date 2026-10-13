@@ -3,6 +3,6 @@ import type { TranscriptVoice } from "./TranscriptVoice.js";
 
 /**
  * One row of a transcript read: a message's words, or a tool call's name with its input as the CLI recorded it, cut
- * to a few thousand characters.
+ * to a few thousand characters. `at` is when the CLI wrote the row's line, ms epoch, where the line says.
  */
-export type TranscriptMessage = { who: TranscriptVoice, text: string, tool?: string, };
+export type TranscriptMessage = { who: TranscriptVoice, text: string, tool?: string, at?: number, };
