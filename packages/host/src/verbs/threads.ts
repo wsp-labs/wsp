@@ -88,7 +88,7 @@ const besideOn = (given: readonly [string, unknown][]): string | undefined => gi
 async function subStart(
   client: Awaited<ReturnType<VerbDeps["client"]>>,
   env: VerbDeps["env"],
-  ask: { on: string; size?: string | undefined; from?: string | undefined; branch?: string | undefined },
+  ask: { on: string; size?: string | undefined; from?: string | undefined; branch?: string | undefined; project?: string | undefined },
   message: string,
   o: { harness?: string | undefined; picks: Parameters<typeof checkedStart>[3]; notify?: readonly string[] | undefined; title?: string | undefined; files?: readonly string[] | undefined; elsewhere?: boolean | undefined },
   say: (line: string) => void,
@@ -121,10 +121,10 @@ export const THREAD_VERBS: readonly Verb[] = [
       if (flag(ctx.flags, "size") !== undefined && on === undefined) throw subSizeNoCloudRefusal();
       if (flag(ctx.flags, "from") !== undefined && on === undefined) throw subFromNoCloudRefusal();
       if (on !== undefined) {
-        const word = besideOn([["a project", ref], ...["beside", "fork", "at", "cwd", "resume", "copy", "replaces"].map((f): [string, unknown] => [`--${f}`, ctx.flags[f]])]);
+        const word = besideOn(["beside", "fork", "at", "cwd", "resume", "copy", "replaces"].map((f): [string, unknown] => [`--${f}`, ctx.flags[f]]));
         if (word !== undefined) throw subBesideRefusal(word);
         const { opening, sub, opened, stop } = await beforeSending(client, async () =>
-          subStart(client, ctx.env, { on, size: flag(ctx.flags, "size"), from: flag(ctx.flags, "from"), branch: where.branch }, message, { harness, picks, notify: await notifyOf(client, flagList(ctx.flags, "notify")), title: flag(ctx.flags, "title"), files: flagList(ctx.flags, "file"), elsewhere: ctx.elsewhere }, line => ctx.io.error(line)),
+          subStart(client, ctx.env, { on, size: flag(ctx.flags, "size"), from: flag(ctx.flags, "from"), branch: where.branch, project: ref }, message, { harness, picks, notify: await notifyOf(client, flagList(ctx.flags, "notify")), title: flag(ctx.flags, "title"), files: flagList(ctx.flags, "file"), elsewhere: ctx.elsewhere }, line => ctx.io.error(line)),
         );
         try {
           if (ctx.flags["detach"] === true) await detachVerb(ctx, client, opening, {}, opened, sub);
@@ -172,10 +172,10 @@ export const THREAD_VERBS: readonly Verb[] = [
         if (size !== undefined && on === undefined) throw subSizeNoCloudRefusal();
         if (from !== undefined && on === undefined) throw subFromNoCloudRefusal();
         if (on !== undefined) {
-          const word = besideOn([["project", ref], ["beside", beside], ["fork", forks], ["at", at], ["cwd", cwd], ["resume", conversation], ["copy", copy], ["replaces", replaces]]);
+          const word = besideOn([["beside", beside], ["fork", forks], ["at", at], ["cwd", cwd], ["resume", conversation], ["copy", copy], ["replaces", replaces]]);
           if (word !== undefined) throw subBesideRefusal(word);
           const client = await deps.client();
-          const { opening, sub, opened, stop } = await beforeSending(client, async () => subStart(client, deps.env, { on, size, from, branch }, message, { harness, picks: input, notify: await notifyOf(client, tell ?? []), title, files, elsewhere: deps.elsewhere }, QUIET_LINE));
+          const { opening, sub, opened, stop } = await beforeSending(client, async () => subStart(client, deps.env, { on, size, from, branch, project: ref }, message, { harness, picks: input, notify: await notifyOf(client, tell ?? []), title, files, elsewhere: deps.elsewhere }, QUIET_LINE));
           try {
             if (detach === true) return detachedOut(await startDetached(client, opening, "agent", undefined, () => hostBack(deps)), opened, sub);
             const out = { ...turnOut(await follow(client, opening, "agent", QUIET_TURN, () => hostBack(deps))), sub };

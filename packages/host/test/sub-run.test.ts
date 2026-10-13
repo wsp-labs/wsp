@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { EXIT_CODES, HOST_TOKEN_ENV, TURN_TOKEN_ENV, startsUsedLine, subOpenedLine, type SubOut } from "@wsp/protocol";
+import { EXIT_CODES, HOST_TOKEN_ENV, TURN_TOKEN_ENV, startsUsedLine, subBesideRefusal, subOpenedLine, subOtherProjectRefusal, type SubOut } from "@wsp/protocol";
 import { ctx, sockets } from "../../runtime/test/places-fixture.js";
 import { PAID, leadOnThisComputer } from "../../runtime/test/sub-fixture.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
@@ -100,6 +100,19 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
     expect(boat.creates.at(-1)).toMatchObject({ cpu: 4, memMb: 8192 });
   });
 
+  it("takes the lead's own project named beside --on and starts the sub-thread, and refuses another project naming the one it carries", async () => {
+    const { boat, starts, launch } = await leadOnThisComputer({ served: true });
+    const ran = await wsp(launch, "run", "web", "--on", "boat", "--detach", "--notify", "me", TASK, "--json");
+    expect(ran.code, ran.io.errors.join("\n")).toBe(0);
+    expect((JSON.parse(ran.io.lines[0]!) as { sub: SubOut }).sub).toMatchObject({ on: "boat", repo: "https://github.com/acme/web.git" });
+    expect(boat.creates).toHaveLength(1);
+    await expect.poll(() => starts.length).toBe(2);
+    const other = await wsp(launch, "run", "api", "--on", "boat", "--detach", "Run the api suite.", "--json");
+    expect(other.code).toBe(EXIT_CODES.usage);
+    expect(JSON.parse(other.io.errors.at(-1)!)).toEqual({ error: subOtherProjectRefusal("boat", "api", "web").message, class: "usage", exit: EXIT_CODES.usage });
+    expect(boat.creates).toHaveLength(1);
+  });
+
   it("past Boat's machines at once answers held with capped, says the wait on stderr, and starts the sub-thread once the first is done", async () => {
     const { rt, boat, starts, launch, turns } = await leadOnThisComputer({ served: true, machines: 1, agents: { spawn: true, maxMachines: 5 } });
     // The first sub-thread works on, holding its slot, until it is ended; a done one naps its machine at once.
@@ -159,6 +172,14 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
     // A word beside on is refused before anything is made.
     const beside = await mcp.callTool({ name: "run", arguments: { on: "boat", cwd: "/tmp", message: TASK } });
     expect(beside.isError).toBe(true);
+    expect(beside.content).toEqual([{ type: "text", text: subBesideRefusal("cwd").message }]);
     expect(boat.creates).toHaveLength(1);
+    // The lead's own project beside on starts the sub-thread; another is refused naming the one it carries.
+    const own = await mcp.callTool({ name: "run", arguments: { project: "web", on: "boat", message: "Run the suite.", detach: true } });
+    expect(own.isError, JSON.stringify(own.content)).not.toBe(true);
+    expect(boat.creates).toHaveLength(2);
+    const other = await mcp.callTool({ name: "run", arguments: { project: "api", on: "boat", message: TASK } });
+    expect(other.content).toEqual([{ type: "text", text: subOtherProjectRefusal("boat", "api", "web").message }]);
+    expect(boat.creates).toHaveLength(2);
   });
 });

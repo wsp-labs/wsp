@@ -99,6 +99,8 @@ pub(super) struct SubAsk {
     pub(super) from: Option<String>,
     pub(super) branch: Option<String>,
     pub(super) agent: Option<String>,
+    /// The asking thread's own project where the call names it; the host refuses any other.
+    pub(super) project: Option<String>,
 }
 
 /// A sub-thread's start: the picks read against the agent's lists, the machine made with every check the host runs
@@ -130,7 +132,14 @@ pub(super) async fn sub_run(
             }
         }
         let made: SubMade = client
-            .request("workspaces.create", params([("project", Value::from("")), ("name", Value::from(name)), ("sub", Value::Object(sub))]))
+            .request(
+                "workspaces.create",
+                params([
+                    ("project", Value::from(ask.project.as_deref().unwrap_or_default())),
+                    ("name", Value::from(name)),
+                    ("sub", Value::Object(sub)),
+                ]),
+            )
             .await?;
         Ok((notify, made))
     }
