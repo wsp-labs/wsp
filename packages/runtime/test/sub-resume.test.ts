@@ -7,7 +7,7 @@
 // and no rewind or fork of a turn the deleted machine ran.
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR } from "@wsp/engine";
-import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { copyKey, type Runtime } from "../src/runtime.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
@@ -25,11 +25,11 @@ afterEach(async () => {
 });
 
 /** A sub-thread on Boat whose first turn ended, its done read and its session kept, on the agent named. */
-async function doneOnce(o: { agent?: "claude" | "codex"; answers?: Partial<Answers>; deleteAfterMs?: number } = {}) {
+async function doneOnce(o: { agent?: "claude" | "codex"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } = {}) {
   const agent = o.agent ?? "claude";
   const answers: Answers = { read: PUSHED, session: Buffer.from(`gzipped ${agent} session`), ...o.answers };
   const { clock, jump } = jumpClock();
-  const held = await leadOnThisComputer({ clock, picks: [".env"], ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}) });
+  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}) });
   open.push(held.rt);
   if (o.deleteAfterMs !== undefined) await held.rt.places!.set("box", { deleteAfterMs: o.deleteAfterMs });
   answering(held.boat, answers);
@@ -195,11 +195,11 @@ describe("a send into a released sub-thread", () => {
     const launch = held.starts.at(-1)!.o;
     expect(launch.resume).toBe("s2");
     expect(launch.seed).toBeDefined();
-    const preamble = subResumePreamble({ on: "Boat", size: { name: "small", cpu: 2, memMb: 4096 }, folder: "/root/web", sent: [".env"], setupGit: "gh auth setup-git", repo: "https://github.com/acme/web.git", base: BASE, branch: BRANCH, pushed: true, deleteAfterMinutes: 30 });
+    const preamble = subResumePreamble({ on: "Boat", size: { name: "small", cpu: 2, memMb: 4096 }, folder: "/root/web", sent: ["CLAUDE.local.md"], setupGit: "gh auth setup-git", repo: "https://github.com/acme/web.git", base: BASE, branch: BRANCH, pushed: true, deleteAfterMinutes: 30 });
     expect(launch.prompt).toBe(subOpening(preamble, "what was the word?"));
     expect(preamble).toBe(
       [
-        "This thread's machine was deleted after its last turn, and the thread goes on here, on a new machine on Boat (small, 2 vCPU, 4 GB). Your conversation came with it; the code did not. The folder you are in, /root/web, holds only the git-ignored files the person picked: .env. Get your branch back first, in this folder:",
+        "This thread's machine was deleted after its last turn, and the thread goes on here, on a new machine on Boat (small, 2 vCPU, 4 GB). Your conversation came with it; the code did not. The folder you are in, /root/web, holds only the git-ignored files the person picked: CLAUDE.local.md. Get your branch back first, in this folder:",
         "",
         "gh auth setup-git",
         "git init -q",
@@ -218,6 +218,26 @@ describe("a send into a released sub-thread", () => {
     const r = await until(async () => ((await held.record()).phase === "napping" ? held.record() : undefined), "the nap after the resumed turn");
     expect(r).toMatchObject({ machineId: machine.id, golden: "wsp-host-default-v2" });
     expect(r.sub!.deleteAt).toBeGreaterThan(held.clock.now());
+  });
+
+  it("names a picked file of values that stayed on this computer in the notice of the send that makes the new machine", async () => {
+    const held = await released({ picks: [".env", "CLAUDE.local.md"], sizes: { ".env": 120, "CLAUDE.local.md": 1100 } });
+    const turn = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" });
+    await turn.finished;
+    expect(turn.notice?.split("\n")).toContain(subStayedLine([".env"]));
+  });
+
+  it("names a picked file of values that stayed on this computer when a first start that failed is tried again", async () => {
+    const { rt, boat, project, lead, token } = await leadOnThisComputer({ picks: [".env", "CLAUDE.local.md"], sizes: { ".env": 120, "CLAUDE.local.md": 1100 } });
+    open.push(rt);
+    boat.faults = [{ kind: "unusable", replayed: true }, { kind: "unusable" }];
+    const made = await rt.workspaces.create({ project: project.id, name: NAME, sub: { on: "boat" } }, lead);
+    const opening = subOpening(made.sub!.preamble, "Run the suite.");
+    await rt.sessions.start(made.id, { prompt: opening, harness: made.sub!.harness, turnToken: token, cwd: made.sub!.folder }, lead).catch(() => undefined);
+    const threadId = (await rt.sessions.list()).find(r => r.workspaceId === made.id)!.threadId!;
+    const tried = await rt.sessions.start(made.id, { thread: threadId, prompt: opening, harness: "claude", cwd: made.sub!.folder }, lead);
+    await tried.finished;
+    expect(tried.notice?.split("\n")).toContain(subStayedLine([".env"]));
   });
 
   it("lands Codex's rollout at its dated path under the box's home, one copy, and resumes the same thread", async () => {

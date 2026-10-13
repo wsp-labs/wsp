@@ -11,10 +11,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR, placeLimitsOf } from "@wsp/engine";
 import {
-  agentsOffRefusal, placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
+  agentsOffRefusal, placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, subStayedLine, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
   subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
   subNoUpstreamRefusal, subFromNotOnRemoteRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
 } from "@wsp/protocol";
@@ -56,7 +57,7 @@ async function refused(p: Promise<unknown>): Promise<{ said: string; cls: string
 
 describe("run --on boat from a thread on this computer", () => {
   it("forks the image head at the cloud's size, lands the picked files in /root/<repo> by the file road, and opens the sub-thread there under the preamble", async () => {
-    const { rt, store, boat, daemon, starts, project, threadId, lead, token, folder } = await leadOnThisComputer({ picks: [".env", ".env.local"], git: { uncommitted: 2 } });
+    const { rt, store, boat, daemon, starts, project, threadId, lead, token, folder } = await leadOnThisComputer({ picks: ["CLAUDE.local.md", "local.properties"], git: { uncommitted: 2 } });
     const before = daemon.frames.length;
     const made = await spawn(rt, project.id, lead);
     // The record stands before the cloud is asked: the machine is made once the thread's start comes.
@@ -69,7 +70,7 @@ describe("run --on boat from a thread on this computer", () => {
       repo: "https://github.com/acme/web.git",
       base: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a" },
       branch: "wsp/fix-the-flaky-upload-test",
-      sent: { paths: [".env", ".env.local"], bytes: 1243, missing: [] },
+      sent: { paths: ["CLAUDE.local.md", "local.properties"], bytes: 1243, missing: [] },
       notSent: { uncommitted: 2 },
       deleteAfterMinutes: 30,
     });
@@ -78,7 +79,7 @@ describe("run --on boat from a thread on this computer", () => {
     // The preamble, word for word as 03 gives it.
     expect(made.sub!.preamble).toBe(
       [
-        `This thread runs on a machine of its own on Boat (small, 2 vCPU, 4 GB), started by thread ${threadId.slice(0, 8)}. The code is not here yet. The folder you are in, /root/web, holds only the git-ignored files the person picked: .env, .env.local. Get the code first, in this folder:`,
+        `This thread runs on a machine of its own on Boat (small, 2 vCPU, 4 GB), started by thread ${threadId.slice(0, 8)}. The code is not here yet. The folder you are in, /root/web, holds only the git-ignored files the person picked: CLAUDE.local.md, local.properties. Get the code first, in this folder:`,
         "",
         "gh auth setup-git",
         "git init -q",
@@ -114,7 +115,7 @@ describe("run --on boat from a thread on this computer", () => {
   });
 
   it("writes each step of the start on the record as it goes, the row carrying it, for the line under the brief", async () => {
-    const { rt, boat, project, lead, token } = await leadOnThisComputer({ picks: [".env", ".env.local"], git: { uncommitted: 3 } });
+    const { rt, boat, project, lead, token } = await leadOnThisComputer({ picks: ["CLAUDE.local.md", "local.properties"], git: { uncommitted: 3 } });
     boat.states = ["provisioning", "cloning", "ready"];
     const made = await spawn(rt, project.id, lead);
     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
@@ -125,7 +126,7 @@ describe("run --on boat from a thread on this computer", () => {
     expect(spawned).toMatchObject({
       branch: { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d7c6a", ms: expect.any(Number) },
       machine: { id: machine.id, states: ["provisioning", "cloning", "ready"], ms: expect.any(Number) },
-      files: { paths: [".env", ".env.local"], bytes: 1243, ms: expect.any(Number) },
+      files: { paths: ["CLAUDE.local.md", "local.properties"], bytes: 1243, ms: expect.any(Number) },
       uncommitted: 3,
     });
     expect(spawned.readyAt).toBeGreaterThanOrEqual(spawned.startedAt);
@@ -135,6 +136,25 @@ describe("run --on boat from a thread on this computer", () => {
     expect(row.sub!.state).toBe("running");
     // The size by its class name, as Boat sells it, for the card and the pane.
     expect(row.sub!.size).toEqual({ cpu: 2, memMb: 4096, name: "small" });
+  });
+
+  it("leaves a file of values and a key on this computer whatever the saved picks say, since a sub-thread's machine is a provider's", async () => {
+    const { rt, boat, project, lead } = await leadOnThisComputer({ picks: [".env", "dev.pem", "CLAUDE.local.md"], sizes: { ".env": 120, "dev.pem": 900, "CLAUDE.local.md": 1100 }, left: ["deploy/tls.key"] });
+    const made = await spawn(rt, project.id, lead);
+    expect(made.sub!.out.sent).toEqual({ paths: ["CLAUDE.local.md"], bytes: 1100, missing: [] });
+    await opened(rt, made, lead);
+    const archive = gunzipSync(boat.files.find(f => f.path.startsWith("/tmp/wsp-seed-"))!.bytes);
+    expect([archive.includes("CLAUDE.local.md"), archive.includes(".env"), archive.includes("dev.pem")]).toEqual([true, false, false]);
+    // Every picked path that stayed is named in one line, a key the pack found inside a picked folder among them.
+    expect(made.notice?.split("\n")).toContain(subStayedLine([".env", "dev.pem", "deploy/tls.key"]));
+  });
+
+  it("says why a sub-thread starts with nothing where the only pick is a file of values", async () => {
+    const { rt, boat, project, lead } = await leadOnThisComputer({ picks: [".env"], sizes: { ".env": 120 } });
+    const made = await spawn(rt, project.id, lead);
+    expect(made.sub!.out.sent).toEqual({ paths: [], bytes: 0, missing: [] });
+    expect(made.notice).toBe(subStayedLine([".env"]));
+    expect(seedFiles(boat)).toEqual([]);
   });
 
   it("sends nothing ignored without the person's picks, says why, and names a picked path no longer there", async () => {
@@ -147,9 +167,9 @@ describe("run --on boat from a thread on this computer", () => {
     await opened(rt, made, lead);
     expect(seedFiles(boat)).toEqual([]);
     expect(boat.machines[0]!.execLog.some(c => c.startsWith("tar "))).toBe(false);
-    const again = await leadOnThisComputer({ picks: [".env", "gone.json"] });
+    const again = await leadOnThisComputer({ picks: ["CLAUDE.local.md", "gone.json"] });
     const sent = await spawn(again.rt, again.project.id, again.lead);
-    expect(sent.sub!.out.sent).toEqual({ paths: [".env"], bytes: 1100, missing: ["gone.json"] });
+    expect(sent.sub!.out.sent).toEqual({ paths: ["CLAUDE.local.md"], bytes: 1100, missing: ["gone.json"] });
   });
 
   it("takes the size the lead names, at its class's rate, and numbers the default branch past one another sub-thread pushes", async () => {
@@ -238,7 +258,7 @@ describe("run --on boat --from a ref the remote holds", () => {
   };
 
   it("starts at origin/main's commit while the lead's branch holds commits the remote does not, and says nothing of the lead's uncommitted changes", async () => {
-    const { rt, boat, daemon, project, lead, repo } = await leadOnThisComputer({ picks: [".env"], git: { ahead: 1, uncommitted: 2 } });
+    const { rt, boat, daemon, project, lead, repo } = await leadOnThisComputer({ picks: ["CLAUDE.local.md"], git: { ahead: 1, uncommitted: 2 } });
     const main = pushedElsewhere(repo, "refs/heads/main", "the suite moved to tests/k6");
     const before = daemon.frames.length;
     const made = await spawn(rt, project.id, lead, { from: "origin/main" });
@@ -331,7 +351,7 @@ describe("every check refuses before Boat is asked for a start", () => {
     { name: "S11 an agent the image does not carry", setup: { image: { agents: ["codex"] } }, sub: { harness: "claude" }, expect: () => ({ said: subNoAgentRefusal("Boat", "claude", ["codex"]).message, cls: "usage" }) },
     {
       name: "S12 picks past what a sub-thread carries",
-      setup: { picks: ["data.bin", ".env"], sizes: { "data.bin": SUB_SEED_MAX_BYTES + 1024, ".env": 100 } },
+      setup: { picks: ["data.bin", "CLAUDE.local.md"], sizes: { "data.bin": SUB_SEED_MAX_BYTES + 1024, "CLAUDE.local.md": 100 } },
       expect: () => ({ said: "", cls: "usage" }),
     },
     {
@@ -360,10 +380,10 @@ describe("every check refuses before Boat is asked for a start", () => {
 
   it("S12 names the largest picks and the sizes", async () => {
     const big = SUB_SEED_MAX_BYTES + 1024;
-    const f = await leadOnThisComputer({ picks: ["data.bin", ".env"], sizes: { "data.bin": big, ".env": 100 } });
+    const f = await leadOnThisComputer({ picks: ["data.bin", "CLAUDE.local.md"], sizes: { "data.bin": big, "CLAUDE.local.md": 100 } });
     const got = await refused(spawn(f.rt, f.project.id, f.lead));
     expect(got.cls).toBe("usage");
-    expect(got.said).toMatch(new RegExp(`^the files picked for web come to [^,]+, over the ${fmtBytes(SUB_SEED_MAX_BYTES).replace(".", "\\.")} a sub-thread carries; the largest are data\\.bin \\(${fmtBytes(big).replace(".", "\\.")}\\), \\.env \\(100 B\\)\\. Pick again with wsp projects seed web\\.$`));
+    expect(got.said).toMatch(new RegExp(`^the files picked for web come to [^,]+, over the ${fmtBytes(SUB_SEED_MAX_BYTES).replace(".", "\\.")} a sub-thread carries; the largest are data\\.bin \\(${fmtBytes(big).replace(".", "\\.")}\\), CLAUDE\\.local\\.md \\(100 B\\)\\. Pick again with wsp projects seed web\\.$`));
     expect(subSeedTooBigRefusal("web", "1 MB", "20 MB", ["data/"]).message).toBe(refusalLine("the files picked for web come to 1 MB, over the 20 MB a sub-thread carries; the largest are data/", "Pick again with wsp projects seed web."));
     expect(f.boat.creates).toEqual([]);
   });
@@ -413,7 +433,7 @@ describe("a machine that fails before the first turn", () => {
 
 describe("what wsp does to the lead and the machine", () => {
   it("pushes nothing for the lead and runs nothing on the machine past 10's list", async () => {
-    const { rt, boat, daemon, project, lead, token } = await leadOnThisComputer({ picks: [".env"] });
+    const { rt, boat, daemon, project, lead, token } = await leadOnThisComputer({ picks: ["CLAUDE.local.md"] });
     const before = daemon.frames.length;
     const made = await spawn(rt, project.id, lead);
     expect(daemon.frames.slice(before).map(f => f["op"])).toEqual(["git.status"]);

@@ -4,10 +4,17 @@ import { catalogToolFor, smokeOf } from "../src/catalog.js";
 import { SEED_ROWS, seedInstallsFor, seedRowFor } from "../src/seed.js";
 
 describe("the row a path git ignores lands on", () => {
-  it("reads a local env file as configuration that travels", () => {
+  it("reads a local env file as a file of values, which only a box of the person's own gets", () => {
     const found = seedRowFor(".env.local", false);
     expect(found?.row.id).toBe("next");
-    expect(found?.kind).toBe("config");
+    expect(found?.kind).toBe("secret");
+  });
+
+  it("reads every file of values and every key as secret, before any configuration row", () => {
+    for (const path of [".env", ".env.production", "apps/web/.npmrc", ".envrc", ".pypirc", "certs/local.pem", "certs/local.key", "prod.tfvars", "infra/stage.auto.tfvars", "app/release.keystore", "app/upload.jks", "config/master.key", "config/credentials/production.key", "certs/client.p12"]) {
+      expect(seedRowFor(path, false)?.kind, path).toBe("secret");
+    }
+    for (const path of ["certs/local.crt", "local.properties", ".claude/settings.local.json", "app/local_settings.py"]) expect(seedRowFor(path, false)?.kind, path).toBe("config");
   });
 
   it("reads an install directory as one the computer rebuilds", () => {
@@ -43,8 +50,8 @@ describe("the row a path git ignores lands on", () => {
   });
 
   it("matches a pattern with a slash at a segment boundary and nowhere else", () => {
-    expect(seedRowFor("config/master.key", false)).toMatchObject({ kind: "config", row: { id: "rails" } });
-    expect(seedRowFor("myconfig/master.key", false)).toMatchObject({ kind: "config", row: { id: "certificates" } });
+    expect(seedRowFor("config/master.key", false)).toMatchObject({ kind: "secret", row: { id: "rails" } });
+    expect(seedRowFor("myconfig/master.key", false)).toMatchObject({ kind: "secret", row: { id: "certificates" } });
   });
 });
 

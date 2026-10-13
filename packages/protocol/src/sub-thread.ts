@@ -310,6 +310,10 @@ export const subPickedElsewhereWhy = (project: string, computer: string): string
 /** The line a start passes with when no git-ignored file was sent. */
 export const subNotSentLine = (why: string, project: string): string =>
   `no git-ignored files were sent: ${why}.${why.startsWith("nothing is picked") ? ` wsp projects seed ${project} shows what could go.` : ""}`;
+/** The line a start passes with when picked files stayed here: a sub-thread's machine is a provider's, which gets
+ * no login, no file of values and no key, picked by name or found inside a picked folder. */
+export const subStayedLine = (paths: readonly string[]): string =>
+  `${paths.join(", ")} stayed on this computer: a sub-thread's machine is a provider's, which gets no login, file of values or key.`;
 /** The stage line for the picked files landing. */
 export const subCopyingLine = (files: number): string => `copying ${files} ${files === 1 ? "file" : "files"}`;
 /** The first line a terminal prints: where the sub-thread runs. */

@@ -17,14 +17,24 @@ export const SEED_DIR = ".wsp-seed";
 export const SEED_MEMORY_DIR = `${SEED_DIR}/memory`;
 export const SEED_PATCH = `${SEED_DIR}/commits.patch`;
 
+/** Whether a menu row may leave this computer on this plan's seed: a login never, a file of values or a key only
+ * to the person's own box, never to a provider place. */
+export const seedTravels = (plan: Pick<SeedPlan, "provider">, file: Pick<SeedFile, "kind">): boolean =>
+  file.kind !== "never" && !(file.kind === "secret" && plan.provider === true);
+
+/** The paths of a remembered choice this plan holds back rather than drops: the files of values and keys a provider
+ * place never gets. Saving picks made off a provider's menu keeps them, so a box's next add still finds them ticked. */
+export const heldBackPicks = (plan: SeedPlan, remembered: readonly string[]): string[] =>
+  remembered.filter(path => plan.files.some(f => f.path === path && f.kind === "secret" && !seedTravels(plan, f)));
+
 /** What the menu starts with: whatever each row is ticked as. A plan nobody has answered for carries the
  * catalogue's own judgment, every configuration row and nothing else; one built from a choice remembered for that
- * folder carries theirs, so an untick they asked to be kept is still unticked here. A login is never ticked
- * whatever a remembered choice says, since it never travels at all. The memory folder and the unpushed commits
- * ride on there being any. */
+ * folder carries theirs, so an untick they asked to be kept is still unticked here. A row that does not travel on
+ * this plan is never ticked whatever a remembered choice says. The memory folder and the unpushed commits ride on
+ * there being any. */
 export function defaultSeedChoice(plan: SeedPlan): SeedChoice {
   return {
-    files: plan.files.filter(f => f.ticked && f.kind !== "never").map(f => f.path),
+    files: plan.files.filter(f => f.ticked && seedTravels(plan, f)).map(f => f.path),
     memory: plan.memory !== null,
     commits: plan.unpushed !== null,
   };
@@ -57,6 +67,11 @@ export const notInTheMenuLine = (path: string, shown: readonly string[]): string
 export const neverTravelsLine = (path: string, row: string | undefined): string =>
   `${path} is ${row === undefined ? "a login" : `${row}, a login`}, and a login never travels in a seed; the computer's image carries its own sign-in`;
 
+/** Why a file of values or a key is refused for a provider place even when it was named: the provider's machine
+ * would hold the person's values, and only their own box gets those. */
+export const staysHereLine = (path: string): string =>
+  `${path} holds values or a key, which stay on this computer for a provider place; only a box of your own gets them`;
+
 /** Why the repository's own folder is refused: the computer clones the repo itself, so its history never rides a
  * seed, and a choice naming it is a choice built from something other than the menu. */
 export const neverGitLine = (path: string): string => `${path} is the repository's own folder, which a seed never carries: the computer clones the repo itself`;
@@ -81,10 +96,11 @@ export function seedPicks(plan: SeedPlan, start: readonly string[], keep: readon
     const file = known.get(path);
     if (file === undefined) throw invalid(notInTheMenuLine(path, [...known.keys()]));
     if (file.kind === "never") throw invalid(neverTravelsLine(path, file.row?.name));
+    if (!seedTravels(plan, file)) throw invalid(staysHereLine(path));
   }
   for (const path of cuts) if (!known.has(path) && !missing.includes(path)) throw invalid(notInTheMenuLine(path, [...known.keys()]));
   return {
-    files: plan.files.filter(f => f.kind !== "never" && (start.includes(f.path) || keeps.includes(f.path)) && !cuts.includes(f.path)).map(f => f.path),
+    files: plan.files.filter(f => seedTravels(plan, f) && (start.includes(f.path) || keeps.includes(f.path)) && !cuts.includes(f.path)).map(f => f.path),
     missing: missing.filter(path => !cuts.includes(path)),
   };
 }
@@ -95,7 +111,7 @@ export function projectSeedOf(project: string, plan: SeedPlan, picks: { files: r
   return {
     project,
     folder: plan.source,
-    rows: plan.files.map(f => ({ path: f.path, dir: f.dir, bytes: f.bytes, kind: f.kind, why: seedRowWords(f), picked: picks.files.includes(f.path) })),
+    rows: plan.files.map(f => ({ path: f.path, dir: f.dir, bytes: f.bytes, kind: f.kind, why: seedRowWords(f, plan), picked: picks.files.includes(f.path) })),
     picked: { paths: picked.map(f => f.path), bytes: picked.reduce((sum, f) => sum + f.bytes, 0), missing: [...picks.missing] },
     saved,
   };
@@ -130,7 +146,8 @@ export const seedNotHereRefusal = (project: string, computer: string): Error =>
   refusal(`${project} lives on ${computer}, and picks are read from folders on this computer only`, `A sub-thread of ${project} starts with no git-ignored files.`, "usage");
 
 /** The words one menu row ends in, which say why it is ticked or not. */
-export function seedRowWords(file: SeedFile): string {
+export function seedRowWords(file: SeedFile, plan: Pick<SeedPlan, "provider"> = {}): string {
+  if (file.kind === "secret") return seedTravels(plan, file) ? (file.row?.name ?? "values") : "stays on this computer";
   if (file.kind === "config") return file.row?.name ?? "config";
   if (file.kind === "rebuilt") return "rebuilt on the box";
   if (file.kind === "data") return "database, stop what uses it first";
@@ -182,7 +199,7 @@ export function seedMenuRows(plan: SeedPlan, choice: SeedChoice): string[][] {
   const files = [...plan.files].sort((a, b) => b.bytes - a.bytes || a.path.localeCompare(b.path));
   return [
     ["", "PATH", "SIZE", "WHY"],
-    ...files.map(f => [`[${tick(choice.files.includes(f.path))}]`, f.dir ? `${f.path}/` : f.path, fmtBytes(f.bytes), seedRowWords(f)]),
+    ...files.map(f => [`[${tick(choice.files.includes(f.path))}]`, f.dir ? `${f.path}/` : f.path, fmtBytes(f.bytes), seedRowWords(f, plan)]),
     ...(plan.memory === null ? [] : [[`[${tick(choice.memory)}]`, `${plan.memory.key}/memory`, fmtBytes(plan.memory.bytes), `Claude Code memory, ${plural(plan.memory.files, "file")}`]]),
     ...(plan.unpushed === null ? [] : [[`[${tick(choice.commits)}]`, `${plan.branch} as a patch`, "", `${plural(plan.unpushed.commits, "commit")} the remote does not have`]]),
   ];
@@ -198,11 +215,11 @@ export function seedConsentLines(plan: SeedPlan, computer: string, addLine: (fla
   ];
 }
 
-/** What the add says about the paths a ticked folder held that never travel: a login inside a folder somebody
- * ticked stays on this computer, and the line names each one, so nothing they asked to carry is dropped in
- * silence. */
+/** What the add says about the paths a ticked folder held that do not travel: a login, or a key bound for a
+ * provider place, inside a folder somebody ticked stays on this computer, and the line names each one, so nothing
+ * they asked to carry is dropped in silence. */
 export const leftBehindLine = (paths: readonly string[]): string =>
-  `${plural(paths.length, "login")} inside the folders you ticked stayed on this computer: ${paths.join(", ")}`;
+  `${plural(paths.length, "file")} inside the folders you ticked stayed on this computer: ${paths.join(", ")}`;
 
 /** What the add says when git refused the commits the remote has never seen: the person's own count and branch,
  * git's own last line for why, and where the checkout every copy of it takes now stands. The commits stay on the

@@ -345,9 +345,9 @@ export interface Runtime {
      * folder here, or a repo a computer clones, and the computer it lives on. Refused when the word is neither, when the computer's kind takes no source of
      * that shape, and when that source is already a project on that computer. */
     add(opts: { source: string; on?: string; name?: string; base?: string; into?: string; seed?: SeedChoice }, origin?: Caller): Promise<ProjectView & { notice?: string }>;
-    /** What a seed of a folder on this computer would carry, with the ticks a remembered choice for that folder
-     * leaves on it. Nothing of the folder is read whole and nothing leaves this computer. */
-    seedPlan(source: string): Promise<SeedPlan>;
+    /** What a seed of a folder on this computer would carry to the computer `on` names, with the ticks a remembered
+     * choice for that folder leaves on it. Nothing of the folder is read whole and nothing leaves this computer. */
+    seedPlan(source: string, on?: string): Promise<SeedPlan>;
     /** The seed picks of a project whose folder is on this computer: its remembered choice, else nothing, moved by
      * `none`, `keep` and `cut`; `save` keeps them as the folder's remembered choice, and a thread's token is refused
      * that. A project on another computer is refused. */

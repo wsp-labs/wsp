@@ -306,7 +306,7 @@ A thread can start sub-threads on Boat, each on a machine of its own forked from
 4. Merge each branch with `wsp merge in <you> <sub-thread>`, run your tests, push your branch.
 5. Its machine is deleted 30 minutes after it is done; a send before then reuses it, and a send after starts a new machine with the conversation kept. Settle a sub-thread once you have merged it.
 
-Each sub-thread is one Boat start, and the person's plan allows 12 a minute and 200 a day on the $20 plan; start what the work needs. A sub-thread that needs the project's git-ignored files (`.env`) gets the ones the person picked with `wsp projects seed <project>`; that pick is theirs, so hand them the line in an `sh` block.
+Each sub-thread is one Boat start, and the person's plan allows 12 a minute and 200 a day on the $20 plan; start what the work needs. A sub-thread that needs the project's git-ignored files gets the ones the person picked with `wsp projects seed <project>`, less every file of values and key (`.env`, `*.pem`), which stays on this computer whatever was picked; that pick is theirs, so hand them the line in an `sh` block.
 
 ### slate
 
