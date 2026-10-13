@@ -44,8 +44,9 @@ export function windowAt(app: ElectronApplication, url: RegExp): Promise<Page> {
   );
 }
 
-/** A login shell at `file` that prints `path`, which is the PATH the app reads off the shell it is handed and so what
- * decides which agents it finds. Without one the app would read the shell of the computer running the suite. */
+/** A login shell at `file` whose environment holds `path` and nothing else, which is the PATH the app reads off the
+ * shell it is handed and so what decides which agents it finds. Without one the app would read the shell of the
+ * computer running the suite. */
 export function loginShell(file: string, path: string): string {
-  return writeStub(file, `#!/bin/sh\nprintf %s ${JSON.stringify(path)}\n`);
+  return writeStub(file, `#!/bin/sh\nprintf 'PATH=%s\\0' ${JSON.stringify(path)}\n`);
 }

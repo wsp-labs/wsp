@@ -41,7 +41,7 @@ describe("the login shell PATH and the runtime built over it", () => {
     // What the person's shell prints: their own folder in front of the four launchd gave this launch.
     shellPath = `${join(dir, "their-bin")}:${LAUNCHD_PATH.join(":")}`;
     const shell = join(dir, "login-shell");
-    writeStub(shell, `#!/bin/sh\nprintf %s ${JSON.stringify(shellPath)}\n`);
+    writeStub(shell, `#!/bin/sh\nprintf 'PATH=%s\\0' ${JSON.stringify(shellPath)}\n`);
     vi.stubEnv("SOLARI_API_KEY", "");
     vi.stubEnv("ANTHROPIC_API_KEY", "");
     vi.stubEnv("HOME", home);
