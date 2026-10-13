@@ -19,11 +19,15 @@ export interface ShellKeyInput {
 /** The keys the menu's Zoom In, Zoom Out and Actual Size rows carry, as a press spells them. */
 const ZOOM_KEYS: ReadonlySet<string> = new Set(["+", "=", "-", "0"]);
 
+/** Whether the press holds the platform's mod, Command on macOS and Control elsewhere, and not the other one. */
+export function holdsMod(input: ShellKeyInput, platform: NodeJS.Platform): boolean {
+  return platform === "darwin" ? input.meta && !input.control : input.control && !input.meta;
+}
+
 /** Whether the menu would zoom this window on this press: the platform's mod alone with one of those keys. */
 export function isShellZoomChord(input: ShellKeyInput, platform: NodeJS.Platform): boolean {
   if (input.type !== "keyDown" || input.alt) return false;
-  const mod = platform === "darwin" ? input.meta && !input.control : input.control && !input.meta;
-  return mod && ZOOM_KEYS.has(input.key);
+  return holdsMod(input, platform) && ZOOM_KEYS.has(input.key);
 }
 
 /** The same press in the page's spelling. */

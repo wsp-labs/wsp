@@ -5,8 +5,11 @@
 // that made it asked for. Only the app's own host's page may make one: the
 // page holding a guest can script it, and the guest session keeps the person's
 // sign-ins. A new window a guest asks for becomes a new tab, and a link to
-// another app asks before it leaves.
-import { BROWSER_PARTITION, type GuestOpen } from "@wsp/protocol";
+// another app asks before it leaves. The close chords pressed in a guest go
+// to the window, never to the guest's page.
+import { BROWSER_PARTITION, type GuestOpen, type ShellChord } from "@wsp/protocol";
+import { closeChordOf, type CloseChord } from "./close.js";
+import { shellChordOf, type ShellKeyInput } from "./zoom.js";
 
 /** The parts of a guest's web preferences the gate reads and sets. */
 export interface GuestPreferences {
@@ -71,12 +74,15 @@ export interface GuestShell {
   /** Asks the person whether a link may leave for another app. */
   ask(url: string): Promise<boolean>;
   openOutside(url: string): void;
+  /** Closes the window, or hands the press to the page holding the guest, whose keybindings close the pane's tab. */
+  close(chord: CloseChord, press: ShellChord): void;
 }
 
 /** The parts of Electron's guest WebContents this needs. */
 export interface GuestContents {
   id: number;
   setWindowOpenHandler(handler: (details: { url: string }) => { action: "deny" }): void;
+  on(event: "before-input-event", listener: (event: { preventDefault(): void }, input: ShellKeyInput) => void): unknown;
 }
 
 /** The parts of the guest session this needs. */
@@ -106,7 +112,7 @@ export function guardGuestSession(session: GuestSession, shell: GuestShell): voi
 /** The listeners each window that loads a host page sets on its contents: a guest attaches only while the window's
  * page may hold guests and only on their own partition, and a guest's new window becomes a tab of the page's or a
  * question. The window's own page is the only one that can make a guest: a frame inside it has no webview element. */
-export function guestGuards(page: { getURL(): string }, shell: GuestShell) {
+export function guestGuards(page: { getURL(): string }, shell: GuestShell, platform: NodeJS.Platform = process.platform) {
   return {
     willAttach(event: { preventDefault(): void }, prefs: GuestPreferences): void {
       if (!shell.mayHold(page.getURL()) || !attachGuest(prefs)) event.preventDefault();
@@ -117,6 +123,12 @@ export function guestGuards(page: { getURL(): string }, shell: GuestShell) {
         if (road === "tab") shell.newTab({ guest: guest.id, url });
         else if (road === "ask") void leave(shell, url);
         return { action: "deny" };
+      });
+      guest.on("before-input-event", (event, input) => {
+        const chord = closeChordOf(input, platform);
+        if (chord === undefined) return;
+        event.preventDefault();
+        shell.close(chord, shellChordOf(input));
       });
     },
   };
