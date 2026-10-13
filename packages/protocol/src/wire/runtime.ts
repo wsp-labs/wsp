@@ -813,6 +813,16 @@ const RuntimeOp = z.discriminatedUnion("op", [
    * the row says the tool prints; `way` "key" saves an agent that mints a token its API key instead. Only on the
    * host's own socket. Replies with nothing of it. */
   z.object({ id: reqId, op: z.literal("agents.key"), agent: z.string(), key: z.string().min(1), way: z.enum(["token", "key"]).optional() }),
+  /** Replies with { signInId } once this host's own login for the agent runs, the one every machine whose credentials
+   * the host keeps runs it on: Claude Code's own sign-in, or Codex's kept in a CODEX_HOME of wsp's own beside the state
+   * file, never the person's. Its progress is pushed as agents.signIn's is. Only on the host's own socket. */
+  z.object({ id: reqId, op: z.literal("agents.cloudSignIn"), agent: z.enum(["claude", "codex"]) }),
+  /** Replies with ProviderKeyWorks: a provider's key asked of that provider once, before anything is saved, or the
+   * refusal saying in plain words why it does not work. Nothing is written. Only on the host's own socket. */
+  z.object({ id: reqId, op: z.literal("providers.checkKey"), provider: z.string().max(64), key: z.string().min(1) }),
+  /** Replies with BrokerStatus: the kind of credential this host adds to each request a machine whose credentials it
+   * keeps sends, never the credential. */
+  z.object({ id: reqId, op: z.literal("broker.status") }),
   /** Replies with { file }: the wsp server written into that agent's own config on this computer, the entry an
    * install writes, with the wsp skill beside it. Refused on any other computer. */
   z.object({ id: reqId, op: z.literal("agents.addTools"), target: AgentsTarget, agent: z.string() }),
@@ -1208,6 +1218,8 @@ export const DEVICE_OPS: readonly string[] = [
   // The person's own usage and accounts: read on a paired device, never by a thread, which reads no one's accounts.
   "usage.used",
   "usage.accounts",
+  // Settings, Agents in every window: the kinds of credential the host holds and gh's account name, never a credential.
+  "broker.status",
   "places.readings",
   "forwards.list",
   "forwards.stop",
@@ -1403,3 +1415,17 @@ export type SessionStartResult = z.infer<typeof SessionStartResult>;
  * nothing, where the workspace's computer or the agent keeps no process ahead of a send. */
 export const SessionWarmResult = z.object({ warm: z.enum(["started", "standing", "none"]) });
 export type SessionWarmResult = z.infer<typeof SessionWarmResult>;
+
+/** What providers.checkKey answers for a key that works: the account it belongs to, its plan, and the machines it
+ * runs now of the most it may. */
+export const ProviderKeyWorks = z.object({ works: z.literal(true), account: z.string(), plan: z.string(), running: z.number().int().nonnegative(), limit: z.number().int().nonnegative() });
+export type ProviderKeyWorks = z.infer<typeof ProviderKeyWorks>;
+
+/** What broker.status answers: for each road, the kind of credential this host adds, absent where it holds none.
+ * github is the account gh is signed in as. */
+export const BrokerStatus = z.object({
+  claude: z.enum(["token", "key", "gateway", "login"]).optional(),
+  codex: z.enum(["chatgpt", "access-token", "key"]).optional(),
+  github: z.string().optional(),
+});
+export type BrokerStatus = z.infer<typeof BrokerStatus>;

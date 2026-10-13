@@ -948,6 +948,8 @@ describe("runtime wire types", () => {
       "appProcs.watch", "appProcs.unwatch", "appProcs.offer", "appProcs.set",
       // A computer's processes carry their command lines, and an End signals a process on this computer.
       "activity.read", "activity.end",
+      // A key goes out to its provider, and a sign-in runs on this computer.
+      "providers.checkKey", "agents.cloudSignIn",
     ];
     for (const op of held) {
       expect(wire.RUNTIME_OPS, op).toContain(op);
