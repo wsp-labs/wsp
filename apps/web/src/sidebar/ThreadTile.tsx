@@ -37,6 +37,7 @@ import { ComputerGlyph } from "../settings/ComputerGlyph.js";
 import { cn } from "../lib/utils.js";
 import { RowNameInput } from "./RowNameInput.js";
 import { subMachineLine, tileCardLines, tilePrIcon, type TileCardLine } from "./tileCard.js";
+import { useNamedCap } from "./workspaceRows.js";
 import { useCost, useStore } from "../protocol/store.js";
 import { useMinuteClockWhen } from "../components/status/useMinuteClock.js";
 import { hereName } from "../settings/places.js";
@@ -333,6 +334,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
   // The computer's name alone, so a places read that changes nothing a tile says draws no tile again.
   const here = useStore(s => (thread.sub === undefined ? "" : hereName(s.places)));
   const now = useMinuteClockWhen(thread.sub !== undefined);
+  const capped = useNamedCap(thread.capped);
   const slim = settled || finished !== undefined;
   const status = settled || snoozed ? RESTING : threadStatusOf(thread);
   // A working or read row recedes unless it is the one open, as T3 Code's shouldRecede; a row that calls for the
@@ -351,11 +353,11 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
     model,
     pr: checkout.pr,
     changed: checkout.changed,
-    notes: [snoozed ? SNOOZE_WORDS.workingHover(snoozedWorking) : null, ...capNotes(thread.capped), thread.setupRefusal ?? null, ...checkout.counts, checkout.why ?? null],
+    notes: [snoozed ? SNOOZE_WORDS.workingHover(snoozedWorking) : null, ...capNotes(capped), thread.setupRefusal ?? null, ...checkout.counts, checkout.why ?? null],
   });
   // The card leads with the status row, the reason whole under its word, an ended turn's last line among them; a
   // settled tile's card has none.
-  const reason = noteOf({ node: null, thread }, thread.status === "running" ? "live" : "finished");
+  const reason = noteOf({ node: null, thread }, thread.status === "running" ? "live" : "finished", capped);
   const statusRow = settled || snoozed ? undefined : <StatusLine thread={thread} {...(finished !== undefined ? { kind: finished } : {})} age={time} {...(reason !== undefined ? { reason } : {})} />;
   // An agent the host refuses to start there says so in the slot, over a resting or failed thread's own status.
   const setupRefused = thread.setupRefusal !== undefined && (status === RESTING || status.id === FAILED.id) ? thread.setupRefusal : undefined;

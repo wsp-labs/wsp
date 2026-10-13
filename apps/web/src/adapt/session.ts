@@ -7,7 +7,7 @@
 // session id repeats across turns. Wire order is the timeline order. createdAt
 // is the wire's `at` (ms epoch) as ISO, else the caller's receipt clock, else
 // "" for unstamped history.
-import { AFTER_CUT_LINE, LIMIT_WORDS, isSubOomLine, NOTIFY_ME, capStartedLine, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
+import { AFTER_CUT_LINE, LIMIT_WORDS, isSubOomLine, NOTIFY_ME, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
 import { spawnedThreadOf } from "./spawned.js";
 import type {
   CallResult,
@@ -535,9 +535,6 @@ export function createSessionFold(): SessionFold {
       case "session.run":
         runs.set(event.block, event);
         return;
-      case "session.uncapped":
-        push(workEntry({ id: `uncapped:${event.turnId ?? event.sessionId}`, turnId: null, createdAt: at, label: capStartedLine(event), tone: "notice", sourceActivityKind: "runtime.starting" }, at));
-        return;
       case "session.notice": {
         // The host's line about the machine under the thread, said between turns or inside one: a notice on the
         // turn it lands in, never a message under the agent's name.
@@ -549,6 +546,7 @@ export function createSessionFold(): SessionFold {
       case "session.moved":
       case "session.behind":
       case "session.capped":
+      case "session.uncapped":
       case "session.subagent":
       case "thread.waited":
         return;

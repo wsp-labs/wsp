@@ -8,7 +8,7 @@ import { memo, useMemo } from "react";
 import type { SpawnCall } from "../../adapt/index.js";
 import type { SpawnedChildren } from "../../adapt/spawned.js";
 import { usePlaces, useSidebarProjects, useStore } from "../../protocol/store.js";
-import { computerName } from "../../sidebar/workspaceRows.js";
+import { computerName, useNamedCap } from "../../sidebar/workspaceRows.js";
 import { childNodesOf, type ChildNode } from "../../tree/TreeRows.js";
 import { childTarget, kindOf, leadNodes, noteOf, partOf, type LeadNode, type Tree } from "./leadTree.js";
 import { SubagentRow, ThreadRow } from "./ThreadRows.js";
@@ -40,7 +40,7 @@ const childOf = (nodes: ReadonlyArray<LeadNode<ChildNode>>, call: SpawnCall): Le
 
 function SpawnTile({ node, tree, leadPlace }: { node: LeadNode<ChildNode>; tree: Tree<ChildNode>; leadPlace: string }) {
   const part = partOf(node, tree);
-  const note = noteOf(node, part);
+  const note = noteOf(node, part, useNamedCap("thread" in node ? node.thread?.capped : undefined));
   const target = childTarget(node, part, tree);
   const kind = kindOf(node, part);
   if ("subagent" in node) {

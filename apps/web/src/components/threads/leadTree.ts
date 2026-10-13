@@ -4,7 +4,7 @@
 // tree is never folded away; the line under its title; its status; the acts it takes; and what a settle of it takes.
 // A place hands its own nodes in through Tree; a subagent is a node under the thread whose agent runs it, built from
 // that thread's subagents, and every subagent of a thread stands flat under it whatever its depth.
-import { capRunningLine, type SubagentView } from "@wsp/protocol";
+import { capRunningLine, type SubagentView, type ThreadCapWait } from "@wsp/protocol";
 import { CHILD_WORDS } from "../../actions/format.js";
 import { childActions, leadActions, type ChildTarget, type ChildVerbs } from "../../actions/threadActions.js";
 import { resolveActions, type ResolvedAction } from "../../actions/registry.js";
@@ -149,8 +149,9 @@ export function mostPressing<N>(nodes: ReadonlyArray<LeadNode<N>>, tree: Tree<N>
 }
 
 /** The line under a child's title: what it asks, why it failed, the threads at once that hold it, the thread a
- * running restart replaced where the rows hold it, or a finished child's last line. A settled child has none. */
-export function noteOf<N>(node: LeadNode<N>, part: ChildPart): string | undefined {
+ * running restart replaced where the rows hold it, or a finished child's last line. A settled child has none.
+ * `capped` is the hold with its computer named as the places list names it (useNamedCap). */
+export function noteOf<N>(node: LeadNode<N>, part: ChildPart, capped?: ThreadCapWait): string | undefined {
   if (part === "settled") return undefined;
   if ("subagent" in node) {
     const { subagent } = node;
@@ -163,7 +164,7 @@ export function noteOf<N>(node: LeadNode<N>, part: ChildPart): string | undefine
   if (thread.status === "failed") return thread.failure ?? undefined;
   const sub = thread.sub === undefined ? undefined : subReason(thread.sub, thread.capped, thread.status === "running");
   if (sub !== undefined) return sub;
-  if (thread.capped !== undefined) return capRunningLine(thread.capped);
+  if (thread.capped !== undefined) return capRunningLine(capped ?? thread.capped);
   const replaced = thread.replaces;
   if (replaced !== null && replaced.endedAt !== null && thread.status === "running") return CHILD_WORDS.restartOf(replaced.failed, restingAge({ startedAt: null, endedAt: replaced.endedAt }));
   return part === "finished" ? (thread.lastLine ?? undefined) : undefined;
