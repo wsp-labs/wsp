@@ -493,6 +493,20 @@ describe("the whole flow", () => {
     expect([...picked.wspTools]).toEqual([]);
   });
 
+  it("at a provider there is no Sign-ins screen: Also is the third of five, the wsp tools the fourth, and no login is answered", async () => {
+    const o = streams(100, 30);
+    const scan = [{ id: "brew/jq", name: "jq", manager: "brew" as const, group: "Homebrew formulae", install: "brew install jq", check: "command -v jq", size: 2 * 1024 * 1024 }];
+    const p = flow(o, { scan, cloud: true });
+    for (const screen of ["◆  Agents  1/5", "◆  Tools  2/5", "◆  Also on this Mac  3/5", "◆  wsp for your agents on this Mac  4/5"]) {
+      await settle(20);
+      expect(o.text()).toContain(screen);
+      o.input.write(KEY.enter);
+    }
+    const picked = await p;
+    expect(o.text()).not.toContain("Sign-ins");
+    expect(picked !== "cancel" && [...picked.logins]).toEqual([]);
+  });
+
   it("with a manager row to offer the Also screen is the third of six, and the screens after it count against six", async () => {
     const o = streams(100, 30);
     const scan = [{ id: "brew/jq", name: "jq", manager: "brew" as const, group: "Homebrew formulae", install: "brew install jq", check: "command -v jq", size: 2 * 1024 * 1024 }];
