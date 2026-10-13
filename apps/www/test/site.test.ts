@@ -2,7 +2,7 @@
 // The built site as a crawler reads it, with no JavaScript run: every route's own HTML and head, the structured data,
 // and the sitemap, robots.txt and llms.txt the build writes from the same route table.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { act, screen } from "@testing-library/react";
@@ -73,13 +73,13 @@ describe("every route, as raw HTML", () => {
     const body = text(html);
     expect(html).toMatch(/<h1[^>]*>Coding agents on every computer you own\.<\/h1>/);
     const heads = [...html.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map(m => m[1]);
-    expect(heads).toEqual(["Your agents hand work to each other.", "Add a computer. Your setup comes with it.", "Other tools reach your other computers too.", "A mini app inside every thread.", "Everything around the thread.", "Questions", "Put your other computers to work."]);
+    expect(heads).toEqual(["Your agents hand work to each other.", "Add a computer. Your setup comes with it.", "A mini app inside every thread.", "Everything around the thread.", "How wsp compares.", "Questions", "Put your other computers to work."]);
     for (const { q, a } of QUESTIONS) {
       expect(body).toContain(q);
       expect(body).toContain(a);
     }
     expect(html).toContain(`href="${DOWNLOADS.mac.href}"`);
-    expect(html).toMatch(/<a href="\/compare"[^>]*>Compare with Conductor/);
+    expect(html).toContain(`href="/compare/conductor"`);
   });
 
   it("serves /compare as one card per tool, under its kind, each opening the tool's page", () => {
@@ -130,15 +130,12 @@ describe("every route, as raw HTML", () => {
     });
   }
 
-  it("says on / what /compare says about the other kinds", () => {
-    const body = text(built("index.html"));
-    expect(body).toContain("Your computer; most reach a second computer over ssh or a relay");
-    expect(body).toContain("Your repo, a setup script, and on Claude and Cursor some skills you turn on");
-    expect(body).toContain("The vendors bring your repo, a setup script, and on Claude and Cursor some skills you turn on. wsp brings your setup.");
-    expect(body).not.toContain("some reach a box");
-    expect(body).not.toContain("Your repo and a setup script");
-    expect(KINDS[0]!.name).toBe("Apps on the computer you sit at");
-    expect(body).toContain("Apps on the computer you sit at");
+  it("links / to every compare page, each with its tool's icon", () => {
+    const html = built("index.html");
+    for (const tool of KINDS.flatMap(kind => kind.tools)) {
+      expect(html).toContain(`href="/compare/${tool.slug}"`);
+      expect(existsSync(join(www, "public/logos", `${tool.slug}.png`))).toBe(true);
+    }
   });
 
   it("answers an unknown path's page with a way home, kept out of search", () => {
