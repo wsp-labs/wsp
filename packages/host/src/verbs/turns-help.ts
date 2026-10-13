@@ -312,10 +312,11 @@ export async function forkFor(client: HostClient, project: ForkTarget["fork"], t
 }
 
 /** A sub-thread's machine on a cloud, named off the task as a fork's is unless the title names it, with a number
- * after it where a machine already has that name; its stages go to `say`. The host reads the asking thread's project
- * off its token and every check before the cloud is asked for a start. Called last, once everything else on the line
- * has been read, so a refusal costs no machine. */
-export async function subFor(client: HostClient, ask: { on: string; size?: string | undefined; from?: string | undefined; branch?: string | undefined; harness?: string | undefined }, task: string, title: string | undefined, say: (line: string) => void): Promise<{ workspace: WorkspaceOut; sub: SubStarted }> {
+ * after it where a machine already has that name. The host reads the asking thread's project off its token and every
+ * check before the cloud is asked for a start. Called last, once everything else on the line has been read, so a
+ * refusal costs no machine. The machine is made once the thread's start comes, so its stages go to `say` after the
+ * answer, until `stop`. */
+export async function subFor(client: HostClient, ask: { on: string; size?: string | undefined; from?: string | undefined; branch?: string | undefined; harness?: string | undefined }, task: string, title: string | undefined, say: (line: string) => void): Promise<{ workspace: WorkspaceOut; sub: SubStarted; stop: () => void }> {
   const name = takenNameAfter(title ?? nameOfTask(task), new Set((await workspaces(client)).map(w => w.name)));
   const pushed = pushedFrames(client);
   await client.events();
@@ -327,9 +328,10 @@ export async function subFor(client: HostClient, ask: { on: string; size?: strin
     const sub = { on: ask.on, ...(ask.size !== undefined ? { size: ask.size } : {}), ...(ask.from !== undefined ? { from: ask.from } : {}), ...(ask.branch !== undefined ? { branch: ask.branch } : {}), ...(ask.harness !== undefined ? { harness: ask.harness } : {}) };
     const made = await client.request<{ workspace: WorkspaceOut; notice?: string; sub: unknown }>("workspaces.create", { project: "", name, sub });
     if (made.notice !== undefined) for (const line of made.notice.split("\n")) say(line);
-    return { workspace: made.workspace, sub: SubStarted.parse(made.sub) };
-  } finally {
+    return { workspace: made.workspace, sub: SubStarted.parse(made.sub), stop: () => pushed.stop() };
+  } catch (e) {
     pushed.stop();
+    throw e;
   }
 }
 

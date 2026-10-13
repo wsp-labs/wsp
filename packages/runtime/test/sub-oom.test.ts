@@ -4,8 +4,9 @@
 // finished line its lead gets, with the size to start again at. The agent is
 // the real Claude adapter, its run a scripted guest on the stub Boat.
 import { describe, expect, it } from "vitest";
-import { subOpening } from "@wsp/protocol";
+import { subOpening, type TurnResult } from "@wsp/protocol";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
+import type { HarnessAdapterFactory } from "../src/runtime.js";
 import { scriptGuest, type Step } from "./script-guest.js";
 import { leadOnThisComputer } from "./sub-fixture.js";
 
@@ -50,9 +51,15 @@ describe("a sub-thread's agent ended by a signal", () => {
   });
 
   it("a command run with wsp exec on the machine keeps its exit code and reads nothing", async () => {
-    const f = await leadOnThisComputer({ subAdapter: HARNESS_ADAPTERS.claude, agents: { spawn: true, maxMachines: 3 } });
+    // The sub-thread's agent works on, so its machine stands for the command.
+    const busy: HarnessAdapterFactory = () => ({
+      steers: false,
+      start: o => (o.onEvent({ type: "session.start", sessionId: "busy" }), { localId: "busy", finished: new Promise<TurnResult>(() => {}), interrupt: async () => {} }),
+    });
+    const f = await leadOnThisComputer({ subAdapter: busy, agents: { spawn: true, maxMachines: 3 } });
     const made = await f.rt.workspaces.create({ project: f.project.id, name: NAME, sub: { on: "boat" } }, f.lead);
     await f.endLead();
+    await f.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Run the upload suite."), harness: "claude", cwd: made.sub!.folder }, f.lead);
     const others = f.boat.execImpl;
     const readings: string[] = [];
     scriptGuest(f.boat, [{ append: "building\n" }, { exit: 137 }, {}], async (m, cmd) => (cmd.includes("journalctl") ? (readings.push(cmd), { exitCode: 0, stdout: "1\n", stderr: "" }) : others(m, cmd)));

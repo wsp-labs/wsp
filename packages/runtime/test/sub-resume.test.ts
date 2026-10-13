@@ -34,8 +34,8 @@ async function doneOnce(o: { agent?: "claude" | "codex"; answers?: Partial<Answe
   if (o.deleteAfterMs !== undefined) await held.rt.places!.set("box", { deleteAfterMs: o.deleteAfterMs });
   answering(held.boat, answers);
   const made = await held.rt.workspaces.create({ project: held.project.id, name: NAME, sub: { on: "boat", harness: agent } }, held.lead);
-  const first = held.boat.machines.at(-1)!;
   const child = await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Remember the word lantern."), harness: agent, notify: ["me"], turnToken: held.token, title: NAME, cwd: made.sub!.folder }, held.lead);
+  const first = held.boat.machines.at(-1)!;
   const threadId = child.view().threadId!;
   await child.finished;
   const record = (): Promise<WorkspaceRecord> => held.store.get("workspaces", made.id) as Promise<WorkspaceRecord>;
