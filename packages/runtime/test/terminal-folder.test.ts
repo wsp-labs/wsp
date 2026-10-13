@@ -4,12 +4,14 @@
 // so the host names the folder the thread works in. The daemon is the
 // fixture's fake that keeps every frame.
 import { afterEach, describe, expect, it } from "vitest";
+import { subOpening } from "@wsp/protocol";
 import { tokenGuest } from "./stub-backend.js";
 import { leadOnThisComputer } from "./sub-fixture.js";
 
 type Held = Awaited<ReturnType<typeof leadOnThisComputer>>;
 let held: Held | undefined;
 afterEach(async () => {
+  held?.turns.release?.();
   await held?.endLead();
   await held?.rt.close();
   held = undefined;
@@ -32,6 +34,9 @@ describe("a pane's terminal on a machine whose daemon is its own", () => {
     held.boat.execImpl = tokenGuest;
     const made = await held.rt.workspaces.create({ project: held.project.id, name: "k6 full suite", sub: { on: "boat" } }, held.lead);
     expect(made.folder).toBe("/root/web");
+    // Its machine is made once its thread's start comes; the turn works on, so the machine stands for the pane.
+    held.turns.hold = true;
+    await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Run the k6 suite."), harness: made.sub!.harness, cwd: made.sub!.folder }, held.lead);
     const frames = await created(held, made.id, [{ thread: "thr_a" }, {}, { cwd: "/tmp" }]);
     expect(frames.map(f => f["cwd"])).toEqual(["/root/web", "/root/web", "/tmp"]);
     expect(frames[0]).not.toHaveProperty("thread");

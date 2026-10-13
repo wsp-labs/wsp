@@ -1072,8 +1072,9 @@ export const useStore = create<State>((set, get) => {
             const failed = e.stage === "failed" ? { title: couldNotStart(e.name), detail: e.message } : null;
             if (own === undefined) {
               // A refusal of a create this window holds no row of, as the subscribe's last word of a command line's
-              // failure is, has nobody here to tell.
-              if (failed !== null) return {};
+              // failure is, has nobody here to tell. A workspace this window holds already is no create: a sub-thread's
+              // record stands under its lead before its machine is made, and its page says the start's steps.
+              if (failed !== null || s.workspaces.some(w => w.id === e.workspaceId)) return {};
               return { creations: [...s.creations, { key: `${CREATION_PREFIX}${e.workspaceId}`, name: e.name, askedAt: Date.now() - e.elapsedMs, workspaceId: e.workspaceId, lines: [line], failed }] };
             }
             heard.add(own.key);

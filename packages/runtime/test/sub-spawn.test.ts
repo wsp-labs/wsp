@@ -39,6 +39,10 @@ const NAME = "Fix the flaky upload test";
 const spawn = (rt: Runtime, project: string, lead: Caller | undefined, sub: { on?: string; size?: string; from?: string; branch?: string; harness?: string } = {}, name = NAME) =>
   rt.workspaces.create({ project, name, sub: { on: "boat", ...sub } }, lead);
 
+/** The sub-thread's first turn, which its machine is made for, run to its end. */
+const opened = async (rt: Runtime, made: Awaited<ReturnType<typeof spawn>>, lead: Caller | undefined): Promise<void> =>
+  void (await (await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, cwd: made.sub!.folder }, lead)).finished);
+
 /** What a refusal threw, as a terminal reads it, and the class it exits with. */
 async function refused(p: Promise<unknown>): Promise<{ said: string; cls: string }> {
   const e = await p.then(
@@ -54,8 +58,8 @@ describe("run --on boat from a thread on this computer", () => {
     const { rt, store, boat, daemon, starts, project, threadId, lead, token, folder } = await leadOnThisComputer({ picks: [".env", ".env.local"], git: { uncommitted: 2 } });
     const before = daemon.frames.length;
     const made = await spawn(rt, project.id, lead);
-    expect(boat.creates).toHaveLength(1);
-    expect(boat.creates[0]).toMatchObject({ fromSnapshot: "wsp-host-default-v1", cpu: 2, memMb: 4096 });
+    // The record stands before the cloud is asked: the machine is made once the thread's start comes.
+    expect(boat.creates).toEqual([]);
     expect(made.sub!.out).toEqual({
       on: "boat",
       machine: NAME,
@@ -86,11 +90,6 @@ describe("run --on boat from a thread on this computer", () => {
         "The task:",
       ].join("\n"),
     );
-    // The picked files went up as one archive by the file road, and only their names are in a command.
-    const machine = boat.machines[0]!;
-    expect(seedFiles(boat)).toEqual([`/tmp/wsp-seed-${made.id}.tgz`]);
-    expect(machine.execLog).toContain("install -d -m 0755 '/root/web'");
-    expect(machine.execLog).toContain(`tar -xzf '/tmp/wsp-seed-${made.id}.tgz' -C '/root/web' && rm -f '/tmp/wsp-seed-${made.id}.tgz'`);
     // The record names the lead's project and the lead, and stands in its root's tree.
     const record = (await store.get("workspaces", made.id)) as Record<string, unknown>;
     expect(record).toMatchObject({ kind: "cloud", project: project.id, lead: { threadId, workspaceId: folder.id }, rootThreadId: threadId, parentThreadId: threadId, agents: { spawn: false }, golden: "wsp-host-default-v1", size: { cpu: 2, memMb: 4096 } });
@@ -98,6 +97,13 @@ describe("run --on boat from a thread on this computer", () => {
     // The thread opens in that folder, the preamble above the task, and is the lead's child.
     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
     await child.finished;
+    expect(boat.creates).toHaveLength(1);
+    expect(boat.creates[0]).toMatchObject({ fromSnapshot: "wsp-host-default-v1", cpu: 2, memMb: 4096 });
+    // The picked files went up as one archive by the file road, and only their names are in a command.
+    const machine = boat.machines[0]!;
+    expect(seedFiles(boat)).toEqual([`/tmp/wsp-seed-${made.id}.tgz`]);
+    expect(machine.execLog).toContain("install -d -m 0755 '/root/web'");
+    expect(machine.execLog).toContain(`tar -xzf '/tmp/wsp-seed-${made.id}.tgz' -C '/root/web' && rm -f '/tmp/wsp-seed-${made.id}.tgz'`);
     const opened = starts.at(-1)!.o;
     expect(opened.cwd).toBe("/root/web");
     expect(opened.prompt).toBe(`${made.sub!.preamble}\n\n${TASK}`);
@@ -110,9 +116,9 @@ describe("run --on boat from a thread on this computer", () => {
     const { rt, boat, project, lead, token } = await leadOnThisComputer({ picks: [".env", ".env.local"], git: { uncommitted: 3 } });
     boat.states = ["provisioning", "cloning", "ready"];
     const made = await spawn(rt, project.id, lead);
-    const machine = boat.machines[0]!;
     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: NAME, cwd: made.sub!.folder }, lead);
     await child.finished;
+    const machine = boat.machines[0]!;
     const row = (await rt.sessions.list()).find(r => r.threadId === child.view().threadId)!;
     const spawned = row.sub!.spawn!;
     expect(spawned).toMatchObject({
@@ -137,6 +143,7 @@ describe("run --on boat from a thread on this computer", () => {
     expect(made.sub!.out.notSent).toEqual({ uncommitted: 0, why: "nothing is picked for web" });
     expect(made.notice).toBe("no git-ignored files were sent: nothing is picked for web. wsp projects seed web shows what could go.");
     expect(made.sub!.preamble).toContain("The folder you are in, /root/web, is empty.");
+    await opened(rt, made, lead);
     expect(seedFiles(boat)).toEqual([]);
     expect(boat.machines[0]!.execLog.some(c => c.startsWith("tar "))).toBe(false);
     const again = await leadOnThisComputer({ picks: [".env", "gone.json"] });
@@ -147,6 +154,7 @@ describe("run --on boat from a thread on this computer", () => {
   it("takes the size the lead names, at its class's rate, and numbers the default branch past one another sub-thread pushes", async () => {
     const { rt, boat, project, lead } = await leadOnThisComputer({ agents: { spawn: true, maxMachines: 5 } });
     const big = await spawn(rt, project.id, lead, { size: "4x8" });
+    await opened(rt, big, lead);
     expect(boat.creates[0]).toMatchObject({ cpu: 4, memMb: 8192 });
     expect(big.sub!.out).toMatchObject({ size: { cpu: 4, memMb: 8192 }, rateUsdPerHour: 0.036 });
     expect(big.sub!.preamble).toContain("on Boat (default, 4 vCPU, 8 GB)");
@@ -184,9 +192,9 @@ describe("run --on boat from a thread on this computer", () => {
     // The root's machines count it: a second spawn meets the cap before any create.
     const capped = await refused(spawn(rt, project.id, lead, {}, "Another one"));
     expect(capped).toEqual({ said: spawnCapRefusal(threadId, 1, 1), cls: "usage" });
-    expect(boat.creates).toHaveLength(1);
     const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: "claude", turnToken: token, cwd: made.sub!.folder }, lead);
     await child.finished;
+    expect(boat.creates).toHaveLength(1);
     const childId = child.view().threadId!;
     const asChild: Caller = { origin: "relayed", by: { kind: "thread", threadId: childId, workspaceId: made.id, rootThreadId: threadId } };
     const second = await refused(rt.sessions.start(made.id, { prompt: "beside it", harness: "claude" }, lead));
@@ -216,11 +224,14 @@ describe("run --on boat --from a ref the remote holds", () => {
     const main = pushedElsewhere(repo, "refs/heads/main", "the suite moved to tests/k6");
     const before = daemon.frames.length;
     const made = await spawn(rt, project.id, lead, { from: "origin/main" });
-    expect(boat.creates).toHaveLength(1);
+    // The record stands before the cloud is asked: the machine is made once the thread's start comes.
+    expect(boat.creates).toEqual([]);
     expect(made.sub!.out).toMatchObject({ base: { branch: "main", sha: main }, branch: "wsp/fix-the-flaky-upload-test", notSent: { uncommitted: 0 } });
     expect(made.sub!.preamble).toContain(["gh auth setup-git", "git init -q", "git remote add origin https://github.com/acme/web.git", "git fetch -q --filter=blob:none origin main", `git checkout -q -b wsp/fix-the-flaky-upload-test ${main}`].join("\n"));
     expect(made.notice).toBeUndefined();
     expect(daemon.frames.slice(before).map(f => f["op"])).toEqual(["git.status"]);
+    await opened(rt, made, lead);
+    expect(boat.creates).toHaveLength(1);
   });
 
   it("takes a tag by the commit it names and a commit by the remote branch holding it, the default branch first", async () => {
@@ -346,35 +357,37 @@ describe("a machine that fails before the first turn", () => {
       const { rt, boat, project, lead } = await leadOnThisComputer();
       boat.faults = [fault];
       const made = await spawn(rt, project.id, lead);
+      await opened(rt, made, lead);
       expect(boat.creates).toHaveLength(2);
       const [bad, good] = boat.machines;
       expect(bad!.killed).toBe(true);
       expect(good!.killed).toBe(false);
-      expect(made.machineId).toBe(good!.id);
+      expect((await rt.workspaces.get(made.id)).machineId).toBe(good!.id);
       const line =
         fault.kind === "unusable"
           ? `Boat gave ${bad!.id} with nothing able to run on it (${BOX_WORK_DIR} is missing); wsp deleted it and started another.`
           : fault.kind === "env"
             ? `Boat's machine ${bad!.id} did not take wsp's setup within 2 minutes (exit 124); wsp deleted it and started another.`
             : `Boat could not get a machine for ${NAME} and cancelled the create (no capacity); wsp started another.`;
-      expect(made.notice!.split("\n")[0]).toBe(line);
+      const row = (await rt.sessions.list()).find(r => r.workspaceId === made.id)!;
+      expect(row.sub!.spawn!.replaced).toEqual([line]);
     });
   }
 
-  it("fails the spawn on a second failure, naming both machines, and leaves neither standing", async () => {
-    const { rt, boat, project, lead } = await leadOnThisComputer();
+  it("fails the spawn on a second failure, naming both machines, and leaves neither standing, the record released under its lead", async () => {
+    const { rt, boat, project, lead, threadId } = await leadOnThisComputer();
     boat.faults = [{ kind: "unusable", replayed: true }, { kind: "unusable" }];
-    const got = await refused(spawn(rt, project.id, lead));
+    const got = await refused(spawn(rt, project.id, lead).then(made => opened(rt, made, lead)));
     expect(got.cls).toBe("provider");
     expect(got.said).toBe(`Boat gave two machines in a row that could not run commands (${boat.machines[0]!.id}, ${boat.machines[1]!.id}); Boat is restoring badly right now. Start it again in a few minutes.`);
     expect(boat.machines.every(m => m.killed)).toBe(true);
-    expect((await rt.workspaces.list()).map(w => w.name)).not.toContain(NAME);
+    expect((await rt.workspaces.list()).find(w => w.name === NAME)).toMatchObject({ phase: "released", machineId: "", parentThreadId: threadId });
   });
 
   it("names both faults when they differ", async () => {
     const { rt, boat, project, lead } = await leadOnThisComputer();
     boat.faults = [{ kind: "env" }, { kind: "cancelled" }];
-    const got = await refused(spawn(rt, project.id, lead));
+    const got = await refused(spawn(rt, project.id, lead).then(made => opened(rt, made, lead)));
     expect(got.said).toBe(`Boat gave two machines in a row that failed before the sub-thread started (${boat.machines[0]!.id}: setup not taken, exit 124; ${boat.machines[1]!.id}: no capacity). Start it again in a few minutes.`);
     expect(boat.machines.every(m => m.killed)).toBe(true);
   });
@@ -386,15 +399,16 @@ describe("what wsp does to the lead and the machine", () => {
     const before = daemon.frames.length;
     const made = await spawn(rt, project.id, lead);
     expect(daemon.frames.slice(before).map(f => f["op"])).toEqual(["git.status"]);
+    const child = await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: "claude", turnToken: token, cwd: made.sub!.folder }, lead);
     const machine = boat.machines[0]!;
-    const spawned = [...machine.execLog];
+    const spawned = machine.execLog.slice(0, machine.execLog.indexOf(`tar -xzf '/tmp/wsp-seed-${made.id}.tgz' -C '/root/web' && rm -f '/tmp/wsp-seed-${made.id}.tgz'`) + 1);
     // The fork road's three, then the folder and the archive, and nothing else; no command carries a byte of a file.
     expect(spawned.filter(forkRoad)).toHaveLength(3);
     expect(spawned.filter(c => !forkRoad(c))).toEqual(["install -d -m 0755 '/root/web'", `tar -xzf '/tmp/wsp-seed-${made.id}.tgz' -C '/root/web' && rm -f '/tmp/wsp-seed-${made.id}.tgz'`]);
     expect(seedFiles(boat)).toEqual([`/tmp/wsp-seed-${made.id}.tgz`]);
     const seed = boat.files.find(f => f.path.startsWith("/tmp/wsp-seed-"))!.bytes.toString("base64");
     expect(spawned.some(c => c.includes(seed.slice(0, 32)))).toBe(false);
-    await (await rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: "claude", turnToken: token, cwd: made.sub!.folder }, lead)).finished;
+    await child.finished;
     expect(machine.execLog.some(c => /\bgit (clone|push|fetch)\b|\b(npm|pnpm) (install|ci)\b/.test(c))).toBe(false);
   });
 });
