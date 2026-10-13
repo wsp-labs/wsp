@@ -8,7 +8,7 @@ import {
   type TurnImage, threadKeyOf, isLocalWorkspace, catalogRefused, imagePathIn, noAdapterLine, shellQuote,
   signInRefusalLine, storedTitleSource, workspaceState, HERE_PLACE_ID, filePathIn, landFilesLine, filesNotLandedLine,
   dropFilesLine, accessMode, accessRefusal, configDirLaunchRefusal, configDirRefusal, markedFor, openDefaults,
-  resolveThreadDefaults, withCustomModels, runsInFolder, type AccessChoice, type Caller, type ProjectOverrides, type ResolvedFolder,
+  resolveThreadDefaults, withCustomModels, runsInFolder, HOST_TOKEN_ENV, type AccessChoice, type Caller, type ProjectOverrides, type ResolvedFolder,
 } from "@wsp/protocol";
 import type { TurnWaiting } from "../machine-exec.js";
 import { keyOf, realFolderHere, realFolderScript } from "../agent-setup.js";
@@ -543,10 +543,12 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     const factory = adapters[harness];
     if (!factory) throw new Error(noAdapterLine(harness, Object.keys(adapters)));
     const kind = ctx.moduleOf(entry.record.kind);
-    const vault = ctx.vaultOn(entry);
+    // A workspace whose credentials the host keeps is handed the turn token in place of the vault and no server value.
+    const brokered = ctx.brokeredLaunch(entry, harness, turnEnv?.[HOST_TOKEN_ENV]);
+    const vault = brokered?.vault ?? ctx.vaultOn(entry);
     const place = setupPlace(entry);
     const setup = place === undefined ? undefined : setups.launchOf(place, harness);
-    const carried = kind.serverValues === "environment" ? servers : {};
+    const carried = brokered === undefined && kind.serverValues === "environment" ? servers : {};
     const ofTurn = thread !== undefined && kind.endThread !== undefined ? { thread, ...(asksUntilStopped !== undefined ? { asksUntilStopped } : {}) } : asksUntilStopped !== undefined ? { asksUntilStopped } : undefined;
     // The agent's run alone is read for a memory kill: a command run with wsp exec there keeps its own exit code.
     const killed = entry.record.sub !== undefined ? { killedWhy: (at: number) => ctx.subKilledWhy(entry, at) } : undefined;
@@ -558,7 +560,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
         execStream: ctx.execFactoryFor(entry, ofTurn === undefined && killed === undefined ? ctx.turnLimitOf(entry.record) : { ...ctx.turnLimitOf(entry.record), ...ofTurn, ...killed }, waiting),
         home: id => agentHome(entry, id),
         // The person's variables over the computer's own and under the turn's, which only wsp sets.
-        env: { ...carried, ...threadEnv(entry, harness), ...turnEnv },
+        env: { ...carried, ...threadEnv(entry, harness), ...brokered?.env, ...turnEnv },
         ...(setup?.launch !== undefined ? { launch: setup.launch } : {}),
         ...((): { projectKey?: string } => {
           const key = kind.memoryKey(entry, harness);
@@ -566,6 +568,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
         })(),
         signInRefusal: signInRefusalLine({ kind: entry.record.kind }),
         vault,
+        ...(brokered?.claude !== undefined ? { brokered: brokered.claude } : {}),
         loginStands: id => kind.loginStands(entry, id),
       }),
     };
