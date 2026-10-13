@@ -167,6 +167,7 @@ const DAEMON_CONTENTS = [
   "ea7ddf9672058441f203edb34058aaa4891edf74f4491eb00ff3d7dafe27ac07",
   "8f5ebfb509af2c03e578fbd6c091e22527d9a7eb8f8afcf87982cfe7ba3ffff7",
   "c6218b1e50a45fa78731253dc6ee5bdce98d6e59e4f5eba251a4980dc7aa81fe",
+  "fa46ca2eff81cc70bfc3837b9b3bed3c6fa6e7a600537e43bc91ac1c881772e5",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -668,7 +669,11 @@ const DAEMON_CONTENTS = [
  * Version 156: stdio.open takes an env, names and values the daemon puts in the environment it spawns the command with,
  * over its own, so the thread's mark stands on that process from its first instant; a daemon from before it ignores the
  * field.
- * Version 157: show old messages at the time they were written. */
+ * Version 157: show old messages at the time they were written.
+ * Version 158: The auth frame takes pipe, which asks for a pipe rather than a control socket; pipe.open is the one text
+ * frame a pipe opens with, naming its door and how long the connection waited; and git.push, git.startOn, git.update,
+ * git.mergeIn, git.pr and git.prCheckout take a token for that one op. The daemon reads them and serves nothing on them
+ * yet. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
@@ -731,6 +736,11 @@ export const STDIO_DAEMON_VERSION = 154;
 /** The first daemon that posts to an http server from its own computer (http.post), which a slate's http MCP server
  * on a box or a cloud machine is asked through. */
 export const HTTP_POST_DAEMON_VERSION = 155;
+
+/** The first daemon that reads `pipe` on an auth frame and `token` on git.push, git.startOn, git.update,
+ * git.mergeIn, git.pr and git.prCheckout. One before it drops both unread: a pipe becomes a control socket, which
+ * pipeOpenOf reads as no pipe, and a token never reaches git. The host sends neither below it. */
+export const PIPE_DAEMON_VERSION = 158;
 
 /** The first daemon whose ports.watch takes a name and cgroups, which a box thread's panes watch its ports by. */
 export const NAMED_WATCH_DAEMON_VERSION = 136;

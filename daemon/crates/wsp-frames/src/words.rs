@@ -10,6 +10,8 @@ pub const AUTH_NO_FRAME_IN_TIME: &str = "no auth frame arrived in time";
 /// rotation takes the sockets the old token opened with it, rather than leaving them answering for the life of
 /// the connection. Under the same close code the four above travel with.
 pub const AUTH_TOKEN_ROTATED: &str = "the daemon token was rotated; dial again with the current one";
+/// What a pipe dialled past numbers::PIPE_POOL_MAX is closed with.
+pub const PIPE_POOL_FULL: &str = "pipe pool full";
 /// The WebSocket close code every one of them travels under.
 pub const AUTH_CLOSE_CODE: u16 = 4401;
 

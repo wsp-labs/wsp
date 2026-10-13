@@ -48,6 +48,7 @@ import { KILL_PIDS_MAX, SSH_KEY_MAX } from "../daemon-contract.js";
 import type { UsageStore as WireUsageStore } from "../generated/UsageStore.js";
 import type { HttpBearer as WireHttpBearer } from "../generated/HttpBearer.js";
 import type { HttpPostReply as WireHttpPostReply } from "../generated/HttpPostReply.js";
+import type { PipeOpen as WirePipeOpen } from "../generated/PipeOpen.js";
 import { cgroupPath, type Held, reqId, type Same, watchName } from "./helpers.js";
 import { EXEC_BODY_MAX, isHttpUrl, GUEST_ARGV_MAX, GUEST_CWD_MAX, GUEST_TOKEN_MAX, TRANSCRIPT_DIRS_MAX, USAGE_STORES_MAX } from "./limits.js";
 
@@ -69,14 +70,47 @@ export type DaemonLinkStatus = z.infer<typeof DaemonLinkStatus>;
  * the socket closes 4401 with one sentence of reason. Anything else first, or nothing, closes the same way.
  * A peer that sends more than a few KiB before this frame passes is closed 4401 too, so a client sends nothing
  * more until it is answered. port scopes the socket to one guest port: only tunnel ops on that port and ping are
- * answered, everything else is refused with code forbidden. */
+ * answered, everything else is refused with code forbidden. pipe asks for a pipe rather than a control socket: one
+ * local connection's bytes, opened by PipeOpen. A daemon from before pipes ignores the field and answers it as a
+ * control socket, which pipeOpenOf reads as no pipe. */
 export const DaemonAuthRequest = z.object({
   id: reqId,
   op: z.literal("auth"),
   token: z.string(),
   port: z.number().int().min(1).max(65535).optional(),
+  pipe: z.boolean().optional(),
 });
 export type DaemonAuthRequest = z.infer<typeof DaemonAuthRequest>;
+
+/** Which loopback door on the machine a pipe's local connection came in on: the HTTP door for model calls and git,
+ * the gh door for gh. */
+export const PipeDoor = z.enum(["http", "gh"]);
+export type PipeDoor = z.infer<typeof PipeDoor>;
+
+/** The daemon's one text frame on a pipe, sent when a local connection takes it; the connection's bytes follow as
+ * binary frames both ways. heldMs is how long that connection waited for a pipe. */
+export const PipeOpen = z.object({ op: z.literal("pipe.open"), door: PipeDoor, heldMs: z.number().int().nonnegative() });
+export type PipeOpen = z.infer<typeof PipeOpen>;
+type PipeOpenHeld = Held<Same<PipeOpen, WirePipeOpen>>;
+
+/** The first text frame a daemon sends on a socket dialled as a pipe after its auth reply, read: the PipeOpen, or
+ * undefined for anything else, which is a daemon that serves no pipes greeting a control socket with daemon.hello.
+ * The caller closes that one socket and leaves the daemon's link alone. */
+export function pipeOpenOf(text: string): PipeOpen | undefined {
+  let frame: unknown;
+  try {
+    frame = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  const open = PipeOpen.safeParse(frame);
+  return open.success ? open.data : undefined;
+}
+
+/** The host's token for one op on a machine whose credentials the host keeps (git.push, git.startOn, git.update,
+ * git.mergeIn, git.pr, git.prCheckout): git's proxy password and gh's GH_TOKEN for the commands that op runs, and
+ * nothing else; absent, the op runs as it always has. */
+const opToken = z.string().max(GUEST_TOKEN_MAX).optional();
 
 // Replies carry no op, so each files/diff op has its own reply schema here
 // instead of a discriminated union; DaemonOkResponse stays the loose envelope.
@@ -679,10 +713,10 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Pushes the branch the checkout is on to its remote and answers a GitPushReply. The base branch itself is
    * refused: wsp makes no branch and pushes none of the branch the work started from. Without a base the
    * checkout's own default branch is read, which is what a project recorded without one was cloned at. */
-  z.object({ id: reqId, op: z.literal("git.push"), cwd: z.string(), base: z.string().optional(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.push"), cwd: z.string(), base: z.string().optional(), token: opToken, machineId: z.string().optional() }),
   /** Opens the branch's pull request against the base through the git host's own signed-in command line, or
    * answers with the one already open. Refused with code no-host-cli where that command line is not there. */
-  z.object({ id: reqId, op: z.literal("git.pr"), cwd: z.string(), base: z.string().optional(), title: z.string().optional(), body: z.string().optional(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.pr"), cwd: z.string(), base: z.string().optional(), title: z.string().optional(), body: z.string().optional(), token: opToken, machineId: z.string().optional() }),
   /** A pull request by branch or by number through that same command line, the repository named off the remote the
    * frame carries and never off the folder, where nothing is read and no git runs; answered as a GitPrReadReply, with
    * no pull request where the host knows none. The host takes the remote off the project's own record. */
@@ -727,7 +761,7 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Puts the copy on a pull request's head branch through the git host's own command line, run inside the copy, the
    * host read off the copy's own remote; answered as a GitPrCheckoutReply naming the branch, which tracks where the
    * head lives. */
-  z.object({ id: reqId, op: z.literal("git.prCheckout"), cwd: z.string(), number: z.number().int().nonnegative(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.prCheckout"), cwd: z.string(), number: z.number().int().nonnegative(), token: opToken, machineId: z.string().optional() }),
   /** A pull request's diff against its base, cut on a file's boundary at maxBytes, never past GIT_DIFF_CAP_BYTES and
    * REVIEW_DIFF_MAX_BYTES where absent, answered as a GitPrDiffReply naming every file the cut left out. */
   z.object({
@@ -800,10 +834,10 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Merges the base's latest commits from the remote into the checkout's branch and answers a GitUpdateReply. A
    * checkout with changes no commit holds is refused with the files named; a merge that conflicts is taken back at
    * once and answered with the files, the checkout left as it was. */
-  z.object({ id: reqId, op: z.literal("git.update"), cwd: z.string(), base: z.string().optional(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.update"), cwd: z.string(), base: z.string().optional(), token: opToken, machineId: z.string().optional() }),
   /** Puts the checkout on a branch as the remote holds it, fetched and reset with every untracked file dropped, and
    * answers a GitStartOnReply: what a child's copy starts on, the branch its lead pushed. */
-  z.object({ id: reqId, op: z.literal("git.startOn"), cwd: z.string(), branch: z.string(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.startOn"), cwd: z.string(), branch: z.string(), token: opToken, machineId: z.string().optional() }),
   /** How far one branch is from a base, a branch or a commit, on the git host, through this computer's own command
    * line with the repository named off the remote given, answered as a GitBranchCompareReply; a head the host lacks
    * is not pushed. */
@@ -811,7 +845,7 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Merges another branch into the checkout's with a merge commit, from the remote or from a copy's folder on this
    * computer, and answers a GitMergeInReply; refused over changes no commit holds, and a merge that conflicts is
    * taken back and answered with the files. A folder is refused on any daemon but this computer's own. */
-  z.object({ id: reqId, op: z.literal("git.mergeIn"), cwd: z.string(), branch: z.string(), from: z.string().optional(), machineId: z.string().optional() }),
+  z.object({ id: reqId, op: z.literal("git.mergeIn"), cwd: z.string(), branch: z.string(), from: z.string().optional(), token: opToken, machineId: z.string().optional() }),
   /** The repository's open pull requests and issues through that same command line, answered as a GitPrListReply.
    * No command line for the host, or one nobody signed in, is an empty list with the note saying so. */
   z.object({ id: reqId, op: z.literal("git.prList"), cwd: z.string(), machineId: z.string().optional() }),

@@ -35,9 +35,12 @@ export type AgentDefaultsPatch = z.infer<typeof AgentDefaultsPatch>;
  * computer (threads at once, the program, its folder, arguments, environment, on or off) stays the computer's, and a
  * field added here is a change to this shape. */
 const AfterWorktree = z.string().trim().min(1, "the after-worktree command is a shell line; --reset after-worktree takes it away");
-export const ProjectOverrides = z.object({ agent: z.string().optional(), model: z.string().optional(), effort: z.string().optional(), access: AccessChoice.optional(), afterWorktree: AfterWorktree.optional() }).strict();
+/** A repo besides the project's own that gh on a machine whose credentials the host keeps may comment on for that
+ * project, as `owner/name`. */
+export const TrackerRepo = z.string().regex(/^[^/\s]+\/[^/\s]+$/);
+export const ProjectOverrides = z.object({ agent: z.string().optional(), model: z.string().optional(), effort: z.string().optional(), access: AccessChoice.optional(), afterWorktree: AfterWorktree.optional(), trackers: z.array(TrackerRepo).optional() }).strict();
 export type ProjectOverrides = z.infer<typeof ProjectOverrides>;
-export const ProjectOverridesPatch = z.object({ agent: z.string().nullable().optional(), model: z.string().nullable().optional(), effort: z.string().nullable().optional(), access: AccessChoice.nullable().optional(), afterWorktree: AfterWorktree.nullable().optional() }).strict();
+export const ProjectOverridesPatch = z.object({ agent: z.string().nullable().optional(), model: z.string().nullable().optional(), effort: z.string().nullable().optional(), access: AccessChoice.nullable().optional(), afterWorktree: AfterWorktree.nullable().optional(), trackers: z.array(TrackerRepo).nullable().optional() }).strict();
 export type ProjectOverridesPatch = z.infer<typeof ProjectOverridesPatch>;
 
 /** A record with a patch's fields over it: null takes a field away, absent keeps it. Nothing when no field is left,
