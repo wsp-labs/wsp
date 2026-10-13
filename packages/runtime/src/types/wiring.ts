@@ -691,8 +691,9 @@ export interface RuntimeOptions {
   /** How a copy of the image is planned off the record, every login set to skip. The runtime writes no recipe of
    * its own, so without it no copy is built anywhere: the build op, the build behind a place being added or a
    * version cut, and a create that waits on one all stop at the one sentence. Asked for only once a build is going
-   * to run, since it reads this computer. */
-  copyRecipe?: (image: SealedImage) => Promise<GoldenRecipe> | GoldenRecipe;
+   * to run, since it reads this computer. `cloud` says the copy is built at a provider, whose machines get no secret
+   * value from this computer. */
+  copyRecipe?: (image: SealedImage, at: { cloud: boolean }) => Promise<GoldenRecipe> | GoldenRecipe;
   /** Where this host can build a copy of its image. Absent, one place named "default" over `backend`; the host
    * passes a row per provider module this computer is set up for, the wired one first. */
   places?: PlaceBackends;

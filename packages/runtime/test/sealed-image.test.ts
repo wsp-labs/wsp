@@ -21,9 +21,10 @@ function started(o: { places?: (wired: StubBackend) => PlaceBackends; store?: St
   const places = o.places?.(backend);
   // How often this computer was read for a copy's recipe: the runtime asks only once a build is going to run, so a
   // refusal that composed nothing is proved by the count standing still.
-  const composed = { count: 0 };
-  const copyRecipe = () => {
+  const composed = { count: 0, for: [] as { cloud: boolean }[] };
+  const copyRecipe = (_image: SealedImage, at: { cloud: boolean }) => {
     composed.count += 1;
+    composed.for.push(at);
     return COPY_RECIPE;
   };
   const rt = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(), copyRecipe, hostId: "h1", ...(places !== undefined ? { places } : {}) });
@@ -224,6 +225,7 @@ describe("building the image at a second place", () => {
     const { backend, other, rt, record, frames, composed, madeAtWired } = await sealedAtWired();
     // This computer was read once for the copy's recipe, and the wired provider made nothing after its own seal.
     expect(composed.count).toBe(1);
+    expect(composed.for).toEqual([{ cloud: true }]);
     expect(backend.machines.length).toBe(madeAtWired);
     expect(other.puts.some(p => createHash("sha256").update(p.body).digest("hex") === EMPTY_TGZ_SHA)).toBe(true);
     // The seal's own frames name no place; the copy's all name solari, and every stage of a build is among them:

@@ -541,6 +541,7 @@ export class InitJobs implements InitDoor {
       },
       place: built.place,
       placeBackend: built.backend,
+      cloud: built.kind === "provider",
       pricing: built.backend.pricing,
       statePath: this.deps.statePath,
       home: this.deps.home,
