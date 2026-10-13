@@ -9,9 +9,9 @@
 // one attempt id, since a queue drains only in a composer on screen and one copy
 // at most is on screen; the computer's free room is read first, and a send it
 // has no room for is refused before any copy is made.
-import { CONVERSATION_OPEN_KIND, CONVERSATION_WORDS, HERE_PLACE_ID, START_WORDS, githubLinkOf, nameOfTask, placeRoom, plural, projectForRepo, refusalLine, type ProjectView } from "@wsp/protocol";
+import { CONVERSATION_OPEN_KIND, CONVERSATION_WORDS, HERE_PLACE_ID, START_WORDS, defaultNotRunLine, githubLinkOf, nameOfTask, placeRoom, plural, projectForRepo, refusalLine, resolveThreadDefaults, type HarnessCatalog, type ProjectView } from "@wsp/protocol";
 import { HistoryIcon } from "lucide-react";
-import { agentName } from "@wsp/catalog";
+import { DEFAULT_AGENT, agentName } from "@wsp/catalog";
 import { sendOn, useConversationsStore, type HeldPick, type SendPicks } from "./conversations.js";
 import { ResumeDraft } from "./ResumeDraft.js";
 import { Button } from "../components/ui/button.js";
@@ -22,7 +22,7 @@ import { ChatComposer } from "../components/chat/ChatComposer.js";
 import { newId, useComposerDraft, useComposerDraftStore } from "../components/chat/composerDraftStore.js";
 import { attachmentOf, useComposerFilesStore } from "../components/chat/composerFiles.js";
 import { useMultiPickStore, type ModelPick } from "../components/chat/composerMultiPick.js";
-import { useComposerOptions, useComposerOptionsStore } from "../components/chat/composerOptionsStore.js";
+import { useComposerOptions, useComposerOptionsStore, type ComposerOptions } from "../components/chat/composerOptionsStore.js";
 import { startOptionsFrom } from "../components/chat/composerPicks.js";
 import { useChatThread } from "../components/chat/useChatThread.js";
 import { noticeFailure } from "../notices/store.js";
@@ -52,6 +52,18 @@ async function roomRefusal(api: Api, project: ProjectView, asked: number): Promi
   }
 }
 
+/** The line New thread says where the model the person set as the default, on the project or the agent, is not one
+ * the agent on the project's computer runs: what runs instead, and why. Nothing once a model is picked here. */
+function useDefaultNotRun(projectId: string, catalogs: readonly HarnessCatalog[], picked: ComposerOptions): string | null {
+  const preferences = useStore(s => s.preferences);
+  const table = useStore(s => s.harnesses);
+  if (picked.model !== undefined) return null;
+  const project = preferences.projectDefaults[projectId];
+  const agent = picked.harness ?? resolveThreadDefaults({ firstAgent: catalogs[0]?.harness ?? DEFAULT_AGENT.id, catalogOf: id => catalogs.find(c => c.harness === id), prefs: preferences, ...(project !== undefined ? { project } : {}) }).agent.value;
+  const lists = catalogs.find(c => c.harness === agent);
+  return lists === undefined ? null : defaultNotRunLine(lists, table.find(c => c.harness === agent), preferences, project);
+}
+
 export function ProjectHome({ projectId }: { projectId: string }) {
   const project = useStore(s => s.projects.find(p => p.id === projectId));
   const createWorkspace = useStore(s => s.createWorkspace);
@@ -63,6 +75,7 @@ export function ProjectHome({ projectId }: { projectId: string }) {
   const link = githubLinkOf(useComposerDraft(key).prompt);
   const linked = useStore(s => (link === undefined ? undefined : projectForRepo(s.projects, link.repo, HERE_PLACE_ID)));
   const held = useConversationsStore(s => s.held[projectId]);
+  const notRun = useDefaultNotRun(projectId, catalogs, picked);
   if (project === undefined) return null;
 
   /** A send with a conversation held opens the thread on it; one another app holds open asks first, the message kept. */
@@ -183,7 +196,11 @@ export function ProjectHome({ projectId }: { projectId: string }) {
               ),
             }
           : {})}
-        {...(link !== undefined && linked === undefined ? { under: <RefusalSlot k="start-refusal" said={START_WORDS.noProjectForRepo(link.repo)} /> } : {})}
+        {...(link !== undefined && linked === undefined
+          ? { under: <RefusalSlot k="start-refusal" said={START_WORDS.noProjectForRepo(link.repo)} /> }
+          : notRun !== null
+            ? { under: <RefusalSlot k="default-not-run" note={notRun} /> }
+            : {})}
       />
     </div>
   );

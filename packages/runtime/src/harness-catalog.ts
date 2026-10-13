@@ -13,8 +13,8 @@
 import { CLAUDE_SCREEN_COMMANDS } from "@wsp/adapter-claude";
 import { DEFAULT_MODE, FORCE_MODE } from "@wsp/adapter-cursor";
 import { AUTO_MODE } from "@wsp/adapter-opencode";
-import { CLAUDE_CODE } from "@wsp/catalog";
-import { everyModel } from "@wsp/protocol";
+import { CATALOG_AGENTS, CLAUDE_CODE } from "@wsp/catalog";
+import { everyModel, notRunRefusal } from "@wsp/protocol";
 import type { HarnessCatalog, HarnessCatalogProbe, HarnessModel, HarnessOption } from "@wsp/protocol";
 import type { ToolAsks } from "./slate-mcp.js";
 
@@ -233,6 +233,12 @@ export function toolAsks(harness: string | undefined, mode: string | undefined):
   const row = harness === undefined ? undefined : harnessCatalog(harness);
   if (mode === undefined || mode === row?.bypassMode) return "never";
   return row?.readOnlyToolsFree === true ? "unless-read-only" : "every";
+}
+
+/** A model a binary's lists refused that this table carries, said as that binary's version not running it, with its
+ * agent's update where the binary is older than this table. */
+export function notRunRefused(lists: HarnessCatalog | undefined, model: string | undefined): Error | null {
+  return lists === undefined ? null : notRunRefusal(lists, harnessCatalog(lists.harness), model, CATALOG_AGENTS.find(a => a.id === lists.harness)?.updateLine);
 }
 
 /** Models an agent newer than its pin runs and the usage ledger meets in its logs: named, never offered at a start. */
