@@ -71,6 +71,7 @@ import {
   subOpenedLine,
   subOpening,
   subSizeNoCloudRefusal,
+  subFromNoCloudRefusal,
 } from "@wsp/protocol";
 import { BASE_GROUP, FLOOR_LINE, GROUP_LABEL, tableLines, totalsLine, type TableRow } from "../src/init-table.js";
 import { GUTTER } from "../src/init-layout.js";
@@ -338,7 +339,7 @@ export async function turnWords(): Promise<Record<string, unknown>> {
     moved: threadMovedLine("{from}", "{to}", false),
     movedFresh: threadMovedLine("{from}", "{to}", true),
     openedThread: openedThreadLine("{thread}", undefined),
-    sub: { sizeNoCloud: subSizeNoCloudRefusal().message, beside: subBesideRefusal("{word}").message, opened: subOpenedLine("{thread}", "{on}", "{folder}"), opening: subOpening("{preamble}", "{task}") },
+    sub: { sizeNoCloud: subSizeNoCloudRefusal().message, fromNoCloud: subFromNoCloudRefusal().message, beside: subBesideRefusal("{word}").message, opened: subOpenedLine("{thread}", "{on}", "{folder}"), opening: subOpening("{preamble}", "{task}") },
     capWait: capWaitLine({ placeId: "p", place: "{place}", running: "{running}" as unknown as number, atOnce: 2 }).replace("2 threads", "{threads}"),
     noResult: threadResult([{ type: "session.end", workspaceId: "w", sessionId: "s", threadId: "t", exitCode: null, sawResult: false }], "t")?.error,
     noThreadStamped: unstamped,
