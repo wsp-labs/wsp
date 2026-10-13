@@ -195,7 +195,7 @@ export interface RuntimeCore {
   readonly vaultCapBytes: number;
   readonly defaultIdleWindowMs: number;
   readonly hostId: string;
-  readonly vaultExport: (m: Machine, o?: Pick<VaultOptions, "maxBytes">) => Promise<Buffer>;
+  readonly vaultExport: (m: Machine, o?: Pick<VaultOptions, "maxBytes" | "leave">) => Promise<Buffer>;
   readonly deviceDoor: DeviceDoor;
   readonly threadLaunch: (entry: LiveWorkspace, threadId: string, rootThreadId: string, o?: { aside?: true; }) => Promise<{ scoped?: Awaited<ReturnType<(name: string, scope: ThreadScope, now: number, more?: { road?: ScopedRoad; aside?: true; }) => Promise<PairedDevice>>>; env: Record<string, string>; wsp?: McpServerSpec; }>;
   readonly landing: Map<string, number>;

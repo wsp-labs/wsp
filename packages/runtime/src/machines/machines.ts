@@ -2,12 +2,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk, nameOwner, strays, type ReapedMachine, type ReapFailure } from "@wsp/engine";
 import { type WorkspacePhase, goneRefusal, notFoundRefusal, noWorkspaceRefusal, noCommandsYetLine, WAKE_STOPPED_UP, type WorkspaceSize, type WorkspaceView, settingFor, IDLE_REASON, ALREADY_RUNNING, goldenImage, goneWords, HOSTNAME_KEPT, hostnameSetLine, NOT_GONE, GONE_UNCHECKED, RESUME_UNANSWERED, runsInFolder, placeHoldsNoImageLine } from "@wsp/protocol";
+import { LOGIN_PATHS } from "@wsp/catalog";
 import { templateHost } from "../host-id.js";
 import { backstopMs, createIdlePolicy } from "../idle.js";
 import { POLL_INTERVAL_MS, phaseLeavingGone, providerSaid } from "../status.js";
 import { loginEnvOn } from "../types/harness.js";
 import { SUB_SESSIONS } from "./sub-life.js";
-import { type WorkspaceSpec, type WorkspaceRecord, type LiveWorkspace, type StageReport, type GoldenExec, type GoneOutcome, settled, VAULTS, shapeFault, setHostname } from "../types/wiring.js";
+import { type WorkspaceSpec, type WorkspaceRecord, type LiveWorkspace, type StageReport, type GoldenExec, type GoneOutcome, settled, VAULTS, shapeFault, setHostname, atProvider } from "../types/wiring.js";
 import { AGENT_LISTS, WORKSPACES, TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX, SESSIONS, WORKSPACE_NAMES, DROPPED, PAUSED_REASON, GONE_REASON, goneLogLine, type DroppedMachine, type NamedWorkspace, CREATES, KEY_PURPOSE_MAX, LOST_CREATE_MS, type PendingCreate, fingerprint, pidAlive, forwardedCalls } from "../types/internal.js";
 import type { RuntimeContext, MachinesArea } from "../context.js";
 
@@ -359,6 +360,9 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
      * stores nothing, a wake puts nothing back, and a stamp or a refusal an earlier nap wrote on its record is
      * about a vault it never had and goes. */
     const vaulted = ctx.keepsImages(at);
+    // A sign-in never sits in a provider's vault, and a landing keeps the replacement's own. Read at each call: a
+    // provider is listed only once its key is saved, which can be after this workspace was loaded.
+    const leave = (): { leave?: readonly string[] } => (atProvider(ctx.placeIdOf(record), ctx.places) ? { leave: LOGIN_PATHS } : {});
     if (!vaulted) {
       delete record.vaultedAt;
       delete record.vaultRefused;
@@ -380,7 +384,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
               // one line that names the size and the cap, and the replacement goes on with no backup.
               vaultExport: async m => {
                 try {
-                  return await vaultExport(m, { maxBytes: vaultCapBytes });
+                  return await vaultExport(m, { maxBytes: vaultCapBytes, ...leave() });
                 } catch (e) {
                   if (e !== null && typeof e === "object" && (e as { kind?: unknown }).kind === "vaultTooLarge") {
                     console.warn(`vault for ${record.id} not taken before the replacement: ${e instanceof Error ? e.message : String(e)}; replacing with no backup`);
@@ -390,7 +394,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
                 }
               },
               vaultImport: async (m, payload) => {
-                await importInto(m, payload, "/");
+                await importInto(m, payload, "/", leave());
               },
               stashVault: async m => {
                 // The vault the last landed nap stored stands until the provider pauses this machine at all.
@@ -404,7 +408,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
                 // it; the vault is taken off the running machine at a rebuild instead.
                 if (ctx.pauseKeepsDisk(at)) return;
                 try {
-                  await store.putBlob(VAULTS, record.id, await vaultExport(m, { maxBytes: vaultCapBytes }));
+                  await store.putBlob(VAULTS, record.id, await vaultExport(m, { maxBytes: vaultCapBytes, ...leave() }));
                   record.vaultedAt = new Date(clock.now()).toISOString();
                   delete record.vaultRefused;
                 } catch (e) {
@@ -417,7 +421,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
               },
               restoreVault: async m => {
                 const payload = await store.getBlob(VAULTS, record.id);
-                if (payload !== undefined) await importInto(m, payload, "/");
+                if (payload !== undefined) await importInto(m, payload, "/", leave());
               },
             } satisfies Pick<WorkspaceHooks, "vaultExport" | "vaultImport" | "stashVault" | "restoreVault">)
           : {}),

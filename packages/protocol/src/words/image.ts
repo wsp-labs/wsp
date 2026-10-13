@@ -342,6 +342,13 @@ export function snapshotManagerLine(name: string, check: string, dir: string, sa
   return `${name} was not snapshotted: ${check} fails in ${dir} (${said}), so every fork of it would fail the same way; ${fix}, then snapshot again`;
 }
 
+/** What happened when a workspace snapshot at a provider is refused while the machine holds a sign-in, every path
+ * named; SNAPSHOT_LOGIN_FIX is what to do. */
+export function snapshotLoginLine(name: string, paths: readonly string[]): string {
+  return `${name} was not snapshotted: it holds sign-in files (${paths.join(", ")}), which every workspace forked from the snapshot would carry`;
+}
+export const SNAPSHOT_LOGIN_FIX = "Remove them on the machine, then snapshot again.";
+
 /** The snapshotting stage's line after one refused attempt with another to come: which attempt, what the provider
  * said, what the builder reads at the provider, and when the next attempt is. */
 export function snapshotAttemptLine(attempt: number, attempts: number, answer: ProviderAnswer, builderState: BuilderReading, retryMs: number): string {

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { remoteHost } from "@wsp/catalog";
-import { NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
+import { LOGIN_PATHS, remoteHost } from "@wsp/catalog";
+import { NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, presentPaths, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
 import type { ProjectGolden, ProjectView, WorkspaceProject, WorkspaceStatus } from "@wsp/protocol";
 import { noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, noChangeLine, GitDiffReply, GitRunLogReply, GitPrMergeReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, type TreeRecord, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, type PullRequestItem, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, AUTO_MERGE_OFF_LINE, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, agentsFrom, agentsKindRefusal, agentsMayDrive, askerOf, scopeOf, spawnGoldenRefusal, workspaceIdOf } from "@wsp/protocol";
-import { isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
+import { isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, snapshotLoginLine, SNAPSHOT_LOGIN_FIX, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
 import { harnessExec, putFiles } from "@wsp/engine";
 import { ownerRepoOf, WorkspaceTalked } from "@wsp/protocol";
 import { providerSaid } from "../status.js";
 import { harnessCatalog, smallestModel } from "../harness-catalog.js";
 import { GitStatusReply, GitPrDiffReply, GitPrReviewReply, START_WORDS, fromTaskPrompt, githubLinkOf, isReviewRead, reviewTaskPrompt, withCloses } from "@wsp/protocol";
 import { TITLE_MAKE_TIMEOUT_MS } from "../types/events.js";
-import { type LiveWorkspace, settled, lastLineOf, PORT_PROBE_TIMEOUT_MS, PORT_PROBE_BODY_CAP, VAULTS } from "../types/wiring.js";
+import { type LiveWorkspace, atProvider, settled, lastLineOf, PORT_PROBE_TIMEOUT_MS, PORT_PROBE_BODY_CAP, VAULTS } from "../types/wiring.js";
 import { loginEnvOn } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
 import { PROJECT_GOLDENS, WORKSPACE_NAMES, DELETED_REASON, type NamedWorkspace, CREATES, type PendingCreate, labelOf, readBodyUpTo, isNoHostCli, isNoGitCredential, isOnDefaultBranch, defaultBranchRefused } from "../types/internal.js";
@@ -492,6 +492,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       const project: WorkspaceProject = { name: held.name, dest: held.path, importedAt: held.createdAt };
       const projects = [project];
       if (entry.record.phase !== "running") throw new Error(`${name} is ${entry.record.phase}; only a running machine can be snapshotted`);
+      if (atProvider(ctx.placeIdOf(entry.record), ctx.places)) {
+        const logins = await presentPaths(entry.machine, LOGIN_PATHS);
+        if (logins.length > 0) throw refusal(snapshotLoginLine(name, logins), SNAPSHOT_LOGIN_FIX, "invalid");
+      }
       // A manager that does not start in the project folder, under a thread's environment or a login shell's, never
       // reaches an image; and a pnpm other than the folder's pin, which switches itself into a copy under PNPM_HOME on
       // its first call there and never fetches that copy again, switches here before the disk is copied.
