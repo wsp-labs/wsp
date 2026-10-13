@@ -228,7 +228,7 @@ export interface Placement {
   kindOf: (pid: number) => ProcKind;
   /** wsp's own: the daemon, the host, and the app's parts other than its tabs. */
   needed: (pid: number) => boolean;
-  /** Whether End reaches it: a process a thread or wsp started, never an agent or what wsp needs. */
+  /** Whether End reaches it: a process a thread or wsp started, never a thread's agent or what wsp needs. */
   endable: (pid: number) => boolean;
   /** The thread whose End may reach it: its thread, but never by the WSP_THREAD mark alone, which any process can carry
    * with any id; there its agent's stretch, its thread's cgroup or its parent's reach, or none. */
@@ -354,6 +354,8 @@ export function placeProcs(input: PlaceInput): Placement {
     // A shell the pane opened is named terminal to the daemon, which passes the kind down; what runs in it keeps its own.
     else if (p.kind !== undefined && (p.kind !== "terminal" || p.pty !== undefined)) kind = p.kind;
     else if (p.pty !== undefined) kind = "terminal";
+    // A thread's agent is found off its roots above; outside this host's threads an agent's binary still names it.
+    else if (typeof whose.get(pid) !== "object" && procBins(p).some(b => bins.has(b))) kind = "agent";
     else if (SLATE_FOLDER.test(p.cmdline)) kind = "slate";
     else if (TEST_LINE.test(p.cmdline)) kind = "test";
     else if (BUILD_LINE.test(p.cmdline)) kind = "build";
@@ -364,15 +366,18 @@ export function placeProcs(input: PlaceInput): Placement {
     kinds.set(pid, kind);
     return kind;
   };
+  /** The stretch a thread of this host runs as its agent, or a root the daemon stamped as one: only its thread ends it. */
+  const threadAgent = (pid: number): boolean => agent.has(pid) || foldsInto.has(pid) || byPid.get(pid)?.kind === "agent";
   const needed = (pid: number): boolean => {
     const p = byPid.get(pid);
     return p !== undefined && wspPart(p) && app.get(pid) !== "tab";
   };
-  /** A tab's renderer is the app's to end with its tab, and the daemon refuses a signal to anything under the app. */
+  /** A tab's renderer is the app's to end with its tab, and the daemon refuses a signal to anything under the app. An
+   * agent no thread of this host holds is ended like any process wsp started: no thread's stop reaches it. */
   const endable = (pid: number): boolean => {
     const p = byPid.get(pid);
     const w = whose.get(pid);
-    return p !== undefined && w !== undefined && kindOf(pid) !== "agent" && !needed(pid) && !app.has(pid) && (typeof w === "object" || startedByWsp(p));
+    return p !== undefined && w !== undefined && !threadAgent(pid) && !needed(pid) && !app.has(pid) && (typeof w === "object" || startedByWsp(p));
   };
   const reachOf = (pid: number, seen = new Set<number>()): string | undefined => {
     const w = whose.get(pid);
@@ -496,7 +501,7 @@ export function endPlan(read: ActivityRead, pid: number, startedAt: number, may:
     if (agent.kept !== undefined && placed.rootOf.get(pid) === agent.kept) return { kept: agent };
     throw refusal(agentEndLine(pid, agent), agentEndFix(agent), "usage");
   }
-  if (placed.kindOf(pid) === "agent") {
+  if (p.kind === "agent") {
     const scope = scopeOf(owner);
     if (scope !== undefined) throw refusal(agentEndLine(pid, scope), agentEndFix(scope), "usage");
     throw refusal(`${pid} is an agent, which only its thread's stop ends:`, "stop its thread's turn with wsp stop.", "usage");
