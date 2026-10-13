@@ -84,13 +84,20 @@ describe("loopback forms", () => {
 });
 
 describe("what the desktop bar means by what was typed", () => {
-  it("a port stays a port, a web address is https unless a scheme was typed, and anything else is a search", () => {
+  it("a port stays a port, a host with a port is http but on 443, any other web address https unless a scheme was typed, and anything else is a search", () => {
     expect(parseTarget("3000")).toEqual({ port: 3000, path: "/" });
     expect(parseTarget("localhost:5173/a")).toEqual({ port: 5173, path: "/a" });
     expect(parseTarget("github.com")).toEqual({ url: "https://github.com/" });
     expect(parseTarget("  docs.example.co.uk/guide?x=1 ")).toEqual({ url: "https://docs.example.co.uk/guide?x=1" });
     expect(parseTarget("http://example.org/a")).toEqual({ url: "http://example.org/a" });
-    expect(parseTarget("10.0.0.2:8080")).toEqual({ url: "https://10.0.0.2:8080/" });
+    expect(parseTarget("10.0.0.2:8080")).toEqual({ url: "http://10.0.0.2:8080/" });
+    expect(parseTarget("devbox:3000/a")).toEqual({ url: "http://devbox:3000/a" });
+    expect(parseTarget("example.com:8080")).toEqual({ url: "http://example.com:8080/" });
+    expect(parseTarget("github.com:443/acme")).toEqual({ url: "https://github.com/acme" });
+    expect(parseTarget("10.0.0.2:443")).toEqual({ url: "https://10.0.0.2/" });
+    expect(parseTarget("github.com:4430")).toEqual({ url: "http://github.com:4430/" });
+    expect(parseTarget("tic tac toe")).toEqual({ url: `${SEARCH_URL}tic%20tac%20toe` });
+    expect(parseTarget("note: 3000")).toEqual({ url: `${SEARCH_URL}note%3A%203000` });
     expect(parseTarget("acme lab")).toEqual({ url: `${SEARCH_URL}acme%20lab` });
     expect(parseTarget("vitest")).toEqual({ url: `${SEARCH_URL}vitest` });
     expect(parseTarget("what is github.com")).toEqual({ url: `${SEARCH_URL}what%20is%20github.com` });

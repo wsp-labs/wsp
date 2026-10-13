@@ -12,7 +12,7 @@
 // browser frames ports alone and sends any other site to a new browser tab.
 import { Check, Copy, Laptop } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isLocalWorkspace, noPreviewRouteLine } from "@wsp/protocol";
+import { folderOnJoined, isLocalWorkspace, namedWatchGap, noPreviewRouteLine, placeBehindLine, workspaceKind } from "@wsp/protocol";
 import { stoppedSentence, toPreviewableServers } from "../../adapt/ports.js";
 import { usePortAnswering } from "../../browser/answering.js";
 import { useStoppedPort, useWorkspacePorts, useWorkspacePortsSeeded } from "../../browser/model.js";
@@ -22,7 +22,7 @@ import { browserGuestsHere, guestElement, guestKey, updateGuest, useGuestNav, us
 import { currentPlace, useBrowserTab, useBrowserTabs, ZOOM_STEP } from "../../browser/tabs.js";
 import { frameSrc, isSite, loopbackAddress, loopbackUrl, parseAddress, parseTarget, placeAddress, placeUrl, type Address, type Place } from "../../browser/url.js";
 import { useForwarded, useWorkspace } from "../../protocol/store.js";
-import { useComputerName } from "../../sidebar/workspaceRows.js";
+import { useComputer, useComputerName } from "../../sidebar/workspaceRows.js";
 import { roomForBrowserTab, useRightPanelStore, type RightPanelSurface } from "../../rightPanelStore.js";
 import { clockLabel } from "../../lib/timestampFormat.js";
 import { noticeFailure, notCopied } from "../../notices/store.js";
@@ -63,6 +63,10 @@ export function BrowserSurface({ workspaceId, surface }: { workspaceId: string; 
   const workspace = useWorkspace(workspaceId);
   const here = workspace !== null && isLocalWorkspace(workspace);
   const computer = useComputerName(workspaceId);
+  // A folder on a joined computer whose daemon cannot take the port watch: the host refuses it, so the list stays empty.
+  const box = useComputer(workspaceId);
+  const gap = box === undefined || workspace === null || !folderOnJoined(workspaceKind(workspace)) ? undefined : namedWatchGap(box.daemonVersion);
+  const behind = gap === undefined || box === undefined ? null : placeBehindLine(box.name, gap);
   const [rechecks, setRechecks] = useState(0);
   const { reach, refusal } = useProbedRoute(workspaceId, here ? null : port, tab?.reloadNonce ?? 0, rechecks);
   const realUrl =
@@ -206,6 +210,7 @@ export function BrowserSurface({ workspaceId, surface }: { workspaceId: string; 
         {place === null ? (
           <PreviewEmptyState
             servers={servers}
+            behind={behind}
             recentEntries={recents}
             query={query}
             onOpenUrl={openUrl}

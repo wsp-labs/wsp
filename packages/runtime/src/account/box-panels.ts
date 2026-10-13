@@ -9,7 +9,7 @@
 // computer's one watch that every reader on this host shares, and a terminal
 // opens in the folder as the login the computer was added with, under the
 // environment its turns get.
-import { DAEMON_VERSION, inCgroup, placeBehindLine, placeDaemonBehind, threadCgroup } from "@wsp/protocol";
+import { inCgroup, namedWatchGap, placeBehindLine, threadCgroup } from "@wsp/protocol";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
 
@@ -44,10 +44,11 @@ export interface BoxPanels {
   close(): void;
 }
 
-/** The refusal of a pane's own port watch on a computer whose daemon cannot name one: a daemon too old, or one that
- * never said its version, would take the pane's watch for the socket's own and drop the host's. */
+/** The refusal of a pane's own port watch on a computer whose daemon cannot name one: a daemon from before named
+ * watches, or one that never said its version, would take the pane's watch for the socket's own and drop the host's.
+ * A daemon merely behind this host names it, and is refused nothing. */
 export function namedWatchRefusal(name: string, daemonVersion: number | undefined): Frame | undefined {
-  const gap = daemonVersion === undefined ? `daemon version unknown, host ${DAEMON_VERSION}` : placeDaemonBehind({ daemonVersion });
+  const gap = namedWatchGap(daemonVersion);
   return gap === undefined ? undefined : { ok: false, code: "unsupported", error: placeBehindLine(name, gap) };
 }
 

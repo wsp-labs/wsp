@@ -13,7 +13,7 @@ import { createServer as createHttpServer, type Server as HttpServer } from "nod
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
-import { DAEMON_VERSION, SYS_SUBSCRIBE_ONE_OF, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, THREAD_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
+import { DAEMON_VERSION, NAMED_WATCH_DAEMON_VERSION, SYS_SUBSCRIBE_ONE_OF, SYS_UNWATCH_DAEMON_VERSION, FORWARD_MAX_PER_TARGET, paneForwardCapLine, paneForwardFloorLine, paneForwardGoneLine, paneForwardQuietLine, paneForwardStoppedLine, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, TURN_TOKEN_ENV, THREAD_ENV, cgroupEndScript, cgroupJoinLine, threadCgroup, threadCgroupsEndScript, threadLeftLine, type TurnResult } from "@wsp/protocol";
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { DaemonChannel } from "../src/daemon-channel.js";
 import { namedWatchRefusal, procWatchScope } from "../src/account/box-panels.js";
@@ -46,8 +46,8 @@ interface BoxShape {
   endHangs?: boolean;
   /** How many readings watches there are refused before one is taken, as a daemon that cannot read its computer. */
   refusesWatch?: number;
-  /** A daemon behind this host: it refuses sys.unwatch and says it is a version behind. */
-  oldDaemon?: boolean;
+  /** The version the daemon says it is, this host's unless given; one from before sys.unwatch refuses it. */
+  daemonVersion?: number;
   /** A readings watch there is never answered. */
   watchHangs?: boolean;
 }
@@ -87,7 +87,7 @@ function box(client: WsClient, login: { home: string; owner: string }, listening
       return client.say({ id: frame["id"], ok: false, error: "this computer reads no load" });
     }
     if (op === "sys.watch" && shape.watchHangs === true) return;
-    if (op === "sys.unwatch" && shape.oldDaemon === true) return client.say({ id: frame["id"], ok: false, error: "unknown op: sys.unwatch" });
+    if (op === "sys.unwatch" && (shape.daemonVersion ?? DAEMON_VERSION) < SYS_UNWATCH_DAEMON_VERSION) return client.say({ id: frame["id"], ok: false, error: "unknown op: sys.unwatch" });
     if (op?.startsWith("tunnel.") && shape.tunnels === true) return tunnel(op, frame, say);
     if (op !== "exec") return say({});
     const cmd = String(frame["cmd"]);
@@ -188,7 +188,7 @@ async function joined(o: { login?: { home: string; owner: string }; adapters: Re
   const login = o.login ?? HETZNER;
   const { hostKey, store } = await serving({ adapters: o.adapters, ...(o.clock === undefined ? {} : { clock: o.clock }) });
   let seen!: Box;
-  const sent = report("hetzner", { login: { HOME: login.home, USER: login.owner, PATH: "/usr/bin" }, daemonVersion: o.shape?.oldDaemon === true ? DAEMON_VERSION - 1 : DAEMON_VERSION });
+  const sent = report("hetzner", { login: { HOME: login.home, USER: login.owner, PATH: "/usr/bin" }, daemonVersion: o.shape?.daemonVersion ?? DAEMON_VERSION });
   const { client, placeId, pair } = await join(hostKey, {
     code: await code(),
     report: sent,
@@ -669,9 +669,11 @@ describe("the terminal and the readings of a thread in a folder on a computer th
     await expect.poll(() => named().at(-1)?.["roots"]).toEqual([]);
   });
 
-  it("refuses a pane's own port watch on a computer whose daemon is behind or never said its version", () => {
+  it("refuses a pane's own port watch on a computer whose daemon names no watch or never said its version, and no other", () => {
     expect(namedWatchRefusal("hetzner", undefined)).toMatchObject({ ok: false, code: "unsupported", error: `hetzner is behind: daemon version unknown, host ${DAEMON_VERSION}; wsp add hetzner --update puts this wsp's daemon on it` });
-    expect(namedWatchRefusal("hetzner", DAEMON_VERSION - 1)).toMatchObject({ ok: false, code: "unsupported" });
+    expect(namedWatchRefusal("hetzner", NAMED_WATCH_DAEMON_VERSION - 1)).toMatchObject({ ok: false, code: "unsupported" });
+    expect(namedWatchRefusal("hetzner", NAMED_WATCH_DAEMON_VERSION)).toBeUndefined();
+    expect(namedWatchRefusal("hetzner", DAEMON_VERSION - 1)).toBeUndefined();
     expect(namedWatchRefusal("hetzner", DAEMON_VERSION)).toBeUndefined();
   });
 
@@ -779,8 +781,16 @@ describe("the readings of a computer the person joined, read by its page and a f
     await expect.poll(() => asked(seen, "sys.unwatch")).toBe(1);
   });
 
-  it("ride the watch a daemon behind this host is still sending after the last reader left, and never ask it twice", async () => {
-    const { rt, seen, placeId, workspaceId } = await joined({ adapters: { claude: answering([]) }, shape: { oldDaemon: true } });
+  it("stop with sys.unwatch on a daemon a version behind this host, which takes it", async () => {
+    const { rt, seen, workspaceId } = await joined({ adapters: { claude: answering([]) }, shape: { daemonVersion: DAEMON_VERSION - 1 } });
+    const panel = await pane(rt, workspaceId, []);
+    expect(await panel.send({ id: 1, op: "sys.watch" })).toMatchObject({ ok: true });
+    panel.close();
+    await expect.poll(() => asked(seen, "sys.unwatch")).toBe(1);
+  });
+
+  it("ride the watch a daemon from before sys.unwatch is still sending after the last reader left, and never ask it twice", async () => {
+    const { rt, seen, placeId, workspaceId } = await joined({ adapters: { claude: answering([]) }, shape: { daemonVersion: SYS_UNWATCH_DAEMON_VERSION - 1 } });
     // That daemon sends one copy of each sample per sys.watch its socket was sent.
     const tick = (at: number): void => {
       for (let i = 0; i < asked(seen, "sys.watch"); i++) seen.client.say(sample(at));
