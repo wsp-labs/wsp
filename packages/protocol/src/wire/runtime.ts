@@ -923,9 +923,10 @@ const RuntimeOp = z.discriminatedUnion("op", [
      * folder is seeding a computer that clones, since nothing of theirs leaves this computer unasked. */
     seed: SeedChoice.optional(),
   }),
-  /** Replies with { plan: SeedPlan } for a folder on this computer: what a seed of it would carry, read off git's
-   * own ignore listing and one size pass. No file's content is read and nothing leaves this computer. */
-  z.object({ id: reqId, op: z.literal("project.seed.plan"), source: z.string() }),
+  /** Replies with { plan: SeedPlan } for a folder on this computer: what a seed of it would carry to the computer
+   * `on` names, read off git's own ignore listing and one size pass. No file's content is read and nothing leaves
+   * this computer. */
+  z.object({ id: reqId, op: z.literal("project.seed.plan"), source: z.string(), on: z.string().optional() }),
   /** The seed picks of a project whose folder is on this computer: the menu with the folder's remembered choice on
    * it, else nothing picked, then `none`, `keep` and `cut` in that order. `save` writes the picks as the folder's
    * remembered choice, the record an add with remember writes; a thread's token is refused it. Replies with a

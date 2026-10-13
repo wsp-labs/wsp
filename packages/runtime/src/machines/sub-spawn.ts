@@ -12,8 +12,8 @@ import {
   DELETE_AFTER_MS, DETACHED_HEAD, GitStatusReply, lastLine, subFromNotOnRemoteRefusal, subFromUnreadRefusal, type ExecResult, SUB_SEED_MAX_BYTES, branchUnreadRefusal, copiesFolder, fmtBytes, kindForComputer, namesPlace, runsInFolder, ownerRepoOf,
   providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal, subNoUpstreamRefusal, subOtherProjectRefusal,
-  subNotSentLine, subNothingPickedWhy, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
-  subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
+  subNotSentLine, subNothingPickedWhy, subStayedLine, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
+  seedTravels, subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES, deadMachine, isAbsentMachine, isCapRefusal } from "../types/internal.js";
 import { SUB_SESSIONS, subSessionLandCommand } from "./sub-life.js";
@@ -36,7 +36,7 @@ function faultOf(e: unknown): SubFault | undefined {
 }
 
 /** The picked files a start lands: packed, counted and named, or nothing and why. */
-type Seed = { tar?: Buffer; files: number; paths: string[]; bytes: number; missing: string[]; why?: string };
+type Seed = { tar?: Buffer; files: number; paths: string[]; bytes: number; missing: string[]; stayed: string[]; why?: string };
 
 export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   const { live, store, places, placeDoor, bus, clock, threadRecords } = ctx;
@@ -235,6 +235,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       }
       if (uncommitted > 0) notices.push(subUncommittedLine(uncommitted, project.name, base.branch, base.sha));
       if (seed.why !== undefined) notices.push(subNotSentLine(seed.why, project.name));
+      if (seed.stayed.length > 0) notices.push(subStayedLine(seed.stayed));
       const out: SubOut = {
         on: on.toLowerCase(),
         machine: name,
@@ -371,23 +372,25 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   /** The files picked for the lead's project folder on this computer, packed now; nothing and why for a project with
    * no picks or one whose folder is elsewhere. Refuses a pack past what a sub-thread carries. */
   const seedOf = async (project: ReturnType<RuntimeContext["projectHeld"]>): Promise<Seed> => {
-    const none = { files: 0, paths: [], bytes: 0, missing: [] };
+    const none = { files: 0, paths: [], bytes: 0, missing: [], stayed: [] };
     if (!copiesFolder(kindForComputer(project.computer))) return { ...none, why: subPickedElsewhereWhy(project.name, ctx.placeName(project.computer)) };
     const folder = folderNamed(project.path);
     const choice = (await store.get(SEED_CHOICES, folder)) as SeedChoice | undefined;
     if (choice === undefined || ctx.opts.seed === undefined) return { ...none, why: subNothingPickedWhy(project.name) };
     const homes = await ctx.homesHere();
-    const plan = await ctx.opts.seed.plan(folder, homes);
-    const rows = new Map(plan.files.filter(f => f.kind !== "never").map(f => [f.path, f]));
+    // A sub-thread's machine is always a provider's, so its files of values and keys stay here whatever was picked.
+    const plan = { ...(await ctx.opts.seed.plan(folder, homes)), provider: true };
+    const rows = new Map(plan.files.filter(f => seedTravels(plan, f)).map(f => [f.path, f]));
     const paths = choice.files.filter(p => rows.has(p));
-    const missing = choice.files.filter(p => !rows.has(p));
-    if (paths.length === 0) return { ...none, missing };
+    const missing = choice.files.filter(p => !plan.files.some(f => f.path === p));
+    const held = choice.files.filter(p => !rows.has(p) && !missing.includes(p));
+    if (paths.length === 0) return { ...none, missing, stayed: held };
     const packed = await ctx.opts.seed.pack({ plan, choice: { files: paths, memory: false, commits: false }, homes });
     if (packed.tar.length > SUB_SEED_MAX_BYTES) {
       const largest = paths.map(p => rows.get(p)!).sort((a, b) => b.bytes - a.bytes).slice(0, 2).map(f => `${f.path} (${fmtBytes(f.bytes)})`);
       throw subSeedTooBigRefusal(project.name, fmtBytes(packed.tar.length), fmtBytes(SUB_SEED_MAX_BYTES), largest);
     }
-    return { tar: packed.tar, files: packed.files, paths, bytes: packed.bytes, missing };
+    return { tar: packed.tar, files: packed.files, paths, bytes: packed.bytes, missing, stayed: [...held, ...packed.left] };
   };
 
   /** One machine for the record: forked from the image head, its daemon asked, the folder made and the picked files
@@ -537,6 +540,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     }
     const entry = live.get(record.id)!;
     if (seed.why !== undefined) notices.push(subNotSentLine(seed.why, project.name));
+    if (seed.stayed.length > 0) notices.push(subStayedLine(seed.stayed));
     // A thread whose first start failed has run nothing: its send opens with that start's own message, preamble and
     // task, and Try again's is that message alone.
     const opening = sub.opening;
