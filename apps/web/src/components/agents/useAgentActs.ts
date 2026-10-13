@@ -168,7 +168,8 @@ export function useAgentActs(target: AgentsTarget | null): AgentActs | undefined
         }
         return put(rowId, () => ({ kind: "vault", agent: begin.agent, word: begin.word, ...(begin.mint !== undefined ? { mint: begin.mint } : {}) }));
       }
-      if (api?.agentsSignIn === undefined) return;
+      const cloud = begin.cloud === true ? api?.agentsCloudSignIn : undefined;
+      if (api?.agentsSignIn === undefined && cloud === undefined) return;
       if (was !== undefined) end(was);
       put(rowId, undefined);
       const run: Watched = { flow: { kind: "run", state: "running" } };
@@ -177,7 +178,7 @@ export function useAgentActs(target: AgentsTarget | null): AgentActs | undefined
       changed();
       const live = (): boolean => watched.get(key) === run;
       const row = begin.scope === undefined ? undefined : { scope: begin.scope, ...(begin.project !== undefined ? { project: begin.project } : {}) };
-      api.agentsSignIn(JSON.parse(targetKey) as AgentsTarget, begin.agent, begin.server, run.hear, begin.terminal, row).then(
+      (cloud !== undefined ? cloud(begin.agent, run.hear) : api!.agentsSignIn!(JSON.parse(targetKey) as AgentsTarget, begin.agent, begin.server, run.hear, begin.terminal, row)).then(
         handle => {
           if (run.ended === true) return handle.stop();
           if (!live() || (run.flow.kind === "run" && run.flow.state === "failed")) return handle.off();

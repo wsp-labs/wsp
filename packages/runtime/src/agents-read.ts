@@ -31,8 +31,9 @@ export type AgentsOn =
   /** `relayed`: this host forwards that computer's sign-in callback port from this computer. `setupRows`: every row
    * the computer's last setup came to, which says the agents it installed there. */
   | { kind: "box"; name?: string; machine: Pick<Machine, "exec">; login: { HOME?: string; PATH?: string }; signIns?: Record<string, AgentSignInState>; versions?: Record<string, string>; setupRows?: readonly PlaceProvisionRow[]; logins?: string; relayed?: boolean; projects?: readonly AgentsProject[]; stores?: Readonly<Record<string, string>> }
-  /** `relayed`: this host forwards the workspace's sign-in callback port from this computer. */
-  | { kind: "machine"; machine: Pick<Machine, "exec" | "id" | "putBytes" | "uploadUrl">; projects?: readonly AgentsProject[]; relayed?: boolean; stores?: Readonly<Record<string, string>> };
+  /** `relayed`: this host forwards the workspace's sign-in callback port from this computer. `brokered`: the host keeps
+   * the machine's credentials, so nothing signs in on it. */
+  | { kind: "machine"; machine: Pick<Machine, "exec" | "id" | "putBytes" | "uploadUrl">; projects?: readonly AgentsProject[]; relayed?: boolean; brokered?: boolean; stores?: Readonly<Record<string, string>> };
 
 /** The one project's folder an act there works in: the project its target named, or the workspace's own. */
 export const projectOf = (on: AgentsOn): string | undefined => (on.projects?.length === 1 ? on.projects[0]!.path : undefined);
@@ -89,6 +90,9 @@ export interface SignInAsk {
   terminal?: boolean;
   /** The caller put the login's tool on that computer itself, as a setup's own step does: nothing goes on first. */
   toolThere?: boolean;
+  /** Run the agent's own login, never a token mint: the sign-in machines at a provider borrow. Set by the host's own
+   * roads, agents.cloudSignIn and the command line's sign-in line, and carried by no wire request. */
+  login?: true;
   /** The row a server's sign-in was started from, which the list of sign-ins hands back. */
   scope?: McpScope;
   project?: string;
@@ -318,7 +322,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
   };
   /** The one sign-in of an agent, or of one server, on a target, by that pair: a second start joins it. */
   const starting = new Map<string, Promise<{ signInId: string; run: Running }>>();
-  const keyOf = (target: AgentsTarget, ask: SignInAsk): string => JSON.stringify([target, ask.agent, ask.server ?? null, ask.terminal === true]);
+  const keyOf = (target: AgentsTarget, ask: SignInAsk): string => JSON.stringify([target, ask.agent, ask.server ?? null, ask.terminal === true, ask.login === true]);
   const follow = (signInId: string, run: Running, emit: (event: AgentsSignInEvent) => void): { signInId: string; leave(): void } => {
     if (!run.followers.has(emit)) {
       run.followers.add(emit);

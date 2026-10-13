@@ -24,13 +24,14 @@ import { HOST_RESTARTING_LINE, hostPlatform, table, usageIs, tool, type HostClie
 import { workspaces, threads, threadsOf, threadRows, THREAD_HEAD, threadLines, threadTree, placeNames, projectsOf, projectOf, projectLine, NO_PROJECT_YET } from "./workspaces-help.js";
 import { projectDefaultsOf, waitThrough } from "./turns-help.js";
 import { confirmed, WaitOut, ThreadRowOut, asJson, asText, waitAnswer, timeoutFlag, ACCESS_IN_WORDS, PROJECT_FOLDERS, WEIGH_BY_FOLDERS, projectFolders, projectsFlag, progress, printTable } from "./io.js";
-import { drawRows, PROJECT_SET_RESETS, projectDefaultsSet, newThreadsHeadLine, threadDefaultsLines, defaultsCell, afterWorktreeLine } from "./agents-help.js";
+import { drawRows, PROJECT_SET_RESETS, projectDefaultsSet, newThreadsHeadLine, threadDefaultsLines, defaultsCell, afterWorktreeLine, trackersLine } from "./agents-help.js";
 
 /** What projects set answers in words: what a new thread there starts on, then the after-worktree command. */
-const projectSetLines = (set: { project: ProjectView; defaults: ThreadDefaults; afterWorktree?: string }): string[] => [
+const projectSetLines = (set: { project: ProjectView; defaults: ThreadDefaults; afterWorktree?: string; trackers?: string[] }): string[] => [
   newThreadsHeadLine(set.project.name),
   ...threadDefaultsLines(set.defaults),
   ...(set.afterWorktree !== undefined ? [afterWorktreeLine(set.afterWorktree)] : []),
+  ...(set.trackers !== undefined ? [trackersLine(set.trackers)] : []),
 ];
 
 /** A project's seed picks, off the host, with only the words a caller gave on the wire. */
@@ -153,10 +154,10 @@ export const PROJECT_VERBS: readonly Verb[] = [
   },
   {
     name: "projects set",
-    usage: "wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--reset <field>]...",
-    about: "what a new thread on one project starts on, over the agent's own defaults: its agent, model, effort and access; and the shell line a new worktree of it runs once, after each ecosystem's own install, for what none of them knows",
+    usage: "wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]...",
+    about: "what a new thread on one project starts on, over the agent's own defaults: its agent, model, effort and access; the shell line a new worktree of it runs once, after each ecosystem's own install, for what none of them knows; and the repos besides its own that gh on a sub-thread's machine may comment on, the whole list each time",
     page: "agent",
-    options: { agent: { type: "string" }, model: { type: "string" }, effort: { type: "string" }, access: { type: "string" }, "after-worktree": { type: "string" }, reset: { type: "string", multiple: true } },
+    options: { agent: { type: "string" }, model: { type: "string" }, effort: { type: "string" }, access: { type: "string" }, "after-worktree": { type: "string" }, tracker: { type: "string", multiple: true }, reset: { type: "string", multiple: true } },
     run: async ctx => {
       const [ref, ...rest] = ctx.args;
       if (ref === undefined || rest.length > 0) throw usageRefusal("wsp projects set takes one project.", usageIs(ctx));
@@ -166,6 +167,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
         ...(flag(ctx.flags, "effort") !== undefined ? { effort: flag(ctx.flags, "effort")! } : {}),
         ...(flag(ctx.flags, "access") !== undefined ? { access: flag(ctx.flags, "access")! } : {}),
         ...(flag(ctx.flags, "after-worktree") !== undefined ? { afterWorktree: flag(ctx.flags, "after-worktree")! } : {}),
+        trackers: flagList(ctx.flags, "tracker"),
         reset: flagList(ctx.flags, "reset"),
       });
       ctx.out.emit(set, projectSetLines(set).join("\n"));
@@ -173,7 +175,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. Answers what a new thread there now starts on, each value with where it came from, and the after-worktree command. reset puts a field back on the layer below: agent, model, effort or access, and after-worktree takes the command away.",
+        "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. trackers is the whole list of repos besides the project's own, each owner/name, that gh on a sub-thread's machine may comment on, issues and pull requests both; every other gh write there stays refused. Answers what a new thread there now starts on, each value with where it came from, the after-worktree command and the trackers. reset puts a field back on the layer below: agent, model, effort or access, after-worktree takes the command away and trackers empties the list.",
       input: {
         project: z.string().describe("the project's name, or its id when two share a name"),
         agent: z.string().optional().describe(`the agent a new thread on it runs, one of ${THREAD_AGENTS.join(", ")}`),
@@ -181,11 +183,12 @@ export const PROJECT_VERBS: readonly Verb[] = [
         effort: z.string().optional().describe("the effort a new thread on it starts at, by the agent's own word"),
         access: z.string().optional().describe(ACCESS_IN_WORDS),
         after_worktree: z.string().optional().describe("a shell line a new worktree of the project runs once at its top, after each ecosystem's own install"),
-        reset: z.array(z.enum(PROJECT_SET_RESETS)).optional().describe("fields to put back on the layer below: agent, model, effort, access, or after-worktree to take the command away"),
+        trackers: z.array(z.string()).optional().describe("the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on"),
+        reset: z.array(z.enum(PROJECT_SET_RESETS)).optional().describe("fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list"),
       },
-      output: { project: ProjectView, defaults: ThreadDefaults, afterWorktree: z.string().optional() },
-      call: async ({ project, agent, model, effort, access, after_worktree, reset }, deps) => {
-        const set = await projectDefaultsSet(await deps.client(), project, { ...(agent !== undefined ? { agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}), ...(after_worktree !== undefined ? { afterWorktree: after_worktree } : {}), ...(reset !== undefined ? { reset } : {}) });
+      output: { project: ProjectView, defaults: ThreadDefaults, afterWorktree: z.string().optional(), trackers: z.array(z.string()).optional() },
+      call: async ({ project, agent, model, effort, access, after_worktree, trackers, reset }, deps) => {
+        const set = await projectDefaultsSet(await deps.client(), project, { ...(agent !== undefined ? { agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}), ...(after_worktree !== undefined ? { afterWorktree: after_worktree } : {}), ...(trackers !== undefined ? { trackers } : {}), ...(reset !== undefined ? { reset } : {}) });
         return asText(projectSetLines(set).join("\n"), set);
       },
     }),
@@ -279,7 +282,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
     readsHere: "the agents, package managers and history it reads are this computer's own",
     usage: "wsp recipe scan [--project <folder>]",
     about:
-      "read this computer and print every option, writing nothing: the agents, the tools with why and size, what else a package manager here has that the image could take, the commands your agents ran, and the sign-ins, each with what to do about it and one line of why; --project weighs the histories by a folder and --json prints it as one object",
+      "read this computer and print every option, writing nothing: the agents, the tools with why and size, what else a package manager here has that the image could take, the commands your agents ran, and the sign-ins, each with what to do about it and one line of why, which an image built on Boat does not ask since its machines use the sign-ins on this computer through wsp; --project weighs the histories by a folder and --json prints it as one object",
     page: "agent",
     options: { project: { type: "string", multiple: true } },
     run: async ctx => {
@@ -291,7 +294,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "Every option this computer offers for a machine, read once and written nowhere: the person's agents and the catalog's tools with the tick their own use reaches and what each adds to the machine, what else a package manager on this computer has that the image could take (alsoHere, by manager, with the line that installs each on the machine, each row's id being the one to hand recipe's set, which ticks that package as a row of its own), whose scanned says whether anything looked, the commands their agents ran that the catalog does not carry, and the sign-in each ticked row brings. Every row carries a recommended value and a one-line reason, so apply those and put only the rows whose reason says worth a question. Run this before recipe, and before asking the person anything. Only names and counts are read.",
+        "Every option this computer offers for a machine, read once and written nowhere: the person's agents and the catalog's tools with the tick their own use reaches and what each adds to the machine, what else a package manager on this computer has that the image could take (alsoHere, by manager, with the line that installs each on the machine, each row's id being the one to hand recipe's set, which ticks that package as a row of its own), whose scanned says whether anything looked, the commands their agents ran that the catalog does not carry, and the sign-in each ticked row brings. An image built on Boat asks no sign-in: its machines use the sign-ins on this computer through wsp, so the sign-in rows answer only for a box the person added. Every row carries a recommended value and a one-line reason, so apply those and put only the rows whose reason says worth a question. Run this before recipe, and before asking the person anything. Only names and counts are read.",
       input: { project: PROJECT_FOLDERS },
       output: RecipeScan.shape,
       call: async ({ project }, deps) => {
@@ -310,7 +313,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
     readsHere: "the agents, package managers and history it reads are this computer's own",
     usage: `wsp recipe [--tick ${RECIPE_TICKS.join("|")}] [--set <id>=on|off] [--signin <id>=${LOGIN_CHOICES.join("|")}] [--add <id>=<command>] [--add-check <id>=<command>] [--why <words>] [--engine] [--project <folder>] [--out <path>]`,
     about:
-      `write the recipe and print it as a table: every catalog agent and tool with its tick, why it has it and what it costs on the machine, then the commands your agents ran that no catalog row carries. --tick used|installed|default names the rule that decides every tick (used, the default, ticks what your agents actually ran here); --set <id>=on|off flips a row by its catalog id, or a package this computer's own package managers have by the id wsp recipe scan gives it, which the build installs by that package's own road; --signin <id>=${LOGIN_CHOICES.join("|")} answers a sign-in by catalog id, later leaving it to the first time the tool is needed on the machine and key bringing the key files beside a login and nothing else of it; --add <id>=<command> carries a tool neither the catalog nor this computer has, installed by that command on the machine, with --add-check <id>=<command> saying it is there and --why <words> what the rows it adds are for; --engine marks the recipe so every machine from its image gets the place's Docker or podman through a socket of its own (a project whose compose file needs one), and stays in the file until you edit it out; --project reads a folder's own manifests for what it takes to build and weighs the histories by it, --out says where the file goes and --json prints the table as one object. Naming --tick or --project decides every tick again; without either, what the file says stands and the flags flip rows on top of it. A sign-in answer stands either way: no rule decides one. All of them repeat. Review it, then wsp init --recipe`,
+      `write the recipe and print it as a table: every catalog agent and tool with its tick, why it has it and what it costs on the machine, then the commands your agents ran that no catalog row carries. --tick used|installed|default names the rule that decides every tick (used, the default, ticks what your agents actually ran here); --set <id>=on|off flips a row by its catalog id, or a package this computer's own package managers have by the id wsp recipe scan gives it, which the build installs by that package's own road; --signin <id>=${LOGIN_CHOICES.join("|")} answers a sign-in by catalog id, later leaving it to the first time the tool is needed on the machine and key bringing the key files beside a login and nothing else of it; --add <id>=<command> carries a tool neither the catalog nor this computer has, installed by that command on the machine, with --add-check <id>=<command> saying it is there and --why <words> what the rows it adds are for; --engine marks the recipe so every machine from its image gets the place's Docker or podman through a socket of its own (a project whose compose file needs one), and stays in the file until you edit it out; --project reads a folder's own manifests for what it takes to build and weighs the histories by it, --out says where the file goes and --json prints the table as one object. Naming --tick or --project decides every tick again; without either, what the file says stands and the flags flip rows on top of it. A build on Boat ignores every sign-in answer, since its machines use the sign-ins on this computer through wsp. A sign-in answer stands either way: no rule decides one. All of them repeat. Review it, then wsp init --recipe`,
     page: "agent",
     options: {
       out: { type: "string" },
@@ -350,7 +353,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: `The recipe for a machine, read off this computer and written to a file: every catalog agent and tool with its tick, why it has that tick, and what it adds to the machine, plus the commands the person's agents ran that no catalog row carries. tick names the rule: used ticks what their agents actually ran here, installed ticks what is on this computer, default ticks what the catalog ships on; an agent wsp cannot open a thread on is off unless installed. The file is the state, so a second call is not a fresh start: naming tick or project lets the rule decide every tick again and throws away the flips a call before it made, and a call that names neither keeps what the file says and puts its own flips on top. Sign-in answers stand through every call whatever the rule, since nothing but the person decides one. Put the heavy rows to the person with their sizes before anything is built, then flip rows with set and run \`wsp init --recipe <out> --non-interactive --json\` from a shell, handing the person each sign-in line it prints, since the sign-ins finish in their browser. Only names and counts are read; nothing a session held is returned.`,
+      description: `The recipe for a machine, read off this computer and written to a file: every catalog agent and tool with its tick, why it has that tick, and what it adds to the machine, plus the commands the person's agents ran that no catalog row carries. tick names the rule: used ticks what their agents actually ran here, installed ticks what is on this computer, default ticks what the catalog ships on; an agent wsp cannot open a thread on is off unless installed. The file is the state, so a second call is not a fresh start: naming tick or project lets the rule decide every tick again and throws away the flips a call before it made, and a call that names neither keeps what the file says and puts its own flips on top. Sign-in answers stand through every call whatever the rule, since nothing but the person decides one, and a build on Boat ignores them: its machines use the sign-ins on this computer through wsp. Put the heavy rows to the person with their sizes before anything is built, then flip rows with set and run \`wsp init --recipe <out> --non-interactive --json\` from a shell, handing the person each sign-in line it prints, since the sign-ins finish in their browser; a build on Boat prints none and waits on nobody, and stops before anything boots with the one line that fixes a sign-in this computer lacks. Only names and counts are read; nothing a session held is returned.`,
       input: {
         tick: RecipeTick.optional().describe(`which rule decides every tick: ${RECIPE_TICKS.join(", ")}. Naming it re-decides every row from the rule, so any flip an earlier call made goes; absent, the file's own rule and its ticks stand, and used decides a first call and any row the file does not carry`),
         set: z.array(z.string()).optional().describe('rows to flip, "<id>=on" or "<id>=off", applied over whatever decided the row: a catalog id, or the id recipe_scan gives a package one of this computer\'s own package managers has (alsoHere), which ticks that package as a row of its own and installs it by its own road. On a call that names tick or project they sit over the rule\'s fresh answer; on any other call they sit over the ticks already in the file'),

@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { agentName } from "@wsp/catalog";
 import {
+  TrackerRepo,
   AgentSetupView,
   ThreadDefaults,
   configDirSignInLine,
@@ -366,7 +367,7 @@ export const SKILL_CHANGE_WORDS =
 
 /** Each field a --reset puts back on the layer below, by the verb that takes it. */
 export const AGENT_SET_RESETS = ["model", "effort", "access", "models"] as const;
-export const PROJECT_SET_RESETS = ["agent", "model", "effort", "access", "after-worktree"] as const;
+export const PROJECT_SET_RESETS = ["agent", "model", "effort", "access", "after-worktree", "trackers"] as const;
 export const AGENT_SETUP_RESETS = ["program", "config", "args"] as const;
 
 /** The fields a --reset names, each one of the verb's own; a word outside them is refused naming them. */
@@ -506,10 +507,15 @@ interface ProjectSetAsk {
   effort?: string;
   access?: string;
   afterWorktree?: string;
+  trackers?: readonly string[];
   reset?: readonly string[];
 }
 
-export const projectSetNothingLine = "wsp projects set takes --agent, --model, --effort, --access, --after-worktree or --reset.";
+export const projectSetNothingLine = "wsp projects set takes --agent, --model, --effort, --access, --after-worktree, --tracker or --reset.";
+export const trackerShapeLine = (word: string): string => `--tracker ${JSON.stringify(word)} names no repo.`;
+export const TRACKER_SHAPE_FIX = "Name it as owner/name, the way gh repo view does.";
+/** The repos besides its own that gh on a sub-thread's machine may comment on for the project. */
+export const trackersLine = (trackers: readonly string[]): string => `gh on a sub-thread's machine may also comment on: ${trackers.join(", ")}`;
 export const afterWorktreeBlankLine = "--after-worktree was given a blank command, which a new worktree cannot run.";
 export const AFTER_WORKTREE_BLANK_FIX = "Name the shell line a new worktree runs, or take the command away with --reset after-worktree.";
 /** The project's own after-worktree command, as a line under what a new thread there starts on. */
@@ -517,23 +523,27 @@ export const afterWorktreeLine = (command: string): string => `after a new workt
 export const noDefaultsAnsweredLine = (project: string): string => `the host answered no defaults for ${project}`;
 
 /** One project's overrides moved, and what a new thread on it now starts on. */
-export async function projectDefaultsSet(client: HostClient, ref: string, ask: ProjectSetAsk): Promise<{ project: ProjectView; defaults: ThreadDefaults; afterWorktree?: string }> {
+export async function projectDefaultsSet(client: HostClient, ref: string, ask: ProjectSetAsk): Promise<{ project: ProjectView; defaults: ThreadDefaults; afterWorktree?: string; trackers?: string[] }> {
   if (ask.afterWorktree !== undefined && ask.afterWorktree.trim() === "") throw usageRefusal(afterWorktreeBlankLine, AFTER_WORKTREE_BLANK_FIX);
+  const unnamed = ask.trackers?.find(word => !TrackerRepo.safeParse(word).success);
+  if (unnamed !== undefined) throw usageRefusal(trackerShapeLine(unnamed), TRACKER_SHAPE_FIX);
   const resets = resetsOf(PROJECT_SET_RESETS, ask.reset ?? []);
+
   const patch: ProjectOverridesPatch = {
     ...patched("agent", ask.agent, resets.includes("agent")),
     ...patched("model", ask.model, resets.includes("model")),
     ...patched("effort", ask.effort, resets.includes("effort")),
     ...patched("access", ask.access === undefined ? undefined : accessWordOf(ask.access), resets.includes("access")),
     ...patched("afterWorktree", ask.afterWorktree, resets.includes("after-worktree")),
+    ...patched("trackers", ask.trackers !== undefined && ask.trackers.length > 0 ? [...new Set(ask.trackers)] : undefined, resets.includes("trackers")),
   };
   if (Object.keys(patch).length === 0) throw usageRefusal(projectSetNothingLine, NOTHING_TO_SET_FIX);
   const project = await projectOf(client, ref);
   const { preferences } = await client.request<{ preferences: unknown }>("preferences.set", { patch: { projectDefaults: { [project.id]: patch } } });
   const defaults = (await projectDefaultsOf(client))[project.id];
   if (defaults === undefined) throw new Error(noDefaultsAnsweredLine(project.name));
-  const afterWorktree = Preferences.parse(preferences).projectDefaults[project.id]?.afterWorktree;
-  return { project, defaults, ...(afterWorktree !== undefined ? { afterWorktree } : {}) };
+  const { afterWorktree, trackers } = Preferences.parse(preferences).projectDefaults[project.id] ?? {};
+  return { project, defaults, ...(afterWorktree !== undefined ? { afterWorktree } : {}), ...(trackers !== undefined ? { trackers } : {}) };
 }
 
 /** Where a resolved value came from, as a person reads it. */
