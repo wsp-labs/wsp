@@ -775,7 +775,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         // The fork's history opens its transcript, ahead of every event of its own first turn.
         if (plan !== undefined) ctx.recordCopies(copiedEvents(plan, { workspaceId, threadId }));
         // The conversation so far, once, ahead of the prompt the turn opens with.
-        for (const row of outside?.earlier ?? []) ctx.record({ type: "session.earlier", workspaceId, sessionId: outside!.id, threadId, who: row.who, text: row.text });
+        for (const row of outside?.earlier ?? []) ctx.record({ type: "session.earlier", workspaceId, sessionId: outside!.id, threadId, ...row });
         const handle = ctx.runTurn({
           entry,
           view,

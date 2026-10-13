@@ -98,13 +98,13 @@ describe("Claude Code's conversations in a folder", () => {
     expect(await adapter.conversations.live!(failing)).toBeNull();
   });
 
-  it("read one conversation off transcripts.read, gone where no folder holds it", async () => {
+  it("read one conversation off transcripts.read, each message at the time its line says, gone where no folder holds it", async () => {
     const adapter = createClaudeAdapter({ exec: recorded().factory, configDir: "/home/dev/.claude" });
-    const found = road({ "transcripts.read": { found: true, cwd: "/work/acme/lab", title: "lab codewords", messages: [{ who: "person", text: "hi" }, { who: "tool", text: '{"command":"ls"}', tool: "Bash" }, { who: "agent", text: "done" }], earlier: 4 } });
+    const found = road({ "transcripts.read": { found: true, cwd: "/work/acme/lab", title: "lab codewords", messages: [{ who: "person", text: "hi", at: 1791848679454 }, { who: "tool", text: '{"command":"ls"}', tool: "Bash", at: 1791848681000 }, { who: "agent", text: "done" }], earlier: 4 } });
     expect(await adapter.conversations.earlier(ID, { cwds: ["/work/acme/lab"], last: 200, probe: true }, found)).toEqual({
       cwd: "/work/acme/lab",
       title: "lab codewords",
-      lines: [{ who: "person", text: "hi" }, { who: "tool", text: '{"command":"ls"}', tool: "Bash" }, { who: "agent", text: "done" }],
+      lines: [{ who: "person", text: "hi", at: 1791848679454 }, { who: "tool", text: '{"command":"ls"}', tool: "Bash", at: 1791848681000 }, { who: "agent", text: "done" }],
       earlier: 4,
     });
     expect(found.frames).toEqual([{ op: "transcripts.read", root: "/home/dev/.claude/projects", dirs: ["-work-acme-lab"], session: ID, last: 200 }]);

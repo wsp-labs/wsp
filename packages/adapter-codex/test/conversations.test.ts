@@ -85,17 +85,17 @@ describe("the threads Codex kept in a folder", () => {
 describe("a Codex thread's earlier messages", () => {
   const answered = { "thread/resume": { result: (RECORDED["thread-read"] as Json)["result"] }, "thread/read": RECORDED["thread-read"], "thread/turns/list": RECORDED["turns-list"], "thread/items/list": RECORDED["items-list"] };
 
-  it("come off thread/turns/list and thread/items/list, the thread opened as a writer first where a start asks", async () => {
+  it("come off thread/turns/list and thread/items/list, each at the time Codex stamped it, the thread opened as a writer first where a start asks", async () => {
     const { store, road, requests } = storeOver(answered);
     const read = await store.earlier(TUI, { cwds: [LAB], last: 200, probe: true }, road);
     expect(read).toEqual({
       cwd: LAB,
       title: "lab terminal thread",
       lines: [
-        { who: "person", text: "first prompt from codex-tui" },
-        { who: "agent", text: "stub reply to: first prompt from codex-tui" },
-        { who: "person", text: "second turn" },
-        { who: "agent", text: "stub reply to: second turn" },
+        { who: "person", text: "first prompt from codex-tui", at: 1791673748846 },
+        { who: "agent", text: "stub reply to: first prompt from codex-tui", at: 1791673748862 },
+        { who: "person", text: "second turn", at: 1791673748894 },
+        { who: "agent", text: "stub reply to: second turn", at: 1791673748904 },
       ],
       earlier: 0,
     });
@@ -108,14 +108,14 @@ describe("a Codex thread's earlier messages", () => {
     const paged = [{ result: { ...turns.result, nextCursor: "page-2" } }, { result: { ...turns.result, nextCursor: null } }];
     const { store, road, requests } = storeOver({ ...answered, "thread/turns/list": paged });
     const read = await store.earlier(TUI, { cwds: [LAB], last: 1, probe: false, count: false }, road);
-    expect(read).toEqual({ cwd: LAB, title: "lab terminal thread", lines: [{ who: "agent", text: "stub reply to: second turn" }], earlier: 0 });
+    expect(read).toEqual({ cwd: LAB, title: "lab terminal thread", lines: [{ who: "agent", text: "stub reply to: second turn", at: 1791673748904 }], earlier: 0 });
     expect(requests().map(r => r["method"])).toEqual(["thread/read", "thread/turns/list", "thread/items/list"]);
   });
 
   it("keep the newest messages and count the rest, and read the thread without taking it for a copy", async () => {
     const { store, road, requests } = storeOver(answered);
     const read = await store.earlier(TUI, { cwds: [LAB], last: 1, probe: false }, road);
-    expect(read).toEqual({ cwd: LAB, title: "lab terminal thread", lines: [{ who: "agent", text: "stub reply to: second turn" }], earlier: 3 });
+    expect(read).toEqual({ cwd: LAB, title: "lab terminal thread", lines: [{ who: "agent", text: "stub reply to: second turn", at: 1791673748904 }], earlier: 3 });
     expect(requests()[0]!["method"]).toBe("thread/read");
   });
 

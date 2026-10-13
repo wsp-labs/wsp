@@ -28,6 +28,7 @@ import {
   toolDoneLine,
   unknownOpLine,
   type Caller,
+  type ConversationLine,
   type ConversationRead,
   type ConversationRoad,
   type ConversationStore,
@@ -197,11 +198,15 @@ export function conversationsArea(ctx: RuntimeContext): ConversationsArea {
     return { rows, held };
   };
 
-  /** The earlier rows as the thread's transcript holds them: the count of what is left out first, each call as its line. */
-  const earlierRows = (lines: { who: "person" | "agent" | "tool"; text: string; tool?: string }[], left: number, harness: string): OutsideOpening["earlier"] => [
-    ...(left > 0 ? [{ who: "note" as const, text: earlierLine(left, ctx.agentLabel(harness)) }] : []),
-    ...lines.map(l => (l.who === "tool" ? { who: "tool" as const, text: toolDoneLine(l.tool, l.text) ?? toolActivityLine(l.tool, l.text) } : { who: l.who, text: l.text })),
-  ];
+  /** The earlier rows as the thread's transcript holds them: the count of what is left out first, at the time of the
+   * first row it stands before, each call as its line, each row at the time its agent wrote it. */
+  const earlierRows = (lines: ConversationLine[], left: number, harness: string): OutsideOpening["earlier"] => {
+    const at = (l: ConversationLine | undefined): { at?: number } => (l?.at !== undefined ? { at: l.at } : {});
+    return [
+      ...(left > 0 ? [{ who: "note" as const, text: earlierLine(left, ctx.agentLabel(harness)), ...at(lines[0]) }] : []),
+      ...lines.map(l => ({ ...(l.who === "tool" ? { who: "tool" as const, text: toolDoneLine(l.tool, l.text) ?? toolActivityLine(l.tool, l.text) } : { who: l.who, text: l.text }), ...at(l) })),
+    ];
+  };
 
   /** One conversation read for the picker, before any thread: its newest rows as a thread on it would open with them,
    * or the few its preview shows off the end of the agent's file alone. Read only: nothing takes it as a writer. */

@@ -44,11 +44,12 @@ export const ResumeAsk = z.object({ id: z.string().min(1).max(200), copy: z.bool
 export type ResumeAsk = z.infer<typeof ResumeAsk>;
 
 /** One row of a conversation's earlier messages: the person's, the agent's, or one tool call by the agent's own name
- * for the tool with its input as text. */
+ * for the tool with its input as text, and when the agent wrote it, ms epoch, where its store says. */
 export interface ConversationLine {
   who: "person" | "agent" | "tool";
   text: string;
   tool?: string;
+  at?: number;
 }
 
 /** A conversation as an adapter reads it off its agent's store; the runtime adds what only wsp knows. */
@@ -110,11 +111,12 @@ export const PREVIEW_MESSAGES = 4;
 export const PREVIEW_TAIL_BYTES = 256 << 10;
 
 /** One conversation read before any thread opens on it: where it ran, its name, and its newest rows as the thread's
- * transcript would open with them, a tool call as its one line and a note for the messages left out. */
+ * transcript would open with them, a tool call as its one line and a note for the messages left out, each at the time
+ * its agent wrote it where the store says. */
 export const ConversationRead = z.object({
   cwd: z.string().optional(),
   title: z.string(),
-  rows: z.array(z.object({ who: z.enum(["person", "agent", "tool", "note"]), text: z.string() })),
+  rows: z.array(z.object({ who: z.enum(["person", "agent", "tool", "note"]), text: z.string(), at: z.number().optional() })),
 });
 export type ConversationRead = z.infer<typeof ConversationRead>;
 

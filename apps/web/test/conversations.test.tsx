@@ -20,6 +20,7 @@ import type { Api, StartSessionOptions } from "../src/protocol/client.js";
 import { projectHomeKey, useStore } from "../src/protocol/store.js";
 import { ConversationConfirm } from "../src/shell/ConversationConfirm.js";
 import { ProjectHome } from "../src/shell/ProjectHome.js";
+import { earlierEntries } from "../src/shell/ResumeDraft.js";
 import { PREVIEWS_KEPT, openResumePicker, previewKey, useConversationsStore } from "../src/shell/conversations.js";
 import { PREVIEW_REST_MS, ROWS_DRAWN, ResumePicker, pickerRows } from "../src/shell/ResumePicker.js";
 import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
@@ -599,6 +600,15 @@ describe("a thread opened on a conversation", () => {
       "user: go on",
     ]);
     expect(model.turns.map(t => t.turnId)).toEqual(["t1"]);
+  });
+
+  it("dates each earlier message at the time its agent wrote it, in the thread and in the picker's draft before it", () => {
+    const written = Date.parse("2026-10-12T23:44:39.454Z");
+    const datedOf = (timeline: ReturnType<typeof deriveSession>["timeline"]): string[] => timeline.flatMap(e => (e.kind === "message" ? [`${e.message.text} ${e.message.createdAt}`] : []));
+    const dated = events.map(e => (e.type === "session.earlier" ? { ...e, at: written + e.pos! * 1000 } : e));
+    expect(datedOf(deriveSession(dated).timeline).slice(0, 2)).toEqual(["Remember ALPHA. 2026-10-12T23:44:41.454Z", "ALPHA 2026-10-12T23:44:43.454Z"]);
+    const read: ConversationRead = { title: "lab codewords", rows: [{ who: "person", text: "Remember ALPHA.", at: written }, { who: "agent", text: "ALPHA", at: written + 2000 }] };
+    expect(datedOf(earlierEntries(read, TERMINAL.id))).toEqual(["Remember ALPHA. 2026-10-12T23:44:39.454Z", "ALPHA 2026-10-12T23:44:41.454Z"]);
   });
 
   it("keeps them shut in the Earlier fold each time its transcript is read, open once the fold is, and find opens it to a match", () => {
