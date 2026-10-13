@@ -164,7 +164,7 @@ export function parseTurns(stdout: string): { turns: { id: string; messages: num
 
 const isMessage = (item: Record<string, unknown> | undefined): boolean => item?.type === "userMessage" || item?.type === "agentMessage";
 
-/** One page of items: each with its turn and its row, where it is a message or a call. */
+/** One page of items: each with its turn and its row, where it is a message or a call, at the time Codex stamped it. */
 export function parseItems(stdout: string, toolOf: (item: Record<string, unknown>) => { tool: string; text: string } | undefined): { items: { turnId?: string; line: ConversationLine }[]; next?: string } {
   const result = answerOf(stdout, ASK, "thread/items/list");
   const data = Array.isArray(result.data) ? result.data : [];
@@ -174,7 +174,8 @@ export function parseItems(stdout: string, toolOf: (item: Record<string, unknown
     if (item === undefined) return [];
     const turnId = str(held?.turnId);
     const line = lineOf(item, toolOf);
-    return line === undefined ? [] : [{ ...(turnId !== undefined ? { turnId } : {}), line }];
+    const at = num(held?.startedAtMs) ?? num(held?.completedAtMs);
+    return line === undefined ? [] : [{ ...(turnId !== undefined ? { turnId } : {}), line: at !== undefined ? { ...line, at } : line }];
   });
   const next = str(result.nextCursor);
   return { items, ...(next !== undefined ? { next } : {}) };

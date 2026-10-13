@@ -600,7 +600,7 @@ export const TranscriptsReadReply = z.object({
   found: z.boolean(),
   cwd: z.string().optional(),
   title: z.string().optional(),
-  messages: z.array(z.object({ who: z.enum(["person", "agent", "tool"]), text: z.string(), tool: z.string().optional() })),
+  messages: z.array(z.object({ who: z.enum(["person", "agent", "tool"]), text: z.string(), tool: z.string().optional(), at: z.number().optional() })),
   earlier: z.number(),
 });
 export type TranscriptsReadReply = WireTranscriptsReadReply;
