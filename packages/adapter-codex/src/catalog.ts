@@ -9,9 +9,10 @@
 // codex-cli 0.153.0: all four answers land about 140 ms after the pipe opens,
 // no model is called.
 
-import { ENV_FROM_INPUT, codexNotSignedInLine, programWord } from "@wsp/protocol";
+import { ENV_FROM_INPUT, codexNotSignedInLine } from "@wsp/protocol";
 import type { AgentLaunch, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessCatalogProbe } from "@wsp/protocol";
 import { answersOf, appServerScript, initializeRequest, request, resultOf } from "@wsp/catalog";
+import { codexWord, type CodexBroker } from "./command.js";
 
 const SEP = "__WSP_CATALOG_SEP__";
 /** Request ids, in the order the probe sends them; the parser reads each answer by its own id. */
@@ -26,16 +27,16 @@ const REQUESTS = [initializeRequest(INIT), request(MODELS, "model/list"), reques
  * reason as a session: guest exec carries no HOME, and the app-server writes into the home it is pointed at, so the
  * probe runs under the session's own CODEX_HOME, read off its input with the rest of `buildEnv`.
  */
-export function catalogProbeCommand(options: { launch?: AgentLaunch } = {}): string {
-  const codex = programWord("codex", options.launch);
+export function catalogProbeCommand(options: { launch?: AgentLaunch; broker?: CodexBroker } = {}): string {
+  const codex = codexWord(options.launch, options.broker);
   const server = appServerScript(codex, [{ lines: REQUESTS, answers: REQUESTS.length }]);
   return `${versionProbeCommand(options)}; echo ${SEP}; ${codex} --help; echo ${SEP}\n${server}`;
 }
 
 /** The probe's first command alone, under the same environment: what says whether lists read off the binary before
  * are still its lists. */
-export function versionProbeCommand(options: { launch?: AgentLaunch } = {}): string {
-  return `cd ~ && ${ENV_FROM_INPUT}; ${programWord("codex", options.launch)} --version`;
+export function versionProbeCommand(options: { launch?: AgentLaunch; broker?: CodexBroker } = {}): string {
+  return `cd ~ && ${ENV_FROM_INPUT}; ${codexWord(options.launch, options.broker)} --version`;
 }
 
 /** The version `codex --version` prints, the one the probe records; null where it printed none. */
