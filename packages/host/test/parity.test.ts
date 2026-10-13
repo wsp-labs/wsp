@@ -638,6 +638,7 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
       "wsp run reads --fast, which its row does not show",
       "wsp run reads --file, which its row does not show",
       "wsp run reads --fork, which its row does not show",
+      "wsp run reads --from, which its row does not show",
       "wsp run reads --model, which its row does not show",
       "wsp run reads --on, which its row does not show",
       "wsp run reads --replaces, which its row does not show",

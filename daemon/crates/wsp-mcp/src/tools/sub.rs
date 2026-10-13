@@ -96,6 +96,7 @@ struct SubStarted {
 pub(super) struct SubAsk {
     pub(super) on: String,
     pub(super) size: Option<String>,
+    pub(super) from: Option<String>,
     pub(super) branch: Option<String>,
     pub(super) agent: Option<String>,
 }
@@ -123,7 +124,7 @@ pub(super) async fn sub_run(
             &workspace_names(&client).await?,
         );
         let mut sub = params([("on", Value::from(ask.on.as_str()))]);
-        for (key, value) in [("size", &ask.size), ("branch", &ask.branch), ("harness", &ask.agent)] {
+        for (key, value) in [("size", &ask.size), ("from", &ask.from), ("branch", &ask.branch), ("harness", &ask.agent)] {
             if let Some(value) = value {
                 sub.insert(key.to_owned(), Value::from(value.as_str()));
             }
