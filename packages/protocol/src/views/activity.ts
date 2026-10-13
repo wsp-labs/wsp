@@ -126,7 +126,7 @@ export const SCRIPT_RUNTIMES: ReadonlySet<string> = new Set(["node", "python", "
 /** The names a process runs by: its comm, argv[0]'s, and the script argv[0] runs where that is a runtime. A Mac names a
  * process by the file the kernel ran, which for Claude Code's native install is its version (`2.1.296`) and for an npm
  * install or cursor-agent is node, so the name a person knows is read off the command line beside it. */
-export function procBins(p: ProcEntry): string[] {
+export function procBins(p: Pick<ProcEntry, "comm" | "cmdline">): string[] {
   const argv = p.cmdline.split(" ").filter(w => w !== "");
   const base = (w: string | undefined): string | undefined => w?.split("/").at(-1);
   const first = base(argv[0]);

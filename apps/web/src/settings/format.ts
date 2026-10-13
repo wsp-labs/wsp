@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The words the settings page and its palette row say, one place, keyed by the
 // preference value where a value has words of its own.
-import { COPY_KEYS_WORD, fmtPx, keysKeptLine, listWords, nameList, offlineFor, type MidTurn, type NewThreadIn, type NotifyChoice, type OnQuit, type PlaceDialRoad, type PlaceProvisionRow, type ProductUsageOff, type SendKey, type ServerSignIn, type SettleAfter, type TerminalSizeSource, type ThemePreference, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
+import { ACTIVITY_GROUP_WORDS, COPY_KEYS_WORD, fmtPx, keysKeptLine, listWords, nameList, offlineFor, type MidTurn, type NewThreadIn, type NotifyChoice, type OnQuit, type PlaceDialRoad, type PlaceProvisionRow, type ProductUsageOff, type SendKey, type ServerSignIn, type SettleAfter, type TerminalSizeSource, type ThemePreference, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
 
 /** The muted sans with tabular figures a state word or a description of machine words wears, and the foreground one
  * a value a person reads wears: an address, a size, a path, a time, a version. Two class strings the page, the sheet
@@ -510,11 +510,7 @@ export const ACTIVITY_WORDS = {
   process: "Process",
   reach: "Who can connect",
   processes: "Processes",
-  wsp: "wsp",
-  wspNote: "The app and what runs it",
-  wspNoteBox: "What runs wsp here",
-  loose: "No thread",
-  looseNote: "Started with no thread wsp knows of",
+  ...ACTIVITY_GROUP_WORDS,
   sampler: "Task manager",
   samplerNote: "What reading this page costs",
   end: "End",

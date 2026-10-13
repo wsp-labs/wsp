@@ -4,9 +4,8 @@
 // carrying them; the person stops them or keeps them running, and the settle
 // goes again with that answer. Escape settles nothing.
 import { create } from "zustand";
-import { standingAfterStop, type ActivityEnded, type LeftThread, type ProcessesChoice, type SessionSettleResult } from "@wsp/protocol";
+import { procName, standingAfterStop, type ActivityEnded, type LeftThread, type ProcessesChoice, type SessionSettleResult } from "@wsp/protocol";
 import { ACTIVITY_WORDS as W } from "../../settings/format.js";
-import { procName } from "../../settings/activity/model.js";
 
 export interface SettleAsk {
   readonly left: readonly LeftThread[];
