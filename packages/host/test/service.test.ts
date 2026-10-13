@@ -1169,10 +1169,21 @@ describe("wsp up --service, wsp down and wsp status", () => {
     expect(lines[0]).not.toMatch(/fork|workspace/);
     expect(lines[0]).toContain(join(home, ".wsp", ".env"));
     expect(JSON.stringify(fake.plans[0])).not.toContain("sk-ant-only-here");
-    expect(claudeKeyOnlyInThisShell({ env: { ANTHROPIC_API_KEY: "sk-ant-only-here" }, cwd: home, statePath })).toBeDefined();
+    expect(await claudeKeyOnlyInThisShell({ env: { ANTHROPIC_API_KEY: "sk-ant-only-here" }, cwd: home, statePath })).toBeDefined();
+    expect(await claudeKeyOnlyInThisShell({ env: { ANTHROPIC_API_KEY: "sk-ant-only-here" }, cwd: home, statePath, login: async () => ({}) })).toBeDefined();
     writeFileSync(join(home, ".wsp", ".env"), `SOLARI_API_KEY=${KEY}\nANTHROPIC_API_KEY=sk-ant-only-here\n`);
-    expect(claudeKeyOnlyInThisShell({ env: { ANTHROPIC_API_KEY: "sk-ant-only-here" }, cwd: home, statePath })).toBeUndefined();
-    expect(claudeKeyOnlyInThisShell({ env: {}, cwd: home, statePath })).toBeUndefined();
+    expect(await claudeKeyOnlyInThisShell({ env: { ANTHROPIC_API_KEY: "sk-ant-only-here" }, cwd: home, statePath })).toBeUndefined();
+    expect(await claudeKeyOnlyInThisShell({ env: {}, cwd: home, statePath })).toBeUndefined();
+  });
+
+  it("says nothing of a Claude key the login shell exports, since the service's host reads that shell at its start", async () => {
+    keyInFile();
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-x-from-rc");
+    const fake = svc({ keys: { env: process.env, cwd: home, login: async () => ({ ANTHROPIC_API_KEY: "sk-ant-x-from-rc" }) } });
+    const lines: string[] = [];
+    expect(await upServiceCommand(quietIO(lines), opts, fake.deps)).toBe(0);
+    expect(lines.join("\n")).not.toContain("ANTHROPIC_API_KEY");
+    expect(JSON.stringify(fake.plans[0])).not.toContain("sk-ant-x-from-rc");
   });
 
   it.runIf(CLOUD_ON)("reads the keys off the sources it was handed, not off whatever .env sits in the folder wsp was run from", async () => {

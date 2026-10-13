@@ -62,7 +62,7 @@ describe("the login shell PATH", () => {
   const printing = (out: string) => (): Promise<string> => Promise.resolve(out);
 
   it("a host handed launchd's PATH runs the login shell and takes what it prints", async () => {
-    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: fakeShell(`printf %s "/Users/dev/.local/bin:/opt/homebrew/bin:/usr/bin:/bin"`) };
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: fakeShell(`printf 'PATH=%s\\0' "/Users/dev/.local/bin:/opt/homebrew/bin:/usr/bin:/bin"`) };
     const lines: string[] = [];
     await takeLoginPath({ env, log: l => lines.push(l) });
     // The one case that runs a process, so it is the one that proves the shell is really launched and read.
@@ -95,7 +95,7 @@ describe("the login shell PATH", () => {
     // On a Mac launchd's own four folders stay the whole trigger.
     expect(needsLoginPath({ PATH: "/opt/homebrew/bin:/usr/bin:/bin", [STARTED_BY_ENV]: "service" }, "darwin")).toBe(false);
     const env: NodeJS.ProcessEnv = { PATH: systemd, [STARTED_BY_ENV]: "service", SHELL: "/bin/bash" };
-    await takeLoginPath({ env, log: () => {}, read: printing("/home/dev/.local/bin:/usr/local/bin:/usr/bin:/bin"), platform: "linux" });
+    await takeLoginPath({ env, log: () => {}, read: printing("PATH=/home/dev/.local/bin:/usr/local/bin:/usr/bin:/bin\0"), platform: "linux" });
     expect(env["PATH"]).toBe("/home/dev/.local/bin:/usr/local/bin:/usr/bin:/bin");
   });
 
@@ -126,7 +126,7 @@ describe("the login shell PATH", () => {
 
   it("a shell whose rc file leaves a job holding its output open is read once it answers, and the job ends with it", async () => {
     const pids = join(dir, "pids");
-    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: fakeShell(`sleep 300 & echo $! >> ${JSON.stringify(pids)}\nprintf %s "/Users/dev/.local/bin:/usr/bin:/bin"`) };
+    const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: fakeShell(`sleep 300 & echo $! >> ${JSON.stringify(pids)}\nprintf 'PATH=%s\\0' "/Users/dev/.local/bin:/usr/bin:/bin"`) };
     const started = Date.now();
     try {
       await takeLoginPath({ env, log: () => {} });
@@ -155,9 +155,9 @@ describe("the login shell PATH", () => {
     expect(lines).toEqual([loginPathLine("SHELL names no login shell")]);
   });
 
-  it("an rc file that greets the person first costs nothing: the PATH is what follows the last newline", async () => {
+  it("an rc file that greets the person first costs nothing: the first variable starts after the last newline", async () => {
     const env: NodeJS.ProcessEnv = { ...launchd(), SHELL: "/bin/zsh" };
-    await takeLoginPath({ env, log: () => {}, read: printing("hello from your dotfiles\n/Users/dev/.local/bin:/usr/bin") });
+    await takeLoginPath({ env, log: () => {}, read: printing("hello from your dotfiles\nPATH=/Users/dev/.local/bin:/usr/bin\0HOME=/Users/dev\0") });
     expect(env["PATH"]).toBe("/Users/dev/.local/bin:/usr/bin");
   });
 
@@ -178,7 +178,7 @@ describe("the login shell PATH", () => {
     vi.stubEnv("ANTHROPIC_API_KEY", undefined);
     vi.stubEnv("HOME", join(dir, "user"));
     vi.stubEnv("WSP_HOME", home);
-    vi.stubEnv("SHELL", fakeShell(`printf %s ${JSON.stringify(`${bin}:${LAUNCHD_PATH.join(":")}`)}`));
+    vi.stubEnv("SHELL", fakeShell(`printf 'PATH=%s\\0' ${JSON.stringify(`${bin}:${LAUNCHD_PATH.join(":")}`)}`));
     vi.stubEnv("PATH", LAUNCHD_PATH.join(":"));
 
     const io: CliIO = { log: () => {}, error: () => {}, ask: noPrompt, askSecret: noPrompt };
@@ -227,6 +227,58 @@ describe("the login shell PATH", () => {
   });
 });
 
+describe("the agents' keys in the login shell", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "wsp-login-keys-"));
+    vi.stubEnv("HOME", dir);
+    vi.stubEnv("ZDOTDIR", undefined);
+    vi.stubEnv("BASH_ENV", undefined);
+    vi.stubEnv("ANTHROPIC_API_KEY", undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** The person's own shell, reading the rc file their agent's setup told them to write the key into. */
+  async function keyThrough(shell: string, rc: string): Promise<{ env: NodeJS.ProcessEnv; lines: string[] }> {
+    writeFileSync(join(dir, rc), "export ANTHROPIC_API_KEY=sk-ant-x-login-shell-fake\n");
+    const env: NodeJS.ProcessEnv = { PATH: LAUNCHD_PATH.join(":"), SHELL: shell };
+    const lines: string[] = [];
+    await takeLoginPath({ env, log: l => lines.push(l) });
+    return { env, lines };
+  }
+
+  it.runIf(existsSync("/bin/zsh"))("a key exported in ~/.zshrc reaches a host launchd started, and no line says it", async () => {
+    const { env, lines } = await keyThrough("/bin/zsh", ".zshrc");
+    expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-login-shell-fake");
+    expect(env["PATH"]).not.toBe(LAUNCHD_PATH.join(":"));
+    expect(lines.join("\n")).not.toContain("sk-ant-x-login-shell-fake");
+  }, 30_000);
+
+  it("a key exported in ~/.bash_profile reaches a host launchd started, and no line says it", async () => {
+    const { env, lines } = await keyThrough("/bin/bash", ".bash_profile");
+    expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-login-shell-fake");
+    expect(lines.join("\n")).not.toContain("sk-ant-x-login-shell-fake");
+  }, 30_000);
+
+  it("takes only the variables an agent signs in with, and a key the launch was handed stands", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: LAUNCHD_PATH.join(":"), SHELL: "/bin/zsh", ANTHROPIC_API_KEY: "sk-ant-x-handed" };
+    const out = ["PATH=/Users/dev/.local/bin:/usr/bin", "ANTHROPIC_API_KEY=sk-ant-x-rc", "OPENAI_API_KEY=sk-x-openai-rc", "AWS_SECRET_ACCESS_KEY=fake-aws-rc", ""].join("\0");
+    await takeLoginPath({ env, log: () => {}, read: () => Promise.resolve(out) });
+    expect(env["ANTHROPIC_API_KEY"]).toBe("sk-ant-x-handed");
+    expect(env["OPENAI_API_KEY"]).toBe("sk-x-openai-rc");
+    expect(env["AWS_SECRET_ACCESS_KEY"]).toBeUndefined();
+  });
+
+  it("a host whose PATH was meant takes no key from the login shell either", async () => {
+    const env: NodeJS.ProcessEnv = { PATH: "/opt/homebrew/bin:/usr/bin:/bin", SHELL: "/bin/zsh" };
+    await takeLoginPath({ env, log: () => {}, read: () => Promise.resolve("PATH=/x\0ANTHROPIC_API_KEY=sk-ant-x-rc\0") });
+    expect(env["ANTHROPIC_API_KEY"]).toBeUndefined();
+  });
+});
+
 describe("the login shell's environment", () => {
   it("reads every variable env -0 printed, past a greeting an rc file printed first, a value's newlines kept", () => {
     const out = ["Welcome back\nHOME=/Users/ada", "TOKEN=sk-x-fake", "MULTI=one\ntwo", "EMPTY=", ""].join("\0");
@@ -254,6 +306,34 @@ describe("the login shell's environment", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("is answered off the start's own read where it took a key, so a launch from Finder runs the shell once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-login-env-"));
+    const runs = join(dir, "runs");
+    const shell = join(dir, "sh");
+    writeStub(shell, `#!/bin/sh\necho ran >> ${JSON.stringify(runs)}\nprintf 'PATH=/Users/dev/.local/bin:/usr/bin\\0ANTHROPIC_API_KEY=sk-ant-x-rc\\0'\n`);
+    vi.stubEnv("SHELL", shell);
+    vi.stubEnv("PATH", LAUNCHD_PATH.join(":"));
+    vi.stubEnv("ANTHROPIC_API_KEY", undefined);
+    vi.resetModules();
+    try {
+      const { adoptLoginPath, loginKeysNow } = await import("../src/login-path.js");
+      await adoptLoginPath(() => {});
+      let whole = 0;
+      expect(await loginKeysNow(async () => (whole++, {}))).toEqual({ ANTHROPIC_API_KEY: "sk-ant-x-rc" });
+      expect(whole).toBe(0);
+      expect(readFileSync(runs, "utf8").trim().split("\n")).toHaveLength(1);
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the whole environment where the start took no key, as a launch from a terminal does", async () => {
+    vi.resetModules();
+    const { loginKeysNow } = await import("../src/login-path.js");
+    expect(await loginKeysNow(async () => ({ ANTHROPIC_API_KEY: "sk-ant-x-rc" }))).toEqual({ ANTHROPIC_API_KEY: "sk-ant-x-rc" });
+  });
 
   it("is read once the shell answers when an rc file leaves a job holding its output open, and the job ends with it", async () => {
     const dir = mkdtempSync(join(tmpdir(), "wsp-login-env-"));
