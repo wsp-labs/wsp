@@ -9,9 +9,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Machine } from "@wsp/engine";
-import { HERE_PLACE_ID, addToolsHereRefusal, closedBeforeSignInLine, controlSignInRefusal, mintFailedLine, signInUncheckedLine, noVaultKeyRefusal, notTokenRefusal, serverNotSetUpLine, serverSignInCopyRefusal, shellQuote, signInTerminalRefusal, signInVaultRefusal, type AgentsSignInEvent } from "@wsp/protocol";
+import { HERE_PLACE_ID, THIS_COMPUTER, refusalLine, addToolsHereRefusal, closedBeforeSignInLine, controlSignInRefusal, mintFailedLine, signInUncheckedLine, noVaultKeyRefusal, notTokenRefusal, serverNotSetUpLine, serverSignInCopyRefusal, shellQuote, signInTerminalRefusal, signInVaultRefusal, type AgentsSignInEvent } from "@wsp/protocol";
 import type { AgentsOn, SignInForward } from "@wsp/runtime";
-import { hostActs, pagesOnPty, planSignIn, terminalSignIn, watchSignIn } from "../src/agents-signin.js";
+import { brokeredSignInFix, brokeredSignInRefusal, cloudSignIn, hostActs, pagesOnPty, planSignIn, terminalSignIn, watchSignIn } from "../src/agents-signin.js";
 import { signInPrepareLine } from "../src/place-signin.js";
 import { openerCommand } from "../src/relay.js";
 import { CLI_VERBS, runVerb, type HostClient } from "../src/verbs.js";
@@ -38,6 +38,13 @@ const relayedBox = (): AgentsOn => ({
 });
 
 describe("the line a sign-in runs where it stands", () => {
+  it("refuses an agent's sign-in on a machine whose credentials the host keeps, for the app and the command line alike, and plans the same agent on a fork that holds its own", async () => {
+    const brokered: AgentsOn = { ...(fork() as Extract<AgentsOn, { kind: "machine" }>), brokered: true };
+    await expect(planSignIn(brokered, { agent: "claude" })).rejects.toThrow(refusalLine(brokeredSignInRefusal("Claude Code"), brokeredSignInFix(THIS_COMPUTER)));
+    await expect(planSignIn(brokered, { agent: "codex" }, { terminal: true })).rejects.toThrow("Codex does not sign in on a cloud machine.");
+    expect((await planSignIn(fork(), { agent: "gemini" })).line.command).toBe("gemini --skip-trust");
+  });
+
   it("runs a login that is not shared as the owner of the home on a root box, with no DISPLAY anywhere so the tool takes its paste road", async () => {
     const box = await planSignIn(rootBox(), { agent: "gemini" });
     expect(box.line.command).toMatch(/^runuser -u 'ada' -- bash -c '.*gemini --skip-trust'$/);
@@ -641,4 +648,58 @@ describe("the sign-in lines at the person's terminal", () => {
     expect(await runVerb(key, ["agents", "key", "claude", "--api-key"], apiKey, () => "/tmp/state.json", { env: {}, dial: async () => client })).toBe(0);
     expect(asked.filter(a => a.op === "agents.key").at(-1)?.params).toEqual({ agent: "claude", key: "sk-ant-api03-typed", way: "key" });
   });
+
+  it("wsp agents key codex runs Codex's own sign-in on this computer, the login machines at a provider borrow, and --api-key still takes a key", async () => {
+    const link = fakePtyLink();
+    link.script = pty => link.exit(pty, 0);
+    const { client, asked } = host(link);
+    const key = CLI_VERBS.find(v => v.name === "agents key")!;
+    const io = { ...captured(), isTTY: true, askSecret: async (): Promise<string> => expect.unreachable("a sign-in asks for no paste") };
+    const code = await runVerb(key, ["agents", "key", "codex"], io, () => "/tmp/state.json", { env: {}, dial: async () => client, terminal: terminal(), open: async () => false });
+    // The host here plans a status line that says no, so the run reads as not signed in; the road is what is proved.
+    expect([code, io.lines, io.errors]).toEqual([1, ["Codex is not signed in on this computer."], []]);
+    expect(asked.find(a => a.op === "agents.signInLine")?.params).toEqual({ target: { placeId: HERE_PLACE_ID }, agent: "codex" });
+    expect(asked.some(a => a.op === "agents.key")).toBe(false);
+    const apiKey = { ...captured(), isTTY: true, askSecret: async (q: string) => (expect(q).toBe("Paste Codex's API key"), "sk-proj-typed") };
+    expect(await runVerb(key, ["agents", "key", "codex", "--api-key"], apiKey, () => "/tmp/state.json", { env: {}, dial: async () => client })).toBe(0);
+    expect(asked.filter(a => a.op === "agents.key").at(-1)?.params).toEqual({ agent: "codex", key: "sk-proj-typed", way: "key" });
+  });
 });
+
+describe("agents.cloudSignIn", () => {
+  it("asks this computer for each agent's own login, the one machines at a provider borrow", async () => {
+    const asked: unknown[] = [];
+    const emit = (): void => undefined;
+    const signIn = async (target: unknown, ask: unknown, e: unknown, origin: unknown) => (asked.push({ target, ask, e, origin }), { signInId: "s_1", leave: () => undefined });
+    expect((await cloudSignIn({ signIn }, "claude", emit, "host")).signInId).toBe("s_1");
+    await cloudSignIn({ signIn }, "codex", emit, "host");
+    expect(asked).toEqual([
+      { target: { placeId: HERE_PLACE_ID }, ask: { agent: "claude", login: true }, e: emit, origin: "host" },
+      { target: { placeId: HERE_PLACE_ID }, ask: { agent: "codex", login: true }, e: emit, origin: "host" },
+    ]);
+  });
+
+  it("runs Claude Code's own login here with a stub claude first on PATH, never the token mint and never the Keychain, and leaves the box's token way as it was", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-claude-login-"));
+    try {
+      const calls = join(dir, "calls");
+      writeStub(join(dir, "claude"), `#!/bin/sh\necho "claude $*" >> ${JSON.stringify(calls)}\n`);
+      writeStub(join(dir, "security"), `#!/bin/sh\necho "security $*" >> ${JSON.stringify(calls)}\nexit 1\n`);
+      const kept: string[] = [];
+      const plan = await planSignIn({ kind: "here" }, { agent: "claude", login: true }, { keep: name => void kept.push(name) });
+      execFileSync("/bin/sh", ["-c", plan.line.command], { env: { PATH: `${dir}:/usr/bin:/bin`, HOME: dir, ...plan.line.env } });
+      expect(readFileSync(calls, "utf8")).toBe("claude auth login --claudeai\n");
+      expect(plan.took).toBeUndefined();
+      expect(kept).toEqual([]);
+      // The command line's own line takes the same login here, and a fork still reads the token this host keeps.
+      const acts = hostActs({ vaultFile: join(dir, ".env"), home: () => dir, wspServer: () => ({ command: "wsp", args: [] }) });
+      expect((await acts.signInLine({ kind: "here" }, { agent: "claude" })).command).toBe("claude auth login --claudeai");
+      await expect(acts.signInLine(fork(), { agent: "claude" })).rejects.toThrow(signInVaultRefusal("Claude Code"));
+      // Without the field, the same ask here is still Add a computer's Make a token way.
+      expect((await planSignIn({ kind: "here" }, { agent: "claude" }, { keep: () => undefined })).line.command).toBe("claude setup-token");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
