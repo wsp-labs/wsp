@@ -731,5 +731,5 @@ export interface OutsideOpening {
   project: string;
   cwd?: string;
   title: string;
-  earlier: Pick<SessionEarlierEvent, "who" | "text">[];
+  earlier: Pick<SessionEarlierEvent, "who" | "text" | "at">[];
 }

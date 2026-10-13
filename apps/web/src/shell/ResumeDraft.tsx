@@ -18,8 +18,8 @@ const noop = (): void => {};
 /** The rows a thread on the conversation opens with, as its transcript's events would draw them. */
 export function earlierEntries(read: ConversationRead, sessionId: string): ReadonlyArray<TimelineEntry> {
   const fold = createSessionFold();
-  const at = Date.now();
-  read.rows.forEach((row, i) => fold.add({ type: "session.earlier", workspaceId: "", sessionId, at, pos: i + 1, who: row.who, text: row.text } as SessionEvent));
+  const now = Date.now();
+  read.rows.forEach((row, i) => fold.add({ type: "session.earlier", workspaceId: "", sessionId, at: row.at ?? now, pos: i + 1, who: row.who, text: row.text } as SessionEvent));
   return fold.model().timeline;
 }
 
