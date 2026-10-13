@@ -139,6 +139,9 @@ export const HarnessCatalog = z.object({
   /** This CLI's mode that changes nothing, as it spells it, which a reviewer runs at: absent on a harness wsp can give
    * no read-only access, which reviews nothing. */
   readOnlyMode: z.string().optional(),
+  /** Whether this CLI, in a mode that asks before an MCP tool, calls one its server marks read-only without asking, so
+   * a slate's tool runs on its threads skip the ask there too. Absent is a no: it asks before every tool. */
+  readOnlyToolsFree: z.boolean().optional(),
   /** Which of this CLI's own modes each of wsp's access words stands for. A word the row leaves out is one this agent
    * cannot take, refused where it is set and never stood in for by a looser mode; absent maps none. */
   access: z.record(AccessChoice, z.string()).optional(),

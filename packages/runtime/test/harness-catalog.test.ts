@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { parseCatalogProbe } from "@wsp/adapter-claude";
 import { CLAUDE_CODE, THREAD_AGENTS } from "@wsp/catalog";
 import { HarnessCatalog, catalogSourceLine, effortsFor, exitClassOf, everyModel, listedPick, markedDefault, modelOf, noModelsLine, startPicks, THIS_COMPUTER, type HarnessCatalogProbe } from "@wsp/protocol";
-import { HARNESS_CATALOGS, NAMED_ONLY, catalogFromProbe, harnessCatalog, modelLabel, smallestModel } from "../src/harness-catalog.js";
+import { HARNESS_CATALOGS, NAMED_ONLY, catalogFromProbe, harnessCatalog, modelLabel, smallestModel, toolAsks } from "../src/harness-catalog.js";
 
 /** The agents whose models no table can list: the machine's own providers, or an account's. */
 const OPEN_MODELS: readonly string[] = ["opencode", "cursor"];
@@ -205,6 +205,21 @@ describe("the default effort of a pick", () => {
   it("marks nothing when the model names a default its own list does not carry", () => {
     const odd = { ...codex, models: [{ value: "gpt-5.5", label: "GPT-5.5", efforts: ["low", "high"], defaultEffort: "medium" }] };
     expect(effortsFor(odd, odd.models[0]!).some(o => o.isDefault)).toBe(false);
+  });
+});
+
+describe("when a thread's agent asks before an MCP tool", () => {
+  it("never at its bypass or with no mode named, else before every tool, or before one not read-only where it skips those", () => {
+    expect(toolAsks("claude", undefined)).toBe("never");
+    expect(toolAsks("claude", "bypassPermissions")).toBe("never");
+    expect(toolAsks("claude", "default")).toBe("every");
+    expect(toolAsks("claude", "acceptEdits")).toBe("every");
+    expect(toolAsks("codex", "danger-full-access")).toBe("never");
+    expect(toolAsks("codex", "workspace-write")).toBe("unless-read-only");
+    expect(toolAsks("codex", "read-only")).toBe("unless-read-only");
+    expect(toolAsks("opencode", harnessCatalog("opencode")!.bypassMode)).toBe("never");
+    expect(toolAsks(undefined, "default")).toBe("every");
+    expect(toolAsks("nobody", "default")).toBe("every");
   });
 });
 

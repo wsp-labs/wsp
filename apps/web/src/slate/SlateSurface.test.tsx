@@ -208,13 +208,13 @@ describe("a link a press opens", () => {
     opened.mockRestore();
   });
 
-  it("opens nothing and allows nothing on Don't, and opens once with no standing allowance on Open once", async () => {
+  it("opens nothing and allows nothing on Not now, and opens once with no standing allowance on Open once", async () => {
     const opened = vi.spyOn(window, "open").mockImplementation(() => null);
     const api = host([record({ document: LINKED, values: {} })]);
     select(api, "t1");
     render(<SlateSurface />);
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Don't" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Not now" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(opened).not.toHaveBeenCalled();
     // A second press inside the double-press window is the same press, so the next one waits it out.

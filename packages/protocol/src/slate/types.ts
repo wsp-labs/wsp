@@ -106,15 +106,16 @@ export type SlateSecretDecl = SlateValueDecl & { secret: true };
 export type SlateDerivedDecl = SlateExpression;
 
 /** confirm is the sentence the sheet asks on every start: literal, or a formula read when the run is held. then is a
- * literal command that reads the raw result on stdin and prints the JSON the run's json becomes. */
+ * literal command that reads the raw result on stdin and prints the JSON the run's json becomes. description is the
+ * agent's one line for what a tool or resource run does, which the person reads before allowing it. */
 interface RunCommon { confirm?: string | SlateBinding | SlateFormat; every?: number; once?: true; always?: true; then?: string }
 export type SlateRunDecl =
   | (RunCommon & {
       kind: "cmd"; cmd: string; env?: Record<string, SlatePropValue>; args?: SlatePropValue[]; stdin?: SlatePropValue;
       on?: "thread" | "host"; cwd?: string; timeout?: number; stream?: true;
     })
-  | (RunCommon & { kind: "tool"; server: string; tool: string; args?: Record<string, SlatePropValue> })
-  | { kind: "resource"; server: string; uri: string; every?: number; always?: true; then?: string };
+  | (RunCommon & { kind: "tool"; server: string; tool: string; args?: Record<string, SlatePropValue>; description?: string })
+  | { kind: "resource"; server: string; uri: string; every?: number; always?: true; then?: string; description?: string };
 
 /** A reaction declared with <when>; a piece's handlers are reactions on the piece's own events. */
 export interface SlateReactionDecl {
@@ -161,8 +162,8 @@ export const SlateRunDeclSchema: z.ZodType<SlateRunDecl> = z.discriminatedUnion(
     kind: z.literal("cmd"), cmd: z.string(), env: z.record(SlatePropValue).optional(), args: z.array(SlatePropValue).optional(), stdin: SlatePropValue.optional(),
     on: z.enum(["thread", "host"]).optional(), cwd: z.string().optional(), timeout: z.number().optional(), stream: z.literal(true).optional(), ...RunCommonSchema,
   }).strict(),
-  z.object({ kind: z.literal("tool"), server: z.string(), tool: z.string(), args: z.record(SlatePropValue).optional(), ...RunCommonSchema }).strict(),
-  z.object({ kind: z.literal("resource"), server: z.string(), uri: z.string(), every: z.number().optional(), always: z.literal(true).optional(), then: z.string().optional() }).strict(),
+  z.object({ kind: z.literal("tool"), server: z.string(), tool: z.string(), args: z.record(SlatePropValue).optional(), description: z.string().optional(), ...RunCommonSchema }).strict(),
+  z.object({ kind: z.literal("resource"), server: z.string(), uri: z.string(), every: z.number().optional(), always: z.literal(true).optional(), then: z.string().optional(), description: z.string().optional() }).strict(),
 ]) as unknown as z.ZodType<SlateRunDecl>;
 
 export const SlatePieceSchema: z.ZodType<SlatePiece> = z.object({
