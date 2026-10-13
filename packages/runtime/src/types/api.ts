@@ -513,9 +513,8 @@ export interface Runtime {
      * the absence a name nothing holds reads for a thread the caller cannot reach. */
     read(threadId: string, origin?: Caller): Promise<void>;
     /** Writes one thread.waited on the thread: a request a turn on a machine whose credentials the host keeps held
-     * past five seconds while this host was away, or `said`, the sentence the host answered instead. Optional until the
-     * runtime keeps it. */
-    noteWaited?(threadId: string, ms: number, said?: string): Promise<void>;
+     * past five seconds while this host was away, or `said`, the sentence the host answered instead. */
+    noteWaited(threadId: string, ms: number, said?: string): Promise<void>;
     /** Whether a start may name this thread in replaces, read alone and refused as that start would refuse it: a
      * thread working or asking anywhere in its tree, one the caller may not settle, and one that already has a restart. */
     replaceable(threadId: string, origin?: Caller): Promise<void>;

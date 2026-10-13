@@ -248,8 +248,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
 
   const sessionsApi: Runtime["sessions"] = {
     replaceable,
-
     warm,
+    noteWaited: ctx.noteWaited,
 
     async start(workspaceId, opened, origin) {
       await ctx.ready();
