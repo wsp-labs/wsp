@@ -527,7 +527,7 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
       .filter(s => s.length > 0 && !VAULT_SKIP.has(s))
       .map(s => `/root/${s}`);
   };
-  const vaultExport = async (m: Machine, o: Pick<VaultOptions, "maxBytes"> = {}): Promise<Buffer> =>
+  const vaultExport = async (m: Machine, o: Pick<VaultOptions, "maxBytes" | "leave"> = {}): Promise<Buffer> =>
     exportPaths(m, await vaultPathsOf(m), { ...o, ...(opts.vaultCaches !== undefined ? { exclude: opts.vaultCaches } : {}) });
   // One device door for this host: the ops the protocol server answers and the token every turn is launched with
   // come out of the same table, so a scoped token is listed, matched and revoked by the rules a paired computer's

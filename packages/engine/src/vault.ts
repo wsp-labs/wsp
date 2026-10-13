@@ -24,6 +24,10 @@ export interface VaultOptions {
   exclude?: CacheRule;
   /** Import only: merge into what the destination already holds instead of replacing its directories. */
   overlay?: boolean;
+  /** exportPaths and importInto: absolute guest paths left out of the archive and out of what lands, each with
+   * everything under it. tar's own --exclude, so an archive an older host wrote is filtered at the extract too; an
+   * import keeps what the destination holds there, which a replacing extract would otherwise clear with its folder. */
+  leave?: readonly string[];
   /** The folder on the machine the trip's own parts are written in; the machine's shared temporary one unless the
    * caller names wsp's own folder there, which a machine somebody owns needs. */
   tmpDir?: string;
@@ -138,7 +142,7 @@ export interface CacheRule {
  * second lists every entry kept, NUL separated, and tar takes that list with recursion off: both tars' exclude
  * patterns match a name at any depth, so a file called dist would otherwise go with the dist directory. Nothing under
  * a .git directory is judged, so a repository travels whole. Only find and tar features both GNU and BSD have. */
-function excludingArchiveScript(cwd: string, targets: readonly string[], rule: CacheRule, out: string): string {
+function excludingArchiveScript(cwd: string, targets: readonly string[], rule: CacheRule, out: string, leave?: readonly string[]): string {
   const names = (list: readonly string[]): string => list.map(n => `-name ${shellQuote(n)}`).join(" -o ");
   const named = [
     ...(rule.dirs.length === 0 ? [] : [`\\( -type d \\( ${names(rule.dirs)} \\) \\)`]),
@@ -155,7 +159,7 @@ function excludingArchiveScript(cwd: string, targets: readonly string[], rule: C
     `find ${where} -mindepth 1 -path '*/.git' -prune -o ${cache} -prune -print > ${shellQuote(list)}`,
     `printf '%s\\0' ${targets.map(shellQuote).join(" ")} > ${shellQuote(keep)}`,
     `find ${where} -mindepth 1 \\( -path '*/.git' -o -path '*/.git/*' \\) -print0 -o ${cache} -prune -o -print0 >> ${shellQuote(keep)}`,
-    `tar czf ${shellQuote(out)} --no-recursion --null -T ${shellQuote(keep)}`,
+    `tar czf ${shellQuote(out)}${leaveFlags(cwd, leave)} --no-recursion --null -T ${shellQuote(keep)}`,
     `sed 's|^\\./||' ${shellQuote(list)}`,
     `rm -f ${shellQuote(list)} ${shellQuote(keep)}`,
   ].join("\n");
@@ -184,9 +188,13 @@ export interface ArchiveGroup {
  * paths relative to it as well as absolute ones and relative() would resolve those against this computer's cwd. */
 const tarPath = (root: string, path: string): string => (root === "/" ? path.replace(/^\//, "") : relative(root, path));
 
+/** tar's excludes for the paths, spelled as members read from `root`; each goes before the operands, since GNU tar
+ * reads an exclude only for the names after it. */
+const leaveFlags = (root: string, leave: readonly string[] | undefined): string => (leave ?? []).map(p => ` --exclude=${shellQuote(tarPath(root, p))}`).join("");
+
 /** The one tar that archives every group into `out`, each group from its own root. */
-const groupArchiveScript = (groups: readonly ArchiveGroup[], out: string): string =>
-  `tar czf ${shellQuote(out)} ${groups.map(g => `-C ${shellQuote(g.root)} ${g.paths.map(p => shellQuote(tarPath(g.root, p))).join(" ")}`).join(" ")}`;
+const groupArchiveScript = (groups: readonly ArchiveGroup[], out: string, leave?: readonly string[]): string =>
+  `tar czf ${shellQuote(out)}${leaveFlags("/", leave)} ${groups.map(g => `-C ${shellQuote(g.root)} ${g.paths.map(p => shellQuote(tarPath(g.root, p))).join(" ")}`).join(" ")}`;
 
 /** The byte size of a file on the guest, read the one way both GNU and BSD spell it. */
 async function guestFileSize(machine: Machine, path: string): Promise<number> {
@@ -245,8 +253,8 @@ export const exportPaths = (machine: Machine, paths: string[], opts: VaultOption
     machine,
     out => {
       if (paths.length === 0) return emptyArchiveScript(out);
-      if (opts.exclude === undefined) return groupArchiveScript([{ root: "/", paths }], out);
-      return excludingArchiveScript("/", keptPaths(paths, opts.exclude).map(rooted), opts.exclude, out);
+      if (opts.exclude === undefined) return groupArchiveScript([{ root: "/", paths }], out, opts.leave);
+      return excludingArchiveScript("/", keptPaths(paths, opts.exclude).map(rooted), opts.exclude, out, opts.leave);
     },
     opts,
     tmp => downloadBuffer(machine, tmp, opts),
@@ -444,13 +452,16 @@ export async function importInto(machine: Machine, tar: Buffer, destDir: string,
   // The parts are streamed into tar in order, never joined on disk, so the guest holds the archive once.
   // pipefail: a part cat cannot read fails the hash line with cat's message instead of hashing what flowed.
   const joined = `cat ${partPaths.map(shellQuote).join(" ")}`;
+  const removeParts = `rm -f ${partPaths.map(shellQuote).join(" ")}`;
+  const kept = keptAside(destDir, opts.leave ?? [], guestTmpPath("wsp-vault-keep", opts.tmpDir));
   const script = [
     "set -eo pipefail",
-    `trap "rm -f ${partPaths.map(shellQuote).join(" ")}" EXIT`,
+    ...(kept === undefined ? [`trap "${removeParts}" EXIT`] : [kept.where, kept.back(removeParts), "trap back EXIT"]),
     `sum=$(${joined} | sha256sum | cut -d' ' -f1)`,
     `test "$sum" = ${digest} || exit ${HASH_MISMATCH_EXIT}`,
     `mkdir -p ${shellQuote(destDir)}`,
-    `${joined} | tar xzf - -C ${shellQuote(destDir)} ${flags}`,
+    ...(kept === undefined ? [] : [kept.aside]),
+    `${joined} | tar xzf -${leaveFlags(destDir, opts.leave)} -C ${shellQuote(destDir)} ${flags}`,
   ].join("\n");
   const untar = await machine.run(script, { deadlineMs: opts.timeoutMs ?? 120_000 });
   if (untar.exitCode === HASH_MISMATCH_EXIT) {
@@ -460,6 +471,19 @@ export async function importInto(machine: Machine, tar: Buffer, destDir: string,
     throw new Error(`vault import untar failed (exit ${untar.exitCode}): ${untar.stderr.slice(-500)}`);
   }
   return { parts };
+}
+
+/** The lines that move what the destination holds at each left path into `keep` before the extract, and the `back`
+ * function, run on exit whatever the extract did, that puts each one back and removes the parts. */
+function keptAside(destDir: string, leave: readonly string[], keep: string): { where: string; aside: string; back: (removeParts: string) => string } | undefined {
+  if (leave.length === 0) return undefined;
+  const rels = leave.map(p => shellQuote(tarPath(destDir, p))).join(" ");
+  const held = (at: string): string => `{ [ -e "${at}" ] || [ -L "${at}" ]; }`;
+  return {
+    where: `d=${shellQuote(destDir)}; k=${shellQuote(keep)}`,
+    aside: `for r in ${rels}; do if ${held("$d/$r")}; then mkdir -p "$k/$(dirname "$r")" && mv "$d/$r" "$k/$r"; fi; done`,
+    back: removeParts => `back() { for r in ${rels}; do if ${held("$k/$r")}; then mkdir -p "$d/$(dirname "$r")" && rm -rf "$d/$r" && mv "$k/$r" "$d/$r"; fi; done; rm -rf "$k"; ${removeParts}; }`,
+  };
 }
 
 export interface LandOptions {
