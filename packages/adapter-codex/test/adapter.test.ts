@@ -4,10 +4,11 @@
 // steer (MCP server names, hook paths and the host scrubbed), no-login-app-server.jsonl a turn under an empty
 // CODEX_HOME.
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { agentWord, conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
+import { describe, expect, it, vi } from "vitest";
+import { agentWord, BROKER_PORT, conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
 import { createCodexAdapter, creditsOf, type CodexSession } from "../src/adapter.js";
+import { buildCommand } from "../src/command.js";
 import { LETS_GO } from "../src/conversations.js";
 
 const THREAD_ID = "01a0e2c1-5d10-7b42-9a6e-3f1c2d4b5a60";
@@ -230,6 +231,25 @@ describe("CodexAdapter over codex app-server", () => {
     expect(turn.params).toEqual({ threadId: RECORDED_THREAD, input: [{ type: "text", text: "list the repo" }], effort: "low" });
     // The reply is the turn's end, so stdin closes there and the server exits on its own.
     expect(launch.wires[0]!.closed).toBe(true);
+  });
+
+  it("a turn on a machine whose credentials the host keeps writes its placeholder login before the server, and is handed no key", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const broker = { mode: "chatgpt" as const, claims: { accountId: "11111111-2222-4333-8444-555555555555", planType: "plus", userId: "user-acme0001", fedramp: false } };
+    // Pinned, so the line the turn ran and the one built here stamp the same exp and last_refresh.
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_791_900_000_000);
+    try {
+      await createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN, broker }).start({ prompt: "list the repo", cwd: "/root/app", onEvent: () => {} }).finished;
+      expect(launch.calls[0]!.command).toBe(buildCommand({ cwd: "/root/app", broker }));
+    } finally {
+      now.mockRestore();
+    }
+    const call = launch.calls[0]!;
+    const written = call.command.indexOf('> "$CODEX_HOME/auth.json" ) && ');
+    expect(written).toBeGreaterThan(0);
+    expect(written).toBeLessThan(call.command.indexOf("app-server"));
+    expect(call.env).toEqual({ CODEX_HOME: "/root/.codex", CODEX_REFRESH_TOKEN_URL_OVERRIDE: `http://127.0.0.1:${BROKER_PORT}/oauth/token`, CODEX_REVOKE_TOKEN_URL_OVERRIDE: `http://127.0.0.1:${BROKER_PORT}/oauth/revoke` });
+    expect(call.env.CODEX_API_KEY).toBeUndefined();
   });
 
   it("takes its prompt late: the server starts and opens the thread at once, and the turn goes once the prompt is due", async () => {

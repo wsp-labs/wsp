@@ -72,7 +72,7 @@ import type {
   ResetCredit,
 } from "@wsp/protocol";
 import { catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
-import { accessParams, buildCommand, buildEnv, imagePath, slug } from "./command.js";
+import { accessParams, buildCommand, buildEnv, imagePath, slug, type CodexBroker } from "./command.js";
 import {
   INITIALIZED_LINE,
   REQUEST,
@@ -189,6 +189,9 @@ export interface CodexAdapterDeps {
   asideWallMs?: number;
   /** The program the person runs in place of codex on this computer, and the words every turn's launch adds. */
   launch?: AgentLaunch;
+  /** A machine whose credentials the host keeps: every server this adapter starts for a turn runs on a placeholder
+   * login its launch writes, with its calls at the door. */
+  broker?: CodexBroker;
 }
 
 export interface CodexAdapter {
@@ -570,7 +573,8 @@ const rolloutIn = (home: string, threadId: string): { folder: string; name: stri
 
 export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
   const sessions = new Map<string, CodexSession>();
-  const env = buildEnv({ base: deps.baseEnv, home: deps.home, ...(deps.apiKey !== undefined ? { apiKey: deps.apiKey } : {}) });
+  const env = buildEnv({ base: deps.baseEnv, home: deps.home, ...(deps.apiKey !== undefined ? { apiKey: deps.apiKey } : {}), ...(deps.broker !== undefined ? { broker: deps.broker } : {}) });
+  const broker = deps.broker !== undefined ? { broker: deps.broker } : {};
   const graceMs = deps.interruptGraceMs ?? INTERRUPT_GRACE_MS;
 
   /** Everything a turn is once its stream exists. A launched turn sends turn/start when its thread answers; an
@@ -1321,7 +1325,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           : options.copy === true
             ? threadCopyLine({ ...thread, threadId: options.resume })
             : threadResumeLine({ ...thread, threadId: options.resume });
-    const command = buildCommand({ ...(options.cwd !== undefined ? { cwd: options.cwd } : {}), ...(options.mcpServers !== undefined ? { mcpServers: options.mcpServers } : {}), ...(deps.launch !== undefined ? { launch: deps.launch } : {}) });
+    const command = buildCommand({ ...(options.cwd !== undefined ? { cwd: options.cwd } : {}), ...(options.mcpServers !== undefined ? { mcpServers: options.mcpServers } : {}), ...(deps.launch !== undefined ? { launch: deps.launch } : {}), ...broker });
     const run = deps.exec(command, { env: { ...env }, input: [initializeLine(), INITIALIZED_LINE, ACCOUNT_READ_LINE, rateLimitsReadLine(options.limitDetails === true), threadLine], ...(valued ? { secret: { input: true as const } } : {}) });
     const background: Background | undefined = options.keep === true ? { commands: new Set(), held: undefined } : undefined;
     const keeper = background === undefined ? undefined : keepRun(run, line => endedBetween(run, background, line));
@@ -1346,7 +1350,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
    * store are left as they were, and a read-only sandbox that asks nobody is the nearest a Codex turn comes to having
    * no tools. */
   const aside: SessionAsker = async o => {
-    const command = buildCommand({ ...(o.cwd !== undefined ? { cwd: o.cwd } : {}), ...(deps.launch?.program !== undefined ? { launch: { program: deps.launch.program } } : {}) });
+    const command = buildCommand({ ...(o.cwd !== undefined ? { cwd: o.cwd } : {}), ...(deps.launch?.program !== undefined ? { launch: { program: deps.launch.program } } : {}), ...broker });
     const fork = threadForkLine({ threadId: o.session, ...(o.cwd !== undefined ? { cwd: o.cwd } : {}), ...(o.model !== undefined ? { model: o.model } : {}), developerInstructions: ASIDE_INSTRUCTIONS });
     const result = await follow({
       stream: deps.exec(command, { env: { ...env }, input: [initializeLine(), INITIALIZED_LINE, fork] }),
@@ -1363,7 +1367,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
 
   /** A server run of its own that loads what its input asks and runs no turn, each answer handed to sideRun. */
   const sideRunner: SideRunner = ({ cwd, input, sideRun }) => {
-    const command = buildCommand({ ...(cwd !== undefined ? { cwd } : {}), ...(deps.launch?.program !== undefined ? { launch: { program: deps.launch.program } } : {}) });
+    const command = buildCommand({ ...(cwd !== undefined ? { cwd } : {}), ...(deps.launch?.program !== undefined ? { launch: { program: deps.launch.program } } : {}), ...broker });
     return follow({ stream: deps.exec(command, { env: { ...env }, input: [initializeLine(), INITIALIZED_LINE, ...input] }), localId: randomUUID(), startedAt: Date.now(), command, sideRun, onEvent: () => {} }).finished;
   };
   const revert: SessionReverter = o => revertOn(sideRunner, o);
@@ -1371,9 +1375,9 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
 
   const attach = deps.exec.attach?.bind(deps.exec);
 
-  const launch = deps.launch !== undefined ? { launch: deps.launch } : {};
-  /** What every question outside a turn reads off its input: the session's own environment, never words of its text. */
-  const questionEnv = (): Record<string, string> => buildEnv({ base: deps.baseEnv, home: deps.home });
+  const launch = { ...(deps.launch !== undefined ? { launch: deps.launch } : {}), ...broker };
+  /** What a question outside a turn reads off its input, never words of its text: the turn's own where brokered. */
+  const questionEnv = (): Record<string, string> => (deps.broker !== undefined ? { ...env } : buildEnv({ base: deps.baseEnv, home: deps.home }));
   /** The threads Codex kept on this computer, each read through a server that runs no turn and ends at once. */
   const conversations: ConversationStore = {
     ...storeMarks(deps.home),

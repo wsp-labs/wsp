@@ -7,10 +7,10 @@
 // it has one, and a rename from here lands in that same column through the
 // app server. Measured on codex-cli 0.153.0 against state_5.sqlite.
 
-import { ENV_FROM_INPUT, generatedTitle, inFolder, programWord, shellQuote } from "@wsp/protocol";
+import { ENV_FROM_INPUT, generatedTitle, inFolder, shellQuote } from "@wsp/protocol";
 import type { AgentLaunch, SessionRenameWrite } from "@wsp/protocol";
 import { answersOf, appServerScript, initializeRequest, notification, request } from "@wsp/catalog";
-import { slug } from "./command.js";
+import { codexLaunch, codexWord, slug, type CodexBroker } from "./command.js";
 
 const PROMPT_END = "WSP_PROMPT_END";
 
@@ -60,24 +60,26 @@ export function parseSessionTitle(stdout: string): string | null {
  * belongs to the thread it names, and under the same CODEX_HOME as a session, which a guest exec would not carry: it
  * reads that off its input with the rest of `buildEnv`.
  */
-export function titleForCommand(options: { prompt: string; model?: string; launch?: AgentLaunch }): string {
+export function titleForCommand(options: { prompt: string; model?: string; launch?: AgentLaunch; broker?: CodexBroker }): string {
   if (options.prompt.split("\n").includes(PROMPT_END)) throw new Error(`the prompt has a line that reads ${PROMPT_END}, which ends the prompt`);
   // The question rides a quoted heredoc on stdin, read by the `-` that ends the flags; the heredoc also closes stdin,
   // which codex exec otherwise waits on when it is not a terminal.
-  return `${ENV_FROM_INPUT}; ${inFolder(undefined, `${questionLine(options.model, options.launch)} <<'${PROMPT_END}'\n${options.prompt}\n${PROMPT_END}`)}`;
+  return `${ENV_FROM_INPUT}; ${inFolder(undefined, `${questionLine(options.model, options.launch, options.broker)} <<'${PROMPT_END}'\n${options.prompt}\n${PROMPT_END}`)}`;
 }
 
 /** The one-shot question a title and a draft both ask: read-only, no approval asked, on the question from stdin. */
-const questionLine = (model: string | undefined, launch: AgentLaunch | undefined): string =>
-  `${programWord("codex", launch)} exec --json --skip-git-repo-check -c sandbox_mode='"read-only"' -c approval_policy='"never"'${model === undefined ? "" : ` -m ${slug("model", model)}`} -`;
+const questionLine = (model: string | undefined, launch: AgentLaunch | undefined, broker: CodexBroker | undefined): string => {
+  const codex = codexLaunch(launch, broker);
+  return `${[codex.word, "exec", ...codex.flags].join(" ")} --json --skip-git-repo-check -c sandbox_mode='"read-only"' -c approval_policy='"never"'${model === undefined ? "" : ` -m ${slug("model", model)}`} -`;
+};
 
 /**
  * One shell line for the guest that asks the CLI for a commit message: the one-shot turn the title asks, read-only and
  * under the session's CODEX_HOME, on the question in the file the runtime put on the machine, since a diff is longer
  * than any command line may be.
  */
-export function draftForCommand(options: { promptFile: string; model?: string; launch?: AgentLaunch }): string {
-  return `${ENV_FROM_INPUT}; ${inFolder(undefined, `${questionLine(options.model, options.launch)} < ${shellQuote(options.promptFile)}`)}`;
+export function draftForCommand(options: { promptFile: string; model?: string; launch?: AgentLaunch; broker?: CodexBroker }): string {
+  return `${ENV_FROM_INPUT}; ${inFolder(undefined, `${questionLine(options.model, options.launch, options.broker)} < ${shellQuote(options.promptFile)}`)}`;
 }
 
 /** The message out of the turn's events: the last agent message whole; null when the turn failed or said nothing. */
@@ -139,8 +141,8 @@ const NO_ROLLOUT = "no rollout found";
  * server writes the name into the row and lists it in its own thread/list. `cd ~` and the environment off its input
  * first, as the catalog probe does: a guest exec carries no environment of its own.
  */
-export function renameCommand(options: { threadId: string; title: string; launch?: AgentLaunch }): string {
-  const codex = programWord("codex", options.launch);
+export function renameCommand(options: { threadId: string; title: string; launch?: AgentLaunch; broker?: CodexBroker }): string {
+  const codex = codexWord(options.launch, options.broker);
   const lines = [initializeRequest(INIT), notification("initialized"), request(NAME, "thread/name/set", { threadId: slug("threadId", options.threadId), name: options.title })];
   return `cd ~ && ${ENV_FROM_INPUT}\n${appServerScript(codex, [{ lines, answers: 2 }])}`;
 }
