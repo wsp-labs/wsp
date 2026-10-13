@@ -579,6 +579,41 @@ describe("an agent's page", () => {
   });
 });
 
+describe("Settings on a computer whose Claude Code is older than wsp's table", () => {
+  /** Claude Code 2.1.278's own lists on the computer, which carry no Opus 5.5 and open on Opus 5. */
+  const { unshaped: _table, ...claude } = CLAUDE_CATALOG;
+  const OLDER: HarnessCatalog = {
+    ...claude,
+    source: "harness",
+    version: "2.1.278",
+    models: [{ value: "claude-opus-5", label: "Opus 5", isDefault: true, efforts: ["low", "medium", "high", "xhigh", "max"], contextWindows: ["200k", "1m"] }, { value: "claude-sonnet-5", label: "Sonnet 5", efforts: ["low", "medium", "high", "xhigh", "max"], contextWindows: [] }],
+    legacyModels: [],
+    hiddenModels: [],
+  };
+  const OPUS_55: Preferences = { ...RECORD, agentDefaults: { claude: { model: "claude-opus-5-5" } } };
+  const asked: Array<{ project?: string; computer?: string } | undefined> = [];
+  const lists = async (_workspaceId?: string, at?: { project?: string; computer?: string }): Promise<HarnessCatalog[]> => (asked.push(at), at === undefined ? HARNESSES : [OLDER, CODEX_CATALOG, HARNESSES[2]!]);
+  beforeEach(() => void asked.splice(0));
+
+  it("an agent's page lists only what that computer runs, and names a default it cannot run with what runs instead", async () => {
+    useStore.setState({ preferences: OPUS_55 });
+    await mount(agentsApi({ listHarnesses: lists }, OPUS_55).api, { kind: "agent", id: "claude" });
+    expect(asked).toContainEqual({ computer: "here" });
+    expect(control("agent-model").textContent).toBe("Opus 5");
+    expect(descriptionOf("agent-model")).toBe("Opus 5.5 needs a newer Claude Code here; running Opus 5");
+    expect(await pickOption(control("agent-model"), "Sonnet 5")).toEqual(["Opus 5", "Sonnet 5"]);
+  });
+
+  it("a project's page offers the models its computer runs, never the table's alone", async () => {
+    const { api } = agentsApi({ listHarnesses: lists, projectsDefaults: async () => ({ pr_wsp: { agent: { value: "claude", from: "default" }, model: { value: "claude-opus-5", from: "catalog" }, access: { value: "full", mode: "bypassPermissions", from: "catalog" } } }) });
+    await mount(api, { kind: "project", id: "pr_wsp" });
+    expect(asked).toContainEqual({ project: "pr_wsp" });
+    expect(control("project-model").textContent).toBe("Default (Opus 5)");
+    const offered = await pickOption(control("project-model"), "Sonnet 5");
+    expect(offered.join()).not.toContain("Opus 5.5");
+  });
+});
+
 describe("a project's new threads", () => {
   it("reads a model kept for another agent as unset, with no arrow", async () => {
     const record = { ...DEFAULT_PREFERENCES, labs: false, projectDefaults: { pr_wsp: { agent: "codex", model: "claude-fable-5-1" } } };
