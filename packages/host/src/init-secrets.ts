@@ -10,6 +10,7 @@
 import type { Readable, Writable } from "node:stream";
 import { styleText } from "node:util";
 import { S_BAR, isCancel, log } from "@clack/prompts";
+import { SECRETS_FILES } from "@wsp/catalog";
 import { shellQuote } from "@wsp/protocol";
 import { passwordPrompt } from "./init-layout.js";
 import type { BuilderLink } from "./init-signin.js";
@@ -44,9 +45,7 @@ export interface SecretsStageOptions {
   timeoutMs?: number;
 }
 
-/** Login shells read profile.d; fish reads its conf.d instead, so a fish machine gets the value twice. */
-export const SH_FILE = "/etc/profile.d/wsp-secrets.sh";
-export const FISH_FILE = "/etc/fish/conf.d/wsp-secrets.fish";
+export const { sh: SH_FILE, fish: FISH_FILE } = SECRETS_FILES;
 const COMMAND_MS = 60_000;
 /** The pty environment variables that carry the lines; the command names them and never a value. */
 const SH_ENV = "WSP_SECRET_LINE";

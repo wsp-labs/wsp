@@ -933,6 +933,10 @@ export function shapeFault(expected: MachineShape, actual: MachineShape): string
  * delete the fork's own copies first (the image's uv, pipx and pnpm installs live in .local). */
 export const VAULT_SKIP = new Set([".local", ".cache", ".npm"]);
 
+/** Whether the place a workspace stands on, as `placeIdOf` reads it, is a provider rather than a computer somebody
+ * owns. */
+export const atProvider = (placeId: string | undefined, places: Pick<PlaceBackends, "list">): boolean => placeId !== undefined && places.list().includes(placeId);
+
 /** One RFC 1123 label: lowercase alphanumerics and hyphens, at most 63 chars, hyphen-free at both ends. */
 export function hostnameFor(name: string): string {
   const label = name
