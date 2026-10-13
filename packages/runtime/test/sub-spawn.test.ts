@@ -8,7 +8,7 @@
 // keeps every create, command and file, and the lead's daemon a fake that keeps
 // every frame.
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gunzipSync } from "node:zlib";
@@ -16,7 +16,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { BOX_WORK_DIR, placeLimitsOf } from "@wsp/engine";
 import {
   agentsOffRefusal, placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, subStayedLine, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
-  subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subNoThreadRefusal,
+  subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, brokeredAgentRefusal, subHostNoSignInRefusal, subHostOtherGitRefusal, subNoThreadRefusal,
   subNoUpstreamRefusal, subFromNotOnRemoteRefusal, subOpening, subOtherHostRefusal, subSeedTooBigRefusal, subSizeRefusal, spendCapRefusal, type Caller,
 } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
@@ -341,6 +341,8 @@ describe("every check refuses before Boat is asked for a start", () => {
     { name: "S5 a ref --from names the remote lacks", sub: { from: "origin/nope" }, expect: () => ({ said: subFromNotOnRemoteRefusal("origin/nope", "nope").message, cls: "usage" }) },
     { name: "S6 no image on Boat", setup: { image: false }, expect: () => ({ said: subNoImageRefusal("Boat").message, cls: "usage" }) },
     { name: "S6 an image with no GitHub sign-in", setup: { image: { logins: [{ name: "GitHub CLI login", state: "skipped" }] } }, expect: () => ({ said: subNoSignInRefusal("Boat", { label: "GitHub", cli: "gh", login: "GitHub CLI login" }, "acme/web").message, cls: "usage" }) },
+    { name: "S6 gh on this computer signed in to nothing, the broker ready", setup: { broker: true, hostGh: false }, expect: () => ({ said: subHostNoSignInRefusal("Boat", "acme/web").message, cls: "usage" }) },
+    { name: "S6 a remote on GitLab, the broker ready", setup: { broker: true, hostGh: true, remote: "git@gitlab.com:acme/web.git" }, expect: () => ({ said: subHostOtherGitRefusal("Boat", "GitLab", "acme/web").message, cls: "usage" }) },
     { name: "S7 a size the plan does not sell", sub: { size: "16x32" }, expect: () => ({ said: subSizeRefusal("Boat", "16x32", PAID_SIZES).message, cls: "usage" }) },
     { name: "S8 a name git refuses", sub: { branch: "wsp/bad..name" }, expect: () => ({ said: subBranchNameRefusal("wsp/bad..name").message, cls: "usage" }) },
     { name: "S8 the lead's own branch", sub: { branch: "feat/upload" }, expect: () => ({ said: subLeadBranchRefusal("feat/upload").message, cls: "usage" }) },
@@ -348,6 +350,7 @@ describe("every check refuses before Boat is asked for a start", () => {
     { name: "S8 a part ending in .lock", sub: { branch: "feat/x.lock/y" }, expect: () => ({ said: subBranchNameRefusal("feat/x.lock/y").message, cls: "usage" }) },
     // Today's line, which names the row as the place door does; C2 makes it say Boat.
     { name: "S10 the day's spend reached", setup: { spendPerDayUsd: 0 }, expect: () => ({ said: spendCapRefusal("box", 0, 0), cls: "provider" }) },
+    { name: "S11 an agent the broker adds no key for, the broker ready", setup: { broker: true, hostGh: true, image: { agents: ["claude", "codex", "opencode"] } }, sub: { harness: "opencode" }, expect: () => ({ said: brokeredAgentRefusal("OpenCode", ["Claude Code", "Codex"]).message, cls: "usage" }) },
     { name: "S11 an agent the image does not carry", setup: { image: { agents: ["codex"] } }, sub: { harness: "claude" }, expect: () => ({ said: subNoAgentRefusal("Boat", "claude", ["codex"]).message, cls: "usage" }) },
     {
       name: "S12 picks past what a sub-thread carries",
@@ -377,6 +380,19 @@ describe("every check refuses before Boat is asked for a start", () => {
       expect(f.daemon.frames.filter(fr => fr["op"] === "git.push")).toEqual([]);
     });
   }
+
+  const skipped = { logins: [{ name: "GitHub CLI login", state: "skipped" as const }] };
+  it("S6 asks gh on this computer for its GitHub login in place of the image's while the broker is ready", async () => {
+    const f = await leadOnThisComputer({ broker: true, hostGh: true, image: skipped });
+    expect((await spawn(f.rt, f.project.id, f.lead)).sub).toBeDefined();
+    expect(readFileSync(join(dirname(f.repo), "gh-asked"), "utf8").split("\n")[0]).toBe("auth token --hostname github.com");
+  });
+
+  it("S6 asks the image while the broker is not ready, whatever gh on this computer holds", async () => {
+    const f = await leadOnThisComputer({ broker: false, hostGh: true, image: skipped });
+    expect(await refused(spawn(f.rt, f.project.id, f.lead))).toEqual({ said: subNoSignInRefusal("Boat", { label: "GitHub", cli: "gh", login: "GitHub CLI login" }, "acme/web").message, cls: "usage" });
+    expect(existsSync(join(dirname(f.repo), "gh-asked"))).toBe(false);
+  });
 
   it("S12 names the largest picks and the sizes", async () => {
     const big = SUB_SEED_MAX_BYTES + 1024;

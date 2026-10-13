@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, sharedOn } from "@wsp/catalog";
 import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
-import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf } from "@wsp/protocol";
+import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, type BrokerStatus } from "@wsp/protocol";
 import { cloneLines, underLoginHome } from "../project-landing.js";
 import { landOnRecord } from "../projects/branch-of-record.js";
 import { threadEnds } from "./thread-ends.js";
@@ -17,10 +17,14 @@ import { PlaceForksNowhereError, placeHomeRefusal, type PlaceDoor } from "../pla
 import { GUEST_WSP_MCP } from "../agents-read.js";
 import { loginEnvOn, PLACE_LOGIN_ENV } from "../types/harness.js";
 import { secretEnvOf } from "../adapters.js";
-import { type ProjectImportOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, CLONE_MS, folderNamed, lastLineOf } from "../types/wiring.js";
+import { brokeredEnv, placeholdersOf, unbrokeredRefusal, withGhDoor } from "./brokered.js";
+import { type ProjectImportOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, CLONE_MS, atProvider, folderNamed, lastLineOf } from "../types/wiring.js";
 import type { KindModule, ImportReport, ImportLanded } from "../types/internal.js";
 import { RELEASED_BACKEND } from "../types/internal.js";
 import type { RuntimeContext, KindsArea } from "../context.js";
+
+/** How long a launch waits on the broker's answer to what it holds. */
+const BROKER_READ_MS = 5_000;
 
 export function kindsArea(ctx: RuntimeContext): KindsArea {
   const { opts, backend, local, placeDoor, clock, places } = ctx;
@@ -241,6 +245,33 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
     const vault = opts.vault?.() ?? {};
     return entry.record.place === undefined ? vault : (placeDoor?.vaultAt(entry.record.place, vault) ?? vault);
   };
+  /** Whether the host's broker adds this workspace's credentials on the way out: a fork at a provider, read as the nap
+   * reads one, while the broker answers ready. */
+  const brokered = (record: Pick<WorkspaceRecord, "kind" | "place">): boolean =>
+    opts.broker?.ready() === true && isBrokered(record, atProvider(record.place, places) ? { kind: "provider" } : undefined);
+  /** What the host's broker last said it holds, read before each launch on a brokered workspace mints its token. It
+   * is the host's, one answer for every workspace. A read past BROKER_READ_MS leaves the token kind, which B2 answers
+   * with its own sentence where the host holds another, rather than holding the launch. */
+  let brokerSaid: BrokerStatus | undefined;
+  const readBroker = async (record: Pick<WorkspaceRecord, "kind" | "place">): Promise<void> => {
+    if (!brokered(record) || opts.broker?.status === undefined) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<undefined>(resolve => (timer = setTimeout(() => resolve(undefined), BROKER_READ_MS)));
+    brokerSaid = await Promise.race([opts.broker.status().catch(() => undefined), late]);
+    clearTimeout(timer);
+  };
+  /** What a launch on a brokered workspace carries in place of the vault, the turn token in each place a credential
+   * would sit, and the kind Claude Code's placeholder takes; a launch with no token carries nothing of any. Only
+   * Claude Code and Codex are launched there, since the broker adds no other agent's key. Undefined for every other
+   * workspace, whose launches keep today's road. */
+  const brokeredLaunch = (entry: LiveWorkspace, harness: string, token: string | undefined): ReturnType<KindsArea["brokeredLaunch"]> => {
+    if (!brokered(entry.record)) return undefined;
+    if (token === undefined) return { env: {}, vault: {} };
+    const refused = unbrokeredRefusal(harness);
+    if (refused !== undefined) throw refused;
+    const { claude, vault } = placeholdersOf(brokerSaid, token);
+    return { env: brokeredEnv(token), vault, claude };
+  };
   /** Whether the computer a workspace stands on listed a login of this agent's own, by the word its row carries. */
   const placeLoginStands = (entry: LiveWorkspace, id: string): boolean => entry.record.place !== undefined && placeDoor?.signInsAt(entry.record.place)?.[id] === "signed-in";
   /** The environment every process of a thread in a folder on that computer runs under, its agent's turns and its
@@ -277,7 +308,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
         if (at === undefined) throw new PlaceForksNowhereError(placeForksNowhereLine(placeDoorOf().nameOf(record.place)));
         return at;
       },
-      execStream: (entry, o, waiting) => machineExecStream(entry.machine, { reading: machineReading, ...o }, waiting),
+      execStream: (entry, o, waiting) => withGhDoor(machineExecStream(entry.machine, { reading: machineReading, ...o }, waiting)),
       folder: record => record.sub?.folder,
       home: (_entry, id) => cloudHome(id),
       homeDir: () => GUEST_HOME,
@@ -507,6 +538,6 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
   return {
     projectOf, remoteHere, gitHere, gitTopOf, branchAt, stateFolder, cloneHere, localRoad, placeDoorOf, machineReading,
     moduleOf, backendFor, openChannel, backendOfKind, keepsImages, pauseKeepsDisk, namesWorkspace, lifecycleOf,
-    execFactoryFor, threadFolder, kindOf, placeAgentHome, vaultOn,
+    execFactoryFor, threadFolder, kindOf, placeAgentHome, vaultOn, brokered, readBroker, brokeredLaunch,
   };
 }

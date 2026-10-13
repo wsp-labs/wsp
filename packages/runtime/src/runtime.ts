@@ -547,6 +547,8 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
   const threadLaunch = async (entry: LiveWorkspace, threadId: string, rootThreadId: string, o: { aside?: true } = {}): Promise<{ scoped?: Awaited<ReturnType<typeof deviceDoor.mint>>; env: Record<string, string>; wsp?: McpServerSpec }> => {
     const reach = ctx.agentsReach(entry);
     if (reach === undefined) return { env: {} };
+    // A machine whose credentials the host keeps gets placeholders of the kinds the broker says it holds now.
+    await ctx.readBroker(entry.record);
     const scoped = await deviceDoor.mint(`thread ${threadWord(threadId)}`, { kind: "thread", threadId, workspaceId: entry.record.id, rootThreadId }, Date.now(), { road: ctx.moduleOf(entry.record.kind).turnRoad, ...o });
     return {
       scoped,

@@ -32,8 +32,10 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** gh on this computer as GitHub answers it for acme/web, renamed from acme/old: its id and its name now. */
+/** gh on this computer as GitHub answers it for acme/web, renamed from acme/old: its id and its name now. Signed in, so
+ * a start the host brokers gets past the check of gh's login here. */
 const GH = `#!/bin/sh
+[ "$*" = "auth token --hostname github.com" ] && { echo gho_TESTONLY; exit 0; }
 case "$2" in
   repos/acme/web|repos/acme/old) printf '4242\\tacme\\tweb\\n' ;;
   repos/acme/web/pulls/7) printf '9001\\tana\\tweb-fork\\tfix-typo\\ttrue\\t4242\\tec5c10de663bd1860925ad42e9580bab4eb1d377\\n' ;;
@@ -114,7 +116,7 @@ describe("a sub-thread started where the host keeps its machine's credentials", 
   });
 
   it("is refused, naming the repo, where gh on this computer cannot say which repository the remote is", async () => {
-    const { rt, boat, project, lead } = await leadOnThisComputer({ broker: true, gh: `#!/bin/sh\necho "gh: To get started with GitHub CLI, please run: gh auth login" >&2\nexit 4\n` });
+    const { rt, boat, project, lead } = await leadOnThisComputer({ broker: true, gh: `#!/bin/sh\n[ "$*" = "auth token --hostname github.com" ] && { echo gho_TESTONLY; exit 0; }\necho "gh: To get started with GitHub CLI, please run: gh auth login" >&2\nexit 4\n` });
     await expect(rt.workspaces.create({ project: project.id, name: NAME, sub: { on: "boat" } }, lead)).rejects.toThrow(
       "gh on this computer could not read acme/web (gh: To get started with GitHub CLI, please run: gh auth login), and a machine whose credentials this host keeps pushes only to a repository GitHub names. Run gh auth status on this computer, then start it again.",
     );
