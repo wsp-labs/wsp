@@ -1,36 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The person's approval before a slate reaches an MCP server: once per
-// server per thread, a sheet naming the server, the call that asked and every tool the server lists, with Once,
-// Always in this thread and Don't; and on every start of a tool that changes things, the destructive dialog with the
-// tool and its arguments as they will be sent.
+// The person's word before a slate's tool or resource run goes, asked exactly where the thread's agent would ask
+// before that tool: one plain sheet naming the tool and its server, the run's one line for what it does, where and how
+// often it runs, its code folded behind Show code, with Not now and Allow. Allow keeps what it sends allowed, so its
+// next starts ask nothing. A run that names confirm asks on every start in the red confirm a command's confirm uses.
 import { useState } from "react";
+import { ChevronRightIcon } from "lucide-react";
 import { AlertDialog, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../components/ui/collapsible.js";
 import { Dialog, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../components/ui/dialog.js";
 import { cn } from "../lib/utils.js";
 import { capitalised } from "../settings/format.js";
 import type { SlateApproval, SlateAsk } from "./model.js";
 
-export type SlateServerAsk = Extract<SlateAsk, { kind: "server" }>;
 export type SlateToolAsk = Extract<SlateAsk, { kind: "tool" }>;
 
 export const MCP_WORDS = {
-  serverTitle: (server: string) => `Let this slate use ${server}?`,
-  toolTitle: (tool: string) => `Call ${tool}?`,
-  calls: "Calls",
-  reads: "Reads",
-  covers: (server: string) => `Covers reading from ${server} and calling its tools in this thread.`,
-  lists: (server: string, n: number) => (n === 1 ? `${server} lists 1 tool` : `${server} lists ${n} tools`),
-  asksEach: "asks each time",
-  readOnly: "read only",
-  toolBody: (server: string, computer: string) => `${server} on ${computer}`,
-  once: "Once",
-  always: "Always in this thread",
-  dont: "Don't",
-  call: "Call",
+  run: "Let this panel run",
+  read: "Let this panel read",
+  rowRun: "Run",
+  rowRead: "Read",
+  on: (server: string) => `on ${capitalised(server)}`,
+  where: (computer: string, cadence: string) => `On ${computer}. ${cadence}.`,
+  showCode: "Show code",
+  allow: "Allow",
+  confirmRun: "Run",
+  notNow: "Not now",
   then: "Then its result goes on stdin to",
   file: (name: string) => `It reads ${name}, which holds`,
-  use: (server: string) => `Use ${server}`,
 } as const;
 
 /** A value the host sent as dots: a secret, shown muted. */
@@ -103,70 +100,93 @@ export function useAnswer<T>(answer: (scope: T) => Promise<unknown>, onClose: ()
   return { busy, refused, decide };
 }
 
-export function ServerConsentSheet({ ask, cadence, answer, onClose }: { ask: SlateServerAsk; cadence: string; answer(scope: SlateApproval): Promise<unknown>; onClose(): void }) {
+/** The tool and its server as the sheet's title says them: "Let this panel run execute on Cloudflare?". */
+function ToolTitle({ ask, lead }: { ask: SlateToolAsk; lead: string }) {
+  return (
+    <>
+      {lead} <code data-slate-consent-tool className="font-mono">{ask.tool}</code> {MCP_WORDS.on(ask.server)}
+    </>
+  );
+}
+
+/** What the run does, where and how often it runs, and its code folded: the arguments as sent, its reshape and the
+ * files that reads, since allowing it allows all of that. */
+function ToolBody({ ask, cadence }: { ask: SlateToolAsk; cadence: string }) {
+  return (
+    <>
+      {ask.description === undefined ? null : (
+        <p data-slate-consent-description className="text-foreground">
+          {ask.description}
+        </p>
+      )}
+      <p data-slate-consent-where className="text-muted-foreground">
+        {MCP_WORDS.where(ask.computer, cadence)}
+      </p>
+      <Collapsible>
+        <CollapsibleTrigger data-slate-consent-code-trigger className="group flex items-center gap-1 text-left text-xs leading-4 text-muted-foreground hover:text-foreground">
+          <ChevronRightIcon aria-hidden className="size-3 shrink-0 transition-transform duration-150 group-data-panel-open:rotate-90" />
+          {MCP_WORDS.showCode}
+        </CollapsibleTrigger>
+        <CollapsiblePanel>
+          <div data-slate-consent-code className="flex min-w-0 flex-col gap-2 pt-2">
+            <code className="min-w-0 break-all font-mono text-xs leading-4 text-foreground">{ask.resource === true ? `${ask.server}:${ask.tool}` : `${ask.server}.${ask.tool}`}</code>
+            <ArgList args={ask.args} />
+            <ThenCommand then={ask.then} />
+            <AskFiles files={ask.files} />
+          </div>
+        </CollapsiblePanel>
+      </Collapsible>
+    </>
+  );
+}
+
+export function ToolSheet({ ask, cadence, answer, onClose }: { ask: SlateToolAsk; cadence: string; answer(scope: SlateApproval): Promise<unknown>; onClose(): void }) {
   const { busy, refused, decide } = useAnswer(answer, onClose);
-  const resource = ask.tool !== undefined && ask.tool.includes("://");
+  const title = (
+    <>
+      <ToolTitle ask={ask} lead={ask.resource === true ? MCP_WORDS.read : MCP_WORDS.run} />?
+    </>
+  );
+  const body = (
+    <div data-slate-consent={ask.run} data-slate-consent-server={ask.server} className="flex min-w-0 flex-col gap-3 text-[13px] leading-5">
+      <ToolBody ask={ask} cadence={cadence} />
+      {refused === undefined ? null : <p className="text-error-foreground">{refused}</p>}
+    </div>
+  );
+  if (ask.confirm !== undefined) {
+    return (
+      <AlertDialog open onOpenChange={open => (open ? undefined : onClose())}>
+        <AlertDialogPopup>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{title}</AlertDialogTitle>
+            <AlertDialogDescription>{ask.confirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-5 pt-2">{body}</div>
+          <AlertDialogFooter>
+            <Button variant="outline" className={NEUTRAL_RING} disabled={busy} onClick={() => decide("refuse")}>
+              {MCP_WORDS.notNow}
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={() => decide("once")}>
+              {MCP_WORDS.confirmRun}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogPopup>
+      </AlertDialog>
+    );
+  }
   return (
     <Dialog open onOpenChange={open => (open ? undefined : onClose())}>
       <DialogPopup>
         <DialogHeader>
-          <DialogTitle>{MCP_WORDS.serverTitle(ask.server)}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <DialogPanel className="pt-1 pb-0">
-          <div data-slate-consent={ask.run} data-slate-consent-server={ask.server} className="flex min-w-0 flex-col gap-3 text-[13px] leading-5">
-            {ask.tool === undefined ? null : (
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <p className="text-foreground">
-                  {resource ? MCP_WORDS.reads : MCP_WORDS.calls} <code data-slate-consent-tool className="font-mono text-xs tabular-nums">{ask.tool}</code>
-                </p>
-                <ArgList args={ask.args} />
-                <ThenCommand then={ask.then} />
-                <AskFiles files={ask.files} />
-                <p data-slate-consent-cadence className="text-muted-foreground">
-                  {cadence}
-                </p>
-              </div>
-            )}
-            {ask.tools.length === 0 ? null : (
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className="text-muted-foreground">{MCP_WORDS.lists(ask.server, ask.tools.length)}</p>
-                <ul className="flex max-h-48 min-w-0 flex-col gap-1 overflow-y-auto">
-                  {ask.tools.map(tool => (
-                    <li key={tool.name} data-slate-consent-lists={tool.name} className="flex min-w-0 items-baseline gap-2">
-                      <code className="shrink-0 font-mono text-xs tabular-nums text-foreground">{tool.name}</code>
-                      <span className="min-w-0 flex-1 truncate text-muted-foreground" title={tool.description}>
-                        {tool.title ?? tool.description ?? ""}
-                      </span>
-                      {tool.destructive === true ? (
-                        <span className="shrink-0 text-xs text-muted-foreground">{MCP_WORDS.asksEach}</span>
-                      ) : tool.readOnly === true ? (
-                        <span className="shrink-0 text-xs text-muted-foreground">{MCP_WORDS.readOnly}</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <p className="text-muted-foreground">
-              <span data-slate-consent-where className="text-foreground">
-                on {ask.computer}
-              </span>
-              <br />
-              {MCP_WORDS.covers(ask.server)}
-            </p>
-            <AskWhy why={ask.why} />
-            {refused === undefined ? null : <p className="text-error-foreground">{refused}</p>}
-          </div>
-        </DialogPanel>
+        <DialogPanel className="pt-1 pb-0">{body}</DialogPanel>
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => decide("refuse")}>
-            {MCP_WORDS.dont}
+            {MCP_WORDS.notNow}
           </Button>
-          <Button variant="outline" disabled={busy} onClick={() => decide("thread")}>
-            {MCP_WORDS.always}
-          </Button>
-          <Button disabled={busy} onClick={() => decide("once")}>
-            {MCP_WORDS.once}
+          <Button disabled={busy} onClick={() => decide("thread")}>
+            {MCP_WORDS.allow}
           </Button>
         </DialogFooter>
       </DialogPopup>
@@ -174,62 +194,14 @@ export function ServerConsentSheet({ ask, cadence, answer, onClose }: { ask: Sla
   );
 }
 
-export function ToolConfirmSheet({ ask, answer, onClose }: { ask: SlateToolAsk; answer(scope: SlateApproval): Promise<unknown>; onClose(): void }) {
-  const { busy, refused, decide } = useAnswer(answer, onClose);
-  return (
-    <AlertDialog open onOpenChange={open => (open ? undefined : onClose())}>
-      <AlertDialogPopup>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{MCP_WORDS.toolTitle(ask.tool)}</AlertDialogTitle>
-          <AlertDialogDescription>{ask.confirm ?? MCP_WORDS.toolBody(ask.server, ask.computer)}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <div data-slate-consent={ask.run} data-slate-confirm-tool={ask.tool} className="flex min-w-0 flex-col gap-3 px-5 pt-2 text-[13px] leading-5">
-          <ArgList args={ask.args} />
-          <ThenCommand then={ask.then} />
-          <AskWhy why={ask.why} />
-          {refused === undefined ? null : <p className="text-error-foreground">{refused}</p>}
-        </div>
-        <AlertDialogFooter>
-          <Button variant="outline" className={NEUTRAL_RING} disabled={busy} onClick={() => decide("refuse")}>
-            {MCP_WORDS.dont}
-          </Button>
-          <Button variant="destructive" disabled={busy} onClick={() => decide("once")}>
-            {MCP_WORDS.call}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogPopup>
-    </AlertDialog>
-  );
-}
-
-/** A server waiting for consent as a row of the several-at-once sheet: what the one-server sheet would show. */
-export function ServerRow({ ask, cadence }: { ask: SlateServerAsk; cadence: string }) {
-  const resource = ask.tool !== undefined && ask.tool.includes("://");
+/** A tool run waiting for the person as a row of the several-at-once sheet: what its own sheet would show. */
+export function ToolRow({ ask, cadence }: { ask: SlateToolAsk; cadence: string }) {
   return (
     <>
       <p className="text-foreground">
-        {MCP_WORDS.use(ask.server)}
-        {ask.tool === undefined ? null : (
-          <span className="text-muted-foreground">
-            {" "}
-            {resource ? MCP_WORDS.reads.toLowerCase() : MCP_WORDS.calls.toLowerCase()} <code data-slate-consent-tool className="font-mono text-xs tabular-nums text-foreground">{ask.tool}</code>
-          </span>
-        )}
+        <ToolTitle ask={ask} lead={ask.resource === true ? MCP_WORDS.rowRead : MCP_WORDS.rowRun} />
       </p>
-      <ArgList args={ask.args} />
-      <ThenCommand then={ask.then} />
-      <AskFiles files={ask.files} />
-      <p data-slate-consent-cadence className="text-muted-foreground">
-        {cadence}
-      </p>
-      <p data-slate-consent-where className="text-foreground">
-        on {ask.computer}
-      </p>
-      <AskWhy why={ask.why} />
-      <p className="text-muted-foreground">
-        {ask.tools.length === 0 ? null : <>{MCP_WORDS.lists(ask.server, ask.tools.length)}. </>}
-        {MCP_WORDS.covers(ask.server)}
-      </p>
+      <ToolBody ask={ask} cadence={cadence} />
     </>
   );
 }

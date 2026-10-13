@@ -3,7 +3,7 @@
 // together, its row there. Adding a kind of ask touches its row of this table and nothing that reads it.
 import type { ReactNode } from "react";
 import { CommandBody, ConsentSheet } from "./consent.js";
-import { ServerConsentSheet, ServerRow, ToolConfirmSheet, MCP_WORDS } from "./mcp.js";
+import { ToolRow, ToolSheet } from "./mcp.js";
 import type { SlateApproval, SlateAsk } from "./model.js";
 
 export interface SheetProps<A> {
@@ -33,12 +33,10 @@ export const ASK_KINDS: { [K in SlateAsk["kind"]]: AskKind<Extract<SlateAsk, { k
     // A command that names confirm asks alone, on every start, and one with no Always asks alone, since Allow all is one.
     row: { batchable: ask => ask.confirm === undefined && ask.noAlways !== true, label: ask => ask.cmd, body: (ask, cadence) => <CommandBody ask={ask} cadence={cadence} lines={4} />, command: true },
   },
-  server: {
-    sheet: p => <ServerConsentSheet key={p.ask.key} ask={p.ask} cadence={p.cadence} answer={p.answer} onClose={p.onClose} />,
-    row: { batchable: () => true, label: ask => MCP_WORDS.use(ask.server), body: (ask, cadence) => <ServerRow ask={ask} cadence={cadence} /> },
-  },
   tool: {
-    sheet: p => <ToolConfirmSheet key={p.ask.key} ask={p.ask} answer={p.answer} onClose={p.onClose} />,
+    sheet: p => <ToolSheet key={p.ask.key} ask={p.ask} cadence={p.cadence} answer={p.answer} onClose={p.onClose} />,
+    // A run that names confirm asks alone, on every start.
+    row: { batchable: ask => ask.confirm === undefined, label: ask => `${ask.server}.${ask.tool}`, body: (ask, cadence) => <ToolRow ask={ask} cadence={cadence} /> },
   },
 };
 

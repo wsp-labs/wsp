@@ -205,7 +205,7 @@ function ForgetSecrets({ forget, onClose }: { forget(): Promise<unknown>; onClos
   );
 }
 
-/** Don't on a held run's row: its sheet does not open on its own after, and the record is read again. */
+/** Not now on a held run's row: its sheet does not open on its own after, and the record is read again. */
 function refuse(threadId: string, ask: SlateAsk): void {
   markSeen(threadId, ask.key);
   void slateLink(threadId).approve(ask.key, "refuse").then(() => loadSlate(threadId), () => undefined);

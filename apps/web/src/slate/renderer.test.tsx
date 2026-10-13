@@ -303,10 +303,10 @@ describe("what the kit adds", () => {
     expect(document.body.querySelector("[data-slate-consent-cmd]")!.textContent).toBe('kill "$PID"');
   });
 
-  it("refuses a confirm's start on Don't, as a tool's confirm does", async () => {
+  it("refuses a confirm's start on Not now", async () => {
     const answered: string[] = [];
     render(<ConsentSheet ask={{ key: "k", run: "kill", kind: "cmd", cmd: "kill 1", env: {}, args: [], computer: "this Mac", folder: "/tmp", timeoutS: 10, why: "asks every time", confirm: "Kill it?" }} cadence="Runs when you press it" answer={async scope => void answered.push(scope)} onClose={() => {}} />);
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Don't" })));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Not now" })));
     expect(answered).toEqual(["refuse"]);
   });
 

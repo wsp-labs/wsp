@@ -113,7 +113,7 @@ describe("the catalog", () => {
     expect(slateCatalog("runs")).toContain("while the Slate tab is on screen; at once when it comes back.");
     expect(slateCatalog("runs")).toContain("else its text parsed; out is its text;");
     expect(slateCatalog("functions")).toContain(`Times read in this computer's zone: date(t) "Mon 5 Oct", time(t) "14:05", ago(t) "30s ago", until(t) "in 4m".`);
-    expect(slateCatalog()).toContain("then tool resource>");
+    expect(slateCatalog()).toContain("then tool resource description>");
     expect(slateCatalog()).toContain("with operators, a ? b : c, [lists], {records} and functions, never methods or =>.");
     expect(slateCatalog("pipes")).toBe(slateCatalog("steps"));
     expect(slateCatalog("tool")).toBe(slateCatalog("runs"));
@@ -133,8 +133,9 @@ describe("the catalog", () => {
     // A line for each run attribute, after small models guessed what always and once did, took it from 590 to 660;
     // once, stream and when the person is asked, as ruled (6, 7), to 720; a secret in a file, to 730; the line back to
     // the pieces every named entry ends with, after agents that read runs alone guessed <h1> and <p>, to 740; a timed
-    // run on the tab's return and a tool's text in out, to 750; a slate's file never in the project, to 760.
-    expect(slateTokens(slateCatalog("runs"))).toBeLessThan(760);
+    // run on the tab's return and a tool's text in out, to 750; a slate's file never in the project, to 760; a tool
+    // run's description, which a write requires on a tool not marked read-only, and when a tool run asks, to 810.
+    expect(slateTokens(slateCatalog("runs"))).toBeLessThan(810);
     for (const n of ["runs", "chart", "thread", "functions", "steps", "handlers", "patch", "examples"]) expect(slateCatalog(n).endsWith("\nThe pieces and rules: slate_catalog with no name."), n).toBe(true);
     expect(slateCatalog()).not.toContain("slate_catalog with no name");
     expect(slateCatalog("nope")).not.toContain("slate_catalog with no name");

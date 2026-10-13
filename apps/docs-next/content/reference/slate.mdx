@@ -49,7 +49,7 @@ cost: rateUsdPerHour accruedUsd
 time: now today zone
 git: branch head ahead behind changed ...
 pr: number url state draft branch headSubject mergeable review checks[] word ...
-Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource> <file name> <when change={$path} or done={$run} do={steps}>
+Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>
 Steps: set toggle start cancel send steer queue fill open copy pane. Functions: percent pct tokens bytes usd number duration ago until date time weekday plural word upper lower trim short round floor ceil abs min max clamp str num bool concat json lines split replace contains startsWith endsWith orElse exists isNull coalesce if len count sum avg first last at append pluck join. ago(t) "30s ago", until(t) "in 4m".
 After |: where sortBy groupBy take skip count sum min max avg first last pick map distinct flatten join format. $run reads state exit out err json; a secret only .set .len.
 Rules:
@@ -696,13 +696,14 @@ on="host": runs on the host's computer, not the thread's.
 confirm="Stop it?": asks the person every start; a formula works too.
 then='python3 x.py': pipes its raw result to that command; its stdout as JSON becomes json, out stays raw.
 tool="server.tool" args={{ id: $id }}, or resource="server:uri": calls an MCP tool instead; slate_catalog <server> lists its tools.
+description="Reads the last hour of traffic": one plain line the person reads before allowing a tool run; required on a tool not marked read-only.
 start($run) in a handler or <when> starts one. The person allows each command once, on the slate, when it first wants to start: at the write for an every= run, at the first press or <when> for the rest. Until then it reads held; allowing it starts it at once. slate_state start runs only what they allowed "Always in this thread".
 $run reads state why exit out err json lines startedAt endedAt ms runs cut stale refreshing text; state is idle (never started) held running done failed cancelled.
 json is out parsed as JSON. Before a first result or after a failure, out and json are empty and len of them 0: show a figure with when={$run.exit == 0}. stale: the command changed since this result. Output is scrubbed of secrets.
 <value> state and each run's last result outlive an app or host restart.
 Chain: <when done={$check} do={set($ok, $check.exit == 0)} />; done fires on any outcome.
 Code only the slate uses goes in <file name="x.py">, never in the project, and runs as $SLATE_DIR/x.py; project code runs where it is.
-A tool's json is its structured result, else its text parsed; out is its text; one marked text only keeps json empty unless its text is JSON. The person allows a server once per thread, a destructive tool every start. A secret in args returns as [secret:name].
+A tool's json is its structured result, else its text parsed; out is its text; one marked text only keeps json empty unless its text is JSON. A tool run asks the person where this thread's agent would: never at bypass, else once per new code (tool, args or then). A secret in args returns as [secret:name].
 ```
 
 ### functions

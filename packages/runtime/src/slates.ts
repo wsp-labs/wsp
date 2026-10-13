@@ -75,7 +75,7 @@ import { isRunRecord, misread, READ_OUTPUT_CHARS, runShown } from "./slate-read.
 import { cutAt, defanged, longest } from "./slate-message.js";
 import { invalid } from "./slate-refused.js";
 import { writeBudget } from "./slate-writes.js";
-import { HELD_CONFIRM, consentKey, createSlateMcp, slateSecretMark, hostAway, refusedAway, type Away, type McpRunDecl, type McpServerSpec } from "./slate-mcp.js";
+import { codeKey, createSlateMcp, slateSecretMark, hostAway, refusedAway, type Away, type McpRunDecl, type McpServerSpec, type ToolAsks } from "./slate-mcp.js";
 import { HOST_SLATE_SOURCES, resolveIn, viewSources, type SlateSourceContext } from "./slate-sources/index.js";
 
 /** The slate's content at one version: what a snapshot, the undo and a rewind keep. */
@@ -111,7 +111,7 @@ export interface SlateRecord extends SlateSnap {
   turns: Record<string, { at: number; version: number; revision: number }>;
   kept: Record<string, SlateSnap>;
   comments: Record<string, SlateJson>[];
-  /** By approval key; "Always in this thread" and "Don't" stay, "Run once" is never kept. */
+  /** By approval key; "Always in this thread", "Allow" and "Not now" stay, "Run once" is never kept. */
   approvals: Record<string, Approval>;
   /** When the person let this slate message the agent from a reaction (07, "A slate that messages the agent"). */
   sendsAllowed?: number;
@@ -135,6 +135,8 @@ export interface SlateThreadFacts {
   hostFolder?: string;
   /** The computer's own name, for the consent sheet. */
   computer?: string;
+  /** When the thread's agent asks before an MCP tool, which its slate's tool runs follow; absent asks before each. */
+  toolAsks?: ToolAsks;
 }
 
 export interface SlatesDeps {
@@ -378,8 +380,8 @@ export function createSlates(deps: SlatesDeps): Slates {
     }).catch(() => {});
   }
 
-  const refusedOn = (threadId: string, before: SlateDoc | null, doc: SlateDoc | null | undefined): Promise<SlateProblem[]> =>
-    refusedAway(before, doc, deps.away?.(threadId), deps.missingOn?.bind(deps, threadId));
+  const refusedOn = async (threadId: string, before: SlateDoc | null, doc: SlateDoc | null | undefined): Promise<SlateProblem[]> =>
+    mcp.refusedRuns(threadId, before, doc, await refusedAway(before, doc, deps.away?.(threadId), deps.missingOn?.bind(deps, threadId)));
 
   const mcp = createSlateMcp({
     server: (threadId, name) => (deps.mcpServer === undefined ? Promise.reject(new Error("this host starts no MCP servers for a slate")) : deps.mcpServer(threadId, name)),
@@ -395,6 +397,7 @@ export function createSlates(deps: SlatesDeps): Slates {
       return folder === undefined ? { done: Promise.resolve({ why: NO_FOLDER, exit: null, err: "" }), kill: () => {} } : runs.reshape(threadId, cmd, input, folder);
     },
     computer: threadId => deps.thread(threadId)?.computer ?? "this computer",
+    asks: threadId => deps.thread(threadId)?.toolAsks ?? "every",
     own: deps.ownProcess,
     now: deps.now,
   });
@@ -410,11 +413,12 @@ export function createSlates(deps: SlatesDeps): Slates {
   /** The run name and command an approval key stands for, so the menu can list it after the document changes, and
    * the named files' hashes it covers, so a changed one can be named when it asks again. */
   function approvalNames(r: SlateRecord, key: string): { run?: string; cmd?: string; scripts?: Record<string, string> } {
+    const asked = mcp.named(r.threadId, key);
+    if (asked !== undefined) return asked;
     for (const [name, declared] of Object.entries(r.document?.runs ?? {})) {
       const decl = approvalDecl(r, declared);
       if (decl.kind === "cmd" && runs.key(decl as CmdRunDecl) === key) return { run: name, cmd: decl.cmd, ...(decl.scripts !== undefined ? { scripts: decl.scripts } : {}) };
-      if (decl.kind !== "cmd" && key === consentKey(decl)) return { run: name, cmd: `the MCP server ${decl.server}${decl.then !== undefined ? `, then ${decl.then}` : ""}` };
-      if (decl.kind !== "cmd" && key === `mcp:${decl.server}`) return { run: name, cmd: `the MCP server ${decl.server}` };
+      if (decl.kind !== "cmd" && key === codeKey(decl as McpRunDecl, mcpArgsOf(r, decl as McpRunDecl)())) return { run: name, cmd: `${decl.server}.${decl.kind === "tool" ? decl.tool : decl.uri}` };
     }
     return {};
   }
@@ -448,7 +452,7 @@ export function createSlates(deps: SlatesDeps): Slates {
     const views = await viewsFor(r);
     for (const name of Object.keys(doc.runs)) {
       const rec = r.values[name];
-      if (isRunRecord(rec) && rec.state === "held" && (rec.why === HELD_APPROVAL || rec.why === HELD_CONFIRM)) startNow(r, name, "person", views);
+      if (isRunRecord(rec) && rec.state === "held" && rec.why === HELD_APPROVAL) startNow(r, name, "person", views);
     }
     // The box is read after the load, so one that does not answer holds no start-up back.
     if (runs.held(r.threadId).length > 0) void serial(r.threadId, async () => {
@@ -619,7 +623,7 @@ export function createSlates(deps: SlatesDeps): Slates {
   const waitingOf = (r: SlateRecord): string[] =>
     Object.keys(r.document?.runs ?? {}).filter(name => {
       const rec = r.values[name];
-      return isRunRecord(rec) && rec.state === "held" && (rec.why === undefined || rec.why === HELD_APPROVAL || rec.why === HELD_CONFIRM);
+      return isRunRecord(rec) && rec.state === "held" && (rec.why === undefined || rec.why === HELD_APPROVAL);
     }).map(name => `$${name}`);
 
   /** Which files a run names changed since the person said "Always" to it, when that is why it asks again, from the
@@ -860,7 +864,7 @@ export function createSlates(deps: SlatesDeps): Slates {
     const decl = r.document?.runs[run];
     const prior = r.values[run];
     const count = isRunRecord(prior) ? prior.runs : 0;
-    if (decl !== undefined && decl.kind !== "cmd") return mcp.provisional(r.threadId, withFiles(r.document, decl) as McpRunDecl, isRunRecord(prior) ? (prior as unknown as RunRecord) : undefined) as SlateRunRecord;
+    if (decl !== undefined && decl.kind !== "cmd") return mcp.provisional(r.threadId, withFiles(r.document, decl) as McpRunDecl, isRunRecord(prior) ? (prior as unknown as RunRecord) : undefined, mcpArgsOf(r, decl)()) as SlateRunRecord;
     return approvedAlways(r, run) ? (runningRecord(isRunRecord(prior) ? lastResult(prior as unknown as RunRecord) : undefined, count + 1, deps.now()) as SlateRunRecord) : { state: "held", why: HELD_APPROVAL, runs: count };
   };
 
@@ -1361,11 +1365,9 @@ export function createSlates(deps: SlatesDeps): Slates {
         return;
       }
       if (mcp.owns(p.threadId, p.key)) {
-        const server = p.key.startsWith("mcp:");
-        if (!server && p.scope === "thread") throw usageRefusal("a destructive tool asks on every start, so it takes Run once or Don't.", "Approve it with scope once.");
         await serial(p.threadId, async () => {
           if (p.scope === "refuse") {
-            if (server) r.approvals[p.key] = { state: "refused", at: deps.now(), ...approvalNames(r, p.key) };
+            r.approvals[p.key] = { state: "refused", at: deps.now(), ...approvalNames(r, p.key) };
             await save(r);
             mcp.deny(p.threadId, p.key);
             return;
@@ -1424,12 +1426,10 @@ export function createSlates(deps: SlatesDeps): Slates {
         }
         if (r.approvals[p.key] === undefined) throw usageRefusal(`this thread holds no approval ${p.key}.`, "Read its approvals again.");
         delete r.approvals[p.key];
-        // A server's own consent goes with the reshapes allowed under it, each kept as a key of its own.
-        if (p.key.startsWith("mcp:") && !p.key.includes("#then:")) for (const key of Object.keys(r.approvals)) if (key.startsWith(`${p.key}#then:`)) delete r.approvals[key];
         // What it covered stops now: each run started under it is cancelled, out of the queue, and off its timer.
         const covered = Object.entries(r.document?.runs ?? {}).flatMap(([name, declared]) => {
           const decl = approvalDecl(r, declared);
-          const covers = decl.kind === "cmd" ? runs.key(decl as CmdRunDecl) === p.key : p.key === consentKey(decl as McpRunDecl) || p.key === `mcp:${decl.server}`;
+          const covers = decl.kind === "cmd" ? runs.key(decl as CmdRunDecl) === p.key : p.key === codeKey(decl as McpRunDecl, mcpArgsOf(r, decl as McpRunDecl)());
           return covers ? [name] : [];
         });
         for (const run of covered) {

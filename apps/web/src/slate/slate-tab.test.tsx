@@ -145,7 +145,7 @@ describe("the Slate tab", () => {
     // The command, how often, where and who wrote it, and nothing more: a plain wait for approval goes unsaid.
     expect([...sheet.querySelectorAll("[data-slate-consent] > p")].map(p => p.textContent)).toEqual(["Runs each time $project changes", `on ${CHECK_ASK.computer}, in ${CHECK_ASK.folder}, 30 s at most`, "Written by the agent in this thread."]);
     expect(within(sheet).getByRole("button", { name: "Run once" })).toBeTruthy();
-    expect(within(sheet).getByRole("button", { name: "Don't" })).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: "Not now" })).toBeTruthy();
     await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Always in this thread" })));
     expect(slates.approve).toHaveBeenCalledWith(tid(), "k-check", "thread");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -168,7 +168,7 @@ describe("the Slate tab", () => {
     const slates = host(record(DEPLOY_SLATE, { step: 2, project: "wsp-landing", vercelToken: HANDLE, check: { state: "held", why: "needs your approval", runs: 0 } }, { asks: [ask] }));
     openThread(slates);
     const sheet = await screen.findByRole("dialog");
-    expect(within(sheet).getAllByRole("button").map(b => b.textContent)).toEqual(expect.arrayContaining(["Don't", "Run once"]));
+    expect(within(sheet).getAllByRole("button").map(b => b.textContent)).toEqual(expect.arrayContaining(["Not now", "Run once"]));
     expect(within(sheet).queryByRole("button", { name: "Always in this thread" })).toBeNull();
     expect([...sheet.querySelectorAll("[data-slate-consent] > p")].map(p => p.textContent)).toEqual(["Runs each time $project changes", "on acme-box, in /root/acme, 30 s at most", "Written by the agent in this thread."]);
     await act(async () => fireEvent.click(within(sheet).getByRole("button", { name: "Run once" })));
