@@ -334,7 +334,14 @@ export const capRunningLine = (w: ThreadCapWait): string =>
 export const capWaitLine = (w: ThreadCapWait): string =>
   w.why === "slot" ? `waiting for a machine on ${w.place}: ${w.running} of ${w.atOnce} running` : w.why === "minute" ? `waiting for ${w.place}'s next minute of starts: ${w.running} of ${w.atOnce} used` : `waiting while ${capRunningLine(w)}`;
 
-/** Why a held turn left its wait, as the transcript's one line before its start. */
+/** The bar a held thread's drawer row opens in its composer's place: the computer it waits on as the title, what runs
+ * there and how the wait ends under it. */
+export const capBarWords = (w: ThreadCapWait): { title: string; note: string } => ({
+  title: `Waiting for a thread slot on ${w.place}`,
+  note: `${w.running} of ${plural(w.atOnce, "thread")} ${w.running === 1 ? "is" : "are"} running. It starts on its own when one ends.`,
+});
+
+/** Why a held turn left its wait, as the command line's one line before its start. */
 export const capStartedLine = (e: Pick<SessionUncappedEvent, "why" | "atOnce">): string =>
   e.why === "raised" ? `started: threads raised to ${e.atOnce}` : e.why === "lent" ? "started: a thread waiting on it lent its slot" : "started: a thread slot freed";
 
