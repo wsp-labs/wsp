@@ -9,6 +9,7 @@
 // its environment variables and never a value.
 import { z } from "zod";
 import { refusal, usageRefusal } from "./exit.js";
+import { compareVersions } from "./semver.mjs";
 import { effortsFor, everyModel, markedDefault, modelOf } from "./harness-picks.js";
 import type { HarnessCatalog, HarnessModel, HarnessOption, Preferences } from "./index.js";
 
@@ -310,6 +311,51 @@ export function pickRefusal(e: unknown, catalog: Pick<HarnessCatalog, "source"> 
   const said = e instanceof Error ? e.message : String(e);
   const clause = catalog?.source !== "table" ? "" : (e as { offered?: number }).offered === 0 ? BUILT_IN_TABLE_CLAUSE : BUILT_IN_LIST_CLAUSE;
   return refusal(`${said}${clause}`, "Drop the flag, or give it a value the agent offers.", (e as { kind?: string }).kind);
+}
+
+/** Whether the binary that answered these lists is older than the release wsp's table for that agent was read off,
+ * which the row's version line names: the table then carries models that release did not have yet. Undefined where
+ * the lists are not a binary's own or either version cannot be read. */
+export function olderThanTable(lists: Pick<HarnessCatalog, "source" | "version">, table: Pick<HarnessCatalog, "version"> | undefined): boolean | undefined {
+  const pin = /(\d+\.\d+\.\d+)/.exec(table?.version ?? "")?.[1];
+  if (lists.source !== "harness" || lists.version === null || pin === undefined) return undefined;
+  return compareVersions(lists.version, pin) < 0;
+}
+
+/** Why a start named a model wsp's own table lists that the agent's binary there does not run: an older binary needs
+ * an update for it, a newer one no longer offers it. */
+export const notRunLine = (agent: string, version: string, model: string, older: boolean): string =>
+  older ? `${agent} ${version} does not run ${model}; a newer ${agent} does` : `${agent} ${version} does not run ${model}`;
+
+/** A model refused against the lists a binary answered that wsp's table carries. Said as the binary's own version not
+ * running it, rather than quoting a list the person will not find the model in: an older binary is told to update,
+ * one newer than the table to pick a model it lists, since updating would change nothing. Null where the lists are
+ * not the binary's own, where they carry the model, or where the table does not know it either. */
+export function notRunRefusal(lists: HarnessCatalog | undefined, table: HarnessCatalog | undefined, model: string | undefined, update: string | undefined): Error | null {
+  if (lists?.source !== "harness" || lists.version === null || table === undefined || model === undefined) return null;
+  if (everyModel(lists).some(m => m.value === model)) return null;
+  const known = everyModel(table).find(m => m.value === model);
+  if (known === undefined) return null;
+  const older = olderThanTable(lists, table) === true && update !== undefined;
+  const listed = lists.models.map(m => `${m.label} (${m.value})`).join(", ");
+  return older
+    ? usageRefusal(notRunLine(lists.label, lists.version, known.label, true), `Update it with ${update}, or pick a model it lists.`)
+    : usageRefusal(`${notRunLine(lists.label, lists.version, known.label, false)}; it lists ${listed}`, "Pick a model it lists.");
+}
+
+/** A default the person set for new threads that the agent on a computer does not run, as New thread and Settings name
+ * it in one line with the model that runs instead; null where the default runs there, or where the lists are not that
+ * computer's own. The project's model stands over the agent's, as resolveThreadDefaults reads them. */
+export function defaultNotRunLine(lists: HarnessCatalog, table: HarnessCatalog | undefined, prefs: DefaultsAsk["prefs"], project?: ProjectOverrides): string | null {
+  if (lists.source !== "harness" || table === undefined) return null;
+  const projectModel = project?.agent === undefined || project.agent === lists.harness ? project?.model : undefined;
+  const wanted = projectModel ?? prefs.agentDefaults[lists.harness]?.model;
+  if (wanted === undefined || everyModel(lists).some(m => m.value === wanted)) return null;
+  const known = everyModel(table).find(m => m.value === wanted);
+  const runs = resolveThreadDefaults({ firstAgent: lists.harness, named: lists.harness, catalogOf: () => lists, prefs, ...(project !== undefined ? { project } : {}) }).model;
+  const runsLabel = runs === undefined ? undefined : modelOf(lists, runs.value)?.label;
+  if (known === undefined || runsLabel === undefined) return null;
+  return olderThanTable(lists, table) === true ? `${known.label} needs a newer ${lists.label} here; running ${runsLabel}` : `${lists.label} here does not run ${known.label}; running ${runsLabel}`;
 }
 
 /** An access word the agent maps to none of its modes, refused with what to do; null where it maps one. */

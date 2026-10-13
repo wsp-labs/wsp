@@ -12,7 +12,6 @@ import { projectSeedOf, projectUnsavedRefusal, refusal, scopeOf, seedNotHereRefu
 import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, namesPlace, noSuchPlaceRefusal } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV } from "@wsp/engine";
 import { resolveThreadDefaults, withCustomModels } from "@wsp/protocol";
-import { harnessCatalog } from "../harness-catalog.js";
 import { loginEnvOn } from "../types/harness.js";
 import { type PackedState, type LandRequest, type ProjectImportOptions, type LiveWorkspace, type SeedWiring, ADD_IS_A_COMPUTER_LINE, folderNamed, sameSource, outcomeWords, LISTING_DEADLINE_MS, mergeOnMachine, homeOutcome } from "../types/wiring.js";
 import type { Runtime } from "../types/api.js";
@@ -459,16 +458,32 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
     list: projectsDoor.list,
     icon: (projectId, png) => ctx.projectIcons.set(projectId, png),
     icons: hashes => ctx.projectIcons.read(hashes),
+    // Each project's against the lists its computer's agents answer, read once per computer, so what is said a new
+    // thread starts on is what the host will start it on there; wsp's table where that computer holds no folder.
     async defaults(origin) {
       const prefs = await ctx.preferences.get();
       const runs = (id: string): boolean => adapters[id] !== undefined;
-      const catalogOf = (id: string): HarnessCatalog | undefined => {
-        const table = runs(id) ? harnessCatalog(id) : undefined;
-        return table === undefined ? undefined : withCustomModels(table, prefs.agentDefaults[id]?.models);
-      };
       const firstAgent = CATALOG_AGENTS.find(a => runs(a.id))?.id ?? DEFAULT_AGENT.id;
       const held = await projectsDoor.list(origin);
-      return Object.fromEntries(held.map(p => [p.id, resolveThreadDefaults({ firstAgent, catalogOf, runs, prefs, ...(prefs.projectDefaults[p.id] !== undefined ? { project: prefs.projectDefaults[p.id] } : {}) })]));
+      const read = new Map<string, Promise<HarnessCatalog[]>>();
+      const listsOn = (computer: string): Promise<HarnessCatalog[]> => {
+        const known = read.get(computer);
+        if (known !== undefined) return known;
+        const lists = ctx.computerHome(computer, origin).then(ctx.agentLists);
+        read.set(computer, lists);
+        return lists;
+      };
+      const resolved = await Promise.all(
+        held.map(async p => {
+          const lists = await listsOn(p.computer);
+          const catalogOf = (id: string): HarnessCatalog | undefined => {
+            const found = runs(id) ? lists.find(c => c.harness === id) : undefined;
+            return found === undefined ? undefined : withCustomModels(found, prefs.agentDefaults[id]?.models);
+          };
+          return [p.id, resolveThreadDefaults({ firstAgent, catalogOf, runs, prefs, ...(prefs.projectDefaults[p.id] !== undefined ? { project: prefs.projectDefaults[p.id] } : {}) })] as const;
+        }),
+      );
+      return Object.fromEntries(resolved);
     },
     computers: projectsDoor.computers,
     resolve: projectsDoor.resolve,

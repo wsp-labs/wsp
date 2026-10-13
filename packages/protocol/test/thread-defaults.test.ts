@@ -3,6 +3,10 @@
 // how each agent's setup on a computer is kept and shown.
 import { describe, expect, it } from "vitest";
 import {
+  defaultNotRunLine,
+  notRunRefusal,
+  olderThanTable,
+  type HarnessModel,
   accessRefusal,
   agentEnvRefusal,
   configDirRefusal,
@@ -290,5 +294,31 @@ describe("what an agent's setup may not set", () => {
     expect(configDirRefusal("Claude Code", "/Users/adam/x", real("/Users/adam/x"))).not.toBeNull();
     expect(configDirRefusal("Claude Code", "/Users/ada/.wsp/c", real("/Users/ada/.wsp/c"))).toBe("/Users/ada/.wsp/c is inside wsp's own folder, so it is no agent's config folder");
     expect(configDirRefusal("Claude Code", "/Users/ada/state", real("/Users/ada/state"))).not.toBeNull();
+  });
+});
+
+describe("a default or a pick the agent's own binary does not run", () => {
+  const model = (value: string, label: string, isDefault = false): HarnessModel => ({ value, label, contextWindows: [], ...(isDefault ? { isDefault: true } : {}) });
+  const lists = (version: string, models: HarnessModel[]): HarnessCatalog => ({ harness: "claude", label: "Claude Code", source: "harness", version, models, efforts: [], contextWindows: [], permissionModes: [], steers: false, renames: false, images: false });
+  const TABLE: HarnessCatalog = { ...lists("x", [model("claude-opus-5-5", "Opus 5.5", true), model("claude-fable-5-1", "Fable 5.1")]), source: "table", version: "--help 2.1.296, 2026-10-10" };
+  const OLDER = lists("2.1.278", [model("claude-opus-5", "Opus 5", true), model("claude-fable-5-1", "Fable 5.1")]);
+  const NEWER = lists("2.1.310", [model("claude-opus-5-5", "Opus 5.5", true)]);
+  const prefs = (wanted: string) => ({ agentDefaults: { claude: { model: wanted } } });
+
+  it("tells an older binary to update and a newer one to pick a model it lists, by the table's own release", () => {
+    expect(olderThanTable(OLDER, TABLE)).toBe(true);
+    expect(olderThanTable(NEWER, TABLE)).toBe(false);
+    expect(olderThanTable(TABLE, TABLE)).toBeUndefined();
+    expect(notRunRefusal(OLDER, TABLE, "claude-opus-5-5", "claude update")?.message).toBe("Claude Code 2.1.278 does not run Opus 5.5; a newer Claude Code does. Update it with claude update, or pick a model it lists.");
+    expect(notRunRefusal(NEWER, TABLE, "claude-fable-5-1", "claude update")?.message).toBe("Claude Code 2.1.310 does not run Fable 5.1; it lists Opus 5.5 (claude-opus-5-5). Pick a model it lists.");
+    expect(notRunRefusal(OLDER, TABLE, "claude-fable-5-1", "claude update")).toBeNull();
+  });
+
+  it("names a default the computer's binary does not run with the model that runs, and says nothing of one it runs", () => {
+    expect(defaultNotRunLine(OLDER, TABLE, prefs("claude-opus-5-5"))).toBe("Opus 5.5 needs a newer Claude Code here; running Opus 5");
+    expect(defaultNotRunLine(NEWER, TABLE, prefs("claude-fable-5-1"))).toBe("Claude Code here does not run Fable 5.1; running Opus 5.5");
+    expect(defaultNotRunLine(OLDER, TABLE, prefs("claude-fable-5-1"))).toBeNull();
+    expect(defaultNotRunLine(TABLE, TABLE, prefs("claude-opus-4"))).toBeNull();
+    expect(defaultNotRunLine(OLDER, TABLE, { agentDefaults: {} }, { model: "claude-opus-5-5" })).toBe("Opus 5.5 needs a newer Claude Code here; running Opus 5");
   });
 });

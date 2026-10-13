@@ -10,7 +10,7 @@
 // never drawn, kept or sent anywhere but that one set.
 import { useEffect, useState, type DragEvent } from "react";
 import { GripVerticalIcon, XIcon } from "lucide-react";
-import { ACCESS_CHOICES, accessRefusal, agentEnvRefusal, commandWords, configDirSignInLine, effortsFor, modelIdRefusal, modelOf, shapeModels, shellLine, withCustomModels, type AccessChoice, type AgentDefaultsPatch, type AgentSetupSet, type HarnessCatalog, type ModelPicker } from "@wsp/protocol";
+import { ACCESS_CHOICES, HERE_PLACE_ID, accessRefusal, agentEnvRefusal, commandWords, configDirSignInLine, defaultNotRunLine, effortsFor, modelIdRefusal, modelOf, shapeModels, shellLine, withCustomModels, type AccessChoice, type AgentDefaultsPatch, type AgentSetupSet, type HarnessCatalog, type ModelPicker } from "@wsp/protocol";
 import { agentName, catalogEntry } from "@wsp/catalog";
 import type { AccountRow } from "@wsp/protocol";
 import { Spaced } from "../components/ui/spaced.js";
@@ -24,7 +24,7 @@ import { Skeleton } from "../components/ui/skeleton.js";
 import { Switch } from "../components/ui/switch.js";
 import { cn } from "../lib/utils.js";
 import { movedBefore } from "../sidebar/NounSwitcher.js";
-import { useStore } from "../protocol/store.js";
+import { computerKey, useAskedCatalogs, useStore } from "../protocol/store.js";
 import { AgentsControls, UpdateButton, newThreadDefaults, planWord, signInHead, usePickedPlace } from "./agents.js";
 import { AGENTS_PAGE_WORDS as W } from "./format.js";
 import { CARD_INSET, ROW_FLOOR, SELECT_WIDTH } from "./layout.js";
@@ -251,13 +251,14 @@ function NewThreads({ catalog, ctx }: { catalog: HarnessCatalog; ctx: SettingsCo
   const models = pickerModels(catalog);
   const listed = picks.model === undefined || models.some(m => m.value === picks.model) ? models : [...models, modelOf(catalog, picks.model)!];
   const efforts = effortsFor(catalog, modelOf(catalog, picks.model));
+  const notRun = defaultNotRunLine(catalog, ctx.harnesses.find(c => c.harness === id), ctx.preferences);
   return (
     <Card id="agent-new-threads" head={W.newThreads}>
       {models.length === 0 ? null : (
         <Row
           id="agent-model"
           title={W.model}
-          description={W.modelDescription}
+          description={notRun ?? W.modelDescription}
           control={
             <span className="flex items-center gap-2">
               <Select value={picks.model ?? ""} onValueChange={model => set({ model: model as string })}>
@@ -354,7 +355,8 @@ export function AgentPage({ id, ctx }: { id: string; ctx: SettingsContext }) {
   const { report, reading, refresh } = useAgentsReport(target);
   const [sheet, setSheet] = useState<SheetOpen>(null);
   const [busy, setBusy] = useState(false);
-  const catalog = ctx.harnesses.find(c => c.harness === id);
+  // What the picked computer's own binary lists, so a default picked here is one that computer runs.
+  const catalog = useAskedCatalogs(computerKey(place?.id ?? HERE_PLACE_ID)).find(c => c.harness === id);
   const row = report?.agents.find(a => a.id === id);
   const setup = useSetup(place?.id, id, refresh);
   useEffect(() => setSheet(null), [place?.id]);
