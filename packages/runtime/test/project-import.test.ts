@@ -42,7 +42,7 @@ const removeCommand = (agent: string): string => `rm -f '${MERGE_DIR}/${agent}.p
 /** What the host would hand the runtime for a small folder: three secret-shaped files, one binary with an exec bit,
  * and, when asked, agents with sessions for it; the state pack lands one file per agent with bytes under its machine
  * home, and a merge script for each agent on the machine whose rows stay in a shared store. */
-function fakeBundler(extra: ProjectSecret[] = [], agents: ProjectAgent[] = []): ProjectBundler & { calls: string[] } {
+function fakeBundler(extra: ProjectSecret[] = [], agents: ProjectAgent[] = [], values: string[] = [".env"]): ProjectBundler & { calls: string[] } {
   const plan: ProjectPlan = {
     source: SOURCE,
     repo: true,
@@ -54,6 +54,7 @@ function fakeBundler(extra: ProjectSecret[] = [], agents: ProjectAgent[] = []): 
       { path: "config/secrets.json", bytes: 25, signals: ["name", "keys"] },
       { path: "keys/id_ed25519", bytes: 80, signals: ["name", "mode", "pem"] },
     ],
+    values,
     excluded: ["dist", "node_modules"],
     skipped: [],
     agents,
@@ -65,15 +66,17 @@ function fakeBundler(extra: ProjectSecret[] = [], agents: ProjectAgent[] = []): 
       calls.push("plan");
       return plan;
     },
-    pack: async (carry, rewrite): Promise<PackedProject> => {
-      calls.push(`pack ${[...carry].join(",")}${rewrite.size > 0 ? ` rewrite ${[...rewrite].join(",")}` : ""}`);
+    pack: async (carry, rewrite, provider): Promise<PackedProject> => {
+      calls.push(`pack ${[...carry].join(",")}${rewrite.size > 0 ? ` rewrite ${[...rewrite].join(",")}` : ""}${provider === true ? " for a provider" : ""}`);
       const rewritten = plan.secrets.filter(s => s.rewrite !== undefined && rewrite.has(s.path)).map(s => s.path);
-      const cut = plan.secrets.map(s => s.path).filter(p => !carry.has(p) && !rewritten.includes(p));
+      // The host's pack leaves every file of values here for a provider, carried, flagged or neither.
+      const held = provider === true ? values : [];
+      const cut = [...new Set([...plan.secrets.map(s => s.path).filter(p => (!carry.has(p) && !rewritten.includes(p)) || held.includes(p)), ...held])].sort();
       const tar = tarOf([
         { path: "bin", mode: 0o755, dir: true },
         { path: "bin/run.sh", mode: 0o755, content: BINARY },
         { path: "src/index.ts", mode: 0o644, content: "export const a = 1;\n" },
-        ...plan.secrets.filter(s => carry.has(s.path) || rewritten.includes(s.path)).map(s => ({ path: s.path, mode: 0o600, content: `${s.path} body\n` })),
+        ...plan.secrets.filter(s => !cut.includes(s.path)).map(s => ({ path: s.path, mode: 0o600, content: `${s.path} body\n` })),
       ]);
       return { tar, files: plan.files - cut.length, bytes: 4000, cut, rewritten };
     },
@@ -111,13 +114,13 @@ describe("project.import on a workspace", () => {
     // The create uploaded the machine context; the import's PUT is the one after it.
     const before = backend.puts.length;
     const bundler = fakeBundler();
-    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/work/proj", carry: [".env"], bundler });
-    expect(bundler.calls).toEqual(["plan", "pack .env"]);
-    expect(result).toEqual({ dest: "/root/work/proj", files: 4, bytes: 4000, parts: 1, cut: ["config/secrets.json", "keys/id_ed25519"], rewritten: [], agents: [], project: { name: "proj", dest: "/root/work/proj", importedAt: expect.any(String), size: 4000 } });
+    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/work/proj", carry: ["config/secrets.json"], bundler });
+    expect(bundler.calls).toEqual(["plan", "pack config/secrets.json for a provider"]);
+    expect(result).toEqual({ dest: "/root/work/proj", files: 4, bytes: 4000, parts: 1, cut: [".env", "keys/id_ed25519"], rewritten: [], agents: [], project: { name: "proj", dest: "/root/work/proj", importedAt: expect.any(String), size: 4000 } });
     const stages = imports(events);
     expect(stages.map(e => e.stage)).toEqual(["planned", "consented", "packing", "uploading", "uploading", "landing", "done"]);
     expect(stages[0]!.message).toBe("6 files, 4 KB and the repository; 3 secret-shaped files; 2 caches left behind.");
-    expect(stages[1]!.message).toBe("Carrying .env; cut config/secrets.json, keys/id_ed25519.");
+    expect(stages[1]!.message).toBe("Carrying config/secrets.json; cut .env, keys/id_ed25519.");
     expect(stages[2]!.message).toBe("Packing 4 files.");
     expect(stages[3]).toMatchObject({ bytes: 0, total: expect.any(Number) });
     expect(stages[4]).toMatchObject({ bytes: stages[3]!.total, total: stages[3]!.total });
@@ -130,8 +133,8 @@ describe("project.import on a workspace", () => {
     const out = extract(body);
     expect(readFileSync(join(out, "bin/run.sh")).equals(BINARY)).toBe(true);
     expect(statSync(join(out, "bin/run.sh")).mode & 0o777).toBe(0o755);
-    expect(readFileSync(join(out, ".env"), "utf8")).toBe(".env body\n");
-    expect(existsSync(join(out, "config/secrets.json"))).toBe(false);
+    expect(readFileSync(join(out, "config/secrets.json"), "utf8")).toBe("config/secrets.json body\n");
+    expect(existsSync(join(out, ".env"))).toBe(false);
     const machine = backend.machines[0]!;
     expect(machine.execLog.some(c => c.startsWith("test -e '/root/work/proj'"))).toBe(true);
     const untar = machine.runLog.filter(s => s.includes("tar xzf")).at(-1)!;
@@ -163,18 +166,39 @@ describe("project.import on a workspace", () => {
     expect((await rt.workspaces.get(ws.id)).project.path).toMatch(/^\/root\/stub-/);
   });
 
+  it("a file of values carried onto a provider's machine is cut, and the consented line says so before the pack", async () => {
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
+    const events: EventUnion[] = [];
+    rt.events.on("*", e => events.push(e));
+    const ws = await createOn(rt, { golden: "snap_g", name: "task-1" });
+    const bundler = fakeBundler();
+    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/proj", carry: [".env", "keys/id_ed25519"], bundler });
+    expect(bundler.calls).toEqual(["plan", "pack .env,keys/id_ed25519 for a provider"]);
+    expect(imports(events)[1]!.message).toBe("Carrying keys/id_ed25519; cut .env, config/secrets.json.");
+    expect(result.cut).toEqual([".env", "config/secrets.json"]);
+  });
+
+  it("a file of values the credential scan never flagged is named in the consented line too, and not counted as packed", async () => {
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
+    const events: EventUnion[] = [];
+    rt.events.on("*", e => events.push(e));
+    const ws = await createOn(rt, { golden: "snap_g", name: "task-1" });
+    await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/proj", carry: ["keys/id_ed25519"], bundler: fakeBundler([], [], [".env", ".envrc"]) });
+    expect(imports(events).slice(1, 3).map(e => e.message)).toEqual(["Carrying keys/id_ed25519; cut .env, .envrc, config/secrets.json.", "Packing 3 files."]);
+  });
+
   it("a rewrite the person accepted reaches the pack, is said in the consented line and named in the result", async () => {
     const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
     const events: EventUnion[] = [];
     rt.events.on("*", e => events.push(e));
     const ws = await createOn(rt, { golden: "snap_g", name: "task-1" });
     const bundler = fakeBundler([GIT_CONFIG]);
-    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/proj", carry: [".env"], rewrite: [".git/config"], bundler });
-    expect(bundler.calls).toEqual(["plan", "pack .env rewrite .git/config"]);
-    expect(result).toEqual({ dest: "/root/proj", files: 4, bytes: 4000, parts: 1, cut: ["config/secrets.json", "keys/id_ed25519"], rewritten: [".git/config"], agents: [], project: { name: "proj", dest: "/root/proj", importedAt: expect.any(String), size: 4000 } });
+    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/proj", carry: ["config/secrets.json"], rewrite: [".git/config"], bundler });
+    expect(bundler.calls).toEqual(["plan", "pack config/secrets.json rewrite .git/config for a provider"]);
+    expect(result).toEqual({ dest: "/root/proj", files: 4, bytes: 4000, parts: 1, cut: [".env", "keys/id_ed25519"], rewritten: [".git/config"], agents: [], project: { name: "proj", dest: "/root/proj", importedAt: expect.any(String), size: 4000 } });
     const stages = imports(events);
     expect(stages[0]!.message).toBe("6 files, 4 KB and the repository; 4 secret-shaped files; 2 caches left behind.");
-    expect(stages[1]!.message).toBe("Carrying .env; rewriting .git/config to https://github.com/example/proj.git; cut config/secrets.json, keys/id_ed25519.");
+    expect(stages[1]!.message).toBe("Carrying config/secrets.json; rewriting .git/config to https://github.com/example/proj.git; cut .env, keys/id_ed25519.");
     events.length = 0;
     await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/other", rewrite: [".git/config"], bundler: fakeBundler([AUTH_CONFIG]) });
     expect(imports(events)[1]!.message).toBe("Rewriting .git/config to https://github.com/example/proj.git without http.extraheader; cut .env, config/secrets.json, keys/id_ed25519.");
@@ -218,8 +242,8 @@ describe("project.import on a workspace", () => {
     const ws = await createOn(rt, { golden: "snap_g", name: "task-1" });
     const before = backend.puts.length;
     const bundler = fakeBundler([], AGENTS);
-    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/work/proj", carry: [".env"], agents: ["claude", "pi", "codex"], bundler });
-    expect(bundler.calls).toEqual(["plan", "pack .env", "state claude+,pi-,codex+ to /root/work/proj"]);
+    const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/work/proj", carry: ["config/secrets.json"], agents: ["claude", "pi", "codex"], bundler });
+    expect(bundler.calls).toEqual(["plan", "pack config/secrets.json for a provider", "state claude+,pi-,codex+ to /root/work/proj"]);
     expect(result.agents).toEqual([
       { agent: "claude", files: 1, bytes: Buffer.byteLength("claude at /root/work/proj\n"), outcome: "moved" },
       { agent: "pi", files: 1, bytes: Buffer.byteLength(`pi at ${SOURCE}\n`), outcome: "carried" },
@@ -230,7 +254,7 @@ describe("project.import on a workspace", () => {
     expect(probe).not.toContain("gemini");
     const stages = imports(events);
     expect(stages.map(e => e.stage)).toEqual(["planned", "consented", "packing", "uploading", "uploading", "landing", "uploading", "uploading", "landing", "landing", "done"]);
-    expect(stages[1]!.message).toBe("Carrying .env; cut config/secrets.json, keys/id_ed25519. Sessions travel for Claude Code (2 sessions), Pi (1 session), Codex (3 sessions).");
+    expect(stages[1]!.message).toBe("Carrying config/secrets.json; cut .env, keys/id_ed25519. Sessions travel for Claude Code (2 sessions), Pi (1 session), Codex (3 sessions).");
     expect(stages[6]!.message).toMatch(/^Uploading 3 session files and the rows to merge, /);
     expect(stages[8]!.message).toBe("Merging rows into Codex.");
     const said = "Claude Code moved, Pi carried unchanged since it is not on the machine, Codex moved, 3 rows merged";
@@ -322,7 +346,7 @@ describe("project.import on a workspace", () => {
     const unreadable: ProjectAgent = { agent: "opencode", name: "OpenCode", sessions: 0, bytes: 0, carry: "transcript-only", error: "file is not a database" };
     const bundler = fakeBundler([], [...AGENTS, unreadable]);
     const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/proj", agents: ["claude", "opencode"], bundler });
-    expect(bundler.calls).toEqual(["plan", "pack ", "state claude+ to /root/proj"]);
+    expect(bundler.calls).toEqual(["plan", "pack  for a provider", "state claude+ to /root/proj"]);
     expect(result.agents.map(a => a.agent)).toEqual(["claude"]);
     expect(imports(events)[1]!.message).toBe("No secret-shaped file travels; cut .env, config/secrets.json, keys/id_ed25519. Sessions travel for Claude Code (2 sessions); Pi, Codex stay; OpenCode could not be read (file is not a database).");
   });
@@ -336,7 +360,7 @@ describe("project.import on a workspace", () => {
     const before = backend.puts.length;
     const bundler = fakeBundler([], AGENTS);
     const result = await rt.projects.import({ workspaceId: ws.id, source: SOURCE, dest: "/root/proj", bundler });
-    expect(bundler.calls).toEqual(["plan", "pack "]);
+    expect(bundler.calls).toEqual(["plan", "pack  for a provider"]);
     expect(result.agents).toEqual([]);
     expect(backend.puts).toHaveLength(before + 1);
     expect(backend.machines[0]!.execLog.some(c => c.includes('echo "missing'))).toBe(false);

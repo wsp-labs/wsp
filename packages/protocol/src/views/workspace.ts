@@ -88,10 +88,11 @@ export const WorkspaceProject = z.object({ name: z.string(), dest: z.string(), i
 export type WorkspaceProject = z.infer<typeof WorkspaceProject>;
 
 /** What a path git ignores is to a seed of the folder it sits in, as the catalog's own rows judge it: config
- * travels, rebuilt is what the computer makes again, data is a database, never is a login that does not leave this
- * computer whatever is ticked, and unknown is a path no row names. The catalog's junk kind reaches no menu, so it
- * is not here. */
-export const SeedKind = z.enum(["config", "rebuilt", "data", "never", "unknown"]);
+ * travels, secret is a file of values or a key that goes to the person's own box and never to a provider place,
+ * rebuilt is what the computer makes again, data is a database, never is a login that does not leave this computer
+ * whatever is ticked, and unknown is a path no row names. The catalog's junk kind reaches no menu, so it is not
+ * here. */
+export const SeedKind = z.enum(["config", "secret", "rebuilt", "data", "never", "unknown"]);
 export type SeedKind = z.infer<typeof SeedKind>;
 
 /** One row of the seed menu: a path git ignores in the folder, relative to it and collapsed to the directory where
@@ -127,6 +128,8 @@ export const SeedPlan = z.object({
   files: z.array(SeedFile),
   /** The ticks came from a choice remembered for this folder rather than from the catalog's own defaults. */
   remembered: z.boolean(),
+  /** The seed goes to a provider place, so its secret rows stay on this computer whatever is ticked. */
+  provider: z.boolean().optional(),
 });
 export type SeedPlan = z.infer<typeof SeedPlan>;
 

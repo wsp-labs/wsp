@@ -6,9 +6,10 @@ import { randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { seedRowFor } from "@wsp/catalog";
 import { CACHE_DIRS, FINDER_METADATA, bareUrls, fileSignals, keysSignal } from "@wsp/collect";
 import { PROJECT_STATE_RESOLVERS, TAR_MAX_FILE_BYTES, countProjectState, filesUnder, fitsTar, moveProjectState, resolveProjectPath, tarOf, underProject, type AgentMoveReport, type CacheRule, type TarEntry } from "@wsp/engine";
-import { CredentialSignal, type ProjectAgentOutcome, type ProjectAgentResult, type ProjectCarry, type ProjectPlan, type ProjectRewrite, type ProjectSecret } from "@wsp/protocol";
+import { CredentialSignal, seedTravels, type ProjectAgentOutcome, type ProjectAgentResult, type ProjectCarry, type ProjectPlan, type ProjectRewrite, type ProjectSecret } from "@wsp/protocol";
 import type { PackedProject, PackedState, ProjectBundler, StateRequest } from "@wsp/runtime";
 
 /** A virtual environment goes by any name; this file inside it says what it is. */
@@ -75,6 +76,8 @@ export type BundleFile = BundlePath &
         bytes: number;
         /** Secret-shaped by the collector's credential rules, which read untracked and ignored files only; travels only when named. */
         secret: boolean;
+        /** Untracked and a file of values or a key by the seed catalog: never lands on a provider place, named or not. */
+        valueFile: boolean;
       }
     | { kind: "dir"; mode: number }
     | {
@@ -237,7 +240,7 @@ function walk(w: Walk, dir: string, relDir: string, inGit: boolean, onlyTracked:
       w.skipped.push({ path: rel, note: "a path too long for the archive" });
       continue;
     }
-    const file: BundleFile = { rel, abs, kind: "file", mode, bytes: st.size, secret: false };
+    const file: BundleFile = { rel, abs, kind: "file", mode, bytes: st.size, secret: false, valueFile: !isTracked && !inGit && seedRowFor(rel, false)?.kind === "secret" };
     w.files.push(file);
     // A tracked file's content is in the repository, which travels whole, so cutting the working copy protects nothing.
     if (isTracked) continue;
@@ -283,6 +286,7 @@ export async function planProject(source: string, homes: Readonly<Record<string,
     files: regular.length,
     bytes: regular.reduce((n, f) => n + f.bytes, 0),
     secrets: w.secrets,
+    values: regular.filter(f => f.valueFile).map(f => f.rel),
     excluded: w.excluded,
     skipped: w.skipped,
     agents: await countProjectState(root, homes),
@@ -292,9 +296,9 @@ export async function planProject(source: string, homes: Readonly<Record<string,
 
 /** The gzipped archive of a listing, every entry at its path relative to the folder with its mode; a secret-shaped
  * file travels only when `carry` names its path, or rewritten as the plan offered when `rewrite` names a path the plan
- * offered that for. Bytes are read now, so a file that changed since the plan travels as it is at this moment; the
- * file on this computer is never written. */
-export function packProject(listing: ProjectListing, carry: ReadonlySet<string>, rewrite: ReadonlySet<string>): PackedProject {
+ * offered that for, and for a `provider` place a file of values or a key never travels. Bytes are read now, so a file
+ * that changed since the plan travels as it is at this moment; the file on this computer is never written. */
+export function packProject(listing: ProjectListing, carry: ReadonlySet<string>, rewrite: ReadonlySet<string>, provider = false): PackedProject {
   const offered = new Set(listing.plan.secrets.filter(s => s.rewrite !== undefined).map(s => s.path));
   const entries: TarEntry[] = [];
   const cut: string[] = [];
@@ -311,7 +315,7 @@ export function packProject(listing: ProjectListing, carry: ReadonlySet<string>,
       continue;
     }
     const rewriting = f.secret && offered.has(f.rel) && rewrite.has(f.rel);
-    if (f.secret && !rewriting && !carry.has(f.rel)) {
+    if ((f.valueFile && !seedTravels({ provider }, { kind: "secret" })) || (f.secret && !rewriting && !carry.has(f.rel))) {
       cut.push(f.rel);
       continue;
     }
@@ -402,7 +406,7 @@ export function projectBundler(source: string, homes: () => Promise<Readonly<Rec
   const listed = (): Promise<ProjectListing> => (listing ??= homes().then(at => planProject(source, at)));
   return {
     plan: async () => (await listed()).plan,
-    pack: async (carry, rewrite) => packProject(await listed(), carry, rewrite),
+    pack: async (carry, rewrite, provider) => packProject(await listed(), carry, rewrite, provider),
     packState: async req => packState((await listed()).plan.source, await homes(), req),
   };
 }

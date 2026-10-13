@@ -42,6 +42,8 @@ export const ProjectPlan = z.object({
   files: z.number(),
   bytes: z.number(),
   secrets: z.array(ProjectSecret),
+  /** Untracked files of values and keys by the seed catalog, flagged or not, which a provider place never gets. */
+  values: z.array(z.string()).optional(),
   excluded: z.array(z.string()),
   skipped: z.array(z.object({ path: z.string(), note: z.string() })),
   agents: z.array(ProjectAgent),

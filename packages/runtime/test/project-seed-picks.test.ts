@@ -8,7 +8,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { exitClassOf, neverGitLine, neverTravelsLine, notInTheMenuLine, seedSaveRefusal, type Caller, type SeedPlan } from "@wsp/protocol";
+import { exitClassOf, neverGitLine, neverTravelsLine, notInTheMenuLine, projectSeedLines, seedSaveRefusal, staysHereLine, type Caller, type SeedPlan } from "@wsp/protocol";
 import { copyKey, createRuntime, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
@@ -46,6 +46,7 @@ const menu = (folder: string): SeedPlan => ({
     { path: ".env.local", dir: false, bytes: 132, kind: "config", row: { id: "dotenv", name: "environment file" }, ticked: true },
     { path: ".git-credentials", dir: false, bytes: 300, kind: "never", row: { id: "logins", name: "logins" }, ticked: false },
     { path: "node_modules", dir: true, bytes: 831_520_768, kind: "rebuilt", row: { id: "node", name: "Node" }, ticked: false },
+    { path: "deploy.pem", dir: false, bytes: 4096, kind: "secret", row: { id: "certificates", name: "certificates" }, ticked: true },
   ],
   remembered: false,
 });
@@ -82,6 +83,7 @@ describe("a project's seed picks", () => {
         { path: ".env.local", dir: false, bytes: 132, kind: "config", why: "environment file", picked: false },
         { path: ".git-credentials", dir: false, bytes: 300, kind: "never", why: "never travels", picked: false },
         { path: "node_modules", dir: true, bytes: 831_520_768, kind: "rebuilt", why: "rebuilt on the box", picked: false },
+        { path: "deploy.pem", dir: false, bytes: 4096, kind: "secret", why: "stays on this computer", picked: false },
       ],
       picked: { paths: [], bytes: 0, missing: [] },
       saved: false,
@@ -103,6 +105,29 @@ describe("a project's seed picks", () => {
     expect(next.remembered).toBe(true);
     expect(next.files.filter(f => f.ticked).map(f => f.path)).toEqual([".env"]);
     expect(picked((await rt.projects.seed("lab", {})).rows)).toEqual([".env"]);
+  });
+
+  it("read as a provider's menu, since only a sub-thread reads them: a key stays here, is refused by name, and a save keeps the folder's own pick of it until it is cut", async () => {
+    const { rt, store, folder } = await withLab();
+    await store.put(SEED_CHOICES, folder, { files: [".env", "deploy.pem"], memory: false, commits: false, remember: true });
+    const seed = await rt.projects.seed("lab", {});
+    expect(seed.picked).toEqual({ paths: [".env"], bytes: 1_126, missing: [] });
+    expect(projectSeedLines(seed).rows).toContainEqual([" ", "deploy.pem", "4 KB", "stays on this computer"]);
+    await expect(rt.projects.seed("lab", { keep: ["deploy.pem"] })).rejects.toThrow(staysHereLine("deploy.pem"));
+    // A box's add reads this same record, so a save made off the provider's menu keeps the key in it.
+    await rt.projects.seed("lab", { cut: [".env"], save: true });
+    expect(((await store.get(SEED_CHOICES, folder)) as { files: string[] }).files).toEqual(["deploy.pem"]);
+    await rt.projects.seed("lab", { cut: ["deploy.pem"], save: true });
+    expect(((await store.get(SEED_CHOICES, folder)) as { files: string[] }).files).toEqual([]);
+  });
+
+  it("keep a box's saved key through an add to a provider with --remember, so the next box still finds it ticked", async () => {
+    const { rt, store, folder } = await withLab();
+    await store.put(SEED_CHOICES, folder, { files: [".env", "deploy.pem"], memory: false, commits: false, remember: true });
+    await rt.projects.add({ source: folder, on: "default", name: "lab-there", seed: { files: [".env"], memory: false, commits: false, remember: true } });
+    expect(((await store.get(SEED_CHOICES, folder)) as { files: string[] }).files).toEqual([".env", "deploy.pem"]);
+    const box = await rt.projects.seedPlan(folder);
+    expect(box.files.filter(f => f.ticked).map(f => f.path)).toEqual([".env", "deploy.pem"]);
   });
 
   it("move by --none, then --keep, then --cut, a folder's slash named or not", async () => {
@@ -127,14 +152,14 @@ describe("a project's seed picks", () => {
     expect(await store.get(SEED_CHOICES, folder)).toMatchObject({ files: [".env", ".env.local", ".env.old"] });
 
     const refused = await rt.projects.seed("lab", { keep: [".env.old"] }).catch((e: unknown) => e);
-    expect(refused).toMatchObject({ message: notInTheMenuLine(".env.old", [".env", ".env.local", ".git-credentials", "node_modules"]) });
+    expect(refused).toMatchObject({ message: notInTheMenuLine(".env.old", [".env", ".env.local", ".git-credentials", "node_modules", "deploy.pem"]) });
     expect((await rt.projects.seed("lab", { cut: [".env.old"], save: true })).picked.missing).toEqual([]);
     expect(await store.get(SEED_CHOICES, folder)).toMatchObject({ files: [".env", ".env.local"] });
   });
 
   it("refuse a path git tracks or that is not there, a login and .git, as usage, in the add's own words", async () => {
     const { rt, store, folder } = await withLab();
-    const shown = [".env", ".env.local", ".git-credentials", "node_modules"];
+    const shown = [".env", ".env.local", ".git-credentials", "node_modules", "deploy.pem"];
     for (const [o, line] of [
       [{ keep: ["package.json"] }, notInTheMenuLine("package.json", shown)],
       [{ cut: ["src"] }, notInTheMenuLine("src", shown)],

@@ -88,12 +88,13 @@ async function memoryRow(host: Host, folder: string, stateHome: string): Promise
 }
 
 /** One row of the menu for a path, or nothing where the catalog hides it: the row and kind that judged it, its
- * size, and whether it starts ticked, which only configuration does. */
+ * size, and whether it starts ticked, which configuration and files of values do; the host unticks the latter for a
+ * provider place. */
 function rowFor(path: string, dir: boolean, bytes: number): SeedFile | undefined {
   const found = seedRowFor(path, dir);
   if (found?.kind === "junk") return undefined;
   const kind: SeedKind = found === undefined ? "unknown" : found.kind;
-  return { path, dir, bytes, kind, ...(found === undefined ? {} : { row: { id: found.row.id, name: found.row.name } }), ticked: kind === "config" };
+  return { path, dir, bytes, kind, ...(found === undefined ? {} : { row: { id: found.row.id, name: found.row.name } }), ticked: kind === "config" || kind === "secret" };
 }
 
 /** The bytes every listed path holds, in one pass: du reports kibibytes per argument, so the whole menu is sized

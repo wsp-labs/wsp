@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // One row per ecosystem for the files a folder seeds a project with: which of
 // the paths git ignores travel as configuration, which the computer rebuilds,
-// which hold a database, which never leave this computer and which are the
-// operating system's own noise. The install each ecosystem runs fresh on the
-// computer sits on the same row, keyed by the lockfile at the project root.
+// which hold a database, which hold values a provider place never gets, which
+// never leave this computer and which are the operating system's own noise.
+// The install each ecosystem runs fresh on the computer sits on the same row,
+// keyed by the lockfile at the project root.
 // Adding a language is adding a row here; nothing outside this file names a
 // file pattern, so no road can tick a path one way and pack it another.
 
@@ -12,10 +13,11 @@
  * trailing slash matches a directory only; `*` matches within one segment and never across a slash. */
 export type SeedPattern = string;
 
-/** What a matched path is to a seed: `config` travels and starts ticked, `rebuilt` is what the computer makes
- * again, `data` is a database nothing may copy under a running service, `never` is a login that does not leave
- * this computer whatever anybody ticks, and `junk` is metadata no menu shows. */
-export type SeedKind = "config" | "rebuilt" | "data" | "never" | "junk";
+/** What a matched path is to a seed: `config` travels and starts ticked, `secret` is a file of values or a key,
+ * ticked for the person's own box and never sent to a provider place, `rebuilt` is what the computer makes again,
+ * `data` is a database nothing may copy under a running service, `never` is a login that does not leave this
+ * computer whatever anybody ticks, and `junk` is metadata no menu shows. */
+export type SeedKind = "config" | "secret" | "rebuilt" | "data" | "never" | "junk";
 
 export interface SeedInstall {
   /** The lockfile at the project root that picks this install. */
@@ -72,20 +74,20 @@ export const SEED_ROWS: readonly SeedRow[] = [
   {
     id: "next",
     name: "Next",
-    patterns: { config: [".env*.local"], rebuilt: [".next/", "next-env.d.ts"] },
-    examples: { config: [".env.local", ".env.development.local"], rebuilt: [".next", "next-env.d.ts"] },
+    patterns: { secret: [".env*.local"], rebuilt: [".next/", "next-env.d.ts"] },
+    examples: { secret: [".env.local", ".env.development.local"], rebuilt: [".next", "next-env.d.ts"] },
   },
   {
     id: "node",
     name: "Node",
     patterns: {
-      config: [".env", ".env.*", ".npmrc"],
+      secret: [".env", ".env.*", ".npmrc"],
       rebuilt: ["node_modules/", ".pnpm-store/", ".cache/", ".turbo/", "dist/", "build/", "out/", "coverage/", "*.tsbuildinfo"],
     },
     // A sample env file is committed and carries nothing; where a repo ignores one it is no row's, so the menu
     // shows it unticked as a path the catalog does not carry.
     except: [".env.example", ".env.sample"],
-    examples: { config: [".env", ".env.production", "apps/web/.npmrc"], rebuilt: ["node_modules", "packages/host/dist", "tsconfig.tsbuildinfo"] },
+    examples: { secret: [".env", ".env.production", "apps/web/.npmrc"], rebuilt: ["node_modules", "packages/host/dist", "tsconfig.tsbuildinfo"] },
     installs: [
       { lockfile: "package-lock.json", run: "npm ci", check: "npm --version" },
       { lockfile: "pnpm-lock.yaml", run: "pnpm install --frozen-lockfile", check: "pnpm --version", store: { flag: "--store-dir", dir: ".pnpm-store" } },
@@ -99,11 +101,12 @@ export const SEED_ROWS: readonly SeedRow[] = [
     id: "python",
     name: "Python",
     patterns: {
-      config: [".envrc", ".pypirc", "local_settings.py"],
+      secret: [".envrc", ".pypirc"],
+      config: ["local_settings.py"],
       rebuilt: [".venv/", "venv/", "__pycache__/", ".pytest_cache/", ".mypy_cache/", ".ruff_cache/", "*.egg-info/"],
       data: ["db.sqlite3"],
     },
-    examples: { config: [".envrc", "app/local_settings.py"], rebuilt: [".venv", "app/__pycache__", "wsp.egg-info"], data: ["db.sqlite3"] },
+    examples: { secret: [".envrc", ".pypirc"], config: ["app/local_settings.py"], rebuilt: [".venv", "app/__pycache__", "wsp.egg-info"], data: ["db.sqlite3"] },
     installs: [
       { lockfile: "uv.lock", run: "uv sync --frozen" },
       { lockfile: "poetry.lock", run: "poetry install" },
@@ -112,8 +115,8 @@ export const SEED_ROWS: readonly SeedRow[] = [
   {
     id: "rails",
     name: "Rails",
-    patterns: { config: ["config/master.key", "config/credentials/*.key"], rebuilt: ["tmp/", "log/"] },
-    examples: { config: ["config/master.key", "config/credentials/production.key"], rebuilt: ["tmp", "log"] },
+    patterns: { secret: ["config/master.key", "config/credentials/*.key"], rebuilt: ["tmp/", "log/"] },
+    examples: { secret: ["config/master.key", "config/credentials/production.key"], rebuilt: ["tmp", "log"] },
   },
   {
     id: "rust",
@@ -138,20 +141,20 @@ export const SEED_ROWS: readonly SeedRow[] = [
   {
     id: "terraform",
     name: "Terraform",
-    patterns: { config: ["*.tfvars", "*.auto.tfvars"], rebuilt: [".terraform/"] },
-    examples: { config: ["prod.tfvars", "infra/stage.auto.tfvars"], rebuilt: [".terraform"] },
+    patterns: { secret: ["*.tfvars", "*.auto.tfvars"], rebuilt: [".terraform/"] },
+    examples: { secret: ["prod.tfvars", "infra/stage.auto.tfvars"], rebuilt: [".terraform"] },
   },
   {
     id: "android",
     name: "Android",
-    patterns: { config: ["local.properties", "*.keystore", "*.jks"], rebuilt: [".gradle/"] },
-    examples: { config: ["local.properties", "app/release.keystore"], rebuilt: [".gradle"] },
+    patterns: { config: ["local.properties"], secret: ["*.keystore", "*.jks"], rebuilt: [".gradle/"] },
+    examples: { config: ["local.properties"], secret: ["app/release.keystore", "app/upload.jks"], rebuilt: [".gradle"] },
   },
   {
     id: "certificates",
     name: "certificates",
-    patterns: { config: ["*.pem", "*.key", "*.crt", "*.p12"] },
-    examples: { config: ["certs/local.pem", "certs/local.crt"] },
+    patterns: { secret: ["*.pem", "*.key", "*.p12"], config: ["*.crt"] },
+    examples: { secret: ["certs/local.pem", "certs/local.key"], config: ["certs/local.crt"] },
   },
   {
     id: "agents",
@@ -169,33 +172,40 @@ export const SEED_ROWS: readonly SeedRow[] = [
 ];
 
 /** Every kind a row may name, in the order the rows are read for it: a login is looked for before anything else,
- * so a path that is both a credential and another row's configuration is a credential. */
-const KINDS: readonly SeedKind[] = ["never", "junk", "config", "rebuilt", "data"];
+ * so a path that is both a credential and another row's configuration is a credential, and a key before any
+ * configuration, so `myconfig/master.key` is a key whichever row names it. */
+const KINDS: readonly SeedKind[] = ["never", "junk", "secret", "config", "rebuilt", "data"];
 
-/** Whether one pattern matches one path, both relative to the project folder. A pattern with a trailing slash asks
- * for a directory; one with no slash in it matches any segment of the path's tail; one with slashes matches the
- * tail at a segment boundary. `*` stops at a slash, as a shell's own glob does inside one segment. */
-function matches(pattern: SeedPattern, path: string, dir: boolean): boolean {
+/** One pattern read once into what tests a path's segments. A pattern with a trailing slash asks for a directory;
+ * one with no slash in it matches any segment of the path's tail; one with slashes matches the tail at a segment
+ * boundary. `*` stops at a slash, as a shell's own glob does inside one segment. */
+function compile(pattern: SeedPattern): (parts: readonly string[], dir: boolean) => boolean {
   const wantsDir = pattern.endsWith("/");
-  if (wantsDir && !dir) return false;
   const want = wantsDir ? pattern.slice(0, -1) : pattern;
-  const segment = (text: string): RegExp => new RegExp(`^${text.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`);
-  const parts = path.split("/");
-  if (!want.includes("/")) return parts.some(part => segment(want).test(part));
-  const tail = want.split("/");
-  if (tail.length > parts.length) return false;
-  return tail.every((piece, i) => segment(piece).test(parts[parts.length - tail.length + i]!));
+  const tail = want.split("/").map(text => new RegExp(`^${text.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*")}$`));
+  return (parts, dir) => {
+    if (wantsDir && !dir) return false;
+    if (tail.length === 1) return parts.some(part => tail[0]!.test(part));
+    if (tail.length > parts.length) return false;
+    return tail.every((piece, i) => piece.test(parts[parts.length - tail.length + i]!));
+  };
 }
+
+/** Every pattern compiled once, since an import judges each untracked file of a folder by them. */
+const COMPILED = new Map(SEED_ROWS.flatMap(row => [...(row.except ?? []), ...Object.values(row.patterns).flat()]).map(pattern => [pattern, compile(pattern)]));
+
+/** Whether one pattern matches one path's segments, both relative to the project folder. */
+const matches = (pattern: SeedPattern, parts: readonly string[], dir: boolean): boolean => COMPILED.get(pattern)!(parts, dir);
 
 /** The row and kind for one ignored path, or nothing for a path no row names, which a menu shows unticked as one
  * the catalog does not carry. The kinds are read in KINDS order and the rows in catalog order inside each, so a
  * login is never taken for configuration and a path two ecosystems name belongs to the first of them. */
 export function seedRowFor(path: string, dir: boolean): { row: SeedRow; kind: SeedKind } | undefined {
-  const at = path.replace(/^\.\//, "").replace(/\/+$/, "");
+  const parts = path.replace(/^\.\//, "").replace(/\/+$/, "").split("/");
   for (const kind of KINDS) {
     for (const row of SEED_ROWS) {
-      if ((row.except ?? []).some(pattern => matches(pattern, at, dir))) continue;
-      if ((row.patterns[kind] ?? []).some(pattern => matches(pattern, at, dir))) return { row, kind };
+      if ((row.except ?? []).some(pattern => matches(pattern, parts, dir))) continue;
+      if ((row.patterns[kind] ?? []).some(pattern => matches(pattern, parts, dir))) return { row, kind };
     }
   }
   return undefined;
