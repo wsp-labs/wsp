@@ -64,8 +64,13 @@ describe("wsp verbs over the host: fork, new and the image", () => {
     const asked = await h.run("new", "eng", "--engine");
     expect(asked.code).toBe(0);
     expect(h.backend.machines.at(-1)!.spec).toMatchObject({ engine: true });
-    // The sealed image's small recipe asks for the engine: a fork made without the flag gets one too.
-    await h.store.put("images", "default", { ...h.RECORD(3), recipe: { version: 1, at: "2026-09-12T00:00:00.000Z", histories: [], rows: [], engine: true } });
+    // The sealed image's small recipe asks for the engine: a fork made without the flag gets one too. The record and
+    // its versions are a provider's seal, which a fork at the provider boots.
+    await h.store.put("images", "default", { ...h.RECORD(3), noSecrets: true, recipe: { version: 1, at: "2026-09-12T00:00:00.000Z", histories: [], rows: [], engine: true } });
+    for (const key of await h.store.keys("goldens")) {
+      const manifest = (await h.store.get("goldens", key)) as { versions: Record<string, unknown>[] };
+      await h.store.put("goldens", key, { ...manifest, versions: manifest.versions.map(v => ({ ...v, noSecrets: true })) });
+    }
     const viaRecipe = await h.run("new", "viarecipe");
     expect(viaRecipe.code).toBe(0);
     expect(h.backend.machines.at(-1)!.spec).toMatchObject({ engine: true });

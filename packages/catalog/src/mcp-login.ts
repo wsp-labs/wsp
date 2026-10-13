@@ -3,7 +3,7 @@
 // the harness's sign-in for that server and how it finishes, or the line the
 // person types inside the harness's own session where it has no command.
 // One module per harness, registered on its catalog entry.
-import { shellQuote, type PageReach } from "@wsp/protocol";
+import { shellQuote, usageRefusal, type PageReach } from "@wsp/protocol";
 import { CLAUDE_NOT_SET_UP } from "./mcp-check.js";
 
 export type McpLogin =
@@ -35,8 +35,14 @@ export const GEMINI_MCP_LOGIN: McpLogin = { measured: "gemini docs", inside: nam
  * themselves, with why. */
 export type ServerSignInRoad = { kind: "pty"; command: string; finish: "code" | "callback" } | { kind: "copy"; line: string; why: "inside" | "callback" };
 
-/** The road for one server under this harness's module. */
-export function loginRoad(login: McpLogin, name: string, reach: PageReach): ServerSignInRoad {
+/** Why no server signs in on a machine whose credentials the host keeps: the token its sign-in leaves would sit on
+ * the machine. */
+export const brokeredServerSignInLine = (name: string): string => `A cloud machine holds no sign-in, so ${name} cannot be signed in on it`;
+export const BROKERED_SERVER_SIGN_IN_FIX = "Cloud threads run without its tools; sign it in on your own computer for the threads there.";
+
+/** The road for one server under this harness's module; refused on a machine whose credentials the host keeps. */
+export function loginRoad(login: McpLogin, name: string, reach: PageReach, brokered = false): ServerSignInRoad {
+  if (brokered) throw usageRefusal(brokeredServerSignInLine(name), BROKERED_SERVER_SIGN_IN_FIX);
   if ("inside" in login) return { kind: "copy", line: login.inside(name), why: "inside" };
   if (reach !== "none") return { kind: "pty", command: login.command(name), finish: "callback" };
   return login.pasted !== undefined ? { kind: "pty", command: login.pasted(name), finish: "code" } : { kind: "copy", line: login.command(name), why: "callback" };
