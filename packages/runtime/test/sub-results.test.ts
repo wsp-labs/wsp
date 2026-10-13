@@ -27,10 +27,10 @@ async function subStarted(o: { read: Answers["read"]; notify?: "lead" | "me"; ho
   open.push(held.rt);
   answering(held.boat, { read: o.read, session: Buffer.from("gzipped session bytes") });
   const made = await held.rt.workspaces.create({ project: held.project.id, name: NAME, sub: { on: "boat" } }, held.lead);
-  const machine = held.boat.machines.at(-1)!;
   if (o.hold === true) held.turns.hold = true;
   const notify = o.notify === "me" ? ["me"] : [held.threadId];
   const child = await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Fix it."), harness: "claude", notify, turnToken: held.token, title: NAME, cwd: made.sub!.folder }, held.lead);
+  const machine = held.boat.machines.at(-1)!;
   const kidId = child.view().threadId!;
   const record = (): Promise<WorkspaceRecord> => held.store.get("workspaces", made.id) as Promise<WorkspaceRecord>;
   const merge = () => held.rt.workspaces.mergeIn({ workspaceId: held.folder.id, child: made.id, threadId: held.threadId, childThreadId: kidId }, held.lead);

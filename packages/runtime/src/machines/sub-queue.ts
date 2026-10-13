@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The queue a sub-thread's spawn waits in when its cloud has no machine slot or
-// no start left this minute (05, Q4 to Q9). The record stands queued with no
-// machine and its thread's row reads Waiting; spawns start first in, first out
-// across the host when a machine stops holding a slot, a setting moves or a
-// read of the cloud's limits shows room. The start is written down, so a host
-// that restarts starts it all the same; a stop drops it with no start spent.
+// The queue every sub-thread's spawn goes through: its record stands queued
+// with no machine, under its lead, until its thread's start comes, and past
+// that while its cloud has no machine slot or no start left this minute (05,
+// Q4 to Q9), its thread's row reading Waiting; spawns start first in, first
+// out across the host when a machine stops holding a slot, a setting moves or
+// a read of the cloud's limits shows room. The start is written down, so a
+// host that restarts starts it all the same; a stop drops it with no start spent.
 import { randomUUID } from "node:crypto";
 import type { BoxLimits } from "@wsp/engine";
-import { CLOUD_CAP_DEFAULT, SUB_DROPPED_LINE, capWaitLine, deletedBeforeStartLine, providerKeyName, roadOf, scopeOf, subWaitingRefusal, type Caller, type SessionView, type ThreadCapWait } from "@wsp/protocol";
-import { SUB_STARTS, absentMachine, isCapRefusal, type SessionEntry, type SubStartRecord } from "../types/internal.js";
+import { CLOUD_CAP_DEFAULT, SUB_DROPPED_LINE, capWaitLine, deletedBeforeStartLine, listedFailure, providerKeyName, roadOf, scopeOf, subWaitingRefusal, type Caller, type SessionView, type ThreadCapWait } from "@wsp/protocol";
+import { SUB_STARTS, absentMachine, deadMachine, isCapRefusal, type SessionEntry, type SubStartRecord } from "../types/internal.js";
 import type { LiveWorkspace, SessionHandle, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubQueueArea } from "../context.js";
 
@@ -33,6 +34,10 @@ interface Held {
   name: string;
   started?: (handle: SessionHandle) => void;
   failed?: (e: Error) => void;
+  /** Answers the caller held, once, for the first wait the start meets once it is written down: a start that came
+   * with room can meet one in the queue, where a spawn asked beside it took the room first. */
+  tell?: (wait: ThreadCapWait) => void;
+  written?: true;
   /** Settled once the start leaves the queue either way, which a stop of its row waits on as it waits on a launch. */
   left: () => void;
   gone: Promise<void>;
@@ -90,8 +95,8 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
   const queueWait = (placeId: string, limits: BoxLimits | undefined): ThreadCapWait | undefined => {
     const wait = waitOn(placeId, limits);
     if (wait !== undefined) return wait;
-    const ahead = queued().find(e => ctx.placeIdOf(e.record) === placeId);
-    return ahead === undefined ? undefined : (lastWait.get(ahead.record.id) ?? slots(placeId));
+    const ahead = queued().find(e => ctx.placeIdOf(e.record) === placeId && lastWait.has(e.record.id));
+    return ahead === undefined ? undefined : lastWait.get(ahead.record.id);
   };
 
   /** A spawn let past the count takes its slot and its start in the same step, so one asked beside it reads them; the
@@ -115,18 +120,19 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     return atOnce === undefined ? slots(placeId) : { ...slots(placeId), running: atOnce, atOnce };
   };
 
-  /** The record of a spawn that waits, stored queued with no machine: it counts against its root's machines from here.
-   * One the cloud refused at its cap goes back at the head of the line, not the tail, and waits a read (Q9). */
-  const enqueue = async (record: WorkspaceRecord, wait: ThreadCapWait, refused = false): Promise<void> => {
+  /** The record of a spawn, stored queued with no machine until its thread's start comes, and past that for the wait
+   * it met where it met one: it counts against its root's machines from here. One the cloud refused at its cap goes
+   * back at the head of the line, not the tail, and waits a read (Q9). */
+  const enqueue = async (record: WorkspaceRecord, wait: ThreadCapWait | undefined, refused = false): Promise<void> => {
     const line = queued().map(e => Date.parse(e.record.queue!.since));
     // Two spawns in one millisecond still keep the order they came in.
     const since = new Date(refused && line.length > 0 ? line[0]! - 1 : Math.max(clock.now(), (line.at(-1) ?? 0) + 1)).toISOString();
     if (refused) refusedUntil.set(record.id, clock.now() + QUEUE_SLOT_READ_MS);
     queuedAt.set(record.id, clock.now());
     record.phase = "queued";
-    record.queue = { since, why: wait.why ?? "slot" };
+    record.queue = { since, why: wait?.why ?? "slot" };
     record.machineId = "";
-    lastWait.set(record.id, wait);
+    if (wait !== undefined) lastWait.set(record.id, wait);
     attachQueued(record, wait);
     await ctx.persist(record);
     bus.emit({ type: "workspace.created", workspace: ctx.view(record) });
@@ -162,7 +168,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     if (wait !== undefined) ctx.record({ type: "session.capped", workspaceId: r.workspaceId, sessionId: r.turnId, turnId: r.turnId, threadId: r.threadId, ...wait });
   };
 
-  const holdOf = (record: SubStartRecord, caller?: Pick<Held, "started" | "failed">): Held => {
+  const holdOf = (record: SubStartRecord, caller?: Pick<Held, "started" | "failed" | "tell">): Held => {
     let left!: () => void;
     const gone = new Promise<void>(r => (left = r));
     const h: Held = { record, name: live.get(record.workspaceId)?.record.name ?? record.workspaceId, left, gone, ...caller };
@@ -191,12 +197,18 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       ...(scope !== undefined ? { by: scope } : {}),
       ...(road !== undefined ? { road } : {}),
     };
+    const onHeld = at.o.onHeld;
     return new Promise<SessionHandle>((started, failed) => {
-      const h = holdOf(record, { started, failed });
+      const tell = (wait: ThreadCapWait): void => {
+        delete h.tell;
+        onHeld?.({ view: sessions.get(record.turnId)!.view, turnId: record.turnId, wait });
+      };
+      const h = holdOf(record, { started, failed, tell });
       void store.put(SUB_STARTS, at.workspaceId, record).then(
         () => {
+          h.written = true;
           const wait = lastWait.get(at.workspaceId);
-          if (wait !== undefined) at.o.onHeld?.({ view: sessions.get(record.turnId)!.view, turnId: record.turnId, wait });
+          if (wait !== undefined) h.tell?.(wait);
           void pump();
         },
         (e: unknown) => void drop(h, `the held start was not written down: ${e instanceof Error ? e.message : String(e)}`, true),
@@ -229,6 +241,37 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     h.failed?.(new Error(reason));
     await store.delete(SUB_STARTS, r.workspaceId);
     await ctx.drop(r.workspaceId);
+  };
+
+  /** A first start whose machine failed stays where the person reads it: the record released under its lead, as a
+   * failed start of a released sub-thread is, and the row failed with why beside the start's steps, out before the
+   * caller hears the refusal. A send into it, the line's Try again, starts a machine again. */
+  const failFirst = async (h: Held, record: WorkspaceRecord, e: unknown): Promise<void> => {
+    const r = h.record;
+    const why = e instanceof Error ? e.message : String(e);
+    forget(r.workspaceId);
+    record.phase = "released";
+    record.machineId = "";
+    // The message the start was for: its line's Try again sends it, and any other send opens with it.
+    if (r.opts.prompt !== undefined) {
+      record.sub!.opening = r.opts.prompt;
+      if (record.sub!.spawn !== undefined) record.sub!.spawn.asked = r.opts.prompt;
+    }
+    ctx.attach(record, deadMachine(""));
+    await ctx.persist(record);
+    const row = sessions.get(r.turnId);
+    if (row !== undefined) {
+      Object.assign(row.view, { status: "failed", failure: listedFailure(why), endedAt: clock.now() });
+      delete row.view.capped;
+      delete row.launch;
+      tellFailed(r, row.view, why);
+      await ctx.persistSessions(r.workspaceId);
+    }
+    ctx.pushHead(r.threadId);
+    await ctx.rowsSent();
+    h.left();
+    await store.delete(SUB_STARTS, r.workspaceId);
+    h.failed?.(e instanceof Error ? e : new Error(why));
   };
 
   /** A stop on a held spawn's row drops it, or once its machine is being made, drops that machine as it lands; false
@@ -323,6 +366,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
         const said = lastWait.get(e.record.id);
         if (x === undefined || (said !== undefined && said.running === wait.running && said.atOnce === wait.atOnce && said.why === wait.why)) continue;
         lastWait.set(e.record.id, wait);
+        if (x.written === true) x.tell?.(wait);
         const row = sessions.get(x.record.turnId);
         if (row !== undefined) row.view.capped = wait;
         if (e.record.queue!.why !== wait.why) {
@@ -342,6 +386,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
    * started on it under the caller it came from. */
   const letThrough = async (entry: LiveWorkspace, h: Held): Promise<void> => {
     const record = entry.record;
+    const waited = lastWait.has(record.id);
     delete record.queue;
     lastWait.delete(record.id);
     const claim = claimStart(record.id, ctx.placeIdOf(record)!);
@@ -354,7 +399,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     let handle: SessionHandle;
     try {
       await ctx.persist(record);
-      await ctx.standUpQueued(record, claim.posted);
+      await ctx.standUpQueued(record, claim.posted, waited);
       claim.release();
       if (held.get(record.id) !== h) return;
       if (h.stopped !== undefined) {
@@ -386,7 +431,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       }
       const why = e instanceof Error ? e.message : String(e);
       console.warn(`workspace ${record.id}: the held spawn did not start: ${why}`);
-      if (held.get(record.id) === h) await drop(h, why, true);
+      if (held.get(record.id) === h) await failFirst(h, record, e);
       else {
         // Its machine stands and its thread did not open on it: the lead hears it, and the idle nap takes the machine.
         if (waiting !== undefined) tellFailed(h.record, waiting.view, why);
