@@ -24,7 +24,6 @@ import type { EventUnion, HarnessCatalog, PreferencesPatch, SessionEvent, Sessio
 import { DEFAULT_PREFERENCES, applyPreferencesPatch, QUESTION_TOOL, USAGE_WORDS, spawnCapRefusal, pickedOptionId, questionOptions } from "@wsp/protocol";
 import { useStore } from "../src/protocol/store.js";
 import { selectWorkspaceRightPanelState, useRightPanelStore } from "../src/rightPanelStore.js";
-import { useSettingsStore } from "../src/settings/settingsStore.js";
 import type { Api, ProtocolEvent } from "../src/protocol/client.js";
 import { ChatView } from "../src/components/chat/ChatView.js";
 import { SidebarProvider } from "../src/components/ui/sidebar.js";
@@ -592,39 +591,30 @@ describe("ChatView", () => {
     expect(document.body.textContent).toContain("Working for");
   });
 
-  it("a turn its computer's threads at once holds back says what holds it at the transcript's end, with the setting that lets it start, and works once it starts", async () => {
+  it("a turn its computer's threads at once holds back draws its message and nothing else in the transcript, before its start or after", async () => {
     const sc = { workspaceId: WS, sessionId: "turn_held", turnId: "turn_held", threadId: "thr_held" };
     const capped = { placeId: "p_hetzner", place: "hetzner", running: 2, atOnce: 2 };
     const history: SessionEvent[] = [{ type: "session.capped", ...sc, at: T0, ...capped, prompt: "fix the build" }];
     const held: SessionView = { id: "turn_held", workspaceId: WS, harness: "claude", status: "running", threadId: "thr_held", prompt: "fix the build", capped };
     const rows: SessionView[] = [held];
     const { api, emit } = fixtureApi([workspace], { [WS]: history }, rows);
-    useSettingsStore.getState().go({ kind: "group", group: "general" });
     await setup(api);
 
-    const line = await screen.findByText("waiting while hetzner is running 2 of 2 threads");
-    // The message it waits to run is in the transcript from the hold, marked as waiting.
-    const asked = within(document.querySelector<HTMLElement>("[data-chat-view]")!).getByText("fix the build").closest<HTMLElement>("[data-user-message-waiting]");
-    expect(asked).not.toBeNull();
-    const row = line.closest<HTMLElement>("[data-machine-wait]")!;
-    expect(row).not.toBeNull();
-    expect(document.body.textContent).not.toContain("Working for");
-    fireEvent.click(within(row).getByRole("button", { name: "Raise threads at once" }));
-    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "p_hetzner" });
-    expect(useStore.getState().settingsOpen).toBe(true);
+    // The message it waits to run is in the transcript from the hold, marked as waiting; the strip over the composer
+    // says what holds it.
+    const chat = () => document.querySelector<HTMLElement>("[data-chat-view]")!;
+    await waitFor(() => expect(chat().querySelector("[data-user-message-waiting]")?.textContent).toContain("fix the build"));
+    expect(document.querySelector("[data-machine-wait]")).toBeNull();
+    expect(chat().textContent).not.toMatch(/hetzner|waiting|Working for|Thinking/i);
 
-    // The runtime takes the hold off the row as the turn starts, and the line goes with it.
     rows[0] = { ...held, capped: undefined };
     emit({ type: "session.uncapped", ...sc, at: T0 + 59_000, why: "raised", atOnce: 3 });
     emit({ type: "session.row", workspaceId: WS, threadId: "thr_held", id: "turn_held", row: rows[0] });
-    // Why it left the wait, in one muted line, and its message no longer waits.
-    await screen.findByText(/^started: threads raised to 3$/i);
-    expect(screen.queryByText(/^waiting while hetzner/)).toBeNull();
-    expect(document.querySelector("[data-user-message-waiting]")).toBeNull();
+    await waitFor(() => expect(document.querySelector("[data-user-message-waiting]")).toBeNull());
+    expect(chat().textContent).not.toMatch(/started:|raised/i);
     emit({ type: "session.start", ...sc, at: T0 + 60_000, model: "claude-sonnet-5", prompt: "fix the build" });
     await screen.findByText(/Working for/);
-    expect(within(document.querySelector<HTMLElement>("[data-chat-view]")!).getAllByText("fix the build")).toHaveLength(1);
-    act(() => useStore.setState({ settingsOpen: false }));
+    expect(within(chat()).getAllByText("fix the build")).toHaveLength(1);
   });
 
   it("a sub-thread a cap refused reads on its lead's transcript as the refusal, whole, with no click", async () => {

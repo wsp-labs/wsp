@@ -20,9 +20,8 @@ import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { capRaiseAct, HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, capWaitLine, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, modelOf, modelPicks, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, modelOf, modelPicks, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { agentName } from "@wsp/catalog";
-import { openComputerSettings } from "../../settings/openAt";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
 import { childNodesOf, TreeRows } from "../../tree/TreeRows.js";
@@ -96,8 +95,8 @@ export function ChatView({
   const listRef = useRef<LegendListRef | null>(null);
   const { view } = thread;
   const turnRows = useThreadSessions(workspaceId, thread.threadKey, thread.fresh);
-  // A turn its computer's threads at once holds back has no start in the transcript yet, and still reads as working:
-  // the timeline's working row says what holds it, with the setting that lets it start.
+  // A turn its computer's threads at once holds back has no start in the transcript yet, and still reads as working;
+  // the drawer row over the composer says what holds it, and the timeline draws no working row for a turn not started.
   const capped = turnRows.at(-1)?.capped;
   const sub = turnRows.at(-1)?.sub;
   // The subagent's own fold in the lead's transcript, and what the listing says it was asked while that fold is unread.
@@ -181,11 +180,8 @@ export function ChatView({
   const machineWait = useMemo<MachineWait | null>(() => {
     if (state === null || !working) return null;
     const wait = turnWait(state, runs);
-    if (wait !== null) return { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
-    if (capped === undefined) return null;
-    const raise = capRaiseAct(capped);
-    return { label: capWaitLine(capped), elapsed: true, act: raise === undefined ? null : { label: raise, run: () => openComputerSettings(capped.placeId) } };
-  }, [state, working, wake, workspaceId, runs, capped]);
+    return wait === null ? null : { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
+  }, [state, working, wake, workspaceId, runs]);
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.
   // A sub-machine's nap is its delete timer's, with no Wake of its own: the line above the composer says what holds it.
@@ -309,12 +305,13 @@ export function ChatView({
   const byCount = catalog?.rewindsByCount === true;
   const releasedAt = turnRows.at(-1)?.sub?.releasedAt;
   const gone = useMemo(() => goneTurns(view.turns, releasedAt === undefined ? undefined : { releasedAt }), [view.turns, releasedAt]);
-  // A turn a fork was handed rewinds nothing: the fork's own history starts after it.
+  // A turn a fork was handed rewinds nothing: the fork's own history starts after it. The timeline keeps Rewind off
+  // a running turn alone, yet the runtime refuses a rewind under a held one too.
   const rewindable = useMemo(() => {
-    if (api?.rewindThread === undefined || agent === null) return new Map<string, RewindableReply>();
+    if (api?.rewindThread === undefined || agent === null || capped !== undefined) return new Map<string, RewindableReply>();
     const copied = new Set(view.turns.filter(t => t.copied === true).map(t => t.turnId));
     return new Map([...rewindableReplies(view.turns, view.entries, cutsConversation, byCount)].filter(([, reply]) => !copied.has(reply.turnId) && !gone.has(reply.turnId)));
-  }, [agent, api, view.turns, view.entries, cutsConversation, byCount, gone]);
+  }, [agent, api, capped, view.turns, view.entries, cutsConversation, byCount, gone]);
   // The set and the handler reach every row through the timeline's shared context, so they move only when which
   // replies can be rewound moves, never on a streamed chunk: a settled reply would redraw on every one.
   const rewindableKey = [...rewindable.keys()].join("\n");
@@ -408,7 +405,7 @@ export function ChatView({
           key: pageEntries === null ? thread.drawKey : `${thread.drawKey}/a/${subagent}`,
           node: (
             <MessagesTimeline
-              isWorking={working}
+              isWorking={working && view.running}
               openRun={run?.state === "running"}
               machineWait={pageEntries === null ? machineWait : null}
               activeTurnStartedAt={pageEntries === null ? view.activeTurnStartedAt : null}

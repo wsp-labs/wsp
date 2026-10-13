@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Everything waiting around the composer as one drawer on its top edge, a row
 // each, most pressing first: the question the person folded, the usage limit
-// that stopped the turn, the agent's step list, and the messages waiting for
-// the turn to end. A press opens that row's bar in the composer's place. The
-// frame and the row are the shipped task drawer's, as T3 Code's
+// that stopped the turn, the computer's threads at once that holds it back, the
+// agent's step list, and the messages waiting for the turn to end. A press opens
+// that row's bar in the composer's place. The frame and the row are the shipped
+// task drawer's, as T3 Code's
 // ComposerTasksBadge: the glyph, the name, the line, a count, the chevron up.
 import { memo } from "react";
-import { ChevronUpIcon, GaugeIcon, ListTodoIcon, MessageCircleQuestionIcon, MessageSquareTextIcon, type LucideIcon } from "lucide-react";
+import { ChevronUpIcon, GaugeIcon, HourglassIcon, ListTodoIcon, MessageCircleQuestionIcon, MessageSquareTextIcon, type LucideIcon } from "lucide-react";
 import { agentName } from "@wsp/catalog";
 import { clockWord, LIMIT_WORDS } from "@wsp/protocol";
 import { cn } from "../../lib/utils";
@@ -17,6 +18,8 @@ import { useComposerBarStore, type ComposerBar } from "./composerBar";
 export const DRAWER_WORDS = {
   question: "Waiting for you",
   tasks: "Tasks",
+  /** A turn its computer's threads at once holds back. */
+  held: "Waiting for a slot",
   /** Every bar's way back to the composer but the question's, which says instead. */
   write: "Write a message",
 } as const;
@@ -27,6 +30,7 @@ export type DrawerKind = "question" | ComposerBar;
 const GLYPHS: Record<DrawerKind, { glyph: LucideIcon; ink: string }> = {
   question: { glyph: MessageCircleQuestionIcon, ink: "text-status-input" },
   usage: { glyph: GaugeIcon, ink: "text-warning" },
+  capped: { glyph: HourglassIcon, ink: "text-muted-foreground" },
   tasks: { glyph: ListTodoIcon, ink: "text-muted-foreground" },
   queue: { glyph: MessageSquareTextIcon, ink: "text-muted-foreground" },
 };
@@ -77,11 +81,13 @@ const UsageRow = memo(function UsageRow({ threadKey, name, agent, resetsAt }: { 
 export interface DrawerRows {
   readonly question: string | null;
   readonly usage: { readonly name: string; readonly agent: string; readonly resetsAt: number | null } | null;
+  /** What holds the turn back: the computer and what runs there against its cap. */
+  readonly capped: string | null;
   readonly tasks: { readonly step: string; readonly count: string } | null;
   readonly queue: { readonly name: string; readonly line: string; readonly hover?: string } | null;
 }
 
-export const hasRows = (rows: DrawerRows): boolean => rows.question !== null || rows.usage !== null || rows.tasks !== null || rows.queue !== null;
+export const hasRows = (rows: DrawerRows): boolean => rows.question !== null || rows.usage !== null || rows.capped !== null || rows.tasks !== null || rows.queue !== null;
 
 /** The drawer, attached to the box's top edge; drawn only while it holds a row. */
 export function ComposerDrawer({ threadKey, rows }: { threadKey: string; rows: DrawerRows }) {
@@ -94,6 +100,7 @@ export function ComposerDrawer({ threadKey, rows }: { threadKey: string; rows: D
     >
       {rows.question === null ? null : <DrawerRow kind="question" threadKey={threadKey} name={DRAWER_WORDS.question} line={rows.question} />}
       {rows.usage === null ? null : <UsageRow threadKey={threadKey} name={rows.usage.name} agent={rows.usage.agent} resetsAt={rows.usage.resetsAt} />}
+      {rows.capped === null ? null : <DrawerRow kind="capped" threadKey={threadKey} name={DRAWER_WORDS.held} line={rows.capped} />}
       {rows.tasks === null ? null : <DrawerRow kind="tasks" threadKey={threadKey} name={DRAWER_WORDS.tasks} line={rows.tasks.step} count={rows.tasks.count} />}
       {rows.queue === null ? null : <DrawerRow kind="queue" threadKey={threadKey} name={rows.queue.name} line={rows.queue.line} {...(rows.queue.hover === undefined ? {} : { hover: rows.queue.hover })} />}
     </div>

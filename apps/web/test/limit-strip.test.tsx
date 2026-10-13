@@ -34,7 +34,7 @@ function bar(o: { resetsAt?: number; resumeAt?: number | null } = {}) {
 }
 
 const row = (resetsAt: number | null, armed = false) => {
-  const { container } = render(<ComposerDrawer threadKey={KEY} rows={{ question: null, usage: { name: armed ? LIMIT_WORDS.resuming : LIMIT_WORDS.reached, agent: "claude", resetsAt }, tasks: null, queue: null }} />);
+  const { container } = render(<ComposerDrawer threadKey={KEY} rows={{ question: null, usage: { name: armed ? LIMIT_WORDS.resuming : LIMIT_WORDS.reached, agent: "claude", resetsAt }, capped: null, tasks: null, queue: null }} />);
   return container.querySelector<HTMLElement>('[data-drawer-row="usage"]')!;
 };
 

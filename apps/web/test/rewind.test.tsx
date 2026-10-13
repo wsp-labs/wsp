@@ -51,7 +51,7 @@ const HISTORY: SessionEvent[] = [...turn(1, { ref: "refs/wsp/checkpoints/api/thr
 const ROW: SessionView = { id: "sess_1", workspaceId: WS, harness: "claude", status: "completed", threadId: THREAD, claudeSessionId: "sess_1" };
 const CUTS: HarnessCatalog = { ...TABLE_CATALOG, rewindsConversation: true };
 
-function fixtureApi(o: { catalog?: HarnessCatalog; rewind?: Api["rewindThread"]; history?: SessionEvent[] } = {}) {
+function fixtureApi(o: { catalog?: HarnessCatalog; rewind?: Api["rewindThread"]; history?: SessionEvent[]; rows?: SessionView[] } = {}) {
   const listeners = new Set<(e: ProtocolEvent) => void>();
   const rewound: { threadId: string; turnId: string; files: boolean }[] = [];
   const undone: string[] = [];
@@ -72,7 +72,7 @@ function fixtureApi(o: { catalog?: HarnessCatalog; rewind?: Api["rewindThread"];
     nap: async () => workspace,
     wake: async () => workspace,
     capabilities: async () => caps(),
-    listSessions: async () => [ROW],
+    listSessions: async () => o.rows ?? [ROW],
     listHarnesses: async () => [o.catalog ?? CUTS],
     watchStatuses: async () => [],
     subscribe: fn => {
@@ -130,6 +130,17 @@ describe("Rewind to here on a thread's replies", () => {
     await mount(api);
     await waitFor(() => expect(rewindButtons()).toHaveLength(1));
     expect(replyOf(rewindButtons()[0]!)).toContain("reply 1");
+  });
+
+  it("stands on no reply while the next turn waits for a slot on its computer, which the host would refuse", async () => {
+    const capped = { placeId: "here", place: "studio", running: 2, atOnce: 2 };
+    const at = { workspaceId: WS, sessionId: "turn_held", turnId: "turn_held", threadId: THREAD };
+    const held: SessionView = { id: "turn_held", workspaceId: WS, harness: "claude", status: "running", threadId: THREAD, prompt: "ask 4", capped };
+    const { api } = fixtureApi({ history: [...HISTORY, { type: "session.capped", ...at, at: 5 * 60_000, ...capped, prompt: "ask 4" }], rows: [ROW, held] });
+    await mount(api);
+    await screen.findByText("ask 4");
+    await waitFor(() => expect(useStore.getState().sessions[WS]?.some(row => row.capped !== undefined)).toBe(true));
+    expect(rewindButtons()).toHaveLength(0);
   });
 
   it("opens the dialog on the conversation alone, says what goes before the click, and asks the host with the choice made", async () => {
