@@ -18,6 +18,9 @@ export interface KeySources {
    * answer nothing about a key, so nothing is checked and nothing is refused for it; `keySources` always carries it,
    * and a test hands over its own answer through the same field. */
   checkKey?(key: string): Promise<KeyCheck>;
+  /** The person's login shell environment, which a host a service manager started reads its agents' keys from; absent
+   * reads as a shell that holds none. */
+  login?(): Promise<Readonly<Record<string, string>>>;
 }
 
 /** Where a key is read from, in the order they win: this process's environment, then ./.env, then the .env beside

@@ -15,8 +15,15 @@
 // lookup and spawn the host makes on the way reads the PATH this process has at
 // that moment. The read is once per process, so a road that follows another
 // pays nothing for saying so.
+//
+// The same read carries the agents' sign-in variables the catalog declares,
+// where the launch was handed none: a key the person exports in an rc file is
+// the one their own claude signs in with, and a turn here starts from this
+// process's environment.
+import { VAULT_VARIABLES } from "@wsp/catalog";
 import { spawnRun } from "@wsp/collect";
 import { loginPathLine } from "@wsp/protocol";
+import { keyIn } from "./env-keys.js";
 import { STARTED_BY_ENV } from "./host-lock.js";
 
 /** The PATH launchd gives an app it starts. The order it comes in is not fixed, so the reading is a set. */
@@ -49,28 +56,41 @@ export function needsLoginPath(env: NodeJS.ProcessEnv, platform: string = proces
  * process group that dies with the read, and its input is closed so an rc file that reads it does not wait. */
 const runLoginShell = (shell: string, script: string): Promise<string | undefined> => spawnRun(shell, ["-ilc", script], process.env, { timeoutMs: SHELL_LIMIT_MS });
 
-/** Puts the person's login shell PATH on the environment, or says in one line why the one this launch was given
- * stands. A shell that fails, times out or prints nothing changes nothing. */
-export async function takeLoginPath(deps: LoginShellDeps): Promise<void> {
-  if (!needsLoginPath(deps.env, deps.platform)) return;
+/** The agents' sign-in variables the login shell put on this process: nothing where it put none. */
+export type LoginKeys = Readonly<Record<string, string>>;
+
+/** Puts the person's login shell PATH on the environment, with each agent's sign-in variable the launch lacks, and
+ * answers with those variables; or says in one line why the PATH this launch was given stands. A shell that fails,
+ * times out or prints nothing changes nothing. No line names a value. */
+export async function takeLoginPath(deps: LoginShellDeps): Promise<LoginKeys> {
+  if (!needsLoginPath(deps.env, deps.platform)) return {};
   const shell = deps.env["SHELL"];
   if (shell === undefined || shell === "") {
     deps.log(loginPathLine("SHELL names no login shell"));
-    return;
+    return {};
   }
-  const out = await (deps.read ?? (sh => runLoginShell(sh, 'printf %s "$PATH"')))(shell);
+  const out = await (deps.read ?? (sh => runLoginShell(sh, "env -0")))(shell);
   if (out === undefined) {
     deps.log(loginPathLine(`${shell} failed or ran past ${SHELL_LIMIT_MS / 1000} s`));
-    return;
+    return {};
   }
-  // printf ends without a newline, so the PATH is whatever follows the last one: an rc file that greets the person
-  // prints its greeting first.
-  const path = (out.split("\n").at(-1) ?? "").trim();
+  const login = loginEnvOf(out);
+  const path = (login["PATH"] ?? "").trim();
   if (path === "") {
     deps.log(loginPathLine(`${shell} printed nothing`));
-    return;
+    return {};
   }
   deps.env["PATH"] = path;
+  const taken = Object.fromEntries([...VAULT_VARIABLES].flatMap(name => (keyIn(login, name) !== undefined && keyIn(deps.env, name) === undefined ? [[name, login[name]!]] : [])));
+  Object.assign(deps.env, taken);
+  return taken;
+}
+
+/** `env` with each of the keys the login shell lent this process that it holds no value for: a copy of the
+ * environment made before the read, such as the one a command line parsed, then reads the keys a turn here runs with. */
+export function withLoginKeys<E extends Readonly<Record<string, string | undefined>>>(env: E, taken: LoginKeys): E {
+  const missing = Object.entries(taken).filter(([name]) => keyIn(env, name) === undefined);
+  return missing.length === 0 ? env : { ...env, ...Object.fromEntries(missing) };
 }
 
 /** Every variable `env -0` printed, NUL between them; the first carries whatever an rc file printed before it, which
@@ -100,9 +120,16 @@ export function loginEnv(): Promise<Readonly<Record<string, string>>> {
         }));
 }
 
-let taken: Promise<void> | undefined;
+let taken: Promise<LoginKeys> | undefined;
 
 /** The login shell is asked once per process, at the host's start and before it looks any command up. */
-export function adoptLoginPath(log: (line: string) => void): Promise<void> {
+export function adoptLoginPath(log: (line: string) => void): Promise<LoginKeys> {
   return (taken ??= takeLoginPath({ env: process.env, log }));
+}
+
+/** The login shell's environment for a question about its keys: what this process's own read took, where it took
+ * any, so a launch from Finder runs no second shell; else the whole environment, read once. */
+export async function loginKeysNow(whole: () => Promise<Readonly<Record<string, string>>> = loginEnv): Promise<Readonly<Record<string, string>>> {
+  const took = (await taken) ?? {};
+  return Object.keys(took).length > 0 ? took : whole();
 }

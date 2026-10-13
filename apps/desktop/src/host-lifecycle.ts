@@ -228,10 +228,12 @@ const answersAsOwn =
 export async function ensureService(opts: Pick<OpenHostOptions, "statePath" | "home" | "shim" | "service" | "io">, rewrite = false): Promise<void> {
   const { manager, run } = opts.service;
   if (manager === undefined) throw new Error(noManagerLine(opts.service.platform));
-  // The service reads keys off the .env beside the state and in its own folder, never off the shell that launched
-  // this app; a launch from a terminal holding one is told, as wsp up --service tells it.
-  const sources = { env: process.env, cwd: opts.home, statePath: opts.statePath };
-  for (const line of [keyOnlyInThisShell(sources), claudeKeyOnlyInThisShell(sources)]) if (line !== undefined) opts.io.error(line);
+  // The service reads keys off the .env beside the state and in its own folder, and the agents' keys off the login
+  // shell too, never off the shell that launched this app; a launch from a terminal holding one is told, as wsp up
+  // --service tells it.
+  const login = opts.service.keys.login;
+  const sources = { env: process.env, cwd: opts.home, statePath: opts.statePath, ...(login !== undefined ? { login } : {}) };
+  for (const line of [keyOnlyInThisShell(sources), await claudeKeyOnlyInThisShell(sources)]) if (line !== undefined) opts.io.error(line);
   const unit = manager.unit(serviceAddressHere(opts.statePath));
   const written = existsSync(unit.path) ? readFileSync(unit.path, "utf8") : undefined;
   const words = written === undefined ? undefined : manager.argv(written);

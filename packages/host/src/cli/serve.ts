@@ -15,7 +15,7 @@ import { agentsHere } from "../agents-here.js";
 import { InitJobs } from "../init-job.js";
 import { envFileFor, keyIn, savedEnv, writeEnvFile, type Keys } from "../env-keys.js";
 import { keychainReader } from "../init-import.js";
-import { adoptLoginPath } from "../login-path.js";
+import { adoptLoginPath, withLoginKeys } from "../login-path.js";
 import { readBrewTable } from "../init-brew.js";
 import { exitCodeOf } from "../init.js";
 import { recipePath } from "../init-recipe.js";
@@ -211,8 +211,8 @@ export interface ServeOptions {
 /** A host served inside the calling process, over wsp up's key reading: a computer with no provider key serves the
  * machines it does have rather than being asked for one. */
 export async function serve(io: CliIO, opts: ServeOptions): Promise<HostHandle> {
-  await adoptLoginPath(line => io.log(line));
-  const { keys, env: providerEnv } = await loadKeys(io, keySources(opts.providerEnv ?? process.env, opts.statePath), { anthropic: false, noProviderKey: "local" });
+  const taken = await adoptLoginPath(line => io.log(line));
+  const { keys, env: providerEnv } = await loadKeys(io, keySources(withLoginKeys(opts.providerEnv ?? process.env, taken), opts.statePath), { anthropic: false, noProviderKey: "local" });
   // One wiring for the runtime and for the host over it, so the links this host holds and the recipe its doctor
   // reads come from the same place.
   const links = placeWiring(opts.statePath, opts.advertise);

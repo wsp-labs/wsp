@@ -83,10 +83,10 @@ describe("buildEnv", () => {
     expect(env.ANTHROPIC_API_KEY).toBe("sk-ant-x");
   });
 
-  it("sets our own long-lived token after the strip, so an inherited one of the same name never rides along", () => {
+  it("sets our own long-lived token after the strip, so an inherited one of the same name never rides along beside it", () => {
     const env = buildEnv({ base: { ...base, CLAUDE_CODE_OAUTH_TOKEN: "inherited" }, oauthToken: "sk-ant-oat01-TESTONLY" });
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-TESTONLY");
-    expect(buildEnv({ base: { ...base, CLAUDE_CODE_OAUTH_TOKEN: "inherited" } }).CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
+    expect(buildEnv({ base: { ...base, CLAUDE_CODE_OAUTH_TOKEN: "inherited" }, apiKey: "sk-ant-x" }).CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
     expect(buildEnv({ base: {} }).CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined();
   });
 });

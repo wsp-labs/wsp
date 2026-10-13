@@ -77,13 +77,42 @@ export function stripLandmineEnv(
  * lookup (t3code ClaudeHome.ts).
  */
 export function buildEnv(options: ClaudeEnvOptions = {}): Record<string, string> {
+  const { [KEY_ENV]: _inherited, ...base } = stripLandmineEnv(options.base ?? {});
   return {
-    ...stripLandmineEnv(options.base ?? {}),
+    ...base,
     ...HEADLESS_OVERRIDES,
+    ...(vaulted(options) ? {} : inheritedSignIn(options.base ?? {})),
     ...(options.apiKey === undefined ? {} : { ANTHROPIC_API_KEY: options.apiKey }),
     ...(options.oauthToken === undefined ? {} : { CLAUDE_CODE_OAUTH_TOKEN: options.oauthToken }),
     ...(options.projectDirName === undefined ? {} : { [PROJECT_DIR_ENV]: options.projectDirName }),
   };
+}
+
+export const KEY_ENV = "ANTHROPIC_API_KEY";
+const TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN";
+
+const vaulted = (options: ClaudeEnvOptions): boolean => options.apiKey !== undefined || options.oauthToken !== undefined;
+
+/** A token or key the launch inherited, from the login shell or the terminal that started the host: the token where
+ * both are, since inside the CLI the key outranks it and the token would never be used. */
+function inheritedSignIn(base: Readonly<Record<string, string | undefined>>): Record<string, string> {
+  const token = base[TOKEN_ENV];
+  if (token !== undefined && token !== "") return { [TOKEN_ENV]: token };
+  const key = base[KEY_ENV];
+  return key !== undefined && key !== "" ? { [KEY_ENV]: key } : {};
+}
+
+/** The words a launch starts with when it would sign in with what it inherited. An inherited token or key is a
+ * fallback: wsp's own sign-in from the vault stands above it, which buildEnv already settles, and so does the person's
+ * own Claude login on the computer (a Keychain or file login, a cloud provider), which only the CLI can see. So the CLI
+ * is asked with the inherited values out of the way, and they are unset where it reports one. An apiKeyHelper is not
+ * such a login: the CLI ranks a key in its environment above it, and auth status reports one without running it
+ * (2.1.296). `claude -p` uses a key from its environment even one the person declined in their own `claude`. Nothing
+ * where the vault signs the launch in or nothing was inherited. */
+export function signInGuard(options: ClaudeEnvOptions & { launch?: AgentLaunch } = {}): string {
+  if (vaulted(options) || Object.keys(inheritedSignIn(options.base ?? {})).length === 0) return "";
+  const status = `env -u ${KEY_ENV} -u ${TOKEN_ENV} ${programWord("claude", options.launch)} auth status 2>/dev/null`;
+  return `wsp_auth=$(${status}); case "$wsp_auth" in *'"authMethod": "api_key_helper"'*) ;; *'"loggedIn": true'*) unset ${KEY_ENV} ${TOKEN_ENV} ;; esac; unset wsp_auth; `;
 }
 
 /**
