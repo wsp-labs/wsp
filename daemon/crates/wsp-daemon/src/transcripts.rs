@@ -21,7 +21,7 @@ use wsp_frames::{words, DaemonErrorCode, TranscriptMessage, TranscriptRow, Trans
 use crate::beneath;
 use crate::ops::Road;
 use crate::paths::OpError;
-use crate::usage_logs::{as_owner, lines};
+use crate::usage_logs::{as_owner, epoch_ms, lines};
 use crate::Ctx;
 
 /// How much of each end of a transcript the list reads: Claude Code appends its titles and last prompt again near the
@@ -319,8 +319,9 @@ struct Node {
 /// The rows one line holds: the person's message, or the agent's words and tool calls, each word row with the
 /// harness message it is a piece of.
 fn rows_of(line: &Value) -> Vec<(TranscriptMessage, Option<String>)> {
+    let at = str_of(line, "timestamp").and_then(epoch_ms);
     if let Some(text) = person_text(line) {
-        return vec![(TranscriptMessage { who: TranscriptVoice::Person, text: cut(&text, MESSAGE_WORDS), tool: None }, None)];
+        return vec![(TranscriptMessage { who: TranscriptVoice::Person, text: cut(&text, MESSAGE_WORDS), tool: None, at }, None)];
     }
     if str_of(line, "type") != Some("assistant") {
         return Vec::new();
@@ -331,8 +332,9 @@ fn rows_of(line: &Value) -> Vec<(TranscriptMessage, Option<String>)> {
     parts
         .iter()
         .filter_map(|part| match str_of(part, "type") {
-            Some("text") => str_of(part, "text")
-                .map(|text| (TranscriptMessage { who: TranscriptVoice::Agent, text: cut(text, MESSAGE_WORDS), tool: None }, id.clone())),
+            Some("text") => str_of(part, "text").map(|text| {
+                (TranscriptMessage { who: TranscriptVoice::Agent, text: cut(text, MESSAGE_WORDS), tool: None, at }, id.clone())
+            }),
             Some("tool_use") => {
                 let input = part.get("input").map(Value::to_string).unwrap_or_default();
                 Some((
@@ -340,6 +342,7 @@ fn rows_of(line: &Value) -> Vec<(TranscriptMessage, Option<String>)> {
                         who: TranscriptVoice::Tool,
                         text: cut(&input, INPUT_WORDS),
                         tool: str_of(part, "name").map(str::to_owned),
+                        at,
                     },
                     None,
                 ))
@@ -645,6 +648,39 @@ mod tests {
             vec!["three", "{\"command\":\"ls\"}", "four and more"]
         );
         assert!(!read("~/.claude/projects", &names(&["k"]), TWO, 2, None, home.path()).found);
+    }
+
+    #[test]
+    fn a_read_carries_the_time_each_message_was_written_a_reply_in_pieces_at_its_first() {
+        let home = tempfile::tempdir().unwrap();
+        let at = |mut line: Value, when: &str| {
+            line["timestamp"] = json!(when);
+            line
+        };
+        write(
+            home.path(),
+            &format!(".claude/projects/k/{ONE}.jsonl"),
+            &[
+                at(user("u1", None, "one", "cli"), "2026-10-12T23:44:39.454Z"),
+                at(
+                    json!({"type": "assistant", "uuid": "a1", "parentUuid": "u1", "message": {"id": "m1", "content": [{"type": "tool_use", "name": "Bash", "input": {"command": "ls"}}]}}),
+                    "2026-10-12T23:44:41.000Z",
+                ),
+                at(said("a2", "a1", "m2", "two "), "2026-10-12T23:44:42.100Z"),
+                at(said("a3", "a2", "m2", "and more"), "2026-10-12T23:44:43.900Z"),
+                user("u2", Some("a3"), "untimed", "cli"),
+            ],
+        );
+        let read = read("~/.claude/projects", &names(&["k"]), ONE, 200, None, home.path());
+        assert_eq!(
+            read.messages.iter().map(|m| (m.text.as_str(), m.at)).collect::<Vec<_>>(),
+            vec![
+                ("one", Some(1_791_848_679_454)),
+                ("{\"command\":\"ls\"}", Some(1_791_848_681_000)),
+                ("two and more", Some(1_791_848_682_100)),
+                ("untimed", None),
+            ]
+        );
     }
 
     #[test]

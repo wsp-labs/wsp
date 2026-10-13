@@ -100,7 +100,7 @@ export function claudeConversations(deps: { configDir: string; projectDirName?: 
       return {
         ...(reply.cwd !== undefined ? { cwd: reply.cwd } : {}),
         ...(reply.title !== undefined ? { title: reply.title } : {}),
-        lines: reply.messages.map(m => ({ who: m.who, text: m.text, ...(m.tool !== undefined ? { tool: m.tool } : {}) })),
+        lines: reply.messages.map(m => ({ who: m.who, text: m.text, ...(m.tool !== undefined ? { tool: m.tool } : {}), ...(m.at !== undefined ? { at: m.at } : {}) })),
         earlier: reply.earlier,
       };
     },
