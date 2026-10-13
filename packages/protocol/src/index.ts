@@ -73,6 +73,7 @@ import { ReleaseChangedEvent } from "./release.js";
 import { shellQuote } from "./shell-quote.js";
 import { WorkspaceGlyph, WorkspaceLook, WorkspaceTheme } from "./workspace-look.js";
 
+export * from "./placeholders.js";
 export * from "./wire/limits.js";
 export * from "./wire/capabilities.js";
 export * from "./views/workspace.js";
