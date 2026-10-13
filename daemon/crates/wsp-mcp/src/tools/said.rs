@@ -128,11 +128,13 @@ pub struct Picks {
     pub access_choices: Vec<String>,
 }
 
-/// A sub-thread's start on a cloud: `subSizeNoCloudRefusal`, `subBesideRefusal`, `subOpenedLine`, `subOpening`.
+/// A sub-thread's start on a cloud: `subSizeNoCloudRefusal`, `subFromNoCloudRefusal`, `subBesideRefusal`, `subOpenedLine`,
+/// `subOpening`.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubWords {
     pub size_no_cloud: String,
+    pub from_no_cloud: String,
     pub beside: String,
     pub opened: String,
     pub opening: String,

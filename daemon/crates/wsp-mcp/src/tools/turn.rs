@@ -54,6 +54,8 @@ pub struct RunIn {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1098,6 +1100,7 @@ async fn run(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
         branch,
         on,
         size,
+        from,
         cwd,
         message,
         agent,
@@ -1118,6 +1121,9 @@ async fn run(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     if size.is_some() && on.is_none() {
         return Err(Failure::usage(sub.size_no_cloud.clone()).into());
     }
+    if from.is_some() && on.is_none() {
+        return Err(Failure::usage(sub.from_no_cloud.clone()).into());
+    }
     if let Some(on) = on {
         let given = [
             ("project", project.is_some()),
@@ -1133,7 +1139,7 @@ async fn run(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
             return Err(Failure::usage(fill(&sub.beside, &[("word", word)])).into());
         }
         let picks = Picks { model, effort, access, fast };
-        return sub_run(host, SubAsk { on, size, branch, agent }, message, picks, notify, title, files, detach).await;
+        return sub_run(host, SubAsk { on, size, from, branch, agent }, message, picks, notify, title, files, detach).await;
     }
     let words = super::workspace::words();
     if beside.is_some() && (project.is_some() || branch.is_some()) {

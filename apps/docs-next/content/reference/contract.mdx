@@ -125,7 +125,7 @@ A folder here is a project as it stands, a git repo or not: a subfolder of a rep
 
 A thread can start sub-threads on Boat, each on a machine of its own forked from the person's setup image, when the work fans out or needs more machine than this computer has. Nothing of the project is copied: the sub-thread fetches your pushed branch, works on a branch of its own and pushes it, and you merge it.
 
-1. Commit and push your branch first: `git push -u origin <branch>`. A branch the remote does not have is refused, and uncommitted changes stay behind.
+1. Commit and push your branch first: `git push -u origin <branch>`. A branch the remote does not have is refused, and uncommitted changes stay behind. To start from another ref the remote holds, say main for a run of the suite as it stands there, give `from`: `wsp run --on boat --from origin/main --notify me --detach --title "Run the k6 suite" "<the brief>"`. Your branch need not be pushed then, and no worktree or second thread is needed to get there.
 2. Start each sub-thread with `on` set to `boat`, `notify` me and `detach`, one brief each, with a title: `wsp run --on boat --notify me --detach --title "Fix the upload test" "<the brief>"`. Give `size` `4x8` to one that builds or runs a test suite; `2x4` holds one agent and little else.
 3. End your turn. Each sub-thread's finished line carries its report and the branch it pushed.
 4. Merge each branch with `wsp merge in <you> <sub-thread>`, run your tests, push your branch.
