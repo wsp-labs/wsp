@@ -4,7 +4,7 @@
 // cannot take says so with `applies` and is not drawn at all; `refusal` is for
 // what this object could take and cannot right now.
 import { CopyIcon, FolderOutputIcon, GlobeIcon, GitForkIcon, GitPullRequestArrowIcon, MessageSquarePlusIcon, PauseIcon, PencilIcon, PlayIcon, RefreshCwIcon, SquareIcon, SquareTerminalIcon, Trash2Icon } from "lucide-react";
-import { actionRefusal, folderOnJoined, goneRoadRefusal, isBilling, kindWords, machineWord, needsRebuild, undrivenRefusal, workspaceKind, workspaceState, type AbsentComputer, type MachineState, type PlaceView, type ReachState, type WorkspaceKind, type WorkspacePhase, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { actionRefusal, folderOnJoined, goneRoadRefusal, isBilling, kindWords, machineWord, needsRebuild, startFailed, undrivenRefusal, workspaceKind, workspaceState, type AbsentComputer, type MachineState, type PlaceView, type ReachState, type WorkspaceKind, type WorkspacePhase, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import {
   BRING_BACK_HINT,
   CLIENT_CANNOT_DELETE,
@@ -112,7 +112,7 @@ export interface WorkspaceVerbs {
 const stateOf = (target: WorkspaceTarget): WorkspaceState => workspaceState(target);
 const dead = (target: WorkspaceTarget): boolean => needsRebuild(target);
 
-export const workspaceActions: ReadonlyArray<ActionEntry<WorkspaceTarget, WorkspaceVerbs>> = [
+const entries: ReadonlyArray<ActionEntry<WorkspaceTarget, WorkspaceVerbs>> = [
   {
     id: "phase",
     group: "state",
@@ -254,8 +254,9 @@ export const workspaceActions: ReadonlyArray<ActionEntry<WorkspaceTarget, Worksp
     rowLabel: target => rowVerb("Delete", target.displayName),
     buttonWord: () => "Delete",
     hint: target => DELETE_HINT(target.kind, target.copy),
-    // A workspace whose machine is already gone has nothing to delete; its record is forgotten instead.
-    applies: target => stateOf(target) !== "gone",
+    // A workspace whose machine is already gone has nothing to delete; its record is forgotten instead. One that never
+    // had a machine is the host's to drop, which its delete does.
+    applies: target => stateOf(target) !== "gone" || startFailed(target),
     refusal: (_target, verbs) => (verbs.deleteWorkspace === undefined ? CLIENT_CANNOT_DELETE : null),
     run: (target, verbs) => verbs.deleteWorkspace?.(target.id),
   },
@@ -276,3 +277,9 @@ export const workspaceActions: ReadonlyArray<ActionEntry<WorkspaceTarget, Worksp
     run: (target, verbs) => verbs.forget?.(target.id),
   },
 ];
+
+/** A record whose create failed before any machine stood has nothing to open, wake, rebuild or forget: its delete is
+ * the one way out. */
+export const workspaceActions: ReadonlyArray<ActionEntry<WorkspaceTarget, WorkspaceVerbs>> = entries.map(entry =>
+  entry.id === "delete" ? entry : { ...entry, applies: target => !startFailed(target) && (entry.applies?.(target) ?? true) },
+);

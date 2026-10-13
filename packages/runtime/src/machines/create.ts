@@ -6,7 +6,7 @@ import { projectLanding } from "../project-landing.js";
 import { brokeredStart, namedOfRecord } from "../projects/branch-of-record.js";
 import { type CreatedWorkspace, type CreateWorkspaceOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, until } from "../types/wiring.js";
 import { isCapRefusal } from "../types/internal.js";
-import type { RuntimeContext, CreateArea } from "../context.js";
+import type { RuntimeContext, CreateArea, ShownCreate } from "../context.js";
 
 export function createArea(ctx: RuntimeContext): CreateArea {
   const { opts, backend, placeDoor, bus, clock, live, builders, places } = ctx;
@@ -212,7 +212,14 @@ export function createArea(ctx: RuntimeContext): CreateArea {
   const forking = new Set<string>();
   /** Creates that failed before any machine was recorded, by the id their stages carried: every client keeps a row
    * for one until it is deleted, so resolve and delete reach it here. */
-  const failedCreates = new Map<string, WorkspaceView>();
+  const failedCreates = new Map<string, ShownCreate>();
+  /** Forks a thread asked for, shown under that thread from before their first stage until their record lands or the
+   * create fails: a window that hears a stage with no record behind it files it as a create at the sidebar's root. */
+  const shownCreates = new Map<string, ShownCreate>();
+  const showCreate = (view: ShownCreate): void => {
+    shownCreates.set(view.id, view);
+    bus.emit({ type: "workspace.created", workspace: view });
+  };
   const createStages = new Map<string, WorkspaceCreatingEvent>();
   bus.on("*", e => {
     if (e.type === "workspace.creating") {
@@ -222,7 +229,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     } else if (e.type === "workspace.created") createStages.delete(e.workspace.id);
     else if (e.type === "workspace.deleted") createStages.delete(e.workspaceId);
   });
-  const failedView = (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string): WorkspaceView => ({
+  const failedView = (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string): ShownCreate => ({
     id,
     name,
     machineId: "",
@@ -284,7 +291,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     return making;
   };
   return {
-    createStaged, nameGiven, forking, failedCreates, createStages, failedView, supersedeFailed, stageReporter,
+    createStaged, nameGiven, forking, failedCreates, shownCreates, showCreate, createStages, failedView, supersedeFailed, stageReporter,
     nameRefusal, foldersOf, oneFolder,
   };
 }
