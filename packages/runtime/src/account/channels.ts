@@ -615,12 +615,10 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
       if (said === undefined || event["type"] === "daemon.hello") onEvent(event);
     };
     const served = servedByItsComputer(entry);
-    // A pane's first tab names no folder, and a daemon that answers for a whole computer opens such a shell in that
-    // computer's home: it opens where the workspace's threads work instead. A cloud fork's daemon is its own.
-    const folder = served !== undefined || ctx.moduleOf(entry.record.kind).sharedDaemon ? await ctx.threadFolder(entry, {}) : undefined;
     const opened = await (served === undefined ? ownDaemonChannel(entry, heard) : servedChannel(entry, served, heard, carries));
     const channel: DaemonChannel = {
-      send: frame => opened.send(folder !== undefined && frame.op === "pty.create" && frame.cwd === undefined ? { ...frame, cwd: folder } : frame),
+      // The drawer's first tab names no folder, and a daemon's home is not where a fork's or a sub-thread's work is.
+      send: async frame => opened.send(frame.op === "pty.create" && frame.cwd === undefined ? { ...frame, cwd: await ctx.threadFolder(entry, {}) } : frame),
       close: () => opened.close(),
       closed: opened.closed,
     };
