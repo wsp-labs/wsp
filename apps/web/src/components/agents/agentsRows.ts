@@ -6,7 +6,7 @@
 import { LogInIcon, PencilIcon, XIcon, type LucideIcon } from "lucide-react";
 import { agentName, catalogEntry, hasLogin, loginIdOf, loginThere, mintsToken, serverSignInRoad, signInRoadOf } from "@wsp/catalog";
 import { outcomeWord } from "../../settings/places.js";
-import { agentOfRow, type AgentRow, type AgentsProject, type AgentsReport, type AgentsTarget, type McpRow, type McpScope, type PageReach, type PlaceProvisionRow, type PluginRow, type PluginScope, type SealedImage, type ServerAdd, type ServerToolsAnswer, type SignInRoad, type SkillHit, type SkillPreview, type SkillRow, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
+import { agentOfRow, type AgentRow, type AgentsProject, type AgentsReport, type AgentsTarget, type BrokerStatus, type McpRow, type McpScope, type PageReach, type PlaceProvisionRow, type PluginRow, type PluginScope, type SealedImage, type ServerAdd, type ServerToolsAnswer, type SignInRoad, type SkillHit, type SkillPreview, type SkillRow, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
 
 /** Where the report was read, which decides which acts a row offers: this computer, a joined box (its page, or a task
  * standing on it), a fork at a cloud (a copy, so every act is the image's), or a cloud's own page (the image's rows). */
@@ -34,6 +34,13 @@ export const AGENTS_LIST_WORDS = {
   keyFromEnvironment: "key from the environment",
   needsSignIn: "needs sign-in",
   withToken: TOKEN_SIGN_IN_WORD,
+  /** What the host adds for machines at a provider, by agent and by the kind of credential it holds, and the roads
+   * besides the row's one Sign in, which stay on the command line. */
+  forClouds: {
+    claude: { kinds: { login: "signed in with a subscription", token: TOKEN_SIGN_IN_WORD, key: "signed in with an API key", gateway: "signed in through your gateway" }, otherRoads: "a token: wsp agents key claude, a key: add --api-key" },
+    codex: { kinds: { chatgpt: "signed in with ChatGPT", "access-token": "signed in with ChatGPT", key: "signed in with an API key" } },
+  } as Readonly<Record<string, { readonly kinds: Readonly<Record<string, string>>; readonly otherRoads?: string }>>,
+  usedByClouds: "used by cloud threads through wsp",
   notChecked: "not checked",
   notInstalled: "not installed",
   availableToInstall: "Available to install",
@@ -216,7 +223,7 @@ export interface ServerTools {
  * it, a line the person runs in their terminal, or typed into a task's own terminal on this computer. Worked out here
  * off the report and the catalog, so every row reads one rule. */
 export type SignInStart =
-  | { readonly kind: "run"; readonly agent: string; readonly server?: string; readonly scope?: McpScope; readonly project?: string; readonly finish?: ServerFinish; readonly pastes?: boolean; readonly terminal?: boolean }
+  | { readonly kind: "run"; readonly agent: string; readonly server?: string; readonly scope?: McpScope; readonly project?: string; readonly finish?: ServerFinish; readonly pastes?: boolean; readonly terminal?: boolean; readonly cloud?: boolean }
   | { readonly kind: "vault"; readonly agent: string; readonly mint?: string; readonly word: "token" | "key" }
   | { readonly kind: "copy"; readonly line: string; readonly why?: string }
   | { readonly kind: "terminal"; readonly line: string };
@@ -383,6 +390,17 @@ export interface RowsContext {
   readonly on?: string;
   /** Where a sign-in page that returns to localhost reaches, as the host said on the report. */
   readonly reach?: PageReach;
+  /** What the host's broker adds for machines at a provider, on this computer's rows while a provider is set up. */
+  readonly broker?: BrokerStatus;
+}
+
+/** What the broker says for an agent's row, by the row's own entry under forClouds: undefined where the broker did not
+ * answer or speaks for no such agent, `held` null where it holds nothing for it, else the words for what it holds. */
+export function brokerRow(row: Pick<AgentRow, "id">, ctx: Pick<RowsContext, "broker">): { readonly held: string | null; readonly otherRoads?: string } | undefined {
+  const words = Object.hasOwn(AGENTS_LIST_WORDS.forClouds, row.id) ? AGENTS_LIST_WORDS.forClouds[row.id] : undefined;
+  if (ctx.broker === undefined || words === undefined) return undefined;
+  const kind = (ctx.broker as Readonly<Record<string, string | undefined>>)[row.id];
+  return { held: kind === undefined ? null : (words.kinds[kind] ?? null), ...(words.otherRoads !== undefined ? { otherRoads: words.otherRoads } : {}) };
 }
 
 /** Why no act on the list can be taken: the computer is away or the task is paused. */
@@ -410,6 +428,8 @@ export const catalogSignInRow = (id: string): Pick<AgentRow, "id" | "signInRoad"
 
 /** How an agent's Sign in goes where the list stands; nothing for an agent with no sign-in. */
 export function agentSignInStart(row: Pick<AgentRow, "id" | "signInRoad">, ctx: RowsContext): SignInStart | undefined {
+  // The login machines at a provider borrow is the agent's own here, which agents.cloudSignIn runs.
+  if (brokerRow(row, ctx)?.held === null) return { kind: "run", agent: row.id, cloud: true };
   const signIn = catalogEntry(row.id)?.signIn;
   if (row.signInRoad === "token") return { kind: "vault", agent: row.id, word: "token", ...(signIn !== undefined && mintsToken(signIn) ? { mint: signIn.mint } : {}) };
   if (row.signInRoad === "key") return { kind: "vault", agent: row.id, word: "key" };

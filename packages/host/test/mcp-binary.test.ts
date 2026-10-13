@@ -276,6 +276,7 @@ const CALLED: readonly Called[] = [
   { tool: "agents_setup", argv: ["agents", "setup", "claude", "--program", "/opt/claude", "--arg=-v"], arguments: { agent: "claude", program: "/opt/claude", args: ["-v"] }, refused: true },
   { tool: "agents_setup", argv: ["agents", "setup", "claude", "--config", "claude-wsp"], arguments: { agent: "claude", config: "claude-wsp" }, refused: true },
   { tool: "projects_set", argv: ["projects", "set", "nope", "--access", "full"], arguments: { project: "nope", access: "full" }, refused: true },
+  { tool: "projects_set", argv: ["projects", "set", "nope", "--tracker", "lab"], arguments: { project: "nope", trackers: ["lab"] }, refused: true },
   { tool: "stop", argv: ["stop", "nope"], arguments: { thread: "nope" }, refused: true },
   { tool: "thread_rename", argv: ["thread", "rename", "nope", "t"], arguments: { thread: "nope", title: "t" }, refused: true },
   { tool: "thread_forget", argv: ["thread", "forget", "nope"], arguments: { thread: "nope" }, refused: true },
