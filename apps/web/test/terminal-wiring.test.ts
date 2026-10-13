@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Production wiring: every running workspace in the store gets a
 // WorkspaceTerminals in the registry, linked through the host's relay.
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import type { DaemonLinkStatus, WorkspaceView } from "@wsp/protocol";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import type { Api, ProtocolEvent } from "../src/protocol/client.js";
@@ -18,6 +18,9 @@ import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
 import { caps } from "./caps.js";
 import { harnessMachineToken, startRelayHarness, type RelayHarness } from "./relay-harness.js";
 import { clearNotices } from "./notice-text.js";
+
+/** A shell in a folder this computer has: the one a stand-in fork's threads work in is a path inside a fork. */
+const SHELL = { shell: "/bin/sh", cwd: tmpdir() };
 
 async function until(cond: () => boolean, ms = 5000): Promise<void> {
   const deadline = Date.now() + ms;
@@ -121,7 +124,7 @@ describe("wireTerminals", () => {
     expect(napping).not.toBeNull();
     expect(napping!.status()).toBe("opening");
 
-    const tab = await getTerminals("ws_run")!.open({ shell: "/bin/sh" });
+    const tab = await getTerminals("ws_run")!.open(SHELL);
     expect((await relay!.ptys()).map(p => p.id)).toEqual([tab.ptyId]);
 
     // napped: the socket goes away, the model (and its tabs) stays for the wake, so it keeps the word of a link
@@ -152,7 +155,7 @@ describe("wireTerminals", () => {
     unwire = wireTerminals(useStore, { backoffMs: () => 30, touchMinMs: 200 });
     useStore.getState().bind(api);
     await until(() => getTerminals("ws_a")?.status() === "live");
-    const tab = await getTerminals("ws_a")!.open({ shell: "/bin/sh" });
+    const tab = await getTerminals("ws_a")!.open(SHELL);
     expect(touches).toEqual([]); // opening a terminal is not a person acting in it
     for (const ch of "echo hi") getTerminals("ws_a")!.write(tab.ptyId, ch);
     await until(() => touches.length === 1);
@@ -236,7 +239,7 @@ describe("wireTerminals", () => {
     unwire = wireTerminals(useStore, { backoffMs: () => 30 });
     useStore.getState().bind(api);
     await until(() => getTerminals("ws_a")?.status() === "live");
-    const tab = await getTerminals("ws_a")!.open({ shell: "/bin/sh" });
+    const tab = await getTerminals("ws_a")!.open(SHELL);
 
     // Every word the model reports from here on, so the relink cannot slip a "starting" through between two beats.
     const words: DaemonLinkStatus[] = [];
