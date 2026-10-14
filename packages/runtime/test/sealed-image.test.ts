@@ -343,6 +343,37 @@ describe("building the image at a second place", () => {
     await rt.close();
   });
 
+  it("a forced build at a place standing on the record builds and seals a new copy there, the image's own place too, and leaves the record as it was", async () => {
+    const { backend, other, store, rt, record, composed } = await sealedAtWired();
+    const made = [backend.machines.length, other.machines.length];
+    const asked = composed.count;
+    expect(await rt.image.build({ place: "solari", force: true })).toMatchObject({ built: true, copy: { place: "solari", version: 2, hash: record.hash } });
+    expect(await rt.image.build({ place: "box", force: true })).toMatchObject({ built: true, copy: { place: "box", version: 2, hash: record.hash } });
+    // A builder and its smoke fork at each place, each composed from this computer afresh, so it takes the daemon
+    // this host ships.
+    expect([backend.machines.length, other.machines.length]).toEqual([made[0]! + 2, made[1]! + 2]);
+    expect(composed.count).toBe(asked + 2);
+    expect(await store.get("images", "default")).toEqual(record);
+    expect((await rt.image.get()).copies.map(c => [c.place, c.version, c.hash])).toEqual([
+      ["box", 2, record.hash],
+      ["solari", 2, record.hash],
+    ]);
+    await rt.close();
+  });
+
+  it("a forced build at the image's own place leaves the next cut there the digest the image was planned from, sign-in rows and all", async () => {
+    const { places } = twoComputers();
+    const backend = stubBackend();
+    backend.execImpl = dfOk;
+    const signedIn: RecipeDigest = { ...digestOf("h1"), ticks: [...digestOf("h1").ticks, { id: "logins/gh", choice: "copy" }] };
+    const seal = { ...recipeWith(), import: { ...importOf("h1"), recipe: signedIn } };
+    const rt = createRuntime({ backend, store: memoryStore(), adapters: {}, goldenRecipe: seal, copyRecipe: () => COPY_RECIPE, hostId: "h1", places: places(backend) });
+    await rt.golden.seal((await rt.golden.prepare()).id);
+    expect(await rt.image.build({ place: "box", force: true })).toMatchObject({ built: true, copy: { place: "box", version: 2 } });
+    expect(await rt.golden.recipe()).toEqual(signedIn);
+    await rt.close();
+  });
+
   it("the place the image's own seal stands at is answered with the copy it holds, and a place this host has never heard of is refused before anything boots", async () => {
     const { backend, other, rt, composed } = await sealedAtWired();
     const made = [backend.machines.length, other.machines.length];

@@ -652,8 +652,8 @@ export interface Runtime {
     /** Prepares a builder at `place` from the recipe `copyRecipe` composes off the record (every login set to skip),
      * lands the record's vault on it and seals; the copy is recorded under that place at the record's hash. The
      * recipe is asked for only once every refusal has passed, so the host composes nothing for a build that cannot
-     * run. A place already holding a copy of this record is answered with that copy and builds nothing; a place
-     * whose copy is building is answered with that build, joined, never a second one. Any place wsp places lists
+     * run. A place already holding a copy of this record is answered with that copy and builds nothing unless `force`
+     * asks for a new one; a place whose copy is building is answered with that build, joined, never a second one. Any place wsp places lists
      * takes it, a joined computer by name or id included. Refused when the place builds no copy at all, when the
      * record has no small recipe to build from, and, without `force`, when it holds no vault. Progress rides
      * golden.stage frames carrying the place's id, and the place's row reads them. */
