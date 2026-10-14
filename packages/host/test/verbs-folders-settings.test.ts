@@ -12,16 +12,13 @@ import { describe, expect, it, vi } from "vitest";
 import { cli, localWiring, serve } from "../src/cli.js";
 import { placeWiring } from "../src/places.js";
 import { dialHost, noHostServingLine, threadTree } from "../src/verbs.js";
-import { withRefused } from "../../runtime/test/fs-refusal.js";
+import { withChildFs } from "./child-fs.js";
 import { fakeDaemonStart, projectOn, EXPORT_SESSION, EXPORT_SOURCE, captured, exportGuest, heldAgent, type Captured } from "./verbs-fixture.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
 import { CLOUD_ON } from "../src/cloud.js";
 import { verbsHost } from "./verbs-host.js";
 
 runsFromItsOwnFolder();
-
-// A path the process may not read is refused here and not by chmod: these tests run as root, which reads anything.
-vi.mock("node:fs", async importOriginal => (await import("../../runtime/test/fs-refusal.js")).refusingFs(await importOriginal<typeof import("node:fs")>()));
 
 describe("wsp verbs over the host: folders, export and what a person sets", () => {
   const h = verbsHost();
@@ -127,11 +124,11 @@ describe("wsp verbs over the host: folders, export and what a person sets", () =
     const shut = join(home, "Documents");
     mkdirSync(shut, { recursive: true });
     const words = `EACCES: permission denied, scandir '${shut}'`;
-    const refused = await withRefused(shut, () => h.run("folders", shut));
+    const refused = await withChildFs({ refuse: shut }, () => h.run("folders", shut));
     expect(refused.code).toBe(1);
     expect(refused.io.errors).toEqual([`wsp folders: ${words}`]);
     // The machine said no, so the class is the provider's on the JSON door too, where stdout stays empty.
-    const asJson = await withRefused(shut, () => h.run("folders", shut, "--json"));
+    const asJson = await withChildFs({ refuse: shut }, () => h.run("folders", shut, "--json"));
     expect(asJson.io.lines).toEqual([]);
     expect(asJson.io.errors).toHaveLength(1);
     expect(JSON.parse(asJson.io.errors[0]!)).toEqual({ error: words, class: "provider", exit: 1 });

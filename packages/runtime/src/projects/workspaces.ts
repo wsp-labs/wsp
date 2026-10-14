@@ -17,6 +17,7 @@ import { loginEnvOn } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
 import { PROJECT_GOLDENS, WORKSPACE_NAMES, DELETED_REASON, type NamedWorkspace, CREATES, type PendingCreate, labelOf, readBodyUpTo, isNoHostCli, isNoGitCredential, isOnDefaultBranch, defaultBranchRefused } from "../types/internal.js";
 import type { RuntimeContext, WorkspacesArea } from "../context.js";
+import { cutOff } from "../pipe.js";
 
 /** How long the stop before a move to another size waits on the provider: a disk near full archives slowly, 14 minutes
  * for 67 GB on Boat (measured 2026-10-01), past the ordinary pause budget. */
@@ -583,8 +584,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       entry.deleting = (async () => {
         try {
           delete entry.deleteSaid;
-          // First, so no call from the machine lands between this and the provider's delete, nor after a refused one.
-          await ctx.opts.broker?.revoke?.(id).catch((e: unknown) => console.warn(`${entry.record.name} was not cut off from your computer before its delete: ${e instanceof Error ? e.message : String(e)}`));
+          await cutOff(ctx, entry);
           ctx.endSessions(id, DELETED_REASON);
           const threads = new Set([...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
           for (const s of sessions.values()) if (s.view.workspaceId === id && s.view.threadId !== undefined) threads.add(s.view.threadId);
