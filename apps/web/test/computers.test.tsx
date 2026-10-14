@@ -12,7 +12,7 @@ import { render } from "@testing-library/react";
 import { makeApi, ProtocolClient, RequestError, type Api, type SshLogin } from "../src/protocol/client.js";
 import { useContextMenuStore } from "../src/actions/contextMenu.js";
 import { useStore } from "../src/protocol/store.js";
-import { AddComputer } from "../src/settings/AddComputer.js";
+import { closeCloudAdd, useCloudFlow } from "../src/settings/add/cloudFlow.js";
 import { closeAdd, useAddFlow } from "../src/settings/add/addFlow.js";
 import { useAdds } from "../src/settings/adds.js";
 import { AGENTS_LIST_WORDS } from "../src/components/agents/agentsRows.js";
@@ -186,7 +186,7 @@ describe("the Computers list", () => {
     await mountComputers(computersApi().api);
     const grids = [...document.querySelectorAll<HTMLElement>("[data-settings-page] [data-grid]")];
     expect(grids.map(g => g.dataset["grid"])).toEqual(["computers", "clouds"]);
-    expect(grids.map(g => [...g.querySelectorAll("[data-grid-head] span")].map(c => c.textContent))).toEqual([["Computer", "Cores", "Memory", "Threads"], ["Cloud", "Machines", "Threads"]]);
+    expect(grids.map(g => [...g.querySelectorAll("[data-grid-head] span")].map(c => c.textContent))).toEqual([["Computers", "Cores", "Memory", "Threads"], ["Clouds"]]);
     // The two lists share one column template, so the state column is one line down the page.
     expect(new Set(grids.map(g => g.querySelector("[data-grid-row]")?.className.match(/grid-cols-\[[^\s]+\]/)?.[0])).size).toBe(1);
     expect(nameOf("solari")).toBe("Solari");
@@ -194,7 +194,7 @@ describe("the Computers list", () => {
     // Nothing on the host writes a cloud's running count or its room, so a row that says one is not read: no workspace
     // stands on it, so it runs none.
     expect(listRow("solari").textContent).not.toContain("1/2");
-    expect(cellOf("solari", "machines")).toBe("0");
+    expect(cellOf("solari", "machines")).toBe("0 running");
     expect(document.querySelector("[data-settings-page]")?.textContent).not.toMatch(/this month/);
   });
 
@@ -282,7 +282,7 @@ describe("the Computers list", () => {
     expect(useStore.getState().places.find(place => place.id === "p_2")?.setup).toEqual(box.setup);
   });
 
-  it("draws Add a computer under the computers, opening its dialog, and Add a cloud under the clouds, opening the cloud's panel, and a row opens its page", async () => {
+  it("draws Add a computer under the computers, opening its dialog, and Add a cloud provider under the clouds, opening its dialog, and a row opens its page", async () => {
     useStore.setState({ places: [here, box, solari] });
     await mountComputers(computersApi().api);
     expect([...document.querySelectorAll("[data-settings-card='computers'] [data-place-row]")].map(r => r.getAttribute("data-place-row"))).toEqual(["here", "p_2"]);
@@ -290,7 +290,8 @@ describe("the Computers list", () => {
     expect([...document.querySelectorAll("[data-settings-card='clouds'] [data-add-button]")].map(b => b.textContent)).toEqual([ADD_COMPUTER_WORDS.addCloud]);
     expect(document.querySelector("[data-k='add-computer']")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
-    expect(document.querySelector("[data-k='road-cloud']")).toBeTruthy();
+    expect(useCloudFlow.getState()).toMatchObject({ open: true, step: "provider" });
+    act(() => closeCloudAdd());
     fireEvent.click(screen.getByRole("button", { name: ADD_COMPUTER_WORDS.title }));
     expect(useAddFlow.getState()).toMatchObject({ open: true, step: "where" });
     act(() => closeAdd());
@@ -345,14 +346,36 @@ describe("the Computers list", () => {
     }
   });
 
-  it("gives a cloud's row how many machines it runs now under its own head and stands no empty cell where a computer's cores and memory go", async () => {
+  it("gives a cloud's row how many machines it runs now as one fact and stands no empty cell where a computer's cores and memory go", async () => {
     // Two forks running at Solari and one paused there, which runs no machine.
     useStore.setState({ places: [here, solari], workspaces: [atSolari("ws_1"), atSolari("ws_2"), { ...atSolari("ws_3"), phase: "napping" }] });
     await mountComputers(computersApi({}, setupOf({ keys: { solari: true } })).api);
     const head = [...document.querySelectorAll("[data-grid=clouds] [data-grid-head] > *")].map(cell => cell.textContent);
-    expect(head).toEqual([WHERE_WORDS.heads.cloud, WHERE_WORDS.heads.machines, WHERE_WORDS.heads.threads]);
-    expect(cellOf("solari", "machines")).toBe("2");
+    expect(head).toEqual([WHERE_WORDS.heads.cloud]);
+    expect(cellOf("solari", "machines")).toBe("2 running");
     expect([...listRow("solari").children].filter(cell => cell.textContent === "" && cell.tagName !== "svg" && cell.querySelector("svg, button, canvas") === null && !cell.hasAttribute("data-state-cell")).map(cell => cell.outerHTML)).toEqual([]);
+  });
+});
+
+describe("a cloud's row on the Computers list", () => {
+  it("is the cloud's name, its image and when it was sealed, and how many machines run there, opening its page", async () => {
+    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 2, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }], projects: [] };
+    useStore.setState({ places: [here, ascii] });
+    await mountComputers(computersApi({ image: async () => sealed } as unknown as Partial<Api>).api);
+    await waitFor(() => expect(document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent).toMatch(/^Image v2, sealed /));
+    expect(document.querySelector("[data-place-row='box'] [data-k='machines']")?.textContent).toBe("0 running");
+    expect(document.querySelector("[data-place-row='box'] [data-limit-band]")).toBeNull();
+    openPage("box");
+    expect(pageAt()).toBe("computer:box");
+  });
+
+  it("says nothing of the image until the host's read of it lands, then that a cloud with none has none", async () => {
+    useStore.setState({ places: [here, ascii] });
+    await mountComputers(computersApi().api);
+    expect(document.querySelector("[data-place-row='box'] [data-grid-note]")).toBeNull();
+    cleanup();
+    await mountComputers(computersApi({ image: async () => ({ image: null, copies: [], projects: [] }) } as unknown as Partial<Api>).api);
+    await waitFor(() => expect(document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent).toBe("No image yet"));
   });
 });
 
@@ -1130,81 +1153,6 @@ describe("the cloud's page", () => {
     expect(document.querySelector("[data-k='image-state']")?.getAttribute("data-state")).toBe("building");
     expect(document.querySelector("[data-k='image-state'] [data-grid-note]")?.textContent).toBe("1 of 5 steps done. On your image: Claude Code.");
   });
-});
-
-describe("Add a cloud on the page", () => {
-  const open = async (_road: "cloud", over: Partial<Api> = {}, setup: InitSetup | null = null) => {
-    const fake = settingsApi(over);
-    useStore.setState({ api: fake.api, places: [here] });
-    render(<AddComputer setup={setup} />);
-    return fake;
-  };
-  it("lists every provider with its own key field, saves each on its own, and says key saved once the host lists that cloud", async () => {
-    const asked: { provider?: string; key?: string }[] = [];
-    let places: PlaceView[] = [here];
-    await open(
-      "cloud",
-      {
-        initKeys: async (k: { provider?: string; key?: string }) => {
-          asked.push(k);
-          places = [here, ascii];
-          return setupOf({ keys: { solari: false, box: k.provider === "box" } });
-        },
-        placesList: async () => ({ places, adds: [] }),
-      } as unknown as Partial<Api>,
-      setupOf({ keys: { solari: false, box: false } }),
-    );
-    const blocks = [...document.querySelectorAll("[data-k='road-cloud'] [data-provider]")];
-    expect(blocks.map(b => b.getAttribute("data-provider"))).toEqual(["box", "solari"]);
-    // Each provider by the name the protocol gives it.
-    expect(blocks.map(b => b.querySelector("span.text-\\[14px\\]")?.textContent)).toEqual([PROVIDER_KEY_WORDS["box"]!.name, PROVIDER_KEY_WORDS["solari"]!.name]);
-    expect(document.body.textContent).not.toContain("no key");
-    const boxKey = blocks[0]!;
-    fireEvent.change(boxKey.querySelector("[data-k='cloud-key']")!, { target: { value: "k-123" } });
-    fireEvent.click(boxKey.querySelector("[data-k='cloud-save']")!);
-    await waitFor(() => expect(boxKey.querySelector("[data-k='key-state']")?.textContent).toBe(ADD_COMPUTER_WORDS.keySaved));
-    expect(asked).toEqual([{ provider: "box", key: "k-123" }]);
-    expect(blocks[1]!.querySelector("[data-k='key-state']")).toBeNull();
-  });
-
-  it("says a key the host kept with no cloud row as kept and no computer yet, never as saved", async () => {
-    await open(
-      "cloud",
-      { initKeys: async () => setupOf({ keys: { solari: false, box: true } }), placesList: async () => ({ places: [here], adds: [] }) } as unknown as Partial<Api>,
-      setupOf({ keys: { solari: false, box: false } }),
-    );
-    const boxKey = document.querySelector("[data-k='road-cloud'] [data-provider='box']")!;
-    fireEvent.change(boxKey.querySelector("[data-k='cloud-key']")!, { target: { value: "k-123" } });
-    fireEvent.click(boxKey.querySelector("[data-k='cloud-save']")!);
-    await waitFor(() => expect(boxKey.querySelector("[data-k='key-state']")?.textContent).toBe(ADD_COMPUTER_WORDS.keyKept));
-    await settle();
-    expect(boxKey.querySelector("[data-k='key-state']")?.textContent).toBe(ADD_COMPUTER_WORDS.keyKept);
-  });
-
-  it("says a key the host did not take as that cloud refusing it, with where to check it, and a refused save in the host's two halves", async () => {
-    let refuse: Error | undefined;
-    await open(
-      "cloud",
-      { initKeys: async () => (refuse !== undefined ? Promise.reject(refuse) : setupOf({ keys: { solari: false, box: false } })), placesList: async () => ({ places: [here], adds: [] }) } as unknown as Partial<Api>,
-      setupOf({ keys: { solari: false, box: false } }),
-    );
-    const boxKey = document.querySelector("[data-k='road-cloud'] [data-provider='box']")!;
-    const save = async (): Promise<string> => {
-      fireEvent.change(boxKey.querySelector("[data-k='cloud-key']")!, { target: { value: "k-123" } });
-      fireEvent.click(boxKey.querySelector("[data-k='cloud-save']")!);
-      await settle();
-      return boxKey.querySelector("[data-k='cloud-refusal']")?.textContent ?? "";
-    };
-    const words = ADD_COMPUTER_WORDS.keyRefused(PROVIDER_KEY_WORDS["box"]!);
-    expect(await save()).toBe(`${words.said} ${words.fix}`);
-    expect(words.said).toBe(`${PROVIDER_KEY_WORDS["box"]!.name} refused that key.`);
-    expect(words.fix).toBe(`Check it at ${PROVIDER_KEY_WORDS["box"]!.keyConsole} and paste it again.`);
-    expect(boxKey.querySelector("[data-k='key-state']")).toBeNull();
-    refuse = new RequestError("Boat refused. Check it and paste it again.", "auth", "Check it and paste it again.");
-    expect(await save()).toBe("Boat refused. Check it and paste it again.");
-    expect(boxKey.querySelector("[data-k='cloud-refusal'] span.text-foreground")?.textContent?.trim()).toBe("Check it and paste it again.");
-  });
-
 });
 
 describe("the list the four place events keep", () => {

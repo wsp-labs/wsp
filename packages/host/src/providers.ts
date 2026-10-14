@@ -9,10 +9,11 @@
 
 import { agentName, vaultVariableRow } from "@wsp/catalog";
 import { BOX_PRICING, BoxBackend, FakeBackend, NoProviderBackend, SolariBackend, boxClassFor, checkProviderKey, type BoxLimits, type KeyCheck, type MachineBackend } from "@wsp/engine";
-import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, boatAddedLine, providerKeyName, standInRecordsPath } from "@wsp/protocol";
+import { FAKE_AS_ENV, FAKE_RECORDS_ENV, FAKE_ROOT_ENV, KEY_REFUSED, KEY_UNCHECKED, NO_MACHINES_LINE, NO_PROVIDER_LINE, PROVIDER_KEY_WORDS, boatAddedLine, type ProviderKeyWorks, keyRefusedLine, keyUncheckedLine, providerKeyName, standInRecordsPath } from "@wsp/protocol";
 import type { PlaceBackends } from "@wsp/runtime";
 import { CLOUD_ON } from "./cloud.js";
 import { keyIn } from "./env-keys.js";
+import { boatKeyCheck, type KeyRefusal } from "./providers-key.js";
 import { fakeGuestAt } from "./fake-guest.js";
 
 /** A word a harness set, or nothing where it set none: a variable set to nothing is a variable nobody set. */
@@ -44,6 +45,9 @@ export interface ProviderModule {
    * are serving in place of rather than the stand-in's own name. */
   standsFor?(env: ProviderEnv): string | undefined;
   build(env: ProviderEnv): MachineBackend;
+  /** Puts a key to the provider before it is saved: its facts where it works, else throws a KeyRefusal. A row with
+   * none is checked by its backend's own read. */
+  checkKey?(key: string): Promise<{ works: ProviderKeyWorks; limits?: unknown }>;
   /** What `wsp add` prints once this row's key is saved, off what the provider's key check answered; absent, the
    * add prints the row's place line. */
   addedLine?(answer: unknown): string;
@@ -75,6 +79,7 @@ const boatModule = (cloud: boolean): ProviderModule => ({
   keyConsole: PROVIDER_KEY_WORDS["box"]!.keyConsole,
   selects: env => cloud && env[PROVIDER_ENV] === "box",
   build: env => new BoxBackend({ apiKey: env[BOX_KEY_ENV] ?? "" }),
+  checkKey: key => boatKeyCheck(key, PROVIDER_KEY_WORDS["box"]!.name),
   addedLine: answer => boatAddedLine(answer as BoxLimits | undefined, boxClassFor(BOX_PRICING.defaultSize)),
 });
 
@@ -339,9 +344,30 @@ export function providerEnvWithKey(env: ProviderEnv, key: string, provider?: str
   return { ...env, [row.keyEnv]: key, ...(provider === undefined ? {} : { [PROVIDER_ENV]: row.id }) };
 }
 
-/** Whether the provider a key is typed for takes it: the one check the app's keys step and wsp init both run. */
+/** Whether the provider a key is typed for takes it: the one check the app's keys step and wsp init both run. A row
+ * with a check of its own is put to it, so a key that lacks an action the setup needs is refused before it is saved. */
 export function providerKeyCheck(env: ProviderEnv, key: string, provider?: string, modules: readonly ProviderModule[] = PROVIDER_MODULES): Promise<KeyCheck> {
-  return checkProviderKey(namedProviderBackend(providerEnvWithKey(env, key, provider, modules), provider, modules));
+  const backend = namedProviderBackend(providerEnvWithKey(env, key, provider, modules), provider, modules);
+  const own = keyRowFor(env, provider, modules)?.checkKey;
+  if (own === undefined) return checkProviderKey(backend);
+  return own(key).then(
+    ({ limits }): KeyCheck => (limits === undefined ? { state: "taken" } : { state: "taken", answer: limits }),
+    (e: unknown): KeyCheck => {
+      const refused = e as Partial<KeyRefusal>;
+      return { state: refused.kind === KEY_REFUSED ? "refused" : "unchecked", said: refused.said ?? (e instanceof Error ? e.message : String(e)) };
+    },
+  );
+}
+
+/** The key step's live check: the account, plan and machines a key reads where it works, or the refusal in the
+ * person's words with its kind, KEY_REFUSED where the provider answered about the key and KEY_UNCHECKED where it never
+ * answered. A row with no check of its own says what its backend's read said, and reads no facts. */
+export async function checkProviderKeyLive(env: ProviderEnv, key: string, provider: string, modules: readonly ProviderModule[] = PROVIDER_MODULES): Promise<ProviderKeyWorks> {
+  const own = keyRowFor(env, provider, modules)?.checkKey;
+  if (own !== undefined) return (await own(key)).works;
+  const check = await providerKeyCheck(env, key, provider, modules);
+  if (check.state === "taken") return { works: true, account: "", plan: "", running: 0, limit: 0 };
+  throw Object.assign(new Error(check.state === "refused" ? keyRefusedLine(check.said, provider) : keyUncheckedLine(check.said, provider)), { kind: check.state === "refused" ? KEY_REFUSED : KEY_UNCHECKED, said: check.said });
 }
 
 /** The environment a run picks its provider out of: the host's own, the command line's words in front, and every

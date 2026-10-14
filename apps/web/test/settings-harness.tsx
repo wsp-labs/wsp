@@ -20,6 +20,7 @@ import { AppShell } from "../src/shell/AppShell.js";
 import { forgetHeld } from "../src/protocol/held.js";
 import { TooltipProvider } from "../src/components/ui/tooltip.js";
 import { ImageCardHost } from "./image-card-host.js";
+import { closeCloudAdd } from "../src/settings/add/cloudFlow.js";
 
 /** A fake api that answers the reads the pages make, records the patches the picks write, and pushes events. */
 export function settingsApi(over: Partial<Api> = {}, record: Preferences = { ...DEFAULT_PREFERENCES, labs: false }): { api: Api; sets: PreferencesPatch[]; push(event: EventUnion): void } {
@@ -60,12 +61,13 @@ export function resetSettings(): void {
   window.localStorage.clear();
   forgetHeld();
   forgetSignIns();
-  useSettingsStore.setState({ at: FIRST_PAGE, search: "", reads: NO_READS, addProjectAt: null, devicesAsked: 0, buildShown: null, recipeAsked: null, addAsked: null, usageTab: "used", usageAsked: 0, usageRead: { at: null, reading: false }, agentsTab: "agents", agentsPlace: null, agentsLevel: null, activityView: "threads", activityPlace: null });
+  useSettingsStore.setState({ at: FIRST_PAGE, search: "", reads: NO_READS, addProjectAt: null, devicesAsked: 0, buildShown: null, recipeAsked: null, usageTab: "used", usageAsked: 0, usageRead: { at: null, reading: false }, agentsTab: "agents", agentsPlace: null, agentsLevel: null, activityView: "threads", activityPlace: null });
   useRightPanelStore.setState({ byWorkspaceId: {} });
   useNotices.getState().clear();
   useUpdateDownload.setState({ download: null });
   useAdds.setState({ jobs: {} });
   closeAdd();
+  closeCloudAdd();
   useRecipes.setState({ recipes: null, refused: null });
   useStore.setState({ api: null, conn: "live", places: [], pending: [], projects: [], placesRefused: null, projectsRefused: null, landings: {}, workspaces: [], statuses: {}, sessions: {}, addComputerOpen: false, settingsOpen: false, selectedId: null, selectedThreadId: null, ready: true, projectsRead: true, release: null, preferences: { ...DEFAULT_PREFERENCES, labs: false } });
 }
