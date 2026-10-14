@@ -19,7 +19,9 @@
 // The same read carries the agents' sign-in variables the catalog declares,
 // where the launch was handed none: a key the person exports in an rc file is
 // the one their own claude signs in with, and a turn here starts from this
-// process's environment.
+// process's environment. CLAUDE_CONFIG_DIR and CODEX_HOME are kept apart, for
+// the readers that look for the person's own logins alone: on the environment
+// they would move where this host's local turns keep their agents' stores.
 import { VAULT_VARIABLES } from "@wsp/catalog";
 import { spawnRun } from "@wsp/collect";
 import { loginPathLine } from "@wsp/protocol";
@@ -42,6 +44,8 @@ export interface LoginShellDeps {
   read?: (shell: string) => Promise<string | undefined>;
   /** The platform the rule is read for; this one unless a test names another. */
   platform?: string;
+  /** Where the login folders the launch lacks are written, by variable; never the environment. */
+  folders?: Record<string, string>;
 }
 
 /** Whether this launch has to ask the login shell: its PATH is launchd's own set, in any order and nothing else, or
@@ -56,11 +60,25 @@ export function needsLoginPath(env: NodeJS.ProcessEnv, platform: string = proces
  * process group that dies with the read, and its input is closed so an rc file that reads it does not wait. */
 const runLoginShell = (shell: string, script: string): Promise<string | undefined> => spawnRun(shell, ["-ilc", script], process.env, { timeoutMs: SHELL_LIMIT_MS });
 
+/** The variables that move where Claude Code and Codex keep their logins. */
+const LOGIN_FOLDERS = ["CLAUDE_CONFIG_DIR", "CODEX_HOME"] as const;
+
+/** The login folders this process's own read took from the login shell, where the launch had none. */
+const takenFolders: Record<string, string> = {};
+
+/** Where the person's own Claude Code and Codex keep their logins, as the collector's host takes them: what the
+ * login shell said where this launch was handed nothing. A launch that has them, the collector reads itself. */
+export function loginFolders(from: Readonly<Record<string, string>> = takenFolders): { claudeConfigDir?: string; codexHome?: string } {
+  const claude = from["CLAUDE_CONFIG_DIR"];
+  const codex = from["CODEX_HOME"];
+  return { ...(claude !== undefined ? { claudeConfigDir: claude } : {}), ...(codex !== undefined ? { codexHome: codex } : {}) };
+}
+
 /** The agents' sign-in variables the login shell put on this process: nothing where it put none. */
 export type LoginKeys = Readonly<Record<string, string>>;
 
-/** Puts the person's login shell PATH on the environment, with each agent's sign-in variable the launch lacks, and
- * answers with those variables; or says in one line why the PATH this launch was given stands. A shell that fails,
+/** Puts the person's login shell PATH on the environment, with each agent's sign-in variable the launch lacks,
+ * writes the login folders it lacks into `folders`, and answers with the sign-in variables; or says in one line why the PATH this launch was given stands. A shell that fails,
  * times out or prints nothing changes nothing. No line names a value. */
 export async function takeLoginPath(deps: LoginShellDeps): Promise<LoginKeys> {
   if (!needsLoginPath(deps.env, deps.platform)) return {};
@@ -81,8 +99,10 @@ export async function takeLoginPath(deps: LoginShellDeps): Promise<LoginKeys> {
     return {};
   }
   deps.env["PATH"] = path;
-  const taken = Object.fromEntries([...VAULT_VARIABLES].flatMap(name => (keyIn(login, name) !== undefined && keyIn(deps.env, name) === undefined ? [[name, login[name]!]] : [])));
+  const lacking = (name: string): boolean => keyIn(login, name) !== undefined && keyIn(deps.env, name) === undefined;
+  const taken = Object.fromEntries([...VAULT_VARIABLES].flatMap(name => (lacking(name) ? [[name, login[name]!]] : [])));
   Object.assign(deps.env, taken);
+  for (const name of LOGIN_FOLDERS) if (lacking(name) && deps.folders !== undefined) deps.folders[name] = login[name]!;
   return taken;
 }
 
@@ -124,7 +144,7 @@ let taken: Promise<LoginKeys> | undefined;
 
 /** The login shell is asked once per process, at the host's start and before it looks any command up. */
 export function adoptLoginPath(log: (line: string) => void): Promise<LoginKeys> {
-  return (taken ??= takeLoginPath({ env: process.env, log }));
+  return (taken ??= takeLoginPath({ env: process.env, log, folders: takenFolders }));
 }
 
 /** The login shell's environment for a question about its keys: what this process's own read took, where it took

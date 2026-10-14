@@ -48,6 +48,10 @@ export interface Host {
   terminal?: string;
   /** XDG_CONFIG_HOME of the process running the collector; unset, the XDG config dir is ~/.config. */
   xdgConfigHome?: string;
+  /** CLAUDE_CONFIG_DIR of the process running the collector: where Claude Code keeps its login. Unset, ~/.claude. */
+  claudeConfigDir?: string;
+  /** CODEX_HOME of the process running the collector: where Codex keeps its login. Unset, ~/.codex. */
+  codexHome?: string;
   /** The folder each agent's store variable names for a thread there, by agent id, where wsp points it somewhere of its
    * own: the agent reads its own config under that folder rather than under the home. */
   stores?: Readonly<Record<string, string>>;

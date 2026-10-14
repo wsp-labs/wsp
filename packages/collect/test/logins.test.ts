@@ -2,7 +2,11 @@
 import { CATALOG, LOGIN_ROWS, loginIdOf } from "@wsp/catalog";
 import { describe, expect, it } from "vitest";
 import { detectLogins } from "../src/index.js";
-import { loginDefault } from "../src/detect/logins.js";
+import { claudeKeychainService, loginDefault } from "../src/detect/logins.js";
+import { createHash } from "node:crypto";
+
+/** A credentials file holding Claude Code's own login, its token a stand-in. */
+const CLAUDE_LOGIN = JSON.stringify({ claudeAiOauth: { accessToken: "placeholder" }, mcpOAuth: {} });
 import { fakeHost } from "./fake-host.js";
 
 describe("logins", () => {
@@ -58,10 +62,31 @@ describe("logins", () => {
     expect(mac).toEqual([
       { rung: "logins", id: "logins/claude", label: "Claude Code login", group: "Agent logins", paths: [], bytes: 0, default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels" },
     ]);
-    const linux = await detectLogins(fakeHost({ platform: "linux", files: { "~/.claude/.credentials.json": 800 } }));
+    const linux = await detectLogins(fakeHost({ platform: "linux", files: { "~/.claude/.credentials.json": CLAUDE_LOGIN } }));
     expect(linux).toEqual([
       { rung: "logins", id: "logins/claude", label: "Claude Code login", group: "Agent logins", paths: [], bytes: 0, default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels" },
     ]);
+  });
+
+  it("finds Claude Code's and Codex's logins where CLAUDE_CONFIG_DIR and CODEX_HOME put them, and not at the default", async () => {
+    const dir = "/home/me/.claude-cfg";
+    // The Keychain item's name carries the first eight hex of the folder's sha256, as Claude Code names it.
+    expect(claudeKeychainService(dir)).toBe(`Claude Code-credentials-${createHash("sha256").update(dir).digest("hex").slice(0, 8)}`);
+    expect(claudeKeychainService()).toBe("Claude Code-credentials");
+    const mac = (exec: Record<string, string>) => detectLogins({ ...fakeHost({ exec }), claudeConfigDir: dir });
+    expect((await mac({ [`security find-generic-password -s ${claudeKeychainService(dir)}`]: "keychain: ...\n" })).map(r => r.id)).toEqual(["logins/claude"]);
+    expect((await mac({ "security find-generic-password -s Claude Code-credentials": "keychain: ...\n" })).map(r => r.id)).toEqual([]);
+    const linux = (files: Record<string, number | string>) => detectLogins({ ...fakeHost({ platform: "linux", files }), claudeConfigDir: dir, codexHome: "/home/me/.codex-own" });
+    expect((await linux({ [`${dir}/.credentials.json`]: CLAUDE_LOGIN, "/home/me/.codex-own/auth.json": 300 })).map(r => r.id).sort()).toEqual(["logins/claude", "logins/codex"]);
+    expect((await linux({ "~/.claude/.credentials.json": CLAUDE_LOGIN, "~/.codex/auth.json": 300 })).map(r => r.id)).toEqual([]);
+  });
+
+  it("on Linux Claude Code is signed in only where its credentials file holds its own login, not MCP tokens alone", async () => {
+    const claudeRow = async (text: string) => (await detectLogins(fakeHost({ platform: "linux", files: { "~/.claude/.credentials.json": text } }))).map(r => r.id);
+    expect(await claudeRow(CLAUDE_LOGIN)).toEqual(["logins/claude"]);
+    expect(await claudeRow(JSON.stringify({ mcpOAuth: { "acme|0a1b": { accessToken: "placeholder" } } }))).toEqual([]);
+    expect(await claudeRow(JSON.stringify({ claudeAiOauth: { accessToken: "" } }))).toEqual([]);
+    expect(await claudeRow("not json")).toEqual([]);
   });
 
   it("Claude Code with every key source here still travels nothing: the row is the token's, whatever is on this computer", async () => {

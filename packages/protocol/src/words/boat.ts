@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Boat's own lines: what a key holds as GET /limits answers it, and what a seal
 // there ends on. The answer is read by the engine's limitsOf; these are words.
-import type { LoginState } from "../init-job.js";
 import { fmtCpus, fmtMemGb, fmtRateDollars } from "./units.js";
 
 /** What a key holds, as the engine reads it off one /limits answer (`limitsOf`): the plan, its machine cap, its
@@ -50,19 +49,5 @@ export const boatForksNoFirstLine = (flags: readonly string[]): string => `Boat 
 /** What a seal on Boat ends on in place of a first machine: nothing is forked there, a lead's sub-thread is. */
 export const BOAT_READY_LINE = "Boat is ready for sub-threads: a thread starts one with run and on boat.";
 
-/** The warning a seal on Boat ends with when its image holds no GitHub sign-in: a sub-thread there clones and pushes
- * with it. */
-export const BOAT_NO_GITHUB_LINE =
-  "This image holds no GitHub sign-in, so a sub-thread on Boat can neither clone a private repository nor push its branch. Run wsp init --on boat again with the GitHub CLI login set to copy.";
-
 /** The GitHub CLI login row's label: the detector writes it and a seal records the login under it. */
 export const GITHUB_LOGIN_NAME = "GitHub CLI login";
-
-/** The sign-in states that leave a login on the image a sub-thread can use. */
-const GITHUB_HELD: readonly LoginState[] = ["signed-in", "copied"];
-
-/** The lines a seal on Boat ends on, off the sign-ins it recorded by name. */
-export function boatSealLines(logins: readonly { name: string; state?: LoginState | undefined }[]): string[] {
-  const github = logins.some(l => l.name === GITHUB_LOGIN_NAME && l.state !== undefined && GITHUB_HELD.includes(l.state));
-  return [BOAT_READY_LINE, ...(github ? [] : [BOAT_NO_GITHUB_LINE])];
-}
