@@ -6,7 +6,7 @@
 // turns. A stop drops a held spawn with no start spent, and a restarted host
 // starts it all the same. Boat is a stub backend that keeps every create.
 import { describe, expect, it } from "vitest";
-import { SUB_DROPPED_LINE, spawnCapRefusal, subOpening, type Caller, type ThreadCapWait } from "@wsp/protocol";
+import { SUB_DROPPED_LINE, keptOpening, spawnCapRefusal, subOpening, type Caller, type ThreadCapWait } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import { fakeClock } from "./fake-clock.js";
 import { NAME_LABEL, type MachineSpec } from "@wsp/engine";
@@ -75,6 +75,19 @@ describe("a spawn at Boat's machines at once waits for a slot", () => {
     await c.started;
     expect((await recordOf(rt, c.made.id))?.phase).not.toBe("queued");
     expect(await store.list("sub-starts")).toEqual([]);
+  });
+
+  it("lists its waiting row with the head of a long brief, as every row keeps its opening", async () => {
+    const { rt, boat, project, lead, token } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    boat.limitsRead = { ...PAID, machinesAtOnce: 1, activeBoxes: 1 };
+    const made = await rt.workspaces.create({ project: project.id, name: "Second", sub: { on: "boat" } }, lead);
+    const opening = subOpening(made.sub!.preamble, `${TASK} ${"Read the ticket and every comment on it before the code. ".repeat(600)}`);
+    let held!: () => void;
+    const heard = new Promise<void>(r => (held = r));
+    void rt.sessions.start(made.id, { prompt: opening, harness: made.sub!.harness, notify: ["me"], turnToken: token, title: "Second", cwd: made.sub!.folder, onHeld: () => held() }, lead).catch(() => {});
+    await heard;
+    const row = (await rt.sessions.list()).find(r => r.workspaceId === made.id)!;
+    expect(row).toMatchObject({ status: "running", capped: { why: "slot" }, prompt: keptOpening(opening) });
   });
 });
 

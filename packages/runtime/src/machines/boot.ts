@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { OWNER_LABEL, goldenHead, isMissing, readGone, sightMachine, type Machine, type MachineBackend, isNoProvider, isPlaceAbsent } from "@wsp/engine";
-import { type AcrossAct, type PlaceKind, type ProjectView, type SessionView, type Caller, type WorkspacePhase, ForkedFrom, ThreadPlacement, ThreadScope, TurnStatus, WorkspaceOrigin, notTheLeadsChildRefusal, foldThreads, threadKeyOf, threadWord, scopeOf, goneWords, NO_IMAGE_YET, noWorkspaceRefusal, notFoundRefusal, goneUnconfirmedLine, type GoneSeenBy, copiesFolder, kindForComputer, RUN_GONE_LINE, HERE_PLACE_ID, workspaceLands, type ThreadFacts, threadSettled, refusal, LIMIT_RESUME_PROMPT, heldUntil, capRestartedLine, tableName, threadsFollowed, LINK_RETRY_WINDOW_MS, cloudSaid } from "@wsp/protocol";
+import { type AcrossAct, type PlaceKind, type ProjectView, type SessionView, type Caller, type WorkspacePhase, ForkedFrom, ThreadPlacement, ThreadScope, TurnStatus, WorkspaceOrigin, notTheLeadsChildRefusal, foldThreads, threadKeyOf, threadWord, scopeOf, goneWords, NO_IMAGE_YET, noWorkspaceRefusal, notFoundRefusal, goneUnconfirmedLine, type GoneSeenBy, copiesFolder, kindForComputer, RUN_GONE_LINE, HERE_PLACE_ID, workspaceLands, type ThreadFacts, threadSettled, refusal, LIMIT_RESUME_PROMPT, heldUntil, capRestartedLine, tableName, threadsFollowed, LINK_RETRY_WINDOW_MS, cloudSaid, keptOpening, OPENING_KEPT } from "@wsp/protocol";
 import { keyOf } from "../agent-setup.js";
 import { harnessCatalog } from "../harness-catalog.js";
 import { accountOnComputer } from "../usage.js";
@@ -248,7 +248,8 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     // before anything lists it or meters it. A machine nothing can be asked about is neither: a place that is not
     // connected, a host started without its provider key and a provider read that failed all leave the record on
     // the word it was left with, and the host serves the rest rather than failing on the first record it cannot read.
-    const goldenKind = (await ctx.imageOf(stored.golden).catch(() => undefined))?.version?.kind ?? "sandbox";
+    // A record on this computer names no image, and looking up none would read every manifest to find nothing.
+    const goldenKind = stored.golden === "" ? "sandbox" : ((await ctx.imageOf(stored.golden).catch(() => undefined))?.version?.kind ?? "sandbox");
     let missing: string | undefined;
     let absent = false;
     // The kind is the golden's, which the record names: a desktop fork on a computer that is away is a desktop
@@ -378,6 +379,9 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       const left: { view: SessionView; turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; turnLive?: TurnLive; run?: string; from?: number; asked?: TurnAsked; turnToken?: string; scopeDeviceId?: string; snapshot?: string; unanswered?: true }[] = [];
       /** Turns that ended while their card was still being read: the commit stayed on the row for this host to read. */
       const unread: { view: SessionView; turnId: string; snapshot?: string }[] = [];
+      /** Indexes an older host wrote with whole openings, written back once cut: nothing else may save a napping
+       * workspace's rows again, and every launch would parse them whole. */
+      const recut = new Set<string>();
       for (const raw of await store.list(SESSIONS)) {
         const index = raw as SessionIndexRecord;
         if (!live.has(index.workspaceId)) continue;
@@ -426,6 +430,10 @@ export function bootArea(ctx: RuntimeContext): BootArea {
           const asked = readAsked(storedAsked);
           const road = readRoad(notifyRoad);
           const steered = readSteered(storedSteered);
+          if (typeof view.prompt === "string" && view.prompt.length > OPENING_KEPT) {
+            view.prompt = keptOpening(view.prompt);
+            recut.add(index.workspaceId);
+          }
           const row: {
             view: SessionView;
             turnId: string;
@@ -472,6 +480,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
           sessions.set(view.id, row);
         }
       }
+      for (const workspaceId of recut) void ctx.persistSessions(workspaceId);
       // Each record the load held while its read was out, loaded once the read lands; whatever the load does with
       // such a record's entry waits for this first.
       const landing = new Map([...load.late].map(([id, read]) => [id, loadLate(id, read)]));

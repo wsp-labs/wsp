@@ -682,6 +682,41 @@ describe("a held start that never launches tells whoever it was to report to", (
     }
   });
 
+  it("a held send of 3000 characters keeps them all in its held-start record, its wait in the transcript and its end after a restart", async () => {
+    const root = mkdtempSync(joinPath(tmpdir(), "wsp-cap-long-"));
+    const store = memoryStore();
+    const first = heldTurns();
+    let second: ReturnType<typeof heldTurns> | undefined;
+    const long = `two ${"wait for a slot and keep every word. ".repeat(80)}`.slice(0, 3000);
+    try {
+      const { host, set } = await onHere(root, first.adapter, store);
+      const mac = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "mac" });
+      const two = await createOn(ctx.runtime!, { on: HERE_PLACE_ID, name: "two" });
+      await set(1);
+      await ctx.runtime!.sessions.start(mac.id, { prompt: "one" });
+      const answer = (await host.request("sessions.start", { workspaceId: two.id, prompt: long, answerHeld: true })) as { outcome: string; turnId: string };
+      expect(answer.outcome).toBe("held");
+      await until(async () => (await store.list("held-starts")).length === 1);
+      expect(await store.list("held-starts")).toMatchObject([{ turnId: answer.turnId, prompt: long }]);
+      expect((await ctx.runtime!.sessions.history(two.id)).filter(e => e.type === "session.capped")).toMatchObject([{ turnId: answer.turnId, prompt: long }]);
+      host.close();
+      await ctx.srv!.close();
+      await ctx.runtime!.close();
+      second = heldTurns();
+      await onHere(root, second.adapter, store);
+      await ctx.runtime!.sessions.list();
+      const ends = (await ctx.runtime!.sessions.history(two.id)).filter(e => e.type === "session.end" && e.turnId === answer.turnId);
+      expect(ends).toMatchObject([{ unstarted: true, prompt: long }]);
+    } finally {
+      for (const end of [...first.ends.values(), ...(second?.ends.values() ?? [])]) end();
+      await ctx.srv?.close();
+      ctx.srv = undefined;
+      await ctx.runtime?.close();
+      ctx.runtime = undefined;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("reads back a held send a restart ended as a turn of its own, with the words sent, after a turn that replied", async () => {
     const root = mkdtempSync(joinPath(tmpdir(), "wsp-cap-read-"));
     const store = memoryStore();
