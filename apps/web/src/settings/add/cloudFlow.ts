@@ -13,8 +13,8 @@ import { useSettingsStore } from "../settingsStore.js";
 import { cloudsOffered } from "../providers.js";
 import { FIRST_CLOUD } from "./cloudKey.js";
 
-/** The host's screens the dialog draws as pick steps, in its order; the sign-ins screen is not among them, since
- * nothing signs in on a cloud machine, and the wsp tools screen is answered on Build. */
+/** The host's screens the dialog draws as pick steps, in its order; the sign-ins and wsp tools screens are not among
+ * them, since nothing signs in on a cloud machine and its build writes nothing on this computer. */
 export const CLOUD_PICKS = ["agents", "tools", "also"] as const satisfies readonly InitScreenId[];
 export type CloudPick = (typeof CLOUD_PICKS)[number];
 
