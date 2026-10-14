@@ -26,9 +26,10 @@ usage: wsp recipe [--tick used|installed|default] [--set <id>=on|off]
   manifests for what it takes to build and weighs the histories by it, --out
   says where the file goes and --json prints the table as one object. Naming
   --tick or --project decides every tick again; without either, what the file
-  says stands and the flags flip rows on top of it. A sign-in answer stands
-  either way: no rule decides one. All of them repeat. Review it, then wsp init
-  --recipe
+  says stands and the flags flip rows on top of it. A build on Boat ignores
+  every sign-in answer, since its machines use the sign-ins on this computer
+  through wsp. A sign-in answer stands either way: no rule decides one. All of
+  them repeat. Review it, then wsp init --recipe
 
   --out          where the recipe file is written
   --tick         the rule that decides every tick: used, installed, default

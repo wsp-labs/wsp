@@ -16,12 +16,31 @@ import {
   SKILL_PREVIEW_BYTES,
   usageRefusal,
   addToolsHereRefusal,
+  HERE_PLACE_ID,
   THIS_COMPUTER,
+  hereName,
+  isProviderPlace,
+  runsInFolder,
+  workspaceKind,
+  type PlaceView,
 } from "@wsp/protocol";
-import { usageIs, tool, type Verb, flag, flagList } from "./client.js";
+import { brokeredSignInFix, brokeredSignInRefusal } from "../agents-signin.js";
+import { usageIs, tool, type HostClient, type Verb, flag, flagList } from "./client.js";
+import { threadAt } from "./turns-help.js";
 import { HOST_SIDE_VAULT } from "./workspaces-help.js";
 import { asText, ACCESS_IN_WORDS, confirmed } from "./io.js";
 import { aimedUsage, agentsTarget, projectAsked, toolsProject, agentsReport, AGENTS_FRAME, reportFacts, agentRowLines, skillRowLines, serverRowLines, toolLines, serverToolsOf, serverChanged, serverValues, serverCommand, serverScope, ServerNameIn, ServerAgentIn, ServerScopeIn, ServerProjectIn, SERVER_CHANGE_WORDS, SERVER_TOOLS_WORDS, toolsAddedLine, addTools, signInHere, signedInLine, searchSkillsSh, skillHitLines, skillShown, shownText, skillAdded, isInLine, addedLine, goneFromLine, turnedInLine, removedLine, skillChanged, turnedLine, SkillNameIn, SkillProjectIn, SKILL_CHANGE_WORDS, AGENT_SET_RESETS, AGENT_SETUP_RESETS, agentDefaultsSet, agentDefaultsLine, defaultAgentSet, defaultAgentLine, envNameOf, agentSetupSet, agentSetupLines, AgentsThreadIn, AgentsOnIn, AGENTS_READ_WORDS, pluginRowLines, pluginChanged, pluginTurnedLine, PluginIdIn, PluginAgentIn, PLUGIN_CHANGE_WORDS } from "./agents-help.js";
+
+/** The workspace a thread's sign-in runs on, refused before anything runs there where its machine is at a cloud
+ * provider: its threads use the sign-in on the computer the host runs on. */
+async function signInWorkspace(client: HostClient, agent: string, thread: string): Promise<string> {
+  const { workspace } = await threadAt(client, thread, "wsp agents signin", true);
+  const { places } = await client.request<{ places: PlaceView[] }>("places.list");
+  // A machine whose record names no computer is at this host's own provider; one that names a provider is at that one.
+  const place = workspace.place === undefined ? undefined : places.find(p => p.id === workspace.place);
+  if (!runsInFolder(workspaceKind(workspace)) && (workspace.place === undefined || (place !== undefined && isProviderPlace(place)))) throw usageRefusal(brokeredSignInRefusal(agentName(agent)), brokeredSignInFix(hereName(places) || THIS_COMPUTER));
+  return workspace.id;
+}
 
 export const AGENT_VERBS: readonly Verb[] = [
   {
@@ -229,7 +248,8 @@ export const AGENT_VERBS: readonly Verb[] = [
     run: async ctx => {
       const [agent, thread, ...rest] = ctx.args;
       if (agent === undefined || rest.length > 0) throw usageRefusal("wsp agents signin takes one agent and one thread at most.", usageIs(ctx));
-      const target = await agentsTarget(await ctx.client(), thread, undefined, usageIs(ctx), "wsp agents signin");
+      const client = await ctx.client();
+      const target = thread === undefined ? await agentsTarget(client, thread, undefined, usageIs(ctx), "wsp agents signin") : { workspaceId: await signInWorkspace(client, agent, thread) };
       const where = thread === undefined ? THIS_COMPUTER : `thread ${thread}`;
       const answer = await signInHere(ctx, target, { agent }, where);
       ctx.io.log(signedInLine(agentName(agent), where, answer));
@@ -239,7 +259,7 @@ export const AGENT_VERBS: readonly Verb[] = [
   {
     name: "agents key",
     usage: "wsp agents key <agent> [--api-key]",
-    about: "puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints, and --api-key takes its API key instead",
+    about: "puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints, Codex signs in on this computer with its own login, which machines at a provider use through wsp, and --api-key takes the agent's API key instead",
     page: "agent",
     options: { "api-key": { type: "boolean" } },
     cliOnly: "takes a token typed at the host's own terminal into its vault, which is the person's to hand over",
@@ -249,6 +269,11 @@ export const AGENT_VERBS: readonly Verb[] = [
       if (agent === undefined || rest.length > 0) throw usageRefusal("wsp agents key takes one agent.", usageIs(ctx));
       if (ctx.io.isTTY !== true) throw usageRefusal("nobody is at this terminal to paste a token.", "Run it in a terminal on the computer the host runs on.");
       const apiKey = ctx.flags["api-key"] === true;
+      if (agent === "codex" && !apiKey) {
+        const answer = await signInHere(ctx, { placeId: HERE_PLACE_ID }, { agent }, THIS_COMPUTER);
+        ctx.io.log(signedInLine(agentName(agent), THIS_COMPUTER, answer));
+        return answer.signedIn ? 0 : 1;
+      }
       const mint = catalogEntry(agent)?.signIn;
       const ask = !apiKey && mint !== undefined && "mint" in mint ? `Run ${mint.mint} in another terminal, then paste the token it prints` : `Paste ${agentName(agent)}'s API key`;
       const key = await ctx.io.askSecret(ask);

@@ -149,7 +149,10 @@ describe("runtime golden retention", () => {
     expect(plan.drop.map(v => v.version)).toEqual([1, 3, 4]);
     expect(plan.abandoned.map(v => v.version)).toEqual([3, 4]);
     expect(plan.parentAssumed).toBe(false);
-    // A workspace forked from v4 guards it: prune deletes v1 and v3, and v4 stays with its recipe.
+    // A workspace forked from v4 guards it: prune deletes v1 and v3, and v4 stays with its recipe. The update wrote
+    // the host's first image record, so a fork at the provider boots only a marked version: v4 is a provider's seal.
+    const manifest = (await store.get("goldens", copyKey("default", "default"))) as { versions: { version: number }[] };
+    await store.put("goldens", copyKey("default", "default"), { ...manifest, versions: manifest.versions.map(v => (v.version === 4 ? { ...v, noSecrets: true } : v)) });
     await createOn(updating, { golden: "snap_golden-v4", name: "alpha" });
     const guarded = (await updating.golden.retention())!;
     expect(guarded.drop.map(v => v.version)).toEqual([1, 3]);

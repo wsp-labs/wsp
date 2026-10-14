@@ -7,6 +7,7 @@ import { keyOf } from "../agent-setup.js";
 import { harnessCatalog } from "../harness-catalog.js";
 import type { Runtime } from "../types/api.js";
 import { PREFERENCES, PREFERENCES_ID } from "../types/internal.js";
+import { atProvider } from "../types/wiring.js";
 import type { RuntimeContext, PreferencesArea } from "../context.js";
 
 export function preferencesArea(ctx: RuntimeContext): PreferencesArea {
@@ -108,7 +109,8 @@ export function preferencesArea(ctx: RuntimeContext): PreferencesArea {
           return folder === undefined ? [] : [[a.id, folder]];
         }),
       );
-      return { name: entry.record.name, phase: entry.record.phase, local, machine: entry.machine, project: { id: project.id, name: project.name, path: ctx.checkoutOf(entry.record) }, stores };
+      const brokered = !local && atProvider(ctx.placeIdOf(entry.record), ctx.places);
+      return { name: entry.record.name, phase: entry.record.phase, local, machine: entry.machine, project: { id: project.id, name: project.name, path: ctx.checkoutOf(entry.record) }, stores, ...(brokered ? { brokered } : {}) };
     },
     placeStores: ctx.placeStores,
     storesHere: ctx.storesHere,

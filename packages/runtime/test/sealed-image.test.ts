@@ -6,11 +6,12 @@ import { createHash } from "node:crypto";
 import { hostname } from "node:os";
 import { describe, expect, it } from "vitest";
 import { NoProviderBackend, imageHash, tarOf } from "@wsp/engine";
-import { COPY_BUILD_FIX, NO_BUILD_PLACE_LINE, NO_PROVIDER_LINE, RUNTIME_OPS, THREAD_OPS, SealedImageView, buildPlaceAskLine, placeBuildsNoImageLine, placeForksNothingPickLine, sealedCopyLine, vaultUnlistedRefusal, type Recipe, type RecipeDigest, type SealedImage } from "@wsp/protocol";
+import { GH_LOGIN_PATHS, NEVER_ON_BROKERED } from "@wsp/catalog";
+import { COPY_BUILD_FIX, COPY_CURRENT, COPY_STALE, IMAGE_NO_SECRETS, NO_BUILD_PLACE_LINE, NO_PROVIDER_LINE, RUNTIME_OPS, THREAD_OPS, SealedImageView, buildPlaceAskLine, copyAsksSignIns, copyStanding, credentialOnBuilderLine, placeBuildsNoImageLine, placeForksNothingPickLine, sealedCopyLine, sealedImageLine, shellQuote, vaultUnlistedRefusal, type Recipe, type RecipeDigest, type SealedImage } from "@wsp/protocol";
 import { copyKey, createRuntime, wiredPlace, type PlaceBackends, type Runtime } from "../src/runtime.js";
 import { serveRuntime } from "../src/serve.js";
 import { memoryStore, type Store } from "../src/store.js";
-import { COPY_RECIPE, EMPTY_TGZ_SHA, SMALL, dfOk, digestOf, importOf, recipeWith } from "./image-fixtures.js";
+import { COPY_RECIPE, EMPTY_TGZ_SHA, SMALL, VAULT_PATHS, dfOk, digestOf, importOf, recipeWith } from "./image-fixtures.js";
 import { stubBackend, type StubBackend, createOn, projectOn } from "./stub-backend.js";
 import { WsClient } from "./ws-client.js";
 
@@ -43,6 +44,23 @@ function twoPlaces() {
   return { other, places };
 }
 
+/** The same two places where neither is in the host's provider table, which is what a computer you joined is to the
+ * image's roads: each seals the sign-ins it holds into a vault, and a copy lands it. */
+function twoComputers() {
+  const { other, places } = twoPlaces();
+  return { other, places: (wired: StubBackend): PlaceBackends => ({ ...places(wired), list: () => [] }) };
+}
+
+/** The provider this host forks on, `box`, beside `solari` as a computer you joined. */
+function providerAndComputer() {
+  const { other, places } = twoPlaces();
+  return { other, places: (wired: StubBackend): PlaceBackends => ({ ...places(wired), list: () => ["box"] }) };
+}
+
+/** A builder's exec that holds these paths and answers everything else as dfOk does. */
+const holding = (paths: () => readonly string[]) => (m: unknown, cmd: string) =>
+  cmd.startsWith("for p in ") && !cmd.startsWith(`for p in ${VAULT_PATHS.map(shellQuote).join(" ")};`) ? { exitCode: 0, stdout: paths().map(p => `${p}\n`).join(""), stderr: "" } : dfOk(m, cmd);
+
 /** A record on the store as a seal left it, with the archive its builder handed back: what a second place reads
  * before it boots anything. */
 async function recorded(store: Store, o: { held?: string[]; tar: Buffer; version?: number; place?: string }): Promise<void> {
@@ -59,20 +77,75 @@ async function recorded(store: Store, o: { held?: string[]; tar: Buffer; version
 }
 
 describe("the image record a seal writes", () => {
-  it("a seal through a recipe with vault paths writes the record, its hash and the vault blob, and stamps the hash on the version", async () => {
-    const { store, rt } = started();
+  it("a seal at a computer through a recipe with vault paths writes the record, its hash and the vault blob, and stamps the hash on the version", async () => {
+    const { store, rt } = started({ places: twoComputers().places });
     const b = await rt.golden.prepare();
     const { version } = await rt.golden.seal(b.id);
     const image = (await store.get("images", "default")) as { hash: string; recipeHash: string; recipe: Recipe; vault: { sha256: string; paths: number; held?: string[] } };
     expect(image).toMatchObject({ name: "default", version: 1, recipeHash: "h1", recipe: SMALL, sealedFrom: "h1" });
+    expect(image).not.toHaveProperty("noSecrets");
     expect(image.vault).toMatchObject({ sha256: EMPTY_TGZ_SHA, paths: 1, held: ["/etc/profile.d/wsp-secrets.sh"] });
     expect(image.hash).toBe(imageHash("h1", EMPTY_TGZ_SHA, []));
     expect(version.imageHash).toBe(image.hash);
     expect(await store.getBlob("image-vaults", "default@v1")).toBeDefined();
     const view = await rt.image.get();
     expect(view.image).toMatchObject({ hash: image.hash });
-    expect(view.copies).toEqual([expect.objectContaining({ place: "default", version: 1, hash: image.hash, snapshotId: version.snapshotId })]);
+    expect(view.copies).toEqual([expect.objectContaining({ place: "box", version: 1, hash: image.hash, snapshotId: version.snapshotId })]);
     await rt.close();
+  });
+
+  it("a seal at a provider takes no vault off the builder and marks the record as holding no sign-ins", async () => {
+    const { store, rt, backend } = started();
+    const b = await rt.golden.prepare();
+    const { version } = await rt.golden.seal(b.id);
+    const image = (await store.get("images", "default")) as SealedImage;
+    expect(image).toMatchObject({ name: "default", version: 1, noSecrets: true, place: "default" });
+    expect(image.vault).toBeUndefined();
+    expect(image.hash).toBe(imageHash("h1", undefined, []));
+    expect(version.imageHash).toBe(image.hash);
+    expect(await store.getBlob("image-vaults", "default@v1")).toBeUndefined();
+    // The one probe was the guard's, over every path a sign-in leaves; nothing read the vault's paths for an archive.
+    const probes = backend.machines.flatMap(m => m.execLog).filter(c => c.startsWith("for p in "));
+    expect(probes).toHaveLength(1);
+    for (const path of NEVER_ON_BROKERED.filter(p => !GH_LOGIN_PATHS.includes(p))) expect(probes[0]).toContain(shellQuote(path));
+    expect(backend.machines.flatMap(m => m.execLog).some(c => c.includes("tar") && c.includes("wsp-secrets.sh"))).toBe(false);
+    expect(sealedImageLine(image)).toContain(IMAGE_NO_SECRETS);
+    expect(copyAsksSignIns(image)).toBe(false);
+    await rt.close();
+  });
+
+  it("a seal at a provider refuses each path a sign-in leaves, by name, and writes no record and no vault", async () => {
+    const { store, rt, backend } = started();
+    let held: readonly string[] = [];
+    backend.execImpl = holding(() => held);
+    const b = await rt.golden.prepare();
+    const listed = NEVER_ON_BROKERED.filter(p => !GH_LOGIN_PATHS.includes(p));
+    expect(listed).toEqual(expect.arrayContaining(["/root/.claude-cfg/.credentials.json", "/root/.claude-cfg/anthropic-api-key", "/root/.codex/auth.json", "/root/.mcp-auth", "/root/.git-credentials", "/etc/profile.d/wsp-secrets.sh", "/etc/fish/conf.d/wsp-secrets.fish", "/root/.config/gcloud", "/root/.aws"]));
+    // A refused seal leaves the builder as it stood, so the same builder is asked once per path.
+    for (const path of listed) {
+      held = [path];
+      await expect(rt.golden.seal(b.id)).rejects.toMatchObject({ kind: "credentialOnBuilder", paths: [path], message: credentialOnBuilderLine([path]) });
+    }
+    held = listed;
+    await expect(rt.golden.seal(b.id)).rejects.toMatchObject({ paths: listed, message: credentialOnBuilderLine(listed) });
+    expect(await store.get("images", "default")).toBeUndefined();
+    expect(await store.list("image-vaults")).toEqual([]);
+    expect(backend.snapshots).toHaveLength(0);
+    await rt.close();
+  });
+
+  it("gh's login is refused at a provider's seal only once the host's broker is ready, since every image there carries it until then", async () => {
+    for (const ready of [false, true]) {
+      const backend = stubBackend();
+      backend.execImpl = holding(() => GH_LOGIN_PATHS);
+      const store = memoryStore();
+      const rt = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(), hostId: "h1", broker: { ready: () => ready, codexClaims: async () => undefined } });
+      const b = await rt.golden.prepare();
+      if (ready) await expect(rt.golden.seal(b.id)).rejects.toMatchObject({ kind: "credentialOnBuilder", paths: ["/root/.config/gh/hosts.yml"] });
+      else await rt.golden.seal(b.id);
+      expect(((await store.get("images", "default")) as SealedImage | undefined)?.noSecrets).toBe(ready ? undefined : true);
+      await rt.close();
+    }
   });
 
   it("a seal at the wired provider files that provider as the image's home, so a rebuild after the provider is swapped is refused rather than sent to the new one", async () => {
@@ -127,9 +200,9 @@ describe("the image record a seal writes", () => {
     // The npm row this computer had and the catalog's bare row another computer would plan are one tool: the pin is filed under its catalog id.
     const pins = [{ id: "tmux", tag: "3.3a-3", latest: true as const, road: "apt" }, { id: "wrangler", tag: "4.1.0", road: "npm" }];
     expect(image.pins).toEqual(pins);
-    expect(image.hash).toBe(imageHash("h1", EMPTY_TGZ_SHA, pins));
-    // The same recipe and vault sealed with no pin read is another image.
-    expect(image.hash).not.toBe(imageHash("h1", EMPTY_TGZ_SHA, []));
+    expect(image.hash).toBe(imageHash("h1", undefined, pins));
+    // The same recipe sealed with no pin read is another image.
+    expect(image.hash).not.toBe(imageHash("h1", undefined, []));
     expect((await rt.image.get()).image?.pins).toEqual(pins);
     await rt.close();
   });
@@ -205,9 +278,9 @@ describe("the image record a seal writes", () => {
 });
 
 describe("building the image at a second place", () => {
-  /** The image sealed at the provider this host forks on, and its copy built at solari on a press. */
+  /** The image sealed at the computer this host forks on, and its copy built at solari, another computer, on a press. */
   async function sealedAtWired() {
-    const { other, places } = twoPlaces();
+    const { other, places } = twoComputers();
     const { backend, store, rt, composed } = started({ places });
     const frames: { stage: string; place?: string }[] = [];
     rt.events.on("golden.stage", e => {
@@ -225,7 +298,7 @@ describe("building the image at a second place", () => {
     const { backend, other, rt, record, frames, composed, madeAtWired } = await sealedAtWired();
     // This computer was read once for the copy's recipe, and the wired provider made nothing after its own seal.
     expect(composed.count).toBe(1);
-    expect(composed.for).toEqual([{ cloud: true }]);
+    expect(composed.for).toEqual([{ cloud: false }]);
     expect(backend.machines.length).toBe(madeAtWired);
     expect(other.puts.some(p => createHash("sha256").update(p.body).digest("hex") === EMPTY_TGZ_SHA)).toBe(true);
     // The seal's own frames name no place; the copy's all name solari, and every stage of a build is among them:
@@ -281,6 +354,26 @@ describe("building the image at a second place", () => {
     await rt.close();
   });
 
+  it("a copy of an image sealed at a provider reads current, then stale once the image is sealed again from another recipe", async () => {
+    const { places } = twoPlaces();
+    const { rt } = started({ places });
+    await rt.golden.seal((await rt.golden.prepare()).id);
+    await rt.image.build({ place: "solari" });
+    const standing = async (place: string) => {
+      const view = await rt.image.get();
+      return copyStanding(view.image!, view.copies.find(c => c.place === place)!);
+    };
+    expect(await standing("solari")).toBe(COPY_CURRENT);
+    await rt.golden.seal((await rt.golden.prepare({ recipe: recipeWith({ recipeHash: "h2" }) })).id);
+    const view = await rt.image.get();
+    expect(view.image).toMatchObject({ noSecrets: true });
+    expect(view.image!.vault).toBeUndefined();
+    expect(await standing("solari")).toBe(COPY_STALE);
+    expect(sealedCopyLine(view.image!, view.copies.find(c => c.place === "solari")!)).toMatch(/  stale$/);
+    expect(await standing("box")).toBe(COPY_CURRENT);
+    await rt.close();
+  });
+
   it("a place that forks nothing and copies no disk takes no copy of the image, and is refused before anything boots", async () => {
     const none = new NoProviderBackend();
     const places = (wired: StubBackend): PlaceBackends => ({
@@ -298,7 +391,7 @@ describe("building the image at a second place", () => {
   });
 
   it("a record with no vault is refused unless force, and with force the copy is recorded and holds no sign-ins", async () => {
-    const { other, places } = twoPlaces();
+    const { other, places } = twoComputers();
     const backend = stubBackend();
     backend.execImpl = dfOk;
     const rt = createRuntime({ backend, store: memoryStore(), adapters: {}, goldenRecipe: recipeWith({ vault: false }), copyRecipe: () => COPY_RECIPE, hostId: "h1", places: places(backend) });
@@ -337,7 +430,7 @@ describe("building the image at a second place", () => {
     expect(await fixOf(backfilled.rt.image.build({ place: "solari" }))).toMatchObject({ kind: "conflict", fix: COPY_BUILD_FIX.noRecipe });
     await backfilled.rt.close();
 
-    const { other, places } = twoPlaces();
+    const { other, places } = twoComputers();
     const backend = stubBackend();
     backend.execImpl = dfOk;
     const rt = createRuntime({ backend, store: memoryStore(), adapters: {}, goldenRecipe: recipeWith({ vault: false }), copyRecipe: () => COPY_RECIPE, hostId: "h1", places: places(backend) });
@@ -378,7 +471,7 @@ describe("building the image at a second place", () => {
   });
 
   it("a copy reads the archive against the paths the seal asked for, and one carrying a foreign member boots no builder", async () => {
-    const { other, places } = twoPlaces();
+    const { other, places } = twoComputers();
     const store = memoryStore();
     await recorded(store, { held: ["/root/.codex/auth.json"], tar: tarOf([{ path: "etc/cron.d/x", mode: 0o644, content: "* * * * * root sh" }]) });
     const { rt, composed } = started({ store, places });
@@ -390,7 +483,7 @@ describe("building the image at a second place", () => {
   });
 
   it("a record whose vault kept no path list is refused in its own sentence, never the one for a blob this computer lost", async () => {
-    const { other, places } = twoPlaces();
+    const { other, places } = twoComputers();
     const store = memoryStore();
     await recorded(store, { tar: tarOf([{ path: "root/.codex/auth.json", mode: 0o600, content: "{}" }]) });
     const { rt } = started({ store, places });
@@ -400,13 +493,33 @@ describe("building the image at a second place", () => {
   });
 
   it("an archive whose every member is under the asked paths builds the copy", async () => {
-    const { other, places } = twoPlaces();
+    const { other, places } = twoComputers();
     const store = memoryStore();
     await recorded(store, { held: ["/root/.codex/auth.json"], tar: tarOf([{ path: "root/.codex/auth.json", mode: 0o600, content: "{}" }]) });
     const { rt } = started({ store, places });
     expect(await rt.image.build({ place: "solari" })).toMatchObject({ built: true, copy: { place: "solari" } });
     expect(other.machines.length).toBeGreaterThan(0);
     await rt.close();
+  });
+
+  it("a copy at a provider lands no vault, whatever the record it is built from holds, and reads no archive", async () => {
+    const vault = tarOf([{ path: "root/.codex/auth.json", mode: 0o600, content: "{}" }]);
+    const foreign = tarOf([{ path: "etc/cron.d/x", mode: 0o644, content: "* * * * * root sh" }]);
+    for (const tar of [vault, foreign]) {
+      const { other, places } = twoPlaces();
+      const store = memoryStore();
+      await recorded(store, { held: ["/root/.codex/auth.json"], tar, place: "box" });
+      const { rt } = started({ store, places });
+      const stages: string[] = [];
+      rt.events.on("golden.stage", e => {
+        if (e.type === "golden.stage" && e.place === "solari") stages.push(`${e.stage}:${e.detail ?? ""}`);
+      });
+      expect(await rt.image.build({ place: "solari" })).toMatchObject({ built: true, copy: { place: "solari" } });
+      expect(other.puts.some(p => Buffer.from(p.body).equals(tar))).toBe(false);
+      expect(stages.length).toBeGreaterThan(0);
+      expect(stages.some(st => st.includes("sign-ins"))).toBe(false);
+      await rt.close();
+    }
   });
 
   it("a record with no small recipe cannot be built anywhere else", async () => {
@@ -424,7 +537,7 @@ describe("building the image at a second place", () => {
 
 describe("a version's sign-ins live as long as the version and no longer", () => {
   it("the seal that replaces a version takes that version's blob, whether or not the cut kept its snapshot", async () => {
-    const { store, rt } = started();
+    const { store, rt } = started({ places: twoComputers().places });
     const b = await rt.golden.prepare();
     await rt.golden.seal(b.id);
     expect(await store.getBlob("image-vaults", "default@v1")).toBeDefined();
@@ -500,7 +613,7 @@ describe("the image over the protocol", () => {
 
 describe("the image's own seal at a place that is not the provider this host forks on", () => {
   it("makes the builder there, writes the record naming that place, files the copy under it, reads the golden's manifest and recipe from there, and the provider this host forks on gets its copy when asked", async () => {
-    const { other, places } = twoPlaces();
+    const { other, places } = providerAndComputer();
     const { backend, store, rt } = started({ places });
     const frames: { stage: string; place?: string }[] = [];
     rt.events.on("golden.stage", e => {
