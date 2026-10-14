@@ -1491,7 +1491,7 @@ describe("deployScript", () => {
     expect(DAEMON_MEMORY_MAX_PERCENT).toBe(80);
     // Enabled with an install section, so a machine that reboots or comes back from a snapshot has its daemon.
     expect(unit).toContain("WantedBy=multi-user.target");
-    expect(unit).toContain("ExecStart=/root/wsp-daemon/wsp/assets/daemon/x86_64-unknown-linux-musl/wsp-daemon --host 0.0.0.0 --port 7070 --token-path /root/.wsp/daemon-token --root /root --roots-path /root/.wsp/roots --kind cloud --inbox /root/.wsp/inbox --manifest /root/.wsp/manifest.json --open-socket /root/.wsp/open.sock --doors");
+    expect(unit).toContain("ExecStart=/root/wsp-daemon/wsp/assets/daemon/x86_64-unknown-linux-musl/wsp-daemon --host 0.0.0.0 --port 7070 --token-path /root/.wsp/daemon-token --root /root --roots-path /root/.wsp/roots --kind cloud --inbox /root/.wsp/inbox --manifest /root/.wsp/manifest.json --open-socket /run/wsp-daemon/open.sock --doors");
     // The journal, which rotates itself: nothing else on the guest bounds a log, and restarts here have no limit.
     expect(unit).toContain("StandardOutput=journal");
     expect(unit).toContain("StandardError=journal");
@@ -1510,7 +1510,7 @@ describe("deployScript", () => {
     // The flags name every file the daemon reads or writes, so nothing is left to a default the guest may not have.
     // Every one of them under root's own wsp folder, which is the same shape the login's own place below reads
     // under its home: on a computer somebody joined that folder is the workspace's own and not the computer's.
-    expect(daemonFlags(CLOUD_PLACE)).toEqual(["--host", "0.0.0.0", "--port", "7070", "--token-path", "/root/.wsp/daemon-token", "--root", "/root", "--roots-path", "/root/.wsp/roots", "--kind", "cloud", "--inbox", "/root/.wsp/inbox", "--manifest", "/root/.wsp/manifest.json", "--open-socket", "/root/.wsp/open.sock", "--doors"]);
+    expect(daemonFlags(CLOUD_PLACE)).toEqual(["--host", "0.0.0.0", "--port", "7070", "--token-path", "/root/.wsp/daemon-token", "--root", "/root", "--roots-path", "/root/.wsp/roots", "--kind", "cloud", "--inbox", "/root/.wsp/inbox", "--manifest", "/root/.wsp/manifest.json", "--open-socket", "/run/wsp-daemon/open.sock", "--doors"]);
     // A workspace a computer of the person's boots is a cloud kind too, and keeps its own credentials.
     expect(daemonFlags(CONTAINER_PLACE)).not.toContain("--doors");
     // A login's own place quotes each path, since a home may carry a space; the flags and the words stay bare.

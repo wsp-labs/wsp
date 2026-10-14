@@ -5,12 +5,12 @@
 // so the machine, the provider's exec text and anything a turn leaves running
 // hold a token that dies with the turn.
 import { CATALOG_AGENTS, keyEnvOf } from "@wsp/catalog";
-import { BROKER_PORT, BROKER_SOCKET_PATH, GUEST_WSP_HOME, HOST_TOKEN_ENV, brokeredAgentRefusal, shellQuote, type BrokerStatus, type CodexClaims, type ExecStreamFactory } from "@wsp/protocol";
+import { BROKER_PORT, BROKER_SOCKET_PATH, GUEST_SOCKET_DIR, HOST_TOKEN_ENV, brokeredAgentRefusal, shellQuote, type BrokerStatus, type CodexClaims, type ExecStreamFactory } from "@wsp/protocol";
 import { BROKERED_AGENTS } from "../adapters.js";
 import type { HarnessAdapterContext } from "../types/harness.js";
 
 /** The folder gh reads its config from on such a machine; the launch text writes the config there. */
-export const BROKERED_GH_DIR = `${GUEST_WSP_HOME}/gh`;
+export const BROKERED_GH_DIR = `${GUEST_SOCKET_DIR}/gh`;
 
 /** The only way gh is sent down a unix socket is this config key: no variable sets it (measured on gh 2.97.0). */
 const GH_DOOR_LINE = `mkdir -p ${BROKERED_GH_DIR} && printf '%s\\n' ${shellQuote(`http_unix_socket: ${BROKER_SOCKET_PATH}`)} > ${BROKERED_GH_DIR}/config.yml`;

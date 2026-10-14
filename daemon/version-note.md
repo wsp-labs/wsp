@@ -1,0 +1,1 @@
+A provider's machine serves the open socket and the gh door under /run/wsp-daemon, where the gh door writes its gh/config.yml, since Boat mounts the machine's own /root over the one the daemon bound them in seconds after a fork or a wake and every connect to a socket file under /root is refused from then on.
