@@ -36,7 +36,7 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
    * absent rather than guessed. */
   const snapshotSizes = async (at: MachineBackend, ids: readonly string[]): Promise<Map<string, number>> => {
     if (ids.length === 0 || !at.capabilities.snapshotListing || at.listSnapshots === undefined) return new Map();
-    const rows = await at.listSnapshots().catch(() => []);
+    const rows = await at.listSnapshots(ids).catch(() => []);
     return new Map(rows.flatMap(r => (ids.includes(r.id) && r.restoredBytes !== undefined ? [[r.id, r.restoredBytes] as const] : [])));
   };
 
