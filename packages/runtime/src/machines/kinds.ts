@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, sharedOn } from "@wsp/catalog";
 import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
-import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, type BrokerStatus } from "@wsp/protocol";
+import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
 import { cloneLines, underLoginHome } from "../project-landing.js";
 import { landOnRecord } from "../projects/branch-of-record.js";
 import { threadEnds } from "./thread-ends.js";
@@ -17,7 +17,7 @@ import { PlaceForksNowhereError, placeHomeRefusal, type PlaceDoor } from "../pla
 import { GUEST_WSP_MCP } from "../agents-read.js";
 import { loginEnvOn, PLACE_LOGIN_ENV } from "../types/harness.js";
 import { secretEnvOf } from "../adapters.js";
-import { brokeredEnv, placeholdersOf, unbrokeredRefusal, withGhDoor } from "./brokered.js";
+import { brokeredEnv, codexBrokerOf, placeholdersOf, unbrokeredRefusal, withGhDoor } from "./brokered.js";
 import { type ProjectImportOptions, type WorkspaceRecord, type LiveWorkspace, type StageReport, CLONE_MS, atProvider, folderNamed, lastLineOf } from "../types/wiring.js";
 import type { KindModule, ImportReport, ImportLanded } from "../types/internal.js";
 import { RELEASED_BACKEND } from "../types/internal.js";
@@ -253,24 +253,46 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
    * is the host's, one answer for every workspace. A read past BROKER_READ_MS leaves the token kind, which B2 answers
    * with its own sentence where the host holds another, rather than holding the launch. */
   let brokerSaid: BrokerStatus | undefined;
+  /** The claims of the host's ChatGPT login, read beside the status where it says it holds one. */
+  let claimsSaid: CodexClaims | undefined;
   const readBroker = async (): Promise<void> => {
-    if (opts.broker?.status === undefined) return;
+    const broker = opts.broker;
+    if (broker?.status === undefined) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<undefined>(resolve => (timer = setTimeout(() => resolve(undefined), BROKER_READ_MS)));
-    brokerSaid = await Promise.race([opts.broker.status().catch(() => undefined), late]);
+    const read = async (): Promise<{ status?: BrokerStatus; claims?: CodexClaims }> => {
+      const status = await broker.status!().catch(() => undefined);
+      const claims = status?.codex === "chatgpt" || status?.codex === "access-token" ? await broker.codexClaims().catch(() => undefined) : undefined;
+      return { ...(status !== undefined ? { status } : {}), ...(claims !== undefined ? { claims } : {}) };
+    };
+    const said = await Promise.race([read(), late]);
     clearTimeout(timer);
+    brokerSaid = said?.status;
+    claimsSaid = said?.claims;
   };
   /** What a launch on a brokered workspace carries in place of the vault, the turn token in each place a credential
-   * would sit, and the kind Claude Code's placeholder takes; a launch with no token carries nothing of any. Only
-   * Claude Code and Codex are launched there, since the broker adds no other agent's key. Undefined for every other
-   * workspace, whose launches keep today's road. */
+   * would sit, the kind Claude Code's placeholder takes and the login Codex's is written as. A Codex turn whose login
+   * the broker named none of refuses, since codex there would start unsigned and off the door. A launch with no token
+   * carries only Codex's, read by knowBroker before any such launch starts codex, so a title or a probe runs at the
+   * door on the login the last turn left there. Only Claude Code and Codex are launched there, since the broker adds
+   * no other agent's key. Undefined for every other workspace, whose launches keep today's road. */
   const brokeredLaunch = (entry: LiveWorkspace, harness: string, token: string | undefined): ReturnType<KindsArea["brokeredLaunch"]> => {
     if (!brokered(entry.record)) return undefined;
-    if (token === undefined) return { env: {}, vault: {} };
-    const refused = unbrokeredRefusal(harness);
+    const codexBroker = harness === "codex" ? codexBrokerOf(brokerSaid, claimsSaid) : undefined;
+    const codex = codexBroker !== undefined ? { codex: codexBroker } : {};
+    if (token === undefined) return { env: {}, vault: {}, ...codex };
+    const refused = unbrokeredRefusal(harness) ?? (harness === "codex" && codexBroker === undefined ? codexLoginUnreadRefusal() : undefined);
     if (refused !== undefined) throw refused;
     const { claude, vault } = placeholdersOf(brokerSaid, token);
-    return { env: brokeredEnv(token), vault, claude };
+    return { env: brokeredEnv(token), vault, claude, ...codex };
+  };
+  /** Before a road starts codex on a brokered workspace with no turn token: the broker read where no Codex login was
+   * read since the host started or the last read named none, and the turn's refusal where it still names none, so
+   * that codex never runs off the door. Nothing for any other agent or workspace. */
+  const knowBroker = async (entry: LiveWorkspace, harness: string): Promise<void> => {
+    if (harness !== "codex" || !brokered(entry.record)) return;
+    if (codexBrokerOf(brokerSaid, claimsSaid) === undefined) await readBroker();
+    if (codexBrokerOf(brokerSaid, claimsSaid) === undefined) throw codexLoginUnreadRefusal();
   };
   /** Whether the computer a workspace stands on listed a login of this agent's own, by the word its row carries. */
   const placeLoginStands = (entry: LiveWorkspace, id: string): boolean => entry.record.place !== undefined && placeDoor?.signInsAt(entry.record.place)?.[id] === "signed-in";
@@ -538,6 +560,6 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
   return {
     projectOf, remoteHere, gitHere, gitTopOf, branchAt, stateFolder, cloneHere, localRoad, placeDoorOf, machineReading,
     moduleOf, backendFor, openChannel, backendOfKind, keepsImages, pauseKeepsDisk, namesWorkspace, lifecycleOf,
-    execFactoryFor, threadFolder, kindOf, placeAgentHome, vaultOn, brokered, readBroker, brokeredLaunch,
+    execFactoryFor, threadFolder, kindOf, placeAgentHome, vaultOn, brokered, readBroker, knowBroker, brokeredLaunch,
   };
 }
