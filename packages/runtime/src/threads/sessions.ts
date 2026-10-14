@@ -20,7 +20,7 @@ import {
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
   replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX, subMachineTakenRefusal,
-  subOpening, SUB_TURN_GONE_LINE, subTurnGone,
+  subOpening, SUB_TURN_GONE_LINE, subTurnGone, keptOpening,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readyFork } from "./forks.js";
@@ -491,7 +491,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         threadId,
         ...tree,
         ...(o.attempt !== undefined ? { attempt: o.attempt } : {}),
-        prompt: o.prompt,
+        prompt: keptOpening(o.prompt),
         startedAt: Date.now(),
         // An outside conversation's own name stands as a generated one: nothing generated replaces it, and nothing of
         // wsp's is written into the agent's store until the person names the thread here.
@@ -671,7 +671,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               const full = o.wakesLead === true ? undefined : ctx.capFull(entry.record, turnId);
               if (full !== undefined) {
                 hush();
-                const waits = ctx.capWait({ workspaceId, threadId, turnId, sessionId: resume ?? turnId, ...(o.requestId !== undefined ? { requestId: o.requestId } : {}) }, full);
+                const waits = ctx.capWait({ workspaceId, threadId, turnId, sessionId: resume ?? turnId, prompt: o.prompt, ...(o.requestId !== undefined ? { requestId: o.requestId } : {}) }, full);
                 if (!toldHeld) {
                   toldHeld = true;
                   o.onHeld?.({ view: { ...view, capped: full }, turnId, wait: full });
