@@ -1,13 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { ArrowLeft, ArrowRight, Check, Minus } from "lucide-react";
 import type { ReactNode } from "react";
+import poster from "@/assets/clips/setup-poster.jpg";
+import hero from "@/assets/shots/w-hero.webp";
+import hero800 from "@/assets/shots/w-hero-800.webp";
+import hero1440 from "@/assets/shots/w-hero-1440.webp";
 import { Lockup } from "@/components/brand";
+import { CopyCommand } from "@/components/copy-command";
 import { Install } from "@/components/download";
-import { Section } from "@/components/section";
-import { KINDS, READ, ROWS, saidOf, sources, strongerOf, VENDORS_BRING, WSP, type Cell, type Said, type Tool } from "@/compare";
-import { REPO } from "@/links";
-import { ToolIcon } from "@/logos";
+import { Head, Section } from "@/components/section";
+import { KINDS, READ, ROWS, saidOf, sources, STEPS, strongerOf, TOOLS, VENDORS_BRING, WSP, type Cell, type Said, type Tool } from "@/compare";
+import { INSTALL, REPO } from "@/links";
+import { ToolIcon, WspIcon } from "@/logos";
+import { ToolCards } from "@/sections/compares";
+import { WALL } from "@/wall";
 import { cn } from "@/lib/utils";
+
+/** The one picture a tool's page shows, from the shots the home page already uses. */
+const SHOTS = {
+  computer: {
+    title: "Add a computer. Pick what comes along.",
+    lede: "Point wsp at a Linux computer you can reach over SSH. You pick what it copies there, and it joins your sidebar ready for threads.",
+    img: {
+      src: poster,
+      width: 1000,
+      height: 1094,
+      sizes: "(min-width: 1024px) 560px, 100vw",
+      alt: "The Agents step of Add a computer in wsp: Claude Code, Codex, Gemini CLI, OpenCode and Pi to install on office-pc, each with how it signs in there.",
+    },
+  },
+  subthreads: {
+    title: "Agents start each other, and you see every thread.",
+    lede: "A lead thread hands work to Claude Code and Codex threads on any of your computers. Each one sits in your sidebar, where you read and answer it.",
+    img: {
+      src: hero,
+      srcSet: `${hero800} 800w, ${hero1440} 1440w, ${hero} 2880w`,
+      width: 1440,
+      height: 900,
+      sizes: "(min-width: 1200px) 1100px, 92vw",
+      alt: "The wsp app: a lead thread on a MacBook Pro has handed its tickets to Claude Code and Codex threads on five computers, with its board of the night's landings in the slate beside it.",
+    },
+  },
+} as const;
 
 const shown = (url: string): string => url.replace(/^https:\/\/(www\.)?/, "").replace(/\/blob\/[0-9a-f]{40}\//, "/");
 
@@ -85,13 +119,27 @@ function Points({ title, items }: { title: string; items: { said: Said; wsp?: Sa
   );
 }
 
-function Header({ eyebrow, title, children }: { eyebrow: ReactNode; title: string; children: ReactNode }) {
+function Header({ eyebrow, icons, title, children }: { eyebrow: ReactNode; icons?: ReactNode; title: string; children: ReactNode }) {
   return (
     <header className="mx-auto max-w-[1200px] px-4 pt-32 pb-12 sm:px-6 sm:pt-40 sm:pb-16">
       <div className="font-mono text-[13px] text-faint">{eyebrow}</div>
-      <h1 className="display mt-4 text-[40px] sm:text-[64px]">{title}</h1>
+      {icons !== undefined && <div className="mt-8 flex items-center gap-3">{icons}</div>}
+      <h1 className={cn("display text-[40px] sm:text-[64px]", icons === undefined ? "mt-4" : "mt-6")}>{title}</h1>
       <p className="lede mt-6 max-w-[640px] text-[17px] sm:text-[18px]">{children}</p>
     </header>
+  );
+}
+
+function Shot({ shot }: { shot: (typeof SHOTS)[keyof typeof SHOTS] }) {
+  const { alt, ...img } = shot.img;
+  return (
+    <Section id="shot" className="grid items-center gap-12 pt-0 sm:pt-0 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14">
+      <Head title={shot.title}>{shot.lede}</Head>
+      <div className="relative isolate overflow-hidden rounded-[20px] border border-white/[0.08] p-[5%] sm:rounded-[24px]">
+        <img {...WALL} sizes="(min-width: 1024px) 700px, 100vw" alt="" aria-hidden loading="lazy" decoding="async" draggable={false} className="absolute inset-0 -z-10 size-full object-cover select-none" />
+        <img {...img} alt={alt} loading="lazy" decoding="async" draggable={false} className="block h-auto w-full rounded-[12px] shadow-[0_30px_80px_-20px_rgb(0_0_0/0.7),0_0_0_1px_rgb(0_0_0/0.45)] select-none" />
+      </div>
+    </Section>
   );
 }
 
@@ -156,6 +204,13 @@ export function ToolPage({ tool }: { tool: Tool }) {
             <ArrowLeft className="size-3.5" /> Compare
           </a>
         }
+        icons={
+          <>
+            <WspIcon className="size-12 rounded-[12px]" />
+            <span className="font-mono text-[13px] text-faint">vs</span>
+            <ToolIcon slug={tool.slug} className="size-12 rounded-[12px]" />
+          </>
+        }
         title={`wsp vs ${tool.name}`}
       >
         {tool.differs}
@@ -179,6 +234,37 @@ export function ToolPage({ tool }: { tool: Tool }) {
           <Points title={`Pick ${tool.name} if`} items={tool.pickThem.map(p => ({ said: saidOf(tool, p) }))} />
           <Points title="Pick wsp if" items={tool.pickWsp.map(p => ({ said: saidOf(tool, p) }))} />
         </div>
+      </Section>
+
+      <Section id="steps" className="pt-0 sm:pt-0">
+        <h2 className="heading text-[32px] sm:text-[44px]">Switch in three steps.</h2>
+        <ol className="mt-12 grid gap-4 lg:grid-cols-[1.3fr_1fr_1fr]">
+          {STEPS.map((step, i) => (
+            <li key={step.title} title={step.said.slice(1).map(shown).join("\n")} className="flex min-w-0 flex-col rounded-[14px] border border-border p-6">
+              <span className="font-mono text-[13px] text-faint">{i + 1}</span>
+              <h3 className="mt-3 text-[17px] font-medium tracking-[-0.01em] text-foreground">{step.title}</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+                {step.said[0].split("`").map((part, j) =>
+                  j % 2 === 1 ? (
+                    <code key={part} className="font-mono text-[13.5px] text-foreground">
+                      {part}
+                    </code>
+                  ) : (
+                    part
+                  ),
+                )}
+              </p>
+              {i === 0 && <CopyCommand command={INSTALL} shown="curl -fsSL usewsp.com/install | sh" className="mt-5 self-start" />}
+            </li>
+          ))}
+        </ol>
+      </Section>
+
+      <Shot shot={SHOTS[tool.shot]} />
+
+      <Section id="others" className="pt-0 sm:pt-0">
+        <Head title="wsp vs others." />
+        <ToolCards tools={TOOLS.filter(t => t.slug !== tool.slug)} className="lg:grid-cols-3" />
       </Section>
 
       <Section id="sources" className="pt-0 sm:pt-0">

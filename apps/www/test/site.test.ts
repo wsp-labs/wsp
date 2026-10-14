@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { DOWNLOADS, platformOf } from "../src/downloads";
 import { DOCS, EMAIL, ORG, REPO, X } from "../src/links";
-import { KINDS, ROWS, saidOf, sources, strongerOf, TOOLS, WSP } from "../src/compare";
+import { KINDS, ROWS, saidOf, sources, STEPS, strongerOf, TOOLS, WSP } from "../src/compare";
 import { fileOf, ROUTES } from "../src/routes";
 import { QUESTIONS } from "../src/sections/close";
 
@@ -102,6 +102,9 @@ describe("every route, as raw HTML", () => {
       const body = text(html);
       expect(html).toMatch(new RegExp(`<h1[^>]*>wsp vs ${tool.name}</h1>`));
       expect(body).toContain(tool.differs);
+      const head = /<header class="mx-auto[\s\S]*?<\/header>/.exec(html)![0];
+      expect(head).toContain(`src="/logos/${tool.slug}.png"`);
+      expect(head).toMatch(/<span class="sr-only">wsp<\/span>/);
       const table = /<table[\s\S]*<\/table>/.exec(html)![0];
       expect(table).not.toMatch(/<a |<sup/);
       const rows = [...table.matchAll(/<tr class="border-t[\s\S]*?<\/tr>/g)].map(m => m[0]);
@@ -123,6 +126,16 @@ describe("every route, as raw HTML", () => {
       for (const h of [`Where ${tool.name} is stronger`, "Where wsp is stronger", `Pick ${tool.name} if`, "Pick wsp if"]) expect(html).toMatch(new RegExp(`<h3[^>]*>${h}</h3>`));
       for (const { said, wsp } of strongerOf(tool)) expect(body).toContain(wsp === undefined ? said[0] : `${said[0]} ${wsp[0]}`);
       for (const point of [...tool.weaker, ...tool.pickThem, ...tool.pickWsp]) expect(body).toContain(saidOf(tool, point)[0]);
+      const steps = /<section id="steps"[\s\S]*?<\/section>/.exec(html)![0];
+      expect([...steps.matchAll(/<h3[^>]*>([^<]*)<\/h3>/g)].map(m => m[1])).toEqual(STEPS.map(s => s.title));
+      for (const s of STEPS) expect(text(steps)).toContain(s.said[0].replace(/`/g, ""));
+      expect(steps).toContain("curl -fsSL usewsp.com/install | sh");
+      const others = /<section id="others"[\s\S]*?<\/section>/.exec(html)![0];
+      const linked = [...others.matchAll(/href="\/compare\/([^"]+)"/g)].map(m => m[1]);
+      expect(linked).toEqual(TOOLS.filter(t => t.slug !== tool.slug).map(t => t.slug));
+      for (const slug of linked) expect(others).toContain(`src="/logos/${slug}.png"`);
+      const shot = /<section id="shot"[\s\S]*?<\/section>/.exec(html)![0];
+      expect(shot).toContain(tool.shot === "computer" ? "setup-poster" : "w-hero");
       expect(html).toMatch(/<details class="[^"]*">/);
       const details = /<details[\s\S]*<\/details>/.exec(html)![0];
       for (const url of sources(tool)) expect(details).toContain(`href="${url}"`);
