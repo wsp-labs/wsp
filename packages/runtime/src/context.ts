@@ -712,6 +712,7 @@ export interface AgentsArea {
   readonly threadEnv: (entry: LiveWorkspace, harness?: string) => Readonly<Record<string, string>>;
   readonly placeStores: (place: string, home: string) => Readonly<Record<string, string>>;
   readonly serverValuesFor: (entry: LiveWorkspace, harness: string, folder: string) => Promise<HarnessStartOptions["serverValues"]>;
+  readonly launchServersFor: (entry: LiveWorkspace, harness: string, adapter: HarnessAdapter, folder: string) => Promise<Pick<HarnessStartOptions, "serverValues" | "offServers">>;
   readonly adapterFor: (entry: LiveWorkspace, named?: string, turnEnv?: Readonly<Record<string, string>>, waiting?: TurnWaiting, servers?: Readonly<Record<string, string>>, thread?: string, asksUntilStopped?: true) => { harness: string; adapter: HarnessAdapter };
 }
 

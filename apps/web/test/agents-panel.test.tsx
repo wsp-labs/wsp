@@ -9,7 +9,7 @@
 // photographed in the render test.
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { addToolsNoConfigRefusal, type AgentsReport, type SealedImage, type ServerToolsAnswer } from "@wsp/protocol";
+import { addToolsNoConfigRefusal, cloudServerOffLine, type AgentsReport, type SealedImage, type ServerToolsAnswer } from "@wsp/protocol";
 import { AGENTS_LIST_WORDS as W, imageAgentsReport, NOT_ANSWERING_AFTER_MS, refusedLines, saysNotAnswering, type RowsContext, type ServerTools, type ToolsState } from "../src/components/agents/agentsRows.js";
 import { AGENTS_KIND } from "../src/components/agents/kinds/agents.js";
 import { foldServers, rowState } from "../src/components/agents/kinds/servers.js";
@@ -255,6 +255,22 @@ describe("the tool servers and the skills", () => {
     expect(stateOf(key)).toEqual(["Key from the environment", "quiet"]);
     openRow(key);
     expect(headActs()).not.toContain("Sign in");
+  });
+
+  it("on a cloud machine says a server that needs the person's sign-in as Off with the host's sentence, never asks it, and offers no sign-in", () => {
+    const why = cloudServerOffLine("notion");
+    const report: AgentsReport = { ...AGENTS_REPORT, servers: AGENTS_REPORT.servers.map(({ signInLine: _line, ...s }) => (s.name === "notion" ? { ...s, off: why } : s)) };
+    const tools = fakeTools();
+    drawPanel({ report, on: { name: "wsp-fork (Boat)" }, ctx: { where: "fork", tools, editImage: () => {}, reach: "none" } });
+    tab("Tool servers");
+    expect(stateOf(SERVER.notion)).toEqual(["Off", "quiet"]);
+    expect(slotOf(SERVER.notion)).toEqual([]);
+    expect(tools.asks.filter(a => a[1] === "notion")).toEqual([]);
+    expect(stateOf(SERVER.linear), "a server it does not mark keeps its own word").toEqual(["Checking", "quiet"]);
+    openRow(SERVER.notion);
+    expect(panel().querySelector("[data-settings-line=under-none]")?.textContent).toBe(why);
+    expect(headActs()).toEqual(["Edit image"]);
+    expect(panel().textContent).not.toMatch(/mcp login|Sign in/);
   });
 
   it("says a failed server as Failed with its red dot and its reason on the hover, Reconnect as an icon beside it", () => {
