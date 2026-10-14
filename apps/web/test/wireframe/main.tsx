@@ -112,7 +112,8 @@
 //                    server and slate, and its child thread folded under it
 //   panel-agents     the task on the box selected, its panel open on Agents
 //                    (&fork=solari: the same task a fork at Solari, whose one
-//                    act is Edit image)
+//                    act is Edit image; &servers=cloud: its servers as a cloud
+//                    machine's read gives them, each that needs a sign-in off)
 //   any screen with &notices=1 says the host's notices as the app does, so a
 //   build's need left behind on another page stands as its toast
 //   skill-preview    agents-widths with every SKILL.md a hostile one, for the
@@ -122,7 +123,7 @@ import { CATALOG_AGENTS, agentName } from "@wsp/catalog";
 import { manyAgents } from "./agents";
 import { ACTIVITY_APP_PROCS, ACTIVITY_SESSIONS, feedActivity, holdDesignTab } from "./activity";
 import { wireAppProcs } from "../../src/machine/appProcs";
-import { DAEMON_VERSION, DEFAULT_PREFERENCES, copyFirstLine, hostnameSetLine, type HarnessCatalog, GOLDEN_STAGE_WORDS, MACHINE_ROW_LABEL, STOP_LEFT_MACHINE_LINE, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type InitAgent, type InitJob, type InitRow, type InitScreen, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
+import { DAEMON_VERSION, DEFAULT_PREFERENCES, cloudServerOffLine, copyFirstLine, hostnameSetLine, type AgentsReport, type HarnessCatalog, GOLDEN_STAGE_WORDS, MACHINE_ROW_LABEL, STOP_LEFT_MACHINE_LINE, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type InitAgent, type InitJob, type InitRow, type InitScreen, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
 import { AppShell } from "../../src/shell/AppShell";
 import { FirstRun } from "../../src/shell/FirstRun";
 import { AgentsSurface } from "../../src/components/agents/AgentsSurface";
@@ -692,7 +693,7 @@ const api = {
   initDraft: async () => new Promise<never>(() => {}),
   hostTerminalConfig: async () => ({ files: [] }),
   ...(screen === "settings-agents-boat" ? { brokerStatus: async () => ({ claude: "login" as const, codex: "chatgpt" as const, github: "Zingzy" }) } : {}),
-  agentsRead: async () => (screen === "agents-widths" || screen === "skill-preview" ? PANEL_REPORT : toolsScreen ? AGENTS_TOOLS_REPORT : agentScreen ? AGENTS_SETUP_REPORT : params.get("projects") === "1" ? AGENTS_PAGE_REPORT : AGENTS_REPORT),
+  agentsRead: async () => onCloud(screen === "agents-widths" || screen === "skill-preview" ? PANEL_REPORT : toolsScreen ? AGENTS_TOOLS_REPORT : agentScreen ? AGENTS_SETUP_REPORT : params.get("projects") === "1" ? AGENTS_PAGE_REPORT : AGENTS_REPORT),
   serversIcon: async (host: string) => SERVER_ICON[host]?.() ?? null,
   // wsp's own server is still being asked, so a row reads checking; any other server answers with one tool.
   serversTools: async (_target: unknown, _agent: string, name: string) =>
@@ -857,6 +858,13 @@ if (activityScreen && !processesScreen) holdDesignTab();
 /** The panel's widths: the one it opens at, the 400 the design draws it at, and its floor. */
 const PANEL_WIDTHS = [480, 400, 360] as const;
 /** The task on this Mac's own read: Claude Code with an update out beside the agents of the shared report. */
+/** &servers=cloud: the report as a cloud machine's read gives it, each server reached over an address with no key of
+ * its own off with the host's sentence, and no sign-in line. */
+function onCloud(report: AgentsReport): AgentsReport {
+  if (params.get("servers") !== "cloud") return report;
+  return { ...report, servers: report.servers.map(({ signInLine: _line, ...s }) => (s.transport.kind === "http" && s.auth !== "open" ? { ...s, off: cloudServerOffLine(s.name) } : s)) };
+}
+
 const PANEL_REPORT = { ...AGENTS_REPORT, target: { workspaceId: "ws_copy" }, reach: "here" as const, agents: AGENTS_REPORT.agents.map(a => (a.id === "claude" ? { ...a, update: { to: "2.1.290", command: "claude update" } } : a)) };
 function AgentsWidths() {
   return (

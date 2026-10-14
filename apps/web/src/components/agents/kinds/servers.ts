@@ -67,12 +67,12 @@ const heldCommand = (row: McpRow, ctx: RowsContext): boolean => row.launch !== t
  * key from the environment, wherever the report is live, a command only on this computer. A project's are what a repo
  * names, asked on List tools. */
 export const checksOnShow = (row: McpRow, ctx: RowsContext): boolean =>
-  ctx.tools !== undefined && ctx.where !== "provider" && (ctx.heldWhy ?? null) === null && row.launch !== true && row.enabled && row.scope !== "project" && row.auth !== "env-key" && !heldCommand(row, ctx);
+  ctx.tools !== undefined && ctx.where !== "provider" && (ctx.heldWhy ?? null) === null && row.launch !== true && row.enabled && row.off === undefined && row.scope !== "project" && row.auth !== "env-key" && !heldCommand(row, ctx);
 
-/** One agent's state for a server: off, then what its connect answered, `checking` while that answer is on its way,
- * and the config's own word for a server nothing asked. */
+/** One agent's state for a server: off, by its file or where it cannot run, then what its connect answered, `checking`
+ * while that answer is on its way, and the config's own word for a server nothing asked. */
 export function rowState(row: McpRow, s: ToolsState | undefined, ctx: RowsContext): ServerState {
-  if (!row.enabled) return "off";
+  if (!row.enabled || row.off !== undefined) return "off";
   if (s?.answer !== undefined) return s.answer.auth;
   if (s?.listing === true) return "checking";
   if (s?.error !== undefined) return "failed";
@@ -126,7 +126,7 @@ export function statusOf(s: Standing): Status {
       return { state, tone: "bad", words: W.failed, ...(why === undefined ? {} : { hover: why }) };
     }
     case "off":
-      return { state, tone: "quiet", words: W.off };
+      return { state, tone: "quiet", words: W.off, ...(s.row.enabled && s.row.off !== undefined ? { hover: s.row.off } : {}) };
     case "unknown":
       return { state, tone: "quiet", words: W.notChecked, ...(s.answer?.holder !== undefined ? { hover: W.holdsSignIn(agentName(s.answer.holder)) } : s.held !== undefined ? { hover: s.held } : {}) };
   }
@@ -147,7 +147,7 @@ function actsOf(entry: ServerEntry, ctx: RowsContext) {
     hover: W.startsOnce,
     ...(tools === undefined ? {} : { run: () => entry.rows.forEach(r => tools.list(r)) }),
   };
-  const waitsForCheck = asked?.answer === undefined && asked?.listing !== true && entry.rows.some(r => heldCommand(r, ctx));
+  const waitsForCheck = asked?.answer === undefined && asked?.listing !== true && entry.rows.some(r => r.off === undefined && heldCommand(r, ctx));
   // A fork is a copy of the image, so its one act besides Check is the image's.
   if (onImage(ctx)) return { all, worst, asked, acts: [...(waitsForCheck ? [check] : []), editImageAct(ctx)], signIns: new Map<string, RowAct>(), flow: undefined };
   const primary = asked?.row ?? worst.row;
@@ -269,7 +269,8 @@ export const SERVERS_KIND: KindModule<ServerEntry> = {
     ];
     const tools = asked?.row ?? first;
     const refresh = launched || ctx.tools === undefined || heldReason(ctx) !== undefined || onImage(ctx) ? undefined : () => ctx.tools!.list(tools, true);
-    const quiet = launched ? W.toolsEveryTurn : refused !== undefined || listed !== undefined ? undefined : holder !== undefined ? W.keepsSignIn(agentName(holder)) : worst.state === "needs-sign-in" ? W.signInToSee : undefined;
+    const off = worst.state === "off" && worst.row.enabled ? worst.row.off : undefined;
+    const quiet = launched ? W.toolsEveryTurn : refused !== undefined || listed !== undefined ? undefined : holder !== undefined ? W.keepsSignIn(agentName(holder)) : worst.state === "needs-sign-in" ? W.signInToSee : off;
     return {
       title: entry.name,
       lead: leadOf(entry),

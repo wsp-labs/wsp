@@ -55,6 +55,9 @@ export interface ServerToolsAsk {
 /** The code a server's resolve is thrown with where the agent's config there names no server by that name. */
 export const SERVER_NOT_SET_UP = "server-not-set-up";
 export const isServerNotSetUp = (e: unknown): boolean => typeof e === "object" && e !== null && (e as { code?: unknown }).code === SERVER_NOT_SET_UP;
+/** The code a server's resolve is thrown with on a cloud machine where it needs the person's sign-in or key. */
+export const SERVER_OFF = "server-off";
+export const isServerOff = (e: unknown): e is Error => e instanceof Error && (e as { code?: unknown }).code === SERVER_OFF;
 
 /** How the host reads the agents off a target, and asks one server there for its tools. Absent on a runtime wired
  * without it, where every read is refused. */

@@ -5,6 +5,7 @@
 // One module per harness, registered on its catalog entry.
 import { shellQuote, usageRefusal, type PageReach } from "@wsp/protocol";
 import { CLAUDE_NOT_SET_UP } from "./mcp-check.js";
+import type { McpServer } from "./mcp.js";
 
 export type McpLogin =
   /** A command run in a pty on the computer the server is set up on, whose page returns to localhost on the computer the
@@ -39,6 +40,12 @@ export type ServerSignInRoad = { kind: "pty"; command: string; finish: "code" | 
  * the machine. */
 export const brokeredServerSignInLine = (name: string): string => `A cloud machine holds no sign-in, so ${name} cannot be signed in on it`;
 export const BROKERED_SERVER_SIGN_IN_FIX = "Cloud threads run without its tools; sign it in on your own computer for the threads there.";
+
+/** Whether a server needs a sign-in or a key of the person's, which a cloud machine never holds: an address with no
+ * header, which its agent signs in, a header the copy to a cloud machine blanked, or a variable it reads, which a
+ * cloud turn is never handed. */
+export const needsOwnCredential = (s: McpServer): boolean =>
+  s.envRefs.length > 0 || (s.transport.kind === "http" && (Object.keys(s.transport.headers).length === 0 || Object.values(s.transport.headers).some(v => v.replace(/^\s*(Bearer|Basic|Token)\b/i, "").trim() === "")));
 
 /** The road for one server under this harness's module; refused on a machine whose credentials the host keeps. */
 export function loginRoad(login: McpLogin, name: string, reach: PageReach, brokered = false): ServerSignInRoad {
