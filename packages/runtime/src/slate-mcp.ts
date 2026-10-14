@@ -59,10 +59,11 @@ export interface McpServerSpec {
   secrets: readonly string[];
   /** Where a command server runs: on the thread's own computer through its daemon. Absent runs it on this one. */
   open?: McpPipeOpen;
-  /** Where an http server is asked from, one road per connection: the thread's own computer through its daemon.
-   * Absent asks it from this one. */
-  post?: () => McpPost;
-  /** An http server's sign-in the thread's agent keeps on its own computer, which only that computer's daemon reads. */
+  /** Where an http server is asked from, one road per connection, handed this computer's own fetch: the thread's own
+   * computer through its daemon, or this one with the sign-in the agent keeps here. Absent asks it from this one. */
+  post?: (here: McpPost) => McpPost;
+  /** An http server's sign-in the thread's agent keeps on its own computer, read there: by its daemon, or by this host
+   * where that computer is this one. */
   signIn?: McpSignIn;
 }
 
@@ -72,6 +73,8 @@ export interface McpSignIn {
   bearer: HttpBearer;
   renew(): Promise<boolean>;
   line: string;
+  /** On this computer, the bearer read here at each message; absent where only that computer's daemon reads it. */
+  read?(): Promise<string | undefined>;
 }
 
 /** What an http server answered one message, wherever it was asked from. */
@@ -423,7 +426,7 @@ function httpClient(t: Extract<McpTransport, { kind: "http" }>, spec: McpServerS
   let session: string | undefined;
   let next = 1;
   let closed = false;
-  const road = spec.post?.() ?? fetchHere;
+  const road = spec.post?.(fetchHere) ?? fetchHere;
   const post = async (body: Record<string, unknown>, ms: number): Promise<McpHttpAnswer> => {
     const headers = { ...t.headers, "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL_VERSION, ...(session !== undefined ? { "Mcp-Session-Id": session } : {}) };
     const res = await road.send(t, { headers, body: JSON.stringify(body), ms });
