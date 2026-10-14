@@ -1211,7 +1211,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (text.trim() === "") throw new Error(ASIDE_EMPTY_LINE);
         return { text };
       };
-      if (bare.asideServers !== true || bare.mcpServers !== true) return answered(bare.aside, ask);
+      if ((bare.asideServers !== true || bare.mcpServers !== true) && !ctx.brokered(entry.record)) return answered(bare.aside, ask);
       // A copy that loads the thread's servers is launched with the server the thread's turns get and the pair it
       // dials with, since a harness resuming a session that announced a server it no longer has tells the model so,
       // and the answer opens on it. The harness keeps every tool off; the token goes back the moment the answer is in.
@@ -1219,9 +1219,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       try {
         const { adapter } = ctx.adapterFor(entry, harness, launchEnv, undefined, servers);
         if (adapter.aside === undefined) throw new Error(asideUnsupportedLine(harness));
-        const served = servedTo(wsp, ctx.rootOf(threadId), threadId);
+        const served = adapter.asideServers === true && adapter.mcpServers === true ? servedTo(wsp, ctx.rootOf(threadId), threadId) : undefined;
         const asideIn = latest.cwd ?? ctx.folderOf(latest.workspaceId, ask.session);
-        const serverValues = asideIn === undefined ? undefined : await ctx.serverValuesFor(entry, harness, asideIn);
+        const serverValues = asideIn === undefined || adapter.asideServers !== true || ctx.brokered(entry.record) ? undefined : await ctx.serverValuesFor(entry, harness, asideIn);
         return await answered(adapter.aside, { ...ask, ...(served !== undefined ? { mcpServers: { [MCP_SERVER_NAME]: served } } : {}), ...(serverValues !== undefined ? { serverValues } : {}) });
       } finally {
         if (scoped !== undefined) await deviceDoor.revoke(scoped.deviceId).catch((e: unknown) => console.warn(`the token of a side question on thread ${threadWord(threadId)} was not taken away: ${e instanceof Error ? e.message : String(e)}`));

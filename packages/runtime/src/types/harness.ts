@@ -55,6 +55,9 @@ export interface HarnessAdapterContext {
    * adapter strips every inherited CLAUDE_CODE_* off the base environment as a nesting mark, so a token merged
    * into the environment would be stripped and never reach the CLI. Empty where the host wired no vault. */
   vault: Readonly<Record<string, string>>;
+  /** On a workspace whose credentials the host keeps, the turn token and the kind of credential the host adds for
+   * Claude Code, which the Claude adapter writes as a placeholder of that kind; absent everywhere else. */
+  brokered?: { token: string; kind: "token" | "key" | "gateway" };
   /** Whether a login of one agent's own already stands where this workspace runs, which is what decides whether
    * the vault's key for it is handed to the turn: a harness reads a key in its environment ahead of the login on
    * its disk, so handing one where a person signed in would bill the key and leave that sign-in unused. Where a
