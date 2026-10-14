@@ -4,7 +4,7 @@
 // this computer belongs to: the command line, the runtime and the app all
 // read these here.
 import { describe, expect, it } from "vitest";
-import { cloneFailedLine, cloneUrlRefusal, noComputerForSourceLine, addedProjectLine, addedProjectOn, addingProjectLine, ADD_FORMS_LINE, projectSourceOf, computerNamed, folderName, HERE_PLACE_ID, hiddenFolder, isMacMachine, goldenForkName, homeShortened, kindWords, landsOn, MEMORY_KEPT_CLAUSE, cwdOutsideLine, noBranchesLine, ProjectGolden, projectNameOf, projectPathOn, projectLeftOnComputerLine, projectsInPlace, type ProjectSource, type ProjectView, REGISTERING_LINE, registeredLine, registerTakesNoConsentLine, sameSourceRefusal, sourceKind, threadOpenedLine, workspaceLands, worktreeSetupLine, worktreeStepWords, type WorkspaceProject, WorkspaceView } from "../src/index.js";
+import { cloneFailedLine, cloneUrlRefusal, noComputerForSourceLine, addedProjectLine, addedProjectOn, addingProjectLine, ADD_FORMS_LINE, projectSourceOf, computerNamed, folderName, guardedFolder, HERE_PLACE_ID, hiddenFolder, isMacMachine, goldenForkName, homeShortened, kindWords, landsOn, MEMORY_KEPT_CLAUSE, cwdOutsideLine, noBranchesLine, ProjectGolden, projectNameOf, projectPathOn, projectLeftOnComputerLine, projectsInPlace, type ProjectSource, type ProjectView, REGISTERING_LINE, registeredLine, registerTakesNoConsentLine, sameSourceRefusal, sourceKind, threadOpenedLine, workspaceLands, worktreeSetupLine, worktreeStepWords, type WorkspaceProject, WorkspaceView } from "../src/index.js";
 
 const spoo: WorkspaceProject = { name: "spoo", dest: "/root/spoo", importedAt: "2026-09-01T00:00:00Z", size: 1024 };
 const wsp: WorkspaceProject = { name: "wsp", dest: "/root/wsp", importedAt: "2026-09-02T00:00:00Z" };
@@ -180,6 +180,20 @@ describe("getting a project onto a machine", () => {
     expect(hiddenFolder("/root/Library", { home: "/root", mac: false })).toBe(false);
     expect(hiddenFolder("/Users/dev/Library", { home: "/Users/dev" })).toBe(false);
     expect(hiddenFolder("/Users/dev/Library")).toBe(false);
+  });
+
+  it("a folder browser stays out of the folders a Mac guards in its home, and of none of that name anywhere else", () => {
+    const mac = { home: "/Users/dev", mac: true };
+    for (const name of ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"]) {
+      expect(guardedFolder(`/Users/dev/${name}`, mac)).toBe(true);
+      expect(guardedFolder(`/Users/dev/${name}/`, mac)).toBe(true);
+    }
+    // Inside one is somewhere the person went, and one inside their own work is theirs.
+    expect(guardedFolder("/Users/dev/Documents/GitHub", mac)).toBe(false);
+    expect(guardedFolder("/Users/dev/code/Documents", mac)).toBe(false);
+    // Nothing else guards a home's Desktop.
+    expect(guardedFolder("/home/dev/Desktop", { home: "/home/dev", mac: false })).toBe(false);
+    expect(guardedFolder("/Users/dev/Desktop")).toBe(false);
   });
 
   it("a machine says it is a Mac by the name its maker gives it, or by the kernel where it had nothing better", () => {
