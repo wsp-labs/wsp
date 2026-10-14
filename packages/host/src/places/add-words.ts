@@ -182,6 +182,10 @@ export async function onePlace(client: HostClient, typed: string, ref: string): 
  * up, so nothing is written. */
 export const noPlaceManagerLine = (platform: string): string => `wsp writes no service on ${platform}, so this computer cannot stay joined as a place`;
 
+/** The leave as a login on a joined computer types it: the bundle's wsp is on root's login PATH, which sudo -i reads
+ * and a bare sudo, under its secure_path, does not. */
+export const placeLeaveLineAs = (root: boolean): string => (root ? PLACE_LEAVE_LINE : `sudo -i ${PLACE_LEAVE_LINE}`);
+
 /** The refusal wsp leave gets on the same computer. */
 export const NOTHING_TO_LEAVE_LINE = "this computer is not a place in any wsp, so there is nothing to leave";
 
@@ -339,15 +343,15 @@ export function addFlags(
 /** What an add is refused with on a box that already belongs to a wsp: this one, where a second install would be
  * a second record of one box, or another, whose agent and link a second join would stand beside. A place file
  * naming this host under an id it no longer holds is one a forget left there. */
-export function placeHeldRefusal(address: string, file: PlaceFile, ownKey: string | undefined, held?: readonly string[]): string {
+export function placeHeldRefusal(address: string, file: PlaceFile, ownKey: string | undefined, held?: readonly string[], leave: string = PLACE_LEAVE_LINE): string {
   const name = boxWord(file.name);
   if (ownKey !== undefined && keyFingerprint(file.hostPublicKey) === ownKey) {
     const forgotten = held !== undefined && !held.includes(file.placeId);
-    return (forgotten ? `${address} still carries the wsp of ${name}, which this wsp forgot; ${PLACE_LEAVE_LINE} on it frees it, then add it again` : `${address} is already a place in this wsp as ${name}`).slice(0, SSH_LINE_CAP);
+    return (forgotten ? `${address} still carries the wsp of ${name}, which this wsp forgot; ${leave} on it frees it, then add it again` : `${address} is already a place in this wsp as ${name}`).slice(0, SSH_LINE_CAP);
   }
   const url = file.hostUrls[0];
   const at = isHttpUrl(url) ? ` at ${boxWord(url)}` : "";
-  return `${address} already belongs to the wsp on ${boxWord(file.hostName)}${at}; ${PLACE_LEAVE_LINE} on it frees it, or wsp add ${name} --update from that wsp updates it there`.slice(0, SSH_LINE_CAP);
+  return `${address} already belongs to the wsp on ${boxWord(file.hostName)}${at}; ${leave} on it frees it, or wsp add ${name} --update from that wsp updates it there`.slice(0, SSH_LINE_CAP);
 }
 
 /** The word the box prints before each address it was asked to try, with ok or no. */
