@@ -6,8 +6,8 @@ pub const DAEMON_VERSION: u32 = 159;
 
 pub const DEFAULT_HOST: &str = "0.0.0.0";
 pub const DEFAULT_PORT: u16 = 7070;
-/// Where the daemon inside a machine keeps everything of its own: its token, its inbox, its manifest, its open
-/// socket, its run and log folders and its roots file, every one of them under this folder by default. A
+/// Where the daemon inside a machine keeps everything of its own: its token, its inbox, its manifest, its run
+/// and log folders and its roots file, every one of them under this folder by default. A
 /// workspace on a computer somebody joined has this folder of its own bound over the computer's, so two
 /// workspaces there never read or write each other's token and the computer's own daemon folder is not readable
 /// from inside at all. The shape is `place_daemon_paths("/root")`'s, which the test below holds it to: one
@@ -28,10 +28,13 @@ pub const GUEST_WSP_PATH: &str = "/usr/local/bin/wsp";
 /// inside it, so the file is in that workspace's view and in no other's and nowhere on the computer's own. The
 /// file itself is the gate and no token rides this road; a fork has no such socket and dials the port instead.
 pub const GUEST_DAEMON_SOCKET_PATH: &str = "/root/.wsp/daemon.sock";
+/// The folder a provider's machine keeps the sockets it serves in, outside /root: a provider may mount the machine's
+/// own /root over the one the daemon started in, and a socket file a mount carries across answers no connect.
+pub const GUEST_SOCKET_DIR: &str = "/run/wsp-daemon";
 /// The two doors a machine whose credentials the host keeps serves on its own loopback, never on the public route:
 /// the HTTP door for model calls and git as its proxy, and the gh door gh reaches through its http_unix_socket.
 pub const BROKER_PORT: u16 = 7071;
-pub const BROKER_SOCKET_PATH: &str = "/root/.wsp/broker.sock";
+pub const BROKER_SOCKET_PATH: &str = "/run/wsp-daemon/broker.sock";
 /// Idle pipes the daemon parks at once; one dialled past it is closed with words::PIPE_POOL_FULL.
 pub const PIPE_POOL_MAX: usize = 64;
 /// The longest a local connection on a door waits for a pipe before it is closed: the host away an hour.
@@ -68,7 +71,7 @@ pub const TOOL_LINKS_DIR: &str = "/usr/local/bin";
 /// record may hold: one that does not end on this entry was cut short, and a leave reads it as none.
 pub const PLACE_FOUND_END: &str = "wsp-found-end";
 pub const PLACE_FOUND_MAX_BYTES: u64 = 32 * 1024 * 1024;
-pub const OPEN_SOCKET_PATH: &str = "/root/.wsp/open.sock";
+pub const OPEN_SOCKET_PATH: &str = "/run/wsp-daemon/open.sock";
 
 /// The computer's own system directories a workspace on a computer somebody owns reads through a tree of its own,
 /// which is what a daemon root may not sit under: a workspace's upper would otherwise sit inside the tree it
@@ -262,6 +265,17 @@ pub fn work_score_line() -> String {
 mod tests {
     use super::*;
 
+    /// Boat mounts the machine's own /root over the one the daemon started in, up to a minute after a fork or a
+    /// wake, and the socket file carried across is a copy no listener holds: every connect is refused while the
+    /// daemon still listens. /run is a tmpfs nothing mounts over.
+    #[test]
+    fn the_sockets_a_providers_machine_serves_sit_where_no_mount_lands_over_them() {
+        assert!(GUEST_SOCKET_DIR.starts_with("/run/"));
+        for path in [OPEN_SOCKET_PATH, BROKER_SOCKET_PATH] {
+            assert!(path.starts_with(&format!("{GUEST_SOCKET_DIR}/")), "{path} is not under {GUEST_SOCKET_DIR}");
+        }
+    }
+
     /// Every file the daemon inside a machine writes for itself sits under one folder, and that folder is the
     /// workspace's own on a computer somebody joined. A path that slipped out of it would be written into a
     /// `/root` every workspace on that computer shares, where the second workspace's deploy would rewrite the
@@ -275,9 +289,7 @@ mod tests {
             DEFAULT_RUN_DIR,
             DEFAULT_LOG_DIR,
             DAEMON_ROOTS_PATH,
-            OPEN_SOCKET_PATH,
             GUEST_DAEMON_SOCKET_PATH,
-            BROKER_SOCKET_PATH,
         ] {
             assert!(path.starts_with(&format!("{GUEST_WSP_HOME}/")), "{path} is not under {GUEST_WSP_HOME}");
         }
@@ -288,7 +300,6 @@ mod tests {
         assert_eq!(at.token_path, std::path::PathBuf::from(DEFAULT_TOKEN_PATH));
         assert_eq!(at.inbox, std::path::PathBuf::from(DEFAULT_INBOX_DIR));
         assert_eq!(at.manifest_path, std::path::PathBuf::from(DEFAULT_MANIFEST_PATH));
-        assert_eq!(at.open_socket, std::path::PathBuf::from(OPEN_SOCKET_PATH));
         assert_eq!(at.run_dir, std::path::PathBuf::from(DEFAULT_RUN_DIR));
         assert_eq!(at.roots_path, std::path::PathBuf::from(DAEMON_ROOTS_PATH));
         // The binary the host deploys is not one of them: it is the host's to land and lives beside the folder.

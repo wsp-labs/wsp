@@ -11,8 +11,8 @@
  * loopback answers 502. A local run names loopback with --host so the firewall stays quiet. */
 export const DAEMON_DEFAULT_HOST = "0.0.0.0";
 export const DAEMON_DEFAULT_PORT = 7070;
-/** Where the daemon inside a machine keeps everything of its own: its token, its inbox, its manifest, its open
- * socket, its run and log folders and its roots file, every one of them under this folder. A workspace on a
+/** Where the daemon inside a machine keeps everything of its own: its token, its inbox, its manifest, its run
+ * and log folders and its roots file, every one of them under this folder. A workspace on a
  * computer somebody joined has this folder of its own bound over the computer's, so two workspaces there never
  * read or write each other's token and the computer's own daemon folder is not readable from inside at all. The
  * names are the ones a daemon on a computer somebody joined uses under that computer's home, which
@@ -61,8 +61,11 @@ export const TOOL_LINKS_DIR = "/usr/local/bin";
  * whose listing passes the cap gets no record at all, and its leave takes nothing outside the home. */
 export const PLACE_FOUND_END = "wsp-found-end";
 export const PLACE_FOUND_MAX_BYTES = 32 * 1024 * 1024;
+/** The folder a provider's machine keeps the sockets it serves in, outside /root: a provider may mount the machine's
+ * own /root over the one the daemon started in, and a socket file a mount carries across answers no connect. */
+export const GUEST_SOCKET_DIR = "/run/wsp-daemon";
 /** Where the shim posts in the guest; root-only through the daemon's umask, unreachable from the edge. */
-export const OPEN_SOCKET_PATH = `${GUEST_WSP_HOME}/open.sock`;
+export const OPEN_SOCKET_PATH = `${GUEST_SOCKET_DIR}/open.sock`;
 /** The socket a process inside a workspace on a computer somebody owns reaches its host over. The daemon of that
  * computer binds one per workspace in that workspace's own wsp folder, which is bound over the folder above
  * inside it, so the file is in that workspace's view and in no other's and nowhere on the computer's own. The file
@@ -71,7 +74,7 @@ export const GUEST_DAEMON_SOCKET_PATH = `${GUEST_WSP_HOME}/daemon.sock`;
 /** The two doors a machine whose credentials the host keeps serves on its own loopback, never on the public route:
  * the HTTP door for model calls and git as its proxy, and the gh door gh reaches through its http_unix_socket. */
 export const BROKER_PORT = 7071;
-export const BROKER_SOCKET_PATH = `${GUEST_WSP_HOME}/broker.sock`;
+export const BROKER_SOCKET_PATH = `${GUEST_SOCKET_DIR}/broker.sock`;
 /** Idle pipes a daemon parks at once; one dialled past it is closed with PIPE_POOL_FULL. */
 export const PIPE_POOL_MAX = 64;
 /** The longest a local connection on a door waits for a pipe before it is closed: the host away an hour. */
