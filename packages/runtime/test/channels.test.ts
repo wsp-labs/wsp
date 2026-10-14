@@ -18,8 +18,10 @@ import { serveRuntime } from "../src/serve.js";
 
 const DAEMON_TOKEN = "cafef00d".repeat(3);
 
+/** The environment each adapter was made with, a turn's launch among them. */
+const adapterEnvs: Readonly<Record<string, string>>[] = [];
 /** A turn that answers at once, so a thread stands on the machine with no turn running. */
-const answers: HarnessAdapterFactory = () => ({
+const answers: HarnessAdapterFactory = made => (adapterEnvs.push(made.env), {
   steers: false,
   start: ({ onEvent }) => {
     const sessionId = "44444444-4444-4444-8444-444444444444";
@@ -263,6 +265,19 @@ describe("a terminal token on a machine whose credentials the host keeps", () =>
     expect(device?.scope).toEqual({ kind: "thread", threadId, workspaceId: id, rootThreadId: threadId });
     // A pane that goes leaves its shells running on the machine, and their tokens with them.
     expect(await rt!.devices!.match(second!)).toBeDefined();
+  });
+
+  it("carries the git and gh variables a turn's launch does, on the shell's own token", async () => {
+    const { daemon, id, threadId } = await brokeredFork();
+    const turn = [...adapterEnvs].reverse().find(env => env[HOST_TOKEN_ENV] !== undefined)!;
+    const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    const shell = frames[0]!["env"] as Record<string, string>;
+    const gitAndGh = (env: Readonly<Record<string, string>>): Record<string, string> =>
+      Object.fromEntries(Object.entries(env).filter(([name]) => /^(GIT_|GH_)/.test(name)).map(([name, value]) => [name, value.replaceAll(env[HOST_TOKEN_ENV]!, "<token>")]));
+    expect(gitAndGh(turn)).toMatchObject({ GIT_TERMINAL_PROMPT: "0", GH_TOKEN: "<token>" });
+    expect(gitAndGh(shell)).toEqual(gitAndGh(turn));
+    expect(shell["GH_TOKEN"]).toBe(tokenIn(frames[0]!));
   });
 
   it("dies with its shell: at the exit the daemon pushes, at a kill, and at a list that no longer holds it", async () => {
