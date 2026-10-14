@@ -796,6 +796,9 @@ export interface RuntimeOptions {
     /** Cuts a machine off: its pipes refused and its tokens revoked. Called as its delete starts, before the provider is
      * asked, so a delete the provider refuses still leaves it cut off. */
     revoke?(workspaceId: string): Promise<void>;
+    /** Lets a machine's calls through again, for a new machine made under a record whose last one was cut off, or a
+     * turn that takes back a machine whose delete the provider refused. */
+    lift?(workspaceId: string): void;
   };
 }
 

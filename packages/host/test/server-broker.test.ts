@@ -19,7 +19,7 @@ import { createRuntime, memoryStore, type HarnessAdapterContext, type HarnessAda
 import { createOn, stubBackend, tokenGuest, type StubBackend, type StubMachine } from "../../runtime/test/stub-backend.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
 import { anthropicService } from "../src/anthropic/service.js";
-import { REVOKED_SAID } from "../src/broker/refuse.js";
+import { DEAD_TOKEN_SAID, REVOKED_SAID } from "../src/broker/refuse.js";
 import { brokerLogDir, hostBroker, type HostBroker } from "../src/server-broker.js";
 import { startHost, type HostHandle } from "../src/server.js";
 
@@ -182,7 +182,7 @@ function claudeTurns(daemon: Daemon): { factory: HarnessAdapterFactory; turns: T
   return { factory, turns };
 }
 
-async function served(): Promise<{ rt: Runtime; broker: HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
+async function served(): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
   const dir = mkdtempSync(join(tmpdir(), "wsp-server-broker-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const statePath = join(dir, "state.json");
@@ -194,13 +194,15 @@ async function served(): Promise<{ rt: Runtime; broker: HostBroker; daemon: Daem
   // The person's own sign-ins beyond the vault stand empty here, so the vault's key is the one added; gh is never run.
   const none = async () => undefined;
   const ran: string[][] = [];
-  const broker = hostBroker({
-    statePath,
-    vault: () => VAULT,
-    services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" })],
-    signIns: { anthropic: { gateway: none, helper: none, login: none }, codex: { credential: none, claims: none } },
-    run: async (file, args) => (ran.push([file, ...args]), { code: 1, stdout: "" }),
-  });
+  const brokerOn = (): HostBroker =>
+    hostBroker({
+      statePath,
+      vault: () => VAULT,
+      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" })],
+      signIns: { anthropic: { gateway: none, helper: none, login: none }, codex: { credential: none, claims: none } },
+      run: async (file, args) => (ran.push([file, ...args]), { code: 1, stdout: "" }),
+    });
+  const broker = brokerOn();
   const { factory, turns } = claudeTurns(daemon);
   // Every machine the provider makes is reached at the stand-in daemon.
   const backend = stubBackend();
@@ -219,7 +221,7 @@ async function served(): Promise<{ rt: Runtime; broker: HostBroker; daemon: Daem
     cleanups.push(close);
     return { ...handle, close };
   };
-  return { rt, broker, daemon, host, turns, seen: up.seen, release: up.release, ran, statePath, backend };
+  return { rt, broker, brokerOn, daemon, host, turns, seen: up.seen, release: up.release, ran, statePath, backend };
 }
 
 const runTurn = async (rt: Runtime, workspaceId: string): Promise<void> => {
@@ -331,6 +333,70 @@ describe("the broker the host serves", () => {
     expect(s.seen).toHaveLength(4);
     // The broker reads the workspace on every call; the project repo's id gh could not read was asked for once.
     expect(s.ran.filter(args => args[1] === "api")).toEqual([["gh", "api", expect.stringMatching(/^repos\//), "--jq", ".id"]]);
+  });
+
+  it("keeps a machine whose provider delete failed cut off after the host restarts, and lets a lifted one through", async () => {
+    const s = await served();
+    const ws = await createOn(s.rt, { golden: "snap_g", name: "acme-lab" });
+    const kept = await createOn(s.rt, { golden: "snap_g", name: "acme-kept" });
+    const handle = await s.host();
+    s.backend.machines[0]!.kill = async () => {
+      throw new Error("Boat answered 503");
+    };
+    await expect(s.rt.workspaces.delete(ws.id)).rejects.toThrow();
+    await handle.close();
+    // The next host start: a new broker on the same state, whose token store holds nothing of the last one.
+    const again = s.brokerOn();
+    await again.start({ rt: s.rt, server: { authorize: async () => undefined, revokeDevice: async () => false } });
+    cleanups.push(() => again.stop());
+    const revoked = await heldPipeCall(again, ws.id, "acme-old-token");
+    expect(revoked.status).toBe(403);
+    expect(revoked.body).toContain(REVOKED_SAID);
+    // A machine never switched off is judged on its token, which the new host does not hold.
+    const other = await heldPipeCall(again, kept.id, "acme-old-token");
+    expect(other.status).toBe(403);
+    expect(other.body).toContain(DEAD_TOKEN_SAID);
+    // A switch lifted for a new machine under the same record stays lifted on the host after.
+    again.port.lift!(ws.id);
+    again.stop();
+    const third = s.brokerOn();
+    await third.start({ rt: s.rt, server: { authorize: async () => undefined, revokeDevice: async () => false } });
+    cleanups.push(() => third.stop());
+    expect((await heldPipeCall(third, ws.id, "acme-old-token")).body).toContain(DEAD_TOKEN_SAID);
+    expect(s.seen).toHaveLength(0);
+  });
+
+  it("keeps the host's revoke on disk when wsp doctor's own runtime on the same state cuts its machine off", async () => {
+    const s = await served();
+    const ws = await createOn(s.rt, { golden: "snap_g", name: "acme-lab" });
+    const handle = await s.host();
+    // wsp doctor's terminal road builds its own runtime, and so its own broker, on this state.
+    const doctor = s.brokerOn();
+    s.backend.machines[0]!.kill = async () => {
+      throw new Error("Boat answered 503");
+    };
+    await expect(s.rt.workspaces.delete(ws.id)).rejects.toThrow();
+    await doctor.port.revoke!("ws_d0c70r00");
+    await handle.close();
+    const again = s.brokerOn();
+    await again.start({ rt: s.rt, server: { authorize: async () => undefined, revokeDevice: async () => false } });
+    cleanups.push(() => again.stop());
+    expect((await heldPipeCall(again, ws.id, "acme-old-token")).body).toContain(REVOKED_SAID);
+  });
+
+  it("keeps the host's lift on disk when wsp doctor's own runtime on the same state cuts its machine off", async () => {
+    const s = await served();
+    const back = await createOn(s.rt, { golden: "snap_g", name: "acme-back" });
+    const handle = await s.host();
+    await s.broker.port.revoke!(back.id);
+    const doctor = s.brokerOn();
+    s.broker.port.lift!(back.id);
+    await doctor.port.revoke!("ws_d0c70r00");
+    await handle.close();
+    const again = s.brokerOn();
+    await again.start({ rt: s.rt, server: { authorize: async () => undefined, revokeDevice: async () => false } });
+    cleanups.push(() => again.stop());
+    expect((await heldPipeCall(again, back.id, "acme-old-token")).body).toContain(DEAD_TOKEN_SAID);
   });
 
   it("stops the broker first when the host closes", async () => {

@@ -466,7 +466,11 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     delete entry.creating;
     report("ready", CREATE_READY);
     if (record.sub!.releasedAt === undefined) bus.emit({ type: "workspace.created", workspace: ctx.view(record) });
-    else await ctx.emitStatus(entry, "reachable");
+    else {
+      // Woken as a wake is, so the host's link and the broker's pipes dial the new machine and its meter starts.
+      bus.emit({ type: "workspace.woken", workspaceId: record.id, machineId: record.machineId });
+      await ctx.emitStatus(entry, "reachable");
+    }
   };
 
   /** The machine a failed attempt made goes: the record's own where it bound one, else the box the fault names, which
@@ -534,6 +538,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     record.golden = head.snapshotId;
     record.phase = "running";
     record.firstLife = true;
+    // The machine deleted before was cut off under this same record, and the new one's calls must go through.
+    ctx.opts.broker?.lift?.(record.id);
     delete sub.lost;
     // A thread whose first start failed has run nothing: what Try again sends stays that start's own message.
     const tried = sub.opening ?? prompt;
