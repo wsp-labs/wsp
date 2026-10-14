@@ -14,7 +14,7 @@ import { createClaudeAdapter } from "@wsp/adapter-claude";
 import { createCodexAdapter, parseSessionTitle } from "@wsp/adapter-codex";
 import { THREAD_AGENTS, type ThreadAgent } from "@wsp/catalog";
 import { ExecFailedError, MachineUnreachableError, type Machine } from "@wsp/engine";
-import { EMPTY_TITLE_LINE, foldThreads, keepsRename, machineUnreachableLine, signInRefusalLine, type AdapterEvent, type TitleTurn, type TurnResult } from "@wsp/protocol";
+import { EMPTY_TITLE_LINE, OPENING_KEPT, foldThreads, keepsRename, machineUnreachableLine, signInRefusalLine, type AdapterEvent, type TitleTurn, type TurnResult } from "@wsp/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { machineExecStream } from "../src/machine-exec.js";
@@ -485,6 +485,20 @@ describe("the title the harness makes for a thread", () => {
       expect(asked, stored).toHaveLength(1);
       expect(await titleOf(rt, ws.id)).toBe("Seed thread titles here");
     }
+  });
+
+  it("asks for a name when the store's title is the whole of an opening longer than the row keeps", async () => {
+    // Codex writes every line of the opening into its title column, and the row holds only the opening's head.
+    const brief = `make a server, and its tests. ${"Read the ticket and every comment on it before the code. ".repeat(40)}`;
+    expect(brief.length).toBeGreaterThan(OPENING_KEPT);
+    const asked: unknown[] = [];
+    const { backend } = titledBackend(() => brief);
+    const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: titledAdapter({ maker: async t => (asked.push(t), "Seed thread titles here") }) } });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    await (await rt.sessions.start(ws.id, { prompt: brief })).finished;
+    await until(async () => (await rt.sessions.list(ws.id))[0]?.titleSource === "auto");
+    expect(asked).toHaveLength(1);
+    expect(await titleOf(rt, ws.id)).toBe("Seed thread titles here");
   });
 
   it("keeps the name it made when the store still answers with the opening words, since a seed is no news to a named row", async () => {

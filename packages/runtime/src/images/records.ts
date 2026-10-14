@@ -147,8 +147,15 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
    * A host whose module forks nothing has no place to file a copy under: it is the module a host with no provider
    * key starts on, and the key it is given later swaps a different module in. Filing the golden under that module
    * would put it out of reach of every boot after the swap, so nothing moves until a boot knows what it forks on.
-   * Runs once, at boot. */
+   * Runs once, at boot, after the owned lists a seal once kept on each version are dropped wherever they are: a hash of
+   * every file the recipe wrote, which nothing reads, made 99% of the collection, and boot reads the collection once
+   * for every record that stands on an image. */
   const migrateCopies = async (): Promise<void> => {
+    for (const key of await store.keys(GOLDENS)) {
+      const stored = (await store.get(GOLDENS, key)) as { versions?: Record<string, unknown>[] } | undefined;
+      if (stored?.versions?.some(v => "owned" in v) !== true) continue;
+      await store.put(GOLDENS, key, { ...stored, versions: stored.versions!.map(({ owned: _, ...v }) => v) });
+    }
     if (forksNoMachines((places.backend(places.wired) ?? backend).capabilities)) return;
     for (const collection of [GOLDENS, GOLDEN_RECIPES]) {
       for (const key of await store.keys(collection)) {
