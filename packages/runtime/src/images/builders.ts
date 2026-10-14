@@ -99,7 +99,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
     for (const b of [...builders.values()]) {
       if (b.record.sealed === undefined || !(b.life === "own" || b.life === "reusable") || inWindow(b.record.sealed.at)) continue;
       try {
-        await gone.stop(backend, b.builder.machine);
+        await gone.stop(backendAt(b.record.place ?? places.wired), b.builder.machine);
       } catch (e) {
         failed.push({ id: b.record.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}; stays recorded, retried next sweep` });
         continue;
