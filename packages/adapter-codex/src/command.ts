@@ -198,6 +198,8 @@ export interface BuildCommandOptions {
   /** The program run in place of codex and the words added after app-server, from the person's setup there. */
   launch?: AgentLaunch;
   broker?: CodexBroker;
+  /** The config's own servers this launch leaves out, by name: on a cloud machine, those that need the person's sign-in. */
+  offServers?: readonly string[];
   /** A server run that starts no turn, a revert or a fork: it writes the login only when it carries the token, as
    * every launch outside a turn does, and otherwise runs at the door on the file the last turn left. */
   turn?: false;
@@ -249,6 +251,14 @@ function serverFlags(servers: Readonly<Record<string, McpServerSpec>>): string[]
   });
 }
 
+/** One `enabled=false` override per off server, each only where the config under CODEX_HOME still names it: an
+ * override for a server the bootstrap config does not hold, one a project file alone names or one removed since the
+ * list was read, stops app-server at start with `invalid transport` (codex-cli 0.155.1). A name the check misses
+ * keeps its server on. */
+function offFlags(names: readonly string[]): string[] {
+  return names.filter(name => SERVER_NAME_RE.test(name)).map(name => `$(grep -Eqs ${shellQuote(`^[[:space:]]*(\\[mcp_servers\\.${name}[].]|mcp_servers\\.${name}\\.)`)} "$CODEX_HOME/config.toml" && printf %s ${shellQuote(`-c mcp_servers.${name}.enabled=false`)})`);
+}
+
 export interface AccessParams {
   sandbox: "read-only" | "workspace-write" | "danger-full-access";
   approvalPolicy: "on-request" | "never";
@@ -268,7 +278,7 @@ export function accessParams(mode: string | undefined): AccessParams {
 export function buildCommand(options: BuildCommandOptions): string {
   const brokered = options.broker === undefined ? { steps: [], flags: [] } : brokeredLine(options.broker, Date.now(), options.turn !== false);
   // The plan tool is off in a headless server unless its config turns it on; its updates are the turn's steps.
-  const server = [`${agentWord("codex", options.launch)} app-server`, ...launchWords(options.launch), configRaw("tools.update_plan.enabled", "true"), ...brokered.flags, ...serverFlags(options.mcpServers ?? {})].join(" ");
+  const server = [`${agentWord("codex", options.launch)} app-server`, ...launchWords(options.launch), configRaw("tools.update_plan.enabled", "true"), ...brokered.flags, ...serverFlags(options.mcpServers ?? {}), ...offFlags(options.offServers ?? [])].join(" ");
   return inFolder(options.cwd, [...brokered.steps, server].join(" && "));
 }
 

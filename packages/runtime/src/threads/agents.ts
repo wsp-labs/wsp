@@ -560,7 +560,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
    * the person's sign-in or key, which the machine never holds, so the agent neither lists it nor asks for its sign-in.
    * An address with no header is left out where the host's probe says it asks for a sign-in; one this host never asked
    * is waited on within the probe's time. Nothing anywhere else, and nothing where the config could not be read, which
-   * costs the turn its list, not its start. */
+   * costs the turn its list, not its start; an empty list where none is off, which clears the last launch's there. */
   const offServersFor = async (entry: LiveWorkspace, harness: string, folder: string): Promise<string[] | undefined> => {
     if (!atProvider(ctx.placeIdOf(entry.record), ctx.places)) return undefined;
     const key = [entry.record.id, harness, folder].join("\0");
@@ -579,7 +579,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     }
     const signsIn = (await opts.agentsReader?.signsIn?.(addressesToAsk(servers.map(s => s.server)))) ?? (() => undefined);
     const off = [...new Set(servers.flatMap(s => (needsOwnCredential(s.server, signsIn) ? [s.server.name] : [])))];
-    return off.length === 0 ? undefined : off;
+    return off;
   };
 
   /** What a launch in `folder` hands the adapter of the agent's own servers, as far as the adapter takes either: the
