@@ -7,7 +7,7 @@ import type { HostSsh, PlaceWiring, RestartDoor, Runtime } from "@wsp/runtime";
 import { writeOwn } from "@wsp/own-file";
 import { GUEST_HOME, THREAD_AGENTS } from "@wsp/catalog";
 import { forksNoMachines, isLoopback, listenBeyondLoopbackLine, loopbackThreadsLine, LOOPBACK, verbFailure } from "@wsp/protocol";
-import { providerBackendFor, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
+import { checkProviderKeyLive, providerBackendFor, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
 import { webDirFor } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, deployDaemon, missingBundleFile } from "../doctor.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
@@ -39,7 +39,7 @@ import { analyticsOff, hostAnalytics } from "../analytics.js";
 import { followUsage, hostCommon } from "../analytics-events.js";
 import type { CliIO } from "./io.js";
 import { keySources, providerEnvNow, loadKeys, vaultNow } from "./keys.js";
-import { goldenRecipe, hostRecipeWatch, swapProvider, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
+import { goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
 
 /** The init job on this computer for a serving host: wsp init's own readers and build pieces, the keys read off the
  * .env beside the state file this host serves and nothing else at each ask (a key in this process's environment or
@@ -308,6 +308,7 @@ export async function hostFor(
     const authToken = randomBytes(24).toString("base64url");
     const tokenPath = hostTokenPath(opts.statePath);
     writeOwn(dirname(tokenPath), basename(tokenPath), authToken);
+    const broker = hostBrokerOf(rt);
     const handle = await startHost({
       runtime: rt,
       authToken,
@@ -329,6 +330,9 @@ export async function hostFor(
       statePath: opts.statePath,
       init,
       doctor: hostDoctorReaders(links, opts.statePath),
+      ...(broker !== undefined ? { broker } : {}),
+      // The same check the init job's key step puts a key to, with the account and machines it reads.
+      checkKey: (provider, key) => checkProviderKeyLive(opts.providerEnv, key, provider),
       // The row this host forks on, so a host wired to none asks its account nothing at all.
       provider: wiredProviderId(opts.providerEnv),
       admitted,

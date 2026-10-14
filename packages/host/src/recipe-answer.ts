@@ -239,8 +239,9 @@ export function alsoHereOf(rows: readonly ScanRow[] | undefined): RecipeScanAlso
 
 /** Every option this computer offers, read once: the agents and tools with the rule's tick and what to do about
  * each, the tools outside the catalog a manager here has, the commands the catalog does not carry, and the sign-in
- * each ticked row brings. Nothing is written. */
-export function recipeScan(recipe: Recipe, commands: readonly CommandCount[] = [], alsoHere?: readonly ScanRow[]): RecipeScan {
+ * each ticked row brings, which a build at a provider has none of: its machines use this computer's sign-ins
+ * through wsp. Nothing is written. */
+export function recipeScan(recipe: Recipe, commands: readonly CommandCount[] = [], alsoHere?: readonly ScanRow[], cloud = false): RecipeScan {
   const { agents, tools } = answerRows(recipe);
   const withAdvice = (rows: readonly RecipeAnswerRow[]): RecipeScanRow[] => rows.map(r => ({ ...r, recommended: tickAdvice(r) }));
   const all = [...withAdvice(agents), ...withAdvice(tools)];
@@ -254,7 +255,7 @@ export function recipeScan(recipe: Recipe, commands: readonly CommandCount[] = [
     heavy: heavyRows(all),
     alsoHere: alsoHereOf(alsoHere),
     commands: commands.map(c => ({ name: c.name, calls: c.calls, sessions: c.sessions })),
-    signIns: on.flatMap((r): RecipeScanSignIn[] => {
+    signIns: (cloud ? [] : on).flatMap((r): RecipeScanSignIn[] => {
       const s = signInFor(loginIdOf(r.id));
       if (s.kind === "shell") return [];
       return [{ id: r.id, name: r.name, signIn: signInWords(s), recommended: signInAdvice(r.id) }];
@@ -281,16 +282,15 @@ export function alsoHereLines(also: RecipeScanAlso, platform: Platform): string[
 }
 
 /** The whole scan on the terminal: the two tables with what to do beside each row, the tools outside the catalog,
- * the commands, the sign-ins. */
-export function scanPrintout(s: RecipeScan, platform: Platform, depth = 1): string[] {
+ * the commands, and the sign-ins where the build is not at a provider. */
+export function scanPrintout(s: RecipeScan, platform: Platform, depth = 1, cloud = false): string[] {
   return [
     ...adviceTables(s, depth),
     "",
     ...alsoHereLines(s.alsoHere, platform),
     "",
     ...commandTableLines(s.commands),
-    "",
-    ...signInTableLines(s.signIns),
+    ...(cloud ? [] : ["", ...signInTableLines(s.signIns)]),
   ];
 }
 

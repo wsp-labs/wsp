@@ -146,6 +146,8 @@ interface State {
   golden?: { version: number };
   workspace?: { id: string; name: string };
   place?: SetupPlace;
+  /** The screens were drawn for a build at a provider, which has no Sign-ins screen. */
+  cloud?: boolean;
   /** Where a terminal's Ctrl-C would arrive for the run; cancel emits it. */
   signals: EventEmitter;
   handle?: SessionHandle;
@@ -344,7 +346,7 @@ export class InitJobs implements InitDoor {
       const s = this.state;
       if (s !== undefined) {
         s.keys = this.held();
-        if (s.phase === "answering") s.screens = screensOf(s.reading!, s.answers!, this.deps);
+        if (s.phase === "answering") s.screens = screensOf(s.reading!, s.answers!, this.deps, s.cloud);
         this.emit();
       }
     }
@@ -412,7 +414,7 @@ export class InitJobs implements InitDoor {
   async answer(o: { screen: InitScreenId; ticks?: string[]; answers?: Record<string, string> }): Promise<InitJob> {
     const s = this.answering();
     s.answers = answerScreen(s.reading!, s.answers!, o.screen, o);
-    s.screens = screensOf(s.reading!, s.answers, this.deps);
+    s.screens = screensOf(s.reading!, s.answers, this.deps, s.cloud);
     s.disk = diskOf(s.reading!, s.answers.recipe, this.deps.statePath, this.deps.pricing().builderDiskGb);
     s.step = Math.min(s.screens.findIndex(x => x.id === o.screen) + 1, s.screens.length);
     // The screen's answer is what its draft was for: what stands is on the recipe now, and a stale draft would
@@ -511,7 +513,8 @@ export class InitJobs implements InitDoor {
     s.place = { id: built.place, name: built.name, kind: built.kind };
     // Every sign-in the screens chose is a row from the first frame, waiting for its turn: the handoff's own events
     // fill in the page and the outcome when they reach it, and a row the run never reaches ends as skipped, said so.
-    for (const row of this.chosenSignIns(s)) s.rows.push(row);
+    // A provider's machines sign in to nothing, so its build has none.
+    if (built.kind !== "provider") for (const row of this.chosenSignIns(s)) s.rows.push(row);
     // A cloud met through sub-threads alone gets no machine from a seal, whatever a client asked to fork.
     const first = subThreadsOnly(built.place) ? undefined : firstWorkspaceName(o.firstWorkspace);
     // The import rides the fork, so with no name there is no folder to land either, and no row for either: a step
@@ -832,7 +835,9 @@ export class InitJobs implements InitDoor {
     // A run answered by its file has already written the wsp tools into the agents its own screen asked about, so
     // this build writes none: an empty set is an answer of its own, where nothing at all takes the screen's defaults.
     s.answers = { recipe: reading.catalogRecipe, logins: new Map(), wspTicks: answeredByFile(s.road) ? new Set() : undefined };
-    s.screens = screensOf(reading, s.answers, this.deps);
+    // The screens are drawn for the place the build would boot on now; one the host cannot build at has none to drop.
+    s.cloud = (s.place ?? (await this.buildPlace().catch(() => undefined)))?.kind === "provider";
+    s.screens = screensOf(reading, s.answers, this.deps, s.cloud);
     s.disk = diskOf(reading, s.answers.recipe, this.deps.statePath, this.deps.pricing().builderDiskGb);
     s.step = 0;
     s.phase = "answering";
