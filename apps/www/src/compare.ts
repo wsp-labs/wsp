@@ -4,7 +4,7 @@
 // day in READ; a fact read later is read again from the product's own page and the day moves with it. wsp's answers are
 // read from the repo at WSP_AT, not from this site.
 
-export const READ = "2026-10-09";
+export const READ = "2026-10-14";
 const WSP_AT = "https://github.com/wsp-labs/wsp/blob/917b67077b1523171095b99be61ffeddc8c2419f";
 
 /** The words, then every page they were read from. */
@@ -148,11 +148,11 @@ export const KINDS: Kind[] = [
         slug: "emdash",
         line: "An open source app for 35 agents, with remote projects over ssh.",
         differs: "Emdash opens projects on ssh hosts you set up yourself. wsp sets each computer up from yours when you add it.",
-        well: "Emdash lists 35 agents and runs on macOS, Windows and Linux. Since 2026-08-28 it opens projects on ssh hosts and can run an agent's installer there. It is free under Apache-2.0.",
+        well: "Emdash lists 35 agents and runs on macOS, Windows and Linux. Since v0.4.9, on 2026-02-12, it opens projects on ssh hosts and can run an agent's installer there. It is free under Apache-2.0.",
         fit: `${OWN_WAY} Emdash can run an agent's installer on the host and leaves the rest to you; wsp copies your setup onto it.`,
         cells: {
           runs: yes("Your computer, ssh hosts", "Your computer, ssh hosts", `${EMDASH}/docs/remote-development`),
-          second: yes("Yes, over ssh", "Yes, over ssh, since 2026-08-28", `${EMDASH}/changelog`),
+          second: yes("Yes, over ssh", "Yes, over ssh, since v0.4.9 on 2026-02-12", "https://github.com/generalaction/emdash/releases/tag/v0.4.9"),
           has: no("Not carried; can install agents", "Not carried. It can run an agent's installer on the host", `${EMDASH}/docs/remote-development/remote-projects`),
           keys: yes("On each host you set up", "On each ssh host: it uses the Git credentials configured on the remote host", `${EMDASH}/docs/remote-development/remote-projects`),
           agents: yes("35 listed", "35 listed", `${EMDASH}/docs/providers`),
@@ -221,7 +221,7 @@ export const KINDS: Kind[] = [
           keys: yes("On each machine, none copied", 'On each machine: herdr "does not store passwords, private keys, agent tickets" and copies no secrets to ssh hosts', `${HERDR}/docs/connecting-machines/`),
           agents: yes("22 detected, any terminal program", "22 detected, any terminal program", `${HERDR}/docs/agents/`),
           platforms: yes("macOS, Linux, Windows", "macOS, Linux, Windows", `${HERDR}/docs/install/`),
-          price: no("Not stated", "No price stated", HERDR),
+          price: yes("Free", "Free: \"The runtime, what you use right now, stays free\"", `${HERDR}/blog/herdr-is-joining-y-combinator/`),
           code: yes("Apache-2.0", "Apache-2.0", "https://github.com/herdrdev/herdr"),
         },
       },
@@ -235,7 +235,7 @@ export const KINDS: Kind[] = [
         slug: "claude-code-web",
         line: "Claude Code on Anthropic's VM, from the web, desktop or phone.",
         differs: "Claude Code on the web runs on Anthropic's VM with your repo. wsp runs it on computers you own, with your setup on them.",
-        well: "Claude Code on the web needs no computer of your own. It starts from the web, desktop, CLI, phones or Slack, and runs on Anthropic's VM inside the Pro plan and up. A proxy keeps your GitHub token outside the VM.",
+        well: "Claude Code on the web needs no computer of your own. It starts from the web, desktop, CLI or phones, Slack on Pro and Max, and runs on Anthropic's VM inside the Pro plan and up. A proxy keeps your GitHub token outside the VM.",
         fit: `${OWN_WAY} Its VM has "what the repo has committed" and not your ~/.claude, plugins or local MCP servers. wsp also runs Codex, OpenCode and Cursor beside Claude Code.`,
         cells: {
           runs: no("Anthropic's VM; runners in beta", "Anthropic's VM; your own runners on Team and Enterprise, in beta", `${CLAUDE}/claude-code-on-the-web`, `${CLAUDE}/self-hosted-environments`),
@@ -243,7 +243,7 @@ export const KINDS: Kind[] = [
           has: no("Committed repo, skills you turn on", "What the repo has committed, and skills you turn on at claude.ai. Not your ~/.claude, plugins or local MCP servers", `${CLAUDE}/cloud-environments`),
           keys: no("Anthropic's servers", "Environment variables and network secrets are saved on the cloud environment, and a proxy holds your GitHub token", `${CLAUDE}/cloud-environments`),
           agents: no("Claude Code", "Claude Code", `${CLAUDE}/claude-code-on-the-web`),
-          platforms: yes("Web, desktop, CLI, phones, Slack", "Web, desktop, CLI, iOS, Android, Slack", `${CLAUDE}/claude-code-on-the-web`),
+          platforms: yes("Web, desktop, CLI, phones, Slack", "Web, desktop, CLI, iOS, Android; Slack on Pro and Max", `${CLAUDE}/claude-code-on-the-web`, `${CLAUDE}/slack`),
           price: no("In Pro, $20/mo, and up", "In Pro, $20/mo, and up", "https://claude.com/pricing"),
           code: no("Closed", "Closed", "https://github.com/anthropics/claude-code/blob/main/LICENSE.md"),
         },
@@ -280,7 +280,13 @@ export const KINDS: Kind[] = [
           keys: no("Cursor's servers", "Secrets added in its dashboard, scoped to the workspace or team and injected when an agent starts", CURSOR),
           agents: no("Cursor's agent, many models", "Cursor's agent, many models", CURSOR),
           platforms: yes("Desktop, web, iOS, Slack", "Desktop, web, iOS, Slack", CURSOR, `${CURSOR}/mobile`),
-          price: no("From $20/mo, models at API price", "Paid plans from $20/mo, models at API price", "https://cursor.com/help/account-and-billing/pricing"),
+          price: no(
+            "Not stated",
+            "Its two price lists disagree on the day: Premium $30/mo on its pricing page, Pro $20/mo in its help. Cloud agents bill models at API price",
+            "https://cursor.com/pricing",
+            "https://cursor.com/help/account-and-billing/pricing",
+            CURSOR,
+          ),
           code: no("Not stated", "Not stated", "https://cursor.com/cli"),
         },
       },
@@ -345,18 +351,18 @@ export const AHEAD: { title: string; wsp: string; them: Partial<Record<string, S
       superset: ["Superset sells plans for teams.", "https://superset.sh/pricing"],
       "claude-code-web": ["Anthropic sells Team and Enterprise plans.", "https://claude.com/pricing"],
       "codex-cloud": ["OpenAI sells plans for teams.", `${CODEX}/pricing`],
-      "cursor-cloud-agents": ["Cursor sells plans for teams.", "https://cursor.com/help/account-and-billing/pricing"],
+      "cursor-cloud-agents": ["Cursor sells plans for teams.", "https://cursor.com/pricing"],
     },
   },
   {
     title: "Size",
-    wsp: "wsp has 8; it started in September 2026.",
+    wsp: "wsp has 9; it started in September 2026.",
     them: {
-      orca: ["Orca has 88,402 GitHub stars.", "https://github.com/stablyai/orca", "https://github.com/wsp-labs/wsp"],
-      herdr: ["herdr has 43,078 GitHub stars.", "https://github.com/herdrdev/herdr", "https://github.com/wsp-labs/wsp"],
-      "t3-code": ["T3 Code has 26,545 GitHub stars.", "https://github.com/pingdotgg/t3code", "https://github.com/wsp-labs/wsp"],
-      superset: ["Superset has 15,031 GitHub stars.", "https://github.com/superset-sh/superset", "https://github.com/wsp-labs/wsp"],
-      emdash: ["Emdash has 5,946 GitHub stars.", "https://github.com/generalaction/emdash", "https://github.com/wsp-labs/wsp"],
+      orca: ["Orca has 91,603 GitHub stars.", "https://github.com/stablyai/orca", "https://github.com/wsp-labs/wsp"],
+      herdr: ["herdr has 43,825 GitHub stars.", "https://github.com/herdrdev/herdr", "https://github.com/wsp-labs/wsp"],
+      "t3-code": ["T3 Code has 27,407 GitHub stars.", "https://github.com/pingdotgg/t3code", "https://github.com/wsp-labs/wsp"],
+      superset: ["Superset has 15,144 GitHub stars.", "https://github.com/superset-sh/superset", "https://github.com/wsp-labs/wsp"],
+      emdash: ["Emdash has 5,978 GitHub stars.", "https://github.com/generalaction/emdash", "https://github.com/wsp-labs/wsp"],
     },
   },
 ];
