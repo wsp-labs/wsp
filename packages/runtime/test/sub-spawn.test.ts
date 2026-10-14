@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { BOX_WORK_DIR, placeLimitsOf } from "@wsp/engine";
+import { BOX_WORK_DIR, SERVERS_OFF_LINE, placeLimitsOf } from "@wsp/engine";
 import {
   agentsOffRefusal, placeSaid, SUB_SEED_MAX_BYTES, subAheadUnknownRefusal, subBesideRefusal, subOtherProjectRefusal, subBranchNameOk, subLeadOnMachineRefusal, subNotSentLine, subPickedElsewhereWhy, subStartsNothingRefusal, subStayedLine, TURN_TOKEN_ENV, exitClassOf, fmtBytes, refusalLine, spawnCapRefusal, subAheadRefusal, subBranchNameRefusal, subDetachedRefusal, startsUsedLine,
   subLeadBranchRefusal, subMachineTakenRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, brokeredAgentRefusal, subHostNoSignInRefusal, subHostOtherGitRefusal, subNoThreadRefusal,
@@ -56,6 +56,18 @@ async function refused(p: Promise<unknown>): Promise<{ said: string; cls: string
 }
 
 describe("run --on boat from a thread on this computer", () => {
+  it("tells the sub-thread's agents, in the machine context its fork writes, that a server needing the person's sign-in does not run there", async () => {
+    const { rt, boat, project, lead } = await leadOnThisComputer({});
+    try {
+      await opened(rt, await spawn(rt, project.id, lead), lead);
+      const context = boat.files.filter(f => f.path.startsWith(CONTEXT_ARCHIVE)).map(f => (f.bytes[0] === 0x1f && f.bytes[1] === 0x8b ? gunzipSync(f.bytes) : f.bytes).toString("utf8"));
+      expect(context).toHaveLength(1);
+      expect(context[0]).toContain(SERVERS_OFF_LINE);
+    } finally {
+      await rt.close();
+    }
+  }, 40_000);
+
   it("forks the image head at the cloud's size, lands the picked files in /root/<repo> by the file road, and opens the sub-thread there under the preamble", async () => {
     const { rt, store, boat, daemon, starts, project, threadId, lead, token, folder } = await leadOnThisComputer({ picks: ["CLAUDE.local.md", "local.properties"], git: { uncommitted: 2 } });
     const before = daemon.frames.length;

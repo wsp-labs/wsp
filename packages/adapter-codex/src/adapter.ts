@@ -17,7 +17,7 @@ import {
   PERMISSION_DENY,
   ASIDE_WALL_MS,
   CODEX_LEGACY_HISTORY,
-  HUNK_HEAD,
+  unifiedHunks,
   RUN_EXIT_MS,
   asideWallLine,
   codexKeyRefusedLine,
@@ -48,7 +48,6 @@ import type {
   McpServerSpec,
   PermissionAsk,
   PermissionOutcome,
-  PatchHunk,
   SessionAsker,
   SessionForker,
   SessionRenamer,
@@ -127,6 +126,8 @@ export interface CodexStartOptions {
    * thread's start in the run's seed, which lands in a file of the run's, never on the command line or in the
    * server's environment. */
   serverValues?: { config?: Readonly<Record<string, string>> };
+  /** The config's own servers this launch leaves out, by name; see buildCommand. */
+  offServers?: readonly string[];
   /** The turn reads each banked reset in full rather than their count alone. */
   limitDetails?: boolean;
   /** The server boots and opens the thread at once, and turn/start goes once this settles. */
@@ -211,6 +212,8 @@ export interface CodexAdapter {
   readonly attachments: "file";
   /** Servers ride the launch as `-c mcp_servers.<name>...` overrides over the config under CODEX_HOME. */
   readonly mcpServers: true;
+  /** A launch leaves out the config's own servers `offServers` names. */
+  readonly deniesServers: true;
   /** A start takes promptAfter: the server touches no file before turn/start hands it the prompt. */
   readonly waitsForPrompt: true;
   /** Makes the binary describe itself under the same home as a session, without running a turn. */
@@ -299,17 +302,6 @@ const changesOf = (changes: unknown): { path: string; kind: string }[] =>
     : [];
 
 const MOVED = /\n\nMoved to: ([^\n]+)$/;
-
-/** The hunks of a unified diff; a line before the first hunk head is a header and is skipped. */
-function unifiedHunks(diff: string): PatchHunk[] {
-  const hunks: PatchHunk[] = [];
-  for (const line of diff.replace(/\n$/, "").split("\n")) {
-    const head = HUNK_HEAD.exec(line);
-    if (head !== null) hunks.push({ oldStart: Number(head[1]), oldLines: Number(head[2] ?? 1), newStart: Number(head[3]), newLines: Number(head[4] ?? 1), lines: [] });
-    else hunks.at(-1)?.lines.push(line);
-  }
-  return hunks;
-}
 
 /** Each change as the hunks it made, as the delta's patch field, absent where none made any; read only off a completed
  * item, since a declined or failed one carries the diff it would have made. The app server (0.162.1,
@@ -1325,7 +1317,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           : options.copy === true
             ? threadCopyLine({ ...thread, threadId: options.resume })
             : threadResumeLine({ ...thread, threadId: options.resume });
-    const command = buildCommand({ ...(options.cwd !== undefined ? { cwd: options.cwd } : {}), ...(options.mcpServers !== undefined ? { mcpServers: options.mcpServers } : {}), ...(deps.launch !== undefined ? { launch: deps.launch } : {}), ...broker });
+    const command = buildCommand({ ...(options.cwd !== undefined ? { cwd: options.cwd } : {}), ...(options.mcpServers !== undefined ? { mcpServers: options.mcpServers } : {}), ...(options.offServers !== undefined ? { offServers: options.offServers } : {}), ...(deps.launch !== undefined ? { launch: deps.launch } : {}), ...broker });
     const run = deps.exec(command, { env: { ...env }, input: [initializeLine(), INITIALIZED_LINE, ACCOUNT_READ_LINE, rateLimitsReadLine(options.limitDetails === true), threadLine], ...(valued ? { secret: { input: true as const } } : {}) });
     const background: Background | undefined = options.keep === true ? { commands: new Set(), held: undefined } : undefined;
     const keeper = background === undefined ? undefined : keepRun(run, line => endedBetween(run, background, line));
@@ -1465,6 +1457,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     reportsEdits: true,
     compacts: COMPACT,
     mcpServers: true,
+    deniesServers: true,
     waitsForPrompt: true,
     aside,
     revert,

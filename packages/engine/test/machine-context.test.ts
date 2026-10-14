@@ -27,6 +27,7 @@ import {
   parseProbe,
   probeCommand,
   renderMachineContext,
+  SERVERS_OFF_LINE,
   renderShortContext,
   renderSkill,
   skillPath,
@@ -289,6 +290,16 @@ describe("the document", () => {
     expect(bare).toContain("- Docker and Podman are not installed.");
     expect(bare).toContain("- Disk: size unknown when this file was written. wsp keeps 2 GB free.");
     expect(bare).not.toContain("Sign-ins");
+  });
+
+  it("a machine at a provider tells its agents a server that needs the person's sign-in does not run there and is not signed in to there, and no other machine says so", () => {
+    const input = { workspace: { name: "task-1" }, golden: GOLDEN, probe: probeOf(), facts: FACTS, agent: ctx("claude") };
+    for (const render of [renderShortContext, renderMachineContext]) {
+      expect(render({ ...input, atProvider: true }).split("\n")).toContain(SERVERS_OFF_LINE);
+      expect(render(input)).not.toContain(SERVERS_OFF_LINE);
+    }
+    expect(SERVERS_OFF_LINE).toContain("not available on cloud machines");
+    expect(SERVERS_OFF_LINE).toMatch(/do not suggest signing it in here \(no \/mcp, no mcp login command\)/);
   });
 
   it("the skill is the full document under a name and a one-line description every agent's parser reads", () => {
