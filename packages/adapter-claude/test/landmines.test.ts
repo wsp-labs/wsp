@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { BROKER_DOOR_URL, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
+import { BROKER_DOOR_URL, OFF_SERVERS_FILE, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
 import { agentWord, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
+import { writeStub } from "../../protocol/test/stub-script.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -185,6 +186,29 @@ describe("buildCommand", () => {
     const cmd = buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", offServers: ["cloudflare", "posthog"], launch: { args: ["--settings", JSON.stringify({ theme: "dark" })] } });
     expect(cmd).toContain(`--settings '{"theme":"dark","deniedMcpServers":[{"serverName":"cloudflare"},{"serverName":"posthog"}]}'`);
     expect(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", offServers: [] })).not.toContain("--settings");
+  });
+
+  it("writes the off servers into a managed drop-in before the launch, so a claude the agent runs there denies them too, and a write that fails still launches", () => {
+    const root = mkdtempSync(join(tmpdir(), "wsp-off-"));
+    try {
+      const bin = join(root, "bin");
+      mkdirSync(bin);
+      writeStub(join(bin, "claude"), `#!/bin/sh\npwd > ${shellQuote(join(root, "ran"))}\n`);
+      const run = (cmd: string, managed: string): void => void execFileSync("/bin/bash", ["-c", cmd.replaceAll(dirname(OFF_SERVERS_FILE), managed)], { env: { PATH: `${bin}:/usr/bin:/bin` } });
+      const managed = join(root, "managed-settings.d");
+      run(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", cwd: root, offServers: ["cloudflare", "posthog"] }), managed);
+      expect(JSON.parse(readFileSync(join(managed, basename(OFF_SERVERS_FILE)), "utf8"))).toEqual({ deniedMcpServers: [{ serverName: "cloudflare" }, { serverName: "posthog" }] });
+      expect(readFileSync(join(root, "ran"), "utf8").trim()).toBe(root);
+      rmSync(join(root, "ran"));
+      writeFileSync(join(root, "blocked"), "");
+      run(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", cwd: root, offServers: ["cloudflare"] }), join(root, "blocked", "managed-settings.d"));
+      expect(existsSync(join(root, "ran"))).toBe(true);
+      run(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", cwd: root, offServers: [] }), managed);
+      expect(existsSync(join(managed, basename(OFF_SERVERS_FILE)))).toBe(false);
+      expect(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555" })).not.toContain(OFF_SERVERS_FILE);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   const sessionId = "e16ed170-8257-4668-879e-fe836341633c";

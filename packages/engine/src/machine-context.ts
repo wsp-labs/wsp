@@ -312,7 +312,14 @@ export interface ContextInput {
   facts: BuildFacts;
   /** The agent this render is for; absent for the shared source files, which state nothing agent-specific. */
   agent?: ContextAgent;
+  /** A machine at a provider, which holds no sign-in or key of the person's. */
+  atProvider?: boolean;
 }
+
+/** What a machine at a provider tells its agents of a server that needs the person's sign-in: an agent missing its tool
+ * reads the server's config itself and would otherwise send the person to sign in here. */
+export const SERVERS_OFF_LINE =
+  "- A server that needs the person's own sign-in or key does not run on a cloud machine, which holds no sign-in or key of theirs. When a tool from one is missing, say it is not available on cloud machines, and do not suggest signing it in here (no /mcp, no mcp login command).";
 
 /** What is true of a cd for this agent: its module's words when its shell differs, else the facts wsp has verified for all of them. */
 const cdFact = (agent: ContextAgent | undefined): string => agent?.context.cd?.fact ?? "- Every agent session starts in the thread's folder; terminal panes open in the home folder.";
@@ -352,6 +359,7 @@ export function renderMachineContext(input: ContextInput): string {
   machine.push(cdFact(input.agent));
   machine.push("- A server listening on a port shows in the app as a server the person can open. A loopback-only bind (127.0.0.1) is unreachable through the preview edge; bind 0.0.0.0. Ports below 1024 are not forwarded.");
   if (shim) machine.push(`- Sign-ins go through wsp: BROWSER is ${BROWSER_SHIM_PATH} and xdg-open is the same shim. The page opens on the person's computer and the callback port is tunnelled back here.`);
+  if (input.atProvider === true) machine.push(SERVERS_OFF_LINE);
   machine.push(`- Secrets are exported by ${secretsFile}. They are never printed, logged or committed, and that file is never read or copied. .env files, .netrc and private keys were never copied from the person's computer.`);
 
   const workspace: string[] = [];
@@ -423,6 +431,7 @@ export function renderShortContext(input: ContextInput): string {
     `- Secrets are exported by ${SECRETS_SH}. Use them by name ($NAME); never print, log or commit a value, and never read that file.`,
   );
   if (probe.has.has("wsp-open")) lines.push("- Sign-ins go through wsp: run the tool's own login command and the page opens on the person's computer. Do not paste tokens into the terminal and do not ask for a password.");
+  if (input.atProvider === true) lines.push(SERVERS_OFF_LINE);
   lines.push("");
   return lines.join("\n");
 }
@@ -483,6 +492,7 @@ export interface ApplyContextOptions {
   path?: string;
   /** Which shells the probe may open; a computer the host reaches as its root gets none. */
   shells?: ProbeShells;
+  atProvider?: boolean;
 }
 
 function summarize(results: readonly ContextResult[], agents: readonly string[], bytes: number): string {
@@ -512,7 +522,7 @@ export async function applyMachineContext(machine: Machine, opts: ApplyContextOp
   const probe = parseProbe(probed.stdout);
   if (probe === undefined) return failed(`probe answered exit ${probed.exitCode} without its markers`);
   const facts = mergeFacts(probe.facts ?? EMPTY_FACTS, opts.result);
-  const input: ContextInput = { ...(opts.workspace !== undefined ? { workspace: opts.workspace } : {}), ...(opts.golden !== undefined ? { golden: opts.golden } : {}), probe, facts };
+  const input: ContextInput = { ...(opts.workspace !== undefined ? { workspace: opts.workspace } : {}), ...(opts.golden !== undefined ? { golden: opts.golden } : {}), ...(opts.atProvider === true ? { atProvider: true } : {}), probe, facts };
   const files: GuestFile[] = [
     { path: contextPath(roots), mode: MODE, content: renderShortContext(input) },
     { path: skillPath(roots), mode: MODE, content: renderSkill(renderMachineContext(input)) },
