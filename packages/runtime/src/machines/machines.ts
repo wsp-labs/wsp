@@ -286,7 +286,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
           else report?.("hostname-set", HOSTNAME_KEPT, { detail: named.refused });
         }
         // The fork carries the golden's copy; this one names the workspace and reads the disk and secrets as they are now.
-        const context = await applyMachineContext(machine, { workspace: { name: record.name }, ...(golden !== undefined ? { golden } : {}) });
+        const context = await applyMachineContext(machine, { workspace: { name: record.name }, ...(golden !== undefined ? { golden } : {}), ...(atProvider(ctx.placeIdOf(record), ctx.places) ? { atProvider: true } : {}) });
         if (context.failure !== undefined) console.warn(`machine context for ${record.id} on ${machine.id} ${context.summary}`);
         if (golden?.npmBin !== undefined) record.npmBin = golden.npmBin;
         else delete record.npmBin;

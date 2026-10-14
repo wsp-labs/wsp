@@ -16,6 +16,17 @@ export function wholeFileHunk(content: string, sign: "+" | "-"): PatchHunk {
 /** A unified diff's hunk head; a count of one may be left out. */
 export const HUNK_HEAD = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
+/** The hunks of a unified diff; a line before the first hunk head is a header and is skipped. */
+export function unifiedHunks(diff: string): PatchHunk[] {
+  const hunks: PatchHunk[] = [];
+  for (const line of diff.replace(/\n$/, "").split("\n")) {
+    const head = HUNK_HEAD.exec(line);
+    if (head !== null) hunks.push({ oldStart: Number(head[1]), oldLines: Number(head[2] ?? 1), newStart: Number(head[3]), newLines: Number(head[4] ?? 1), lines: [] });
+    else hunks.at(-1)?.lines.push(line);
+  }
+  return hunks;
+}
+
 /** The hunks of a patch that fit within `chars` characters of lines, in order, by the event's own fields: the hunk
  * that crosses the cap keeps its lines before it, counted again, and patchCut says lines were left out. A file none
  * of whose lines fit is left out with them. */

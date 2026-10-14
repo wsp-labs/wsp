@@ -233,6 +233,15 @@ describe("CodexAdapter over codex app-server", () => {
     expect(launch.wires[0]!.closed).toBe(true);
   });
 
+  it("a turn's launch turns off each server it is told to leave out, and says it leaves servers out", async () => {
+    const launch = launcher(server(fixtureLines("app-server-turn")));
+    const adapter = createCodexAdapter({ exec: launch.factory, home: "/root/.codex", login: LOGIN });
+    expect(adapter.deniesServers).toBe(true);
+    await adapter.start({ prompt: "list the repo", cwd: "/root/app", offServers: ["cloudflare"], onEvent: () => {} }).finished;
+    expect(launch.calls[0]!.command).toBe(buildCommand({ cwd: "/root/app", offServers: ["cloudflare"] }));
+    expect(launch.calls[0]!.command).toContain("-c mcp_servers.cloudflare.enabled=false");
+  });
+
   it("a turn on a machine whose credentials the host keeps writes its placeholder login before the server, and is handed no key", async () => {
     const launch = launcher(server(fixtureLines("app-server-turn")));
     const broker = { mode: "chatgpt" as const, claims: { accountId: "11111111-2222-4333-8444-555555555555", planType: "plus", userId: "user-acme0001", fedramp: false } };
