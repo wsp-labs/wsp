@@ -90,6 +90,9 @@ export interface SignInAsk {
   terminal?: boolean;
   /** The caller put the login's tool on that computer itself, as a setup's own step does: nothing goes on first. */
   toolThere?: boolean;
+  /** Run the agent's own login, never a token mint: the sign-in machines at a provider borrow. Set by the host's own
+   * roads, agents.cloudSignIn and the command line's sign-in line, and carried by no wire request. */
+  login?: true;
   /** The row a server's sign-in was started from, which the list of sign-ins hands back. */
   scope?: McpScope;
   project?: string;
@@ -321,7 +324,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
   };
   /** The one sign-in of an agent, or of one server, on a target, by that pair: a second start joins it. */
   const starting = new Map<string, Promise<{ signInId: string; run: Running }>>();
-  const keyOf = (target: AgentsTarget, ask: SignInAsk): string => JSON.stringify([target, ask.agent, ask.server ?? null, ask.terminal === true]);
+  const keyOf = (target: AgentsTarget, ask: SignInAsk): string => JSON.stringify([target, ask.agent, ask.server ?? null, ask.terminal === true, ask.login === true]);
   const follow = (signInId: string, run: Running, emit: (event: AgentsSignInEvent) => void): { signInId: string; leave(): void } => {
     if (!run.followers.has(emit)) {
       run.followers.add(emit);
