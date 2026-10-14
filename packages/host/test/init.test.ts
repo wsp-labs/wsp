@@ -15,7 +15,7 @@ import { stripVTControlCharacters } from "node:util";
 import { S_RADIO_ACTIVE, S_RADIO_INACTIVE } from "@clack/prompts";
 import { RUNGS, parseManifest, type Manifest, type ManifestEntry } from "@wsp/collect";
 import { BoxBackend, BUILDER_DISK_GB, LocalBackend, SNAPSHOT_STORAGE, type BackendPricing, type ExecResult } from "@wsp/engine";
-import { HERE_PLACE_ID, ALREADY_APPLIED, BOAT_NO_GITHUB_LINE, BOAT_READY_LINE, BUILD_NEEDS_FILE_FIX, DAEMON_TOKEN_PATH, buildNeedsFileLine, folderName, MACHINE_GONE_LINE, PORT_TAKEN_REFUSAL, Recipe, SEAL_FAILED_LINE, SIGN_IN_DEFERRED_WORD, SIGN_IN_LATER, type GoldenManifest, type ProjectImportResult, type ProjectPlan } from "@wsp/protocol";
+import { HERE_PLACE_ID, ALREADY_APPLIED, BOAT_READY_LINE, HOST_SIGN_INS, BUILD_NEEDS_FILE_FIX, DAEMON_TOKEN_PATH, buildNeedsFileLine, folderName, MACHINE_GONE_LINE, PORT_TAKEN_REFUSAL, Recipe, SEAL_FAILED_LINE, SIGN_IN_DEFERRED_WORD, SIGN_IN_LATER, type GoldenManifest, type ProjectImportResult, type ProjectPlan } from "@wsp/protocol";
 import { copyKey, DAEMON_TOKEN_SET, LOOPBACK, createRuntime, goldenHead, localExecStream, type GoldenRecipe, type LocalWiring, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { catalogEntry, parseJsonc } from "@wsp/catalog";
@@ -24,7 +24,8 @@ import { hostPlatform } from "../src/verbs.js";
 import { signInItems } from "../src/init-pick.js";
 import { CARD_FRAME, card, widthOf } from "../src/init-layout.js";
 import { PROJECT_QUESTION, noFolderNote } from "../src/init-pick.js";
-import { reduceStages, runInit, sealFailedMachineLeftLine, stageLine, summaryNote, SWEEP, type HostHooks, type InitIO, type InitOptions } from "../src/init.js";
+import { reduceStages, runInit, sealFailedMachineLeftLine, stageLine, SWEEP, type HostHooks, type InitIO, type InitOptions } from "../src/init.js";
+import { summaryNote } from "../src/init-summary.js";
 import { ALSO_LOCAL_QUESTION, FIRST_QUESTION, folderQuestion } from "../src/init-first.js";
 import type { HostHandle, WorkspaceRoads } from "../src/server.js";
 import { startCallbackRelay } from "../src/relay.js";
@@ -194,6 +195,8 @@ function fake(over: Partial<InitOptions> & { tty?: boolean; env?: Record<string,
   const { tty: _tty, env: _env, columns: _columns, signedIn: _signedIn, hold: _hold, missing: _missing, json: _json, ...rest } = over;
   const opts: InitOptions = {
     yes: false,
+    // A computer the person owns: its sign-ins run on the builder. A provider's build is the tests that say cloud.
+    cloud: false,
     // The folder was named on the command line, so the first screen's question is not asked; the run that answers it deletes this.
     project: NAMED_PROJECT,
     collect: async () => FIXTURE,
@@ -618,8 +621,8 @@ describe("wsp init, interactive", () => {
     const frame = f.text().slice(f.text().lastIndexOf("Ready to build")).replace(/\n┃\s+/g, " ");
     const ready = frame.slice(0, frame.indexOf("Boot a"));
     // No sign-in runs on this machine: every login here can only be signed in through a browser, and those are left
-    // to first use rather than waited on while the build runs.
-    expect(ready).toMatch(/^Ready to build\. 1 agent, 2 tools, [\d.]+ GB on the image\. 0 sign-ins on the machine during the build\. The build takes about ten minutes, not measured on this computer yet; a workspace naps when it is idle and stops billing\./);
+    // to first use rather than waited on while the build runs, so the line names no sign-in.
+    expect(ready).toMatch(/^Ready to build\. 1 agent, 2 tools, [\d.]+ GB on the image\. The build takes about ten minutes, not measured on this computer yet; a workspace naps when it is idle and stops billing\./);
     // The rate is the boot question's, said once on the screen.
     expect(ready).not.toContain("/hr");
     expect(frame.match(/\$0\.11\/hr/g)).toHaveLength(1);
@@ -1749,15 +1752,12 @@ describe("wsp init, flags and no terminal", () => {
   });
 
   it("a seal on Boat forks no first machine, even one named, and ends on how a lead starts a sub-thread there", async () => {
-    const f = fake({ tty: false, provider: "box", firstWorkspace: "first", recipe: async () => answeredInBuild("gh") });
+    const f = fake({ tty: false, cloud: true, provider: "box", firstWorkspace: "first" });
     const result = await runInit(f.opts, f.io);
     expect(result.code).toBe(0);
     const out = f.text();
     expect(out).toContain("Image v1 sealed.");
-    expect(out).toContain(BOAT_READY_LINE);
-    // The GitHub CLI signed in on the builder, so the image can clone and push: no warning.
-    expect(result.logins?.find(l => l.id === "logins/gh")?.state).toBe("signed-in");
-    expect(out).not.toContain(BOAT_NO_GITHUB_LINE);
+    expect(out.indexOf(BOAT_READY_LINE)).toBeGreaterThan(out.indexOf("Image v1 sealed."));
     expect(out).not.toContain("forked from image v1");
     expect(out).not.toContain(FIRST_QUESTION);
     expect(f.trail).toEqual([]);
@@ -1766,24 +1766,10 @@ describe("wsp init, flags and no terminal", () => {
     expect(f.backends[0]!.machines.map(m => [m.spec.fromSnapshot, m.killed])).toEqual([[undefined, true], ["snap_wsp-h1s1-default-v1", true]]);
   });
 
-  it("a seal on Boat whose image holds no GitHub sign-in ends warning that a sub-thread there can neither clone nor push", async () => {
-    const f = fake({ tty: false, provider: "box" });
-    const result = await runInit(f.opts, f.io);
-    expect(result.code).toBe(0);
-    expect(result.logins?.find(l => l.id === "logins/gh")?.state).not.toMatch(/^(signed-in|copied)$/);
-    const out = f.text();
-    expect(out).toContain(BOAT_READY_LINE);
-    expect(out).toContain(BOAT_NO_GITHUB_LINE);
-    // The warning is among the seal's last lines: after the seal, and after Boat's ready line.
-    expect(out.indexOf(BOAT_NO_GITHUB_LINE)).toBeGreaterThan(out.indexOf(BOAT_READY_LINE));
-    expect(out.indexOf(BOAT_READY_LINE)).toBeGreaterThan(out.indexOf("Image v1 sealed."));
-  });
-
   it("a seal anywhere that is not Boat says nothing of Boat", async () => {
     const f = fake({ tty: false, recipe: async () => answeredInBuild("gh") });
     expect((await runInit(f.opts, f.io)).code).toBe(0);
     expect(f.text()).not.toContain(BOAT_READY_LINE);
-    expect(f.text()).not.toContain(BOAT_NO_GITHUB_LINE);
   });
 
   it("off a terminal a saved copy answer still reads the Keychain, and says what is read before macOS can ask", async () => {
@@ -3421,8 +3407,8 @@ describe("pack size before the boot", () => {
 });
 
 describe("the copy of the configs to where the image is built", () => {
-  const skippedAt = async (cloud?: false): Promise<{ path: string; note: string }[]> => {
-    const f = fake({ yes: true, ...(cloud !== undefined ? { cloud } : {}) });
+  const skippedAt = async (cloud: boolean): Promise<{ path: string; note: string }[]> => {
+    const f = fake({ yes: true, cloud });
     writeFileSync(join(f.opts.home, ".gitconfig"), '[user]\n\tname = Me\n[url "git@github.com:"]\n\tinsteadOf = https://github.com/\n');
     expect((await runInit(f.opts, f.io)).code).toBe(0);
     const results = JSON.parse(readFileSync(join(dirname(f.opts.statePath), "golden-import.json"), "utf8")) as { files: { blanked?: { path: string; note: string }[] } };
@@ -3430,7 +3416,7 @@ describe("the copy of the configs to where the image is built", () => {
   };
 
   it("leaves git's url rewrites here on the provider the run forks on, and keeps them for a computer the person owns", async () => {
-    expect(await skippedAt()).toEqual([{ id: "identity/git-user", path: "~/.gitconfig", note: expect.stringMatching(/\[url\].*on this computer/) }]);
+    expect(await skippedAt(true)).toEqual([{ id: "identity/git-user", path: "~/.gitconfig", note: expect.stringMatching(/\[url\].*on this computer/) }]);
     expect(await skippedAt(false)).toEqual([]);
   });
 });
@@ -4607,5 +4593,91 @@ describe("wsp init beside a host already serving the state", () => {
     expect((await taken).code).toBe(0);
     expect(handed).toEqual([{ interactive: true }]);
     expect(yes.backends).toEqual([]);
+  });
+});
+
+describe("wsp init at a provider, whose machines use this computer's sign-ins through wsp", () => {
+  /** One row a package manager here has, so the Also screen is among the five. */
+  const llvm = async (): Promise<readonly ScanRow[]> => [{ id: "brew/llvm", name: "llvm", manager: "brew", group: "Homebrew formulae", install: "brew install llvm", check: "command -v llvm" }];
+  /** The lines under the head, as the run printed them. */
+  const signInLines = (out: string): string => out.slice(out.indexOf(HOST_SIGN_INS.head), out.search(BOOT) === -1 ? undefined : out.search(BOOT));
+
+  it("wsp init --on boat walks five screens with no Sign-ins, says the three sign-ins here before the build question, then hands the build over", async () => {
+    const handed: { interactive: boolean }[] = [];
+    const f = fake({ cloud: true, scan: llvm, handOff: async o => (handed.push(o), 0) });
+    const run = runInit(f.opts, f.io);
+    for (const screen of ["Agents  1/5", "Tools  2/5", "Also on this Mac  3/5", "wsp for your agents on this Mac  4/5"]) {
+      await f.until(screen);
+      await f.press(KEY.enter);
+    }
+    await f.until(BOOT);
+    const out = f.text();
+    expect(out).not.toMatch(/Sign-ins\s+\d\/\d/);
+    expect(signInLines(out)).toMatch(/Claude Code\s+signed in\n/);
+    expect(signInLines(out)).toMatch(/GitHub\s+signed in\n/);
+    // Codex is not ticked in this recipe, so it has no line.
+    expect(signInLines(out)).not.toContain("Codex");
+    expect(out.indexOf(HOST_SIGN_INS.head)).toBeLessThan(out.search(BOOT));
+    await f.press(KEY.enter);
+    expect((await run).code).toBe(0);
+    expect(handed).toEqual([{ interactive: true }]);
+    expect(f.reads).toEqual([]);
+  });
+
+  it("after Build nothing waits on the person: no rc secret, no token, no sign-in on the builder and no seal question", async () => {
+    const f = fake({ cloud: true, provider: "box" });
+    // A secret the pack cuts from an rc file, which a build on a computer of the person's own asks for at the terminal.
+    writeFileSync(join(f.opts.home, ".zshrc"), "export A=1\nexport ACME_TOKEN=placeholder\n");
+    const run = runInit(f.opts, f.io);
+    await throughScreens(f, ["Agents", "Tools", "wsp for your agents on this Mac"]);
+    await f.until(BOOT);
+    await f.press(KEY.enter);
+    // No key is pressed after the build question.
+    expect((await run).code).toBe(0);
+    const out = f.text();
+    const cut = (JSON.parse(readFileSync(importResultPath(f.opts.statePath), "utf8")) as { files: { cut?: { names: string[] }[] } }).files.cut ?? [];
+    expect(cut.flatMap(c => c.names)).toContain("ACME_TOKEN");
+    expect(out).not.toContain("the value is set on the machine and never shown here");
+    expect(out).not.toContain("Seal this machine");
+    expect(out).toContain("Sealing image v1.");
+    expect(out).toContain("Image v1 sealed.");
+    expect(out).toContain(BOAT_READY_LINE);
+    expect(f.relays).toBe(0);
+    expect(f.reads).toEqual([]);
+    expect(f.link.dials).toBe(0);
+  });
+
+  it("a sign-in not ready here stops the build before anything boots, with the line that fixes it", async () => {
+    const signedOut = { entries: FIXTURE.entries.filter(e => e.id !== "logins/gh" && e.id !== "logins/claude") };
+    const f = fake({ yes: true, cloud: true, collect: async () => signedOut });
+    expect((await runInit(f.opts, f.io)).code).toBe(1);
+    const lines = signInLines(f.text());
+    expect(lines).toMatch(/Claude Code\s+not signed in: run claude auth login\n/);
+    expect(lines).toMatch(/GitHub\s+not signed in: run gh auth login\n/);
+    expect(f.text()).toContain(HOST_SIGN_INS.stopped);
+    expect(f.text()).not.toMatch(BOOT);
+    expect(f.backends.flatMap(b => b.machines)).toEqual([]);
+    // A token or a key wsp holds signs Claude Code in as well as the login here does.
+    const held = fake({ yes: true, cloud: true, collect: async () => signedOut, vault: () => ({ CLAUDE_CODE_OAUTH_TOKEN: "held-in-the-vault" }) });
+    expect((await runInit(held.opts, held.io)).code).toBe(1);
+    expect(signInLines(held.text())).toMatch(/Claude Code\s+signed in with a token\n/);
+  });
+
+  it("a saved recipe.json with sign-in answers loads and builds, reads no Keychain, runs no sign-in and keeps the answers", async () => {
+    const f = fake({ tty: false, json: true, cloud: true, provider: "box" });
+    const file = join(dirname(f.opts.statePath), "answered.json");
+    writeFileSync(file, JSON.stringify(answeredInBuild("gemini", answeredCopy("gh", ticking("gemini")))));
+    f.opts.recipeFile = file;
+    mkdirSync(join(f.opts.home, ".config", "gh"), { recursive: true });
+    writeFileSync(join(f.opts.home, ".config", "gh", "hosts.yml"), "github.com:\n    user: octo\n");
+    expect((await runInit(f.opts, f.io)).code).toBe(0);
+    expect(f.reads).toEqual([]);
+    expect(f.relays).toBe(0);
+    expect(f.records.filter(r => typeof r["event"] === "string" && (r["event"] as string).startsWith("sign-in"))).toEqual([]);
+    expect(f.text()).toContain("Image v1 sealed.");
+    // The answers are a joined computer's and stay in the recipe beside the state as they were written.
+    const saved = JSON.parse(readFileSync(join(dirname(f.opts.statePath), "recipe.json"), "utf8")) as Recipe;
+    expect(saved.rows.find(r => r.id === "gh")?.signIn).toBe("copy");
+    expect(saved.rows.find(r => r.id === "gemini")?.signIn).toBe("machine");
   });
 });
