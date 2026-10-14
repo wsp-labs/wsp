@@ -274,6 +274,28 @@ describe("a send into a released sub-thread", () => {
     expect(r.sub!.deleteAt).toBeGreaterThan(held.clock.now());
   });
 
+  it("cuts the first machine off at the broker before Boat deletes it, and lifts it before the new machine a send makes under the same record", async () => {
+    const held = await doneOnce({ broker: false });
+    const kill = held.first.kill.bind(held.first);
+    const offAtKill: boolean[] = [];
+    held.first.kill = async () => {
+      offAtKill.push(held.brokerSwitch.off.has(held.made.id));
+      await kill();
+    };
+    held.jump(31 * MIN);
+    await until(async () => ((await held.record()).phase === "released" ? true : undefined), "the release");
+    expect(offAtKill).toEqual([true]);
+    expect(held.brokerSwitch.off.has(held.made.id)).toBe(true);
+    const create = held.boat.create.bind(held.boat);
+    const offAtCreate: boolean[] = [];
+    held.boat.create = async spec => {
+      offAtCreate.push(held.brokerSwitch.off.has(held.made.id));
+      return create(spec);
+    };
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
+    expect(offAtCreate).toEqual([false]);
+  });
+
   it("names a picked file of values that stayed on this computer in the notice of the send that makes the new machine", async () => {
     const held = await released({ picks: [".env", "CLAUDE.local.md"], sizes: { ".env": 120, "CLAUDE.local.md": 1100 } });
     const turn = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" });
