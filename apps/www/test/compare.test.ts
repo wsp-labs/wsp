@@ -9,17 +9,31 @@ const words = (text: string): number => text.trim().split(/\s+/).length;
 const everyAnswers: [string, Answers][] = [["wsp", WSP], ...TOOLS.map((t): [string, Answers] => [t.name, t.cells])];
 
 describe("every answer", () => {
-  it("asks the eight questions, in order", () => {
+  it("asks the sixteen questions, in order, each with one short line under it", () => {
     expect(ROWS.map(r => r.label)).toEqual([
       "Runs agents on",
       "Another computer",
       "What that computer has when the agent starts",
       "Where your keys and sign-ins live",
+      "Worktrees per thread",
+      "Agents start other agents",
+      "Cloud machines on demand",
+      "Resource monitor",
+      "A panel the agent builds",
+      "Review and pull requests in the app",
       "Which agents",
       "Platforms",
+      "Phone app",
+      "Teams",
       "Price",
       "Source code",
     ]);
+    for (const r of ROWS) expect(words(r.about), r.about).toBeLessThanOrEqual(12);
+  });
+
+  it("says what wsp lacks in its own column: a worktree only on a branch, the cloud only for sub-threads, no phone app, no teams", () => {
+    expect([WSP.worktrees.short, WSP.cloud.short, WSP.phone.short, WSP.teams.short]).toEqual(["On a branch", "Sub-threads, your Boat account", "No app; a browser pairs", "No, one person"]);
+    expect([WSP.phone.good, WSP.teams.good]).toEqual([false, false]);
   });
 
   it("answers each question in six words or fewer, beside the long sentence it sums", () => {
@@ -47,7 +61,7 @@ describe("every answer", () => {
   });
 
   it("carries no em dash and never says AI", () => {
-    const copy = [...everyAnswers.flatMap(([, cells]) => ROWS.flatMap(r => [cells[r.key].short, cells[r.key].says[0]])), ...TOOLS.flatMap(t => [t.line, t.differs, t.well, t.fit]), ...AHEAD.flatMap(a => [a.title, a.wsp, ...Object.values(a.them).map(s => s![0])])];
+    const copy = [...everyAnswers.flatMap(([, cells]) => ROWS.flatMap(r => [cells[r.key].short, cells[r.key].says[0]])), ...TOOLS.flatMap(t => [t.line, t.differs, t.well, t.fit]), ...AHEAD.flatMap(a => [a.title, a.wsp[0], ...Object.values(a.them).map(s => s![0])]), ...ROWS.map(r => r.about)];
     for (const line of copy) {
       expect(line, line).not.toContain(String.fromCharCode(0x2014));
       expect(line, line).not.toMatch(/\bAI\b/);
@@ -72,6 +86,13 @@ describe("every tool", () => {
       expect(fileOf(route.path)).toBe(`compare/${tool.slug}/index.html`);
     }
     expect(ROUTES.filter(r => r.path.startsWith("/compare/"))).toHaveLength(TOOLS.length);
+  });
+
+  it("names a page for wsp's side of every row of AHEAD", () => {
+    for (const a of AHEAD) {
+      expect(a.wsp.length, a.title).toBeGreaterThan(1);
+      for (const url of a.wsp.slice(1)) expect(url, a.title).toMatch(/^https:\/\/[^\s]+$/);
+    }
   });
 
   it("is ahead of wsp on at least one thing, and every row of AHEAD names real tools", () => {

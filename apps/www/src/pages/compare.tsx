@@ -51,8 +51,9 @@ function Table({ tool }: { tool: Tool }) {
         <tbody className="max-sm:block">
           {ROWS.map(r => (
             <tr key={r.key} className="border-t border-rule align-top max-sm:grid max-sm:grid-cols-2">
-              <th scope="row" className="px-4 py-4 text-left font-normal text-muted-foreground max-sm:col-span-2 max-sm:pb-0 max-sm:text-[13px] max-sm:text-faint sm:px-5">
-                {r.label}
+              <th scope="row" className="px-4 py-4 text-left font-normal max-sm:col-span-2 max-sm:pb-0 sm:px-5">
+                <span className="block text-muted-foreground max-sm:text-[14px]">{r.label}</span>
+                <span className="mt-1 block text-[13px] leading-snug text-faint">{r.about}</span>
               </th>
               <Answer cell={tool.cells[r.key]} us={false} />
               <Answer cell={WSP[r.key]} us />
@@ -165,7 +166,7 @@ export function ToolPage({ tool }: { tool: Tool }) {
           {ahead.map(({ title, said, wsp }) => (
             <div key={title} className="border-t border-rule pt-6">
               <dt className="text-[17px] font-medium tracking-[-0.01em] text-foreground">{title}</dt>
-              <dd className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{`${said[0]} ${wsp}`}</dd>
+              <dd className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{`${said[0]} ${wsp[0]}`}</dd>
             </div>
           ))}
         </dl>
