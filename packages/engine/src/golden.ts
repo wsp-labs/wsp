@@ -22,7 +22,6 @@ import type { Machine, MachineBackend, MachineKind, MachineState, TemplateRow } 
 import { isAccountRefusal, isMissing, NotFirstLifeError } from "./errors.js";
 import { BUILDER_LABEL, CREATED_AT_LABEL, SMOKE_LABEL } from "./labels.js";
 import { goldenName } from "./snapshot-names.js";
-import { recipeOwnedFiles } from "./recipe-owned.js";
 import { exportImageVault, presentPaths, type ImageVault } from "./image-vault.js";
 import { importInto } from "./vault.js";
 
@@ -1112,9 +1111,8 @@ export async function sealGolden(builder: Builder, opts: SealGoldenOptions): Pro
     const wrote = await builder.machine.exec(`${CLAUDE_LINK_LINE} && ${profilePathLine(onNpmBin(npmBin, TOOLS_PATH))}`, { timeoutMs: INLINE_EXEC_MS });
     if (wrote.exitCode !== 0) throw new Error(`could not put ${AGENTS_BIN} and ${npmBin} on the PATH in ${PROFILE_PATH_FILE}: ${wrote.stderr.trim()}`);
   }
-  const owned = builder.import?.recipe === undefined ? undefined : await recipeOwnedFiles(builder.machine, builder.import.recipe);
-  // The person's logins as the sign-in and secrets stages left them, read off the same disk the snapshot takes and
-  // under the same rule as the owned files: a builder whose vault cannot be read is left as the person set it up.
+  // The person's logins as the sign-in and secrets stages left them, read off the same disk the snapshot takes: a
+  // builder whose vault cannot be read is left as the person set it up.
   const vault =
     opts.vaultPaths === undefined
       ? undefined
@@ -1207,7 +1205,6 @@ export async function sealGolden(builder: Builder, opts: SealGoldenOptions): Pro
       ...(builder.import?.leftBehind !== undefined ? { leftBehind: builder.import.leftBehind } : {}),
       ...(builder.base !== undefined ? { base: builder.base } : {}),
       ...(builder.retired !== undefined && builder.retired.length > 0 ? { retired: builder.retired } : {}),
-      ...(owned !== undefined ? { owned } : {}),
       ...(used !== undefined ? { usedBytes: used } : {}),
     };
     const kept = builderAlive ? "; builder kept for one more change" : "";

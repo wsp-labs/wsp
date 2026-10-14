@@ -437,8 +437,9 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
    * leaves, any of which may free its slot or move the count its row says, so the caller looks again; said into the
    * thread's transcript as the wait begins and again whenever the count it says moved. Its machine is held awake
    * meanwhile, as a running turn holds it, so it is there to start on. Rejects with the stop's reason when the turn
-   * is stopped, whether the stop came while it waited or before. */
-  const capWait = (at: { workspaceId: string; threadId: string; turnId: string; sessionId: string; requestId?: string }, wait: ThreadCapWait): Promise<void> => {
+   * is stopped, whether the stop came while it waited or before. `prompt` is the send's own text, whole: after a restart
+   * the record is the only copy of a message the agent never got, and the row keeps only a thread's opening head. */
+  const capWait = (at: { workspaceId: string; threadId: string; turnId: string; sessionId: string; requestId?: string; prompt: string }, wait: ThreadCapWait): Promise<void> => {
     const held = capHeld.get(at.turnId) ?? { placeId: wait.placeId, lenders: [], order: capOrder++ };
     capHeld.set(at.turnId, held);
     if (held.stopped !== undefined) return Promise.reject(new Error(held.stopped));
@@ -447,8 +448,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
     const row = sessions.get(at.turnId);
     if (held.waiting === undefined) {
       const written: HeldStartRecord = {
-        workspaceId: at.workspaceId, threadId: at.threadId, turnId: at.turnId, sessionId: at.sessionId, harness: row?.view.harness ?? "", place: wait.place,
-        ...(row?.view.prompt !== undefined ? { prompt: row.view.prompt } : {}),
+        workspaceId: at.workspaceId, threadId: at.threadId, turnId: at.turnId, sessionId: at.sessionId, harness: row?.view.harness ?? "", place: wait.place, prompt: at.prompt,
         ...(row?.notify !== undefined ? { notify: row.notify } : {}), ...(row?.notifyBy !== undefined ? { notifyBy: row.notifyBy } : {}), ...(row?.notifyRoad !== undefined ? { notifyRoad: row.notifyRoad } : {}),
       };
       heldWrite(() => ctx.store.put(HELD_STARTS, at.turnId, written));
@@ -479,7 +479,7 @@ export function threadsArea(ctx: RuntimeContext): ThreadsArea {
           reject(new Error(reason));
         },
       };
-      const prompt = said === undefined ? row?.view.prompt : undefined;
+      const prompt = said === undefined ? at.prompt : undefined;
       if (moved) ctx.record({ type: "session.capped", workspaceId: at.workspaceId, sessionId: at.sessionId, turnId: at.turnId, threadId: at.threadId, ...wait, ...(at.requestId !== undefined ? { requestId: at.requestId } : {}), ...(prompt !== undefined ? { prompt } : {}) });
     });
   };

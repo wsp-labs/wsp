@@ -30,17 +30,6 @@ export type GoldenBaseTool = z.infer<typeof GoldenBaseTool>;
 export const GoldenRetired = z.object({ id: z.string(), name: z.string() });
 export type GoldenRetired = z.infer<typeof GoldenRetired>;
 
-/** One file the recipe wrote into the image's home: where it sits under the guest home and the sha256 of the bytes
- * the builder had when the version sealed. */
-export const RecipeOwnedFile = z.object({
-  path: z.string(),
-  sha256: z.string(),
-  /** The recipe marks this row volatile: a tool rewrites it as it runs, or the machine renders it. Its bytes differ
-   * on any fork that has run anything. */
-  volatile: z.boolean().optional(),
-});
-export type RecipeOwnedFile = z.infer<typeof RecipeOwnedFile>;
-
 /** One sealed image. `kind` is the machine kind the snapshot was taken from and
  * therefore restores as; entries sealed before kind was recorded were all
  * sandboxes, so readers treat a missing kind as sandbox. */
@@ -87,9 +76,6 @@ export const GoldenVersion = z.object({
   /** Every row on this version's image that its recipe no longer asks for, carried from the version before it.
    * Absent when the recipe asks for everything the image carries. */
   retired: z.array(GoldenRetired).optional(),
-  /** Every file this version's recipe wrote into the guest home, hashed on the builder at seal. Absent on a version
-   * sealed before the manifest existed and on one built from no recipe. */
-  owned: z.array(RecipeOwnedFile).optional(),
   /** The builder's disk in use when the snapshot was taken, bytes; absent on versions sealed before it was recorded. */
   usedBytes: z.number().int().nonnegative().optional(),
   /** The image record's hash this copy of the version was built at; absent on a version sealed before records
