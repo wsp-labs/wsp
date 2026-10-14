@@ -213,7 +213,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
     [
       `Image v${result.version.version} sealed in ${seconds}s ${result.road === "builder" ? "on the builder kept since the save" : "from a fork of your image"}; new workspaces fork it.`,
       ...(result.builderKept
-        ? [dim(`The builder stays up (about $${rate.toFixed(2)}/h, one of the account's machine slots) until wsp init updates on it again, a wsp sweep stops it ten minutes after the save, or the provider's six-hour idle kill fires. Run wsp to serve.`)]
+        ? [dim(`The builder stays up (about $${rate.toFixed(2)}/h, one of the account's machine slots) until wsp init updates on it again, wsp stops it ten minutes after the save while wsp serves, or the provider's six-hour idle kill fires. Run wsp to serve.`)]
         : [dim("Run wsp to serve.")]),
     ].join("\n"),
     out,

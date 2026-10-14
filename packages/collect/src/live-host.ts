@@ -229,7 +229,7 @@ export function platformOf(p: NodeJS.Platform): Platform | undefined {
 
 export function nodeHost(): Host {
   const platform = platformOf(process.platform);
-  if (platform === undefined) throw new Error(`wsp collect runs on macOS or Linux, not ${process.platform}`);
+  if (platform === undefined) throw new Error(`wsp reads a computer's setup on macOS or Linux only, not ${process.platform}`);
   const shell = process.env["SHELL"];
   const terminal = process.env["TERM_PROGRAM"];
   const xdgConfigHome = process.env["XDG_CONFIG_HOME"];

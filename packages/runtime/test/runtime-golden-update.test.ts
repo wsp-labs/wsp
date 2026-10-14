@@ -2,13 +2,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { hostname } from "node:os";
 import type { EventUnion, RecipeDigest } from "@wsp/protocol";
-import type { GoldenDelta, GoldenImport } from "@wsp/engine";
+import { NoProviderBackend, type GoldenDelta, type GoldenImport } from "@wsp/engine";
 import { copyKey, GRACE_MS, createRuntime } from "../src/runtime.js";
+import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
 import { memoryStore } from "../src/store.js";
 import { wsRequest } from "./ws-client.js";
 import { missesFirstDelete, ownedStore, stubBackend, createOn, projectOn } from "./stub-backend.js";
 import { fakeClock } from "./fake-clock.js";
+import { wiring } from "./place-join.js";
 
 describe("runtime golden update and the post-seal grace", () => {
   const dfOk = (m: unknown, cmd: string) => (cmd.startsWith("df -Pk") ? { exitCode: 0, stdout: `${3000 * 1024}\n`, stderr: "" } : cmd === "echo ok" ? { exitCode: 0, stdout: "ok\n", stderr: "" } : cmd.includes("echo WSP_CTX") ? { exitCode: 0, stdout: "WSP_CTX\nWSP_CTX_END\n", stderr: "" } : { exitCode: 0, stdout: "", stderr: "" });
@@ -170,6 +172,86 @@ describe("runtime golden update and the post-seal grace", () => {
     await vi.waitFor(async () => expect(await store.list("builders")).toEqual([]));
     await vi.waitFor(() => expect(backend.machines[0]!.killed).toBe(true));
     await rt.close();
+  });
+
+  it("a builder kept at a place that is not the provider this host forks on is stopped and read gone at that place when its window ends, by the timer and by the next process's sweep", async () => {
+    const atPlace = (store = ownedStore(), clock = fakeClock(), box = stubBackend()) => {
+      const none = new NoProviderBackend();
+      box.execImpl = dfOk;
+      const said: string[] = [];
+      const rt = createRuntime({ backend: none, store, adapters: {}, goldenRecipe: recipeWith(importOf()), clock: clock.clock, hostId: "h1", killConfirm: { graceMs: 20, pollMs: 1 }, places: { wired: "none", backend: p => ({ none, box })[p], list: () => ["none", "box"] } });
+      return { box, store, rt, said, ...clock };
+    };
+    const { box, store, rt, said, advance } = atPlace();
+    const b = await rt.golden.prepare({ place: "box" });
+    await rt.golden.seal(b.id);
+    await rt.reap(undefined, line => said.push(line));
+    advance(GRACE_MS);
+    await vi.waitFor(async () => expect(await store.list("builders")).toEqual([]));
+    expect(box.machines[0]!.killed).toBe(true);
+    await rt.close();
+    expect(said).toEqual([]);
+
+    const again = atPlace();
+    const b2 = await again.rt.golden.prepare({ place: "box" });
+    await again.rt.golden.seal(b2.id);
+    await again.rt.close();
+    const next = atPlace(again.store, fakeClock(again.clock.now() + GRACE_MS + 5_000), again.box);
+    expect(await next.rt.reap(undefined, line => next.said.push(line))).toEqual({ reaped: [{ id: b2.id, builder: true, reason: "grace", ageMs: GRACE_MS + 5_000 }], spared: [] });
+    await next.rt.close();
+    expect(again.box.machines[0]!.killed).toBe(true);
+    expect(next.said).toEqual([]);
+
+    // A builder killed by name, and one a dead process left mid setup that the next sweep finds stale, go the same way.
+    const named = atPlace();
+    const b3 = await named.rt.golden.prepare({ place: "box" });
+    await named.rt.golden.kill(b3.id);
+    expect(named.box.machines[0]!.killed).toBe(true);
+    await named.rt.close();
+    const dead = atPlace();
+    const b4 = await dead.rt.golden.prepare({ place: "box" });
+    await dead.rt.close();
+    await dead.store.put("builders", b4.id, { ...(await dead.store.get("builders", b4.id)) as object, building: true });
+    const sweeper = atPlace(dead.store, fakeClock(), dead.box);
+    expect((await sweeper.rt.reap(undefined, line => sweeper.said.push(line))).reaped).toEqual([{ id: b4.id, builder: true, reason: "unfinished" }]);
+    await sweeper.rt.close();
+    expect(dead.box.machines[0]!.killed).toBe(true);
+    expect(sweeper.said).toEqual([]);
+  });
+
+  it("a stale record with no place, as written before builders had one, is stopped by the next process's sweep at the provider this host forks on", async () => {
+    const { backend, store, rt } = started();
+    const b = await rt.golden.prepare();
+    await rt.close();
+    const old: Record<string, unknown> = { ...((await store.get("builders", b.id)) as object), building: true };
+    delete old["place"];
+    await store.put("builders", b.id, old);
+    const next = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(importOf()), clock: fakeClock().clock, hostId: "h1", killConfirm: { graceMs: 20, pollMs: 1 } });
+    expect(await next.reap()).toEqual({ reaped: [{ id: b.id, builder: true, reason: "unfinished" }], spared: [] });
+    await next.close();
+    expect(backend.machines[0]!.killed).toBe(true);
+  });
+
+  it("a create refused at the cap at a place this host does not fork on stops the builder kept there and creates", async () => {
+    const none = new NoProviderBackend();
+    const box = stubBackend();
+    box.execImpl = dfOk;
+    const rt = createRuntime({ backend: none, store: ownedStore(), adapters: {}, goldenRecipe: recipeWith(importOf()), hostId: "h1", killConfirm: { graceMs: 20, pollMs: 1 }, places: { wired: "none", backend: p => ({ none, box })[p], list: () => ["none", "box"] }, placeLinks: wiring(newPlaceKeyPair()) });
+    try {
+      const b = await rt.golden.prepare({ place: "box" });
+      const { version } = await rt.golden.seal(b.id);
+      const create = box.create.bind(box);
+      box.create = async spec => {
+        if (spec.fromSnapshot !== undefined && box.machines.some(m => !m.killed)) throw Object.assign(new Error("Sandbox limit reached (2)"), { kind: "concurrency" });
+        return create(spec);
+      };
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const ws = await createOn(rt, { golden: version.snapshotId, name: "one", on: "box" }).finally(() => warn.mockRestore());
+      expect(box.machines[0]!.killed).toBe(true);
+      expect(ws.notice).toBe("Stopped the builder kept from image v1 to make room at the machine cap.");
+    } finally {
+      await rt.close();
+    }
   });
 
   it("the grace ends on the timer at GRACE_MS: the builder is killed and forgotten; a second process over the store past the window stops it on its sweep with reason grace", async () => {
