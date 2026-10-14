@@ -202,6 +202,8 @@ export interface ScanInput {
    * engine for its sizes and its road lines, and the MCP server may not, so its caller decides whether it runs.
    * Absent, the scan says nothing looked rather than that nothing was found. */
   alsoHere?: (recipe: readonly RecipeCustomRow[]) => Promise<readonly ScanRow[]>;
+  /** The build is at a provider, whose machines use this computer's sign-ins through wsp: no row brings a sign-in. */
+  cloud?: boolean;
 }
 
 /** Reads this computer once and answers with every option it offers and what to do about each. No recipe and no
@@ -229,7 +231,7 @@ export async function runScan(host: Host, input: ScanInput = {}, io: RecipeIo = 
     },
   });
   const alsoHere = input.alsoHere !== undefined ? await input.alsoHere(customRows(recipe)) : undefined;
-  return recipeScan(recipe, unknownCommands(histories), alsoHere);
+  return recipeScan(recipe, unknownCommands(histories), alsoHere, input.cloud === true);
 }
 
 /** Reads this computer, writes the recipe and answers with the table. The file is the state: a run that names a rule

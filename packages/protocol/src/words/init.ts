@@ -4,7 +4,7 @@ import { PROVIDER_KEY_WORDS, providerKeyName } from "../place-word.js";
 import { LOGIN_CHOICES, type LoginChoice } from "../init-job.js";
 import { lowerFirst } from "./base.js";
 import { fmtBytes, fmtDuration, fmtSize, KIB } from "./units.js";
-import { thisComputer } from "./computer.js";
+import { THIS_COMPUTER, thisComputer } from "./computer.js";
 /** Every word of the steps that choose and build the image, drawn under a computer's Image card and, where a word is
  * the host's, in the terminal too. Headlines are a step's title, tops the one sentence under it, keycaps the one
  * primary button a step has. Nothing here asks the person to run a command, and nothing here is a word for a
@@ -102,6 +102,22 @@ export const SIGN_IN_LATER = "sign in when you first need it";
 /** The word a sign-in that never landed during the build ends on, deferred at the picker or stopped by the cap: it
  * says what is true of the machine and what the person does about it, in that order. */
 export const SIGN_IN_DEFERRED_WORD = `not signed in, ${SIGN_IN_LATER}`;
+
+/** The sign-ins a build at a provider is checked against before anything boots: the agents' and GitHub's, held on
+ * this computer, which the provider's machines use through wsp. Nothing of them is on a machine, so nothing after
+ * the build question waits on the person. One home for the head, each state and the line that stops the build. */
+export const HOST_SIGN_INS = {
+  head: `Sign-ins on ${THIS_COMPUTER}, which the machines use through wsp:`,
+  login: "signed in",
+  token: "signed in with a token",
+  key: "signed in with an API key",
+  as: (account: string): string => `signed in as ${account}`,
+  missing: (command: string): string => `not signed in: run ${command}`,
+  stopped: `Nothing was booted. Run the line beside each sign-in that is not ready, on ${THIS_COMPUTER}, then run wsp init again; the recipe is kept.`,
+} as const;
+
+/** The command a person runs on this computer to sign each in, by the row the lines name. */
+export const HOST_SIGN_IN_COMMANDS = { claude: "claude auth login", codex: "codex login", github: "gh auth login" } as const;
 
 /** One answer the sign-ins step can give, in the words its row and the counts beside it print. One entry per answer,
  * keyed by the union itself, so a fifth cannot be offered before it is named here; the order the arrows walk them is

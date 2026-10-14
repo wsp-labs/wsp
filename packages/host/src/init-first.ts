@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { isCancel, log } from "@clack/prompts";
 import type { Platform } from "@wsp/collect";
-import { authority, boatSealLines, canTravel, defaultAgents, defaultConsent, FIRST_WORKSPACE, fmtBytes, importRequest, openingHash, plural, THIS_COMPUTER, thisComputer, thisComputerLine, workspaceHash, type LoginState, type ProjectImportResult, type ProjectPlan, type WorkspaceView } from "@wsp/protocol";
+import { authority, BOAT_READY_LINE, canTravel, defaultAgents, defaultConsent, FIRST_WORKSPACE, fmtBytes, importRequest, openingHash, plural, THIS_COMPUTER, thisComputer, thisComputerLine, workspaceHash, type ProjectImportResult, type ProjectPlan, type WorkspaceView } from "@wsp/protocol";
 import type { CreatedWorkspace } from "@wsp/runtime";
 import { dialAddress } from "./host-lock.js";
 import { confirmPrompt, textPrompt } from "./init-layout.js";
@@ -230,12 +230,9 @@ export async function runLocal(roads: Pick<WorkspaceRoads, "addProject" | "creat
 }
 
 /** What a seal on a cloud met through sub-threads alone ends on, in place of the workspace step: no machine is forked
- * there, since a lead's first sub-thread is the next thing that boots, so it says how one starts and what the image
- * it boots from cannot do. Off the sign-ins the seal recorded, by name. */
-export function subThreadsReady(logins: readonly { name: string; state?: LoginState | undefined }[], output: Writable): void {
-  const [ready, ...warnings] = boatSealLines(logins);
-  log.step(ready!, { output });
-  for (const line of warnings) log.warn(line, { output });
+ * there, since a lead's first sub-thread is the next thing that boots, so it says how one starts. */
+export function subThreadsReady(output: Writable): void {
+  log.step(BOAT_READY_LINE, { output });
 }
 
 /** The app's address, on the workspace just forked when there is one, carrying the code that lets the browser it
