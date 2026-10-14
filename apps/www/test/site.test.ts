@@ -97,7 +97,7 @@ describe("every route, as raw HTML", () => {
   });
 
   for (const tool of TOOLS) {
-    it(`serves /compare/${tool.slug} with the eight questions, wsp in the raised column, and no citation numbers in a cell`, () => {
+    it(`serves /compare/${tool.slug} with every question and the line under it, wsp in the raised column, and no citation numbers in a cell`, () => {
       const html = built(fileOf(`/compare/${tool.slug}`));
       const body = text(html);
       expect(html).toMatch(new RegExp(`<h1[^>]*>wsp vs ${tool.name}</h1>`));
@@ -108,7 +108,8 @@ describe("every route, as raw HTML", () => {
       expect(rows).toHaveLength(ROWS.length);
       ROWS.forEach((r, i) => {
         const cells = [...rows[i]!.matchAll(/<td title="([^"]*)" class="([^"]*)">([\s\S]*?)<\/td>/g)];
-        expect(unescape(/<th[^>]*>([^<]*)<\/th>/.exec(rows[i]!)![1]!)).toBe(r.label);
+        const asked = /<th[^>]*><span[^>]*>([^<]*)<\/span><span[^>]*>([^<]*)<\/span><\/th>/.exec(rows[i]!)!;
+        expect([unescape(asked[1]!), unescape(asked[2]!)]).toEqual([r.label, r.about]);
         expect(cells).toHaveLength(2);
         const [theirs, ours] = cells.map(m => ({ title: unescape(m[1]!), raised: m[2]!.includes("bg-raised"), text: text(m[3]!).trim(), mark: /aria-label="(yes|no)"/.exec(m[3]!)![1] }));
         for (const [seen, cell] of [[theirs!, tool.cells[r.key]], [ours!, WSP[r.key]]] as const) {
@@ -121,7 +122,7 @@ describe("every route, as raw HTML", () => {
       });
       expect(body).toContain(tool.well);
       expect(body).toContain(tool.fit);
-      for (const a of aheadOf(tool)) expect(body).toContain(`${a.title} ${a.said[0]} ${a.wsp}`);
+      for (const a of aheadOf(tool)) expect(body).toContain(`${a.title} ${a.said[0]} ${a.wsp[0]}`);
       expect(html).toMatch(/<details class="[^"]*">/);
       const details = /<details[\s\S]*<\/details>/.exec(html)![0];
       for (const url of sources(tool)) expect(details).toContain(`href="${url}"`);
