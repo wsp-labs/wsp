@@ -452,6 +452,7 @@ export function WorkspaceTile({
   onContextMenu,
   onRename,
   onRenameCancel,
+  failed,
 }: {
   rowId: string;
   name: string;
@@ -465,8 +466,10 @@ export function WorkspaceTile({
   onContextMenu: (event: MouseEvent<HTMLElement>) => void;
   onRename: (name: string) => void;
   onRenameCancel: () => void;
+  /** Why its create failed before any machine stood, for a record that never had one; it reads Failed. */
+  failed?: string | undefined;
 }) {
-  const card = tileCardLines({ title: name, place, folder: checkout.folder, branch: checkout.branch, harness: null, model: null, pr: checkout.pr, changed: checkout.changed, notes: [...checkout.counts, checkout.why ?? null] });
+  const card = tileCardLines({ title: name, place, folder: checkout.folder, branch: checkout.branch, harness: null, model: null, pr: checkout.pr, changed: checkout.changed, notes: [...checkout.counts, checkout.why ?? null, failed ?? null] });
   return (
     <TileFrame
       card={card}
@@ -483,7 +486,7 @@ export function WorkspaceTile({
     >
       <TileRows
         place={place}
-        status={null}
+        status={failed === undefined ? null : <ThreadStatus thread={CREATE_FAILED} />}
         title={renaming ? <NameBox name={name} label={WORKSPACE_WORDS.rename} saving={saving} onRename={onRename} onCancel={onRenameCancel} /> : <Title text={name} idle active={active} />}
         harness={null}
         pr={checkout.pr}

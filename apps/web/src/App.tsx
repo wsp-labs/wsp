@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { useEffect, useSyncExternalStore } from "react";
 import { makeApi, ProtocolClient } from "./protocol/client.js";
-import { useCreation, useFirstRun, useHomeProject, useProjectsRead, useProjectsRefused, useReady, useSelectedId, useSelectedSubagent, useSelectedThreadId, useStore } from "./protocol/store.js";
+import { useCreation, useFirstRun, useHomeProject, useProjectsRead, useProjectsRefused, useReady, useSelectedId, useSelectedSubagent, useSelectedThreadId, useStore, useWorkspace } from "./protocol/store.js";
 import { ComputerTerminalDrawer, WorkspaceTerminalDrawer } from "./components/WorkspaceTerminalDrawer.js";
 import { useFontEffect, useThemeEffect, useTransparencyEffect } from "./settings/theme.js";
 import { AppShell } from "./shell/AppShell.js";
@@ -13,6 +13,7 @@ import { useUpdateInBackground } from "./shell/update.js";
 import { FirstRun } from "./shell/FirstRun.js";
 import { ProjectHome } from "./shell/ProjectHome.js";
 import { WorkspaceCreation } from "./shell/WorkspaceCreation.js";
+import { FailedStart } from "./shell/FailedStart.js";
 import { WorkspaceThread } from "./shell/WorkspaceThread.js";
 import { wireAppProcs } from "./machine/appProcs.js";
 import { wireHostLive } from "./machine/hostLive.js";
@@ -20,6 +21,7 @@ import { wireLinks } from "./shell/links.js";
 import { wireTerminals } from "./terminal/wiring.js";
 import { Gallery } from "./gallery/Gallery.js";
 import { PROJECT_WORDS } from "./sidebar/words.js";
+import { startFailed } from "@wsp/protocol";
 
 const subscribeHash = (onChange: () => void) => {
   window.addEventListener("hashchange", onChange);
@@ -78,6 +80,7 @@ function WorkspaceCenter() {
   const threadId = useSelectedThreadId();
   const subagent = useSelectedSubagent();
   const creation = useCreation(workspaceId);
+  const workspace = useWorkspace(workspaceId);
   const firstRun = useFirstRun();
   const projectsRead = useProjectsRead();
   const projectsRefused = useProjectsRefused();
@@ -124,6 +127,8 @@ function WorkspaceCenter() {
     );
   }
   if (!workspaceId) return null;
+  // A fork whose machine never stood has no history and no machine: no thread page and no terminal drawer.
+  if (workspace !== null && startFailed(workspace)) return <FailedStart workspace={workspace} />;
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col" data-terminal-beside>
