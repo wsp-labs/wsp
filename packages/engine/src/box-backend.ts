@@ -879,7 +879,7 @@ export class BoxBackend implements MachineBackend {
     });
   }
 
-  private async pages<T>(path: string, rows: (page: T) => unknown[] | undefined, nextCursor: (page: T) => string | null | undefined, query: Record<string, string> = {}): Promise<unknown[]> {
+  private async pages<T>(path: string, rows: (page: T) => unknown[] | undefined, nextCursor: (page: T) => string | null | undefined, query: Record<string, string> = {}, enough: (read: unknown[]) => boolean = () => false): Promise<unknown[]> {
     const out: unknown[] = [];
     let cursor: string | undefined;
     do {
@@ -888,7 +888,7 @@ export class BoxBackend implements MachineBackend {
       const page = await this.request<T>("GET", `${path}?${params.toString()}`);
       out.push(...(rows(page) ?? []));
       cursor = nextCursor(page) ?? undefined;
-    } while (cursor !== undefined);
+    } while (cursor !== undefined && !enough(out));
     return out;
   }
 
@@ -924,10 +924,14 @@ export class BoxBackend implements MachineBackend {
 
   /** The named snapshots, which are wsp's versions, and the provider's own per-minute history with what each
    * increment holds; a delete that finds nothing left is done. A history row says what it restores to; a named one
-   * says no such size (it listed 62 B for a 7.3 GB image), so its image size is left unknown. */
-  async listSnapshots(): Promise<SnapshotRow[]> {
+   * says no such size (it listed 62 B for a 7.3 GB image), so its image size is left unknown. Asked for some ids,
+   * the history is read only as far as the last of them: it held 48,979 rows over 245 pages (119 s) on 2026-10-14,
+   * and a named id is never in it. */
+  async listSnapshots(ids?: readonly string[]): Promise<SnapshotRow[]> {
     const named = await this.namedSnapshots();
-    const history = (await this.pages<SnapshotPage>("/snapshots", p => p.snapshots, p => p.pageInfo?.nextCursor)) as SnapshotView[];
+    const wanted = ids?.filter(id => UUID.test(id));
+    const seen = (read: unknown[]): boolean => wanted!.every(id => (read as SnapshotView[]).some(s => s.id === id));
+    const history = (wanted?.length === 0 ? [] : await this.pages<SnapshotPage>("/snapshots", p => p.snapshots, p => p.pageInfo?.nextCursor, {}, wanted === undefined ? undefined : seen)) as SnapshotView[];
     return [
       ...named.map(s => ({ id: s.name, name: s.name, sizeBytes: s.sizeBytes ?? 0, createdAt: s.createdAt })),
       ...history.map(s => ({

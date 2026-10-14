@@ -8,6 +8,8 @@
 // page serves the sidebar's search as well.
 import type { AccountView, DeviceView, EditorChoice, InitSetup, PlaceView, ProjectView, SealedImageView, TerminalConfig } from "@wsp/protocol";
 import { create } from "zustand";
+import { notRead } from "../notices/store.js";
+import { forgetHeld, heldFresh, hold } from "../protocol/held.js";
 import { openCloudAdd } from "./add/cloudFlow.js";
 import { isSettingsGroupId, type SettingsGroupId } from "./groupIds.js";
 
@@ -63,6 +65,10 @@ export interface SettingsReads {
   readonly devices: ReadonlyArray<DeviceView> | null;
   readonly devicesRefused: boolean;
   readonly image: SealedImageView | null;
+  /** Whether a read of the image is out, so a row with no answer yet says it is reading rather than nothing. */
+  readonly imageReading: boolean;
+  /** Whether the answer was read before the latest seal, so a row says it is reading rather than what it held. */
+  readonly imageStale: boolean;
   /** The editors installed on the computer the host runs on; null before an answer. */
   readonly editors: ReadonlyArray<EditorChoice> | null;
   /** Whether the person's ~/.ssh/config reads wsp's own ssh config; null before an answer and where the host carries
@@ -73,7 +79,29 @@ export interface SettingsReads {
   readonly loginStart: boolean | null;
 }
 
-export const NO_READS: SettingsReads = { setup: null, file: null, account: null, devices: null, devicesRefused: false, image: null, editors: null, sshInclude: null, loginStart: null };
+/** How long a read made as Settings opens stands: what these say moves on the person's own acts here, which write
+ * their answers back, or on an event the page follows. */
+export const SETTINGS_HOLD_MS = 60_000;
+
+const IMAGE_KEY = "settings:image";
+
+/** The image's read, asked as Settings opens and at each seal wherever the person is, so a seal's answer has mostly
+ * landed before Settings shows. Nothing inside the hold; an answer asked before the latest seal lands on nothing. */
+export function readImage(read: (() => Promise<SealedImageView>) | undefined): void {
+  if (read === undefined || heldFresh(IMAGE_KEY, SETTINGS_HOLD_MS)) return;
+  const { imageAsked, setReads } = useSettingsStore.getState();
+  const newest = (): boolean => useSettingsStore.getState().imageAsked === imageAsked;
+  setReads({ imageReading: true });
+  void hold(IMAGE_KEY, read, { holdMs: SETTINGS_HOLD_MS }).then(
+    view => newest() && setReads({ image: view, imageReading: false, imageStale: false }),
+    e => {
+      if (newest()) setReads({ imageReading: false });
+      notRead("Image")(e);
+    },
+  );
+}
+
+export const NO_READS: SettingsReads = { setup: null, file: null, account: null, devices: null, devicesRefused: false, image: null, imageReading: false, imageStale: false, editors: null, sshInclude: null, loginStart: null };
 
 export interface SettingsState {
   readonly at: SettingsAt;
@@ -83,6 +111,8 @@ export interface SettingsState {
   readonly addProjectAt: number | null;
   /** How many times the devices list has been asked for again, which the read effect follows. */
   readonly devicesAsked: number;
+  /** How many times the image has been asked for again, which the read effect follows. */
+  readonly imageAsked: number;
   /** The computer whose image build a card is drawing now, which is where that build's waits are said. */
   readonly buildShown: string | null;
   /** The computer whose Image card opens its recipe when it is drawn: an Edit image pressed outside that card. Moving
@@ -112,6 +142,9 @@ export interface SettingsState {
   openAddProject(): void;
   closeAddProject(): void;
   rereadDevices(): void;
+  /** A seal filed a copy the held answer does not have: it stands as stale, so no row draws it as current, and the
+   * image is read again with `read`, the store's client, wherever the person is. */
+  rereadImage(read?: () => Promise<SealedImageView>): void;
   showBuild(placeId: string): void;
   hideBuild(placeId: string): void;
   askRecipe(placeId: string | null): void;
@@ -147,6 +180,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   reads: NO_READS,
   addProjectAt: null,
   devicesAsked: 0,
+  imageAsked: 0,
   buildShown: null,
   recipeAsked: null,
   usageTab: "used",
@@ -208,6 +242,11 @@ export const useSettingsStore = create<SettingsState>(set => ({
   },
   rereadDevices() {
     set(s => ({ devicesAsked: s.devicesAsked + 1 }));
+  },
+  rereadImage(read) {
+    forgetHeld(IMAGE_KEY);
+    set(s => ({ reads: { ...s.reads, imageStale: s.reads.image !== null }, imageAsked: s.imageAsked + 1 }));
+    readImage(read);
   },
   showBuild(placeId) {
     set({ buildShown: placeId });
