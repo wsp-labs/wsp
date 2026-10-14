@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Lockup } from "@/components/brand";
 import { Install } from "@/components/download";
 import { Section } from "@/components/section";
-import { aheadOf, KINDS, READ, ROWS, sources, VENDORS_BRING, WSP, type Cell, type Tool } from "@/compare";
+import { KINDS, READ, ROWS, saidOf, sources, strongerOf, VENDORS_BRING, WSP, type Cell, type Said, type Tool } from "@/compare";
 import { REPO } from "@/links";
 import { ToolIcon } from "@/logos";
 import { cn } from "@/lib/utils";
@@ -61,6 +61,26 @@ function Table({ tool }: { tool: Tool }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** One side's points, each one sentence with its pages as the hover title; a point from AHEAD carries wsp's own line. */
+function Points({ title, items }: { title: string; items: { said: Said; wsp?: Said }[] }) {
+  return (
+    <div className="border-t border-rule pt-6">
+      <h3 className="text-[17px] font-medium tracking-[-0.01em] text-foreground">{title}</h3>
+      <ul className="mt-4 flex flex-col gap-3">
+        {items.map(({ said, wsp }) => (
+          <li key={said[0]} title={[...said.slice(1), ...(wsp?.slice(1) ?? [])].map(shown).join("\n")} className="flex gap-3 text-[15px] leading-relaxed text-muted-foreground">
+            <span aria-hidden className="mt-[11px] size-1 shrink-0 rounded-full bg-faint" />
+            <span>
+              {said[0]}
+              {wsp !== undefined && <span className="text-faint">{` ${wsp[0]}`}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -128,7 +148,6 @@ export function Compare() {
 }
 
 export function ToolPage({ tool }: { tool: Tool }) {
-  const ahead = aheadOf(tool);
   return (
     <main>
       <Header
@@ -146,30 +165,20 @@ export function ToolPage({ tool }: { tool: Tool }) {
         <Table tool={tool} />
       </div>
 
-      <Section>
-        <h2 className="heading text-[32px] sm:text-[44px]">Which to pick.</h2>
+      <Section id="strengths">
+        <h2 className="heading text-[32px] sm:text-[44px]">Where each is stronger.</h2>
         <div className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
-          <div className="border-t border-rule pt-6">
-            <h3 className="text-[17px] font-medium tracking-[-0.01em] text-foreground">What {tool.name} does well</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{tool.well}</p>
-          </div>
-          <div className="border-t border-rule pt-6">
-            <h3 className="text-[17px] font-medium tracking-[-0.01em] text-foreground">When wsp fits better</h3>
-            <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{tool.fit}</p>
-          </div>
+          <Points title={`Where ${tool.name} is stronger`} items={strongerOf(tool)} />
+          <Points title="Where wsp is stronger" items={tool.weaker.map(p => ({ said: saidOf(tool, p) }))} />
         </div>
       </Section>
 
-      <Section id="ahead" className="pt-0 sm:pt-0">
-        <h2 className="heading text-[32px] sm:text-[44px]">What wsp does not do yet.</h2>
-        <dl className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
-          {ahead.map(({ title, said, wsp }) => (
-            <div key={title} className="border-t border-rule pt-6">
-              <dt className="text-[17px] font-medium tracking-[-0.01em] text-foreground">{title}</dt>
-              <dd className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{`${said[0]} ${wsp[0]}`}</dd>
-            </div>
-          ))}
-        </dl>
+      <Section id="pick" className="pt-0 sm:pt-0">
+        <h2 className="heading text-[32px] sm:text-[44px]">Which to pick.</h2>
+        <div className="mt-12 grid gap-x-16 gap-y-10 md:grid-cols-2">
+          <Points title={`Pick ${tool.name} if`} items={tool.pickThem.map(p => ({ said: saidOf(tool, p) }))} />
+          <Points title="Pick wsp if" items={tool.pickWsp.map(p => ({ said: saidOf(tool, p) }))} />
+        </div>
       </Section>
 
       <Section id="sources" className="pt-0 sm:pt-0">

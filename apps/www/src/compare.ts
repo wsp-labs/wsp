@@ -38,6 +38,8 @@ export const ROWS = [
 
 export type Row = (typeof ROWS)[number]["key"];
 export type Answers = Record<Row, Cell>;
+/** One sentence. A point on a row restates that row, so its pages are the row's two cells and its side holds the check. */
+export type Point = { row: Row; text: string } | { said: Said };
 
 export type Tool = {
   name: string;
@@ -47,8 +49,12 @@ export type Tool = {
   line: string;
   /** The sentence under the page's heading, which is also its description. */
   differs: string;
-  well: string;
-  fit: string;
+  /** Where it is stronger than wsp, after what AHEAD already says of it. */
+  stronger: Point[];
+  /** Where wsp is stronger than it. */
+  weaker: Point[];
+  pickThem: Point[];
+  pickWsp: Point[];
   cells: Answers;
 };
 export type Kind = { name: string; tools: Tool[] };
@@ -95,8 +101,6 @@ const CLAUDE = "https://code.claude.com/docs/en";
 const CODEX = "https://learn.chatgpt.com/docs";
 const CURSOR = "https://cursor.com/docs/cloud-agent";
 
-const OWN_WAY = "wsp fits when you already have another computer, a server you rent or an old laptop, and want your agents on it signed in, with your MCP servers, CLIs and skills.";
-
 export const KINDS: Kind[] = [
   {
     name: "Apps on the computer you sit at",
@@ -106,8 +110,25 @@ export const KINDS: Kind[] = [
         slug: "conductor",
         line: "A Mac app for agents side by side, with cloud sandboxes on Pro.",
         differs: "Conductor runs agents on your Mac or in its own cloud. wsp runs them on your computer and on Linux computers you own, each set up from yours.",
-        well: "Conductor runs Claude Code, Codex, Cursor and OpenCode on your Mac, and has an iOS app. On Pro its cloud sandboxes import your API keys, env settings and MCP servers from your Mac, so there is no second computer to keep running.",
-        fit: `${OWN_WAY} Your keys stay on computers you own, it costs nothing, and the code is AGPL-3.0.`,
+        stronger: [
+          { said: ["Its cloud workspaces keep working after you close the app, with no computer of yours on.", `${CONDUCTOR}/docs/cloud/faq`] },
+          { said: ["It has a hosted MCP server and routines that run agents on a schedule.", `${CONDUCTOR}/docs/api/mcp`, `${CONDUCTOR}/changelog/0.85.0-sections-routines-and-a-new-model-picker`] },
+        ],
+        weaker: [
+          { row: "second", text: "wsp runs threads on a second computer of yours today; Conductor says not yet." },
+          { row: "has", text: "wsp copies your agents, MCP servers, CLIs and skills onto each computer you add." },
+          { row: "code", text: "wsp's code is AGPL-3.0; Conductor's is closed." },
+        ],
+        pickThem: [
+          { said: ["You want agents in a hosted cloud that keeps working with your laptop closed.", `${CONDUCTOR}/docs/cloud/faq`] },
+          { row: "phone", text: "You want to answer agents from an iPhone app." },
+          { row: "teams", text: "Your team needs shared seats and SSO." },
+        ],
+        pickWsp: [
+          { row: "second", text: "You have a second computer, a rented server or an old laptop, and want agents on it." },
+          { row: "has", text: "You want your agents there signed in, with your MCP servers, CLIs and skills." },
+          { row: "code", text: "You want the app's code under AGPL-3.0." },
+        ],
         cells: {
           runs: yes("Your Mac, or its cloud", "Your Mac, or its cloud sandboxes on Pro", `${CONDUCTOR}/docs/cloud`),
           second: no('No, "not yet"', 'No. "Not yet"', `${CONDUCTOR}/docs/cloud/faq`),
@@ -138,8 +159,25 @@ export const KINDS: Kind[] = [
         slug: "superset",
         line: "A desktop app that reaches your other computers through its relay.",
         differs: "Superset reaches your other computers and leaves each one for you to set up. wsp sets each computer up from yours when you add it.",
-        well: "Superset works with any CLI agent and lists 22. On Pro its relay reaches the other computers you own, and it has apps for iPhone and iPad.",
-        fit: `${OWN_WAY} Superset leaves each host to you. wsp is free and AGPL-3.0, where Superset is source available under ELv2.`,
+        stronger: [
+          { said: ["Its automations run an agent session on a schedule.", `${SUPERSET}/automations`] },
+        ],
+        weaker: [
+          { row: "has", text: "wsp copies your agents, MCP servers, CLIs and skills onto each computer; Superset leaves each host to you." },
+          { row: "cloud", text: "wsp can start sub-threads on cloud machines today; Superset's cloud is in early access." },
+          { row: "panel", text: "Each wsp thread has a slate, a live panel the agent builds beside the chat." },
+          { row: "code", text: "wsp is open source under AGPL-3.0; Superset is source available under ELv2." },
+        ],
+        pickThem: [
+          { row: "phone", text: "You want native iPhone and iPad apps." },
+          { row: "teams", text: "Your team needs per-seat plans and SSO." },
+          { said: ["You run agents beyond the four wsp knows.", `${SUPERSET}/agent-integration`, `${WSP_AT}/packages/catalog/src/thread-agents.ts#L9`] },
+        ],
+        pickWsp: [
+          { row: "has", text: "You want each computer set up from yours, agents signed in, when you add it." },
+          { row: "panel", text: "You want a live panel the agent keeps beside each thread." },
+          { row: "code", text: "You want the code under AGPL-3.0." },
+        ],
         cells: {
           runs: yes("Your computers, through its relay", "Your computer, and others you own through its relay", `${SUPERSET}/remote-access`),
           second: yes("Yes, on Pro", "Yes, on Pro", "https://superset.sh/pricing"),
@@ -164,8 +202,23 @@ export const KINDS: Kind[] = [
         slug: "orca",
         line: "An open source app for 41 agents, on every desktop and phone.",
         differs: "Orca runs agents on ssh hosts and Orca servers you set up by hand. wsp sets each computer up from yours when you add it.",
-        well: "Orca lists 41 agents and runs on macOS, Windows, Linux, iOS, Android and the web. It reaches other computers over ssh or an Orca server, and is free under MIT.",
-        fit: `${OWN_WAY} Orca can install shared skills on a server and leaves the rest to you; wsp copies your setup onto it.`,
+        stronger: [
+          { said: ["It shows pull requests from GitHub, GitLab, Bitbucket, Azure DevOps and Gitea.", `${ORCA}/docs/review/github`] },
+        ],
+        weaker: [
+          { row: "has", text: "wsp copies your agents, sign-ins, MCP servers, CLIs and skills onto each computer; Orca leaves logins to each host." },
+          { row: "cloud", text: "wsp can start sub-threads on cloud machines; Orca's cloud VMs are experimental and need a recipe in the repo." },
+          { row: "panel", text: "Each wsp thread has a slate that stays beside the chat; Orca's visuals sit inline in it." },
+        ],
+        pickThem: [
+          { said: ["You work on Windows.", `${ORCA}/docs/install`, `${WSP_AT}/.github/workflows/release.yml#L3-L5`] },
+          { row: "phone", text: "You want iOS and Android apps." },
+          { said: ["You run agents beyond the four wsp knows.", `${ORCA}/docs/agents/supported`, `${WSP_AT}/packages/catalog/src/thread-agents.ts#L9`] },
+        ],
+        pickWsp: [
+          { row: "has", text: "You want each computer set up from yours when you add it, agents signed in." },
+          { row: "panel", text: "You want a live panel the agent keeps beside each thread." },
+        ],
         cells: {
           runs: yes("Your computer, ssh hosts, servers", "Your computer, ssh hosts, Orca servers, a cloud VM on your own account in its experimental mode", `${ORCA}/docs/ways-to-run`),
           second: yes("Yes, ssh or an Orca server", "Yes, over ssh or an Orca server", `${ORCA}/docs/ways-to-run`),
@@ -190,8 +243,25 @@ export const KINDS: Kind[] = [
         slug: "emdash",
         line: "An open source app for 35 agents, with remote projects over ssh.",
         differs: "Emdash opens projects on ssh hosts you set up yourself. wsp sets each computer up from yours when you add it.",
-        well: "Emdash lists 35 agents and runs on macOS, Windows and Linux. Since v0.4.9, on 2026-02-12, it opens projects on ssh hosts and can run an agent's installer there. It is free under Apache-2.0.",
-        fit: `${OWN_WAY} Emdash can run an agent's installer on the host and leaves the rest to you; wsp copies your setup onto it.`,
+        stronger: [
+          { said: ["It turns issues from Linear, GitHub, Jira and seven more trackers into tasks.", "https://github.com/generalaction/emdash"] },
+          { said: ["Its automations create tasks on a schedule.", `${EMDASH}/docs/automations`] },
+        ],
+        weaker: [
+          { row: "subthreads", text: "In wsp an agent starts other threads you see in the sidebar; Emdash keeps subagents inside one chat." },
+          { row: "has", text: "wsp copies your setup onto each computer you add; Emdash can install an agent and leaves the rest to you." },
+          { row: "monitor", text: "wsp's Activity page splits processes, memory and CPU by thread; Emdash shows them per computer." },
+          { row: "panel", text: "Each wsp thread has a slate, a live panel the agent builds beside the chat." },
+        ],
+        pickThem: [
+          { said: ["You work on Windows.", `${EMDASH}/docs/installation`, `${WSP_AT}/.github/workflows/release.yml#L3-L5`] },
+          { said: ["You want tasks made from your issue tracker.", "https://github.com/generalaction/emdash"] },
+          { said: ["You run agents beyond the four wsp knows.", `${EMDASH}/docs/providers`, `${WSP_AT}/packages/catalog/src/thread-agents.ts#L9`] },
+        ],
+        pickWsp: [
+          { row: "subthreads", text: "You want agents to hand work to each other as threads you can read and answer." },
+          { row: "has", text: "You want each computer set up from yours when you add it." },
+        ],
         cells: {
           runs: yes("Your computer, ssh hosts", "Your computer, ssh hosts", `${EMDASH}/docs/remote-development`),
           second: yes("Yes, over ssh", "Yes, over ssh, since v0.4.9 on 2026-02-12", "https://github.com/generalaction/emdash/releases/tag/v0.4.9"),
@@ -216,8 +286,24 @@ export const KINDS: Kind[] = [
         slug: "t3-code",
         line: "An open source app that spreads threads across your computers.",
         differs: "T3 Code reaches your other computers and leaves each one's setup to you. wsp sets each computer up from yours when you add it.",
-        well: "T3 Code runs on every desktop, the web and both phones. It reaches computers over ssh or its relay, can spread new threads across them, and installs Codex and ACP agents itself. It is free under MIT.",
-        fit: `${OWN_WAY} T3 Code installs Codex and ACP agents itself and leaves the rest to you; wsp copies your setup onto each computer.`,
+        stronger: [
+          { said: ["Its Device panel shows a live iOS Simulator or Android Emulator the agent works in.", `${T3}/devices.md`] },
+        ],
+        weaker: [
+          { row: "has", text: "wsp copies your agents, MCP servers, CLIs and skills onto each computer; T3 Code leaves each one's setup to you." },
+          { row: "monitor", text: "wsp's Activity page shows each thread's processes, memory and CPU; T3 Code's view covers the whole app." },
+          { row: "cloud", text: "wsp can start sub-threads on cloud machines; T3 Code runs only on your own computers." },
+          { row: "panel", text: "A wsp slate stays beside the thread and keeps updating; T3 Code's HTML pages sit inline in the chat." },
+        ],
+        pickThem: [
+          { row: "phone", text: "You want native iOS and Android apps." },
+          { said: ["You work on Windows or in WSL.", `${T3}/install.md`, `${WSP_AT}/.github/workflows/release.yml#L3-L5`] },
+          { said: ["You want the agent to work in an iOS Simulator or Android Emulator.", `${T3}/devices.md`] },
+        ],
+        pickWsp: [
+          { row: "has", text: "You want each computer set up from yours when you add it." },
+          { row: "monitor", text: "You want to see which thread is using the memory or CPU." },
+        ],
         cells: {
           runs: yes("Your computer, ssh, its relay", "Your computer, ssh hosts, any computer through its relay", `${T3}/remote-access.md`),
           second: yes("Yes, threads spread across them", "Yes, and it can spread new threads across them", `${T3}/remote-access.md`),
@@ -247,8 +333,25 @@ export const KINDS: Kind[] = [
         slug: "solo",
         line: "An app for the agents and dev processes on one computer.",
         differs: "Solo runs agents on the computer you sit at and no other. wsp runs them there and on Linux computers you own.",
-        well: "Solo runs the agent CLIs already on your computer, eight built in and any other, beside your project's dev processes. Your API keys never pass through Solo, and it works on macOS and Windows.",
-        fit: `${OWN_WAY} Solo "does not currently provide remote-host or headless session management".`,
+        stronger: [
+          { said: ["It runs your dev stack from a solo.yml beside the agents, and restarts commands that crash.", SOLO, `${SOLO}/docs/commands/auto-restart`] },
+          { said: ["Agents share todos, scratchpads, locks and state through it.", SOLO] },
+          { said: ["Its activity monitor can kill any process it tracks.", `${SOLO}/docs/activity/activity-monitor`] },
+        ],
+        weaker: [
+          { row: "second", text: "wsp runs threads on other computers you own; Solo stays on the one you sit at." },
+          { row: "worktrees", text: "wsp gives a thread its own worktree on a branch you name; Solo is not a worktree tool." },
+          { row: "review", text: "wsp shows a thread's pull request and sends a failed check back to the agent; Solo does not review diffs." },
+          { row: "code", text: "wsp's code is AGPL-3.0; Solo's is closed." },
+        ],
+        pickThem: [
+          { said: ["You want your dev servers and agents run side by side on one computer.", SOLO] },
+          { said: ["You work on Windows.", `${SOLO}/docs/getting-started/installation`, `${WSP_AT}/.github/workflows/release.yml#L3-L5`] },
+        ],
+        pickWsp: [
+          { row: "second", text: "You want agents on a second computer too." },
+          { row: "review", text: "You want pull requests and checks beside each thread." },
+        ],
         cells: {
           runs: yes("The computer you sit at", "The computer you sit at", SOLO),
           second: no("No", "No", SOLO),
@@ -278,8 +381,23 @@ export const KINDS: Kind[] = [
         slug: "herdr",
         line: "An open source terminal runtime for agents, on your computer and over ssh.",
         differs: "herdr runs agents on ssh machines and copies nothing of yours onto them. wsp copies your setup onto each computer you add.",
-        well: "herdr detects 22 agents and runs any terminal program, on macOS, Linux and Windows. Since 2026-09-07 it reaches saved ssh machines, and authentication stays with OpenSSH. It is free under Apache-2.0.",
-        fit: `${OWN_WAY} herdr "does not copy local command plugins, configuration, executables, or secrets onto SSH hosts".`,
+        stronger: [
+          { said: ["It runs inside the terminal you already use.", HERDR] },
+        ],
+        weaker: [
+          { row: "has", text: "wsp copies your agents, MCP servers, CLIs and skills onto each computer; herdr copies nothing of yours to ssh hosts." },
+          { row: "review", text: "wsp shows a thread's pull request and checks beside it; herdr pairs with other apps for review." },
+          { row: "panel", text: "Each wsp thread has a slate, a live panel the agent builds beside the chat." },
+        ],
+        pickThem: [
+          { said: ["You live in a terminal and want agents in panes there.", HERDR] },
+          { said: ["You want to reach agents from your phone over plain ssh.", `${HERDR}/docs/how-to-work/`] },
+          { said: ["You work on Windows.", `${HERDR}/docs/install/`, `${WSP_AT}/.github/workflows/release.yml#L3-L5`] },
+        ],
+        pickWsp: [
+          { row: "has", text: "You want each computer set up from yours when you add it." },
+          { row: "review", text: "You want pull requests and checks in the app." },
+        ],
         cells: {
           runs: yes("Your computer, saved ssh machines", "Your computer, and saved ssh machines", HERDR, "https://github.com/herdrdev/herdr/releases/tag/v0.9.0"),
           second: yes("Yes, over ssh", "Yes, over ssh, since 2026-09-07", "https://github.com/herdrdev/herdr/releases/tag/v0.9.0"),
@@ -291,7 +409,7 @@ export const KINDS: Kind[] = [
           monitor: no("Not stated", "No resource view in its docs, home page or recent release notes", `${HERDR}/llms-full.txt`, HERDR),
           panel: no("No", "Native non-terminal plugin UI is not part of plugin v1", `${HERDR}/docs/plugins/`),
           review: no("No; pairs with other apps", "For worktree and diff review it pairs with other apps", `${HERDR}/compare/`),
-          agents: yes("22 detected, any terminal program", "22 detected, any terminal program", `${HERDR}/docs/agents/`),
+          agents: yes("22 detected, any terminal program", "22 detected, any terminal program", HERDR, `${HERDR}/docs/agents/`),
           platforms: yes("macOS, Linux, Windows", "macOS, Linux, Windows", `${HERDR}/docs/install/`),
           phone: no("No app; any ssh client", "\"Herdr works on your phone without a mobile app or web dashboard\"", `${HERDR}/docs/how-to-work/`),
           teams: no("Not stated", "No team plan; its README lists an enterprise email only", "https://github.com/herdrdev/herdr"),
@@ -309,8 +427,25 @@ export const KINDS: Kind[] = [
         slug: "claude-code-web",
         line: "Claude Code on Anthropic's VM, from the web, desktop or phone.",
         differs: "Claude Code on the web runs on Anthropic's VM with your repo. wsp runs it on computers you own, with your setup on them.",
-        well: "Claude Code on the web needs no computer of your own. It starts from the web, desktop, CLI or phones, Slack on Pro and Max, and runs on Anthropic's VM inside the Pro plan and up. A proxy keeps your GitHub token outside the VM.",
-        fit: `${OWN_WAY} Its VM has "what the repo has committed" and not your ~/.claude, plugins or local MCP servers. wsp also runs Codex, OpenCode and Cursor beside Claude Code.`,
+        stronger: [
+          { said: ["Your GitHub credentials never enter the session's VM.", `${CLAUDE}/claude-code-on-the-web`] },
+          { said: ["It can watch a pull request and answer CI failures and review comments by itself.", `${CLAUDE}/claude-code-on-the-web`] },
+        ],
+        weaker: [
+          { row: "has", text: "wsp brings your plugins and local MCP servers; Claude's cloud VM loads neither." },
+          { row: "agents", text: "wsp runs Codex, OpenCode and Cursor beside Claude Code." },
+          { row: "second", text: "wsp runs threads on any Linux computer you own; Claude's own runners need Team or Enterprise." },
+          { row: "panel", text: "Each wsp thread has a slate; Claude's artifacts do not reach cloud sessions." },
+        ],
+        pickThem: [
+          { said: ["You want no computer of your own to keep on.", `${CLAUDE}/claude-code-on-the-web`] },
+          { row: "phone", text: "You want to start and answer sessions from the Claude phone app." },
+          { row: "teams", text: "Your team is already on a Claude Team plan." },
+        ],
+        pickWsp: [
+          { row: "has", text: "You want Claude Code with your plugins and local MCP servers." },
+          { row: "agents", text: "You want Codex or OpenCode in the same window." },
+        ],
         cells: {
           runs: no("Anthropic's VM; runners in beta", "Anthropic's VM; your own runners on Team and Enterprise, in beta", `${CLAUDE}/claude-code-on-the-web`, `${CLAUDE}/self-hosted-environments`),
           second: no("Runners, on Team and Enterprise", "Only through runners, on Team and Enterprise", `${CLAUDE}/self-hosted-environments`),
@@ -335,8 +470,25 @@ export const KINDS: Kind[] = [
         slug: "codex-cloud",
         line: "Codex on OpenAI's VM, from the web, desktop, IDE or iOS.",
         differs: "Codex cloud runs on OpenAI's VM with your repo. wsp runs Codex on computers you own, with your setup on them.",
-        well: "Codex cloud needs no computer of your own. It starts from the web, desktop, CLI, IDE or iOS, inside the Plus plan and up, and its CLI is open source under Apache-2.0.",
-        fit: `${OWN_WAY} Codex cloud says "personal skills from your local computer aren't synced". wsp also runs Claude Code, OpenCode and Cursor beside Codex.`,
+        stronger: [
+          { said: ["Codex works out missing setup values and asks only for the ones it cannot infer.", `${CODEX}/environments/cloud-environments`] },
+          { said: ["Programs in the VM get a placeholder, and a proxy swaps in the real secret.", `${CODEX}/environments/cloud-environments`] },
+        ],
+        weaker: [
+          { row: "has", text: "wsp brings your personal skills and MCP servers; Codex cloud does not sync personal skills." },
+          { row: "subthreads", text: "In wsp a thread starts other threads you read and answer; Codex keeps subagents inside one task." },
+          { row: "agents", text: "wsp runs Claude Code, OpenCode and Cursor beside Codex." },
+          { row: "second", text: "wsp runs threads on computers you own; Codex cloud runs only on OpenAI's VM." },
+        ],
+        pickThem: [
+          { said: ["You want tasks to keep running while your computer is asleep.", `${CODEX}/environments/cloud-environments`] },
+          { row: "phone", text: "You want Codex from the ChatGPT app on iOS." },
+          { row: "teams", text: "Your team is on ChatGPT Business with SSO." },
+        ],
+        pickWsp: [
+          { row: "has", text: "You want Codex with your own skills and MCP servers." },
+          { row: "subthreads", text: "You want a Codex thread to start a Claude Code thread, or the other way round." },
+        ],
         cells: {
           runs: no("OpenAI's VM", "OpenAI's VM", `${CODEX}/cloud`),
           second: no("No", "No", `${CODEX}/environments/cloud-environments`),
@@ -361,8 +513,25 @@ export const KINDS: Kind[] = [
         slug: "cursor-cloud-agents",
         line: "Cursor's agent on its VM, or on your own machine with My Machines.",
         differs: "Cursor cloud agents run on Cursor's VM, set up from its dashboard. wsp runs agents on computers you own, set up from yours.",
-        well: "Cursor cloud agents need no computer of your own, and on paid plans My Machines runs them on yours. They carry your rules, synced skills and MCP servers set in the dashboard, and start from desktop, web, iOS or Slack.",
-        fit: `${OWN_WAY} wsp copies your MCP servers and skills from the computer you sit at, not a dashboard, and runs Claude Code, Codex and OpenCode beside Cursor.`,
+        stronger: [
+          { said: ["Each cloud agent gets a full desktop it controls with a mouse and keyboard.", `${CURSOR}/capabilities`] },
+          { said: ["You can run as many agents in parallel as you want, with your computer off.", CURSOR] },
+        ],
+        weaker: [
+          { row: "keys", text: "wsp keeps your keys on your computers; Cursor holds secrets in its dashboard." },
+          { row: "has", text: "wsp copies your MCP servers and skills from the computer you sit at, not a dashboard." },
+          { row: "agents", text: "wsp runs Claude Code, Codex and OpenCode beside Cursor." },
+          { row: "panel", text: "Each wsp thread has a slate; Cursor names its canvases for the desktop app, not cloud agents." },
+        ],
+        pickThem: [
+          { said: ["You want many agents in parallel on machines you never run.", CURSOR] },
+          { row: "phone", text: "You want a native iOS app." },
+          { row: "teams", text: "Your team is on Cursor Teams with SSO." },
+        ],
+        pickWsp: [
+          { row: "keys", text: "You want your keys to stay on computers you own." },
+          { row: "agents", text: "You want Claude Code and Codex beside Cursor." },
+        ],
         cells: {
           runs: yes("Cursor's VM, or My Machines", "Cursor's VM, or your own machine with My Machines", CURSOR, `${CURSOR}/self-hosted/my-machines`),
           second: yes("Yes, My Machines on paid plans", "Yes, My Machines on paid plans", `${CURSOR}/self-hosted`),
@@ -395,7 +564,7 @@ export const KINDS: Kind[] = [
 export const TOOLS: Tool[] = KINDS.flatMap(k => k.tools);
 
 /** Where the others are ahead: what wsp lacks, then each tool that has it, by slug, with the pages that say so. */
-export const AHEAD: { title: string; wsp: Said; them: Partial<Record<string, Said>> }[] = [
+export const AHEAD: { title: string; row?: Row; wsp: Said; them: Partial<Record<string, Said>> }[] = [
   {
     title: "Windows",
     wsp: ["wsp runs on macOS and Linux.", `${WSP_AT}/.github/workflows/release.yml#L3-L5`, `${WSP_AT}/apps/www/src/sections/close.tsx#L11`],
@@ -409,7 +578,8 @@ export const AHEAD: { title: string; wsp: Said; them: Partial<Record<string, Sai
   },
   {
     title: "Your phone",
-    wsp: ["wsp has no phone app; a phone's browser can pair with your host.", `${WSP_AT}/apps/docs-next/content/features/devices.mdx#L5`],
+    row: "phone",
+    wsp: ["wsp has no phone app; a phone's browser pairs with your host instead.", `${WSP_AT}/apps/docs-next/content/features/devices.mdx#L5`],
     them: {
       "t3-code": ["T3 Code has apps for iOS and Android.", "https://t3.codes/download"],
       orca: ["Orca has apps for iOS and Android.", `${ORCA}/docs/mobile`, `${ORCA}/docs/android-apk`],
@@ -438,11 +608,12 @@ export const AHEAD: { title: string; wsp: Said; them: Partial<Record<string, Sai
       superset: ["Superset works with any CLI agent and lists 22.", `${SUPERSET}/agent-integration`],
       "t3-code": ["T3 Code names 8 agents and runs any ACP agent.", "https://t3.codes", `${T3}/providers-acp.md`],
       solo: ["Solo has 8 agents built in and runs any other CLI.", `${SOLO}/docs/agents/setting-up-tools`],
-      herdr: ["herdr detects 22 agents and runs any terminal program.", `${HERDR}/docs/agents/`],
+      herdr: ["herdr detects 22 agents and runs any terminal program.", HERDR, `${HERDR}/docs/agents/`],
     },
   },
   {
     title: "Teammates",
+    row: "teams",
     wsp: ["wsp is for one person.", ONE_PERSON],
     them: {
       conductor: ["Conductor sells plans for teams.", `${CONDUCTOR}/pricing`],
@@ -466,15 +637,29 @@ export const AHEAD: { title: string; wsp: Said; them: Partial<Record<string, Sai
 ];
 
 /** The rows of AHEAD a tool is ahead on, each in one sentence for that tool and one for wsp. */
-export function aheadOf(tool: Tool): { title: string; said: Said; wsp: Said }[] {
+export function aheadOf(tool: Tool): { title: string; row?: Row; said: Said; wsp: Said }[] {
   return AHEAD.flatMap(a => {
     const said = a.them[tool.slug];
-    return said === undefined ? [] : [{ title: a.title, said, wsp: a.wsp }];
+    return said === undefined ? [] : [{ title: a.title, row: a.row, said, wsp: a.wsp }];
   });
+}
+
+/** A point's sentence and the pages it was read from. */
+export function saidOf(tool: Tool, point: Point): Said {
+  if ("said" in point) return point.said;
+  const [, first, ...rest] = tool.cells[point.row].says;
+  return [point.text, first, ...rest, ...WSP[point.row].says.slice(1)];
+}
+
+/** "Where <tool> is stronger": what AHEAD says of it first, each beside wsp's own line, then its own points. */
+export function strongerOf(tool: Tool): { said: Said; wsp?: Said }[] {
+  return [...aheadOf(tool).map(a => ({ said: a.said, wsp: a.wsp })), ...tool.stronger.map(p => ({ said: saidOf(tool, p) }))];
 }
 
 /** Every page a tool's page reads, in the order the page first uses them. */
 export function sources(tool: Tool): string[] {
   const cells = ROWS.flatMap(r => [...tool.cells[r.key].says.slice(1), ...WSP[r.key].says.slice(1)]);
-  return [...new Set([...cells, ...aheadOf(tool).flatMap(a => [...a.said.slice(1), ...a.wsp.slice(1)])])];
+  const stronger = strongerOf(tool).flatMap(({ said, wsp }) => [...said.slice(1), ...(wsp?.slice(1) ?? [])]);
+  const points = [...tool.weaker, ...tool.pickThem, ...tool.pickWsp].flatMap(p => saidOf(tool, p).slice(1));
+  return [...new Set([...cells, ...stronger, ...points])];
 }
