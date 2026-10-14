@@ -2,7 +2,7 @@
 // What /compare holds, read from the data its pages render: every answer short enough for a table cell, every answer
 // sourced, and every tool with its own page.
 import { describe, expect, it } from "vitest";
-import { AHEAD, aheadOf, KINDS, ROWS, saidOf, strongerOf, TOOLS, WSP, type Answers, type Point, type Tool } from "../src/compare";
+import { AHEAD, aheadOf, KINDS, ROWS, saidOf, STEPS, strongerOf, TOOLS, WSP, type Answers, type Point, type Tool } from "../src/compare";
 import { fileOf, ROUTES, routeAt } from "../src/routes";
 
 const words = (text: string): number => text.trim().split(/\s+/).length;
@@ -70,6 +70,18 @@ describe("every answer", () => {
   });
 });
 
+describe("switching", () => {
+  it("takes three steps, each from its docs page, the computer marked optional, and no time promised", () => {
+    expect(STEPS.map(s => s.title)).toEqual(["Install wsp", "Add a computer, if you have one", "Start your first thread"]);
+    for (const { title, said } of STEPS) {
+      expect(said.length, title).toBeGreaterThan(1);
+      for (const url of said.slice(1)) expect(url, title).toMatch(/^https:\/\/github\.com\/wsp-labs\/wsp\/blob\/[0-9a-f]{40}\/apps\/docs-next\/content\/\S+$/);
+      expect(said[0], title).not.toMatch(/\b\d+\s*(s|sec|seconds?|min|minutes?|hours?)\b/i);
+      expect(said[0], title).not.toContain(String.fromCharCode(0x2014));
+    }
+  });
+});
+
 describe("every tool", () => {
   it("has its own page, titled wsp vs its name, with its own preview image", () => {
     for (const tool of TOOLS) {
@@ -92,7 +104,7 @@ describe("every tool", () => {
   });
 
   it("carries its points and pick lines in place of the old prose", () => {
-    for (const tool of TOOLS) expect(Object.keys(tool).sort(), tool.name).toEqual(["cells", "differs", "line", "name", "pickThem", "pickWsp", "slug", "stronger", "weaker"]);
+    for (const tool of TOOLS) expect(Object.keys(tool).sort(), tool.name).toEqual(["cells", "differs", "line", "name", "pickThem", "pickWsp", "shot", "slug", "stronger", "weaker"]);
   });
 
   it("is stronger than wsp on three to five things and weaker on three to five, with two or three lines for picking each", () => {
