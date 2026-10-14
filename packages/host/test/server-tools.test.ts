@@ -4,7 +4,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { nodeHost, type Host } from "@wsp/collect";
 import type { ExecResult, Machine } from "@wsp/engine";
@@ -12,6 +12,7 @@ import { serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine } from 
 import { afterEach, describe, expect, it } from "vitest";
 import { SERVER_NOT_SET_UP } from "@wsp/runtime";
 import { agentsReader } from "../src/agents-reader.js";
+import { claudeStore } from "../src/anthropic/login.js";
 import { noSuchServerRefusal } from "../src/server-tools.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
@@ -270,6 +271,40 @@ describe("one MCP server for a slate's tool runs", () => {
     expect(await reader.server!(on, { agent: "claude", name: "kept" })).toMatchObject({ transport: { kind: "stdio", command: "kept-server" }, cwd: project });
     expect(await reader.server!(on, { agent: "claude", name: "above" })).toMatchObject({ transport: { kind: "stdio", command: "above-server" }, cwd: project });
     await expect(reader.server!({ kind: "here" }, { agent: "claude", name: "kept" })).rejects.toThrow(noSuchServerRefusal("kept", "Claude Code"));
+    reader.close();
+  });
+
+  it("hands this computer's http server the sign-in Claude Code keeps here, read fresh through the borrowed login's Keychain read, and renews it with the agent's own word here", async () => {
+    const f = fixture();
+    f.config({ cloudflare: { type: "http", url: "https://mcp.cloudflare.com/mcp" }, keyed: { type: "http", url: "https://mcp.example.com/mcp", headers: { Authorization: "Bearer from-config" } } });
+    writeStub(join(f.bin, "claude"), `#!/bin/bash\n[ "$1 $2 $3" = "mcp get cloudflare" ] || exit 9\necho "$*" >> "$HOME/claude-asks"\nprintf 'cloudflare:\\n  Status: %s\\n' "$(cat "$HOME/status")"\n`);
+    writeFileSync(join(f.home, "status"), "✔ Connected");
+    // /usr/bin/security as Claude Code's own item answers it: the credentials JSON, the login beside every server's sign-in.
+    const security = join(f.bin, "security");
+    writeStub(security, `#!/bin/bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(join(f.home, "security-args"))}\ncat ${JSON.stringify(join(f.home, "keychain"))}\n`);
+    const keep = (token: string): void =>
+      writeFileSync(join(f.home, "keychain"), JSON.stringify({ claudeAiOauth: { accessToken: "sk-ant-oat-x", expiresAt: 1 }, mcpOAuth: { "cloudflare|2e40c71145c8b601": { serverName: "cloudflare", accessToken: token, refreshToken: "ref_TESTONLY", expiresAt: 1 } } }));
+    keep("tok_TESTONLY_here_1");
+    const reader = agentsReader({ vault: () => ({}), here: () => here(f), loginEnv: async () => ({ PATH: "/usr/bin:/bin", HOME: f.home }), signInStores: { claude: () => claudeStore({ platform: "darwin", security, env: {} }) } });
+    const spec = await reader.server!({ kind: "here" }, { agent: "claude", name: "cloudflare" });
+    expect(spec.signIn).toMatchObject({ bearer: { at: ["mcpOAuth", "cloudflare|2e40c71145c8b601"], field: "accessToken" }, line: "claude mcp login 'cloudflare'" });
+    expect(JSON.stringify(spec)).not.toContain("tok_TESTONLY");
+    expect(await spec.signIn!.read!()).toBe("tok_TESTONLY_here_1");
+    expect(readFileSync(join(f.home, "security-args"), "utf8")).toBe(`find-generic-password -a ${userInfo().username} -w -s Claude Code-credentials\n`);
+    // Read again at each ask, so a token the agent renewed meanwhile is the one sent.
+    keep("tok_TESTONLY_here_2");
+    expect(await spec.signIn!.read!()).toBe("tok_TESTONLY_here_2");
+    expect(await spec.signIn!.renew()).toBe(true);
+    expect(readFileSync(join(f.home, "claude-asks"), "utf8")).toBe("mcp get cloudflare\n");
+    writeFileSync(join(f.home, "status"), "! Needs authentication");
+    expect(await spec.signIn!.renew()).toBe(false);
+    // No entry for the server, or a store that is no JSON, sends no bearer.
+    writeFileSync(join(f.home, "keychain"), JSON.stringify({ mcpOAuth: {} }));
+    expect(await spec.signIn!.read!()).toBeUndefined();
+    writeFileSync(join(f.home, "keychain"), "not json");
+    expect(await spec.signIn!.read!()).toBeUndefined();
+    // A server that carries its own Authorization header uses it, and the agent's store is not named for it.
+    expect((await reader.server!({ kind: "here" }, { agent: "claude", name: "keyed" })).signIn).toBeUndefined();
     reader.close();
   });
 });
