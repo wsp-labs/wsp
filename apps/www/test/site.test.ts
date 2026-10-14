@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { DOWNLOADS, platformOf } from "../src/downloads";
 import { DOCS, EMAIL, ORG, REPO, X } from "../src/links";
-import { aheadOf, KINDS, ROWS, sources, TOOLS, WSP } from "../src/compare";
+import { KINDS, ROWS, saidOf, sources, strongerOf, TOOLS, WSP } from "../src/compare";
 import { fileOf, ROUTES } from "../src/routes";
 import { QUESTIONS } from "../src/sections/close";
 
@@ -120,9 +120,9 @@ describe("every route, as raw HTML", () => {
         }
         expect([theirs!.raised, ours!.raised]).toEqual([false, true]);
       });
-      expect(body).toContain(tool.well);
-      expect(body).toContain(tool.fit);
-      for (const a of aheadOf(tool)) expect(body).toContain(`${a.title} ${a.said[0]} ${a.wsp[0]}`);
+      for (const h of [`Where ${tool.name} is stronger`, "Where wsp is stronger", `Pick ${tool.name} if`, "Pick wsp if"]) expect(html).toMatch(new RegExp(`<h3[^>]*>${h}</h3>`));
+      for (const { said, wsp } of strongerOf(tool)) expect(body).toContain(wsp === undefined ? said[0] : `${said[0]} ${wsp[0]}`);
+      for (const point of [...tool.weaker, ...tool.pickThem, ...tool.pickWsp]) expect(body).toContain(saidOf(tool, point)[0]);
       expect(html).toMatch(/<details class="[^"]*">/);
       const details = /<details[\s\S]*<\/details>/.exec(html)![0];
       for (const url of sources(tool)) expect(details).toContain(`href="${url}"`);
