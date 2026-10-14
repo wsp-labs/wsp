@@ -142,7 +142,8 @@ export function diskOf(reading: Reading, recipe: Recipe, statePath: string, disk
 }
 
 /** The screens as they stand for these answers, in the terminal's order, less any with no row to pick. A build at a
- * provider has no Sign-ins screen: its machines use this computer's sign-ins through wsp. */
+ * provider has no Sign-ins screen, since its machines use this computer's sign-ins through wsp, and no wsp tools
+ * screen, since it writes nothing on this computer. */
 export function screensOf(reading: Reading, a: ScreenAnswers, at: ScreensAt, cloud = false): InitScreen[] {
   const manifest = manifestFor(reading, a.recipe);
   const { recipe, logins } = a;
@@ -201,7 +202,7 @@ export function screensOf(reading: Reading, a: ScreenAnswers, at: ScreensAt, clo
       answers: {},
       footer: [],
     },
-  ]).filter(screen => !cloud || screen.id !== "logins");
+  ]).filter(screen => !cloud || (screen.id !== "logins" && screen.id !== "wsp"));
 }
 
 /** The answers with one screen answered: ticks move the recipe as that screen's own step does, a sign-in answer is

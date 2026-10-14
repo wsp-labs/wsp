@@ -268,9 +268,9 @@ export async function leadOnThisComputer(o: Setup = {}) {
   if (o.gh !== undefined) writeStub(join(bin, "gh"), o.gh);
   else if (o.hostGh !== undefined) fakeGh(root, o.hostGh);
   const local = { ...fakeLocal(join(root, "home")), ...(o.gh !== undefined || o.hostGh !== undefined ? { backend: new LocalBackend({ root: join(root, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } : {}), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
-  // The switch a case flips to bring the broker up on a host already running.
-  const brokerSwitch = { ready: o.broker === true };
-  const broker = o.broker === undefined ? {} : { broker: { ready: () => brokerSwitch.ready, codexClaims: async () => undefined } };
+  // The switch a case flips to bring the broker up on a host already running, and the machines it has cut off.
+  const brokerSwitch = { ready: o.broker === true, off: new Set<string>() };
+  const broker = o.broker === undefined ? {} : { broker: { ready: () => brokerSwitch.ready, codexClaims: async () => undefined, revoke: async (id: string) => void brokerSwitch.off.add(id), lift: (id: string) => void brokerSwitch.off.delete(id) } };
   const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};

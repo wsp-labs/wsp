@@ -13,7 +13,7 @@ import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLog
 import { MCP_SERVER_NAME, agentVersionWord, cloudServerOffLine, compareVersions, controlNameRefusal, hasControlChar, shellQuote, strictVersion, takesMcpServers, type AgentRow, type AgentSignInState, type AgentsProject, type McpRow, type PlaceProvisionRow } from "@wsp/protocol";
 import { GUEST_WSP_MCP, harnessCatalog, projectOf, vaultSignIn, type AgentsOn, type AgentsRead, type AgentsReader } from "@wsp/runtime";
 import { machineHost, type MachineHost } from "./machine-host.js";
-import { resolveServer, serverTools, signInOf } from "./server-tools.js";
+import { bearerIn, resolveServer, serverTools, signInOf } from "./server-tools.js";
 
 const READ_MS = 20_000;
 /** How long one agent's own version or status command is given where the computer has a timeout command. */
@@ -298,6 +298,9 @@ export function agentsReader(o: {
   loginEnv?: () => Promise<Readonly<Record<string, string>>>;
   /** Each agent's newest version by id as this host last read it off its vendor; none leaves every row without one. */
   latest?: () => Promise<Readonly<Record<string, string>>>;
+  /** By agent id, the text of the store that agent keeps its http servers' sign-ins in on this computer, read at each
+   * call; an agent with none sends no bearer from here. */
+  signInStores?: Readonly<Record<string, () => Promise<string | undefined>>>;
 }): AgentsReader & { forget(key: string): void; close(): void } {
   const kept = serverTools({ now: o.now ?? Date.now, log: o.log ?? (line => console.warn(line)), ...(o.toolsMs !== undefined ? { deadlineMs: o.toolsMs } : {}) });
   const closing = new AbortController();
@@ -361,10 +364,14 @@ export function agentsReader(o: {
       }
       const env = (await o.loginEnv?.()) ?? {};
       const values = { ...serverValuesOf(o.vault()), ...env };
-      const found = await resolveServer(here(), ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) });
+      const host = here();
+      const found = await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}) });
       // A turn hands its servers the vault's values under the login's own; nothing of wsp's own reaches them.
       const base = Object.fromEntries(Object.entries(values).filter(([k]) => !k.startsWith("WSP_")));
-      return { ...found, env: base };
+      const signIn = signInOf(host, ask.agent, ask.name, found.transport, found.cwd);
+      const store = o.signInStores?.[ask.agent];
+      if (signIn === undefined || store === undefined) return { ...found, env: base };
+      return { ...found, env: base, signIn: { ...signIn, read: async () => bearerIn(await store(), signIn.bearer) } };
     },
     forget: key => kept.forget(key),
     close: () => closing.abort(),
