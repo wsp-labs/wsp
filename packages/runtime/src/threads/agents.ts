@@ -174,7 +174,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
           let unnamed: SessionView | undefined;
           for (const s of sessions.values()) {
             if (s.view.workspaceId !== entry.record.id || s.view.claudeSessionId !== sessionId) continue;
-            const source = storedTitleSource(title, s.view.prompt);
+            const source = storedTitleSource(title, s.view.prompt) === "seed" ? "seed" : storedTitleSource(title, s.view.threadId === undefined ? undefined : openingOf(s.view.threadId));
             if (source === "seed" && sourceOf(s.view) !== "seed") {
               if (s.view.harnessTitle !== undefined && s.view.harnessTitle !== title) unnamed = s.view;
               continue;
@@ -203,6 +203,9 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
   const sourceOf = (view: SessionView): TitleSource => view.titleSource ?? "seed";
   /** Every turn of one thread, whatever harness session each of them ran under. */
   const rowsOn = (threadId: string): SessionView[] => [...sessions.values()].filter(s => s.view.threadId === threadId).map(s => s.view);
+  /** The words the thread's first turn opened with. Codex on a new machine rebuilds its store from the session that
+   * landed there and titles the thread with them, whatever turn runs now. */
+  const openingOf = (threadId: string): string | undefined => rowsOn(threadId).reduce<SessionView | undefined>((first, v) => (first === undefined || (v.startedAt ?? 0) < (first.startedAt ?? 0) ? v : first), undefined)?.prompt;
   /** Where the thread's title came from, over all its turns: a person's name on any of them is the thread's, since
    * the fold reads the latest turn's title and a resume writes a row of its own. */
   const threadSource = (threadId: string): TitleSource => {

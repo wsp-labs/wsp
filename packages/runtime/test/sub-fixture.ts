@@ -134,6 +134,9 @@ function leadDaemon(git: LeadGit) {
 export const CLAUDE_SESSION_FILE = (id: string) => ({ folder: "/root/.claude-cfg/projects", name: `${id}.jsonl`, depth: 1 });
 export const CODEX_SESSION_FILE = (id: string) => ({ folder: "/root/.codex/sessions", name: `-${id}.jsonl`, depth: 3 });
 
+/** The line the agents' title read asks a machine's store with, the session's id after it. */
+export const STORE_TITLE = "agent-store-title";
+
 /** The file a session's pack finds on a machine: Claude Code's under the folder of the turn's cwd, /root/web, and
  * Codex's rollout under the day it started. */
 export function sessionPathOf(folder: string, name: string): string {
@@ -145,10 +148,11 @@ type LeadTurn = { end?: () => void; hold?: boolean; release?: () => void; exitLa
 /** A harness whose first turn, the lead's, runs until `endLead` ends it, and whose every other turn answers at once,
  * but for one started while `hold` is set, which runs until `release` ends it; with `exitLater` its process exits only
  * at `exit`, as a real one does a moment after its result. */
-function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn, sessionFile: (id: string) => { folder: string; name: string; depth: number }): HarnessAdapterFactory {
+function harness(starts: { o: HarnessStartOptions; env: Readonly<Record<string, string>> }[], lead: LeadTurn, sessionFile: (id: string) => { folder: string; name: string; depth: number }, titles?: boolean): HarnessAdapterFactory {
   return hctx => ({
     steers: false,
     sessionFile,
+    ...(titles === true ? { sessionTitle: (sessionId: string, exec: (cmd: string) => Promise<string>) => exec(`${STORE_TITLE} ${sessionId}`).then(out => out.trim() || null) } : {}),
     start: o => {
       starts.push({ o, env: hctx.env });
       const sessionId = `s${starts.length}`;
@@ -229,6 +233,8 @@ export interface Setup {
   broker?: boolean;
   /** gh on this computer, as a stub script on the PATH its commands run with. */
   gh?: string;
+  /** What the agent's store on a Boat machine calls a session, off every start so far; no title is read without it. */
+  storeTitle?: (starts: readonly HarnessStartOptions[]) => string | null;
   /** Where no gh script is given: whether gh on this computer holds a GitHub login, answered by a gh of the fixture's
    * own ahead of the PATH, which writes each line it is asked to gh-asked under the fixture's folder and holds a login
    * while gh-signed-in stands there. */
@@ -276,7 +282,12 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
   const claude = harness(starts, leadTurn, CLAUDE_SESSION_FILE);
   const onBoat = o.subAdapter;
-  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE), opencode: harness(starts, leadTurn, CODEX_SESSION_FILE) };
+  const storeTitle = o.storeTitle;
+  if (storeTitle !== undefined) {
+    const inner = boat.execImpl;
+    boat.execImpl = (m, cmd, stdin) => (cmd.startsWith(`${STORE_TITLE} `) ? { exitCode: 0, stdout: storeTitle(starts.map(s => s.o)) ?? "", stderr: "" } : inner(m, cmd, stdin));
+  }
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE, storeTitle !== undefined), opencode: harness(starts, leadTurn, CODEX_SESSION_FILE) };
   const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...broker, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);
