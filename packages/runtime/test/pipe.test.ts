@@ -5,11 +5,12 @@ import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
-import { realClock } from "../src/clock.js";
+import { realClock, type Clock } from "../src/clock.js";
 import type { RuntimeContext } from "../src/context.js";
 import { PIPE_BEHIND_AGAIN_MS, PIPE_DIAL_RATE, PIPE_IDLE, PIPE_IDLE_MAX_MS, pipeArea, pipePool, type PipeHandler, type PipePool } from "../src/pipe.js";
 import { eventBus } from "../src/types/events.js";
 import { PIPE_DAEMON_VERSION, PIPE_POOL_FULL, PIPE_POOL_MAX, type EventUnion, type PipeOpen } from "@wsp/protocol";
+import { fakeClock } from "./fake-clock.js";
 import { until } from "./until.js";
 
 const TOKEN = "pipe-token";
@@ -21,6 +22,8 @@ interface FakeDaemon {
   url: string;
   parked: WebSocket[];
   firstFrames: Record<string, unknown>[];
+  /** Sockets the daemon holds open, of any kind. */
+  open(): number;
   /** Every pipe the daemon took, still open or not. */
   taken: WebSocket[];
   /** The daemon replaced by one of another kind, as an update does. */
@@ -80,6 +83,7 @@ async function fakeDaemon(first: "pipes" | "old" | "refuse" | "deny" | "grab" | 
     parked,
     firstFrames,
     taken,
+    open: () => wss.clients.size,
     become(next) {
       mode = next;
     },
@@ -117,7 +121,7 @@ interface Handed {
 
 function poolOn(
   d: FakeDaemon,
-  o: { ready?: () => boolean; version?: () => number | null; idleMaxMs?: number; behindAgainMs?: number; dialRate?: number; backoffMs?: (attempt: number) => number; handler?: PipeHandler | null } = {},
+  o: { ready?: () => boolean; version?: () => number | null; idleMaxMs?: number; behindAgainMs?: number; dialRate?: number; backoffMs?: (attempt: number) => number; handler?: PipeHandler | null; clock?: Clock } = {},
 ): { pool: PipePool; handed: Handed[]; logs: string[] } {
   const handed: Handed[] = [];
   const logs: string[] = [];
@@ -136,6 +140,7 @@ function poolOn(
     ...(o.dialRate !== undefined ? { dialRate: o.dialRate } : {}),
     ...(o.idleMaxMs !== undefined ? { idleMaxMs: o.idleMaxMs } : {}),
     ...(o.behindAgainMs !== undefined ? { behindAgainMs: o.behindAgainMs } : {}),
+    ...(o.clock !== undefined ? { clock: o.clock } : {}),
     log: line => logs.push(line),
   });
   pools.push(pool);
@@ -333,15 +338,23 @@ describe("the pipe pool", () => {
 
   it("closes a pipe the daemon answers as a link and asks again each minute, saying so once", async () => {
     const d = await fakeDaemon("old");
-    const { pool, logs } = poolOn(d, { behindAgainMs: 150 });
+    const t = fakeClock(0);
+    let asked = 0;
+    const { pool, logs } = poolOn(d, { clock: t.clock, version: () => (asked++, PIPE_DAEMON_VERSION) });
     pool.up("ws-a");
-    await until(() => d.firstFrames.length === 4);
-    await sleep(50);
-    expect(pool.idle("ws-a")).toBe(0);
-    await until(() => d.firstFrames.length === 8);
+    for (let minute = 1; minute <= 3; minute++) {
+      await until(() => t.dueFor(minute * PIPE_BEHIND_AGAIN_MS));
+      await until(() => d.open() === 0);
+      expect(pool.idle("ws-a")).toBe(0);
+      if (minute === 3) d.become("pipes");
+      t.advance(PIPE_BEHIND_AGAIN_MS - 1);
+      expect(asked).toBe(minute);
+      t.advance(1);
+      expect(asked).toBe(minute + 1);
+    }
     expect(logs.filter(l => l === "ws-a: its daemon answered a pipe as a link, so it is asked again each minute")).toHaveLength(1);
-    d.become("pipes");
     await until(() => d.parked.length === 4);
+    expect(pool.idle("ws-a")).toBe(4);
   });
 
   it("stops dialling a daemon that refuses the token, by its close or its answer, until the link comes up again", async () => {
