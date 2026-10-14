@@ -29,6 +29,7 @@ mod manifest;
 mod mode;
 mod ops;
 mod paths;
+mod pipe;
 mod place;
 mod ports;
 mod proc;
@@ -57,6 +58,7 @@ mod usage_logs;
 mod workspace;
 
 pub use link::place_backoff_ms;
+pub use pipe::Doors;
 
 /// What a leave of this computer would take that no remote holds, one line per checkout or workspace under the
 /// runtime's folder: the read the daemon's own leave makes, for the command line's leave to make the same way. An
@@ -150,6 +152,9 @@ pub struct Options {
     /// The folder a thread's docker writes its compose notes in: the host's, for this computer's daemon; the place's
     /// own `docker-notes` where unset.
     pub docker_notes: Option<PathBuf>,
+    /// The two doors a machine whose credentials the host keeps serves its agents on, which are served only where
+    /// this daemon is such a machine's: a cloud guest, not a place. None serves neither.
+    pub doors: Option<Doors>,
 }
 
 impl Options {
@@ -197,7 +202,14 @@ impl Options {
             readings_dir: None,
             readings_interval_ms: None,
             docker_notes: None,
+            doors: None,
         }
+    }
+
+    /// Whether this daemon serves the doors and parks pipes for them: it is named them, which only a provider's
+    /// machine's unit does, and it is a cloud guest's daemon.
+    pub(crate) fn serves_doors(&self) -> bool {
+        self.doors.is_some() && self.kind == "cloud" && self.place_file.is_none()
     }
 }
 
@@ -313,6 +325,11 @@ pub(crate) struct Ctx {
     /// What became of the door on this computer itself: nothing where it stands, why where it does not. Unset on a
     /// daemon that is no place, which binds none.
     pub(crate) computer_door: std::sync::OnceLock<Option<String>>,
+    /// The pipes the host parked here, which the doors' connections take.
+    pub(crate) pipes: Arc<pipe::Pipes>,
+    /// The doors as this daemon bound them, which the git and gh of an op with a token are pointed at. Unset where
+    /// its HTTP door is not bound.
+    pub(crate) doors: std::sync::OnceLock<Doors>,
 }
 
 /// One workspace's door: the task accepting on the socket inside that workspace, which a stop ends, and the
@@ -352,6 +369,7 @@ impl Ctx {
                 .map_or_else(|| PathBuf::from(wsp_frames::READINGS_FOLDER), |dir| dir.join(wsp_frames::READINGS_FOLDER))
         });
         let history = Arc::new(readings_history::History::new(readings_dir, numbers::READINGS_KEPT_DAYS, numbers::READINGS_CAP_BYTES));
+        let hold_max = options.doors.as_ref().map_or(Duration::from_millis(numbers::PIPE_HOLD_MAX_MS), |doors| doors.hold_max);
         let sshd = Arc::new(ssh::Servers::new(
             options.ssh_programs.clone().unwrap_or_default(),
             Duration::from_millis(options.ssh_idle_ms.unwrap_or(numbers::SSH_IDLE_MS)),
@@ -385,6 +403,8 @@ impl Ctx {
             history,
             usage_logs: Arc::default(),
             computer_door: std::sync::OnceLock::new(),
+            pipes: Arc::new(pipe::Pipes::new(hold_max)),
+            doors: std::sync::OnceLock::new(),
         })
     }
 
@@ -607,6 +627,7 @@ impl Ctx {
 pub struct Daemon {
     listener: TcpListener,
     open_socket: Option<UnixListener>,
+    doors: Option<pipe::Bound>,
     ctx: Arc<Ctx>,
     terminated: tokio::signal::unix::Signal,
 }
@@ -641,7 +662,15 @@ impl Daemon {
         // The port the listener above actually bound, which is the one a workspace must not reach at its
         // gateway: the option may name zero and let the kernel pick.
         let daemon_port = listener.local_addr()?.port();
+        let doors = match options.doors.clone() {
+            Some(doors) if options.serves_doors() => Some(pipe::bind(doors).await),
+            _ => None,
+        };
         let ctx = Arc::new(Ctx::new(options, log, daemon_port)?);
+        // Only a bound HTTP door is named to an op's git: one that failed to bind may be another process's port.
+        if let Some(bound) = doors.as_ref().filter(|bound| bound.serves_http()) {
+            let _ = ctx.doors.set(bound.doors.clone());
+        }
         #[cfg(target_os = "linux")]
         if let Some(runtime) = &ctx.runtime {
             if let Err(e) = runtime.restore().await {
@@ -655,11 +684,16 @@ impl Daemon {
         }
         // Installed before the listening line goes out, since a SIGTERM landing mid-install is dropped, not acted on.
         let terminated = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-        Ok(Daemon { listener, open_socket, ctx, terminated })
+        Ok(Daemon { listener, open_socket, doors, ctx, terminated })
     }
 
     pub fn local_addr(&self) -> SocketAddr {
         self.listener.local_addr().expect("a bound listener has an address")
+    }
+
+    /// The HTTP door's address as bound, where this daemon serves one.
+    pub fn http_door(&self) -> Option<SocketAddr> {
+        self.doors.as_ref().filter(|bound| bound.serves_http()).map(|bound| bound.doors.http)
     }
 
     /// Accepts until a leave answered on the link ends the daemon; each socket gets its own task and its own door.
@@ -675,6 +709,9 @@ impl Daemon {
         }
         if let Some(open_socket) = self.open_socket {
             tokio::spawn(relay::serve_open_socket(open_socket, Arc::clone(&self.ctx)));
+        }
+        if let Some(doors) = self.doors {
+            pipe::serve(doors, &self.ctx);
         }
         tokio::spawn(auth::watch(Arc::clone(&self.ctx)));
         // The readings are kept whether or not anybody watches, off the same module a watch reads, at their own pace.
