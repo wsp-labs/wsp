@@ -251,9 +251,11 @@ export const NEWER_TURN_LINE = "a newer turn is running; the reply above is the 
  * 2026-09-27): the turn ran in a new session, which the thread so far was handed as its first message. */
 export const LOST_SESSION_NOTE = "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
 
+/** The words that open that new session's first message, which the harness may title the new session by. */
+const LOST_SESSION_HEAD = "Your earlier session for this thread was lost, so it continues here in a new one.";
+
 /** The first message of that new session: the thread so far, then the person's message as they sent it. */
-export const lostSessionPrompt = (thread: string, prompt: string): string =>
-  `Your earlier session for this thread was lost, so it continues here in a new one. The thread so far, oldest first:\n\n${thread}\n\nThe new message:\n\n${prompt}`;
+export const lostSessionPrompt = (thread: string, prompt: string): string => `${LOST_SESSION_HEAD} The thread so far, oldest first:\n\n${thread}\n\nThe new message:\n\n${prompt}`;
 
 /** Text cut to one line: its first non-empty line with the whitespace collapsed, so a multi-paragraph brief is one
  * row in the CLI's table and one line in the sidebar, and a heredoc of a command is one line of a turn's activity. */
@@ -303,10 +305,12 @@ export const openingCut = (kept: string): boolean => kept.length >= OPENING_KEPT
  * prompt in its title column, the block of attached paths included) and the thread is still asked for a name; any
  * other is the person's rename or the harness's own made name, and stands. The paths are the machine's and the row
  * keeps none, so a prompt with files is matched as the opening words and that block's head. A row whose opening was
- * cut holds only the head of what codex wrote, so a title that starts with that head is the seed too. */
+ * cut holds only the head of what codex wrote, so a title that starts with that head is the seed too, and so is one
+ * that opens with the words wsp hands a new session in place of one that was lost. */
 export function storedTitleSource(stored: string, opening: string | undefined): TitleSource {
-  if (opening === undefined) return "person";
   const title = stored.replace(/\s+/g, " ").trim();
+  if (title.startsWith(LOST_SESSION_HEAD)) return "seed";
+  if (opening === undefined) return "person";
   const words = opening.replace(/\s+/g, " ").trim();
   const handed = `${words} ${ATTACHED_FILES_HEAD}`;
   return title !== "" && (handed.startsWith(title) || title.startsWith(handed) || (openingCut(opening) && title.startsWith(words))) ? "seed" : "person";
