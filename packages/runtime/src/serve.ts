@@ -116,7 +116,8 @@ import {
 import type { DaemonChannel } from "./daemon-channel.js";
 import { NO_DEVICE_DOOR, safeEqual, threadOf, type DeviceDoor, type HeldDevice } from "./devices.js";
 import { NO_PLACE_DOOR, type PlaceDoor } from "./places.js";
-import { signInSocket } from "./sign-in-socket.js";
+import { isSignInOp, signInSocket } from "./sign-in-socket.js";
+import { answerBroker, isBrokerOp, type BrokerDoor } from "./serve-broker.js";
 import { sysSocket } from "./sys-socket.js";
 import { keyFingerprint, openFrame, verifyPlaceBytes, type Seal } from "@wsp/keys";
 import { startAt } from "./threads/answered-start.js";
@@ -180,6 +181,8 @@ export interface ServeOptions {
   /** Injectable clock for ticket-expiry tests. */
   now?: () => number;
   forwards?: ForwardsSource;
+  /** The host's broker ops; each one absent is refused. */
+  broker?: BrokerDoor;
   /** How a folder on this computer is read for project.plan and project.import; without it both are refused. */
   projects?: (source: string) => ProjectBundler;
   /** How a folder from a machine lands on this computer for project.export; without it the op is refused. */
@@ -563,7 +566,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
     /** The daemon links this socket holds open, by the id it was answered with. A channel is never reachable from
      * another socket, so a page cannot drive a machine by guessing an id another page was given. */
     const channels = new Map<string, DaemonChannel>();
-    const signInOps = signInSocket(rt.agents, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) });
+    const signInOps = signInSocket(rt.agents, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) }, opts.broker?.cloudSignIn);
     const sysOps = sysSocket(rt, { open: () => ws.readyState === ws.OPEN, detach: leave => void detaches.push(leave) });
     detaches.push(() => {
       for (const ch of channels.values()) ch.close();
@@ -876,6 +879,10 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
           if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
           if (isProcessesRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProcesses(rt, msg, origin)) });
           if (isConversationsRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerConversations(rt.conversations, msg, origin)) });
+          if (isBrokerOp(msg)) return void send({ id: msg.id, ok: true, ...(await answerBroker(opts.broker, msg, ownRoad())) });
+          // A sign-in on one of the person's computers is theirs alone, and its page and code go to the sockets following
+          // it and to no other: they are what finishes that login.
+          if (isSignInOp(msg)) return void (refusedOffOwnRoad() || (await signInOps(msg, send, origin)));
           switch (msg.op) {
             case "auth":
               send({ id: msg.id, ok: true, ...released });
@@ -1724,16 +1731,6 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
               // Google is asked by this host for the person's own windows alone: a ticket or a device draws the glyph.
               if (refusedOffOwnRoad()) return;
               send({ id: msg.id, ok: true, icon: await rt.agents.serversIcon(msg.host, msg.refresh) });
-              return;
-            case "agents.signIn":
-            case "servers.signIn":
-            case "agents.signIns":
-            case "agents.signInCode":
-            case "agents.signInStop":
-              // A sign-in on one of the person's computers is theirs alone, and its page and code go to the sockets
-              // following it and to no other: they are what finishes that login.
-              if (refusedOffOwnRoad()) return;
-              await signInOps(msg, send, origin);
               return;
             case "agents.signInLine":
               // It carries paths and commands only, and only the host's own command line runs one.
