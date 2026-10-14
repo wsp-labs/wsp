@@ -690,7 +690,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
             ({ images, dir: imagesDir } = await ctx.landImages(entry, adapter.attachments, landing, turnImagesDir(landing, threadId, o.requestId, minted), (o.attachments ?? []).filter(a => isImage(a.mediaType))));
             filePaths = await ctx.landFiles(entry, landing, sendFilesDir(landing, threadId, o.requestId, minted), (o.attachments ?? []).filter(a => !isImage(a.mediaType)));
             if (filePaths.length > 0) filesFolder = landing;
-            launchServers = await ctx.launchServersFor(entry, harness, adapter, landing);
+            if (adapter.mcpServers === true || adapter.deniesServers === true) launchServers = await ctx.launchServersFor(entry, harness, adapter, landing);
             // A fork's session is readied now, on the source's computer: a copy this turn resumes, or the turn the
             // start forks itself.
             if (plan !== undefined) {
