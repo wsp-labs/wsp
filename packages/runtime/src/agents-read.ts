@@ -31,8 +31,9 @@ export type AgentsOn =
   /** `relayed`: this host forwards that computer's sign-in callback port from this computer. `setupRows`: every row
    * the computer's last setup came to, which says the agents it installed there. */
   | { kind: "box"; name?: string; machine: Pick<Machine, "exec">; login: { HOME?: string; PATH?: string }; signIns?: Record<string, AgentSignInState>; versions?: Record<string, string>; setupRows?: readonly PlaceProvisionRow[]; logins?: string; relayed?: boolean; projects?: readonly AgentsProject[]; stores?: Readonly<Record<string, string>> }
-  /** `relayed`: this host forwards the workspace's sign-in callback port from this computer. */
-  | { kind: "machine"; machine: Pick<Machine, "exec" | "id" | "putBytes" | "uploadUrl">; projects?: readonly AgentsProject[]; relayed?: boolean; stores?: Readonly<Record<string, string>> };
+  /** `relayed`: this host forwards the workspace's sign-in callback port from this computer. `brokered`: the host keeps
+   * the machine's credentials, so nothing signs in on it. */
+  | { kind: "machine"; machine: Pick<Machine, "exec" | "id" | "putBytes" | "uploadUrl">; projects?: readonly AgentsProject[]; relayed?: boolean; brokered?: boolean; stores?: Readonly<Record<string, string>> };
 
 /** The one project's folder an act there works in: the project its target named, or the workspace's own. */
 export const projectOf = (on: AgentsOn): string | undefined => (on.projects?.length === 1 ? on.projects[0]!.path : undefined);
@@ -187,6 +188,8 @@ export interface AgentsWorkspace {
   project: AgentsProject;
   /** The folder each agent's store variable names for a thread there, by agent id. */
   stores?: Readonly<Record<string, string>>;
+  /** It runs at a provider, whose machines the host keeps the credentials of. */
+  brokered?: boolean;
 }
 
 export interface AgentsReadOptions<Caller> {
@@ -403,7 +406,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
     const ws = await o.workspace(target.workspaceId, origin);
     if (ws.phase === "napping") return { napping: ws.name };
     const here = ws.local ? await o.storesHere?.().catch(() => undefined) : undefined;
-    return ws.local ? { kind: "here", projects: [ws.project], ...storesOn(here) } : { kind: "machine", machine: ws.machine, projects: [ws.project], ...(o.relayed?.() === true ? { relayed: true } : {}), ...(ws.stores !== undefined ? { stores: ws.stores } : {}) };
+    return ws.local ? { kind: "here", projects: [ws.project], ...storesOn(here) } : { kind: "machine", machine: ws.machine, projects: [ws.project], ...(o.relayed?.() === true ? { relayed: true } : {}), ...(ws.brokered === true ? { brokered: true } : {}), ...(ws.stores !== undefined ? { stores: ws.stores } : {}) };
   };
   /** gh's login on a computer runs only where gh is, and the setup puts none there for a GitHub row set aside: the app's
    * sign-in and the command line's line both put it on here first. `installing` is told only once an install starts;

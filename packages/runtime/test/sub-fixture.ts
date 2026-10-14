@@ -49,9 +49,9 @@ export const TRIAL_SIZES: SubSize[] = PAID_SIZES.filter(s => TRIAL.sizes.include
 /** The setup image on Boat: v1, its sign-ins as the seal recorded them, and the agents its recipe carries. */
 async function sealImage(store: Store, o: { logins?: { name: string; state: "copied" | "signed-in" | "skipped" }[]; agents?: string[] } = {}): Promise<void> {
   const logins = o.logins ?? [{ name: "GitHub CLI login", state: "copied" }];
-  await store.put("goldens", copyKey("box", "default"), { head: 1, versions: [{ version: 1, snapshotId: "wsp-host-default-v1", baseTemplate: "base", setupSha: "abc", createdAt: "2026-10-07T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins }] });
+  await store.put("goldens", copyKey("box", "default"), { head: 1, versions: [{ version: 1, snapshotId: "wsp-host-default-v1", baseTemplate: "base", setupSha: "abc", createdAt: "2026-10-07T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins, noSecrets: true }] });
   const rows = (o.agents ?? ["claude", "codex"]).map(id => ({ id, kind: "agent" as const, on: true, source: { kind: "used" as const, sessions: 1, calls: 1 } }));
-  await store.put("images", "default", { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", recipe: { version: 1, at: "2026-10-07T00:00:00.000Z", histories: [], rows }, pins: [], logins, sealedAt: "2026-10-07T00:00:00.000Z", sealedFrom: "mac", place: "box" });
+  await store.put("images", "default", { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", recipe: { version: 1, at: "2026-10-07T00:00:00.000Z", histories: [], rows }, pins: [], logins, sealedAt: "2026-10-07T00:00:00.000Z", sealedFrom: "mac", noSecrets: true, place: "box" });
 }
 
 /** What the lead's folder reads as through its daemon: on a branch, tracked and level with its upstream unless told. */

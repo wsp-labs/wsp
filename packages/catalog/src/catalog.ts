@@ -351,10 +351,10 @@ export function harnessLine(agentId: string, line: string, at: { stores?: Readon
 }
 
 /** How one server in that agent's config is signed in where it stands, off the agent's own module; nothing for an
- * agent with none. */
-export function serverSignInRoad(agentId: string, name: string, reach: PageReach): ServerSignInRoad | undefined {
+ * agent with none. `brokered`: it stands on a machine whose credentials the host keeps, which refuses it. */
+export function serverSignInRoad(agentId: string, name: string, reach: PageReach, brokered = false): ServerSignInRoad | undefined {
   const login = MCP_AGENTS.find(a => a.id === agentId)?.mcp.login;
-  return login === undefined ? undefined : loginRoad(login, name, reach);
+  return login === undefined ? undefined : loginRoad(login, name, reach, brokered);
 }
 
 const BY_ID: ReadonlyMap<string, CatalogEntry> = new Map(CATALOG.map(e => [e.id, e]));

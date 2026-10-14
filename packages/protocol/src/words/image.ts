@@ -8,9 +8,16 @@ import { CLOUD_SETUP_WORDS, GOLDEN_STAGE_WORDS, initStoppedLine, SAVING_IMAGE_LI
 
 /** What a record with no vault says: its copies ask for every sign-in again until the next version holds them. */
 export const IMAGE_NO_VAULT = "no sign-ins held; cut the next version to hold them";
-/** Whether a copy of this record asks for every sign-in again: it was sealed holding none. The refusal that wants
- * force and the card that offers to copy it anyway read this one rule. */
-export const copyAsksSignIns = (image: Pick<SealedImage, "vault">): boolean => image.vault === undefined;
+/** What a record sealed at a provider says: it holds no sign-in by design, so there is nothing to cut again for. */
+export const IMAGE_NO_SECRETS = "no sign-ins on it";
+/** Whether a copy of this record asks for every sign-in again: it was sealed holding none, and not at a provider,
+ * whose seal holds none by design. The refusal that wants force and the card that offers to copy it anyway read
+ * this one rule. */
+export const copyAsksSignIns = (image: Pick<SealedImage, "vault" | "noSecrets">): boolean => image.vault === undefined && image.noSecrets !== true;
+/** Why a fork at a provider is refused: the image was sealed before a provider's seal refused every sign-in, so its
+ * disk may still hold them. imageRebuildFix is what to do. */
+export const imageHeldSignInsLine = (where: string): string => `Your image on ${where} was sealed with sign-ins on it`;
+export const imageRebuildFix = (place: string): string => `Rebuild it: wsp init --on ${place} --rebuild.`;
 /** What to do about each refusal a copy build meets before anything boots: said after it on a terminal, and in the
  * fix ink beside the Image card's press in the app. Only the no-sign-ins one names a flag: the card sends force on
  * such a record before the host could refuse it, so that fix is read on a terminal alone. */
@@ -49,7 +56,7 @@ export function sealedLoginsHeld(image: Pick<SealedImage, "logins">): number {
 
 /** The record in one line: the version, its hash, how many sign-ins it holds and what its disk came to. */
 export function sealedImageLine(image: SealedImage): string {
-  const held = image.vault === undefined ? IMAGE_NO_VAULT : `${plural(sealedLoginsHeld(image), "sign-in")} held, ${plural(image.vault.paths, "path")}`;
+  const held = image.noSecrets === true ? IMAGE_NO_SECRETS : image.vault === undefined ? IMAGE_NO_VAULT : `${plural(sealedLoginsHeld(image), "sign-in")} held, ${plural(image.vault.paths, "path")}`;
   const size = image.usedBytes === undefined ? [] : [fmtBytes(image.usedBytes)];
   return [`${image.name} v${image.version}`, image.hash, held, ...size, `sealed on ${image.sealedFrom}`].join("  ");
 }
@@ -81,11 +88,11 @@ export const COPY_CURRENT = "current";
 export const COPY_STALE = "stale";
 
 /** How a copy stands against the record, as the one word a person reads: current when it was built from the record
- * as it is now, stale when it was built from an older one. Nothing at all where the record holds no vault: such a
- * record was read back off its own copies rather than written at a seal, so it has nothing to judge them by. The
- * one home for the word and for that gate; `wsp image` and Settings > Image both read it. */
-export function copyStanding(image: Pick<SealedImage, "hash" | "vault">, copy: Pick<SealedImageCopy, "hash">): string | undefined {
-  if (image.vault === undefined) return undefined;
+ * as it is now, stale when it was built from an older one. Nothing at all where the record holds no vault and was not
+ * sealed at a provider: such a record was read back off its own copies rather than written at a seal, so it has
+ * nothing to judge them by. The one home for the word and for that gate; `wsp image` and Settings > Image both read it. */
+export function copyStanding(image: Pick<SealedImage, "hash" | "vault" | "noSecrets">, copy: Pick<SealedImageCopy, "hash">): string | undefined {
+  if (image.vault === undefined && image.noSecrets !== true) return undefined;
   return copyIsCurrent(image, copy) ? COPY_CURRENT : COPY_STALE;
 }
 
