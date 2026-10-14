@@ -73,6 +73,7 @@ import {
   GUEST_DAEMON_SOCKET_PATH,
   BROKER_PORT,
   BROKER_SOCKET_PATH,
+  GUEST_SOCKET_DIR,
   PIPE_POOL_MAX,
   PIPE_HOLD_MAX_MS,
   GUEST_INBOX_DIR,
@@ -1079,21 +1080,25 @@ describe("the words and numbers are what this package exports", () => {
     // A workspace on a computer somebody joined has this folder of its own bound over the computer's, so a path
     // that slipped out of it would be written into a /root every workspace there shares: the second workspace's
     // deploy would rewrite the first one's token.
-    for (const path of [DAEMON_TOKEN_PATH, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, OPEN_SOCKET_PATH, DAEMON_ROOTS_PATH, GUEST_DAEMON_SOCKET_PATH]) {
+    for (const path of [DAEMON_TOKEN_PATH, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, DAEMON_ROOTS_PATH, GUEST_DAEMON_SOCKET_PATH]) {
       expect(path.startsWith(`${GUEST_WSP_HOME}/`), path).toBe(true);
     }
     // And they are the names a daemon uses under the home of a computer somebody joined: one daemon, one rule.
     const at = placeDaemonPaths("/root");
-    expect({ wsp: at.wsp, token: at.tokenPath, inbox: at.inbox, manifest: at.manifestPath, socket: at.openSocket, roots: at.rootsPath }).toEqual({
+    expect({ wsp: at.wsp, token: at.tokenPath, inbox: at.inbox, manifest: at.manifestPath, roots: at.rootsPath }).toEqual({
       wsp: GUEST_WSP_HOME,
       token: DAEMON_TOKEN_PATH,
       inbox: GUEST_INBOX_DIR,
       manifest: GUEST_MANIFEST_PATH,
-      socket: OPEN_SOCKET_PATH,
       roots: DAEMON_ROOTS_PATH,
     });
     // The binary the host deploys is not one of them: it is the host's to land and sits beside the folder.
     expect(GUEST_DAEMON_DIR.startsWith(GUEST_WSP_HOME)).toBe(false);
+  });
+
+  it("serves a provider's machine's sockets from under /run, since Boat mounts /root over the one they were bound in", () => {
+    for (const path of [OPEN_SOCKET_PATH, BROKER_SOCKET_PATH]) expect(path.startsWith(`${GUEST_SOCKET_DIR}/`), path).toBe(true);
+    expect(GUEST_SOCKET_DIR.startsWith("/run/")).toBe(true);
   });
 
   it("reads a process's thread out of the variable a turn's launch names it in", () => {

@@ -257,7 +257,7 @@ describe("root over a login whose sudo asks for a password, for a remove and an 
   it("says an undo on a box whose sudo asks for a password stays undone, with the line to run there", async () => {
     const transport: SshTransport = async () => ({ exitCode: 1, stdout: "", stderr: "sudo: a password is required\n" });
     await expect(placeUndoer({ transport, hostKey: async () => KEPT })(login, "true")).rejects.toThrow(placeUndoNeedsSudoLine("maya@box"));
-    expect(placeUndoNeedsSudoLine("maya@box")).toContain("log in there and run wsp leave");
+    expect(placeUndoNeedsSudoLine("maya@box")).toContain("log in there and run sudo -i wsp leave");
   });
 
   it("runs an undo only on the box that answers with the key the add saw, and nothing where it kept none", async () => {

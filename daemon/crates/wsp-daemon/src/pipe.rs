@@ -31,7 +31,7 @@ use crate::{Ctx, Outbound, Outgoing};
 const GONE_EVERY: Duration = Duration::from_secs(1);
 /// The most of a local connection's bytes one binary frame carries.
 const CHUNK_BYTES: usize = 64 * 1024;
-/// The gh configuration folder beside the gh door, `/root/.wsp/gh` on a machine: the daemon's own gh and every
+/// The gh configuration folder beside the gh door, `/run/wsp-daemon/gh` on a machine: the daemon's own gh and every
 /// turn's and terminal's gh run with it, and a turn's launch writes the same file.
 const GH_CONFIG: &str = "gh";
 

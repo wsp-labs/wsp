@@ -66,8 +66,8 @@ describe("the credential contracts", () => {
     }
   });
 
-  it("the gate is the daemon this tree ships until the landing pins it", () => {
-    expect(PIPE_DAEMON_VERSION).toBe(DAEMON_VERSION);
+  it("the gate is a daemon this tree ships or one before it", () => {
+    expect(PIPE_DAEMON_VERSION).toBeLessThanOrEqual(DAEMON_VERSION);
   });
 
   it("the three runtime ops parse, none on a thread's token, and only broker.status on a paired device", () => {
