@@ -22,7 +22,7 @@
 // handed to a server is hidden in what it says back.
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
-import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, needsOwnCredential, valueForms, type McpAgent, type McpCheckWord, type McpTransport, type TurnServer } from "@wsp/catalog";
+import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpServer, type McpTransport, type TurnServer } from "@wsp/catalog";
 import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, tilde, type Host } from "@wsp/collect";
 import { SERVER_NOT_SET_UP, SERVER_OFF, type McpSignIn, type ServerToolsAsk } from "@wsp/runtime";
 import { cloudServerOffLine, lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type HttpBearer, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
@@ -51,7 +51,7 @@ const ERR_CAP = 64 * 1024;
 const DRAIN_POLLS = 20;
 const PROTOCOL_VERSION = "2025-06-18";
 
-const INITIALIZE = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } } });
+export const INITIALIZE = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } } });
 const INITIALIZED = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
 const TOOLS_LIST = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 
@@ -346,6 +346,13 @@ async function untrustedServer(host: Host, agent: McpAgent, name: string, projec
   return undefined;
 }
 
+/** One server of an agent's config there as its file defines it, the one a turn in `project` starts; nothing where none
+ * goes by the name. */
+export async function serverConfig(host: Host, agentId: string, name: string, project: string | undefined): Promise<McpServer | undefined> {
+  const agent = MCP_AGENTS.find(a => a.id === agentId);
+  return agent === undefined ? undefined : (await findServer(host, agent, name, project))?.server;
+}
+
 export const unsetReferenceRefusal = (name: string): string => `its config reads ${name}, which has no value there`;
 export const noSuchServerRefusal = (name: string, agent: string): string => `no MCP server called ${name} is in ${agent}'s config there; wsp servers lists them`;
 export const noMcpAgentRefusal = (agent: string): string => `${agent} is no agent whose MCP config wsp reads; one of ${MCP_AGENT_IDS}`;
@@ -367,11 +374,12 @@ async function readServer(host: Host, agentId: string, name: string, o: { projec
 }
 
 /** One server for a client that keeps it running: a slate's tool and resource runs, which a switched-off server
- * refuses, and on a cloud machine (`brokered`) one that needs the person's sign-in or key. Listing its tools does not. */
-export async function resolveServer(host: Host, agentId: string, name: string, o: { project?: string; values?: Readonly<Record<string, string>>; brokered?: boolean }): Promise<{ transport: McpTransport; cwd: string; secrets: string[] }> {
+ * refuses, and one `off` answers true for: on a cloud machine, one that needs the person's sign-in or key. Listing its
+ * tools does not. */
+export async function resolveServer(host: Host, agentId: string, name: string, o: { project?: string; values?: Readonly<Record<string, string>>; off?: (server: McpServer) => Promise<boolean> }): Promise<{ transport: McpTransport; cwd: string; secrets: string[] }> {
   const read = await readServer(host, agentId, name, o);
   if (read.found.server.disabled === true) throw new Error(`${name} is switched off in ${read.agent.name}'s config`);
-  if (o.brokered === true && needsOwnCredential(read.found.server)) throw Object.assign(new Error(cloudServerOffLine(name)), { code: SERVER_OFF });
+  if (o.off !== undefined && (await o.off(read.found.server))) throw Object.assign(new Error(cloudServerOffLine(name)), { code: SERVER_OFF });
   if ("missing" in read) throw new Error(unsetReferenceRefusal(read.missing));
   const t = read.transport;
   return { transport: t, cwd: t.kind === "stdio" ? (t.cwd ?? read.cwd) : read.cwd, secrets: read.secrets };

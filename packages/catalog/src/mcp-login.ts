@@ -41,11 +41,25 @@ export type ServerSignInRoad = { kind: "pty"; command: string; finish: "code" | 
 export const brokeredServerSignInLine = (name: string): string => `A cloud machine holds no sign-in, so ${name} cannot be signed in on it`;
 export const BROKERED_SERVER_SIGN_IN_FIX = "Cloud threads run without its tools; sign it in on your own computer for the threads there.";
 
-/** Whether a server needs a sign-in or a key of the person's, which a cloud machine never holds: an address with no
- * header, which its agent signs in, a header the copy to a cloud machine blanked, or a variable it reads, which a
- * cloud turn is never handed. */
-export const needsOwnCredential = (s: McpServer): boolean =>
-  s.envRefs.length > 0 || (s.transport.kind === "http" && (Object.keys(s.transport.headers).length === 0 || Object.values(s.transport.headers).some(v => v.replace(/^\s*(Bearer|Basic|Token)\b/i, "").trim() === "")));
+/** A variable a command server's env value reads, in Claude Code's `${NAME}` or OpenCode's `{env:NAME}`; one with a
+ * default after `:-` runs without it. */
+const ENV_READ = /\$\{[A-Za-z_]\w*\}|\{env:[A-Za-z_]\w*\}/;
+
+/** Whether a server needs a sign-in or a key of the person's, which a cloud machine never holds: a header the copy to a
+ * cloud machine blanked, a variable it reads, which a cloud turn is never handed, or an address with no header that
+ * asks for a sign-in, as `signsIn` says this host's one unsigned initialize to it answered (true on 401 or 403). An
+ * address nobody has asked yet stays on, as one that needs nothing does. */
+export const needsOwnCredential = (s: McpServer, signsIn: (url: string) => boolean | undefined): boolean => {
+  if (s.envRefs.length > 0) return true;
+  if (s.transport.kind === "stdio") return Object.values(s.transport.env).some(v => ENV_READ.test(v));
+  const headers = Object.values(s.transport.headers);
+  return headers.length === 0 ? signsIn(s.transport.url) === true : headers.some(v => v.replace(/^\s*(Bearer|Basic|Token)\b/i, "").trim() === "");
+};
+
+/** The addresses of `servers` whose sign-in only an unsigned initialize can tell: reached with no header and reading no
+ * variable. */
+export const addressesToAsk = (servers: readonly McpServer[]): string[] =>
+  [...new Set(servers.flatMap(s => (s.transport.kind === "http" && s.envRefs.length === 0 && Object.keys(s.transport.headers).length === 0 ? [s.transport.url] : [])))];
 
 /** The road for one server under this harness's module; refused on a machine whose credentials the host keeps. */
 export function loginRoad(login: McpLogin, name: string, reach: PageReach, brokered = false): ServerSignInRoad {

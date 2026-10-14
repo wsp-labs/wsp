@@ -7,13 +7,14 @@
 // state is what its tools connect answers, asked apart from the read.
 import { userInfo } from "node:os";
 import { posix } from "node:path";
-import { CATALOG_AGENTS, MCP_AGENTS, TOOL_PREFIX, installsOnFirstRun, needsOwnCredential, serverValuesOf, harnessLine, signInRoadOf, versionOf, type AgentEntry, type McpAgent, type McpServer, type TurnServer } from "@wsp/catalog";
+import { CATALOG_AGENTS, MCP_AGENTS, TOOL_PREFIX, addressesToAsk, installsOnFirstRun, needsOwnCredential, serverValuesOf, harnessLine, signInRoadOf, versionOf, type AgentEntry, type McpAgent, type McpServer, type TurnServer } from "@wsp/catalog";
 import { detectPlugins, detectSkills, nodeHost, readCheckout, readTurnServers, skillRoots, stdioLine, tilde, type Host } from "@wsp/collect";
 import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLogin, type TargetLogin } from "@wsp/engine";
 import { MCP_SERVER_NAME, agentVersionWord, cloudServerOffLine, compareVersions, controlNameRefusal, hasControlChar, shellQuote, strictVersion, takesMcpServers, type AgentRow, type AgentSignInState, type AgentsProject, type McpRow, type PlaceProvisionRow } from "@wsp/protocol";
 import { GUEST_WSP_MCP, harnessCatalog, projectOf, vaultSignIn, type AgentsOn, type AgentsRead, type AgentsReader } from "@wsp/runtime";
 import { machineHost, type MachineHost } from "./machine-host.js";
-import { bearerIn, resolveServer, serverTools, signInOf } from "./server-tools.js";
+import { bearerIn, resolveServer, serverConfig, serverTools, signInOf } from "./server-tools.js";
+import { signInProbes, type SignInProbes } from "./sign-in-probe.js";
 
 const READ_MS = 20_000;
 /** How long one agent's own version or status command is given where the computer has a timeout command. */
@@ -106,9 +107,10 @@ interface Servers {
 
 /** Every server a turn of each agent gets at home, and in each project the read covers, by the catalog's one
  * resolver: the user scope and the home folder's own once, and each project's local and project servers under it. On
- * a cloud machine (`brokered`) nothing signs in, and a server that needs the person's sign-in or key is off. */
-async function serversOf(host: Host, projects: readonly AgentsProject[], held: ReadonlySet<string>, brokered: boolean): Promise<Servers> {
-  const rows: McpRow[] = [];
+ * a cloud machine (`brokered`, the probes that say which addresses ask for a sign-in) nothing signs in, and a server
+ * that needs the person's sign-in or key is off. */
+async function serversOf(host: Host, projects: readonly AgentsProject[], held: ReadonlySet<string>, brokered: SignInProbes | undefined): Promise<Servers> {
+  const found: { row: McpRow; server: McpServer }[] = [];
   const wsp = new Set<string>();
   const refused: string[] = [];
   const push = (agent: McpAgent, servers: readonly TurnServer[], project?: AgentsProject): void => {
@@ -120,7 +122,7 @@ async function serversOf(host: Host, projects: readonly AgentsProject[], held: R
       }
       if (project === undefined && s.name === MCP_SERVER_NAME) wsp.add(agent.id);
       const login = agent.mcp.login;
-      const signInLine = !brokered && login !== undefined && "command" in login ? harnessLine(agent.id, login.command(s.name), { stores: host.stores, folder: project?.path }) : undefined;
+      const signInLine = brokered === undefined && login !== undefined && "command" in login ? harnessLine(agent.id, login.command(s.name), { stores: host.stores, folder: project?.path }) : undefined;
       const row: McpRow = {
         agent: agent.id,
         name: s.name,
@@ -132,9 +134,8 @@ async function serversOf(host: Host, projects: readonly AgentsProject[], held: R
         enabled: s.disabled !== true,
         ...(project !== undefined ? { project: { ...project, path: tilde(host.home, project.path) } } : {}),
         ...(signInLine !== undefined ? { signInLine } : {}),
-        ...(brokered && needsOwnCredential(s) ? { off: cloudServerOffLine(s.name) } : {}),
       };
-      rows.push(row);
+      found.push({ row, server: s });
     }
   };
   // One read of each project's checkout, which every agent's servers there are keyed by.
@@ -146,6 +147,8 @@ async function serversOf(host: Host, projects: readonly AgentsProject[], held: R
       theirs.forEach((servers, i) => push(agent, servers.filter(s => s.scope !== "user"), projects[i]));
     }),
   );
+  if (brokered !== undefined) await brokered.ask(addressesToAsk(found.map(f => f.server)));
+  const rows = found.map(({ row, server }) => (brokered !== undefined && needsOwnCredential(server, brokered.known) ? { ...row, off: cloudServerOffLine(row.name) } : row));
   return { rows: rows.sort((a, b) => byAgent(a, b) || a.scope.localeCompare(b.scope) || (a.project?.name ?? "").localeCompare(b.project?.name ?? "") || a.name.localeCompare(b.name)), wsp, refused };
 }
 
@@ -192,8 +195,9 @@ interface BoxSaid {
 /** The report off one Host. `box` carries what a computer you joined reported, which stands in for the version
  * and sign-in reads; everywhere else each agent's own version flag and status command answer, run side by side.
  * `launched` is a target whose turns are launched with the wsp server: any but this computer, where a session the
- * person starts outside wsp reads only the config. `brokered` is a machine whose credentials the host keeps. */
-export async function readAgents(host: Host, o: { user: string; vault: Readonly<Record<string, string>>; projects?: readonly AgentsProject[]; box?: BoxSaid; launched?: boolean; brokered?: boolean; pluginStores?: Readonly<Record<string, string>> }): Promise<AgentsRead> {
+ * person starts outside wsp reads only the config. `brokered` is a machine whose credentials the host keeps, with the
+ * probes that say which addresses ask for a sign-in. */
+export async function readAgents(host: Host, o: { user: string; vault: Readonly<Record<string, string>>; projects?: readonly AgentsProject[]; box?: BoxSaid; launched?: boolean; brokered?: SignInProbes; pluginStores?: Readonly<Record<string, string>> }): Promise<AgentsRead> {
   const projects = o.projects ?? [];
   const refused: string[] = [];
   const agents: readonly AgentEntry[] = CATALOG_AGENTS;
@@ -203,7 +207,7 @@ export async function readAgents(host: Host, o: { user: string; vault: Readonly<
   const plugins = detectPlugins(withStores(host, o.pluginStores), { projects });
   const [where, servers, found, skills, recipe] = await Promise.all([
     host.exec.run("sh", ["-c", WHERE, "sh", ...agents.map(a => a.bin)], { timeoutMs: READ_MS }),
-    serversOf(host, projects, new Set(Object.keys(o.vault)), o.brokered === true),
+    serversOf(host, projects, new Set(Object.keys(o.vault)), o.brokered),
     plugins,
     plugins.then(p => skillRoots(host, { projects, plugins: p.agents })).then(roots => detectSkills(host, roots)),
     o.box !== undefined ? recipeServers(host) : Promise.resolve(undefined),
@@ -301,7 +305,16 @@ export function agentsReader(o: {
   /** By agent id, the text of the store that agent keeps its http servers' sign-ins in on this computer, read at each
    * call; an agent with none sends no bearer from here. */
   signInStores?: Readonly<Record<string, () => Promise<string | undefined>>>;
+  /** What says which remote addresses with no header ask for a sign-in; one asking from this host without it. */
+  probes?: SignInProbes;
 }): AgentsReader & { forget(key: string): void; close(): void } {
+  const probes = o.probes ?? signInProbes();
+  const brokeredOn = (on: AgentsOn): boolean => on.kind === "machine" && on.brokered === true;
+  /** Whether a server is off on a cloud machine, its address asked first where only the probe can tell. */
+  const offOnCloud = async (s: McpServer): Promise<boolean> => {
+    await probes.ask(addressesToAsk([s]));
+    return needsOwnCredential(s, probes.known);
+  };
   const kept = serverTools({ now: o.now ?? Date.now, log: o.log ?? (line => console.warn(line)), ...(o.toolsMs !== undefined ? { deadlineMs: o.toolsMs } : {}) });
   const closing = new AbortController();
   const refuseClosed = (): void => {
@@ -323,7 +336,7 @@ export function agentsReader(o: {
     }
     const { host, user, runAs } = await hostOf(on);
     const box = on.kind === "box" ? { ...(on.signIns !== undefined ? { signIns: on.signIns } : {}), ...(on.versions !== undefined ? { versions: on.versions } : {}), ...(on.setupRows !== undefined ? { setupRows: on.setupRows } : {}) } : undefined;
-    const read = await readAgents(host, { user, vault: o.vault(), launched: true, ...(on.kind === "machine" && on.brokered === true ? { brokered: true } : {}), ...(on.projects !== undefined ? { projects: on.projects } : {}), ...(box !== undefined ? { box } : {}) });
+    const read = await readAgents(host, { user, vault: o.vault(), launched: true, ...(brokeredOn(on) ? { brokered: probes } : {}), ...(on.projects !== undefined ? { projects: on.projects } : {}), ...(box !== undefined ? { box } : {}) });
     return { ...read, refused: [...read.refused, ...host.refused], ...(runAs !== undefined ? { runAs } : {}) };
   };
   return {
@@ -346,6 +359,10 @@ export function agentsReader(o: {
       refuseClosed();
       const host = on.kind === "here" ? here() : (await hostOf(on)).host;
       const project = projectOf(on);
+      if (brokeredOn(on)) {
+        const s = await serverConfig(host, ask.agent, ask.name, project);
+        if (s !== undefined && (await offOnCloud(s))) return { auth: "unknown", refused: cloudServerOffLine(ask.name), readAt: new Date((o.now ?? Date.now)()).toISOString() };
+      }
       const env = on.kind === "here" ? await o.loginEnv?.() : undefined;
       // A turn's servers get the vault's values, in its launch or its environment, so a reference reads them here too.
       const values = { ...serverValuesOf(o.vault()), ...env };
@@ -358,7 +375,7 @@ export function agentsReader(o: {
         // A turn there gets the vault's values; nothing of this computer's login or its files is read for it.
         const { host, login } = await hostOf(on);
         const values = serverValuesOf(o.vault());
-        const found = await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}), ...(on.kind === "machine" && on.brokered === true ? { brokered: true } : {}) });
+        const found = await resolveServer(host, ask.agent, ask.name, { values, ...(project !== undefined ? { project } : {}), ...(brokeredOn(on) ? { off: offOnCloud } : {}) });
         const signIn = signInOf(host, ask.agent, ask.name, found.transport, found.cwd);
         return { ...found, env: values, login, ...(signIn !== undefined ? { signIn } : {}) };
       }
@@ -372,6 +389,11 @@ export function agentsReader(o: {
       const store = o.signInStores?.[ask.agent];
       if (signIn === undefined || store === undefined) return { ...found, env: base };
       return { ...found, env: base, signIn: { ...signIn, read: async () => bearerIn(await store(), signIn.bearer) } };
+    },
+    signsIn: url => {
+      const known = probes.known(url);
+      if (known === undefined) void probes.ask([url]);
+      return known;
     },
     forget: key => kept.forget(key),
     close: () => closing.abort(),

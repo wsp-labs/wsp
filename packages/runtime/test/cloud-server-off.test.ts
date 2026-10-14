@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { MCP_READ_END, MCP_READ_MARK, type MachineBackend } from "@wsp/engine";
 import { cloudServerOffLine, type Caller, type TurnResult } from "@wsp/protocol";
-import { SERVER_NOT_SET_UP, SERVER_OFF, type AgentsOn, type AgentsReader } from "../src/agents-read.js";
+import { SERVER_NOT_SET_UP, SERVER_OFF, type AgentsOn, type AgentsReader, type ServersActs } from "../src/agents-read.js";
 import { createRuntime, type HarnessAdapterFactory, type HarnessStartOptions, type PlaceBackends, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { memoryStore } from "../src/store.js";
@@ -37,9 +37,9 @@ const quietHarness = (starts: HarnessStartOptions[] = [], denies = false): Harne
   },
 });
 
-/** Claude Code's own file on the machine: cloudflare signs in with its agent, linear sends a fixed header, stub runs a
- * command. */
-const CLAUDE_JSON = JSON.stringify({ mcpServers: { cloudflare: { type: "http", url: "https://mcp.cloudflare.com/mcp" }, linear: { type: "http", url: "https://mcp.linear.app/mcp", headers: { "X-Client": "acme" } }, stub: { command: "node", args: ["s.js"] } } });
+/** Claude Code's own file on the machine: cloudflare signs in with its agent, context7 needs nothing, linear sends a
+ * fixed header, stub runs a command. */
+const CLAUDE_JSON = JSON.stringify({ mcpServers: { cloudflare: { type: "http", url: "https://mcp.cloudflare.com/mcp" }, context7: { type: "http", url: "https://mcp.context7.com/mcp" }, linear: { type: "http", url: "https://mcp.linear.app/mcp", headers: { "X-Client": "acme" } }, stub: { command: "node", args: ["s.js"] } } });
 /** What the config read prints with that file as its first scope's, and no other scope's file there. */
 const configRead = (): string => `${MCP_READ_MARK} 0 0 ${Buffer.from(CLAUDE_JSON).toString("base64")}\n${MCP_READ_END}\n`;
 
@@ -84,8 +84,16 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     expect(asked.every(on => on.kind === "machine" && on.brokered === true)).toBe(true);
   }, 40_000);
 
-  it("a turn's launch there leaves out each server the machine's config names that needs the person's sign-in, read off that config", async () => {
+  it("a turn's launch there leaves out each server the machine's config names that needs the person's sign-in, read off that config once per machine", async () => {
     const starts: HarnessStartOptions[] = [];
+    // The host's probe as it stands: cloudflare answered 401, context7 answered, and nothing else has been asked.
+    const asked: string[] = [];
+    const agentsReader: AgentsReader = {
+      read: () => Promise.reject(new Error("not read here")),
+      tools: () => Promise.reject(new Error("not asked here")),
+      signsIn: url => (asked.push(url), url.includes("cloudflare") ? true : url.includes("context7") ? false : undefined),
+    };
+    const serversActs: ServersActs = { add: async () => ({ file: "~/.claude.json" }), remove: async () => ({ file: "~/.claude.json" }), toggle: async () => ({ file: "~/.claude.json" }) };
     const reads: string[] = [];
     let readFails = false;
     const solari = stubBackend();
@@ -94,19 +102,30 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
       const answer = backend.execImpl;
       backend.execImpl = (m, cmd, stdin) => (cmd.includes("wsp_mcp_read") ? (reads.push(cmd), readFails ? { exitCode: 1, stdout: "", stderr: "read failed" } : { exitCode: 0, stdout: configRead(), stderr: "" }) : answer(m, cmd, stdin));
     }
-    rt = createRuntime({ backend: solari, store: memoryStore(), adapters: { claude: quietHarness(starts, true) }, places: twoProviders("solari", { solari, boat }), placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }) });
+    rt = createRuntime({ backend: solari, store: memoryStore(), adapters: { claude: quietHarness(starts, true) }, places: twoProviders("solari", { solari, boat }), placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }), agentsReader, serversActs });
+    const forks = [];
     for (const on of ["boat", "solari"]) {
       const fork = await createOn(rt, { golden: "snap_g", name: `x-${on}`, on });
+      forks.push(fork);
       await (await rt.sessions.start(fork.id, { prompt: "zones", harness: "claude" })).finished;
     }
     expect(starts.map(o => o.offServers)).toEqual([["cloudflare"], ["cloudflare"]]);
     expect(reads.length).toBe(2);
+    expect([...new Set(asked)].sort()).toEqual(["https://mcp.cloudflare.com/mcp", "https://mcp.context7.com/mcp"]);
+    // A second turn on a machine reuses what its first read there, until wsp changes a server there.
+    const boatFork = forks[0]!;
+    await (await rt.sessions.start(boatFork.id, { prompt: "again", harness: "claude" })).finished;
+    expect(starts[2]!.offServers).toEqual(["cloudflare"]);
+    expect(reads.length).toBe(2);
+    await rt.agents.serversToggle({ workspaceId: boatFork.id }, { agent: "claude", name: "linear", on: false });
+    await (await rt.sessions.start(boatFork.id, { prompt: "after the change", harness: "claude" })).finished;
+    expect(reads.length).toBe(3);
     // A config that cannot be read costs the launch its list, never the turn.
     readFails = true;
     const unread = await createOn(rt, { golden: "snap_g", name: "x-unread", on: "boat" });
     expect((await (await rt.sessions.start(unread.id, { prompt: "zones", harness: "claude" })).finished).status).toBe("completed");
-    expect(starts).toHaveLength(3);
-    expect(starts[2]!.offServers).toBeUndefined();
+    expect(starts).toHaveLength(5);
+    expect(starts[4]!.offServers).toBeUndefined();
   }, 40_000);
 
   it("a turn on a computer the person joined reads no config for it and leaves nothing out", async () => {

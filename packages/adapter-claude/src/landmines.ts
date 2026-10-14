@@ -226,10 +226,10 @@ export interface BuildCommandOptions {
  * repo's main checkout. */
 export const memorySettings = (dir: string | undefined): { autoMemoryDirectory?: string } => (dir === undefined ? {} : { autoMemoryDirectory: dir });
 
-/** One --settings flag for every setting a launch carries, none where it carries none. */
 /** The settings that leave the named servers out of a launch. */
 const deniedServers = (names: readonly string[] | undefined): Record<string, unknown> => (names === undefined || names.length === 0 ? {} : { deniedMcpServers: names.map(serverName => ({ serverName })) });
 
+/** One --settings flag for every setting a launch carries, none where it carries none. */
 export const settingsFlag = (settings: Readonly<Record<string, unknown>>): string[] =>
   Object.keys(settings).length === 0 ? [] : [`--settings ${shellQuote(JSON.stringify(settings))}`];
 

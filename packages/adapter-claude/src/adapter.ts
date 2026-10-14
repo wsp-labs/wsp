@@ -153,7 +153,7 @@ export interface ClaudeAdapter {
   start(options: StartOptions): ClaudeSession;
   /** The CLI launched with no message: under -p it connects its MCP servers and runs its SessionStart hooks before it
    * reads its first line (2.1.296, measured 2026-10-10), so the first turn on it starts without that wait. */
-  warm(options: Pick<StartOptions, "cwd" | "model" | "effort" | "permissionMode" | "contextWindow" | "fast" | "mcpServers" | "serverValues" | "offServers" | "version">): KeptAgent<ClaudeSession>;
+  warm(options: Pick<StartOptions, "cwd" | "model" | "effort" | "permissionMode" | "contextWindow" | "fast" | "mcpServers" | "serverValues" | "version">): KeptAgent<ClaudeSession>;
   /** Re-opens a turn this CLI is still running on the machine, by the run handle the launch reported; `gone` is the
    * machine's own answer that it no longer holds the run, and nothing is emitted for one. A machine that answers
    * nothing rejects. Absent when the exec factory's runs die with the process that launched them. */
