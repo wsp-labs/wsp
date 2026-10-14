@@ -15,6 +15,7 @@ import { CREATED_AT_LABEL, DAEMON_ENV_FILE, DAEMON_LISTENING_CHECK, DAEMON_PORT,
 import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
 import { goldenHead, writeDaemonTokenScript, type AccountOrphans, type GoldenVersion, type HereDaemon, type Runtime } from "@wsp/runtime";
 import { daemonFlags } from "./daemon-flags.js";
+import { loginFilesStep, sh, unsourceStep } from "./login-files.js";
 import { keyIn } from "./env-keys.js";
 import WebSocket from "ws";
 import { assetDir, assetName, assetProof, copyAsset, stagedAsset } from "./assets.js";
@@ -418,66 +419,6 @@ export function joinedPlace(login: { home: string; path: string }, join: Omit<Da
 
 export const DAEMON_UNIT_PATH = CLOUD_PLACE.unitPath;
 
-/** The one line wsp adds to the person's own login file, and takes back out: their file is theirs, so what wsp
- * wrote is named once and found again by the file it names. Read by the deploy that writes it, by the removal that
- * runs on a machine this host reaches, and by the sweep a place runs on itself. The line reads the file before it
- * sources it: inside a workspace on a computer somebody owns that computer's /root is bound in while the wsp
- * folder under it is the workspace's own, so the file this names is not there and an unguarded line printed an
- * error on the first line of every login shell opened in one. */
-export const profileSourceLine = (profileFile: string): string => `[ -f ${profileFile} ] && . ${profileFile}`;
-
-/** A path as this place's shell scripts write it: quoted where it came from the machine, since a home with a
- * space in it would otherwise make `rm -rf /Users/Jane Doe/.wsp` two words and take /Users/Jane with it. */
-const sh = (place: DaemonPlace, path: string): string => (place.quotePaths ? shellQuote(path) : path);
-
-/** Every line naming wsp's profile file taken out of the person's own login file, and nothing done at all where
- * they have no such file or it names none: read by the deploy before it appends the line this version spells and
- * by the removal, so a computer joined under an older spelling is left with one line of wsp's and with none once
- * wsp is off it. Their file, so the line is written back through the same path rather than moved over: a .profile
- * symlinked into a dotfiles checkout stays a symlink (measured 2026-09-11, where a move turned one into a plain
- * file). grep says by its exit code whether it selected nothing or could not read the file at all, and only the
- * first of those writes, so a read that failed leaves them neither an empty login file nor a file of wsp's beside
- * their own. Every line of it exits 0, since the deploy runs under set -e. What the take-out writes back is the
- * file line by line, so a last line the person left without a trailing newline comes back with one. */
-function unsourceStep(place: DaemonPlace, file: string): string {
-  const copy = `${file}.wsp-out`;
-  const named = shellQuote(place.profileFile);
-  return [
-    `if [ -f ${sh(place, file)} ] && grep -qF ${named} ${sh(place, file)}; then`,
-    "  kept=0",
-    `  grep -vF ${named} ${sh(place, file)} > ${sh(place, copy)} || kept=$?`,
-    `  if [ "$kept" -le 1 ]; then cat ${sh(place, copy)} > ${sh(place, file)}; fi`,
-    `  rm -f ${sh(place, copy)}`,
-    "fi",
-  ].join("\n");
-}
-
-/** wsp's line in the person's own login file as this version spells it: the lines naming wsp's profile file taken
- * out first, so a second deploy replaces the line rather than sitting beside it, then this one appended, which
- * makes the file where the login has none. Nothing at all for a place whose profile file is wsp's own to load. */
-export function profileSourceStep(place: DaemonPlace): string[] {
-  const file = place.profileSource;
-  if (file === undefined) return [];
-  return [unsourceStep(place, file), `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`];
-}
-
-/** The login files this wsp puts on a machine: its own profile file, holding the browser shim and the display
- * every guest tool reads, and the one line of wsp's in the person's own login file that loads it. Every road that
- * puts this wsp on a computer runs these lines, the deploy at the join and the update after it, so a computer
- * joined under an older spelling takes this one without being joined again. Every line exits 0, so the same text
- * holds under the deploy's `set -e`, under the update's script, which sets none, and under the daemon's own
- * `bash -c`. */
-export function loginFilesStep(place: DaemonPlace): string[] {
-  return [
-    // BROWSER is set by the daemon for its ptys, by this file for login shells, and in a fork's envs only when its
-    // golden was sealed with the shim (claudeEnvs), never on a machine that may lack the file.
-    `mkdir -p ${sh(place, posix.dirname(place.profileFile))} && printf 'export BROWSER=%s\\nunset DISPLAY\\n' ${sh(place, place.openShim)} > ${sh(place, place.profileFile)}`,
-    // A place whose profile file is under the person's own folder is read only if their login file says so, and
-    // their login file is theirs: one line of wsp's is in it however many deploys have run.
-    ...profileSourceStep(place),
-  ];
-}
-
 /** The same for a unit file's Environment=, which systemd splits on whitespace into one assignment per word, so
  * a value holding a space is double quoted there. Not every setting wants that: WorkingDirectory= takes the rest
  * of its line as the path and reads a quote as part of it ("path is not absolute", measured on systemd 255,
@@ -490,6 +431,7 @@ const systemctlIn = (place: DaemonPlace): string => (place.scope === "user" ? "s
 // --- daemon bundle --------------------------------------------------------
 
 export { daemonFlags };
+export { loginBinIn, loginFilesStep, profileSourceLine, profileSourceStep } from "./login-files.js";
 
 /** The daemon asset inside a bundle, whether it is still being staged here or unpacked on the machine: the bundle
  * is the wsp command as npm lays it out, so the binaries ride in that command's own assets folder and the asset
