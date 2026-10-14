@@ -229,6 +229,17 @@ export const memorySettings = (dir: string | undefined): { autoMemoryDirectory?:
 /** The settings that leave the named servers out of a launch. */
 const deniedServers = (names: readonly string[] | undefined): Record<string, unknown> => (names === undefined || names.length === 0 ? {} : { deniedMcpServers: names.map(serverName => ({ serverName })) });
 
+/** Where a launch on a cloud machine denies its off servers to every claude there: a `claude mcp list` the agent runs
+ * never sees the turn's --settings, but reads this managed drop-in, merged with any other (2.1.299 on Boat: list, get
+ * and login all answer `No MCP server named`, 2026-10-14). */
+const OFF_SERVERS_DIR = "/etc/claude-code/managed-settings.d";
+export const OFF_SERVERS_FILE = `${OFF_SERVERS_DIR}/wsp-servers-off.json`;
+
+/** The step ahead of a launch that leaves `names` out, run before its cd: a write that fails costs the drop-in, and
+ * the turn keeps its --settings deny. An empty list removes the last launch's, which would hide a server on now. */
+const offServersStep = (names: readonly string[] | undefined): string =>
+  names === undefined ? "" : names.length === 0 ? `rm -f ${OFF_SERVERS_FILE} 2>/dev/null; ` : `{ mkdir -p ${OFF_SERVERS_DIR} && printf '%s' ${shellQuote(JSON.stringify(deniedServers(names)))} > ${OFF_SERVERS_FILE}; } 2>/dev/null; `;
+
 /** One --settings flag for every setting a launch carries, none where it carries none. */
 export const settingsFlag = (settings: Readonly<Record<string, unknown>>): string[] =>
   Object.keys(settings).length === 0 ? [] : [`--settings ${shellQuote(JSON.stringify(settings))}`];
@@ -387,7 +398,7 @@ export function buildCommand(options: BuildCommandOptions): string {
     ...(person.file ? [] : settingsFlag({ ...(fast === true ? { fastMode: true } : {}), ...memorySettings(memoryDir), ...person.settings, ...deniedServers(options.offServers), ...(aside ? { disableAllHooks: true } : {}) })),
     idFlag,
   ].join(" ");
-  return inFolder(cwd, claude);
+  return `${offServersStep(options.offServers)}${inFolder(cwd, claude)}`;
 }
 
 /** A turn's launch, or a launch ahead of one, in the adapter's words: a fresh session under `localId` unless it resumes

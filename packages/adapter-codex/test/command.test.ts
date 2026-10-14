@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { agentWord, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LAUNCH_ENV, THREAD_ENV, TURN_TOKEN_ENV, WSP_TOOL_TIMEOUT_SEC } from "@wsp/protocol";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { accessParams, buildCommand, buildEnv } from "../src/command.js";
 import { threadResumeLine, threadStartLine } from "../src/rpc.js";
 import { catalogProbeCommand } from "../src/catalog.js";
 import { draftForCommand, titleForCommand } from "../src/session-title.js";
+import { writeStub } from "../../protocol/test/stub-script.js";
 
 describe("buildEnv", () => {
   it("sets CODEX_HOME to the home named and keeps the base environment", () => {
@@ -99,6 +104,25 @@ describe("buildCommand", () => {
 
   it("asks nothing of codex login: a provider configured on the machine needs none, so the turn's own 401 says it", () => {
     expect(buildCommand({})).not.toContain("codex login");
+  });
+
+  it("leaves out each off server its config under CODEX_HOME still names, and hands no override for one it does not, which would stop the server at start", () => {
+    const root = mkdtempSync(join(tmpdir(), "wsp-codex-off-"));
+    try {
+      const bin = join(root, "bin");
+      mkdirSync(bin);
+      mkdirSync(join(root, "home"));
+      writeStub(join(bin, "codex"), `#!/bin/sh\nprintf '%s\\n' "$@"\n`);
+      writeFileSync(join(root, "home", "config.toml"), '[mcp_servers.cloudflare]\nurl = "https://mcp.cloudflare.com/mcp"\n\nmcp_servers.posthog.url = "https://mcp.posthog.com/mcp"\n\n# [mcp_servers.gone]\n');
+      const words = (offServers?: string[]): string[] =>
+        execFileSync("/bin/bash", ["-c", buildCommand({ cwd: root, ...(offServers !== undefined ? { offServers } : {}) })], { env: { PATH: `${bin}:/usr/bin:/bin`, CODEX_HOME: join(root, "home") }, encoding: "utf8" }).trim().split("\n");
+      const off = (w: string[]): string[] => w.flatMap((word, i) => (w[i - 1] === "-c" && word.endsWith(".enabled=false") ? [word] : []));
+      expect(off(words(["cloudflare", "posthog", "gone", "a.b"]))).toEqual(["mcp_servers.cloudflare.enabled=false", "mcp_servers.posthog.enabled=false"]);
+      expect(off(words([]))).toEqual([]);
+      expect(words()).toEqual(words([]));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("starts in the folder named, quoted", () => {
