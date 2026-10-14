@@ -3,7 +3,7 @@
 // answer for it, and nothing reads the workspace's whole list again. A builder's project holds 400 threads whose
 // rows each repeat an 11 KB brief, and one listing of it was 2.2 MB, read again for every start and end.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PERMISSION_ALLOW, PERMISSION_DENY, type EventUnion, type PermissionAsk, type SessionRowEvent, type TurnResult } from "@wsp/protocol";
+import { PERMISSION_ALLOW, PERMISSION_DENY, keptOpening, type EventUnion, type PermissionAsk, type SessionRowEvent, type TurnResult } from "@wsp/protocol";
 import { realClock } from "../src/clock.js";
 import { createRuntime, type HarnessAdapterFactory, type Runtime } from "../src/runtime.js";
 import { memoryStore } from "../src/store.js";
@@ -120,7 +120,7 @@ describe("a row that moves", () => {
     }
     quick.on = false;
     const listed = await rt.sessions.list(ws.id);
-    expect(Buffer.byteLength(JSON.stringify(listed))).toBeGreaterThan(2_000_000);
+    expect(Buffer.byteLength(JSON.stringify(listed))).toBeGreaterThan(400_000);
     lists = 0;
 
     const threadId = threadIds.at(-1)!;
@@ -135,7 +135,7 @@ describe("a row that moves", () => {
     const ended = rowsOf(ending, threadId).at(-1)!;
     expect(ended.id).toBe(handle.view().id);
     expect(ended.row).toMatchObject({ id: handle.view().id, threadId, workspaceId: ws.id, status: "completed", harness: "claude" });
-    // Every row of the thread repeats its 11 KB brief, which the window was told with the row's first push.
+    // Every row of the thread repeats its brief's head, which the window was told with the row's first push.
     expect(ended.row).not.toHaveProperty("prompt");
     const sent = heard.slice(ending).reduce((n, e) => n + Buffer.byteLength(JSON.stringify(e)), 0);
     expect(sent).toBeLessThan(5_000);
@@ -154,7 +154,7 @@ describe("a row that moves", () => {
     const ids = [...new Set(pushed.map(e => e.id))];
     for (const id of ids) {
       const [first, ...rest] = pushed.filter(e => e.id === id && e.row !== undefined);
-      expect(first?.row?.prompt).toBe(BRIEF);
+      expect(first?.row?.prompt).toBe(keptOpening(BRIEF));
       expect(rest.every(e => e.row!.prompt === undefined)).toBe(true);
     }
     // The row lives under the harness's session id once the turn is up, and every other id it went by is dropped.

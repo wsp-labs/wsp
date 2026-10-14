@@ -278,6 +278,20 @@ describe("a drafted commit message", () => {
     expect(log.findIndex(cmd => cmd.includes("rm -f") && cmd.includes(file))).toBeGreaterThan(log.indexOf(`wsp-draft ${file}`));
   });
 
+  it("is given the whole task the thread was opened with up to the draft's own cap, though the thread's row keeps only its head", async () => {
+    const daemon = fakeDaemon();
+    const asked: { promptFile: string; model?: string }[] = [];
+    const { backend, id } = await withWorkspace(daemon, { adapters: { claude: drafting({ asked }) } });
+    const task = `Fix the flaky cart test. ${"The total rounds per line and drifts by a cent. ".repeat(60)}`.slice(0, 2000).trimEnd();
+    const started = await rt!.sessions.start(id, { prompt: task });
+    await started.finished;
+    await rt!.workspaces.commitDraft({ workspaceId: id, paths: ["a.ts"], threadId: started.view().threadId! });
+    const file = asked[0]!.promptFile;
+    const upload = backend.machines[0]!.execLog.find(cmd => cmd.includes(file) && cmd.includes("base64 -d"))!;
+    const question = Buffer.from(/printf %s '([^']+)'/.exec(upload)![1]!, "base64").toString("utf8");
+    expect(question).toContain(`The task the agent was given:\n${task}`);
+  });
+
   it("is asked of the thread named where two share the folder, from the message that thread was opened with", async () => {
     const daemon = fakeDaemon();
     const asked: { promptFile: string; model?: string }[] = [];
