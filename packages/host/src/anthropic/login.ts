@@ -59,9 +59,9 @@ export function keychainItemOf(env: NodeJS.ProcessEnv): string {
   return dir ? `Claude Code-credentials-${createHash("sha256").update(dir).digest("hex").slice(0, 8)}` : "Claude Code-credentials";
 }
 
-/** Claude Code's own read: the Keychain item on a Mac (`security` made it, so reading it asks nothing), the
- * credentials file elsewhere. Never written. */
-function readStored(options: LoginOptions): Promise<string | undefined> {
+/** Claude Code's own read of its stored credentials, the login beside every MCP server's sign-in: the Keychain item on
+ * a Mac (`security` made it, so reading it asks nothing), the credentials file elsewhere. Never written. */
+export function claudeStore(options: Pick<LoginOptions, "platform" | "security" | "env" | "home"> = {}): Promise<string | undefined> {
   const { platform = osPlatform(), security = "/usr/bin/security" } = options;
   if (platform !== "darwin") return readFile(join(configDirOf(options), ".credentials.json"), "utf8").catch(() => undefined);
   return new Promise(done => {
@@ -104,7 +104,7 @@ export function claudeLogin(options: LoginOptions = {}): () => Promise<Anthropic
   let renewing: Promise<void> | undefined;
   let lastFailed = -Infinity;
   const read = async () => {
-    const text = await readStored(options);
+    const text = await claudeStore(options);
     return text === undefined ? undefined : loginOf(text);
   };
   const fresh = (login: Login | undefined) => login !== undefined && login.expiresAt - now() >= LOGIN_RENEW_MS;

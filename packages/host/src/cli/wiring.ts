@@ -32,7 +32,8 @@ import { recipeWatch, type WatchFn } from "../recipe-watch.js";
 import { serversActs } from "../servers-acts.js";
 import { pluginsActs } from "../plugins-acts.js";
 import { hostActs } from "../agents-signin.js";
-import { hostBroker, type HostBroker } from "../server-broker.js";
+import { hostBroker, signInEnv, type HostBroker } from "../server-broker.js";
+import { claudeStore } from "../anthropic/login.js";
 import { threadDockerNotesDir, threadShellEnv, writeThreadWsp } from "../shim.js";
 import { mcpServerSpec, runningWsp, wspCommand, type RunningWsp } from "../mcp-install.js";
 import { hostPlatform } from "../verbs.js";
@@ -345,7 +346,8 @@ export function makeRuntime(
     },
     // The same vault stands behind the sign-in word of an agent whose own login is not on the computer read.
     // Each agent's newest version is asked of its vendor from this host, never from a machine, and kept a day.
-    agentsReader: agentsReader({ vault: () => vaultNow(statePath), loginEnv, latest: agentLatest({ statePath, running: VERSION }).read }),
+    // A slate on this computer sends the sign-in Claude Code keeps here for an http server, read where the login is.
+    agentsReader: agentsReader({ vault: () => vaultNow(statePath), loginEnv, latest: agentLatest({ statePath, running: VERSION }).read, signInStores: { claude: () => claudeStore({ env: signInEnv() }) } }),
     // A key pasted in the app lands in the same vault, and the wsp tools an agent's config gets are the entry an
     // install writes: this same wsp against this state file.
     agentsActs: hostActs({ vaultFile: envFileFor(statePath), home: homedir, wspServer: () => mcpServerSpec(statePath, agents?.run ?? runningWsp()) }),
