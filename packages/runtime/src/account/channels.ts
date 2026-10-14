@@ -6,6 +6,7 @@ import { join, relative } from "node:path";
 import { CATALOG_AGENTS, remoteHost } from "@wsp/catalog";
 import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, STDIO_DAEMON_VERSION, PIPE_DAEMON_VERSION, THREAD_ENV, slateServerBehindLine, usageRefusal, type Caller } from "@wsp/protocol";
 import { agentPidOf, groupExists } from "../local-exec.js";
+import { brokeredEnv } from "../machines/brokered.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { StdioRoad } from "../slate-mcp-on.js";
@@ -655,14 +656,15 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     };
   };
 
-  /** A shell's token on a machine whose credentials the host keeps: the same call mints it as a turn's, so its
-   * environment carries every variable a turn's launch does, scoped to the pane's thread. Nothing anywhere else. */
+  /** A shell's token on a machine whose credentials the host keeps, minted as a turn's and scoped to the pane's
+   * thread, with the git and gh variables a turn's launch carries on it, which minting alone puts on nothing.
+   * Nothing anywhere else. */
   const terminalToken = async (entry: LiveWorkspace, named: unknown): Promise<{ deviceId: string; env: Record<string, string> } | undefined> => {
     const threadId = threadOn(entry.record.id, named);
     if (threadId === undefined) return undefined;
     const launch = await ctx.threadLaunch(entry, threadId, ctx.rootOf(threadId));
     if (launch.scoped === undefined) return undefined;
-    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, [THREAD_ENV]: threadId } };
+    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(launch.scoped.deviceToken), [THREAD_ENV]: threadId } };
   };
   /** The device each shell's token was minted as, by workspace and pty, taken away when the shell ends: at its exit,
    * its kill, or a list that no longer holds it. Kept in the host's state, one document per workspace, so a host that
