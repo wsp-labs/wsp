@@ -66,7 +66,7 @@ const LAZY_RUN: FirstRunInstaller = {
   installed: launcher => {
     const name = shellQuote(launcher.slice(launcher.lastIndexOf("/") + 1));
     const lazy = `case "$(sed -n 2p ${shellQuote(launcher)} 2>/dev/null)" in "# ascii-lazy-harness "*) false ;; esac`;
-    const past = `d=$(dirname "$(command -v ${name})") && PATH=$(printf %s "$PATH" | tr : "\\n" | grep -vxF "$d" | paste -sd:) command -v ${name} >/dev/null 2>&1`;
+    const past = `d=$(dirname "$(command -v ${name})") && PATH=$(printf %s "$PATH" | tr : "\\n" | grep -vxF "$d" | paste -sd: -) command -v ${name} >/dev/null 2>&1`;
     return `{ ${lazy} || { ${past}; }; }`;
   },
 };

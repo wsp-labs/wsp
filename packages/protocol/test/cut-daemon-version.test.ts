@@ -32,14 +32,16 @@ function commitAll(repo: string): void {
 function repoAt(from = REPO): string {
   const dir = mkdtempSync(join(tmpdir(), "wsp-cut-"));
   made.push(dir);
-  cpSync(join(from, "daemon"), join(dir, "daemon"), { recursive: true, filter: path => !/[\\/](target|\.git)([\\/]|$)/.test(path) });
+  // The checkout's own note stays behind: on a landing commit it can be one no version took, and it would outrank
+  // every note a case hands the cut.
+  cpSync(join(from, "daemon"), join(dir, "daemon"), { recursive: true, filter: path => !/[\\/](target|\.git)([\\/]|$)/.test(path) && path !== join(from, CUT_PATHS.note) });
   cpSync(join(from, CUT_PATHS.record), join(dir, CUT_PATHS.record));
   execFileSync("git", ["init", "-q"], { cwd: dir });
   // Git's housekeeping after a commit can still be writing objects as the case ends, which fails the cleanup on CI.
   execFileSync("git", ["config", "gc.auto", "0"], { cwd: dir });
   commitAll(dir);
-  // A branch's checkout carries its own daemon change and its note, and no version: landed first, it is the main
-  // the cases play on. On main, and on a branch with no daemon change, the cut does nothing.
+  // A branch's checkout carries its own daemon change and no version: landed first, it is the main the cases play
+  // on. On main, and on a branch with no daemon change, the cut does nothing.
   if (from === REPO && cutDaemonVersion(dir, { note: "the branch under test" }).cut) commitAll(dir);
   return dir;
 }
@@ -125,6 +127,17 @@ describe("cutting the daemon version at landing", () => {
     cutDaemonVersion(repo, { note: "the title, which the file outranks" });
     expect(read(repo, CUT_PATHS.record)).toContain(": reads each file once. */");
     expect(existsSync(join(repo, CUT_PATHS.note))).toBe(false);
+  });
+
+  it("refuses a note on a tree whose daemon did not change, which would otherwise land and name the next version", () => {
+    const repo = repoAt();
+    writeFileSync(join(repo, "daemon", "crates", "wsp-mcp", "src", "host_only.rs"), "pub fn host_only() {}\n");
+    writeFileSync(join(repo, CUT_PATHS.note), "the host's tool server takes trackers.\n");
+    commitAll(repo);
+    const before = read(repo, CUT_PATHS.record);
+    expect(() => cutDaemonVersion(repo, { note: "feat: trackers" })).toThrow(/version-note\.md[\s\S]*did not change/);
+    expect(read(repo, CUT_PATHS.record)).toBe(before);
+    expect(existsSync(join(repo, CUT_PATHS.note))).toBe(true);
   });
 
   it("refuses a tree with anything uncommitted before it reads or writes a file, an untracked one under the hashed paths included", () => {
