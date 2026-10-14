@@ -30,14 +30,16 @@ const PUSH_READ_BYTES = 2_000_000;
 const DONE_NAP = "its sub-thread is done";
 
 /** One command in the sub-thread's folder, off local refs alone, so it needs no network and no credential: where HEAD
- * is, the sha the remote held for the result branch at the last push or fetch, the commits no remote-tracking ref
- * holds, the files changed or untracked, and how many commits the pushed branch adds to the lead's. */
+ * is, the sha the remote held for the result branch at the last push or fetch, the commits neither a remote-tracking
+ * ref nor the commit it started from holds, the files changed or untracked, and how many commits the pushed branch
+ * adds to the lead's. */
 export function subResultCommand(folder: string, branch: string, baseSha: string): string {
   return [
     `cd ${shellQuote(folder)} 2>/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo norepo; exit 0; }`,
     `echo "branch $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"`,
     `p=$(git rev-parse --verify -q ${shellQuote(`refs/remotes/origin/${branch}`)} || echo none); echo "pushed $p"`,
-    `echo "unpushed $(git rev-list --count --branches --not --remotes)"`,
+    // A clone that fetched its start by id holds no remote-tracking ref for it; a new machine on a pushed branch lacks it.
+    `b=$(git rev-parse --verify -q ${shellQuote(`${baseSha}^{commit}`)}); echo "unpushed $(git rev-list --count --branches --not --remotes $b)"`,
     `echo "changed $(git status --porcelain=v1 | wc -l | tr -d ' ')"`,
     `[ "$p" = none ] || echo "commits $(git rev-list --count ${shellQuote(baseSha)}..$p 2>/dev/null || echo 0)"`,
   ].join("\n");
