@@ -513,7 +513,7 @@ export const placeUndoNeedsSudoLine = (ssh: string): string =>
   `${ssh.slice(0, 64)} runs sudo only with a password, which an undo with nobody at it cannot give, so what the add put there stays; log in there and run ${placeLeaveLineAs(false)}`;
 
 /** The leave as the login an add rode types it, read off its user@host. */
-const leaveOver = (ssh: string): string => placeLeaveLineAs(ssh.slice(0, ssh.lastIndexOf("@")) === "root");
+const leaveOver = (ssh: string): string => placeLeaveLineAs(parseSshAddress(ssh).user === "root");
 
 /** What an undo says where nothing holds the login to the box the add reached: no key was kept from the add, or the
  * box answers with another one now, so the root script runs nowhere. */
