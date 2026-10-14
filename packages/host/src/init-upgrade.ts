@@ -126,6 +126,9 @@ export interface UpdateRoadOptions {
   yes: boolean;
   /** Draws the update's stages as they arrive; returns once the runtime call settles. */
   stream: (words: readonly StageWords[], run: () => Promise<unknown>) => Promise<{ failure?: string }>;
+  /** Told the version the update sealed, the one road out that seals one: the app's init job reads the version off
+   * the done object it writes, whichever road sealed. */
+  sealed?: (version: { version: number; snapshotId: string }) => void;
   input: Readable;
   output: Writable;
 }
@@ -202,6 +205,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
     );
     return 1;
   }
+  o.sealed?.(result.version);
   const seconds = ((Date.now() - t0) / 1000).toFixed(0);
   const builder = keptBuilder(await o.rt.golden.builders(), result.version.version);
   const rate = o.rt.backend.pricing.rateUsdPerHour(builder?.size ?? o.rt.backend.pricing.defaultSize);
