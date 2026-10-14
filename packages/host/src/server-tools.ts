@@ -25,7 +25,7 @@ import { posix } from "node:path";
 import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpTransport, type TurnServer } from "@wsp/catalog";
 import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, tilde, type Host } from "@wsp/collect";
 import { SERVER_NOT_SET_UP, type McpSignIn, type ServerToolsAsk } from "@wsp/runtime";
-import { lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
+import { lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type HttpBearer, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
 import { ownServerFiles } from "./agents-here.js";
 
 export const TOOLS_DEADLINE_MS = 20_000;
@@ -312,6 +312,19 @@ export function signInOf(host: Host, agentId: string, name: string, t: McpTransp
   const bearer = store.bearer({ name, url: t.url, headers: t.headers }, home, text => createHash("sha256").update(text).digest("hex"));
   const line = "command" in login ? harnessLine(agentId, login.command(name), { stores: host.stores }) : login.inside(name);
   return { bearer, line, renew: async () => (await askHarness(host, agent, name, cwd, RENEW_MS)) === "signed-in" };
+}
+
+/** The bearer a sign-in store's JSON holds where `b` names it, as a daemon reads it off the file: none where the text
+ * is no JSON or the entry or the token is not there. */
+export function bearerIn(text: string | undefined, b: HttpBearer): string | undefined {
+  let at: unknown;
+  try {
+    at = JSON.parse(text ?? "");
+  } catch {
+    return undefined;
+  }
+  for (const key of [...b.at, b.field]) at = typeof at === "object" && at !== null ? (at as Record<string, unknown>)[key] : undefined;
+  return typeof at === "string" && at !== "" ? at : undefined;
 }
 
 /** One server by that name as a turn there reads it, in the project's folder where one is named, else in the home:
