@@ -6,6 +6,7 @@ import { Install } from "@/components/download";
 import { Section } from "@/components/section";
 import { aheadOf, KINDS, READ, ROWS, sources, VENDORS_BRING, WSP, type Cell, type Tool } from "@/compare";
 import { REPO } from "@/links";
+import { ToolIcon } from "@/logos";
 import { cn } from "@/lib/utils";
 
 const shown = (url: string): string => url.replace(/^https:\/\/(www\.)?/, "").replace(/\/blob\/[0-9a-f]{40}\//, "/");
@@ -107,8 +108,9 @@ export function Compare() {
               {kind.tools.map(tool => (
                 <li key={tool.slug}>
                   <a href={`/compare/${tool.slug}`} className="group flex h-full flex-col rounded-[14px] border border-border p-6 transition-colors duration-150 hover:bg-raised">
-                    <span className="flex items-center justify-between gap-4 text-[17px] font-medium tracking-[-0.01em] text-foreground">
-                      {tool.name}
+                    <span className="flex items-center gap-3.5 text-[17px] font-medium tracking-[-0.01em] text-foreground">
+                      <ToolIcon slug={tool.slug} />
+                      <span className="flex-1">{tool.name}</span>
                       <ArrowRight className="size-4 shrink-0 text-faint transition-colors duration-150 group-hover:text-foreground" />
                     </span>
                     <span className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{tool.line}</span>
