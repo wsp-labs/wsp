@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { homedir } from "node:os";
 import { dirname, join, posix, resolve as resolvePathOn } from "node:path";
-import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, checkoutArgs, checkoutOf, installsOnFirstRun, serverValuesOf, turnServerFiles } from "@wsp/catalog";
+import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, addressesToAsk, checkoutArgs, checkoutOf, installsOnFirstRun, needsOwnCredential, serverValuesOf, turnServerFiles, type LaunchConfigs, type LaunchServerRoad, type TurnServer } from "@wsp/catalog";
 import { INLINE_EXEC_MS, harnessExec, isPlaceAbsent, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole } from "@wsp/engine";
 import {
   type AttachmentRoad, type HarnessCatalog, type HarnessCatalogProbe, type Preferences, type SessionView, type TitleSource, type Attachment,
@@ -19,7 +19,7 @@ import {
   AGENT_VERSION_READ_MS, CATALOG_TTL_MS, CATALOG_PROBE_TIMEOUT_MS, FIRST_RUN_READ_MS, SESSION_TITLE_TTL_MS, SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_REFRESH_MAX,
   TITLE_MAKE_TIMEOUT_MS,
 } from "../types/events.js";
-import type { LiveWorkspace } from "../types/wiring.js";
+import { atProvider, type LiveWorkspace } from "../types/wiring.js";
 import { AGENT_LISTS, noTitleLogLine, noMadeTitleLogLine, noNameWriteLogLine, serverValuesCutLine, serverValuesUnreadLine } from "../types/internal.js";
 import type { RuntimeContext, AgentsArea } from "../context.js";
 
@@ -501,15 +501,12 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
       }),
     );
 
-  /** The vault's values for the agent's own MCP servers, for one launch in `folder` on a kind that hands them in the
-   * launch: its config there read as the turn's login, and each server that reads a value the vault holds filled for
-   * that agent's CLI. Nothing on any other kind, for an agent whose CLI takes no servers at launch, or where the
-   * vault holds no server's value. */
-  const serverValuesFor = async (entry: LiveWorkspace, harness: string, folder: string): Promise<HarnessStartOptions["serverValues"]> => {
+  /** The agent's config files a launch in `folder` reads, read there as the turn's login, with its launch road; nothing
+   * for an agent with no road. */
+  const turnConfigsOn = async (entry: LiveWorkspace, harness: string, folder: string): Promise<{ road: LaunchServerRoad; configs: LaunchConfigs } | undefined> => {
     const road = LAUNCH_SERVER_ROADS[harness];
     const mcp = MCP_AGENTS.find(a => a.id === harness);
-    const values = serverValuesOf(opts.vault?.() ?? {});
-    if (road === undefined || mcp === undefined || ctx.moduleOf(entry.record.kind).serverValues !== "launch" || Object.keys(values).length === 0) return undefined;
+    if (road === undefined || mcp === undefined) return undefined;
     const env = threadEnv(entry, harness);
     const home = env["HOME"] ?? "~";
     const store = CATALOG_AGENTS.find(a => a.id === harness)?.stateHomeEnv;
@@ -523,8 +520,71 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     const read = res.exitCode === 0 ? parseConfigs(res.stdout, scopes) : undefined;
     if (read === undefined) throw new Error(serverValuesUnreadLine(agent, readReason(res, INLINE_EXEC_MS / 1000)));
     const [user, ...projects] = read;
-    const filled = await road.fill({ ...(user !== undefined ? { user } : {}), projects: projects.filter(f => f !== undefined), folder, key: checkout.key }, values);
+    return { road, configs: { ...(user !== undefined ? { user } : {}), projects: projects.filter(f => f !== undefined), folder, key: checkout.key } };
+  };
+
+  /** The vault's values for the agent's own MCP servers, for one launch in `folder` on a kind that hands them in the
+   * launch: its config there read as the turn's login, and each server that reads a value the vault holds filled for
+   * that agent's CLI. Nothing on any other kind, for an agent whose CLI takes no servers at launch, or where the
+   * vault holds no server's value. */
+  const serverValuesFor = async (entry: LiveWorkspace, harness: string, folder: string): Promise<HarnessStartOptions["serverValues"]> => {
+    const values = serverValuesOf(opts.vault?.() ?? {});
+    if (ctx.moduleOf(entry.record.kind).serverValues !== "launch" || Object.keys(values).length === 0) return undefined;
+    const read = await turnConfigsOn(entry, harness, folder);
+    if (read === undefined) return undefined;
+    const filled = await read.road.fill(read.configs, values);
     return Object.values(filled).every(v => Object.keys(v ?? {}).length === 0) ? undefined : filled;
+  };
+
+  /** Each cloud machine's servers by workspace, agent and folder, read once and kept until wsp changes its servers there
+   * or the workspace goes, is rebuilt or upgraded: a read costs a turn's start two commands there and its whole config
+   * (264 KB from Boat, 2026-10-14). A read that failed is not kept. */
+  const cloudServers = new Map<string, Promise<TurnServer[] | undefined>>();
+  const dropServersOf = (workspaceId?: string): void => {
+    for (const key of [...cloudServers.keys()]) if (workspaceId === undefined || key.startsWith(`${workspaceId}\0`)) cloudServers.delete(key);
+  };
+  ctx.bus.on("agents.changed", e => {
+    if (e.type === "agents.changed" && (e.target === undefined || "workspaceId" in e.target)) dropServersOf(e.target?.workspaceId);
+  });
+  ctx.bus.on("workspace.deleted", e => {
+    if (e.type === "workspace.deleted") dropServersOf(e.workspaceId);
+  });
+  ctx.bus.on("workspace.upgraded", e => {
+    if (e.type === "workspace.upgraded") dropServersOf(e.workspaceId);
+  });
+
+  /** The servers a launch in `folder` on a cloud machine leaves out, by name: each one its config there names that needs
+   * the person's sign-in or key, which the machine never holds, so the agent neither lists it nor asks for its sign-in.
+   * An address with no header is left out where the host's probe says it asks for a sign-in; one this host never asked
+   * is waited on within the probe's time. Nothing anywhere else, and nothing where the config could not be read, which
+   * costs the turn its list, not its start. */
+  const offServersFor = async (entry: LiveWorkspace, harness: string, folder: string): Promise<string[] | undefined> => {
+    if (!atProvider(ctx.placeIdOf(entry.record), ctx.places)) return undefined;
+    const key = [entry.record.id, harness, folder].join("\0");
+    let reading = cloudServers.get(key);
+    if (reading === undefined) {
+      reading = turnConfigsOn(entry, harness, folder).then(
+        read => read?.road.servers(read.configs),
+        (e: unknown) => void console.warn(`${harness} on ${entry.machine.id}: its servers that need a sign-in were not read (${e instanceof Error ? e.message : String(e)}); the launch leaves none out`),
+      );
+      cloudServers.set(key, reading);
+    }
+    const servers = await reading;
+    if (servers === undefined) {
+      if (cloudServers.get(key) === reading) cloudServers.delete(key);
+      return undefined;
+    }
+    const signsIn = (await opts.agentsReader?.signsIn?.(addressesToAsk(servers.map(s => s.server)))) ?? (() => undefined);
+    const off = [...new Set(servers.flatMap(s => (needsOwnCredential(s.server, signsIn) ? [s.server.name] : [])))];
+    return off.length === 0 ? undefined : off;
+  };
+
+  /** What a launch in `folder` hands the adapter of the agent's own servers, as far as the adapter takes either: the
+   * vault's values, and the servers it leaves out. */
+  const launchServersFor = async (entry: LiveWorkspace, harness: string, adapter: HarnessAdapter, folder: string): Promise<Pick<HarnessStartOptions, "serverValues" | "offServers">> => {
+    const serverValues = adapter.mcpServers === true ? await serverValuesFor(entry, harness, folder) : undefined;
+    const offServers = adapter.deniesServers === true ? await offServersFor(entry, harness, folder) : undefined;
+    return { ...(serverValues !== undefined ? { serverValues } : {}), ...(offServers !== undefined ? { offServers } : {}) };
   };
 
   /** The adapter for a harness on this workspace's current machine; unnamed means the runtime's default. `turnEnv` is
@@ -613,7 +673,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
   return {
     catalogOn, firstRunHere, refreshTitle, sourceOf, rowsOn, carriedTitle, nameInHarness, makeTitle, agentAsks, holdAsk, titleRows, setupPlace, agentOff,
     agentLabel, configFolderOn, setupRefusals, setupRefusal, homesHere, storesHere, confineSetup, launchAdapterFor, defaultAgentOf,
-    defaultsOn, namedMode, landImages, landFiles, dropThreadFiles, dropImages, threadEnv, placeStores, serverValuesFor, adapterFor,
+    defaultsOn, namedMode, landImages, landFiles, dropThreadFiles, dropImages, threadEnv, placeStores, serverValuesFor, launchServersFor, adapterFor,
     projectHome, computerHome, agentLists,
   };
 }

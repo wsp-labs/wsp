@@ -346,10 +346,17 @@ export const McpRow = z.object({
   /** The project a project or a local server is set up for. */
   project: AgentsProject.optional(),
   /** The line the person runs there to sign it in where its page cannot come back here, as that computer runs its
-   * agent's command: absent where the agent has no such command. */
+   * agent's command: absent where the agent has no such command, and on a cloud machine, which signs nothing in. */
   signInLine: z.string().optional(),
+  /** Why it does not run there whatever its file says: it needs a sign-in or a key of the person's, which a cloud
+   * machine never holds. */
+  off: z.string().optional(),
 });
 export type McpRow = z.infer<typeof McpRow>;
+
+/** Why a server that needs the person's sign-in or key is off on a cloud machine, in the servers list, the app's rows
+ * and a slate's refusal alike. */
+export const cloudServerOffLine = (name: string): string => `${name} runs only on a computer where you signed in to it; a cloud machine holds no sign-in or key of yours.`;
 
 /** What one server said when it was started once, or asked once over its address, on the person's click: its sign-in
  * as that connect found it, and its tools. `holder` is the agent whose harness holds the server's sign-in, which

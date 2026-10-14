@@ -545,7 +545,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       let images: TurnImage[] = [];
       let imagesDir: string | undefined;
       let filePaths: string[] = [];
-      let serverValues: HarnessStartOptions["serverValues"];
+      let launchServers: Pick<HarnessStartOptions, "serverValues" | "offServers"> = {};
       let filesFolder: string | undefined;
       // Every send takes one trip before its launch: its files land and its folder's snapshot is taken, or only started
       // where the agent takes its prompt late.
@@ -690,7 +690,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
             ({ images, dir: imagesDir } = await ctx.landImages(entry, adapter.attachments, landing, turnImagesDir(landing, threadId, o.requestId, minted), (o.attachments ?? []).filter(a => isImage(a.mediaType))));
             filePaths = await ctx.landFiles(entry, landing, sendFilesDir(landing, threadId, o.requestId, minted), (o.attachments ?? []).filter(a => !isImage(a.mediaType)));
             if (filePaths.length > 0) filesFolder = landing;
-            if (adapter.mcpServers === true) serverValues = await ctx.serverValuesFor(entry, harness, landing);
+            if (adapter.mcpServers === true || adapter.deniesServers === true) launchServers = await ctx.launchServersFor(entry, harness, adapter, landing);
             // A fork's session is readied now, on the source's computer: a copy this turn resumes, or the turn the
             // start forks itself.
             if (plan !== undefined) {
@@ -810,7 +810,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               ...(title !== undefined ? { title } : {}),
               ...(images.length > 0 ? { images } : {}),
               ...(mcpServers !== undefined ? { mcpServers } : {}),
-              ...(serverValues !== undefined ? { serverValues } : {}),
+              ...launchServers,
               ...(limitDetails ? { limitDetails: true as const } : {}),
               ...(promptAfter !== undefined ? { promptAfter } : {}),
               ...(launchKey !== undefined ? { keep: true as const } : {}),

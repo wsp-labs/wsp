@@ -130,6 +130,9 @@ export interface HarnessStartOptions {
    * for one that takes servers in a file, config keys for one that takes keys as its thread starts. Absent where the
    * computer's own files hold the values or the turn's environment carries them. */
   serverValues?: { entries?: Readonly<Record<string, Readonly<Record<string, unknown>>>>; config?: Readonly<Record<string, string>> };
+  /** The servers its own config on the machine names that this launch leaves out, by name, on an adapter that
+   * `deniesServers`: on a cloud machine, those that need the person's sign-in or key. */
+  offServers?: readonly string[];
   /** On a resume: the thread so far as text, for an adapter whose CLI holds no session under `resume` to open a new one
    * with. Asked for only then. */
   seed?: () => Promise<string>;
@@ -222,6 +225,9 @@ export interface HarnessAdapter {
    * not, and a start naming servers is refused in this agent's name before the machine is asked for anything: a
    * launch that dropped them would open a thread whose tools are missing and whose agent looks like it ignored them. */
   readonly mcpServers?: true;
+  /** Whether its launch leaves out servers its own config names, by `offServers`, so the agent neither lists them nor
+   * asks for their sign-in. Absent, a cloud turn's launch reads no config for them. */
+  readonly deniesServers?: true;
   /** The commands this CLI runs only in its own terminal, which a headless turn answers are not available; the catalog
    * carries them so the composer lists none and sends nothing for one. Absent means none. */
   readonly screenCommands?: ReadonlyArray<ScreenCommand>;
