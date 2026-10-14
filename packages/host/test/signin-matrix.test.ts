@@ -14,6 +14,8 @@ import { collectorLogins } from "./collector-logins.js";
 
 type Source = LoginSource | "none";
 const SOURCES: readonly Source[] = ["keychain", "rc-key", "file", "helper", "none"];
+/** Claude Code's credentials file holding its own login; one holding only MCP servers' tokens is no login. */
+const CLAUDE_LOGIN_FILE = JSON.stringify({ claudeAiOauth: { accessToken: "placeholder" } });
 
 interface Row {
   paths: string[];
@@ -203,7 +205,7 @@ const MATRIX: readonly Cell[] = [
   {
     tool: "claude",
     source: "file",
-    laptop: { platform: "linux", files: { "~/.claude/.credentials.json": 800 } },
+    laptop: { platform: "linux", files: { "~/.claude/.credentials.json": CLAUDE_LOGIN_FILE } },
     row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels", starts: "token" },
   },
   {

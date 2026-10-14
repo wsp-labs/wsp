@@ -8,9 +8,26 @@ import { noSignInRefusal, type AgentsSignInEvent, type Caller, type RuntimeReque
 import type { Runtime } from "./runtime.js";
 
 type Send = (payload: Record<string, unknown>) => void;
-type SignInOp = Extract<RuntimeRequest, { op: "agents.signIn" | "servers.signIn" | "agents.signIns" | "agents.signInCode" | "agents.signInStop" }>;
+const SIGN_IN_OPS = ["agents.signIn", "servers.signIn", "agents.cloudSignIn", "agents.signIns", "agents.signInCode", "agents.signInStop"] as const;
+type SignInOp = Extract<RuntimeRequest, { op: (typeof SIGN_IN_OPS)[number] }>;
 
-export function signInSocket(agents: Runtime["agents"], socket: { open(): boolean; detach(leave: () => void): void }): (msg: SignInOp, send: Send, origin: Caller | undefined) => Promise<void> {
+export const isSignInOp = (msg: RuntimeRequest): msg is SignInOp => (SIGN_IN_OPS as readonly string[]).includes(msg.op);
+
+/** What a host with no road to the logins machines at a provider borrow answers agents.cloudSignIn with. */
+export const CLOUD_SIGN_IN_UNSERVED = "the host that answered wired no sign-in for machines at a cloud provider";
+
+/** The host's own road to an agent's login on this computer, which machines at a provider borrow. */
+export type CloudSignIn = (
+  agent: Extract<RuntimeRequest, { op: "agents.cloudSignIn" }>["agent"],
+  emit: (event: AgentsSignInEvent) => void,
+  origin: Caller | undefined,
+) => Promise<{ signInId: string; leave(): void }>;
+
+export function signInSocket(
+  agents: Runtime["agents"],
+  socket: { open(): boolean; detach(leave: () => void): void },
+  cloudSignIn?: CloudSignIn,
+): (msg: SignInOp, send: Send, origin: Caller | undefined) => Promise<void> {
   const signIns = new Set<string>();
   const heldBehindAnswer = (send: Send): { emit(event: AgentsSignInEvent): void; answer(payload: Record<string, unknown>): void } => {
     let queued: AgentsSignInEvent[] | null = [];
@@ -30,13 +47,21 @@ export function signInSocket(agents: Runtime["agents"], socket: { open(): boolea
   return async (msg, send, origin) => {
     switch (msg.op) {
       case "agents.signIn":
-      case "servers.signIn": {
+      case "servers.signIn":
+      case "agents.cloudSignIn": {
         const held = heldBehindAnswer(send);
-        const ask =
-          msg.op === "servers.signIn"
-            ? { agent: msg.agent, server: msg.name, ...(msg.scope !== undefined ? { scope: msg.scope } : {}), ...(msg.project !== undefined ? { project: msg.project } : {}) }
-            : { agent: msg.agent, ...(msg.terminal === true ? { terminal: true } : {}) };
-        const { signInId, leave } = await agents.signIn(msg.target, ask, held.emit, origin);
+        const started = (): ReturnType<CloudSignIn> => {
+          if (msg.op === "agents.cloudSignIn") {
+            if (cloudSignIn === undefined) throw new Error(CLOUD_SIGN_IN_UNSERVED);
+            return cloudSignIn(msg.agent, held.emit, origin);
+          }
+          const ask =
+            msg.op === "servers.signIn"
+              ? { agent: msg.agent, server: msg.name, ...(msg.scope !== undefined ? { scope: msg.scope } : {}), ...(msg.project !== undefined ? { project: msg.project } : {}) }
+              : { agent: msg.agent, ...(msg.terminal === true ? { terminal: true } : {}) };
+          return agents.signIn(msg.target, ask, held.emit, origin);
+        };
+        const { signInId, leave } = await started();
         if (signIns.has(signInId)) {
           leave();
           send({ id: msg.id, ok: true, signInId });

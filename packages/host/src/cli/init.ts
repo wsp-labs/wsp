@@ -285,6 +285,7 @@ export async function init(
         mintHere: runMintHere,
         saveKeys: set => writeEnvFile(envFileFor(opts.statePath), set),
         pricing: beside?.pricing ?? providerBackendFor(providerEnv).pricing,
+        ...(beside !== undefined ? { cloud: beside.place.kind === "provider" } : {}),
         provider: wiredProviderId(providerEnv),
         statePath: opts.statePath,
         home: homedir(),

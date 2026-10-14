@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
-import { BOAT_NO_GITHUB_LINE, BOAT_READY_LINE, CLOUD_SETUP_WORDS, GITHUB_LOGIN_NAME, INIT_ROW_STATES, initSignInOutcome, SIGN_IN_OPEN_STATE, type InitJob, type InitJobEvent, type InitRow, type InitSetup, WS_PATH } from "@wsp/protocol";
+import { BOAT_READY_LINE, CLOUD_SETUP_WORDS, INIT_ROW_STATES, initSignInOutcome, SIGN_IN_OPEN_STATE, type InitJob, type InitJobEvent, type InitRow, type InitSetup, WS_PATH } from "@wsp/protocol";
 import { createRuntime, memoryStore, type InitDoor } from "@wsp/runtime";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildBesideHost } from "../src/init-beside.js";
@@ -208,22 +208,19 @@ describe("the build wsp init hands to the host serving the state", () => {
     client.close();
   });
 
-  it("ends a build on Boat on how a lead starts a sub-thread there, warning when the image holds no GitHub sign-in", async () => {
+  it("ends a build on Boat on how a lead starts a sub-thread there, with no word about a sign-in on the image", async () => {
     const boat = { id: "box", name: "box" };
-    const gh = (login: InitRow["login"]): InitRow => ({ id: "sign-in/gh", kind: "sign-in", tool: "gh", label: GITHUB_LOGIN_NAME, state: "signed in", login });
-    for (const [rows, warned] of [[[gh("signed-in")], false], [[gh("copied")], false], [[gh("not-signed-in")], true], [[], true]] as const) {
-      const f = await serving();
-      const run = buildBesideHost({ client: await dialHost(f.statePath), io: f.io, yes: true, on: "boat" });
-      await until(() => f.door.calls.some(c => c.op === "start"));
-      f.door.push({ phase: "answering", place: boat });
-      await until(() => f.door.calls.some(c => c.op === "build"));
-      f.door.push({ phase: "done", golden: { version: 1 }, place: boat, rows: [...rows] });
-      expect(await run).toBe(0);
-      const out = f.text();
-      expect(out).toContain(BOAT_READY_LINE);
-      expect(out.includes(BOAT_NO_GITHUB_LINE)).toBe(warned);
-      expect(out).not.toContain("forked from it");
-    }
+    const f = await serving();
+    const run = buildBesideHost({ client: await dialHost(f.statePath), io: f.io, yes: true, on: "boat" });
+    await until(() => f.door.calls.some(c => c.op === "start"));
+    f.door.push({ phase: "answering", place: boat });
+    await until(() => f.door.calls.some(c => c.op === "build"));
+    f.door.push({ phase: "done", golden: { version: 1 }, place: boat, rows: [] });
+    expect(await run).toBe(0);
+    const out = f.text();
+    expect(out).toContain(BOAT_READY_LINE);
+    expect(out).not.toContain("GitHub");
+    expect(out).not.toContain("forked from it");
   });
 
   it("off a terminal the page is handed over and no code is asked for, since nobody is at that stdin", async () => {

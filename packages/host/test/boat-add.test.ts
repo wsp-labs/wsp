@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// wsp add boat: the word in any case, the key asked for without echo, one
-// GET /limits to check it, the key saved beside the state file and the plan
-// line read off that answer. wsp add box keeps working. The backend is a real
-// BoxBackend over a fake fetch, so the request is the one Boat would get.
+// wsp add boat: the word in any case, the key asked for without echo, put to
+// the same check the app's key step runs (one GET /limits among its reads),
+// the key saved beside the state file and the plan line read off that answer.
+// wsp add box keeps working. The check is the real one over a fake fetch, so
+// each request is the one Boat would get.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { afterAll, describe, expect, it, vi } from "vitest";
-import { BOX_PRICING, BoxBackend, boxClassFor, checkProviderKey, limitsOf, keyCheckLine, type MachineBackend } from "@wsp/engine";
-import { GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, boatSealLines, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
+import { afterAll, describe, expect, it, onTestFinished, vi } from "vitest";
+import { BOX_PRICING, boxClassFor, limitsOf, keyCheckLine } from "@wsp/engine";
+import { BOAT_READY_LINE, GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
 import { buildImageAt } from "../src/verbs/workspaces-help.js";
 import type { HostClient } from "../src/verbs.js";
 import { addCommand, addLines, addRefusal } from "../src/places.js";
+import { providerKeyCheck } from "../src/providers.js";
 import { joinToken } from "@wsp/protocol";
 import { KEY_LAYER_WORDS } from "../src/env-keys.js";
 import { captured } from "./verbs-fixture.js";
@@ -66,21 +68,35 @@ function fakeBoat(answer: unknown, status = 200) {
   return fakeBoatFor(() => (status === 200 ? answer : undefined));
 }
 
-/** A Boat that answers each key with its own body, refusing with a 401 a key it has none for. */
+/** A Boat that answers each key's /limits with its own body and every other read as a key holding every action does,
+ * refusing with a 401 a key it has none for. `limits` is the GET /limits each check makes. */
 function fakeBoatFor(answerOf: (key: string) => unknown) {
   const asked: { method: string; url: string; auth: string | null }[] = [];
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const auth = new Headers(init?.headers).get("authorization");
-    asked.push({ method: init?.method ?? "GET", url: String(input), auth });
+    const url = String(input);
+    asked.push({ method: init?.method ?? "GET", url, auth });
     const answer = answerOf((auth ?? "").replace(/^Bearer /, ""));
-    return answer !== undefined ? Response.json(answer) : Response.json({ ok: false, error: { code: "unauthorized", message: "invalid API key" } }, { status: 401 });
+    if (answer === undefined) return Response.json({ ok: false, error: { code: "unauthorized", message: "invalid API key" } }, { status: 401 });
+    const path = new URL(url).pathname;
+    if (path.endsWith("/limits")) return Response.json(answer);
+    if (path.endsWith("/me")) return Response.json({ ok: true, user: { login: "acme-dev" } });
+    if (/\/boxes\/[^/]+\//.test(path)) return Response.json({ ok: false, error: { code: "not_found" } }, { status: 404 });
+    return Response.json({ ok: true, boxes: [], apiKeys: [] });
   }) as typeof globalThis.fetch;
-  // The add builds its backend out of the environment; the key it carries is put to this Boat instead of the real one.
-  const checkKey = (backend: MachineBackend) => {
-    expect(backend).toBeInstanceOf(BoxBackend);
-    return checkProviderKey(new BoxBackend({ apiKey: (backend as unknown as { apiKey: string }).apiKey, fetch }));
+  // The add puts the key to the provider row's own check, which reads Boat with the global fetch.
+  const checkKey: typeof DEPS.checkKey = async (env, key, provider) => {
+    vi.stubGlobal("fetch", fetch);
+    onTestFinished(() => void vi.unstubAllGlobals());
+    return providerKeyCheck(env, key, provider);
   };
-  return { asked, deps: { ...DEPS, checkKey } };
+  return {
+    asked,
+    get limits() {
+      return asked.filter(a => a.url.endsWith("/limits"));
+    },
+    deps: { ...DEPS, checkKey },
+  };
 }
 
 /** A terminal that types the key at every secret prompt and keeps what it was asked. */
@@ -116,7 +132,7 @@ describe("Boat's plan line", () => {
 });
 
 describe("wsp add boat", () => {
-  it("asks for the key without echo in any case of the word, checks it with one GET /limits, saves it and prints the plan line", async () => {
+  it("asks for the key without echo in any case of the word, checks it with one GET /limits among its reads, saves it and prints the plan line", async () => {
     for (const word of ["boat", "Boat", "BOAT"]) {
       const home = tmp(`add-boat-${word}`);
       const boat = fakeBoat(PAID_BOX);
@@ -124,7 +140,8 @@ describe("wsp add boat", () => {
       expect(await addCommand(io, opts(home, {}), [word], {}, boat.deps)).toBe(0);
       // Asked once, at the secret prompt, by the key's own name and where it is made.
       expect(prompts).toEqual([FIRST_PROMPT]);
-      expect(boat.asked).toEqual([{ method: "GET", url: "https://ascii.dev/api/box/v1/limits", auth: `Bearer ${KEY}` }]);
+      expect(boat.limits).toEqual([{ method: "GET", url: "https://ascii.dev/api/box/v1/limits", auth: `Bearer ${KEY}` }]);
+      expect(new Set(boat.asked.map(a => a.auth))).toEqual(new Set([`Bearer ${KEY}`]));
       // The key alone is saved: Boat opens as a place beside this computer, and the provider it forks on stays.
       expect(readFileSync(join(home, ".env"), "utf8")).toBe(`BOAT_API_KEY=${KEY}\n`);
       expect(io.lines).toEqual([PAID_LINE]);
@@ -144,7 +161,7 @@ describe("wsp add boat", () => {
     const boat = fakeBoat(PAID_SANDBOX);
     const io = captured();
     expect(await addCommand(io, opts(home, { BOAT_API_KEY: KEY }), ["box"], {}, boat.deps)).toBe(0);
-    expect(boat.asked).toHaveLength(1);
+    expect(boat.limits).toHaveLength(1);
     expect(readFileSync(join(home, ".env"), "utf8")).toBe(`BOAT_API_KEY=${KEY}\n`);
     expect(io.lines).toEqual([PAID_LINE]);
   });
@@ -155,7 +172,7 @@ describe("wsp add boat", () => {
     const { io, prompts } = terminal("boat_live_wrong");
     await expect(addCommand(io, opts(home, {}), ["boat"], {}, boat.deps)).rejects.toMatchObject({ kind: "auth", message: expect.stringMatching(/^Boat refused this key: .*401/) });
     expect(prompts.map(p => p.question.split("\n")[1])).toEqual([FIRST_PROMPT.question.split("\n")[1], expect.stringMatching(/^Boat refused this key: .*401/), expect.stringMatching(/^Boat refused this key: .*401/)]);
-    expect(boat.asked).toHaveLength(3);
+    expect(boat.limits).toHaveLength(3);
     expect(existsSync(join(home, ".env"))).toBe(false);
   });
 
@@ -165,7 +182,7 @@ describe("wsp add boat", () => {
     const boat = fakeBoatFor(key => (key === KEY ? PAID_BOX : undefined));
     const { io, prompts } = terminal(KEY);
     expect(await addCommand(io, opts(home, { BOAT_API_KEY: "boat_live_revoked" }), ["boat"], {}, boat.deps)).toBe(0);
-    expect(boat.asked.map(a => a.auth)).toEqual(["Bearer boat_live_revoked", `Bearer ${KEY}`]);
+    expect(boat.limits.map(a => a.auth)).toEqual(["Bearer boat_live_revoked", `Bearer ${KEY}`]);
     expect(prompts).toHaveLength(1);
     expect(prompts[0]!.question).toMatch(/^Boat API key\nBoat refused the saved key: .*401/);
     expect(readFileSync(join(home, ".env"), "utf8")).toBe(`BOAT_API_KEY=${KEY}\n`);
@@ -179,7 +196,7 @@ describe("wsp add boat", () => {
     const { io, prompts } = terminal("never typed");
     expect(await addCommand(io, opts(home, {}), ["boat"], {}, boat.deps)).toBe(0);
     expect(prompts).toEqual([]);
-    expect(boat.asked).toHaveLength(1);
+    expect(boat.limits).toHaveLength(1);
     expect(io.lines).toEqual([TRIAL_LINE]);
   });
 
@@ -234,7 +251,7 @@ describe("what the command line says about Boat", () => {
     const lines = [
       imageBuiltOnLine(placeSaid(boat)),
       imageHomeKeptLine("solari", boat)!,
-      ...boatSealLines([]),
+      BOAT_READY_LINE,
       keyCheckLine({ state: "refused", said: "401 Unauthorized" }, "box", true)!,
       keyCheckLine({ state: "unchecked", said: "fetch failed" }, "box", true)!,
       savedKeyStoppedLine("box"),

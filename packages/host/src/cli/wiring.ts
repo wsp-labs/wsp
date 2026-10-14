@@ -12,7 +12,7 @@ import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
 import { envFileFor, keyIn, serverVault, writeEnvFile, type Keys } from "../env-keys.js";
-import { loginEnv } from "../login-path.js";
+import { loginEnv, loginFolders } from "../login-path.js";
 import { CACHE_RULE } from "../project-bundle.js";
 import { packSeed } from "../project-seed.js";
 import { readBrewTable } from "../init-brew.js";
@@ -32,6 +32,7 @@ import { recipeWatch, type WatchFn } from "../recipe-watch.js";
 import { serversActs } from "../servers-acts.js";
 import { pluginsActs } from "../plugins-acts.js";
 import { hostActs } from "../agents-signin.js";
+import { hostBroker, type HostBroker } from "../server-broker.js";
 import { threadDockerNotesDir, threadShellEnv, writeThreadWsp } from "../shim.js";
 import { mcpServerSpec, runningWsp, wspCommand, type RunningWsp } from "../mcp-install.js";
 import { hostPlatform } from "../verbs.js";
@@ -172,6 +173,9 @@ export function localWiring(
 
 /** The provider slot each runtime made here was wired with, so a host can swap the module in when a key is saved. */
 const PROVIDER_SLOTS = new WeakMap<Runtime, ProviderSlot>();
+/** The broker each runtime made here was wired with, which the host serving that runtime starts and stops. */
+const HOST_BROKERS = new WeakMap<Runtime, HostBroker>();
+export const hostBrokerOf = (rt: Runtime): HostBroker | undefined => HOST_BROKERS.get(rt);
 /** The managers' listing each runtime's recipes resolve against, which the watcher reads again once a day. */
 const RECIPE_TOOLS = new WeakMap<Runtime, ReturnType<typeof keptTools>>();
 
@@ -302,6 +306,7 @@ export function makeRuntime(
   // starts with no key swaps its module in when one is saved, and its copies belong to the module that made them.
   const pick: ProviderPick = { id: wiredProviderId(env, modules), env, modules };
   const tools = keptTools();
+  const broker = hostBroker({ statePath, vault: () => vaultNow(statePath) });
   const rt = createRuntime({
     noMachinesLine: noMachinesLine(modules),
     cloudProjects: cloudRoads(modules),
@@ -361,7 +366,10 @@ export function makeRuntime(
     copyRecipe: hostCopyRecipe(statePath),
     hostId: hostIdentity(),
     vaultCaches: CACHE_RULE,
+    // Ready only while a host serves this runtime: a line that never serves keeps every turn on today's road.
+    broker: broker.port,
   });
+  HOST_BROKERS.set(rt, broker);
   PROVIDER_SLOTS.set(rt, slot);
   PROVIDER_PICKS.set(rt, pick);
   RECIPE_TOOLS.set(rt, tools);
@@ -393,9 +401,10 @@ function hostCopyRecipe(statePath: string): (image: SealedImage, at: { cloud: bo
     });
 }
 
-/** The collector's ladder over this laptop; onRung lets the terminal count rows as each rung lands. */
+/** The collector's ladder over this laptop; onRung lets the terminal count rows as each rung lands. Its logins are
+ * looked for where the login shell keeps them, which a launch by launchd or a service was not handed. */
 export function collectThisComputer(onRung: (rung: Rung, rows: number) => void): Promise<Manifest> {
-  return collect(nodeHost(), { onRung });
+  return collect({ ...nodeHost(), ...loginFolders() }, { onRung });
 }
 
 /** A folder a `~/`-relative answer or a flag named: where it is, and whether there is one there. The one place both

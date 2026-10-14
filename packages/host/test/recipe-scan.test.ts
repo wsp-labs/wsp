@@ -45,6 +45,12 @@ describe("wsp recipe scan", () => {
     expect(scan.signIns.map(r => r.id)).toEqual(["claude", "gh", "wrangler"]);
     expect(scan.signIns.find(r => r.id === "gh")).toMatchObject({ signIn: loginOf("gh") });
     rmSync(dir, { recursive: true, force: true });
+    // For a build at a provider no row brings a sign-in: its machines use this computer's through wsp, and the
+    // printout has no sign-ins table.
+    const cloud = await runScan(laptop(), { cloud: true }, quiet, at);
+    expect(cloud.signIns).toEqual([]);
+    expect(scanPrintout(scan, "darwin").join("\n")).toContain(SIGN_INS_TITLE);
+    expect(scanPrintout(cloud, "darwin", 1, true).join("\n")).not.toContain(SIGN_INS_TITLE);
   });
 
   it("recommends an agent on only when it was used here and wsp can run its threads, and says which held it off", async () => {
