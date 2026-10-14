@@ -236,9 +236,9 @@ const OFF_SERVERS_DIR = "/etc/claude-code/managed-settings.d";
 export const OFF_SERVERS_FILE = `${OFF_SERVERS_DIR}/wsp-servers-off.json`;
 
 /** The step ahead of a launch that leaves `names` out, run before its cd: a write that fails costs the drop-in, and
- * the turn keeps its --settings deny. */
+ * the turn keeps its --settings deny. An empty list removes the last launch's, which would hide a server on now. */
 const offServersStep = (names: readonly string[] | undefined): string =>
-  names === undefined || names.length === 0 ? "" : `{ mkdir -p ${OFF_SERVERS_DIR} && printf '%s' ${shellQuote(JSON.stringify(deniedServers(names)))} > ${OFF_SERVERS_FILE}; } 2>/dev/null; `;
+  names === undefined ? "" : names.length === 0 ? `rm -f ${OFF_SERVERS_FILE} 2>/dev/null; ` : `{ mkdir -p ${OFF_SERVERS_DIR} && printf '%s' ${shellQuote(JSON.stringify(deniedServers(names)))} > ${OFF_SERVERS_FILE}; } 2>/dev/null; `;
 
 /** One --settings flag for every setting a launch carries, none where it carries none. */
 export const settingsFlag = (settings: Readonly<Record<string, unknown>>): string[] =>

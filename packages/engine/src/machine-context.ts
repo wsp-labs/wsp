@@ -316,8 +316,8 @@ export interface ContextInput {
   atProvider?: boolean;
 }
 
-/** What a machine at a provider tells its agents of a server that needs the person's sign-in: an agent that found no
- * tool of it read the server's own config there and sent the person to `/mcp`. */
+/** What a machine at a provider tells its agents of a server that needs the person's sign-in: an agent missing its tool
+ * reads the server's config itself and would otherwise send the person to sign in here. */
 export const SERVERS_OFF_LINE =
   "- A server that needs the person's own sign-in or key does not run on a cloud machine, which holds no sign-in or key of theirs. When a tool from one is missing, say it is not available on cloud machines, and do not suggest signing it in here (no /mcp, no mcp login command).";
 

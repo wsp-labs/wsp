@@ -203,7 +203,9 @@ describe("buildCommand", () => {
       writeFileSync(join(root, "blocked"), "");
       run(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", cwd: root, offServers: ["cloudflare"] }), join(root, "blocked", "managed-settings.d"));
       expect(existsSync(join(root, "ran"))).toBe(true);
-      expect(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", offServers: [] })).not.toContain(OFF_SERVERS_FILE);
+      run(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", cwd: root, offServers: [] }), managed);
+      expect(existsSync(join(managed, basename(OFF_SERVERS_FILE)))).toBe(false);
+      expect(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555" })).not.toContain(OFF_SERVERS_FILE);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

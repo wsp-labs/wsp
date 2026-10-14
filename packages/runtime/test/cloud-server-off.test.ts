@@ -88,10 +88,11 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     const starts: HarnessStartOptions[] = [];
     // The host's probe as it stands: cloudflare answered 401, context7 answered, and nothing else has been asked.
     const asked: string[] = [];
+    let cloudflareSigns = true;
     const agentsReader: AgentsReader = {
       read: () => Promise.reject(new Error("not read here")),
       tools: () => Promise.reject(new Error("not asked here")),
-      signsIn: async urls => (asked.push(...urls), url => (url.includes("cloudflare") ? true : url.includes("context7") ? false : undefined)),
+      signsIn: async urls => (asked.push(...urls), url => (url.includes("cloudflare") ? cloudflareSigns : url.includes("context7") ? false : undefined)),
     };
     const serversActs: ServersActs = { add: async () => ({ file: "~/.claude.json" }), remove: async () => ({ file: "~/.claude.json" }), toggle: async () => ({ file: "~/.claude.json" }) };
     const reads: string[] = [];
@@ -130,6 +131,10 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     expect((await (await rt.sessions.start(unread.id, { prompt: "zones", harness: "claude" })).finished).status).toBe("completed");
     expect(starts).toHaveLength(6);
     expect(starts[5]!.offServers).toBeUndefined();
+    // A probe that no longer asks for a sign-in leaves nothing out, and says so, which clears the last launch's list.
+    cloudflareSigns = false;
+    await (await rt.sessions.start(boatFork.id, { prompt: "open now", harness: "claude" })).finished;
+    expect(starts[6]!.offServers).toEqual([]);
   }, 40_000);
 
   it("a turn on a computer the person joined reads no config for it and leaves nothing out", async () => {
