@@ -444,7 +444,7 @@ describe("the init job, manual road", () => {
     const f = fake({ atProvider: true, read: { scan: async () => [JQ] } });
     await f.jobs.start({ road: "manual" });
     await f.settled();
-    expect(f.jobs.view()!.screens.map(s => s.id)).toEqual(["agents", "tools", "also", "wsp"]);
+    expect(f.jobs.view()!.screens.map(s => s.id)).toEqual(["agents", "tools", "also"]);
     await f.jobs.answer({ screen: "agents", ticks: ["claude", "codex"] });
     const building = await f.jobs.build({});
     expect(building.rows.filter(r => r.kind === "sign-in")).toEqual([]);
@@ -454,6 +454,27 @@ describe("the init job, manual road", () => {
     expect(done.golden).toEqual({ version: 1 });
     expect(f.events.some(e => e.job.phase === "signing-in" || e.job.needsYou !== undefined)).toBe(false);
     expect(f.relay.hooks).toEqual([]);
+  });
+
+  it("a build at a provider writes no agent config on this computer, ticked on the wsp screen or not", async () => {
+    // Claude Code has run sessions here, so a build that falls back to the screen's defaults would write its config.
+    const f = fake({ atProvider: true, read: { recipe: async () => ({ ...RECIPE, histories: [{ agent: "claude", state: "read", sessions: 3, calls: 40 }] }) } });
+    await f.jobs.start({ road: "manual" });
+    await f.settled();
+    expect(f.jobs.view()!.screens.map(s => s.id)).toEqual(["agents", "tools"]);
+    const building = await f.jobs.build({});
+    expect(building.rows.filter(r => r.kind === "agent")).toEqual([]);
+    await f.settled();
+    expect(f.jobs.view()!.phase).toBe("done");
+    // A client that answers the screen anyway is answering about this computer at a build that is not on it.
+    const g = fake({ atProvider: true });
+    await g.jobs.start({ road: "manual" });
+    await g.settled();
+    await g.jobs.answer({ screen: "wsp", ticks: ["wsp-tools/claude"] });
+    await g.jobs.build({});
+    await g.settled();
+    expect(f.installed).toEqual([]);
+    expect(g.installed).toEqual([]);
   });
 
   it("start reads this computer once and hands the screens over; answers move the recipe; the build is wsp init's own run on the host's runtime, its sign-ins as rows, ending with the golden sealed and the first workspace forked", async () => {
