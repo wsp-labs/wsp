@@ -35,9 +35,9 @@ afterEach(async () => {
 });
 
 /** A lead on this computer, its sub-thread on Boat started and its first turn ended, the done steps run. */
-async function doneOnce(o: { answers?: Partial<Answers>; clock?: Clock; deleteAfterMs?: number; says?: Says } = {}) {
+async function doneOnce(o: { answers?: Partial<Answers>; clock?: Clock; deleteAfterMs?: number; says?: Says; broker?: boolean } = {}) {
   const answers: Answers = { read: PUSHED, session: Buffer.from("gzipped session bytes"), ...o.answers };
-  const held = await leadOnThisComputer({ ...(o.clock !== undefined ? { clock: o.clock } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}) });
+  const held = await leadOnThisComputer({ ...(o.clock !== undefined ? { clock: o.clock } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}), ...(o.broker !== undefined ? { broker: o.broker } : {}) });
   open.push(held.rt);
   if (o.says !== undefined) held.turns.says = o.says;
   const pushed: SessionRowEvent[] = [];
@@ -203,6 +203,34 @@ describe("the delete at deleteAt", () => {
     expect(held.boat.machines).toHaveLength(asked);
   });
 
+  it("cuts the machine off at the broker before Boat is asked, keeps it off where Boat refuses, and lifts it for a turn that takes the machine back", async () => {
+    const { clock, jump } = jumpClock();
+    const held = await doneOnce({ clock, broker: false });
+    await settled(held);
+    const kill = held.machine.kill.bind(held.machine);
+    const offAtKill: boolean[] = [];
+    held.machine.kill = async () => {
+      offAtKill.push(held.brokerSwitch.off.has(held.made.id));
+      throw new Error("Boat answered 503");
+    };
+    jump(31 * MIN);
+    const refused = await until(async () => {
+      const r = await held.record();
+      return offAtKill.length > 0 && r.sub!.deleteAt !== undefined && r.sub!.deleteAt > clock.now() ? r : undefined;
+    }, "the delete tried again later");
+    expect(offAtKill).toEqual([true]);
+    expect(refused.phase).not.toBe("released");
+    expect(held.brokerSwitch.off.has(held.made.id)).toBe(true);
+    held.machine.kill = kill;
+    await held.rt.workspaces.wake(held.made.id);
+    held.turns.hold = true;
+    const next = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "one more thing", harness: "claude" });
+    await until(async () => ((await held.record()).sub!.deleteAt === undefined ? true : undefined), "the delete cleared");
+    expect(held.brokerSwitch.off.has(held.made.id)).toBe(false);
+    held.turns.release!();
+    await next.finished;
+  });
+
   it("is cancelled by a turn that starts on the thread, and armed again at that turn's own done", async () => {
     const { clock, jump } = jumpClock();
     const held = await doneOnce({ clock });
@@ -308,12 +336,19 @@ describe("a box Boat lost", () => {
 });
 
 describe("wsp delete <sub-thread>", () => {
-  it("takes the thread, its machine at Boat and its kept session", async () => {
-    const held = await doneOnce();
+  it("takes the thread, its machine at Boat once the broker cut it off, and its kept session", async () => {
+    const held = await doneOnce({ broker: false });
     await settled(held);
+    const kill = held.machine.kill.bind(held.machine);
+    const offAtKill: boolean[] = [];
+    held.machine.kill = async () => {
+      offAtKill.push(held.brokerSwitch.off.has(held.made.id));
+      await kill();
+    };
     const gone = await held.rt.sessions.delete(held.threadId);
     expect(gone).toEqual({ workspaceId: held.made.id, threads: 1, machine: "deleted", on: "Boat" });
     expect(held.machine.killed).toBe(true);
+    expect(offAtKill).toEqual([true]);
     expect(await held.store.get("workspaces", held.made.id)).toBeUndefined();
     expect(await held.store.getBlob(SUB_SESSIONS, held.threadId)).toBeUndefined();
     expect((await held.rt.sessions.list()).some(s => s.threadId === held.threadId)).toBe(false);
