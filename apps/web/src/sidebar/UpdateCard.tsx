@@ -19,6 +19,13 @@ const ACT_WORDS: Record<UpdateAct, string> = {
   "restart-host": UPDATE_WORDS.restart,
 };
 
+/** Whether the card stands: a release this wsp is behind, once the host's record is read, that was not dismissed. */
+export function useUpdateCardShown(): boolean {
+  const { stage } = useUpdateStage();
+  const dismissed = useDismissed();
+  return stage !== undefined && dismissed !== null && stage.version !== dismissed;
+}
+
 export function UpdateCard() {
   const { stage, road } = useUpdateStage();
   const dismissed = useDismissed();

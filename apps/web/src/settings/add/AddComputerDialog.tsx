@@ -43,8 +43,10 @@ import { STEP_TITLES, askedHostKey, askedSudo, closeAdd, connect, copyKeysOn, fi
 import { everything, folderKey, folderLooks, fromRecipe, githubPick, noPicks, servable, tickUsedClis } from "./choices.js";
 import { AgentsPicks, Choice, ClisPicks, GitHubPicks, OtherPicks, PluginsPicks, ProjectsPicks, ServersPicks, SkillsPicks, type FolderOption } from "./PickLists.js";
 import { PickLine, PickRow } from "./PickRow.js";
+import { AddCloudDialog } from "./AddCloudDialog.js";
+import { useCloudFlow } from "./cloudFlow.js";
 import { checkRows, opensLog, runningSince, setupCount, setupRows, setupStanding, stepLogs, type StepLine } from "./setup.js";
-import { STEP_BODY, STEP_HEAD, STEP_WIDTH, StepFoot } from "./StepDialog.js";
+import { STEP_BODY, STEP_FRAME, STEP_HEAD, StepFoot } from "./StepDialog.js";
 import { CopyKeysAct, RetryActs, SkipAct, StepRow } from "./StepRow.js";
 import { keyTakenAt } from "../../keyOwners.js";
 
@@ -507,8 +509,8 @@ function RunningView({ place }: { place: PlaceView }) {
 }
 
 /** The page after every row is done: one static wash in the theme's hero ink falling from the dialog's top edge, the
- * box's glyph and name, what landed, and the one act. */
-function ReadyPage({ place, onStart, onClose }: { place: PlaceView; onStart: () => void; onClose: () => void }) {
+ * place's glyph and name, what landed, and the one act. */
+export function ReadyPage({ place, line, act, k, onStart, onClose }: { place: PlaceView; line: string | undefined; act: string; k: string; onStart: () => void; onClose: () => void }) {
   const name = placeName(place);
   return (
     <div data-k="ready-page" className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-xl px-6 py-12 text-center">
@@ -519,10 +521,10 @@ function ReadyPage({ place, onStart, onClose }: { place: PlaceView; onStart: () 
       <h2 data-k="ready-title" className="mt-5 text-2xl/8 font-medium tracking-[-0.01em] text-foreground">
         {name} is ready
       </h2>
-      {place.picks === undefined ? null : <p className={cn(NOTE, "mt-1.5")}>{recipeSummary(place.picks)}.</p>}
+      {line === undefined ? null : <p className={cn(NOTE, "mt-1.5")}>{line}</p>}
       <div className="mt-7 flex items-center gap-2">
-        <Button data-k="start-task" onClick={onStart}>
-          Start a task here
+        <Button data-k={k} onClick={onStart}>
+          {act}
         </Button>
         <Button variant="ghost" data-k="ready-close" onClick={onClose}>
           Close
@@ -555,7 +557,13 @@ const PICK_STEPS: ReadonlySet<AddStep> = new Set(["startfrom", "agents", "mcp", 
 /** Whether picks hold nothing at all, which is where a first pick step fills them with everything. */
 const empty = (picks: RecipeFile | null): boolean => picks === null || Object.values(recipeCounts(picks)).every(n => n === 0);
 
+/** The add dialog's one slot: Add a cloud provider where that was asked, else Add a computer. */
 export function AddComputerDialog() {
+  const cloud = useCloudFlow(s => s.open);
+  return cloud ? <AddCloudDialog /> : <ComputerDialog />;
+}
+
+function ComputerDialog() {
   const flow = useAddFlow();
   const api = useStore(s => s.api);
   const places = useStore(s => s.places);
@@ -815,11 +823,11 @@ export function AddComputerDialog() {
 
   return (
     <Dialog open onOpenChange={(open, how) => (open || (how.reason === "escape-key" && keyTakenAt(how.event.target, "Escape")) ? undefined : close())}>
-      <DialogPopup data-add-computer={view} initialFocus={view === "where" || view === "hostkey" ? undefined : false} className={cn(STEP_WIDTH, "[--settings-inset:16px] sm:h-[640px]")}>
+      <DialogPopup data-add-computer={view} initialFocus={view === "where" || view === "hostkey" ? undefined : false} className={STEP_FRAME}>
         {view === "ready" && place !== undefined ? (
           <>
             <DialogTitle className="sr-only">{head.title}</DialogTitle>
-            <ReadyPage place={place} onStart={startTask} onClose={close} />
+            <ReadyPage place={place} line={place.picks === undefined ? undefined : `${recipeSummary(place.picks)}.`} act="Start a task here" k="start-task" onStart={startTask} onClose={close} />
           </>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col">

@@ -29,21 +29,21 @@ import { Button, DANGER_BUTTON } from "../components/ui/button.js";
 import { useComputerLive } from "../machine/computerLive.js";
 import { useStore } from "../protocol/store.js";
 import { DialButton, useDialPlace } from "./AbsentRoad.js";
-import { AddComputer } from "./AddComputer.js";
 import { SetupList } from "./add/AddComputerDialog.js";
 import { rowsLeft, setupRows, setupStanding } from "./add/setup.js";
 import { STEP_TITLES, openAdd, openPending, reachedSteps } from "./add/addFlow.js";
+import { openCloudAdd, settingUpCloud } from "./add/cloudFlow.js";
 import { ComputerSignIns } from "./ComputerSignIns.js";
 import { readRecipes, useRecipes } from "./recipesStore.js";
 import { ComputerGlyph, useComputerIcon } from "./ComputerGlyph.js";
 import { BehindRow, LimitsCard, NameCard, SpawnCard } from "./computerSettings.js";
-import { ACTIVITY_WORDS, ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, PLACE_STATE_WORDS, SETUP_CARD_WORDS, WHERE_WORDS, capitalised } from "./format.js";
+import { ACTIVITY_WORDS, ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, FACT, PLACE_STATE_WORDS, SETUP_CARD_WORDS, WHERE_WORDS, capitalised } from "./format.js";
 import { activityComputers } from "./activity/page.js";
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
-import { copyOn } from "./image.js";
+import { builtWhen, copyOn } from "./image.js";
+import { LimitBand, limitNote } from "./LimitBand.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
 import { LiveBand } from "./LiveBand.js";
-import { LimitBand, limitNote } from "./LimitBand.js";
 import { openImageRecipe } from "./openAt.js";
 import { NOTHING_HELD, absenceOf, absentOf, hereName, isProviderPlace, placeIsOffline, placeName, placeOf, placeStateCell, versionFact, type PlaceHolding, type PlaceStateCell } from "./places.js";
 import { cloudsOffered, keyHeld } from "./providers.js";
@@ -163,16 +163,20 @@ export function computersCards(ctx: SettingsContext): SettingsCardData[] {
   );
   const cloudsBody = (
     <div className="flex flex-col gap-2">
-      {clouds.length === 0 ? null : (
-        <Grid id="clouds" head={<GridHead columns={LIST_COLUMNS} cells={[{ word: H.cloud }, { word: H.machines, num: true, wideOnly: true, span: 2 }, { word: H.threads, num: true }]} />}>
+      {clouds.length === 0 ? (
+        <h2 data-settings-head className={SECTION_HEAD}>
+          {H.cloud}
+        </h2>
+      ) : (
+        <Grid id="clouds" head={<GridHead columns={LIST_COLUMNS} cells={[{ word: H.cloud }]} />}>
           {clouds.map(place => (
-            <CloudListRow key={place.id} place={place} machines={machines[place.id] ?? 0} running={running[place.id] ?? 0} cell={stateCellAt(ctx, place)} open={go(place)} ctx={ctx} />
+            <CloudListRow key={place.id} place={place} machines={machines[place.id] ?? 0} cell={stateCellAt(ctx, place)} open={go(place)} ctx={ctx} />
           ))}
         </Grid>
       )}
       {offered ? (
         <div className="flex">
-          <AddButton data-k="add-cloud-button" onClick={() => ctx.askAdd("cloud")}>
+          <AddButton data-k="add-cloud-button" onClick={() => openCloudAdd()}>
             {ADD_COMPUTER_WORDS.addCloud}
           </AddButton>
         </div>
@@ -190,7 +194,6 @@ export function computersCards(ctx: SettingsContext): SettingsCardData[] {
     { id: "computers", items: [], search: computers.map(place => searchRow(ctx, place)), body: computersBody },
     ...(ctx.pending.length === 0 ? [] : [{ id: "pending", items: [], body: pendingBody }]),
     ...(clouds.length === 0 && !offered ? [] : [{ id: "clouds", items: [], search: clouds.map(place => searchRow(ctx, place)), body: cloudsBody }]),
-    ...(ctx.addAsked === null ? [] : [{ id: "add-computer", head: ADD_COMPUTER_WORDS.title, items: [], body: <AddComputer key={ctx.addAsked.n} setup={ctx.reads.setup} road={ctx.addAsked.road} /> }]),
   ];
 }
 
@@ -252,19 +255,30 @@ export function ComputerListRow({ place, running, cell, open, ctx }: { place: Pl
   );
 }
 
-/** One cloud on the list: its name, how many machines it runs now, the threads running on them and its state. */
-function CloudListRow({ place, machines, running, cell, open, ctx }: { place: PlaceView; machines: number; running: number; cell: PlaceStateCell; open: () => void; ctx: SettingsContext }) {
+/** One cloud on the list: its name, its image and when it was sealed, the one fact of how many machines run there,
+ * and its state; its plan and starts stand on its own page. While its setup stands, the state is the setup's (working,
+ * or failed) and the row opens that setup. */
+function CloudListRow({ place, machines, cell, open, ctx }: { place: PlaceView; machines: number; cell: PlaceStateCell; open: () => void; ctx: SettingsContext }) {
   const menu = useRowMenu(place, ctx);
+  const setup = useStore(s => (settingUpCloud(s.initJob, place.id) ? s.initJob!.phase : null));
+  const opens = setup === null ? open : () => openCloudAdd(place.id);
+  // Nothing about the image until the host's read of it lands, so the row never says "No image yet" for a moment.
+  const copy = ctx.reads.image === null ? undefined : copyOn(ctx.reads.image.copies, place);
+  const note = ctx.reads.image === null ? undefined : copy === undefined ? WHERE_WORDS.noImageYet : WHERE_WORDS.imageSealed(copy.version, builtWhen(copy.builtAt, ctx.now));
   return (
-    <GridRow columns={LIST_COLUMNS} open={open} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
-      <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(limitNote(place) === undefined ? {} : { note: limitNote(place)! })} />
-      <Num k="machines" wideOnly span={2}>
-        {machines}
-      </Num>
-      <Num k="threads">{running}</Num>
-      <PlaceState place={place} cell={cell} onSignIn={open} />
+    <GridRow columns={LIST_COLUMNS} open={opens} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
+      <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(note === undefined ? {} : { note })} />
+      <span data-k="machines" className={cn(FACT, "col-span-3 text-right tabular-nums max-md:col-span-1")}>
+        {WHERE_WORDS.running(machines)}
+      </span>
+      {setup === null ? (
+        <PlaceState place={place} cell={cell} onSignIn={open} />
+      ) : (
+        <StateCell why={setup === "failed" ? SETUP_WORDS.failed : SETUP_WORDS.settingUp}>
+          <StateMark state={setup === "failed" ? "failed" : "working"} why={setup === "failed" ? SETUP_WORDS.failed : SETUP_WORDS.settingUp} />
+        </StateCell>
+      )}
       <Chevron />
-      <LimitBand place={place} />
     </GridRow>
   );
 }
@@ -469,6 +483,7 @@ function PlanLines({ place }: { place: PlaceView }) {
   return (
     <span className="flex flex-col">
       <span data-k="cloud-plan">{cloudPlanLine(place.plan, place.starts, names)}</span>
+      {limitNote(place) === undefined ? null : <span data-k="cloud-credit">{limitNote(place)}</span>}
       {place.starts === undefined ? null : <span data-k="cloud-starts" className="tabular-nums">{cloudStartsTodayLine(place.starts)}</span>}
     </span>
   );
@@ -628,7 +643,15 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
       <section data-settings-card="computer" className="flex flex-col gap-3">
         <div className={CARD_SURFACE}>
           <HeadRow glyph={<ComputerGlyph place={place} className="size-4 text-foreground/80" />} title={name} {...(fact === undefined ? {} : { mark: <VersionFact parts={fact} /> })} {...(cloud && place.plan !== undefined ? { line: <PlanLines place={place} /> } : shapeLine(place) === "" ? {} : { line: shapeLine(place) })} attrs={{ "data-k": "computer-head" }} />
-          {cloud ? null : <BehindRow place={place} ctx={ctx} />}
+          {cloud ? (
+            place.plan === undefined ? null : (
+              <div className={cn(CARD_INSET, "pb-4")}>
+                <LimitBand place={place} />
+              </div>
+            )
+          ) : (
+            <BehindRow place={place} ctx={ctx} />
+          )}
         </div>
         <PlaceStateLine place={place} ctx={ctx} />
       </section>
