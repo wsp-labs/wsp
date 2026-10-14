@@ -12,7 +12,7 @@ use wsp_frames::numbers;
 
 use crate::verbs::Verb;
 
-pub(crate) const USAGE: &str = "usage: wsp-daemon [--host <addr>] [--port <n>] [--token-path <file>] [--root <dir>] [--roots-path <file>] [--kind cloud|local|place] [--work-folder <dir>] [--inbox <dir>] [--inbox-quiet-ms <n>] [--inbox-poll-ms <n>] [--manifest <file>] [--run-dir <dir>] [--log-dir <dir>] [--open-socket <path>] [--port-file <file>] [--proc-root <dir>] [--passwd <file>] [--ports-interval-ms <n>] [--sys-interval-ms <n>] [--proc-interval-ms <n>] [--mode-interval-ms <n>] [--auth-deadline-ms <n>] [--place-file <file>] [--home <dir>] [--wsp-argv <word>]... [--agents id=bin,...] [--link-connect-ms <n>] [--link-quiet-ms <n>] [--link-refused-retry-ms <n>] [--link-backoff-ms <n>] [--runtime-root <dir>] [--apparmor-profile <file>] [--readings-dir <dir>] [--docker-notes <dir>]";
+pub(crate) const USAGE: &str = "usage: wsp-daemon [--host <addr>] [--port <n>] [--token-path <file>] [--root <dir>] [--roots-path <file>] [--kind cloud|local|place] [--work-folder <dir>] [--inbox <dir>] [--inbox-quiet-ms <n>] [--inbox-poll-ms <n>] [--manifest <file>] [--run-dir <dir>] [--log-dir <dir>] [--open-socket <path>] [--port-file <file>] [--proc-root <dir>] [--passwd <file>] [--ports-interval-ms <n>] [--sys-interval-ms <n>] [--proc-interval-ms <n>] [--mode-interval-ms <n>] [--auth-deadline-ms <n>] [--place-file <file>] [--home <dir>] [--wsp-argv <word>]... [--agents id=bin,...] [--link-connect-ms <n>] [--link-quiet-ms <n>] [--link-refused-retry-ms <n>] [--link-backoff-ms <n>] [--runtime-root <dir>] [--apparmor-profile <file>] [--readings-dir <dir>] [--docker-notes <dir>] [--doors]";
 
 #[derive(Debug, Parser)]
 #[command(name = "wsp-daemon", disable_version_flag = true, override_usage = USAGE)]
@@ -35,6 +35,9 @@ pub(crate) struct Flags {
     // Any word: a kind the daemon lacks is refused at the watch, in the words the pane prints, not here.
     #[arg(long, default_value = "cloud", value_name = "cloud|local|place")]
     pub(crate) kind: String,
+    // Never on by default: a daemon started with no flags, as every case starts one, binds no door and parks no pipe.
+    #[arg(long)]
+    pub(crate) doors: bool,
     #[arg(long, value_name = "dir")]
     pub(crate) work_folder: Option<PathBuf>,
     #[arg(long, value_name = "dir")]
@@ -174,6 +177,8 @@ impl Flags {
             readings_dir: self.readings_dir,
             readings_interval_ms: None,
             docker_notes: self.docker_notes,
+            // Only the unit a provider's machine runs asks for them.
+            doors: self.doors.then(wsp_daemon::Doors::guest),
         }
     }
 }
@@ -197,6 +202,8 @@ mod tests {
         assert_eq!(f.token_path, PathBuf::from(numbers::DEFAULT_TOKEN_PATH));
         assert_eq!(f.kind, "cloud");
         assert!(f.root.is_none());
+        assert!(!f.doors, "a daemon started with no flags serves the doors");
+        assert!(parse(&["--doors"]).unwrap().into_options().doors.is_some());
     }
 
     #[test]

@@ -14,6 +14,7 @@ import { agentName, CATALOG_AGENTS, CLAUDE_CONFIG_DIR, GOLDEN_SETUP, GOLDEN_SMOK
 import { CREATED_AT_LABEL, DAEMON_ENV_FILE, DAEMON_LISTENING_CHECK, DAEMON_PORT, DOCTOR_LABEL, EXEC_ENV, GUEST_USER_ENV, OWNER_LABEL, RUN_DIR, TOOLS_PATH, WSP_LABEL, clientWords, isMissing, isReserved, landBytes, presenceTests, presentElsewhere, presentSteps, whoseMachine, type DaemonSupervisor, type Machine, type MachineBackend, type ProvisionPlan } from "@wsp/engine";
 import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
 import { goldenHead, writeDaemonTokenScript, type AccountOrphans, type GoldenVersion, type HereDaemon, type Runtime } from "@wsp/runtime";
+import { daemonFlags } from "./daemon-flags.js";
 import { keyIn } from "./env-keys.js";
 import WebSocket from "ws";
 import { assetDir, assetName, assetProof, copyAsset, stagedAsset } from "./assets.js";
@@ -106,6 +107,9 @@ export interface DaemonPlace {
   bind: string;
   /** The port it binds; 0 asks the machine for a free one. */
   port: number;
+  /** Whether the daemon serves the doors a provider's machine's agents reach the host's credentials through. Only a
+   * provider's machine: never a workspace a computer of the person's runs, which keeps its own. */
+  doors?: boolean;
   /** Where the daemon writes the port it bound, for a place that gave it none to bind. */
   portFile?: string;
   /** Quarter seconds the deploy waits for the daemon to answer before it reads the log instead. */
@@ -328,6 +332,7 @@ export const CLOUD_PLACE: DaemonPlace = {
   wantedBy: "multi-user.target",
   bind: "0.0.0.0",
   port: DAEMON_PORT,
+  doors: true,
   upTries: 20,
 };
 
@@ -335,7 +340,7 @@ export const CLOUD_PLACE: DaemonPlace = {
  * PID 1, which is every workspace a box's own runtime boots. Every path is a fork's, since it is the same image;
  * what differs is what keeps the daemon up, and that a supervisor already watching sleeps a second before it
  * restarts, so the wait for the port is longer. */
-export const CONTAINER_PLACE: DaemonPlace = { ...CLOUD_PLACE, supervise: BOOT_SCRIPT, upTries: 40 };
+export const CONTAINER_PLACE: DaemonPlace = { ...CLOUD_PLACE, supervise: BOOT_SCRIPT, upTries: 40, doors: false };
 
 /** The place a guest wsp made keeps its daemon, by what that machine answered keeps a process running on it. The
  * one place a supervisor id is matched to a place, so adding a way to supervise is a module and a row here. */
@@ -484,34 +489,7 @@ const systemctlIn = (place: DaemonPlace): string => (place.scope === "user" ? "s
 
 // --- daemon bundle --------------------------------------------------------
 
-/** The daemon's command line on a place, one flag per option the binary takes: the address and port it binds, the
- * token file it checks every auth frame against, the folder its fs and git ops resolve inside and the roots file
- * beside it, the kind that picks its readings modules, the inbox, the manifest and the socket the browser shim
- * posts to, and the file it writes its port to where the machine picked one. Words, unquoted: the unit and the
- * supervisor quote them in their own language, and a joined computer's manager takes them as they are. */
-export function daemonFlags(place: DaemonPlace): string[] {
-  return [
-    "--host",
-    place.bind,
-    "--port",
-    String(place.port),
-    "--token-path",
-    place.tokenPath,
-    "--root",
-    place.root,
-    "--roots-path",
-    place.rootsPath,
-    "--kind",
-    place.kind,
-    "--inbox",
-    place.inbox,
-    "--manifest",
-    place.manifestPath,
-    "--open-socket",
-    place.openSocket,
-    ...(place.portFile === undefined ? [] : ["--port-file", place.portFile]),
-  ];
-}
+export { daemonFlags };
 
 /** The daemon asset inside a bundle, whether it is still being staged here or unpacked on the machine: the bundle
  * is the wsp command as npm lays it out, so the binaries ride in that command's own assets folder and the asset
