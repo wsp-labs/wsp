@@ -22,10 +22,10 @@
 // handed to a server is hidden in what it says back.
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
-import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpTransport, type TurnServer } from "@wsp/catalog";
+import { MCP_AGENTS, MCP_AGENT_IDS, harnessLine, valueForms, type McpAgent, type McpCheckWord, type McpServer, type McpTransport, type TurnServer } from "@wsp/catalog";
 import { mcpRemoteOf, mcpRemoteTokenFile, readTurnServers, secretNamed, tilde, type Host } from "@wsp/collect";
-import { SERVER_NOT_SET_UP, type McpSignIn, type ServerToolsAsk } from "@wsp/runtime";
-import { lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type HttpBearer, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
+import { SERVER_NOT_SET_UP, SERVER_OFF, type McpSignIn, type ServerToolsAsk } from "@wsp/runtime";
+import { cloudServerOffLine, lastLine, serverNotSetUpLine, serverToolsLateRefusal, serverUntrustedLine, shellQuote, withoutControlChars, type HttpBearer, type McpTool, type McpToolParam, type ServerToolsAnswer } from "@wsp/protocol";
 import { ownServerFiles } from "./agents-here.js";
 
 export const TOOLS_DEADLINE_MS = 20_000;
@@ -51,7 +51,7 @@ const ERR_CAP = 64 * 1024;
 const DRAIN_POLLS = 20;
 const PROTOCOL_VERSION = "2025-06-18";
 
-const INITIALIZE = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } } });
+export const INITIALIZE = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "wsp", version: "1" } } });
 const INITIALIZED = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
 const TOOLS_LIST = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 
@@ -367,10 +367,12 @@ async function readServer(host: Host, agentId: string, name: string, o: { projec
 }
 
 /** One server for a client that keeps it running: a slate's tool and resource runs, which a switched-off server
- * refuses. Listing its tools does not. */
-export async function resolveServer(host: Host, agentId: string, name: string, o: { project?: string; values?: Readonly<Record<string, string>> }): Promise<{ transport: McpTransport; cwd: string; secrets: string[] }> {
+ * refuses, and one `off` answers true for: on a cloud machine, one that needs the person's sign-in or key. Listing its
+ * tools does not. */
+export async function resolveServer(host: Host, agentId: string, name: string, o: { project?: string; values?: Readonly<Record<string, string>>; off?: (server: McpServer) => Promise<boolean> }): Promise<{ transport: McpTransport; cwd: string; secrets: string[] }> {
   const read = await readServer(host, agentId, name, o);
   if (read.found.server.disabled === true) throw new Error(`${name} is switched off in ${read.agent.name}'s config`);
+  if (o.off !== undefined && (await o.off(read.found.server))) throw Object.assign(new Error(cloudServerOffLine(name)), { code: SERVER_OFF });
   if ("missing" in read) throw new Error(unsetReferenceRefusal(read.missing));
   const t = read.transport;
   return { transport: t, cwd: t.kind === "stdio" ? (t.cwd ?? read.cwd) : read.cwd, secrets: read.secrets };
@@ -408,8 +410,9 @@ function atMost(n: number): <T>(f: () => Promise<T>) => Promise<T> {
 export interface ServerTools {
   /** One server's tools and state there, off the connect kept for it or a new one. */
   /** `env` is the environment a command server starts with under its config's own: the login shell's, on this computer.
-   * `values` are what the definition's references are read from. */
-  tools(host: Host, ask: ServerToolsAsk, o?: { project?: string; env?: Readonly<Record<string, string>>; values?: Readonly<Record<string, string>> }): Promise<ServerToolsAnswer>;
+   * `values` are what the definition's references are read from.
+   * `off` answers true for a server that does not run there, which answers why and is never started or asked. */
+  tools(host: Host, ask: ServerToolsAsk, o?: { project?: string; env?: Readonly<Record<string, string>>; values?: Readonly<Record<string, string>>; off?: (server: McpServer) => Promise<boolean> }): Promise<ServerToolsAnswer>;
   /** Drops every answer and harness word kept for the target, which a sign-in there has just changed. */
   forget(key: string): void;
 }
@@ -441,6 +444,7 @@ export function serverTools(o: { now: () => number; deadlineMs?: number; log: (l
       const read = await readServer(host, ask.agent, ask.name, at);
       const { agent, found, cwd } = read;
       const now = o.now();
+      if (at.off !== undefined && (await at.off(found.server))) return { auth: "unknown", refused: cloudServerOffLine(ask.name), readAt: new Date(now).toISOString() };
       if ("missing" in read) return { auth: "failed", refused: unsetReferenceRefusal(read.missing), readAt: new Date(now).toISOString() };
       const t = read.transport;
       const secrets = [...read.secrets].sort((a, b) => b.length - a.length);

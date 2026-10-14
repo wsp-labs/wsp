@@ -27,13 +27,14 @@ export interface Away {
 export const hostAway = (away: Away | undefined, run: string): string | undefined => (away === undefined ? undefined : slateHostAway(`$${run}`, away.computer, away.host));
 
 /** What a slate is refused as it is written from a thread off this computer: a command run on="host", which would run
- * here with the sign-ins here, and a run on a server the agent's config there does not name. Only servers the slate
- * before did not name are asked about, so a write that keeps its servers asks that computer nothing. */
+ * here with the sign-ins here, a run on a server the agent's config there does not name, and one on a server that is
+ * off there. Only servers the slate before did not name are asked about, so a write that keeps its servers asks that
+ * computer nothing. */
 export async function refusedAway(
   before: SlateDoc | null,
   doc: SlateDoc | null | undefined,
   away: Away | undefined,
-  missingOn: ((servers: string[]) => Promise<{ agent: { id: string; name: string }; thread: string; missing: string[] }>) | undefined,
+  missingOn: ((servers: string[]) => Promise<{ agent: { id: string; name: string }; thread: string; missing: string[]; off?: string[] }>) | undefined,
 ): Promise<SlateProblem[]> {
   if (away === undefined || !doc) return [];
   const runs = Object.entries(doc.runs);
@@ -43,8 +44,8 @@ export async function refusedAway(
   const known = new Set(Object.values(before?.runs ?? {}).flatMap(d => (d.kind === "cmd" ? [] : [d.server])));
   const asked = [...new Set(runs.flatMap(([, d]) => (d.kind === "cmd" || known.has(d.server) ? [] : [d.server])))];
   if (asked.length === 0 || missingOn === undefined) return problems;
-  const { agent, thread, missing } = await missingOn(asked);
-  return [...problems, ...missing.map(server => slateProblem("K710", slateServerNotSetUp(server, away.computer, agent, thread)))];
+  const { agent, thread, missing, off = [] } = await missingOn(asked);
+  return [...problems, ...missing.map(server => slateProblem("K710", slateServerNotSetUp(server, away.computer, agent, thread))), ...off.map(why => slateProblem("K714", why))];
 }
 
 /** `files` is the text of each slate file its then reads, as on a command. */
