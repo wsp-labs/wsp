@@ -12,13 +12,13 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
 import { BOX_WORK_DIR, type Machine } from "@wsp/engine";
-import { DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, SUB_TURN_GONE_LINE, fmtBytes, foldThreads, lostSessionPrompt, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
 import { PIPE_IDLE } from "../src/pipe.js";
-import { copyKey, type Runtime } from "../src/runtime.js";
+import { copyKey, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
-import { CLAUDE_SESSION_FILE, CODEX_SESSION_FILE, PUSHED, answering, jumpClock, leadOnThisComputer, sessionPathOf, until, type Answers, type Setup } from "./sub-fixture.js";
+import { CLAUDE_SESSION_FILE, CODEX_SESSION_FILE, PUSHED, STORE_TITLE, answering, jumpClock, leadOnThisComputer, sessionPathOf, until, type Answers, type Setup } from "./sub-fixture.js";
 
 const NAME = "Fix the flaky upload test";
 const BRANCH = "wsp/fix-the-flaky-upload-test";
@@ -34,11 +34,11 @@ afterEach(async () => {
 });
 
 /** A sub-thread on Boat whose first turn ended, its done read and its session kept, on the agent named. */
-async function doneOnce(o: { agent?: "claude" | "codex" | "opencode"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } & Pick<Setup, "broker" | "hostGh" | "image"> = {}) {
+async function doneOnce(o: { agent?: "claude" | "codex" | "opencode"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } & Pick<Setup, "broker" | "hostGh" | "image" | "storeTitle"> = {}) {
   const agent = o.agent ?? "claude";
   const answers: Answers = { read: PUSHED, session: Buffer.from(`gzipped ${agent} session`), ...o.answers };
   const { clock, jump } = jumpClock();
-  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}), ...(o.broker !== undefined ? { broker: o.broker } : {}), ...(o.hostGh !== undefined ? { hostGh: o.hostGh } : {}), ...(o.image !== undefined ? { image: o.image } : {}) });
+  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}), ...(o.broker !== undefined ? { broker: o.broker } : {}), ...(o.hostGh !== undefined ? { hostGh: o.hostGh } : {}), ...(o.image !== undefined ? { image: o.image } : {}), ...(o.storeTitle !== undefined ? { storeTitle: o.storeTitle } : {}) });
   open.push(held.rt);
   if (o.deleteAfterMs !== undefined) await held.rt.places!.set("box", { deleteAfterMs: o.deleteAfterMs });
   answering(held.boat, answers);
@@ -424,6 +424,36 @@ describe("a send into a released sub-thread", () => {
     const prompt = held.starts.at(-1)!.o.prompt;
     expect(prompt).toContain(`git fetch -q --filter=blob:none origin ${BASE.branch}\ngit checkout -q -b ${BRANCH} ${BASE.sha}\n`);
     expect(prompt).toContain(`Work on ${BRANCH}, then commit and run git push -u origin ${BRANCH} before your turn ends.`);
+  });
+});
+
+describe("the title of a sub-thread woken on a new machine", () => {
+  // Codex rebuilds its thread index on a new machine from the rollout that landed there and titles the thread with the
+  // rollout's first message, wsp's preamble and the task, its name column empty (measured on codex-cli 0.155.1).
+  const opening = (starts: readonly HarnessStartOptions[]): string | null => starts.find(s => s.prompt.endsWith("Remember the word lantern."))?.prompt ?? null;
+  const titleOf = async (held: { rt: Runtime; threadId: string }): Promise<string | undefined> => foldThreads(await held.rt.sessions.list()).find(t => t.threadId === held.threadId)?.title;
+  /** The woken turn run to its end, and the new machine's store read for its title after it. */
+  const wake = async (held: Awaited<ReturnType<typeof released>>): Promise<void> => {
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "Run git log --oneline -1.", harness: "codex" })).finished;
+    const machine = held.boat.machines.at(-1)!;
+    expect(machine.id).not.toBe(held.first.id);
+    await until(() => (machine.execLog.some(cmd => cmd.startsWith(STORE_TITLE)) ? true : undefined), "the new machine's title read");
+    await new Promise(r => setTimeout(r, 20));
+  };
+
+  it("keeps its name when the new machine's store titles it with the preamble it opened with", async () => {
+    const held = await released({ agent: "codex", storeTitle: opening });
+    expect(held.first.execLog.some(cmd => cmd.startsWith(STORE_TITLE))).toBe(true);
+    expect(await titleOf(held)).toBe(NAME);
+    await wake(held);
+    expect(await titleOf(held)).toBe(NAME);
+  });
+
+  it("keeps its name when its session did not land and the new one opens with the thread so far", async () => {
+    // Where the host kept no session, the agent starts a new one and hands it the thread so far ahead of the message.
+    const held = await released({ agent: "codex", storeTitle: starts => (starts.at(-1)?.resume === undefined ? opening(starts) : lostSessionPrompt(opening(starts) ?? "", starts.at(-1)!.prompt)) });
+    await wake(held);
+    expect(await titleOf(held)).toBe(NAME);
   });
 });
 
