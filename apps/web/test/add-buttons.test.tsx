@@ -77,12 +77,12 @@ describe("the shared Add button on the settings pages", () => {
     expect([...seen]).toEqual(expect.arrayContaining([ADD_COMPUTER_WORDS.title, ADD_COMPUTER_WORDS.addCloud, "Add a project", "Add"]));
   });
 
-  it("is every Add in the Add a cloud panel", async () => {
+  it("is every Add in the Add a cloud provider dialog", async () => {
     mountSettings({ api: api(), at: { kind: "group", group: "computers" } });
     await settle();
     fireEvent.click(screen.getByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
     await settle();
-    expect(document.querySelector("[data-k='road-cloud']")).not.toBeNull();
+    expect(document.querySelector("[data-add-cloud]")).not.toBeNull();
     expect({ road: "cloud", strays: strays() }).toEqual({ road: "cloud", strays: [] });
   });
 });
@@ -106,14 +106,10 @@ const mountPanel = async (): Promise<void> => {
 };
 
 describe("the one size of the shared Add button", () => {
-  it("is the 32 px keycap on the key road and the first run", async () => {
+  it("is the 32 px keycap on the Computers page and the first run", async () => {
     mountSettings({ api: api(), at: { kind: "group", group: "computers" } });
     await settle();
-    fireEvent.click(screen.getByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
-    await settle();
-    const keyAdds = document.querySelectorAll("[data-k='cloud-save'][data-add-button]");
-    expect(keyAdds.length).toBeGreaterThan(0);
-    keyAdds.forEach(keycap);
+    keycap(document.querySelector("[data-k='add-cloud-button']"));
     cleanup();
     render(<FirstRun />);
     keycap(document.querySelector("[data-k=add-project]"));

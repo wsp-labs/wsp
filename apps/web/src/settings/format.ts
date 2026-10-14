@@ -127,7 +127,11 @@ export const WHERE_WORDS = {
   cannotDial: "This wsp cannot dial a computer from here.",
   cannotSaveKey: "This wsp cannot save a key from here.",
   /** The first cell of each list's header row, which is the only name a section has. */
-  heads: { computer: "Computer", cores: "Cores", memory: "Memory", threads: "Threads", cloud: "Cloud", machines: "Machines", agents: "Agents", version: "Version", servers: "Tool servers", image: "Image", pending: "Pending", setup: "Setup" },
+  heads: { computer: "Computers", cores: "Cores", memory: "Memory", threads: "Threads", cloud: "Clouds", machines: "Machines", agents: "Agents", version: "Version", servers: "Tool servers", image: "Image", pending: "Pending", setup: "Setup" },
+  /** A cloud's row: its image's version and when it was sealed, or none yet, and how many machines run there now. */
+  imageSealed: (version: number, when: string): string => `Image v${version}, sealed ${when}`,
+  noImageYet: "No image yet",
+  running: (n: number): string => `${n} running`,
   yourImage: "Your image",
   /** Which wsp and daemon a computer runs, each part the host carries for it, the one fact they make read together. */
   runs: (wsp: string | undefined, daemon: number | undefined): string[] => [wsp === undefined ? "" : `wsp ${wsp}`, daemon === undefined ? "" : `daemon ${daemon}`].filter(part => part !== ""),
@@ -224,7 +228,7 @@ export const ADD_COMPUTER_WORDS = {
   unmeasured: (n: number): string => `${n} picked ${n === 1 ? "row was" : "rows were"} not measured`,
   tabOpened: "A tab opened in your browser.",
   installed: "Installed and connected.",
-  addCloud: "Add a cloud",
+  addCloud: "Add a cloud provider",
   replace: "Replace",
   signInsOn: (computer: string): string => `Sign-ins on ${computer}`,
   signInsWhy: (agents: readonly string[], computer: string): string =>
