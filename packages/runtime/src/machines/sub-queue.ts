@@ -8,7 +8,7 @@
 // host that restarts starts it all the same; a stop drops it with no start spent.
 import { randomUUID } from "node:crypto";
 import type { BoxLimits } from "@wsp/engine";
-import { CLOUD_CAP_DEFAULT, SUB_DROPPED_LINE, capWaitLine, deletedBeforeStartLine, listedFailure, providerKeyName, roadOf, scopeOf, subWaitingRefusal, type Caller, type SessionView, type ThreadCapWait } from "@wsp/protocol";
+import { CLOUD_CAP_DEFAULT, SUB_DROPPED_LINE, capWaitLine, deletedBeforeStartLine, keptOpening, listedFailure, providerKeyName, roadOf, scopeOf, subWaitingRefusal, type Caller, type SessionView, type ThreadCapWait } from "@wsp/protocol";
 import { SUB_STARTS, absentMachine, deadMachine, isCapRefusal, type SessionEntry, type SubStartRecord } from "../types/internal.js";
 import type { LiveWorkspace, SessionHandle, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubQueueArea } from "../context.js";
@@ -158,7 +158,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       startedBy: r.opts.startedBy ?? "person",
       threadId: r.threadId,
       ...r.tree,
-      prompt: r.opts.prompt,
+      prompt: keptOpening(r.opts.prompt),
       startedAt: Date.parse(r.at),
       ...(r.opts.title !== undefined ? { harnessTitle: r.opts.title, titleSource: "person" as const } : {}),
       ...(wait !== undefined ? { capped: wait } : {}),

@@ -764,7 +764,7 @@ export interface ThreadsArea {
   readonly capHold: (record: WorkspaceRecord, turnId: string, lender: string | undefined) => void;
   readonly capLend: (turnId: string, lender: string) => void;
   readonly capFull: (record: WorkspaceRecord, turnId: string) => ThreadCapWait | undefined;
-  readonly capWait: (at: { workspaceId: string; threadId: string; turnId: string; sessionId: string; requestId?: string }, wait: ThreadCapWait) => Promise<void>;
+  readonly capWait: (at: { workspaceId: string; threadId: string; turnId: string; sessionId: string; requestId?: string; prompt: string }, wait: ThreadCapWait) => Promise<void>;
   readonly capStop: (turnId: string, reason: string) => boolean;
   readonly capStopping: (turnId: string) => () => void;
   readonly capLeft: (turnId: string) => void;
