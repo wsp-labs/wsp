@@ -316,7 +316,7 @@ export function storedTitleSource(stored: string, opening: string | undefined): 
 export const GENERATED_TITLE_MAX = 40;
 /** How much of the opening turn and of the reply the title question carries: the words a title comes from are at the
  * top of both, and a whole brief would cost more to send than the answer is worth. */
-const TITLE_EXCERPT_MAX = 600;
+const TITLE_EXCERPT_MAX = OPENING_KEPT;
 
 const excerpt = (text: string): string => {
   const trimmed = text.trim();
