@@ -100,6 +100,20 @@ export function hiddenFolder(path: string, machine: FolderMachine = {}): boolean
   return machine.mac === true && home !== undefined && home !== "" && at === `${home}/Library`;
 }
 
+/** The folders of a Mac home whose contents macOS keeps behind a permission prompt per program, iCloud Drive and
+ * the cloud folders among them, and the media folders beside them, as paths under the home. Listing one, or reading
+ * any path inside it, holds the read until the person answers the prompt. */
+const MAC_GUARDED = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Library/Mobile Documents", "Library/CloudStorage"];
+
+/** Whether a folder browser stays out of this folder unless a path was typed into it: one of the folders a Mac
+ * guards in its home. Shown as a row, never looked inside on its own. */
+export function guardedFolder(path: string, machine: FolderMachine = {}): boolean {
+  const home = machine.home?.replace(/\/+$/, "");
+  if (machine.mac !== true || home === undefined || home === "") return false;
+  const at = path.replace(/\/+$/, "");
+  return MAC_GUARDED.some(name => at === `${home}/${name}`);
+}
+
 /** The name of the folder a path sits in, empty where it sits at the root or is a bare name. */
 export const parentFolderName = (path: string): string => {
   const parts = path.replace(/\/+$/, "").split("/");
