@@ -377,6 +377,45 @@ describe("a cloud's row on the Computers list", () => {
     await mountComputers(computersApi({ image: async () => ({ image: null, copies: [], projects: [] }) } as unknown as Partial<Api>).api);
     await waitFor(() => expect(document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent).toBe("No image yet"));
   });
+
+  it("drops the answer a seal made stale: says it is reading while the host reads again, then the image, with no reload", async () => {
+    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 1, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }], projects: [] };
+    let answer: (view: typeof sealed) => void = () => {};
+    let reads = 0;
+    const image = (): Promise<unknown> => (reads++ === 0 ? Promise.resolve({ image: null, copies: [], projects: [] }) : new Promise(resolve => (answer = resolve)));
+    useStore.setState({ places: [here, ascii] });
+    await mountComputers(computersApi({ image, capabilities: () => new Promise(() => {}) } as unknown as Partial<Api>).api);
+    const note = (): string | null | undefined => document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent;
+    await waitFor(() => expect(note()).toBe("No image yet"));
+    const job: InitJob = { id: "init_1", road: "manual", phase: "sealing", keys: { box: true }, place: { id: "box", name: "box" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 2 }, log: [] };
+    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 1 } } }));
+    await waitFor(() => expect(note()).toBe(IMAGE_WORDS.state.reading));
+    expect(reads).toBe(2);
+    act(() => answer(sealed));
+    await waitFor(() => expect(note()).toMatch(/^Image v1, sealed /));
+  });
+
+  it("reads again at a seal with Settings closed, and keeps out a read from before the seal that lands after it", async () => {
+    const sealed = { image: { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", logins: [], sealedAt: "2026-10-13T09:00:00.000Z", sealedFrom: "x", usedBytes: 1 }, copies: [{ place: "box", version: 1, hash: "a".repeat(64), snapshotId: "s", builtAt: "2026-10-13T09:00:00.000Z" }], projects: [] };
+    const answers: ((view: unknown) => void)[] = [];
+    const image = (): Promise<unknown> => new Promise(resolve => answers.push(resolve));
+    useStore.setState({ places: [here, ascii] });
+    await mountComputers(computersApi({ image, capabilities: () => new Promise(() => {}) } as unknown as Partial<Api>).api);
+    const note = (): string | null | undefined => document.querySelector("[data-place-row='box'] [data-grid-note]")?.textContent;
+    await waitFor(() => expect(answers).toHaveLength(1));
+    act(() => useStore.setState({ settingsOpen: false }));
+    const job: InitJob = { id: "init_1", road: "manual", phase: "sealing", keys: { box: true }, place: { id: "box", name: "box" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 1, total: 2 }, log: [] };
+    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 1 } } }));
+    expect(answers).toHaveLength(2);
+    await act(async () => answers[0]!({ image: null, copies: [], projects: [] }));
+    act(() => useStore.setState({ settingsOpen: true }));
+    await waitFor(() => expect(note()).toBe(IMAGE_WORDS.state.reading));
+    expect(answers).toHaveLength(2);
+    await act(async () => answers[1]!(sealed));
+    await waitFor(() => expect(note()).toMatch(/^Image v1, sealed /));
+  });
 });
 
 describe("a computer's own page", () => {
@@ -1108,6 +1147,50 @@ describe("the cloud's page", () => {
     // The long list is the Image page's: no recipe, no Edit and no copies here.
     for (const k of ["recipe", "edit-recipe", "image-holds", "image-copy", "spend"]) expect(document.querySelector(`[data-settings-page] [data-k='${k}']`)).toBeNull();
     expect(document.querySelector("[data-k='remove-note']")?.textContent).toBe(WHERE_WORDS.removeCloudDescription);
+  });
+
+  it("keeps the Image row through a build's seal: building, then reading while the host reads again, then ready", async () => {
+    let answer: (view: unknown) => void = () => {};
+    let reads = 0;
+    const image = (): Promise<unknown> => (reads++ === 0 ? Promise.resolve({ image: null, copies: [], projects: [] }) : new Promise(resolve => (answer = resolve)));
+    const api = computersApi({ image, capabilities: () => new Promise(() => {}), initStart: async () => ({}) as InitJob } as unknown as Partial<Api>, setupOf({ keys: { solari: true } })).api;
+    useStore.setState({ places: [here, { ...solari, buildsImages: true }] });
+    await mountComputers(api, { kind: "computer", id: "solari" });
+    const state = (): string | null | undefined => document.querySelector("[data-k='image-state']")?.getAttribute("data-state");
+    const job: InitJob = { id: "init_1", road: "manual", phase: "building", keys: { solari: true }, place: { id: "solari", name: "solari" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 9, total: 12 }, log: [] };
+    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+    await waitFor(() => expect(state()).toBe("building"));
+    act(() => useStore.getState().applyEvent({ type: "golden.stage", name: "default", stage: "sealed" }));
+    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 2 } } }));
+    expect(state()).toBe("reading");
+    // The frame and the job's end each ask; the newest ask's answer is the one drawn.
+    await waitFor(() => expect(reads).toBe(3));
+    expect(state()).toBe("reading");
+    expect(document.querySelector("[data-k='image-state'] [data-grid-note]")?.textContent).toBe(`${IMAGE_WORDS.state.reading}.`);
+    act(() => answer({ image: IMAGE, copies: [copy], projects: [] }));
+    await waitFor(() => expect(state()).toBe("ready"));
+  });
+
+  it("says it is reading only while a read is out: a read after a seal that fails leaves no Image row standing", async () => {
+    const asks: { resolve: (view: unknown) => void; reject: (e: unknown) => void }[] = [];
+    const image = (): Promise<unknown> => new Promise((resolve, reject) => asks.push({ resolve, reject }));
+    const api = computersApi({ image, capabilities: () => new Promise(() => {}), initStart: async () => ({}) as InitJob } as unknown as Partial<Api>, setupOf({ keys: { solari: true } })).api;
+    useStore.setState({ places: [here, { ...solari, buildsImages: true }] });
+    await mountComputers(api, { kind: "computer", id: "solari" });
+    const state = (): string | null | undefined => document.querySelector("[data-k='image-state']")?.getAttribute("data-state");
+    await waitFor(() => expect(asks).toHaveLength(1));
+    await act(async () => asks[0]!.resolve({ image: IMAGE, copies: [copy], projects: [] }));
+    await waitFor(() => expect(state()).toBe("ready"));
+    const job: InitJob = { id: "init_1", road: "manual", phase: "building", keys: { solari: true }, place: { id: "solari", name: "solari" }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 9, total: 12 }, log: [] };
+    act(() => useStore.getState().applyEvent({ type: "init.job", job }));
+    act(() => useStore.getState().applyEvent({ type: "init.job", job: { ...job, phase: "done", golden: { version: 3 } } }));
+    expect(state()).toBe("reading");
+    await act(async () => asks[1]!.reject(new Error("the socket closed")));
+    expect(state()).toBeUndefined();
+    act(() => useStore.setState({ settingsOpen: false }));
+    act(() => useStore.setState({ settingsOpen: true }));
+    await waitFor(() => expect(asks).toHaveLength(3));
+    expect(state()).toBe("reading");
   });
 
   it("opens no recipe on a page asked to edit the image, since the list is not drawn on these pages", async () => {

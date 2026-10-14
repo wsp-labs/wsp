@@ -27,7 +27,8 @@ export type OutsideMoment =
   | { kind: "plan"; label: string; alert: PlanAlert }
   | { kind: "setupFailed"; computer: string; said: string }
   | { kind: "setupNeedsYou"; computer: string; what: string }
-  | { kind: "setupReady"; computer: string; missed?: string };
+  | { kind: "setupReady"; computer: string; missed?: string }
+  | { kind: "imageReady"; computer: string; image: string };
 
 /** What a setup's three moments say. */
 export const setupFailedLine = (computer: string): string => `${computer}: setup failed`;
@@ -59,5 +60,7 @@ export function outsideLine(moment: OutsideMoment, choices: Pick<GeneralPreferen
       return said(notifyBy(choices.notifyNeeds), NEEDS_YOU, setupNeedsYouLine(moment.computer, moment.what));
     case "setupReady":
       return said(notifyBy(choices.notifyDone), setupReadyLine(moment.computer, moment.missed), "");
+    case "imageReady":
+      return said(notifyBy(choices.notifyDone), setupReadyLine(moment.computer), moment.image);
   }
 }
