@@ -89,7 +89,7 @@ describe.runIf(LIVE)("callback relay (live)", () => {
     let relay: CallbackRelay | undefined;
     let link: ReturnType<typeof connectDaemon> | undefined;
     try {
-      const shim = await machine.exec("ls -l /usr/local/bin/wsp-open /usr/local/bin/xdg-open; cat /etc/profile.d/wsp-open.sh; test -S /root/.wsp/open.sock && echo SOCK_OK");
+      const shim = await machine.exec("ls -l /usr/local/bin/wsp-open /usr/local/bin/xdg-open; cat /etc/profile.d/wsp-open.sh; test -S /run/wsp-daemon/open.sock && echo SOCK_OK");
       expect(shim.stdout).toContain("SOCK_OK");
       expect(shim.stdout).toContain("xdg-open -> /usr/local/bin/wsp-open");
       expect(shim.stdout).toContain("unset DISPLAY");
