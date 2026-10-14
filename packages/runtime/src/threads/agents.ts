@@ -537,8 +537,8 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
   };
 
   /** Each cloud machine's servers by workspace, agent and folder, read once and kept until wsp changes its servers there
-   * or the workspace goes, is rebuilt or upgraded: a read costs a turn's start two commands there and its whole config (264 KB from Boat,
-   * 2026-10-14). A read that failed is not kept. */
+   * or the workspace goes, is rebuilt or upgraded: a read costs a turn's start two commands there and its whole config
+   * (264 KB from Boat, 2026-10-14). A read that failed is not kept. */
   const cloudServers = new Map<string, Promise<TurnServer[] | undefined>>();
   const dropServersOf = (workspaceId?: string): void => {
     for (const key of [...cloudServers.keys()]) if (workspaceId === undefined || key.startsWith(`${workspaceId}\0`)) cloudServers.delete(key);
@@ -555,9 +555,9 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
 
   /** The servers a launch in `folder` on a cloud machine leaves out, by name: each one its config there names that needs
    * the person's sign-in or key, which the machine never holds, so the agent neither lists it nor asks for its sign-in.
-   * An address with no header is left out where the host's probe says it asks for a sign-in, an address with no answer
-   * kept waited on within the probe's time. Nothing anywhere else, and
-   * nothing where the config could not be read, which costs the turn its list, not its start. */
+   * An address with no header is left out where the host's probe says it asks for a sign-in; one this host never asked
+   * is waited on within the probe's time. Nothing anywhere else, and nothing where the config could not be read, which
+   * costs the turn its list, not its start. */
   const offServersFor = async (entry: LiveWorkspace, harness: string, folder: string): Promise<string[] | undefined> => {
     if (!atProvider(ctx.placeIdOf(entry.record), ctx.places)) return undefined;
     const key = [entry.record.id, harness, folder].join("\0");
