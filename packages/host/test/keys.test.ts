@@ -588,7 +588,11 @@ describe("the key a run is asked for is the one its own provider reads", () => {
     await keySources(box, state).checkKey!("box_fake_key");
     await keySources({}, state).checkKey!("slr_live_fake_key");
     expect(called).toEqual([
+      { url: `${BOX_API_URL}/me`, auth: "Bearer box_fake_key" },
       { url: `${BOX_API_URL}/limits`, auth: "Bearer box_fake_key" },
+      { url: `${BOX_API_URL}/boxes?limit=1`, auth: "Bearer box_fake_key" },
+      { url: `${BOX_API_URL}/boxes/bx_wspkeycheck0000000000/resume`, auth: "Bearer box_fake_key" },
+      { url: `${BOX_API_URL}/api-keys`, auth: "Bearer box_fake_key" },
       { url: "https://api.getsolari.com/templates", auth: "Bearer slr_live_fake_key" },
     ]);
   });
