@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, sharedOn } from "@wsp/catalog";
 import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
-import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
+import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneOnMachineFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
 import { cloneLines, underLoginHome } from "../project-landing.js";
 import { landOnRecord } from "../projects/branch-of-record.js";
 import { threadEnds } from "./thread-ends.js";
@@ -42,7 +42,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
       ...(project.base !== undefined ? { branch: project.base } : {}),
     }).join("\n");
   /** The clone inside a copy: git's own last line is the failure, so a person reads what git said and not that a
-   * stage failed. */
+   * stage failed, and where git said nothing past its start, how the clone ended. */
   const cloneProject = async (entry: LiveWorkspace, project: ProjectView, report: StageReport): Promise<void> => {
     // A machine whose credentials the host keeps works on its branch of record, cloned there or put on it in the
     // checkout its image holds.
@@ -64,7 +64,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
       await landOnRecord(ctx, entry, project, cloneLines({ source: projectSource(project.source.kind), remote: project.remote, checkout: project.path, computer, ...(base !== undefined ? { branch: base } : {}), brokered: { ofRecord, origin: ownerRepoOf(project.remote) ?? "", held: entry.ofRecordHeld === true } }));
     } else {
       const cloned = await entry.machine.exec(cloneOnMachine(project, computer), { timeoutMs: CLONE_MS });
-      if (cloned.exitCode !== 0) throw new Error(lastLineOf(cloned.stderr) || lastLineOf(cloned.stdout) || `git clone exited ${cloned.exitCode}`);
+      if (cloned.exitCode !== 0) throw new Error(cloneOnMachineFailedLine({ repo: ownerRepoOf(project.remote) ?? project.remote, on: computer, exitCode: cloned.exitCode, said: cloned.stderr || cloned.stdout, limitMs: CLONE_MS }));
     }
     // Fresh dependencies on the machine holding the checkout: the catalog's row for whichever lockfile the repo's
     // own root carries, run once, its output in wsp's own folder and never inside the project. A repo no row names
