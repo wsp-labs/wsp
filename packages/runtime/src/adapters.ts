@@ -63,13 +63,16 @@ export const HARNESS_ADAPTERS: Readonly<Record<ThreadAgent, HarnessAdapterFactor
       signInRefusal: ctx.signInRefusal,
       ...(ctx.projectKey !== undefined ? { projectDirName: ctx.projectKey } : {}),
       ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}),
-      ...secretsOf(ctx.vault, "claude", ctx.loginStands("claude")),
+      ...(ctx.brokered !== undefined ? { brokered: ctx.brokered } : secretsOf(ctx.vault, "claude", ctx.loginStands("claude"))),
     }),
   codex: ctx =>
     createCodexAdapter({ exec: ctx.execStream, home: ctx.home("codex"), login: machineLogin("codex"), baseEnv: ctx.env, ...secretsOf(ctx.vault, "codex", ctx.loginStands("codex")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
   opencode: ctx => createOpenCodeAdapter({ exec: ctx.execStream, baseEnv: ctx.env, signInRefusal: ctx.signInRefusal, ...secretsOf(ctx.vault, "opencode", ctx.loginStands("opencode")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
   cursor: ctx => createCursorAdapter({ exec: ctx.execStream, baseEnv: ctx.env, signInRefusal: ctx.signInRefusal, ...secretsOf(ctx.vault, "cursor", ctx.loginStands("cursor")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
 };
+
+/** The agents a machine whose credentials the host keeps launches: the ones its broker adds a credential for. */
+export const BROKERED_AGENTS: ReadonlySet<string> = new Set<ThreadAgent>(["claude", "codex"]);
 
 /** The agents whose plans bank resets a person can spend, each with the scripts that read and spend one. */
 export const PLAN_RESETS: Readonly<Partial<Record<ThreadAgent, PlanResets>>> = { codex: codexPlanResets };

@@ -22,6 +22,7 @@ import {
   type AgentSetupSet,
   ThreadDefaults,
   AgentsReport,
+  BrokerStatus,
   AgentsSignInEvent,
   AgentsSignInRun,
   ServerToolsAnswer,
@@ -619,6 +620,9 @@ export interface Api {
   /** What stands on one computer or workspace for the agents: each agent, every skill, every MCP server. A read never
    * wakes a napping machine. A client without it draws no report. */
   agentsRead?(target: AgentsTarget): Promise<AgentsReport>;
+  /** The kind of credential this host adds to what a machine at a provider sends, for each agent and GitHub, never the
+   * credential. Refused by a host whose broker is not wired, which the Agents rows read as nothing to say. */
+  brokerStatus?(): Promise<BrokerStatus>;
   /** Sets how one agent runs on one computer and answers its row as that computer's read now gives it, its variables
    * by name alone. A variable's value is refused off the host's own socket. A client without it draws the setup as
    * words with no control. */
@@ -636,6 +640,9 @@ export interface Api {
   /** Every sign-in the host runs and every one that ended in the last ten minutes, each with its last step; this socket
    * follows each running one from the answer on, so a window whose socket came back, or one opened since, hears it. */
   agentsSignIns?(): Promise<AgentsSignInRun[]>;
+  /** Starts the sign-in machines at a provider borrow for one agent, its own login on this computer, followed as
+   * agentsSignIn's is. */
+  agentsCloudSignIn?(agent: string, onStep: (step: AgentsSignInEvent) => void): Promise<{ signInId: string; stop(): void; off(): void }>;
   /** Hears one sign-in this socket follows, by its id, as agentsSignIn's answer does. */
   agentsSignInWatch?(signInId: string, onStep: (step: AgentsSignInEvent) => void): { signInId: string; stop(): void; off(): void };
   /** Types what a sign-in's page handed back into that sign-in's pty. */
@@ -1030,6 +1037,35 @@ export interface CreatedWorkspace extends WorkspaceView {
   notice?: string;
 }
 
+/** Starts a sign-in by op and follows its steps by the id the host answers, a step that lands first kept for that id. */
+async function followSignIn(c: ProtocolClient, op: string, params: Record<string, unknown>, onStep: (step: AgentsSignInEvent) => void): Promise<{ signInId: string; stop(): void; off(): void }> {
+  let signInId: string | undefined;
+  const early: AgentsSignInEvent[] = [];
+  const off = c.subscribe(event => {
+    const step = AgentsSignInEvent.safeParse(event);
+    if (!step.success) return;
+    if (signInId === undefined) early.push(step.data);
+    else if (step.data.signInId === signInId) onStep(step.data);
+  });
+  try {
+    const started = await c.request<{ signInId?: unknown }>(op, params);
+    signInId = String(started.signInId);
+    for (const step of early) if (step.signInId === signInId) onStep(step);
+    const id = signInId;
+    return {
+      signInId: id,
+      off,
+      stop: () => {
+        off();
+        c.request("agents.signInStop", { signInId: id }).catch(() => undefined);
+      },
+    };
+  } catch (e) {
+    off();
+    throw e;
+  }
+}
+
 export function makeApi(c: ProtocolClient): Api {
   const create = async (project: string, name: string, picked?: { golden?: string; size?: WorkspaceSize }): Promise<CreatedWorkspace> => {
     const { workspace, notice } = await c.request<WorkspaceCreateResult>("workspaces.create", { project, name, ...(picked?.golden === undefined ? {} : { golden: picked.golden }), ...picked?.size });
@@ -1236,6 +1272,7 @@ export function makeApi(c: ProtocolClient): Api {
     placesUpdate: async placeId => PlaceUpdateReply.parse(await c.request<Record<string, unknown>>("places.update", { placeId })),
     placesSet: async (placeId, ask, reset) => PlaceView.parse((await c.request<{ place: unknown }>("places.set", { placeId, ...ask, ...(reset === undefined || reset.length === 0 ? {} : { reset: [...reset] }) })).place),
     agentsRead: async target => AgentsReport.parse((await c.request<{ report?: unknown }>("agents.read", { target })).report),
+    brokerStatus: async () => BrokerStatus.parse(await c.request<Record<string, unknown>>("broker.status")),
     agentsSetup: async (placeId, agent, change) => AgentRow.parse((await c.request<{ agent?: unknown }>("agents.setup", { placeId, agent, ...change })).agent),
     skillsSearch: async q => {
       const skills = (await c.request<{ skills?: unknown }>("skills.search", { q })).skills;
@@ -1256,34 +1293,9 @@ export function makeApi(c: ProtocolClient): Api {
       const icon = (await c.request<{ icon?: unknown }>("servers.icon", { host, ...(refresh === true ? { refresh } : {}) })).icon;
       return typeof icon === "string" && ICON_DATA_URL.test(icon) ? icon : null;
     },
-    agentsSignIn: async (target, agent, server, onStep, terminal, row) => {
-      // The host answers before it pushes a step, but a step that lands first is kept for the id it names.
-      let signInId: string | undefined;
-      const early: AgentsSignInEvent[] = [];
-      const off = c.subscribe(event => {
-        const step = AgentsSignInEvent.safeParse(event);
-        if (!step.success) return;
-        if (signInId === undefined) early.push(step.data);
-        else if (step.data.signInId === signInId) onStep(step.data);
-      });
-      try {
-        const started = await c.request<{ signInId?: unknown }>(server === undefined ? "agents.signIn" : "servers.signIn", { target, agent, ...(server === undefined ? {} : { name: server, ...row }), ...(terminal === true ? { terminal: true } : {}) });
-        signInId = String(started.signInId);
-        for (const step of early) if (step.signInId === signInId) onStep(step);
-        const id = signInId;
-        return {
-          signInId: id,
-          off,
-          stop: () => {
-            off();
-            c.request("agents.signInStop", { signInId: id }).catch(() => undefined);
-          },
-        };
-      } catch (e) {
-        off();
-        throw e;
-      }
-    },
+    agentsSignIn: async (target, agent, server, onStep, terminal, row) =>
+      followSignIn(c, server === undefined ? "agents.signIn" : "servers.signIn", { target, agent, ...(server === undefined ? {} : { name: server, ...row }), ...(terminal === true ? { terminal: true } : {}) }, onStep),
+    agentsCloudSignIn: async (agent, onStep) => followSignIn(c, "agents.cloudSignIn", { agent }, onStep),
     agentsSignIns: async () => AgentsSignInRun.array().parse((await c.request<{ runs?: unknown }>("agents.signIns")).runs),
     agentsSignInWatch: (signInId, onStep) => {
       const off = c.subscribe(event => {

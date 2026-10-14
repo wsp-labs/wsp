@@ -907,6 +907,8 @@ export interface SealGoldenOptions extends MachineSize {
   hostId: string;
   /** How long the seal waits for the promoted template to read ready, and how often it reads (tests shrink both). */
   templateWait?: Pick<TemplateWait, "readyMs" | "pollMs">;
+  /** Absolute guest paths whose presence on the builder refuses the seal, each named; NEVER_IN_IMAGE when absent. */
+  refuse?: readonly string[];
   /** Absolute guest paths to archive off the builder before the snapshot: the sign-in state and the secrets files.
    * Absent, no vault is taken, which is what a copy's own build wants: its vault is already the record's. */
   vaultPaths?: readonly string[];
@@ -1103,7 +1105,7 @@ export async function sealGolden(builder: Builder, opts: SealGoldenOptions): Pro
   // A sign-in never sits in an image: a credential file left on the builder would ride into every fork of it, and
   // inside Claude Code a helper key file outranks the token the vault hands each turn. Read before anything else,
   // so a builder that holds one is left exactly as the person set it up.
-  const held = await presentPaths(builder.machine, NEVER_IN_IMAGE);
+  const held = await presentPaths(builder.machine, opts.refuse ?? NEVER_IN_IMAGE);
   if (held.length > 0) throw new CredentialOnBuilderError(held);
   npmBin = await npmBinOf(builder.machine);
   if (npmBin !== undefined) {

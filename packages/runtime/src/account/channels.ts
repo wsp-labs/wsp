@@ -4,7 +4,7 @@ import { readlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, relative } from "node:path";
 import { CATALOG_AGENTS, remoteHost } from "@wsp/catalog";
-import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, STDIO_DAEMON_VERSION, slateServerBehindLine, type Caller } from "@wsp/protocol";
+import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, STDIO_DAEMON_VERSION, PIPE_DAEMON_VERSION, THREAD_ENV, slateServerBehindLine, usageRefusal, type Caller } from "@wsp/protocol";
 import { agentPidOf, groupExists } from "../local-exec.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
@@ -16,6 +16,12 @@ import type { RuntimeContext, ChannelsArea } from "../context.js";
 
 /** How long the rule's origin read may hold the host's one thread: a local git read answers in milliseconds. */
 const ORIGIN_READ_MS = 2_000;
+/** How long an op that carries a token waits for the hello that names the daemon's version, which follows the auth
+ * reply at once; a daemon that names none in time is sent no token. */
+const HELLO_WAIT_MS = 2_000;
+/** The ops whose git or gh reach the git host, which on a machine whose credentials the host keeps carry a token of
+ * their own for that one op. */
+const OP_TOKEN_OPS: ReadonlySet<string> = new Set(["git.push", "git.startOn", "git.update", "git.mergeIn", "git.pr", "git.prCheckout"]);
 
 export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const { local, placeDoor, clock, projectsHeld, threadRecords, sessions, transcriptIndex, places } = ctx;
@@ -141,7 +147,51 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   const withDaemon = async <T>(entry: LiveWorkspace, work: (ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>) => Promise<T>): Promise<T> => {
     const served = servedByItsComputer(entry);
     if (served !== undefined) return work(async frame => replyOf(frame, await served(frame)));
-    return overChannel(await ownDaemonChannel(entry, () => {}), work);
+    if (!brokered(entry)) return overChannel(await ownDaemonChannel(entry, () => {}), work);
+    let heard: (version: number | undefined) => void = () => {};
+    const hello = new Promise<number | undefined>(resolve => (heard = resolve));
+    const channel = await ownDaemonChannel(entry, event => {
+      if (event["type"] === "daemon.hello") heard(typeof event["version"] === "number" ? event["version"] : undefined);
+    });
+    return overChannel(channel, ask => work(withOpTokens(entry, ask, hello)));
+  };
+  /** Whether the host keeps the credentials of a workspace's machine, so its git and gh reach the git host through
+   * the host with a token the host minted: a machine at a provider, once the host's broker is ready. Never this
+   * computer, a folder on a computer, or a fork on a computer the person joined. */
+  const brokered = (entry: LiveWorkspace): boolean =>
+    ctx.opts.broker?.ready() === true &&
+    !isLocalWorkspace(entry.record) &&
+    !runsInFolder(entry.record.kind) &&
+    servedByItsComputer(entry) === undefined &&
+    (entry.record.place === undefined || placeDoor?.joined(entry.record.place) !== true);
+  /** The thread a token minted for a workspace's machine is scoped to: the one named, where it is a thread of that
+   * workspace, else the newest thread there. Nothing on a workspace no thread has started on yet. */
+  const threadOn = (workspaceId: string, named?: unknown): string | undefined => {
+    if (typeof named === "string" && threadRecords.get(named)?.workspaceId === workspaceId) return named;
+    let newest: string | undefined;
+    for (const [threadId, held] of threadRecords) if (held.workspaceId === workspaceId) newest = threadId;
+    return newest;
+  };
+  /** Each op of OP_TOKEN_OPS sent with a token minted for it alone and taken away at its reply, refused or not. A
+   * daemon from before PIPE_DAEMON_VERSION is sent none. A workspace with no thread to scope one to is refused, since
+   * its machine holds no credential of its own for the op to fall back on. */
+  const withOpTokens = (entry: LiveWorkspace, ask: (frame: DaemonFrame) => Promise<Record<string, unknown>>, hello: Promise<number | undefined>) => async (frame: DaemonFrame): Promise<Record<string, unknown>> => {
+    if (!OP_TOKEN_OPS.has(frame.op)) return ask(frame);
+    const threadId = threadOn(entry.record.id);
+    if (threadId === undefined) throw usageRefusal(`${entry.record.name} has no thread yet, so wsp cannot reach GitHub for it.`, "Start a thread on it first.");
+    const version = await new Promise<number | undefined>(resolve => {
+      const late = setTimeout(() => resolve(undefined), HELLO_WAIT_MS);
+      late.unref();
+      void hello.then(v => (clearTimeout(late), resolve(v)));
+    });
+    if (version === undefined || version < PIPE_DAEMON_VERSION) return ask(frame);
+    const scope = { kind: "thread" as const, threadId, workspaceId: entry.record.id, rootThreadId: ctx.rootOf(threadId) };
+    const minted = await ctx.deviceDoor.mint(`op ${frame.op}`, scope, Date.now(), { road: ctx.moduleOf(entry.record.kind).turnRoad });
+    try {
+      return await ask({ ...frame, token: minted.deviceToken } as DaemonFrame);
+    } finally {
+      await ctx.deviceDoor.revoke(minted.deviceId).catch((e: unknown) => console.warn(`the token of ${frame.op} on ${entry.record.name} was not taken away: ${e instanceof Error ? e.message : String(e)}`));
+    }
   };
   /** A daemon's reply to one of this host's own frames, or its refusal thrown with the code the daemon put on it. */
   const replyOf = (frame: DaemonFrame, reply: Record<string, unknown>): Record<string, unknown> => {
@@ -373,12 +423,12 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     tagsGoing.add(e.workspaceId);
     keepTags(e.workspaceId);
   });
-  /** A client's channel that keeps the thread a pty.create names, which the daemon never hears, and names it on
-   * every row of a pty.list. A pty.thread hands a shell to another thread (the New thread page's, to the thread its
+  /** A client's channel that keeps the thread a pty.create names, which copyChannel keeps from the daemon, and names
+   * it on every row of a pty.list. A pty.thread hands a shell to another thread (the New thread page's, to the thread its
    * first send opened) and is answered here, never by the daemon. */
   const threadTagged = (workspaceId: string, channel: DaemonChannel): DaemonChannel => ({
     async send(frame) {
-      const { thread, ...rest } = frame as Record<string, unknown>;
+      const { thread } = frame as Record<string, unknown>;
       const tags = await tagsOf(workspaceId);
       if (frame.op === "pty.thread") {
         const ptyId = (frame as Record<string, unknown>)["ptyId"];
@@ -388,8 +438,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
         portRootsMoved(workspaceId);
         return { id: frame.id, ok: true } as DaemonResponse;
       }
-      const sent = (frame.op === "pty.create" ? rest : frame) as DaemonFrame;
-      const reply = await channel.send(sent);
+      const reply = await channel.send(frame);
       const said = reply as Record<string, unknown>;
       if (said["ok"] !== true) return reply;
       if (frame.op === "pty.create" && typeof thread === "string") {
@@ -414,6 +463,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     for (const [ptyId, thread] of [...tags]) {
       if (thread !== threadId) continue;
       await withDaemon(entry, ask => ask({ op: "pty.kill", ptyId } as DaemonFrame)).catch((e: unknown) => console.warn(`shell ${ptyId} of a deleted thread was not ended: ${e instanceof Error ? e.message : String(e)}`));
+      await shellsEnded(entry.record.id, [ptyId]);
       tags.delete(ptyId);
       keepTags(entry.record.id);
     }
@@ -605,20 +655,127 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     };
   };
 
+  /** A shell's token on a machine whose credentials the host keeps: the same call mints it as a turn's, so its
+   * environment carries every variable a turn's launch does, scoped to the pane's thread. Nothing anywhere else. */
+  const terminalToken = async (entry: LiveWorkspace, named: unknown): Promise<{ deviceId: string; env: Record<string, string> } | undefined> => {
+    const threadId = threadOn(entry.record.id, named);
+    if (threadId === undefined) return undefined;
+    const launch = await ctx.threadLaunch(entry, threadId, ctx.rootOf(threadId));
+    if (launch.scoped === undefined) return undefined;
+    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, [THREAD_ENV]: threadId } };
+  };
+  /** The device each shell's token was minted as, by workspace and pty, taken away when the shell ends: at its exit,
+   * its kill, or a list that no longer holds it. Kept in the host's state, one document per workspace, so a host that
+   * restarts over shells a daemon still holds still takes their tokens away; the document goes with its workspace. */
+  const PTY_TOKENS = "pty-tokens";
+  const shellTokens = new Map<string, Promise<Map<string, string>>>();
+  const shellTokensOf = (workspaceId: string): Promise<Map<string, string>> => {
+    const held = shellTokens.get(workspaceId);
+    if (held !== undefined) return held;
+    const read = ctx.store.get(PTY_TOKENS, workspaceId).then(
+      kept => new Map(Object.entries(kept !== null && typeof kept === "object" ? (kept as Record<string, unknown>) : {}).filter((row): row is [string, string] => typeof row[1] === "string")),
+      () => new Map<string, string>(),
+    );
+    shellTokens.set(workspaceId, read);
+    return read;
+  };
+  /** Writes one at a time per workspace, each the map as it stands when it runs. */
+  const shellTokenWrites = new Map<string, Promise<void>>();
+  const keepShellTokens = (workspaceId: string): Promise<void> => {
+    const write = (shellTokenWrites.get(workspaceId) ?? Promise.resolve())
+      .then(async () => {
+        const held = await shellTokensOf(workspaceId);
+        if (held.size === 0) await ctx.store.delete(PTY_TOKENS, workspaceId);
+        else await ctx.store.put(PTY_TOKENS, workspaceId, Object.fromEntries(held));
+      })
+      .catch((e: unknown) => console.warn(`which shells in ${workspaceId} hold a token was not kept for the next host: ${e instanceof Error ? e.message : String(e)}`))
+      .then(() => {
+        if (shellTokenWrites.get(workspaceId) === write) shellTokenWrites.delete(workspaceId);
+      });
+    shellTokenWrites.set(workspaceId, write);
+    return write;
+  };
+  const revokeShellToken = (deviceId: string): Promise<unknown> =>
+    ctx.deviceDoor.revoke(deviceId).catch((e: unknown) => console.warn(`the token of a shell was not taken away: ${e instanceof Error ? e.message : String(e)}`));
+  const shellOpened = async (workspaceId: string, ptyId: string, deviceId: string): Promise<void> => {
+    (await shellTokensOf(workspaceId)).set(ptyId, deviceId);
+    await keepShellTokens(workspaceId);
+  };
+  const shellsEnded = async (workspaceId: string, ptyIds: readonly string[]): Promise<void> => {
+    const held = await shellTokensOf(workspaceId);
+    const gone = ptyIds.flatMap(id => {
+      const deviceId = held.get(id);
+      held.delete(id);
+      return deviceId === undefined ? [] : [deviceId];
+    });
+    if (gone.length === 0) return;
+    await keepShellTokens(workspaceId);
+    await Promise.all(gone.map(revokeShellToken));
+  };
+  /** What a reply says of the shells that hold tokens: a kill ends one, and a list ends every one it does not hold
+   * standing, since a shell that exited while no pane listened sent nobody its exit. */
+  const shellsAnswered = async (workspaceId: string, frame: DaemonFrame, reply: Record<string, unknown>): Promise<void> => {
+    if (reply["ok"] !== true) return;
+    if (frame.op === "pty.kill") return shellsEnded(workspaceId, [String(frame["ptyId"])]);
+    if (frame.op !== "pty.list" || !Array.isArray(reply["ptys"])) return;
+    const held = await shellTokensOf(workspaceId);
+    if (held.size === 0) return;
+    const standing = new Set((reply["ptys"] as Record<string, unknown>[]).filter(row => row["exited"] !== true).map(row => String(row["id"])));
+    await shellsEnded(workspaceId, [...held.keys()].filter(id => !standing.has(id)));
+  };
+  /** Every device a shell of a workspace this host holds keeps as its token, read off the documents, for the boot. */
+  const shellHeldDevices = async (): Promise<ReadonlySet<string>> => {
+    const held = await Promise.all((await ctx.store.keys(PTY_TOKENS)).filter(id => ctx.live.has(id)).map(shellTokensOf));
+    return new Set(held.flatMap(tokens => [...tokens.values()]));
+  };
+  ctx.bus.on("workspace.deleted", e => {
+    if (e.type !== "workspace.deleted") return;
+    const workspaceId = e.workspaceId;
+    void shellTokensOf(workspaceId)
+      .then(held => shellsEnded(workspaceId, [...held.keys()]))
+      .then(() => shellTokens.delete(workspaceId));
+  });
+
   /** All a channel into a copy on a computer that cannot run workspaces carries out: a stopped copy's git.status
    * reads its files, and ping is the beat a pane's link opens on. In comes only their answers and the open's hello,
    * which names the root git.status is asked under; a session or a pty the computer pushes never reaches a door. */
   const BLOCKED_READS: ReadonlySet<string> = new Set(["git.status", "ping"]);
   const copyChannel = async (entry: LiveWorkspace, onEvent: (event: Record<string, unknown>) => void, carries: readonly string[]): Promise<DaemonChannel> => {
     const said = runsInFolder(entry.record.kind) ? undefined : await blockedLine(entry.record.place);
+    const workspaceId = entry.record.id;
+    const served = servedByItsComputer(entry);
+    // Only a machine's own daemon away from this computer ever opens a shell that holds a token, whether or not the
+    // broker reads ready now, so every other pane's frames wait on nothing of the tokens'.
+    const mints = served === undefined && !isLocalWorkspace(entry.record) && !runsInFolder(entry.record.kind);
     const heard = (event: Record<string, unknown>): void => {
+      if (mints && event["type"] === "pty.exit") void shellsEnded(workspaceId, [String(event["ptyId"])]);
       if (said === undefined || event["type"] === "daemon.hello") onEvent(event);
     };
-    const served = servedByItsComputer(entry);
     const opened = await (served === undefined ? ownDaemonChannel(entry, heard) : servedChannel(entry, served, heard, carries));
     const channel: DaemonChannel = {
-      // The drawer's first tab names no folder, and a daemon's home is not where a fork's or a sub-thread's work is.
-      send: async frame => opened.send(frame.op === "pty.create" && frame.cwd === undefined ? { ...frame, cwd: await ctx.threadFolder(entry, {}) } : frame),
+      send: async frame => {
+        if (frame.op !== "pty.create") {
+          const reply = await opened.send(frame);
+          if (mints && (frame.op === "pty.kill" || frame.op === "pty.list")) await shellsAnswered(workspaceId, frame, reply as Record<string, unknown>);
+          return reply;
+        }
+        const { thread, ...asked } = frame as DaemonFrame & { thread?: unknown };
+        // The drawer's first tab names no folder, and a daemon's home is not where a fork's or a sub-thread's work is.
+        const cwd = asked.cwd ?? (await ctx.threadFolder(entry, {}));
+        const minted = brokered(entry) ? await terminalToken(entry, thread) : undefined;
+        const env = typeof asked["env"] === "object" && asked["env"] !== null ? (asked["env"] as Record<string, string>) : {};
+        const sent = { ...asked, cwd, ...(minted !== undefined ? { env: { ...ctx.threadEnv(entry), ...env, ...minted.env } } : {}) } as DaemonFrame;
+        const reply = (await opened.send(sent).catch(async (e: unknown) => {
+          if (minted !== undefined) await revokeShellToken(minted.deviceId);
+          throw e;
+        })) as Record<string, unknown>;
+        if (minted === undefined) return reply as DaemonResponse;
+        // A reply that lands once the workspace is going opens a shell nobody keeps a record of, so its token goes now.
+        const going = entry.deleting !== undefined || !ctx.live.has(workspaceId);
+        if (reply["ok"] !== true || typeof reply["ptyId"] !== "string" || going) await revokeShellToken(minted.deviceId);
+        else await shellOpened(workspaceId, reply["ptyId"], minted.deviceId);
+        return reply as DaemonResponse;
+      },
       close: () => opened.close(),
       closed: opened.closed,
     };
@@ -723,7 +880,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
     startedAs, cutBefore, resumedFact, folderOf, accessOf, daemonNotes, homeOf, providerOf, placeIdOf, settingsAt,
     turnLimitOf, agentsHeld, spawnAt, projectHeld, refOf, checkoutOf, computerOf, servedByItsComputer, channelOver,
     withDaemon, overChannel, stdioRoad, onThisComputer, placeGuard, placeRefuses, copyBlocked, WORKSPACE_FRAMES, GUEST_ROAD_FRAMES,
-    portPids, threadTerminals, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
+    portPids, threadTerminals, heldToOwner, killGuarded, threadTagged, tagsHeld, tagWrites, endThreadShells, shellHeldDevices, sharedDaemonReplaced, turnGroups, armRootsRecheck, portRootsMoved, rootedPorts, copyChannel, leadStart, startChildOn,
     sameRepository,
   };
 }

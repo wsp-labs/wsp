@@ -49,9 +49,9 @@ export const TRIAL_SIZES: SubSize[] = PAID_SIZES.filter(s => TRIAL.sizes.include
 /** The setup image on Boat: v1, its sign-ins as the seal recorded them, and the agents its recipe carries. */
 async function sealImage(store: Store, o: { logins?: { name: string; state: "copied" | "signed-in" | "skipped" }[]; agents?: string[] } = {}): Promise<void> {
   const logins = o.logins ?? [{ name: "GitHub CLI login", state: "copied" }];
-  await store.put("goldens", copyKey("box", "default"), { head: 1, versions: [{ version: 1, snapshotId: "wsp-host-default-v1", baseTemplate: "base", setupSha: "abc", createdAt: "2026-10-07T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins }] });
+  await store.put("goldens", copyKey("box", "default"), { head: 1, versions: [{ version: 1, snapshotId: "wsp-host-default-v1", baseTemplate: "base", setupSha: "abc", createdAt: "2026-10-07T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins, noSecrets: true }] });
   const rows = (o.agents ?? ["claude", "codex"]).map(id => ({ id, kind: "agent" as const, on: true, source: { kind: "used" as const, sessions: 1, calls: 1 } }));
-  await store.put("images", "default", { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", recipe: { version: 1, at: "2026-10-07T00:00:00.000Z", histories: [], rows }, pins: [], logins, sealedAt: "2026-10-07T00:00:00.000Z", sealedFrom: "mac", place: "box" });
+  await store.put("images", "default", { name: "default", version: 1, hash: "a".repeat(64), recipeHash: "r", recipe: { version: 1, at: "2026-10-07T00:00:00.000Z", histories: [], rows }, pins: [], logins, sealedAt: "2026-10-07T00:00:00.000Z", sealedFrom: "mac", noSecrets: true, place: "box" });
 }
 
 /** What the lead's folder reads as through its daemon: on a branch, tracked and level with its upstream unless told. */
@@ -224,10 +224,25 @@ export interface Setup {
   clock?: Clock;
   /** The agent a turn on a Boat machine runs, where it is not the stub that answers at once. */
   subAdapter?: HarnessAdapterFactory;
-  /** The host's broker answers ready, so a start takes the road where the host keeps the machine's credentials. */
-  broker?: true;
+  /** The host's broker answers ready, so a start takes the road where the host keeps the machine's credentials;
+   * false wires a broker that is not ready, which a case may bring up through brokerSwitch. */
+  broker?: boolean;
   /** gh on this computer, as a stub script on the PATH its commands run with. */
   gh?: string;
+  /** Where no gh script is given: whether gh on this computer holds a GitHub login, answered by a gh of the fixture's
+   * own ahead of the PATH, which writes each line it is asked to gh-asked under the fixture's folder and holds a login
+   * while gh-signed-in stands there. */
+  hostGh?: boolean;
+}
+
+/** A gh that, while `<at>/gh-signed-in` stands, answers `auth token` for github.com with a token and the read of the
+ * repo a brokered start makes as GitHub does for acme/web, and refuses as gh does otherwise. */
+function fakeGh(at: string, signedIn: boolean): void {
+  if (signedIn) writeFileSync(join(at, "gh-signed-in"), "");
+  const held = `[ -e ${join(at, "gh-signed-in")} ]`;
+  const token = `[ "$*" = "auth token --hostname github.com" ] && ${held} && { echo gho_TESTONLY; exit 0; }`;
+  const repo = `[ "$1 $2" = "api repos/acme/web" ] && ${held} && { printf '4242\\tacme\\tweb\\n'; exit 0; }`;
+  writeStub(join(at, "bin", "gh"), `#!/bin/sh\necho "$*" >> ${join(at, "gh-asked")}\n${token}\n${repo}\necho 'no oauth token found for github.com' >&2\nexit 1\n`);
 }
 
 /** A host holding the lead's folder of acme/web on this computer, its thread running, and Boat as its cloud. */
@@ -251,15 +266,18 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const bin = join(root, "bin");
   mkdirSync(bin);
   if (o.gh !== undefined) writeStub(join(bin, "gh"), o.gh);
-  const local = { ...fakeLocal(join(root, "home")), ...(o.gh !== undefined ? { backend: new LocalBackend({ root: join(root, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } : {}), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
+  else if (o.hostGh !== undefined) fakeGh(root, o.hostGh);
+  const local = { ...fakeLocal(join(root, "home")), ...(o.gh !== undefined || o.hostGh !== undefined ? { backend: new LocalBackend({ root: join(root, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } : {}), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) };
+  // The switch a case flips to bring the broker up on a host already running.
+  const brokerSwitch = { ready: o.broker === true };
+  const broker = o.broker === undefined ? {} : { broker: { ready: () => brokerSwitch.ready, codexClaims: async () => undefined } };
   const placeLinks = o.spendPerDayUsd === undefined && o.machines === undefined ? {} : { placeLinks: wiring(newPlaceKeyPair(), { id: "box", rateUsdPerHour: 0.018 }) };
   const here: { url?: string } = {};
   const agents = o.served === true ? { agents: { here, wspMcp: { command: "wsp", args: ["mcp"] } satisfies McpServerSpec } } : {};
   const claude = harness(starts, leadTurn, CLAUDE_SESSION_FILE);
   const onBoat = o.subAdapter;
-  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE) };
-  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
-  if (o.broker === true) Object.assign(options, { broker: { ready: () => true, codexClaims: async () => undefined } });
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE), opencode: harness(starts, leadTurn, CODEX_SESSION_FILE) };
+  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...broker, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);
   if (o.served === true) {
@@ -284,7 +302,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
   const lead: Caller = { origin: "here", by: { kind: "thread", threadId, workspaceId: folder.id, rootThreadId: threadId } };
   // The same host started again on the same state, as a restart leaves it, on a clock of its own where one is given.
   const restart = (clock?: Clock): Runtime => createRuntime(clock === undefined ? options : { ...options, clock });
-  return { rt, make, store, boat, git, daemon, starts, project, folder, threadId, lead, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo, restart, turns: leadTurn };
+  return { rt, make, store, boat, git, daemon, starts, project, folder, threadId, lead, brokerSwitch, endLead: (): Promise<unknown> => (leadTurn.end?.(), turn.finished), token: starts[0]!.env[TURN_TOKEN_ENV]!, launch: { [HOST_TOKEN_ENV]: starts[0]!.env[HOST_TOKEN_ENV] ?? "", [TURN_TOKEN_ENV]: starts[0]!.env[TURN_TOKEN_ENV]! }, repo, restart, turns: leadTurn };
 }
 
 /** What the result read prints on a machine whose branch is pushed, three commits on the lead's. */

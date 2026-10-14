@@ -31,6 +31,12 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     store, local, placeDoor, bus, clock, hostId, deviceDoor, live, projectsHeld, setups, builders, threadRecords,
     wakeAt, sessions, rows, transcriptIndex, places,
   } = ctx;
+  /** Takes away the devices named, all but the ones a shell still open holds as its token, which its shell's end takes
+   * away instead. Called only with a device to take: a boot with none awaits nothing more than it did before shells. */
+  const revokeButShells = async (devices: readonly { id: string }[]): Promise<void> => {
+    const shells = await ctx.shellHeldDevices();
+    for (const device of devices) if (!shells.has(device.id)) await deviceDoor.revoke(device.id);
+  };
   /** Whether a seal can still be taken from a builder at this place: the machine's own first life, or a provider
    * whose copy of a disk is the disk as it stands. The one place the golden road asks it; every reader above the
    * runtime takes the answer on the builder's view. A place nothing here can reach yet answers on first life
@@ -505,12 +511,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         const unanswered = answers.filter(a => a.answer === "unreached").map(a => a.row);
         for (const row of unanswered) row.unanswered = true;
         if (unanswered.length > 0) askAgain(unanswered);
-        // The token of a turn cut here dies with it, as the boot's own pass below takes the tokens of turns not running.
+        // The token of a turn cut here dies with it, as the boot's own pass below takes the tokens of turns not running,
+        // and a shell still open on that thread keeps its own, as it does there.
         if (cut.size === 0) return;
-        for (const device of await deviceDoor.list()) {
-          const thread = device.scope?.threadId;
-          if (thread !== undefined && cut.has(thread) && !ctx.threadRuns(thread)) await deviceDoor.revoke(device.id);
-        }
+        const stale = (await deviceDoor.list()).filter(d => d.scope !== undefined && cut.has(d.scope.threadId) && !ctx.threadRuns(d.scope.threadId));
+        if (stale.length > 0) await revokeButShells(stale);
       };
       /** A run its machine said nothing about is asked after again a link window on, for as long as its row runs here:
        * nothing else reads its end, a stop cannot reach it, and the idle nap waits on that row. */
@@ -563,10 +568,8 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       }
       // A turn's token dies with the turn, and a host that went down under one never reached that exit: every scoped
       // device whose thread is not running now is taken away here, so a restart is not how a token outlives its turn.
-      for (const device of await deviceDoor.list()) {
-        const thread = device.scope?.threadId;
-        if (thread !== undefined && !ctx.threadRuns(thread)) await deviceDoor.revoke(device.id);
-      }
+      const stale = (await deviceDoor.list()).filter(d => d.scope !== undefined && !ctx.threadRuns(d.scope.threadId));
+      if (stale.length > 0) await revokeButShells(stale);
       await deviceDoor.revokeAsides();
       // Each start waits for its thread's workspace to settle its turns, so a line meets the turn re-opened there.
       ctx.armSubs();

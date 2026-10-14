@@ -145,7 +145,7 @@ import type {
   SESSION_FACTS,
 } from "./types/internal.js";
 import type { EventBus } from "./types/events.js";
-import type { HarnessAdapterFactory } from "./types/harness.js";
+import type { HarnessAdapterContext, HarnessAdapterFactory } from "./types/harness.js";
 import type { LocalWiring } from "./types/wiring.js";
 import type { AgentSetups } from "./agent-setup.js";
 import type { PairedDevice } from "./devices.js";
@@ -251,6 +251,9 @@ export interface KindsArea {
   readonly moduleOf: (kind: WorkspaceKind) => KindModule;
   readonly placeAgentHome: (place: string | undefined, home: string, id: string) => string;
   readonly vaultOn: (entry: LiveWorkspace) => Readonly<Record<string, string>>;
+  readonly brokered: (record: Pick<WorkspaceRecord, "kind" | "place">) => boolean;
+  readonly readBroker: () => Promise<void>;
+  readonly brokeredLaunch: (entry: LiveWorkspace, harness: string, token: string | undefined) => { env: Readonly<Record<string, string>>; vault: Readonly<Record<string, string>>; claude?: NonNullable<HarnessAdapterContext["brokered"]> } | undefined;
   readonly backendFor: (record: WorkspaceRecord) => MachineBackend;
   readonly openChannel: (o: DaemonChannelOptions) => Promise<DaemonChannel>;
   readonly backendOfKind: (kind: WorkspaceKind, place?: string) => MachineBackend;
@@ -367,6 +370,9 @@ export interface ChannelsArea {
   readonly tagsHeld: ReadonlyMap<string, Promise<Map<string, string>>>;
   readonly tagWrites: ReadonlyMap<string, Promise<void>>;
   readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
+  /** The devices the shells still open on machines whose credentials the host keeps hold as their tokens, which a
+   * restart leaves standing until the shell ends. */
+  readonly shellHeldDevices: () => Promise<ReadonlySet<string>>;
   readonly sharedDaemonReplaced: () => void;
   /** By workspace, each process group a turn led and the thread whose turn it was. */
   readonly turnGroups: Map<string, Map<number, string>>;

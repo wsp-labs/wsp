@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "projects_set",
-    "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. Answers what a new thread there now starts on, each value with where it came from, and the after-worktree command. reset puts a field back on the layer below: agent, model, effort or access, and after-worktree takes the command away.",
+    "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. trackers is the whole list of repos besides the project's own, each owner/name, that gh on a sub-thread's machine may comment on, issues and pull requests both; every other gh write there stays refused. Answers what a new thread there now starts on, each value with where it came from, the after-worktree command and the trackers. reset puts a field back on the layer below: agent, model, effort or access, after-worktree takes the command away and trackers empties the list.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -29,6 +29,13 @@
           "type": "string",
           "description": "a shell line a new worktree of the project runs once at its top, after each ecosystem's own install"
         },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on"
+        },
         "reset": {
           "type": "array",
           "items": {
@@ -38,10 +45,11 @@
               "model",
               "effort",
               "access",
-              "after-worktree"
+              "after-worktree",
+              "trackers"
             ]
           },
-          "description": "fields to put back on the layer below: agent, model, effort, access, or after-worktree to take the command away"
+          "description": "fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list"
         }
       },
       "required": [
@@ -332,6 +340,12 @@
         },
         "afterWorktree": {
           "type": "string"
+        },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -350,7 +364,7 @@
   },
   "cloudOn": {
     "name": "projects_set",
-    "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. Answers what a new thread there now starts on, each value with where it came from, and the after-worktree command. reset puts a field back on the layer below: agent, model, effort or access, and after-worktree takes the command away.",
+    "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. trackers is the whole list of repos besides the project's own, each owner/name, that gh on a sub-thread's machine may comment on, issues and pull requests both; every other gh write there stays refused. Answers what a new thread there now starts on, each value with where it came from, the after-worktree command and the trackers. reset puts a field back on the layer below: agent, model, effort or access, after-worktree takes the command away and trackers empties the list.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -378,6 +392,13 @@
           "type": "string",
           "description": "a shell line a new worktree of the project runs once at its top, after each ecosystem's own install"
         },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on"
+        },
         "reset": {
           "type": "array",
           "items": {
@@ -387,10 +408,11 @@
               "model",
               "effort",
               "access",
-              "after-worktree"
+              "after-worktree",
+              "trackers"
             ]
           },
-          "description": "fields to put back on the layer below: agent, model, effort, access, or after-worktree to take the command away"
+          "description": "fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list"
         }
       },
       "required": [
@@ -681,6 +703,12 @@
         },
         "afterWorktree": {
           "type": "string"
+        },
+        "trackers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [

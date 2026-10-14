@@ -32,6 +32,11 @@ import {
   shellQuote,
   signInTerminalRefusal,
   signInVaultRefusal,
+  HERE_PLACE_ID,
+  THIS_COMPUTER,
+  usageRefusal,
+  type AgentsSignInEvent,
+  type RuntimeRequest,
   type McpServerSpec,
   type SignInLine,
 } from "@wsp/protocol";
@@ -131,10 +136,12 @@ export async function planSignIn(on: AgentsOn, ask: SignInAsk, o: { terminal?: b
       ...(notSetUp === undefined ? {} : { refusal: (said: string) => (notSetUp.test(withoutEscapes(said)) ? serverNotSetUpLine(entry.name, server) : undefined) }),
     };
   }
+  if (on.kind === "machine" && on.brokered === true) throw usageRefusal(brokeredSignInRefusal(entry.name), brokeredSignInFix(THIS_COMPUTER));
   const signIn = entry.signIn;
-  if (mintsToken(signIn) && on.kind === "here" && o.terminal !== true && o.keep !== undefined) return mintPlan(entry.name, signIn, o.keep);
-  // A token row's own login runs only on a computer you own, where it lands in the store that computer's threads read.
-  const row = hasLogin(signIn) ? signIn : on.kind === "box" ? loginThere(signIn) : undefined;
+  if (mintsToken(signIn) && on.kind === "here" && o.terminal !== true && o.keep !== undefined && ask.login !== true) return mintPlan(entry.name, signIn, o.keep);
+  // A token row's own login runs on a computer you own, where it lands in the store that computer's threads read, and
+  // here when the login itself is asked for, which is the one machines at a provider borrow.
+  const row = hasLogin(signIn) ? signIn : on.kind === "box" || ask.login === true ? loginThere(signIn) : undefined;
   if (row === undefined) throw new Error(signInVaultRefusal(entry.name));
   if (asksThePerson(row) && o.terminal !== true) throw new Error(signInTerminalRefusal(entry.name, `wsp agents signin ${entry.id}`));
   const stores = on.kind === "here" ? undefined : on.stores;
@@ -334,10 +341,25 @@ export interface HostActsOptions {
   wspServer: () => McpServerSpec;
 }
 
+/** Why no agent signs in on a machine at a cloud provider, said after the line was refused: a login there would rest on
+ * a machine the person does not hold, and its threads use the one on the computer the host runs on. */
+export const brokeredSignInRefusal = (agent: string): string => `${agent} does not sign in on a cloud machine.`;
+export const brokeredSignInFix = (here: string): string => `Sign in on ${here} instead: cloud threads use it through wsp.`;
+
+/** agents.cloudSignIn: the sign-in machines at a cloud provider borrow, which is the agent's own login on this
+ * computer, never a token mint, since the host reads the person's own login and keeps none of its own. */
+export const cloudSignIn = <Caller>(
+  agents: { signIn(target: { placeId: string }, ask: SignInAsk, emit: (event: AgentsSignInEvent) => void, origin?: Caller): Promise<{ signInId: string; leave(): void }> },
+  agent: Extract<RuntimeRequest, { op: "agents.cloudSignIn" }>["agent"],
+  emit: (event: AgentsSignInEvent) => void,
+  origin?: Caller,
+): Promise<{ signInId: string; leave(): void }> => agents.signIn({ placeId: HERE_PLACE_ID }, { agent, login: true }, emit, origin);
+
 /** The acts the runtime is wired with: the catalog's sign-in roads, the vault and the wsp tools. */
 export function hostActs(o: HostActsOptions): AgentsActs {
   return {
-    signInLine: async (on, ask) => (await planSignIn(on, ask, { terminal: true })).line,
+    // The person's own terminal runs the agent's own login here, as on a box, never a token mint; a fork keeps its own road.
+    signInLine: async (on, ask) => (await planSignIn(on, on.kind === "here" ? { ...ask, login: true } : ask, { terminal: true })).line,
     signIn: async (on, ask) => {
       const plan = await planSignIn(on, ask, { terminal: ask.terminal === true, keep: (name, value) => writeEnvFile(o.vaultFile, { [name]: value }) });
       return run => (ask.terminal === true ? terminalSignIn(plan, run) : watchSignIn(plan, run));

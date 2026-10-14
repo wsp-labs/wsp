@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { hostname } from "node:os";
-import { catalogIdOfRow } from "@wsp/catalog";
+import { GH_LOGIN_PATHS, NEVER_ON_BROKERED, catalogIdOfRow } from "@wsp/catalog";
 import {
   NotFirstLifeError,
   SnapshotFailedError,
@@ -351,6 +351,9 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
     // A copy is stamped with the record it was composed from, never with the record as it stands now: a cut that
     // landed while the copy built leaves it stale, which is what makes the next build there happen.
     let hash = copy?.hash;
+    // A seal at a provider, the image's own or a copy's, refused the sign-in paths and landed no vault: the version
+    // it writes carries the mark a fork at a provider reads, and the image's own seal puts it on the record too.
+    const noSecrets = placeKindOf(place) === "provider";
     if (copy === undefined) {
       const digest = entry.builder.import?.recipeHash ?? "";
       const vault: SealedVault | undefined =
@@ -370,6 +373,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
         sealedAt: result.version.createdAt,
         sealedFrom: hostId,
         ...(vault !== undefined ? { vault } : {}),
+        ...(noSecrets ? { noSecrets } : {}),
         ...(result.version.usedBytes !== undefined ? { usedBytes: result.version.usedBytes } : {}),
         place,
       };
@@ -381,7 +385,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
       if (replaced !== undefined && replaced.version !== result.version.version) await store.deleteBlob(IMAGE_VAULTS, vaultKey(name, replaced.version));
     }
     if (hash === undefined) return result;
-    const version: GoldenVersion = { ...result.version, imageHash: hash };
+    const version: GoldenVersion = { ...result.version, imageHash: hash, ...(noSecrets ? { noSecrets } : {}) };
     return { ...result, version, manifest: { ...result.manifest, versions: result.manifest.versions.map(v => (v.version === version.version ? version : v)) } };
   };
 
@@ -396,6 +400,10 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
     const place = entry.record.place ?? places.wired;
     const prior = await ctx.copyOf(place, name);
     const at = backendAt(place);
+    // A provider's machine never holds a sign-in: its seal refuses every path one leaves and takes no vault. gh's
+    // login stays until the host's broker serves gh and git, since every image there carries it until then.
+    const brokered = placeKindOf(place) === "provider";
+    const refuse = opts.broker?.ready() === true ? NEVER_ON_BROKERED : NEVER_ON_BROKERED.filter(p => !GH_LOGIN_PATHS.includes(p));
     try {
       const result = await ctx.claiming(`smoke/${entry.record.id}`, b =>
         sealGolden(entry.builder, {
@@ -412,7 +420,8 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
           ...(logins !== undefined ? { logins } : {}),
           // Only the image's own seal reads the vault off its builder: a copy's builder was given the record's
           // vault and re-exporting it there would record a second one for the same image.
-          ...(copy === undefined && recipe.vaultPaths !== undefined ? { vaultPaths: recipe.vaultPaths } : {}),
+          ...(copy === undefined && !brokered && recipe.vaultPaths !== undefined ? { vaultPaths: recipe.vaultPaths } : {}),
+          ...(brokered ? { refuse } : {}),
           keepBuilder: keep,
           name,
           hostId: ctx.imageMark(),
