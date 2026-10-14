@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Where an agent's own harness keeps the sign-in it holds for an http MCP
 // server: the file under its store folder, the keys down to that server's
-// entry and the field holding the token. wsp never reads it itself: the daemon
-// of the computer the thread runs on reads it there for one request and puts
-// it on that request alone. One module per harness, registered on its catalog
-// entry, read against the version named on it.
+// entry and the field holding the token. The daemon of a computer the thread
+// runs on reads it there for one request and puts it on that request alone;
+// for a thread on the host's own computer the host reads it the same way, from
+// where the agent's login is kept, and nothing of it is written. One module per
+// harness, registered on its catalog entry, read against the version named on it.
 import type { HttpBearer } from "@wsp/protocol";
 
 export interface McpOAuthStore {
