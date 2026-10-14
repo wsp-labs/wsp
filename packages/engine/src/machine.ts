@@ -289,8 +289,9 @@ export interface MachineBackend {
   /** Optional: a provider that sells sizes by plan and counts starts (Boat). The account's plan, the classes it sells
    * and the starts used in each window, as the provider's own read keeps them. */
   limits?(): Promise<BoxLimits>;
-  /** Optional: only backends whose capabilities include snapshotListing have it. Every snapshot on the account, with its size. */
-  listSnapshots?(): Promise<SnapshotRow[]>;
+  /** Optional: only backends whose capabilities include snapshotListing have it. Every snapshot on the account, with its
+   * size; given ids, at least the rows of those, which a provider with a long history may stop reading at. */
+  listSnapshots?(ids?: readonly string[]): Promise<SnapshotRow[]>;
   /** Optional, the four together: only backends whose capabilities include templates have them. Promotes a snapshot
    * to a durable template under the name and answers the template's id; the snapshot stays and cannot be deleted
    * while the template exists. */

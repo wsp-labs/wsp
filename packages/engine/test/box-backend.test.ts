@@ -1093,6 +1093,23 @@ describe("BoxBackend against a fake Box API", () => {
     await expect(backendOn(other).backend.listSnapshots()).rejects.toThrow("GET /named-snapshots answered without a snapshots array");
   });
 
+  it("asked for named snapshots alone reads no history, and asked for a history id reads only as far as the page holding it", async () => {
+    const history = (cursor: string | null): Record<string, unknown> => ({
+      ok: true,
+      type: "snapshot.list",
+      snapshots: [{ id: cursor === null ? "866f04de-8e8a-4401-9e29-cf58e1738213" : "1826c6c1-6f77-4beb-8406-93f9e27281a2", boxId: "bx_tumrjngm", status: "completed", createdAt: "2026-09-11T06:32:52.039Z", sizeBytes: 343, contentSizeBytes: 7_838_315_315 }],
+      pageInfo: { nextCursor: cursor === null ? "c2" : null, hasMore: cursor === null, limit: 200 },
+    });
+    const api = new FakeBox()
+      .on("GET", "/named-snapshots", { status: 200, body: { ok: true, snapshots: [NAMED("wsp-mac-default-v1", "ready")] } })
+      .on("GET", "/snapshots", seen => ({ status: 200, body: history(seen.query.get("cursor")) }));
+    const { backend } = backendOn(api);
+    expect((await backend.listSnapshots(["wsp-mac-default-v1"])).map(r => r.id)).toEqual(["wsp-mac-default-v1"]);
+    expect(api.seen.filter(s => s.path === "/snapshots")).toEqual([]);
+    expect((await backend.listSnapshots(["866f04de-8e8a-4401-9e29-cf58e1738213"])).map(r => r.id)).toEqual(["wsp-mac-default-v1", "866f04de-8e8a-4401-9e29-cf58e1738213"]);
+    expect(api.seen.filter(s => s.path === "/snapshots").map(s => s.query.get("cursor"))).toEqual([null]);
+  });
+
   it("deletes a snapshot by what its id is: the provider's history with the confirm header, a named one by name, and one already gone is done", async () => {
     const api = new FakeBox()
       .on("DELETE", "/snapshots/866f04de-8e8a-4401-9e29-cf58e1738213", { status: 202, body: { ok: true } })

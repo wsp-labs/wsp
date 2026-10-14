@@ -526,6 +526,14 @@ describe("removing a project image", () => {
     expect((await rt.image.get()).projects).toEqual([golden, second]);
   });
 
+  it("image.get asks the listing for the snapshots it sizes, so a provider with a long history reads only as far as them", async () => {
+    const { rt, backend, golden, listSnapshots } = await taken();
+    const asked: (readonly string[] | undefined)[] = [];
+    backend.listSnapshots = async (ids?: readonly string[]) => (asked.push(ids), listSnapshots());
+    const { copies } = await rt.image.get();
+    expect(asked).toEqual([...copies.map(c => [c.snapshotId]), [golden.snapshotId]]);
+  });
+
   it("image.get gives a project image no size where the provider reports only what it stores, never that figure as the image's", async () => {
     const { rt, backend, golden } = await taken();
     // A provider that stores an image as what changed since the one it was made from lists that change, here 62 bytes
