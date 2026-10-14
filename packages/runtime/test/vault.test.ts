@@ -238,7 +238,7 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     }
     // GH_TOKEN is the one name the vault and the turn share, and it carries the turn token.
     expect(Object.keys(turn.env).filter(name => name in HELD)).toEqual(["GH_TOKEN"]);
-    expect(turn.env).toMatchObject({ [HOST_TOKEN_ENV]: token, GH_TOKEN: token, GH_CONFIG_DIR: "/root/.wsp/gh", GH_TELEMETRY: "false", GIT_TERMINAL_PROMPT: "0", CARGO_NET_GIT_FETCH_WITH_CLI: "true" });
+    expect(turn.env).toMatchObject({ [HOST_TOKEN_ENV]: token, GH_TOKEN: token, GH_CONFIG_DIR: "/run/wsp-daemon/gh", GH_TELEMETRY: "false", GIT_TERMINAL_PROMPT: "0", CARGO_NET_GIT_FETCH_WITH_CLI: "true" });
     expect(gitPairs(turn.env)).toEqual([
       ["url.http://github.com/.insteadOf", "https://github.com/"],
       ["url.http://github.com/.insteadOf", "git@github.com:"],
@@ -254,7 +254,7 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     expect(secretsOf(turn.vault, "claude")).toEqual({});
     expect(secretsOf(turn.vault, "codex")).toEqual({ apiKey: `sk-wsp-${token}`, keyEnv: "OPENAI_API_KEY" });
     // Claude Code's own environment keeps gh's and git's variables, which it strips nothing of.
-    expect(buildEnv({ base: turn.env })).toMatchObject({ GH_TOKEN: token, GIT_CONFIG_COUNT: "7", GH_CONFIG_DIR: "/root/.wsp/gh" });
+    expect(buildEnv({ base: turn.env })).toMatchObject({ GH_TOKEN: token, GIT_CONFIG_COUNT: "7", GH_CONFIG_DIR: "/run/wsp-daemon/gh" });
     // The launch text writes the config naming the gh door, since gh reads the socket from that key alone.
     const launch = turn.execStream("claude -p hi", { env: turn.env });
     // The stub never says the run is up, so the launch ends refused; it is read from the start so nothing goes unheard.
@@ -266,7 +266,7 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     const scripts = (): string[] => machine.execLog.flatMap(line => [...line.matchAll(/printf %s '([A-Za-z0-9+/=]+)' \| base64 -d > '[^']*\.sh'/g)].map(m => Buffer.from(m[1]!, "base64").toString("utf8")));
     await until(async () => scripts().some(script => script.includes("claude -p hi")));
     const launched = scripts().find(script => script.includes("claude -p hi"))!;
-    expect(launched).toContain("mkdir -p /root/.wsp/gh && printf '%s\\n' 'http_unix_socket: /root/.wsp/broker.sock' > /root/.wsp/gh/config.yml && claude -p hi");
+    expect(launched).toContain("mkdir -p /run/wsp-daemon/gh && printf '%s\\n' 'http_unix_socket: /run/wsp-daemon/broker.sock' > /run/wsp-daemon/gh/config.yml && claude -p hi");
     // The provider's exec text carries the launch's environment on such a machine, and none of the vault with it.
     for (const text of [...machine.execLog, ...scripts()]) for (const held of Object.values(HELD)) expect(text).not.toContain(held);
     await read;
@@ -469,7 +469,7 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     const aside = contexts.slice(before).find(c => HOST_TOKEN_ENV in c.env)!;
     const token = aside.env[HOST_TOKEN_ENV]!;
     expect(aside.brokered).toEqual({ token, kind: "token" });
-    expect(aside.env).toMatchObject({ GH_TOKEN: token, GH_CONFIG_DIR: "/root/.wsp/gh" });
+    expect(aside.env).toMatchObject({ GH_TOKEN: token, GH_CONFIG_DIR: "/run/wsp-daemon/gh" });
     for (const c of contexts.slice(before)) {
       for (const [name, value] of [...Object.entries(c.env), ...Object.entries(c.vault)]) for (const held of Object.values(HELD)) expect(value, name).not.toContain(held);
     }

@@ -1447,7 +1447,7 @@ describe("callback relay end to end through a real daemon", () => {
       listenHosts: ["::1"],
     });
     const script = join(dir, "wsp-open");
-    writeFileSync(script, openShimScript(CLOUD_PLACE).replace("/root/.wsp/open.sock", sockPath));
+    writeFileSync(script, openShimScript(CLOUD_PLACE).replace("/run/wsp-daemon/open.sock", sockPath));
     const url = AUTH(port);
     // The link dials in the background; a post before it is up reaches no socket, so post until one lands.
     for (let i = 0; i < 50 && opened.length === 0; i++) {
