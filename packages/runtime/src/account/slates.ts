@@ -3,13 +3,13 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, folderOnJoined, HERE_PLACE_ID, HTTP_POST_DAEMON_VERSION, SETTLE_MS, slateMachineOnBox, THREAD_ENV, type AgentsTarget } from "@wsp/protocol";
-import { isServerNotSetUp } from "../agents-read.js";
+import { isServerNotSetUp, isServerOff } from "../agents-read.js";
 import { boxSlateDir, pipeOn, postOn } from "../slate-mcp-on.js";
 import { lazySlates } from "../lazy-slates.js";
 import { toolAsks } from "../harness-catalog.js";
 import type { Slates } from "../slates.js";
 import type { RuntimeContext, SlatesArea } from "../context.js";
-import type { LiveWorkspace } from "../types/wiring.js";
+import { atProvider, type LiveWorkspace } from "../types/wiring.js";
 
 export function slatesArea(ctx: RuntimeContext): SlatesArea {
   const { opts, store, local, bus, clock, live, threadRecords, sessions, transcripts } = ctx;
@@ -19,7 +19,7 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
     box.record.place !== undefined && folderOnJoined(box.record.kind) ? { placeId: box.record.place, project: box.record.project } : { workspaceId: box.record.id };
   /** A machine wsp made on a joined computer, from before a thread there ran in a folder: the daemon that answers it is
    * the computer's own, so a server it holds open would run on the computer, outside the machine. */
-  const machineOnBox = (box: LiveWorkspace): boolean => box.record.place !== undefined && !folderOnJoined(box.record.kind);
+  const machineOnBox = (box: LiveWorkspace): boolean => box.record.place !== undefined && !folderOnJoined(box.record.kind) && !atProvider(box.record.place, ctx.places);
   const slates: Slates = lazySlates({
     store,
     now: () => clock.now(),
@@ -107,10 +107,11 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
       const box = ctx.boxOf(threadId);
       const agent = harnessOf(threadId);
       if (box === undefined || agent === undefined) return { agent: { id: agent ?? "", name: agent ?? "" }, thread: threadId, missing: [] };
-      // Only a config that names no such server refuses the write; a computer that could not be read now leaves the
-      // run to say why when it starts.
-      const named = await Promise.all(servers.map(name => ctx.agentsRead.server(serversTarget(box), { agent, name }).then(() => true, (e: unknown) => !isServerNotSetUp(e))));
-      return { agent: { id: agent, name: ctx.agentLabel(agent) }, thread: threadId, missing: servers.filter((_, i) => !named[i]) };
+      // Only a config that names no such server, or a server off there, refuses the write; a computer that could not be
+      // read now leaves the run to say why when it starts.
+      const said = await Promise.all(servers.map(name => ctx.agentsRead.server(serversTarget(box), { agent, name }).then(() => undefined, (e: unknown) => e)));
+      const off = said.flatMap(e => (isServerOff(e) ? [e.message] : []));
+      return { agent: { id: agent, name: ctx.agentLabel(agent) }, thread: threadId, missing: servers.filter((_, i) => isServerNotSetUp(said[i])), off };
     },
     sources: (threadId, workspaceId) => ({
       threadId,
