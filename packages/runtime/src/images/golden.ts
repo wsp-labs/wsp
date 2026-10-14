@@ -439,7 +439,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       }
       // A record its dead holder left mid-setup is stopped here as the sweep would stop it; only seal and reach need finished stages.
       if (entry.life === "foreign" || entry.life === "held") ctx.refuseUntouchable(entry);
-      await killUntilGone(backend, entry.builder.machine, opts.killConfirm);
+      await killUntilGone(ctx.backendAt(entry.record.place ?? places.wired), entry.builder.machine, opts.killConfirm);
       await ctx.forgetBuilder(builderId);
     },
 
