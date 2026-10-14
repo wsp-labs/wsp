@@ -102,7 +102,7 @@ export function launchArea(ctx: RuntimeContext) {
       const waiting = { on: false };
       const { adapter } = ctx.adapterFor(entry, harness, { [TURN_TOKEN_ENV]: turnToken, [THREAD_ENV]: threadId, ...launchEnv }, () => waiting.on, serverValuesOf(opts.vault?.() ?? {}), threadId);
       const served = adapter.mcpServers === true ? wsp : undefined;
-      const launchServers = await ctx.launchServersFor(entry, harness, adapter, cwd);
+      const launchServers = adapter.mcpServers === true || adapter.deniesServers === true ? await ctx.launchServersFor(entry, harness, adapter, cwd) : {};
       const agent = adapter.warm!({
         ...picks,
         cwd,
