@@ -141,8 +141,9 @@ export function diskOf(reading: Reading, recipe: Recipe, statePath: string, disk
   return { fixed: total - est.room + est.files, total };
 }
 
-/** The screens as they stand for these answers, in the terminal's order, less any with no row to pick. */
-export function screensOf(reading: Reading, a: ScreenAnswers, at: ScreensAt): InitScreen[] {
+/** The screens as they stand for these answers, in the terminal's order, less any with no row to pick. A build at a
+ * provider has no Sign-ins screen: its machines use this computer's sign-ins through wsp. */
+export function screensOf(reading: Reading, a: ScreenAnswers, at: ScreensAt, cloud = false): InitScreen[] {
   const manifest = manifestFor(reading, a.recipe);
   const { recipe, logins } = a;
   const agents = agentRows(recipe);
@@ -151,7 +152,7 @@ export function screensOf(reading: Reading, a: ScreenAnswers, at: ScreensAt): In
   const signIns = signInItems(manifest, reading.brew, reading.platform, at.home);
   const wsp = wspToolsItems(recipe, at.home);
   const answers = Object.fromEntries([...signIns.initial].map(([id, choice]): [string, string] => [id, logins.get(id) ?? choice]));
-  return initShownScreens([
+  return initShownScreens<InitScreen>([
     {
       id: "agents",
       title: AGENTS_TITLE,
@@ -200,7 +201,7 @@ export function screensOf(reading: Reading, a: ScreenAnswers, at: ScreensAt): In
       answers: {},
       footer: [],
     },
-  ]);
+  ]).filter(screen => !cloud || screen.id !== "logins");
 }
 
 /** The answers with one screen answered: ticks move the recipe as that screen's own step does, a sign-in answer is

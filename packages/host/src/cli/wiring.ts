@@ -12,7 +12,7 @@ import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
 import { envFileFor, keyIn, serverVault, writeEnvFile, type Keys } from "../env-keys.js";
-import { loginEnv } from "../login-path.js";
+import { loginEnv, loginFolders } from "../login-path.js";
 import { CACHE_RULE } from "../project-bundle.js";
 import { packSeed } from "../project-seed.js";
 import { readBrewTable } from "../init-brew.js";
@@ -393,9 +393,10 @@ function hostCopyRecipe(statePath: string): (image: SealedImage, at: { cloud: bo
     });
 }
 
-/** The collector's ladder over this laptop; onRung lets the terminal count rows as each rung lands. */
+/** The collector's ladder over this laptop; onRung lets the terminal count rows as each rung lands. Its logins are
+ * looked for where the login shell keeps them, which a launch by launchd or a service was not handed. */
 export function collectThisComputer(onRung: (rung: Rung, rows: number) => void): Promise<Manifest> {
-  return collect(nodeHost(), { onRung });
+  return collect({ ...nodeHost(), ...loginFolders() }, { onRung });
 }
 
 /** A folder a `~/`-relative answer or a flag named: where it is, and whether there is one there. The one place both

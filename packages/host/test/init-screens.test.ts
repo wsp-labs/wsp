@@ -43,6 +43,8 @@ describe("the screens as data", () => {
     // And no agent here that takes the wsp tools: that screen is not shown either.
     const noAgentHere: Recipe = { ...agentsOff, rows: agentsOff.rows.map(r => (r.source.kind === "installed" ? { ...r, source: { kind: "popular", sessions: 0, images: 0 } } : r)) };
     expect(screensOf(reading({ manifest: { entries: [] } }), fresh(noAgentHere), at()).map(s => s.id)).toEqual(["agents", "tools"]);
+    // A build at a provider has no Sign-ins screen: its machines use this computer's sign-ins through wsp.
+    expect(screensOf(reading({ scanned: [SCANNED] }), fresh(), at(), true).map(s => s.id)).toEqual(["agents", "tools", "also", "wsp"]);
   });
 
   it("the agents screen ticks what the recipe ticks, sizes each row in bytes, says why in one sentence, and names the tally's noun with no footer line", () => {

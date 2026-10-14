@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { BOX_PRICING, BoxBackend, boxClassFor, checkProviderKey, limitsOf, keyCheckLine, type MachineBackend } from "@wsp/engine";
-import { GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, boatSealLines, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
+import { BOAT_READY_LINE, GOLDEN_STAGE_WORDS, boatAddedLine, boatForksNoFirstLine, imageBuiltOnLine, imageHomeKeptLine, placeSaid, savedKeyStoppedLine, type PlaceView } from "@wsp/protocol";
 import { buildImageAt } from "../src/verbs/workspaces-help.js";
 import type { HostClient } from "../src/verbs.js";
 import { addCommand, addLines, addRefusal } from "../src/places.js";
@@ -234,7 +234,7 @@ describe("what the command line says about Boat", () => {
     const lines = [
       imageBuiltOnLine(placeSaid(boat)),
       imageHomeKeptLine("solari", boat)!,
-      ...boatSealLines([]),
+      BOAT_READY_LINE,
       keyCheckLine({ state: "refused", said: "401 Unauthorized" }, "box", true)!,
       keyCheckLine({ state: "unchecked", said: "fetch failed" }, "box", true)!,
       savedKeyStoppedLine("box"),
