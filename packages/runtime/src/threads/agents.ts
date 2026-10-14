@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { homedir } from "node:os";
 import { dirname, join, posix, resolve as resolvePathOn } from "node:path";
-import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, checkoutArgs, checkoutOf, installsOnFirstRun, needsOwnCredential, serverValuesOf, turnServerFiles, type LaunchConfigs, type LaunchServerRoad, type TurnServer } from "@wsp/catalog";
+import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, addressesToAsk, checkoutArgs, checkoutOf, installsOnFirstRun, needsOwnCredential, serverValuesOf, turnServerFiles, type LaunchConfigs, type LaunchServerRoad, type TurnServer } from "@wsp/catalog";
 import { INLINE_EXEC_MS, harnessExec, isPlaceAbsent, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole } from "@wsp/engine";
 import {
   type AttachmentRoad, type HarnessCatalog, type HarnessCatalogProbe, type Preferences, type SessionView, type TitleSource, type Attachment,
@@ -537,7 +537,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
   };
 
   /** Each cloud machine's servers by workspace, agent and folder, read once and kept until wsp changes its servers there
-   * or the workspace goes: a read costs a turn's start two commands there and its whole config (264 KB from Boat,
+   * or the workspace goes, is rebuilt or upgraded: a read costs a turn's start two commands there and its whole config (264 KB from Boat,
    * 2026-10-14). A read that failed is not kept. */
   const cloudServers = new Map<string, Promise<TurnServer[] | undefined>>();
   const dropServersOf = (workspaceId?: string): void => {
@@ -549,10 +549,14 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
   ctx.bus.on("workspace.deleted", e => {
     if (e.type === "workspace.deleted") dropServersOf(e.workspaceId);
   });
+  ctx.bus.on("workspace.upgraded", e => {
+    if (e.type === "workspace.upgraded") dropServersOf(e.workspaceId);
+  });
 
   /** The servers a launch in `folder` on a cloud machine leaves out, by name: each one its config there names that needs
    * the person's sign-in or key, which the machine never holds, so the agent neither lists it nor asks for its sign-in.
-   * An address with no header is left out once the host's probe says it asks for a sign-in. Nothing anywhere else, and
+   * An address with no header is left out where the host's probe says it asks for a sign-in, an address with no answer
+   * kept waited on within the probe's time. Nothing anywhere else, and
    * nothing where the config could not be read, which costs the turn its list, not its start. */
   const offServersFor = async (entry: LiveWorkspace, harness: string, folder: string): Promise<string[] | undefined> => {
     if (!atProvider(ctx.placeIdOf(entry.record), ctx.places)) return undefined;
@@ -570,7 +574,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
       if (cloudServers.get(key) === reading) cloudServers.delete(key);
       return undefined;
     }
-    const signsIn = (url: string): boolean | undefined => opts.agentsReader?.signsIn?.(url);
+    const signsIn = (await opts.agentsReader?.signsIn?.(addressesToAsk(servers.map(s => s.server)))) ?? (() => undefined);
     const off = [...new Set(servers.flatMap(s => (needsOwnCredential(s.server, signsIn) ? [s.server.name] : [])))];
     return off.length === 0 ? undefined : off;
   };

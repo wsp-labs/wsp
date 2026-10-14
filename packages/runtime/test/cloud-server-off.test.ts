@@ -91,7 +91,7 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     const agentsReader: AgentsReader = {
       read: () => Promise.reject(new Error("not read here")),
       tools: () => Promise.reject(new Error("not asked here")),
-      signsIn: url => (asked.push(url), url.includes("cloudflare") ? true : url.includes("context7") ? false : undefined),
+      signsIn: async urls => (asked.push(...urls), url => (url.includes("cloudflare") ? true : url.includes("context7") ? false : undefined)),
     };
     const serversActs: ServersActs = { add: async () => ({ file: "~/.claude.json" }), remove: async () => ({ file: "~/.claude.json" }), toggle: async () => ({ file: "~/.claude.json" }) };
     const reads: string[] = [];
@@ -120,12 +120,16 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     await rt.agents.serversToggle({ workspaceId: boatFork.id }, { agent: "claude", name: "linear", on: false });
     await (await rt.sessions.start(boatFork.id, { prompt: "after the change", harness: "claude" })).finished;
     expect(reads.length).toBe(3);
+    // A rebuild replaces the machine, maybe from an image with other servers: the next turn reads its config again.
+    await rt.workspaces.rebuild(boatFork.id);
+    await (await rt.sessions.start(boatFork.id, { prompt: "after the rebuild", harness: "claude" })).finished;
+    expect(reads.length).toBe(4);
     // A config that cannot be read costs the launch its list, never the turn.
     readFails = true;
     const unread = await createOn(rt, { golden: "snap_g", name: "x-unread", on: "boat" });
     expect((await (await rt.sessions.start(unread.id, { prompt: "zones", harness: "claude" })).finished).status).toBe("completed");
-    expect(starts).toHaveLength(5);
-    expect(starts[4]!.offServers).toBeUndefined();
+    expect(starts).toHaveLength(6);
+    expect(starts[5]!.offServers).toBeUndefined();
   }, 40_000);
 
   it("a turn on a computer the person joined reads no config for it and leaves nothing out", async () => {

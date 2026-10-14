@@ -346,13 +346,6 @@ async function untrustedServer(host: Host, agent: McpAgent, name: string, projec
   return undefined;
 }
 
-/** One server of an agent's config there as its file defines it, the one a turn in `project` starts; nothing where none
- * goes by the name. */
-export async function serverConfig(host: Host, agentId: string, name: string, project: string | undefined): Promise<McpServer | undefined> {
-  const agent = MCP_AGENTS.find(a => a.id === agentId);
-  return agent === undefined ? undefined : (await findServer(host, agent, name, project))?.server;
-}
-
 export const unsetReferenceRefusal = (name: string): string => `its config reads ${name}, which has no value there`;
 export const noSuchServerRefusal = (name: string, agent: string): string => `no MCP server called ${name} is in ${agent}'s config there; wsp servers lists them`;
 export const noMcpAgentRefusal = (agent: string): string => `${agent} is no agent whose MCP config wsp reads; one of ${MCP_AGENT_IDS}`;
@@ -417,8 +410,9 @@ function atMost(n: number): <T>(f: () => Promise<T>) => Promise<T> {
 export interface ServerTools {
   /** One server's tools and state there, off the connect kept for it or a new one. */
   /** `env` is the environment a command server starts with under its config's own: the login shell's, on this computer.
-   * `values` are what the definition's references are read from. */
-  tools(host: Host, ask: ServerToolsAsk, o?: { project?: string; env?: Readonly<Record<string, string>>; values?: Readonly<Record<string, string>> }): Promise<ServerToolsAnswer>;
+   * `values` are what the definition's references are read from.
+   * `off` answers true for a server that does not run there, which answers why and is never started or asked. */
+  tools(host: Host, ask: ServerToolsAsk, o?: { project?: string; env?: Readonly<Record<string, string>>; values?: Readonly<Record<string, string>>; off?: (server: McpServer) => Promise<boolean> }): Promise<ServerToolsAnswer>;
   /** Drops every answer and harness word kept for the target, which a sign-in there has just changed. */
   forget(key: string): void;
 }
@@ -450,6 +444,7 @@ export function serverTools(o: { now: () => number; deadlineMs?: number; log: (l
       const read = await readServer(host, ask.agent, ask.name, at);
       const { agent, found, cwd } = read;
       const now = o.now();
+      if (at.off !== undefined && (await at.off(found.server))) return { auth: "unknown", refused: cloudServerOffLine(ask.name), readAt: new Date(now).toISOString() };
       if ("missing" in read) return { auth: "failed", refused: unsetReferenceRefusal(read.missing), readAt: new Date(now).toISOString() };
       const t = read.transport;
       const secrets = [...read.secrets].sort((a, b) => b.length - a.length);

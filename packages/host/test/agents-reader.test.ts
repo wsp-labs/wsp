@@ -299,8 +299,9 @@ describe("the agents report off this computer and off a workspace", () => {
     config.mcpServers["signs"] = { type: "http", url: `${local}/signs` };
     config.mcpServers["open"] = { type: "http", url: `${local}/open` };
     config.mcpServers["keyed"] = { command: "node", args: ["keyed.js"], env: { API_TOKEN: "${SOME_VAR}" } };
+    config.mcpServers["homed"] = { command: "node", args: ["homed.js"], env: { DATA_DIR: "${HOME}/data" } };
     writeFileSync(file, JSON.stringify(config));
-    const { machine } = road(at);
+    const { machine, lines: ran } = road(at);
     const on = { kind: "machine" as const, machine, projects: [{ id: "pr_app", name: "app", path: at.project }] };
     // Only the local server is asked; any other address answers nothing, as one that cannot be reached.
     const probes = signInProbes({ post: (url, ms) => (url.startsWith(local) ? fetchPost(url, ms) : Promise.resolve(undefined)) });
@@ -312,7 +313,7 @@ describe("the agents report off this computer and off a workspace", () => {
     expect(server("codex", "linear")).toMatchObject({ off: cloudServerOffLine("linear") });
     expect(server("claude", "keyed")).toMatchObject({ off: cloudServerOffLine("keyed") });
     // A server that needs no sign-in, and one whose address did not answer, stay on as on main.
-    for (const [agent, name] of [["claude", "open"], ["claude", "notion"], ["claude", "airtable"], ["claude", "local"], ["claude", "project-db"]] as const) expect(server(agent, name).off, name).toBeUndefined();
+    for (const [agent, name] of [["claude", "open"], ["claude", "homed"], ["claude", "notion"], ["claude", "airtable"], ["claude", "local"], ["claude", "project-db"]] as const) expect(server(agent, name).off, name).toBeUndefined();
     expect(read.servers.filter(s => s.signInLine !== undefined)).toEqual([]);
     expect(asked.sort()).toEqual(["/open", "/signs"]);
 
@@ -332,8 +333,12 @@ describe("the agents report off this computer and off a workspace", () => {
     // wsp servers tools answers the same sentence for it instead of starting or asking it, and asks the address no more.
     expect(await reader.tools({ ...on, brokered: true }, { key: "w_cloud", agent: "claude", name: "signs" })).toMatchObject({ auth: "unknown", refused: cloudServerOffLine("signs") });
     expect(asked.sort()).toEqual(["/open", "/signs"]);
-    expect(reader.signsIn?.(`${local}/signs`)).toBe(true);
-    expect(reader.signsIn?.(`${local}/open`)).toBe(false);
+    // A server that is on reads the config there once on its way to the connect, which this test's machine refuses.
+    const beforeOpen = ran.length;
+    await reader.tools({ ...on, brokered: true }, { key: "w_cloud", agent: "claude", name: "open" }).catch(() => undefined);
+    expect(ran.slice(beforeOpen).filter(l => l.includes(".claude.json"))).toHaveLength(1);
+    const known = await reader.signsIn!([`${local}/signs`, `${local}/open`]);
+    expect([known(`${local}/signs`), known(`${local}/open`)]).toEqual([true, false]);
 
     // The same machine where it holds its own sign-ins keeps every row on, with its sign-in line.
     const own = await reader.read(on);
