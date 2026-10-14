@@ -160,6 +160,7 @@ import {
   GENERATED_TITLE_MAX,
   openingTitle,
   storedTitleSource,
+  lostSessionPrompt,
   attachedFilesPrompt,
   titlePrompt,
   titleLine,
@@ -884,6 +885,9 @@ describe("storedTitleSource", () => {
     expect(storedTitleSource("Building the server", opening)).toBe("person");
     expect(storedTitleSource("make a server, and its tests, please", opening)).toBe("person");
     expect(storedTitleSource("make a server", undefined)).toBe("person");
+    // A session started in place of a lost one opens with wsp's words, whatever turn's message follows them.
+    expect(storedTitleSource(lostSessionPrompt(opening, "and now the page"), "and now the page")).toBe("seed");
+    expect(storedTitleSource(lostSessionPrompt(opening, "and now the page"), undefined)).toBe("seed");
   });
 });
 
