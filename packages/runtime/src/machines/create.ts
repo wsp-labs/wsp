@@ -9,7 +9,7 @@ import { isCapRefusal } from "../types/internal.js";
 import type { RuntimeContext, CreateArea, ShownCreate } from "../context.js";
 
 export function createArea(ctx: RuntimeContext): CreateArea {
-  const { opts, backend, placeDoor, bus, clock, live, builders, places } = ctx;
+  const { opts, placeDoor, bus, clock, live, builders, places } = ctx;
   const createStaged = async (
     o: CreateWorkspaceOptions,
     project: ProjectView,
@@ -135,7 +135,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
         const stopped = `Stopped the builder kept from image v${x.record.sealed!.version} to make room at the machine cap.`;
         ctx.graceTimers.get(x.record.id)?.();
         ctx.graceTimers.delete(x.record.id);
-        await killUntilGone(backend, x.builder.machine, opts.killConfirm);
+        await killUntilGone(ctx.backendAt(x.record.place ?? places.wired), x.builder.machine, opts.killConfirm);
         await ctx.forgetBuilder(x.record.id);
         notices.push(stopped);
         console.warn(`workspace ${record.id}: ${stopped.charAt(0).toLowerCase()}${stopped.slice(1, -1)} (${x.record.id})`);

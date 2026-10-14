@@ -1124,7 +1124,7 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
         const expired = b.life === "reusable" && (ageMs === undefined || ageMs >= BUILDER_IDLE_MS);
         if (b.life !== "stale" && !expired) continue;
         try {
-          await gone.stop(ctx.backendAt(b.record.place ?? places.wired), b.builder.machine);
+          await gone.stop(ctx.backendAt(b.record.place ?? ctx.places.wired), b.builder.machine);
         } catch (e) {
           failed.push({ id: b.record.id, message: `could not stop: ${messageOf(e)}; stays recorded, retried next sweep` });
           continue;

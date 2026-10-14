@@ -3713,7 +3713,7 @@ describe("wsp init with a golden already built from a recipe", () => {
     for (const step of ["Machine ready", "Changes applied", "Files uploaded", "Tools installed", "Agents installed", "MCP servers installed", "Ready", "Snapshot taken", "Fork booted and checked", "Sealed"]) expect(out).toContain(step);
     expect(out).toContain("your builder from v1, kept since the save");
     expect(out).toMatch(/Image v2 sealed in \d+s on the builder kept since the save; new workspaces fork it\./);
-    expect(out).toContain("The builder stays up (about $0.11/h, one of the account's machine slots) until wsp init updates on it again, wsp stops it ten minutes after the save while it serves, or the provider's six-hour idle kill fires.");
+    expect(out).toContain("The builder stays up (about $0.11/h, one of the account's machine slots) until wsp init updates on it again, wsp stops it ten minutes after the save while wsp serves, or the provider's six-hour idle kill fires.");
     // The builder, v1's smoke fork, v2's smoke fork: nothing else booted.
     expect(shared.machines.map(m => [m.spec.fromSnapshot, m.killed])).toEqual([[undefined, false], ["snap_wsp-h1s1-default-v1", true], ["snap_wsp-h1s1-default-v2", true]]);
     // The update rewrote the import result; the first build's measured stages stay in it for the next rebuild offer.
