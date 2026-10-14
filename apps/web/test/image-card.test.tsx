@@ -179,10 +179,7 @@ describe("the Image card", () => {
     expect(press()).toBeNull();
     const before = fake.reads();
     fake.held.view = { image: IMAGE, copies: [copyAt("solari"), copyAt("p_2")], projects: [] };
-    act(() => {
-      useStore.setState({ goldenFrames: { p_2: [frame("p_2", "creating"), frame("p_2", "sealed")] } });
-      fake.push(frame("p_2", "sealed"));
-    });
+    act(() => useStore.getState().applyEvent(frame("p_2", "sealed")));
     await settle();
     expect(fake.reads()).toBe(before + 1);
     expect(title()).toBe(IMAGE_WORDS.state.ready);

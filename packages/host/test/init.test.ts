@@ -3500,7 +3500,7 @@ describe("wsp init with a golden already built from a recipe", () => {
     await first.runtimes.at(-1)!.close();
     expect(builder.killed).toBe(false);
     expect(await store.get("golden-recipes", copyKey("default", "default@v1"))).toBeDefined();
-    const next = (o: Partial<InitOptions> & { tty?: boolean } = {}) => {
+    const next = (o: Partial<InitOptions> & { tty?: boolean; json?: boolean } = {}) => {
       const f = fake({ yes: true, home: first.opts.home, statePath: first.opts.statePath, ...o });
       f.opts.runtime = recipe => {
         f.backends.push(shared);
@@ -3675,6 +3675,22 @@ describe("wsp init with a golden already built from a recipe", () => {
     expect((await runInit(same.opts, same.io)).code).toBe(0);
     expect(same.text()).toContain("Image v1 already matches this recipe. Nothing to update; run wsp to serve it.");
     expect(roadRuns()).toHaveLength(1);
+  });
+
+  it("an update that seals v2 ends on the done object naming v2, as a first build's names v1, after its retention offer", async () => {
+    const { first, next } = await sealed();
+    writeFileSync(join(first.opts.home, ".zshrc"), "export A=1\nexport B=2\n");
+    const f = next({ tty: false, json: true });
+    const runtime = f.opts.runtime;
+    f.opts.runtime = recipe => {
+      const rt = runtime(recipe);
+      const retention = rt.golden.retention.bind(rt.golden);
+      // The init job reads done as the run over and takes a new start, so nothing of this run may come after it.
+      rt.golden.retention = async name => (f.records.push({ event: "retention" }), retention(name));
+      return rt;
+    };
+    expect((await runInit(f.opts, f.io)).code).toBe(0);
+    expect(f.records.slice(-2)).toEqual([{ event: "retention" }, { event: "done", golden: "default", version: 2, snapshotId: "snap_wsp-h1s1-default-v2", nextCommand: f.opts.upCommand }]);
   });
 
   it("--yes with a small change: the changes since v1 are listed, the update runs on the kept builder with the one sentence, v2 is current, and no machine boots", async () => {

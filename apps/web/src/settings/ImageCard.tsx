@@ -49,8 +49,12 @@ export function useImageStanding(place: PlaceView, ctx: SettingsContext): { name
   const job = useStore(s => s.initJob);
   const frames = useGoldenFrames();
   const view = ctx.reads.image;
-  const state = view === null ? undefined : imageState(place, { view, job, frames });
-  if (view === null || state === undefined) return undefined;
+  const read = view === null ? undefined : imageState(place, { view, job, frames });
+  // An answer from before the latest seal holds no word on what stands, but a build its frames still show does; with
+  // no read out to replace it nothing stands, as on the Computers row.
+  const stale = ctx.reads.imageStale && read !== undefined && read.kind !== "building" && read.kind !== "copying";
+  if (view === null || read === undefined || (stale && !ctx.reads.imageReading)) return undefined;
+  const state: ImageState = stale ? { kind: "reading" } : read;
   return { name: placeName(place), state, view, title: standingTitle(state, view.image !== null) };
 }
 
@@ -62,6 +66,8 @@ function standingTitle(state: ImageState, imageExists: boolean): string {
       return imageExists ? IMAGE_WORDS.state.notHere : IMAGE_WORDS.state.nothing;
     case "building":
       return IMAGE_WORDS.state.building;
+    case "reading":
+      return IMAGE_WORDS.state.reading;
     case "copying":
       return IMAGE_WORDS.state.copying;
     case "stale":
@@ -128,6 +134,8 @@ export function ImageCard({ place, name, state, view, ctx, row: asRow = false }:
       }
       case "copying":
         return { title, description: state.line, mono: true, busy: true };
+      case "reading":
+        return { title, busy: true };
       case "stopped":
         // A first build that stopped has no record to copy; building it again opens the recipe.
         return image === null
