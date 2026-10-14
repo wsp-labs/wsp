@@ -4,11 +4,13 @@ import { hostname } from "node:os";
 import type { EventUnion, RecipeDigest } from "@wsp/protocol";
 import { NoProviderBackend, type GoldenDelta, type GoldenImport } from "@wsp/engine";
 import { copyKey, GRACE_MS, createRuntime } from "../src/runtime.js";
+import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
 import { memoryStore } from "../src/store.js";
 import { wsRequest } from "./ws-client.js";
 import { missesFirstDelete, ownedStore, stubBackend, createOn, projectOn } from "./stub-backend.js";
 import { fakeClock } from "./fake-clock.js";
+import { wiring } from "./place-join.js";
 
 describe("runtime golden update and the post-seal grace", () => {
   const dfOk = (m: unknown, cmd: string) => (cmd.startsWith("df -Pk") ? { exitCode: 0, stdout: `${3000 * 1024}\n`, stderr: "" } : cmd === "echo ok" ? { exitCode: 0, stdout: "ok\n", stderr: "" } : cmd.includes("echo WSP_CTX") ? { exitCode: 0, stdout: "WSP_CTX\nWSP_CTX_END\n", stderr: "" } : { exitCode: 0, stdout: "", stderr: "" });
@@ -215,6 +217,41 @@ describe("runtime golden update and the post-seal grace", () => {
     await sweeper.rt.close();
     expect(dead.box.machines[0]!.killed).toBe(true);
     expect(sweeper.said).toEqual([]);
+  });
+
+  it("a stale record with no place, as written before builders had one, is stopped by the next process's sweep at the provider this host forks on", async () => {
+    const { backend, store, rt } = started();
+    const b = await rt.golden.prepare();
+    await rt.close();
+    const old: Record<string, unknown> = { ...((await store.get("builders", b.id)) as object), building: true };
+    delete old["place"];
+    await store.put("builders", b.id, old);
+    const next = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(importOf()), clock: fakeClock().clock, hostId: "h1", killConfirm: { graceMs: 20, pollMs: 1 } });
+    expect(await next.reap()).toEqual({ reaped: [{ id: b.id, builder: true, reason: "unfinished" }], spared: [] });
+    await next.close();
+    expect(backend.machines[0]!.killed).toBe(true);
+  });
+
+  it("a create refused at the cap at a place this host does not fork on stops the builder kept there and creates", async () => {
+    const none = new NoProviderBackend();
+    const box = stubBackend();
+    box.execImpl = dfOk;
+    const rt = createRuntime({ backend: none, store: ownedStore(), adapters: {}, goldenRecipe: recipeWith(importOf()), hostId: "h1", killConfirm: { graceMs: 20, pollMs: 1 }, places: { wired: "none", backend: p => ({ none, box })[p], list: () => ["none", "box"] }, placeLinks: wiring(newPlaceKeyPair()) });
+    try {
+      const b = await rt.golden.prepare({ place: "box" });
+      const { version } = await rt.golden.seal(b.id);
+      const create = box.create.bind(box);
+      box.create = async spec => {
+        if (spec.fromSnapshot !== undefined && box.machines.some(m => !m.killed)) throw Object.assign(new Error("Sandbox limit reached (2)"), { kind: "concurrency" });
+        return create(spec);
+      };
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const ws = await createOn(rt, { golden: version.snapshotId, name: "one", on: "box" }).finally(() => warn.mockRestore());
+      expect(box.machines[0]!.killed).toBe(true);
+      expect(ws.notice).toBe("Stopped the builder kept from image v1 to make room at the machine cap.");
+    } finally {
+      await rt.close();
+    }
   });
 
   it("the grace ends on the timer at GRACE_MS: the builder is killed and forgotten; a second process over the store past the window stops it on its sweep with reason grace", async () => {
