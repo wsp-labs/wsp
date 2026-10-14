@@ -372,6 +372,8 @@ export interface PickOptions {
   platform: Platform;
   /** The disk the provider gives a builder, where it gives a figure; the Disk footer names no cap without one. */
   builderDiskGb?: number;
+  /** The build lands at a provider, whose machines use this computer's sign-ins through wsp: no Sign-ins screen. */
+  cloud?: boolean;
   /** What the package managers here could put on the image: the rows of the Also screen. With none, that screen is
    * not shown. */
   scan?: readonly ScanRow[];
@@ -437,7 +439,7 @@ async function askProject(o: PickOptions, recipe: Recipe): Promise<Recipe | "can
  * last one shown; the recipe carries the ticks and the answers between them. */
 export async function pickScreens(o: PickOptions): Promise<Picked | "cancel"> {
   const scan = o.scan ?? [];
-  const screens: readonly Screen[] = o.from === "agents" ? ["agents", "tools", "also", "logins", "wsp"] : ["logins", "wsp"];
+  const screens = (o.from === "agents" ? (["agents", "tools", "also", "logins", "wsp"] as const) : (["logins", "wsp"] as const)).filter(id => o.cloud !== true || id !== "logins");
   let recipe = o.recipe;
   if (o.from === "agents" && o.project === undefined) {
     const asked = await askProject(o, recipe);

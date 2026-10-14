@@ -10,7 +10,7 @@
 import type { Readable, Writable } from "node:stream";
 import { styleText } from "node:util";
 import { catalogEntry } from "@wsp/catalog";
-import { LOGIN_CHOICES, MCP_REMOTE_ID, RUNGS, type HistoryProgress, type Manifest, type ManifestEntry, type Platform, type ProjectScan, type Rung } from "@wsp/collect";
+import { type HistoryProgress, type Manifest, type ManifestEntry, type Platform, type ProjectScan, type Rung } from "@wsp/collect";
 import { SnapshotFailedError, checkProviderKey, describeAge, keyCheckLine, type BackendPricing, type MachineBackend } from "@wsp/engine";
 import type { GoldenStageEvent, GoldenStep, Recipe, RecipeCustomRow, RecipeHistory, ToolPin, WorkspaceView } from "@wsp/protocol";
 import { PrepareStoppedError, type GoldenBuilderView, type GoldenImport, type GoldenRecipe, type GoldenStage, type Runtime } from "@wsp/runtime";
@@ -19,8 +19,8 @@ import type { Keys } from "./cli.js";
 import { writeFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
-import { agentInstallsFor, brewfileFor, estimateDisk, isMcpRow, PACK_BUDGET_BYTES, plural, shownOf, toolInstallsFor, TOOLS_DISK_FLOOR, type BrewTable, type ImportResult } from "@wsp/engine";
-import { ALREADY_APPLIED, subThreadsOnly, BREW_ID_PREFIX, BUILD_NEEDS_FILE_FIX, buildNeedsFileLine, builderStaysLine, customRows, fmtBytes, fmtDuration, fmtElapsed, fmtMemGb, initStageWhile, initStoppedAt, INIT_ROW_STATES, MACHINE_GONE_LINE, notHereLine, packageOf, savedKeyStoppedLine, SEAL_FAILED_BUILDER_GONE_LINE, SEAL_FAILED_LINE, SIGN_IN_ANSWERS, sealFailedBuilderStaysLine, sealFailedBuilderUnreadLine, shellQuote, type AppPorts, type PortsAsked, GOLDEN_STAGE_WORDS } from "@wsp/protocol";
+import { estimateDisk, isMcpRow, PACK_BUDGET_BYTES, plural, TOOLS_DISK_FLOOR, type BrewTable, type ImportResult } from "@wsp/engine";
+import { ALREADY_APPLIED, subThreadsOnly, BREW_ID_PREFIX, BUILD_NEEDS_FILE_FIX, buildNeedsFileLine, builderStaysLine, customRows, fmtBytes, fmtDuration, fmtElapsed, fmtMemGb, initStageWhile, initStoppedAt, INIT_ROW_STATES, MACHINE_GONE_LINE, notHereLine, packageOf, savedKeyStoppedLine, SEAL_FAILED_BUILDER_GONE_LINE, SEAL_FAILED_LINE, SIGN_IN_ANSWERS, sealFailedBuilderStaysLine, sealFailedBuilderUnreadLine, shellQuote, type AppPorts, type PortsAsked, GOLDEN_STAGE_WORDS, HOST_SIGN_INS } from "@wsp/protocol";
 import { serverVault } from "./env-keys.js";
 import { importResultPath, keychainLogins, readSecrets, refusedIsDir, type SecretReader } from "./init-import.js";
 import { planGoldenRecipe, planImport, wantsBrew, type BuildContext, type BuildsAt } from "./image-recipe.js";
@@ -32,8 +32,6 @@ import {
   goldenRecipeFor,
   type Answers,
   defaultAnswers,
-  isLoginChoice,
-  isTickable,
   loadRecipe,
   lockRefused,
   loginShown,
@@ -65,10 +63,10 @@ import { buildTakes, buildTimes, readBuildTimes } from "./init-times.js";
 import { keptBuilder, stopKeptBuilder, updateRoad } from "./init-upgrade.js";
 import { retentionOffer } from "./storage.js";
 import { DONE_LINE, appUrl, askFirst, checkImportFolder, firstWorkspaceName, runFirst, runLocal, subThreadsReady, type FirstResult } from "./init-first.js";
-import type { Tone } from "./init-select.js";
-import { diskLine, diskTone } from "./init-weight.js";
 import { SIGN_IN_CAP_MS, builderLink, flowHooks, noteOutcomes, signInStage, stageLogins, type BuilderLink, type HostHooks, type LoginOutcome, type SignInCodes, type SignInFlow } from "./init-signin.js";
 import { handoffStage } from "./init-handoff.js";
+import { detectionNote, readyLine, summaryNote } from "./init-summary.js";
+import { hostSignIns } from "./init-host-signins.js";
 import { vaultRows, vaultStage } from "./init-vault.js";
 import { type PortProbes } from "./ports.js";
 import { hostRunDir } from "./host-lock.js";
@@ -679,126 +677,6 @@ function spin(output: Writable, label: string, animate: boolean): Spinner {
 const TICKED_FOR_LOGINS = "ticked under Tools for the sign-ins: ";
 const asBring = (entries: readonly ManifestEntry[]): ManifestEntry[] => entries.map(e => ({ ...e, bring: true }));
 
-const bytesOf = (entries: readonly ManifestEntry[]): string => {
-  const n = entries.reduce((sum, e) => sum + e.bytes, 0);
-  return n > 0 ? fmtBytes(n) : "";
-};
-
-/** One row per rung: name, how many rows, their size, and how many can come when some cannot. */
-function detectionNote(manifest: Manifest, source: string): string[] {
-  if (manifest.entries.length === 0) return ["Nothing found to bring.", "", "Nothing has left this computer."];
-  const rows = RUNGS.map(rung => manifest.entries.filter(e => e.rung === rung))
-    .filter(entries => entries.length > 0)
-    .map(entries => {
-      const canCome = entries.filter(isTickable).length;
-      return [RUNG_TITLE[entries[0]!.rung], String(entries.length), bytesOf(entries), canCome < entries.length ? `${canCome} can come` : ""];
-    });
-  return [...table(rows, ["left", "right", "right"]), "", `${manifest.entries.length} ${source}. Nothing has left this computer.`];
-}
-
-/** The label on the first of the summary card's rows outside the catalog; the rest sit under it in the same column. */
-export const ADDED_LABEL = "Added";
-
-/** What the ticked rows install, counted once for the summary card and the build screen's own line: the agents by
- * name, the tools the person ticked and the rows outside the catalog (Homebrew's toolchain named apart), and the
- * MCP servers that travel. */
-function buildCounts(
-  manifest: Manifest,
-  ticks: ReadonlySet<string>,
-  brew: BrewTable,
-  custom: readonly RecipeCustomRow[],
-): { agents: string[]; tools: number; toolchain: string; servers: number } {
-  const bring = manifest.entries.filter(e => ticks.has(e.id)).map(e => ({ ...e, bring: true }));
-  const steps = toolInstallsFor(bring, brew, custom).installs;
-  return {
-    agents: agentInstallsFor(bring).installs.map(a => a.name),
-    // The rows outside the catalog are the person's tools too, and no tick names them.
-    tools: steps.filter(t => ticks.has(t.id)).length + custom.length,
-    toolchain: steps.some(t => t.id.startsWith("tools/brew-toolchain/")) ? " plus Homebrew's toolchain" : "",
-    servers: bring.filter(e => isMcpRow(e) && e.id !== MCP_REMOTE_ID).length,
-  };
-}
-
-/** The build screen's own line: what the screens before it settled on, how long the build takes, how big the
- * image lands, and that a machine left alone stops billing. What it costs an hour is the boot question's, under it. */
-export function readyLine(
-  manifest: Manifest,
-  ticks: ReadonlySet<string>,
-  choices: ReadonlyMap<string, string>,
-  upload: number,
-  brew: BrewTable,
-  takes: string,
-  custom: readonly RecipeCustomRow[] = [],
-): string {
-  const { agents, tools } = buildCounts(manifest, ticks, brew, custom);
-  const est = estimateDisk(manifest.entries.filter(e => ticks.has(e.id)).map(e => ({ ...e, bring: true })), upload, brew, custom);
-  const machine = manifest.entries.filter(e => e.rung === "logins" && choices.get(e.id) === "machine").length;
-  return [
-    `Ready to build. ${plural(agents.length, "agent")}, ${plural(tools, "tool")}, ${fmtBytes(est.total)} on the image.`,
-    `${plural(machine, "sign-in")} on the machine during the build.`,
-    `The build takes ${takes}; a workspace naps when it is idle and stops billing.`,
-  ].join(" ");
-}
-
-/** One row per rung with its ticks and size, the sign-ins under theirs with the answer each
- * got, a credential-shaped row under its rung when it got an answer other than skip,
- * then what uploads and what installs, wrapped under their own column. `upload` is the plan's own
- * count of the bytes that travel; without it the ticked rows' sizes stand in. */
-export function summaryNote(
-  manifest: Manifest,
-  ticks: ReadonlySet<string>,
-  choices: ReadonlyMap<string, string>,
-  width: number,
-  upload: number = manifest.entries.filter(e => ticks.has(e.id)).reduce((n, e) => n + e.bytes, 0),
-  brew: BrewTable = new Map(),
-  custom: readonly RecipeCustomRow[] = [],
-  /** The disk the provider gives a builder, where it gives a figure; without one the Disk line names no cap and
-   * carries no weight, since a container's disk is the box's. */
-  builderDiskGb?: number,
-): string[] {
-  const perRung = RUNGS.map(rung => manifest.entries.filter(e => e.rung === rung)).filter(entries => entries.length > 0);
-  const answer = (e: ManifestEntry): string => { const c = choices.get(e.id); return isLoginChoice(c) ? SIGN_IN_ANSWERS[c].short : "skip"; };
-  // The sign-ins row counts the answers that bring something, as its screen's header does: a sign-in is chosen though nothing is ticked.
-  const loginSpread = (entries: readonly ManifestEntry[]): string =>
-    LOGIN_CHOICES.filter(c => c !== "skip")
-      .map(c => ({ n: entries.filter(e => answer(e) === SIGN_IN_ANSWERS[c].short).length, label: SIGN_IN_ANSWERS[c].short }))
-      .filter(p => p.n > 0)
-      .map(p => `${p.n} ${p.label}`)
-      .join(", ");
-  const rows = table(
-    perRung.map(entries => {
-      const on = entries.filter(e => ticks.has(e.id));
-      const spread = entries[0]!.rung === "logins" ? loginSpread(entries) : "";
-      return [RUNG_TITLE[entries[0]!.rung], spread !== "" ? spread : `${on.length} of ${entries.length}`, bytesOf(on)];
-    }),
-    ["left", "right", "right"],
-  );
-  const listed = manifest.entries.filter(e => e.rung === "logins" || (e.consent === true && answer(e) !== "skip"));
-  // Lines are wrapped here to what the card leaves, so the card prints them as they are; the label keeps room for the widest answer.
-  const inner = width - CARD_FRAME;
-  const labelRoom = inner - 2 - GUTTER.length - Math.max(...Object.values(SIGN_IN_ANSWERS).map(w => w.short.length));
-  const answered = new Map(table(listed.map(e => [`  ${ellipsize(e.label, labelRoom)}`, answer(e)])).map((line, i) => [listed[i]!.id, line]));
-  const lines = perRung.flatMap((entries, i) => [rows[i]!, ...entries.flatMap(e => answered.get(e.id) ?? [])]);
-  const bring = manifest.entries.filter(e => ticks.has(e.id)).map(e => ({ ...e, bring: true }));
-  const { agents, tools, toolchain, servers } = buildCounts(manifest, ticks, brew, custom);
-  const roads = brewfileFor(bring, brew).roads;
-  const RELEASE_PIN_WORDS = "tag and checksum recorded at the seal, checked on every copy";
-  const fromReleases = roads.length === 0 ? "" : `, ${roads.length} from ${roads.length === 1 ? "its" : "their"} GitHub release${roads.length === 1 ? "" : "s"} (${RELEASE_PIN_WORDS})`;
-  const installs = [...agents, ...(tools > 0 ? [`${tools} tool${tools === 1 ? "" : "s"}${toolchain}${fromReleases}`] : []), ...(servers > 0 ? [`${servers} MCP server${servers === 1 ? "" : "s"}`] : [])];
-  const est = estimateDisk(bring, upload, brew, custom);
-  // The Disk line takes its weight's colour here too: the card is the last thing read before the confirm.
-  const closing: [string, string, Tone | undefined][] = [
-    ["Upload", upload > PACK_BUDGET_BYTES ? `${fmtBytes(upload)}, over the ${fmtBytes(PACK_BUDGET_BYTES)} the machine's disk allows` : `${fmtBytes(upload)}, nothing has left this computer yet`, undefined],
-    ["Installs", installs.length > 0 ? installs.join(", ") : "nothing; the machine boots bare", undefined],
-    // A row outside the catalog is a line the person's own agent wrote, run as root on the builder: the card is the
-    // last thing read before the boot, so each one is named here with the command it runs, never only counted.
-    ...custom.map((c, i): [string, string, Tone | undefined] => [i === 0 ? ADDED_LABEL : "", `${c.name} runs ${shownOf(c.install)}`, undefined]),
-    ["Disk", diskLine(est, builderDiskGb), builderDiskGb === undefined ? undefined : diskTone(est.total, est.room)],
-  ];
-  const column = Math.max(...closing.map(([label]) => label.length)) + GUTTER.length;
-  return [...lines, "", ...closing.flatMap(([label, text, tone]) => wrap(`${label.padEnd(column)}${text}`, inner, " ".repeat(column)).map(l => (tone === undefined ? l : styleText(tone, l))))];
-}
-
 /** The machine the recipe asks for: what the recipe names, else the backend's own default. */
 function builderSize(recipe: GoldenRecipe, pricing: InitPricing): { cpu: number; memMb: number } {
   return { cpu: recipe.cpu ?? pricing.defaultSize.cpu, memMb: recipe.memMb ?? pricing.defaultSize.memMb };
@@ -956,6 +834,9 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const out = { output: io.output };
   // Off a terminal, and under --non-interactive on one, there is nobody to ask: it runs as if --yes were given.
   const interactive = io.isTTY && !opts.yes && opts.nonInteractive !== true;
+  // A provider's machines use this computer's sign-ins through wsp: nothing is signed in, copied or typed for one, so
+  // its build asks no sign-in, reads no Keychain and waits on nobody once it is told to go.
+  const cloud = opts.cloud !== false;
   // Nobody to ask, but the sign-ins still run and each page is handed to the person; --yes is the one road that skips them.
   const handoff = !interactive && !opts.yes;
   // Which of the three reasons nothing is asked, in the words every taken-as-yes line uses.
@@ -996,6 +877,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
       home: opts.home,
       platform: opts.platform,
       ...(opts.pricing.builderDiskGb !== undefined ? { builderDiskGb: opts.pricing.builderDiskGb } : {}),
+      ...(cloud ? { cloud } : {}),
       scan: scanned,
       ...(opts.project !== undefined ? { project: opts.project } : {}),
       scanProject: opts.scanProject,
@@ -1019,7 +901,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   } else {
     // A run that asks nothing answers every screen with the word it would have opened on, read from the screens' own defaults.
     answers = defaultAnswers(manifest, brew);
-    for (const [id, choice] of signInItems(manifest, brew, opts.platform, opts.home).initial) {
+    for (const [id, choice] of cloud ? [] : signInItems(manifest, brew, opts.platform, opts.home).initial) {
       answers.choices.set(id, choice);
       if (choice === "copy") answers.ticks.add(id);
       else answers.ticks.delete(id);
@@ -1034,15 +916,24 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     // goes where such a row goes; a saved answer that says copy is the person's own, and keeps the recipe hash it was
     // saved with.
     const defaulted = manifest.entries.filter(e => e.rung === "logins" && e.choice === undefined && answers.choices.get(e.id) === "copy").map(e => ({ ...e, choice: "copy" as const }));
-    for (const s of keychainLogins(defaulted, opts.platform, opts.home)) {
+    for (const s of cloud ? [] : keychainLogins(defaulted, opts.platform, opts.home)) {
       answers.choices.set(s.id, WITHOUT_A_COPY);
       answers.ticks.delete(s.id);
     }
-    const added = tickLoginTools(manifest, answers.choices, answers.ticks, brew);
+    const added = cloud ? [] : tickLoginTools(manifest, answers.choices, answers.ticks, brew);
     if (added.length > 0) log.message(dim(`${TICKED_FOR_LOGINS}${added.join(", ")}`), { output: io.output, symbol: dim(S_BAR) });
   }
+  // The sign-in answers a recipe carries are a joined computer's: a provider's build reads none and copies no login or
+  // MCP token, and the recipe keeps them as they were written.
+  const signInRow = (e: ManifestEntry): boolean => e.rung === "logins" || (isMcpRow(e) && e.consent === true);
+  if (cloud) {
+    for (const e of manifest.entries.filter(signInRow)) {
+      answers.choices.set(e.id, "skip");
+      answers.ticks.delete(e.id);
+    }
+  }
   const { ticks, choices } = answers;
-  const offered: Manifest = { entries: manifest.entries.filter(e => loginShown(e, manifest, ticks)) };
+  const offered: Manifest = { entries: manifest.entries.filter(e => (cloud ? e.rung !== "logins" : loginShown(e, manifest, ticks))) };
 
   // Filled by the Keychain reads below, after the earlier-builder check; the pack reads it only at build time.
   const secrets = new Map<string, string>();
@@ -1054,7 +945,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const small = { path: smallRecipePath(opts.statePath), recipe: catalogRecipe };
   // What the last seal recorded each row installed, by the recipe row's id, until this run's seal records its own.
   const pins = new Map<string, ToolPin>(computer.savedPins);
-  const smallRecipeNow = (): Recipe => withPins(recipeWithAnswers(small.recipe, choices), pins);
+  const smallRecipeNow = (): Recipe => withPins(cloud ? small.recipe : recipeWithAnswers(small.recipe, choices), pins);
   /** The record's pins onto the small recipe under each row's id there, after a seal: what wsp recipe shows. */
   const recordPins = async (): Promise<void> => {
     const record = (await rt.image.get(GOLDEN_NAME)).image;
@@ -1131,6 +1022,18 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     io.json?.({ event: "stage", stage: "failed", detail: buildNeedsFileLine(missing) });
     cancel(BUILD_NEEDS_FILE_FIX, out);
     return { code: 1 };
+  }
+  // The sign-ins the provider's machines will use, said before the build question; one that is not ready stops the
+  // run here, before anything boots, with the line that fixes it.
+  if (cloud) {
+    const signIns = hostSignIns({ found, ticks, vault: opts.vault(), platform: opts.platform, home: opts.home });
+    log.step([HOST_SIGN_INS.head, ...table(signIns.map(r => [`  ${r.name}`, r.said]))].join("\n"), out);
+    const unready = signIns.filter(r => !r.ready);
+    if (unready.length > 0) {
+      io.json?.({ event: "stage", stage: "failed", detail: unready.map(r => `${r.name}: ${r.said}`).join("; ") });
+      cancel(HOST_SIGN_INS.stopped, out);
+      return { code: 1 };
+    }
   }
   let recipe = planned.recipe;
   // Beside a host already serving this state file, everything from here is that host's: it owns the state, the
@@ -1222,7 +1125,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   // Keychain consent is asked here, before anything boots and after every road that cancels the
   // run, so a refusal costs no machine: the row turns into a sign-in on the machine and the pack
   // finds no value for it.
-  const wanted = keychainLogins(bring, opts.platform, opts.home);
+  const wanted = cloud ? [] : keychainLogins(bring, opts.platform, opts.home);
   // Off a terminal the spinner draws nothing, and only a saved copy answer gets here; a scripted run would otherwise sit on macOS's dialog with no word why.
   const keychainItems = [...new Set(wanted.filter(s => s.command === undefined).map(s => s.service))];
   const helpers = [...new Set(wanted.filter(s => s.command !== undefined).map(s => s.service))];
@@ -1442,7 +1345,8 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   if (landed !== undefined) log.info(installsTally(landed, resultsPath).join("\n"), out);
 
   const flow: SignInFlow = { armed: false };
-  const relay = await opts.relay(rt, builder, flowHooks(flow, builder));
+  // A provider's build runs no sign-in on the builder, so nothing links this computer to it.
+  const relay = cloud ? { close: async () => {} } : await opts.relay(rt, builder, flowHooks(flow, builder));
   closeRelay = async () => {
     closeRelay = async () => {};
     await relay.close().catch((e: unknown) => log.error(`relay close failed: ${e instanceof Error ? e.message : String(e)}`, out));
@@ -1462,7 +1366,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   if (handoff) {
     io.signals.on("SIGINT", onIntLogins);
     io.signals.on("SIGTERM", onTermLogins);
-    opts.signIns?.({ flow, dial, signal: stopLogins.signal, ...(opts.pollMs !== undefined ? { pollMs: opts.pollMs } : {}) });
+    if (!cloud) opts.signIns?.({ flow, dial, signal: stopLogins.signal, ...(opts.pollMs !== undefined ? { pollMs: opts.pollMs } : {}) });
   }
   // Secrets first: a key cut from an rc file is on the machine before any status check looks for it.
   // Nobody is here to type: the flag that said so when there was a terminal, else the terminal that is missing.
@@ -1471,31 +1375,36 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   // The agents' own tokens and keys stay here: the vault step below asks for them and saves them in the wsp home,
   // and the machine is never told. What is left for the machine is what the pack cut out of the rc files it carried.
   for (const row of vaultRows(offered, choices)) if (opts.vault()[row.name] !== undefined) io.json?.({ event: "key-set", tool: agentName(row.entry), label: row.entry.label });
-  const secretOutcomes = await secretsStage({
-    asks: (landed?.files?.cut ?? []).flatMap(c => c.names.map(name => ({ name, from: `cut from ${c.path}` }))),
-    dial,
-    input: io.input,
-    output: io.output,
-    ...(skipSecretsWhy !== undefined ? { skipWhy: skipSecretsWhy } : {}),
-    hide: value => runLog.hide(value),
-  });
+  // A provider's machine gets no secret the pack cut: those values stay on this computer.
+  const secretOutcomes = cloud
+    ? []
+    : await secretsStage({
+      asks: (landed?.files?.cut ?? []).flatMap(c => c.names.map(name => ({ name, from: `cut from ${c.path}` }))),
+      dial,
+      input: io.input,
+      output: io.output,
+      ...(skipSecretsWhy !== undefined ? { skipWhy: skipSecretsWhy } : {}),
+      hide: value => runLog.hide(value),
+    });
   // The tokens and keys the person holds here, before any sign-in on the machine: nothing of this step touches one.
   // The hand-off road has nobody at this terminal either, and its client answers such a row with init.signInCode.
   // A client that can answer (the app's own job opens one) is waited for below; every other run with nobody at this
   // terminal leaves the row where it stands, since there is no road for a paste to arrive on.
   const vaultWhy = interactive || (handoff && opts.codes !== undefined) ? undefined : `${nobodyAsks}; paste it from the app`;
-  const vaultOutcomes = await vaultStage({
-    rows: vaultRows(offered, choices),
-    held: opts.vault,
-    save: opts.saveKeys,
-    ...(interactive && opts.mintHere !== undefined ? { mint: opts.mintHere } : {}),
-    ...(handoff && opts.codes !== undefined ? { waitMs: opts.vaultWaitMs ?? SIGN_IN_CAP_MS } : {}),
-    input: io.input,
-    output: io.output,
-    ...(vaultWhy !== undefined ? { skipWhy: vaultWhy } : {}),
-    ...(io.json !== undefined ? { json: io.json } : {}),
-    hide: value => runLog.hide(value),
-  });
+  const vaultOutcomes = cloud
+    ? []
+    : await vaultStage({
+      rows: vaultRows(offered, choices),
+      held: opts.vault,
+      save: opts.saveKeys,
+      ...(interactive && opts.mintHere !== undefined ? { mint: opts.mintHere } : {}),
+      ...(handoff && opts.codes !== undefined ? { waitMs: opts.vaultWaitMs ?? SIGN_IN_CAP_MS } : {}),
+      input: io.input,
+      output: io.output,
+      ...(vaultWhy !== undefined ? { skipWhy: vaultWhy } : {}),
+      ...(io.json !== undefined ? { json: io.json } : {}),
+      hide: value => runLog.hide(value),
+    });
   // Only --yes gets here: every other run without a terminal hands its sign-ins over instead of skipping them.
   const skipWhy = interactive || handoff ? undefined : io.isTTY ? "--yes asks nothing; sign in from the app's terminal" : "no terminal to sign in from; use the app's terminal";
   const staged = stageLogins(offered, choices, ticks);
@@ -1506,28 +1415,30 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     if (have === undefined) left.set(s.id, s.note);
     else if (!have.includes(s.note)) left.set(s.id, `${have}; ${s.note}`);
   }
-  const machineOutcomes = handoff
-    ? await handoffStage({
-        logins: staged,
-        left,
-        dial,
-        output: io.output,
-        platform: opts.platform,
-        flow,
-        signal: stopLogins.signal,
-        ...(opts.pollMs !== undefined ? { pollMs: opts.pollMs } : {}),
-        ...(opts.codes !== undefined ? { codes: opts.codes } : {}),
-        ...(io.json !== undefined ? { json: io.json } : {}),
-      })
-    : await signInStage({
-        logins: staged,
-        left,
-        dial,
-        terminal: { input: io.input, output: io.output },
-        ...(skipWhy !== undefined ? { skipWhy } : {}),
-        open: url => io.open(url),
-        flow,
-      });
+  const machineOutcomes = cloud
+    ? []
+    : handoff
+      ? await handoffStage({
+          logins: staged,
+          left,
+          dial,
+          output: io.output,
+          platform: opts.platform,
+          flow,
+          signal: stopLogins.signal,
+          ...(opts.pollMs !== undefined ? { pollMs: opts.pollMs } : {}),
+          ...(opts.codes !== undefined ? { codes: opts.codes } : {}),
+          ...(io.json !== undefined ? { json: io.json } : {}),
+        })
+      : await signInStage({
+          logins: staged,
+          left,
+          dial,
+          terminal: { input: io.input, output: io.output },
+          ...(skipWhy !== undefined ? { skipWhy } : {}),
+          open: url => io.open(url),
+          flow,
+        });
   const outcomes = [...vaultOutcomes, ...machineOutcomes];
   if (noteOutcomes(resultsPath, { logins: outcomes, secrets: secretOutcomes }).replaced) log.warn(`${resultsPath} could not be read; it was rewritten with the logins and secrets alone.`, out);
   // The relay's work ends with the sign-ins; the host that serves the app after the seal links to the workspaces itself.
@@ -1552,7 +1463,8 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   card(`Ready to seal image v${next}`, sealSummary(landed, outcomes, secretOutcomes, widthOf(io.output)), io.output);
   const result: InitResult = { code: 0, logins: outcomes, secrets: secretOutcomes };
   const builderRate = opts.pricing.rateUsdPerHour(builder.size);
-  if (interactive) {
+  // A provider's build was told to go at the build question and asks nothing more.
+  if (interactive && !cloud) {
     const go = await confirmPrompt({ message: `Seal this machine as image v${next}?`, hint: "Enter seals: a snapshot, then a fork to prove it. No leaves the machine up.", initialValue: true, input: io.input, output: io.output });
     if (isCancel(go) || !go) {
       cancel(`Nothing was sealed. ${builderStaysLine(builder.id, builderRate, attachCommand)}`, out);
@@ -1560,7 +1472,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
       return { ...result, code: 1 };
     }
   } else {
-    log.step(`Sealing image v${next}. Taken as yes (${takenAs}).`, out);
+    log.step(interactive ? `Sealing image v${next}.` : `Sealing image v${next}. Taken as yes (${takenAs}).`, out);
   }
   let sealed: Awaited<ReturnType<Runtime["golden"]["seal"]>> | undefined;
   let error: unknown;
@@ -1628,7 +1540,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const existing = await rt.workspaces.list();
   let first: FirstResult | undefined;
   let local: WorkspaceView | undefined;
-  if (subThreadsOnly(opts.place ?? opts.provider ?? "")) subThreadsReady(logins, io.output);
+  if (subThreadsOnly(opts.place ?? opts.provider ?? "")) subThreadsReady(io.output);
   else if (named === undefined && existing.length > 0) {
     log.step(`Your ${existing.length} workspace${existing.length === 1 ? " stays" : "s stay"} on the image version ${existing.length === 1 ? "it was" : "they were"} forked from; upgrade ${existing.length === 1 ? "it" : "them"} from the app. New workspaces fork v${version}.`, out);
   } else {

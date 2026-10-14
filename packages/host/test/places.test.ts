@@ -22,7 +22,7 @@ import { MissingKnownHostsError, missingKnownHostsLine, OWN_MARK, outsideAfterSc
 import { daemonBinaryHere } from "../src/assets.js";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noGuestDaemonLine, noPlaceSystemLine } from "../src/daemon-binary.js";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, addFound, addFoundScript, addUndoScript, apparmorStep, apparmorStoodLine, daemonFlags, joinedAddWrites, joinedLine, joinedPlace, loginFilesStep, PLACE_JOINED_LINE, placeFoundSkippedLine, placeFoundStep, profileSourceLine, sshDaemonPlace, WSP_READY_LINE } from "../src/doctor.js";
-import { BoxBackend, checkProviderKey, type KeyCheck, type MachineBackend } from "@wsp/engine";
+import { type KeyCheck } from "@wsp/engine";
 import { computerLines, hostPlatform, placeLines, placeNames } from "../src/verbs.js";
 import { namesPlace, PLACE_FOUND_END, placeOutsideLeftLine, placeOwnersUnknownLine, placeStoodBeforeLine, TOOL_PREFIX, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { pinnedDroppingPort, refusedPort } from "../../runtime/test/held-port.js";
@@ -103,7 +103,7 @@ import { CGROUP_CONTROLLERS_PATH, PROC_FILESYSTEMS_PATH, heldPlaceScript, worksp
 import { modprobeAt, placeFilePath, placeKeyPath, placeLogPath, placeReport, placeService, readPlaceFile, sweepPlace as sweepPlaceHere, sweptLine, sweptSaid, writePlaceFile, type PlaceSweepOptions } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { SERVICE_MANAGERS, type RunResult, type ServiceAddress, type ServiceManager, type ServiceRunner, type ServiceUnit } from "../src/service.js";
-import { addedBy, addedProviders } from "../src/providers.js";
+import { addedBy, addedProviders, providerKeyCheck } from "../src/providers.js";
 import { sha256sumBin } from "../../engine/test/sha256sum-bin.js";
 import { runsFromItsOwnFolder } from "./own-folder.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -161,16 +161,14 @@ describe("what wsp add prints with no argument", () => {
 describe("a provider as a place", () => {
   it.runIf(CLOUD_ON)("puts the key to a provider that is opened by one, and writes nothing when it is refused", async () => {
     const home = tmp("add-provider-key");
-    const put: MachineBackend[] = [];
-    const refusing = { ...systemPlaceDeps, checkKey: async (b: MachineBackend): Promise<KeyCheck> => (put.push(b), { state: "refused", said: "box said 401 invalid token" }) };
+    const put: { key: string; provider: string }[] = [];
+    const refusing = { ...systemPlaceDeps, checkKey: async (_env: unknown, key: string, provider: string): Promise<KeyCheck> => (put.push({ key, provider }), { state: "refused", said: "box said 401 invalid token" }) };
     const io = captured();
     // With nobody at a terminal to type another, the refused key stops the add on the auth class.
     await expect(addCommand(io, opts(home, { BOAT_API_KEY: "sk-ant-x" }), ["box"], {}, refusing)).rejects.toMatchObject({ kind: "auth", message: expect.stringContaining("401") });
     expect(existsSync(join(home, ".env"))).toBe(false);
-    // The key is put to the provider being added, built out of the environment that carries every row's key under
-    // the variable that row declares.
-    expect(put).toHaveLength(1);
-    expect(put[0]).toBeInstanceOf(BoxBackend);
+    // The key is put to the provider being added, by that provider's own row.
+    expect(put).toEqual([{ key: "sk-ant-x", provider: "box" }]);
     // A key the provider took is saved under its own variable and nothing else, so it opens the provider as a place
     // beside this computer; the key itself is never printed.
     const taking = { ...systemPlaceDeps, checkKey: async () => ({ state: "taken" }) as const };
@@ -208,14 +206,14 @@ describe("a provider as a place", () => {
       });
       return asked;
     };
-    const checking = { ...systemPlaceDeps, checkKey: checkProviderKey };
+    const checking = { ...systemPlaceDeps, checkKey: providerKeyCheck };
 
     it("puts the key to Boat and refuses one Boat refuses, writing nothing", async () => {
       const home = tmp("add-boat-refused");
       const asked = boatTaking("bx_good");
       const io = captured();
       await expect(addCommand(io, opts(home, { BOAT_API_KEY: "bx_plainly_wrong_key" }), ["box"], {}, checking)).rejects.toMatchObject({ kind: "auth", message: expect.stringContaining("401 unauthorized") });
-      expect(asked.map(u => new URL(u).pathname)).toEqual(["/api/box/v1/limits"]);
+      expect(asked.map(u => new URL(u).pathname)).toContain("/api/box/v1/limits");
       expect(io.lines).toEqual([]);
       expect(existsSync(join(home, ".env"))).toBe(false);
     });

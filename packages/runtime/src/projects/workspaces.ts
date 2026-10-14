@@ -583,6 +583,8 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       entry.deleting = (async () => {
         try {
           delete entry.deleteSaid;
+          // First, so no call from the machine lands between this and the provider's delete, nor after a refused one.
+          await ctx.opts.broker?.revoke?.(id).catch((e: unknown) => console.warn(`${entry.record.name} was not cut off from your computer before its delete: ${e instanceof Error ? e.message : String(e)}`));
           ctx.endSessions(id, DELETED_REASON);
           const threads = new Set([...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
           for (const s of sessions.values()) if (s.view.workspaceId === id && s.view.threadId !== undefined) threads.add(s.view.threadId);
