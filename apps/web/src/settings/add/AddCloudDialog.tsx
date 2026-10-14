@@ -340,6 +340,7 @@ export function AddCloudDialog() {
   const [refused, setRefused] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const [setup, setSetup] = useState<InitSetup | null>(null);
+  const [setupRefused, setSetupRefused] = useState<string | null>(null);
   const [options, setOptions] = useState<RecipeOptions | null>(null);
   const here = hereName(places);
   const held = setup === null ? heldBefore : setup.keys[flow.provider] === true;
@@ -352,9 +353,13 @@ export function AddCloudDialog() {
 
   useEffect(() => {
     if (!flow.open || api === null) return;
-    void api.initGet?.({ on: flow.provider }).then(setSetup, () => undefined);
+    // Named by no place: a cloud with no key yet is no place, and the host refuses a read that names one.
+    void api.initGet?.().then(
+      read => (setSetup(read), setSetupRefused(null)),
+      (e: unknown) => setSetupRefused(failureOf(e).said),
+    );
     void api.recipesOptions?.().then(setOptions, () => undefined);
-  }, [flow.open, flow.provider, api]);
+  }, [flow.open, api]);
 
   // A build started from another window moves a dialog left on the summary on to the build.
   const phase = job?.phase;
@@ -388,7 +393,10 @@ export function AddCloudDialog() {
     setBusy(true);
     setRefused(null);
     try {
-      if (keyText.trim() !== "") await saveKeys({ provider: flow.provider, key: keyText.trim() });
+      if (keyText.trim() !== "") {
+        setSetup(await saveKeys({ provider: flow.provider, key: keyText.trim() }));
+        setSetupRefused(null);
+      }
       setKeyText("");
       keyNow.current = "";
       if (job === null || (!initJobBuilding(job.phase) && job.phase !== "answering" && job.phase !== "reading")) await api!.initStart!({ road: "manual", on: flow.provider });
@@ -437,6 +445,7 @@ export function AddCloudDialog() {
   const sealed = job?.phase === "done";
   const tookMs = job === null ? 0 : initBuildRows(job.rows).rows.reduce((n, r) => n + (r.ms ?? 0), 0);
   const version = job?.golden?.version ?? image?.version;
+  const refusal = recipe.refusal ?? setupRefused;
 
   const head = ((): { title: string; line?: string } => {
     switch (flow.step) {
@@ -571,7 +580,7 @@ export function AddCloudDialog() {
             </DialogHeader>
             <DialogPanel className={STEP_BODY}>
               {body()}
-              {recipe.refusal === null || flow.step === "key" ? null : <RefusalSlot k="cloud-refusal" said={recipe.refusal} />}
+              {refusal === null || flow.step === "key" ? null : <RefusalSlot k="cloud-refusal" said={refusal} />}
             </DialogPanel>
             <StepFoot left={null}>{foot}</StepFoot>
           </div>

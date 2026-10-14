@@ -12,7 +12,7 @@ import { AT_ITS_TERMINAL, CODE_FROM_ROW, DAEMON_VERSION, noKeyLine, waitsForInst
 import { type PlaceUpdateRequest } from "@wsp/runtime";
 import { type SshRiding } from "@wsp/engine";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noPlaceSystemLine } from "../src/daemon-binary.js";
-import { loginFilesStep, profileSourceLine, sshDaemonPlace } from "../src/doctor.js";
+import { loginBinIn, loginFilesStep, profileSourceLine, sshDaemonPlace } from "../src/doctor.js";
 import { addCommand, UPDATE_FLAGS_REFUSAL, placeNoUpdateRoadLine, placeUnit, PLACE_NO_KEEP_LINE, PLACE_UPDATED_LINE, placeLoginFilesFailedLine, placeUpdateFailedLine, placeUpdateScript, placeUpdater, updatedLines, SIGN_IN_FLAGS_REFUSAL, placeNoLoginsLine, boxReplacesLine } from "../src/places.js";
 import { signInAgentRefusal, signInRowCommand } from "../src/places/add-words.js";
 import { placeService } from "../src/place-report.js";
@@ -596,7 +596,8 @@ describe("wsp's own login files on a computer already joined, written by every u
     });
     ranOn(String(frames[0]!["cmd"]));
     expect(readFileSync(join(home, ".profile"), "utf8")).toBe(`# theirs\n# after\n${profileSourceLine(at.profileFile)}\n`);
-    expect(readFileSync(at.profileFile, "utf8")).toBe(`export BROWSER=${at.binDir}/wsp-open\nunset DISPLAY\n`);
+    const bin = shellQuote(loginBinIn(at.dir));
+    expect(readFileSync(at.profileFile, "utf8")).toBe(`export BROWSER=${at.binDir}/wsp-open\nunset DISPLAY\ncase ":$PATH:" in *:${bin}:*) ;; *) PATH="$PATH":${bin} ;; esac\n`);
     // The copy the take-out writes is its own and goes with it: nothing of wsp's is left beside their file.
     expect(existsSync(`${join(home, ".profile")}.wsp-out`)).toBe(false);
   });

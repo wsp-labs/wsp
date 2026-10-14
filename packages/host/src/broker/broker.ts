@@ -11,13 +11,10 @@ import type { Duplex } from "node:stream";
 import type { BrokerStatus, PipeDoor, PipeOpen } from "@wsp/protocol";
 import { brokerCredentials, type CredentialPorts } from "./credentials.js";
 import type { BrokerLog } from "./log.js";
+import { offSwitch, type OffSwitch } from "./off.js";
 import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, FAILED_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, writeRefusal, type RefusalStatus } from "./refuse.js";
 import { dropCallerAuth, hostOf, isConnectorCall, isRefreshCall, pathOf, REFRESH_BODY_MAX, refreshToken, tokenOf } from "./tokens.js";
 import type { BrokerContext, BrokerLogLine, BrokerService, BrokerWorkspace, Grant, LiveGrant, PushedRef, RefusalShape } from "./types.js";
-
-/** How many revoked machines the off switch remembers; a machine's pipes stop with its link, so only a recent
- * revocation can still have one open. */
-export const OFF_SWITCH_MAX = 1024;
 
 export interface BrokerOptions {
   /** Checked in order; the first whose `claims` answers serves the call. */
@@ -35,6 +32,8 @@ export interface BrokerOptions {
   /** Revokes every live turn, op and terminal token of a workspace. */
   revokeTokens(workspaceId: string): Promise<void>;
   credentials: CredentialPorts;
+  /** The machines switched off; in memory alone where absent. */
+  off?: OffSwitch;
   log: BrokerLog;
   /** Told once per pipe how long the daemon held it before the host took it, against the thread that called. */
   waited?(grant: Grant, heldMs: number): void;
@@ -190,7 +189,7 @@ export function createBroker(o: BrokerOptions): Broker {
   const credentials = brokerCredentials(o.credentials);
   const pipes = new WeakMap<Duplex, Pipe>();
   const live = new Map<string, Set<Duplex>>();
-  const off = new Map<string, true>();
+  const off = o.off ?? offSwitch();
   let closed = false;
 
   const server = createServer({ requestTimeout: 0 });
@@ -392,9 +391,7 @@ export function createBroker(o: BrokerOptions): Broker {
       server.emit("connection", pipe);
     },
     async revoke(workspaceId) {
-      off.delete(workspaceId);
-      off.set(workspaceId, true);
-      while (off.size > OFF_SWITCH_MAX) off.delete(off.keys().next().value!);
+      off.add(workspaceId);
       for (const pipe of live.get(workspaceId) ?? []) pipe.destroy();
       await o.revokeTokens(workspaceId);
     },

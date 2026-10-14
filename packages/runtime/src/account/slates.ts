@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { FsHashReply, FsImageReply, threadWord, isLocalWorkspace, folderOnJoined, HERE_PLACE_ID, HTTP_POST_DAEMON_VERSION, SETTLE_MS, slateMachineOnBox, THREAD_ENV, type AgentsTarget } from "@wsp/protocol";
 import { isServerNotSetUp } from "../agents-read.js";
-import { boxSlateDir, pipeOn, postOn } from "../slate-mcp-on.js";
+import { boxSlateDir, pipeOn, postHere, postOn } from "../slate-mcp-on.js";
 import { lazySlates } from "../lazy-slates.js";
 import { toolAsks } from "../harness-catalog.js";
 import type { Slates } from "../slates.js";
@@ -97,7 +97,8 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
       }
       const reader = opts.agentsReader;
       if (reader?.server === undefined) throw new Error("this host reads no agent's MCP config");
-      return reader.server({ kind: "here", projects: [{ id: workspaceId!, name: "thread", path: ctx.checkoutOf(entry.record) }] }, { agent: harness, name });
+      const spec = await reader.server({ kind: "here", projects: [{ id: workspaceId!, name: "thread", path: ctx.checkoutOf(entry.record) }] }, { agent: harness, name });
+      return spec.signIn?.read === undefined ? spec : { ...spec, post: postHere(ctx.computerOf(entry), spec.signIn) };
     },
     away: threadId => {
       const box = ctx.boxOf(threadId);

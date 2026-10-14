@@ -253,7 +253,8 @@ export interface KindsArea {
   readonly vaultOn: (entry: LiveWorkspace) => Readonly<Record<string, string>>;
   readonly brokered: (record: Pick<WorkspaceRecord, "kind" | "place">) => boolean;
   readonly readBroker: () => Promise<void>;
-  readonly brokeredLaunch: (entry: LiveWorkspace, harness: string, token: string | undefined) => { env: Readonly<Record<string, string>>; vault: Readonly<Record<string, string>>; claude?: NonNullable<HarnessAdapterContext["brokered"]> } | undefined;
+  readonly knowBroker: (entry: LiveWorkspace, harness: string) => Promise<void>;
+  readonly brokeredLaunch: (entry: LiveWorkspace, harness: string, token: string | undefined) => { env: Readonly<Record<string, string>>; vault: Readonly<Record<string, string>>; claude?: NonNullable<HarnessAdapterContext["brokered"]>; codex?: NonNullable<HarnessAdapterContext["codexBroker"]> } | undefined;
   readonly backendFor: (record: WorkspaceRecord) => MachineBackend;
   readonly openChannel: (o: DaemonChannelOptions) => Promise<DaemonChannel>;
   readonly backendOfKind: (kind: WorkspaceKind, place?: string) => MachineBackend;
