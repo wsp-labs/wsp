@@ -370,6 +370,9 @@ export interface ChannelsArea {
   readonly tagsHeld: ReadonlyMap<string, Promise<Map<string, string>>>;
   readonly tagWrites: ReadonlyMap<string, Promise<void>>;
   readonly endThreadShells: (entry: LiveWorkspace, threadId: string) => Promise<void>;
+  /** The devices the shells still open on machines whose credentials the host keeps hold as their tokens, which a
+   * restart leaves standing until the shell ends. */
+  readonly shellHeldDevices: () => Promise<ReadonlySet<string>>;
   readonly sharedDaemonReplaced: () => void;
   /** By workspace, each process group a turn led and the thread whose turn it was. */
   readonly turnGroups: Map<string, Map<number, string>>;
