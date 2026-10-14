@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import type { GoldenImport } from "@wsp/engine";
-import type { Recipe, RecipeDigest } from "@wsp/protocol";
+import { shellQuote, type Recipe, type RecipeDigest } from "@wsp/protocol";
 import type { GoldenRecipe } from "../src/runtime.js";
 
 /** The paths such a seal archives: a login's file and the secrets file the secrets step writes. */
@@ -13,7 +13,7 @@ export const VAULT_PATHS = ["/root/.codex/auth.json", "/etc/profile.d/wsp-secret
 
 /** The exec answers a builder needs: a disk reading, the ready check, the context probe, and the vault paths it
  * holds. The seal's guard probe asks about the paths no image may hold, and a builder that answered it with one
- * would be refused, so only the probe naming the vault's own is answered. */
+ * would be refused, so only the vault's own probe is answered. */
 export const dfOk = (m: unknown, cmd: string) =>
   cmd.startsWith("df -Pk")
     ? { exitCode: 0, stdout: `${3000 * 1024}\n`, stderr: "" }
@@ -21,7 +21,7 @@ export const dfOk = (m: unknown, cmd: string) =>
       ? { exitCode: 0, stdout: "ok\n", stderr: "" }
       : cmd.includes("echo WSP_CTX")
         ? { exitCode: 0, stdout: "WSP_CTX\nWSP_CTX_END\n", stderr: "" }
-        : cmd.startsWith("for p in ") && cmd.includes(VAULT_PATHS[1]!)
+        : cmd.startsWith(`for p in ${VAULT_PATHS.map(shellQuote).join(" ")};`)
           ? { exitCode: 0, stdout: `${VAULT_PATHS[1]!}\n`, stderr: "" }
           : { exitCode: 0, stdout: "", stderr: "" };
 

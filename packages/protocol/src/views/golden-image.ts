@@ -95,6 +95,9 @@ export const GoldenVersion = z.object({
   /** The image record's hash this copy of the version was built at; absent on a version sealed before records
    * existed, which no record matches. A manifest is one place's copies, so this is the copy's hash. */
   imageHash: z.string().length(64).optional(),
+  /** True on a version a provider sealed, as the image's own seal or a copy's: it refused every sign-in path on the
+   * builder and landed no vault. A fork at a provider boots no version without it, nor a project image taken from one. */
+  noSecrets: z.boolean().optional(),
 });
 export type GoldenVersion = z.infer<typeof GoldenVersion>;
 
