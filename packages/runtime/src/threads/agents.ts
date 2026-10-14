@@ -231,12 +231,11 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     const entry = live.get(view.workspaceId);
     if (sessionId === undefined || entry === undefined) return Promise.resolve();
     if (workspaceState({ phase: entry.record.phase }) !== "running" || adapters[view.harness] === undefined) return Promise.resolve();
-    const write = adapterFor(entry, view.harness).adapter.renameSession;
-    if (write === undefined) return Promise.resolve();
+    if (adapterFor(entry, view.harness).adapter.renameSession === undefined) return Promise.resolve();
     // Started inside a promise and never on this stack, as the store read is: an adapter that refuses the id throws
     // where it builds its command, and naming a thread may never cost the turn that asked for it.
-    return confineSetup(entry, view.harness)
-      .then(() => ctx.writeSession(sessionId, () => write(sessionId, title, harnessExec(entry.machine, SESSION_TITLE_TIMEOUT_MS))))
+    return launchAdapterFor(entry, view.harness)
+      .then(({ adapter }) => ctx.writeSession(sessionId, () => adapter.renameSession!(sessionId, title, harnessExec(entry.machine, SESSION_TITLE_TIMEOUT_MS))))
       .then(
         wrote => {
           if (wrote.kind === "failed") console.warn(noNameWriteLogLine(sessionId, entry.record.id, wrote.error));
@@ -375,6 +374,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
   /** adapterFor for a road that starts the agent's process or runs under its setup, its config folder checked first. */
   const launchAdapterFor = async (...a: Parameters<typeof adapterFor>): Promise<ReturnType<typeof adapterFor>> => {
     await confineSetup(a[0], a[1]);
+    if (a[2]?.[HOST_TOKEN_ENV] === undefined) await ctx.knowBroker(a[0], a[1] ?? DEFAULT_AGENT.id);
     return adapterFor(...a);
   };
 
@@ -597,6 +597,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
         signInRefusal: signInRefusalLine({ kind: entry.record.kind }),
         vault,
         ...(brokered?.claude !== undefined ? { brokered: brokered.claude } : {}),
+        ...(brokered?.codex !== undefined ? { codexBroker: brokered.codex } : {}),
         loginStands: id => kind.loginStands(entry, id),
       }),
     };
@@ -628,7 +629,12 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     const listsOn = async (c: HarnessCatalog, on: LiveWorkspace): Promise<HarnessCatalog> => {
       const refusal = await setupRefusal(on, c.harness).catch((e: unknown) => (isPlaceAbsent(e) ? undefined : e instanceof Error ? e.message : String(e)));
       if (refusal === undefined) return c;
-      return refusal !== null ? { ...c, refusal } : catalogOn(c, on, adapterFor(on, c.harness).adapter);
+      if (refusal !== null) return { ...c, refusal };
+      const unread = await ctx.knowBroker(on, c.harness).then(
+        () => undefined,
+        (e: unknown) => (e instanceof Error ? e.message : String(e)),
+      );
+      return unread !== undefined ? { ...c, refusal: unread } : catalogOn(c, on, adapterFor(on, c.harness).adapter);
     };
     return Promise.all(table.map(c => listsOn(c, entry)));
   };

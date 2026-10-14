@@ -11,7 +11,7 @@ import { DaemonResponse, daemonRefusedToken, linkBackoffMs, PIPE_DAEMON_VERSION,
 import { realClock, type Clock } from "./clock.js";
 import type { RuntimeContext } from "./context.js";
 import { daemonWsUrl } from "./reach.js";
-import type { WorkspaceRecord } from "./types/wiring.js";
+import type { LiveWorkspace, WorkspaceRecord } from "./types/wiring.js";
 
 /** Idle pipes the host keeps dialled per brokered workspace whose link is up. */
 export const PIPE_IDLE = 4;
@@ -343,6 +343,12 @@ export function pipePool(o: PipePoolOptions): PipePool {
       for (const id of [...held.keys()]) down(id);
     },
   };
+}
+
+/** Cuts a machine off at the host's broker before its provider is asked to delete it, so no call from it lands in
+ * between, nor after a delete the provider refuses. A broker that fails says so, and the delete goes on. */
+export async function cutOff(ctx: Pick<RuntimeContext, "opts">, entry: LiveWorkspace): Promise<void> {
+  await ctx.opts.broker?.revoke?.(entry.record.id).catch((e: unknown) => console.warn(`${entry.record.name} was not cut off from your computer before its delete: ${e instanceof Error ? e.message : String(e)}`));
 }
 
 /** The pool as the runtime runs it: a brokered workspace's pipes stand while it runs, by the events the host's held

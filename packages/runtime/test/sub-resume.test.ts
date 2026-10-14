@@ -6,10 +6,15 @@
 // under the resume preamble; a box that fails before the turn replaced once;
 // and no rewind or fork of a turn the deleted machine ran.
 import { rmSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { BOX_WORK_DIR } from "@wsp/engine";
-import { SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { WebSocketServer, type WebSocket } from "ws";
+import { BOX_WORK_DIR, type Machine } from "@wsp/engine";
+import { DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, SUB_TURN_GONE_LINE, fmtBytes, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
+import { PIPE_IDLE } from "../src/pipe.js";
 import { copyKey, type Runtime } from "../src/runtime.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
@@ -21,9 +26,11 @@ const BASE = { branch: "feat/upload", sha: "4be1c0a9d2c4e1f07a3b9e5d6c8f2a1b0e9d
 const MIN = 60_000;
 
 let open: Runtime[] = [];
+const closers: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const rt of open) await rt.close().catch(() => undefined);
   open = [];
+  for (const close of closers.splice(0)) await close();
 });
 
 /** A sub-thread on Boat whose first turn ended, its done read and its session kept, on the agent named. */
@@ -57,6 +64,33 @@ async function released(o: Parameters<typeof doneOnce>[0] = {}) {
 async function sealV2(held: { store: Awaited<ReturnType<typeof leadOnThisComputer>>["store"] }): Promise<void> {
   const v = (n: number) => ({ version: n, snapshotId: `wsp-host-default-v${n}`, baseTemplate: "base", setupSha: "abc", createdAt: "2026-10-07T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 }, logins: [{ name: "GitHub CLI login", state: "copied" }] });
   await held.store.put("goldens", copyKey("box", "default"), { head: 2, versions: [v(1), v(2)] });
+}
+
+/** A new machine's daemon on a port here: a link is greeted with its hello and every frame on it answered ok, and a
+ * pipe is parked. */
+async function pipeDaemon(): Promise<{ url: string; parked: WebSocket[] }> {
+  const http = createServer();
+  const wss = new WebSocketServer({ server: http });
+  const parked: WebSocket[] = [];
+  wss.on("connection", ws => {
+    ws.once("message", data => {
+      const frame = JSON.parse(data.toString()) as { id: number; pipe?: boolean };
+      ws.send(JSON.stringify({ id: frame.id, ok: true }));
+      if (frame.pipe === true) return parked.push(ws);
+      ws.send(JSON.stringify({ type: "daemon.hello", root: "/root", version: PIPE_DAEMON_VERSION }));
+      ws.on("message", more => ws.send(JSON.stringify({ id: (JSON.parse(more.toString()) as { id: number }).id, ok: true })));
+    });
+  });
+  await new Promise<void>(r => http.listen(0, "127.0.0.1", r));
+  closers.push(
+    () =>
+      new Promise<void>(r => {
+        for (const ws of wss.clients) ws.terminate();
+        wss.close();
+        http.close(() => r());
+      }),
+  );
+  return { url: `http://127.0.0.1:${(http.address() as AddressInfo).port}/`, parked };
 }
 
 const sessionFiles = (held: { boat: { files: { machine: string; path: string; bytes: Buffer }[] } }, machine: string) => held.boat.files.filter(f => f.machine === machine && f.path.startsWith("/tmp/wsp-session-"));
@@ -161,6 +195,24 @@ describe("a send into a released sub-thread", () => {
     expect(r.sub!.result!.norepo).toBeUndefined();
   });
 
+  it("parks the host's pipes on the new machine of a brokered sub-thread while its turn runs", async () => {
+    const held = await released({ broker: true, hostGh: true });
+    const d = await pipeDaemon();
+    const create = held.boat.create.bind(held.boat);
+    held.boat.create = async (spec, waiting) => {
+      const m = (await create(spec, waiting)) as Machine;
+      m.previewUrl = async () => ({ url: d.url, token: "e", expiresAt: Date.now() + 3_600_000 });
+      return m;
+    };
+    const answer = held.boat.execImpl;
+    held.boat.execImpl = (m, cmd, stdin) => (cmd.includes(DAEMON_TOKEN_PATH) ? { exitCode: 0, stdout: `${DAEMON_TOKEN_SET}\n`, stderr: "" } : answer(m, cmd, stdin));
+    held.turns.hold = true;
+    const turn = await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" });
+    await until(() => (d.parked.length === PIPE_IDLE ? true : undefined), "the pipes parked on the new machine");
+    held.turns.release?.();
+    await turn.finished;
+  });
+
   it("keeps the branch pushed before when the delete reads a woken new machine that holds no repository", async () => {
     const held = await released();
     held.answers.read = "norepo\n";
@@ -220,6 +272,28 @@ describe("a send into a released sub-thread", () => {
     const r = await until(async () => ((await held.record()).phase === "napping" ? held.record() : undefined), "the nap after the resumed turn");
     expect(r).toMatchObject({ machineId: machine.id, golden: "wsp-host-default-v2" });
     expect(r.sub!.deleteAt).toBeGreaterThan(held.clock.now());
+  });
+
+  it("cuts the first machine off at the broker before Boat deletes it, and lifts it before the new machine a send makes under the same record", async () => {
+    const held = await doneOnce({ broker: false });
+    const kill = held.first.kill.bind(held.first);
+    const offAtKill: boolean[] = [];
+    held.first.kill = async () => {
+      offAtKill.push(held.brokerSwitch.off.has(held.made.id));
+      await kill();
+    };
+    held.jump(31 * MIN);
+    await until(async () => ((await held.record()).phase === "released" ? true : undefined), "the release");
+    expect(offAtKill).toEqual([true]);
+    expect(held.brokerSwitch.off.has(held.made.id)).toBe(true);
+    const create = held.boat.create.bind(held.boat);
+    const offAtCreate: boolean[] = [];
+    held.boat.create = async spec => {
+      offAtCreate.push(held.brokerSwitch.off.has(held.made.id));
+      return create(spec);
+    };
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
+    expect(offAtCreate).toEqual([false]);
   });
 
   it("names a picked file of values that stayed on this computer in the notice of the send that makes the new machine", async () => {

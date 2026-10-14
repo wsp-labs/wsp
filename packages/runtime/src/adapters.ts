@@ -66,7 +66,14 @@ export const HARNESS_ADAPTERS: Readonly<Record<ThreadAgent, HarnessAdapterFactor
       ...(ctx.brokered !== undefined ? { brokered: ctx.brokered } : secretsOf(ctx.vault, "claude", ctx.loginStands("claude"))),
     }),
   codex: ctx =>
-    createCodexAdapter({ exec: ctx.execStream, home: ctx.home("codex"), login: machineLogin("codex"), baseEnv: ctx.env, ...secretsOf(ctx.vault, "codex", ctx.loginStands("codex")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
+    createCodexAdapter({
+      exec: ctx.execStream,
+      home: ctx.home("codex"),
+      login: machineLogin("codex"),
+      baseEnv: ctx.env,
+      ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}),
+      ...(ctx.codexBroker !== undefined ? { broker: ctx.codexBroker, ...secretsOf(ctx.vault, "codex") } : secretsOf(ctx.vault, "codex", ctx.loginStands("codex"))),
+    }),
   opencode: ctx => createOpenCodeAdapter({ exec: ctx.execStream, baseEnv: ctx.env, signInRefusal: ctx.signInRefusal, ...secretsOf(ctx.vault, "opencode", ctx.loginStands("opencode")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
   cursor: ctx => createCursorAdapter({ exec: ctx.execStream, baseEnv: ctx.env, signInRefusal: ctx.signInRefusal, ...secretsOf(ctx.vault, "cursor", ctx.loginStands("cursor")), ...(ctx.launch !== undefined ? { launch: ctx.launch } : {}) }),
 };

@@ -40,6 +40,8 @@ interface Wired {
 
 export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}): () => void {
   const wired = new Map<string, Wired>();
+  /** The transport every link here was dialled on. */
+  let bound: Api | null = null;
   const { touchMinMs = 30_000, ...linkOpts } = opts;
 
   const unlink = (entry: Pick<Wired, "link">): void => {
@@ -113,6 +115,13 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
   const sync = (): void => {
     const { api, workspaces, conn } = store.getState();
     if (!api) return;
+    // A host that came back on a fresh token is dialled by a new client, whose socket reads live before the store
+    // holds its api: a link made in between rides the client that is gone, so every link follows the api it binds.
+    if (api !== bound) {
+      bound = api;
+      for (const entry of wired.values()) unlink(entry);
+      unlink(here);
+    }
     // Every channel rides the host's socket, so a host socket that is not live is a workspace that is not running:
     // the links are parked rather than left typing into channels the redial has already taken away.
     const hostUp = conn === "live";

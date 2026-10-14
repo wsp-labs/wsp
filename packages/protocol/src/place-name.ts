@@ -26,6 +26,10 @@ export const isBrokered = (record: Pick<WorkspaceView, "kind" | "place">, place?
  * key of its own, and none may sit on the machine. */
 export const brokeredAgentRefusal = (agent: string, roads: readonly string[]): Error => refusal(`${agent} does not run on a cloud machine yet: wsp keeps no key there`, `Use ${roads.join(" or ")}.`, "usage");
 
+/** Codex asked to launch where the host keeps the credentials while the host's broker named no Codex login it holds:
+ * the read failed, ran late, or found none. Codex there runs on the person's own login and never signs in itself. */
+export const codexLoginUnreadRefusal = (): Error => refusal("Codex on a cloud machine runs on the Codex login on your computer, and wsp read none just now", "Check that Codex is signed in on your computer (codex login status), then try again.", "auth");
+
 /** What a table calls a computer: the name a person types for it, and a provider by the name the app gives it, never
  * the id stored state holds; either one names it after --on. */
 export const tableName = (place: { kind?: string; name: string }): string => placeSaid(place);

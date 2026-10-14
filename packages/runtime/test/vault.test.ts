@@ -5,7 +5,7 @@
 // on a machine.
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -13,7 +13,7 @@ import { LocalBackend } from "@wsp/engine";
 import type { HarnessAdapterContext, HarnessAdapterFactory, LocalWiring, RuntimeOptions } from "../src/runtime.js";
 import type { ServersActs } from "../src/agents-read.js";
 import { createRuntime } from "../src/runtime.js";
-import { secretsOf } from "../src/adapters.js";
+import { HARNESS_ADAPTERS, secretsOf } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
 import { memoryStore } from "../src/store.js";
 import { newPlaceKeyPair } from "../src/places.js";
@@ -23,7 +23,7 @@ import { report, wiring } from "./place-join.js";
 import { ctx as places, sockets, code, join as joinPlace, forks, asRoot, KEEPS_NO_IMAGE, ROOT_LOGIN } from "./places-fixture.js";
 import { until } from "./until.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { HOST_TOKEN_ENV, THREAD_ENV, TURN_TOKEN_ENV, brokeredAgentRefusal, type BrokerStatus, type TurnResult } from "@wsp/protocol";
+import { HOST_TOKEN_ENV, THREAD_ENV, TURN_TOKEN_ENV, brokeredAgentRefusal, codexLoginUnreadRefusal, type BrokerStatus, type TurnResult } from "@wsp/protocol";
 import { buildEnv } from "@wsp/adapter-claude";
 
 /** A folder with a first commit in it, which is what a project on this computer is made of. */
@@ -293,6 +293,146 @@ describe("a turn on a machine whose credentials the host keeps", () => {
       // Codex on the host's ChatGPT login, or with nothing named, gets no key in the vault.
       expect(secretsOf(turn.vault, "codex")).toEqual({});
     }
+  });
+
+  it("launches Codex on the placeholder login of the kind the broker holds, at the door, with no key of its own", async () => {
+    const CLAIMS = { accountId: "11111111-2222-4333-8444-555555555555", planType: "plus" };
+    const launchOf = async (status: BrokerStatus) => {
+      const launches: { command: string; env: Readonly<Record<string, string>> }[] = [];
+      const contexts: HarnessAdapterContext[] = [];
+      // The real Codex adapter, its exec road swapped for one that keeps the line and environment the machine would get.
+      const codex: HarnessAdapterFactory = ctx => {
+        contexts.push(ctx);
+        return HARNESS_ADAPTERS.codex({
+          ...ctx,
+          execStream: (command, o) => {
+            launches.push({ command, env: o.env });
+            throw new Error("recorded");
+          },
+        });
+      };
+      const broker: RuntimeOptions["broker"] = { ready: () => true, codexClaims: async () => CLAIMS, status: async () => status };
+      const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { codex }, vault: () => HELD, broker, ...here() });
+      const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+      await rt.sessions
+        .start(ws.id, { prompt: "one", harness: "codex" })
+        .then(t => t.finished)
+        .catch(() => undefined);
+      const turn = launches.find(l => l.command.includes(" app-server"))!;
+      expect(turn, JSON.stringify(launches.map(l => l.command))).toBeDefined();
+      for (const c of contexts) expect(c.codexBroker).toEqual(status.codex === "key" ? { mode: "apikey" } : { mode: "chatgpt", claims: CLAIMS });
+      return { ...turn, token: turn.env[HOST_TOKEN_ENV]! };
+    };
+
+    const chatgpt = await launchOf({ codex: "chatgpt" });
+    expect(chatgpt.token).toMatch(/^\S{16,}$/);
+    expect(chatgpt.command).toContain(`"$CODEX_HOME/auth.json"`);
+    expect(chatgpt.command).toContain(`"chatgpt_account_id":"${CLAIMS.accountId}"`);
+    expect(chatgpt.command).toContain(`"chatgpt_plan_type":"plus"`);
+    expect(chatgpt.command).toContain(`-c openai_base_url='"http://127.0.0.1:7071/backend-api/codex"'`);
+    expect(chatgpt.command).toContain(`-c chatgpt_base_url='"http://localhost:7071/backend-api/"'`);
+    expect(chatgpt.env).toMatchObject({ CODEX_REFRESH_TOKEN_URL_OVERRIDE: "http://127.0.0.1:7071/oauth/token" });
+    for (const name of ["OPENAI_API_KEY", "CODEX_API_KEY", "WSP_CODEX_KEY"]) expect(chatgpt.env[name], name).toBeUndefined();
+
+    const key = await launchOf({ codex: "key" });
+    expect(key.env["WSP_CODEX_KEY"]).toBe(`sk-wsp-${key.token}`);
+    expect(key.command).toContain(`"auth_mode":"apikey"`);
+    expect(key.command).toContain(`-c openai_base_url='"http://127.0.0.1:7071/v1"'`);
+    for (const name of ["OPENAI_API_KEY", "CODEX_API_KEY"]) expect(key.env[name], name).toBeUndefined();
+
+    for (const { command, env } of [chatgpt, key]) for (const held of Object.values(HELD)) expect(JSON.stringify({ command, env })).not.toContain(held);
+  });
+
+  const CODEX_CLAIMS = { accountId: "11111111-2222-4333-8444-555555555555", planType: "plus" };
+  /** The real Codex adapter on a brokered workspace, each turn ended at once by a stand-in start that names its session
+   * and anchor, and every launch through the exec road kept instead of run. */
+  const endingCodex = (launches: { command: string; env: Readonly<Record<string, string>> }[]): HarnessAdapterFactory => {
+    let n = 0;
+    return ctx => ({
+      ...HARNESS_ADAPTERS.codex({
+        ...ctx,
+        execStream: (command, o) => {
+          launches.push({ command, env: o.env });
+          throw new Error("recorded");
+        },
+      }),
+      start: ({ onEvent }) => {
+        n += 1;
+        const sessionId = `44444444-4444-4444-8444-${String(n).padStart(12, "0")}`;
+        const result: TurnResult = { status: "completed", text: `reply ${n}` };
+        const finished = Promise.resolve().then(() => {
+          onEvent({ type: "session.start", sessionId });
+          onEvent({ type: "turn.anchor", sessionId, anchor: `a${n}` });
+          onEvent({ type: "turn.done", sessionId, result });
+          onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+          return result;
+        });
+        return { localId: sessionId, finished, interrupt: async () => {} };
+      },
+    });
+  };
+  const chatgptBroker: RuntimeOptions["broker"] = { ready: () => true, codexClaims: async () => CODEX_CLAIMS, status: async () => ({ codex: "chatgpt" }) };
+
+  it("rewinds a Codex thread on such a machine: the revert starts codex at the door with no turn token", async () => {
+    const launches: { command: string; env: Readonly<Record<string, string>> }[] = [];
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { codex: endingCodex(launches) }, vault: () => HELD, broker: chatgptBroker, ...here() });
+    const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+    const first = await rt.sessions.start(ws.id, { prompt: "one", harness: "codex" });
+    await first.finished;
+    const threadId = first.view().threadId!;
+    await (await rt.sessions.start(ws.id, { prompt: "two", harness: "codex", thread: threadId })).finished;
+    await rt.sessions.rewind(threadId, { turnId: first.turnId, files: false }).catch(() => undefined);
+    const revert = launches.find(l => l.command.includes(" app-server"))!;
+    expect(revert, JSON.stringify(launches.map(l => l.command))).toBeDefined();
+    expect(revert.env[HOST_TOKEN_ENV]).toBeUndefined();
+    expect(revert.command).toContain(`-c openai_base_url='"http://127.0.0.1:7071/backend-api/codex"'`);
+    // The line run as the machine runs it, a stand-in in place of codex keeping the words it was handed.
+    const dir = mkdtempSync(join(tmpdir(), "wsp-revert-"));
+    roots.push(dir);
+    mkdirSync(join(dir, "bin"));
+    writeStub(join(dir, "bin", "codex"), `#!/bin/sh\nprintf '%s\\n' "$@" > "${dir}/args"\n`);
+    const line = revert.command.replace(/^cd '[^']*' && /, "");
+    const ran = (() => {
+      try {
+        execFileSync("bash", ["-c", line], { env: { ...revert.env, PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? "/usr/bin:/bin"}`, CODEX_HOME: join(dir, "home") }, stdio: "pipe", input: "" });
+        return "started";
+      } catch (e) {
+        return String((e as { stderr?: Buffer }).stderr ?? e);
+      }
+    })();
+    expect(ran).toBe("started");
+    expect(readFileSync(join(dir, "args"), "utf8")).toContain("app-server");
+    await rt.close();
+  });
+
+  it("keeps a Codex launch with no turn token at the door after the host starts again, before any turn", async () => {
+    const store = memoryStore();
+    const backend = stubBackend();
+    const launches: { command: string; env: Readonly<Record<string, string>> }[] = [];
+    const before = createRuntime({ backend, store, adapters: { codex: endingCodex(launches) }, vault: () => HELD, broker: chatgptBroker, ...here() });
+    const ws = await createOn(before, { golden: "snap_g", name: "x" });
+    const turn = await before.sessions.start(ws.id, { prompt: "one", harness: "codex" });
+    await turn.finished;
+    await before.close();
+    const after = createRuntime({ backend, store, adapters: { codex: endingCodex(launches) }, vault: () => HELD, broker: chatgptBroker, ...here() });
+    const machine = backend.machines[0]!;
+    const from = machine.execLog.length;
+    expect(await after.sessions.rename(turn.id, "named")).toMatchObject({ outcome: expect.any(String) });
+    const renamed = machine.execLog.slice(from).find(line => line.includes("app-server"));
+    expect(renamed, machine.execLog.slice(from).join("\n")).toBeDefined();
+    expect(renamed).toContain(`openai_base_url='"http://127.0.0.1:7071/backend-api/codex"'`);
+    await after.close();
+  });
+
+  it("refuses a Codex turn whose broker read ran late, with the host's login named and nothing launched", { timeout: 20_000 }, async () => {
+    const launches: { command: string; env: Readonly<Record<string, string>> }[] = [];
+    const late: RuntimeOptions["broker"] = { ready: () => true, codexClaims: async () => CODEX_CLAIMS, status: () => new Promise(() => {}) };
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { codex: endingCodex(launches) }, vault: () => HELD, broker: late, ...here() });
+    const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+    await expect(rt.sessions.start(ws.id, { prompt: "one", harness: "codex" })).rejects.toThrow(codexLoginUnreadRefusal().message);
+    expect(codexLoginUnreadRefusal().message).not.toContain("--device-auth");
+    expect(launches).toEqual([]);
+    await rt.close();
   });
 
   it("refuses a launch of an agent the broker adds no key for, before anything runs", async () => {

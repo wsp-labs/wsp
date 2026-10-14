@@ -201,6 +201,37 @@ describe("the wiring", () => {
     }
   });
 
+  it("redials this computer's daemon on the client a restarted host binds, though that client's socket read live first", async () => {
+    let gone = false;
+    const before: DaemonTarget[] = [];
+    const after: DaemonTarget[] = [];
+    const daemonOn = (asked: DaemonTarget[], dead: () => boolean): DaemonApi => ({
+      ...noDaemonApi,
+      open: async to => {
+        if (dead()) throw new Error("disconnected: unauthorized");
+        asked.push(to);
+        return { channel: "c1" };
+      },
+      send: async () => ({ id: 1, ok: true }) as never,
+      close: async () => {},
+      onFrame: () => () => {},
+    });
+    const unwire = wireTerminals(useStore, { backoffMs: () => 60_000 });
+    try {
+      useStore.getState().bind(fakeApi([], daemonOn(before, () => gone)));
+      act(() => useTerminalDrawerStore.getState().setOpen(HERE_KEY, true));
+      await waitFor(() => expect(getTerminals(HERE_KEY)?.status()).toBe("live"));
+      gone = true;
+      useStore.getState().setConn("closed");
+      useStore.getState().setConn("live");
+      useStore.getState().bind(fakeApi([], daemonOn(after, () => false)));
+      await waitFor(() => expect(after).toEqual([{ placeId: HERE_PLACE_ID }]));
+      await waitFor(() => expect(getTerminals(HERE_KEY)?.status()).toBe("live"));
+    } finally {
+      unwire();
+    }
+  });
+
   it.each(["machine", "processes"] as const)("dials this computer's daemon once its %s pane opens, and files what it pushes under this computer", async kind => {
     resetLive();
     resetProcs();
