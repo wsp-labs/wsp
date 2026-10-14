@@ -64,6 +64,14 @@ describe("a provider key saved from the app", () => {
     });
   }
 
+  it("lets the image be built at that provider on the host that saved it, with no restart", async () => {
+    const statePath = freshState();
+    const rt = hostOn(statePath);
+    await expect(rt.golden.buildPlace("box")).rejects.toThrow("no place named box");
+    saveKey(rt, statePath, "box", "ascii_live_fake");
+    expect(await rt.golden.buildPlace("box")).toMatchObject({ place: "box", kind: "provider" });
+  });
+
   it("makes both providers computers once both keys are saved", async () => {
     const statePath = freshState();
     const rt = hostOn(statePath);
