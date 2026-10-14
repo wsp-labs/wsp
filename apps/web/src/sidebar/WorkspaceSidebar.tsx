@@ -64,6 +64,7 @@ import { holdLiveRegion, moveRoot, rootPlaces } from "./treeMoves.js";
 import { rootThreads } from "./treeOrder.js";
 import { SnoozeDialog } from "./SnoozeDialog.js";
 import { SidebarCorner } from "./SidebarCorner.js";
+import { CloudCard } from "./CloudCard.js";
 import { UpdateCard } from "./UpdateCard.js";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./SidebarChrome.js";
 import { CreationTile, ThreadLaunchTile, ThreadTile, WorkspaceTile, useTileHandlers, type TilePlace } from "./ThreadTile.js";
@@ -756,6 +757,7 @@ export function WorkspaceSidebar() {
         <SidebarChromeFooter>
           <SettingUpSection collapsed={folded.includes("setting-up")} onToggle={() => toggleFold("setting-up")} />
           <UpdateCard />
+          <CloudCard />
           <SidebarCorner />
         </SidebarChromeFooter>
       </div>

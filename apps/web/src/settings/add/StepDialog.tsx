@@ -6,6 +6,8 @@ import { cn } from "../../lib/utils.js";
 
 /** The dialog's width. */
 export const STEP_WIDTH = "max-w-[560px]";
+/** The dialog's frame: its width, the inset its rows take, and one height across its steps from 640 px up. */
+export const STEP_FRAME = `${STEP_WIDTH} [--settings-inset:16px] sm:h-[640px]`;
 /** The head: the title and its one line at the left, the step's count as a quiet fact at the right. */
 export const STEP_HEAD = "flex flex-row items-start justify-between gap-6 px-5 pt-4 pb-3";
 /** The body: cards, one under the other. */

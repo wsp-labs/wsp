@@ -10,7 +10,7 @@ import { SubThreadStrip } from "../src/components/chat/SubStrip.js";
 import { MachineSurface } from "../src/components/machine/MachineSurface.js";
 import { resetLive } from "../src/machine/live.js";
 import { useStore } from "../src/protocol/store.js";
-import { useSettingsStore } from "../src/settings/settingsStore.js";
+import { useCloudFlow } from "../src/settings/add/cloudFlow.js";
 import { useNotices } from "../src/notices/store.js";
 
 const MIN = 60_000;
@@ -118,11 +118,11 @@ describe("the strip over a sub-thread's composer", () => {
     expect(said()).toMatchObject({ k: "oom", acts: [] });
   });
 
-  it("says Boat left this host, and Add Boat again opens the Add a cloud road", () => {
+  it("says Boat left this host, and Add Boat again opens Add a cloud provider", () => {
     mountStrip(row({ sub: sub({ state: "released", releasedAt: Date.now() - 2 * MIN, cloudGone: true }) }));
     expect(said()).toEqual({ k: "forgotten", title: "Boat was removed from zingzy's MacBook Pro", note: "This thread has no machine to start until Boat is added again. Its transcript stays.", acts: ["Add Boat again"] });
     fireEvent.click(act_("add-again"));
-    expect(useSettingsStore.getState().addAsked?.road).toBe("cloud");
+    expect(useCloudFlow.getState()).toMatchObject({ open: true, provider: "box", step: "key" });
   });
 
   it("says a held spawn waits for a machine, with Raise machines at once, or for the next minute of starts, with none", () => {

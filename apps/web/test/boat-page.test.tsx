@@ -162,15 +162,15 @@ describe("Boat's page", () => {
   });
 });
 
-describe("Boat's row on the Computers list", () => {
-  const band = (): Element => document.querySelector("[data-settings-page] [data-place-row=box] [data-limit-band]")!;
+describe("Boat's plan on its own page", () => {
+  const band = (): Element => document.querySelector("[data-settings-page] [data-settings-card=computer] [data-limit-band]")!;
   const columns = (): Array<[string | undefined, string | null | undefined, string | undefined]> =>
     [...band().querySelectorAll<HTMLElement>("[data-limit-column]")].map(c => [c.querySelector("span")?.textContent ?? undefined, c.querySelector("[data-k^=limit-]")?.textContent, c.querySelector("[data-k^=limit-]")?.className.match(/text-(warning|destructive)-foreground/)?.[1]]);
 
   async function openList(row: PlaceView): Promise<void> {
     useStore.setState({ places: [here, row] });
     const { api } = settingsApi({ initGet: async () => setup });
-    mountSettings({ api, at: { kind: "group", group: "computers" } });
+    mountSettings({ api, at: { kind: "computer", id: "box" } });
     await settle();
   }
 
@@ -197,9 +197,9 @@ describe("Boat's row on the Computers list", () => {
     ]);
   });
 
-  it("says the credit left and the day's spend as words in the row's note, with no bar", async () => {
+  it("says the credit left and the day's spend as words under the plan, with no bar", async () => {
     await openList({ ...boatRow(), creditHours: 41.5, spentTodayUsd: 1.2 });
-    expect(document.querySelector("[data-settings-page] [data-place-row=box] [data-grid-note]")?.textContent).toBe("42 h of credit left, $1.20 of $10 today");
+    expect(document.querySelector("[data-settings-page] [data-k='cloud-credit']")?.textContent).toBe("42 h of credit left, $1.20 of $10 today");
   });
 });
 
