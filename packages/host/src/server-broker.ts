@@ -17,6 +17,7 @@ import { claudeLogin } from "./anthropic/login.js";
 import { createBroker, type Broker } from "./broker/broker.js";
 import { brokerCredentials, type CredentialPorts } from "./broker/credentials.js";
 import { brokerLogFile } from "./broker/log.js";
+import { offSwitch } from "./broker/off.js";
 import type { AnthropicCredential, BrokerContext, BrokerService, BrokerWorkspace, Grant, LiveGrant } from "./broker/types.js";
 import { codexLogin, type CodexLogin } from "./codexlogin/login.js";
 import type { DoctorBroker } from "./doctor-fork.js";
@@ -24,6 +25,8 @@ import { loginFolders } from "./login-path.js";
 
 /** The broker's log, one file per day beside the state file this host serves. */
 export const brokerLogDir = (statePath: string): string => join(dirname(statePath), "broker");
+/** The machines the broker has switched off, beside the state file, so a host start finds them still off. */
+const brokerOffFile = (statePath: string): string => join(dirname(statePath), "revoked.json");
 
 /** How many repos' GitHub ids a host keeps: one per fork a thread started from a pull request of. */
 const REPO_IDS_MAX = 256;
@@ -150,6 +153,7 @@ export function hostBroker(o: HostBrokerOptions): HostBroker {
   const { anthropic, codex } = o.signIns ?? personSignIns(signInEnv());
   const credentials: CredentialPorts = { vault: o.vault, anthropic: anthropicPort(anthropic, o.vault), chatgpt: () => codex.credential(), run };
   const github = brokerCredentials(credentials);
+  const off = offSwitch(brokerOffFile(o.statePath));
   /** The doctor's model call is one op the host grants itself, held only in memory for that call. */
   const doctorGrants = new Map<string, Grant>();
   const repoIds = new Map<string, number>();
@@ -229,7 +233,8 @@ export function hostBroker(o: HostBrokerOptions): HostBroker {
         serving.broker.take(workspaceId, open, duplex);
       },
       status: () => (serving === undefined ? Promise.reject(refusedOff()) : serving.broker.status()),
-      revoke: async workspaceId => serving?.broker.revoke(workspaceId),
+      revoke: async workspaceId => (serving === undefined ? off.add(workspaceId) : serving.broker.revoke(workspaceId)),
+      lift: workspaceId => off.delete(workspaceId),
     },
     doctor: {
       ready: () => serving !== undefined,
@@ -260,6 +265,7 @@ export function hostBroker(o: HostBrokerOptions): HostBroker {
           for (const [token, grant] of doctorGrants) if (grant.workspaceId === workspaceId) doctorGrants.delete(token);
         },
         credentials,
+        off,
         log: brokerLogFile(brokerLogDir(o.statePath)),
         waited: (grant, heldMs) => {
           if (grant.threadId !== undefined) void rt.sessions.noteWaited(grant.threadId, heldMs).catch(() => undefined);

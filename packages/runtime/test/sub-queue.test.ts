@@ -345,13 +345,24 @@ describe("spawns asked together, and a spawn whose start never comes", () => {
   });
 
   it("a delete while a let-through spawn's machine is being made stops it: the machine goes as it lands and no thread starts", async () => {
-    const { rt, turns, store, boat, starts, project, lead, token } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 } });
+    const { rt, turns, store, boat, starts, project, lead, token, brokerSwitch } = await leadOnThisComputer({ machines: 1, agents: { spawn: true, maxMachines: 5 }, broker: false });
     // A done sub-thread naps its machine at once, so the first one works on, holding its slot, until it is ended.
     turns.hold = true;
     const a = await spawnAndStart(rt, project.id, lead, token, "First");
     await a.started;
     const b = await spawnAndStart(rt, project.id, lead, token, "Second");
     slowCreates(boat, 300);
+    const create = boat.create.bind(boat);
+    const offAtKill: boolean[] = [];
+    boat.create = async spec => {
+      const m = await create(spec);
+      const kill = m.kill.bind(m);
+      m.kill = async () => {
+        offAtKill.push(brokerSwitch.off.has(b.made.id));
+        await kill();
+      };
+      return m;
+    };
     turns.release!();
     await expect.poll(async () => (await store.get("workspaces", b.made.id)) as { queue?: unknown }).not.toHaveProperty("queue");
     await rt.workspaces.delete(b.made.id);
@@ -359,6 +370,7 @@ describe("spawns asked together, and a spawn whose start never comes", () => {
     await expect.poll(async () => store.get("workspaces", b.made.id)).toBeUndefined();
     expect(boat.creates).toHaveLength(2);
     await expect.poll(() => boat.machines.at(-1)!.killed).toBe(true);
+    expect(offAtKill).toEqual([true]);
     expect(starts.filter(s => s.o.cwd === "/root/web")).toHaveLength(1);
   });
 
