@@ -234,6 +234,77 @@ describe("the summary and the build", () => {
     expect(stepOf()).toBe("building");
   });
 
+  it("builds on a cloud whose key was saved in the dialog, on a host that held no key when it opened", async () => {
+    // The host as it stands with no key: the cloud is no place yet, so a read naming it is refused until a key is saved.
+    let saved = false;
+    const fake = host({
+      initGet: async (o?: { on?: string }) => {
+        if (o?.on !== undefined && !saved) throw new RequestError(`no place named ${o.on}; you have acme-laptop`, "missing");
+        return setupOf({ box: saved });
+      },
+      initKeys: async () => ((saved = true), setupOf({ box: true })),
+    } as unknown as Partial<Api>);
+    await openFromComputers(fake.api);
+    paste("boat_good");
+    await settle();
+    fireEvent.click(proceed());
+    await settle();
+    pushJob(jobOf({ step: 3 }));
+    act(() => useCloudFlow.setState({ step: "summary" }));
+    await settle();
+    expect(stepOf()).toBe("summary");
+    expect(held(proceed())).toBe(false);
+    fireEvent.click(proceed());
+    await waitFor(() => expect(fake.asked.find(a => a.op === "build")?.o).toEqual({ on: "box" }));
+  });
+
+  it("says the host's refusal of the setup read where Build image is held, never a silent grey button", async () => {
+    useStore.setState({ places: [here, boat], initJob: jobOf({ step: 3 }) });
+    mountSettings({ api: host({ initGet: async () => Promise.reject(new RequestError("wsp could not read the agents on acme-laptop.", "provider")) } as unknown as Partial<Api>).api });
+    act(() => openCloudAdd("box"));
+    await settle();
+    expect(stepOf()).toBe("summary");
+    expect(held(proceed())).toBe(true);
+    expect(document.querySelector("[data-k='cloud-refusal']")?.textContent).toContain("wsp could not read the agents on acme-laptop.");
+  });
+
+  it("takes the setup a saved key answers with, so a refused read holds nothing once the key is saved", async () => {
+    useStore.setState({ places: [here, boat] });
+    mountSettings({ api: host({ initGet: async () => Promise.reject(new RequestError("wsp could not read the agents on acme-laptop.", "provider")) } as unknown as Partial<Api>).api });
+    act(() => openCloudAdd("box"));
+    await settle();
+    paste("boat_good");
+    await settle();
+    fireEvent.click(proceed());
+    await settle();
+    pushJob(jobOf({ step: 3 }));
+    act(() => useCloudFlow.setState({ step: "summary" }));
+    await settle();
+    expect(document.querySelector("[data-k='cloud-refusal']")).toBeNull();
+    expect(held(proceed())).toBe(false);
+  });
+
+  it("says the host's refusal to start the setup on the key step, and stays there", async () => {
+    await openFromComputers(host({ initStart: async () => Promise.reject(new RequestError("no place named box; you have acme-laptop", "missing")) } as unknown as Partial<Api>).api);
+    paste("boat_good");
+    await settle();
+    fireEvent.click(proceed());
+    await settle();
+    expect(stepOf()).toBe("key");
+    expect(document.querySelector("[data-k='key-refused']")?.textContent).toContain("no place named box; you have acme-laptop");
+  });
+
+  it("says the host's refusal to build on the summary", async () => {
+    useStore.setState({ places: [here, boat], initJob: jobOf({ step: 3 }) });
+    mountSettings({ api: host({ initBuild: async () => Promise.reject(new RequestError("Boat refused this key. Check you copied all of it.", "auth")) } as unknown as Partial<Api>).api });
+    act(() => openCloudAdd("box"));
+    await settle();
+    fireEvent.click(proceed());
+    await settle();
+    expect(stepOf()).toBe("summary");
+    expect(document.querySelector("[data-k='cloud-refusal']")?.textContent).toContain("Boat refused this key. Check you copied all of it.");
+  });
+
   it("says it is reading the sign-ins here until this computer's report answers, never Not signed in", async () => {
     useStore.setState({ places: [here, boat], initJob: jobOf({ step: 3 }) });
     mountSettings({ api: host({ agentsRead: () => new Promise(() => undefined) } as unknown as Partial<Api>).api });
