@@ -40,7 +40,7 @@ import { BehindRow, LimitsCard, NameCard, SpawnCard } from "./computerSettings.j
 import { ACTIVITY_WORDS, ADD_COMPUTER_WORDS, AGENTS_PAGE_WORDS, FACT, PLACE_STATE_WORDS, SETUP_CARD_WORDS, WHERE_WORDS, capitalised } from "./format.js";
 import { activityComputers } from "./activity/page.js";
 import { Chevron, GlyphFrame, Grid, GridHead, GridName, GridRow, LIST_COLUMNS, Num, PAGE_COLUMNS, StateCell, VersionFact, wordOnly, type HeadCell } from "./grid.js";
-import { builtWhen, copyOn } from "./image.js";
+import { IMAGE_WORDS, builtWhen, copyOn } from "./image.js";
 import { LimitBand, limitNote } from "./LimitBand.js";
 import { ImageCard, useImageStanding } from "./ImageCard.js";
 import { LiveBand } from "./LiveBand.js";
@@ -262,9 +262,11 @@ function CloudListRow({ place, machines, cell, open, ctx }: { place: PlaceView; 
   const menu = useRowMenu(place, ctx);
   const setup = useStore(s => (settingUpCloud(s.initJob, place.id) ? s.initJob!.phase : null));
   const opens = setup === null ? open : () => openCloudAdd(place.id);
-  // Nothing about the image until the host's read of it lands, so the row never says "No image yet" for a moment.
-  const copy = ctx.reads.image === null ? undefined : copyOn(ctx.reads.image.copies, place);
-  const note = ctx.reads.image === null ? undefined : copy === undefined ? WHERE_WORDS.noImageYet : WHERE_WORDS.imageSealed(copy.version, builtWhen(copy.builtAt, ctx.now));
+  // Until the host's read lands the row says it is reading, or nothing where none is out, never "No image yet".
+  const { imageReading } = ctx.reads;
+  const image = ctx.reads.imageStale ? null : ctx.reads.image;
+  const copy = image === null ? undefined : copyOn(image.copies, place);
+  const note = image === null ? (imageReading ? IMAGE_WORDS.state.reading : undefined) : copy === undefined ? WHERE_WORDS.noImageYet : WHERE_WORDS.imageSealed(copy.version, builtWhen(copy.builtAt, ctx.now));
   return (
     <GridRow columns={LIST_COLUMNS} open={opens} onContextMenu={menu} {...(cell.why === undefined ? {} : { title: cell.why })} attrs={{ "data-place-row": place.id }}>
       <GridName glyph={placeGlyph(place)} name={placeName(place)} {...(note === undefined ? {} : { note })} />

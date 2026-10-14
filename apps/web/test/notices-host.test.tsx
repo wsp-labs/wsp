@@ -10,6 +10,7 @@ import { useStore } from "../src/protocol/store.js";
 import { HOST_NOTICE_WORDS, useHostNotices } from "../src/notices/hostNotices.js";
 import { useNotices, type Notice } from "../src/notices/store.js";
 import { closeAdd, openSetup, useAddFlow } from "../src/settings/add/addFlow.js";
+import { closeCloudAdd, goCloud, openCloudAdd } from "../src/settings/add/cloudFlow.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
 import { resetAskedToNotify } from "../src/shell/needsYou.js";
 
@@ -410,6 +411,40 @@ describe("the image build", () => {
     expect(notices().map(n => n.text)).toEqual([HOST_NOTICE_WORDS.imageNotBuilt("boom")]);
     act(() => notices()[0]!.action!.run());
     expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+  });
+
+  it("a build sent to the background says its computer is ready with the image's version, in the app and outside it, with an Open onto its page", () => {
+    const said: { title: string; body: string }[] = [];
+    window.wsp = { sayOutside: (line: { title: string; body: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+    try {
+      remount();
+      act(() => useStore.setState({ settingsOpen: true }));
+      emit({ type: "init.job", job: { ...JOB, place: { id: "pl_box", name: "spoo" }, phase: "done", golden: { version: 1 } } });
+      expect(notices()).toMatchObject([{ kind: "done", text: "spoo is ready", detail: "Image v1 sealed.", where: "spoo", action: { word: "Open" } }]);
+      expect(said).toMatchObject([{ title: "spoo is ready", body: "Image v1 sealed" }]);
+      act(() => notices()[0]!.action!.run());
+      expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "pl_box" });
+    } finally {
+      delete (window as { wsp?: unknown }).wsp;
+    }
+  });
+
+  it("a build watched to its end in Add a cloud provider is said by the dialog alone, and still goes out on the shell's road", () => {
+    const said: { title: string }[] = [];
+    window.wsp = { sayOutside: (line: { title: string }) => void said.push(line), onNeedsYouOpen: () => () => {} };
+    try {
+      remount();
+      act(() => {
+        openCloudAdd("pl_box");
+        goCloud("building");
+      });
+      emit({ type: "init.job", job: { ...JOB, place: { id: "pl_box", name: "spoo" }, phase: "done", golden: { version: 1 } } });
+      expect(notices()).toEqual([]);
+      expect(said.map(l => l.title)).toEqual(["spoo is ready"]);
+    } finally {
+      act(() => closeCloudAdd());
+      delete (window as { wsp?: unknown }).wsp;
+    }
   });
 
   it("a build that was cancelled says nothing", () => {

@@ -11,6 +11,7 @@ import { builtWhen, copyOn, IMAGE_WORDS, recordChips } from "./image.js";
 
 export type ImageState =
   | { kind: "none" }
+  | { kind: "reading" }
   | { kind: "building"; job: InitJob }
   | { kind: "copying"; line: string }
   | { kind: "stopped"; said: string }

@@ -7,20 +7,16 @@
 // SETTINGS_HOLD_MS of the last asks nothing. The one door that moves the page
 // rather than reading anything lands here too, since this is what the page
 // mounts once.
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { desktopBridge } from "../lib/desktopShell.js";
 import { notRead } from "../notices/store.js";
 import { failureOf } from "../protocol/failure.js";
 import { heldFresh, hold } from "../protocol/held.js";
-import { useProtocolEvents, useStore } from "../protocol/store.js";
+import { useStore } from "../protocol/store.js";
 import { appScheme } from "../terminal/ghosttyConfig.js";
 import { useSettingsAt } from "./settingsContext.js";
-import { groupOf, useSettingsStore } from "./settingsStore.js";
+import { SETTINGS_HOLD_MS, groupOf, readImage, useSettingsStore } from "./settingsStore.js";
 import { openAdd } from "./add/addFlow.js";
-
-/** How long a read made as Settings opens stands: what these say moves on the person's own acts here, which write
- * their answers back, or on an event the page follows. */
-export const SETTINGS_HOLD_MS = 60_000;
 
 /** One of the page's reads, or nothing while the last one is in flight or inside the hold: its answer is in the store
  * already, or lands there, and an act since may have written a newer one. Nothing where the client has no such read.
@@ -32,6 +28,7 @@ export function useSettingsReads(): void {
   const api = useStore(s => s.api);
   const addComputerOpen = useStore(s => s.addComputerOpen);
   const devicesAsked = useSettingsStore(s => s.devicesAsked);
+  const imageAsked = useSettingsStore(s => s.imageAsked);
   const setReads = useSettingsStore(s => s.setReads);
   const onAbout = groupOf(useSettingsAt()) === "general";
 
@@ -99,27 +96,9 @@ export function useSettingsReads(): void {
     if (onAbout) void api?.releaseCheck?.().then(release => useStore.setState({ release }), notRead("Newest release"));
   }, [api, onAbout]);
 
-  const readImage = useCallback(
-    (force = false): void => {
-      const image = api?.image;
-      void held("image", image === undefined ? undefined : () => image(), force)?.then(
-        view => setReads({ image: view }),
-        notRead("Image"),
-      );
-    },
-    [api, setReads],
-  );
-  // Read when the page opens, and again on every sealed frame below, since a seal anywhere files a copy the page has
-  // not read.
+  // The store reads at each seal itself; this read is the opening's, and a seal's where the store held no client.
   useEffect(() => {
-    readImage();
-  }, [readImage]);
-  useProtocolEvents(
-    useCallback(
-      e => {
-        if (e.type === "golden.stage" && e.stage === "sealed") readImage(true);
-      },
-      [readImage],
-    ),
-  );
+    const image = api?.image;
+    readImage(image === undefined ? undefined : () => image());
+  }, [api, imageAsked]);
 }
