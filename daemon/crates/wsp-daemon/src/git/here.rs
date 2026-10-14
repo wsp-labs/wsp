@@ -11,21 +11,28 @@ use wsp_frames::numbers;
 
 use super::{GitResult, OnThisSide, Runs, GIT_ENV};
 use crate::paths::OpError;
+use crate::pipe::OpEnv;
 
 /// This computer, and the PATH programs are looked up on: the daemon's own environment, or the one a caller names,
 /// which is what a case hands in rather than writing the process's own environment from under every other case.
 pub(crate) struct Here {
     path: String,
+    op: Option<OpEnv>,
 }
 
 impl Here {
     pub(crate) fn new() -> Here {
-        Here { path: std::env::var("PATH").unwrap_or_default() }
+        Here { path: std::env::var("PATH").unwrap_or_default(), op: None }
     }
 
     #[cfg(test)]
     pub(crate) fn on(path: &str) -> Here {
-        Here { path: path.to_owned() }
+        Here { path: path.to_owned(), op: None }
+    }
+
+    /// The same computer, with every program this op runs reaching GitHub through the doors on the op's token.
+    pub(crate) fn with_op(self, op: OpEnv) -> Here {
+        Here { op: Some(op), ..self }
     }
 }
 
@@ -38,7 +45,7 @@ impl Runs for Here {
         input: Option<&[u8]>,
         max_bytes: Option<usize>,
     ) -> Result<GitResult, OpError> {
-        let mut command = command_of(&self.path, cwd, program, args);
+        let mut command = command_of(&self.path, cwd, program, args, self.op.as_ref());
         let mut child = command.spawn()?;
 
         let stdin = child.stdin.take();
@@ -95,7 +102,8 @@ impl Runs for Here {
 
 /// argv behind the work-score line, never interpolated into a shell: sh runs the line, then execs the program in
 /// its own place.
-fn command_of(path: &str, cwd: &Path, program: &str, args: &[&str]) -> Command {
+/// An op's token rides the environment and never argv, which every process on the machine can read.
+fn command_of(path: &str, cwd: &Path, program: &str, args: &[&str], op: Option<&OpEnv>) -> Command {
     let mut command = Command::new("/bin/sh");
     command
         .arg("-c")
@@ -110,6 +118,12 @@ fn command_of(path: &str, cwd: &Path, program: &str, args: &[&str]) -> Command {
         .kill_on_drop(true);
     for (name, value) in GIT_ENV {
         command.env(name, value);
+    }
+    if let Some(op) = op {
+        command.envs(op.git.iter().map(|(k, v)| (k, v)));
+        if program == "gh" {
+            command.envs(op.gh.iter().map(|(k, v)| (k, v)));
+        }
     }
     command
 }
@@ -147,5 +161,59 @@ mod tests {
         assert_eq!(said.get(1), Some(&"0|C|0"));
         // And a program nothing on the PATH holds is not there, which is what a pull request with no gh reads.
         assert!(!Here::on("").on_path("gh").await.unwrap());
+    }
+
+    /// Stand-ins for git and gh that print every argument and then their whole environment.
+    fn printing(dir: &Path) {
+        use std::os::unix::fs::PermissionsExt as _;
+        for name in ["git", "gh"] {
+            let at = dir.join(name);
+            std::fs::write(&at, "#!/bin/sh\nfor a in \"$@\"; do echo \"ARG $a\"; done\nenv\n").unwrap();
+            std::fs::set_permissions(&at, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
+
+    /// The lines a stand-in printed that hold the token anywhere in them.
+    async fn holding(here: &Here, cwd: &Path, program: &str, token: &str) -> (Vec<String>, Vec<String>) {
+        let res = here.run(cwd, program, &["push", "-u", "--", "origin", "wsp/fix"], None, None).await.unwrap();
+        assert_eq!(res.code, Some(0), "{}", res.stderr);
+        let out = String::from_utf8_lossy(&res.stdout).into_owned();
+        let args = out.lines().filter(|l| l.starts_with("ARG ")).map(str::to_owned).collect();
+        (args, out.lines().filter(|l| l.contains(token)).map(str::to_owned).collect())
+    }
+
+    #[tokio::test]
+    async fn an_op_token_is_gits_proxy_password_and_ghs_token_and_nowhere_else_and_without_one_nothing_changes() {
+        let bin = tempfile::tempdir().unwrap();
+        printing(bin.path());
+        let path = format!("{}:/usr/bin:/bin", bin.path().display());
+        let wsp = tempfile::tempdir().unwrap();
+        let doors = crate::pipe::Doors {
+            http: "127.0.0.1:7071".parse().unwrap(),
+            gh: wsp.path().join("broker.sock"),
+            hold_max: std::time::Duration::ZERO,
+        };
+        let token = "op-tok-9";
+        let op = Here::on(&path).with_op(crate::pipe::op_env(token, &doors));
+        let cwd = tempfile::tempdir().unwrap();
+
+        let (args, seen) = holding(&op, cwd.path(), "git", token).await;
+        assert_eq!(args, ["ARG push", "ARG -u", "ARG --", "ARG origin", "ARG wsp/fix"]);
+        assert_eq!(seen, ["GIT_CONFIG_VALUE_4=http://wsp:op-tok-9@127.0.0.1:7071"], "git holds the token somewhere but its proxy password");
+
+        let (_, seen) = holding(&op, cwd.path(), "gh", token).await;
+        let mut seen = seen;
+        seen.sort();
+        assert_eq!(seen, ["GH_TOKEN=op-tok-9", "GIT_CONFIG_VALUE_4=http://wsp:op-tok-9@127.0.0.1:7071"]);
+        // gh reads the configuration the gh door wrote beside itself as it opened, the one a turn's gh reads too.
+        let gh = op.run(cwd.path(), "gh", &[], None, None).await.unwrap();
+        let dir = format!("GH_CONFIG_DIR={}", wsp.path().join("gh").display());
+        assert!(String::from_utf8_lossy(&gh.stdout).lines().any(|l| l == dir), "{}", String::from_utf8_lossy(&gh.stdout));
+
+        // Without a token the same line runs as it always has: the same arguments, and none of the op's variables.
+        let plain = Here::on(&path).run(cwd.path(), "git", &["push", "-u", "--", "origin", "wsp/fix"], None, None).await.unwrap();
+        let out = String::from_utf8_lossy(&plain.stdout).into_owned();
+        assert!(out.lines().all(|l| !l.starts_with("GIT_CONFIG_") && !l.contains(token)), "{out}");
+        assert_eq!(out.lines().filter(|l| l.starts_with("ARG ")).collect::<Vec<_>>(), args);
     }
 }
