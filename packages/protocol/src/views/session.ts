@@ -162,8 +162,9 @@ export const SessionView = z.object({
   /** The id one send to several models stamps on each thread it opens, so the threads that send made are drawn and
    * settled together; absent on a thread opened alone. */
   attempt: z.string().optional(),
-  /** The turn that opened this row's thread; a resumed turn keeps it, and its own prompt rides its session.start
-   * event, so the title every client derives from a row never follows the latest send. */
+  /** The head of the message that opened this row's thread, OPENING_KEPT characters at most; a resumed turn keeps it,
+   * and every turn's whole message rides its session.start event, so the title every client derives from a row never
+   * follows the latest send. */
   prompt: z.string().optional(),
   /** What the harness itself calls this row's session, read from the harness's own store on the machine: the title
    * it generated, or the person's rename inside it. Absent on a harness that keeps none, and until one is read. */

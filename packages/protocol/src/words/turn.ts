@@ -282,23 +282,41 @@ export const ROW_LINE_MAX = 30;
 /** The line that opens the block of landed paths after a message's words in the prompt an agent is handed. */
 export const ATTACHED_FILES_HEAD = "Attached files:";
 
+/** How much of the message a thread opened with its session rows keep: every reader of a row's opening takes its
+ * head (a title, the title question's excerpt), and an agent's brief runs to tens of thousands of characters, which
+ * every row held and every listing sent. The whole message rides the thread's first session.start. */
+export const OPENING_KEPT = 600;
+
+/** The opening as a row keeps it, copied: past 12 characters V8 keeps a cut as a view into the whole string, so a
+ * slice alone would hold every brief it was cut from. A pair of surrogates is never split. */
+export function keptOpening(text: string): string {
+  if (text.length <= OPENING_KEPT) return text;
+  const end = /[\uD800-\uDBFF]/.test(text[OPENING_KEPT - 1]!) ? OPENING_KEPT - 1 : OPENING_KEPT;
+  return text.slice(0, end).split("").join("");
+}
+
+/** Whether a row's opening may be the head of a longer message: a row keeps no mark of the cut. */
+export const openingCut = (kept: string): boolean => kept.length >= OPENING_KEPT - 1;
+
 /** Where a title read out of the harness's own store came from: one that is the prompt the thread opened with, or its
  * head, is the seed under the harness's roof (codex names a thread from it the moment it starts, every line of the
  * prompt in its title column, the block of attached paths included) and the thread is still asked for a name; any
  * other is the person's rename or the harness's own made name, and stands. The paths are the machine's and the row
- * keeps none, so a prompt with files is matched as the opening words and that block's head. */
+ * keeps none, so a prompt with files is matched as the opening words and that block's head. A row whose opening was
+ * cut holds only the head of what codex wrote, so a title that starts with that head is the seed too. */
 export function storedTitleSource(stored: string, opening: string | undefined): TitleSource {
   if (opening === undefined) return "person";
   const title = stored.replace(/\s+/g, " ").trim();
-  const handed = `${opening.replace(/\s+/g, " ").trim()} ${ATTACHED_FILES_HEAD}`;
-  return title !== "" && (handed.startsWith(title) || title.startsWith(handed)) ? "seed" : "person";
+  const words = opening.replace(/\s+/g, " ").trim();
+  const handed = `${words} ${ATTACHED_FILES_HEAD}`;
+  return title !== "" && (handed.startsWith(title) || title.startsWith(handed) || (openingCut(opening) && title.startsWith(words))) ? "seed" : "person";
 }
 
 /** The most characters a generated title takes; a longer answer is cut to the words that fit. */
 export const GENERATED_TITLE_MAX = 40;
 /** How much of the opening turn and of the reply the title question carries: the words a title comes from are at the
  * top of both, and a whole brief would cost more to send than the answer is worth. */
-const TITLE_EXCERPT_MAX = 600;
+const TITLE_EXCERPT_MAX = OPENING_KEPT;
 
 const excerpt = (text: string): string => {
   const trimmed = text.trim();
