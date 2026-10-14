@@ -8,12 +8,13 @@ import { join } from "node:path";
 import type { WorkspaceView } from "@wsp/protocol";
 import { fakeProcTree, setListeners, type FakeListener } from "../../../packages/daemon/test/fake-proc.js";
 import { daemonUnderTest, type DaemonUnderTest } from "../../../packages/daemon/test/harness.js";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { getBrowser, resetBrowsers } from "../src/browser/model.js";
 import type { Api, ProtocolEvent } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { getTerminals } from "../src/terminal/link.js";
 import { wireTerminals } from "../src/terminal/wiring.js";
+import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
 import { caps } from "./caps.js";
 import { harnessMachineToken, startRelayHarness, type RelayHarness } from "./relay-harness.js";
 import { clearNotices } from "./notice-text.js";
@@ -180,5 +181,39 @@ describe("port directory over the daemon link", () => {
     emit({ type: "workspace.woken", workspaceId: a, machineId: `m_${a}` });
     await until(() => portsOf(a).includes(4000) && !portsOf(a).includes(3000));
     expect(portsOf(a)).toEqual([4000]);
+  }, 20_000);
+
+  it("a host that came back on a fresh token: the client the page dials it with next carries the folder's terminal and ports", async () => {
+    const a = await firstGuest([{ port: 3000, pid: 42 }]);
+    const here = { ...view(a), kind: "local" as const };
+    const before = fakeApi([here], () => relay!);
+    // The client the page held before the restart: once the host refused its token it carries nothing again.
+    let gone = false;
+    const daemon = before.api.daemon;
+    before.api.daemon = {
+      open: target => (gone ? Promise.reject(new Error("disconnected: unauthorized")) : daemon.open(target)),
+      send: (channel, frame) => (gone ? Promise.reject(new Error("disconnected: unauthorized")) : daemon.send(channel, frame)),
+      close: channel => daemon.close(channel),
+      onFrame: (channel, fn) => daemon.onFrame(channel, fn),
+    };
+    unwire = wireTerminals(useStore, { backoffMs: () => 30 });
+    useStore.getState().bind(before.api);
+    useTerminalDrawerStore.getState().setOpen(a, true);
+    onTestFinished(() => useTerminalDrawerStore.getState().setOpen(a, false));
+    await until(() => getTerminals(a)?.status() === "live" && portsOf(a).includes(3000));
+
+    // The host comes back with a token the old client does not hold, so the page builds a client of its own, whose
+    // socket goes live before connect resolves and the store takes its api, as App does.
+    gone = true;
+    useStore.getState().setConn("closed");
+    await until(() => getTerminals(a)!.status() === "connecting");
+    setPorts(a, [{ port: 3000, pid: 42 }, { port: 4000, pid: 43 }]);
+    useStore.getState().setConn("live");
+    await new Promise(r => setTimeout(r, 100));
+    useStore.getState().bind(fakeApi([here], () => relay!).api);
+
+    await until(() => getTerminals(a)!.status() === "live" && portsOf(a).includes(4000));
+    const tab = await getTerminals(a)!.open({ shell: "/bin/sh", cwd: tmpdir() });
+    expect((await relay!.ptys()).map(p => p.id)).toContain(tab.ptyId);
   }, 20_000);
 });
