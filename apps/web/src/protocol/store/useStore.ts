@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { create } from "zustand";
-import { applyPreferencesPatch, goldenHead, copyBuildOf, withPushedRow, type AccountRow, type Preferences, type ReviewDraft, type SessionRowEvent, type SessionView, type WorkspacePhase, type WorkspaceSize, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { applyPreferencesPatch, goldenHead, copyBuildOf, withPushedRow, type AccountRow, type SealedImageView, type Preferences, type ReviewDraft, type SessionRowEvent, type SessionView, type WorkspacePhase, type WorkspaceSize, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { renameNotTakenLine } from "../../actions/format.js";
 import { readAddress, readProjectHome, writeAddress, writeProjectHome } from "../address.js";
 import { sidebarWorkspaceOrder } from "../../adapt/workspaces.js";
@@ -211,6 +211,12 @@ export const useStore = create<State>((set, get) => {
       }));
       return null;
     }
+  };
+
+  /** The image read on the store's client, for a seal to ask wherever the person is. */
+  const imageRead = (): (() => Promise<SealedImageView>) | undefined => {
+    const read = get().api?.image;
+    return read === undefined ? undefined : () => read();
   };
 
   // a rebuild replaces the machine, so its event carries a new machineId; gone carries the words, and any other
@@ -1033,6 +1039,7 @@ export const useStore = create<State>((set, get) => {
           useSignInStore.getState().portClosed(e.workspaceId, e.port);
           return;
         case "golden.stage": {
+          if (e.stage === "sealed") useSettingsStore.getState().rereadImage(imageRead());
           // Kept per place for that computer's image card, and folded into the log of a create waiting on the build
           // there, so the build's own stages read as its first lines. A frame naming no place is the image's own
           // build, which the init job owns; one naming a place nobody here is waiting on is only the card's.
@@ -1177,7 +1184,10 @@ export const useStore = create<State>((set, get) => {
           return;
         case "init.job": {
           initJobViews++;
+          const ended = e.job.phase === "done" && get().initJob?.phase !== "done";
           set({ initJob: e.job });
+          // The sealed frame comes before the host files the copy, so the job's end is when the image reads it.
+          if (ended) useSettingsStore.getState().rereadImage(imageRead());
           // A seal is what the cloud row waits on, and the provider the host wired in is what the sizes come from.
           if (e.job.phase === "done") {
             set({ hasGolden: true });

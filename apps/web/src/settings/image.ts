@@ -25,6 +25,7 @@ export const IMAGE_WORDS = {
     nothing: "Not built yet",
     notHere: "Not here yet",
     building: "Building your image here",
+    reading: "Reading the image",
     copying: "Copying your image here",
     stale: "An older copy here",
     ready: "Ready",

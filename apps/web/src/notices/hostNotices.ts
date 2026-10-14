@@ -18,13 +18,14 @@
 // sound while the person keeps that switch on. The
 // dock's badge counts the threads waiting on the person. A newer release is
 // never a notice: the sidebar's update card says it.
-import { NOTIFY_ME, waitLine, setupNeedsYouLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
+import { NOTIFY_ME, waitLine, setupNeedsYouLine, setupReadyLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import type { ProtocolEvent } from "../protocol/client.js";
 import { threadOnScreen, useProtocolEvents, useStore } from "../protocol/store.js";
 import { desktopBridge } from "../lib/desktopShell.js";
 import { placeName } from "../settings/places.js";
 import { openSetup, sayEnded, useAddFlow } from "../settings/add/addFlow.js";
+import { useCloudFlow } from "../settings/add/cloudFlow.js";
 import { useSettingsStore } from "../settings/settingsStore.js";
 import { needsYouRoad, type NeedsYouRoad } from "../shell/needsYou.js";
 import { copyName } from "../sidebar/workspaceRows.js";
@@ -74,6 +75,12 @@ const workspaceOnScreen = (workspaceId: string): boolean => !useStore.getState()
  * Computers list shows no sign-in, so it is not the build's home. */
 function buildOnScreen(placeId: string | undefined): boolean {
   return placeId !== undefined && useStore.getState().settingsOpen && useSettingsStore.getState().buildShown === placeId;
+}
+
+/** Whether Add a cloud provider stands on that provider's build, whose own heading says how it ended. */
+function cloudBuildOnScreen(placeId: string | undefined): boolean {
+  const flow = useCloudFlow.getState();
+  return placeId !== undefined && flow.open && flow.provider === placeId && flow.step === "building";
 }
 
 function computerOnScreen(placeId: string | undefined): boolean {
@@ -300,9 +307,15 @@ const RULES: { [T in ProtocolEvent["type"]]?: Rule<T> } = {
     if ((phase !== "done" && phase !== "failed") || held.jobsEnded.has(id)) return;
     held.jobsEnded.add(id);
     const at = e.job.place?.id;
-    if (buildOnScreen(at)) return;
+    const place = useStore.getState().places.find(p => p.id === at);
+    const name = place === undefined ? e.job.place?.name : placeName(place);
+    const sealed = HOST_NOTICE_WORDS.imageSealed(e.job.golden?.version);
+    // A build sent to the background ends with nobody watching, so its end goes out on the shell's road too.
+    if (phase === "done" && name !== undefined) sayOutside(held, openComputer(at).run, lineFor({ kind: "imageReady", computer: name, image: sealed }));
+    if (buildOnScreen(at) || cloudBuildOnScreen(at)) return;
     if (phase === "failed") addNotice({ kind: "error", text: HOST_NOTICE_WORDS.imageNotBuilt(e.job.error), action: openComputer(at) });
-    else addNotice({ kind: "done", text: HOST_NOTICE_WORDS.imageSealed(e.job.golden?.version) });
+    else if (name === undefined) addNotice({ kind: "done", text: sealed });
+    else addNotice({ kind: "done", text: setupReadyLine(name), detail: `${sealed}.`, where: name, action: openComputer(at) });
   },
   "workspace.gone": e => {
     const name = workspaceNamed(e.workspaceId);

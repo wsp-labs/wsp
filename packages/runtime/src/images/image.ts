@@ -36,7 +36,7 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
    * absent rather than guessed. */
   const snapshotSizes = async (at: MachineBackend, ids: readonly string[]): Promise<Map<string, number>> => {
     if (ids.length === 0 || !at.capabilities.snapshotListing || at.listSnapshots === undefined) return new Map();
-    const rows = await at.listSnapshots().catch(() => []);
+    const rows = await at.listSnapshots(ids).catch(() => []);
     return new Map(rows.flatMap(r => (ids.includes(r.id) && r.restoredBytes !== undefined ? [[r.id, r.restoredBytes] as const] : [])));
   };
 
@@ -122,8 +122,9 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
       const held = goldenHead(await ctx.copyOf(place, name));
       // The same rule the line under Settings > Image reads, so a copy is never current in one place and stale in
       // the other. A place already standing on the record is answered with what it holds: a fork there asks this
-      // before it builds, and a second ask must cost nothing.
-      if (held !== undefined && copyIsCurrent(record, { hash: held.imageHash })) {
+      // before it builds, and a second ask must cost nothing. A forced build is the one road to a copy that takes
+      // what this host ships now, such as its daemon, without a new record.
+      if (o.force !== true && held !== undefined && copyIsCurrent(record, { hash: held.imageHash })) {
         const standing = (await copiesOf(name)).find(c => c.place === place);
         if (standing === undefined) throw new Error(`${where} holds ${name} v${held.version} and no copy of it was recorded there`);
         return { copy: standing, built: false };
@@ -211,7 +212,12 @@ export function imageArea(ctx: RuntimeContext): ImageArea {
       stage("failed", e instanceof Error ? e.message : String(e));
       throw e;
     }
+    const prior = goldenHead(await ctx.copyOf(place, name));
     const sealed = await ctx.sealEntry(entry, false, record.logins, record);
+    // At the record's own place the copy becomes the head wsp init diffs its next cut against, and a copy's own
+    // digest carries no sign-in row: it keeps the digest that place's head was planned from.
+    const planned = prior !== undefined && place === (await ctx.imagePlace(name)) ? await ctx.copyRecipeOf(place, name, prior.version) : undefined;
+    if (planned !== undefined) await ctx.putCopyRecipe(place, name, sealed.version.version, planned);
     const copy = (await copiesOf(name)).find(c => c.place === place);
     if (copy === undefined) throw new Error(`${where} sealed ${name} v${sealed.version.version} and no copy of it was recorded there`);
     return { copy, built: true };
