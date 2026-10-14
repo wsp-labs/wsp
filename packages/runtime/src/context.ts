@@ -535,13 +535,21 @@ export interface BootArea {
   readonly landingPlace: (computer: string) => Promise<{ placeId?: string }>;
 }
 
+/** A create as a window holds it before its record lands: a fork a thread asked for while its machine is made, or
+ * any create that failed. */
+export type ShownCreate = WorkspaceView & { kind: WorkspaceKind };
+
 export interface CreateArea {
   readonly createStaged: (o: CreateWorkspaceOptions, project: ProjectView, id: string, report: StageReport, spawned?: ThreadScope, landed?: () => void, childBase?: string) => Promise<CreatedWorkspace>;
   readonly nameGiven: (name: string) => string;
   readonly forking: Set<string>;
-  readonly failedCreates: Map<string, WorkspaceView>;
+  readonly failedCreates: Map<string, ShownCreate>;
+  readonly shownCreates: Map<string, ShownCreate>;
+  /** A fork a thread asked for, its record announced under that thread before its first stage and listed while its
+   * machine is made. */
+  readonly showCreate: (view: ShownCreate) => void;
   readonly createStages: Map<string, WorkspaceCreatingEvent>;
-  readonly failedView: (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string) => WorkspaceView;
+  readonly failedView: (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string) => ShownCreate;
   readonly supersedeFailed: (name: string) => void;
   readonly stageReporter: (id: string, name: string, began: number, spawned: ThreadScope | undefined) => StageReport;
   readonly nameRefusal: (name: string) => string | undefined;

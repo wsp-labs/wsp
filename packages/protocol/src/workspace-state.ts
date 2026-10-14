@@ -637,6 +637,10 @@ export function isBilling(state: WorkspaceState): boolean {
   return state === "running" || state === "unreachable";
 }
 
+/** A record whose create failed before any machine stood under it: there is nothing to rebuild or forget, and its
+ * `gone` says why it did not start. */
+export const startFailed = (w: { phase: WorkspacePhase; machineId: string }): boolean => w.phase === "gone" && w.machineId === "";
+
 /** Rebuild is a road out: the machine is gone, a zombie the provider still calls running, or one the provider would
  * not resume for the whole of a wake's asking. Every surface that offers the rebuild (sidebar row, palette, Machine
  * tab, the command line and its tool) asks this and nothing else. It is the only one left on the first two; on the
