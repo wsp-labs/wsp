@@ -628,6 +628,11 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       "root@spoo is already a place in this wsp as spoo",
     );
     expect(mine.landed).toEqual([]);
+    // A login that reaches root over sudo is named the leave its own shell can run there.
+    const bySudo = fakeBox("x86_64", "bash", { holds: studio, road: "free" });
+    await expect(placeInstaller({ backend: bySudo.backend as never, ...assets(tmp("held-sudo"), [X86]) })({ address: "maya@box", code: own, hostUrls: ["http://192.168.1.20:4720"] }, bySudo.stage)).rejects.toThrow(
+      "maya@box already belongs to the wsp on studio at http://192.168.1.5:4640; sudo -i wsp leave on it frees it",
+    );
     // A file the join itself would not read as a place is none, by the join's own rule.
     const junk = fakeBox("x86_64", "bash", { holds: "{}\n" });
     expect(await placeInstaller({ backend: junk.backend as never, ...assets(tmp("held-junk"), [X86]) })({ address: "maya@box", code: own, hostUrls: ["http://192.168.1.20:4720"] }, junk.stage)).toMatchObject({ name: "box" });

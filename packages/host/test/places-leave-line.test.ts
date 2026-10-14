@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { describe, expect, it } from "vitest";
 import { placeDaemonPaths, wspBinIn, type PlaceFile } from "@wsp/protocol";
@@ -22,11 +22,22 @@ function joinedBox(): string {
   return home;
 }
 
+/** A folder holding node alone, so a wsp installed beside node on this computer is never the one found. */
+function nodeOnly(): string {
+  const dir = tmp("leave-line-node");
+  symlinkSync(process.execPath, `${dir}/node`);
+  return dir;
+}
+
+/** A line run after what a bash login on the box reads, and nothing of this computer's own /etc/profile, which may
+ * put a wsp of its own first. Root's login there reads ~/.profile, measured on hetzner. */
+const login = (home: string, path: string, line: string) => spawnSync("/bin/bash", ["-c", `. "$HOME/.profile"\n${line}`], { encoding: "utf8", env: { HOME: home, PATH: path } });
+
 /** A line typed at the box's own shell as root: sudo -i hands root's login shell the rest of the line, so both are
- * that login shell with a PATH that knows only node and the system. */
+ * that login with a PATH that knows only node. */
 function typedOn(home: string, line: string): { status: number | null; out: string } {
   const asRoot = line.replace(/^sudo -i /, "");
-  const ran = spawnSync("bash", ["-lc", asRoot], { encoding: "utf8", env: { HOME: home, PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
+  const ran = login(home, nodeOnly(), asRoot);
   return { status: ran.status, out: `${ran.stdout}${ran.stderr}` };
 }
 
@@ -60,8 +71,7 @@ describe("every line that names wsp leave names one a login on a joined box can 
     expect(spawnSync("bash", ["-c", files], { encoding: "utf8" }).status).toBe(0);
     const own = tmp("leave-line-own");
     writeStub(`${own}/wsp`, "#!/bin/sh\necho own wsp\n");
-    const path = spawnSync("bash", ["-lc", 'printf %s "$PATH"'], { encoding: "utf8", env: { HOME: home, PATH: `${own}:/usr/bin:/bin` } }).stdout;
-    expect(path.split(":").filter(dir => dir.startsWith(home))).toHaveLength(1);
-    expect(spawnSync("bash", ["-lc", "wsp"], { encoding: "utf8", env: { HOME: home, PATH: `${own}:/usr/bin:/bin` } }).stdout).toBe("own wsp\n");
+    expect(login(home, own, 'printf %s "$PATH"').stdout.split(":").filter(dir => dir.startsWith(home))).toHaveLength(1);
+    expect(login(home, own, "wsp").stdout).toBe("own wsp\n");
   });
 });
