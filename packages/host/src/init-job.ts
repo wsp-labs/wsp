@@ -505,7 +505,8 @@ export class InitJobs implements InitDoor {
     // would drop every sign-in answer the person made at their own screens.
     const recipe = answeredByFile(s.road) ? answers.recipe : recipeWithAnswers(answers.recipe, answers.logins);
     saveSmallRecipe(path, recipe);
-    const wspTicks = answers.wspTicks ?? wspToolsItems(recipe, this.deps.home).initial;
+    // A provider's build is not on this computer, so it writes no agent config here, ticked or defaulted.
+    const wspTicks = built.kind === "provider" ? new Set<string>() : (answers.wspTicks ?? wspToolsItems(recipe, this.deps.home).initial);
     const agents = new Set([...wspTicks].flatMap(id => wspToolsAgent(id) ?? []));
     if (agents.size > 0) this.tools(s, this.deps.installTools(agents));
     s.building = true;
