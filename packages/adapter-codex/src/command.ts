@@ -42,11 +42,13 @@ export const KEY_FILE_ENV = "WSP_CODEX_KEY";
 const PLACEHOLDER_KEY_RE = /^[A-Za-z0-9._~+/=-]+$/;
 
 /** The key a turn carries: under both of codex's names on today's road, and on a brokered one only where the
- * launch's key file reads it, refused where it has no place. */
+ * launch's key file reads it, refused where it has no place. A brokered launch with no turn token carries none and
+ * runs on the key file the last turn left; a turn's own line refuses to start without it. */
 function keyEnv(apiKey: string | undefined, broker: CodexBroker | undefined): Record<string, string> {
   if (broker?.mode === "chatgpt" && apiKey !== undefined) throw new Error("a turn on the host's ChatGPT login carries no key; its login is a placeholder");
   if (broker?.mode === "apikey") {
-    if (apiKey === undefined || !PLACEHOLDER_KEY_RE.test(apiKey)) throw new Error("a turn on the host's API key needs the placeholder key the host shaped for it, one plain word");
+    if (apiKey === undefined) return {};
+    if (!PLACEHOLDER_KEY_RE.test(apiKey)) throw new Error("a turn on the host's API key needs the placeholder key the host shaped for it, one plain word");
     return { [KEY_FILE_ENV]: apiKey };
   }
   // The key travels under both names. CODEX_API_KEY is the one this CLI's own login reads and prefers over the
@@ -94,7 +96,8 @@ function placeholderLogin(broker: CodexBroker, now: number, turn: boolean): stri
   const needs = broker.mode === "apikey" ? KEY_FILE_ENV : HOST_TOKEN_ENV;
   const write = (steps: string[]): string => {
     const body = [`umask 077 && mkdir -p "$CODEX_HOME"`, ...steps].join(" && ");
-    return turn ? `( : "\${${HOST_TOKEN_ENV}:?a turn whose credentials the host keeps was launched without its token}" && ${body} )` : `{ [ -z "\${${needs}:-}" ] || ( ${body} ); }`;
+    const keyGuard = broker.mode === "apikey" ? ` && : "\${${KEY_FILE_ENV}:?a turn on the key the host keeps was launched without its placeholder key}"` : "";
+    return turn ? `( : "\${${HOST_TOKEN_ENV}:?a turn whose credentials the host keeps was launched without its token}"${keyGuard} && ${body} )` : `{ [ -z "\${${needs}:-}" ] || ( ${body} ); }`;
   };
   if (broker.mode === "apikey") return write([`printf %s ${spliced(JSON.stringify({ auth_mode: "apikey", OPENAI_API_KEY: KEY }), words)} > "$CODEX_HOME/auth.json"`]);
   const { accountId, planType, userId, fedramp } = broker.claims;
@@ -195,6 +198,9 @@ export interface BuildCommandOptions {
   /** The program run in place of codex and the words added after app-server, from the person's setup there. */
   launch?: AgentLaunch;
   broker?: CodexBroker;
+  /** A server run that starts no turn, a revert or a fork: it writes the login only when it carries the token, as
+   * every launch outside a turn does, and otherwise runs at the door on the file the last turn left. */
+  turn?: false;
 }
 
 /** A value that may ride a codex command line or a SQL literal unquoted; anything else is refused before it does. */
@@ -260,7 +266,7 @@ export function accessParams(mode: string | undefined): AccessParams {
 /** The server as one bash line in the folder the turn runs in. Guest exec carries no HOME, so the default folder is
  * `~`, which bash reads from passwd. */
 export function buildCommand(options: BuildCommandOptions): string {
-  const brokered = options.broker === undefined ? { steps: [], flags: [] } : brokeredLine(options.broker, Date.now(), true);
+  const brokered = options.broker === undefined ? { steps: [], flags: [] } : brokeredLine(options.broker, Date.now(), options.turn !== false);
   // The plan tool is off in a headless server unless its config turns it on; its updates are the turn's steps.
   const server = [`${agentWord("codex", options.launch)} app-server`, ...launchWords(options.launch), configRaw("tools.update_plan.enabled", "true"), ...brokered.flags, ...serverFlags(options.mcpServers ?? {})].join(" ");
   return inFolder(options.cwd, [...brokered.steps, server].join(" && "));

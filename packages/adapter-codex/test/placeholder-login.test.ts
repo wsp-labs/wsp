@@ -152,7 +152,13 @@ describe("a brokered Codex launch on an API key", () => {
 
   it("refuses a key beside the host's ChatGPT login, and a key turn handed no placeholder key", () => {
     expect(() => buildEnv({ home: "/root/.codex", apiKey: KEY, broker: CHATGPT })).toThrow("carries no key");
-    expect(() => buildEnv({ home: "/root/.codex", broker: { mode: "apikey" } })).toThrow("needs the placeholder key");
+    // A launch with no turn token carries no key and runs on the key file the last turn left; a turn refuses to start.
+    expect(buildEnv({ home: "/root/.codex", broker: { mode: "apikey" } })).not.toHaveProperty(KEY_FILE_ENV);
+    const { dir, program } = standIn();
+    const shellEnv = { PATH: process.env.PATH ?? "/usr/bin:/bin", ...buildEnv({ home: join(dir, "home"), broker: { mode: "apikey" }, base: { [HOST_TOKEN_ENV]: TOKEN } }) };
+    expect(() => execFileSync("bash", ["-c", buildCommand({ cwd: dir, broker: { mode: "apikey" }, launch: { program } })], { env: shellEnv, stdio: "pipe" })).toThrow("without its placeholder key");
+    expect(existsSync(join(dir, "home", "auth.json"))).toBe(false);
+    expect(existsSync(join(dir, "args"))).toBe(false);
     expect(() => buildEnv({ home: "/root/.codex", apiKey: `${PLACEHOLDER_KEY_PREFIX}"x`, broker: { mode: "apikey" } })).toThrow("one plain word");
   });
 });
