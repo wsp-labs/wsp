@@ -27,6 +27,7 @@ pub struct Words {
     pub agent_setup_nothing: String,
     pub project_set_nothing: String,
     pub after_worktree_blank: String,
+    pub tracker_shape: String,
     pub default_agent: String,
     pub starts_own: String,
     pub starts_on: String,
@@ -41,6 +42,7 @@ pub struct Words {
     pub sign_in_again: String,
     pub new_threads_head: String,
     pub after_worktree: String,
+    pub trackers: String,
     pub from: HashMap<String, String>,
     pub no_defaults_answered: String,
     pub labels: Labels,
@@ -430,6 +432,8 @@ pub struct ProjectIn {
     #[serde(default)]
     pub after_worktree: Option<String>,
     #[serde(default)]
+    pub trackers: Option<Vec<String>>,
+    #[serde(default)]
     pub reset: Option<Vec<String>>,
 }
 
@@ -443,6 +447,8 @@ pub struct ProjectOut {
     pub defaults: Box<RawValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after_worktree: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trackers: Option<Vec<String>>,
 }
 
 /// One resolved value and where it came from.
@@ -477,9 +483,13 @@ fn defaults_lines(d: &Resolved) -> Vec<String> {
 }
 
 async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
-    let ProjectIn { project, agent, model, effort, access, after_worktree, reset } = input(PROJECT_NAME, arguments)?;
+    let ProjectIn { project, agent, model, effort, access, after_worktree, trackers, reset } = input(PROJECT_NAME, arguments)?;
     if after_worktree.as_deref().is_some_and(|command| command.trim().is_empty()) {
         return Err(Failure::usage(words().after_worktree_blank).into());
+    }
+    if let Some(word) = trackers.iter().flatten().find(|word| !names_repo(word)) {
+        let quoted = serde_json::to_string(word).unwrap_or_default();
+        return Err(Failure::usage(fill(&words().tracker_shape, &[("quoted", &quoted)])).into());
     }
     let reset = reset.unwrap_or_default();
     let resets = |field: &str| reset.iter().any(|r| r == field);
@@ -490,6 +500,12 @@ async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
     patched(&mut patch, "effort", effort.map(Value::from), resets("effort"));
     patched(&mut patch, "access", access_word(access)?.map(Value::from), resets("access"));
     patched(&mut patch, "afterWorktree", after_worktree.map(Value::from), resets("after-worktree"));
+    let trackers = trackers.filter(|named| !named.is_empty()).map(|mut named| {
+        let mut seen = std::collections::HashSet::new();
+        named.retain(|word| seen.insert(word.clone()));
+        Value::from(named)
+    });
+    patched(&mut patch, "trackers", trackers, resets("trackers"));
     if patch.is_empty() {
         return Err(Failure::usage(words().project_set_nothing).into());
     }
@@ -509,6 +525,7 @@ async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
     struct Overrides {
         #[serde(rename = "afterWorktree")]
         after_worktree: Option<String>,
+        trackers: Option<Vec<String>>,
     }
     #[derive(Deserialize, Default)]
     struct Preferences {
@@ -523,7 +540,9 @@ async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
     let set: SetAnswer = client
         .request("preferences.set", params([("patch", Value::Object(params([("projectDefaults", Value::Object(by_project))])))]))
         .await?;
-    let after_worktree = set.preferences.project_defaults.get(&named.id).and_then(|o| o.after_worktree.clone());
+    let kept = set.preferences.project_defaults.get(&named.id);
+    let after_worktree = kept.and_then(|o| o.after_worktree.clone());
+    let trackers = kept.and_then(|o| o.trackers.clone());
     #[derive(Deserialize)]
     struct Answered {
         defaults: Option<Box<RawValue>>,
@@ -537,8 +556,16 @@ async fn projects_set(host: Arc<Host>, arguments: Value) -> Result<Answer, Refus
     let read: Resolved = serde_json::from_str(defaults.get()).map_err(|_| unread(PROJECT_NAME))?;
     let head = fill(&words().new_threads_head, &[("project", &named.name)]);
     let own = after_worktree.as_deref().map(|command| fill(&words().after_worktree, &[("command", command)]));
-    let text = std::iter::once(head).chain(defaults_lines(&read)).chain(own).collect::<Vec<_>>().join("\n");
-    Ok(Answer::text(text, &ProjectOut { project: found.project, defaults, after_worktree }))
+    let tracked = trackers.as_ref().map(|list| fill(&words().trackers, &[("trackers", &list.join(", "))]));
+    let text = std::iter::once(head).chain(defaults_lines(&read)).chain(own).chain(tracked).collect::<Vec<_>>().join("\n");
+    Ok(Answer::text(text, &ProjectOut { project: found.project, defaults, after_worktree, trackers }))
+}
+
+/// A repo as gh names it, owner/name: the shape a project's defaults keep its trackers in.
+fn names_repo(word: &str) -> bool {
+    let mut halves = word.split('/');
+    let whole = |half: Option<&str>| half.is_some_and(|h| !h.is_empty() && !h.chars().any(char::is_whitespace));
+    whole(halves.next()) && whole(halves.next()) && halves.next().is_none()
 }
 
 #[cfg(test)]

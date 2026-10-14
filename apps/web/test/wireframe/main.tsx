@@ -350,7 +350,7 @@ const COMPUTERS: PlaceView[] = [
 const BOX_CLOUD = { id: "box", kind: "provider", name: "box", default: false, takesForks: true, buildsImages: true, rateUsdPerHour: 0.018 } as PlaceView;
 const ADD_SCREENS = ["settings-add-cloud"];
 /** A key the cloud road's Save hands the host: once it lands, the host lists the cloud the key opened. */
-let keySaved = false;
+let keySaved = screen === "settings-agents-boat";
 
 /** The Image card in each state it reads, on the box's page or the cloud's (?computer=solari): no image anywhere, an
  * image with no copy there, a copy building, a build that stopped, a copy a newer version left behind, and the copy
@@ -431,6 +431,7 @@ const SETTINGS_SCREENS: Record<string, SettingsAt> = {
   ...Object.fromEntries(ADD_SCREENS.map(name => [name, { kind: "group", group: "computers" } as SettingsAt])),
   "settings-remove-computer": { kind: "computer", id: "p_spoo" },
   "settings-agents": { kind: "group", group: "agents" },
+  "settings-agents-boat": { kind: "group", group: "agents" },
   "settings-agent": { kind: "agent", id: "claude" },
   "settings-agents-servers": { kind: "group", group: "agents" },
   "settings-agents-skills": { kind: "group", group: "agents" },
@@ -559,7 +560,9 @@ const CREATING_CATALOG: HarnessCatalog = {
 const creatingScreen = screen === "creating" || screen === "creating-refused";
 /** The screens about what a new thread starts on: the Agents page, Claude Code's own page, and wsp's page with Codex
  * set as its agent, which read the host's own lists and this Mac's agents. */
-const agentScreen = ["settings-agents", "settings-agent", "settings-project-overrides"].includes(screen);
+const agentScreen = ["settings-agents", "settings-agents-boat", "settings-agent", "settings-project-overrides"].includes(screen);
+/** The Agents page with Boat set up: Claude Code's and Codex's rows say what the host adds for its machines. */
+const brokerScreen = screen === "settings-agents-boat";
 /** The Agents page's Tool servers and Skills tabs, which read every server and skill on this Mac. */
 const toolsScreen = screen === "settings-agents-servers" || screen === "settings-agents-skills" || screen === "settings-agents-plugins";
 /** The record the host shaped the lists off, Claude Code's picker hiding the models held apart; and wsp's own overrides
@@ -688,6 +691,7 @@ const api = {
   initStart: async () => new Promise<never>(() => {}),
   initDraft: async () => new Promise<never>(() => {}),
   hostTerminalConfig: async () => ({ files: [] }),
+  ...(screen === "settings-agents-boat" ? { brokerStatus: async () => ({ claude: "login" as const, codex: "chatgpt" as const, github: "Zingzy" }) } : {}),
   agentsRead: async () => (screen === "agents-widths" || screen === "skill-preview" ? PANEL_REPORT : toolsScreen ? AGENTS_TOOLS_REPORT : agentScreen ? AGENTS_SETUP_REPORT : params.get("projects") === "1" ? AGENTS_PAGE_REPORT : AGENTS_REPORT),
   serversIcon: async (host: string) => SERVER_ICON[host]?.() ?? null,
   // wsp's own server is still being asked, so a row reads checking; any other server answers with one tool.
@@ -787,7 +791,7 @@ useStore.setState({
   projectsRead: true,
   preferences: { ...DEFAULT_PREFERENCES, ...picks, ...OVERRIDES, ...(sidebarWidth !== null ? { sidebarWidth: Number(sidebarWidth) } : {}), ...(screen === "settings-light-picked" ? { theme: "light" as const } : {}), ...(live ? { theme: params.get("theme") === "light" ? ("light" as const) : ("dark" as const) } : {}) },
   ...(agentScreen || toolsScreen ? { harnesses: HARNESSES } : {}),
-  places: computers,
+  places: brokerScreen ? [...computers, BOX_CLOUD] : computers,
   settingsOpen: settings,
   addComputerOpen: screen === "settings-add-computer" || screen === "settings-computers-refused",
   release:
