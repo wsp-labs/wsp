@@ -13,7 +13,7 @@ import { landedServersScript, mcpRowId, NO_DIGEST, parseLandedServers, targetLog
 import { MCP_SERVER_NAME, agentVersionWord, cloudServerOffLine, compareVersions, controlNameRefusal, hasControlChar, shellQuote, strictVersion, takesMcpServers, type AgentRow, type AgentSignInState, type AgentsProject, type McpRow, type PlaceProvisionRow } from "@wsp/protocol";
 import { GUEST_WSP_MCP, harnessCatalog, projectOf, vaultSignIn, type AgentsOn, type AgentsRead, type AgentsReader } from "@wsp/runtime";
 import { machineHost, type MachineHost } from "./machine-host.js";
-import { bearerIn, resolveServer, serverConfig, serverTools, signInOf } from "./server-tools.js";
+import { bearerIn, resolveServer, serverTools, signInOf } from "./server-tools.js";
 import { signInProbes, type SignInProbes } from "./sign-in-probe.js";
 
 const READ_MS = 20_000;
@@ -359,14 +359,10 @@ export function agentsReader(o: {
       refuseClosed();
       const host = on.kind === "here" ? here() : (await hostOf(on)).host;
       const project = projectOf(on);
-      if (brokeredOn(on)) {
-        const s = await serverConfig(host, ask.agent, ask.name, project);
-        if (s !== undefined && (await offOnCloud(s))) return { auth: "unknown", refused: cloudServerOffLine(ask.name), readAt: new Date((o.now ?? Date.now)()).toISOString() };
-      }
       const env = on.kind === "here" ? await o.loginEnv?.() : undefined;
       // A turn's servers get the vault's values, in its launch or its environment, so a reference reads them here too.
       const values = { ...serverValuesOf(o.vault()), ...env };
-      return kept.tools(host, ask, { values, ...(project !== undefined ? { project } : {}), ...(env !== undefined ? { env } : {}) });
+      return kept.tools(host, ask, { values, ...(project !== undefined ? { project } : {}), ...(env !== undefined ? { env } : {}), ...(brokeredOn(on) ? { off: offOnCloud } : {}) });
     },
     server: async (on, ask) => {
       refuseClosed();
@@ -390,10 +386,9 @@ export function agentsReader(o: {
       if (signIn === undefined || store === undefined) return { ...found, env: base };
       return { ...found, env: base, signIn: { ...signIn, read: async () => bearerIn(await store(), signIn.bearer) } };
     },
-    signsIn: url => {
-      const known = probes.known(url);
-      if (known === undefined) void probes.ask([url]);
-      return known;
+    signsIn: async urls => {
+      await probes.ask(urls);
+      return probes.known;
     },
     forget: key => kept.forget(key),
     close: () => closing.abort(),
