@@ -1367,7 +1367,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
 
   /** A server run of its own that loads what its input asks and runs no turn, each answer handed to sideRun. */
   const sideRunner: SideRunner = ({ cwd, input, sideRun }) => {
-    const command = buildCommand({ ...(cwd !== undefined ? { cwd } : {}), ...(deps.launch?.program !== undefined ? { launch: { program: deps.launch.program } } : {}), ...broker });
+    const command = buildCommand({ ...(cwd !== undefined ? { cwd } : {}), ...(deps.launch?.program !== undefined ? { launch: { program: deps.launch.program } } : {}), ...broker, turn: false });
     return follow({ stream: deps.exec(command, { env: { ...env }, input: [initializeLine(), INITIALIZED_LINE, ...input] }), localId: randomUUID(), startedAt: Date.now(), command, sideRun, onEvent: () => {} }).finished;
   };
   const revert: SessionReverter = o => revertOn(sideRunner, o);
