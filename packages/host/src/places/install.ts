@@ -2,7 +2,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
-import { heldPlaceScript, leaveAsks, leaveTakes, machineLacksLine, machineNeverAnswered, PLACE_LEAVE_VERB, PLACE_LEAVE_LINE, parsePlaceFile, PlaceAddStep, lastLine, readJoinToken, type PlaceBack, placeDaemonPaths, shellQuote, shellLine, placeNoChipLine, MACHINE_PUT_PART_BYTES, backUrl, hostKeyKeptNote, hostKeyMatches, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, PLACE_HOST_KEY_KIND, hostKeyUnscannableRefusal, KNOWN_HOSTS, PLACE_ROOT_SHELLS, placeRootShellRefusal, isLoopback, joinAddressOf } from "@wsp/protocol";
+import { heldPlaceScript, leaveAsks, leaveTakes, machineLacksLine, machineNeverAnswered, PLACE_LEAVE_VERB, parsePlaceFile, PlaceAddStep, lastLine, readJoinToken, type PlaceBack, placeDaemonPaths, shellQuote, shellLine, placeNoChipLine, MACHINE_PUT_PART_BYTES, backUrl, hostKeyKeptNote, hostKeyMatches, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, PLACE_HOST_KEY_KIND, hostKeyUnscannableRefusal, KNOWN_HOSTS, PLACE_ROOT_SHELLS, placeRootShellRefusal, isLoopback, joinAddressOf } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV, MissingKnownHostsError, PlaceMachine, runChild, SshBackend, SSH_DIAL_MS, SSH_LINE_CAP, SUDO_ASKS_LINE, clientWords, knownHostKey, landBytes, parseSshAddress, sshClient, sshDial, sshDialsThisComputer, sshLoginWord, sshMachineName, sshRefusalLine, sshWordReach, readSshSudo, trySshSudo, knownHostsWritten, type SshReach, type SshSudo, type SshTransport } from "@wsp/engine";
 import { PlaceAddTakenBackError, PlaceHostKeyChangedError, PlaceLoginRefusedError, type PlaceDialler, type PlaceInstaller, type PlaceLeaver, type PlaceLogReader, type PlaceStaging, type PlaceUpdateLanded, type PlaceUpdater, type PlaceWiring, type PlaceBackHolder } from "@wsp/runtime";
 import { BackCutError } from "../place-back.js";
@@ -15,7 +15,7 @@ import { placeService, sweptSaid } from "../place-report.js";
 import { advertiseWord } from "../pairing.js";
 import { serviceManagerFor } from "../service.js";
 import { envFileFor, writeEnvFile } from "../env-keys.js";
-import { ADD_LOOPBACK_REFUSAL, PLACE_CHECK_SCRIPT, PLACE_CHECK_SPARE_BYTES, REACH_LINE, REACH_MS, UNDO_MS, addTakenLine, addUndoneLine, advertisedLoopbackRefusal, backRefusedLine, dialsBackLine, dialsBackOverSshNote, guestTargetSaid, noPlaceManagerLine, parsePlaceCheck, placeCheckNote, placeCheckRows, placeHeldRefusal, placeRootHomeRefusal, placeSudoRefusal, reachScript, reachUnsaidLine, reachedUrls, unreachedLine } from "./add-words.js";
+import { ADD_LOOPBACK_REFUSAL, PLACE_CHECK_SCRIPT, PLACE_CHECK_SPARE_BYTES, REACH_LINE, REACH_MS, UNDO_MS, addTakenLine, addUndoneLine, advertisedLoopbackRefusal, backRefusedLine, dialsBackLine, dialsBackOverSshNote, guestTargetSaid, noPlaceManagerLine, parsePlaceCheck, placeCheckNote, placeCheckRows, placeHeldRefusal, placeLeaveLineAs, placeRootHomeRefusal, placeSudoRefusal, reachScript, reachUnsaidLine, reachedUrls, unreachedLine } from "./add-words.js";
 import type { SshWordReader } from "./add-words.js";
 
 /** How the daemon is put on a computer over ssh, for the host that wires the runtime: the ssh road the workspace
@@ -142,7 +142,7 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
       // The join on the box refuses a computer that already holds a place file, and only after the bundle landed; read
       // by the same rule here so a box in another wsp is refused with nothing of this one's sent.
       const held = parsePlaceFile((await machine.run(heldPlaceScript(login.HOME), { deadlineMs: SSH_DIAL_MS })).stdout);
-      if (held !== undefined) throw new Error(placeHeldRefusal(req.address, held, readJoinToken(req.code).hostKey, req.held));
+      if (held !== undefined) throw new Error(placeHeldRefusal(req.address, held, readJoinToken(req.code).hostKey, req.held, placeLeaveLineAs(road === "root")));
       return { root: true as const, machine, login, hostKey, target, chip };
     };
     const standing = await stood().catch(async (e: unknown) => {
@@ -474,7 +474,7 @@ export function placeRunner(deps: { transport?: SshTransport } = {}): NonNullabl
 /** What a remove or an update says where the login's sudo asks for a password and the record keeps no key the box's
  * ssh answered the add with: nothing here can tell that box from another, so no password goes to it. */
 export const placeNoKeyForSudoLine = (ssh: string, host: string): string =>
-  `${ssh.slice(0, 64)} runs sudo with a password, and this wsp kept no key its ssh answered the add with, so it sends that password to no box it cannot check; remove it as root@${host}, or run sudo ${PLACE_LEAVE_LINE} on that computer`;
+  `${ssh.slice(0, 64)} runs sudo with a password, and this wsp kept no key its ssh answered the add with, so it sends that password to no box it cannot check; remove it as root@${host}, or run ${placeLeaveLineAs(false)} on that computer`;
 
 /** How a remove or an update reads the road to root over the login the install used, before it does anything
  * there: the same read and the same one try of the person's password the add makes, and the add's own refusals.
@@ -510,14 +510,17 @@ export function placeSudoReader(
 /** What a failed undo says where the login's sudo asks for a password: the undo runs at a host's start with nobody at
  * it to type one, so what the add put there stays until somebody takes it off at that computer. */
 export const placeUndoNeedsSudoLine = (ssh: string): string =>
-  `${ssh.slice(0, 64)} runs sudo only with a password, which an undo with nobody at it cannot give, so what the add put there stays; log in there and run ${PLACE_LEAVE_LINE}`;
+  `${ssh.slice(0, 64)} runs sudo only with a password, which an undo with nobody at it cannot give, so what the add put there stays; log in there and run ${placeLeaveLineAs(false)}`;
+
+/** The leave as the login an add rode types it, read off its user@host. */
+const leaveOver = (ssh: string): string => placeLeaveLineAs(ssh.slice(0, ssh.lastIndexOf("@")) === "root");
 
 /** What an undo says where nothing holds the login to the box the add reached: no key was kept from the add, or the
  * box answers with another one now, so the root script runs nowhere. */
 export const placeUndoNoKeyLine = (ssh: string): string =>
-  `this wsp kept no key ${ssh.slice(0, 64)} answered the add with, so it changed nothing there; log in there and run ${PLACE_LEAVE_LINE}`;
+  `this wsp kept no key ${ssh.slice(0, 64)} answered the add with, so it changed nothing there; log in there and run ${leaveOver(ssh)}`;
 export const placeUndoOtherKeyLine = (ssh: string): string =>
-  `${ssh.slice(0, 64)} answers with another key than the one the add saw, so nothing was changed there; log in to the computer the add reached and run ${PLACE_LEAVE_LINE}`;
+  `${ssh.slice(0, 64)} answers with another key than the one the add saw, so nothing was changed there; log in to the computer the add reached and run ${leaveOver(ssh)}`;
 
 /** How long taking back an add the host stopped in the middle of gets: systemd's own stop, then the files. */
 const PLACE_UNDO_MS = 120_000;
