@@ -9,6 +9,8 @@ import { signinsOf } from "../src/recipe-options.js";
 import { fakeHost } from "../../collect/test/fake-host.js";
 
 const ALL = ["token", "key", "machine"];
+/** Claude Code's credentials file holding its own login; one holding only MCP servers' tokens is no login. */
+const CLAUDE_LOGIN_FILE = JSON.stringify({ claudeAiOauth: { accessToken: "placeholder" } });
 
 describe("Claude Code's sign-in ways on a box, by what this computer holds", () => {
   it("starts at the key where the login shell exports it, ahead of a subscription login beside it", async () => {
@@ -24,7 +26,7 @@ describe("Claude Code's sign-in ways on a box, by what this computer holds", () 
 
   it("starts at the token where a subscription login stands: the Keychain item on a Mac, the credentials file on Linux", async () => {
     const mac = await billedHere(fakeHost({ platform: "darwin", exec: { "security find-generic-password -s Claude Code-credentials": "keychain: login" } }));
-    const linux = await billedHere(fakeHost({ platform: "linux", files: { "~/.claude/.credentials.json": 800 } }));
+    const linux = await billedHere(fakeHost({ platform: "linux", files: { "~/.claude/.credentials.json": CLAUDE_LOGIN_FILE } }));
     expect([mac, linux]).toEqual([{ claude: "login" }, { claude: "login" }]);
     expect(signinsOf("claude", mac["claude"])).toEqual(["token", "key", "machine"]);
   });

@@ -6,10 +6,12 @@ import { isIP, type Socket } from "node:net";
 import { homedir, networkInterfaces, platform } from "node:os";
 import { basename, dirname, extname, join, resolve as resolvePath, sep } from "node:path";
 import { CREATED_AT_LABEL, HOST_LABEL, SMOKE_LABEL, WSP_LABEL, type ProvisionPlan } from "@wsp/engine";
-import { BOOT_SCRIPT, DEFAULT_PORT, PAIR_CODE_TTL_MS, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, scopeOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type Caller, type PlaceDoorView, type ProjectImportResult, type ProjectPlan, type PlaceView, type ProjectView, type WorkspaceView, kindForComputer, nameTheProjectLine, copiesFolder, runsInFolder } from "@wsp/protocol";
+import { BOOT_SCRIPT, DEFAULT_PORT, PAIR_CODE_TTL_MS, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, scopeOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type Caller, type PlaceDoorView, type ProjectImportResult, type ProjectPlan, type PlaceView, type ProjectView, type ProviderKeyWorks, type WorkspaceView, kindForComputer, nameTheProjectLine, copiesFolder, runsInFolder } from "@wsp/protocol";
 import { sshHostsIn } from "./ssh-hosts.js";
 import { LOOPBACK, describeAge, goldenHead, serveRuntime, tokenDigest, type AdmittedDevices, type CreatedWorkspace, type GoldenBuilderView, type GoldenVersion, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectImportOptions, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
 import { computerDoctor } from "./doctor.js";
+import type { HostBroker } from "./server-broker.js";
+import { cloudSignIn } from "./agents-signin.js";
 import { recipeShelf } from "./recipes.js";
 import { advertiseWord, hereUrl, reachAddresses, type HereAt } from "./pairing.js";
 import { NO_PROJECT_YET } from "./verbs.js";
@@ -109,6 +111,11 @@ export interface HostOptions {
   productUsageOff?: ProductUsageOff;
   /** The wsp home this host reads and writes as its own: the ssh door's files and the account; wspHome() when absent. */
   home?: string;
+  /** The broker the runtime was made with: started once the runtime's socket serves, stopped first at close. Absent,
+   * the broker ops are refused and every turn keeps today's road. */
+  broker?: HostBroker;
+  /** Puts a provider key to its provider for providers.checkKey; absent, the op is refused. */
+  checkKey?(provider: string, key: string): Promise<ProviderKeyWorks>;
 }
 
 /** The two readings the doctor's computer road needs of the host it runs on: what the vault holds right now, read
@@ -615,6 +622,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
                 vault: readers.vault,
                 ...(readers.plan !== undefined ? { plan: readers.plan.bind(readers) } : {}),
                 ...(req.project !== undefined ? { project: req.project } : {}),
+                ...(opts.broker !== undefined ? { broker: opts.broker.doctor } : {}),
               },
             );
             return { code };
@@ -648,6 +656,11 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
       ...(opts.admitted !== undefined ? { admitted: opts.admitted } : {}),
       ...(opts.init !== undefined ? { init: opts.init } : {}),
       ...(doctor !== undefined ? { doctor } : {}),
+      broker: {
+        ...(opts.broker !== undefined ? { status: opts.broker.port.status } : {}),
+        ...(opts.checkKey !== undefined ? { checkKey: opts.checkKey } : {}),
+        cloudSignIn: (agent, emit, origin) => cloudSignIn(rt.agents, agent, emit, origin),
+      },
       ...(opts.statePath !== undefined && rt.recipes === undefined ? { recipes: recipeShelf({ statePath: opts.statePath, home: homedir() }) } : {}),
       log,
       ...(opts.release !== undefined ? { release: opts.release } : {}),
@@ -683,6 +696,9 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
   const port = typeof addr === "object" && addr !== null ? addr.port : (opts.port ?? DEFAULT_PORT);
   here.url = hereUrl(address, port);
   bound();
+  // Once the host serves, and not before: a start that fails on the way, or a broker that does not load, leaves every
+  // turn on today's road.
+  await opts.broker?.start({ rt, server: rtServer }).catch((e: unknown) => log(`the broker for machines at a cloud provider did not start: ${e instanceof Error ? e.message : String(e)}`));
 
   // A sweep that outlives its period (a slow provider listing) must not be
   // joined by the next one: two sweeps would race to kill the same machines.
@@ -752,6 +768,8 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
     close: async () => {
       // First: a forward remade while the door closes would open it again.
       opts.back?.close();
+      // Then the broker, so a turn launched while the host closes keeps today's road and no pipe is served half-way.
+      opts.broker?.stop();
       clearInterval(reapTimer);
       opts.release?.close();
       await relay.close();

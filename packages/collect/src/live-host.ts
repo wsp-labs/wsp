@@ -233,5 +233,7 @@ export function nodeHost(): Host {
   const shell = process.env["SHELL"];
   const terminal = process.env["TERM_PROGRAM"];
   const xdgConfigHome = process.env["XDG_CONFIG_HOME"];
-  return { platform, home: homedir(), ...(shell ? { shell } : {}), ...(terminal ? { terminal } : {}), ...(xdgConfigHome ? { xdgConfigHome } : {}), fs: nodeFs, exec: nodeExec };
+  const claudeConfigDir = process.env["CLAUDE_CONFIG_DIR"];
+  const codexHome = process.env["CODEX_HOME"];
+  return { platform, home: homedir(), ...(shell ? { shell } : {}), ...(terminal ? { terminal } : {}), ...(xdgConfigHome ? { xdgConfigHome } : {}), ...(claudeConfigDir ? { claudeConfigDir } : {}), ...(codexHome ? { codexHome } : {}), fs: nodeFs, exec: nodeExec };
 }

@@ -2,13 +2,13 @@
 
 import { platform } from "node:os";
 import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerRemovedLine, providerForgetQuestion, providerForgotLine, providerForceRefusal, namesPlace, placeOf, type WorkspaceView, tableName, foldThreads, subHeldOnRemoveLine, type SessionView } from "@wsp/protocol";
-import { checkProviderKey, keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type SshReach } from "@wsp/engine";
+import { keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type SshReach } from "@wsp/engine";
 import { sharedOn } from "@wsp/catalog";
 import { randomBytes } from "node:crypto";
 import type { CliIO } from "../cli.js";
 import { servingHost } from "../host-lock.js";
 import { aimName, aimedHost, type HostAim, type HostPick } from "../hosts.js";
-import { addedProviders, keyRowFor, namedProviderBackend, providerEnvWithKey, unregisteredCloud, type ProviderEnv } from "../providers.js";
+import { addedProviders, keyRowFor, namedProviderBackend, providerEnvWithKey, providerKeyCheck, unregisteredCloud, type ProviderEnv } from "../providers.js";
 import { keySources, loadKeys } from "../cli/keys.js";
 import { placeLink, relaySignIn, type BoxSignIn, type BoxSignedIn, type PlaceLink } from "../place-signin.js";
 import { publicHostname } from "../relay-link.js";
@@ -29,9 +29,9 @@ interface PlaceDeps {
   now(): number;
   run: ServiceRunner;
   platform: string;
-  /** How a provider is put the key this computer holds; the one check every other road takes, unless a test hands
-   * its own, since a real provider is nobody's to call from a unit test. */
-  checkKey(backend: MachineBackend): Promise<KeyCheck>;
+  /** How a provider is put the key this computer holds; the one check the app's key step and wsp init take, unless a
+   * test hands its own, since a real provider is nobody's to call from a unit test. */
+  checkKey(env: ProviderEnv, key: string, provider: string): Promise<KeyCheck>;
   /** This terminal, for the one thing here that shows another computer's: the sign-in that runs on it. */
   terminal: RelayTerminal;
   /** Opens the tool's page on this computer when the person presses o, as a builder's sign-in does. */
@@ -54,7 +54,7 @@ const systemDeps: PlaceDeps = {
   now: Date.now,
   run: systemRunner,
   platform: platform(),
-  checkKey: checkProviderKey,
+  checkKey: providerKeyCheck,
   terminal: { input: process.stdin, output: process.stdout },
   open: systemOpener(platform()),
   placeLink,
@@ -557,7 +557,7 @@ async function addProvider(io: CliIO, opts: PlaceOpts, id: string, deps: PlaceDe
   let last: { check: KeyCheck; backend: MachineBackend } | undefined;
   const checkKey = async (key: string): Promise<KeyCheck> => {
     const backend = namedProviderBackend(providerEnvWithKey(own, key, id), id);
-    last = { check: await deps.checkKey(backend), backend };
+    last = { check: await deps.checkKey(own, key, id), backend };
     return last.check;
   };
   const { env } = await loadKeys(io, { ...keySources(own, opts.statePath), checkKey }, { anthropic: false, checkSaved: true, provider: id, save: false });

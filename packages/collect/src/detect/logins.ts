@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Logins are presence only: a path is stat'ed, a Keychain item is looked up
-// by service name without -w, and no login file is ever read. The rc files
+// by service name without -w, and no login file is read but Claude Code's
+// credentials file, for whether it holds a login at all. The rc files
 // and Claude Code's settings.json are read for names alone: which variable is
 // exported, whether a helper command is set.
 import { CLAUDE_SETTINGS_FILE, LOGIN_ROWS, SIGN_IN_ROWS, livesOnComputer, loginRow, mintsToken, signsInByDefault } from "@wsp/catalog";
+import { createHash } from "node:crypto";
 import { GITHUB_LOGIN_NAME } from "@wsp/protocol";
 import { type Host, type Platform, expand } from "../host.js";
 import { RC_PATHS, stripExports } from "./shell-rc.js";
@@ -74,6 +76,11 @@ async function ghRow(host: Host): Promise<ManifestEntry | undefined> {
 
 export const CLAUDE_KEY_ENV = "ANTHROPIC_API_KEY";
 
+/** The Keychain item Claude Code keeps its login under: with CLAUDE_CONFIG_DIR set, the name carries the first eight
+ * hex of that folder's sha256 (read off 2.1.296's own code), so each config folder signs in on its own. */
+export const claudeKeychainService = (configDir?: string): string =>
+  `Claude Code-credentials${configDir === undefined ? "" : `-${createHash("sha256").update(configDir.normalize("NFC")).digest("hex").slice(0, 8)}`}`;
+
 /** The apiKeyHelper command a settings.json names, when it parses and has one. */
 export function apiKeyHelperOf(text: string | undefined): string | undefined {
   if (text === undefined) return undefined;
@@ -107,8 +114,20 @@ export const CLAUDE_TOKEN_DETAIL = `Claude Code signs in with the token ${SIGN_I
 export async function claudeBills(host: Host): Promise<"key" | "login" | undefined> {
   const helper = apiKeyHelperOf(await host.fs.readText(expand(host, CLAUDE_SETTINGS_FILE)));
   if (helper !== undefined || (await exportedIn(host, CLAUDE_KEY_ENV)) !== undefined) return "key";
-  const oauth = host.platform === "darwin" ? await keychainHas(host, "Claude Code-credentials") : (await found(host, ["~/.claude/.credentials.json"])).paths.length > 0;
+  const oauth = host.platform === "darwin" ? await keychainHas(host, claudeKeychainService(host.claudeConfigDir)) : holdsClaudeLogin(await host.fs.readText(expand(host, `${host.claudeConfigDir ?? "~/.claude"}/.credentials.json`)));
   return oauth ? "login" : undefined;
+}
+
+/** Whether Claude Code's credentials file holds its own login: a non-empty claudeAiOauth access token. The same file
+ * keeps MCP servers' OAuth tokens, and one holding only those is no login. The value is never kept. */
+export function holdsClaudeLogin(text: string | undefined): boolean {
+  if (text === undefined) return false;
+  try {
+    const token: unknown = (JSON.parse(text) as { claudeAiOauth?: { accessToken?: unknown } } | null)?.claudeAiOauth?.accessToken;
+    return typeof token === "string" && token !== "";
+  } catch {
+    return false;
+  }
 }
 
 /** How each agent that reads this signs in on this computer, by agent id: the fact a box's sign-in row starts from. */
@@ -136,7 +155,8 @@ async function claudeRow(host: Host): Promise<ManifestEntry | undefined> {
 export async function detectLogins(host: Host): Promise<ManifestEntry[]> {
   const rows: (ManifestEntry | undefined)[] = [await ghRow(host)];
   for (const l of LOGINS) {
-    const f = await found(host, [...(l.paths[host.platform] ?? []), ...(l.paths.all ?? [])]);
+    // Codex keeps its login under CODEX_HOME where that is set.
+    const f = await found(host, l.id === "codex" && host.codexHome !== undefined ? [`${host.codexHome}/auth.json`] : [...(l.paths[host.platform] ?? []), ...(l.paths.all ?? [])]);
     if (f.paths.length === 0) continue;
     // A login that lives on the computer that runs the workspaces is found here and offered nowhere: it is shared
     // into each workspace from that computer, so no path of it travels and no row can answer copy.

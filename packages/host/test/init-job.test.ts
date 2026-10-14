@@ -14,7 +14,7 @@ import { basename, join, relative } from "node:path";
 import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { BUILDER_DISK_GB, NoProviderBackend, SMOKE_LABEL, SNAPSHOT_STORAGE, checkProviderKey, type BackendPricing, type MachineBackend } from "@wsp/engine";
-import { HERE_PLACE_ID, BOAT_READY_LINE, CLOUD_SETUP_WORDS, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, NO_BUILD_PLACE_LINE, buildPlaceAskLine, INIT_ROW_STATES, initSignInOutcome, InitJob, InitNeedsYouEvent, KEY_REFUSED, KEY_UNCHECKED, MACHINE_GONE_LINE, MACHINE_SWEEP_LINE, NETWORK_LOST_LINE, NEVER_REACHED, Recipe, savedKeyStoppedLine, SIGN_IN_NEVER_REACHED, SIGN_IN_OPEN_STATE, SIGN_IN_STAGE_ID, STOP_LEFT_MACHINE_LINE, initAgentNoRecipeLine, initAgentPrompt, initAgentStep, initBuildRows, MACHINE_ROW_LABEL, initProgressLine, initRowFailed, initRowOver, initStageCount, keyRefusedLine, SIGN_IN_DEFERRED_WORD, keyUncheckedLine, markedDefault, savedKeyRefusedLine, type InitJobEvent, type InitRoad } from "@wsp/protocol";
+import { HERE_PLACE_ID, BOAT_READY_LINE, CLOUD_SETUP_WORDS, HOST_SIGN_INS, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, NO_BUILD_PLACE_LINE, buildPlaceAskLine, INIT_ROW_STATES, initSignInOutcome, InitJob, InitNeedsYouEvent, KEY_REFUSED, KEY_UNCHECKED, MACHINE_GONE_LINE, MACHINE_SWEEP_LINE, NETWORK_LOST_LINE, NEVER_REACHED, Recipe, savedKeyStoppedLine, SIGN_IN_NEVER_REACHED, SIGN_IN_OPEN_STATE, SIGN_IN_STAGE_ID, STOP_LEFT_MACHINE_LINE, initAgentNoRecipeLine, initAgentPrompt, initAgentStep, initBuildRows, MACHINE_ROW_LABEL, initProgressLine, initRowFailed, initRowOver, initStageCount, keyRefusedLine, SIGN_IN_DEFERRED_WORD, keyUncheckedLine, markedDefault, savedKeyRefusedLine, type InitJobEvent, type InitRoad } from "@wsp/protocol";
 import { runLogPath } from "../src/init-log.js";
 import { placeWiring } from "../src/places.js";
 import { createRuntime, goldenHead, memoryStore, harnessCatalog, type HarnessAdapterFactory, type HarnessStartOptions, type PlaceBackends, type Runtime } from "@wsp/runtime";
@@ -153,7 +153,7 @@ async function forkable(f: Fake): Promise<void> {
   await f.rt.projects.add({ source: "https://github.com/dev/first.git", on: "default" });
 }
 
-function fake(over: { platform?: "darwin" | "linux"; env?: Record<string, string>; provider?: MachineBackend; configured?: boolean; read?: Partial<InitJobDeps["read"]>; now?: () => number; agent?: { adapter: HarnessAdapterFactory; starts: HarnessStartOptions[] }; writesRecipe?: boolean; agents?: AgentHere[]; adapters?: Record<string, HarnessAdapterFactory>; deployDaemon?: () => Promise<string>; /** The provider whose key this host's own step asks for; absent from the object leaves it Solari's. */ keyProvider?: string; /** The provider this host forks on, which a terminal run beside it reads off the setup. */ forksOn?: string; /** The places this host can build at, over the runtime's own stub as the wired one. */ places?: (wired: StubBackend) => PlaceBackends; /** How long the vault step waits for this client's token. */ vaultWaitMs?: number; /** The wsp home holds the Claude token unless a case says it does not. */ tokenHeld?: boolean; /** Saves keys the way the command line wires it, through the one writer of the .env beside the state. */ writesEnv?: boolean; /** The place door the serving host wires, so the places it lists are read. */ placeLinks?: boolean } = {}): Fake {
+function fake(over: { platform?: "darwin" | "linux"; env?: Record<string, string>; provider?: MachineBackend; configured?: boolean; read?: Partial<InitJobDeps["read"]>; now?: () => number; agent?: { adapter: HarnessAdapterFactory; starts: HarnessStartOptions[] }; writesRecipe?: boolean; agents?: AgentHere[]; adapters?: Record<string, HarnessAdapterFactory>; deployDaemon?: () => Promise<string>; /** The provider whose key this host's own step asks for; absent from the object leaves it Solari's. */ keyProvider?: string; /** The provider this host forks on, which a terminal run beside it reads off the setup. */ forksOn?: string; /** The places this host can build at, over the runtime's own stub as the wired one. */ places?: (wired: StubBackend) => PlaceBackends; /** How long the vault step waits for this client's token. */ vaultWaitMs?: number; /** The wsp home holds the Claude token unless a case says it does not. */ tokenHeld?: boolean; /** Saves keys the way the command line wires it, through the one writer of the .env beside the state. */ writesEnv?: boolean; /** The place door the serving host wires, so the places it lists are read. */ placeLinks?: boolean; /** The stub builds as a provider, whose machines use this computer's sign-ins through wsp. */ atProvider?: boolean } = {}): Fake {
   const dir = mkdtempSync(join(tmpdir(), "wsp-init-job-"));
   dirs.push(dir);
   const home = mkdtempSync(join(tmpdir(), "wsp-init-job-home-"));
@@ -178,6 +178,11 @@ function fake(over: { platform?: "darwin" | "linux"; env?: Record<string, string
   const places = over.places?.(backend);
   const rt = createRuntime({ backend: over.provider ?? backend, store, adapters: { claude: claude.adapter, ...over.adapters }, local: localWiring(dir, undefined, fakeDaemonStart, join(dir, ".wsp", "state.json"), copyingFake()), hostId: "box:h1", ...(places !== undefined ? { places } : {}), ...(over.placeLinks === true ? { placeLinks: placeWiring(statePath) } : {}) });
   runtimes.push(rt);
+  // The stub builds as a computer the person owns, whose sign-ins run on the builder; a case at a provider says so.
+  if (places === undefined && over.atProvider !== true) {
+    const at = rt.golden.buildPlace.bind(rt.golden);
+    rt.golden.buildPlace = async (on?: string) => ({ ...(await at(on)), kind: "computer" as const });
+  }
   let link = scriptedLink({ signedIn: true, hold: false, missing: false });
   const relay: Fake["relay"] = { hooks: [], closed: 0 };
   const saved: Record<string, string>[] = [];
@@ -287,7 +292,7 @@ const JQ = { id: "brew/jq", name: "jq", manager: "brew" as const, group: "Homebr
 
 describe("the init job, manual road", () => {
   it("opens with the provider key's presence, the agents here and the price, and no job", async () => {
-    const f = fake();
+    const f = fake({ atProvider: true });
     const setup = await f.jobs.get();
     expect(setup).toEqual({
       keys: { box: false, solari: true },
@@ -433,6 +438,22 @@ describe("the init job, manual road", () => {
     await f.jobs.answer({ screen: "also", ticks: ["brew/jq"] });
     expect(f.jobs.view()!.drafts!.map(d => d.at)).toEqual(["agents", INIT_BUILD_STEP]);
     await expect(f.jobs.draft({ at: "nowhere", ticks: [] })).rejects.toThrow(/no step nowhere/);
+  });
+
+  it("at a provider the screens have no Sign-ins and the build has no sign-in row: nothing waits on the person after Build", async () => {
+    const f = fake({ atProvider: true, read: { scan: async () => [JQ] } });
+    await f.jobs.start({ road: "manual" });
+    await f.settled();
+    expect(f.jobs.view()!.screens.map(s => s.id)).toEqual(["agents", "tools", "also", "wsp"]);
+    await f.jobs.answer({ screen: "agents", ticks: ["claude", "codex"] });
+    const building = await f.jobs.build({});
+    expect(building.rows.filter(r => r.kind === "sign-in")).toEqual([]);
+    await f.settled();
+    const done = f.jobs.view()!;
+    expect(done.phase).toBe("done");
+    expect(done.golden).toEqual({ version: 1 });
+    expect(f.events.some(e => e.job.phase === "signing-in" || e.job.needsYou !== undefined)).toBe(false);
+    expect(f.relay.hooks).toEqual([]);
   });
 
   it("start reads this computer once and hands the screens over; answers move the recipe; the build is wsp init's own run on the host's runtime, its sign-ins as rows, ending with the golden sealed and the first workspace forked", async () => {
@@ -1668,6 +1689,28 @@ describe("the init job, terminal road", () => {
     // Every sign-in on the machine is skipped; Claude Code's row is the vault's and its token is already held here.
     expect(done.rows.filter(r => r.kind === "sign-in" && r.tool !== "claude").every(r => r.state === INIT_ROW_STATES.skipped)).toBe(true);
     expect(done.rows.find(r => r.tool === "claude")).toMatchObject(initSignInOutcome("signed-in", "darwin"));
+  });
+
+  it("at a provider builds the recipe the terminal wrote with its sign-in answers, runs none of them and keeps them in the file", async () => {
+    const f = fake({ atProvider: true });
+    const path = smallRecipePath(f.statePath);
+    // What wsp recipe --signin wrote for a joined computer: a copy of the gh login and Codex signed in on the builder.
+    saveSmallRecipe(path, { ...RECIPE, rows: RECIPE.rows.map(r => (r.id === "gh" ? { ...r, signIn: "copy" as const } : r.id === "codex" ? { ...r, on: true, signIn: "machine" as const } : r)) });
+    await f.jobs.start({ road: "terminal" });
+    await f.settled();
+    const building = await f.jobs.build({});
+    expect(building.rows.filter(r => r.kind === "sign-in")).toEqual([]);
+    await f.settled();
+    const done = f.jobs.view()!;
+    expect(done.phase).toBe("done");
+    expect(f.events.some(e => e.job.phase === "signing-in" || e.job.needsYou !== undefined)).toBe(false);
+    expect(f.relay.hooks).toEqual([]);
+    const said = done.log.join("\n");
+    expect(said).toContain(HOST_SIGN_INS.head);
+    expect(said).toMatch(/Claude Code\s+signed in with a token/);
+    expect(said).toMatch(/Codex\s+signed in/);
+    expect(loadRecipe(path).rows.find(r => r.id === "gh")!.signIn).toBe("copy");
+    expect(loadRecipe(path).rows.find(r => r.id === "codex")!.signIn).toBe("machine");
   });
 
   it("the provider the host wired is what may build, not a key: a host forking containers with no key builds, one with no provider prices nothing and refuses", async () => {

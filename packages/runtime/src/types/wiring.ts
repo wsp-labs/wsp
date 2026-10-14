@@ -793,6 +793,9 @@ export interface RuntimeOptions {
     pipe?(workspaceId: string, open: PipeOpen, duplex: Duplex): void;
     /** The kind of credential the host holds for each road, so a brokered turn picks the placeholder it runs on. */
     status?(): Promise<BrokerStatus>;
+    /** Cuts a machine off: its pipes refused and its tokens revoked. Called as its delete starts, before the provider is
+     * asked, so a delete the provider refuses still leaves it cut off. */
+    revoke?(workspaceId: string): Promise<void>;
   };
 }
 
