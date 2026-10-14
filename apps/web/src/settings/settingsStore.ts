@@ -8,7 +8,7 @@
 // page serves the sidebar's search as well.
 import type { AccountView, DeviceView, EditorChoice, InitSetup, PlaceView, ProjectView, SealedImageView, TerminalConfig } from "@wsp/protocol";
 import { create } from "zustand";
-import type { AddRoad } from "./AddComputer.js";
+import { openCloudAdd } from "./add/cloudFlow.js";
 import { isSettingsGroupId, type SettingsGroupId } from "./groupIds.js";
 
 /** A page of Settings: a group, a computer's own page, a project's or an agent's. */
@@ -88,9 +88,6 @@ export interface SettingsState {
   /** The computer whose Image card opens its recipe when it is drawn: an Edit image pressed outside that card. Moving
    * to another page drops it, so an ask no card took never opens a recipe later. */
   readonly recipeAsked: string | null;
-  /** The Add a computer panel asked for from the Computers page, on the road its button names or on the picker, keyed
-   * by the ask so a second press is a fresh panel. Moving to another page shuts it. */
-  readonly addAsked: { readonly road: AddRoad | null; readonly n: number } | null;
   /** The Usage page's tab, kept while the window is open so coming back finds the same one. */
   readonly usageTab: UsageTab;
   /** Each ask to read usage and limits again, from the head's refresh, the minute's tick or the window's focus. */
@@ -118,7 +115,8 @@ export interface SettingsState {
   showBuild(placeId: string): void;
   hideBuild(placeId: string): void;
   askRecipe(placeId: string | null): void;
-  askAdd(road: AddRoad | null): void;
+  /** Add a cloud provider, opened on the setup that stands where one does. */
+  askAdd(road: AddRoad): void;
   pickUsageTab(tab: UsageTab): void;
   askUsage(): void;
   setUsageRead(read: { at: number | null; reading: boolean }): void;
@@ -130,6 +128,8 @@ export interface SettingsState {
   holdParting(placeId: string | null): void;
 }
 
+/** The road the add asked from outside Settings' own buttons opens on. */
+export type AddRoad = "cloud";
 export type UsageTab = "used" | "limits";
 export type AgentsTab = "agents" | "servers" | "skills" | "plugins";
 export type ActivityView = "threads" | "processes" | "kinds" | "ports";
@@ -149,7 +149,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
   devicesAsked: 0,
   buildShown: null,
   recipeAsked: null,
-  addAsked: null,
   usageTab: "used",
   usageAsked: 0,
   usageRead: { at: null, reading: false },
@@ -160,7 +159,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   activityPlace: null,
   parting: null,
   go(at) {
-    set({ at, search: "", recipeAsked: null, addAsked: null, agentsLevel: null });
+    set({ at, search: "", recipeAsked: null, agentsLevel: null });
     try {
       window.localStorage.setItem(AT_KEY, atId(at));
     } catch {
@@ -219,7 +218,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   askRecipe(placeId) {
     set({ recipeAsked: placeId });
   },
-  askAdd(road) {
-    set(s => ({ addAsked: { road, n: (s.addAsked?.n ?? 0) + 1 } }));
+  askAdd() {
+    openCloudAdd();
   },
 }));

@@ -91,6 +91,7 @@ import {
   EditorId,
   InitJob,
   InitSetup,
+  ProviderKeyWorks,
   type InitRoad,
   PlaceDial,
   PlaceDoorView,
@@ -895,6 +896,9 @@ export interface Api {
    * sign-in row that took it. The provider is the word WSP_PROVIDER holds; absent, the key is the wired provider's.
    * The reply says a key is held and never carries it back. */
   initKeys?(keys: { provider?: string; key?: string; rows?: Record<string, string> }): Promise<InitSetup>;
+  /** Puts a provider key to that provider and saves nothing: the account, plan and machines it reads where it works.
+   * A refusal says why in the person's words, its kind keyRefused where the provider answered about the key. */
+  providersCheckKey?(o: { provider: string; key: string }): Promise<ProviderKeyWorks>;
   /** Starts the init job on a road; `on` names the computer whose card started it, which the job carries from its
    * first view. Every change after rides init.job events. */
   initStart?(o: { road: InitRoad; harness?: string; on?: string }): Promise<InitJob>;
@@ -1255,6 +1259,7 @@ export function makeApi(c: ProtocolClient): Api {
     // Parsed, not trusted: the modal draws screens and rows only as the wire type vouches for them.
     initGet: async o => InitSetup.parse((await c.request<{ setup?: unknown }>("init.get", { ...o })).setup),
     initKeys: async keys => InitSetup.parse((await c.request<{ setup?: unknown }>("init.keys", { ...keys })).setup),
+    providersCheckKey: async o => ProviderKeyWorks.parse(await c.request("providers.checkKey", { ...o })),
     initStart: async o => InitJob.parse((await c.request<{ job?: unknown }>("init.start", { ...o })).job),
     initAnswer: async o => InitJob.parse((await c.request<{ job?: unknown }>("init.answer", { ...o })).job),
     initStep: async o => InitJob.parse((await c.request<{ job?: unknown }>("init.step", { ...o })).job),

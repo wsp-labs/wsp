@@ -38,7 +38,6 @@ const CTX: SettingsContext = {
   go: none,
   setPreferences: none,
   openAddComputer: none,
-  addAsked: null,
   agentsPlace: null,
   askAdd: none,
   openAddProject: none,
