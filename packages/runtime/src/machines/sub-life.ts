@@ -10,6 +10,7 @@ import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads,
 import { GONE_REASON, deadMachine } from "../types/internal.js";
 import type { GoneOutcome, LiveWorkspace, SubSession, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubLifeArea } from "../context.js";
+import { cutOff } from "../pipe.js";
 
 /** The host blobs a sub-thread's kept session goes under, by thread id, gzipped. */
 export const SUB_SESSIONS = "sub-sessions";
@@ -380,6 +381,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     }
     // A send after the wake can start a turn while the machine is read, and that turn takes it back.
     if (sub.deleteAt === undefined || (threadId !== undefined && busy(threadId))) return;
+    await cutOff(ctx, entry);
     try {
       await ctx.unfork(entry);
     } catch (e) {
@@ -406,6 +408,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     timers.delete(workspaceId);
     delete sub.deleteAt;
     delete sub.held;
+    // A delete the provider refused left the machine cut off, and the turn runs on it.
+    ctx.opts.broker?.lift?.(workspaceId);
     void ctx.persist(entry.record).catch((e: unknown) => console.warn(`sub-thread machine ${workspaceId}: ${e instanceof Error ? e.message : String(e)}`));
   };
 

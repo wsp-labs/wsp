@@ -12,6 +12,7 @@ import { CLOUD_CAP_DEFAULT, SUB_DROPPED_LINE, capWaitLine, deletedBeforeStartLin
 import { SUB_STARTS, absentMachine, deadMachine, isCapRefusal, type SessionEntry, type SubStartRecord } from "../types/internal.js";
 import type { LiveWorkspace, SessionHandle, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubQueueArea } from "../context.js";
+import { cutOff } from "../pipe.js";
 
 type StartOptions = Parameters<RuntimeContext["sessionsApi"]["start"]>[1];
 
@@ -404,7 +405,10 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       if (held.get(record.id) !== h) return;
       if (h.stopped !== undefined) {
         const standing = live.get(record.id);
-        if (standing !== undefined) await ctx.unfork(standing).catch((e: unknown) => console.warn(`workspace ${record.id}: its machine was not deleted after the stop: ${e instanceof Error ? e.message : String(e)}`));
+        if (standing !== undefined) {
+          await cutOff(ctx, standing);
+          await ctx.unfork(standing).catch((e: unknown) => console.warn(`workspace ${record.id}: its machine was not deleted after the stop: ${e instanceof Error ? e.message : String(e)}`));
+        }
         await drop(h, h.stopped, false);
         return;
       }
