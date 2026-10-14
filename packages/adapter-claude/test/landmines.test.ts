@@ -181,6 +181,12 @@ describe("buildCommand", () => {
     expect(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555" })).not.toContain("--settings");
   });
 
+  it("leaves out each server it is told to through the CLI's denylist, beside the person's own settings, and none where it is told none", () => {
+    const cmd = buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", offServers: ["cloudflare", "posthog"], launch: { args: ["--settings", JSON.stringify({ theme: "dark" })] } });
+    expect(cmd).toContain(`--settings '{"theme":"dark","deniedMcpServers":[{"serverName":"cloudflare"},{"serverName":"posthog"}]}'`);
+    expect(buildCommand({ sessionId: "11111111-2222-4333-8444-555555555555", offServers: [] })).not.toContain("--settings");
+  });
+
   const sessionId = "e16ed170-8257-4668-879e-fe836341633c";
 
   it("carries every required flag for a fresh session and reads its messages from stdin as stream-json", () => {

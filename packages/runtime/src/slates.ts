@@ -185,8 +185,8 @@ export interface SlatesDeps {
   ownProcess?(threadId: string, pid: number, kind: "slate" | "tool"): () => void;
   /** The computer a thread runs on where that is not this one, whose own config and sign-ins its runs start with. */
   away?(threadId: string): Away | undefined;
-  /** Of these servers, the ones the thread's agent's config on its computer does not name, with that agent. */
-  missingOn?(threadId: string, servers: string[]): Promise<{ agent: { id: string; name: string }; thread: string; missing: string[] }>;
+  /** Of these servers, those the thread's agent's config on its computer does not name, and why any it names is off. */
+  missingOn?(threadId: string, servers: string[]): Promise<{ agent: { id: string; name: string }; thread: string; missing: string[]; off?: string[] }>;
 }
 
 /** Where a slate op names its thread: a window always, a thread's token by itself, a person's shell inside a turn by

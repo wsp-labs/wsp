@@ -47,6 +47,8 @@ export interface StartOptions {
   /** The config's own servers that read a value the host holds, each whole with its values in place, for this launch
    * alone: they reach the CLI in a file of the run's, never on its command line or in its environment. */
   serverValues?: { entries?: Readonly<Record<string, Readonly<Record<string, unknown>>>> };
+  /** The config's own servers this launch leaves out, by name. */
+  offServers?: readonly string[];
   /** The thread so far as text, asked for only where the CLI holds no session under `resume`: the turn then runs in a
    * new session handed it ahead of the prompt. Absent, that turn fails with the CLI's own sentence. */
   seed?: () => Promise<string>;
@@ -169,6 +171,8 @@ export interface ClaudeAdapter {
   readonly steersImages: true;
   /** The CLI takes MCP servers on the launch itself (--mcp-config), so a turn gets one whatever the config dir holds. */
   readonly mcpServers: true;
+  /** A launch leaves out the config's own servers it names, through the CLI's settings. */
+  readonly deniesServers: true;
   /** A start takes promptAfter: the CLI starts up before it reads its first message. */
   readonly waitsForPrompt: true;
   /** An access picked while a turn runs reaches that turn: over the control channel, and on the prompt it is stopped on. */
@@ -1403,6 +1407,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
     attachments: "inline",
     steersImages: true,
     mcpServers: true,
+    deniesServers: true,
     waitsForPrompt: true,
     screenCommands: CLAUDE_SCREEN_COMMANDS,
     probeCatalog: exec => exec(catalogProbeCommand(deps.launch !== undefined ? { launch: deps.launch } : {}), buildEnv({ base: deps.baseEnv })).then(parseCatalogProbe),

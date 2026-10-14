@@ -203,6 +203,9 @@ export interface BuildCommandOptions {
   /** The run's environment names a file under SERVER_VALUES_ENV holding servers with their values, which stand for
    * the config's own servers of those names on this launch alone. */
   serverValues?: true;
+  /** The config's own servers this launch leaves out, by name. A deniedMcpServers entry passed in --settings drops one
+   * whole: it is not started, listed or offered a sign-in (2.1.299; a denylist merges from every settings scope). */
+  offServers?: readonly string[];
   /** The model's faster output. The CLI takes it as the fastMode setting, which --settings carries for this launch
    * alone; the result's fast_mode_state says whether the account served it (2.1.283, 2026-09-27). */
   fast?: boolean;
@@ -222,6 +225,9 @@ export interface BuildCommandOptions {
  * CLAUDE_CONFIG_DIR: 2.1.280 reads PROJECT_DIR_ENV only beside that variable, and keys a worktree's memory to its
  * repo's main checkout. */
 export const memorySettings = (dir: string | undefined): { autoMemoryDirectory?: string } => (dir === undefined ? {} : { autoMemoryDirectory: dir });
+
+/** The settings that leave the named servers out of a launch. */
+const deniedServers = (names: readonly string[] | undefined): Record<string, unknown> => (names === undefined || names.length === 0 ? {} : { deniedMcpServers: names.map(serverName => ({ serverName })) });
 
 /** One --settings flag for every setting a launch carries, none where it carries none. */
 export const settingsFlag = (settings: Readonly<Record<string, unknown>>): string[] =>
@@ -378,7 +384,7 @@ export function buildCommand(options: BuildCommandOptions): string {
     ...mcpConfigFlag(mcpServers),
     ...(options.serverValues === true ? [`--mcp-config "$${SERVER_VALUES_ENV}"`] : []),
     ...briefFlag(mcpServers),
-    ...(person.file ? [] : settingsFlag({ ...(fast === true ? { fastMode: true } : {}), ...memorySettings(memoryDir), ...person.settings, ...(aside ? { disableAllHooks: true } : {}) })),
+    ...(person.file ? [] : settingsFlag({ ...(fast === true ? { fastMode: true } : {}), ...memorySettings(memoryDir), ...person.settings, ...deniedServers(options.offServers), ...(aside ? { disableAllHooks: true } : {}) })),
     idFlag,
   ].join(" ");
   return inFolder(cwd, claude);
