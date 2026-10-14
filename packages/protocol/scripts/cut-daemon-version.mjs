@@ -10,7 +10,8 @@
 // it reads a file: the cut lands with the squash, and what nobody committed is
 // what nobody reviewed. It hashes the daemon tree by the one rule the content
 // test reads, and where that sha is already the record's last entry it cuts
-// nothing: a branch with no daemon change lands as it is. Otherwise it appends
+// nothing: a branch with no daemon change lands as it is, and one that wrote a
+// note anyway is refused, since no version takes it. Otherwise it appends
 // the sha as the next version, writes that version into numbers.rs and the
 // contract fixture, and adds one line to the version notes: the branch's own
 // daemon/version-note.md where it wrote one, which then goes, or the note it
@@ -99,12 +100,14 @@ export function cutDaemonVersion(repo, { note } = {}) {
     if (version !== n) throw new Error(`${path} says daemon ${version} while the record holds ${n}; a branch carries no version, so take it back to ${n} and let the landing cut the next`);
   }
   const sha = daemonContentSha(at("daemon"));
+  const noteFile = at(CUT_PATHS.note);
   if (entries.at(-1) === `"${sha}"`) {
     const gates = [...record.matchAll(GATE)].map(m => m[0]);
     if (gates.length > 0) throw new Error(`${CUT_PATHS.record} gates on this build's daemon while the daemon did not change, so no version holds what it asks for:\n${gates.join("\n")}`);
+    // Left in the tree, the note would land on main and name the next daemon change's version.
+    if (existsSync(noteFile)) throw new Error(`${CUT_PATHS.note} is here while the daemon did not change, so no version takes it: the host's own tool server and a crate's tests/ cut none; drop the note`);
     return { cut: false, version: n };
   }
-  const noteFile = at(CUT_PATHS.note);
   const said = existsSync(noteFile) ? readFileSync(noteFile, "utf8") : note;
   if (said === undefined || said.trim() === "") throw new Error(`the daemon changed, and a new version lands with a note: write ${CUT_PATHS.note} on the branch, or hand the cut --note`);
   const version = n + 1;
