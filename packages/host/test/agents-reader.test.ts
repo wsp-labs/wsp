@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { execFile, execFileSync } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
@@ -9,10 +11,11 @@ import { nodeHost, type Host } from "@wsp/collect";
 import type { ExecResult, Machine } from "@wsp/engine";
 import { cloudServerOffLine, controlNameRefusal, placeProvisionPaths } from "@wsp/protocol";
 import { SERVER_OFF } from "@wsp/runtime";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import { agentHome, SECRET, type AgentHome } from "../../collect/test/agent-home.js";
 import { READER_CLOSED, agentsReader, eachScript } from "../src/agents-reader.js";
 import { serverRowLines } from "../src/verbs/agents-help.js";
+import { fetchPost, signInProbes } from "../src/sign-in-probe.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 const roots: string[] = [];
@@ -276,6 +279,16 @@ describe("the agents report off this computer and off a workspace", () => {
   });
 
   it("on a cloud machine lists a server that needs the person's sign-in or key as off with one sentence, offers no sign-in line, and refuses it to a client", async () => {
+    // An address that asks for a sign-in answers an unsigned initialize 401, one that needs none answers it.
+    const asked: string[] = [];
+    const srv = createServer((req, res) => {
+      asked.push(req.url ?? "");
+      if (req.url === "/signs") res.writeHead(401, { "www-authenticate": 'Bearer realm="OAuth"' }).end();
+      else res.writeHead(200, { "content-type": "application/json" }).end('{"jsonrpc":"2.0","id":1,"result":{}}');
+    });
+    await new Promise<void>(done => srv.listen(0, "127.0.0.1", done));
+    onTestFinished(() => void srv.close());
+    const local = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
     const at = fixture();
     // Codex's header as the copy to a cloud machine leaves it, and a header read off a variable no cloud turn is handed.
     const toml = join(at.home, ".codex", "config.toml");
@@ -283,35 +296,50 @@ describe("the agents report off this computer and off a workspace", () => {
     const file = join(at.home, ".claude.json");
     const config = JSON.parse(readFileSync(file, "utf8")) as { mcpServers: Record<string, unknown> };
     config.mcpServers["cf"] = { type: "http", url: "https://mcp.cloudflare.com/mcp", headers: { Authorization: "Bearer ${CF_TOKEN}" } };
+    config.mcpServers["signs"] = { type: "http", url: `${local}/signs` };
+    config.mcpServers["open"] = { type: "http", url: `${local}/open` };
+    config.mcpServers["keyed"] = { command: "node", args: ["keyed.js"], env: { API_TOKEN: "${SOME_VAR}" } };
     writeFileSync(file, JSON.stringify(config));
     const { machine } = road(at);
     const on = { kind: "machine" as const, machine, projects: [{ id: "pr_app", name: "app", path: at.project }] };
-    const reader = agentsReader({ vault: () => ({ CF_TOKEN: "cf_TESTONLY_7d1e" }) });
+    // Only the local server is asked; any other address answers nothing, as one that cannot be reached.
+    const probes = signInProbes({ post: (url, ms) => (url.startsWith(local) ? fetchPost(url, ms) : Promise.resolve(undefined)) });
+    const reader = agentsReader({ vault: () => ({ CF_TOKEN: "cf_TESTONLY_7d1e" }), probes });
     const read = await reader.read({ ...on, brokered: true });
     const server = (agent: string, name: string) => read.servers.find(s => s.agent === agent && s.name === name)!;
-    expect(server("claude", "notion")).toMatchObject({ auth: "unknown", enabled: true, off: cloudServerOffLine("notion") });
+    expect(server("claude", "signs")).toMatchObject({ auth: "unknown", enabled: true, off: cloudServerOffLine("signs") });
     expect(server("claude", "cf")).toMatchObject({ auth: "env-key", off: cloudServerOffLine("cf") });
     expect(server("codex", "linear")).toMatchObject({ off: cloudServerOffLine("linear") });
-    for (const [agent, name] of [["claude", "airtable"], ["claude", "local"], ["claude", "project-db"]] as const) expect(server(agent, name).off, name).toBeUndefined();
+    expect(server("claude", "keyed")).toMatchObject({ off: cloudServerOffLine("keyed") });
+    // A server that needs no sign-in, and one whose address did not answer, stay on as on main.
+    for (const [agent, name] of [["claude", "open"], ["claude", "notion"], ["claude", "airtable"], ["claude", "local"], ["claude", "project-db"]] as const) expect(server(agent, name).off, name).toBeUndefined();
     expect(read.servers.filter(s => s.signInLine !== undefined)).toEqual([]);
+    expect(asked.sort()).toEqual(["/open", "/signs"]);
 
     // wsp servers and the servers tool print these rows: off, the sentence once per server, and no sign-in command.
     const lines = serverRowLines({ ...read, target: { workspaceId: "w_cloud" }, readAt: "2026-10-14T00:00:00.000Z" });
-    expect(lines.find(l => l.startsWith("notion "))).toMatch(/ off$/);
-    expect(lines.find(l => l.startsWith("cf "))).toMatch(/ off$/);
-    expect(lines.filter(l => l === cloudServerOffLine("notion"))).toHaveLength(1);
+    expect(lines.find(l => l.startsWith("signs "))).toMatch(/ off$/);
+    expect(lines.find(l => l.startsWith("open "))).toMatch(/ unknown$/);
+    expect(lines.filter(l => l === cloudServerOffLine("signs"))).toHaveLength(1);
     expect(lines.join("\n")).not.toMatch(/mcp login|mcp auth/);
 
-    // A client that keeps a server running, a slate's run, is refused it with the same sentence, and a command is not.
-    await expect(reader.server!({ ...on, brokered: true }, { agent: "claude", name: "notion" })).rejects.toMatchObject({ code: SERVER_OFF, message: cloudServerOffLine("notion") });
+    // A client that keeps a server running, a slate's run, is refused it with the same sentence, and the rest are not.
+    await expect(reader.server!({ ...on, brokered: true }, { agent: "claude", name: "signs" })).rejects.toMatchObject({ code: SERVER_OFF, message: cloudServerOffLine("signs") });
     await expect(reader.server!({ ...on, brokered: true }, { agent: "claude", name: "cf" })).rejects.toMatchObject({ code: SERVER_OFF, message: cloudServerOffLine("cf") });
+    await expect(reader.server!({ ...on, brokered: true }, { agent: "claude", name: "keyed" })).rejects.toMatchObject({ code: SERVER_OFF });
+    await expect(reader.server!({ ...on, brokered: true }, { agent: "claude", name: "open" })).resolves.toMatchObject({ transport: { kind: "http" } });
     await expect(reader.server!({ ...on, brokered: true }, { agent: "claude", name: "airtable" })).resolves.toMatchObject({ transport: { kind: "stdio" } });
+    // wsp servers tools answers the same sentence for it instead of starting or asking it, and asks the address no more.
+    expect(await reader.tools({ ...on, brokered: true }, { key: "w_cloud", agent: "claude", name: "signs" })).toMatchObject({ auth: "unknown", refused: cloudServerOffLine("signs") });
+    expect(asked.sort()).toEqual(["/open", "/signs"]);
+    expect(reader.signsIn?.(`${local}/signs`)).toBe(true);
+    expect(reader.signsIn?.(`${local}/open`)).toBe(false);
 
     // The same machine where it holds its own sign-ins keeps every row on, with its sign-in line.
     const own = await reader.read(on);
     expect(own.servers.filter(s => s.off !== undefined)).toEqual([]);
     expect(own.servers.find(s => s.agent === "claude" && s.name === "notion")?.signInLine).toBe("claude mcp login 'notion'");
-    await expect(reader.server!(on, { agent: "claude", name: "notion" })).resolves.toMatchObject({ transport: { kind: "http" } });
+    await expect(reader.server!(on, { agent: "claude", name: "signs" })).resolves.toMatchObject({ transport: { kind: "http" } });
   });
 
   it("asks each agent's status with the store its turns there read, so a login kept there reads as signed in", async () => {

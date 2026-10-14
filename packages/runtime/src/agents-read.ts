@@ -70,6 +70,10 @@ export interface AgentsReader {
   /** One server of the agent's config on a target, resolved for a client that keeps it running, with the login a
    * command there runs as on any computer but this one. */
   server?(on: AgentsOn, ask: { agent: string; name: string }): Promise<McpServerSpec & { login?: TargetLogin }>;
+  /** Whether a remote address with no header of its own asks for a sign-in, as the host's one unsigned initialize to it
+   * answered: true on 401 or 403, false on any other answer, nothing before one came back, which starts that ask
+   * without waiting on it. */
+  signsIn?(url: string): boolean | undefined;
   /** Ends every command a read or a tools ask started on this computer and is still waiting on. */
   close?(): void;
 }
