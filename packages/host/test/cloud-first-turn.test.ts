@@ -48,4 +48,15 @@ describe("the first cloud turn after the host starts", () => {
     expect(starts.map(o => o.offServers ?? null)).toEqual([["cloudflare"], ["cloudflare"]]);
     expect(posted.sort()).toEqual(["https://mcp.cloudflare.com/mcp", "https://mcp.context7.com/mcp"]);
   }, 40_000);
+
+  it("waits on an address that gave no answer once, not on every turn after", async () => {
+    // The first ask fails at once, as a dropped connection does; every later one hangs past the test.
+    let posts = 0;
+    const probes = signInProbes({ ms: 30_000, post: () => (posts++ === 0 ? Promise.resolve(undefined) : new Promise<never>(() => {})) });
+    const reader = agentsReader({ vault: () => ({}), probes });
+    const url = "https://mcp.example.com/mcp";
+    expect((await reader.signsIn!([url]))(url)).toBeUndefined();
+    const second = await Promise.race([reader.signsIn!([url]).then(() => "answered"), new Promise(done => setTimeout(done, 1_000, "waited"))]);
+    expect([second, posts]).toEqual(["answered", 2]);
+  });
 });

@@ -71,7 +71,7 @@ export interface AgentsReader {
    * command there runs as on any computer but this one. */
   server?(on: AgentsOn, ask: { agent: string; name: string }): Promise<McpServerSpec & { login?: TargetLogin }>;
   /** Whether each remote address with no header of its own asks for a sign-in, as the host's one unsigned initialize to
-   * it answered, asked first where nothing is kept and waited on within the probe's time: true on 401 or 403, false on
+   * it answered, waited on within the probe's time only where this host never asked it: true on 401 or 403, false on
    * any other answer, nothing where none came back. */
   signsIn?(urls: readonly string[]): Promise<(url: string) => boolean | undefined>;
   /** Ends every command a read or a tools ask started on this computer and is still waiting on. */

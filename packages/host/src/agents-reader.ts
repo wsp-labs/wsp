@@ -387,7 +387,9 @@ export function agentsReader(o: {
       return { ...found, env: base, signIn: { ...signIn, read: async () => bearerIn(await store(), signIn.bearer) } };
     },
     signsIn: async urls => {
-      await probes.ask(urls);
+      // An address asked before with no answer is asked again behind the launch, so no launch waits on it twice.
+      void probes.ask(urls.filter(u => probes.tried(u)));
+      await probes.ask(urls.filter(u => !probes.tried(u)));
       return probes.known;
     },
     forget: key => kept.forget(key),
