@@ -1426,6 +1426,7 @@ describe("callback relay end to end through a real daemon", () => {
     // Guest and laptop share this machine's loopback, so the guest tool takes 127.0.0.1 (where the daemon dials first) and the laptop side [::1].
     const seen: string[] = [];
     guest = createServer(s => {
+      s.on("error", () => {});
       s.on("data", d => {
         seen.push(d.toString());
         s.end("HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok");
@@ -1947,6 +1948,7 @@ describe("localhost forwards end to end through a real daemon", () => {
     const seen: string[] = [];
     const body = "<h1>Directory listing</h1>\n";
     guest = createServer(s => {
+      s.on("error", () => {});
       s.on("data", d => {
         seen.push(d.toString());
         s.end(`HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);

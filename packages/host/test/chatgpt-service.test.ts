@@ -216,7 +216,7 @@ describe("the websocket turn", () => {
   it("answers an upgrade refused upstream with 401 as a 403 sentence", async () => {
     chatgptCred = { ...CLAIMS, accessToken: REAL_ACCESS };
     const refusing = createServer((_req, res) => res.writeHead(500).end());
-    refusing.on("upgrade", (_req, socket) => socket.end("HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"));
+    refusing.on("upgrade", (_req, socket) => socket.on("error", () => undefined).end("HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"));
     const at = await listen(refusing);
     const service = chatgptService({ dial: dialTo({ [CHATGPT]: `http://${at}` }) });
     const local = createServer();

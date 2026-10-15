@@ -54,6 +54,7 @@ function road(at: AgentHome, o: { root?: boolean; bytes?: boolean; dropStdin?: b
           outs.push(String(stdout));
           resolve({ exitCode: e === null ? 0 : typeof e.code === "number" ? e.code : 1, stdout: String(stdout), stderr: String(stderr) });
         });
+        child.stdin?.on("error", () => undefined);
         child.stdin?.end(opts?.stdin === undefined || o.dropStdin === true ? undefined : Buffer.from(opts.stdin));
       });
     },
