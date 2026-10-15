@@ -549,4 +549,24 @@ describe("the pipe pool in the runtime", () => {
     await sleep(150);
     expect(d.firstFrames.length).toBe(dialled);
   });
+
+  it("dials a brokered workspace's pipes while its create still runs, so its clone reaches GitHub, and closes them as the create fails", async () => {
+    const d = await fakeDaemon();
+    const rt = runtimeOn(d, { ready: () => true, pipe: (_id, _h, duplex) => duplexes.push(duplex) });
+    rt.area();
+    await sleep(20);
+    const creating = (stage: string): void => rt.emit({ type: "workspace.creating", workspaceId: "ws-a", name: "a", stage, message: stage, elapsedMs: 0 });
+    // A stage before the machine is bound has no record to dial.
+    creating("fork-requested");
+    await sleep(150);
+    expect(d.firstFrames).toHaveLength(0);
+    rt.put("ws-a", "boat");
+    creating("project-cloned");
+    await until(() => d.parked.length === 4);
+    creating("failed");
+    await until(() => d.parked.length === 0);
+    const dialled = d.firstFrames.length;
+    await sleep(150);
+    expect(d.firstFrames.length).toBe(dialled);
+  });
 });
