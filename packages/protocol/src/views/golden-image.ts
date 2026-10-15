@@ -264,6 +264,9 @@ export const GoldenBuilderView = z.object({
   createdAt: z.string(),
   /** What the provider built, so a builder left running can be priced. */
   size: z.object({ cpu: z.number(), memMb: z.number() }),
+  /** What that size costs an hour at the place the builder runs, which need not be the provider the host forks on;
+   * absent once that place can no longer be read. */
+  rateUsdPerHour: z.number().optional(),
   screen: z.object({ streamUrl: z.string() }).optional(),
   /** True while a seal can still be taken from this builder: the machine has never been paused, resumed or
    * restored, or the place it stands on copies a disk from any life of a machine. */
