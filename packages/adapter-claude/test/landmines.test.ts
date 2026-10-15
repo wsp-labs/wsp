@@ -69,7 +69,8 @@ describe("buildEnv", () => {
         k !== "CLAUDE_CODE_AUTO_CONNECT_IDE" &&
         k !== "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL" &&
         k !== "CLAUDE_CODE_ENABLE_TODO_TOOLS" &&
-        k !== "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS",
+        k !== "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS" &&
+        k !== "CLAUDE_CODE_MCP_STARTUP_WAIT_MS",
     );
     expect(leaked).toEqual([]);
   });
@@ -77,6 +78,12 @@ describe("buildEnv", () => {
   it("lets a background subagent run as long as the turn holds its reply: the CLI ends none on a clock of its own", () => {
     expect(buildEnv({ base }).CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe("0");
     expect(buildEnv({ base: { ...base, CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "600000" } }).CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe("0");
+  });
+
+  it("starts the first turn without waiting on any MCP server to connect, on every road", () => {
+    expect(buildEnv({ base }).CLAUDE_CODE_MCP_STARTUP_WAIT_MS).toBe("0");
+    expect(buildEnv({ base: { ...base, CLAUDE_CODE_MCP_STARTUP_WAIT_MS: "30000" } }).CLAUDE_CODE_MCP_STARTUP_WAIT_MS).toBe("0");
+    expect(buildEnv({ base, brokered: { token: "wsp-turn-x", kind: "token" } }).CLAUDE_CODE_MCP_STARTUP_WAIT_MS).toBe("0");
   });
 
   it("passes the API key through when given", () => {
@@ -297,6 +304,14 @@ describe("buildCommand", () => {
     expect(cmd).not.toContain("--strict-mcp-config");
     expect(buildCommand({ sessionId })).not.toContain("--mcp-config");
     expect(buildCommand({ sessionId, mcpServers: {} })).not.toContain("--mcp-config");
+  });
+
+  it("a launch with no slate hands the wsp server without alwaysLoad, which the CLI waits on even with its startup wait at 0", () => {
+    const wsp = { command: "/usr/local/bin/node", args: ["/opt/wsp/bin.js", "mcp"] };
+    const flag = /--mcp-config '(.+?)' /.exec(buildCommand({ sessionId, mcpServers: { wsp: { ...wsp, noSlate: true } } }))?.[1];
+    expect(JSON.parse(flag!)).toEqual({ mcpServers: { wsp } });
+    const slate = /--mcp-config '(.+?)' /.exec(buildCommand({ sessionId, mcpServers: { wsp } }))?.[1];
+    expect(JSON.parse(slate!).mcpServers.wsp.alwaysLoad).toBe(true);
   });
 
   it("a launch whose wsp server gives the thread a slate brings the slate's brief to the end of the system prompt, and no other launch does", () => {

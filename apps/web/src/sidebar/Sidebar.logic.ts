@@ -5,7 +5,7 @@
 // which model state wsp's wire does not carry. Contract types are hand-written
 // against the wsp thread snapshot (startedAt and endedAt instead of createdAt,
 // updatedAt and the turn projection).
-import { DEFAULT_PREFERENCES, SETTLE_MS, threadSeen, threadSettled, type SessionStatus, type ThreadSection } from "@wsp/protocol";
+import { DEFAULT_PREFERENCES, SETTLE_MS, settleMoment, threadSeen, threadSettled, type SessionStatus, type SettleFacts, type ThreadSection } from "@wsp/protocol";
 import { activeThreadAnchorTimestampMs, toSortableTimestamp } from "./threadSort";
 
 export type ThreadTraversalDirection = "previous" | "next";
@@ -203,13 +203,18 @@ function isThreadSeen(thread: SettleInput): boolean {
 /** Whether the thread belongs in the Settled fold, by the protocol's one rule (threadSettled), the one the host stops
     a settled slate's timers by; `held` names the thread open in the centre and one in a pinned tree. */
 export function isThreadSettled(thread: SettleInput, nowMs: number, held = false, settleMs: number | null = SETTLE_MS[DEFAULT_PREFERENCES.settleAfter]): boolean {
+  return threadSettled(settleFacts(thread), nowMs, settleMs, held);
+}
+
+/** When a settled thread settled, by the same rule: the Settled fold stands newest settled first, so a thread settled
+    long after it ended still comes in at the top. */
+export function settledMomentMs(thread: SettleInput, settleMs: number | null): number {
+  return settleMoment(settleFacts(thread), settleMs)?.ms ?? 0;
+}
+
+function settleFacts(thread: SettleInput): SettleFacts {
   const ms = (at: string | null | undefined) => toSortableTimestamp(at ?? undefined);
-  return threadSettled(
-    { working: isThreadWorking(thread), asking: thread.asking !== null, failed: thread.status === "failed", startedAt: ms(thread.startedAt), endedAt: ms(thread.endedAt), readAt: ms(thread.readAt), settledAt: ms(thread.settledAt) },
-    nowMs,
-    settleMs,
-    held,
-  );
+  return { working: isThreadWorking(thread), asking: thread.asking !== null, failed: thread.status === "failed", startedAt: ms(thread.startedAt), endedAt: ms(thread.endedAt), readAt: ms(thread.readAt), settledAt: ms(thread.settledAt) };
 }
 
 /** Whether the thread has been read and is quiet, so "Settle all read" takes it: no finish nobody has seen, no failure

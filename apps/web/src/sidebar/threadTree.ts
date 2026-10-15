@@ -14,7 +14,7 @@ import type { SidebarProjectSnapshot, SidebarThreadSnapshot } from "../adapt/ind
 import { leadNodes, partOf, settleTake, type Tree } from "../components/threads/leadTree.js";
 import { workspaceRowId } from "./rowGrammar.js";
 import { bySectionKey, pinKey } from "./treeOrder.js";
-import { isThreadSettleable, isThreadSettled, isThreadWorking, nestSpawnedThreads, sortSettledThreadsForSidebar, sortThreadsForSidebar, threadForest, threadSection, type ThreadNode } from "./Sidebar.logic.js";
+import { isThreadSettleable, isThreadSettled, isThreadWorking, nestSpawnedThreads, settledMomentMs, sortSettledThreadsForSidebar, sortThreadsForSidebar, threadForest, threadSection, type ThreadNode } from "./Sidebar.logic.js";
 
 /** One project of the sidebar: the record the host holds for it, and its workspaces. */
 export interface ProjectGroup {
@@ -232,7 +232,8 @@ export function sidebarTiles(
   }
   pinned.sort(bySectionKey("pinned"));
   listed.sort(bySectionKey("threads"));
-  const tree = tileTree({ nowMs, settleMs: settleMs === undefined ? SETTLE_MS[DEFAULT_PREFERENCES.settleAfter] : settleMs });
+  const quietMs = settleMs === undefined ? SETTLE_MS[DEFAULT_PREFERENCES.settleAfter] : settleMs;
+  const tree = tileTree({ nowMs, settleMs: quietMs });
   const inbox = [...pinned, ...listed].flatMap(node => inboxTiles(node, [], { tree, open }));
   const tops = new Set(inbox.filter(node => node.thread.inboxOf?.parent === null).map(node => node.thread.id));
   const inboxOnly = listed.filter(node => tops.has(node.thread.id) && !drawsUnder(node, tree));
@@ -243,9 +244,16 @@ export function sidebarTiles(
     { id: "needs-you" as const, roots: inbox.map(tile => inboxOnly.find(node => node.thread.id === tile.thread.id) ?? tile) },
     { id: "threads" as const, roots: trees },
   ].filter(section => section.roots.length > 0);
-  const bySettle = new Map(settled.map(node => [node.thread.thread!, node]));
-  return { live: [...pinned, ...inboxOnly, ...trees], settled: sortSettledThreadsForSidebar([...bySettle.keys()]).map(thread => bySettle.get(thread)!), sections };
+  // Newest settled first, ties in the order of their ends; a group's head holds no thread, so it goes by its tile.
+  const moments = new Map(settled.map(node => [node, treeSettledMs(node, quietMs)]));
+  const ends = sortSettledThreadsForSidebar(settled.map(node => ({ id: node.thread.id, startedAt: node.thread.startedAt, endedAt: node.thread.thread?.endedAt ?? null, node })));
+  const fold = ends.map(end => end.node).sort((a, b) => moments.get(b)! - moments.get(a)!);
+  return { live: [...pinned, ...inboxOnly, ...trees], settled: fold, sections };
 }
+
+/** When a settled tree settled: when the last of its threads did, the moment the Settled fold sorts and ages it by. */
+export const treeSettledMs = ({ thread: { thread }, children }: TileNode, settleMs: number | null): number =>
+  Math.max(thread === null ? 0 : settledMomentMs(thread, settleMs), ...children.map(child => treeSettledMs(child, settleMs)));
 
 /** How the sidebar reads a lead's tree off its tiles. */
 export function tileTree({ nowMs, settleMs }: { nowMs: number; settleMs: number | null }): Tree<TileNode> {
