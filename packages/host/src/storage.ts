@@ -41,10 +41,10 @@ export function describeStorage(s: SnapshotStorage): string {
   const named = s.named;
   const past = named === undefined ? 0 : Math.max(0, named.count - named.free);
   const cost = named !== undefined
-    ? past > 0 ? `${named.count} named against the ${named.free} free, ${perMonth(s.monthlyUsd)} for the ${past} past them` : `${named.count} named, inside the ${named.free} free, nothing to pay`
+    ? past > 0 ? `${perMonth(s.monthlyUsd)} for the ${past} past the ${named.free} free` : `inside the ${named.free} free, nothing to pay`
     : s.monthlyUsd > 0 ? `${perMonth(s.monthlyUsd)} above the free ${s.freeGb} GB from ${s.billedFrom}` : `inside the free ${s.freeGb} GB, nothing to pay from ${s.billedFrom}`;
   const owners = describeOwners(s);
-  return `storage: ${plural(s.count, "snapshot")}, ${gb(s.totalBytes)}; ${cost}${owners === "" ? "" : `. ${owners}`}`;
+  return `storage: ${named !== undefined ? plural(named.count, "named snapshot") : plural(s.count, "snapshot")}, ${gb(s.totalBytes)}; ${cost}${owners === "" ? "" : `. ${owners}`}`;
 }
 
 /** A row as a person reads it: the name it carries and the provider id under it, since the id is what a delete takes. */

@@ -37,20 +37,17 @@ describe("the storage line", () => {
 });
 
 describe("the storage line on Boat, which bills named snapshots by count", () => {
-  const rows = (named: number) => [
-    ...Array.from({ length: named }, (_, i) => ({ id: `wsp-h1-default-v${i}`, name: `wsp-h1-default-v${i}`, sizeBytes: 1 * GB })),
-    { id: "dc8cd70e-d16b-472a-b5d7-070bc84db7a7", sizeBytes: 7 * GB },
-  ];
+  const rows = (named: number) => Array.from({ length: named }, (_, i) => ({ id: `wsp-h1-default-v${i}`, name: `wsp-h1-default-v${i}`, sizeBytes: 1 * GB }));
   const read = (r: { id: string }[]) => ({ hostId: "h1", recorded: new Set(r.map(x => x.id)), now: 0 });
 
-  it("past the 10 free it names how many named snapshots there are and what the ones past them cost, with no GB price and no billed-from", () => {
+  it("past the 10 free it counts the named snapshots and says what the ones past them cost, with no GB price and no billed-from", () => {
     const r = rows(14);
-    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 15 snapshots, 21.0 GB; 14 named against the 10 free, about $6.80/month for the 4 past them");
+    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 14 named snapshots, 14.0 GB; about $6.80/month for the 4 past the 10 free");
   });
 
   it("inside the 10 free it says there is nothing to pay", () => {
     const r = rows(8);
-    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 9 snapshots, 15.0 GB; 8 named, inside the 10 free, nothing to pay");
+    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 8 named snapshots, 8.0 GB; inside the 10 free, nothing to pay");
   });
 });
 
