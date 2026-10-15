@@ -7,7 +7,7 @@
 // across every workspace, the threads and subagents its agent opened under it on
 // the rail as LeadTree draws them, folded by the host's mark, and at the foot the Settled fold
 // holding every root whose whole tree is settled, by hand or by quiet after a
-// read, with "Settle all read" on its own row's menu and on the list's own, which
+// read, newest settled first and 25 tiles at a time, with "Settle all read" on its own row's menu and on the list's own, which
 // stands while no Settled row is drawn. A root tile is dragged
 // onto another section to hold it there, onto Pinned to pin it and onto the
 // fold to settle it; while one is dragged every section stands to take it. A machine
@@ -26,7 +26,7 @@ import { ChevronDownIcon, CopyIcon, PlusIcon, SquarePenIcon, Trash2Icon } from "
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { HOST_ASLEEP_LINE, SETTLE_MS, copiesFolder, isHere, kindForComputer, modelOf, runsInFolder, modelPicks, startFailed, workspaceKind, workspaceState, type WorkspaceState, type WorkspaceView } from "@wsp/protocol";
 import { openContextMenu, runAction } from "../actions/contextMenu.js";
-import { THREAD_TREE_WORKING, rebuildRefusedLine, rowNewThread } from "../actions/format.js";
+import { CHILD_WORDS, THREAD_TREE_WORKING, rebuildRefusedLine, rowNewThread } from "../actions/format.js";
 import { CREATE_ASKED, CREATE_STEP_WORDS, currentStep, stepWords, stoppedStep } from "../shell/creationLog.js";
 import { actionById, actionIfAny, resolveActions, type ResolvedAction } from "../actions/registry.js";
 import { projectActions, type ProjectVerbs } from "../actions/projectActions.js";
@@ -57,7 +57,7 @@ import { CHILD_LIST_CLASS, ONE_LINE_ROW_CLASS, RAIL_ITEM_CLASS, ROW_META_CLASS, 
 import { NewThreadRow } from "./NewThreadRow.js";
 import { SearchRow } from "./SearchRow.js";
 import { resolveAdjacentThreadId, threadSection, topSidebarThread } from "./Sidebar.logic.js";
-import { SIDEBAR_SECTIONS, drawnCount, drawsUnder, dropMarks, nodeOf, settleableRoots, sidebarTiles, tileTree, treeSettle, treeThreadIds, treeWorkspaceIds, type ProjectGroup, type SidebarSection, type TileNode } from "./threadTree.js";
+import { SIDEBAR_SECTIONS, drawnCount, drawsUnder, dropMarks, nodeOf, settleableRoots, sidebarTiles, tileTree, treeSettle, treeSettledMs, treeThreadIds, treeWorkspaceIds, type ProjectGroup, type SidebarSection, type TileNode } from "./threadTree.js";
 import { LeadTree, rowsUnder, settlesOnHover } from "./LeadTree.js";
 import { useTreeDrag, type DropTree } from "./treeDrag.js";
 import { holdLiveRegion, moveRoot, rootPlaces } from "./treeMoves.js";
@@ -68,7 +68,7 @@ import { CloudCard } from "./CloudCard.js";
 import { UpdateCard } from "./UpdateCard.js";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./SidebarChrome.js";
 import { CreationTile, ThreadLaunchTile, ThreadTile, WorkspaceTile, useTileHandlers, type TilePlace } from "./ThreadTile.js";
-import { computerName, computerOf, copyName, placeNames } from "./workspaceRows.js";
+import { compactTimeLabel, computerName, computerOf, copyName, placeNames } from "./workspaceRows.js";
 import { tileCheckout, useCheckoutAsks } from "./tileCheckout.js";
 import { restingAge } from "../components/status/restingAge.js";
 import { PROJECT_WORDS, SECTION_WORDS } from "./words.js";
@@ -108,6 +108,21 @@ const holds = (node: TileNode, threadId: string): boolean => node.thread.id === 
 
 /** Every tile a settled tree holds, itself included, each drawn in the Settled fold; a group's head is no tile. */
 const tileCount = (node: TileNode): number => (node.thread.groupTitle === undefined ? 1 : 0) + node.children.reduce((sum, child) => sum + tileCount(child), 0);
+const tilesIn = (nodes: ReadonlyArray<TileNode>): number => nodes.reduce((sum, node) => sum + tileCount(node), 0);
+
+/** How many tiles the open Settled fold mounts at first, and each press of its "n more" row adds. */
+const SETTLED_PAGE = 25;
+
+/** The settled trees an open fold draws for `shown` tiles: whole trees in order until the next would pass it, and
+ * always the first, however many tiles it holds. */
+function settledPage(roots: ReadonlyArray<TileNode>, shown: number): ReadonlyArray<TileNode> {
+  let tiles = 0;
+  for (const [at, node] of roots.entries()) {
+    tiles += tileCount(node);
+    if (tiles > shown && at > 0) return roots.slice(0, at);
+  }
+  return roots;
+}
 
 /** A project trip's dialog open for one workspace; keyed per opening so its folder and plan reset. */
 interface ProjectTripState extends ProjectTripRequest {
@@ -190,6 +205,7 @@ export function WorkspaceSidebar() {
   const toggleFold = (id: Fold): void => setFolded(ids => (ids.includes(id) ? ids.filter(at => at !== id) : [...ids, id]));
   const unfold = (id: Fold): void => setFolded(ids => ids.filter(at => at !== id));
   const settledOpen = !folded.includes("settled");
+  const [settledShown, setSettledShown] = useState(SETTLED_PAGE);
   const [pickStored, setPickStored] = useLocalStorage<string | null>(PROJECT_PICK_KEY, null, pickCodec);
   const [computerStored, setComputerStored] = useLocalStorage<string | null>(COMPUTER_PICK_KEY, null, pickCodec);
   const [addProject, setAddProject] = useState<number | null>(null);
@@ -300,7 +316,11 @@ export function WorkspaceSidebar() {
       setRenaming({ rowId: workspaceRowId(workspaceId), saving: false });
       return;
     }
-    if (tiles.settled.some(node => holds(node, open.id))) unfold("settled");
+    const settledAt = tiles.settled.findIndex(node => holds(node, open.id));
+    if (settledAt >= 0) {
+      unfold("settled");
+      setSettledShown(shown => Math.max(shown, tilesIn(tiles.settled.slice(0, settledAt + 1))));
+    }
     const holder = tiles.sections.find(section => section.roots.some(node => holds(node, open.id)));
     if (holder !== undefined) unfold(holder.id);
     setRenaming({ rowId: threadRowId(open.id), saving: false });
@@ -463,7 +483,7 @@ export function WorkspaceSidebar() {
           place={place}
           checkout={checkout}
           model={thread.model === null ? null : catalog === null ? thread.model : (modelOf(catalog, modelPicks(thread.model).model)?.label ?? thread.model)}
-          time={restingAge(thread)}
+          time={settled && part === "live" ? compactTimeLabel(new Date(treeSettledMs(real, SETTLE_MS[settleAfter])).toISOString()) : restingAge(thread)}
           depth={depth}
           active={(selectedId === thread.workspaceId && (selectedThreadId === null ? thread.threadId === null : selectedThreadId === thread.id) && (selectedSubagent === null || folded)) || (selectedThreadId !== null && (item.holds?.includes(selectedThreadId) === true || (folded && holds(real, selectedThreadId))))}
           settled={settled}
@@ -587,7 +607,11 @@ export function WorkspaceSidebar() {
   /** Whether a section keeps the sections' own gap over it at rest: one stands above it, or it is a bare head itself.
    * Where neither, the gap stands only while a drag shows the bare heads above, so the list starts where it did. */
   const gapsAtRest = (index: number): boolean => standsBare(sections[index]!) || sections.slice(0, index).some(above => !standsBare(above));
-  const settledCount = tiles.settled.reduce((sum, node) => sum + tileCount(node), 0);
+  const settledCount = tilesIn(tiles.settled);
+  // The thread open in the centre keeps its tile drawn, however far down the fold it stands.
+  const openAt = open === null ? -1 : tiles.settled.findIndex(node => holds(node, open));
+  const settledDrawn = settledOpen ? settledPage(tiles.settled, Math.max(settledShown, tilesIn(tiles.settled.slice(0, openAt + 1)))) : [];
+  const settledRest = settledOpen ? settledCount - tilesIn(settledDrawn) : 0;
   const settleable = settleableRoots(tiles.live);
   const settledRowActions = resolveActions(settledFoldActions, { threadIds: settleable.flatMap(root => treeSettle(root).threadIds), workspaceIds: [...new Set(tiles.settled.flatMap(treeWorkspaceIds))] }, threadVerbs);
 
@@ -715,12 +739,22 @@ export function WorkspaceSidebar() {
                 label={SECTION_WORDS.settled}
                 count={settledCount}
                 collapsed={!settledOpen}
-                onToggle={() => toggleFold("settled")}
+                onToggle={() => {
+                  toggleFold("settled");
+                  setSettledShown(SETTLED_PAGE);
+                }}
                 onContextMenu={event => void openContextMenu(event, settledRowActions)}
                 rowId={tiles.settled.length === 0 ? undefined : SETTLED_ROW_ID}
               />
             </li>
-            {settledOpen ? tiles.settled.map(node => tileItem(node, 0, null, true)) : null}
+            {settledDrawn.map(node => tileItem(node, 0, null, true))}
+            {settledRest > 0 ? (
+              <li key="settled-more" data-thread-selection-safe data-slim className="min-w-0">
+                <SidebarMenuButton size="sm" data-settled-more data-sidebar-row data-row-id="more:settled" data-depth={0} className={cn(ONE_LINE_ROW_CLASS, "gap-1.5")} onClick={() => setSettledShown(shown => shown + SETTLED_PAGE)}>
+                  <span className="min-w-0 flex-1 truncate text-sidebar-muted-foreground">{CHILD_WORDS.moreRows(settledRest)}</span>
+                </SidebarMenuButton>
+              </li>
+            ) : null}
             {ready && groups.length > 0 && launchItems.length + tiles.live.length + tiles.settled.length + made.length === 0 ? (
               <li data-thread-selection-safe>
                 <p data-k="no-workspaces" className="px-2 py-6 text-center text-[13px] text-muted-foreground">
