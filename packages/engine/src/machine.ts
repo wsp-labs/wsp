@@ -161,6 +161,9 @@ export interface Machine {
   /** Optional: starts the daemon inside the guest over this machine's exec road, on a provider whose restore can
    * leave the daemon's unit enabled and never started. A daemon already running is left as it is. */
   startDaemon?(): Promise<ExecResult>;
+  /** Optional: the daemon's own last words when its unit keeps exiting as it starts, read over this machine's exec
+   * road; undefined while it runs or has not been started, and rejected when the machine cannot be asked. */
+  daemonExits?(): Promise<string | undefined>;
   /** Optional: bytes onto the machine on a backend that mints no signed upload URL. `landBytes` is what reads it,
    * so no caller picks between the two roads itself. */
   putBytes?(path: string, bytes: Uint8Array, opts?: { timeoutMs?: number }): Promise<BytesLanded | void>;

@@ -82,6 +82,8 @@ async function lateDaemon(): Promise<{ url: string; up: () => void; dials: () =>
   let listening = false;
   let dials = 0;
   edge.on("upgrade", (req, socket, head) => {
+    // A dial the runtime gives up on mid-handshake resets this socket, and Node leaves an upgraded socket no listener.
+    socket.on("error", () => {});
     dials++;
     if (listening) daemon.handleUpgrade(req, socket, head, sock => daemon.emit("connection", sock, req));
     else socket.end("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -367,6 +369,30 @@ describe("the nap of a workspace on a computer that keeps no image", () => {
       expect(t.clock.now() - began).toBeLessThan(16 * 60_000);
       expect((await t.rt.workspaces.get(t.ws.id)).machineId).toBe("m1");
       expect(t.m1.killed).toBe(false);
+    } finally {
+      await t.close();
+    }
+  });
+
+  it("a Boat wake whose daemon exits as it starts fails inside a minute with the daemon's own words, and keeps the machine", async () => {
+    // A box whose binary predates --doors, under today's unit, which Restart=always starts again every second.
+    const t = await boatWake(lateDaemon);
+    let asked = 0;
+    t.m1.daemonExits = async () => (++asked < 3 ? undefined : "error: unexpected argument '--doors' found; Usage: wsp-daemon [OPTIONS]");
+    try {
+      const began = t.clock.now();
+      let done = false;
+      const waking = t.rt.workspaces.wake(t.ws.id).finally(() => (done = true));
+      waking.catch(() => {});
+      await t.pump(() => done);
+      await expect(waking).rejects.toThrow(/the wake of m1 did not finish: attempt 1: the daemon on m1 exits as it starts \(error: unexpected argument '--doors' found; Usage: wsp-daemon \[OPTIONS\]\).*the workspace keeps this machine and its disk/);
+      expect(t.clock.now() - began).toBeLessThan(60_000);
+      expect(asked).toBe(3);
+      expect((await t.rt.workspaces.get(t.ws.id)).machineId).toBe("m1");
+      expect(t.m1.killed).toBe(false);
+      // A look armed by the wait and never cleared would ask again here.
+      await t.pump(() => t.clock.now() - began >= 2 * 60_000);
+      expect(asked).toBe(3);
     } finally {
       await t.close();
     }
