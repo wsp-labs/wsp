@@ -282,12 +282,12 @@ export type TurnAgent = { id: string; mcp: { format: McpFormat; files: readonly 
  * first that is there being the one, and each project file, every one read. An agent with no road of its own names its
  * catalog files and every candidate of its project file in the folder, of which it reads the first that is there. `top`
  * is the folder's checkout top, up to which Codex reads its project files. */
-export function turnServerFiles(agent: TurnAgent, folder: string, home: string, store?: string, top?: string): { user: string[]; projects: string[] } {
+export function turnServerFiles(agent: TurnAgent, folder: string, home: string, store?: string, top?: string): { user: string[]; base: string; projects: string[] } {
   const road = LAUNCH_SERVER_ROADS[agent.id];
-  const user = ownServerConfig(agent, home, store).files;
+  const { files: user, base } = ownServerConfig(agent, home, store);
   // A project file at home can be the agent's own file, which is read once, as its own.
   const projects = road !== undefined ? road.projectFiles(folder, top) : (agent.mcp.projectFiles ?? []).map(f => join(folder, f));
-  return { user, projects: projects.filter(f => !user.includes(f)) };
+  return { user, base, projects: projects.filter(f => !user.includes(f)) };
 }
 
 /** Every server a turn of the agent gets in the configs' folder, by scope, in the order the agent reads them, so the

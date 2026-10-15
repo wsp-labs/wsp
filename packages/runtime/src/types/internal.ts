@@ -32,7 +32,7 @@ import type {
   WorkspaceSize,
 } from "@wsp/protocol";
 import { type AccessChoice, type Attachment, AttachmentRecord, type ForkedFrom, type ThreadPlacement, SessionOrigin, ThreadScope, WorkspaceOrigin } from "@wsp/protocol";
-import { EXEC_OUTPUT_MAX, fmtBytes, fmtDuration, type WorktreeFolder, type DefaultBranchRoad, defaultBranchFix, defaultBranchRefusal, refusal } from "@wsp/protocol";
+import { CONFIG_READ_MAX_BYTES, EXEC_OUTPUT_MAX, fmtBytes, fmtDuration, type WorktreeFolder, type DefaultBranchRoad, defaultBranchFix, defaultBranchRefusal, refusal } from "@wsp/protocol";
 import type { MachineExecOptions, TurnWaiting } from "../machine-exec.js";
 import { copiedFromOf, listedFailure, listedLastLine, threadWord, type SubagentView } from "@wsp/protocol";
 import type { ScopedRoad } from "../devices.js";
@@ -171,6 +171,10 @@ export const sweptRunsLogLine = (workspaceId: string, runs: readonly string[]): 
  * values its launch hands them. */
 export const serverValuesUnreadLine = (agent: string, reason: string): string =>
   `${agent}'s MCP servers on that computer could not be read for the values its launch hands them (${reason}), so the turn did not start; try again once it answers`;
+/** What that turn fails with when one of the agent's config files there was left unread, said by `line`: its servers'
+ * values would go to a launch that reads a file wsp did not. */
+export const serverValuesLeftLine = (agent: string, line: string): string =>
+  `${agent}'s MCP servers on that computer were not read for the values its launch hands them: ${line}, so the turn did not start; make it a plain file under ${fmtBytes(CONFIG_READ_MAX_BYTES)}, or a link to one inside its folder, and send again`;
 /** What that turn fails with when the read came back cut: the agent's config files there passed what one command on
  * that computer may answer with, and a config cut short would read as one holding no servers. */
 export const serverValuesCutLine = (agent: string, files: readonly string[]): string =>

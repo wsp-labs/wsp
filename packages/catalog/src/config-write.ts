@@ -48,8 +48,12 @@ export function configLanding(file: string, id: string): string {
   return `${file.slice(0, file.lastIndexOf("/"))}/${TEMP}${id}`;
 }
 
+/** A shell line that runs `inside` where the real path `$r` stands inside the base's real path `$b`, else `outside`:
+ * the one rule the config read and the config write hold a link to. */
+export const underBase = (inside: string, outside: string): string => `case $r/ in "\${b%/}"/*) ${inside} ;; *) ${outside} ;; esac`;
+
 /** A shell check that the real path `$r` stands inside the base's real path `$b`, else says the path and exits. */
-export const insideBase = (said: string): string => `case $r/ in "$b"/*) ;; *) printf '%s\\000%s\\000' ${said} "$r"; exit ${CONFIG_LINK_EXIT};; esac`;
+export const insideBase = (said: string): string => underBase(":", `printf '%s\\000%s\\000' ${said} "$r"; exit ${CONFIG_LINK_EXIT}`);
 
 /** A refusal's exit, the file named on stdout so a line holding several writes says which one refused. Every path a
  * line says ends in a NUL, the one byte no path holds. */

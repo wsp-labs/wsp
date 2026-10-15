@@ -6,9 +6,9 @@
 // read off the machine, edited here by the catalog format's own module, and the
 // bytes land back; the machine runs nothing of its own for it.
 import { randomBytes } from "node:crypto";
-import { BASE_FLOOR, BREW_PREFIX, GUEST_HOME, MAC_BIN_DIRS, MAC_BREW, catalogEntry, catalogIdOfRow, configLanding, configRefusal, configSum, configWriteLine } from "@wsp/catalog";
+import { BASE_FLOOR, BREW_PREFIX, GUEST_HOME, MAC_BIN_DIRS, MAC_BREW, catalogEntry, catalogIdOfRow, configLanding, configRefusal, configSum, configWriteLine, underBase } from "@wsp/catalog";
 import type { McpEditLib, McpEditResult, McpFormat, McpMergeResult } from "@wsp/catalog";
-import { MCP_ID_PREFIX, shellQuote } from "@wsp/protocol";
+import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, MCP_ID_PREFIX, configUnreadLine, shellQuote } from "@wsp/protocol";
 import { CUSTOM_PREFIX, TOOLS_PATH, UV_INSTALL, WITHHELD_NOTE, withheld, type RecipeEntry } from "./golden-import.js";
 import { INLINE_EXEC_MS } from "./exec-detached.js";
 import { landBytes } from "./land-bytes.js";
@@ -174,19 +174,31 @@ export const readReason = (res: ExecResult, timeoutS: number = READ_MS / 1000): 
 /** Why the sync's read did not answer: every skipped server's note, the stage line, the run log and the saved result. */
 export const readFailed = (res: ExecResult): string => `the config edit did not run (${readReason(res)})`;
 
-/** One run reads every scope's config: the first of the scope's files that exists, base64 on one line, under the
- * scope's place in the plan and the file's place in the scope. */
-export function readConfigsCmd(scopes: readonly { files: readonly string[] }[]): string {
+/** What a config's line carries in place of its bytes when the read left it alone; neither is a base64 word. */
+const UNREAD_WORDS: Record<string, string> = { "-plain": CONFIG_NOT_PLAIN, "-cap": CONFIG_PAST_CAP };
+
+/** One run reads every scope's config: the first of the scope's files that is there, base64 on one line, under the
+ * scope's place in the plan and the file's place in the scope. The file is read at its real path, and only where
+ * that is a plain file inside the scope's base, the folder its write stays inside, so a dotfiles link reads as the
+ * write writes through it; anything else is named and not opened, and a file past the cap is named and not sent: the
+ * home a workspace writes may point the name at a file out of it or at a device that never ends, and every byte read
+ * comes back to the host. */
+export function readConfigsCmd(scopes: readonly { files: readonly string[]; base: string }[]): string {
+  const cap = CONFIG_READ_MAX_BYTES;
   return [
     "wsp_mcp_read() {",
-    '  i="$1"; shift; n=0',
+    '  i="$1"; b=$(realpath "$2" 2>/dev/null) || b=; shift 2; n=0',
     '  for f in "$@"; do',
-    `    if [ -f "$f" ]; then printf '${MCP_READ_MARK} %s %s ' "$i" "$n"; base64 < "$f" | tr -d '\\n'; printf '\\n'; return 0; fi`,
+    '    if [ -e "$f" ] || [ -L "$f" ]; then',
+    `      r=$(realpath "$f" 2>/dev/null) && [ -n "$b" ] && ${underBase('[ -f "$r" ]', "false")} || { printf '${MCP_READ_MARK} %s %s -plain\\n' "$i" "$n"; return 0; }`,
+    `      if [ "$(head -c ${cap + 1} < "$r" | wc -c | tr -d ' ')" -gt ${cap} ]; then printf '${MCP_READ_MARK} %s %s -cap\\n' "$i" "$n"; return 0; fi`,
+    `      printf '${MCP_READ_MARK} %s %s ' "$i" "$n"; head -c ${cap} < "$r" | base64 | tr -d '\\n'; printf '\\n'; return 0`,
+    "    fi",
     "    n=$((n+1))",
     "  done",
     `  printf '${MCP_READ_MARK} %s - -\\n' "$i"`,
     "}",
-    ...scopes.map((s, i) => `wsp_mcp_read ${i} ${s.files.map(shellQuote).join(" ")}`),
+    ...scopes.map((s, i) => `wsp_mcp_read ${i} ${shellQuote(s.base)} ${s.files.map(shellQuote).join(" ")}`),
     `printf '%s\\n' '${MCP_READ_END}'`,
   ].join("\n");
 }
@@ -206,11 +218,22 @@ export interface ScopeFile {
   sum: string;
 }
 
+/** A config that is there and was left unread, with why: the file the agent reads, so nothing is written there. */
+export interface ScopeUnread {
+  path: string;
+  unread: string;
+}
+
+export type ScopeRead = ScopeFile | ScopeUnread;
+
+/** Whether the read brought the config's text. */
+export const wasRead = (f: ScopeRead | undefined): f is ScopeFile => f !== undefined && !("unread" in f);
+
 /** What the read printed, one entry per scope in plan order; nothing when not one line carried the mark, since the
  * read says something about every scope it was given and a run that says nothing did not run. An empty file prints
  * three words and is a file that is there and holds nothing, never a scope with no config on the machine. */
-export function parseConfigs(stdout: string, scopes: readonly { files: readonly string[] }[]): (ScopeFile | undefined)[] | undefined {
-  const out: (ScopeFile | undefined)[] = scopes.map(() => undefined);
+export function parseConfigs(stdout: string, scopes: readonly { files: readonly string[] }[]): (ScopeRead | undefined)[] | undefined {
+  const out: (ScopeRead | undefined)[] = scopes.map(() => undefined);
   let answered = false;
   for (const line of stdout.split("\n")) {
     const words = line.trim().split(" ");
@@ -218,6 +241,11 @@ export function parseConfigs(stdout: string, scopes: readonly { files: readonly 
     answered = true;
     const path = scopes[Number(words[1])]?.files[Number(words[2])];
     if (path === undefined) continue;
+    const unread = UNREAD_WORDS[words[3] ?? ""];
+    if (unread !== undefined) {
+      out[Number(words[1])] = { path, unread };
+      continue;
+    }
     const bytes = Buffer.from(words[3] ?? "", "base64");
     out[Number(words[1])] = { path, text: bytes.toString("utf8"), sum: configSum(bytes) };
   }
@@ -248,14 +276,16 @@ export interface EditedName {
 export interface ScopeOutcome {
   file: string | null;
   error?: string;
+  /** Why the read left the file alone, which nothing then writes. */
+  unread?: string;
   results: EditedName[];
 }
 
 /** Every scope edited in plan order, each on its file's text as the scopes before it left it: two scopes of one
  * agent share a file, and the second reads what the first wrote. The texts are what the machine should end with. */
-function editScopes(plan: McpPlan, agents: readonly McpAgentPlan[], read: readonly (ScopeFile | undefined)[]): { outcomes: ScopeOutcome[]; texts: Map<string, string> } {
+function editScopes(plan: McpPlan, agents: readonly McpAgentPlan[], read: readonly (ScopeRead | undefined)[]): { outcomes: ScopeOutcome[]; texts: Map<string, string> } {
   const lib: McpEditLib = { rewriteString: (s, command) => rewriteString(plan, s, command) };
-  const texts = new Map(read.flatMap(f => (f === undefined ? [] : [[f.path, f.text] as const])));
+  const texts = new Map(read.flatMap(f => (wasRead(f) ? [[f.path, f.text] as const] : [])));
   const outcomes: ScopeOutcome[] = [];
   let at = 0;
   for (const agent of agents) {
@@ -263,6 +293,10 @@ function editScopes(plan: McpPlan, agents: readonly McpAgentPlan[], read: readon
       const file = read[at++];
       if (file === undefined) {
         outcomes.push({ file: null, results: [] });
+        continue;
+      }
+      if (!wasRead(file)) {
+        outcomes.push({ file: file.path, unread: file.unread, results: [] });
         continue;
       }
       try {
@@ -280,8 +314,8 @@ function editScopes(plan: McpPlan, agents: readonly McpAgentPlan[], read: readon
 /** Puts every config the edit changed back on the machine, each by the one config write inside `base`, from a
  * landing beside it; the words when one of them did not land. A landing the write never took is swept: it holds the
  * whole config at the upload road's own mode, and the machine it sits on may be about to be sealed into an image. */
-export async function landConfigs(machine: Machine, base: string | ((path: string) => string), read: readonly (ScopeFile | undefined)[], texts: ReadonlyMap<string, string>): Promise<string | undefined> {
-  const was = new Map(read.flatMap(f => (f === undefined ? [] : [[f.path, f] as const])));
+export async function landConfigs(machine: Machine, base: string | ((path: string) => string), read: readonly (ScopeRead | undefined)[], texts: ReadonlyMap<string, string>): Promise<string | undefined> {
+  const was = new Map(read.flatMap(f => (wasRead(f) ? [[f.path, f] as const] : [])));
   const changed = [...texts].filter(([path, text]) => was.get(path)?.text !== text).map(([path, text]) => ({ path, bytes: new TextEncoder().encode(text), landing: configLanding(path, randomBytes(6).toString("hex")) }));
   if (changed.length === 0) return undefined;
   const swept = async (why: string): Promise<string> => {
@@ -444,7 +478,14 @@ export async function mcpRows(
       const outcome = report?.[at++];
       const id = (name: string): string => scopeRowId(agent.id, scope, name);
       const skippedKeep =
-        failure ?? (outcome === undefined || outcome.file === null ? `${agent.label}'s config is not on the machine` : outcome.error !== undefined ? `${agent.label}'s config on the machine did not parse (${outcome.error})` : undefined);
+        failure ??
+        (outcome === undefined || outcome.file === null
+          ? `${agent.label}'s config is not on the machine`
+          : outcome.unread !== undefined
+            ? configUnreadLine(outcome.file, outcome.unread)
+            : outcome.error !== undefined
+              ? `${agent.label}'s config on the machine did not parse (${outcome.error})`
+              : undefined);
       for (const name of scope.keep) {
         const r = outcome?.results.find(x => x.name === name);
         if (skippedKeep !== undefined || r === undefined || r.outcome === "missing") {
@@ -506,7 +547,7 @@ export async function applyMcp(machine: Machine, plan: McpPlan, stage: StageList
   // The answer is every config whole, the servers' env and headers with it. No backend the seal runs on carries a
   // byte road out of a machine (a signed download URL is minted by one provider of the several), so the read goes
   // by the road every backend has and says that its output is not a log's.
-  const res = await machine.run(readConfigsCmd(scopes), { deadlineMs: READ_MS, unlogged: true }).catch(refused);
+  const res = await machine.run(readConfigsCmd(scopes.map(s => ({ files: s.files, base: plan.guestHome }))), { deadlineMs: READ_MS, unlogged: true }).catch(refused);
   let failure = res.exitCode === 0 ? undefined : readFailed(res);
   let report: ScopeOutcome[] | undefined;
   const files = failure === undefined ? parseConfigs(res.stdout, scopes) : undefined;

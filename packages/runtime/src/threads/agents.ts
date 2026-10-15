@@ -2,13 +2,13 @@
 import { homedir } from "node:os";
 import { dirname, join, posix, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, addressesToAsk, checkoutArgs, checkoutOf, installsOnFirstRun, needsOwnCredential, serverValuesOf, turnServerFiles, type LaunchConfigs, type LaunchServerRoad, type TurnServer } from "@wsp/catalog";
-import { INLINE_EXEC_MS, harnessExec, isPlaceAbsent, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole } from "@wsp/engine";
+import { INLINE_EXEC_MS, harnessExec, isPlaceAbsent, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole, wasRead, type ScopeUnread } from "@wsp/engine";
 import {
   type AttachmentRoad, type HarnessCatalog, type HarnessCatalogProbe, type Preferences, type SessionView, type TitleSource, type Attachment,
   type TurnImage, threadKeyOf, isLocalWorkspace, catalogRefused, imagePathIn, noAdapterLine, shellQuote,
   signInRefusalLine, storedTitleSource, workspaceState, HERE_PLACE_ID, filePathIn, landFilesLine, filesNotLandedLine,
   dropFilesLine, accessMode, accessRefusal, configDirLaunchRefusal, configDirRefusal, markedFor, openDefaults,
-  resolveThreadDefaults, withCustomModels, runsInFolder, HOST_TOKEN_ENV, type AccessChoice, type Caller, type ProjectOverrides, type ResolvedFolder,
+  resolveThreadDefaults, withCustomModels, runsInFolder, HOST_TOKEN_ENV, configUnreadLine, underProject, type AccessChoice, type Caller, type ProjectOverrides, type ResolvedFolder,
 } from "@wsp/protocol";
 import type { TurnWaiting } from "../machine-exec.js";
 import { keyOf, realFolderHere, realFolderScript } from "../agent-setup.js";
@@ -20,7 +20,7 @@ import {
   TITLE_MAKE_TIMEOUT_MS,
 } from "../types/events.js";
 import { atProvider, type LiveWorkspace } from "../types/wiring.js";
-import { AGENT_LISTS, noTitleLogLine, noMadeTitleLogLine, noNameWriteLogLine, serverValuesCutLine, serverValuesUnreadLine } from "../types/internal.js";
+import { AGENT_LISTS, noTitleLogLine, noMadeTitleLogLine, noNameWriteLogLine, serverValuesCutLine, serverValuesLeftLine, serverValuesUnreadLine } from "../types/internal.js";
 import type { RuntimeContext, AgentsArea } from "../context.js";
 
 export function agentsArea(ctx: RuntimeContext): AgentsArea {
@@ -516,14 +516,17 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
     const said = await entry.machine.exec(`git ${checkoutArgs(folder).map(shellQuote).join(" ")} 2>/dev/null`, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
     const checkout = checkoutOf(said?.exitCode === 0 ? said.stdout : undefined, folder);
     const files = turnServerFiles(mcp, folder, home, store === undefined ? undefined : env[store], checkout.top);
-    const scopes = [{ files: files.user }, ...files.projects.map(f => ({ files: [f] }))];
+    const top = checkout.top;
+    const scopes = [{ files: files.user, base: files.base }, ...files.projects.map(f => ({ files: [f], base: top !== undefined && underProject(f, top) ? top : posix.dirname(f) }))];
     const res = await entry.machine.exec(readConfigsCmd(scopes), { timeoutMs: INLINE_EXEC_MS });
     const agent = CATALOG_AGENTS.find(a => a.id === harness)?.name ?? harness;
     if (res.exitCode === 0 && !readWhole(res.stdout)) throw new Error(serverValuesCutLine(agent, scopes.flatMap(scope => scope.files)));
     const read = res.exitCode === 0 ? parseConfigs(res.stdout, scopes) : undefined;
     if (read === undefined) throw new Error(serverValuesUnreadLine(agent, readReason(res, INLINE_EXEC_MS / 1000)));
+    const left = read.find((f): f is ScopeUnread => f !== undefined && !wasRead(f));
+    if (left !== undefined) throw new Error(serverValuesLeftLine(agent, configUnreadLine(left.path, left.unread)));
     const [user, ...projects] = read;
-    return { road, configs: { ...(user !== undefined ? { user } : {}), projects: projects.filter(f => f !== undefined), folder, key: checkout.key } };
+    return { road, configs: { ...(wasRead(user) ? { user } : {}), projects: projects.filter(wasRead), folder, key: checkout.key } };
   };
 
   /** The vault's values for the agent's own MCP servers, for one launch in `folder` on a kind that hands them in the
