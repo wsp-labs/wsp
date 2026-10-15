@@ -9,8 +9,8 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { BOAT_BALANCE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatBoxStateLine, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
-import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
+import { BOAT_BALANCE_LINE, BOAT_DISK_GONE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatBoxStateLine, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
+import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
@@ -421,6 +421,12 @@ const templateRowOf = (s: NamedSnapshotView): TemplateRow => ({
   createdAt: s.createdAt,
 });
 
+/** Boat keeps a stopped box's disk 14 days, then deletes it, and a resume or a fork after that answers 409 with this
+ * code (docs.boat.dev/snapshots/stop.md and its errors table, read 2026-10-15). A box measured at day 18 still resumed
+ * whole on 2026-10-15, so the day is when a refusal may start, and only the refusal says the disk is gone. */
+const BOX_DISK_KEPT_MS = 14 * 24 * 3_600_000;
+const DISK_EXPIRED_CODE = "snapshot_data_expired";
+
 /** The provider's own words for its concurrent-box cap. The reference says 429 limit_reached; the trial's refusal
  * carries a message naming the cap under a status of its own (measured 2026-09-11), and the seal and the runtime read
  * a cap only as the concurrency kind: the builder is killed before the smoke fork, the row names the slot holders. */
@@ -537,6 +543,7 @@ export class BoxBackend implements MachineBackend {
   readonly lifecycle: Lifecycle = {
     budgets: BOX_BUDGETS,
     backstop: (machine, until, o) => this.backstop(machine, until, o),
+    diskKeptMs: BOX_DISK_KEPT_MS,
   };
 
   readonly baseTemplates: Readonly<Record<MachineKind, string>> = { sandbox: BOX_BASE_TEMPLATE, desktop: BOX_BASE_TEMPLATE };
@@ -873,9 +880,12 @@ export class BoxBackend implements MachineBackend {
     // A box carries no kind of its own: every one has a desktop the person may stream, and none has a stream this
     // backend hands the runtime while the desktop is off, so the handle reads sandbox, the kind the runtime treats
     // a machine without a stream as. When the stream is on, the kind comes off the record that asked for it.
+    const state = stateOf(view.state);
     return new BoxMachine(this, view.id, "sandbox", boxLabels(view.name), {
-      state: stateOf(view.state),
+      state,
       ...(view.createdAt !== undefined && view.createdAt !== null ? { createdAt: view.createdAt } : {}),
+      // Every stop saves the disk first, so a stopped box's last completed save is its stop.
+      ...(state === "paused" && typeof view.snapshotCompletedAt === "string" ? { pausedAt: view.snapshotCompletedAt } : {}),
     });
   }
 
@@ -1043,7 +1053,7 @@ export class BoxMachine implements Machine {
     readonly id: string,
     readonly kind: MachineKind,
     readonly labels?: Record<string, string>,
-    readonly seen?: { state: MachineState; createdAt?: string },
+    readonly seen?: Machine["seen"],
     readonly replayed?: boolean,
   ) {}
 
@@ -1184,7 +1194,10 @@ export class BoxMachine implements Machine {
     await this.backend.beforeStart();
     const last = this.backend.lastTimer(this.id);
     const ttlSeconds = await this.backend.ttlSecondsFor(last === undefined ? undefined : this.backend.clock.now() + last.spanMs);
-    await this.backend.request("POST", this.path("/resume"), { body: { ttlSeconds, ...(type !== undefined ? { type } : {}) }, signal }).catch((e: unknown) => this.backend.startRefused(e, this.labels?.[NAME_LABEL]));
+    await this.backend.request("POST", this.path("/resume"), { body: { ttlSeconds, ...(type !== undefined ? { type } : {}) }, signal }).catch((e: unknown) => {
+      if ((e as Partial<WspError>).code === DISK_EXPIRED_CODE) throw new DiskGoneError(this.id, BOAT_DISK_GONE_LINE, (e as Error).message);
+      return this.backend.startRefused(e, this.labels?.[NAME_LABEL]);
+    });
     this.backend.counted();
     await this.backend.settle(this.id, v => STATE_MAP[v.state] === "running", this.backend.budgets.resumeMs, "resume", signal);
     await this.proveRoad(signal);

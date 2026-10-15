@@ -117,6 +117,10 @@ pub struct TurnOut {
     pub capped: Option<CapWait>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_cut: Option<bool>,
+    /// What the host said before the turn: the line a wake left on a deleted disk. This server's run and send leave it
+    /// unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
 }
 
 /// What holds a start back while its outcome is held: the computer and what runs there against its threads at once.
@@ -979,6 +983,7 @@ pub(super) fn turn_out(turn: &Turn) -> TurnOut {
         outcome: turn.outcome.clone(),
         capped: turn.capped.clone(),
         after_cut: turn.after_cut.then_some(true),
+        notice: None,
     }
 }
 

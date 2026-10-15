@@ -76,6 +76,19 @@ export class EnvNotLandedError extends Error {
   }
 }
 
+/** A resume the provider refused because it deleted the paused machine's disk: that machine never wakes again, and
+ * its record moves to a new one. The message is the backend's line naming its rule; said is the provider's words. */
+export class DiskGoneError extends Error {
+  constructor(
+    readonly machineId: string,
+    line: string,
+    readonly said: string,
+  ) {
+    super(line);
+    this.name = "DiskGoneError";
+  }
+}
+
 /** A create the provider cancelled because it could not get a machine: terminal, read once and then gone. */
 export class CreateCancelledError extends Error {
   constructor(

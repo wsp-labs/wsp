@@ -112,6 +112,8 @@ export interface StubMachine extends Machine {
   /** The options each run() carried, in runLog order. */
   runOptions: RunOptions[];
   resumes: number;
+  /** When the provider says its pause landed, which a read of it carries while it is paused. */
+  pausedAt?: string;
   /** What describe() reports; tests mutate it to play a resume that rebuilt the VM. */
   shape: MachineShape;
   /** The life every snapshot was handed, in order. */
@@ -328,7 +330,7 @@ export function stubBackend(mark?: string): StubBackend {
           return m.killed ? "gone" : m.paused ? "paused" : "running";
         },
         get seen() {
-          return { state: (m.killed ? "gone" : m.paused ? "paused" : "running") as MachineState, ...(m.shape.createdAt !== undefined ? { createdAt: m.shape.createdAt } : {}) };
+          return { state: (m.killed ? "gone" : m.paused ? "paused" : "running") as MachineState, ...(m.shape.createdAt !== undefined ? { createdAt: m.shape.createdAt } : {}), ...(m.paused && m.pausedAt !== undefined ? { pausedAt: m.pausedAt } : {}) };
         },
         async describe(): Promise<MachineShape> {
           return { ...m.shape };

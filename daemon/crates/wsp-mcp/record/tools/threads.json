@@ -440,6 +440,12 @@
                 ],
                 "additionalProperties": false
               },
+              "diskKeptUntil": {
+                "type": "number"
+              },
+              "diskGone": {
+                "type": "string"
+              },
               "capped": {
                 "type": "object",
                 "properties": {
@@ -1157,6 +1163,12 @@
                   "branch"
                 ],
                 "additionalProperties": false
+              },
+              "diskKeptUntil": {
+                "type": "number"
+              },
+              "diskGone": {
+                "type": "string"
               },
               "capped": {
                 "type": "object",

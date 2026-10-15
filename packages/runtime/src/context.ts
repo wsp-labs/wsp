@@ -430,6 +430,9 @@ export interface ReachArea {
   readonly stopDiskWatch: () => Promise<void>;
   readonly reachOf: (entry: LiveWorkspace) => ReachState;
   readonly emitStatus: (entry: LiveWorkspace, reach: ReachState, reason?: string) => Promise<void>;
+  /** The host's line about a workspace's machine, a notice on the latest turn of each of its threads: a running
+   * workspace's status reason is drawn nowhere, so a line a person must read goes here. */
+  readonly tellThreads: (workspaceId: string, line: (threadId: string) => string) => void;
   readonly saysWaking: (entry: LiveWorkspace, words: string) => Promise<void>;
   readonly pingDaemon: (entry: LiveWorkspace) => Promise<string | undefined>;
   readonly helloVersion: (entry: LiveWorkspace) => Promise<number | null>;
