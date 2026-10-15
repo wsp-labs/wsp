@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
 import { lstatSync, mkdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,7 +7,7 @@ import { MCP_ID_PREFIX, PLACE_FOUND_END, placeDaemonPaths, placeProvisionPaths }
 import { MCP_SERVERS_JSON } from "@wsp/catalog";
 import { serverDigest } from "@wsp/engine";
 import { PLACE_SERVERS_PAST_CAP, PLACE_SERVERS_UNREAD, placeFound, placeServersUnreadLine, SERVERS_READ_MAX_BYTES } from "../src/place-report.js";
-import { fakeRunner, shWithSha256sum, sweepPlace, tmp } from "./places-fixture.js";
+import { fakeRunner, fifoWriter, made, shWithSha256sum, stopGroup, sweepPlace, tmp } from "./places-fixture.js";
 
 /** Claude Code's own file on the box: one server wsp merged in and one of the person's own. */
 const CLAUDE_TEXT = `${JSON.stringify({ mcpServers: { context7: { command: "npx", args: ["-y", "context7"] }, mine: { command: "/usr/local/bin/mine" } } }, null, 2)}\n`;
@@ -23,27 +23,6 @@ function homeWithServer(name: string): string {
 }
 
 const leave = (home: string) => sweepPlace({ home, manager: undefined, run: fakeRunner().run, sh: shWithSha256sum() });
-
-/** A writer of Claude's file into a fifo, which says when its open returned: that is when something read the fifo. */
-function fifoWriter(fifo: string, afterMs = 0) {
-  const writer = spawn("/bin/sh", ["-c", 'sleep "$3"; exec 3>"$1"; echo opened; printf "%s" "$2" >&3; exec 3>&-', "sh", fifo, CLAUDE_TEXT, String(afterMs / 1000)], { stdio: ["ignore", "pipe", "ignore"], detached: true });
-  let opened = "";
-  writer.stdout.on("data", chunk => (opened += String(chunk)));
-  return { opened: () => opened, stop: () => stopGroup(writer) };
-}
-
-/** Kills a child's whole group, so a sleep it waits in goes too. One that already ran to its end has no group left,
- * and a kill then would throw over the test's own failure: Linux answers ESRCH, and macOS EPERM while the child is
- * not yet reaped, which a case whose read held the event loop has not done. */
-function stopGroup(child: ChildProcess): void {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  try {
-    process.kill(-child.pid!, "SIGKILL");
-  } catch (e) {
-    const code = (e as NodeJS.ErrnoException).code;
-    if (code !== "ESRCH" && code !== "EPERM") throw e;
-  }
-}
 
 describe("the leave at the box reads an agent's own config file as a plain file only, and no further than a cap", () => {
   it("takes wsp's server out of a plain file and keeps the person's", async () => {
@@ -61,7 +40,7 @@ describe("the leave at the box reads an agent's own config file as a plain file 
     await made(claude);
     // A late writer stands in for nobody ever writing: a read that waits on the fifo gets its bytes three seconds on
     // and takes the server, where one that never waits has said what it kept long before.
-    const late = fifoWriter(claude, 3000);
+    const late = fifoWriter(claude, CLAUDE_TEXT, 3000);
     try {
       const swept = await leave(home);
       expect(swept.kept).toContain(placeServersUnreadLine(claude, PLACE_SERVERS_UNREAD));
@@ -88,7 +67,7 @@ describe("the leave at the box reads an agent's own config file as a plain file 
     const home = homeWithServer("leave-servers-pointed");
     const claude = join(home, ".claude.json");
     symlinkSync(far, claude);
-    const writer = fifoWriter(far);
+    const writer = fifoWriter(far, CLAUDE_TEXT);
     try {
       const swept = await leave(home);
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -135,8 +114,3 @@ describe("the leave's read of the add's record", () => {
     }
   });
 });
-
-/** mkfifo, waited for. */
-function made(path: string): Promise<void> {
-  return new Promise((resolve, reject) => spawn("mkfifo", [path]).on("exit", code => (code === 0 ? resolve() : reject(new Error(`mkfifo ${path}: ${code}`)))));
-}
