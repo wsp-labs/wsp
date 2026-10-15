@@ -132,9 +132,9 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
       // or fish reads a file under the /root every workspace on that box writes, as root, on every dial wsp makes.
       // The read that has just run already went through it once; what this stops is the deploy and every dial after.
       // A box that named no shell at all is one this rule says nothing about, and is taken as it always was. Over
-      // sudo root's shell never runs: sshd hands the command to the login's own shell, as the login, and sudo runs
-      // bash itself.
-      if (road === "root" && shell !== undefined && !PLACE_ROOT_SHELLS.includes(shell)) throw new Error(placeRootShellRefusal(req.address, shell));
+      // sudo the read ran as root, so this is root's shell too: no dial runs it, but the leave line there is
+      // sudo -i wsp leave, which does, and zsh or fish never reads the ~/.profile the add puts wsp on the PATH in.
+      if (shell !== undefined && !PLACE_ROOT_SHELLS.includes(shell)) throw new Error(placeRootShellRefusal(req.address, shell));
       if (login.HOME === "/") throw new Error(placeRootHomeRefusal(req.address));
       // The binary that lands is picked off the word the box just said about its own chip, never off this computer's:
       // the two are different computers as often as they are alike, and a binary for the wrong one starts and dies.

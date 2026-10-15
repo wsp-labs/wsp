@@ -169,14 +169,29 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
   });
 
   it("installs over a login whose sudo asks for nothing, as it does over root, with no password asked or ridden", async () => {
-    // Root's own shell is zsh here, which a root login is refused for; over sudo it never runs, and is not.
-    const box = fakeBox("x86_64", "zsh", { checks: ["uid 0", "systemd yes", "cgroup2 yes"], road: "free" });
+    const box = fakeBox("x86_64", "bash", { checks: ["uid 0", "systemd yes", "cgroup2 yes"], road: "free" });
     await placeInstaller({ backend: box.backend as never, ...assets(tmp("sudo-free"), [X86]) })({ address: "maya@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4400"] }, box.stage);
     expect(box.order).toEqual(["read"]);
     expect(box.tried).toEqual([]);
     expect(box.ridden).toEqual([]);
     expect(box.stages).toContain("root done");
     expect(box.ran.some(script => script.includes(WSP_READY_LINE) || script.includes("uname -m"))).toBe(true);
+  });
+
+  it("refuses a login whose sudo reaches a root running a shell other than bash or sh, in the root road's sentence, before anything lands", async () => {
+    // The leave line over sudo is sudo -i wsp leave, which runs root's own login shell: zsh reads ~/.zprofile and
+    // never the ~/.profile the add puts wsp on the PATH in. The read under sudo ran as root, so its shell is root's.
+    const boxes = [
+      { shell: "zsh", box: fakeBox("x86_64", "zsh", { road: "free" }) },
+      { shell: "fish", box: fakeBox("x86_64", "fish", { road: "asks", tries: () => "taken" }), password: "right" },
+      { shell: "ash", box: fakeBox("x86_64", "ash", { road: "free", minusNRefused: true, tries: () => "taken" }), password: "right" },
+    ];
+    for (const { shell, box, password } of boxes) {
+      const install = placeInstaller({ backend: box.backend as never, ...assets(tmp(`sudo-shell-${shell}`), [X86]) });
+      await expect(install({ address: "maya@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4400"], ...(password !== undefined ? { sudoPassword: password } : {}) }, box.stage), shell).rejects.toThrow(placeRootShellRefusal("maya@box", shell));
+      expect(box.ran, shell).toEqual([]);
+      expect(box.landed, shell).toEqual([]);
+    }
   });
 
   it("asks at the root row for the password a login's sudo wants, after reading the login as itself, with nothing of wsp's sent", async () => {
