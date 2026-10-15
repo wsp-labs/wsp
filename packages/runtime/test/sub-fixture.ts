@@ -242,6 +242,8 @@ export interface Setup {
    * own ahead of the PATH, which writes each line it is asked to gh-asked under the fixture's folder and holds a login
    * while gh-signed-in stands there. */
   hostGh?: boolean;
+  /** Options the host starts with beside the fixture's own: a deploy road and the daemon's token. */
+  host?: Partial<Parameters<typeof createRuntime>[0]>;
 }
 
 /** A gh that, while `<at>/gh-signed-in` stands, answers `auth token` for github.com with a token and the read of the
@@ -291,7 +293,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
     boat.execImpl = (m, cmd, stdin) => (cmd.startsWith(`${STORE_TITLE} `) ? { exitCode: 0, stdout: storeTitle(starts.map(s => s.o)) ?? "", stderr: "" } : inner(m, cmd, stdin));
   }
   const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE, storeTitle !== undefined), opencode: harness(starts, leadTurn, CODEX_SESSION_FILE) };
-  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...broker, ...(o.clock !== undefined ? { clock: o.clock } : {}) };
+  const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...broker, ...(o.clock !== undefined ? { clock: o.clock } : {}), ...o.host };
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);
   if (o.served === true) {

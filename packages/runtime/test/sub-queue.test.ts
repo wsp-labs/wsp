@@ -5,11 +5,13 @@
 // queue starts the spawns first in, first out when a slot frees or a minute
 // turns. A stop drops a held spawn with no start spent, and a restarted host
 // starts it all the same. Boat is a stub backend that keeps every create.
-import { describe, expect, it } from "vitest";
-import { SUB_DROPPED_LINE, keptOpening, spawnCapRefusal, subOpening, type Caller, type ThreadCapWait } from "@wsp/protocol";
+import { describe, expect, it, vi } from "vitest";
+import { DAEMON_TOKEN_PATH, DAEMON_VERSION, SUB_DROPPED_LINE, keptOpening, spawnCapRefusal, subOpening, type Caller, type ThreadCapWait } from "@wsp/protocol";
+import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
 import type { Runtime } from "../src/runtime.js";
 import { fakeClock } from "./fake-clock.js";
 import { NAME_LABEL, type MachineSpec } from "@wsp/engine";
+import { TOKEN, helloingDaemon } from "./runtime-fixture.js";
 import { CONNECT_TIMED_OUT, PAID, connectTimedOut, leadOnThisComputer } from "./sub-fixture.js";
 
 const TASK = "Fix the flaky upload test in packages/upload.";
@@ -32,6 +34,40 @@ async function startOf(rt: Runtime, made: Awaited<ReturnType<Runtime["workspaces
 }
 
 const recordOf = async (rt: Runtime, id: string) => (await rt.workspaces.list()).find(w => w.id === id);
+
+describe("a spawn on a fork whose daemon is older than this host's", () => {
+  it("starts its first turn once the update landed, with no other turn ending, when the version read lands while its Waiting row stands", async () => {
+    const daemon = await helloingDaemon(DAEMON_VERSION - 1);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const order: string[] = [];
+    try {
+      let launched = (): number => 0;
+      const deployDaemon = async (): Promise<void> => {
+        order.push(`deploy after ${launched()} sub turns`);
+        daemon.announce(DAEMON_VERSION);
+      };
+      const { rt, boat, starts, project, lead, token } = await leadOnThisComputer({ broker: true, hostGh: true, picks: ["CLAUDE.local.md"], host: { daemonToken: TOKEN, goldenRecipe: { setup: "true", smoke: "true", deployDaemon }, daemonHelloTimeoutMs: 2_000 } });
+      launched = () => starts.length - 1;
+      const create = boat.create.bind(boat);
+      boat.create = async (spec, waiting) => Object.assign(await create(spec, waiting), { previewUrl: async () => ({ url: `ws://127.0.0.1:${daemon.port}`, token: "e", expiresAt: Date.now() + 3_600_000 }) });
+      const answer = boat.execImpl;
+      // The folder's make on the fork takes a Boat round trip, so the fork's version read lands before the row goes.
+      boat.execImpl = async (m, cmd, stdin) => {
+        if (cmd.includes(DAEMON_TOKEN_PATH)) return { exitCode: 0, stdout: `${DAEMON_TOKEN_SET}\n`, stderr: "" };
+        if (cmd.startsWith("install -d")) await new Promise(r => setTimeout(r, 500));
+        return answer(m, cmd, stdin);
+      };
+      const made = await rt.workspaces.create({ project: project.id, name: "fix", sub: { on: "boat" } }, lead);
+      void rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: "fix", cwd: made.sub!.folder }, lead).catch(() => {});
+      for (const until = Date.now() + 3_000; Date.now() < until && launched() === 0; ) await new Promise(r => setTimeout(r, 20));
+      // The lead's turn still runs, so no turn's end anywhere wakes the update's wait.
+      expect([order, launched()]).toEqual([["deploy after 0 sub turns"], 1]);
+    } finally {
+      warn.mockRestore();
+      await daemon.close();
+    }
+  });
+});
 
 describe("a spawn at Boat's machines at once waits for a slot", () => {
   it("is held as queued and answered held with capped, then starts by itself, first in first out, as sub-threads are done", async () => {

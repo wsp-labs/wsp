@@ -109,15 +109,18 @@ export function daemonArea(ctx: RuntimeContext): DaemonArea {
   /** Settles once no turn is running on the workspace: at once when none is, else when the last one ends. Replacing
    * the daemon ends the ptys under it, so the work a person or an agent started finishes first. */
   const turnRuns = (workspaceId: string): boolean => [...sessions.values()].some(s => s.view.workspaceId === workspaceId && s.view.status === "running");
+  /** A held spawn's Waiting row runs nothing on the machine, and its turn launches through the wait for this update,
+   * so the update counts it as no turn; it leaves with no end that would wake a wait parked on it. */
+  const turnOnMachine = (workspaceId: string): boolean => [...sessions.values()].some(s => s.view.workspaceId === workspaceId && s.view.status === "running" && s.queued !== true);
 
   const whenNoTurnRuns = (workspaceId: string): Promise<void> => {
-    if (!turnRuns(workspaceId)) return Promise.resolve();
+    if (!turnOnMachine(workspaceId)) return Promise.resolve();
     return new Promise(done => {
       // A turn leaves running on its done or its end and on nothing else, so this wakes twice a turn rather than
       // once per output chunk of every workspace on the bus.
       const offs: (() => void)[] = [];
       const check = (): void => {
-        if (turnRuns(workspaceId)) return;
+        if (turnOnMachine(workspaceId)) return;
         for (const off of offs) off();
         done();
       };
@@ -216,13 +219,13 @@ export function daemonArea(ctx: RuntimeContext): DaemonArea {
       }
       unreadAt.delete(entry.record.id);
       if (version >= DAEMON_VERSION) return;
-      if (turnRuns(entry.record.id)) console.warn(`daemon on ${key} (workspace ${entry.record.id}): update waits for the running turn`);
+      if (turnOnMachine(entry.record.id)) console.warn(`daemon on ${key} (workspace ${entry.record.id}): update waits for the running turn`);
       await whenNoTurnRuns(entry.record.id);
       if (entry.record.phase !== "running") return;
       await noteDaemon(entry, placing ? DAEMON_INSTALLING : DAEMON_UPDATING);
       // Marking the row awaits a push, which is several ticks wide; a turn that opened inside that window would
       // lose its ptys to the deploy, so the wait runs again until nothing is running as the deploy starts.
-      while (turnRuns(entry.record.id)) await whenNoTurnRuns(entry.record.id);
+      while (turnOnMachine(entry.record.id)) await whenNoTurnRuns(entry.record.id);
       // The last read before the deploy: a machine that napped under the wait is handed no exec on a paused sandbox.
       if (entry.record.phase !== "running") {
         await noteDaemon(entry, undefined);
@@ -258,7 +261,7 @@ export function daemonArea(ctx: RuntimeContext): DaemonArea {
    * anyway, and the sync waits for it, so a launch beside it waits for nothing. */
   const daemonSettled = (entry: LiveWorkspace): Promise<void> => {
     const sync = daemonSyncs.get(entry.machine.id);
-    return sync === undefined || turnRuns(entry.record.id) ? Promise.resolve() : sync.catch(() => {});
+    return sync === undefined || turnOnMachine(entry.record.id) ? Promise.resolve() : sync.catch(() => {});
   };
 
   /** Every attempt to put a daemon back on a workspace's current machine, and when the last one was. */
