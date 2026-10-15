@@ -14,7 +14,7 @@ import { assetDir, assetProof, daemonBinaryHere } from "../src/assets.js";
 import { hostPlatform } from "../src/verbs.js";
 import { DAEMON_TARGETS, daemonBinaryIn, daemonTargetHere, GUEST_DAEMON_TARGETS } from "../src/daemon-binary.js";
 import { agentSignInWord, agentVersionWord, probePath, doctorRowRefusal, EXIT_CODES, noSuchPlaceRefusal, noSuchProjectLine, plural, THIS_COMPUTER, type PlaceApplied, type ProjectView, HERE_PLACE_ID, HOMEBREW_PREFIX, DAEMON_MEMORY_MAX_PERCENT, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_WSP_BIN, GUEST_WSP_PATH, guestWspShim, machineLacksShort, NO_SYSTEMD_LINE, placeUpdateLine, signInRefusalLine, wspBinIn, type HarnessCatalogAnswer, type PlaceCapacity, type PlaceView } from "@wsp/protocol";
-import { copyKey, createRuntime, localExecStream, rotateDaemonTokenScript, writeDaemonTokenScript, type HarnessAdapterFactory, type Runtime } from "@wsp/runtime";
+import { copyKey, createRuntime, DaemonTokenError, localExecStream, rotateDaemonTokenScript, writeDaemonTokenScript, type HarnessAdapterFactory, type Runtime } from "@wsp/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isReserved, LocalBackend, NoProviderBackend } from "@wsp/engine";
 import {
@@ -1751,9 +1751,11 @@ describe("connectDaemonSocket", () => {
     }
   });
 
-  it("rejects on a bad daemon token (4401 through the socket close)", async () => {
+  it("rejects on a bad daemon token (4401 through the socket close), as the refusal the relay writes the token again on", async () => {
     const { url } = await startLocalDaemon();
-    await expect(connectDaemonSocket({ url, token: "wrong" })).rejects.toThrow(/4401.*daemon token refused/);
+    const dial = connectDaemonSocket({ url, token: "wrong" });
+    await expect(dial).rejects.toThrow(/4401.*daemon token refused/);
+    await expect(dial).rejects.toBeInstanceOf(DaemonTokenError);
   });
 
   it("dials with the edge token alone and sends ours as the first frame", async () => {
