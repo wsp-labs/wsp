@@ -10,6 +10,7 @@ import type { PipeDoor } from "@wsp/protocol";
 import type { RefusalShape } from "./types.js";
 
 export const REVOKED_SAID = "wsp: this machine was revoked on your computer. Start a new thread.";
+export const UNHELD_SAID = "wsp: your computer holds no workspace for this machine, so it did not send this call. Start a new thread.";
 export const NO_TOKEN_SAID = "wsp: this call carries no token from your computer. Run it from the thread's turn or its Terminal pane.";
 export const DEAD_TOKEN_SAID = "wsp: this call's token is not live on your computer, since the turn that held it has ended. Send the thread a new message.";
 export const OTHER_MACHINE_SAID = "wsp: this call's token belongs to another machine, so your computer did not send it. Run it from this machine's own turn or Terminal pane.";
