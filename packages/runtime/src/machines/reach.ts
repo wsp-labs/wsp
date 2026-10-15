@@ -219,12 +219,13 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
    * is not that computer would fail this check on a live guest, which on a backend whose wake takes one attempt
    * throws the container away and forks the golden again. A machine with neither road has nothing to ask, so the
    * check falls back to the shape comparison. */
-  const daemonAnswer = async (entry: LiveWorkspace): Promise<string | undefined> => {
+  const daemonAnswer = async (entry: LiveWorkspace, quit?: AbortSignal): Promise<string | undefined> => {
     const machine = entry.machine;
     const answersMs = ctx.lifecycleOf(entry).budgets.daemonAnswersMs;
     // The person's stop on a wake ends the wait here too: the budget runs to minutes, and the row's toggle waits for
-    // the wake to let go.
-    const stop = entry.wakeStop?.signal;
+    // the wake to let go. So does `quit`, the caller's own reason to stop waiting.
+    const stopped = entry.wakeStop?.signal;
+    const stop = stopped === undefined ? quit : quit === undefined ? stopped : AbortSignal.any([stopped, quit]);
     const orStopped = <T>(p: Promise<T>): Promise<T> =>
       stop === undefined
         ? p
@@ -276,9 +277,9 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
    * try inside the same budget, which stays the outer cut. */
   const START_DAEMON_AFTER_MS = 60_000;
 
-  const pingDaemon = async (entry: LiveWorkspace): Promise<string | undefined> => {
+  const startingDaemon = async (entry: LiveWorkspace, quit: AbortSignal): Promise<string | undefined> => {
     const machine = entry.machine;
-    if (machine.startDaemon === undefined) return daemonAnswer(entry);
+    if (machine.startDaemon === undefined) return daemonAnswer(entry, quit);
     const start = machine.startDaemon.bind(machine);
     const began = clock.now();
     let over = false;
@@ -306,7 +307,44 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
     };
     arm();
     try {
-      return await daemonAnswer(entry);
+      return await daemonAnswer(entry, quit);
+    } finally {
+      over = true;
+      cancel();
+    }
+  };
+
+  /** How often a wait on a daemon asks a machine that can tell whether its daemon keeps exiting as it starts: a look
+   * takes five seconds on the machine, and a daemon that cannot start is otherwise waited on for the whole budget. */
+  const LOOK_EXITS_EVERY_MS = 10_000;
+
+  const pingDaemon = async (entry: LiveWorkspace): Promise<string | undefined> => {
+    const machine = entry.machine;
+    const quit = new AbortController();
+    let exited: string | undefined;
+    let over = false;
+    let cancel = (): void => {};
+    const look = (exits: () => Promise<string | undefined>): void => {
+      cancel = clock.schedule(
+        () =>
+          void exits().then(
+            said => {
+              if (over) return;
+              if (said === undefined) return look(exits);
+              exited = `the daemon on ${machine.id} exits as it starts (${said})`;
+              quit.abort();
+            },
+            // A look the machine could not answer, as a box still streaming its disk may not, is asked again.
+            () => (over ? undefined : look(exits)),
+          ),
+        LOOK_EXITS_EVERY_MS,
+        { unref: true },
+      );
+    };
+    if (machine.daemonExits !== undefined) look(machine.daemonExits.bind(machine));
+    try {
+      const fault = await startingDaemon(entry, quit.signal);
+      return fault === undefined ? undefined : (exited ?? fault);
     } finally {
       over = true;
       cancel();
