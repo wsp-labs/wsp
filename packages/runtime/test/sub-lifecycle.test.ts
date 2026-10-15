@@ -203,6 +203,18 @@ describe("the delete at deleteAt", () => {
     expect(held.boat.machines).toHaveLength(asked);
   });
 
+  it("tells every window the row at the release, so its tile reads Released with no reload", async () => {
+    const { clock, jump } = jumpClock();
+    const held = await doneOnce({ clock, deleteAfterMs: 30 * MIN });
+    await settled(held);
+    jump(31 * MIN);
+    await until(async () => ((await held.record()).phase === "released" ? true : undefined), "the release");
+    await until(async () => held.pushed.find(e => e.threadId === held.threadId && e.row?.sub?.state === "released"), "a pushed row reading released");
+    // Boat removed after the release moves the same row again: its card says Boat left.
+    await held.rt.places!.remove("box");
+    await until(async () => held.pushed.find(e => e.threadId === held.threadId && e.row?.sub?.cloudGone === true), "a pushed row saying Boat left");
+  });
+
   it("cuts the machine off at the broker before Boat is asked, keeps it off where Boat refuses, and lifts it for a turn that takes the machine back", async () => {
     const { clock, jump } = jumpClock();
     const held = await doneOnce({ clock, broker: false });
@@ -218,6 +230,7 @@ describe("the delete at deleteAt", () => {
       const r = await held.record();
       return offAtKill.length > 0 && r.sub!.deleteAt !== undefined && r.sub!.deleteAt > clock.now() ? r : undefined;
     }, "the delete tried again later");
+    await until(async () => held.pushed.find(e => e.threadId === held.threadId && e.row?.sub?.deleteAt === refused.sub!.deleteAt), "a pushed row with the delete moved");
     expect(offAtKill).toEqual([true]);
     expect(refused.phase).not.toBe("released");
     expect(held.brokerSwitch.off.has(held.made.id)).toBe(true);
@@ -249,10 +262,12 @@ describe("the delete at deleteAt", () => {
     expect(again).toBeGreaterThan(clock.now() + 29 * MIN);
   });
 
-  it("turns into a hold where the machine still runs and its read now finds work not pushed", async () => {
+  it("turns into a hold where the machine still runs and its read now finds work not pushed, and tells every window", async () => {
     const { clock, jump } = jumpClock();
     const held = await leadOnThisComputer({ clock });
     open.push(held.rt);
+    const pushed: SessionRowEvent[] = [];
+    held.rt.events.on("*", e => void (e.type === "session.row" && pushed.push(e)));
     const answers: Answers = { read: PUSHED, session: null };
     answering(held.boat, answers);
     const create = held.boat.create.bind(held.boat);
@@ -273,6 +288,7 @@ describe("the delete at deleteAt", () => {
     expect(r.sub!.deleteAt).toBeUndefined();
     expect(r.phase).toBe("running");
     expect(held.boat.machines.at(-1)!.killed).toBe(false);
+    await until(async () => pushed.find(e => e.row?.sub?.held !== undefined), "a pushed row carrying the hold");
   });
 
   it("survives a restart, and a deleteAt passed while the host was down deletes at boot", async () => {
