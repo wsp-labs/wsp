@@ -86,7 +86,8 @@ export function mcpConfigRead(cmd: string, configs: (file: string) => string | u
   if (asks.length === 0) return undefined;
   return asks
     .map(([, scope, rest]) => {
-      const files = [...rest!.matchAll(/'((?:[^']|'\\'')*)'/g)].map(m => m[1]!.replaceAll(String.raw`'\''`, "'"));
+      // The first word is the scope's base, the files after it.
+      const files = [...rest!.matchAll(/'((?:[^']|'\\'')*)'/g)].map(m => m[1]!.replaceAll(String.raw`'\''`, "'")).slice(1);
       const at = files.findIndex(f => configs(f) !== undefined);
       return at < 0 ? `${MCP_READ_MARK} ${scope} - -` : `${MCP_READ_MARK} ${scope} ${at} ${Buffer.from(configs(files[at]!)!, "utf8").toString("base64")}`;
     })

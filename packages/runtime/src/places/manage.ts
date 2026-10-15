@@ -667,12 +667,13 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
           try {
             // Before the folder holding the list goes with the leave: the servers wsp merged into the agents' own
             // files there are keys inside files that are theirs, which the daemon knows no format to take out.
-            const took = await unmergedOver(placeId, held);
+            const servers = await unmergedOver(placeId, held);
             // A thread's turns stand in cgroups of their own, outside the unit the leave stops, so they go first.
             const ended = await ctx.door.exec(placeId, threadCgroupsEndScript(), { timeoutMs: THREADS_END_MS }).catch(() => undefined);
             const answer = await reach.request("place.leave", { ...(force ? { force: true } : {}), projects });
-            swept = [...took, ...(ended?.stdout.split("\n").filter(line => line !== "") ?? []), ...(Array.isArray(answer["swept"]) ? (answer["swept"] as unknown[]).map(String) : [])];
+            swept = [...servers.took, ...(ended?.stdout.split("\n").filter(line => line !== "") ?? []), ...(Array.isArray(answer["swept"]) ? (answer["swept"] as unknown[]).map(String) : [])];
             if (loginRoad !== undefined && away === undefined) note = placeSweptOverLinkLine(held.name, loginRoad.at, loginRoad.said);
+            if (servers.kept.length > 0) note = [...(note === undefined ? [] : [note]), ...servers.kept].join("; ");
           } catch (e) {
             const failed = `${held.name} was connected but did not finish the sweep: ${e instanceof Error ? e.message : String(e)}; run ${PLACE_LEAVE_LINE} on that computer`;
             const before = away !== undefined ? `${away}, so nothing was changed on the machine it reaches` : loginRoad === undefined ? undefined : placeLoginRoadLine(held.name, loginRoad.at, loginRoad.said);
