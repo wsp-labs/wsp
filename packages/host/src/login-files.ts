@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { posix } from "node:path";
-import { shellQuote, wspBinIn } from "@wsp/protocol";
+import { PLACE_LOGIN_LINKED, shellQuote, wspBinIn } from "@wsp/protocol";
 import type { DaemonPlace } from "./doctor.js";
 
 /** The one line wsp adds to the person's own login file, and takes back out: their file is theirs, so what wsp
@@ -40,16 +40,15 @@ export function unsourceStep(place: DaemonPlace, file: string): string {
 /** What the login step prints for a login file it left as it was, before the path. */
 export const LOGIN_KEPT_LINE = "WSP_LOGIN_KEPT";
 
-/** Why wsp left a login file as it was, on every road that writes wsp's line or takes it out. */
-export const LOGIN_LINKED_WHY = "it is a link or has a second name, and wsp writes through neither in a login file";
-
 /** What the add's log says of that file. */
-export const loginKeptLine = (file: string): string => `wsp's line was not written in ${file}: ${LOGIN_LINKED_WHY}`;
+export const loginKeptLine = (file: string): string => `wsp's line was not written in ${file}: ${PLACE_LOGIN_LINKED}`;
 
-/** The test that holds where a login file is a link, dangling or not, or a file with a second name. A workspace on a
- * computer somebody owns writes in this home, and a write through either would land, as root, in a file elsewhere;
- * the leave over the link holds the same rule. */
-export const linkedLoginTest = (place: DaemonPlace, file: string): string => `{ [ -L ${sh(place, file)} ] || [ -n "$(find ${sh(place, file)} -maxdepth 0 -links +1 2>/dev/null)" ]; }`;
+/** The test that holds where a login file is a link, dangling or not, a file with a second name, or something that
+ * stands and is not a plain file. A workspace on a computer somebody owns writes in this home: a write through a link
+ * or a second name would land, as root, in a file elsewhere, and an append to a fifo waits for a reader for good. The
+ * leave over the link and the leave at the box hold the same rule. */
+export const linkedLoginTest = (place: DaemonPlace, file: string): string =>
+  `{ [ -L ${sh(place, file)} ] || { [ -e ${sh(place, file)} ] && [ ! -f ${sh(place, file)} ]; } || [ -n "$(find ${sh(place, file)} -maxdepth 0 -links +1 2>/dev/null)" ]; }`;
 
 /** wsp's line in the person's own login files as this version spells it: the lines naming wsp's profile file taken
  * out first, so a second deploy replaces the line rather than sitting beside it, then this one appended, which

@@ -6,17 +6,16 @@
 // computer's own row.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, rmdirSync, statSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir, arch as osArch, platform, release, type as osType, uptime as upSeconds, userInfo } from "node:os";
 import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ServerPort } from "@wsp/engine";
-import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
-import { LOGIN_LINKED_WHY } from "./login-files.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
 import { runAll, runFailureLine, serviceManagerFor, STOP_WAIT_MS, systemRunner, type ServiceAddress, type ServiceManager, type ServiceRunner } from "./service.js";
 
@@ -701,9 +700,10 @@ function there(path: string): boolean {
 /** Takes wsp's own line back out of each of the person's own login files, which would otherwise print an error at
  * every login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written
  * in, since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
- * opened only when wsp's file is named in it and written back by the one config write, which refuses a second name;
- * a link, or a file past the size any login file has, is left as it is, as the leave over the link leaves it.
- * Answers, per file, the lines it took, or the lines it left and why, and nothing for a file that named none. */
+ * opened only when wsp's file is named in it and written back by the one config write. A link, a file with a second
+ * name, a file past the size any login file has, and anything that is not a plain file are left as they are, as the
+ * leave over the link leaves them. Answers, per file, the lines it took, the lines it left and why, or why it did not
+ * read the file, and nothing for a file that named none. */
 function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { kept: string })[] {
   return (place.profileSources ?? []).flatMap(file => {
     const said = unsourcedFrom(place, home, file);
@@ -714,18 +714,30 @@ function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { k
 function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
   let bytes: Buffer;
   let linked: boolean;
+  let twinned: boolean;
+  let fd: number | undefined;
   try {
-    linked = lstatSync(file).isSymbolicLink();
-    if (statSync(file).size > LOGIN_READ_MAX_BYTES) return { kept: placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) };
-    bytes = readFileSync(file);
+    const stands = lstatSync(file);
+    linked = stands.isSymbolicLink();
+    // Opened without waiting and read by the bytes it gives, never the size it states: a fifo there would hold the
+    // leave, and a link to /dev/zero would fill its memory, and both stat as 0 bytes.
+    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK | (linked ? 0 : constants.O_NOFOLLOW));
+    const read = fstatSync(fd);
+    if (!read.isFile() || (!linked && !stands.isFile())) return { kept: placeLoginUnreadLine(file) };
+    twinned = read.nlink > 1;
+    const most = Buffer.alloc(LOGIN_READ_MAX_BYTES + 1);
+    bytes = most.subarray(0, readSync(fd, most, 0, most.length, 0));
+    if (bytes.length > LOGIN_READ_MAX_BYTES) return { kept: placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) };
   } catch {
     return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
   const rows = bytes.toString("utf8").split("\n");
   const gone = rows.filter(row => row.includes(place.profileFile));
   if (gone.length === 0) return undefined;
   const lines = gone.map(row => row.trim()).join("; ");
-  if (linked) return { kept: placeLineStaysLine(lines, file, LOGIN_LINKED_WHY) };
+  if (linked || twinned) return { kept: placeLineStaysLine(lines, file, PLACE_LOGIN_LINKED) };
   try {
     writeConfigHere(file, home, configSum(bytes), rows.filter(row => !row.includes(place.profileFile)).join("\n"));
   } catch (e) {

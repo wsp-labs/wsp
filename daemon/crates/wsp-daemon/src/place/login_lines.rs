@@ -1,30 +1,45 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The one line wsp puts in a person's own login files, taken back out by a leave over the link.
 
+use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
 
+use nix::fcntl::OFlag;
+use nix::sys::stat::Mode;
 use wsp_frames::{numbers, place_daemon_paths, place_login_files, words};
 
+use crate::beneath;
+
 /// Takes wsp's line back out of each of the person's own login files, every line naming wsp's profile file whatever
-/// spelling it was written in, and answers one line per file it changed or left with wsp's line in it. Their file, so
-/// it is written back in place and never made or removed. Only a plain file with one name is opened, with no link
-/// followed and no more than `LOGIN_READ_MAX_BYTES` read: a workspace on a computer somebody owns writes in this home,
-/// and a link or a second name planted there would have this write, as root, into a file of the computer's own.
+/// spelling it was written in, and answers one line per file it changed, left with wsp's line in it, or did not read.
+/// Their file, so it is written back in place and never made or removed. A workspace on a computer somebody owns
+/// writes in this home: each name is opened through the home's descriptor without waiting, so a fifo there cannot hold
+/// the leave; read only where it is a plain file, and no further than `LOGIN_READ_MAX_BYTES`; and written only where it
+/// is still that file with one name, through the same descriptor with no link followed, so nothing a workspace planted
+/// there has this write, as root, land in a file of the computer's own. A link is read to say what it holds, never
+/// written through.
 pub(crate) fn sweep_login_lines(home: &Path) -> Vec<String> {
     use std::io::Read as _;
-    use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
+    use std::os::unix::fs::MetadataExt as _;
     let named = place_daemon_paths(home).profile_file;
     let named = named.as_os_str().as_bytes();
+    let Ok(held) = nix::fcntl::open(home, beneath::dir_flags(), Mode::empty()) else { return Vec::new() };
     let mut said = Vec::new();
     for file in place_login_files(home) {
-        let Ok(opened) = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&file) else {
-            continue;
+        let Some(name) = file.file_name().and_then(|name| name.to_str()) else { continue };
+        let Ok(stands) = std::fs::symlink_metadata(&file) else { continue };
+        let linked = stands.file_type().is_symlink();
+        let opened = if linked { followed(&file) } else { beneath::file(&held, name).map_err(|_| ()) };
+        let opened = match opened {
+            Ok(Some(opened)) => opened,
+            Ok(None) => continue,
+            Err(()) => {
+                said.push(words::place_login_unread(file.display()));
+                continue;
+            }
         };
         let Ok(read) = opened.metadata() else { continue };
-        if !read.is_file() || read.nlink() != 1 {
-            continue;
-        }
         let mut bytes = Vec::new();
         if read.len() > numbers::LOGIN_READ_MAX_BYTES
             || opened.take(numbers::LOGIN_READ_MAX_BYTES + 1).read_to_end(&mut bytes).is_err()
@@ -39,9 +54,13 @@ pub(crate) fn sweep_login_lines(home: &Path) -> Vec<String> {
         if gone.is_empty() {
             continue;
         }
-        let kept = rows.iter().filter(|row| !names(row)).copied().collect::<Vec<_>>().join(&b'\n');
         let lines = gone.join("; ");
-        said.push(match write_back(&file, &read, &kept) {
+        if linked || read.nlink() != 1 {
+            said.push(words::place_line_stays(lines, file.display(), words::PLACE_LOGIN_LINKED));
+            continue;
+        }
+        let kept = rows.iter().filter(|row| !names(row)).copied().collect::<Vec<_>>().join(&b'\n');
+        said.push(match write_through(&held, name, &read, &kept) {
             Ok(()) => words::place_line_out(lines, file.display()),
             Err(why) => words::place_line_stays(lines, file.display(), why),
         });
@@ -49,18 +68,30 @@ pub(crate) fn sweep_login_lines(home: &Path) -> Vec<String> {
     said
 }
 
-/// The file written back with what it read less wsp's lines, opened again with no link followed and only where it is
-/// still the file that was read, with one name.
-fn write_back(file: &Path, read: &std::fs::Metadata, kept: &[u8]) -> std::io::Result<()> {
+/// What a link at a login file points at, opened only to read and without waiting: a plain file, nothing where the
+/// link points nowhere, and refused where it points at a fifo, a socket or a device.
+fn followed(file: &Path) -> Result<Option<std::fs::File>, ()> {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC).open(file) {
+        Ok(opened) if opened.metadata().is_ok_and(|meta| meta.is_file()) => Ok(Some(opened)),
+        Ok(_) => Err(()),
+        Err(_) => Ok(None),
+    }
+}
+
+/// The file written back with what it read less wsp's lines: opened again through the home's descriptor with no link
+/// followed and without waiting, and written only where it is still the plain file that was read, with one name.
+fn write_through(held: &OwnedFd, name: &str, read: &std::fs::Metadata, kept: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;
-    use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
-    let mut opened = std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NOFOLLOW).open(file)?;
-    let now = opened.metadata()?;
-    if now.dev() != read.dev() || now.ino() != read.ino() || now.nlink() != 1 {
+    use std::os::unix::fs::MetadataExt as _;
+    let flags = OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC;
+    let mut file = std::fs::File::from(nix::fcntl::openat(held, name, flags, Mode::empty()).map_err(std::io::Error::from)?);
+    let now = file.metadata()?;
+    if !now.is_file() || now.dev() != read.dev() || now.ino() != read.ino() || now.nlink() != 1 {
         return Err(std::io::Error::other("it changed while the leave read it"));
     }
-    opened.set_len(0)?;
-    opened.write_all(kept)
+    file.set_len(0)?;
+    file.write_all(kept)
 }
 
 #[cfg(test)]
@@ -85,7 +116,11 @@ mod tests {
         let swept = sweep_login_lines(home.path());
         assert_eq!(
             swept,
-            [words::place_line_out(format!(". {named}; {line}"), profile.display()), words::place_line_out(&line, bash_profile.display()),]
+            [
+                words::place_line_out(format!(". {named}; {line}"), profile.display()),
+                words::place_line_out(&line, bash_profile.display()),
+                words::place_line_stays(&line, bash_login.display(), words::PLACE_LOGIN_LINKED),
+            ]
         );
         assert_eq!(std::fs::read_to_string(&profile).unwrap(), "# theirs\nexport EDITOR=vi\n");
         assert_eq!(std::fs::read_to_string(&bash_profile).unwrap(), "export X=1");
@@ -94,7 +129,7 @@ mod tests {
         std::fs::remove_file(&bash_login).unwrap();
         std::fs::write(&bash_profile, format!("{line}\n")).unwrap();
         std::fs::hard_link(&bash_profile, elsewhere.path().join("twin")).unwrap();
-        assert!(sweep_login_lines(home.path()).is_empty());
+        assert_eq!(sweep_login_lines(home.path()), [words::place_line_stays(&line, bash_profile.display(), words::PLACE_LOGIN_LINKED)]);
         assert_eq!(std::fs::read_to_string(&bash_profile).unwrap(), format!("{line}\n"));
     }
 
@@ -128,5 +163,18 @@ mod tests {
         assert_eq!(swept.len(), 1, "{swept:?}");
         assert!(swept[0].starts_with(&format!("{line} stays in {}: ", file.display())), "{swept:?}");
         assert_eq!(std::fs::read_to_string(&file).unwrap(), format!("{line}\n"));
+    }
+
+    #[test]
+    fn a_fifo_at_a_login_file_is_passed_over_and_never_holds_the_leave() {
+        let home = tempfile::tempdir().unwrap();
+        let fifo = home.path().join(".bash_login");
+        assert!(std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success());
+        let (tx, rx) = std::sync::mpsc::channel();
+        let at = home.path().to_owned();
+        std::thread::spawn(move || tx.send(sweep_login_lines(&at)).unwrap());
+        let said = rx.recv_timeout(std::time::Duration::from_secs(5));
+        assert!(said.is_ok(), "the sweep is still waiting on the fifo at .bash_login after 5s");
+        assert_eq!(said.unwrap(), [words::place_login_unread(fifo.display())]);
     }
 }

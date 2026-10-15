@@ -254,8 +254,9 @@ const HELD_PLACE_READ_BYTES = 65_536;
  * `key` for which of the two stands. */
 export const PLACE_LEFT_LINE = "WSP_PLACE_LEFT";
 
-/** The line the read below prints before anything else of its own: sshd hands the command to the login's shell,
- * and a bash built with SSH_SOURCE_BASHRC runs ~/.bashrc first, whose output lands ahead of the read's. */
+/** The line the read below prints before anything else of its own, after a newline of its own: sshd hands the
+ * command to the login's shell, and a bash built with SSH_SOURCE_BASHRC runs ~/.bashrc first, whose output lands
+ * ahead of the read's and may end with no newline. */
 export const PLACE_HELD_LINE = "WSP_PLACE_HELD";
 
 /** The place file on a box, read over ssh before anything of wsp's lands, before a forward's new port is written
@@ -266,7 +267,7 @@ export const heldPlaceScript = (home: string): string => {
   const at = placeDaemonPaths(home);
   const [file, key] = [shellQuote(at.placeFile), shellQuote(at.placeKey)];
   return [
-    `echo ${PLACE_HELD_LINE}`,
+    `echo; echo ${PLACE_HELD_LINE}`,
     `if [ -e ${file} ]; then { [ -f ${file} ] && [ ! -s ${file} ] && echo '${PLACE_LEFT_LINE} file'; head -c ${HELD_PLACE_READ_BYTES} ${file} 2>/dev/null || echo '${PLACE_LEFT_LINE} file'; }`,
     `elif [ -L ${file} ]; then echo '${PLACE_LEFT_LINE} file'`,
     `elif [ -e ${key} ] || [ -L ${key} ]; then echo '${PLACE_LEFT_LINE} key'; fi; true`,
