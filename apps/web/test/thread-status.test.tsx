@@ -45,7 +45,7 @@ describe("threadStatusOf", () => {
   });
 
   it("the registry ends on the kind every thread reads as, so no thread falls through it", () => {
-    expect(THREAD_STATUS_KINDS.map(k => k.id)).toEqual(["needs-you", "waiting", "starting", "working", "limited", "resuming", "failed", "stopped", "not-pushed", "done", "resting"]);
+    expect(THREAD_STATUS_KINDS.map(k => k.id)).toEqual(["needs-you", "waiting", "starting", "working", "limited", "resuming", "failed", "released", "stopped", "not-pushed", "done", "resting"]);
     expect(threadStatusOf(thread({ status: "failed", limit: { resetsAt: 1 } })).id).toBe("limited");
     expect(threadStatusOf(thread({ status: "failed", limit: { resetsAt: 1 }, resumeAt: 1 })).id).toBe("resuming");
     expect(THREAD_STATUS_KINDS.at(-1)!.is(thread({ status: "failed", asking: "x" }))).toBe(true);
