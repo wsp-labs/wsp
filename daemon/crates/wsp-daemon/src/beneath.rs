@@ -4,6 +4,7 @@
 //! place of a folder or a file names nothing. openat rather than openat2, since this daemon runs on macOS too.
 
 use std::fs::File;
+use std::io::Read as _;
 use std::os::fd::OwnedFd;
 use std::path::{Component, Path};
 
@@ -70,4 +71,27 @@ pub(crate) fn file(at: &OwnedFd, rel: &str) -> Result<Option<File>, String> {
         return Err(format!("{rel} is not a file"));
     }
     Ok(Some(file))
+}
+
+/// A plain file's bytes at a path, no further than the cap: the folder is reached as any path is and the last name
+/// opened through `file()`, so a link or a fifo there is refused rather than followed or waited on, as is a file past
+/// the cap. None where nothing or a folder stands there.
+pub(crate) fn read_capped(path: &Path, cap: u64) -> Result<Option<Vec<u8>>, String> {
+    let folder = match path.parent() {
+        Some(folder) if !folder.as_os_str().is_empty() => folder,
+        _ => Path::new("."),
+    };
+    let name = path.file_name().and_then(|name| name.to_str()).ok_or_else(|| format!("{} is not a name this reads", path.display()))?;
+    let held = match nix::fcntl::open(folder, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty()) {
+        Ok(held) => held,
+        Err(Errno::ENOENT | Errno::ENOTDIR) => return Ok(None),
+        Err(e) => return Err(format!("{}: {e}", folder.display())),
+    };
+    let Some(file) = file(&held, name).map_err(|e| format!("{}: {e}", folder.display()))? else { return Ok(None) };
+    let mut bytes = Vec::new();
+    file.take(cap + 1).read_to_end(&mut bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    if bytes.len() as u64 > cap {
+        return Err(format!("{} is past {cap} bytes", path.display()));
+    }
+    Ok(Some(bytes))
 }
