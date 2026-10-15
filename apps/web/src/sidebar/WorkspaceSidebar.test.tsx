@@ -3,7 +3,7 @@ import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within }
 import { cloneElement, createContext, useContext, useState, type ReactElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_PREFERENCES, type Capabilities, type Checkout, type PlaceView, type ProjectView, type PullRequestFact, type PullRequestSeen, type WorkspaceLanding, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
-import { THREAD_TREE_WORKING } from "../actions/format.js";
+import { THREAD_TREE_WORKING, THREAD_WORDS } from "../actions/format.js";
 import { workspaceActions } from "../actions/workspaceActions.js";
 import { clearNotices, lastNotice } from "../../test/notice-text.js";
 import { SidebarProvider } from "../components/ui/sidebar.js";
@@ -12,6 +12,7 @@ import { provideDaemonWire } from "../files/wire.js";
 import { useNotices } from "../notices/store.js";
 import { useStore } from "../protocol/store.js";
 import { provideTerminals, WorkspaceTerminals, type TerminalWire } from "../terminal/link.js";
+import { requestRenameWorkspace } from "../shell/shellRequests.js";
 import { WorkspaceSidebar } from "./WorkspaceSidebar.js";
 import { askCheckout } from "./tileCheckout.js";
 import { PROJECT_WORDS } from "./words.js";
@@ -792,7 +793,7 @@ describe("the sidebar's list of thread tiles", () => {
     const row = (): HTMLElement => document.querySelector<HTMLElement>("[data-row-id='thread:th_done']")!;
     expect(row().dataset["slim"]).toBe("true");
     expect(row().querySelector("[data-thread-title]")!.textContent).toBe("shipped it");
-    expect(row().querySelector("[data-thread-status]")!.textContent).toBe("1d");
+    expect(row().querySelector("[data-thread-status]")!.textContent).toBe("1h");
     expect(row().querySelector("[data-tile-where]")).toBeNull();
     const kept = { number: 12, url: "https://github.com/o/r/pull/12", state: "merged" as const, base: "main", mergedAt: 1, readAt: 1 };
     const status = { ...ws, machineState: "running", reach: { state: "reachable" }, size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0, pr: kept } as WorkspaceStatus;
@@ -800,7 +801,7 @@ describe("the sidebar's list of thread tiles", () => {
     await new Promise(r => setTimeout(r, 20));
     expect(row().querySelector("[data-tile-pr]")).toBeNull();
     expect(row().textContent).not.toContain("#12");
-    expect(row().querySelector("[data-thread-status]")!.textContent).toBe("1d");
+    expect(row().querySelector("[data-thread-status]")!.textContent).toBe("1h");
   });
 
   it("keeps a failure on the list however long ago it was read, and folds it muted once settled by hand", async () => {
@@ -814,7 +815,7 @@ describe("the sidebar's list of thread tiles", () => {
     fireEvent.click(document.querySelector<HTMLElement>("[data-row-id=settled]")!);
     await waitFor(() => expect(rowIds()).toEqual(["settled", "thread:th_broke"]));
     const slot = rowOf("it broke").querySelector<HTMLElement>("[data-thread-status]")!;
-    expect(slot.textContent).toBe("1d");
+    expect(slot.textContent).toBe("1h");
     expect(slot.dataset["tone"]).toBeUndefined();
   });
 
@@ -1774,5 +1775,141 @@ describe("Stop on a tile", () => {
     fireEvent.click(stop);
     fireEvent.click(stop);
     await waitFor(() => expect(interruptSession).toHaveBeenCalledWith("s_th_lead", "task_1"));
+  });
+});
+
+describe("the Settled fold's pages", () => {
+  const MIN = 60_000;
+  /** Settled threads, the newest settled first: `settled 0` a minute ago, each next a minute before it. */
+  const settledRows = (n: number, ws = "ws_a") => Array.from({ length: n }, (_, i) => ({ ws, id: `th_s${i}`, prompt: `settled ${i}`, status: "completed", startedAgo: 3000 * MIN, endedAgo: 2000 * MIN, settledAgo: (i + 1) * MIN }));
+  const settledIds = (): string[] => rowIds().filter(id => id.startsWith("thread:th_s"));
+  const fold = (): HTMLElement => document.querySelector<HTMLElement>("[data-row-id=settled]")!;
+  const more = (): HTMLElement | null => document.querySelector<HTMLElement>("[data-settled-more]");
+  const firstPage = Array.from({ length: 25 }, (_, i) => `thread:th_s${i}`);
+
+  it("opened over 696 settled threads mounts the 25 newest settled and an n more row; each press mounts 25 more, and a fold starts it again at 25", async () => {
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+    await act(async () => useStore.setState({ sessions: sessions([{ ws: "ws_a", id: "th_live", prompt: "still going" }, ...settledRows(696)]) } as never));
+    await waitFor(() => expect(screen.getByText("still going")).toBeDefined());
+    expect(fold().textContent).toBe("Settled (696)");
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual(firstPage));
+    expect(document.querySelectorAll("[data-slot=sidebar-menu-button][data-slim]")).toHaveLength(25);
+    expect(more()!.textContent).toBe("671 more");
+    expect(rowIds().slice(-2)).toEqual(["thread:th_s24", "more:settled"]);
+    fireEvent.click(more()!);
+    await waitFor(() => expect(settledIds()).toHaveLength(50));
+    expect(settledIds()).toEqual(Array.from({ length: 50 }, (_, i) => `thread:th_s${i}`));
+    expect(more()!.textContent).toBe("646 more");
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual([]));
+    expect(more()).toBeNull();
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual(firstPage));
+    expect(more()!.textContent).toBe("671 more");
+  });
+
+  it("pages by tiles and keeps a settled tree whole: a tree that would pass the page waits for the next", async () => {
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+    const kids = Array.from({ length: 3 }, (_, i) => ({ ws: "ws_a", id: `th_k${i}`, prompt: `helper ${i}`, parent: "th_s23", status: "completed", startedAgo: 3000 * MIN, endedAgo: 2000 * MIN, settledAgo: 24 * MIN }));
+    await act(async () => useStore.setState({ sessions: sessions([...settledRows(40), ...kids]) } as never));
+    await waitFor(() => expect(fold()).not.toBeNull());
+    expect(fold().textContent).toBe("Settled (43)");
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual(firstPage.slice(0, 23)));
+    expect(more()!.textContent).toBe("20 more");
+    fireEvent.click(more()!);
+    await waitFor(() => expect(rowIds()).toContain("thread:th_k2"));
+    expect(rowIds().filter(id => id.startsWith("thread:")).length).toBe(43);
+    expect(more()).toBeNull();
+  });
+
+  it("a paged tile keeps its card, its rename by double-click and the palette's, the arrow keys, and a tree dropped on the head lands on top", async () => {
+    const renameSession = vi.fn(async () => ({ outcome: "renamed" as const }));
+    const { settleThreads } = mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1"), workspace("ws_b", "old work", "pr_1")] }, { renameSession });
+    const oldest = { ws: "ws_b", id: "th_old", prompt: "the oldest settled", status: "completed", startedAgo: 3000 * MIN, endedAgo: 2000 * MIN, settledAgo: 900 * MIN };
+    // It ended before any settled thread did, so only the moment it settles can bring it in at the top.
+    const live = { ws: "ws_a", id: "th_live", prompt: "finished unseen", status: "completed", startedAgo: 5000 * MIN, endedAgo: 4000 * MIN, readAgo: 4500 * MIN };
+    await act(async () => useStore.setState({ sessions: sessions([live, ...settledRows(60), oldest]) } as never));
+    await waitFor(() => expect(screen.getByText("finished unseen")).toBeDefined());
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual(firstPage));
+    // The card a paged tile opens once the pointer rests on it.
+    const tile = rowOf("settled 3");
+    fireEvent.mouseEnter(tile);
+    await waitFor(() => expect(document.querySelector("[data-tile-card]")).not.toBeNull());
+    fireEvent.mouseLeave(tile);
+    // A double-click on its name opens the box on it.
+    fireEvent.doubleClick(within(tile).getByText("settled 3"));
+    expect(((await screen.findByRole("textbox", { name: THREAD_WORDS.rename })) as HTMLInputElement).value).toBe("settled 3");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: THREAD_WORDS.rename }), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: THREAD_WORDS.rename })).toBeNull());
+    // The palette's Rename on a copy whose tile is past the page draws the page down to it.
+    expect(rowIds()).not.toContain("thread:th_old");
+    act(() => requestRenameWorkspace("ws_b"));
+    expect(((await screen.findByRole("textbox", { name: THREAD_WORDS.rename })) as HTMLInputElement).value).toBe("the oldest settled");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: THREAD_WORDS.rename }), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: THREAD_WORDS.rename })).toBeNull());
+    fireEvent.click(fold());
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual(firstPage));
+    // The arrow keys walk the paged tiles onto the n more row, and End lands on it.
+    rowOf("settled 23").focus();
+    fireEvent.keyDown(rowOf("settled 23"), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(rowOf("settled 24"));
+    fireEvent.keyDown(rowOf("settled 24"), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(more());
+    fireEvent.keyDown(more()!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rowOf("settled 24"));
+    fireEvent.keyDown(rowOf("settled 24"), { key: "End" });
+    expect(document.activeElement).toBe(more());
+    // A tree dropped on the head settles, and once the host says so it stands first on the open page.
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (type: string, value: string) => void data.set(type, value), getData: (type: string) => data.get(type) ?? "", types: ["text/plain"], effectAllowed: "move", dropEffect: "move" };
+    fireEvent.dragStart(rowOf("finished unseen"), { dataTransfer });
+    const head = document.querySelector<HTMLElement>("[data-drop-settled]")!;
+    fireEvent.dragOver(head, { dataTransfer });
+    fireEvent.drop(head, { dataTransfer });
+    fireEvent.dragEnd(rowOf("finished unseen"), { dataTransfer });
+    await waitFor(() => expect(settleThreads).toHaveBeenCalledWith(["th_live"], "ask"));
+    await act(async () => useStore.setState({ sessions: sessions([{ ...live, settledAgo: 1000 }, ...settledRows(60), oldest]) } as never));
+    await waitFor(() => expect(rowIds()[1]).toBe("thread:th_live"));
+    expect(rowIds()).toEqual(["settled", "thread:th_live", ...firstPage.slice(0, 24), "more:settled"]);
+    expect(more()!.textContent).toBe("37 more");
+  });
+
+  it("draws the thread open in the centre however far down the fold it stands", async () => {
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+    const far = { ws: "ws_a", id: "th_far", prompt: "settled long ago", status: "completed", startedAgo: 3000 * MIN, endedAgo: 2000 * MIN, settledAgo: 900 * MIN };
+    await act(async () => useStore.setState({ sessions: sessions([{ ws: "ws_a", id: "th_live", prompt: "still going" }, ...settledRows(60), far]) } as never));
+    await waitFor(() => expect(screen.getByText("still going")).toBeDefined());
+    fireEvent.click(fold());
+    await waitFor(() => expect(settledIds()).toEqual(firstPage));
+    await act(async () => useStore.setState({ selectedId: "ws_a", selectedThreadId: "th_far" } as never));
+    await waitFor(() => expect(rowOf("settled long ago").dataset["active"]).toBe("true"));
+    expect(more()).toBeNull();
+    await act(async () => useStore.setState({ selectedId: "ws_a", selectedThreadId: "th_live" } as never));
+    await waitFor(() => expect(settledIds()).toEqual(firstPage));
+  });
+
+  it("ages a settled tree by when its last thread settled, so the ages read down the fold in its order", async () => {
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+    const H = 60 * MIN;
+    await act(async () =>
+      useStore.setState({
+        sessions: sessions([
+          { ws: "ws_a", id: "th_live", prompt: "still going" },
+          { ws: "ws_a", id: "th_old", prompt: "ended three days ago", status: "completed", startedAgo: 73 * H, endedAgo: 72 * H, settledAgo: 70 * H },
+          { ws: "ws_a", id: "th_kid", prompt: "its helper", parent: "th_old", status: "completed", startedAgo: 3 * H, endedAgo: 2 * H, settledAgo: H },
+          { ws: "ws_a", id: "th_mid", prompt: "ended five hours ago", status: "completed", startedAgo: 6 * H, endedAgo: 5 * H, settledAgo: 4 * H },
+        ]),
+      } as never),
+    );
+    await waitFor(() => expect(screen.getByText("still going")).toBeDefined());
+    fireEvent.click(fold());
+    await waitFor(() => expect(rowIds()).toContain("thread:th_mid"));
+    expect(rowIds()).toEqual(["thread:th_live", "settled", "thread:th_old", "thread:th_kid", "thread:th_mid"]);
+    const age = (text: string): string => rowOf(text).querySelector("[data-thread-status]")!.textContent!.trim();
+    expect([age("ended three days ago"), age("its helper"), age("ended five hours ago")]).toEqual(["1h", "1h", "4h"]);
   });
 });
