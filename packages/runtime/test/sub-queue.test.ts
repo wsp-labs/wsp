@@ -10,7 +10,7 @@ import { SUB_DROPPED_LINE, keptOpening, spawnCapRefusal, subOpening, type Caller
 import type { Runtime } from "../src/runtime.js";
 import { fakeClock } from "./fake-clock.js";
 import { NAME_LABEL, type MachineSpec } from "@wsp/engine";
-import { PAID, leadOnThisComputer } from "./sub-fixture.js";
+import { CONNECT_TIMED_OUT, PAID, connectTimedOut, leadOnThisComputer } from "./sub-fixture.js";
 
 const TASK = "Fix the flaky upload test in packages/upload.";
 
@@ -111,6 +111,27 @@ describe("the minute of starts, a stop, a restart and the counts", () => {
     await b.started;
     // Its turn is over at once here, so its machine may already nap.
     expect((await recordOf(rt, b.made.id))?.phase).not.toBe("queued");
+  });
+
+  it("a held spawn whose start Boat never answered names the addresses its connect tried on the row and in its lead's line", async () => {
+    const fc = fakeClock();
+    const f = await leadOnThisComputer({ clock: fc.clock });
+    try {
+      f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 12 } } };
+      const b = await spawnAndStart(f.rt, f.project.id, f.lead, f.token, "Second");
+      expect(b.held()).toMatchObject({ why: "minute" });
+      void b.started.catch(() => undefined);
+      await f.endLead();
+      f.boat.create = async () => {
+        throw connectTimedOut();
+      };
+      f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 0 } } };
+      fc.advance(20_000);
+      await expect.poll(async () => (await f.rt.sessions.list()).find(r => r.workspaceId === b.made.id)?.failure).toContain(`fetch failed: ${CONNECT_TIMED_OUT}`);
+      await expect.poll(() => f.starts.some(s => s.o.prompt.includes(`fetch failed: ${CONNECT_TIMED_OUT}`))).toBe(true);
+    } finally {
+      await f.rt.close();
+    }
   });
 
   it("drops a held spawn whose lead is stopped: record, row and written start gone, no start spent", async () => {
