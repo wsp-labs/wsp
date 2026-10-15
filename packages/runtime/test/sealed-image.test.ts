@@ -579,30 +579,40 @@ describe("a version's sign-ins live as long as the version and no longer", () =>
     await rt.close();
   });
 
-  it("prune reads a copy place's own version numbers and takes no blob: the record's sign-ins are the record's", async () => {
+  it("prune reaches the copy at the place this host forks on by that place's own version numbers and takes no blob: the record's sign-ins are the record's", async () => {
     // The blob is keyed by the record's name and version, and a manifest counts the versions of the place it sits
     // at. Here the record was sealed at another place and stands at v2, while the manifest at the place this host
-    // forks on counts four rebuilds of its own copy; a prune that dropped blobs by those numbers would take the
-    // live record's sign-ins and leave every later copy build asking for a blob this host itself removed.
+    // forks on counts four rebuilds of its own copy. Those copies are pruned there, and a prune that dropped blobs by
+    // their numbers would take the live record's sign-ins and leave every later copy build asking for a blob this
+    // host itself removed.
     const store = memoryStore();
     const backend = stubBackend();
-    const versions = [1, 2, 3, 4].map(n => ({
+    const spoo = stubBackend();
+    const versions = (tag: string, count: number) => Array.from({ length: count }, (_, i) => i + 1).map(n => ({
       version: n,
-      snapshotId: `snap_golden-v${n}`,
+      snapshotId: `snap_${tag}-v${n}`,
       baseTemplate: "base",
       setupSha: `sha${n}`,
       createdAt: `2026-08-${10 + n}T00:00:00.000Z`,
       smoke: { cmd: "true", exitCode: 0 },
-      ...(n > 1 ? { parentSnapshotId: `snap_golden-v${n - 1}` } : {}),
+      ...(n > 1 ? { parentSnapshotId: `snap_${tag}-v${n - 1}` } : {}),
     }));
-    await store.put("goldens", copyKey("default", "default"), { head: 4, versions });
-    for (const n of [1, 2, 3, 4]) {
-      backend.snapshots.push({ id: `snap_golden-v${n}`, sizeBytes: (7 + n) * 1e9, createdAt: versions[n - 1]!.createdAt });
-      await store.put("golden-recipes", copyKey("default", `default@v${n}`), { ticks: [], files: [] });
+    for (const [place, at, tag, count] of [["default", backend, "copy", 4], ["spoo", spoo, "golden", 2]] as const) {
+      await store.put("goldens", copyKey(place, "default"), { head: count, versions: versions(tag, count) });
+      for (const v of versions(tag, count)) {
+        at.snapshots.push({ id: v.snapshotId, sizeBytes: (7 + v.version) * 1e9, createdAt: v.createdAt });
+        await store.put("golden-recipes", copyKey(place, `default@v${v.version}`), { ticks: [], files: [] });
+      }
     }
     await recorded(store, { held: ["/root/.codex/auth.json"], tar: tarOf([{ path: "root/.codex/auth.json", mode: 0o600, content: "{}" }]), version: 2, place: "spoo" });
-    const rt = createRuntime({ backend, store, adapters: {}, hostId: "box:h1" });
-    expect((await rt.golden.prune()).dropped.map(v => v.version)).toEqual([1, 2]);
+    const rt = createRuntime({ backend, store, adapters: {}, hostId: "box:h1", places: { wired: "default", backend: p => ({ default: backend, spoo })[p], list: () => ["default", "spoo"] } });
+    expect(await rt.golden.retentionPlaces()).toEqual(["spoo", "default"]);
+    expect(await rt.golden.retention(undefined, "default")).toMatchObject({ place: "default", copy: true, drop: [{ version: 1 }, { version: 2 }] });
+    expect((await rt.golden.prune()).dropped).toEqual([]);
+    expect((await rt.golden.prune(undefined, "default")).dropped.map(v => v.version)).toEqual([1, 2]);
+    expect(backend.snapshots.map(r => r.id)).toEqual(["snap_copy-v3", "snap_copy-v4"]);
+    expect(await store.get("golden-recipes", copyKey("default", "default@v1"))).toBeUndefined();
+    expect(spoo.snapshots.map(r => r.id)).toEqual(["snap_golden-v1", "snap_golden-v2"]);
     expect(await store.getBlob("image-vaults", "default@v2")).toBeDefined();
     expect(((await store.get("images", "default")) as SealedImage).version).toBe(2);
     await rt.close();

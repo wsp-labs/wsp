@@ -115,6 +115,8 @@ export interface RetentionPlan {
   namedFreed: number;
   /** The monthly cost now minus the cost once they are gone, so a drop inside the free GB saves nothing. */
   savesUsdPerMonth: number;
+  /** The storage price of the place the listing was read at, which the saving was priced with. */
+  pricing: SnapshotStoragePricing;
 }
 
 /** The chain of ancestors from the head: each version's recorded parent, or for a version sealed before parents
@@ -164,5 +166,5 @@ export function retentionPlan(
   const freedBytes = drop.reduce((n, v) => n + sizeOf(v.snapshotId), 0);
   const named = namedCount(rows);
   const namedDropped = namedCount(rows.filter(r => drop.some(v => v.snapshotId === r.id)));
-  return { keep, drop, abandoned, guarded, parentAssumed, freedBytes, namedFreed: namedDropped, savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing, named) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing, named - namedDropped) };
+  return { keep, drop, abandoned, guarded, parentAssumed, freedBytes, namedFreed: namedDropped, savesUsdPerMonth: snapshotMonthlyUsd(totalBytes, pricing, named) - snapshotMonthlyUsd(totalBytes - freedBytes, pricing, named - namedDropped), pricing };
 }
