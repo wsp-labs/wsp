@@ -328,11 +328,11 @@ describe("runtime daemon reach", () => {
     });
     let stop = (): void => {};
     try {
-      const { rt, ws, fc, deployed, poll, unread } = await restartOnto(daemon, true, false, { claude: refusing });
+      const { rt, ws, fc, deployed, poll, unread } = await restartOnto(daemon, true, false, { claude: refusing }, BROKER);
       await rt.workspaces.list();
       await until(() => warned.includes(unread));
       await new Promise(r => setTimeout(r, 50));
-      // No sync is in flight, so the start holds its row and goes on to the machine.
+      // The brokered start waits for a sync in flight before its launch; none is, so it holds its row and goes on.
       const giving = rt.sessions.start(ws.id, { prompt: "go" });
       await until(async () => (await rt.sessions.list())[0]?.status === "running");
       // The probe past the window reads the version again, and the update waits out the turn this start is opening.
@@ -532,7 +532,7 @@ describe("runtime daemon reach", () => {
 
   /** A fork a host before this one made, whose daemon is the one on this port, and the host starting again over the
    * same store on a fake clock with a deploy that brings the daemon to this wsp's version. */
-  async function restartOnto(daemon: Awaited<ReturnType<typeof helloingDaemon>>, deploys: boolean, served = false, adapters: Record<string, HarnessAdapterFactory> = {}) {
+  async function restartOnto(daemon: Awaited<ReturnType<typeof helloingDaemon>>, deploys: boolean, served = false, adapters: Record<string, HarnessAdapterFactory> = {}, broker?: typeof BROKER) {
     const backend = stubBackend();
     backend.execImpl = tokenGuest;
     const store = memoryStore();
@@ -549,7 +549,7 @@ describe("runtime daemon reach", () => {
         daemon.announce(DAEMON_VERSION);
       },
     };
-    const rt = createRuntime({ backend, store, adapters, daemonToken: TOKEN, clock: fc.clock, ...(deploys ? { goldenRecipe: recipe } : {}), daemonHelloTimeoutMs: 100, status: { costIntervalMs: 24 * 3_600_000, reconcileMinMs: 60_000 } });
+    const rt = createRuntime({ backend, store, adapters, daemonToken: TOKEN, clock: fc.clock, ...(broker !== undefined ? { broker } : {}), ...(deploys ? { goldenRecipe: recipe } : {}), daemonHelloTimeoutMs: 100, status: { costIntervalMs: 24 * 3_600_000, reconcileMinMs: 60_000 } });
     /** One poll tick, waited out: the timer runs on the fake clock, the probe and the sync on real promises. */
     const poll = async (): Promise<void> => {
       const before = daemon.hits();

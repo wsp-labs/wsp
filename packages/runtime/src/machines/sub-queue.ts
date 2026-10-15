@@ -163,7 +163,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       ...(r.opts.title !== undefined ? { harnessTitle: r.opts.title, titleSource: "person" as const } : {}),
       ...(wait !== undefined ? { capped: wait } : {}),
     };
-    const row: SessionEntry = { view, turnId: r.turnId, launch: gone, ...(r.notify !== undefined ? { notify: r.notify } : {}), ...(r.by !== undefined ? { notifyBy: r.by } : {}), ...(r.road !== undefined ? { notifyRoad: r.road } : {}) };
+    const row: SessionEntry = { view, turnId: r.turnId, launch: gone, queued: true, ...(r.notify !== undefined ? { notify: r.notify } : {}), ...(r.by !== undefined ? { notifyBy: r.by } : {}), ...(r.road !== undefined ? { notifyRoad: r.road } : {}) };
     sessions.set(r.turnId, row);
     bus.emit({ type: "session.held", workspaceId: r.workspaceId, threadId: r.threadId });
     if (wait !== undefined) ctx.record({ type: "session.capped", workspaceId: r.workspaceId, sessionId: r.turnId, turnId: r.turnId, threadId: r.threadId, ...wait });
