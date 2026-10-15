@@ -4,9 +4,17 @@
 // shell a pane opens, taken away when the shell ends. The daemon is a fake that
 // keeps every frame and asks the host's own token table whether each token it
 // is handed is live while it answers.
-import { afterEach, describe, expect, it } from "vitest";
-import { HOST_TOKEN_ENV, PIPE_DAEMON_VERSION, THREAD_ENV, type DaemonFrame, type DaemonResponse, type TurnResult } from "@wsp/protocol";
-import { createRuntime, type HarnessAdapterFactory, type Runtime } from "../src/runtime.js";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { HOST_TOKEN_ENV, PIPE_DAEMON_VERSION, THREAD_ENV, TOOLS_PATH, type DaemonFrame, type DaemonResponse, type TurnResult } from "@wsp/protocol";
+import { buildEnv as claudeEnv, type BrokeredSignIn } from "@wsp/adapter-claude";
+import { KEY_FILE_ENV } from "@wsp/adapter-codex";
+import { createRuntime, type HarnessAdapterFactory, type Runtime, type RuntimeOptions } from "../src/runtime.js";
+import { INLINE_EXEC_MS, PROFILE_PATH_FILE } from "@wsp/engine";
+import { BROKERED_BIN_DIR, TERMINAL_ENV, TERMINAL_PROFILE } from "../src/machines/brokered.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { createOn, projectOn, stubBackend, tokenGuest, withDaemonRoads } from "./stub-backend.js";
@@ -20,8 +28,10 @@ const DAEMON_TOKEN = "cafef00d".repeat(3);
 
 /** The environment each adapter was made with, a turn's launch among them. */
 const adapterEnvs: Readonly<Record<string, string>>[] = [];
+/** The Claude Code sign-in each adapter was handed on a brokered machine, a turn's launch among them. */
+const adapterSignIns: (BrokeredSignIn | undefined)[] = [];
 /** A turn that answers at once, so a thread stands on the machine with no turn running. */
-const answers: HarnessAdapterFactory = made => (adapterEnvs.push(made.env), {
+const answers: HarnessAdapterFactory = made => (adapterEnvs.push(made.env), adapterSignIns.push(made.brokered), {
   steers: false,
   start: ({ onEvent }) => {
     const sessionId = "44444444-4444-4444-8444-444444444444";
@@ -127,17 +137,17 @@ afterEach(async () => {
 });
 
 /** A runtime whose broker reads `ready`, with one fork at its own provider and a thread on it. */
-async function brokeredFork(o: { ready?: () => boolean; version?: number; store?: Store; noThread?: true } = {}): Promise<{ daemon: Daemon; id: string; threadId: string; folder: string; store: Store; backend: ReturnType<typeof stubBackend>; projectId: string }> {
+async function brokeredFork(o: { ready?: () => boolean; version?: number; store?: Store; noThread?: true; broker?: Omit<NonNullable<RuntimeOptions["broker"]>, "ready">; harness?: "codex" } = {}): Promise<{ daemon: Daemon; id: string; threadId: string; folder: string; store: Store; backend: ReturnType<typeof stubBackend>; projectId: string }> {
   const backend = stubBackend();
   backend.execImpl = tokenGuest;
   withDaemonRoads(backend);
   const daemon = fakeDaemon(() => rt!, o.version);
   const store = o.store ?? memoryStore();
-  rt = createRuntime({ backend, store, adapters: { claude: answers }, daemonToken: DAEMON_TOKEN, daemonChannel: daemon.open, broker: { ready: o.ready ?? (() => true), codexClaims: async () => undefined } });
+  rt = createRuntime({ backend, store, adapters: { claude: answers, codex: answers }, daemonToken: DAEMON_TOKEN, daemonChannel: daemon.open, broker: { codexClaims: async () => undefined, ...o.broker, ready: o.ready ?? (() => true) } });
   const project = await projectOn(rt, undefined, undefined, { base: "main" });
   const ws = await createOn(rt, { project: project.id, golden: "snap_g", name: "pricing page", branchOfRecord: ofRecord("wsp/pricing-page") });
   if (o.noThread === true) return { daemon, id: ws.id, threadId: "", folder: "", store, backend, projectId: project.id };
-  const turn = await rt.sessions.start(ws.id, { prompt: "build the pricing page" });
+  const turn = await rt.sessions.start(ws.id, { prompt: "build the pricing page", ...(o.harness !== undefined ? { harness: o.harness } : {}) });
   await turn.finished;
   // Where the thread works, as its turn's own reads of the checkout named it.
   const folder = String(daemon.frames.find(f => typeof f["cwd"] === "string")?.["cwd"]);
@@ -278,6 +288,178 @@ describe("a terminal token on a machine whose credentials the host keeps", () =>
     expect(gitAndGh(turn)).toMatchObject({ GIT_TERMINAL_PROMPT: "0", GH_TOKEN: "<token>" });
     expect(gitAndGh(shell)).toEqual(gitAndGh(turn));
     expect(shell["GH_TOKEN"]).toBe(tokenIn(frames[0]!));
+  });
+
+  it("carries the sign-in a Claude Code turn is handed, on the shell's own token", async () => {
+    const { daemon, id, threadId } = await brokeredFork();
+    const turn = [...adapterSignIns].reverse().find(signIn => signIn !== undefined)!;
+    const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    const shell = frames[0]!["env"] as Record<string, string>;
+    // What Claude Code's launch puts on a brokered turn and on no other, as its adapter builds the turn's environment.
+    const brokered = claudeEnv({ brokered: turn });
+    const plain = claudeEnv({});
+    const names = Object.keys(brokered).filter(name => brokered[name] !== plain[name]);
+    expect(names).toEqual(expect.arrayContaining(["ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"]));
+    const signIn = (env: Readonly<Record<string, string>>, token: string): Record<string, string | undefined> => Object.fromEntries(names.map(name => [name, env[name]?.replaceAll(token, "<token>")]));
+    expect(signIn(shell, tokenIn(frames[0]!))).toEqual(signIn(brokered, turn.token));
+  });
+
+  /** A fork whose host holds a Codex login of `codex`'s kind, its thread on `harness`, whose machine answers the line
+   * writing codex's program for a shell with `answer` once `written` resolves, and the lines it was handed. */
+  async function codexFork(codex: "chatgpt" | "key", o: { harness?: "codex"; written?: Promise<void>; answer?: { exitCode: number; stderr: string } } = { harness: "codex" }) {
+    const fork = await brokeredFork({ broker: { status: async () => ({ codex }), codexClaims: async () => ({ accountId: "acct-acme" }) }, ...(o.harness !== undefined ? { harness: o.harness } : {}) });
+    const lines: string[] = [];
+    const guest = fork.backend.execImpl;
+    const written = o.written ?? Promise.resolve();
+    fork.backend.execImpl = (m, cmd, stdin) => (cmd.includes(BROKERED_BIN_DIR) ? (lines.push(cmd), written.then(() => ({ exitCode: 0, stderr: "", ...o.answer, stdout: "" }))) : guest(m, cmd, stdin));
+    return { ...fork, lines };
+  }
+
+  it("opens a Codex thread's shell marked for the profile that finds codex's program first", async () => {
+    const { daemon, id, threadId, lines } = await codexFork("chatgpt");
+    const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    const shell = frames[0]!["env"] as Record<string, string>;
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("openai_base_url");
+    expect(lines[0]).toContain(`> ${TERMINAL_PROFILE}.$$`);
+    // profile.d runs in name order, and the image's own file sets the PATH outright.
+    expect([TERMINAL_PROFILE, PROFILE_PATH_FILE].sort()).toEqual([PROFILE_PATH_FILE, TERMINAL_PROFILE]);
+    expect(shell[TERMINAL_ENV]).toBe("codex");
+    expect(shell["PATH"]).toBe(TOOLS_PATH);
+    expect(shell["CODEX_REFRESH_TOKEN_URL_OVERRIDE"]).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/oauth\/token$/);
+    expect(shell).not.toHaveProperty(KEY_FILE_ENV);
+    // The broker sends this thread's calls to OpenAI alone, so Claude Code there gets no placeholder to send.
+    expect(shell).not.toHaveProperty("ANTHROPIC_BASE_URL");
+  });
+
+  it("opens a machine's first Codex shell once codex's program is written there, and a later one without waiting on a write", async () => {
+    let write!: () => void;
+    const { daemon, id, threadId, lines, backend } = await codexFork("chatgpt", { harness: "codex", written: new Promise(resolve => (write = resolve)) });
+    const channel = await rt!.workspaces.daemonChannel(id, () => {});
+    const creates = (): number => daemon.frames.filter(f => f["op"] === "pty.create").length;
+    const first = channel.send({ op: "pty.create", cols: 80, rows: 24, thread: threadId } as never);
+    await vi.waitFor(() => expect(lines).toHaveLength(1));
+    expect(creates()).toBe(0);
+    write();
+    await first;
+    expect(creates()).toBe(1);
+    const guest = backend.execImpl;
+    backend.execImpl = (m, cmd, stdin) => (cmd.includes(BROKERED_BIN_DIR) ? (lines.push(cmd), new Promise(() => {})) : guest(m, cmd, stdin));
+    await channel.send({ op: "pty.create", cols: 80, rows: 24, thread: threadId } as never);
+    channel.close();
+    expect(lines).toHaveLength(2);
+    expect(creates()).toBe(2);
+  });
+
+  it("opens a machine's first Codex shell after an inline exec's span where the write there never answers", async () => {
+    const { daemon, id, threadId, lines } = await codexFork("chatgpt", { harness: "codex", written: new Promise(() => {}) });
+    const channel = await rt!.workspaces.daemonChannel(id, () => {});
+    const creates = (): number => daemon.frames.filter(f => f["op"] === "pty.create").length;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const first = channel.send({ op: "pty.create", cols: 80, rows: 24, thread: threadId } as never);
+      await vi.waitFor(() => expect(lines).toHaveLength(1));
+      await vi.advanceTimersByTimeAsync(INLINE_EXEC_MS - 1_000);
+      expect(creates()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await first;
+      expect(creates()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+      channel.close();
+    }
+  });
+
+  it("opens the shell where the machine refuses the write, and says in the host's log why its codex is not signed in", async () => {
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { daemon, id, threadId, lines } = await codexFork("chatgpt", { harness: "codex", answer: { exitCode: 1, stderr: "mkdir: cannot create directory '/usr/local/libexec/wsp-terminal': Read-only file system\nsecond line\n" } });
+      const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+      channel.close();
+      expect(lines).toHaveLength(1);
+      expect(frames[0]!["env"]).toMatchObject({ [TERMINAL_ENV]: "codex" });
+      const said = warned.mock.calls.map(call => String(call[0])).filter(line => line.includes("terminal programs"));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toContain("for codex on");
+      expect(said[0]).toMatch(/exit 1, mkdir: cannot create directory '\/usr\/local\/libexec\/wsp-terminal': Read-only file system$/);
+    } finally {
+      warned.mockRestore();
+    }
+  });
+
+  it("writes a profile that puts codex's program first in a login shell carrying the mark, and in no other", async () => {
+    const { daemon, id, threadId, lines } = await codexFork("chatgpt");
+    const { channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    const dir = mkdtempSync(joinPath(tmpdir(), "terminal-codex-"));
+    try {
+      const line = lines[0]!.slice(lines[0]!.indexOf("mkdir -p")).replaceAll(BROKERED_BIN_DIR, joinPath(dir, "bin")).replaceAll(TERMINAL_PROFILE, joinPath(dir, "profile.sh"));
+      execFileSync("sh", ["-c", line]);
+      // As the image's profile leaves it, the PATH set outright before this one runs.
+      const found = (env: Record<string, string>): string => execFileSync("sh", ["-c", `PATH=/usr/bin:/bin; . "${dir}/profile.sh"; command -v codex || true`], { env, encoding: "utf8" }).trim();
+      expect(found({ [TERMINAL_ENV]: "codex" })).toBe(joinPath(dir, "bin", "codex", "codex"));
+      expect(found({ [TERMINAL_ENV]: "claude" })).toBe("");
+      expect(found({})).toBe("");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("hands codex its placeholder key on the shell's own token, where the host holds a Codex key", async () => {
+    const { daemon, id, threadId } = await codexFork("key");
+    const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    expect((frames[0]!["env"] as Record<string, string>)[KEY_FILE_ENV]).toBe(`sk-wsp-${tokenIn(frames[0]!)}`);
+  });
+
+  /** `typed` in a login shell marked with `own`, on a machine where terminals' opens ran `lines` in turn, their paths
+   * moved into a folder of their own: what it printed on each stream and how it exited. */
+  function typedAfter(lines: readonly string[], typed: string, own: string): { out: string; said: string; status: number | null } {
+    const dir = mkdtempSync(joinPath(tmpdir(), "terminal-"));
+    try {
+      for (const line of lines) execFileSync("sh", ["-c", line.slice(line.indexOf("mkdir -p")).replaceAll(BROKERED_BIN_DIR, joinPath(dir, "bin")).replaceAll(TERMINAL_PROFILE, joinPath(dir, "profile.sh"))]);
+      const ran = spawnSync("sh", ["-c", `PATH=/usr/bin:/bin; . "${dir}/profile.sh"; ${typed}`], { env: { [TERMINAL_ENV]: own }, encoding: "utf8", input: "" });
+      return { out: ran.stdout.replaceAll(dir, "<dir>"), said: ran.stderr, status: ran.status };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("answers codex typed on a Claude Code thread with why it cannot sign in there, though the host holds a Codex login", async () => {
+    const { daemon, id, threadId, lines } = await codexFork("chatgpt", {});
+    const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    expect(frames[0]!["env"]).toMatchObject({ ANTHROPIC_BASE_URL: expect.any(String), [TERMINAL_ENV]: "claude" });
+    expect(frames[0]!["env"]).not.toHaveProperty("CODEX_REFRESH_TOKEN_URL_OVERRIDE");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain("openai_base_url");
+    expect(typedAfter(lines, 'codex exec "say ok"', "claude")).toEqual({ out: "", said: "wsp: Codex cannot sign in on this machine. This terminal's thread runs Claude Code, and your computer signs in only that agent here. Start a thread on Codex to use it.\n", status: 1 });
+  });
+
+  it("answers claude typed on a Codex thread with why it cannot sign in there", async () => {
+    const { daemon, id, threadId, lines } = await codexFork("chatgpt");
+    const { frames, channel } = await opened(daemon, id, [{ thread: threadId }]);
+    channel.close();
+    expect(frames[0]!["env"]).not.toHaveProperty("ANTHROPIC_BASE_URL");
+    expect(typedAfter(lines, 'claude -p "say ok"', "codex")).toEqual({ out: "", said: "wsp: Claude Code cannot sign in on this machine. This terminal's thread runs Codex, and your computer signs in only that agent here. Start a thread on Claude Code to use it.\n", status: 1 });
+  });
+
+  it("signs in each thread's own agent in its own terminal where threads of both agents share the machine", async () => {
+    const { daemon, id, threadId: claudeThread, lines } = await codexFork("chatgpt", {});
+    const codexTurn = await rt!.sessions.start(id, { prompt: "review the pricing page", harness: "codex" });
+    await codexTurn.finished;
+    const codexPane = await opened(daemon, id, [{ thread: codexTurn.view().threadId }]);
+    const claudePane = await opened(daemon, id, [{ thread: claudeThread }]);
+    codexPane.channel.close();
+    claudePane.channel.close();
+    expect(codexPane.frames[0]!["env"]).toMatchObject({ [TERMINAL_ENV]: "codex", CODEX_REFRESH_TOKEN_URL_OVERRIDE: expect.any(String) });
+    expect(claudePane.frames[0]!["env"]).toMatchObject({ [TERMINAL_ENV]: "claude", ANTHROPIC_BASE_URL: expect.any(String) });
+    // The Claude Code thread's terminal opened last, and codex in the Codex thread's terminal is still its program.
+    expect(typedAfter(lines, "command -v codex", "codex").out).toBe("<dir>/bin/codex/codex\n");
+    expect(typedAfter(lines, 'codex exec "say ok"', "claude").said).toMatch(/^wsp: Codex cannot sign in on this machine\. This terminal's thread runs Claude Code\b/);
+    expect(typedAfter(lines, 'claude -p "say ok"', "codex").said).toMatch(/^wsp: Claude Code cannot sign in on this machine\. This terminal's thread runs Codex\b/);
   });
 
   it("dies with its shell: at the exit the daemon pushes, at a kill, and at a list that no longer holds it", async () => {

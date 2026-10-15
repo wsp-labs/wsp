@@ -4,9 +4,10 @@ import { readlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { join, relative } from "node:path";
 import { CATALOG_AGENTS, remoteHost } from "@wsp/catalog";
+import { INLINE_EXEC_MS } from "@wsp/engine";
 import { APP_DATA_FOLDER, APP_LOCK_FILE, runsInFolder, type DaemonFrame, type DaemonResponse, type DaemonReachView, type ProjectRef, type ProjectView, type WorkspaceAgents, type PlaceSettings, branchUnreadRefusal, GitPushReply, GitStatusReply, GitStartOnReply, DETACHED_HEAD, childStartedLine, forkNeedsPushLine, pushedForChildLine, uncommittedStayed, agentsFrom, placeAtLimitLine, placeSpendLimit, spendCapRefusal, THIS_COMPUTER, isLocalWorkspace, kindWords, machineWord, noSuchProjectLine, absentComputer, HERE_PLACE_ID, placeBlocked, placeWatchesItselfLine, forkProcsUnreadLine, forkOpRefusedLine, placeServesDaemonLine, ownerRepoOf, copiesFolder, kindForComputer, STDIO_DAEMON_VERSION, PIPE_DAEMON_VERSION, THREAD_ENV, slateServerBehindLine, usageRefusal, type Caller } from "@wsp/protocol";
 import { agentPidOf, groupExists } from "../local-exec.js";
-import { brokeredEnv } from "../machines/brokered.js";
+import { TERMINAL_ENV, brokeredEnv, terminalLine, terminalSignIn } from "../machines/brokered.js";
 import { boxPanelsOpener } from "./box-panels.js";
 import type { DaemonChannel } from "../daemon-channel.js";
 import type { StdioRoad } from "../slate-mcp-on.js";
@@ -657,14 +658,49 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   };
 
   /** A shell's token on a machine whose credentials the host keeps, minted as a turn's and scoped to the pane's
-   * thread, with the git and gh variables a turn's launch carries on it, which minting alone puts on nothing.
-   * Nothing anywhere else. */
+   * thread, with the git and gh variables and the agent's sign-in a turn's launch carries on it, which minting alone
+   * puts on nothing. Nothing anywhere else. */
   const terminalToken = async (entry: LiveWorkspace, named: unknown): Promise<{ deviceId: string; env: Record<string, string> } | undefined> => {
     const threadId = threadOn(entry.record.id, named);
     if (threadId === undefined) return undefined;
     const launch = await ctx.threadLaunch(entry, threadId, ctx.rootOf(threadId));
     if (launch.scoped === undefined) return undefined;
-    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(launch.scoped.deviceToken), [THREAD_ENV]: threadId } };
+    const token = launch.scoped.deviceToken;
+    return { deviceId: launch.scoped.deviceId, env: { ...launch.env, ...brokeredEnv(token), ...(await shellSignIns(entry, threadId, token)), [THREAD_ENV]: threadId } };
+  };
+  /** What the thread's own agent typed in such a shell signs in with: the placeholders its turn is handed, on the
+   * shell's token. Only that agent's, since the host's broker sends a call from the machine to the vendor of the agent
+   * its thread runs and to no other, so every other agent's command there answers why it cannot sign in. An agent
+   * needing a program of its own for the shell has it written on the machine, and the shell's login puts its folder
+   * first on its PATH; a host holding no login it has read leaves the agent there as it was. */
+  const shellSignIns = async (entry: LiveWorkspace, threadId: string, token: string): Promise<Record<string, string>> => {
+    const harness = threadRecords.get(threadId)?.harness ?? ctx.latestOn(threadId)?.harness;
+    if (harness === undefined) return {};
+    const signIn = terminalSignIn(harness, launchToken => ctx.brokeredLaunch(entry, harness, launchToken), token);
+    if (signIn === undefined) return {};
+    await writeTerminal(entry, harness, terminalLine(harness, signIn.program));
+    return { ...signIn.env, [TERMINAL_ENV]: harness };
+  };
+  /** The machines and agents each workspace's terminal programs were written for by this host, one folder per agent. A
+   * shell's login reads its agent's folder once, so the first shell after a new machine or agent waits on the write, an
+   * exec at a provider that takes seconds, whatever it answers, and no longer than an inline exec's span, which a
+   * provider's own road outlasts; a later one opens at once, since the programs hold no token and the last write serves
+   * meanwhile. */
+  const terminalsWritten = new Map<string, Set<string>>();
+  const writeTerminal = async (entry: LiveWorkspace, own: string, line: string): Promise<void> => {
+    const workspaceId = entry.record.id;
+    const written = `${entry.machine.id} ${own}`;
+    const write = entry.machine
+      .exec(line, { timeoutMs: INLINE_EXEC_MS })
+      .catch((e: unknown) => ({ exitCode: -1, stderr: e instanceof Error ? e.message : String(e) }))
+      .then(res => {
+        terminalsWritten.set(workspaceId, (terminalsWritten.get(workspaceId) ?? new Set<string>()).add(written));
+        if (res.exitCode !== 0) console.warn(`the terminal programs for ${own} on ${entry.machine.id} (workspace ${workspaceId}) were not written, so its terminals keep the last ones there: exit ${res.exitCode}, ${res.stderr.trim().split("\n")[0] ?? ""}`);
+      });
+    if (terminalsWritten.get(workspaceId)?.has(written) === true) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([write, new Promise<void>(resolve => (timer = setTimeout(resolve, INLINE_EXEC_MS)))]);
+    clearTimeout(timer);
   };
   /** The device each shell's token was minted as, by workspace and pty, taken away when the shell ends: at its exit,
    * its kill, or a list that no longer holds it. Kept in the host's state, one document per workspace, so a host that
@@ -733,6 +769,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
   ctx.bus.on("workspace.deleted", e => {
     if (e.type !== "workspace.deleted") return;
     const workspaceId = e.workspaceId;
+    terminalsWritten.delete(workspaceId);
     void shellTokensOf(workspaceId)
       .then(held => shellsEnded(workspaceId, [...held.keys()]))
       .then(() => shellTokens.delete(workspaceId));

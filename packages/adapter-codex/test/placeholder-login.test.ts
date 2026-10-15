@@ -2,7 +2,7 @@
 // A brokered launch run in a real shell, the program in place of codex a stand-in that keeps the line it was handed
 // and the environment it ran under, so what is read here is the auth.json the launch itself wrote on the machine.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BROKER_PORT, HOST_TOKEN_ENV, PLACEHOLDER_KEY_PREFIX, PLACEHOLDER_REFRESH_PREFIX, PLACEHOLDER_SIGNATURE, programWord, TURN_CLAIM } from "@wsp/protocol";
@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { createCodexAdapter } from "../src/adapter.js";
 import { catalogProbeCommand, versionProbeCommand } from "../src/catalog.js";
-import { buildCommand, buildEnv, codexLaunch, codexWord, KEY_FILE_ENV, providerFlags, PROVIDER_KEY_ENV, type CodexBroker } from "../src/command.js";
+import { brokeredCodexEnv, buildCommand, buildEnv, codexForShell, codexLaunch, codexWord, KEY_FILE_ENV, providerFlags, PROVIDER_KEY_ENV, type CodexBroker } from "../src/command.js";
 import { itemsCommand, listCommand, turnsCommand } from "../src/conversations.js";
 import { draftForCommand, renameCommand, titleForCommand } from "../src/session-title.js";
 
@@ -298,5 +298,62 @@ describe("the person's own providers on a brokered launch", () => {
 
   it("refuses a provider id that is not one plain word of a config key", () => {
     expect(() => buildCommand({ broker: { mode: "apikey", providers: { "acme.gw": { base_url: "https://gw.acme.dev/v1" } } } })).toThrow("one plain word");
+  });
+});
+
+describe("codex typed in a terminal on a brokered machine", () => {
+  /** `line` typed in a shell whose PATH finds codex's program for the shell first and the stand-in for codex after it,
+   * under the environment the shell is opened with. */
+  function typed(broker: CodexBroker, line: string, env: Record<string, string> = { [HOST_TOKEN_ENV]: TOKEN }): { dir: string; status: number } {
+    const { dir } = standIn();
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeStub(join(bin, "codex"), codexForShell(broker, bin));
+    const apiKey = broker.mode === "apikey" && env[HOST_TOKEN_ENV] !== undefined ? KEY : undefined;
+    const shellEnv = { CODEX_HOME: join(dir, "home"), ...env, PATH: `${bin}:${dir}:${process.env.PATH ?? "/usr/bin:/bin"}`, ...brokeredCodexEnv(broker, apiKey) };
+    try {
+      execFileSync("sh", ["-c", line], { env: shellEnv, stdio: "pipe", input: "" });
+      return { dir, status: 0 };
+    } catch (e) {
+      return { dir, status: (e as { status: number }).status };
+    }
+  }
+
+  it("runs the real codex at the door on the shell's token, with what was typed after the overrides", () => {
+    const { dir, status } = typed(CHATGPT, 'codex exec "say ok"');
+    expect(status).toBe(0);
+    const args = argsOf(dir);
+    expect(args.slice(-2)).toEqual(["exec", "say ok"]);
+    expect(args).toContain(`openai_base_url="${DOOR}/backend-api/codex"`);
+    expect(args).toContain(`chatgpt_base_url="http://localhost:${BROKER_PORT}/backend-api/"`);
+    expect(args).toContain('cli_auth_credentials_store="file"');
+    expect(payloadOf(loginOf(dir).tokens.access_token!)[TURN_CLAIM]).toBe(TOKEN);
+    // The real codex is found past the program's own folder, which it takes off the PATH codex inherits.
+    expect(envOf(dir).PATH?.split(":")).not.toContain(join(dir, "bin"));
+    expect(envOf(dir).CODEX_REFRESH_TOKEN_URL_OVERRIDE).toBe(`${DOOR}/oauth/token`);
+  });
+
+  it("writes the key file from the shell's placeholder key and leaves the key out of codex's environment", () => {
+    const { dir, status } = typed({ mode: "apikey" }, "codex --version");
+    expect(status).toBe(0);
+    expect(loginOf(dir)).toEqual({ auth_mode: "apikey", OPENAI_API_KEY: KEY });
+    expect(envOf(dir)[KEY_FILE_ENV]).toBeUndefined();
+    expect(argsOf(dir)).toContain(`openai_base_url="${DOOR}/v1"`);
+  });
+
+  it("writes the login where codex itself looks, in a shell that names no CODEX_HOME", () => {
+    const home = mkdtempSync(join(tmpdir(), "codex-home-"));
+    made.push(home);
+    const { dir, status } = typed(CHATGPT, 'codex exec "say ok"', { [HOST_TOKEN_ENV]: TOKEN, HOME: home, CODEX_HOME: "" });
+    expect(status).toBe(0);
+    expect(payloadOf((JSON.parse(readFileSync(join(home, ".codex", "auth.json"), "utf8")) as { tokens: Record<string, string> }).tokens.access_token!)[TURN_CLAIM]).toBe(TOKEN);
+    expect(envOf(dir).CODEX_HOME).toBe(join(home, ".codex"));
+  });
+
+  it("runs codex on the login file already there, writing none, in a shell that carries no token", () => {
+    const { dir, status } = typed(CHATGPT, "codex", {});
+    expect(status).toBe(0);
+    expect(existsSync(join(dir, "home", "auth.json"))).toBe(false);
+    expect(argsOf(dir)).toContain('cli_auth_credentials_store="file"');
   });
 });
