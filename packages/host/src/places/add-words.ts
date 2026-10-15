@@ -341,9 +341,10 @@ export function addFlags(
 }
 
 /** What an add is refused with on a box holding what a join left broken, which the join there would refuse only once
- * the bundle had landed: the path, and the leave as the add's own login types it. */
+ * the bundle had landed: the path, and the leave as the add's own login types it. The address and the path, which
+ * the box's home spells, are cut first, so the way out fits inside SSH_LINE_CAP whole. */
 export const placeBrokenRefusal = (address: string, path: string, leave: string): string =>
-  `${address} holds ${path}, left from a wsp join that did not finish or cannot be read; ${leave} on it removes it, then add it again`.slice(0, SSH_LINE_CAP);
+  `${boxWord(address, 64)} holds ${boxWord(path, 96)}, left from a wsp join that did not finish or cannot be read; ${leave} on it removes it, then add it again`;
 
 /** What an add is refused with on a box that already belongs to a wsp: this one, where a second install would be
  * a second record of one box, or another, whose agent and link a second join would stand beside. A place file

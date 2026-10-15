@@ -4,28 +4,33 @@
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
 
-use wsp_frames::{place_daemon_paths, place_login_files, words};
+use wsp_frames::{numbers, place_daemon_paths, place_login_files, words};
 
 /// Takes wsp's line back out of each of the person's own login files, every line naming wsp's profile file whatever
-/// spelling it was written in, and answers one line per file it changed. Their file, so it is written back in place
-/// and never made or removed. Only a plain file with one name is opened, and with no link followed: a workspace on a
-/// computer somebody owns writes in this home, and a link or a second name planted there would have this write, as
-/// root, into a file of the computer's own. The host's own leave writes a linked `.profile` through its config write.
+/// spelling it was written in, and answers one line per file it changed or left with wsp's line in it. Their file, so
+/// it is written back in place and never made or removed. Only a plain file with one name is opened, with no link
+/// followed and no more than `LOGIN_READ_MAX_BYTES` read: a workspace on a computer somebody owns writes in this home,
+/// and a link or a second name planted there would have this write, as root, into a file of the computer's own.
 pub(crate) fn sweep_login_lines(home: &Path) -> Vec<String> {
-    use std::io::{Read as _, Seek as _, Write as _};
+    use std::io::Read as _;
     use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
     let named = place_daemon_paths(home).profile_file;
     let named = named.as_os_str().as_bytes();
     let mut said = Vec::new();
     for file in place_login_files(home) {
-        let Ok(mut opened) = std::fs::OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOFOLLOW).open(&file) else {
+        let Ok(opened) = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&file) else {
             continue;
         };
-        if !opened.metadata().is_ok_and(|meta| meta.is_file() && meta.nlink() == 1) {
+        let Ok(read) = opened.metadata() else { continue };
+        if !read.is_file() || read.nlink() != 1 {
             continue;
         }
         let mut bytes = Vec::new();
-        if opened.read_to_end(&mut bytes).is_err() {
+        if read.len() > numbers::LOGIN_READ_MAX_BYTES
+            || opened.take(numbers::LOGIN_READ_MAX_BYTES + 1).read_to_end(&mut bytes).is_err()
+            || bytes.len() as u64 > numbers::LOGIN_READ_MAX_BYTES
+        {
+            said.push(words::place_line_stays("wsp's line", file.display(), words::PLACE_LOGIN_PAST_CAP));
             continue;
         }
         let names = |row: &[u8]| row.windows(named.len()).any(|at| at == named);
@@ -35,16 +40,33 @@ pub(crate) fn sweep_login_lines(home: &Path) -> Vec<String> {
             continue;
         }
         let kept = rows.iter().filter(|row| !names(row)).copied().collect::<Vec<_>>().join(&b'\n');
-        if opened.rewind().and_then(|()| opened.set_len(0)).and_then(|()| opened.write_all(&kept)).is_ok() {
-            said.push(words::place_line_out(gone.join("; "), file.display()));
-        }
+        let lines = gone.join("; ");
+        said.push(match write_back(&file, &read, &kept) {
+            Ok(()) => words::place_line_out(lines, file.display()),
+            Err(why) => words::place_line_stays(lines, file.display(), why),
+        });
     }
     said
+}
+
+/// The file written back with what it read less wsp's lines, opened again with no link followed and only where it is
+/// still the file that was read, with one name.
+fn write_back(file: &Path, read: &std::fs::Metadata, kept: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
+    let mut opened = std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NOFOLLOW).open(file)?;
+    let now = opened.metadata()?;
+    if now.dev() != read.dev() || now.ino() != read.ino() || now.nlink() != 1 {
+        return Err(std::io::Error::other("it changed while the leave read it"));
+    }
+    opened.set_len(0)?;
+    opened.write_all(kept)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write as _;
 
     #[test]
     fn the_leave_takes_its_line_out_of_each_login_file_and_writes_through_no_link_or_second_name() {
@@ -74,5 +96,37 @@ mod tests {
         std::fs::hard_link(&bash_profile, elsewhere.path().join("twin")).unwrap();
         assert!(sweep_login_lines(home.path()).is_empty());
         assert_eq!(std::fs::read_to_string(&bash_profile).unwrap(), format!("{line}\n"));
+    }
+
+    #[test]
+    fn a_login_file_past_the_cap_is_left_unread_and_said() {
+        let home = tempfile::tempdir().unwrap();
+        let named = place_daemon_paths(home.path()).profile_file.display().to_string();
+        let file = home.path().join(".bash_login");
+        let big = std::fs::File::create(&file).unwrap();
+        big.set_len(numbers::LOGIN_READ_MAX_BYTES + 1).unwrap();
+        drop(big);
+        std::fs::OpenOptions::new().append(true).open(&file).unwrap().write_all(format!("\n. {named}\n").as_bytes()).unwrap();
+        let before = std::fs::metadata(&file).unwrap().len();
+        assert_eq!(sweep_login_lines(home.path()), [words::place_line_stays("wsp's line", file.display(), words::PLACE_LOGIN_PAST_CAP)]);
+        assert_eq!(std::fs::metadata(&file).unwrap().len(), before);
+    }
+
+    #[test]
+    fn a_login_file_it_cannot_write_back_is_said_with_why() {
+        use std::os::unix::fs::PermissionsExt as _;
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let named = place_daemon_paths(home.path()).profile_file.display().to_string();
+        let line = format!(". {named}");
+        let file = home.path().join(".profile");
+        std::fs::write(&file, format!("{line}\n")).unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let swept = sweep_login_lines(home.path());
+        assert_eq!(swept.len(), 1, "{swept:?}");
+        assert!(swept[0].starts_with(&format!("{line} stays in {}: ", file.display())), "{swept:?}");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), format!("{line}\n"));
     }
 }

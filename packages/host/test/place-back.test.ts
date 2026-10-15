@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { placeDaemonPaths, placeFileText, placeLoginElsewhere, type PlaceBack } from "@wsp/protocol";
+import { heldReadOf } from "../../protocol/test/held-read.js";
 import { type HeldChild, type SshCarried, type SshTransport } from "@wsp/engine";
 import { backBindLine, backBindScript, backBinds, backNoDoorLine, backNoHostLine, backTakenLine, placeBackHolder } from "../src/place-back.js";
 import { heldPlaceScript } from "@wsp/protocol";
@@ -62,14 +63,14 @@ const carry = async (reach: { user: string; host: string; port: number }): Promi
 
 /** The box's answer to the bind read, by port; everything else it is asked runs in a real bash on this computer,
  * which is where the place file of the test's box lives. */
-function box(binds: (port: number) => string[]): { transport: SshTransport; ran: string[] } {
+function box(binds: (port: number) => string[], env?: NodeJS.ProcessEnv): { transport: SshTransport; ran: string[] } {
   const ran: string[] = [];
   const transport: SshTransport = async (_reach, script, opts) => {
     ran.push(script);
     const bind = /sport = :(\d+)/.exec(script);
     if (bind !== null && script === backBindScript(Number(bind[1]))) return { exitCode: 0, stdout: binds(Number(bind[1])).map(at => `WSP_BIND ${at}\n`).join(""), stderr: "" };
     return new Promise(done => {
-      const child = execFile("/bin/bash", ["-c", script], (error, stdout, stderr) => done({ exitCode: error === null ? 0 : Number(error.code ?? 1), stdout, stderr }));
+      const child = execFile("/bin/bash", ["-c", script], env === undefined ? {} : { env }, (error, stdout, stderr) => done({ exitCode: error === null ? 0 : Number(error.code ?? 1), stdout, stderr }));
       child.stdin?.end(opts.stdin === undefined ? undefined : Buffer.from(opts.stdin));
     });
   };
@@ -149,6 +150,20 @@ describe("the forward a host holds back from a computer", () => {
     holder.close();
   });
 
+  it("stands the forward where the login's rc file prints before the place file is read", async () => {
+    const home = placeHome();
+    // bash reads ~/.bashrc before the command when its stdin is a socket, as sshd hands it one; a node pipe is one.
+    writeFileSync(join(home, ".bashrc"), 'echo "Welcome to box"\n');
+    const children = spawner();
+    const { transport } = box(loopback, { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" });
+    const holder = holderAt({ hostPublicKey: HOST_KEY, carry, log: () => {}, spawn: children.spawn, transport, waitMs: () => 5 });
+    const first = holder.hold(LOGIN, AT_DOOR, { home, computer: { id: "p_1", name: "spoo" } });
+    await until(() => children.started.length === 1);
+    children.started[0]!.fake.stdout.write("WSP_BACK_UP\n");
+    await expect(first).resolves.toEqual(AT_DOOR);
+    holder.close();
+  });
+
   it("keeps every computer held on one login, so a stale record beside the live one never cuts its forward", async () => {
     const home = placeHome();
     const children = spawner();
@@ -215,7 +230,7 @@ describe("the forward a host holds back from a computer", () => {
     const transport: SshTransport = async (reach, script, opts) => {
       if (script === heldPlaceScript(home) && !checked) {
         checked = true;
-        return { exitCode: 0, stdout: before.replace('"p_2"', '"p_1"'), stderr: "" };
+        return { exitCode: 0, stdout: heldReadOf(before.replace('"p_2"', '"p_1"')), stderr: "" };
       }
       return inner.transport(reach, script, opts);
     };

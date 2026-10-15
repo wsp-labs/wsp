@@ -37,15 +37,35 @@ export function unsourceStep(place: DaemonPlace, file: string): string {
   ].join("\n");
 }
 
+/** What the login step prints for a login file it left as it was, before the path. */
+export const LOGIN_KEPT_LINE = "WSP_LOGIN_KEPT";
+
+/** Why wsp left a login file as it was, on every road that writes wsp's line or takes it out. */
+export const LOGIN_LINKED_WHY = "it is a link or has a second name, and wsp writes through neither in a login file";
+
+/** What the add's log says of that file. */
+export const loginKeptLine = (file: string): string => `wsp's line was not written in ${file}: ${LOGIN_LINKED_WHY}`;
+
+/** The test that holds where a login file is a link, dangling or not, or a file with a second name. A workspace on a
+ * computer somebody owns writes in this home, and a write through either would land, as root, in a file elsewhere;
+ * the leave over the link holds the same rule. */
+export const linkedLoginTest = (place: DaemonPlace, file: string): string => `{ [ -L ${sh(place, file)} ] || [ -n "$(find ${sh(place, file)} -maxdepth 0 -links +1 2>/dev/null)" ]; }`;
+
 /** wsp's line in the person's own login files as this version spells it: the lines naming wsp's profile file taken
  * out first, so a second deploy replaces the line rather than sitting beside it, then this one appended, which
- * makes the first file where the login has none and goes in each of the others only where it stands. Nothing at
- * all for a place whose profile file is wsp's own to load. */
+ * makes the first file where the login has none and goes in each of the others only where it stands. A file that
+ * is a link or has a second name is left as it is and named. Nothing at all for a place whose profile file is wsp's
+ * own to load. */
 export function profileSourceStep(place: DaemonPlace): string[] {
   const [first, ...rest] = place.profileSources ?? [];
   if (first === undefined) return [];
-  const sourced = (file: string): string[] => [unsourceStep(place, file), `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`];
-  return [...sourced(first), ...rest.flatMap(file => [`if [ -f ${sh(place, file)} ]; then`, ...sourced(file), "fi"])];
+  const sourced = (file: string): string[] => [
+    `if ${linkedLoginTest(place, file)}; then echo ${LOGIN_KEPT_LINE} ${sh(place, file)}; else`,
+    unsourceStep(place, file),
+    `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`,
+    "fi",
+  ];
+  return [...sourced(first), ...rest.flatMap(file => [`if [ -e ${sh(place, file)} ] || [ -L ${sh(place, file)} ]; then`, ...sourced(file), "fi"])];
 }
 
 /** The login files this wsp puts on a machine: its own profile file, holding the browser shim and the display

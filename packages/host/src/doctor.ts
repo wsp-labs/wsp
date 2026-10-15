@@ -15,7 +15,7 @@ import { CREATED_AT_LABEL, DAEMON_ENV_FILE, DAEMON_LISTENING_CHECK, DAEMON_PORT,
 import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, placeLoginFiles, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
 import { goldenHead, writeDaemonTokenScript, type AccountOrphans, type GoldenVersion, type HereDaemon, type Runtime } from "@wsp/runtime";
 import { daemonFlags } from "./daemon-flags.js";
-import { loginFilesStep, sh, unsourceStep } from "./login-files.js";
+import { linkedLoginTest, loginFilesStep, sh, unsourceStep } from "./login-files.js";
 import { keyIn } from "./env-keys.js";
 import WebSocket from "ws";
 import { assetDir, assetName, assetProof, copyAsset, stagedAsset } from "./assets.js";
@@ -896,7 +896,7 @@ export function addUndoScript(place: DaemonPlace, writes: readonly AddWrite[], f
     ...at("enabled").map(path => `${systemctl} disable ${unit(path)} 2>/dev/null || true`),
     ...at("own").map(path => unlinked(path, `rm -rf ${sh(place, path)}`)),
     ...(at("apparmor").length === 0 ? [] : apparmorOffStep()),
-    ...at("line").map(path => unsourceStep(place, path)),
+    ...at("line").map(path => `if ! ${linkedLoginTest(place, path)}; then\n${unsourceStep(place, path)}\nfi`),
     ...at("login").map(path => `[ -s ${sh(place, path)} ] || rm -f ${sh(place, path)}`),
     ...at("folder").map(path => unlinked(path, `rmdir ${sh(place, path)} 2>/dev/null || true`)),
     "left=0",

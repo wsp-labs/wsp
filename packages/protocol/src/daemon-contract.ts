@@ -321,6 +321,14 @@ export const placeKeptForLinkLine = (path: string): string => `nothing was remov
 /** What a leave says it took out of a person's own login file: wsp's lines there, and the file. Said on both roads a
  * leave runs on, and pinned to one text by the contract fixture. */
 export const placeLineOutLine = (lines: string, file: string): string => `${lines} (out of ${file})`;
+/** What a leave says of wsp's lines it left in a person's own login file, and why. Said on both roads a leave runs
+ * on, and pinned to one text by the contract fixture. */
+export const placeLineStaysLine = (lines: string, file: string, why: string): string => `${lines} stays in ${file}: ${why}`;
+/** The most of a person's own login file a leave reads, far past any real one: the file sits in a home a workspace
+ * writes, and a leave runs as root. */
+export const LOGIN_READ_MAX_BYTES = 1024 * 1024;
+/** Why a leave left a login file unread. */
+export const PLACE_LOGIN_PAST_CAP = "it is over 1 MiB, more than a leave reads of a login file";
 /** Why wsp's install folder is still there after a leave: the list in it of what the setup wrote outside the home
  * still has lines, which only a leave cut short leaves, and the folder holds that list for a leave that finishes.
  * Said on both roads a leave runs on, and pinned to one text by the contract fixture. */
