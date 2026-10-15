@@ -3,10 +3,10 @@ import { spawn } from "node:child_process";
 import { lstatSync, mkdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MCP_ID_PREFIX, PLACE_FOUND_END, placeDaemonPaths, placeProvisionPaths } from "@wsp/protocol";
-import { MCP_SERVERS_JSON } from "@wsp/catalog";
+import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, MCP_ID_PREFIX, PLACE_FOUND_END, placeDaemonPaths, placeProvisionPaths, serversUnreadLine } from "@wsp/protocol";
+import { CODEX_TOML, MCP_SERVERS_JSON } from "@wsp/catalog";
 import { serverDigest } from "@wsp/engine";
-import { PLACE_SERVERS_PAST_CAP, PLACE_SERVERS_UNREAD, placeFound, placeServersUnreadLine, SERVERS_READ_MAX_BYTES } from "../src/place-report.js";
+import { placeFound } from "../src/place-report.js";
 import { fakeRunner, fifoWriter, made, shWithSha256sum, stopGroup, sweepPlace, tmp } from "./places-fixture.js";
 
 /** Claude Code's own file on the box: one server wsp merged in and one of the person's own. */
@@ -43,7 +43,7 @@ describe("the leave at the box reads an agent's own config file as a plain file 
     const late = fifoWriter(claude, CLAUDE_TEXT, 3000);
     try {
       const swept = await leave(home);
-      expect(swept.kept).toContain(placeServersUnreadLine(claude, PLACE_SERVERS_UNREAD));
+      expect(swept.kept).toContain(serversUnreadLine(claude, CONFIG_NOT_PLAIN));
       expect(swept.removed.filter(said => said.includes(".claude.json"))).toEqual([]);
       expect(lstatSync(claude).isFIFO()).toBe(true);
     } finally {
@@ -51,12 +51,46 @@ describe("the leave at the box reads an agent's own config file as a plain file 
     }
   });
 
+  it("takes wsp's server out of a file linked inside the home, the link standing, and keeps one linked out of it unread", async () => {
+    const home = homeWithServer("leave-servers-dotfiles");
+    const claude = join(home, ".claude.json");
+    mkdirSync(join(home, "dotfiles"));
+    writeFileSync(join(home, "dotfiles", "claude.json"), CLAUDE_TEXT);
+    symlinkSync("dotfiles/claude.json", claude);
+    const swept = await leave(home);
+    expect(swept.removed).toContain(`context7 (out of ${claude})`);
+    expect(lstatSync(claude).isSymbolicLink()).toBe(true);
+    expect(Object.keys((JSON.parse(readFileSync(join(home, "dotfiles", "claude.json"), "utf8")) as { mcpServers: object }).mcpServers)).toEqual(["mine"]);
+
+    const out = homeWithServer("leave-servers-out");
+    const away = join(tmp("leave-servers-away"), "claude.json");
+    writeFileSync(away, CLAUDE_TEXT);
+    symlinkSync(away, join(out, ".claude.json"));
+    expect((await leave(out)).kept).toContain(serversUnreadLine(join(out, ".claude.json"), CONFIG_NOT_PLAIN));
+    expect(readFileSync(away, "utf8")).toBe(CLAUDE_TEXT);
+  });
+
+  it("keeps a config under a folder linked out of the home unread and says so, as the read over the link does", async () => {
+    const home = tmp("leave-servers-folder-out");
+    const text = `[mcp_servers.context7]\ncommand = "npx"\n\n[mcp_servers.mine]\ncommand = "/usr/local/bin/mine"\n`;
+    const at = placeProvisionPaths(home);
+    mkdirSync(at.dir, { recursive: true });
+    const digest = serverDigest(CODEX_TOML.entryOf(text, "context7"))!;
+    writeFileSync(at.landed, `${MCP_ID_PREFIX}codex/context7\t${digest}\t${digest}\n`);
+    const away = tmp("leave-servers-folder-away");
+    writeFileSync(join(away, "config.toml"), text);
+    symlinkSync(away, join(home, ".codex"));
+    const swept = await leave(home);
+    expect(swept.kept).toContain(serversUnreadLine(join(home, ".codex", "config.toml"), CONFIG_NOT_PLAIN));
+    expect(readFileSync(join(away, "config.toml"), "utf8")).toBe(text);
+  });
+
   it("keeps a link to a device that never ends unread", async () => {
     const home = homeWithServer("leave-servers-zero");
     const claude = join(home, ".claude.json");
     symlinkSync("/dev/zero", claude);
     const swept = await leave(home);
-    expect(swept.kept).toContain(placeServersUnreadLine(claude, PLACE_SERVERS_UNREAD));
+    expect(swept.kept).toContain(serversUnreadLine(claude, CONFIG_NOT_PLAIN));
     expect(lstatSync(claude).isSymbolicLink()).toBe(true);
   });
 
@@ -72,7 +106,7 @@ describe("the leave at the box reads an agent's own config file as a plain file 
       const swept = await leave(home);
       await new Promise(resolve => setTimeout(resolve, 200));
       expect(writer.opened()).toBe("");
-      expect(swept.kept).toContain(placeServersUnreadLine(claude, PLACE_SERVERS_UNREAD));
+      expect(swept.kept).toContain(serversUnreadLine(claude, CONFIG_NOT_PLAIN));
       expect(swept.removed.filter(said => said.includes(".claude.json"))).toEqual([]);
     } finally {
       writer.stop();
@@ -83,9 +117,9 @@ describe("the leave at the box reads an agent's own config file as a plain file 
     const home = homeWithServer("leave-servers-big");
     const claude = join(home, ".claude.json");
     writeFileSync(claude, CLAUDE_TEXT);
-    truncateSync(claude, SERVERS_READ_MAX_BYTES + 1);
+    truncateSync(claude, CONFIG_READ_MAX_BYTES + 1);
     const swept = await leave(home);
-    expect(swept.kept).toContain(placeServersUnreadLine(claude, PLACE_SERVERS_PAST_CAP));
+    expect(swept.kept).toContain(serversUnreadLine(claude, CONFIG_PAST_CAP));
   });
 });
 

@@ -218,7 +218,7 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
     if (line.includes("ls-remote") && line.includes("--heads")) return out((seen.remoteHeads ?? []).map(h => `${"0".repeat(40)}\trefs/heads/${h}\n`).join(""));
     if (line.includes("symbolic-ref --quiet --short HEAD")) return seen.head === undefined ? out("", 1) : out(`${seen.head}\n`);
     if (line.includes("wsp_mcp_read()")) {
-      const said = [...line.matchAll(/^wsp_mcp_read (\d+) '([^']+)'$/gm)].map(([, i, path]) => {
+      const said = [...line.matchAll(/^wsp_mcp_read (\d+) '[^']+' '([^']+)'$/gm)].map(([, i, path]) => {
         const text = seen.configs.get(path!);
         return text === undefined ? `wsp-mcp ${i} - -` : `wsp-mcp ${i} 0 ${Buffer.from(text).toString("base64")}`;
       });

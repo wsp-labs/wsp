@@ -7,7 +7,7 @@
 // writes down at that grain, one line per key beside the job, so the next run
 // knows its own hand from the agent's and from the person's; a name it planned
 // and wrote nowhere is written down as one it no longer owns.
-import { placeProvisionPaths, shellQuote, type PlaceProvisionRow } from "@wsp/protocol";
+import { configUnreadLine, placeProvisionPaths, shellQuote, type PlaceProvisionRow } from "@wsp/protocol";
 import { MCP_AGENTS, launchMisses, ownServerConfig, unsetTomlKeys, type McpEditLib, type McpMergeResult } from "@wsp/catalog";
 import {
   READ_MS,
@@ -29,6 +29,9 @@ import {
   type McpScope,
   type ScopeFile,
   type ScopeOutcome,
+  type ScopeRead,
+  type ScopeUnread,
+  wasRead,
 } from "./golden-mcp.js";
 import type { ToolResult } from "./golden-tools.js";
 import type { StageListener } from "./golden.js";
@@ -132,7 +135,11 @@ export async function headlessKeys(machine: Machine, home: string, stores: Reado
     const there = await machine.exec(`[ "$(uname -s)" = Linux ] && ${make}`, { timeoutMs: INLINE_EXEC_MS }).catch(() => undefined);
     if (there?.exitCode !== 0) continue;
     const config = ownServerConfig(agent, home, store);
-    const file = await port.read(config.files);
+    const file = await port.read(config.files, config.base);
+    if (file !== undefined && "unread" in file) {
+      failed.push(`${agent.name}: ${configUnreadLine(file.path, file.unread)}`);
+      continue;
+    }
     const text = file?.text ?? "";
     const missing = await unsetTomlKeys(text, keys);
     if (missing.length === 0) continue;
@@ -176,18 +183,22 @@ export async function provisionMcp(
   // Both sides in one read, the agents' own files first and the copies that travelled after them. The answer is
   // every one of those files whole, the servers' env and headers with it, so it goes by the road that says its
   // output is not a log's.
-  const asked = [...candidates.map(c => ({ files: c.map(x => x.own) })), ...candidates.map(c => ({ files: c.flatMap(x => x.travelled ?? []) }))];
+  const asked = [...candidates.map(c => ({ files: c.map(x => x.own), base: bases.get(c[0]?.own ?? "") ?? o.home })), ...candidates.map(c => ({ files: c.flatMap(x => x.travelled ?? []), base: o.home }))];
   const res = await machine.run(readConfigsCmd(asked), { deadlineMs: READ_MS, unlogged: true }).catch(refused);
   const read = res.exitCode === 0 ? parseConfigs(res.stdout, asked) : undefined;
-  const own: (ScopeFile | undefined)[] = scopes.map((_, at) => read?.[at]);
-  const travelled: (Pick<ScopeFile, "path" | "text"> | undefined)[] = scopes.map((s, at) => (s.travelled !== undefined ? { path: "", text: s.travelled } : read?.[scopes.length + at]));
+  const own: (ScopeRead | undefined)[] = scopes.map((_, at) => read?.[at]);
+  const copies = scopes.map((s, at) => (s.travelled !== undefined ? { path: "", text: s.travelled } : read?.[scopes.length + at]));
+  const travelled: (Pick<ScopeFile, "path" | "text"> | undefined)[] = copies.map(c => (c === undefined || "unread" in c ? undefined : c));
+  /** The scopes whose own file or copy the read left alone, which the merge neither reads nor writes. */
+  const unread: (ScopeUnread | undefined)[] = scopes.map((_, at) => [own[at], copies[at]].find((f): f is ScopeUnread => f !== undefined && "unread" in f));
   /** The file each scope's merge writes: the agent's own where the computer has one, else where its copy would sit. */
   const target = scopes.map((s, at) => own[at]?.path ?? (s.travelled !== undefined ? candidates[at]![0]?.own : candidates[at]!.find(c => c.travelled === travelled[at]?.path)?.own));
   /** That file as it stood before this round, by path, for the digests the records are read off. */
   const stood = new Map(
     scopes.flatMap((_, at) => {
       const path = target[at];
-      const text = own[at]?.text;
+      const file = own[at];
+      const text = wasRead(file) ? file.text : undefined;
       return path !== undefined && text !== undefined ? [[path, text] as const] : [];
     }),
   );
@@ -221,6 +232,11 @@ export async function provisionMcp(
         const id = (name: string): string => scopeRowId(agent.id, scope, name);
         if (path === undefined) {
           outcomes.push({ file: null, results: [] });
+          continue;
+        }
+        const skip = unread[here];
+        if (skip !== undefined) {
+          outcomes.push({ file: skip.path, unread: skip.unread, results: [] });
           continue;
         }
         for (const name of [...scope.keep, ...scope.drop.map(d => d.name)]) where.set(id(name), path);
