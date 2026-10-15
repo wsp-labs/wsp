@@ -12,7 +12,7 @@ import { homedir, arch as osArch, platform, release, type as osType, uptime as u
 import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
-import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ServerPort } from "@wsp/engine";
+import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeFile, type ServerPort } from "@wsp/engine";
 import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
@@ -334,7 +334,8 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   const own = ownMarks(sh(landedFilesScript(home)));
   // And what wsp merged into the agents' own files here, which no path of the list names: those files are the
   // agents' own and stay, with wsp's keys taken out of them one by one. The same list, so this read comes first too.
-  const unmerged = await unmergeServers(hereServerPort(sh), home).catch(() => []);
+  const unread: string[] = [];
+  const unmerged = await unmergeServers(hereServerPort(sh, unread), home).catch(() => []);
   const manager = opts.manager === undefined ? serviceManagerFor(platform()) : opts.manager;
   const removed: string[] = [];
   if (manager !== undefined) {
@@ -423,7 +424,7 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   }
   const said = unsourced(sshDaemonPlace({ home, path: "" }), home);
   removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
-  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
+  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...unread, ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
 }
 
 /** The paths the add found standing before it wrote anything, off the record its deploy left here. Nothing where
@@ -434,9 +435,9 @@ export function placeFound(home: string): ReadonlySet<string> | undefined {
   const path = placeDaemonPaths(home).placeFound;
   let text: string;
   try {
-    const at = lstatSync(path);
-    if (!at.isFile() || at.size > PLACE_FOUND_MAX_BYTES + PLACE_FOUND_END.length + 1) return undefined;
-    text = readFileSync(path, "utf8");
+    const read = readPlainHere(path, PLACE_FOUND_MAX_BYTES + PLACE_FOUND_END.length + 1);
+    if ("unread" in read) return undefined;
+    text = read.bytes.toString("utf8");
   } catch {
     return undefined;
   }
@@ -624,28 +625,73 @@ const shStdout = (script: string): string => {
 
 const SH = "/bin/sh";
 
+/** The most of an agent's own config file the leave here reads, far past the 968 KB Claude file its own issues call
+ * bloated: the file sits in a home a workspace writes, and a leave runs as root. */
+export const SERVERS_READ_MAX_BYTES = 32 * 1024 * 1024;
+/** Why the leave left an agent's config file unread. */
+export const PLACE_SERVERS_UNREAD = "it is a link or not a plain file, and a leave reads neither";
+export const PLACE_SERVERS_PAST_CAP = "it is over 32 MiB, more than a leave reads of an agent's config";
+/** What the leave says of an agent's config file it did not read: wsp's servers in it stay. */
+export const placeServersUnreadLine = (file: string, why: string): string => `wsp's MCP servers were not looked for in ${file}: ${why}`;
+
 /** The port the unmerge runs on when it runs on the computer it is taking wsp off: that computer's own sh for
  * the read of the list, its own file system for the read of the agents' files, and the one config write for
  * putting one back. */
-function hereServerPort(sh: (script: string) => string): ServerPort {
+function hereServerPort(sh: (script: string) => string, kept: string[]): ServerPort {
   return {
     run: script => Promise.resolve(sh(script)),
-    read: files =>
-      Promise.resolve(
-        files.flatMap(path => {
-          try {
-            const bytes = readFileSync(path);
-            return [{ path, text: bytes.toString("utf8"), sum: configSum(bytes) }];
-          } catch {
-            return [];
-          }
-        })[0],
-      ),
+    read: files => Promise.resolve(configHere(files, kept)),
     write: (file, text, base) => {
       writeConfigHere(file.path, base, file.sum, text);
       return Promise.resolve();
     },
   };
+}
+
+/** The first of an agent's config files that is there, read as the login files are. One that is there and not read
+ * keeps its servers, is said in `kept`, and ends the look, since it is the file the agent reads. */
+function configHere(files: readonly string[], kept: string[]): ScopeFile | undefined {
+  for (const path of files) {
+    let read: PlainRead;
+    try {
+      read = readPlainHere(path, SERVERS_READ_MAX_BYTES);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") continue;
+      kept.push(placeServersUnreadLine(path, e instanceof Error ? e.message : String(e)));
+      return undefined;
+    }
+    if ("unread" in read) {
+      kept.push(placeServersUnreadLine(path, read.unread === "past-cap" ? PLACE_SERVERS_PAST_CAP : PLACE_SERVERS_UNREAD));
+      return undefined;
+    }
+    return { path, text: read.bytes.toString("utf8"), sum: configSum(read.bytes) };
+  }
+  return undefined;
+}
+
+type PlainRead = { bytes: Buffer; nlink: number } | { unread: "not-plain" | "past-cap" };
+
+/** A file in a home a workspace writes, read as a leave run as root reads one: a link reads as not a plain file, and
+ * any other failure to open throws. */
+function readPlainHere(path: string, cap: number): PlainRead {
+  let fd: number | undefined;
+  try {
+    // Opened with no link followed and without waiting, and read by the bytes it gives, never the size it states:
+    // opening what a link points at runs a fifo's other end or a device's driver, a fifo there would hold the leave,
+    // and a file that never ends would fill its memory.
+    fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
+    const at = fstatSync(fd);
+    if (!at.isFile()) return { unread: "not-plain" };
+    const most = Buffer.alloc(cap + 1);
+    const bytes = most.subarray(0, readSync(fd, most, 0, most.length, 0));
+    return bytes.length > cap ? { unread: "past-cap" } : { bytes, nlink: at.nlink };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ELOOP") return { unread: "not-plain" };
+    throw e;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
 }
 
 /** How long the read of what wsp owns here gets; it hashes one file per line of the list. */
@@ -712,25 +758,15 @@ function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { k
 }
 
 function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
-  let bytes: Buffer;
-  let twinned: boolean;
-  let fd: number | undefined;
+  let read: PlainRead;
   try {
-    // Opened with no link followed and without waiting, and read by the bytes it gives, never the size it states:
-    // opening what a link points at runs a fifo's other end or a device's driver, a fifo there would hold the leave,
-    // and a file that never ends would fill its memory.
-    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
-    const read = fstatSync(fd);
-    if (!read.isFile()) return { kept: placeLoginUnreadLine(file) };
-    twinned = read.nlink > 1;
-    const most = Buffer.alloc(LOGIN_READ_MAX_BYTES + 1);
-    bytes = most.subarray(0, readSync(fd, most, 0, most.length, 0));
-    if (bytes.length > LOGIN_READ_MAX_BYTES) return { kept: placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) };
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === "ELOOP" ? { kept: placeLoginUnreadLine(file) } : undefined;
-  } finally {
-    if (fd !== undefined) closeSync(fd);
+    read = readPlainHere(file, LOGIN_READ_MAX_BYTES);
+  } catch {
+    return undefined;
   }
+  if ("unread" in read) return { kept: read.unread === "past-cap" ? placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) : placeLoginUnreadLine(file) };
+  const { bytes } = read;
+  const twinned = read.nlink > 1;
   const rows = bytes.toString("utf8").split("\n");
   const gone = rows.filter(row => row.includes(place.profileFile));
   if (gone.length === 0) return undefined;
