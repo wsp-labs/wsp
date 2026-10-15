@@ -61,11 +61,15 @@ function keyEnv(apiKey: string | undefined, broker: CodexBroker | undefined): Re
 export function buildEnv(options: CodexEnvOptions): Record<string, string> {
   const home = options.home.trim();
   if (!home.startsWith("/")) throw new Error(`home must be an absolute path, got "${options.home}"`);
-  const keyed = keyEnv(options.apiKey, options.broker);
   const clean: Record<string, string> = {};
   for (const [key, value] of Object.entries(options.base ?? {})) if (value !== undefined) clean[key] = value;
-  const door: Record<string, string> = options.broker === undefined ? {} : { CODEX_REFRESH_TOKEN_URL_OVERRIDE: `${DOOR}/oauth/token`, CODEX_REVOKE_TOKEN_URL_OVERRIDE: `${DOOR}/oauth/revoke` };
-  return { ...clean, CODEX_HOME: home, ...keyed, ...door };
+  return { ...clean, CODEX_HOME: home, ...(options.broker === undefined ? keyEnv(options.apiKey, undefined) : brokeredCodexEnv(options.broker, options.apiKey)) };
+}
+
+/** What every process that may start codex on a brokered machine carries for it: the placeholder key where the launch
+ * reads one, and the refresh and revoke addresses at the door. */
+export function brokeredCodexEnv(broker: CodexBroker, apiKey: string | undefined): Record<string, string> {
+  return { ...keyEnv(apiKey, broker), CODEX_REFRESH_TOKEN_URL_OVERRIDE: `${DOOR}/oauth/token`, CODEX_REVOKE_TOKEN_URL_OVERRIDE: `${DOOR}/oauth/revoke` };
 }
 
 const base64url = (text: string): string => Buffer.from(text).toString("base64url");
@@ -189,6 +193,17 @@ export function codexLaunch(launch: AgentLaunch | undefined, broker: CodexBroker
 export function codexWord(launch: AgentLaunch | undefined, broker: CodexBroker | undefined): string {
   const { word, flags } = codexLaunch(launch, broker);
   return [word, ...flags].join(" ");
+}
+
+/** The program a terminal on a brokered machine finds as codex in `folder`, ahead of the real one on its PATH: codex
+ * reads its base URLs off flags and its login off a file alone, so what the person types runs as codexLaunch starts
+ * codex, on the shell's own token, with `folder` taken off the PATH first so the real codex is the one it becomes. The
+ * overrides go ahead of the subcommand, so a subcommand given a `-c` of its own drops them. */
+export function codexForShell(broker: CodexBroker, folder: string): string {
+  const { word, flags } = codexLaunch(undefined, broker);
+  const unpath = `IFS=:; p=; for d in $PATH; do [ "$d" = ${shellQuote(folder)} ] || p=\${p:+$p:}$d; done; PATH=$p; unset IFS`;
+  // A pane's shell names no CODEX_HOME, and codex's own default is ~/.codex.
+  return ["#!/bin/sh", unpath, 'export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"', `exec ${[word, ...flags].join(" ")} "$@"`, ""].join("\n");
 }
 
 export interface BuildCommandOptions {
