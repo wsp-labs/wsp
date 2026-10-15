@@ -137,6 +137,29 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     expect(starts[6]!.offServers).toEqual([]);
   }, 40_000);
 
+  it("a turn on a machine from an image built at a provider leaves out aws-mcp, whose AWS login stayed on the person's computer, and keeps it where it sends unsigned", async () => {
+    const starts: HarnessStartOptions[] = [];
+    const image = JSON.stringify({
+      mcpServers: {
+        "aws-mcp": { command: "uvx", args: ["mcp-proxy-for-aws@latest", "https://aws-mcp.us-east-1.api.aws/mcp", "--metadata", "INSTALL_SOURCE=aws-cli"] },
+        "aws-installed": { command: "/root/.local/bin/mcp-proxy-for-aws", args: ["https://aws-mcp.us-east-1.api.aws/mcp"] },
+        "aws-readme": { command: "uvx", args: ["mcp-proxy-for-aws-cli@latest", "https://aws-mcp.us-east-1.api.aws/mcp"] },
+        "aws-wrapped": { command: "sh", args: ["-c", "uvx mcp-proxy-for-aws@latest https://aws-mcp.us-east-1.api.aws/mcp"] },
+        "aws-unsigned": { command: "uvx", args: ["mcp-proxy-for-aws==1.1.0", "https://aws-mcp.us-east-1.api.aws/mcp", "--skip-auth"] },
+        "aws-wrapped-unsigned": { command: "sh", args: ["-c", "uvx mcp-proxy-for-aws@latest https://aws-mcp.us-east-1.api.aws/mcp --skip-auth"] },
+        stub: { command: "node", args: ["s.js"] },
+      },
+    });
+    const agentsReader: AgentsReader = { read: () => Promise.reject(new Error("not read here")), tools: () => Promise.reject(new Error("not asked here")), signsIn: async () => () => undefined };
+    const boat = stubBackend();
+    const answer = boat.execImpl;
+    boat.execImpl = (m, cmd, stdin) => (cmd.includes("wsp_mcp_read") ? { exitCode: 0, stdout: `${MCP_READ_MARK} 0 0 ${Buffer.from(image).toString("base64")}\n${MCP_READ_END}\n`, stderr: "" } : answer(m, cmd, stdin));
+    rt = createRuntime({ backend: boat, store: memoryStore(), adapters: { claude: quietHarness(starts, true) }, agentsReader });
+    const fork = await createOn(rt, { golden: "snap_g", name: "x-aws" });
+    await (await rt.sessions.start(fork.id, { prompt: "buckets", harness: "claude" })).finished;
+    expect(starts.map(o => o.offServers)).toEqual([["aws-mcp", "aws-installed", "aws-readme", "aws-wrapped"]]);
+  }, 40_000);
+
   it("a turn on a computer the person joined reads no config for it and leaves nothing out", async () => {
     const started: Started[] = [];
     const denying: HarnessAdapterFactory = hctx => ({ ...answering(started)(hctx), deniesServers: true });
