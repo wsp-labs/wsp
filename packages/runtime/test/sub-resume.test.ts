@@ -11,8 +11,8 @@ import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
-import { BOX_WORK_DIR, type Machine } from "@wsp/engine";
-import { DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, SUB_TURN_GONE_LINE, fmtBytes, foldThreads, lostSessionPrompt, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
+import { BOX_WORK_DIR, DiskGoneError, type Machine } from "@wsp/engine";
+import { BOAT_DISK_GONE_LINE, DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, diskExpired, diskGoneReleasedLine, SUB_TURN_GONE_LINE, fmtBytes, foldThreads, lostSessionPrompt, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
 import { PIPE_IDLE } from "../src/pipe.js";
 import { copyKey, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
@@ -480,5 +480,64 @@ describe("rewind and fork on a sub-thread whose machine was deleted", () => {
     expect(fork?.message).toBe(SUB_TURN_GONE_LINE);
     const later = await said(held.rt.sessions.fork({ prompt: "x", fork: { threadId: held.threadId, turnId: turns[1]! } }));
     expect(later?.message).not.toBe(SUB_TURN_GONE_LINE);
+  });
+});
+
+describe("a sub-thread whose disk Boat deleted", () => {
+  it("a wake Boat refuses with the disk gone releases the record in one line, and the next send starts a new machine", async () => {
+    const held = await doneOnce();
+    expect((await held.record()).phase).toBe("napping");
+    held.first.resume = async () => {
+      throw new DiskGoneError(held.first.id, BOAT_DISK_GONE_LINE, "The sandbox stayed stopped for 14 days. Boat deleted its data.");
+    };
+    const line = diskGoneReleasedLine(BOAT_DISK_GONE_LINE);
+    expect(line).toBe("Boat deleted this machine's disk once it had been paused for 14 days, so it cannot wake; the next send starts a new machine from the image");
+    await expect(held.rt.workspaces.wake(held.made.id)).rejects.toThrow(line);
+    const r = await held.record();
+    expect(r.phase).toBe("released");
+    expect(r.machineId).toBe("");
+    expect(r.sub!.lost).toBe(line);
+    const made = held.boat.machines.length;
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
+    expect(held.boat.machines).toHaveLength(made + 1);
+    const machine = held.boat.machines.at(-1)!;
+    expect(machine.id).not.toBe(held.first.id);
+    const after = await until(async () => ((await held.record()).machineId === machine.id ? held.record() : undefined), "the record on the new machine");
+    expect(after.sub!.lost).toBeUndefined();
+  });
+});
+
+describe("the keep of a napping machine's disk", () => {
+  const DAY = 24 * 60 * MIN;
+
+  it("a thread whose machine napped carries the day its cloud's keep of the disk runs out, reads expired from that day, and carries none once it wakes", async () => {
+    const held = await doneOnce();
+    held.boat.lifecycle.diskKeptMs = 14 * DAY;
+    const r = await held.record();
+    expect(r.phase).toBe("napping");
+    expect(r.nappedAt).toBeTypeOf("number");
+    const until14 = r.nappedAt! + 14 * DAY;
+    const rows = async () => (await held.rt.sessions.list()).filter(s => s.threadId === held.threadId);
+    expect((await rows()).at(-1)!.diskKeptUntil).toBe(until14);
+    const thread = foldThreads(await rows())[0]!;
+    expect(thread.diskKeptUntil).toBe(until14);
+    expect(diskExpired(thread, until14 - 1)).toBe(false);
+    expect(diskExpired(thread, until14)).toBe(true);
+    await held.rt.workspaces.wake(held.made.id);
+    expect((await rows()).at(-1)!.diskKeptUntil).toBeUndefined();
+  });
+
+  it("a host started over a box its cloud stopped before counts the keep from the cloud's own stop", async () => {
+    const held = await doneOnce();
+    held.boat.lifecycle.diskKeptMs = 14 * DAY;
+    held.first.pausedAt = "2026-09-27T04:50:29.157Z";
+    await held.rt.close();
+    open = open.filter(rt => rt !== held.rt);
+    const again = held.restart();
+    open.push(again);
+    const stop = Date.parse("2026-09-27T04:50:29.157Z");
+    const row = await until(async () => (await again.sessions.list()).find(s => s.threadId === held.threadId && s.diskKeptUntil !== undefined), "the row with its keep");
+    expect(row.diskKeptUntil).toBe(stop + 14 * DAY);
+    expect((await held.record()).nappedAt).toBe(stop);
   });
 });

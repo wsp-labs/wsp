@@ -324,6 +324,21 @@ export const boatPlanWords = (trial: boolean, usd: number | undefined): string |
 export const BOAT_BALANCE_LINE = "Boat's balance is used up, so no machine starts; add time at boat.dev/dashboard. Boat stops running machines 24 hours after the balance ran out.";
 export const BOAT_MEMBER_CAP_LINE = "this Boat organization caps your usage; ask its owner to raise your cap.";
 export const BOAT_NO_CAPACITY_LINE = "Boat has no free machines of this size right now; try again in a few minutes, or a smaller size.";
+/** A resume Boat refused because the box sat stopped past the 14 days it keeps a disk. */
+export const BOAT_DISK_GONE_LINE = "Boat deleted this machine's disk once it had been paused for 14 days, so it cannot wake";
+
+/** A sub-thread whose cloud deleted its machine's disk: released, and its next send starts a new machine. */
+export const diskGoneReleasedLine = (said: string): string => `${said}; the next send starts a new machine from the image`;
+/** A workspace whose cloud deleted its machine's disk, moved onto a new machine by the wake that met it. */
+export const diskGoneReplacedLine = (said: string): string => `${said}; it runs on a new machine from the image now`;
+/** The status a thread reads once its napping machine is past the days its cloud promises to keep the disk. */
+export const DISK_EXPIRED_WORD = "Expired";
+/** What an expired thread's card says, the date as the surface writes it: Boat measured whole at day 18, so a wake
+ * may still find the disk there. */
+export const diskExpiredLine = (when: string): string => `Its machine's disk was kept until ${when}, so a send may find it gone and start a new machine`;
+/** Whether a thread reads expired: its napping machine is past the keep of its disk, and no turn of it runs or asks. */
+export const diskExpired = (t: { diskKeptUntil?: number | undefined; status: string; asking?: string | null | undefined }, now: number): boolean =>
+  t.diskKeptUntil !== undefined && t.diskKeptUntil <= now && t.status !== "running" && (t.asking ?? undefined) === undefined;
 
 /** A create or a fork Boat could not get a machine for: it removed the box, reported cancelled once, then 404. */
 export function boatCancelledLine(what: string | undefined, said: string | undefined): string {

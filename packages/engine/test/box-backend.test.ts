@@ -8,9 +8,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { DAEMON_UNIT, stopRefusedLine } from "@wsp/protocol";
+import { BOAT_DISK_GONE_LINE, DAEMON_UNIT, stopRefusedLine } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
+import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS } from "../src/exec-detached.js";
 import { EXEC_ENV } from "../src/golden-import.js";
 import { GONE_READS, killUntilGone } from "../src/golden.js";
@@ -699,6 +699,25 @@ describe("BoxBackend against a fake Box API", () => {
       .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
     await machineOn(api).machine.resume();
     expect(api.took("POST", "/boxes/bx_tumrjngm/resume")!.body).not.toHaveProperty("type");
+  });
+
+  it("a resume Boat refuses because it deleted the stopped box's disk ends in the disk-gone error, in wsp's line, and reads nothing more", async () => {
+    const said = "The sandbox stayed stopped for 14 days. Boat deleted its data.";
+    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/resume", { status: 409, body: ERROR(409, "snapshot_data_expired", said) });
+    const e = await machineOn(api).machine.resume().catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(DiskGoneError);
+    expect(e).toMatchObject({ machineId: "bx_tumrjngm", message: BOAT_DISK_GONE_LINE, said });
+    expect(api.calls().filter(c => c !== "GET /limits")).toEqual(["POST /boxes/bx_tumrjngm/resume"]);
+  });
+
+  it("a stopped box's handle carries its stop, the last save Boat completed, and a running one's none", async () => {
+    const api = new FakeBox()
+      .on("GET", "/boxes/bx_a1", INFO("bx_a1", "archived", { snapshotCompletedAt: "2026-09-27T04:50:29.157Z" }))
+      .on("GET", "/boxes/bx_r1", INFO("bx_r1", "ready", { snapshotCompletedAt: "2026-09-27T04:50:29.157Z" }));
+    const { backend } = backendOn(api);
+    expect((await backend.get("bx_a1")).seen).toMatchObject({ state: "paused", pausedAt: "2026-09-27T04:50:29.157Z" });
+    expect((await backend.get("bx_r1")).seen?.pausedAt).toBeUndefined();
+    expect(backend.lifecycle.diskKeptMs).toBe(14 * 24 * 3_600_000);
   });
 
   it("a box already archiving or archived gets no stop at all", async () => {

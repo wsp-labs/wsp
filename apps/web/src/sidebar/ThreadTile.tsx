@@ -36,7 +36,7 @@ import { ProjectGlyph } from "../projects/look.js";
 import { ComputerGlyph } from "../settings/ComputerGlyph.js";
 import { cn } from "../lib/utils.js";
 import { RowNameInput } from "./RowNameInput.js";
-import { subMachineLine, tileCardLines, tilePrIcon, type TileCardLine } from "./tileCard.js";
+import { expiredNote, subMachineLine, tileCardLines, tilePrIcon, type TileCardLine } from "./tileCard.js";
 import { useNamedCap } from "./workspaceRows.js";
 import { useCost, useStore } from "../protocol/store.js";
 import { useMinuteClockWhen } from "../components/status/useMinuteClock.js";
@@ -339,7 +339,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
   const status = settled || snoozed ? RESTING : threadStatusOf(thread);
   // A working or read row recedes unless it is the one open, as T3 Code's shouldRecede; a row that calls for the
   // person keeps the foreground ink, and the label keeps its hue either way.
-  const recede = !active && (status === RESTING || status.id === "working" || status.id === "resuming" || status.id === "stopped" || status.id === "released");
+  const recede = !active && (status === RESTING || status.id === "working" || status.id === "resuming" || status.id === "stopped" || status.id === "released" || status.id === "expired");
   const startedBy = inboxOf === undefined || inboxOf.parent === null ? undefined : inboxOf.parent;
   const path = startedBy === undefined ? openers : inboxOf!.path;
   const card = tileCardLines({
@@ -353,7 +353,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
     model,
     pr: checkout.pr,
     changed: checkout.changed,
-    notes: [snoozed ? SNOOZE_WORDS.workingHover(snoozedWorking) : null, ...capNotes(capped), thread.setupRefusal ?? null, ...checkout.counts, checkout.why ?? null],
+    notes: [snoozed ? SNOOZE_WORDS.workingHover(snoozedWorking) : null, ...capNotes(capped), thread.setupRefusal ?? null, expiredNote(thread, Date.now()), ...checkout.counts, checkout.why ?? null],
   });
   // The card leads with the status row, the reason whole under its word, an ended turn's last line among them; a
   // settled tile's card has none.
