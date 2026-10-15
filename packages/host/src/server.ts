@@ -346,17 +346,22 @@ function describeSpared(m: SparedMachine): string {
   return `reap: left alone ${m.id}: ${who}, ${describeAge(m.ageMs)}, ${cost}; ${then}`;
 }
 
+/** What a builder bills, at the place it runs; nothing where that place can no longer be read. */
+function builderCost(b: GoldenBuilderView, ageMs: number): string {
+  return b.rateUsdPerHour === undefined ? "" : `, ${describeCost(b.rateUsdPerHour, ageMs)}`;
+}
+
 /** A builder from an earlier run that can still be sealed is claimed, so the sweep never names it; the person still sees what bills. */
-function describeKept(b: GoldenBuilderView, rateUsdPerHour: number): string {
+function describeKept(b: GoldenBuilderView): string {
   const ageMs = Date.now() - Date.parse(b.createdAt);
-  return `reap: left alone ${b.id}: your earlier builder from this setup, still sealable, ${describeAge(ageMs)}, ${describeCost(rateUsdPerHour, ageMs)}; reuse it with wsp init, or it is stopped at six hours`;
+  return `reap: left alone ${b.id}: your earlier builder from this setup, still sealable, ${describeAge(ageMs)}${builderCost(b, ageMs)}; reuse it with wsp init, or it is stopped at six hours`;
 }
 
 /** A builder kept after its save is claimed, so the sweep never names it; the person still sees what bills and why. */
-function describeSealed(b: GoldenBuilderView, sealed: { at: string; version: number }, rateUsdPerHour: number): string {
+function describeSealed(b: GoldenBuilderView, sealed: { at: string; version: number }): string {
   const ageMs = Date.now() - Date.parse(b.createdAt);
   const since = describeAge(Date.now() - Date.parse(sealed.at)).replace(/ old$/, "");
-  return `reap: left alone ${b.id}: your builder saved as image v${sealed.version}, kept ${since} since the save and holding one of the account's machine slots, ${describeCost(rateUsdPerHour, ageMs)}; wsp init updates your image on it, or it is stopped ten minutes after the save`;
+  return `reap: left alone ${b.id}: your builder saved as image v${sealed.version}, kept ${since} since the save and holding one of the account's machine slots${builderCost(b, ageMs)}; wsp init updates your image on it, or it is stopped ten minutes after the save`;
 }
 
 /** Kills what this host owns and nothing claims, says which machines it is stopping and
@@ -714,8 +719,8 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
       if (b.foreignOwner !== undefined) log(`reap: left alone ${b.id}: recorded builder wearing another setup's owner label (${b.foreignOwner}); never touched by this host`);
       else if (b.heldBy !== undefined) log(`reap: left alone ${b.id}: your earlier builder from this setup, in use by another wsp process (pid ${b.heldBy.pid}); never touched by this host`);
       else if (b.building === true) log(`reap: left alone ${b.id}: your earlier builder from this setup; its setup never finished; the next sweep stops it`);
-      else if (b.sealed !== undefined) log(describeSealed(b, b.sealed, rt.backend.pricing.rateUsdPerHour(b.size)));
-      else if (b.sealable === true) log(describeKept(b, rt.backend.pricing.rateUsdPerHour(b.size)));
+      else if (b.sealed !== undefined) log(describeSealed(b, b.sealed));
+      else if (b.sealable === true) log(describeKept(b));
     }
     // No provider, no request: a host with no key has no account to list and says that where the line would be. A key
     // beside the state opens a place without wiring the host to it, so the line names the file only where none is.
