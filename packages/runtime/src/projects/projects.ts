@@ -150,9 +150,30 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
           // Nothing waits on a person here: an add that died leaves no machine running for hours.
           onIdle: "kill",
         };
-        return forking.create(spec);
+        // Claimed from the provider's first state until its stop: a sweep of that place reads it as nothing's otherwise.
+        const claimed = new Set<string>();
+        const claim = (id: string): void => {
+          claimed.add(id);
+          ctx.inflight.add(id);
+        };
+        try {
+          const machine = await forking.create(spec, (_line, box) => {
+            if (box !== undefined) claim(box.id);
+          });
+          claim(machine.id);
+          return machine;
+        } catch (e) {
+          for (const id of claimed) ctx.inflight.delete(id);
+          throw e;
+        }
       },
-      stop: async machine => gone.stop(await ctx.landingBackend(placeId), machine),
+      stop: async machine => {
+        try {
+          await gone.stop(await ctx.landingBackend(placeId), machine);
+        } finally {
+          ctx.inflight.delete(machine.id);
+        }
+      },
       land: async (machine, path, bytes) => void (await landBytes(machine, path, bytes)),
       // A first-life fork of the image: the one snapshot road, the same the project goldens take.
       checkpoint: async (machine, name) => {

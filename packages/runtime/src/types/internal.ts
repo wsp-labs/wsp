@@ -141,6 +141,10 @@ export const DROPPED = "dropped-machines";
  * durable record the provider reloads has no bound; a live record claims its machine before this set is read, so a
  * wide window costs nothing. */
 export const DROPPED_WATCH_MS = 7 * 24 * 60 * 60_000;
+/** Every machine wearing this host's owner label and a workspace id this host keeps no record or name for, by machine
+ * id, with when a sweep first listed it: nothing here can reach it, so it is deleted UNRECORDED_DELETE_MS later. */
+export const UNRECORDED = "unrecorded-machines";
+export const UNRECORDED_DELETE_MS = 24 * 3_600_000;
 /** One record under one id: the person's view preferences. */
 export const PREFERENCES = "preferences";
 export const PREFERENCES_ID = "default";
@@ -552,6 +556,12 @@ export interface NamedWorkspace {
 export interface DroppedMachine {
   machineId: string;
   at: string;
+}
+
+export interface UnrecordedMachine {
+  machineId: string;
+  place: string;
+  seenAt: string;
 }
 
 export interface TranscriptRecord {
