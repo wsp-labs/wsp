@@ -218,6 +218,13 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       return ctx.view((await ctx.entryOf(id, origin, threadId === undefined ? {} : { thread: threadId })).record);
     },
 
+    async heldOrCreating(id) {
+      await ctx.ready();
+      await ctx.bootWork.get(id);
+      const entry = live.get(id);
+      return entry === undefined ? undefined : ctx.view(entry.record);
+    },
+
     threadPlace: scope => ctx.placeOfThread(scope),
 
     async list(origin) {

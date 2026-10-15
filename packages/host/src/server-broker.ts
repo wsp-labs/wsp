@@ -185,7 +185,7 @@ export function hostBroker(o: HostBrokerOptions): HostBroker {
    * and the trackers its project lists. A thread from a fork's pull request pushes to the fork, while its pull
    * request and comments are on the project's repo, whose id is read once with the person's gh. */
   const workspaceOf = async (rt: Runtime, id: string): Promise<BrokerWorkspace | undefined> => {
-    const view = await rt.workspaces.get(id).catch(() => undefined);
+    const view = await rt.workspaces.heldOrCreating(id).catch(() => undefined);
     if (view === undefined || view.phase === "gone") return undefined;
     const [project, sessions, prefs] = await Promise.all([rt.projects.list().then(all => all.find(p => p.id === view.project.id)), rt.sessions.list(id), rt.preferences.get()]);
     const bor = view.branchOfRecord;
