@@ -4,7 +4,7 @@
 // of the account listing into this host's, this host's orphans and the rest.
 import type { Readable, Writable } from "node:stream";
 import { billedByCount, plural, type SnapshotStoragePricing } from "@wsp/engine";
-import type { GoldenVersion, SnapshotStorage } from "@wsp/protocol";
+import type { GoldenVersion, InitCleanupLine, SnapshotStorage } from "@wsp/protocol";
 import type { AccountOrphans, OrphansDeleted, PlacedRetention, RetentionPlan, Runtime } from "@wsp/runtime";
 import { isCancel, log } from "@clack/prompts";
 import { confirmPrompt } from "./init-layout.js";
@@ -122,47 +122,52 @@ export interface RetentionOfferOptions {
   yes: boolean;
   input: Readable;
   output: Writable;
+  /** Each line said is sent here too, so a host's init job hands it to the terminal beside it. */
+  json?: (record: Record<string, unknown>) => void;
+}
+
+function say(o: RetentionOfferOptions, level: InitCleanupLine["level"], line: string): void {
+  log[level](line, { output: o.output });
+  o.json?.({ event: "cleanup", level, line });
 }
 
 /** The older ancestors and the abandoned branches are offered for deletion at every place holding versions of the
  * image, each kept on a No, deleted on a Yes or when nobody is asked. A listing a provider refuses keeps every version
  * at that place and says so. */
 export async function retentionOffer(o: RetentionOfferOptions): Promise<void> {
-  const out = { output: o.output };
   let at: string[];
   try {
     at = await o.rt.golden.retentionPlaces();
   } catch (e) {
-    log.warn(`Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`, out);
+    say(o, "warn", `Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`);
     return;
   }
   for (const place of at) await offerAt(o, place);
 }
 
 async function offerAt(o: RetentionOfferOptions, place: string): Promise<void> {
-  const out = { output: o.output };
   let plan: PlacedRetention | undefined;
   try {
     plan = await o.rt.golden.retention(undefined, place);
   } catch (e) {
-    log.warn(`Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`, out);
+    say(o, "warn", `Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`);
     return;
   }
   if (plan === undefined) return;
-  for (const g of plan.guarded) log.info(describeGuarded(g, plan), out);
+  for (const g of plan.guarded) say(o, "info", describeGuarded(g, plan));
   if (plan.drop.length === 0) return;
   const line = describeRetention(plan);
   if (o.interactive) {
     const go = await confirmPrompt({ message: line, hint: "No keeps every version.", initialValue: true, input: o.input, output: o.output });
     if (isCancel(go) || !go) {
-      log.step(plan.copy ? `Every version of the copy of your image at ${plan.placeName} is kept.` : "Every image version is kept.", out);
+      say(o, "step", plan.copy ? `Every version of the copy of your image at ${plan.placeName} is kept.` : "Every image version is kept.");
       return;
     }
   } else {
-    log.step(`${line} Taken as yes (${o.yes ? "--yes" : "no terminal"}).`, out);
+    say(o, "step", `${line} Taken as yes (${o.yes ? "--yes" : "no terminal"}).`);
   }
   const { dropped, failed, storage } = await o.rt.golden.prune(undefined, place);
-  if (dropped.length > 0) log.success(`Deleted ${whose(plan, versionList(dropped))}.`, out);
-  for (const f of failed) log.warn(`${sentence(whose(plan, `v${f.version}`))} was not deleted (${f.message}); it stays in the lineage.`, out);
-  if (storage !== undefined) log.info(describeStorage(storage, plan.placeName), out);
+  if (dropped.length > 0) say(o, "success", `Deleted ${whose(plan, versionList(dropped))}.`);
+  for (const f of failed) say(o, "warn", `${sentence(whose(plan, `v${f.version}`))} was not deleted (${f.message}); it stays in the lineage.`);
+  if (storage !== undefined) say(o, "info", describeStorage(storage, plan.placeName));
 }

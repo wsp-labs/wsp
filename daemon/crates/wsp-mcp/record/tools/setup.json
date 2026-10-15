@@ -538,6 +538,31 @@
                       ],
                       "additionalProperties": false
                     },
+                    "cleanup": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "info",
+                              "step",
+                              "success",
+                              "warn"
+                            ]
+                          },
+                          "line": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "line"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "workspace": {
                       "type": "object",
                       "properties": {
@@ -1139,6 +1164,31 @@
                         "version"
                       ],
                       "additionalProperties": false
+                    },
+                    "cleanup": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "info",
+                              "step",
+                              "success",
+                              "warn"
+                            ]
+                          },
+                          "line": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "line"
+                        ],
+                        "additionalProperties": false
+                      }
                     },
                     "workspace": {
                       "type": "object",
