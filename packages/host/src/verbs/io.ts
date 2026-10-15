@@ -248,6 +248,7 @@ export const TurnOut = z.object({
   outcome: SessionStartOutcome,
   capped: ThreadCapWait.optional().describe("what holds the start back while outcome is held: the computer and what runs there against its threads at once"),
   afterCut: z.literal(true).optional(),
+  notice: z.string().optional().describe("what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine"),
 });
 /** What a run answers: a turn's answer, and on a sub-thread's start what its machine came up with. */
 export const RunOut = TurnOut.extend({ sub: SubOut.optional().describe("on a sub-thread's start: the machine, the branches and the files sent") });
@@ -275,12 +276,15 @@ export const asJson = (structured: Structured): CallToolResult => ({ content: [{
 export const asText = (text: string, structured: Structured): CallToolResult => ({ content: [{ type: "text", text }], structuredContent: structured });
 
 /** The reply as the tool's text, with the cut line first when the thread's previous turn did not finish. */
-export const turnText = (out: z.infer<typeof TurnOut>): string => (out.afterCut === true ? `${AFTER_CUT_LINE}\n${out.text ?? ""}` : out.text ?? "");
+export const turnText = (out: z.infer<typeof TurnOut>): string => [out.notice, out.afterCut === true ? AFTER_CUT_LINE : undefined, out.text ?? ""].filter(line => line !== undefined).join("\n");
+
+/** A turn's answer with the line its wake left, where that wake met a deleted disk. */
+export const noticed = <T extends object>(out: T, said: string | undefined): T & { notice?: string } => (said === undefined ? out : { ...out, notice: said });
 
 /** A detached start's answer on the tool door: the thread's id, as the command line's first line prints it. */
-export const detachedOut = (turn: Turn, opened?: (threadId: string, folder?: string) => string, sub?: SubOut): CallToolResult => {
-  const line = openedThreadLine(turn.threadId, opened, turn.session.cwd);
-  return asText(turn.outcome === "held" && turn.session.capped !== undefined ? `${line}\n${capWaitLine(turn.session.capped)}` : line, { ...turnView(turn), ...(sub !== undefined ? { sub } : {}) });
+export const detachedOut = (turn: Turn, opened?: (threadId: string, folder?: string) => string, sub?: SubOut, said?: string): CallToolResult => {
+  const line = [said, openedThreadLine(turn.threadId, opened, turn.session.cwd)].filter(l => l !== undefined).join("\n");
+  return asText(turn.outcome === "held" && turn.session.capped !== undefined ? `${line}\n${capWaitLine(turn.session.capped)}` : line, noticed({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}) }, said));
 };
 
 const endView = (ended: Ended): z.infer<typeof ThreadEndOut> => {

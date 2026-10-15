@@ -666,3 +666,17 @@ describe("a sub-thread's state cell", () => {
     expect(state({ ...row({ held: { files: 3, commits: 2 } }), asking: "ask-1" })).toBe("Needs you");
   });
 });
+
+describe("a thread whose machine naps past the keep of its disk", () => {
+  it("reads Expired from the day its cloud's keep ran out, on a plain workspace and a held sub-thread alike, unless a question or a failure says more", () => {
+    const plain = (over: Partial<ThreadRow> = {}): ThreadRow =>
+      ({ id: "t-2", workspaceId: "w2", harness: "claude", status: "completed", startedBy: "person", title: "Fix it", turns: 1, projectName: "web", folder: "/root/web", branch: "", computerName: "Boat", ...over }) as ThreadRow;
+    const state = (t: ThreadRow): string => threadLines(t)[0]![6]!;
+    const past = Date.now() - 60_000;
+    expect(state(plain({ diskKeptUntil: past }))).toBe("Expired");
+    expect(state(plain({ diskKeptUntil: Date.now() + 86_400_000 }))).toBe("Idle");
+    expect(state(plain({ diskKeptUntil: past, sub: { state: "napping", on: "boat", machine: "Fix it", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix-it", held: { files: 3, commits: 2 } } }))).toBe("Expired");
+    expect(state(plain({ diskKeptUntil: past, asking: "ask-1" }))).toBe("Needs you");
+    expect(state(plain({ diskKeptUntil: past, status: "failed" }))).toBe("Failed");
+  });
+});

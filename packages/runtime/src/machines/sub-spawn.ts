@@ -541,6 +541,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
     // The machine deleted before was cut off under this same record, and the new one's calls must go through.
     ctx.opts.broker?.lift?.(record.id);
     delete sub.lost;
+    delete record.diskGone;
     // A thread whose first start failed has run nothing: what Try again sends stays that start's own message.
     const tried = sub.opening ?? prompt;
     sub.spawn = { startedAt: clock.now(), ...(tried !== undefined ? { asked: tried } : {}), ...(seed.why !== undefined ? { notSent: seed.why } : {}), log: [] };

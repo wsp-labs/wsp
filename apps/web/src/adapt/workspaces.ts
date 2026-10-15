@@ -183,6 +183,8 @@ function deriveThread(thread: ThreadView, workspace: Pick<WorkspaceView, "projec
     ...(thread.setupRefusal !== undefined ? { setupRefusal: thread.setupRefusal } : {}),
     ...(thread.capped !== undefined ? { capped: thread.capped } : {}),
     ...(thread.sub !== undefined ? { sub: thread.sub } : {}),
+    ...(thread.diskKeptUntil !== undefined ? { diskKeptUntil: thread.diskKeptUntil } : {}),
+    ...(thread.diskGone !== undefined ? { diskGone: thread.diskGone } : {}),
     limit: thread.limit ?? null,
     resumeAt: thread.resumeAt ?? null,
     costUsd: thread.costUsd ?? null,

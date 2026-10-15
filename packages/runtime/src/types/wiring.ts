@@ -362,6 +362,9 @@ export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
   base?: string;
   /** With phase gone: the provider's words when the machine was found missing; cleared when a fresh machine lands. */
   gone?: string;
+  /** When the machine's latest pause landed, ms epoch: the provider's own reading where it reports one, else this
+   * host's. Read only while the phase is napping, as what a cloud's keep of a paused disk counts from. */
+  nappedAt?: number;
   /** That this host put a daemon on the machine, and which one. Only a kind whose machine wsp did not make carries
    * it: a fork's daemon comes with the golden and its preview route says whether one answers, while a machine the
    * person owns had none until a deploy landed, and nothing may dial one to find out. */

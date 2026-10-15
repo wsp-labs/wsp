@@ -102,10 +102,12 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
     };
     console.warn(`${entry.record.name}: ${diskMarkLine(words)}`);
     // Each thread's line names that thread, which is what wsp resize takes.
-    for (const s of lastTurns(entry.record.id)) {
+    tellThreads(entry.record.id, thread => diskMarkLine({ ...words, ...(to !== undefined ? { move: { ...to, thread } } : {}) }));
+  };
+  const tellThreads = (workspaceId: string, line: (thread: string) => string): void => {
+    for (const s of lastTurns(workspaceId)) {
       const thread = s.view.threadId ?? s.view.id;
-      const text = diskMarkLine({ ...words, ...(to !== undefined ? { move: { ...to, thread } } : {}) });
-      ctx.record({ type: "session.notice", workspaceId: entry.record.id, sessionId: s.view.claudeSessionId ?? s.turnId, turnId: s.turnId, threadId: thread, text });
+      ctx.record({ type: "session.notice", workspaceId, sessionId: s.view.claudeSessionId ?? s.turnId, turnId: s.turnId, threadId: thread, text: line(thread) });
     }
   };
   /** The first size up the plan sells whose measured root disk grows the one this machine reads, which is not always
@@ -438,6 +440,6 @@ export function reachArea(ctx: RuntimeContext): ReachArea {
   return {
     polledReach, napRefusals, napRefusedOf, napRefusedReason, stopRefusals, stopRefusedReason, diskReason, readDisk,
     reachOf, emitStatus, saysWaking, pingDaemon, helloVersion, pushStatus, readCheckout, readTree, readLeadOf,
-    statusNow, armDiskWatch, stopDiskWatch,
+    statusNow, armDiskWatch, stopDiskWatch, tellThreads,
   };
 }
