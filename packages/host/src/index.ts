@@ -41,7 +41,7 @@ export { SECRET_NAME, redact } from "./init-log.js";
 export { SERVICE_MANAGERS, httpProbe, installService, logSince, logSize, logTail, noManagerLine, runAll, runFailureLine, serviceAddressHere, serviceEnv, serviceManagerFor, serviceStartsAtLogin, serviceTag, stopService, systemRunner, untilServing, type HostProbe, type RunFailure, type ServiceManager, type ServicePlan, type ServiceRunner } from "./service.js";
 export { LAUNCHD_PATH, adoptLoginPath, needsLoginPath, takeLoginPath, type LoginShellDeps } from "./login-path.js";
 export { SECTION_BEGIN, SECTION_END, sectionText } from "./agents-md.js";
-export { runBin } from "./entry.js";
+export { connectPatiently, runBin } from "./entry.js";
 export { type ProviderEnv } from "./providers.js";
 export { shimPath } from "./shim.js";
 export { agentsHere, type AgentHere } from "./agents-here.js";
