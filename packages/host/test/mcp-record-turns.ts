@@ -15,6 +15,8 @@ import {
   accessNotTakenLine,
   noAccessWordsLine,
   AFTER_CUT_LINE,
+  BOAT_DISK_GONE_LINE,
+  diskGoneReplacedLine,
   alsoTitle,
   fmtDuration,
   goneRefusal,
@@ -382,6 +384,8 @@ const WORKSPACE = { id: "ws-1", name: "attic-work", machineId: "m-1", phase: "ru
 const NAPPING = { ...WORKSPACE, phase: "napping" };
 const SITE_FORK = { ...WORKSPACE, id: "ws-5", name: "fix the login page now 2", project: { id: "p-2", name: "site", path: "/root/site", computer: "pl-attic" } };
 const GONE = { ...WORKSPACE, phase: "gone", gone: "deleted at the provider \u0085" };
+/** The machine a wake moved the workspace onto when Boat had deleted the napping one's disk, with the line it left. */
+const REPLACED = { ...WORKSPACE, machineId: "m-2", diskGone: diskGoneReplacedLine(BOAT_DISK_GONE_LINE) };
 const sessionRow = (fields: Record<string, unknown>) => ({ workspaceId: "ws-1", harness: "claude", status: "completed", ...fields });
 const SESSIONS = [
   sessionRow({ id: "sess-1", threadId: THREAD, status: "completed", claudeSessionId: "cs-1", prompt: "fix the \u0085 build", costUsd: 0.1 }),
@@ -717,6 +721,8 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "beside the thread with a branch", arguments: { message: "look", branch: "feat/y" }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/.wsp/worktrees/p-1/feat-y") }, pushed: { "sessions.start": [done({ status: "completed", text: "ok" })] } },
     { case: "no thread stamped", arguments: { project: "attic-work", message: "t", detach: true }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ session: sessionRow({ id: "sess-9", status: "running" }), outcome: "started", turnId: "turn-9" }) } },
     { case: "another version", arguments: { project: "attic-work", message: "t", detach: true }, replies: { ...PROJECTS, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ outcome: "started" }) } },
+    { case: "a wake onto a new machine says why first", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...PROJECTS, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "a wake onto a new machine, detached", arguments: { project: "attic-work", message: "fix it", detach: true }, cloud: true, replies: { ...PROJECTS, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(REPLACED), "sessions.start": START } },
     { case: "held by its computer's threads at once", arguments: { project: "wsp", message: "t", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": HELD } },
   ],
   send: [
@@ -728,6 +734,9 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "a model off the list", arguments: { thread: OTHER, message: "m", model: "o3" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES } },
     { case: "a failed turn", arguments: { thread: THREAD, message: "m" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(), "sessions.start": START }, pushed: { "sessions.start": [done({ status: "interrupted" })] } },
     { case: "a file that is not there", arguments: { thread: THREAD, message: "m", files: ["no-such-shot.png"] }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(), "workspaces.wake": resolved() } },
+    { case: "a wake onto a new machine says why first", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "a wake onto a new machine, detached", arguments: { thread: THREAD, message: "and the tests", detach: true }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(REPLACED), "sessions.start": START } },
+    { case: "a machine already running says no earlier wake's line", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(REPLACED), "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
   ],
 };
 
