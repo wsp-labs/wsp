@@ -184,6 +184,12 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     return undefined;
   };
 
+  /** No workspace event carries a sub-thread's row, so a change to what it reads is told to every window here. */
+  const told = (workspaceId: string): void => {
+    const threadId = threadOf(workspaceId);
+    if (threadId !== undefined) ctx.pushHead(threadId);
+  };
+
   /** A turn running, queued or held on the thread: each holds its machine. */
   const busy = (threadId: string): boolean => ctx.threadRuns(threadId) || ctx.launchingOn(threadId) !== undefined;
 
@@ -296,6 +302,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       if (o.cloudGone === true && sub.cloudGone !== true) {
         sub.cloudGone = true;
         await ctx.persist(record);
+        told(id);
       }
       return;
     }
@@ -315,6 +322,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     const now = ctx.attach(record, deadMachine(""));
     await ctx.persist(record);
     ctx.idle.forget(id);
+    told(id);
     bus.emit({ type: "workspace.released", workspaceId: id });
     await ctx.emitStatus(now, "gone");
   };
@@ -394,6 +402,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
         sub.held = { files: again.changed, commits: again.unpushed, at: clock.now() };
         delete sub.deleteAt;
         await ctx.persist(entry.record);
+        told(id);
         return;
       }
       if (threadId !== undefined) await keepSession(entry, threadId);
@@ -410,6 +419,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
         entry.deleteSaid = { phase: entry.record.phase, line: subDeleteRefusedLine(cloudOf(entry), entry.record.name, said, SUB_DELETE_RETRY_MS / 60_000) };
         sub.deleteAt = clock.now() + SUB_DELETE_RETRY_MS;
         await ctx.persist(entry.record);
+        told(id);
         arm(entry);
         return;
       }
