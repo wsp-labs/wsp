@@ -194,3 +194,15 @@ describe("a thread whose machine naps past the keep of its disk", () => {
     expect(slot().dataset["threadStatus"]).toBe("resting");
   });
 });
+
+describe("a thread whose machine's disk the provider deleted", () => {
+  it("its card says the line the wake left, on a plain workspace and a released sub-thread alike", async () => {
+    const line = "Boat deleted this machine's disk once it had been paused for 14 days, so it cannot wake; it runs on a new machine from the image now";
+    mount({ parentThreadId: null, startedBy: "person", status: "completed", endedAt: "2026-10-12T07:00:00.000Z", readAt: "2026-10-12T07:30:00.000Z", diskGone: line });
+    expect((await card()).notes).toEqual([line]);
+    cleanup();
+    const released = "Boat deleted this machine's disk once it had been paused for 14 days, so it cannot wake; the next send starts a new machine from the image";
+    mount({ status: "completed", endedAt: "2026-10-12T07:00:00.000Z", sub: sub({ state: "released", releasedAt: Date.now() - MIN }), diskGone: released });
+    expect((await card()).notes).toContain(released);
+  });
+});

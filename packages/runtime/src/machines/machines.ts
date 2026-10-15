@@ -568,6 +568,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
         ctx.stopRefusals.delete(id);
         entry.record.phase = "napping";
         entry.record.nappedAt = clock.now();
+        delete entry.record.diskGone;
         delete entry.unchecked;
         await ctx.persist(entry.record);
         bus.emit({ type: "workspace.napped", workspaceId: id });
@@ -600,6 +601,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
     ctx.napRefusals.delete(entry.record.id);
     entry.record.phase = "napping";
     entry.record.nappedAt = clock.now();
+    delete entry.record.diskGone;
     delete entry.unchecked;
     await ctx.persist(entry.record);
     endSessions(entry.record.id, PAUSED_REASON);
@@ -699,6 +701,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
       entry.ws.notePaused();
       entry.record.phase = phase;
       delete entry.record.gone;
+      delete entry.record.diskGone;
     }
     await ctx.persist(entry.record);
     if (phase === "running") bus.emit({ type: "workspace.woken", workspaceId: entry.record.id, machineId: entry.record.machineId });

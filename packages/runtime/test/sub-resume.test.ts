@@ -484,8 +484,12 @@ describe("rewind and fork on a sub-thread whose machine was deleted", () => {
 });
 
 describe("a sub-thread whose disk Boat deleted", () => {
-  it("a wake Boat refuses with the disk gone releases the record in one line, and the next send starts a new machine", async () => {
+  it("a wake Boat refuses with the disk gone deletes the box, releases the record in one line on its row and its timeline, and the next send starts a new machine", async () => {
     const held = await doneOnce();
+    const notices: string[] = [];
+    held.rt.events.on("*", e => {
+      if (e.type === "session.notice" && e.threadId === held.threadId) notices.push(e.text);
+    });
     expect((await held.record()).phase).toBe("napping");
     held.first.resume = async () => {
       throw new DiskGoneError(held.first.id, BOAT_DISK_GONE_LINE, "The sandbox stayed stopped for 14 days. Boat deleted its data.");
@@ -497,6 +501,10 @@ describe("a sub-thread whose disk Boat deleted", () => {
     expect(r.phase).toBe("released");
     expect(r.machineId).toBe("");
     expect(r.sub!.lost).toBe(line);
+    expect(r.diskGone).toBe(line);
+    expect(held.first.killed).toBe(true);
+    expect(notices).toEqual([line]);
+    expect((await held.rt.sessions.list()).filter(s => s.threadId === held.threadId).at(-1)!.diskGone).toBe(line);
     const made = held.boat.machines.length;
     await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "what was the word?", harness: "claude" })).finished;
     expect(held.boat.machines).toHaveLength(made + 1);
@@ -504,6 +512,7 @@ describe("a sub-thread whose disk Boat deleted", () => {
     expect(machine.id).not.toBe(held.first.id);
     const after = await until(async () => ((await held.record()).machineId === machine.id ? held.record() : undefined), "the record on the new machine");
     expect(after.sub!.lost).toBeUndefined();
+    expect(after.diskGone).toBeUndefined();
   });
 });
 

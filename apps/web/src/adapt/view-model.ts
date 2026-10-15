@@ -454,6 +454,8 @@ export interface SidebarThreadSnapshot {
   readonly sub?: SubRow;
   /** When the keep of its napping machine's disk runs out, ms epoch, as the thread carries it. */
   readonly diskKeptUntil?: number;
+  /** The line its workspace's last wake left when the provider had deleted the machine's disk. */
+  readonly diskGone?: string;
   /** The usage limit that stopped the latest turn, as the protocol's fold reads it; null on a turn that ended another
    * way. resumeAt is the reset the turn is armed to go on at, null while nobody pressed Resume at reset. */
   readonly limit?: TurnLimit | null;

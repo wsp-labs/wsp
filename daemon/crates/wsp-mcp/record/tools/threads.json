@@ -443,6 +443,9 @@
               "diskKeptUntil": {
                 "type": "number"
               },
+              "diskGone": {
+                "type": "string"
+              },
               "capped": {
                 "type": "object",
                 "properties": {
@@ -1163,6 +1166,9 @@
               },
               "diskKeptUntil": {
                 "type": "number"
+              },
+              "diskGone": {
+                "type": "string"
               },
               "capped": {
                 "type": "object",

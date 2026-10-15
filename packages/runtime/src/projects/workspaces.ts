@@ -35,7 +35,11 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     console.warn(`wake of ${entry.record.id}: ${e.machineId} cannot resume: ${e.said}`);
     if (entry.record.sub !== undefined) {
       const line = diskGoneReleasedLine(e.message);
+      // Boat lists a box whose disk it deleted until someone deletes it, and the release forgets the box's id.
+      await ctx.unfork(entry).catch((x: unknown) => console.warn(`wake of ${entry.record.id}: ${e.machineId} was not deleted: ${x instanceof Error ? x.message : String(x)}`));
+      entry.record.diskGone = line;
       await ctx.subLost(entry, line);
+      ctx.tellThreads(entry.record.id, () => line);
       throw Object.assign(new Error(line), { kind: "conflict" });
     }
     const old = entry.record.machineId;
@@ -48,12 +52,15 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       await ctx.emitStatus(entry, "napping", words);
       throw new Error(words);
     }
+    const line = diskGoneReplacedLine(e.message);
     ctx.followMachine(entry);
     delete entry.record.wakeRefused;
+    entry.record.diskGone = line;
     await ctx.persist(entry.record);
     bus.emit({ type: "workspace.upgraded", workspaceId: entry.record.id, machineId: entry.record.machineId });
     console.warn(`wake of ${entry.record.id}: ${old} replaced by ${entry.record.machineId}`);
-    await ctx.emitStatus(entry, ctx.reachOf(entry), diskGoneReplacedLine(e.message));
+    ctx.tellThreads(entry.record.id, () => line);
+    await ctx.emitStatus(entry, ctx.reachOf(entry), line);
     return ctx.view(entry.record);
   };
   const workspaces: Runtime["workspaces"] = {
@@ -479,11 +486,14 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       // that cannot land refuses the rebuild rather than replacing with no backup. Where the pause does not keep the
       // disk, the rebuild reads the vault the nap stored.
       if (ctx.keepsImages(at) && ctx.pauseKeepsDisk(at) && entry.record.phase !== "running") {
+        const asleep = entry.record.machineId;
         try {
           await workspaces.wake(id, origin);
         } catch (e) {
           throw Object.assign(new Error(`${entry.record.name} could not be woken to back up before the rebuild: ${e instanceof Error ? e.message : String(e)}`), { kind: "conflict" });
         }
+        // A wake that met a deleted disk has already moved the record onto a new machine from the image.
+        if (entry.record.machineId !== asleep) return ctx.view(entry.record);
       }
       const old = entry.record.machineId;
       const fromRunning = ctx.keepsImages(at) && ctx.pauseKeepsDisk(at) && entry.record.phase === "running";

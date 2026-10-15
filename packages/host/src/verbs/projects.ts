@@ -21,7 +21,7 @@ import { RecipeAnswer, RecipeScan, recipePrintout, scanPrintout } from "../recip
 import { isRecipeTick, runRecipe, runScan } from "../recipe-command.js";
 import { historyCache, smallRecipePath } from "../recipe-file.js";
 import { HOST_RESTARTING_LINE, hostPlatform, table, usageIs, tool, type HostClient, type Verb, flag, flagList, absolutePath } from "./client.js";
-import { workspaces, threads, threadsOf, threadRows, THREAD_HEAD, threadLines, threadTree, placeNames, projectsOf, projectOf, projectLine, NO_PROJECT_YET } from "./workspaces-help.js";
+import { workspaces, threads, threadsOf, threadRows, THREAD_HEAD, threadLines, diskGoneLines, threadTree, placeNames, projectsOf, projectOf, projectLine, NO_PROJECT_YET } from "./workspaces-help.js";
 import { projectDefaultsOf, waitThrough } from "./turns-help.js";
 import { confirmed, WaitOut, ThreadRowOut, asJson, asText, waitAnswer, timeoutFlag, ACCESS_IN_WORDS, PROJECT_FOLDERS, WEIGH_BY_FOLDERS, projectFolders, projectsFlag, progress, printTable } from "./io.js";
 import { drawRows, PROJECT_SET_RESETS, projectDefaultsSet, newThreadsHeadLine, threadDefaultsLines, defaultsCell, afterWorktreeLine, trackersLine } from "./agents-help.js";
@@ -231,7 +231,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
       return drawRows(ctx, "wsp threads", async client => {
         const rows = await threadRows(client, ctx.args[0]);
         const lines = ctx.flags["tree"] === true ? threadTree(rows).flatMap(t => threadLines(t.row, "  ".repeat(t.depth))) : rows.flatMap(t => threadLines(t));
-        return { value: { threads: rows }, rows: table([THREAD_HEAD, ...lines]) };
+        return { value: { threads: rows }, rows: [...table([THREAD_HEAD, ...lines]), ...diskGoneLines(rows)] };
       });
     },
     tool: tool({
