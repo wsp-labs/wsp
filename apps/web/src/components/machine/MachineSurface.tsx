@@ -191,7 +191,7 @@ function Facts({ workspace }: { workspace: WorkspaceView }) {
   const sub = useSubThread(workspace.id);
   const cost = useCost(sub === undefined ? null : workspace.id);
   const now = useMinuteClockWhen(sub !== undefined);
-  const facts = sub?.sub === undefined ? null : subMachineFacts(sub.sub, sub.status === "running", cost?.accruedUsd ?? null, now);
+  const facts = sub?.sub === undefined ? null : subMachineFacts(sub.sub, sub.status === "running", cost?.accruedUsd ?? null, now, sub.diskKeptUntil);
   return (
     <FactChips
       items={[
