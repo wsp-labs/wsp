@@ -432,6 +432,7 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
           hostId: ctx.imageMark(),
         }),
         at,
+        place,
       );
       const stamped = await recordSeal(place, name, entry, recipe, result, copy);
       await ctx.putCopy(place, name, stamped.manifest);

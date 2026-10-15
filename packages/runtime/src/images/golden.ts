@@ -258,7 +258,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
         } finally {
           signal?.removeEventListener("abort", onAbort);
         }
-      }, at).finally(() => preparing.delete(preparingKey));
+      }, at, place).finally(() => preparing.delete(preparingKey));
       preparing.set(preparingKey, { hash: imp?.recipeHash, promise: run });
       return run;
     },
@@ -369,6 +369,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
           return ctx.settleBuilder(name, builder, placeholder, place);
         },
         at,
+        place,
       );
       entry.recipe = recipe;
       // The update keeps the golden's disk, so what was signed in stays signed in: the caller passes the previous
