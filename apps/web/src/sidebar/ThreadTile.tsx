@@ -345,7 +345,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
   const card = tileCardLines({
     title: thread.title,
     place,
-    machine: thread.sub === undefined ? undefined : subMachineLine(thread.sub, thread.status === "running", cost?.accruedUsd ?? null, here, now),
+    machine: thread.sub === undefined ? undefined : subMachineLine(thread.sub, thread.status === "running", cost?.accruedUsd ?? null, here, now, thread.diskKeptUntil),
     ...(path === undefined ? {} : { startedBy: TREE_WORDS.startedBy(path) }),
     ...(thread.forkedFrom === undefined ? {} : { forkedFrom: thread.forkedFrom.title }),
     folder: checkout.folder, branch: checkout.branch === "" ? (thread.sub?.branch ?? "") : checkout.branch,
