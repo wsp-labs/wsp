@@ -64,8 +64,11 @@ export async function buildBesideHost(o: BesideOptions): Promise<number> {
   const asking = new Map<string, { stop: AbortController; done: Promise<void> }>();
   let view: InitJob | undefined;
   const waiting = new Set<() => void>();
+  let printed = 0;
 
   const draw = (job: InitJob): void => {
+    for (const said of (job.update ?? []).slice(printed)) log[said.level](said.line, out);
+    printed = Math.max(printed, job.update?.length ?? 0);
     for (const row of job.rows) {
       if (row.kind === "fact") continue;
       if (seen.get(row.id) === row.state) continue;

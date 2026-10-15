@@ -8,7 +8,7 @@ import type { Readable, Writable } from "node:stream";
 import { styleText } from "node:util";
 import type { ManifestEntry } from "@wsp/collect";
 import { SnapshotFailedError, changeCounts, describeDiff, diffRecipes, isEmptyDiff, isSmallDelta, retiredBy, rowsToApply, type GoldenDelta, type GoldenImport, type RecipeDiff } from "@wsp/engine";
-import { goldenBuildLine, upgradeSealFailedGoneLine, upgradeSealFailedStaysLine, upgradeSealFailedUnreadLine, type GoldenLogin, type GoldenRetired, type RecipeDigest, GOLDEN_STAGE_WORDS } from "@wsp/protocol";
+import { goldenBuildLine, upgradeSealFailedGoneLine, upgradeSealFailedStaysLine, upgradeSealFailedUnreadLine, type GoldenLogin, type GoldenRetired, type InitSaidLine, type RecipeDigest, GOLDEN_STAGE_WORDS } from "@wsp/protocol";
 import { GRACE_MS, goldenHead, type GoldenBuilderView, type Runtime } from "@wsp/runtime";
 import { cancel, isCancel, log, note, outro, select } from "@clack/prompts";
 import { rebuildEstimate, type BuildTimes } from "./init-times.js";
@@ -131,6 +131,8 @@ export interface UpdateRoadOptions {
   sealed?: (version: { version: number; snapshotId: string }) => void;
   input: Readable;
   output: Writable;
+  /** Each line said is sent here too, so a host's init job hands it to the terminal beside it. */
+  json?: (record: Record<string, unknown>) => void;
 }
 
 /** 0: updated, or nothing to update. 1: cancelled or failed. "rebuild": the person wants the full build instead. */
@@ -138,17 +140,28 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   const out = { output: o.output };
   const manifest = await o.rt.golden.get();
   const version = manifest?.head ?? 0;
+  const sent = (level: InitSaidLine["level"], line: string): void => o.json?.({ event: "update", level, line });
+  const say = (level: InitSaidLine["level"], line: string): void => {
+    log[level](line, out);
+    sent(level, line);
+  };
+  const changes = (lines: readonly string[]): void => {
+    note(lines.join("\n"), `Changes since image v${version}`, out);
+    sent("info", [`Changes since image v${version}`, ...lines].join("\n"));
+  };
   if (o.imp.recipe === undefined) return "rebuild";
   const rowOf = (id: string): ManifestEntry | undefined => o.rows.find(e => e.id === id);
   const diff = diffRecipes(o.current, o.imp.recipe, id => rowOf(id)?.label ?? id.slice(id.lastIndexOf("/") + 1));
   if (isEmptyDiff(diff)) {
     log.success(`Image v${version} already matches this recipe. Nothing to update; run wsp to serve it.`, out);
+    // Sent without the serve clause, which is wrong beside a host: that host serves the image already.
+    sent("success", `Image v${version} already matches this recipe. Nothing to update.`);
     return 0;
   }
   const head = goldenHead(manifest);
   if (head?.base === undefined) {
-    note(describeDiff(diff).join("\n"), `Changes since image v${version}`, out);
-    log.step(`Image v${version} was sealed before the base tools existed and cannot take an update; the rebuild is the only road, ${rebuildEstimate(o.lastBuild)}.`, out);
+    changes(describeDiff(diff));
+    say("step", `Image v${version} was sealed before the base tools existed and cannot take an update; the rebuild is the only road, ${rebuildEstimate(o.lastBuild)}.`);
     return "rebuild";
   }
   // The update boots where the image was sealed, so it is priced there and not at the provider this host forks on.
@@ -156,7 +169,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   const kept = keptBuilder(await o.rt.golden.builders(), version);
   const rateUsdPerHour = pricing.rateUsdPerHour(head.size ?? kept?.size ?? pricing.defaultSize);
   const offer: UpgradeOffer = { diff, small: isSmallDelta(diff, id => rowOf(id)?.bytes ?? 0), onBuilder: kept !== undefined, version, rateUsdPerHour, lastBuild: o.lastBuild };
-  note(describeOffer(offer).join("\n"), `Changes since image v${version}`, out);
+  changes(describeOffer(offer));
 
   let road: "update" | "rebuild";
   if (o.interactive) {
@@ -177,12 +190,12 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
     road = picked;
   } else {
     road = offer.small ? "update" : "rebuild";
-    log.step(`${road === "update" ? "Updating your image" : "Rebuilding from scratch"}. Taken as the default (${o.yes ? "--yes" : "no terminal"}).`, out);
+    say("step", `${road === "update" ? "Updating your image" : "Rebuilding from scratch"}. Taken as the default (${o.yes ? "--yes" : "no terminal"}).`);
   }
   if (road === "rebuild") return "rebuild";
 
   const delta = deltaFor(diff, o.imp, o.bring, o.importOf, head.retired ?? []);
-  log.step(upgradeSentence(version, version + 1), out);
+  say("step", upgradeSentence(version, version + 1));
   const t0 = Date.now();
   let result: Awaited<ReturnType<Runtime["golden"]["upgrade"]>> | undefined;
   let error: unknown;
@@ -190,35 +203,34 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   const view = await o.stream(UPGRADE_STEPS, () => o.rt.golden.upgrade({ delta, ...(logins !== undefined ? { logins } : {}) }).then(r => (result = r), e => (error = e)));
   if (result === undefined) {
     if (view.failure === undefined) log.error(error instanceof Error ? error.message : String(error), out);
-    // A snapshot the provider refused leaves the machine it ran on as it was; the words follow what the provider says of it.
-    if (error instanceof SnapshotFailedError) {
-      outro(
-        error.builderState === "gone" ? upgradeSealFailedGoneLine(version) : error.builderState === "unread" ? upgradeSealFailedUnreadLine(version, error.machineId) : upgradeSealFailedStaysLine(version, error.machineId, rateUsdPerHour),
-        out,
-      );
+    const unchanged = (line: string): 1 => {
+      outro(line, out);
+      sent("warn", line);
       return 1;
-    }
+    };
+    // A snapshot the provider refused leaves the machine it ran on as it was; the words follow what the provider says of it.
+    if (error instanceof SnapshotFailedError)
+      return unchanged(error.builderState === "gone" ? upgradeSealFailedGoneLine(version) : error.builderState === "unread" ? upgradeSealFailedUnreadLine(version, error.machineId) : upgradeSealFailedStaysLine(version, error.machineId, rateUsdPerHour));
     // A failed delta on the kept builder kills it, so the retry forks; the person hears that before they retry.
-    outro(
+    return unchanged(
       offer.onBuilder
         ? `Image v${version} is unchanged and the builder kept since the save is gone. Run wsp init again to retry on a fork of your image (${ON_FORK}), or pick the rebuild.`
         : `Image v${version} is unchanged. Run wsp init again to retry, or pick the rebuild.`,
-      out,
     );
-    return 1;
   }
   o.sealed?.(result.version);
   const seconds = ((Date.now() - t0) / 1000).toFixed(0);
   const builder = keptBuilder(await o.rt.golden.builders(), result.version.version);
   const rate = pricing.rateUsdPerHour(builder?.size ?? pricing.defaultSize);
+  const stays = `The builder stays up (about $${rate.toFixed(2)}/h, one of the account's machine slots) until wsp init updates on it again, wsp stops it ten minutes after the save while wsp serves, or the provider's six-hour idle kill fires.`;
   log.success(
     [
       `Image v${result.version.version} sealed in ${seconds}s ${result.road === "builder" ? "on the builder kept since the save" : "from a fork of your image"}; new workspaces fork it.`,
-      ...(result.builderKept
-        ? [dim(`The builder stays up (about $${rate.toFixed(2)}/h, one of the account's machine slots) until wsp init updates on it again, wsp stops it ten minutes after the save while wsp serves, or the provider's six-hour idle kill fires. Run wsp to serve.`)]
-        : [dim("Run wsp to serve.")]),
+      dim(result.builderKept ? `${stays} Run wsp to serve.` : "Run wsp to serve."),
     ].join("\n"),
     out,
   );
+  // Beside a host the terminal says the seal in its own words, so only what it cannot know goes out.
+  if (result.builderKept) sent("info", stays);
   return 0;
 }

@@ -173,10 +173,9 @@ export type InitNeedsYou = z.infer<typeof InitNeedsYou>;
 export const SetupPlace = z.object({ id: z.string(), name: z.string(), kind: PlaceKind.optional() });
 export type SetupPlace = z.infer<typeof SetupPlace>;
 
-/** A line the cleanup offer after a seal said, under the glyph a terminal prints it with: the versions it offers for
- * deletion, what it deleted or kept, and the storage after. */
-export const InitCleanupLine = z.object({ level: z.enum(["info", "step", "success", "warn"]), line: z.string() });
-export type InitCleanupLine = z.infer<typeof InitCleanupLine>;
+/** A line the run said that a terminal beside the host prints, under the glyph it prints it with. */
+export const InitSaidLine = z.object({ level: z.enum(["info", "step", "success", "warn"]), line: z.string() });
+export type InitSaidLine = z.infer<typeof InitSaidLine>;
 
 export const InitJob = z.object({
   id: z.string(),
@@ -216,7 +215,10 @@ export const InitJob = z.object({
   golden: z.object({ version: z.number().int() }).optional(),
   /** What the cleanup offer after the seal said, which a terminal beside the host prints under the seal's own line;
    * absent when it said nothing. */
-  cleanup: z.array(InitCleanupLine).optional(),
+  cleanup: z.array(InitSaidLine).optional(),
+  /** What the update road said as it ran, which a terminal beside the host prints as it lands: that the image already
+   * matches the recipe, or the changes since it and the road taken. Absent off that road. */
+  update: z.array(InitSaidLine).optional(),
   workspace: z.object({ id: z.string(), name: z.string() }).optional(),
   /** The computer the job is for, by id and the name wsp places lists: the one a card started it from, from its start,
    * then the place the build was sent to once it starts. Absent on a job no card started, until its build starts. */
