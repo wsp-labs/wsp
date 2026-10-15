@@ -40,8 +40,18 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
    * provider's name field has taken. Two state files on one computer read one host id, and on Box a snapshot's name
    * is its id, so the owner is what keeps one state's image from being the other's. */
   const imageMark = (): string => templateHost(hostId) + templateHost(ctx.state.owner);
-  /** The purposes whose create this process is asking for now: their attempts are its own, never the sweep's. */
-  const making = new Set<string>();
+  /** The purposes a create of this process or the sweep's replay is asking for now. One key answers both with one box,
+   * so a create waits until a replay has settled its attempt, and the sweep never replays an attempt a create holds. */
+  const holding = new Map<string, Promise<void>>();
+  const hold = async (purpose: string): Promise<() => void> => {
+    for (let held = holding.get(purpose); held !== undefined; held = holding.get(purpose)) await held;
+    let release!: () => void;
+    holding.set(purpose, new Promise<void>(resolve => (release = resolve)));
+    return () => {
+      holding.delete(purpose);
+      release();
+    };
+  };
 
   /** The store holds the attempt's key, stamp and bytes before the provider hears of it: a retry the provider never
    * answered (the connection dropped, the process died) sends the same bytes under the same key and gets back the
@@ -49,7 +59,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
    * after a kill or a refusal is always fresh. A replay naming a dead machine is dropped and the create made anew
    * (measured 2026-09-04: the provider replays a killed machine's id). Another live process's attempt is never joined,
    * and an attempt held from before its bytes were kept is never replayed, since its body would not be the same. */
-  const keyedCreate = async (at: MachineBackend, purpose: string, spec: MachineSpec, waiting?: (line: string, box?: ProviderBoxState) => void, afterCorpse = false): Promise<Machine> => {
+  const keyedCreate = async (at: MachineBackend, purpose: string, spec: MachineSpec, waiting?: (line: string, box?: ProviderBoxState) => void, afterCorpse = false, place?: string): Promise<Machine> => {
     const body = fingerprint(spec);
     const held = (await store.get(CREATES, purpose)) as PendingCreate | undefined;
     const theirs = held !== undefined && (held.host !== hostId || (held.pid !== process.pid && pidAlive(held.pid)));
@@ -68,24 +78,22 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
           pid: process.pid,
           ...(at.createRequest !== undefined ? { request: await at.createRequest(stamped) } : {}),
           ...(image !== undefined ? { image } : {}),
+          ...(place !== undefined ? { place } : {}),
         };
     await store.put(CREATES, purpose, attempt);
-    making.add(purpose);
     let machine: Machine;
     try {
       machine = await at.create({ ...stamped, idempotencyKey: attempt.key }, waiting, attempt.request);
     } catch (e) {
       if (typeof (e as WspError).status === "number") await store.delete(CREATES, purpose);
       throw e;
-    } finally {
-      making.delete(purpose);
     }
     await store.delete(CREATES, purpose);
     if (machine.replayed === true) {
       if ((await machine.state()) === "gone") {
         if (afterCorpse) throw new Error(`create for ${purpose}: the provider replayed ${machine.id}, which is gone, under a key it had never seen (${attempt.key})`);
         console.warn(`create for ${purpose}: the replay under ${attempt.key} named ${machine.id}, which is gone; creating anew`);
-        return keyedCreate(at, purpose, spec, waiting, true);
+        return keyedCreate(at, purpose, spec, waiting, true, place);
       }
       console.warn(`create for ${purpose}: ${machine.id} replayed from an earlier attempt under ${attempt.key}`);
     }
@@ -93,42 +101,49 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
   };
 
   /** Asks again every attempt of this host nothing is making any more, LOST_CREATE_MS after it began, with the bytes it
-   * sent: the machine the provider made for it is left for the sweep to record again where the workspace's record was
-   * lost and its name kept, and deleted everywhere else, since no record waits for it. An attempt the provider will
-   * not answer stays for the next sweep. */
+   * sent, at the place it was sent to: the machine the provider made for it is left for the sweep to record again
+   * where the workspace's record was lost and its name kept, and deleted everywhere else, since no record waits for it.
+   * An attempt the provider will not answer stays for the next sweep. */
   const replayCreates = async (known: () => Iterable<string>, failed: ReapFailure[]): Promise<ReapedMachine[]> => {
-    if (backend.replayCreate === undefined) return [];
     const deleted: ReapedMachine[] = [];
     for (const purpose of await store.keys(CREATES)) {
       const row = (await store.get(CREATES, purpose)) as PendingCreate | undefined;
       if (row?.request === undefined || row.host !== hostId) continue;
-      if (row.pid === process.pid ? making.has(purpose) : pidAlive(row.pid)) continue;
+      if (holding.has(purpose) || (row.pid !== process.pid && pidAlive(row.pid))) continue;
       if (Date.now() - Date.parse(row.createdAt) < LOST_CREATE_MS) continue;
-      let machine: Machine;
+      // A place whose key this host no longer holds keeps its attempt until the key is back.
+      const at = row.place === undefined || row.place === ctx.places.wired ? backend : ctx.places.backend(row.place);
+      if (at?.replayCreate === undefined) continue;
+      const release = await hold(purpose);
       try {
-        machine = await backend.replayCreate(row.key, row.request);
-      } catch (e) {
-        if (isMissing(e)) await store.delete(CREATES, purpose);
-        else failed.push({ message: `the create under ${row.key} was asked again and not answered: ${e instanceof Error ? e.message : String(e)}; asked again next sweep` });
-        continue;
-      }
-      // The record waits where the sweep records a machine again: its name kept, its project held, no record live.
-      const workspace = purpose.startsWith("workspace/") ? purpose.slice("workspace/".length) : undefined;
-      const kept = workspace === undefined || live.has(workspace) ? undefined : ((await store.get(WORKSPACE_NAMES, workspace)) as NamedWorkspace | undefined);
-      const waits = kept?.project !== undefined && ctx.projectsHeld.has(kept.project);
-      if (machine.seen?.state !== "gone" && !new Set(known()).has(machine.id) && !waits) {
+        let machine: Machine;
         try {
-          await gone.stop(backend, machine);
+          machine = await at.replayCreate(row.key, row.request);
         } catch (e) {
-          if (!isMissing(e)) {
-            failed.push({ id: machine.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}` });
-            continue;
-          }
+          if (isMissing(e)) await store.delete(CREATES, purpose);
+          else failed.push({ message: `the create under ${row.key} was asked again and not answered: ${e instanceof Error ? e.message : String(e)}; asked again next sweep` });
+          continue;
         }
-        const ageMs = Date.now() - Date.parse(row.createdAt);
-        deleted.push({ id: machine.id, builder: false, reason: "lost", ageMs, ...(machine.labels !== undefined ? { labels: machine.labels } : {}), ...(row.image !== undefined ? { name: row.image } : {}) });
+        // The record waits where the sweep records a machine again: its name kept, its project held, no record live.
+        const workspace = purpose.startsWith("workspace/") ? purpose.slice("workspace/".length) : undefined;
+        const kept = workspace === undefined || live.has(workspace) ? undefined : ((await store.get(WORKSPACE_NAMES, workspace)) as NamedWorkspace | undefined);
+        const waits = kept?.project !== undefined && ctx.projectsHeld.has(kept.project);
+        if (machine.seen?.state !== "gone" && !new Set(known()).has(machine.id) && !waits) {
+          try {
+            await gone.stop(at, machine);
+          } catch (e) {
+            if (!isMissing(e)) {
+              failed.push({ id: machine.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}` });
+              continue;
+            }
+          }
+          const ageMs = Date.now() - Date.parse(row.createdAt);
+          deleted.push({ id: machine.id, builder: false, reason: "lost", ageMs, ...(machine.labels !== undefined ? { labels: machine.labels } : {}), ...(row.image !== undefined ? { name: row.image } : {}) });
+        }
+        await store.delete(CREATES, purpose);
+      } finally {
+        release();
       }
-      await store.delete(CREATES, purpose);
     }
     return deleted;
   };
@@ -159,7 +174,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
   /** Ids this process has created and not yet recorded; the sweep must not read them as lost. */
   const inflight = new Set<string>();
   /** purpose names the record every create inside run is for; its attempts are keyed under it. */
-  const claiming = <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at: MachineBackend = backend): Promise<T> => {
+  const claiming = <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at: MachineBackend = backend, place?: string): Promise<T> => {
     const mine: string[] = [];
     const b: MachineBackend = {
       capabilities: at.capabilities,
@@ -182,12 +197,24 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
           inflight.add(id);
           mine.push(id);
         };
-        const m = await keyedCreate(at, purpose, spec, (line, box) => {
-          if (box !== undefined) claim(box.id);
-          waiting?.(line, box);
-        });
-        claim(m.id);
-        return m;
+        const release = await hold(purpose);
+        try {
+          const m = await keyedCreate(
+            at,
+            purpose,
+            spec,
+            (line, box) => {
+              if (box !== undefined) claim(box.id);
+              waiting?.(line, box);
+            },
+            false,
+            place,
+          );
+          claim(m.id);
+          return m;
+        } finally {
+          release();
+        }
       },
     };
     return run(b).finally(() => mine.forEach(id => inflight.delete(id)));
@@ -309,6 +336,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
       },
       // The record says where its machine lives: this host's own provider, or the computer it was forked on.
       ctx.backendFor(record),
+      record.place,
     );
 
   /** The machine a fork made, taken away and proven gone at the provider rather than at the delete's answer: a
