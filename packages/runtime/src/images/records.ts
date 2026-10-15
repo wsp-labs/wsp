@@ -67,6 +67,7 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
     ...(r.vaultedAt !== undefined ? { vaultedAt: r.vaultedAt } : {}),
     ...(r.vaultRefused !== undefined ? { vaultRefused: r.vaultRefused } : {}),
     ...(r.wakeRefused !== undefined ? { wakeRefused: r.wakeRefused } : {}),
+    ...(r.diskGone !== undefined ? { diskGone: r.diskGone } : {}),
     ...(ctx.agentsOf(r) !== undefined ? { agents: ctx.agentsOf(r)! } : {}),
     ...(r.parentThreadId !== undefined ? { parentThreadId: r.parentThreadId } : {}),
     ...(r.rootThreadId !== undefined ? { rootThreadId: r.rootThreadId } : {}),

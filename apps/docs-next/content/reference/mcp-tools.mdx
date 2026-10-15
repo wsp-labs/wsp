@@ -1350,6 +1350,7 @@ Moves the machine a thread runs on to another size its provider sells, as a stop
 | `workspace.vaultedAt` | string |  |  |
 | `workspace.vaultRefused` | string |  |  |
 | `workspace.wakeRefused` | string |  |  |
+| `workspace.diskGone` | string |  |  |
 | `workspace.agents` | object |  |  |
 | `workspace.parentThreadId` | string |  |  |
 | `workspace.rootThreadId` | string |  |  |
@@ -1411,6 +1412,7 @@ Starts a reviewer thread on a pull request, off its link or off the pull request
 | `workspace.vaultedAt` | string |  |  |
 | `workspace.vaultRefused` | string |  |  |
 | `workspace.wakeRefused` | string |  |  |
+| `workspace.diskGone` | string |  |  |
 | `workspace.agents` | object |  |  |
 | `workspace.parentThreadId` | string |  |  |
 | `workspace.rootThreadId` | string |  |  |
@@ -1491,6 +1493,7 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `capped.atOnce` | integer | yes |  |
 | `capped.why` | `slot`, `minute` |  |  |
 | `afterCut` | `true` |  |  |
+| `notice` | string |  | what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine |
 | `sub` | object |  | on a sub-thread's start: the machine, the branches and the files sent |
 | `sub.on` | string | yes |  |
 | `sub.machine` | string | yes |  |
@@ -1535,6 +1538,7 @@ Sends a message to an existing thread (by id, or a prefix of it) and returns the
 | `capped.atOnce` | integer | yes |  |
 | `capped.why` | `slot`, `minute` |  |  |
 | `afterCut` | `true` |  |  |
+| `notice` | string |  | what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine |
 
 ## servers
 
@@ -2006,6 +2010,7 @@ Opens a thread off a GitHub issue or pull request link, returning as soon as the
 | `workspace.vaultedAt` | string |  |  |
 | `workspace.vaultRefused` | string |  |  |
 | `workspace.wakeRefused` | string |  |  |
+| `workspace.diskGone` | string |  |  |
 | `workspace.agents` | object |  |  |
 | `workspace.parentThreadId` | string |  |  |
 | `workspace.rootThreadId` | string |  |  |
@@ -2167,6 +2172,8 @@ The thread's head (by id, or a prefix of it): facts, the thread as threads lists
 | `facts.waitingOn` | object |  |  |
 | `facts.setupRefusal` | string |  |  |
 | `facts.sub` | object |  |  |
+| `facts.diskKeptUntil` | number |  |  |
+| `facts.diskGone` | string |  |  |
 | `facts.capped` | object |  |  |
 | `facts.limit` | object |  |  |
 | `facts.resumeAt` | number |  |  |
@@ -2323,6 +2330,8 @@ Every thread as the sidebar lists it: its project, the folder it works in (the p
 | `threads[].waitingOn` | object |  |  |
 | `threads[].setupRefusal` | string |  |  |
 | `threads[].sub` | object |  |  |
+| `threads[].diskKeptUntil` | number |  |  |
+| `threads[].diskGone` | string |  |  |
 | `threads[].capped` | object |  |  |
 | `threads[].limit` | object |  |  |
 | `threads[].resumeAt` | number |  |  |

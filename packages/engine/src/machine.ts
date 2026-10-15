@@ -97,8 +97,9 @@ export interface Machine {
   readonly labels?: Record<string, string>;
   /** The provider's view when get() made this handle, so a caller needs no second read; absent on a handle from
    * create(). Its createdAt moves on a running machine nobody touched (+306 s at ten minutes, canary 2026-09-04 UTC)
-   * with no lifecycle event behind it, so nothing decides on it; state is the field worth reading. */
-  readonly seen?: { state: MachineState; createdAt?: string };
+   * with no lifecycle event behind it, so nothing decides on it; state is the field worth reading. pausedAt is when a
+   * paused machine's pause landed, where the provider reports it. */
+  readonly seen?: { state: MachineState; createdAt?: string; pausedAt?: string };
   /** On a handle from create(): the provider answered from an earlier create under the same key instead of booting. */
   readonly replayed?: boolean;
   /** On a handle from create(): one sentence about the machine the computer actually made, where it would not make
@@ -215,6 +216,9 @@ export interface Lifecycle {
    * published ports and commands run in it. Read once before an idle stop, so a dev server somebody is clicking
    * through stays up. Undefined where the backend cannot say, which leaves the stop to the host's own clock. */
   quietForMs?(machine: Machine): Promise<number | undefined>;
+  /** How long the provider promises to keep a paused machine's disk, from the pause; absent where it keeps it for as
+   * long as the machine stands. Past it a resume may be refused, which only the resume itself tells. */
+  diskKeptMs?: number;
 }
 
 /** A machine the provider lists under a name of wsp's that carries no labels. */

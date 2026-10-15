@@ -337,7 +337,11 @@ Done is read off the host's read stamp for the thread, so every window and
 `wsp threads` say it together, and a window showing the thread clears it. A
 paused machine adds nothing to a tile: no word, no tone, no line. Its thread
 reads Done until opened and its age after; the open thread says Paused, one
-quiet word in the rule line under the last turn, with Wake beside it.
+quiet word in the rule line under the last turn, with Wake beside it. The one
+exception is a paused machine past the days its cloud keeps a paused disk
+(Boat's 14): its read thread reads Expired, with a calendar mark and a card
+line naming the day, since a send may find the disk gone and start a new
+machine.
 
 ### The sidebar's three parts
 

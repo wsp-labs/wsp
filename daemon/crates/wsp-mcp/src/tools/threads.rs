@@ -78,6 +78,10 @@ struct Session {
     #[serde(default)]
     sub: Option<Box<RawValue>>,
     #[serde(default)]
+    disk_kept_until: Option<Box<RawValue>>,
+    #[serde(default)]
+    disk_gone: Option<String>,
+    #[serde(default)]
     capped: Option<Box<RawValue>>,
     #[serde(default)]
     limit: Option<Box<RawValue>>,
@@ -169,6 +173,13 @@ pub struct Thread {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
     pub sub: Option<Box<RawValue>>,
+    /// When the keep of its napping machine's disk runs out, as the host's row carries it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, schemars(with = "Option<f64>"))]
+    pub disk_kept_until: Option<Box<RawValue>>,
+    /// The line its workspace's last wake left when the provider had deleted the machine's disk.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disk_gone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(test, schemars(with = "Option<serde_json::Map<String, serde_json::Value>>"))]
     pub capped: Option<Box<RawValue>>,
@@ -379,6 +390,8 @@ fn fold(sessions: Vec<Session>) -> Vec<Thread> {
                 waiting_on: latest.waiting_on,
                 setup_refusal: latest.setup_refusal,
                 sub: latest.sub,
+                disk_kept_until: latest.disk_kept_until,
+                disk_gone: latest.disk_gone,
                 capped: latest.capped,
                 limit: latest.limit,
                 resume_at: latest.resume_at,
