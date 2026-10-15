@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash, randomBytes } from "node:crypto";
-import { MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk, nameOwner, strays, type ReapedMachine, type ReapFailure } from "@wsp/engine";
+import { MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk, nameOwner, strays, type ReapedMachine, type ReapFailure, type ProviderBoxState } from "@wsp/engine";
 import { type WorkspacePhase, goneRefusal, notFoundRefusal, noWorkspaceRefusal, noCommandsYetLine, WAKE_STOPPED_UP, type WorkspaceSize, type WorkspaceView, settingFor, IDLE_REASON, ALREADY_RUNNING, goldenImage, goneWords, HOSTNAME_KEPT, hostnameSetLine, NOT_GONE, GONE_UNCHECKED, RESUME_UNANSWERED, runsInFolder, placeHoldsNoImageLine } from "@wsp/protocol";
 import { LOGIN_PATHS } from "@wsp/catalog";
 import { templateHost } from "../host-id.js";
@@ -49,7 +49,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
    * after a kill or a refusal is always fresh. A replay naming a dead machine is dropped and the create made anew
    * (measured 2026-09-04: the provider replays a killed machine's id). Another live process's attempt is never joined,
    * and an attempt held from before its bytes were kept is never replayed, since its body would not be the same. */
-  const keyedCreate = async (at: MachineBackend, purpose: string, spec: MachineSpec, waiting?: (line: string) => void, afterCorpse = false): Promise<Machine> => {
+  const keyedCreate = async (at: MachineBackend, purpose: string, spec: MachineSpec, waiting?: (line: string, box?: ProviderBoxState) => void, afterCorpse = false): Promise<Machine> => {
     const body = fingerprint(spec);
     const held = (await store.get(CREATES, purpose)) as PendingCreate | undefined;
     const theirs = held !== undefined && (held.host !== hostId || (held.pid !== process.pid && pidAlive(held.pid)));
@@ -176,9 +176,17 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
       // this handle cannot be a spread of the backend, and a call left out is one the roads inside here lose.
       ...forwardedCalls(at),
       create: async (spec, waiting) => {
-        const m = await keyedCreate(at, purpose, spec, waiting);
-        inflight.add(m.id);
-        mine.push(m.id);
+        // Boat names the box at its first state, while the create still waits for it to stand.
+        const claim = (id: string): void => {
+          if (mine.includes(id)) return;
+          inflight.add(id);
+          mine.push(id);
+        };
+        const m = await keyedCreate(at, purpose, spec, (line, box) => {
+          if (box !== undefined) claim(box.id);
+          waiting?.(line, box);
+        });
+        claim(m.id);
         return m;
       },
     };
