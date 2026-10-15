@@ -19,6 +19,7 @@ import {
   splitByOwner,
   snapshotMonthlyUsd,
   namedCount,
+  billedByCount,
   templatesOf,
   applyDelta,
   applyGoldenImport,
@@ -64,6 +65,9 @@ import type { GoldenPromotion } from "../types/wiring.js";
 
 export function goldenArea(ctx: RuntimeContext): GoldenArea {
   const { opts, backend, store, placeDoor, clock, builders, preparing, places } = ctx;
+  // A place billing named snapshots by count also lists its own unnamed history: free, never this host's to delete,
+  // and 248 pages over 4 minutes on one account (2026-10-15). Only its named rows are read.
+  const accountIds = (): readonly string[] | undefined => (billedByCount(backend.pricing.snapshotStorage) ? [] : undefined);
   const golden: Runtime["golden"] = {
     async build(o) {
       await ctx.ready();
@@ -446,14 +450,14 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
     async storage() {
       await ctx.ready();
       if (!backend.capabilities.snapshotListing || backend.listSnapshots === undefined) return undefined;
-      return snapshotStorage(await backend.listSnapshots(), backend.pricing.snapshotStorage, { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() });
+      return snapshotStorage(await backend.listSnapshots(accountIds()), backend.pricing.snapshotStorage, { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() });
     },
 
     async orphans() {
       await ctx.ready();
       if (!backend.capabilities.snapshotListing || backend.listSnapshots === undefined) return undefined;
       const read = { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() };
-      const rows = await backend.listSnapshots();
+      const rows = await backend.listSnapshots(accountIds());
       const snapshots = splitByOwner(rows, read);
       const templates = templatesOf(backend);
       const listed = templates === undefined ? [] : await templates.list();
