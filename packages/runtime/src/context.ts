@@ -482,7 +482,7 @@ export interface MachinesArea {
   readonly inflight: Set<string>;
   readonly replayCreates: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
   readonly sweepStrays: (known: () => Iterable<string>, failed: ReapFailure[]) => Promise<ReapedMachine[]>;
-  readonly claiming: <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at?: MachineBackend) => Promise<T>;
+  readonly claiming: <T>(purpose: string, run: (b: MachineBackend) => Promise<T>, at?: MachineBackend, place?: string) => Promise<T>;
   readonly observed: (machine: Machine) => Machine;
   readonly observing: (b: MachineBackend) => MachineBackend;
   readonly fork: (record: WorkspaceRecord, bind: (machine: Machine) => void, override?: WorkspaceSpec, report?: StageReport, readsMemory?: boolean) => Promise<Machine>;
