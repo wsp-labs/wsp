@@ -327,6 +327,9 @@ export const placeLineStaysLine = (lines: string, file: string, why: string): st
 /** The most of a person's own login file a leave reads, far past any real one: the file sits in a home a workspace
  * writes, and a leave runs as root. */
 export const LOGIN_READ_MAX_BYTES = 1024 * 1024;
+/** The most of the place file or its key a read takes, far past the few hundred bytes a join writes: both sit in a
+ * home a workspace writes, read by the host's leave and at every one of the daemon's dials. */
+export const PLACE_READ_MAX_BYTES = 64 * 1024;
 /** Why a leave left a login file unread. */
 export const PLACE_LOGIN_PAST_CAP = "it is over 1 MiB, more than a leave reads of a login file";
 /** Why wsp left a person's own login file as it was, on every road that writes wsp's line or takes it out: a write

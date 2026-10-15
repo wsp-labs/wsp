@@ -13,7 +13,7 @@ import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeRead, type ServerPort } from "@wsp/engine";
-import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, DAEMON_VERSION, underProject, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, DAEMON_VERSION, underProject, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, PLACE_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
@@ -29,9 +29,6 @@ export const placeLogPath = (home: string): string => placeDaemonPaths(home).pla
 /** What a computer says about itself when it joins, before the host has named which address it dialed and which
  * port its daemon bound: the daemon fills those two in on every link. */
 export type PlaceSelfReport = Omit<PlaceReport, "dialed" | "daemonPort">;
-
-/** The most of a place file a read takes, far past the few hundred bytes a join writes. */
-export const PLACE_READ_MAX_BYTES = 64 * 1024;
 
 /** The place file as it stands, or nothing when this computer is no place or what stands there is not read. The
  * shape, the parse and the mode are the protocol's; this is the read on the host's side of the wire. It sits in a
