@@ -11,7 +11,7 @@ import { sendToThread, useWorkspaceVerbs } from "../../actions/verbs";
 import { useSidebarProjects, useStore } from "../../protocol/store";
 import { openComputerSettings, openSettingsGroup } from "../../settings/openAt";
 import { useSettingsStore } from "../../settings/settingsStore";
-import { minutesWord } from "../../sidebar/tileCard";
+import { minutesWord, subKept } from "../../sidebar/tileCard";
 import { useMinuteClockWhen } from "../status/useMinuteClock";
 import { cn } from "../../lib/utils";
 import { GlyphFrame } from "../../settings/grid";
@@ -120,7 +120,7 @@ export function SubThreadStrip({ workspaceId, row }: { workspaceId: string; row:
       <SubStrip
         k="not-pushed"
         glyph={UploadIcon}
-        words={SUB_STRIP.notPushed(sub.held, sub.branch, sub.result?.pushRefused)}
+        words={SUB_STRIP.notPushed(sub.held, sub.branch, sub.result?.pushRefused, subKept(sub, row.diskKeptUntil))}
         acts={[
           { k: "copy-home", word: SUB_STRIP.copyTo(hereName(places)), run: () => void verbs.exportProject?.(workspaceId) },
           { k: "push-again", word: SUB_STRIP.pushAgain, run: () => send(subPushAgainPrompt(sub.branch)) },

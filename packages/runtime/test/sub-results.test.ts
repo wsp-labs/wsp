@@ -67,13 +67,13 @@ describe("a sub-thread's finished line to its lead", () => {
     );
   });
 
-  it("names the day Boat deletes the disk of a machine kept over work not pushed", async () => {
+  it("names the day from which Boat may delete the disk of a machine kept over work not pushed", async () => {
     const held = await subStarted({ read: UNPUSHED, diskKeptMs: 14 * DAY });
     const { kid8 } = held;
     const line = (await leadLine(held)).split("\n").at(-1);
     const heldAt = (await held.record()).sub!.held!.at;
     expect(line).toBe(
-      `2 commits and 3 changed files on ${BRANCH} are not pushed, so its machine naps at no cost until ${utcDay(heldAt + 14 * DAY)} UTC, when Boat deletes its disk with them. Send to ${kid8} to have them pushed, or ask the person to delete it.`,
+      `2 commits and 3 changed files on ${BRANCH} are not pushed, so its machine naps at no cost, and Boat may delete its disk from ${utcDay(heldAt + 14 * DAY)} UTC. Send to ${kid8} to have them pushed, or ask the person to delete it.`,
     );
   });
 
