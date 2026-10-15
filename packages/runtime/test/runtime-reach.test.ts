@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { execFailedLine, machineUnreachableLine } from "@wsp/protocol";
-import { DAEMON_RESTART_FAILED, DAEMON_RESTARTING, DAEMON_UPDATE_FAILED, DAEMON_UPDATING, DAEMON_VERSION, type TurnResult, type WorkspaceStatus } from "@wsp/protocol";
+import { DAEMON_RESTART_FAILED, DAEMON_RESTARTING, DAEMON_UPDATE_FAILED, DAEMON_UPDATING, DAEMON_VERSION, type WorkspaceStatus } from "@wsp/protocol";
 import { ExecFailedError, MachineUnreachableError } from "@wsp/engine";
 import { DAEMON_TOKEN_NONE, DAEMON_TOKEN_SET, daemonTokenFor, rotateDaemonTokenScript } from "../src/daemon-token.js";
 import { writeDaemonRootsScript } from "../src/daemon-roots.js";
@@ -13,7 +13,10 @@ import { memoryStore } from "../src/store.js";
 import { until } from "./until.js";
 import { stubBackend, tokenGuest, type StubMachine, createOn } from "./stub-backend.js";
 import { fakeClock } from "./fake-clock.js";
-import { TOKEN_PATH, TOKEN, helloingDaemon, helloOf } from "./runtime-fixture.js";
+import { TOKEN_PATH, TOKEN, held, helloingDaemon, helloOf } from "./runtime-fixture.js";
+
+/** A host whose broker keeps the credentials of the stub's machines, whose turns reach their model through the daemon. */
+const BROKER = { ready: () => true, codexClaims: async () => undefined };
 
 describe("runtime daemon reach", () => {
   it("hands back the preview route plus the token it minted, written to the guest once and never in the url", async () => {
@@ -238,59 +241,82 @@ describe("runtime daemon reach", () => {
     }
   });
 
-  it("waits out a running turn before replacing the daemon, since the deploy ends what the turn runs under", async () => {
+  it("a turn opened while the runtime still waits on the machine's hello launches once the update landed, so the deploy ends nothing it runs under", async () => {
     const backend = stubBackend();
     backend.execImpl = tokenGuest;
     const store = memoryStore();
     const daemon = await helloingDaemon(1, true);
-    let finish!: (r: TurnResult) => void;
-    const held: HarnessAdapterFactory = () => ({
-      steers: false,
-      start: o => {
-        const sessionId = "55555555-5555-4555-8555-555555555555";
-        queueMicrotask(() => o.onEvent({ type: "session.start", sessionId, model: "claude-sonnet-4-5" }));
-        return {
-          localId: sessionId,
-          finished: new Promise<TurnResult>(r => {
-            finish = result => {
-              o.onEvent({ type: "turn.done", sessionId, result });
-              o.onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
-              r(result);
-            };
-          }),
-          interrupt: async () => {},
-        };
-      },
-    });
+    const h = held(false);
+    let close = async (): Promise<void> => {};
     try {
       const before = createRuntime({ backend, store, adapters: {} });
       const ws = await createOn(before, { golden: "snap_g", name: "a" });
       backend.machines[0]!.previewUrl = async () => ({ url: `ws://127.0.0.1:${daemon.port}`, token: "e", expiresAt: Date.now() + 3_600_000 });
 
       const deployed: string[] = [];
-      const recipe = { setup: "true", smoke: "true", deployDaemon: async (m: { id: string }) => void deployed.push(m.id) };
-      const rt = createRuntime({ backend, store, adapters: { claude: held }, daemonToken: TOKEN, goldenRecipe: recipe, daemonHelloTimeoutMs: 5_000 });
+      const recipe = { setup: "true", smoke: "true", deployDaemon: async (m: { id: string }) => void deployed.push(`${m.id} with ${h.starts.length} turns`) };
+      const rt = createRuntime({ backend, store, adapters: { claude: h.adapter }, daemonToken: TOKEN, goldenRecipe: recipe, daemonHelloTimeoutMs: 5_000, broker: BROKER });
+      close = () => rt.close();
       await rt.workspaces.list();
-      // A turn opens while the runtime is still waiting on the machine's hello: the update it is about to run holds.
-      await rt.sessions.start(ws.id, { prompt: "go" });
-      await until(async () => (await rt.sessions.list())[0]?.status === "running");
-      daemon.release();
+      const starting = rt.sessions.start(ws.id, { prompt: "go" });
       await new Promise(r => setTimeout(r, 200));
-      expect(deployed).toEqual([]);
+      expect([deployed, h.starts.length]).toEqual([[], 0]);
 
-      finish({ status: "completed", text: "done" });
-      await until(() => deployed.length === 1);
-      expect(deployed).toEqual(["m1"]);
+      daemon.release();
+      await starting;
+      await until(() => h.starts.length === 1);
+      expect(deployed).toEqual(["m1 with 0 turns"]);
     } finally {
-      finish?.({ status: "completed", text: "" });
+      daemon.release();
+      for (let i = 0; i < h.starts.length; i++) h.end(i, "done");
+      await close();
+      await daemon.close();
+    }
+  });
+
+  it("a send to a machine woken on an older daemon starts its turn once the update landed, so the agent runs on the daemon this host ships", async () => {
+    const backend = stubBackend();
+    backend.execImpl = tokenGuest;
+    const store = memoryStore();
+    let serving = DAEMON_VERSION - 1;
+    const daemon = await helloingDaemon(serving);
+    const h = held(false);
+    const order: string[] = [];
+    let close = async (): Promise<void> => {};
+    const adapter: HarnessAdapterFactory = ctx => {
+      const made = h.adapter(ctx);
+      return { ...made, start: o => (order.push(`turn on ${serving}`), made.start(o)) };
+    };
+    try {
+      const before = createRuntime({ backend, store, adapters: {} });
+      const ws = await createOn(before, { golden: "snap_g", name: "a" });
+      await before.workspaces.nap(ws.id);
+      await before.close();
+      backend.machines[0]!.previewUrl = async () => ({ url: `ws://127.0.0.1:${daemon.port}`, token: "e", expiresAt: Date.now() + 3_600_000 });
+
+      const deployDaemon = async (): Promise<void> => {
+        order.push("deploy");
+        serving = DAEMON_VERSION;
+        daemon.announce(serving);
+      };
+      const rt = createRuntime({ backend, store, adapters: { claude: adapter }, daemonToken: TOKEN, goldenRecipe: { setup: "true", smoke: "true", deployDaemon }, daemonHelloTimeoutMs: 2_000, broker: BROKER });
+      close = () => rt.close();
+      // The app's send to a napping workspace: a wake, then the start the moment the wake answers.
+      expect((await rt.workspaces.wake(ws.id)).phase).toBe("running");
+      await rt.sessions.start(ws.id, { prompt: "go" });
+      await until(() => order.length >= 2).catch(() => {});
+      expect(order).toEqual(["deploy", `turn on ${DAEMON_VERSION}`]);
+    } finally {
+      for (let i = 0; i < h.starts.length; i++) h.end(i, "done");
+      await close();
       await daemon.close();
     }
   });
 
   it("a start that gives up before its turn reached the machine lets the daemon update through: its end says the turn stopped running", async () => {
-    const backend = stubBackend();
-    backend.execImpl = tokenGuest;
     const daemon = await helloingDaemon(1, true);
+    const warned: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation(line => warned.push(String(line)));
     let letProbe!: () => void;
     const probed = new Promise<void>(r => (letProbe = r));
     const refusing: HarnessAdapterFactory = () => ({
@@ -300,21 +326,21 @@ describe("runtime daemon reach", () => {
         throw new Error("the harness would not launch");
       },
     });
+    let stop = (): void => {};
     try {
-      const store = memoryStore();
-      const before = createRuntime({ backend, store, adapters: {} });
-      const ws = await createOn(before, { golden: "snap_g", name: "a" });
-      backend.machines[0]!.previewUrl = async () => ({ url: `ws://127.0.0.1:${daemon.port}`, token: "e", expiresAt: Date.now() + 3_600_000 });
-
-      const deployed: string[] = [];
-      const recipe = { setup: "true", smoke: "true", deployDaemon: async (m: { id: string }) => void deployed.push(m.id) };
-      const rt = createRuntime({ backend, store, adapters: { claude: refusing }, daemonToken: TOKEN, goldenRecipe: recipe, daemonHelloTimeoutMs: 5_000 });
+      const { rt, ws, fc, deployed, poll, unread } = await restartOnto(daemon, true, false, { claude: refusing }, BROKER);
       await rt.workspaces.list();
+      await until(() => warned.includes(unread));
+      await new Promise(r => setTimeout(r, 50));
+      // The brokered start waits for a sync in flight before its launch; none is, so it holds its row and goes on.
       const giving = rt.sessions.start(ws.id, { prompt: "go" });
       await until(async () => (await rt.sessions.list())[0]?.status === "running");
-      // The update now waits out the turn this start is opening, as it waits out one already running.
+      // The probe past the window reads the version again, and the update waits out the turn this start is opening.
       daemon.release();
-      await new Promise(r => setTimeout(r, 200));
+      stop = rt.status.watch();
+      fc.advance(DAEMON_REVIVE_AGAIN_MS);
+      await poll();
+      await until(() => warned.includes(`daemon on m1 (workspace ${ws.id}): update waits for the running turn`));
       expect(deployed).toEqual([]);
 
       letProbe();
@@ -323,6 +349,9 @@ describe("runtime daemon reach", () => {
       expect(await rt.sessions.list()).toEqual([]);
       await rt.close();
     } finally {
+      letProbe();
+      stop();
+      warn.mockRestore();
       await daemon.close();
     }
   });
@@ -503,7 +532,7 @@ describe("runtime daemon reach", () => {
 
   /** A fork a host before this one made, whose daemon is the one on this port, and the host starting again over the
    * same store on a fake clock with a deploy that brings the daemon to this wsp's version. */
-  async function restartOnto(daemon: Awaited<ReturnType<typeof helloingDaemon>>, deploys: boolean, served = false) {
+  async function restartOnto(daemon: Awaited<ReturnType<typeof helloingDaemon>>, deploys: boolean, served = false, adapters: Record<string, HarnessAdapterFactory> = {}, broker?: typeof BROKER) {
     const backend = stubBackend();
     backend.execImpl = tokenGuest;
     const store = memoryStore();
@@ -520,7 +549,7 @@ describe("runtime daemon reach", () => {
         daemon.announce(DAEMON_VERSION);
       },
     };
-    const rt = createRuntime({ backend, store, adapters: {}, daemonToken: TOKEN, clock: fc.clock, ...(deploys ? { goldenRecipe: recipe } : {}), daemonHelloTimeoutMs: 100, status: { costIntervalMs: 24 * 3_600_000, reconcileMinMs: 60_000 } });
+    const rt = createRuntime({ backend, store, adapters, daemonToken: TOKEN, clock: fc.clock, ...(broker !== undefined ? { broker } : {}), ...(deploys ? { goldenRecipe: recipe } : {}), daemonHelloTimeoutMs: 100, status: { costIntervalMs: 24 * 3_600_000, reconcileMinMs: 60_000 } });
     /** One poll tick, waited out: the timer runs on the fake clock, the probe and the sync on real promises. */
     const poll = async (): Promise<void> => {
       const before = daemon.hits();
