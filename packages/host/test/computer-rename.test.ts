@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DAEMON_VERSION, EXIT_CODES, HERE_PLACE_ID, heldPlaceScript, placeFileText, placeRenameRefusal, placeSshOtherRefusal, placeSshRefusal, placeSshUncheckedRefusal, refusalLine, RecipeFile, type RefusalHalves, type PendingComputer, type PlaceView, type ProjectView, type TurnResult } from "@wsp/protocol";
+import { heldReadOf } from "../../protocol/test/held-read.js";
 import { afterAll, describe, expect, it } from "vitest";
 import type { HarnessAdapterFactory } from "../../runtime/src/runtime.js";
 import type { PlaceWiring } from "../../runtime/src/places.js";
@@ -161,8 +162,8 @@ describe("wsp computers set --ssh", () => {
     const file = (placeId: string, hostPublicKey: string): string => placeFileText({ placeId, name: "spoo", hostName: "zingzys-mac", hostUrls: ["http://192.168.1.10:14621"], hostPublicKey, keyPath: "/home/maya/.wsp/place.key", joinedAt: "2026-10-07T00:00:00.000Z" });
     const runOver: NonNullable<PlaceWiring["runOver"]> = async (login, script) => {
       asked.push({ ssh: login.ssh, script });
-      if (login.ssh === "root@hetzner") return { exitCode: 0, stdout: file(at.placeId, at.hostPublicKey), stderr: "" };
-      if (login.ssh === "root@prod") return { exitCode: 0, stdout: file("p_0000000000000000", at.hostPublicKey), stderr: "" };
+      if (login.ssh === "root@hetzner") return { exitCode: 0, stdout: heldReadOf(file(at.placeId, at.hostPublicKey)), stderr: "" };
+      if (login.ssh === "root@prod") return { exitCode: 0, stdout: heldReadOf(file("p_0000000000000000", at.hostPublicKey)), stderr: "" };
       if (login.ssh === "root@blank") return { exitCode: 0, stdout: "", stderr: "" };
       if (login.ssh === "maya@locked") return { exitCode: 1, stdout: "", stderr: "sudo: a password is required" };
       if (login.ssh === "root@silent") return new Promise(() => {});

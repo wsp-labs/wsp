@@ -2,7 +2,7 @@
 //! The numbers and paths the protocol and the node daemon own, as the contract fixture pins them.
 
 /// The daemon's protocol version, carried in its hello: the length of the protocol's DAEMON_CONTENTS record.
-pub const DAEMON_VERSION: u32 = 160;
+pub const DAEMON_VERSION: u32 = 161;
 
 pub const DEFAULT_HOST: &str = "0.0.0.0";
 pub const DEFAULT_PORT: u16 = 7070;
@@ -71,6 +71,9 @@ pub const TOOL_LINKS_DIR: &str = "/usr/local/bin";
 /// record may hold: one that does not end on this entry was cut short, and a leave reads it as none.
 pub const PLACE_FOUND_END: &str = "wsp-found-end";
 pub const PLACE_FOUND_MAX_BYTES: u64 = 32 * 1024 * 1024;
+/// The most of a person's own login file a leave reads, far past any real one: the file sits in a home a workspace
+/// writes, and a leave runs as root.
+pub const LOGIN_READ_MAX_BYTES: u64 = 1024 * 1024;
 pub const OPEN_SOCKET_PATH: &str = "/run/wsp-daemon/open.sock";
 
 /// The computer's own system directories a workspace on a computer somebody owns reads through a tree of its own,

@@ -31,6 +31,7 @@ pub(crate) fn leave_here(
         }
     }
     let mut swept = super::sweep_place_home(home, &super::sh_stdout);
+    swept.extend(super::sweep_login_lines(home));
     // Only root's install loaded the profile and only root's jobs install outside the home, and only root can take
     // either off.
     if nix::unistd::geteuid().is_root() {
@@ -280,6 +281,20 @@ pub(super) mod tests {
         let said: serde_json::Value = serde_json::from_str(text).unwrap();
         assert!(said["swept"].as_array().unwrap().contains(&serde_json::json!(runtime.to_string_lossy())), "{said}");
         assert!(!runtime.exists());
+    }
+
+    #[test]
+    fn a_leave_over_the_link_takes_wsps_line_out_of_the_bash_login_file_a_root_login_reads() {
+        let home = tempfile::tempdir().unwrap();
+        let named = wsp_frames::place_daemon_paths(home.path()).profile_file.display().to_string();
+        let line = format!("[ -f {named} ] && . {named}");
+        let file = home.path().join(".bash_profile");
+        std::fs::write(&file, format!("export EDITOR=vim\n{line}\n")).unwrap();
+        let runtime = home.path().join("runtime");
+        let swept =
+            leave_here(home.path(), &home.path().join("wsp-workspace"), &home.path().to_string_lossy(), &runtime, false, &[]).unwrap();
+        assert!(swept.contains(&words::place_line_out(&line, file.display())), "{swept:?}");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "export EDITOR=vim\n");
     }
 
     #[test]

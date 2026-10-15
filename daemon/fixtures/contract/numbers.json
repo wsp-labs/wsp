@@ -1,5 +1,5 @@
 {
-  "daemonVersion": 160,
+  "daemonVersion": 161,
   "execBodyMax": 16384,
   "prReplyBodyMax": 65536,
   "guestMessageCapBytes": 4194304,
@@ -88,6 +88,7 @@
   "toolLinksDir": "/usr/local/bin",
   "placeFoundEnd": "wsp-found-end",
   "placeFoundMaxBytes": 33554432,
+  "loginReadMaxBytes": 1048576,
   "openSocketPath": "/run/wsp-daemon/open.sock",
   "guestDaemonSocketPath": "/root/.wsp/daemon.sock",
   "brokerPort": 7071,

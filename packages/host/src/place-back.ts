@@ -4,7 +4,7 @@
 // host's door, made again whenever it ends for as long as it is held.
 
 import { randomInt } from "node:crypto";
-import { PLACE_FILE_MODE, backUrl, heldPlaceScript, isLoopback, lastLine, parsePlaceFile, placeDaemonPaths, placeFileNames, placeFileText, placeLoginElsewhere, shellQuote, type PlaceBack } from "@wsp/protocol";
+import { PLACE_FILE_MODE, backUrl, heldPlaceFile, heldPlaceScript, isLoopback, lastLine, placeDaemonPaths, placeFileNames, placeFileText, placeLoginElsewhere, shellQuote, type PlaceBack } from "@wsp/protocol";
 import { CHILD_TIMED_OUT, MissingKnownHostsError, SSH_DIAL_MS, SSH_LINE_CAP, SUDO_ASKS_LINE, boxWord, carriedSshValues, holdBackForward, parseSshAddress, sshClient, type BackForward, type SshCarried, type SshReach, type SshSpawn, type SshTransport } from "@wsp/engine";
 import type { PlaceBackHolder, PlaceLogin } from "@wsp/runtime";
 
@@ -185,7 +185,7 @@ export function placeBackHolder(deps: PlaceBackDeps): PlaceBackHolder {
   /** The box's place file names the new port where it named the old one; a file of another wsp's is left alone. */
   const rewrite = async (reach: SshReach, h: Held, boxPort: number): Promise<void> => {
     const path = placeDaemonPaths(h.home).placeFile;
-    const file = parsePlaceFile((await transport(reach, heldPlaceScript(h.home), { timeoutMs: SSH_DIAL_MS })).stdout);
+    const file = heldPlaceFile((await transport(reach, heldPlaceScript(h.home), { timeoutMs: SSH_DIAL_MS })).stdout);
     stillHeld(h);
     if (!placeFileNames(file, [...h.computers.keys()], deps.hostPublicKey)) return;
     const from = backUrl(h.back.boxPort);
@@ -207,7 +207,7 @@ export function placeBackHolder(deps: PlaceBackDeps): PlaceBackHolder {
       if (read.stderr.includes(SUDO_ASKS_LINE)) return;
       throw new Error(`${h.login.ssh} did not let wsp read its place file: ${read.exitCode === CHILD_TIMED_OUT ? `the read timed out after ${Math.round(SSH_DIAL_MS / 1000)}s` : (lastLine(read.stderr) ?? `the read exited ${read.exitCode}`)}`);
     }
-    if (!placeFileNames(parsePlaceFile(read.stdout), [...h.computers.keys()], deps.hostPublicKey)) {
+    if (!placeFileNames(heldPlaceFile(read.stdout), [...h.computers.keys()], deps.hostPublicKey)) {
       throw new BackCutError(`${placeLoginElsewhere(h.login.ssh, [...new Set(h.computers.values())].join(" or "))}, so the forward back to this computer was cut`);
     }
   };
