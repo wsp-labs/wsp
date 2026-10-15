@@ -19,6 +19,7 @@ import {
   splitByOwner,
   snapshotMonthlyUsd,
   namedCount,
+  billedByCount,
   templatesOf,
   applyDelta,
   applyGoldenImport,
@@ -36,7 +37,7 @@ import {
   rollback as rollbackGolden,
   snapshotStorage,
 } from "@wsp/engine";
-import type { GoldenBuilderView, PlaceKind } from "@wsp/protocol";
+import type { GoldenBuilderView, PlaceKind, SnapshotStorage } from "@wsp/protocol";
 import {
   forksNoMachines,
   ALREADY_APPLIED,
@@ -64,6 +65,13 @@ import type { GoldenPromotion } from "../types/wiring.js";
 
 export function goldenArea(ctx: RuntimeContext): GoldenArea {
   const { opts, backend, store, placeDoor, clock, builders, preparing, places } = ctx;
+  // A place billing named snapshots by count also lists its own unnamed history: free, never this host's to delete,
+  // and 248 pages over 4 minutes on one account (2026-10-15). Only its named rows are read.
+  const accountIds = (): readonly string[] | undefined => (billedByCount(backend.pricing.snapshotStorage) ? [] : undefined);
+  const storageAt = async (at: MachineBackend, ids?: readonly string[]): Promise<SnapshotStorage | undefined> => {
+    if (!at.capabilities.snapshotListing || at.listSnapshots === undefined) return undefined;
+    return snapshotStorage(await at.listSnapshots(ids), at.pricing.snapshotStorage, { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() });
+  };
   const golden: Runtime["golden"] = {
     async build(o) {
       await ctx.ready();
@@ -445,15 +453,14 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
 
     async storage() {
       await ctx.ready();
-      if (!backend.capabilities.snapshotListing || backend.listSnapshots === undefined) return undefined;
-      return snapshotStorage(await backend.listSnapshots(), backend.pricing.snapshotStorage, { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() });
+      return storageAt(backend, accountIds());
     },
 
     async orphans() {
       await ctx.ready();
       if (!backend.capabilities.snapshotListing || backend.listSnapshots === undefined) return undefined;
       const read = { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() };
-      const rows = await backend.listSnapshots();
+      const rows = await backend.listSnapshots(accountIds());
       const snapshots = splitByOwner(rows, read);
       const templates = templatesOf(backend);
       const listed = templates === undefined ? [] : await templates.list();
@@ -504,23 +511,38 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       return deleted;
     },
 
-    async retention(name) {
+    async retentionPlaces(name) {
       await ctx.ready();
-      if (!backend.capabilities.snapshotListing || backend.listSnapshots === undefined) return undefined;
-      const manifest = await ctx.copyOf(places.wired, name ?? "default");
-      if (manifest === undefined) return undefined;
-      return retentionPlan(manifest, await backend.listSnapshots(), ctx.forkedFrom, backend.pricing.snapshotStorage);
+      const key = name ?? "default";
+      const own = await ctx.imagePlace(key);
+      return own === places.wired || (await ctx.copyOf(places.wired, key)) === undefined ? [own] : [own, places.wired];
     },
 
-    async prune(name) {
+    async retention(name, asked) {
+      await ctx.ready();
       const key = name ?? "default";
-      const plan = await golden.retention(key);
+      const own = await ctx.imagePlace(key);
+      const place = asked ?? own;
+      const at = ctx.backendAt(place);
+      if (!at.capabilities.snapshotListing || at.listSnapshots === undefined) return undefined;
+      const manifest = await ctx.copyOf(place, key);
+      if (manifest === undefined) return undefined;
+      // Given the versions' ids, Boat reads its named snapshots alone and not the account's whole history (minutes).
+      const plan = retentionPlan(manifest, await at.listSnapshots(manifest.versions.map(v => v.snapshotId)), ctx.forkedFrom, at.pricing.snapshotStorage);
+      return { ...plan, place, placeName: ctx.placeName(place), copy: place !== own };
+    },
+
+    async prune(name, asked) {
+      const key = name ?? "default";
+      const plan = await golden.retention(key, asked);
       const dropped: GoldenVersion[] = [];
       const failed: { version: number; message: string }[] = [];
       if (plan === undefined) return { dropped, failed };
+      const { place } = plan;
+      const at = ctx.backendAt(place);
       for (const v of plan.drop) {
         try {
-          await ctx.dropImage(v);
+          await ctx.dropImage(v, at);
         } catch (e) {
           // A snapshot the provider already lost is gone either way; its version goes with it.
           if (!isMissing(e)) {
@@ -528,12 +550,13 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
             continue;
           }
         }
-        const manifest = (await ctx.copyOf(places.wired, key))!;
-        await ctx.putCopy(places.wired, key, { ...manifest, versions: manifest.versions.filter(x => x.version !== v.version) });
-        await ctx.dropCopyRecipe(places.wired, key, v.version);
+        const manifest = (await ctx.copyOf(place, key))!;
+        await ctx.putCopy(place, key, { ...manifest, versions: manifest.versions.filter(x => x.version !== v.version) });
+        await ctx.dropCopyRecipe(place, key, v.version);
         dropped.push(v);
       }
-      return { dropped, failed };
+      // A listing refused after the deletes only leaves the line out: what was deleted stays deleted.
+      return { dropped, failed, storage: await storageAt(at, plan.keep.map(v => v.snapshotId)).catch(() => undefined) };
     },
 
     async rollback(version, name) {

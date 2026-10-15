@@ -5,7 +5,7 @@
 import type { Readable, Writable } from "node:stream";
 import { billedByCount, plural, type SnapshotStoragePricing } from "@wsp/engine";
 import type { GoldenVersion, SnapshotStorage } from "@wsp/protocol";
-import type { AccountOrphans, OrphansDeleted, RetentionPlan, Runtime } from "@wsp/runtime";
+import type { AccountOrphans, OrphansDeleted, PlacedRetention, RetentionPlan, Runtime } from "@wsp/runtime";
 import { isCancel, log } from "@clack/prompts";
 import { confirmPrompt } from "./init-layout.js";
 
@@ -37,14 +37,14 @@ export function describeOwners(s: SnapshotStorage): string {
 export const noProviderStorageLine = (statePath?: string): string =>
   `storage: nothing listed; this host is wired to no provider${statePath === undefined ? "" : ` (no key beside ${statePath})`}`;
 
-export function describeStorage(s: SnapshotStorage): string {
+export function describeStorage(s: SnapshotStorage, placeName?: string): string {
   const named = s.named;
   const past = named === undefined ? 0 : Math.max(0, named.count - named.free);
   const cost = named !== undefined
-    ? past > 0 ? `${named.count} named against the ${named.free} free, ${perMonth(s.monthlyUsd)} for the ${past} past them` : `${named.count} named, inside the ${named.free} free, nothing to pay`
+    ? past > 0 ? `${perMonth(s.monthlyUsd)} for the ${past} past the ${named.free} free` : `inside the ${named.free} free, nothing to pay`
     : s.monthlyUsd > 0 ? `${perMonth(s.monthlyUsd)} above the free ${s.freeGb} GB from ${s.billedFrom}` : `inside the free ${s.freeGb} GB, nothing to pay from ${s.billedFrom}`;
   const owners = describeOwners(s);
-  return `storage: ${plural(s.count, "snapshot")}, ${gb(s.totalBytes)}; ${cost}${owners === "" ? "" : `. ${owners}`}`;
+  return `storage${placeName === undefined ? "" : ` at ${placeName}`}: ${named !== undefined ? plural(named.count, "named snapshot") : plural(s.count, "snapshot")}, ${gb(s.totalBytes)}; ${cost}${owners === "" ? "" : `. ${owners}`}`;
 }
 
 /** A row as a person reads it: the name it carries and the provider id under it, since the id is what a delete takes. */
@@ -92,8 +92,14 @@ export function describeDeleted(done: OrphansDeleted): string {
   return kept.length === 0 ? deleted : `${deleted}; ${kept.join("; ")}`;
 }
 
+/** The versions a plan names, as the image's own or as the copy of it at another place. */
+type Whose = Partial<Pick<PlacedRetention, "copy" | "placeName">>;
+const whose = (plan: Whose, versions: string): string => (plan.copy === true ? `${versions} of the copy of your image at ${plan.placeName}` : `image ${versions}`);
+const sentence = (words: string): string => `${words[0]!.toUpperCase()}${words.slice(1)}`;
+
 /** The one line the offer asks with: what goes, what it holds, what it saves, what stays. */
-export function describeRetention(plan: RetentionPlan, pricing: SnapshotStoragePricing): string {
+export function describeRetention(plan: RetentionPlan & Whose): string {
+  const { pricing } = plan;
   const byCount = billedByCount(pricing);
   const held = byCount ? plural(plan.namedFreed, "named snapshot") : gb(plan.freedBytes);
   const saving = plan.savesUsdPerMonth > 0
@@ -102,12 +108,12 @@ export function describeRetention(plan: RetentionPlan, pricing: SnapshotStorageP
   const parent = plan.keep[1];
   const assumed = plan.parentAssumed && parent !== undefined ? ` v${parent.version} is taken as the parent by version order: v${plan.keep[0]!.version} was sealed before parents were recorded.` : "";
   const abandoned = plan.abandoned.length > 0 ? ` ${versionList(plan.abandoned)} ${plan.abandoned.length === 1 ? "is an abandoned branch" : "are abandoned branches"}: v${plan.keep[0]!.version} was not built through ${plan.abandoned.length === 1 ? "it" : "them"}.` : "";
-  return `Delete image ${versionList(plan.drop)}, ${held}, ${saving}? ${versionList(plan.keep)} stay.${assumed}${abandoned}`;
+  return `Delete ${whose(plan, versionList(plan.drop))}, ${held}, ${saving}? ${versionList(plan.keep)} stay.${assumed}${abandoned}`;
 }
 
-export function describeGuarded(g: RetentionPlan["guarded"][number]): string {
+export function describeGuarded(g: RetentionPlan["guarded"][number], plan: Whose = {}): string {
   const who = g.workspaces.length === 1 ? `workspace ${g.workspaces[0]} was` : `workspaces ${g.workspaces.join(", ")} were`;
-  return `Image v${g.version.version} stays: ${who} forked from it.`;
+  return `${sentence(whose(plan, `v${g.version.version}`))} stays: ${who} forked from it.`;
 }
 
 export interface RetentionOfferOptions {
@@ -118,33 +124,45 @@ export interface RetentionOfferOptions {
   output: Writable;
 }
 
-/** The older ancestors and the abandoned branches are offered for deletion, kept on a No, deleted on a Yes or when
- * nobody is asked. A listing the provider refuses keeps every version and says so. */
+/** The older ancestors and the abandoned branches are offered for deletion at every place holding versions of the
+ * image, each kept on a No, deleted on a Yes or when nobody is asked. A listing a provider refuses keeps every version
+ * at that place and says so. */
 export async function retentionOffer(o: RetentionOfferOptions): Promise<void> {
   const out = { output: o.output };
-  let plan: RetentionPlan | undefined;
+  let at: string[];
   try {
-    plan = await o.rt.golden.retention();
+    at = await o.rt.golden.retentionPlaces();
+  } catch (e) {
+    log.warn(`Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`, out);
+    return;
+  }
+  for (const place of at) await offerAt(o, place);
+}
+
+async function offerAt(o: RetentionOfferOptions, place: string): Promise<void> {
+  const out = { output: o.output };
+  let plan: PlacedRetention | undefined;
+  try {
+    plan = await o.rt.golden.retention(undefined, place);
   } catch (e) {
     log.warn(`Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`, out);
     return;
   }
   if (plan === undefined) return;
-  for (const g of plan.guarded) log.info(describeGuarded(g), out);
+  for (const g of plan.guarded) log.info(describeGuarded(g, plan), out);
   if (plan.drop.length === 0) return;
-  const line = describeRetention(plan, o.rt.backend.pricing.snapshotStorage);
+  const line = describeRetention(plan);
   if (o.interactive) {
     const go = await confirmPrompt({ message: line, hint: "No keeps every version.", initialValue: true, input: o.input, output: o.output });
     if (isCancel(go) || !go) {
-      log.step("Every image version is kept.", out);
+      log.step(plan.copy ? `Every version of the copy of your image at ${plan.placeName} is kept.` : "Every image version is kept.", out);
       return;
     }
   } else {
     log.step(`${line} Taken as yes (${o.yes ? "--yes" : "no terminal"}).`, out);
   }
-  const { dropped, failed } = await o.rt.golden.prune();
-  if (dropped.length > 0) log.success(`Deleted image ${versionList(dropped)}.`, out);
-  for (const f of failed) log.warn(`Image v${f.version} was not deleted (${f.message}); it stays in the lineage.`, out);
-  const storage = await o.rt.golden.storage().catch(() => undefined);
-  if (storage !== undefined) log.info(describeStorage(storage), out);
+  const { dropped, failed, storage } = await o.rt.golden.prune(undefined, place);
+  if (dropped.length > 0) log.success(`Deleted ${whose(plan, versionList(dropped))}.`, out);
+  for (const f of failed) log.warn(`${sentence(whose(plan, `v${f.version}`))} was not deleted (${f.message}); it stays in the lineage.`, out);
+  if (storage !== undefined) log.info(describeStorage(storage, plan.placeName), out);
 }

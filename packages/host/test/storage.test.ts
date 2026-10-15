@@ -37,20 +37,17 @@ describe("the storage line", () => {
 });
 
 describe("the storage line on Boat, which bills named snapshots by count", () => {
-  const rows = (named: number) => [
-    ...Array.from({ length: named }, (_, i) => ({ id: `wsp-h1-default-v${i}`, name: `wsp-h1-default-v${i}`, sizeBytes: 1 * GB })),
-    { id: "dc8cd70e-d16b-472a-b5d7-070bc84db7a7", sizeBytes: 7 * GB },
-  ];
+  const rows = (named: number) => Array.from({ length: named }, (_, i) => ({ id: `wsp-h1-default-v${i}`, name: `wsp-h1-default-v${i}`, sizeBytes: 1 * GB }));
   const read = (r: { id: string }[]) => ({ hostId: "h1", recorded: new Set(r.map(x => x.id)), now: 0 });
 
-  it("past the 10 free it names how many named snapshots there are and what the ones past them cost, with no GB price and no billed-from", () => {
+  it("past the 10 free it counts the named snapshots and says what the ones past them cost, with no GB price and no billed-from", () => {
     const r = rows(14);
-    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 15 snapshots, 21.0 GB; 14 named against the 10 free, about $6.80/month for the 4 past them");
+    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 14 named snapshots, 14.0 GB; about $6.80/month for the 4 past the 10 free");
   });
 
   it("inside the 10 free it says there is nothing to pay", () => {
     const r = rows(8);
-    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 9 snapshots, 15.0 GB; 8 named, inside the 10 free, nothing to pay");
+    expect(describeStorage(snapshotStorage(r, BOX_PRICING.snapshotStorage, read(r)))).toBe("storage: 8 named snapshots, 8.0 GB; inside the 10 free, nothing to pay");
   });
 });
 
@@ -115,25 +112,25 @@ describe("the orphan lines", () => {
 
 describe("the retention line", () => {
   it("names what goes, what it holds, what it saves and what stays, in one line", () => {
-    const plan = { keep: [version(4, 3), version(3, 2)], drop: [version(1), version(2, 1)], abandoned: [], guarded: [], parentAssumed: false, namedFreed: 0, freedBytes: 15.8 * GB, savesUsdPerMonth: 15.8 * 0.05 };
-    expect(describeRetention(plan, PRICING)).toBe("Delete image v1 and v2, 15.8 GB, saving about $0.79/month from 2026-10-01? v4 and v3 stay.");
+    const plan = { keep: [version(4, 3), version(3, 2)], drop: [version(1), version(2, 1)], abandoned: [], guarded: [], parentAssumed: false, namedFreed: 0, freedBytes: 15.8 * GB, savesUsdPerMonth: 15.8 * 0.05, pricing: PRICING };
+    expect(describeRetention(plan)).toBe("Delete image v1 and v2, 15.8 GB, saving about $0.79/month from 2026-10-01? v4 and v3 stay.");
   });
 
   it("names the abandoned branches in the same line, after what stays", () => {
-    const plan = { keep: [version(5, 2), version(2, 1)], drop: [version(1), version(3, 2), version(4, 3)], abandoned: [version(3, 2), version(4, 3)], guarded: [], parentAssumed: false, namedFreed: 0, freedBytes: 24.5 * GB, savesUsdPerMonth: 24.5 * 0.05 };
-    expect(describeRetention(plan, PRICING)).toBe("Delete image v1, v3 and v4, 24.5 GB, saving about $1.23/month from 2026-10-01? v5 and v2 stay. v3 and v4 are abandoned branches: v5 was not built through them.");
+    const plan = { keep: [version(5, 2), version(2, 1)], drop: [version(1), version(3, 2), version(4, 3)], abandoned: [version(3, 2), version(4, 3)], guarded: [], parentAssumed: false, namedFreed: 0, freedBytes: 24.5 * GB, savesUsdPerMonth: 24.5 * 0.05, pricing: PRICING };
+    expect(describeRetention(plan)).toBe("Delete image v1, v3 and v4, 24.5 GB, saving about $1.23/month from 2026-10-01? v5 and v2 stay. v3 and v4 are abandoned branches: v5 was not built through them.");
     const one = { ...plan, drop: [version(4, 3)], abandoned: [version(4, 3)], freedBytes: 8.5 * GB, savesUsdPerMonth: 8.5 * 0.05 };
-    expect(describeRetention(one, PRICING)).toBe("Delete image v4, 8.5 GB, saving about $0.43/month from 2026-10-01? v5 and v2 stay. v4 is an abandoned branch: v5 was not built through it.");
+    expect(describeRetention(one)).toBe("Delete image v4, 8.5 GB, saving about $0.43/month from 2026-10-01? v5 and v2 stay. v4 is an abandoned branch: v5 was not built through it.");
   });
 
   it("says when the kept parent was taken by version order, since the head was sealed before parents were recorded", () => {
-    const plan = { keep: [version(4), version(3)], drop: [version(1), version(2)], abandoned: [], guarded: [], parentAssumed: true, namedFreed: 0, freedBytes: 15.8 * GB, savesUsdPerMonth: 15.8 * 0.05 };
-    expect(describeRetention(plan, PRICING)).toBe("Delete image v1 and v2, 15.8 GB, saving about $0.79/month from 2026-10-01? v4 and v3 stay. v3 is taken as the parent by version order: v4 was sealed before parents were recorded.");
+    const plan = { keep: [version(4), version(3)], drop: [version(1), version(2)], abandoned: [], guarded: [], parentAssumed: true, namedFreed: 0, freedBytes: 15.8 * GB, savesUsdPerMonth: 15.8 * 0.05, pricing: PRICING };
+    expect(describeRetention(plan)).toBe("Delete image v1 and v2, 15.8 GB, saving about $0.79/month from 2026-10-01? v4 and v3 stay. v3 is taken as the parent by version order: v4 was sealed before parents were recorded.");
   });
 
   it("a drop inside the free GB says nothing is saved yet; three versions read as a list", () => {
-    const plan = { keep: [version(5, 4), version(4, 3)], drop: [version(1), version(2, 1), version(3, 2)], abandoned: [], guarded: [], parentAssumed: false, namedFreed: 0, freedBytes: 3 * GB, savesUsdPerMonth: 0 };
-    expect(describeRetention(plan, PRICING)).toBe("Delete image v1, v2 and v3, 3.0 GB, inside the free 10 GB, so nothing saved yet? v5 and v4 stay.");
+    const plan = { keep: [version(5, 4), version(4, 3)], drop: [version(1), version(2, 1), version(3, 2)], abandoned: [], guarded: [], parentAssumed: false, namedFreed: 0, freedBytes: 3 * GB, savesUsdPerMonth: 0, pricing: PRICING };
+    expect(describeRetention(plan)).toBe("Delete image v1, v2 and v3, 3.0 GB, inside the free 10 GB, so nothing saved yet? v5 and v4 stay.");
   });
 });
 
@@ -143,12 +140,24 @@ describe("the retention line on Boat, which bills named snapshots by count", () 
 
   it("names how many named snapshots go and what that saves, with no GB and no billed-from", () => {
     const plan = retentionPlan(manifest, named(14), () => [], BOX_PRICING.snapshotStorage);
-    expect(describeRetention(plan, BOX_PRICING.snapshotStorage)).toBe("Delete image v1, v2 and v3, 3 named snapshots, saving about $5.10/month? v5 and v4 stay.");
+    expect(describeRetention(plan)).toBe("Delete image v1, v2 and v3, 3 named snapshots, saving about $5.10/month? v5 and v4 stay.");
   });
 
   it("a drop inside the 10 kept free says nothing is saved yet", () => {
     const plan = retentionPlan(manifest, named(8), () => [], BOX_PRICING.snapshotStorage);
-    expect(describeRetention(plan, BOX_PRICING.snapshotStorage)).toBe("Delete image v1, v2 and v3, 3 named snapshots, inside the 10 kept free, so nothing saved yet? v5 and v4 stay.");
+    expect(describeRetention(plan)).toBe("Delete image v1, v2 and v3, 3 named snapshots, inside the 10 kept free, so nothing saved yet? v5 and v4 stay.");
+  });
+});
+
+describe("the storage line after the offer deletes at a place", () => {
+  it("is the start line with its place named, so Boat's line reads one way at start and after the deletes", () => {
+    const named = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `acme-${i}`, name: `acme-${i}`, sizeBytes: GB }));
+    const read = { hostId: "h1", recorded: new Set<string>(), now: 0 };
+    const past = snapshotStorage(named(12), BOX_PRICING.snapshotStorage, read);
+    expect(describeStorage(past, "Boat")).toBe(describeStorage(past).replace(/^storage:/, "storage at Boat:"));
+    expect(describeStorage(past, "Boat")).toBe("storage at Boat: 12 named snapshots, 12.0 GB; about $3.40/month for the 2 past the 10 free. 12 not this host's, 12.0 GB");
+    expect(describeStorage(snapshotStorage(named(8), BOX_PRICING.snapshotStorage, read), "Boat")).toBe("storage at Boat: 8 named snapshots, 8.0 GB; inside the 10 free, nothing to pay. 8 not this host's, 8.0 GB");
+    expect(describeStorage({ count: 1, totalBytes: 7.8 * GB, ...PRICING, monthlyUsd: 0, ...allRecorded(1, 7.8 * GB) }, "Solari")).toBe("storage at Solari: 1 snapshot, 7.8 GB; inside the free 10 GB, nothing to pay from 2026-10-01");
   });
 });
 
@@ -178,7 +187,7 @@ describe("the retention offer over the stub backend", () => {
     const out = g.text();
     expect(out).toContain("Delete image v1 and v2, 17.0 GB, saving about $0.85/month from 2026-10-01? v4 and v3 stay. Taken as yes (--yes).");
     expect(out).toContain("Deleted image v1 and v2.");
-    expect(out).toContain("storage: 2 snapshots, 21.0 GB; about $0.55/month above the free 10 GB from 2026-10-01");
+    expect(out).toContain("storage at default: 2 snapshots, 21.0 GB; about $0.55/month above the free 10 GB from 2026-10-01");
     expect(g.backend.snapshots.map(r => r.id)).toEqual(["snap_golden-v3", "snap_golden-v4"]);
     expect((await g.rt.golden.get())!.versions.map(v => v.version)).toEqual([3, 4]);
   });
@@ -254,6 +263,33 @@ describe("the retention offer over the stub backend", () => {
     const rt = createRuntime({ backend: { ...rest, capabilities: { ...bare.capabilities, snapshotListing: false } }, store: memoryStore(), adapters: {} });
     await retentionOffer({ rt, interactive: false, yes: true, ...streams(g) });
     expect(g.text()).toBe("");
+  });
+
+  it("an image sealed at another place has its copies at the place this host forks on offered and deleted there, at that place's rate, and its own versions at its own", async () => {
+    const store = memoryStore();
+    const backend = stubBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    await store.put("goldens", copyKey("default", "default"), { head: 4, versions: [1, 2, 3, 4].map(n => ({ ...version(n, n > 1 ? n - 1 : undefined), snapshotId: `snap_copy-v${n}`, ...(n > 1 ? { parentSnapshotId: `snap_copy-v${n - 1}` } : {}) })) });
+    for (const n of [1, 2, 3, 4]) backend.snapshots.push({ id: `snap_copy-v${n}`, sizeBytes: (7 + n) * GB });
+    await store.put("goldens", copyKey("boat", "default"), { head: 3, versions: [1, 2, 3].map(n => version(n, n > 1 ? n - 1 : undefined)) });
+    for (let i = 1; i <= 10; i += 1) boat.snapshots.push({ id: `snap_acme-${i}`, name: `acme-${i}`, sizeBytes: GB });
+    for (const n of [1, 2, 3]) boat.snapshots.push({ id: `snap_golden-v${n}`, name: `golden-v${n}`, sizeBytes: GB });
+    await store.put("images", "default", { name: "default", version: 3, hash: "a".repeat(64), recipeHash: "h1", recipe: {}, pins: [], logins: [], sealedAt: "2026-09-01T00:00:00.000Z", sealedFrom: "h1", place: "boat" });
+    const rt = createRuntime({ backend, store, adapters: {}, places: { wired: "default", backend: p => ({ default: backend, boat })[p], list: () => ["default", "boat"] } });
+    const g = { input: new PassThrough(), output: new PassThrough() };
+    const chunks: string[] = [];
+    g.output.on("data", (c: Buffer) => chunks.push(c.toString()));
+    try {
+      await retentionOffer({ rt, interactive: false, yes: true, ...g });
+      const out = stripVTControlCharacters(chunks.join(""));
+      expect(out).toContain("Delete image v1, 1 named snapshot, saving about $1.70/month? v3 and v2 stay. Taken as yes (--yes).");
+      expect(out).toContain("Delete v1 and v2 of the copy of your image at default, 17.0 GB, saving about $0.85/month from 2026-10-01? v4 and v3 stay. Taken as yes (--yes).");
+      expect(out).toContain("Deleted v1 and v2 of the copy of your image at default.");
+      expect(boat.snapshots.filter(r => r.id.startsWith("snap_golden")).map(r => r.id)).toEqual(["snap_golden-v2", "snap_golden-v3"]);
+      expect(backend.snapshots.map(r => r.id)).toEqual(["snap_copy-v3", "snap_copy-v4"]);
+    } finally {
+      await rt.close();
+    }
   });
 
   it("a listing the provider refuses keeps every version and says so", async () => {
