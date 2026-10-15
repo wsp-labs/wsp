@@ -1,0 +1,1 @@
+The place file and the key it names are read with no link followed at the last name, no wait on a fifo, a plain file only and at most 64 KiB, so what a workspace leaves there can no longer hold the daemon's one thread or its memory.
