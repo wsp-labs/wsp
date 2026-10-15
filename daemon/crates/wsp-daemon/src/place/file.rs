@@ -4,8 +4,6 @@
 
 use std::path::Path;
 
-use nix::fcntl::OFlag;
-use nix::sys::stat::Mode;
 use wsp_frames::{numbers, PlaceFile};
 
 use crate::beneath;
@@ -21,15 +19,10 @@ pub(crate) fn read_place_key(path: &Path) -> Option<String> {
     read_plain(path)
 }
 
-/// A plain file's text, no further than the cap: the folder is reached as any path is, and the last name opened
-/// through it with no link followed and no wait on a fifo, as the host's leave reads the same file.
+/// A plain file's text, no further than the cap, with no link followed at its name and no wait on a fifo, as the
+/// host's leave reads the same file.
 fn read_plain(path: &Path) -> Option<String> {
-    use std::io::Read as _;
-    let folder = nix::fcntl::open(path.parent()?, OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC, Mode::empty()).ok()?;
-    let file = beneath::file(&folder, path.file_name()?.to_str()?).ok()??;
-    let mut text = String::new();
-    file.take(numbers::PLACE_READ_MAX_BYTES + 1).read_to_string(&mut text).ok()?;
-    (text.len() as u64 <= numbers::PLACE_READ_MAX_BYTES).then_some(text)
+    String::from_utf8(beneath::read_capped(path, numbers::PLACE_READ_MAX_BYTES).ok()??).ok()
 }
 
 #[cfg(test)]
