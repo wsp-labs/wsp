@@ -137,6 +137,12 @@ pub fn place_unread(path: impl std::fmt::Display) -> String {
     format!("{path}: could not read what is not pushed")
 }
 
+/// What a leave says it took out of a person's own login file: wsp's lines there, and the file. Said on both roads a
+/// leave runs on, and pinned to one text by the contract fixture.
+pub fn place_line_out(lines: impl std::fmt::Display, file: impl std::fmt::Display) -> String {
+    format!("{lines} (out of {file})")
+}
+
 /// Why a path outside the home a leave would have taken is still there: it stood before wsp was added, as the add
 /// wrote down, so it is the computer's own. Said on both roads a leave runs on, and pinned to one text by the
 /// contract fixture.

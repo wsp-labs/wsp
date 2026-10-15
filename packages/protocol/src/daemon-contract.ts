@@ -318,6 +318,9 @@ export const GUEST_UNWATCHED = "the host stopped watching; run it again";
  * workspace on a computer somebody owns writes in that home, so following it would take the computer's own file of
  * that name. Said on both roads a leave runs on, and pinned to one text by the contract fixture. */
 export const placeKeptForLinkLine = (path: string): string => `nothing was removed at ${path}: a folder on the way to it is a link`;
+/** What a leave says it took out of a person's own login file: wsp's lines there, and the file. Said on both roads a
+ * leave runs on, and pinned to one text by the contract fixture. */
+export const placeLineOutLine = (lines: string, file: string): string => `${lines} (out of ${file})`;
 /** Why wsp's install folder is still there after a leave: the list in it of what the setup wrote outside the home
  * still has lines, which only a leave cut short leaves, and the folder holds that list for a leave that finishes.
  * Said on both roads a leave runs on, and pinned to one text by the contract fixture. */

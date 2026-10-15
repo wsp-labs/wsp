@@ -14,7 +14,8 @@ import { SSH_LINE_CAP, keyFingerprint } from "@wsp/engine";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, addFound, addFoundScript, addUndoScript, joinedAddWrites, joinedPlace, profileSourceLine } from "../src/doctor.js";
 import { refusedPort } from "../../runtime/test/held-port.js";
 import { addCommand, placeHeldRefusal, reachScript, reachedUrls, unreachedLine, hostKeyHere, placeUnit } from "../src/places.js";
-import { heldPlaceScript } from "@wsp/protocol";
+import { heldPlaceScript, placeFileText, readHeldPlace } from "@wsp/protocol";
+import { joinStanding } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { fakeRunner, noBoxSignIn, opts, sweepPlace, tmp } from "./places-fixture.js";
@@ -193,6 +194,29 @@ describe("the place file an add reads off a box before anything lands", () => {
     expect((await run()).length).toBe(65_536);
     rmSync(file);
     expect(await run()).toBe("");
+  });
+
+  it("reads what stands there as the join on that box reads it: joined, nothing, or broken at the path that stands", async () => {
+    const home = tmp("held-broken");
+    const at = placeDaemonPaths(home);
+    mkdirSync(at.wsp, { recursive: true });
+    const read = async () => readHeldPlace((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { timeout: 10_000 })).stdout, home);
+    const file = placeFileText({ placeId: "p_1", name: "box", hostName: "studio", hostUrls: [], hostPublicKey: "c3R1ZGlv", keyPath: at.placeKey, joinedAt: "2026-10-15T00:00:00Z" });
+    const states: [string, () => void][] = [
+      ["nothing", () => {}],
+      ["a place file", () => writeFileSync(at.placeFile, file)],
+      ["a file that does not parse", () => writeFileSync(at.placeFile, '{"placeId": "p_1", "na')],
+      ["an empty file", () => writeFileSync(at.placeFile, "")],
+      ["a dangling link", () => symlinkSync(join(home, "nowhere.json"), at.placeFile)],
+      ["a key with no file beside it", () => writeFileSync(at.placeKey, "k")],
+    ];
+    for (const [name, make] of states) {
+      rmSync(at.placeFile, { force: true });
+      rmSync(at.placeKey, { force: true });
+      make();
+      expect(await read(), name).toEqual(joinStanding(home));
+    }
+    expect(joinStanding(home)).toEqual({ broken: at.placeKey });
   });
 
   it("names another wsp's host in one bounded line with nothing the box wrote to move the terminal, and a url only where it is one", () => {

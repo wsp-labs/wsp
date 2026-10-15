@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { placeDaemonPaths, wspBinIn, type PlaceFile } from "@wsp/protocol";
-import { loginFilesStep, sshDaemonPlace } from "../src/doctor.js";
+import { addFoundScript, addUndoScript, addFound, DAEMON_GONE_LINE, joinedAddWrites, joinedPlace, loginFilesStep, sshDaemonPlace } from "../src/doctor.js";
 import { brokenJoinLine, joinCutByLeaveLine, placeHeldRefusal, placeLeaveLineAs, placeNoKeyForSudoLine, placeUndoNeedsSudoLine, placeUndoNoKeyLine, placeUndoOtherKeyLine } from "../src/places.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { tmp } from "./places-fixture.js";
+import { fakeRunner, sweepPlace, tmp } from "./places-fixture.js";
 
 /** A box an add joined, as far as a login there sees it: the bundle's wsp, which answers with the words it was
  * typed with, and the login files every add and update writes, run for real under bash. */
-function joinedBox(): string {
+function joinedBox(own: Record<string, string> = {}): string {
   const home = tmp("leave-line-box");
+  for (const [name, text] of Object.entries(own)) writeFileSync(join(home, name), text);
   const at = placeDaemonPaths(home);
   const cli = wspBinIn(at.dir);
   mkdirSync(dirname(cli), { recursive: true });
@@ -73,5 +74,40 @@ describe("every line that names wsp leave names one a login on a joined box can 
     writeStub(`${own}/wsp`, "#!/bin/sh\necho own wsp\n");
     expect(login(home, own, 'printf %s "$PATH"').stdout.split(":").filter(dir => dir.startsWith(home))).toHaveLength(1);
     expect(login(home, own, "wsp").stdout).toBe("own wsp\n");
+  });
+});
+
+describe("a box whose root login reads a bash login file before ~/.profile", () => {
+  const OWN = "export EDITOR=vim\n";
+
+  /** What `sudo -i` runs: root's own shell as a login, which reads the first of ~/.bash_profile, ~/.bash_login and
+   * ~/.profile it finds, with a PATH that knows only node. */
+  const loggedIn = (home: string, line: string) => spawnSync("/bin/bash", ["-l", "-c", line], { encoding: "utf8", env: { HOME: home, PATH: nodeOnly() } });
+
+  it.each([".bash_profile", ".bash_login"])("finds the bundle's wsp through %s, and every road off the box leaves that file as it was", async file => {
+    const home = joinedBox({ [file]: OWN });
+    const typed = loggedIn(home, `${placeLeaveLineAs(true)} --help`);
+    expect(`${typed.stdout}${typed.stderr}`).toBe("bundle wsp: leave --help\n");
+    // An update writes the files again: one line of wsp's in their file however often.
+    const files = loginFilesStep(sshDaemonPlace({ home, path: "/usr/bin" })).join("\n");
+    expect(spawnSync("bash", ["-c", files], { encoding: "utf8" }).status).toBe(0);
+    expect(readFileSync(join(home, file), "utf8").split("\n").filter(row => row.includes(placeDaemonPaths(home).profileFile))).toHaveLength(1);
+    await sweepPlace({ home, manager: undefined, run: fakeRunner().run });
+    expect(readFileSync(join(home, file), "utf8")).toBe(OWN);
+  });
+
+  it.each([".bash_profile", ".bash_login"])("takes wsp's line back out of %s when a failed add is undone, and makes no such file where there was none", file => {
+    const home = tmp("leave-line-undo");
+    writeFileSync(join(home, file), OWN);
+    const place = joinedPlace({ home, path: "/usr/bin" }, { hostUrls: [], codeFile: `${placeDaemonPaths(home).wsp}/join-code`, name: "box" });
+    const writes = joinedAddWrites(place, "/nonexistent/wsp-place.service").filter(w => w.path.startsWith(`${home}/`));
+    const bash = (script: string) => spawnSync("/bin/bash", ["-c", script], { encoding: "utf8" });
+    const found = addFound(bash(addFoundScript(place, writes, "true")).stdout, writes.length)!;
+    expect(bash(loginFilesStep(place).join("\n")).status).toBe(0);
+    expect(readFileSync(join(home, file), "utf8")).not.toBe(OWN);
+    for (const other of [".bash_profile", ".bash_login"].filter(name => name !== file)) expect(existsSync(join(home, other))).toBe(false);
+    expect(bash(addUndoScript(place, writes, found, "true", true)).stdout).toContain(DAEMON_GONE_LINE);
+    expect(readFileSync(join(home, file), "utf8")).toBe(OWN);
+    expect(existsSync(join(home, ".profile"))).toBe(false);
   });
 });

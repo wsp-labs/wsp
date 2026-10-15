@@ -11,9 +11,9 @@ import { PlaceAddTakenBackError, PlaceLoginRefusedError, type PlaceBackHolder, t
 import { MissingKnownHostsError, missingKnownHostsLine, SshBackend, SSH_READ_SCRIPT, SSH_SUDO_READ, SSH_WORD_REFUSAL, keyFingerprint, sshWordReach, type SshReach, type SshRiding, type SshSudo, type SshSudoRoad, type SshTransport } from "@wsp/engine";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noGuestDaemonLine, noPlaceSystemLine } from "../src/daemon-binary.js";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, joinedAddWrites, joinedLine, joinedPlace, PLACE_JOINED_LINE, WSP_READY_LINE } from "../src/doctor.js";
-import { placeInstaller, addLineWords, backRefusedLine, dialsBackOverSshNote, placeHeldRefusal, reachScript, unreachedLine, UNSAID_CHIP_REFUSAL, ADD_LOOPBACK_REFUSAL, advertisedLoopbackRefusal, placeUnit, joinUnansweredLine, addUndoneLine, addTakenLine, placeRootHomeRefusal, PLACE_CHECK_SCRIPT, placeNoRootLine } from "../src/places.js";
+import { placeInstaller, addLineWords, backRefusedLine, dialsBackOverSshNote, placeHeldRefusal, reachScript, unreachedLine, UNSAID_CHIP_REFUSAL, ADD_LOOPBACK_REFUSAL, advertisedLoopbackRefusal, placeUnit, joinUnansweredLine, addUndoneLine, addTakenLine, placeRootHomeRefusal, PLACE_CHECK_SCRIPT, placeNoRootLine, placeBrokenRefusal, brokenJoinLine } from "../src/places.js";
 import { BackCutError, backBindLine } from "../src/place-back.js";
-import { heldPlaceScript } from "@wsp/protocol";
+import { heldPlaceScript, PLACE_LEFT_LINE } from "@wsp/protocol";
 import { placeReport } from "../src/place-report.js";
 import { opts, spooConfig, tmp } from "./places-fixture.js";
 
@@ -440,8 +440,8 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
 
   /** A box whose deploy fails after its join connected back, answering the read of what it already holds with the
    * writes `had` names, and the undo with `undo`. Every script it was handed is on `ran`, in order. */
-  function failingBox(had: (write: { path: string; as: string }) => boolean, opts: { found?: "unsaid"; undo?: { exitCode: number; stdout: string; stderr: string }; preflight?: string; deploy?: { stdout: string; stderr: string } } = {}) {
-    const box = fakeBox("x86_64");
+  function failingBox(had: (write: { path: string; as: string }) => boolean, opts: { found?: "unsaid"; undo?: { exitCode: number; stdout: string; stderr: string }; preflight?: string; deploy?: { stdout: string; stderr: string }; box?: Parameters<typeof fakeBox>[2] } = {}) {
+    const box = fakeBox("x86_64", "bash", opts.box);
     const writes = joinedAddWrites(joinedPlace({ home: "/home/maya", path: "/usr/bin:/bin" }, { hostUrls: [], codeFile: "/home/maya/.wsp/join-code", name: "box" }), placeUnit("/home/maya").path);
     const backend = { ...(box.backend as { adopt: () => Promise<{ machine: { run: (script: string, o?: unknown) => Promise<unknown> } }> }) };
     const adopt = backend.adopt;
@@ -604,11 +604,34 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
     expect(addUndoneLine(SERVICE_SAID, false, true)).toBe(`${SERVICE_SAID}; wsp's agent was running there before this add and is left running, and what else this add put on it may still be there`);
   });
 
+  it("refuses a box holding what a join left broken before anything lands, naming the leave the add's own login can run", async () => {
+    const at = placeDaemonPaths("/home/maya");
+    const own = joinToken("7QK3M2VD", keyFingerprint("dGhpcyBob3N0"));
+    // The deploy answers as the join on that box does, so a refusal relayed from it would carry the join's own line.
+    const joinSays = (path: string) => ({ stdout: "WSP_STEP files\nWSP_STEP login\nWSP_STEP agent\nWSP_READY\n", stderr: `${brokenJoinLine(path)}\n` });
+    const cases = [
+      { address: "maya@box", road: "free" as const, holds: '{"placeId": "p_1", "na', path: at.placeFile, leave: "sudo -i wsp leave" },
+      { address: "maya@box", road: "free" as const, holds: "{}\n", path: at.placeFile, leave: "sudo -i wsp leave" },
+      { address: "maya@box", road: "free" as const, holds: `${PLACE_LEFT_LINE} key\n`, path: at.placeKey, leave: "sudo -i wsp leave" },
+      { address: "root@box", road: "root" as const, holds: `${PLACE_LEFT_LINE} file\n`, path: at.placeFile, leave: "wsp leave" },
+    ];
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const c of cases) {
+      const box = failingBox(() => false, { box: { holds: c.holds, road: c.road }, deploy: joinSays(c.path) });
+      const said = await placeInstaller({ backend: box.backend as never, ...assets(tmp("held-broken"), [X86]) })({ address: c.address, code: own, hostUrls: ["http://192.168.1.20:4720"] }, box.stage).then(() => "the add stood", (e: unknown) => (e as Error).message);
+      expect(said).toBe(placeBrokenRefusal(c.address, c.path, c.leave));
+      expect(said).toContain(`; ${c.leave} on it removes it`);
+      expect(box.landed).toEqual([]);
+      expect(box.ran).toEqual([heldPlaceScript("/home/maya")]);
+    }
+    warned.mockRestore();
+  });
+
   it("refuses a box whose login has / for its home before it reads what the box holds", async () => {
     const box = fakeBox("x86_64", "bash", { home: "/" });
     const said = await placeInstaller({ backend: box.backend as never, ...assets(tmp("root-home"), [X86]) })({ address: "maya@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4720"] }, box.stage).catch((e: unknown) => (e as Error).message);
     expect(said).toBe(placeRootHomeRefusal("maya@box"));
-    expect(box.ran.some(script => script.includes(ADD_FOUND_END) || script.startsWith("head -c ") || script.startsWith("reach() {"))).toBe(false);
+    expect(box.ran.some(script => script.includes(ADD_FOUND_END) || script === heldPlaceScript("/") || script.startsWith("reach() {"))).toBe(false);
     expect(box.landed).toEqual([]);
   });
 
@@ -633,9 +656,6 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
     await expect(placeInstaller({ backend: bySudo.backend as never, ...assets(tmp("held-sudo"), [X86]) })({ address: "maya@box", code: own, hostUrls: ["http://192.168.1.20:4720"] }, bySudo.stage)).rejects.toThrow(
       "maya@box already belongs to the wsp on studio at http://192.168.1.5:4640; sudo -i wsp leave on it frees it",
     );
-    // A file the join itself would not read as a place is none, by the join's own rule.
-    const junk = fakeBox("x86_64", "bash", { holds: "{}\n" });
-    expect(await placeInstaller({ backend: junk.backend as never, ...assets(tmp("held-junk"), [X86]) })({ address: "maya@box", code: own, hostUrls: ["http://192.168.1.20:4720"] }, junk.stage)).toMatchObject({ name: "box" });
     expect(placeHeldRefusal("root@spoo", { ...JSON.parse(studio), hostUrls: [] }, undefined)).toBe("root@spoo already belongs to the wsp on studio; wsp leave on it frees it, or wsp add spoo --update from that wsp updates it there");
     // A long address that is still a valid one is cut like the names, so the way out survives the cap.
     const long = `http://${"a".repeat(240)}.example:4640`;
@@ -707,6 +727,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
         if (script === SSH_READ_SCRIPT) return { exitCode: 0, stdout: `home /home/maya\narch ${said}\nuser maya\npath /usr/bin:/bin\ncpu 2\nmemkb 4194304\n`, stderr: "" };
         if (script.includes("PREFLIGHT_OK")) return { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" };
         if (script.includes("WSP_BYTES_OK")) return { exitCode: 0, stdout: "WSP_BYTES_OK\n", stderr: "" };
+        if (script === heldPlaceScript("/home/maya")) return { exitCode: 0, stdout: "", stderr: "" };
         const reached = reachAnswer(script);
         if (reached !== undefined) return reached;
         for (const line of [WSP_READY_LINE, PLACE_JOINED_LINE]) opts.onLine?.(line);
@@ -797,6 +818,8 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       run: async (script: string) =>
         script.includes("PREFLIGHT_OK")
           ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" }
+          : script === heldPlaceScript("/home/maya")
+            ? { exitCode: 0, stdout: "", stderr: "" }
           : script.includes(ADD_FOUND_END)
             ? { exitCode: 0, stdout: `${ADD_FOUND_END}\n`, stderr: "" }
             : script.endsWith(`echo ${DAEMON_GONE_LINE}`)
@@ -825,7 +848,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       putBytes: async () => {},
       exec: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
       facts: async () => ({ os: "Linux 6.8.0" }),
-      run: async (script: string) => (script.includes("PREFLIGHT_OK") ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" } : (reachAnswer(script) ?? { exitCode: 0, stdout: "DAEMON_UP\n", stderr: "" })),
+      run: async (script: string) => (script.includes("PREFLIGHT_OK") ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" } : script === heldPlaceScript("/home/maya") ? { exitCode: 0, stdout: "", stderr: "" } : (reachAnswer(script) ?? { exitCode: 0, stdout: "DAEMON_UP\n", stderr: "" })),
     };
     const backend = { adopt: async () => ({ machine, login: { HOME: "/home/maya", PATH: "/usr/bin:/bin", USER: "maya" }, shape: { cpu: 2, memMb: 2048 }, arch: "x86_64" }), keyFor: async () => BOX_KEY, sudoFor: async () => "root" as const, hostNameFor: async (reach: SshReach) => reach.host };
     const install = placeInstaller({ backend: backend as never, ...assets(root) });
@@ -859,6 +882,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
         const reached = reachAnswer(script);
         if (reached !== undefined) return reached;
         if (script.includes(ADD_FOUND_END)) return { exitCode: 0, stdout: `${ADD_FOUND_END}\n`, stderr: "" };
+        if (script === heldPlaceScript("/home/maya")) return { exitCode: 0, stdout: "", stderr: "" };
         const lines = script.split("\n").flatMap(line => (/^echo (\S+)$/.exec(line)?.[1] === undefined ? [] : [line.slice("echo ".length)]));
         for (const line of lines) {
           printed.push(line);

@@ -11,15 +11,16 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use wsp_frames::{
-    docker_shim, guest_wsp_shim, landed_files_script, numbers, outside_sweep_script, place_owned_paths, probe_path, words, BackendFacts,
-    CopyReport, DaemonAuthRequest, DaemonErrorResponse, DaemonEvent, DaemonRequest, FsFilesReply, GitBranchCompareReply, GitBranchesReply,
-    GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiscardReply, GitIssueReadReply, GitMergeInReply, GitPrCheckoutReply,
-    GitPrDiffReply, GitPrListReply, GitPrMergeReply, GitPrReactReply, GitPrReadReply, GitPrReply, GitPrReplyReply, GitPrResolveReply,
-    GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply, GitRestoreReply, GitRunLogReply, GitSnapshotReply, GitStartOnReply,
-    GitUpdateReply, GitWorktreesReply, GuestCliMessage, GuestOpenReply, HostFolderListing, MachineAnswersReply, MachineExecReply,
-    MachineHandleReply, MachineLinkRequest, MachineListReply, MachineReachReply, MachineReadingReply, MachineShapeReply, MachineStateReply,
-    PipeOpen, PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, ProcKillReply, ProcListReply, SshStartReply, SysHistoryReply,
-    TranscriptsListReply, TranscriptsReadReply, UsageLogsReply, WorktreeRemoval, WorktreeReport, DAEMON_OPS, MACHINE_OPS,
+    docker_shim, guest_wsp_shim, landed_files_script, numbers, outside_sweep_script, place_login_files, place_owned_paths, probe_path,
+    words, BackendFacts, CopyReport, DaemonAuthRequest, DaemonErrorResponse, DaemonEvent, DaemonRequest, FsFilesReply,
+    GitBranchCompareReply, GitBranchesReply, GitCheckpointDropReply, GitCheckpointReply, GitCommitReply, GitDiscardReply,
+    GitIssueReadReply, GitMergeInReply, GitPrCheckoutReply, GitPrDiffReply, GitPrListReply, GitPrMergeReply, GitPrReactReply,
+    GitPrReadReply, GitPrReply, GitPrReplyReply, GitPrResolveReply, GitPrReviewReply, GitPrViewReply, GitPushReply, GitRepoReadReply,
+    GitRestoreReply, GitRunLogReply, GitSnapshotReply, GitStartOnReply, GitUpdateReply, GitWorktreesReply, GuestCliMessage, GuestOpenReply,
+    HostFolderListing, MachineAnswersReply, MachineExecReply, MachineHandleReply, MachineLinkRequest, MachineListReply, MachineReachReply,
+    MachineReadingReply, MachineShapeReply, MachineStateReply, PipeOpen, PlaceAuthRequest, PlaceCapacity, PlaceProveRequest, ProcKillReply,
+    ProcListReply, SshStartReply, SysHistoryReply, TranscriptsListReply, TranscriptsReadReply, UsageLogsReply, WorktreeRemoval,
+    WorktreeReport, DAEMON_OPS, MACHINE_OPS,
 };
 
 fn fixtures() -> PathBuf {
@@ -434,6 +435,7 @@ fn rendered_words() -> BTreeMap<&'static str, String> {
     m.insert("guestNoDaemon", words::guest_no_daemon_line("{port}"));
     m.insert("hostClosed", words::HOST_CLOSED.to_owned());
     m.insert("placeKeptForLink", words::place_kept_for_link("{path}"));
+    m.insert("placeLineOut", words::place_line_out("{lines}", "{file}"));
     m.insert("placeOutsideLeft", words::place_outside_left("{prefix}"));
     m.insert("placeStoodBefore", words::place_stood_before("{path}"));
     m.insert("placeKeptMounted", words::place_kept_mounted("{path}", "{mount}"));
@@ -610,6 +612,13 @@ fn the_leaves_own_list_matches_the_committed_fixture() {
     let theirs: Vec<String> = committed_value("place-paths.json");
     let ours: Vec<String> = place_owned_paths(Path::new(FIXTURE_HOME)).iter().map(|p| p.to_string_lossy().into_owned()).collect();
     assert_eq!(ours, theirs, "place-paths.json and place_owned_paths name the same paths in the same order");
+}
+
+#[test]
+fn the_login_files_match_the_committed_fixture() {
+    let theirs: Vec<String> = committed_value("place-login-files.json");
+    let ours: Vec<String> = place_login_files(Path::new(FIXTURE_HOME)).iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    assert_eq!(ours, theirs, "place-login-files.json and place_login_files name the same files in the same order");
 }
 
 /// The home the probe path's fixture is rendered for, as the protocol's own test renders it: root's, since every

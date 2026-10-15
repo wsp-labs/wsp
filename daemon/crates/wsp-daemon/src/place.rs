@@ -17,8 +17,10 @@ use wsp_frames::{
 
 use crate::under_home::{prune_empty, remove_empty_under_home, remove_under_home, Removed};
 
+mod login_lines;
 mod outside;
 mod versions;
+pub(crate) use login_lines::sweep_login_lines;
 pub(crate) use outside::{leave_here, leave_takes_runtime, unsaved_under};
 use versions::version_line;
 pub(crate) use versions::WspBuild;

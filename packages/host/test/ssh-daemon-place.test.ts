@@ -138,7 +138,7 @@ describe("the place a machine reached over ssh keeps its daemon", () => {
     const place = sshDaemonPlace(LOGIN);
     const named = [place.dir, place.bundle, place.inbox, place.tokenPath, place.rootsPath, place.root, place.runDir, place.binDir, place.openShim, place.openSocket, place.manifestPath, place.profileFile, place.unitPath, ...place.make];
     expect(named.filter(path => !path.startsWith("/home/maya/") && path !== "/home/maya")).toEqual([]);
-    expect(place.profileSource).toBe("/home/maya/.profile");
+    expect(place.profileSources).toEqual(["/home/maya/.profile", "/home/maya/.bash_profile", "/home/maya/.bash_login"]);
     expect(s).not.toMatch(/\/root\b/);
     expect(s).not.toContain("/etc/");
     // The person's PATH carries /usr/local/bin and rides the unit, but nothing is installed there or anywhere
