@@ -13,6 +13,8 @@ import { PUSHED, UNPUSHED, answering, jumpClock, leadOnThisComputer, until, type
 const NAME = "Fix the flaky upload test";
 const BRANCH = "wsp/fix-the-flaky-upload-test";
 const MIN = 60_000;
+const DAY = 24 * 60 * MIN;
+const utcDay = (at: number): string => new Date(at).toISOString().slice(0, 10);
 
 let open: Runtime[] = [];
 afterEach(async () => {
@@ -22,9 +24,10 @@ afterEach(async () => {
 
 /** A lead on this computer and its sub-thread on Boat, started with `notify`, the machine answering the result read
  * with `read`; with `hold` the sub-thread's turn runs until `release`. */
-async function subStarted(o: { read: Answers["read"]; notify?: "lead" | "me"; hold?: true; clock?: Clock }) {
+async function subStarted(o: { read: Answers["read"]; notify?: "lead" | "me"; hold?: true; clock?: Clock; diskKeptMs?: number }) {
   const held = await leadOnThisComputer(o.clock !== undefined ? { clock: o.clock } : {});
   open.push(held.rt);
+  if (o.diskKeptMs !== undefined) held.boat.lifecycle.diskKeptMs = o.diskKeptMs;
   answering(held.boat, { read: o.read, session: Buffer.from("gzipped session bytes") });
   const made = await held.rt.workspaces.create({ project: held.project.id, name: NAME, sub: { on: "boat" } }, held.lead);
   if (o.hold === true) held.turns.hold = true;
@@ -61,6 +64,16 @@ describe("a sub-thread's finished line to its lead", () => {
     const { kid8 } = held;
     expect((await leadLine(held)).split("\n").at(-1)).toBe(
       `2 commits and 3 changed files on ${BRANCH} are not pushed, so its machine is kept, napping at no cost. Send to ${kid8} to have them pushed, or ask the person to delete it.`,
+    );
+  });
+
+  it("names the day Boat deletes the disk of a machine kept over work not pushed", async () => {
+    const held = await subStarted({ read: UNPUSHED, diskKeptMs: 14 * DAY });
+    const { kid8 } = held;
+    const line = (await leadLine(held)).split("\n").at(-1);
+    const heldAt = (await held.record()).sub!.held!.at;
+    expect(line).toBe(
+      `2 commits and 3 changed files on ${BRANCH} are not pushed, so its machine naps at no cost until ${utcDay(heldAt + 14 * DAY)} UTC, when Boat deletes its disk with them. Send to ${kid8} to have them pushed, or ask the person to delete it.`,
     );
   });
 
