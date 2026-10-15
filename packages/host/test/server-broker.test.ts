@@ -16,10 +16,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
 import { HOST_TOKEN_ENV, PIPE_DAEMON_VERSION, THREAD_ENV, WS_PATH, type TurnResult } from "@wsp/protocol";
 import { createRuntime, memoryStore, type HarnessAdapterContext, type HarnessAdapterFactory, type Runtime } from "@wsp/runtime";
-import { createOn, stubBackend, tokenGuest, type StubBackend, type StubMachine } from "../../runtime/test/stub-backend.js";
+import { LocalBackend } from "@wsp/engine";
+import { writeStub } from "../../protocol/test/stub-script.js";
+import { createOn, fakeLocal, stubBackend, tokenGuest, type StubBackend, type StubMachine } from "../../runtime/test/stub-backend.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
 import { anthropicService } from "../src/anthropic/service.js";
-import { DEAD_TOKEN_SAID, REVOKED_SAID } from "../src/broker/refuse.js";
+import { DEAD_TOKEN_SAID, REVOKED_SAID, UNHELD_SAID } from "../src/broker/refuse.js";
+import type { BrokerService } from "../src/broker/types.js";
 import { brokerLogDir, hostBroker, type HostBroker } from "../src/server-broker.js";
 import { startHost, type HostHandle } from "../src/server.js";
 
@@ -50,6 +53,16 @@ async function upstream(): Promise<{ url: string; seen: IncomingHttpHeaders[]; r
   cleanups.push(() => new Promise<void>(resolve => server.close(() => resolve())));
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen, release: () => held.splice(0).forEach(answer => answer()) };
 }
+
+/** gh on this computer as GitHub answers it for any repo: its id and name, and the tip a branch of record starts from. */
+const GH = `#!/bin/sh
+[ "$*" = "auth token --hostname github.com" ] && { echo gho_TESTONLY; exit 0; }
+case "$2" in
+  repos/*/commits/*) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;
+  repos/*) r=\${2#repos/}; printf '4242\\t%s\\t%s\\n' "\${r%%/*}" "\${r#*/}" ;;
+  *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+esac
+`;
 
 type Daemon = Awaited<ReturnType<typeof standInDaemon>>;
 
@@ -128,24 +141,46 @@ function modelCall(daemon: Daemon, ctx: HarnessAdapterContext, more: Record<stri
   });
 }
 
-/** The same call on a pipe handed straight to the runtime's pipe port, as one the daemon took before its machine went. */
-function heldPipeCall(broker: HostBroker, workspaceId: string, token: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string }> {
+/** One request over a connection to the broker. */
+function callOn(local: Duplex, o: { method: string; path: string; headers: Record<string, string>; body?: string }): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = request({ createConnection: () => local as never, method: o.method, path: o.path, headers: o.headers }, res => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    req.on("error", reject);
+    req.end(o.body);
+  });
+}
+
+/** A pipe handed straight to the runtime's pipe port, as one the daemon took before its machine went: its client end. */
+function handed(broker: HostBroker, workspaceId: string): Duplex {
   const toHost = new PassThrough();
   const toClient = new PassThrough();
   const host = Duplex.from({ readable: toHost, writable: toClient });
   const client = Duplex.from({ readable: toClient, writable: toHost });
   for (const end of [toHost, toClient, host, client]) end.on("error", () => undefined);
   broker.port.pipe!(workspaceId, { op: "pipe.open", door: "http", heldMs: 0 }, host);
-  return new Promise((resolve, reject) => {
-    const req = request({ createConnection: () => client as never, method: "POST", path: "/v1/messages", headers: { host: "127.0.0.1:7071", "anthropic-version": "2023-06-01", "x-api-key": token, ...headers } }, res => {
-      const chunks: Buffer[] = [];
-      res.on("data", (c: Buffer) => chunks.push(c));
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
-    });
-    req.on("error", reject);
-    req.end("{}");
-  });
+  return client;
 }
+
+/** A model call on a pipe handed straight to the runtime's pipe port. */
+const heldPipeCall = (broker: HostBroker, workspaceId: string, token: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string }> =>
+  callOn(handed(broker, workspaceId), { method: "POST", path: "/v1/messages", headers: { host: "127.0.0.1:7071", "anthropic-version": "2023-06-01", "x-api-key": token, ...headers }, body: "{}" });
+
+/** git's first call of a clone through the host's git road, as brokeredGitEnv sends it: an absolute-form URL to the
+ * proxy at the daemon's door, the token as the proxy's password. */
+const gitCall = (local: Duplex, token: string): Promise<{ status: number; body: string }> =>
+  callOn(local, { method: "GET", path: "http://github.com/acme/lab.git/info/refs?service=git-upload-pack", headers: { host: "github.com", "proxy-authorization": `Basic ${Buffer.from(`wsp:${token}`).toString("base64")}` } });
+
+/** The git road as the broker hands it a call: a stand-in that answers every github.com fetch it is given. */
+const GIT_DOOR_SAID = "the git door answered";
+const gitDoor: BrokerService = {
+  id: "git",
+  claims: (req, door) => door === "http" && req.url?.startsWith("http://github.com/") === true,
+  serve: async ({ res }) => void res.writeHead(200, { "content-type": "text/plain" }).end(GIT_DOOR_SAID),
+};
 
 interface Turn {
   ctx: HarnessAdapterContext;
@@ -182,7 +217,7 @@ function claudeTurns(daemon: Daemon): { factory: HarnessAdapterFactory; turns: T
   return { factory, turns };
 }
 
-async function served(): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
+async function served(o: { gh?: string } = {}): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
   const dir = mkdtempSync(join(tmpdir(), "wsp-server-broker-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const statePath = join(dir, "state.json");
@@ -198,7 +233,7 @@ async function served(): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: ()
     hostBroker({
       statePath,
       vault: () => VAULT,
-      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" })],
+      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" }), gitDoor],
       signIns: { anthropic: { gateway: none, helper: none, login: none }, codex: { credential: none, claims: none } },
       run: async (file, args) => (ran.push([file, ...args]), { code: 1, stdout: "" }),
     });
@@ -213,7 +248,11 @@ async function served(): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: ()
     m.previewUrl = async () => ({ url: daemon.url, token: "e", expiresAt: Date.now() + 3_600_000 });
     return m;
   };
-  const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: factory }, vault: () => VAULT, broker: broker.port });
+  const bin = join(dir, "bin");
+  mkdirSync(bin, { recursive: true });
+  if (o.gh !== undefined) writeStub(join(bin, "gh"), o.gh);
+  const local = o.gh === undefined ? {} : { local: { ...fakeLocal(join(dir, "home")), backend: new LocalBackend({ root: join(dir, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } };
+  const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: factory }, vault: () => VAULT, broker: broker.port, ...local });
   const host = async (): Promise<HostHandle> => {
     const handle = await startHost({ runtime: rt, webDir, port: 0, statePath, broker, checkKey: async () => ({ works: true, account: "acme-dev", plan: "$20 plan", running: 0, limit: 100 }) });
     let closed: Promise<void> | undefined;
@@ -333,6 +372,51 @@ describe("the broker the host serves", () => {
     expect(s.seen).toHaveLength(4);
     // The broker reads the workspace on every call; the project repo's id gh could not read was asked for once.
     expect(s.ran.filter(args => args[1] === "api")).toEqual([["gh", "api", expect.stringMatching(/^repos\//), "--jq", ".id"]]);
+  });
+
+  it("carries a create's own clone to the git door while the machine is still being made", async () => {
+    const s = await served({ gh: GH });
+    await s.host();
+    const answered: Array<{ status: number; body: string }> = [];
+    // The machine's git reaches github.com through a pipe the create dialled to its daemon's door, with the op token
+    // the create minted for its clone, read off the proxy its git config names.
+    s.backend.execImpl = async (m, cmd) => {
+      const token = cmd.includes("clone") ? /wsp:([^@]+)@127\.0\.0\.1/.exec(cmd)?.[1] : undefined;
+      if (token === undefined) return tokenGuest(m, cmd);
+      await expect.poll(() => s.daemon.parked.length, { timeout: 10_000 }).toBeGreaterThan(0);
+      const got = await gitCall(s.daemon.door(0), token);
+      answered.push(got);
+      return got.status === 200 ? { exitCode: 0, stdout: "", stderr: "" } : { exitCode: 128, stdout: "", stderr: got.body };
+    };
+    const ws = await createOn(s.rt, { golden: "snap_g", name: "acme-lab" });
+    expect(ws.branchOfRecord?.branch).toBe("wsp/acme-lab");
+    expect(answered).toEqual([{ status: 200, body: GIT_DOOR_SAID }]);
+  });
+
+  it("tells a machine whose workspace it does not hold from one it revoked", async () => {
+    const s = await served();
+    await s.host();
+    const gone = await s.rt.devices.mint("terminal th-acme-gone", { kind: "thread", threadId: "th-acme-gone", workspaceId: "ws_acme_gone", rootThreadId: "th-acme-gone" }, Date.now());
+    const said = await gitCall(handed(s.broker, "ws_acme_gone"), gone.deviceToken);
+    expect(said.status).toBe(403);
+    expect(said.body).toBe(`${UNHELD_SAID}\n`);
+  });
+
+  it("refuses as revoked a machine switched off while its create still runs", async () => {
+    const s = await served({ gh: GH });
+    await s.host();
+    const answered: Array<{ status: number; body: string }> = [];
+    s.backend.execImpl = async (m, cmd) => {
+      const token = cmd.includes("clone") ? /wsp:([^@]+)@127\.0\.0\.1/.exec(cmd)?.[1] : undefined;
+      if (token === undefined) return tokenGuest(m, cmd);
+      const id = (await s.rt.devices.list()).find(d => d.name.startsWith("op clone"))!.scope!.workspaceId;
+      await s.broker.port.revoke!(id);
+      const got = await gitCall(handed(s.broker, id), token);
+      answered.push(got);
+      return { exitCode: 128, stdout: "", stderr: got.body };
+    };
+    await expect(createOn(s.rt, { golden: "snap_g", name: "acme-lab" })).rejects.toThrow(REVOKED_SAID);
+    expect(answered).toEqual([{ status: 403, body: `${REVOKED_SAID}\n` }]);
   });
 
   it("keeps a machine whose provider delete failed cut off after the host restarts, and lets a lifted one through", async () => {
