@@ -25,6 +25,7 @@ async function until(cond: () => boolean, ms = 3000): Promise<void> {
 async function harness(): Promise<{ server: Server; port: number; heard: string[] }> {
   const heard: string[] = [];
   const server = createServer(c => {
+    c.on("error", () => {});
     c.on("data", d => {
       heard.push(d.toString("utf8"));
       c.end("HTTP/1.1 200 OK\r\ncontent-length: 9\r\nconnection: close\r\n\r\nsigned in");
