@@ -9,6 +9,8 @@ import { HERE_PLACE_ID, namesPlace } from "./place-word.js";
 import type { ProjectSource, ProjectView, WorkspaceKind, WorkspaceProject } from "./index.js";
 import { folderName, underProject } from "./project-path.js";
 import { shellQuote } from "./shell-quote.js";
+import { EXEC_DEADLINE_EXIT } from "./wire/daemon.js";
+import { lastLine } from "./words/base.js";
 import { kindWords, workspaceKind } from "./workspace-state.js";
 
 /** What a caller is told once a project is recorded: what it is called, where its code comes from, the computer it
@@ -165,6 +167,19 @@ export function cloneFailedLine(said: string): string {
   const last = said.trimEnd().split("\n").at(-1)?.trim() ?? "";
   if (last === "") return "the clone failed and said nothing";
   return SIGN_IN_FAILURE.test(said) ? `${last}; sign in with gh auth login, or use the repo's ssh url` : last;
+}
+
+/** Why a clone on a machine failed, in one sentence: the host's refusal where its broker refused git, else git's own
+ * last line, or where git said nothing past the line it opens a clone with, that the clone ran out of its time or how
+ * it ended. git prints the broker's sentence as a `remote: wsp: ` line above its own 403 line, which names no reason. */
+export function cloneOnMachineFailedLine(o: { repo: string; on: string; exitCode: number; said: string; limitMs: number }): string {
+  const clone = `the clone of ${o.repo} on ${o.on}`;
+  const host = /^remote: wsp: (.+)$/m.exec(o.said)?.[1]?.trim();
+  if (host !== undefined) return `${clone} failed: ${host}`;
+  const last = lastLine(o.said);
+  if (last !== undefined && !last.startsWith("Cloning into ")) return `${clone} failed: ${last}`;
+  if (o.exitCode === EXEC_DEADLINE_EXIT) return `${clone} did not finish in ${Math.round(o.limitMs / 60_000)} minutes, and git said nothing past its start`;
+  return `${clone} ended with exit ${o.exitCode}, and git said nothing past its start`;
 }
 
 /** Why a folder on this computer seeding a project on another computer needs the person's answer first: what git

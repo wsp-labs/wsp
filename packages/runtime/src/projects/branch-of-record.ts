@@ -6,7 +6,7 @@
 // on this computer, whose login is the one the host adds to every push.
 import { gitHostOf, remoteHost } from "@wsp/catalog";
 import { envExec, INLINE_EXEC_MS, LOCAL_MACHINE_ID, withEnvFromInput } from "@wsp/engine";
-import { branchOfRecordUnreadRefusal, brokeredGitHubOnlyRefusal, cloneNoThreadRefusal, forkHeadGoneRefusal, forkNotPushableRefusal, lastLine, ownerRepoOf, shellLine, subBranchOf, type BranchOfRecord, type ProjectView } from "@wsp/protocol";
+import { branchOfRecordUnreadRefusal, brokeredGitHubOnlyRefusal, cloneNoThreadRefusal, cloneOnMachineFailedLine, forkHeadGoneRefusal, forkNotPushableRefusal, lastLine, ownerRepoOf, shellLine, subBranchOf, type BranchOfRecord, type ProjectView } from "@wsp/protocol";
 import { brokeredGitEnv, onRecordLines } from "../project-landing.js";
 import { CLONE_MS, type LiveWorkspace, type WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
@@ -106,12 +106,15 @@ export async function withOpToken<T>(ctx: RuntimeContext, entry: LiveWorkspace, 
 
 /** Puts a brokered workspace's checkout on its branch of record, cloning first where `clone` holds the clone's lines,
  * through the host with an op token, and records the commit it started from where the record left that to the
- * machine. Refused with git's own last line. */
+ * machine. Refused with git's own last line, and a clone where git said nothing past its start with how it ended. */
 export async function landOnRecord(ctx: RuntimeContext, entry: LiveWorkspace, project: ProjectView, clone: readonly string[] | undefined): Promise<void> {
   const ofRecord = entry.record.branchOfRecord!;
   const lines = clone ?? ["set -e", ...onRecordLines({ checkout: project.path, ofRecord, origin: ownerRepoOf(project.remote) ?? "", held: entry.ofRecordHeld === true })];
   const ran = await withOpToken(ctx, entry, "clone", env => envExec(entry.machine, withEnvFromInput(lines.join("\n")), env, { timeoutMs: CLONE_MS }));
-  if (ran.exitCode !== 0) throw new Error(lastLine(ran.stderr) ?? lastLine(ran.stdout) ?? `git exited ${ran.exitCode}`);
+  if (ran.exitCode !== 0) {
+    if (clone === undefined) throw new Error(lastLine(ran.stderr) ?? lastLine(ran.stdout) ?? `git exited ${ran.exitCode}`);
+    throw new Error(cloneOnMachineFailedLine({ repo: ownerRepoOf(project.remote) ?? project.remote, on: ctx.placeName(entry.record.place ?? ctx.places.wired), exitCode: ran.exitCode, said: ran.stderr || ran.stdout, limitMs: CLONE_MS }));
+  }
   const at = lastLine(ran.stdout);
   if (ofRecord.startSha !== undefined || at === undefined || !/^[0-9a-f]{40}$/.test(at)) return;
   entry.record.branchOfRecord = { ...ofRecord, startSha: at };
