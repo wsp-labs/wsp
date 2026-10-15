@@ -467,6 +467,7 @@ export interface DaemonArea {
   readonly deployDaemonOn: (entry: LiveWorkspace, deploy: (e: LiveWorkspace) => Promise<void | string>) => Promise<void | string>;
   readonly daemonSyncs: Map<string, Promise<void>>;
   readonly syncDaemon: (entry: LiveWorkspace) => Promise<void>;
+  readonly daemonSettled: (entry: LiveWorkspace) => Promise<void>;
   readonly revivedAt: Map<string, MachineMoment>;
   readonly unreadAt: Map<string, MachineMoment>;
   readonly unreached: Map<string, { machineId: string; line: string }>;
