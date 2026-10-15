@@ -175,6 +175,7 @@ async function ended(o: BesideOptions, job: InitJob): Promise<number> {
     return 1;
   }
   if (job.golden !== undefined) log.step(`Image v${job.golden.version} sealed on the host serving this state.`, out);
+  for (const said of job.cleanup ?? []) log[said.level](said.line, out);
   if (job.workspace !== undefined) log.step(`Workspace ${job.workspace.name} (${job.workspace.id}) forked from it.`, out);
   if (job.place !== undefined && subThreadsOnly(job.place.id)) subThreadsReady(o.io.output);
   if (o.app !== undefined) {
