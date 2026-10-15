@@ -10,7 +10,7 @@ import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { BROKER_PORT, childStartedLine, ENV_FROM_INPUT, forkNotPushableRefusal, SUB_SHALLOW_LINE, subOpening, subResumePreamble, type Caller, type DaemonResponse, type WorkspaceView } from "@wsp/protocol";
+import { BROKER_PORT, childStartedLine, ENV_FROM_INPUT, EXEC_DEADLINE_EXIT, forkNotPushableRefusal, SUB_SHALLOW_LINE, subOpening, subResumePreamble, type Caller, type DaemonResponse, type WorkspaceView } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import { brokeredGitEnv, cloneLines, onRecordLines } from "../src/project-landing.js";
 import { projectSource } from "../src/project-sources.js";
@@ -313,7 +313,7 @@ const answering: HarnessAdapterFactory = () => ({
 /** A host whose provider takes input on each command and answers where a checkout stands, gh on this computer
  * answering for acme/web, every daemon frame kept, and a broker that answers ready when told; one project of
  * acme/web at the provider, recorded on main, whose image holds its checkout where `image` says so. */
-async function onProvider(o: { leadBranch?: string; image?: true } = {}) {
+async function onProvider(o: { leadBranch?: string; image?: true; clone?: { exitCode: number; stderr: string } } = {}) {
   const root = scratch();
   const bin = join(root, "bin");
   mkdirSync(bin);
@@ -335,6 +335,7 @@ async function onProvider(o: { leadBranch?: string; image?: true } = {}) {
       const held = token === undefined ? undefined : await rt.devices.match(token);
       stdin.push({ machine: m.id, cmd, input, ...(held?.scope !== undefined ? { scope: held.scope } : {}) });
       m.execLog.push(cmd);
+      if (o.clone !== undefined && cmd.includes("git clone")) return { ...o.clone, stdout: "" };
       return { exitCode: 0, stdout: cmd.endsWith("git -C /root/web rev-parse HEAD") ? `${IMAGE_SHA}\n` : "", stderr: "" };
     };
     return m;
@@ -446,6 +447,24 @@ describe("a workspace's clone at a provider", () => {
     await second.finished;
     expect(second.view().threadId).not.toBe(scope!.threadId);
     expect(backend.machines.filter(m => m.id === ws.machineId)).toHaveLength(1);
+  });
+
+  it("whose clone fails, says why in one sentence: the host's refusal, git's own error, or that it ran out of time where git said only that it began", async () => {
+    const started = "Cloning into '/root/web'...\n";
+    const refused = "fatal: unable to access 'http://github.com/acme/web/': The requested URL returned error: 403";
+    const hostSaid = "this call's token is not live on your computer, since the turn that held it has ended. Send the thread a new message.";
+    for (const [clone, said] of [
+      [{ exitCode: 128, stderr: `${started}remote: wsp: ${hostSaid}\n${refused}\n` }, `failed: ${hostSaid}`],
+      [{ exitCode: EXEC_DEADLINE_EXIT, stderr: started }, "did not finish in 5 minutes, and git said nothing past its start"],
+      [{ exitCode: 128, stderr: started }, "ended with exit 128, and git said nothing past its start"],
+      [{ exitCode: 128, stderr: `${started}${refused}\n` }, `failed: ${refused}`],
+    ] as const) {
+      const { rt, broker, project } = await onProvider({ clone });
+      broker.on = true;
+      const made = rt.workspaces.create({ project: project.id, golden: "snap_g", name: "pricing page" });
+      await expect(made).rejects.toThrow(new RegExp(`^the clone of acme/web on \\S+ ${said.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+      await rt.close();
+    }
   });
 
   it("names wsp/<slug> numbered past a branch another thread of this host holds, a sub-thread's or a branch of record, or the remote has", async () => {
