@@ -4,7 +4,7 @@
 // released or deleted when it comes, since a Boat box stopped 18 days still
 // resumed whole; a wake that finds the disk gone says so (sub-resume).
 import { afterEach, describe, expect, it } from "vitest";
-import { subOpening } from "@wsp/protocol";
+import { subOpening, type SessionView } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
 import { UNPUSHED, answering, jumpClock, leadOnThisComputer, until } from "./sub-fixture.js";
@@ -34,16 +34,25 @@ async function heldNapping() {
   const machine = held.boat.machines.at(-1)!;
   const kidId = child.view().threadId!;
   const notices: string[] = [];
+  const rows: SessionView[] = [];
   held.rt.events.on("*", e => {
     if (e.type === "session.notice" && e.threadId === kidId) notices.push(e.text);
+    if (e.type === "session.row" && e.threadId === kidId && e.row !== undefined) rows.push(e.row);
   });
   await child.finished;
   const record = (): Promise<WorkspaceRecord> => held.store.get("workspaces", made.id) as Promise<WorkspaceRecord>;
   await until(async () => ((await record()).phase === "napping" ? true : undefined), "the nap");
-  return { ...held, clock, jump, made, machine, kidId, notices, record };
+  return { ...held, clock, jump, made, machine, kidId, notices, rows, record };
 }
 
 describe("a held sub-thread on a cloud that may delete a paused disk", () => {
+  it("pushes its row with the day when its machine naps, so an open window needs no reload", async () => {
+    const held = await heldNapping();
+    const ends = (await held.record()).nappedAt! + KEPT;
+    const row = await until(async () => held.rows.find(r => r.diskKeptUntil !== undefined), "a pushed row with the day");
+    expect(row.diskKeptUntil).toBe(ends);
+  });
+
   it("is neither released nor deleted at the day the keep runs out, and its row keeps carrying that day", async () => {
     const held = await heldNapping();
     const ends = (await held.record()).nappedAt! + KEPT;

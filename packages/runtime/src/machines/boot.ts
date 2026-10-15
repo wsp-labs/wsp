@@ -876,6 +876,10 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       case "thread.marked":
         for (const threadId of e.threadIds) rowMoved(e.workspaceId, threadId);
         return;
+      case "workspace.napped":
+        // The day a cloud may delete the disk counts from the nap, and every row on the machine carries it.
+        for (const s of sessions.values()) if (s.view.workspaceId === e.workspaceId) rowMoved(e.workspaceId, threadKeyOf(s.view));
+        return;
       case "session.start":
         // The row held under the turn's id while it reached the machine is now under the harness's.
         if (e.turnId !== undefined && e.turnId !== e.sessionId) rowGone(e.turnId, e);
