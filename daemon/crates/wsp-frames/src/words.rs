@@ -137,6 +137,31 @@ pub fn place_unread(path: impl std::fmt::Display) -> String {
     format!("{path}: could not read what is not pushed")
 }
 
+/// What a leave says it took out of a person's own login file: wsp's lines there, and the file. Said on both roads a
+/// leave runs on, and pinned to one text by the contract fixture.
+pub fn place_line_out(lines: impl std::fmt::Display, file: impl std::fmt::Display) -> String {
+    format!("{lines} (out of {file})")
+}
+
+/// What a leave says of wsp's lines it left in a person's own login file, and why. Said on both roads a leave runs
+/// on, and pinned to one text by the contract fixture.
+pub fn place_line_stays(lines: impl std::fmt::Display, file: impl std::fmt::Display, why: impl std::fmt::Display) -> String {
+    format!("{lines} stays in {file}: {why}")
+}
+
+/// Why a leave left a login file unread.
+pub const PLACE_LOGIN_PAST_CAP: &str = "it is over 1 MiB, more than a leave reads of a login file";
+
+/// Why wsp left a person's own login file as it was, on every road that writes wsp's line or takes it out.
+pub const PLACE_LOGIN_LINKED: &str =
+    "it is a link, has a second name or is not a plain file, and wsp writes through none of those in a login file";
+
+/// What a leave says of a login file it did not read, since no plain file stands there. Said on both roads a leave
+/// runs on, and pinned to one text by the contract fixture.
+pub fn place_login_unread(file: impl std::fmt::Display) -> String {
+    format!("wsp's line was not looked for in {file}: {PLACE_LOGIN_LINKED}")
+}
+
 /// Why a path outside the home a leave would have taken is still there: it stood before wsp was added, as the add
 /// wrote down, so it is the computer's own. Said on both roads a leave runs on, and pinned to one text by the
 /// contract fixture.

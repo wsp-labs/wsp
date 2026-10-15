@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { posix } from "node:path";
-import { shellQuote, wspBinIn } from "@wsp/protocol";
+import { PLACE_LOGIN_LINKED, shellQuote, wspBinIn } from "@wsp/protocol";
 import type { DaemonPlace } from "./doctor.js";
 
 /** The one line wsp adds to the person's own login file, and takes back out: their file is theirs, so what wsp
@@ -25,25 +25,47 @@ export const sh = (place: DaemonPlace, path: string): string => (place.quotePath
  * their own. Every line of it exits 0, since the deploy runs under set -e. What the take-out writes back is the
  * file line by line, so a last line the person left without a trailing newline comes back with one. */
 export function unsourceStep(place: DaemonPlace, file: string): string {
-  const copy = `${file}.wsp-out`;
   const named = shellQuote(place.profileFile);
   return [
-    `if [ -f ${sh(place, file)} ] && grep -qF ${named} ${sh(place, file)}; then`,
+    // The copy goes in a folder of its own that only this run can write, never at a name beside the file: a workspace
+    // writes in this home, and a link or a fifo it put there would take the write, as root, or hold it.
+    `if [ -f ${sh(place, file)} ] && grep -qF ${named} ${sh(place, file)} && taken=$(mktemp -d); then`,
     "  kept=0",
-    `  grep -vF ${named} ${sh(place, file)} > ${sh(place, copy)} || kept=$?`,
-    `  if [ "$kept" -le 1 ]; then cat ${sh(place, copy)} > ${sh(place, file)}; fi`,
-    `  rm -f ${sh(place, copy)}`,
+    `  grep -vF ${named} ${sh(place, file)} > "$taken/login" || kept=$?`,
+    `  if [ "$kept" -le 1 ]; then cat "$taken/login" > ${sh(place, file)}; fi`,
+    '  rm -rf "$taken"',
     "fi",
   ].join("\n");
 }
 
-/** wsp's line in the person's own login file as this version spells it: the lines naming wsp's profile file taken
+/** What the login step prints for a login file it left as it was, before the path. */
+export const LOGIN_KEPT_LINE = "WSP_LOGIN_KEPT";
+
+/** What the add's log says of that file. */
+export const loginKeptLine = (file: string): string => `wsp's line was not written in ${file}: ${PLACE_LOGIN_LINKED}`;
+
+/** The test that holds where a login file is a link, dangling or not, a file with a second name, or something that
+ * stands and is not a plain file. A workspace on a computer somebody owns writes in this home: a write through a link
+ * or a second name would land, as root, in a file elsewhere, and an append to a fifo waits for a reader for good. The
+ * leave over the link and the leave at the box hold the same rule. */
+export const linkedLoginTest = (place: DaemonPlace, file: string): string =>
+  `{ [ -L ${sh(place, file)} ] || { [ -e ${sh(place, file)} ] && [ ! -f ${sh(place, file)} ]; } || [ -n "$(find ${sh(place, file)} -maxdepth 0 -links +1 2>/dev/null)" ]; }`;
+
+/** wsp's line in the person's own login files as this version spells it: the lines naming wsp's profile file taken
  * out first, so a second deploy replaces the line rather than sitting beside it, then this one appended, which
- * makes the file where the login has none. Nothing at all for a place whose profile file is wsp's own to load. */
+ * makes the first file where the login has none and goes in each of the others only where it stands. A file that
+ * is a link or has a second name is left as it is and named. Nothing at all for a place whose profile file is wsp's
+ * own to load. */
 export function profileSourceStep(place: DaemonPlace): string[] {
-  const file = place.profileSource;
-  if (file === undefined) return [];
-  return [unsourceStep(place, file), `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`];
+  const [first, ...rest] = place.profileSources ?? [];
+  if (first === undefined) return [];
+  const sourced = (file: string): string[] => [
+    `if ${linkedLoginTest(place, file)}; then echo ${LOGIN_KEPT_LINE} ${sh(place, file)}; else`,
+    unsourceStep(place, file),
+    `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`,
+    "fi",
+  ];
+  return [...sourced(first), ...rest.flatMap(file => [`if [ -e ${sh(place, file)} ] || [ -L ${sh(place, file)} ]; then`, ...sourced(file), "fi"])];
 }
 
 /** The login files this wsp puts on a machine: its own profile file, holding the browser shim and the display

@@ -9,12 +9,13 @@ import { promisify } from "node:util";
 import { appendFileSync, chmodSync, existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { configHardLinkRefusal, PLACE_DOOR_UNSERVED, doorPortHeldLine, joinToken, placeDaemonPaths, placeOwnedPaths, shellQuote, workFolderIn, type PlaceDoorView } from "@wsp/protocol";
+import { PLACE_DOOR_UNSERVED, doorPortHeldLine, joinToken, placeDaemonPaths, placeOwnedPaths, shellQuote, workFolderIn, type PlaceDoorView } from "@wsp/protocol";
 import { SSH_LINE_CAP, keyFingerprint } from "@wsp/engine";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, addFound, addFoundScript, addUndoScript, joinedAddWrites, joinedPlace, profileSourceLine } from "../src/doctor.js";
 import { refusedPort } from "../../runtime/test/held-port.js";
-import { addCommand, placeHeldRefusal, reachScript, reachedUrls, unreachedLine, hostKeyHere, placeUnit } from "../src/places.js";
-import { heldPlaceScript } from "@wsp/protocol";
+import { addCommand, placeBrokenRefusal, placeHeldRefusal, reachScript, reachedUrls, unreachedLine, hostKeyHere, placeUnit } from "../src/places.js";
+import { heldPlaceFile, heldPlaceScript, PLACE_HELD_LINE, PLACE_LOGIN_LINKED, placeFileText, placeLineStaysLine, readHeldPlace } from "@wsp/protocol";
+import { joinStanding } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { fakeRunner, noBoxSignIn, opts, sweepPlace, tmp } from "./places-fixture.js";
@@ -186,13 +187,55 @@ describe("the place file an add reads off a box before anything lands", () => {
     const file = placeDaemonPaths(home).placeFile;
     mkdirSync(dirname(file), { recursive: true });
     const run = async (): Promise<string> => (await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { timeout: 10_000, maxBuffer: 1 << 24 })).stdout;
+    const mark = `\n${PLACE_HELD_LINE}\n`;
     writeFileSync(file, "x".repeat(200_000));
-    expect((await run()).length).toBe(65_536);
+    expect((await run()).length).toBe(mark.length + 65_536);
     rmSync(file);
     symlinkSync("/dev/zero", file);
-    expect((await run()).length).toBe(65_536);
+    expect((await run()).length).toBe(mark.length + 65_536);
     rmSync(file);
-    expect(await run()).toBe("");
+    expect(await run()).toBe(mark);
+  });
+
+  it("reads what stands there as the join on that box reads it: joined, nothing, or broken at the path that stands", async () => {
+    const home = tmp("held-broken");
+    const at = placeDaemonPaths(home);
+    // A login whose rc file prints: bash reads ~/.bashrc before the command when its stdin is a socket, as sshd
+    // hands it one, and a node pipe is a socketpair.
+    writeFileSync(join(home, ".bashrc"), 'echo "Welcome to box"\n');
+    const read = async () => {
+      const said = (await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { timeout: 10_000, env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout;
+      expect(said.startsWith("Welcome to box\n")).toBe(true);
+      return readHeldPlace(said, home);
+    };
+    const file = placeFileText({ placeId: "p_1", name: "box", hostName: "studio", hostUrls: [], hostPublicKey: "c3R1ZGlv", keyPath: at.placeKey, joinedAt: "2026-10-15T00:00:00Z" });
+    const states: [string, () => void][] = [
+      ["no wsp folder at all", () => {}],
+      ["nothing", () => mkdirSync(at.wsp, { recursive: true })],
+      ["a place file", () => writeFileSync(at.placeFile, file)],
+      ["a file that does not parse", () => writeFileSync(at.placeFile, '{"placeId": "p_1", "na')],
+      ["an empty file", () => writeFileSync(at.placeFile, "")],
+      ["a dangling link", () => symlinkSync(join(home, "nowhere.json"), at.placeFile)],
+      ["a key with no file beside it", () => writeFileSync(at.placeKey, "k")],
+    ];
+    for (const [name, make] of states) {
+      rmSync(at.placeFile, { force: true });
+      rmSync(at.placeKey, { force: true });
+      make();
+      expect(await read(), name).toEqual(joinStanding(home));
+    }
+    expect(joinStanding(home)).toEqual({ broken: at.placeKey });
+    // The place file the readers that ask which computer a login reaches read off the same answer.
+    rmSync(at.placeKey);
+    writeFileSync(at.placeFile, file);
+    expect(heldPlaceFile((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout)).toEqual(JSON.parse(file));
+    // An rc file whose last line has no newline still leaves the read's own line on a line of its own.
+    writeFileSync(join(home, ".bashrc"), "printf 'Welcome to box'\n");
+    expect(heldPlaceFile((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout)).toEqual(JSON.parse(file));
+    writeFileSync(at.placeFile, '{"placeId": "p_1", "na');
+    expect(readHeldPlace((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout, home)).toEqual({ broken: at.placeFile });
+    // A read that never ran says nothing about the box, whatever the login printed before it failed.
+    expect(readHeldPlace("Welcome to box\nsudo: a password is required\n", home)).toBeUndefined();
   });
 
   it("names another wsp's host in one bounded line with nothing the box wrote to move the terminal, and a url only where it is one", () => {
@@ -206,6 +249,13 @@ describe("the place file an add reads off a box before anything lands", () => {
     expect(placeHeldRefusal("root@spoo", { ...held, hostUrls: [`http://h/${"a".repeat(9000)}`] }, undefined)).not.toContain("http://h/");
     expect(placeHeldRefusal("root@spoo", { ...held, hostPublicKey: "dGhpcyBob3N0" }, keyFingerprint("dGhpcyBob3N0"))).toBe("root@spoo is already a place in this wsp as spoo]0;owned");
     expect(placeHeldRefusal("root@spoo", { ...held, hostPublicKey: "dGhpcyBob3N0" }, keyFingerprint("dGhpcyBob3N0"), ["p_x"])).toBe("root@spoo is already a place in this wsp as spoo]0;owned");
+  });
+
+  it("keeps the leave whole in the broken join's refusal however long the address and the box's home are", () => {
+    const said = placeBrokenRefusal(`maya@${"b".repeat(250)}`, `/home/${"m".repeat(250)}/.wsp/place.json`, "sudo -i wsp leave");
+    expect(said.length).toBeLessThanOrEqual(SSH_LINE_CAP);
+    expect(said).toMatch(/; sudo -i wsp leave on it removes it, then add it again$/);
+    expect(placeBrokenRefusal("maya@box\x1b[2J", "/root/.wsp/place.json", "wsp leave")).not.toMatch(/[\x00-\x1f]/);
   });
 
   it("names wsp leave for a box still carrying a place this wsp forgot, rather than a place it no longer lists", () => {
@@ -313,7 +363,7 @@ describe("the sweep a computer runs on itself", () => {
     const swept = await sweepPlace({ home, manager: undefined, run: fakeRunner().run });
     expect(readFileSync(join(home, "profile-twin"), "utf8")).toBe(`# theirs\n${line}\n`);
     expect(readFileSync(join(home, ".profile"), "utf8")).toBe(`# theirs\n${line}\n`);
-    expect(swept.kept).toContain(`${line} stays in ${join(home, ".profile")}: ${configHardLinkRefusal(join(home, ".profile"))}`);
+    expect(swept.kept).toContain(placeLineStaysLine(line, join(home, ".profile"), PLACE_LOGIN_LINKED));
   });
 
   it("leaves a login file it never wrote to exactly as it was", async () => {
