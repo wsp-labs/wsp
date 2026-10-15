@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What a wsp executable does at start, shared by the npm bin and the command
-// the desktop app bundles: quiet node's own line about node:sqlite, run the
-// command line, turn its answer into an exit code, and take away anything the
-// command stood up that would otherwise keep this process here.
+// the desktop app bundles: quiet node's own line about node:sqlite, give each
+// address of a name two seconds to connect, run the command line, turn its
+// answer into an exit code, and take away anything the command stood up that
+// would otherwise keep this process here.
+import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { verbFailure } from "@wsp/protocol";
 import { cli } from "./cli.js";
 import { closeStandInGuests } from "./fake-guest.js";
@@ -20,10 +22,20 @@ function quietSqliteWarning(): void {
   }
 }
 
+/** How long each address of a name is given to connect before the next is tried. node gives 250 ms and drops the
+ * attempt it gives up on, so on a road where every connect takes longer (Boat over NAT64 or IPv4, 260 to 280 ms,
+ * measured 2026-10-15) a fetch fails that curl makes. */
+const CONNECT_ATTEMPT_MS = 2_000;
+
+export function connectPatiently(): void {
+  setDefaultAutoSelectFamilyAttemptTimeout(CONNECT_ATTEMPT_MS);
+}
+
 /** Runs the command line in this process and sets its exit code; `run` is how this process was started, for the
  * MCP install to write into an agent's config. */
 export function runBin(argv: string[], run?: RunningWsp): void {
   quietSqliteWarning();
+  connectPatiently();
   // A command that serves never returns here, so the close below runs only once a command's work is done: the
   // daemons a stand-in provider's machines were given are listening sockets, and a verb that dialled one printed
   // its whole answer and then sat at a prompt that never came back.
