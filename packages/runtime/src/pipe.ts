@@ -25,6 +25,38 @@ export const PIPE_BEHIND_AGAIN_MS = 60_000;
 /** The most pipes dialled to one workspace in any second. A machine's agent is root there and can take every pipe
  * the moment it is authed, so the host's own sockets are bounded by this and by PIPE_POOL_MAX, never by the machine. */
 export const PIPE_DIAL_RATE = 4;
+/** The longest wait between two writes of the host's token to a machine whose daemon keeps refusing it. A refusal
+ * within twice this of the host's last write follows that write, since another writer waits no longer than this. */
+export const TOKEN_REFUSED_MAX_MS = 30 * 60_000;
+
+/** One road's count of a daemon refusing the host's token. The host writes its own token there again and dials after
+ * PIPE_BEHIND_AGAIN_MS, and twice as long for each refusal that follows its own write: two writers of one file cut each
+ * other's sockets, and backing off is what keeps that from happening every minute. */
+export function tokenRefusals(firstMs = PIPE_BEHIND_AGAIN_MS): { refused(now: number): { count: number; waitMs: number }; wrote(now: number): void } {
+  let count = 0;
+  let wroteAt: number | undefined;
+  return {
+    refused(now) {
+      count = wroteAt !== undefined && now - wroteAt < 2 * TOKEN_REFUSED_MAX_MS ? count + 1 : 1;
+      wroteAt = undefined;
+      return { count, waitMs: Math.min(firstMs * 2 ** (count - 1), TOKEN_REFUSED_MAX_MS) };
+    },
+    wrote(now) {
+      wroteAt = now;
+    },
+  };
+}
+
+const waitWords = (ms: number): string => (ms < 120_000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60_000)} min`);
+
+/** What a road says the count'th time in a row a daemon refuses the host's token: the first refusal and the first one
+ * after the host's own write, and nothing after that until a refusal stops following a write. */
+export function tokenRefusedLine(who: string, road: string, count: number, waitMs: number): string | undefined {
+  if (count === 1) return `${who}: its daemon refused the token ${road}, so the host writes its own there again and dials in ${waitWords(waitMs)}`;
+  if (count === 2)
+    return `${who}: its daemon refused the host's token again right after the host wrote it, so something else writes that file too; the host writes its own there again and dials in ${waitWords(waitMs)}, waiting twice as long each time up to ${waitWords(TOKEN_REFUSED_MAX_MS)}`;
+  return undefined;
+}
 
 /** Where each taken pipe goes: the workspace whose link it was dialled on, never anything the machine said. */
 export type PipeHandler = (workspaceId: string, open: PipeOpen, duplex: Duplex) => void;
@@ -46,6 +78,8 @@ export interface PipePoolOptions {
   handler(): PipeHandler | undefined;
   /** The switch: nothing is dialled while it reads false. */
   ready(): boolean;
+  /** The daemon refused the token: the next reach writes the host's token on the machine again. */
+  rewrite(workspaceId: string): void;
   clock?: Clock;
   backoffMs?: (attempt: number) => number;
   idleMaxMs?: number;
@@ -85,8 +119,7 @@ interface Held {
   dialled: number[];
   pace?: () => void;
   stopped: boolean;
-  /** The daemon refused the token: nothing is dialled until the next up. */
-  halted: boolean;
+  refusals: ReturnType<typeof tokenRefusals>;
   /** The daemon's version was read at or above PIPE_DAEMON_VERSION. */
   serves: boolean;
   asking: boolean;
@@ -145,7 +178,7 @@ export function pipePool(o: PipePoolOptions): PipePool {
   /** Dials up to PIPE_IDLE idle pipes, with every socket of the workspace, taken or idle, inside PIPE_POOL_MAX: past
    * it the daemon holds the next connection until a taken pipe closes. */
   const fill = (h: Held): void => {
-    if (h.stopped || h.halted || h.asking || h.retry !== undefined || h.pace !== undefined) return;
+    if (h.stopped || h.asking || h.retry !== undefined || h.pace !== undefined) return;
     if (!o.ready()) return wait(h);
     if (!h.serves) return ask(h);
     if (h.taken.size >= PIPE_POOL_MAX && !h.saidFull) {
@@ -186,7 +219,7 @@ export function pipePool(o: PipePoolOptions): PipePool {
   };
   const answered = (h: Held, version: number | null): void => {
     h.asking = false;
-    if (h.stopped || h.halted) return;
+    if (h.stopped) return;
     if (version === null) return wait(h);
     if (version >= PIPE_DAEMON_VERSION) {
       h.serves = true;
@@ -208,13 +241,26 @@ export function pipePool(o: PipePoolOptions): PipePool {
   const linkDown = (h: Held): void => {
     if (h.attempt === 0) log(`${h.id}: a pipe could not be dialled, so its others were closed and the pool is dialled again as the link comes back`);
     endIdle(h);
-    if (!h.stopped && !h.halted) wait(h);
+    if (!h.stopped) wait(h);
   };
 
+  /** The pipes of one dial go together: the rest are ended here, so their own refusals are nobody's news. */
   const refused = (h: Held): void => {
-    log(`${h.id}: its daemon refused the token a pipe was dialled with, so none are dialled until its link comes up again`);
-    h.halted = true;
     endIdle(h);
+    const { count, waitMs } = h.refusals.refused(clock.now());
+    const line = tokenRefusedLine(h.id, "a pipe was dialled with", count, waitMs);
+    if (line !== undefined) log(line);
+    o.rewrite(h.id);
+    h.retry?.();
+    h.retry = clock.schedule(
+      () => {
+        h.retry = undefined;
+        h.refusals.wrote(clock.now());
+        fill(h);
+      },
+      waitMs,
+      { unref: true },
+    );
   };
 
   const retire = (h: Held, pipe: Pipe): void => {
@@ -333,7 +379,7 @@ export function pipePool(o: PipePoolOptions): PipePool {
   return {
     up(id) {
       if (held.has(id)) return;
-      const h: Held = { id, idle: new Set(), taken: new Set(), attempt: 0, dialled: [], stopped: false, halted: false, serves: false, asking: false, saidBehind: false, saidDialling: false, saidFull: false };
+      const h: Held = { id, idle: new Set(), taken: new Set(), attempt: 0, dialled: [], stopped: false, refusals: tokenRefusals(behindAgainMs), serves: false, asking: false, saidBehind: false, saidDialling: false, saidFull: false };
       held.set(id, h);
       fill(h);
     },
@@ -370,6 +416,10 @@ export function pipeArea(ctx: RuntimeContext, brokered: (record: WorkspaceRecord
     },
     handler: () => (broker.pipe === undefined ? undefined : broker.pipe.bind(broker)),
     ready: () => broker.ready(),
+    rewrite: id => {
+      const entry = ctx.live.get(id);
+      if (entry !== undefined) ctx.daemonTokens.delete(entry.machine.id);
+    },
     clock: ctx.clock,
   });
   const upIf = (id: string): void => {
