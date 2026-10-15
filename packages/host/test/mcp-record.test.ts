@@ -343,6 +343,9 @@ function host(): Record<string, unknown> {
   };
 }
 
+/** What the host answers an op the case gave no reply, after the op's name. */
+const NOT_IN_RECORD = "is not in this record";
+
 /** A host as far as one tool call asks it: each op answered with the frame a host would send, parsed as the dial
  * parses it, a refusal thrown with its kind as the dial throws it; the frame under `<op> #<n>` answers that op's nth
  * ask where a case names one, so two records read through one op can differ. Each op it is asked lands in `asked` with its
@@ -363,7 +366,7 @@ function answeringHost(replies: Record<string, string>, asked: Record<string, un
       // A start's request id is minted fresh on every call, so it is noted as the one stand-in both sides write.
       if ("requestId" in fields) fields["requestId"] = "<request id>";
       asked.push(fields);
-      const frame = JSON.parse(replies[`${op} #${nth}`] ?? replies[op] ?? JSON.stringify({ ok: false, error: `${op} is not in this record` })) as Record<string, unknown>;
+      const frame = JSON.parse(replies[`${op} #${nth}`] ?? replies[op] ?? JSON.stringify({ ok: false, error: `${op} ${NOT_IN_RECORD}` })) as Record<string, unknown>;
       for (const f of pushed[op] ?? []) for (const fn of [...listeners]) fn(JSON.parse(f) as Frame);
       if (op === closes) {
         setImmediate(() => {
@@ -900,10 +903,16 @@ describe("the record the daemon binary's tool server serves from", () => {
     const byCase = new Map(cases.map(c => [c.case, JSON.parse(c.line) as { result: { isError?: boolean; structuredContent: Record<string, unknown> } }]));
     expect(byCase.get("rows")!.result.isError).toBeUndefined();
     expect(byCase.get("refused")!.result).toMatchObject({ isError: true, structuredContent: { class: "auth", exit: EXIT_CODES.auth } });
-    // A case whose host answer the tool's own output schema refuses records the SDK's refusal and holds nothing.
+    // A case whose host answer the tool's own output schema refuses records the SDK's refusal and holds nothing, and
+    // one that stops at an op it gave no reply never reaches the road it is named for.
     for (const [rel, text] of files) {
       if (!rel.startsWith("tests/answers/")) continue;
-      for (const c of (JSON.parse(text) as { cases: { case: string; line: string }[] }).cases) expect(c.line, `${rel} ${c.case}`).not.toContain("Output validation error");
+      for (const c of (JSON.parse(text) as { cases: { case: string; line: string; guest?: { line: string } }[] }).cases) {
+        for (const line of [c.line, c.guest?.line ?? ""]) {
+          expect(line, `${rel} ${c.case}`).not.toContain("Output validation error");
+          expect(line, `${rel} ${c.case}`).not.toContain(NOT_IN_RECORD);
+        }
+      }
     }
     // The C1 control and DEL reach stdout escaped, in the text and in the structured copy alike.
     const rows = cases.find(c => c.case === "rows")!.line;
