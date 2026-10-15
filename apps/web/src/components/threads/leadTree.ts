@@ -162,7 +162,7 @@ export function noteOf<N>(node: LeadNode<N>, part: ChildPart, capped?: ThreadCap
   if (thread === null) return undefined;
   if (thread.asking !== null) return thread.asking;
   if (thread.status === "failed") return thread.failure ?? undefined;
-  const sub = thread.sub === undefined ? undefined : subReason(thread.sub, thread.capped, thread.status === "running");
+  const sub = thread.sub === undefined ? undefined : subReason(thread.sub, thread.capped, thread.status === "running", thread.diskKeptUntil);
   if (sub !== undefined) return sub;
   if (thread.capped !== undefined) return capRunningLine(capped ?? thread.capped);
   const replaced = thread.replaces;

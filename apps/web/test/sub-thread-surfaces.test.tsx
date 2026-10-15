@@ -12,6 +12,7 @@ import { resetLive } from "../src/machine/live.js";
 import { useStore } from "../src/protocol/store.js";
 import { useCloudFlow } from "../src/settings/add/cloudFlow.js";
 import { useNotices } from "../src/notices/store.js";
+import { APP_LOCALE } from "../src/lib/timestampFormat.js";
 
 const MIN = 60_000;
 const WS = "ws_fix";
@@ -95,6 +96,13 @@ describe("the strip over a sub-thread's composer", () => {
     expect(said().note).toBe(`They are on ${BRANCH} on this machine. This machine stays until the work is pushed or copied to your computer.`);
   });
 
+  it("names the day from which Boat may delete the disk of a napping machine held over work not pushed", () => {
+    const until = Date.parse("2026-10-26T12:00:00.000Z");
+    mountStrip(row({ diskKeptUntil: until, sub: sub({ held: { commits: 1, files: 0 } }) }));
+    const day = new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" }).format(until);
+    expect(said().note).toBe(`They are on ${BRANCH} on this machine. This machine stays until the work is pushed or copied to your computer, but Boat may delete its disk from ${day}.`);
+  });
+
   it("counts down to the delete of a machine whose work is all pushed", () => {
     mountStrip(row({ sub: sub({ deleteAt: Date.now() + 18 * MIN }) }));
     expect(said()).toEqual({ k: "deleting", title: "Its machine is deleted in 18 min", note: `Everything is pushed to ${BRANCH}. The transcript stays, and a message after the delete starts a new machine.`, acts: [] });
@@ -176,8 +184,13 @@ describe("a sub-machine's pane", () => {
     expect(facts()).toEqual(expect.arrayContaining(["$0.018/hr, $0.008 so far", "Deleted in 18 min"]));
     unmount();
     act(() => useStore.setState({ sessions: { [WS]: [row({ sub: sub({ held: { commits: 2, files: 3 } }) })], [LEAD.id]: [LEAD_ROW] } }));
-    render(<MachineSurface workspaceId={WS} />);
+    const kept = render(<MachineSurface workspaceId={WS} />);
     expect(facts()).toContain("Kept until its work is pushed");
+    kept.unmount();
+    const until = Date.parse("2026-10-26T12:00:00.000Z");
+    act(() => useStore.setState({ sessions: { [WS]: [row({ diskKeptUntil: until, sub: sub({ held: { commits: 2, files: 3 } }) })], [LEAD.id]: [LEAD_ROW] } }));
+    render(<MachineSurface workspaceId={WS} />);
+    expect(facts()).toContain(`Boat may delete its disk from ${new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" }).format(until)}`);
   });
 
   it("reads Deleted, not Gone, once the machine was released, the runtime saying its machine is gone", () => {

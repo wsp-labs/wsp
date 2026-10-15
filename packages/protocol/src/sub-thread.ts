@@ -362,8 +362,14 @@ function heldWords(held: { files: number; commits: number }): string {
 /** The work a done read found not pushed and the branch it is on, as the open thread's notice and a tile's card say it. */
 const heldOn = (held: { files: number; commits: number }, branch: string): string => `${heldWords(held)} on ${branch} ${held.files + held.commits === 1 ? "is" : "are"} not pushed`;
 
-/** A not pushed sub-thread's reason on its tile's card. */
-export const subNotPushedReason = (held: { files: number; commits: number }, branch: string): string => `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.`;
+/** A held machine's cloud may delete its disk from `day`: Boat says it deletes at day 14, and a box stopped 18 days still
+ * resumed whole (2026-10-15), so wsp warns and deletes nothing itself. */
+export const diskMayGoLine = (on: string, day: string): string => `${on} may delete its disk from ${day}`;
+
+/** A not pushed sub-thread's reason on its tile's card, with the day its cloud may delete the disk from where it naps,
+ * said first, since the card cuts the reason at three lines and a branch name can be long. */
+export const subNotPushedReason = (held: { files: number; commits: number }, branch: string, kept?: { on: string; day: string }): string =>
+  kept === undefined ? `${capitalisedFirst(heldOn(held, branch))}, so its machine stays.` : `${diskMayGoLine(kept.on, kept.day)}, with ${heldWords(held)} on ${branch} not pushed.`;
 
 /** One strip over a sub-thread's composer: what holds or blocks it as the title, the why and what follows under it. */
 export interface SubStripWords {
@@ -377,9 +383,9 @@ export interface SubStripWords {
 export const SUB_STRIP = {
   waitingSlot: (on: string, running: number, atOnce: number): SubStripWords => ({ title: `Waiting for a machine on ${on}`, note: `${running} of ${atOnce} machines are running. It starts on its own when one frees.` }),
   waitingMinute: (on: string, used: number, limit: number): SubStripWords => ({ title: `Waiting for ${on}'s next minute of starts`, note: `${used} of ${limit} starts this minute are used. It starts on its own within the minute.` }),
-  notPushed: (held: { files: number; commits: number }, branch: string, refused?: string): SubStripWords => ({
+  notPushed: (held: { files: number; commits: number }, branch: string, refused?: string, kept?: { on: string; day: string }): SubStripWords => ({
     title: `${capitalisedFirst(heldWords(held))} not pushed`,
-    note: `${refused === undefined ? `They are on ${branch} on this machine.` : `The push to ${branch} was refused: ${refused}.`} This machine stays until the work is pushed or copied to your computer.`,
+    note: `${refused === undefined ? `They are on ${branch} on this machine.` : `The push to ${branch} was refused: ${refused}.`} This machine stays until the work is pushed or copied to your computer${kept === undefined ? "" : `, but ${diskMayGoLine(kept.on, kept.day)}`}.`,
   }),
   deleting: (minutes: string, branch: string): SubStripWords => ({ title: `Its machine is deleted in ${minutes}`, note: `Everything is pushed to ${branch}. The transcript stays, and a message after the delete starts a new machine.` }),
   released: (on: string): SubStripWords => ({ title: "This thread's machine was deleted", note: `A message starts a new one on ${on}, and the conversation goes on.` }),
@@ -524,19 +530,26 @@ export function cloudSaid(on: string): string {
 /** What a sub-thread's delete did. */
 export const subDeletedLine = (threadId: string, on: string): string => `deleted sub-thread ${threadId.slice(0, 8)} and its machine on ${on}`;
 
+/** The UTC day of a moment, for a line about a cloud's keep of a disk: the keep is counted from the cloud's own stop,
+ * so the time of day would claim more than wsp knows. */
+const utcDay = (at: number): string => `${new Date(at).toISOString().slice(0, 10)} UTC`;
+
 /** The line a sub-thread's finished line to its lead ends with, off the done's read: the branch pushed and the merge
  * that takes it, the work not pushed that keeps the machine, or nothing to merge. `deleteInMs` is how long the machine
- * stays, absent where it goes at once; a span, never a clock time, since an agent and a person read it in any zone. */
-export function subResultLine(o: { threadId: string; lead: string; result: SubResult; base: string; deleteInMs?: number }): string {
-  const { result: r } = o;
+ * stays, absent where it goes at once; a span, never a clock time, since an agent and a person read it in any zone.
+ * `kept` is the day from which a cloud that deletes a paused machine's disk may delete this one's, a UTC day for the
+ * same reason. */
+export function subResultLine(o: { threadId: string; lead: string; result: SubResult; base: string; deleteInMs?: number; kept?: { on: string; until: number } }): string {
+  const { result: r, kept } = o;
   const id8 = o.threadId.slice(0, 8);
   const minutes = o.deleteInMs === undefined ? 0 : Math.round(o.deleteInMs / 60_000);
   const goes = minutes > 0 ? `Its machine naps now and is deleted in ${plural(minutes, "minute")} unless you send to ${id8} first.` : `Its machine is deleted now; a send to ${id8} starts a new one with the conversation kept.`;
-  if (r.readFailed !== undefined) return `its machine could not be read (${r.readFailed}), so work on ${r.branch} may not be pushed and its machine is kept, napping at no cost. Send to ${id8} to have it pushed, or ask the person to delete it.`;
+  const naps = kept === undefined ? "its machine is kept, napping at no cost" : `its machine naps at no cost, and ${diskMayGoLine(kept.on, utcDay(kept.until))}`;
+  if (r.readFailed !== undefined) return `its machine could not be read (${r.readFailed}), so work on ${r.branch} may not be pushed and ${naps}. Send to ${id8} to have it pushed, or ask the person to delete it.`;
   if (!subAllPushed(r)) {
     const parts = [r.unpushed > 0 ? plural(r.unpushed, "commit") : "", r.changed > 0 ? plural(r.changed, "changed file") : ""].filter(Boolean);
     const one = r.unpushed + r.changed === 1;
-    return `${parts.join(" and ")} on ${r.branch} ${one ? "is" : "are"} not pushed, so its machine is kept, napping at no cost. Send to ${id8} to have ${one ? "it" : "them"} pushed, or ask the person to delete it.`;
+    return `${parts.join(" and ")} on ${r.branch} ${one ? "is" : "are"} not pushed, so ${naps}. Send to ${id8} to have ${one ? "it" : "them"} pushed, or ask the person to delete it.`;
   }
   if (r.pushedSha === null || r.commits === 0) return `no commits on ${r.branch}, so there is nothing to merge. ${goes}`;
   return `branch ${r.branch} pushed at ${r.pushedSha.slice(0, 7)}, ${plural(r.commits, "commit")} on ${o.base}; merge it with wsp merge in ${o.lead.slice(0, 8)} ${id8}. ${goes}`;

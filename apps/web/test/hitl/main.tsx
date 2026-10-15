@@ -7,7 +7,8 @@
 // record. ?keys=down,down,space sends those keys to the dock after it mounts,
 // ?typed=words types into its open field, ?write=1 presses Write a message
 // instead, and ?hover=tile rests the pointer on the waiting tile. ?screen=expired adds a read thread whose machine is
-// four days past the keep of its disk, and ?screen=diskgone one whose last wake met a deleted disk.
+// four days past the keep of its disk, and ?screen=diskgone one whose last wake met a deleted disk. ?screen=held opens
+// a sub-thread on Boat under the lead, napping over work not pushed, thirteen days before Boat may delete its disk, and &pane=machine opens its machine pane.
 import { createRoot } from "react-dom/client";
 import { askingLine as askingLineOf, BOAT_DISK_GONE_LINE, DEFAULT_PREFERENCES, diskGoneReplacedLine, type HarnessCatalog, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { Button } from "../../src/components/ui/button";
@@ -34,7 +35,10 @@ const screen = params.get("screen") ?? "single";
 const HERE: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: "zingzy's MacBook Pro", mac: "macbook", default: true, present: true, shape: { cpu: 10, memMb: 16384 }, takesForks: false, agentVersions: { claude: "2.1.286", codex: "0.47.0" } };
 const PROJECT: ProjectView = { id: "pr_wsp", name: "wsp", computer: "here", source: { kind: "folder", path: "/Users/zingzy/wsp" }, path: "/Users/zingzy/wsp", remote: "github.com/wsp-labs/wsp", defaultBranch: "main", memoryKey: "pr_wsp", memoryDir: "/m" } as ProjectView;
 const MAC: WorkspaceView = { id: "ws_m", name: "wsp", kind: "local", machineId: "local", project: { id: PROJECT.id, name: PROJECT.name, path: PROJECT.path, computer: "here" }, phase: "running", golden: "", createdAt: "2026-10-03T09:00:00Z", place: "here" } as WorkspaceView;
-const workspaces = [MAC];
+const BOAT: PlaceView = { id: "box", kind: "provider", name: "box", default: false, takesForks: true, sizes: [{ cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 }], plan: { key: "box_20", trial: false, machinesAtOnce: 100, sizes: ["2x4"] } } as PlaceView;
+const SUB: WorkspaceView = { id: "ws_sub", name: "Fix the flaky upload test", kind: "cloud", provider: "box", place: "box", machineId: "bx_7k2q9", project: { id: PROJECT.id, name: PROJECT.name, path: "/root/wsp", computer: "here" }, phase: "napping", golden: "img", createdAt: "2026-10-03T09:00:00Z" } as WorkspaceView;
+const held = screen === "held";
+const workspaces = held ? [MAC, SUB] : [MAC];
 
 const ago = (m: number): number => Date.now() - m * 60_000;
 const scope = { workspaceId: MAC.id, sessionId: "s_ask", turnId: "turn_ask", threadId: "thr_ask" };
@@ -116,7 +120,7 @@ const PROMPTS: Record<string, { toolName: string; input: string; detail?: string
   codex: { toolName: "command_execution", toolUseId: "exec-267f4a9f", input: JSON.stringify({ command: "/bin/zsh -lc 'touch hi.txt'", cwd: "/Users/zingzy/wsp" }), detail: "Allow me to create hi.txt in the current folder?", options: codexOptions },
 };
 const promptFor = (name: string) => PROMPTS[name] ?? PROMPTS["single"]!;
-const KIND: Record<string, string> = { other: "single", "other-multi": "multi", deny: "bash", answered: "single", collapsed: "single", tile: "single", threads: "single", expired: "single", diskgone: "single", "form-step2": "form" };
+const KIND: Record<string, string> = { held: "single", other: "single", "other-multi": "multi", deny: "bash", answered: "single", collapsed: "single", tile: "single", threads: "single", expired: "single", diskgone: "single", "form-step2": "form" };
 const kind = KIND[screen] ?? screen;
 const prompt = promptFor(kind);
 /** The prompt is closed: on answered the agent is back at work with the composer returned, on threads the turn is over. */
@@ -160,6 +164,15 @@ const others: SessionView[] = [
   ...(screen === "expired" ? [{ id: "s_kept", threadId: "thr_kept", workspaceId: MAC.id, harness: "claude", status: "completed", prompt: "Trim the relay's reconnect backoff", harnessTitle: "Trim the relay's reconnect backoff", startedBy: "person", startedAt: ago(40), endedAt: ago(20), readAt: ago(10), diskKeptUntil: ago(4 * 1440) } as SessionView] : []),
   ...(screen === "diskgone" ? [{ id: "s_gone", threadId: "thr_gone", workspaceId: MAC.id, harness: "claude", status: "completed", prompt: "Trim the relay's reconnect backoff", harnessTitle: "Trim the relay's reconnect backoff", startedBy: "person", startedAt: ago(40), endedAt: ago(20), readAt: ago(10), diskGone: diskGoneReplacedLine(BOAT_DISK_GONE_LINE) } as SessionView] : []),
 ];
+const SUB_BRANCH = "wsp/fix-the-flaky-upload-test";
+const subScope = { workspaceId: SUB.id, sessionId: "s_sub", turnId: "turn_sub", threadId: "thr_sub" };
+const subRow: SessionView = { id: "s_sub", threadId: "thr_sub", workspaceId: SUB.id, parentThreadId: "thr_ask", rootThreadId: "thr_ask", harness: "claude", status: "completed", prompt: "Fix the flaky upload test", harnessTitle: "Fix the flaky upload test", startedBy: "agent", startedAt: ago(40), endedAt: ago(20), readAt: ago(10), diskKeptUntil: Date.now() + 13 * 1440 * 60_000, sub: { state: "napping", on: "box", machine: "Fix the flaky upload test", size: { cpu: 2, memMb: 4096, name: "small" }, rateUsdPerHour: 0.018, branch: SUB_BRANCH, held: { commits: 2, files: 3 } } } as SessionView;
+const subHistory: SessionEvent[] = [
+  { type: "session.start", ...subScope, agent: "claude", model: "claude-opus-5-5", cwd: "/root/wsp", prompt: "Fix the flaky upload test, then push the branch." },
+  { type: "session.delta", ...subScope, kind: "text", text: "The upload test raced the retry timer. I moved the timer behind the fake clock and committed the fix on the branch." },
+  { type: "session.done", ...subScope, result: { status: "completed", durationMs: 1_140_000, costUsd: 0.42 } },
+  { type: "session.end", ...subScope, exitCode: 0, sawResult: true },
+];
 // The lead's own children, for the THREADS block under its reply: one of them stopped on a prompt of its own.
 const children: SessionView[] =
   screen === "threads"
@@ -169,7 +182,7 @@ const children: SessionView[] =
         { id: "s_c3", threadId: "thr_c3", workspaceId: MAC.id, parentThreadId: "thr_ask", harness: "claude", status: "completed", prompt: "Find the Whimsy crab credit", harnessTitle: "Find the Whimsy crab credit", startedBy: "agent", startedAt: ago(9), endedAt: ago(7) } as SessionView,
       ]
     : [];
-const sessions = [lead, ...others, ...children];
+const sessions = [lead, ...others, ...children, ...(held ? [subRow] : [])];
 
 const catalogs: HarnessCatalog[] = [
   {
@@ -205,9 +218,9 @@ const closePrompt = (optionId: string): void => {
 
 const api: Api = {
   listWorkspaces: async () => workspaces,
-  getWorkspace: async () => MAC,
+  getWorkspace: async id => workspaces.find(w => w.id === id) ?? MAC,
   createWorkspace: async () => MAC,
-  watchStatuses: async () => workspaces.map(w => statusOf(w, { kind: "local", size: { cpu: 10, memMb: 16384 }, rateUsdPerHour: 0, facts: { os: "macOS 26.1", uptimeMs: 3 * 86_400_000, folder: "/Users/zingzy/wsp" } })),
+  watchStatuses: async () => workspaces.map(w => (w.id === SUB.id ? statusOf(w, { size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018 }) : statusOf(w, { kind: "local", size: { cpu: 10, memMb: 16384 }, rateUsdPerHour: 0, facts: { os: "macOS 26.1", uptimeMs: 3 * 86_400_000, folder: "/Users/zingzy/wsp" } }))),
   forget: async () => {},
   nap: async () => MAC,
   wake: async () => MAC,
@@ -215,7 +228,7 @@ const api: Api = {
   startSession: async () => ({ id: "s_ask", workspaceId: MAC.id, harness: THREAD.agent, status: "running" }),
   portReach: async (_id, port) => ({ url: `http://127.0.0.1:${port}`, expiresAt: Date.now() + 3_600_000 }),
   daemon: noDaemonApi,
-  sessionHistory: async () => history,
+  sessionHistory: async id => (id === SUB.id ? subHistory : history),
   answerPermission: async (_sessionId, _askId, optionId) => {
     closePrompt(optionId);
     return "answered";
@@ -241,16 +254,18 @@ const api: Api = {
 useStore.setState({
   conn: "live",
   selectedId: MAC.id,
-  places: [HERE],
+  places: held ? [HERE, BOAT] : [HERE],
   placesRead: true,
   projects: [PROJECT],
   projectsRead: true,
   preferences: { ...DEFAULT_PREFERENCES, theme, ...picks, labs: false, projectLook: { pr_wsp: { icon: "terminal" as const, hue: "amber" as const } } },
 });
 useStore.getState().bind(api);
-useStore.getState().select(MAC.id, "thr_ask");
+useStore.getState().select(held ? SUB.id : MAC.id, held ? "thr_sub" : "thr_ask");
 useRightPanelStore.setState({ byWorkspaceId: {} });
 useRightPanelStore.getState().close(MAC.id);
+// ?pane=machine opens the sub-machine's own pane beside the held thread.
+if (held && params.get("pane") === "machine") useRightPanelStore.getState().open(SUB.id, "machine");
 
 /** The keys the query names, as the person would press them, sent to the dock once it is on the page. */
 const KEYS: Record<string, string> = { down: "ArrowDown", up: "ArrowUp", enter: "Enter", space: " ", esc: "Escape" };
@@ -310,6 +325,7 @@ const STATES: ReadonlyArray<readonly [string, string]> = [
   ["codex command", "screen=codex"],
   ["answered", "screen=answered"],
   ["folded", "screen=single&keys=esc"],
+  ["held sub-thread", "screen=held"],
 ];
 const norm = (q: string) => { const p = new URLSearchParams(q); p.delete("theme"); return p.toString(); };
 const here = norm(location.search);
@@ -344,7 +360,7 @@ createRoot(document.getElementById("root")!).render(
     {showBar ? <StateBar /> : null}
     <AppShell>
       <div className="flex min-h-0 flex-1 flex-col" data-terminal-beside>
-        <WorkspaceThread workspaceId={MAC.id} threadId="thr_ask" />
+        <WorkspaceThread workspaceId={held ? SUB.id : MAC.id} threadId={held ? "thr_sub" : "thr_ask"} />
       </div>
     </AppShell>
   </TooltipProvider>,

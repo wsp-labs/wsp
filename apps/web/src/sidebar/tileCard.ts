@@ -5,7 +5,7 @@
 // changed, then whatever holds the thread. The tile itself keeps two rows and
 // one mark: an open pull request's icon.
 import { agentName } from "@wsp/catalog";
-import { PULL_REQUEST_WORDS, capWaitLine, cloudSaid, diskExpired, diskExpiredLine, fmtRate, fmtRateDollars, fmtMemGb, forkedFromLine, sizeNameOf, subNotPushedReason, type PullRequestState, type SubRow, type ThreadCapWait } from "@wsp/protocol";
+import { PULL_REQUEST_WORDS, capWaitLine, cloudSaid, diskExpired, diskExpiredLine, diskMayGoLine, fmtRate, fmtRateDollars, fmtMemGb, forkedFromLine, sizeNameOf, subNotPushedReason, type PullRequestState, type SubRow, type ThreadCapWait } from "@wsp/protocol";
 import { PR_WORDS } from "../pull-request/words.js";
 import { APP_LOCALE } from "../lib/timestampFormat.js";
 import { CLOCK } from "../settings/image.js";
@@ -66,6 +66,10 @@ export const minutesWord = (ms: number): string => {
 
 const KEPT_DAY = new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" });
 
+/** A held sub-thread's cloud and the day it may delete the napping machine's disk from; none while the machine runs. */
+export const subKept = (sub: SubRow, diskKeptUntil: number | undefined): { on: string; day: string } | undefined =>
+  sub.held === undefined || diskKeptUntil === undefined ? undefined : { on: cloudSaid(sub.on), day: KEPT_DAY.format(diskKeptUntil) };
+
 /** The card's line for a thread whose napping machine is past the keep of its disk; null on every other. */
 export function expiredNote(t: { diskKeptUntil?: number; status: string; asking?: string | null }, now: number): string | null {
   return t.diskKeptUntil !== undefined && diskExpired(t, now) ? diskExpiredLine(KEPT_DAY.format(t.diskKeptUntil)) : null;
@@ -73,11 +77,13 @@ export function expiredNote(t: { diskKeptUntil?: number; status: string; asking?
 
 /** What a sub-thread's card says of its machine on the computer's line: its size and what it costs while it runs, when
  * it is deleted once done, that its work holds it, that it was deleted, or that its cloud left the host. */
-export function subMachineLine(sub: SubRow, working: boolean, accruedUsd: number | null, here: string, now: number): string {
+export function subMachineLine(sub: SubRow, working: boolean, accruedUsd: number | null, here: string, now: number, diskKeptUntil?: number): string {
   const on = cloudSaid(sub.on);
   const size = sizeNameOf(sub.size);
   if (sub.cloudGone === true) return `${on} was removed from ${here}`;
   if (sub.state === "released") return `${on}, its machine was deleted ${CLOCK.format(sub.releasedAt ?? now)}; a message starts a new one`;
+  const kept = subKept(sub, diskKeptUntil);
+  if (!working && kept !== undefined) return `${on}, ${size}, napping; ${diskMayGoLine(kept.on, kept.day)}`;
   if (!working && sub.held !== undefined) return `${on}, ${size}, napping, kept until its work is pushed`;
   if (!working && sub.deleteAt !== undefined) {
     const goes = `its machine is deleted in ${minutesWord(sub.deleteAt - now)}`;
@@ -89,20 +95,21 @@ export function subMachineLine(sub: SubRow, working: boolean, accruedUsd: number
 }
 
 /** The reason under a sub-thread's status word on its card, where its machine says more than the thread does. */
-export function subReason(sub: SubRow, capped: ThreadCapWait | undefined, working: boolean): string | undefined {
+export function subReason(sub: SubRow, capped: ThreadCapWait | undefined, working: boolean, diskKeptUntil?: number): string | undefined {
   const on = cloudSaid(sub.on);
   if (working && capped !== undefined) return `${capWaitLine(capped).charAt(0).toUpperCase()}${capWaitLine(capped).slice(1)}`;
   if (working && sub.state === "starting") return `Starting a machine on ${on} (${sizeNameOf(sub.size)}, ${sub.size.cpu} vCPU, ${fmtMemGb(sub.size.memMb)})`;
-  if (!working && sub.held !== undefined) return subNotPushedReason(sub.held, sub.branch);
+  if (!working && sub.held !== undefined) return subNotPushedReason(sub.held, sub.branch, subKept(sub, diskKeptUntil));
   return undefined;
 }
 
 /** The machine pane's two facts for a sub-machine: what it costs while it stands, and when it goes. */
-export function subMachineFacts(sub: SubRow, working: boolean, accruedUsd: number | null, now: number): { cost?: string; goes?: string } {
+export function subMachineFacts(sub: SubRow, working: boolean, accruedUsd: number | null, now: number, diskKeptUntil?: number): { cost?: string; goes?: string } {
   if (sub.state === "released") return {};
   const rate = sub.rateUsdPerHour === undefined ? [] : [fmtRate(sub.rateUsdPerHour)];
   const sofar = accruedUsd === null ? [] : [`${fmtRateDollars(accruedUsd)} so far`];
   const cost = [...rate, ...sofar].join(", ");
-  const goes = working ? undefined : sub.held !== undefined ? "Kept until its work is pushed" : sub.deleteAt === undefined ? undefined : `Deleted in ${minutesWord(sub.deleteAt - now)}`;
+  const kept = subKept(sub, diskKeptUntil);
+  const goes = working ? undefined : kept !== undefined ? diskMayGoLine(kept.on, kept.day) : sub.held !== undefined ? "Kept until its work is pushed" : sub.deleteAt === undefined ? undefined : `Deleted in ${minutesWord(sub.deleteAt - now)}`;
   return { ...(cost === "" ? {} : { cost }), ...(goes === undefined ? {} : { goes }) };
 }
