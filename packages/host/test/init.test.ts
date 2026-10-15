@@ -14,7 +14,7 @@ import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { S_RADIO_ACTIVE, S_RADIO_INACTIVE } from "@clack/prompts";
 import { RUNGS, parseManifest, type Manifest, type ManifestEntry } from "@wsp/collect";
-import { BoxBackend, BUILDER_DISK_GB, LocalBackend, SNAPSHOT_STORAGE, type BackendPricing, type ExecResult } from "@wsp/engine";
+import { BOX_PRICING, BoxBackend, BUILDER_DISK_GB, LocalBackend, NoProviderBackend, SNAPSHOT_STORAGE, type BackendPricing, type ExecResult } from "@wsp/engine";
 import { HERE_PLACE_ID, ALREADY_APPLIED, BOAT_READY_LINE, HOST_SIGN_INS, BUILD_NEEDS_FILE_FIX, DAEMON_TOKEN_PATH, buildNeedsFileLine, folderName, MACHINE_GONE_LINE, PORT_TAKEN_REFUSAL, Recipe, SEAL_FAILED_LINE, SIGN_IN_DEFERRED_WORD, SIGN_IN_LATER, type GoldenManifest, type ProjectImportResult, type ProjectPlan } from "@wsp/protocol";
 import { copyKey, DAEMON_TOKEN_SET, LOOPBACK, createRuntime, goldenHead, localExecStream, type GoldenRecipe, type LocalWiring, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -3691,6 +3691,40 @@ describe("wsp init with a golden already built from a recipe", () => {
     };
     expect((await runInit(f.opts, f.io)).code).toBe(0);
     expect(f.records.slice(-2)).toEqual([{ event: "retention" }, { event: "done", golden: "default", version: 2, snapshotId: "snap_wsp-h1s1-default-v2", nextCommand: f.opts.upCommand }]);
+  });
+
+  it("an image sealed at Boat on a host that forks on no provider is offered and updated at Boat's own rate, not the host's nought", async () => {
+    const store = ownedStore();
+    const none = new NoProviderBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    const at = (f: Fake) => (recipe: GoldenRecipe) => {
+      f.backends.push(boat);
+      const rt = createRuntime({ backend: none, store, adapters: {}, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, hostId: "box:h1", places: { wired: "none", backend: p => ({ none, boat })[p], list: () => ["none", "boat"] } });
+      f.runtimes.push(rt);
+      return rt;
+    };
+    const first = fake({ yes: true, place: "boat", placeBackend: boat, pricing: BOX_PRICING });
+    first.opts.runtime = at(first);
+    first.opts.host = quietHost();
+    const f = fake({ yes: true, tty: false, home: first.opts.home, statePath: first.opts.statePath });
+    f.opts.runtime = at(f);
+    try {
+      expect((await runInit(first.opts, first.io)).code).toBe(0);
+      expect(first.text()).toContain("Image v1 sealed.");
+      await first.runtimes.at(-1)!.close();
+      writeFileSync(join(first.opts.home, ".zshrc"), "export A=1\nexport B=2\n");
+      expect((await runInit(f.opts, f.io)).code).toBe(0);
+      const rate = BOX_PRICING.rateUsdPerHour(BOX_PRICING.defaultSize).toFixed(2);
+      expect(rate).toBe("0.02");
+      const out = f.text();
+      expect(out).toContain(`smoke fork boots beside it, about $${rate}/hr while it runs.`);
+      expect(out).toMatch(/Image v2 sealed in \d+s on the builder kept since the save/);
+      expect(out).toContain(`The builder stays up (about $${rate}/h, one of the account's machine slots)`);
+      expect(out).not.toContain("$0.00");
+      expect(boat.machines.map(m => [m.spec.fromSnapshot, m.killed])).toEqual([[undefined, false], ["snap_wsp-h1s1-default-v1", true], ["snap_wsp-h1s1-default-v2", true]]);
+    } finally {
+      for (const rt of [...first.runtimes, ...f.runtimes]) await rt.close();
+    }
   });
 
   it("--yes with a small change: the changes since v1 are listed, the update runs on the kept builder with the one sentence, v2 is current, and no machine boots", async () => {
