@@ -558,6 +558,7 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("placeFoundEnd", Value::from(numbers::PLACE_FOUND_END));
     m.insert("placeFoundMaxBytes", Value::from(numbers::PLACE_FOUND_MAX_BYTES));
     m.insert("loginReadMaxBytes", Value::from(numbers::LOGIN_READ_MAX_BYTES));
+    m.insert("placeReadMaxBytes", Value::from(numbers::PLACE_READ_MAX_BYTES));
     m.insert("openSocketPath", Value::from(numbers::OPEN_SOCKET_PATH));
     m.insert("guestDaemonSocketPath", Value::from(numbers::GUEST_DAEMON_SOCKET_PATH));
     m.insert("brokerPort", Value::from(numbers::BROKER_PORT));

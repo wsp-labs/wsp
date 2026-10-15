@@ -319,6 +319,15 @@ pub fn update_landed(at: &str) -> String {
     format!("the daemon the host sent is at {at}; this one is ending so its supervisor starts the new one")
 }
 
+/// Why a dial stopped before this place proved itself: what stands at the key the place file names is no plain file
+/// under the cap.
+pub fn place_key_unread(path: &str) -> String {
+    format!(
+        "{path} is missing or is not a plain file of at most {} KiB, so this place cannot prove itself",
+        crate::numbers::PLACE_READ_MAX_BYTES / 1024
+    )
+}
+
 /// What the agent says when it starts and finds parts of an update nothing will name again.
 pub fn update_swept(parts: usize) -> String {
     format!("swept {parts} leftover update part(s) from a link that dropped mid-upload")
