@@ -649,7 +649,7 @@ describe("wsp verbs over the host: threads, projects and agent defaults", () => 
 });
 
 describe("a sub-thread's state cell", () => {
-  it("says what its machine is doing where that says more than the turn: Waiting, Starting, Not pushed", () => {
+  it("says what its machine is doing where that says more than the turn: Waiting, Starting, Not pushed, Released", () => {
     const row = (sub: Partial<NonNullable<ThreadRow["sub"]>>, status: ThreadRow["status"] = "completed"): ThreadRow =>
       ({ id: "t-1", workspaceId: "w", harness: "claude", status, startedBy: "agent", title: "Fix it", turns: 1, projectName: "web", folder: "/root/web", branch: "", computerName: "Boat", sub: { state: "napping", on: "boat", machine: "Fix it", size: { cpu: 2, memMb: 4096 }, branch: "wsp/fix-it", ...sub } }) as ThreadRow;
     const state = (t: ThreadRow): string => threadLines(t)[0]![6]!;
@@ -658,6 +658,10 @@ describe("a sub-thread's state cell", () => {
     expect(state(row({ state: "running" }, "running"))).toBe("Working");
     expect(state(row({ held: { files: 3, commits: 2 } }))).toBe("Not pushed");
     expect(state(row({ deleteAt: 1 }))).toBe("Idle");
+    expect(state(row({ state: "released", releasedAt: 1 }))).toBe("Released");
+    // A finish nobody has read and a failure say more than the machine's delete.
+    expect(state({ ...row({ state: "released", releasedAt: 1 }), endedAt: 2 })).toBe("Done");
+    expect(state(row({ state: "released", releasedAt: 1 }, "failed"))).toBe("Failed");
     expect(state({ ...row({ held: { files: 3, commits: 2 } }), asking: "ask-1" })).toBe("Needs you");
   });
 });

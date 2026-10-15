@@ -42,6 +42,7 @@ import {
   onDeleteOf,
   fmtThreads,
   foldThreads,
+  threadState,
   threadWordOf,
   subagentStateWord,
   forgetNotice,
@@ -747,6 +748,7 @@ function subThreadWord(t: ThreadRow): string | undefined {
   if (t.sub === undefined || t.asking !== undefined || t.waitingOn !== undefined) return undefined;
   if (t.sub.state === "waiting") return "Waiting";
   if (t.sub.state === "starting") return "Starting";
+  if (t.sub.state === "released") return ["completed", "interrupted"].includes(threadState(t)) ? "Released" : undefined;
   return t.status !== "running" && t.sub.held !== undefined ? "Not pushed" : undefined;
 }
 
