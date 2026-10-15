@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What every places file shares: a fake host to join, a fake service manager, the leave under a case's own home
 // and the cleanup after each case. Its hooks register at the top of the file that imports it, before that file's own.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createHash, createPrivateKey, generateKeyPairSync, sign } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { PassThrough } from "node:stream";
@@ -269,5 +269,31 @@ const opts = (home: string, env: Record<string, string | undefined> = {}): Param
   providerEnv: env,
 });
 
-export { sweepPlace, toolsUnder, leaveCommand, addFoundNothing, MACHINES_PROFILE, dirs, servers, tmp, LEDGER_FIXTURE, LANDED_BYTES, ledgerRows, homeWithLandedFiles, shWithSha256sum, fakeRunner, fakeHost, unitsUnder, codeFor, NOWHERE_CODE, joinDepsFor, spooConfig, noBoxSignIn, systemPlaceDeps, opts };
+/** mkfifo, waited for. */
+function made(path: string): Promise<void> {
+  return new Promise((resolve, reject) => spawn("mkfifo", [path]).on("exit", code => (code === 0 ? resolve() : reject(new Error(`mkfifo ${path}: ${code}`)))));
+}
+
+/** A writer of `text` into a fifo, which says when its open returned: that is when something read the fifo. */
+function fifoWriter(fifo: string, text: string, afterMs = 0) {
+  const writer = spawn("/bin/sh", ["-c", 'sleep "$3"; exec 3>"$1"; echo opened; printf "%s" "$2" >&3; exec 3>&-', "sh", fifo, text, String(afterMs / 1000)], { stdio: ["ignore", "pipe", "ignore"], detached: true });
+  let opened = "";
+  writer.stdout.on("data", chunk => (opened += String(chunk)));
+  return { opened: () => opened, stop: () => stopGroup(writer) };
+}
+
+/** Kills a child's whole group, so a sleep it waits in goes too. One that already ran to its end has no group left,
+ * and a kill then would throw over the test's own failure: Linux answers ESRCH, and macOS EPERM while the child is
+ * not yet reaped, which a case whose read held the event loop has not done. */
+function stopGroup(child: ChildProcess): void {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  try {
+    process.kill(-child.pid!, "SIGKILL");
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== "ESRCH" && code !== "EPERM") throw e;
+  }
+}
+
+export { sweepPlace, toolsUnder, leaveCommand, addFoundNothing, MACHINES_PROFILE, dirs, servers, tmp, LEDGER_FIXTURE, LANDED_BYTES, ledgerRows, homeWithLandedFiles, shWithSha256sum, fakeRunner, fakeHost, unitsUnder, codeFor, NOWHERE_CODE, joinDepsFor, spooConfig, noBoxSignIn, systemPlaceDeps, opts, made, fifoWriter, stopGroup };
 export type { FakeHost };
