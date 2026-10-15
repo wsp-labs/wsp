@@ -659,6 +659,7 @@ describe("a sub-thread's state cell", () => {
     expect(state(row({ held: { files: 3, commits: 2 } }))).toBe("Not pushed");
     expect(state(row({ deleteAt: 1 }))).toBe("Idle");
     expect(state(row({ state: "released", releasedAt: 1 }))).toBe("Released");
+    expect(state(row({ state: "released", releasedAt: 1 }, "interrupted"))).toBe("Released");
     // A finish nobody has read and a failure say more than the machine's delete.
     expect(state({ ...row({ state: "released", releasedAt: 1 }), endedAt: 2 })).toBe("Done");
     expect(state(row({ state: "released", releasedAt: 1 }, "failed"))).toBe("Failed");

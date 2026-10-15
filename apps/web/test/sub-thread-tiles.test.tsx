@@ -153,6 +153,9 @@ describe("a sub-thread's row reads its machine", () => {
     cleanup();
     mount({ status: "completed", endedAt: "2026-10-12T07:00:00.000Z", unread: true, sub: sub({ state: "released", releasedAt: Date.parse("2026-10-12T07:31:00.000Z") }) });
     expect(slot().dataset["threadStatus"]).toBe("done");
+    cleanup();
+    mount({ status: "interrupted", endedAt: "2026-10-12T07:00:00.000Z", sub: sub({ state: "released", releasedAt: Date.parse("2026-10-12T07:31:00.000Z") }) });
+    expect(slot().dataset["threadStatus"]).toBe("released");
   });
 
   it("a released sub-thread's card says when its machine was deleted and that a message starts another; one whose Boat left says so", async () => {
