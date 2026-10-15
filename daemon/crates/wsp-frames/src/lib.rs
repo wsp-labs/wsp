@@ -52,8 +52,8 @@ pub use place::{
     Platform, WorkspaceSize,
 };
 pub use place_paths::{
-    place_daemon_paths, place_owned_paths, place_provision_paths, probe_path, PlaceDaemonPaths, PlaceProvisionPaths, READINGS_FOLDER,
-    SSH_FOLDER,
+    place_daemon_paths, place_login_files, place_owned_paths, place_provision_paths, probe_path, PlaceDaemonPaths, PlaceProvisionPaths,
+    READINGS_FOLDER, SSH_FOLDER,
 };
 pub use proc_owner::{ProcKind, ProcOwnedBy, ProcOwner, ProcScope, ProcScopePid, PROC_SCOPES_MAX, PROC_SCOPE_PIDS_MAX, WORKSPACE_LABEL};
 pub use reply::{

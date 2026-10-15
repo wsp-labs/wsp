@@ -235,15 +235,44 @@ export function placeDaemonPaths(home: string): {
   };
 }
 
+/** The login files wsp puts its one line in on that computer, the first always and the rest only where they stand:
+ * `.profile`, which sh reads and bash reads where neither of the others stands, then bash's own two, since a bash
+ * login reads the first of the three it finds and nothing after it (bash(1), INVOCATION). Making either of bash's
+ * would hide the person's own `.profile` from their next login. */
+export const placeLoginFiles = (home: string): string[] => {
+  const at = home.replace(/\/+$/, "");
+  return [`${at}/.profile`, `${at}/.bash_profile`, `${at}/.bash_login`];
+};
+
 /** The log a project's landing on that computer writes its install's output to, which a leave takes with its folder. */
 export const placeInstallLog = (home: string, projectId: string): string => `${placeDaemonPaths(home).installLogs}/${projectId}.log`;
 
 /** How much of a box's place file is read: a real one is well under a kilobyte, and the box is the untrusted side. */
 const HELD_PLACE_READ_BYTES = 65_536;
 
+/** What the read below says in place of the file where a join left something it cannot read, followed by `file` or
+ * `key` for which of the two stands. */
+export const PLACE_LEFT_LINE = "WSP_PLACE_LEFT";
+
+/** The line the read below prints before anything else of its own, after a newline of its own: sshd hands the
+ * command to the login's shell, and a bash built with SSH_SOURCE_BASHRC runs ~/.bashrc first, whose output lands
+ * ahead of the read's and may end with no newline. */
+export const PLACE_HELD_LINE = "WSP_PLACE_HELD";
+
 /** The place file on a box, read over ssh before anything of wsp's lands, before a forward's new port is written
- * into it, and before a new login is kept as that box's: empty where it holds none. */
-export const heldPlaceScript = (home: string): string => `head -c ${HELD_PLACE_READ_BYTES} ${shellQuote(placeDaemonPaths(home).placeFile)} 2>/dev/null || true`;
+ * into it, and before a new login is kept as that box's: nothing after its own line where it holds none. Where the
+ * join on that box would refuse what stands as broken (an empty or unreadable file, a dangling link, a key with no
+ * file beside it) it says so, since the join only refuses once the bundle has landed. Every line exits 0. */
+export const heldPlaceScript = (home: string): string => {
+  const at = placeDaemonPaths(home);
+  const [file, key] = [shellQuote(at.placeFile), shellQuote(at.placeKey)];
+  return [
+    `echo; echo ${PLACE_HELD_LINE}`,
+    `if [ -e ${file} ]; then { [ -f ${file} ] && [ ! -s ${file} ] && echo '${PLACE_LEFT_LINE} file'; head -c ${HELD_PLACE_READ_BYTES} ${file} 2>/dev/null || echo '${PLACE_LEFT_LINE} file'; }`,
+    `elif [ -L ${file} ]; then echo '${PLACE_LEFT_LINE} file'`,
+    `elif [ -e ${key} ] || [ -L ${key} ]; then echo '${PLACE_LEFT_LINE} key'; fi; true`,
+  ].join("\n");
+};
 
 /** What the job that puts the recipe on a computer you own keeps there: the scratch its long steps run under, the
  * log it appends a line to as it goes, and the outcome it writes at the end, which is what a person at that

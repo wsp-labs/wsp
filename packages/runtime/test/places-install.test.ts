@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { NO_PLACE_INSTALLER, PLACE_LOGIN_REFUSED_KIND, PLACE_HOST_KEY_KIND, DAEMON_VERSION, joinToken, readJoinToken, placeNoLinkLine, refusal, heldPlaceScript, placeFileText, type PlaceStageEvent } from "@wsp/protocol";
+import { heldReadOf } from "../../protocol/test/held-read.js";
 import { createRuntime } from "../src/runtime.js";
 import { keyFingerprint } from "@wsp/engine";
 import { PlaceAddTakenBackError, PlaceLoginRefusedError, newPlaceKeyPair, type PlaceInstallRequest, type PlaceLogin, type PlaceUpdateRequest } from "../src/places.js";
@@ -323,7 +324,7 @@ describe("putting the agent on a computer over ssh", () => {
         runOver: async (_login, script) => {
           ran.push(script);
           const file = placeFileText({ placeId: joined, name: "vps", hostName: "zingzys-mac", hostUrls: DOOR, hostPublicKey: hostKey.publicKey, keyPath: "/root/.wsp/place.key", joinedAt: "2026-10-07T00:00:00.000Z" });
-          return { exitCode: 0, stdout: script === heldPlaceScript(report("vps").login["HOME"]!) ? file : "", stderr: "" };
+          return { exitCode: 0, stdout: script === heldPlaceScript(report("vps").login["HOME"]!) ? heldReadOf(file) : "", stderr: "" };
         },
       },
       placeJoinWaitMs: 60,
