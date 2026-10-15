@@ -103,10 +103,16 @@ export interface SettleFacts {
 export const threadSeen = (t: { endedAt: number | null; readAt: number | null }): boolean => t.endedAt === null || (t.readAt !== null && t.readAt >= t.endedAt);
 
 export function threadSettled(t: SettleFacts, nowMs: number, settleMs: number | null, held = false): boolean {
-  if (t.asking || t.working) return false;
+  const at = settleMoment(t, settleMs, held);
+  return at !== null && (at.byHand || nowMs >= at.ms);
+}
+
+/** When the rule above settles the thread: the hand's stamp, or the end of the quiet it waits out; null while it never will. */
+export function settleMoment(t: SettleFacts, settleMs: number | null, held = false): { ms: number; byHand: boolean } | null {
+  if (t.asking || t.working) return null;
   const times = [t.startedAt, t.endedAt].filter((at): at is number => at !== null);
   const last = times.length === 0 ? null : Math.max(...times);
-  if (t.settledAt !== null && (last === null || t.settledAt >= last)) return true;
-  if (held || settleMs === null || t.failed || last === null || !threadSeen(t)) return false;
-  return nowMs - Math.max(last, t.readAt ?? last) >= settleMs;
+  if (t.settledAt !== null && (last === null || t.settledAt >= last)) return { ms: t.settledAt, byHand: true };
+  if (held || settleMs === null || t.failed || last === null || !threadSeen(t)) return null;
+  return { ms: Math.max(last, t.readAt ?? last) + settleMs, byHand: false };
 }
