@@ -143,6 +143,21 @@ describe("a sub-thread's row reads its machine", () => {
     expect((await card()).machine).toBe("Boat, small, running (Boat would not stop it); its machine is deleted in 18 min");
   });
 
+  it("Released in the row's own ink with the cloud-off glyph once its machine is deleted, unless a finish nobody read says more", async () => {
+    mount({ status: "completed", endedAt: "2026-10-12T07:00:00.000Z", sub: sub({ state: "released", releasedAt: Date.parse("2026-10-12T07:31:00.000Z") }) });
+    expect(slot().dataset["threadStatus"]).toBe("released");
+    expect(slot().dataset["tone"]).toBeUndefined();
+    expect(slot().getAttribute("aria-label")).toBe("Released");
+    expect(slot().querySelector("svg")!.getAttribute("class")).toContain("lucide-cloud-off");
+    expect(document.querySelector("[data-thread-title]")!.className).toContain("text-sidebar-muted-foreground");
+    cleanup();
+    mount({ status: "completed", endedAt: "2026-10-12T07:00:00.000Z", unread: true, sub: sub({ state: "released", releasedAt: Date.parse("2026-10-12T07:31:00.000Z") }) });
+    expect(slot().dataset["threadStatus"]).toBe("done");
+    cleanup();
+    mount({ status: "interrupted", endedAt: "2026-10-12T07:00:00.000Z", sub: sub({ state: "released", releasedAt: Date.parse("2026-10-12T07:31:00.000Z") }) });
+    expect(slot().dataset["threadStatus"]).toBe("released");
+  });
+
   it("a released sub-thread's card says when its machine was deleted and that a message starts another; one whose Boat left says so", async () => {
     const releasedAt = Date.parse("2026-10-12T07:31:00.000Z");
     // The app's own locale on a 24 hour clock, as every stamp it draws, never the runtime's.
