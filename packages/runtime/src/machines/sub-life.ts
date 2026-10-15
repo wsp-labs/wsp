@@ -5,7 +5,7 @@
 // delete the box goes at the cloud and the record stays, released, with its
 // thread, transcript, result and session. The timer is the record's deleteAt,
 // so a restarted host arms it again.
-import { INLINE_EXEC_MS, isMissing } from "@wsp/engine";
+import { INLINE_EXEC_MS, failureWords, isMissing } from "@wsp/engine";
 import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subResultLine, isGitPush, pushRefusedOf, subSessionNotKeptLine, subSessionTooLargeLine, subSpawning, type SessionEvent, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
 import { GONE_REASON, deadMachine } from "../types/internal.js";
 import type { GoneOutcome, LiveWorkspace, SubSession, WorkspaceRecord } from "../types/wiring.js";
@@ -388,7 +388,7 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       await ctx.unfork(entry);
     } catch (e) {
       if (!isMissing(e)) {
-        const said = e instanceof Error ? e.message : String(e);
+        const said = failureWords(e);
         console.warn(subDeleteRefusedLine(cloudOf(entry), entry.record.name, said, SUB_DELETE_RETRY_MS / 60_000));
         entry.deleteSaid = { phase: entry.record.phase, line: subDeleteRefusedLine(cloudOf(entry), entry.record.name, said, SUB_DELETE_RETRY_MS / 60_000) };
         sub.deleteAt = clock.now() + SUB_DELETE_RETRY_MS;
