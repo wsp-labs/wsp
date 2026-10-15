@@ -117,8 +117,7 @@ pub struct TurnOut {
     pub capped: Option<CapWait>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_cut: Option<bool>,
-    /// What the host said before the turn: the line a wake left on a deleted disk. This server's run and send leave it
-    /// unset.
+    /// What the host said before the turn: the line a wake left on a deleted disk.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notice: Option<String>,
 }
@@ -987,13 +986,18 @@ pub(super) fn turn_out(turn: &Turn) -> TurnOut {
     }
 }
 
-/// The reply as the tool's text, the cut line first where the thread's previous turn did not finish.
+/// The reply as the tool's text, the cut line first where the thread's previous turn did not finish, and before
+/// both the line its wake left.
 pub(super) fn turn_text(out: &TurnOut) -> String {
     let text = out.text.clone().unwrap_or_default();
-    if out.after_cut == Some(true) {
-        format!("{}\n{text}", turns().after_cut)
-    } else {
-        text
+    let text = if out.after_cut == Some(true) { format!("{}\n{text}", turns().after_cut) } else { text };
+    said_first(out.notice.as_deref(), text)
+}
+
+fn said_first(said: Option<&str>, line: String) -> String {
+    match said {
+        Some(said) => format!("{said}\n{line}"),
+        None => line,
     }
 }
 
@@ -1301,16 +1305,18 @@ async fn answered(
     woken: Option<Woken>,
 ) -> Result<Answer, Refused> {
     let mut started = None;
+    let said = woken.as_ref().and_then(|w| w.said.clone());
     let answered = if detach == Some(true) {
         begin_through(host, client.clone(), start).await.map(|turn| {
-            Answer::text(held_line(opened_thread(&turn.thread_id, opened.as_ref(), turn.cwd.as_deref()), &turn), &turn_out(&turn))
+            let line = said_first(said.as_deref(), opened_thread(&turn.thread_id, opened.as_ref(), turn.cwd.as_deref()));
+            Answer::text(held_line(line, &turn), &TurnOut { notice: said.clone(), ..turn_out(&turn) })
         })
     } else {
         match follow(host, client.clone(), start, &mut started).await {
             Ok(turn) => match turn_refusal(&turn) {
                 Some(refused) => Err(refused),
                 None => {
-                    let out = turn_out(&turn);
+                    let out = TurnOut { notice: said.clone(), ..turn_out(&turn) };
                     let text = match &opened {
                         Some(opened) => format!("{}\n{}", opened.line(&out.thread_id, turn.cwd.as_deref()), turn_text(&out)),
                         None => turn_text(&out),
@@ -1335,11 +1341,11 @@ async fn send(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     let read = async {
         let thread: Thread = thread_of(&client, &thread).await?;
         checked_start(&client, &message, Some(&thread.harness), &picks, Some(&thread.workspace_id), None).await?;
-        awake(&client, &workspace_of(&client, &thread.workspace_id).await?, "send").await?;
-        Ok(thread)
+        let said = awake(&client, &workspace_of(&client, &thread.workspace_id).await?, "send").await?.said;
+        Ok((thread, said))
     }
     .await;
-    let thread = before_sending(&client, read)?;
+    let (thread, said) = before_sending(&client, read)?;
     let attachments = files_from(files.as_deref().unwrap_or_default(), host.args().guest)?;
     let mut start = params([
         ("workspaceId", Value::from(thread.workspace_id.as_str())),
@@ -1353,13 +1359,14 @@ async fn send(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     picks.wire(&mut start)?;
     if detach == Some(true) {
         let turn = begin_through(&host, client, &start).await?;
-        return Ok(Answer::text(held_line(opened_thread(&turn.thread_id, None, None), &turn), &turn_out(&turn)));
+        let line = said_first(said.as_deref(), opened_thread(&turn.thread_id, None, None));
+        return Ok(Answer::text(held_line(line, &turn), &TurnOut { notice: said, ..turn_out(&turn) }));
     }
     let turn = follow(&host, client, &start, &mut None).await?;
     if let Some(refused) = turn_refusal(&turn) {
         return Err(refused.into());
     }
-    let out = turn_out(&turn);
+    let out = TurnOut { notice: said, ..turn_out(&turn) };
     Ok(Answer::text(turn_text(&out), &out))
 }
 
