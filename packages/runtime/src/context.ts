@@ -944,7 +944,7 @@ export interface WaitsArea {
 
 export interface StatusArea {
   readonly status: StatusApi;
-  readonly adoptLost: (listing: ListedMachine[], known: Set<string>, failed: ReapFailure[]) => Promise<AdoptedMachine[]>;
+  readonly adoptLost: (listing: ListedMachine[], known: Set<string>, failed: ReapFailure[], at: { place: string; backend: MachineBackend }) => Promise<{ adopted: AdoptedMachine[]; reaped: ReapedMachine[] }>;
 }
 
 export interface PreferencesArea {

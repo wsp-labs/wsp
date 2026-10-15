@@ -11,11 +11,13 @@ import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
-import { BOX_WORK_DIR, DiskGoneError, type Machine } from "@wsp/engine";
+import { BOX_WORK_DIR, DiskGoneError, NoProviderBackend, type Machine, type MachineBackend } from "@wsp/engine";
 import { BOAT_DISK_GONE_LINE, DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, diskExpired, diskGoneReleasedLine, SUB_TURN_GONE_LINE, fmtBytes, foldThreads, lostSessionPrompt, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
 import { PIPE_IDLE } from "../src/pipe.js";
-import { copyKey, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
+import { copyKey, type HarnessStartOptions, type PlaceBackends, type Runtime } from "../src/runtime.js";
+import { newPlaceKeyPair } from "../src/places.js";
+import { wiring } from "./place-join.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
 import type { WorkspaceRecord } from "../src/types/wiring.js";
 import { CLAUDE_SESSION_FILE, CODEX_SESSION_FILE, PUSHED, STORE_TITLE, answering, jumpClock, leadOnThisComputer, sessionPathOf, until, type Answers, type Setup } from "./sub-fixture.js";
@@ -549,4 +551,60 @@ describe("the keep of a napping machine's disk", () => {
     expect(row.diskKeptUntil).toBe(stop + 14 * DAY);
     expect((await held.record()).nappedAt).toBe(stop);
   });
+});
+
+describe("a box a released sub-thread's record does not name", () => {
+  it("is named by the sweep with the time it goes and deleted a day on, the record left released", async () => {
+    const held = await released();
+    const left = await held.boat.create({ kind: "sandbox", labels: { ...held.first.spec.labels!, createdAt: new Date(Date.now() - 2 * MIN).toISOString() } });
+    held.boat.machines.find(m => m.id === left.id)!.paused = true;
+
+    expect((await held.rt.reap()).failed?.find(f => f.id === left.id)?.message).toMatch(new RegExp(`^not recorded: ${held.made.id} holds no machine, so nothing here reaches this paused machine of yours; deleted at \\S+, a day after this host first saw it$`));
+    held.jump(24 * 60 * MIN);
+    expect((await held.rt.reap()).reaped).toContainEqual(expect.objectContaining({ id: left.id, reason: "unrecorded" }));
+    expect(held.boat.machines.find(m => m.id === left.id)!.killed).toBe(true);
+    expect((await held.record()).phase).toBe("released");
+  });
+});
+
+describe("a box a send into a released sub-thread is making", () => {
+  for (const forksOnNone of [false, true]) {
+    it(`is not killed by a sweep before its create returns${forksOnNone ? ", on a host that holds Boat as a place" : ""}`, async () => {
+      const { clock, jump } = jumpClock();
+      let boat: MachineBackend | undefined;
+      const none = new NoProviderBackend();
+      const host = forksOnNone ? { backend: none, places: { wired: "none", backend: (p: string) => (p === "box" ? boat : p === "none" ? none : undefined), list: () => ["box"] } satisfies PlaceBackends, placeLinks: wiring(newPlaceKeyPair()) } : {};
+      const held = await leadOnThisComputer({ clock, picks: ["CLAUDE.local.md"], host } as Parameters<typeof leadOnThisComputer>[0]);
+      boat = held.boat;
+      open.push(held.rt);
+      answering(held.boat, { read: PUSHED, session: Buffer.from("gzipped claude session") });
+      const made = await held.rt.workspaces.create({ project: held.project.id, name: "probe", sub: { on: "boat", harness: "claude" } }, held.lead);
+      const child = await held.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Remember the word lantern."), harness: "claude", notify: ["me"], turnToken: held.token, title: "probe", cwd: made.sub!.folder }, held.lead);
+      await child.finished;
+      const phase = async () => ((await held.store.get("workspaces", made.id)) as WorkspaceRecord).phase;
+      await until(async () => (["napping", "released"].includes(await phase()) ? true : undefined), "the nap");
+      jump(31 * 60_000);
+      await until(async () => ((await phase()) === "released" ? true : undefined), "the release");
+      const inner = held.boat.create.bind(held.boat);
+      let release!: () => void;
+      const gate = new Promise<void>(r => (release = r));
+      let box: { id: string; killed: boolean; spec: { labels: Record<string, string> } } | undefined;
+      held.boat.create = async (spec, waiting) => {
+        const m = await inner(spec, waiting);
+        // The real create tells the box's first state, with its id, as the POST answers; answering() drops waiting.
+        waiting?.("provisioning", { id: m.id, state: "provisioning" });
+        box = m as unknown as typeof box;
+        box!.spec.labels["createdAt"] = new Date(Date.now() - 2 * 60_000).toISOString();
+        await gate;
+        return m;
+      };
+      const send = held.rt.sessions.start(made.id, { thread: child.view().threadId!, prompt: "what was the word?", harness: "claude" }).catch((e: unknown) => e);
+      await until(() => (box !== undefined ? true : undefined), "the create asked of Boat");
+
+      expect((await held.rt.reap()).reaped).toEqual([]);
+      expect(box!.killed).toBe(false);
+      release();
+      await send;
+    });
+  }
 });

@@ -117,7 +117,8 @@ describe("Boat's settings and its limits on the command line", () => {
     const [head, ...rows] = table.io.lines[0]!.split("\n");
     expect(head!.split(/ {2,}/)).toEqual(expect.arrayContaining(["STARTS", "WORKSPACES"]));
     expect(rows.find(r => r.startsWith("Boat"))).toContain("187/200 today");
-    expect(asked).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
+    // The host's sweep lists Boat's boxes beside this; the limits are read once.
+    expect(asked.filter(at => at.endsWith("/limits"))).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
   });
 
   it("starts the host and lists and sets its computers while Boat's /limits has not answered, and the row reads it once it has", async () => {
@@ -129,7 +130,7 @@ describe("Boat's settings and its limits on the command line", () => {
       const ran = await h.run(...line);
       expect(ran.io.errors, line.join(" ")).toEqual([]);
     }
-    expect(asked).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
+    expect(asked.filter(at => at.endsWith("/limits"))).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
     expect((await boatRow()).settings).toEqual({ size: { cpu: 4, memMb: 8192 } });
     answer();
     await vi.waitFor(async () => expect((await h.rt.places!.list(Date.now())).find(p => p.id === "box")?.plan).toMatchObject({ key: "box_20" }));

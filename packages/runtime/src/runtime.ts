@@ -420,6 +420,7 @@ export {
   NO_SEED_WIRING,
   copyKey,
   DROPPED_WATCH_MS,
+  UNRECORDED_DELETE_MS,
   TRANSCRIPT_BYTES,
   TOOL_RESULT_KEPT,
   TRANSCRIPTS_HELD,
@@ -1147,17 +1148,26 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
         failed.push({ message: `asking lost creates again: ${messageOf(e)}` });
         return [];
       })));
-      // One listing serves both halves of the sweep: the machines recorded again, then what the engine kills or spares.
-      let listing: ListedMachine[];
-      try {
-        listing = await backend.list();
-      } catch (e) {
-        failed.push({ message: messageOf(e) });
-        return result({ reaped: [], spared: [] }, []);
+      // One listing per provider serves both halves of the sweep: the machines recorded again, then what the engine
+      // kills or spares. Every provider this host holds a key for, not only the one it forks on: a host forking on
+      // none holds Boat as a place, and a sweep of the wired provider alone never saw a box there.
+      const listings: { place: string; backend: MachineBackend; rows: ListedMachine[] }[] = [];
+      for (const place of [ctx.places.wired, ...ctx.places.list().filter(p => p !== ctx.places.wired)]) {
+        const at = place === ctx.places.wired ? backend : ctx.places.backend(place);
+        if (at === undefined) continue;
+        try {
+          listings.push({ place, backend: at, rows: await at.list() });
+        } catch (e) {
+          if (place === ctx.places.wired) {
+            failed.push({ message: messageOf(e) });
+            return result({ reaped: [], spared: [] }, []);
+          }
+          failed.push({ message: `${ctx.placeName(place)}: ${messageOf(e)}` });
+        }
       }
       // A recorded machine the listing lacks is read once: the listing is best effort, so only the read decides, and a
       // read that finds the machine gone settles its record here rather than at the next poll or verb.
-      const listed = new Set(listing.map(row => row.id));
+      const listed = new Set(listings.flatMap(l => l.rows.map(row => row.id)));
       for (const entry of [...live.values()]) {
         if (entry.creating || entry.napping || entry.waking || entry.deleting) continue;
         if (isAbsentMachine(entry.machine)) {
@@ -1180,9 +1190,20 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
         if (read === "gone") await ctx.adoptGone(entry, goneWords(entry.record.machineId, { by: "sweep", at: clock.now(), ...(answer !== undefined ? { answer } : {}) }));
       }
       const claimed = new Set(knownIds());
-      const adopted = await ctx.adoptLost(listing, claimed, failed);
+      const adopted: AdoptedMachine[] = [];
+      for (const at of listings) {
+        const found = await ctx.adoptLost(at.rows, claimed, failed, at);
+        adopted.push(...found.adopted);
+        reaped.push(...found.reaped);
+      }
       try {
-        const swept = await reap({ backend, owner: ctx.state.owner, listing, stop: m => gone.stop(backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) });
+        const swept: ReapResult = { reaped: [], spared: [] };
+        for (const at of listings) {
+          const one = await reap({ backend: at.backend, owner: ctx.state.owner, listing: at.rows, stop: m => gone.stop(at.backend, m), knownIds: () => [...knownIds(), ...claimed], ...(olderThanMs !== undefined ? { olderThanMs } : {}) });
+          swept.reaped.push(...one.reaped);
+          swept.spared.push(...one.spared);
+          if (one.failed !== undefined) swept.failed = [...(swept.failed ?? []), ...one.failed];
+        }
         const strayed = await ctx.sweepStrays(() => [...knownIds(), ...claimed], failed).catch((e: unknown) => {
           failed.push({ message: `machines named after this host's images: ${messageOf(e)}` });
           return [];

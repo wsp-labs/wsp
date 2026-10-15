@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { CREATED_AT_LABEL, GOLDEN_LABEL, WORKSPACE_LABEL, lostWorkspace, goldenHead, isMissing, type ListedMachine, type Machine, type ReapFailure } from "@wsp/engine";
+import { CREATED_AT_LABEL, GOLDEN_LABEL, WORKSPACE_LABEL, lostWorkspace, goldenHead, isMissing, type ListedMachine, type Machine, type MachineBackend, type ReapFailure, type ReapedMachine } from "@wsp/engine";
 import { RECORD_RESTORED } from "@wsp/protocol";
 import { createStatusTracker } from "../status.js";
 import type { WorkspaceRecord, AdoptedMachine } from "../types/wiring.js";
-import { WORKSPACE_NAMES, DROPPED, DROPPED_WATCH_MS, type NamedWorkspace, type DroppedMachine } from "../types/internal.js";
+import { WORKSPACES, WORKSPACE_NAMES, DROPPED, DROPPED_WATCH_MS, UNRECORDED, UNRECORDED_DELETE_MS, type NamedWorkspace, type DroppedMachine, type UnrecordedMachine } from "../types/internal.js";
 import type { RuntimeContext, StatusArea } from "../context.js";
 
 export function statusArea(ctx: RuntimeContext): StatusArea {
@@ -75,9 +75,13 @@ export function statusArea(ctx: RuntimeContext): StatusArea {
    * the very machines it reports. A row about to be recorded is confirmed with one get(), so a row the listing lags on
    * after a kill is skipped; a create in flight elsewhere is left its minute. A row the provider would not confirm (a
    * failed read, a state that is neither running nor paused) is claimed in `known` all the same, so the engine spares
-   * it this sweep and the next one records it: a kill never rides on one read. */
-  const adoptLost = async (listing: ListedMachine[], known: Set<string>, failed: ReapFailure[]): Promise<AdoptedMachine[]> => {
+   * it this sweep and the next one records it: a kill never rides on one read. A row whose workspace this host keeps
+   * no record or name for, or whose settled record names another machine, nothing here reaches: it is named with the
+   * time it goes and deleted a day after the first sweep that listed it. `at` is the provider the listing came from. */
+  const adoptLost = async (listing: ListedMachine[], known: Set<string>, failed: ReapFailure[], at: { place: string; backend: MachineBackend }): Promise<{ adopted: AdoptedMachine[]; reaped: ReapedMachine[] }> => {
     const adopted: AdoptedMachine[] = [];
+    const reaped: ReapedMachine[] = [];
+    const unreached = new Set<string>();
     const now = Date.now();
     const dropped = new Set<string>();
     for (const d of (await store.list(DROPPED)) as DroppedMachine[]) {
@@ -87,20 +91,55 @@ export function statusArea(ctx: RuntimeContext): StatusArea {
     for (const row of listing) {
       // The engine kills only a running row, so a paused one stays reported rather than silently left.
       if (known.has(row.id) || (dropped.has(row.id) && row.state === "running") || !lostWorkspace(row, ctx.state.owner, now)) continue;
-      // A stamped id another machine now holds is a body a rebuild replaced and failed to stop: the engine kills it.
+      // A stamped id another machine now holds is a body a rebuild replaced and failed to stop: the engine kills a
+      // running one, and a paused one is left nothing but the delete below.
       const stamped = row.labels[WORKSPACE_LABEL];
-      if (stamped !== undefined && live.has(stamped)) continue;
-      const kept = stamped === undefined ? undefined : ((await store.get(WORKSPACE_NAMES, stamped)) as NamedWorkspace | undefined);
+      const holder = stamped === undefined ? undefined : live.get(stamped);
+      // A record the start left as it was, since its place forked nothing then, still holds its machine.
+      if (stamped !== undefined && holder === undefined && (await store.get(WORKSPACES, stamped)) !== undefined) {
+        known.add(row.id);
+        failed.push({ id: row.id, message: `not recorded: ${stamped} is stored here but was not read at start, so its ${row.state} machine is left as it is until the host starts again` });
+        continue;
+      }
+      if (holder !== undefined && (row.state === "running" || holder.creating || holder.waking || holder.deleting || holder.napping)) continue;
+      const kept = stamped === undefined || holder !== undefined ? undefined : ((await store.get(WORKSPACE_NAMES, stamped)) as NamedWorkspace | undefined);
+      if (stamped !== undefined && kept === undefined) {
+        known.add(row.id);
+        unreached.add(row.id);
+        let seenAt = ((await store.get(UNRECORDED, row.id)) as UnrecordedMachine | undefined)?.seenAt;
+        if (seenAt === undefined) {
+          seenAt = new Date(clock.now()).toISOString();
+          await store.put(UNRECORDED, row.id, { machineId: row.id, place: at.place, seenAt } satisfies UnrecordedMachine);
+        }
+        const goesAt = Date.parse(seenAt) + UNRECORDED_DELETE_MS;
+        if (clock.now() < goesAt) {
+          const whose = holder === undefined ? `no workspace of this host is ${stamped}` : holder.record.machineId === "" ? `${stamped} holds no machine` : `${stamped} runs on ${holder.record.machineId}`;
+          failed.push({ id: row.id, message: `not recorded: ${whose}, so nothing here reaches this ${row.state} machine of yours; deleted at ${new Date(goesAt).toISOString()}, a day after this host first saw it` });
+          continue;
+        }
+        try {
+          await ctx.gone.stop(at.backend, await at.backend.get(row.id));
+        } catch (e) {
+          if (!isMissing(e)) {
+            failed.push({ id: row.id, message: `could not delete: ${e instanceof Error ? e.message : String(e)}; no record of this host's reaches it, retried next sweep` });
+            continue;
+          }
+        }
+        await store.delete(UNRECORDED, row.id);
+        const bornAt = Date.parse(row.labels[CREATED_AT_LABEL] ?? "");
+        reaped.push({ id: row.id, labels: row.labels, builder: false, reason: "unrecorded", ...(Number.isNaN(bornAt) ? {} : { ageMs: now - bornAt }) });
+        continue;
+      }
       // A workspace is one project's copy, so a machine whose project this host cannot name is not a workspace
       // here: it is reported rather than recorded, and the sweep's own --older-than is the road that ends it.
       if (stamped === undefined || kept?.project === undefined || !projectsHeld.has(kept.project)) {
         known.add(row.id);
-        failed.push({ id: row.id, message: `not recorded: this host holds no project for it, and a workspace is one project's copy; it is a machine of yours still running` });
+        failed.push({ id: row.id, message: `not recorded: this host holds no project for it, and a workspace is one project's copy; it is a machine of yours still ${row.state}` });
         continue;
       }
       let machine: Machine;
       try {
-        machine = ctx.observed(await backend.get(row.id));
+        machine = ctx.observed(await at.backend.get(row.id));
       } catch (e) {
         if (isMissing(e)) continue;
         known.add(row.id);
@@ -118,12 +157,13 @@ export function statusArea(ctx: RuntimeContext): StatusArea {
         name: ctx.nameRefusal(kept.name) === undefined ? kept.name : row.id,
         kind: "cloud",
         project: kept.project,
+        ...(at.place !== ctx.places.wired ? { place: at.place } : {}),
         machineId: row.id,
         phase: state === "paused" ? "napping" : "running",
         golden: row.labels[GOLDEN_LABEL] ?? goldenHead(await ctx.golden.get())?.snapshotId ?? "",
         createdAt: bornAt !== undefined && !Number.isNaN(Date.parse(bornAt)) ? bornAt : new Date().toISOString(),
         spec: { labels: row.labels },
-        size: ctx.sizeBuilt(await ctx.shapeOf(machine), backend.pricing.defaultSize),
+        size: ctx.sizeBuilt(await ctx.shapeOf(machine), at.backend.pricing.defaultSize),
         firstLife: false,
         ...(machine.streamUrl !== undefined ? { screen: { streamUrl: machine.streamUrl } } : {}),
       };
@@ -134,7 +174,9 @@ export function statusArea(ctx: RuntimeContext): StatusArea {
       await ctx.emitStatus(entry, record.phase === "running" ? ctx.reachOf(entry) : "napping", RECORD_RESTORED);
       adopted.push({ id: row.id, workspaceId: stamped, name: record.name, phase: record.phase });
     }
-    return adopted;
+    // A machine this listing no longer carries unrecorded is forgotten, so the set holds only what the account holds.
+    for (const u of (await store.list(UNRECORDED)) as UnrecordedMachine[]) if (u.place === at.place && !unreached.has(u.machineId)) await store.delete(UNRECORDED, u.machineId);
+    return { adopted, reaped };
   };
   return { status, adoptLost };
 }
