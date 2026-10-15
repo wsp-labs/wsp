@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { subOpening, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import type { Runtime } from "../src/runtime.js";
-import { leadOnThisComputer, until } from "./sub-fixture.js";
+import { CONNECT_TIMED_OUT, connectTimedOut, leadOnThisComputer, until } from "./sub-fixture.js";
 
 let open: Runtime[] = [];
 afterEach(async () => {
@@ -121,5 +121,19 @@ describe("a sub-thread's start, as a window hears it", () => {
     expect(starts.at(-1)!.o.prompt).toBe(subOpening(opening, "Try once more, the suite is flaky."));
     expect(starts.at(-1)!.o.prompt.startsWith(made.sub!.preamble)).toBe(true);
     expect(starts.at(-1)!.o.prompt).toContain("Run the suite.");
+  });
+
+  it("names the addresses its connect tried on the row and in its lead's line, when Boat never answered its first start", async () => {
+    const f = await leadOnThisComputer();
+    open.push(f.rt);
+    f.boat.create = async () => {
+      throw connectTimedOut();
+    };
+    const made = await f.rt.workspaces.create({ project: f.project.id, name: "Kid", sub: { on: "boat" } }, f.lead);
+    await f.endLead();
+    await f.rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Run the suite."), harness: made.sub!.harness, notify: [f.threadId], turnToken: f.token, cwd: made.sub!.folder }, f.lead).catch(() => undefined);
+    const row = (await f.rt.sessions.list()).find(r => r.workspaceId === made.id);
+    expect(row?.failure).toContain(`fetch failed: ${CONNECT_TIMED_OUT}`);
+    await expect.poll(() => f.starts.some(s => s.o.prompt.includes(`fetch failed: ${CONNECT_TIMED_OUT}`))).toBe(true);
   });
 });
