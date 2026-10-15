@@ -5,14 +5,19 @@
 // queue starts the spawns first in, first out when a slot frees or a minute
 // turns. A stop drops a held spawn with no start spent, and a restarted host
 // starts it all the same. Boat is a stub backend that keeps every create.
+import { randomBytes } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
-import { DAEMON_TOKEN_PATH, DAEMON_VERSION, SUB_DROPPED_LINE, keptOpening, spawnCapRefusal, subOpening, type Caller, type ThreadCapWait } from "@wsp/protocol";
+import { WebSocketServer, type WebSocket } from "ws";
+import { DAEMON_TOKEN_PATH, DAEMON_TOKEN_REFUSED, DAEMON_TOKEN_ROTATED, DAEMON_VERSION, SUB_DROPPED_LINE, keptOpening, spawnCapRefusal, subOpening, type Caller, type ThreadCapWait } from "@wsp/protocol";
 import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
+import { PIPE_IDLE } from "../src/pipe.js";
 import type { Runtime } from "../src/runtime.js";
 import { fakeClock } from "./fake-clock.js";
-import { NAME_LABEL, type MachineSpec } from "@wsp/engine";
+import { NAME_LABEL, type Machine, type MachineSpec } from "@wsp/engine";
 import { TOKEN, helloingDaemon } from "./runtime-fixture.js";
-import { CONNECT_TIMED_OUT, PAID, connectTimedOut, leadOnThisComputer } from "./sub-fixture.js";
+import { CONNECT_TIMED_OUT, PAID, connectTimedOut, leadOnThisComputer, until } from "./sub-fixture.js";
 
 const TASK = "Fix the flaky upload test in packages/upload.";
 
@@ -35,7 +40,104 @@ async function startOf(rt: Runtime, made: Awaited<ReturnType<Runtime["workspaces
 
 const recordOf = async (rt: Runtime, id: string) => (await rt.workspaces.list()).find(w => w.id === id);
 
+/** A fork's daemon as the real one keeps its token: one file, read at each auth frame, and every socket that came in
+ * on a token the file no longer holds closed 4401 once the file changes. A link is greeted with its hello, a pipe is
+ * parked. A restart is the new daemon in the old one's place, every socket cut under it. */
+async function tokenDaemon(version: number) {
+  let file = "";
+  let announced = version;
+  const closes: string[] = [];
+  const authed = new Map<WebSocket, string>();
+  const parked = new Set<WebSocket>();
+  const http = createServer((_req, res) => res.writeHead(426).end());
+  const wss = new WebSocketServer({ server: http });
+  wss.on("connection", ws => {
+    ws.on("error", () => {});
+    ws.once("message", raw => {
+      const f = JSON.parse(String(raw)) as { id: number; token?: string; pipe?: boolean };
+      if (f.token !== file) {
+        closes.push(DAEMON_TOKEN_REFUSED);
+        return ws.close(4401, DAEMON_TOKEN_REFUSED);
+      }
+      authed.set(ws, file);
+      ws.once("close", () => (authed.delete(ws), parked.delete(ws)));
+      ws.send(JSON.stringify({ id: f.id, ok: true }));
+      if (f.pipe === true) return void parked.add(ws);
+      ws.send(JSON.stringify({ type: "daemon.hello", root: "/root", version: announced }));
+      ws.on("message", more => ws.send(JSON.stringify({ id: (JSON.parse(String(more)) as { id: number }).id, ok: true })));
+    });
+  });
+  await new Promise<void>(r => http.listen(0, "127.0.0.1", r));
+  return {
+    url: `http://127.0.0.1:${(http.address() as AddressInfo).port}/`,
+    parked: () => parked.size,
+    closes,
+    write(token: string): void {
+      file = token;
+      for (const [ws, held] of authed) {
+        if (held === token) continue;
+        closes.push(DAEMON_TOKEN_ROTATED);
+        ws.close(4401, DAEMON_TOKEN_ROTATED);
+      }
+    },
+    restart(v: number): void {
+      announced = v;
+      for (const ws of wss.clients) ws.terminate();
+    },
+    close: () =>
+      new Promise<void>(r => {
+        for (const ws of wss.clients) ws.terminate();
+        wss.close();
+        http.close(() => r());
+        http.closeAllConnections();
+      }),
+  };
+}
+
 describe("a spawn on a fork whose daemon is older than this host's", () => {
+  it("runs its first turn on the updated daemon with the host's pipes parked there, and nothing is closed 4401", async () => {
+    const daemon = await tokenDaemon(DAEMON_VERSION - 1);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const deployed: (string | undefined)[] = [];
+    try {
+      // The host's deploy as doctor's runs it: the token it is handed, or one of its own where it is handed none, is
+      // written before the new daemon replaces the old one. The update lands once the pool stands, as on Boat.
+      const deployDaemon = async (_m: Machine, token?: string): Promise<void> => {
+        await until(() => daemon.parked() === PIPE_IDLE, "the pipes parked on the old daemon");
+        deployed.push(token);
+        daemon.write(token ?? randomBytes(24).toString("hex"));
+        daemon.restart(DAEMON_VERSION);
+      };
+      const { rt, boat, starts, project, lead, token, turns } = await leadOnThisComputer({ broker: true, hostGh: true, picks: ["CLAUDE.local.md"], host: { daemonToken: TOKEN, goldenRecipe: { setup: "true", smoke: "true", deployDaemon }, daemonHelloTimeoutMs: 2_000 } });
+      const create = boat.create.bind(boat);
+      boat.create = async (spec, waiting) => {
+        const m = await create(spec, waiting);
+        const put = m.putBytes!.bind(m);
+        return Object.assign(m, {
+          previewUrl: async () => ({ url: daemon.url, token: "e", expiresAt: Date.now() + 3_600_000 }),
+          putBytes: async (path: string, bytes: Uint8Array) => {
+            if (path === DAEMON_TOKEN_PATH) daemon.write(Buffer.from(bytes).toString());
+            return put(path, bytes);
+          },
+        });
+      };
+      const answer = boat.execImpl;
+      boat.execImpl = (m, cmd, stdin) => (cmd.includes(DAEMON_TOKEN_PATH) ? { exitCode: 0, stdout: `${DAEMON_TOKEN_SET}\n`, stderr: "" } : answer(m, cmd, stdin));
+      const made = await rt.workspaces.create({ project: project.id, name: "fix", sub: { on: "boat" } }, lead);
+      // The turn runs until released, so its done naps no machine under the pipes.
+      turns.hold = true;
+      void rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, TASK), harness: made.sub!.harness, notify: ["me"], turnToken: token, title: "fix", cwd: made.sub!.folder }, lead).catch(() => {});
+      await until(() => starts.length === 2, "the sub-thread's first turn");
+      const parked = await until(() => daemon.parked() === PIPE_IDLE, "the pipes parked on the updated daemon", 4_000).catch(() => daemon.parked());
+      const refused = warn.mock.calls.map(c => String(c[0])).filter(line => line.includes("refused the token"));
+      turns.release?.();
+      expect({ deploys: deployed.length, parked, closes: daemon.closes, refused }).toEqual({ deploys: 1, parked: true, closes: [], refused: [] });
+    } finally {
+      warn.mockRestore();
+      await daemon.close();
+    }
+  });
+
   it("starts its first turn once the update landed, with no other turn ending, when the version read lands while its Waiting row stands", async () => {
     const daemon = await helloingDaemon(DAEMON_VERSION - 1);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
