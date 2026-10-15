@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { configHardLinkRefusal } from "@wsp/protocol";
-import { CONFIG_CHANGED_EXIT, CONFIG_LINKS_EXIT, CONFIG_LINK_EXIT, configLanding, configRefusal, configSum, configWriteLine, type ConfigWrite } from "../src/index.js";
+import { CONFIG_CHANGED_EXIT, CONFIG_LINKS_EXIT, CONFIG_LINK_EXIT, configLanding, configRefusal, configSum, configWriteLine, underBase, type ConfigWrite } from "../src/index.js";
 
 const homes: string[] = [];
 afterEach(() => {
@@ -37,6 +37,13 @@ describe("configSum", () => {
       const bytes = Buffer.from(text);
       expect(configSum(bytes), JSON.stringify(text.slice(0, 10))).toBe(execFileSync("cksum", { input: bytes, encoding: "utf8" }).trim().replace(/\s+/, " "));
     }
+  });
+});
+
+describe("underBase", () => {
+  it("holds every path inside a base of /, and a sibling that shares a base's name out of it", () => {
+    const at = (r: string, b: string): string => execFileSync("/bin/sh", ["-c", `r=${r}; b=${b}; ${underBase("echo in", "echo out")}`], { encoding: "utf8" }).trim();
+    expect([at("/.mcp.json", "/"), at("/root/a.json", "/"), at("/root/a.json", "/root"), at("/rootx/a.json", "/root"), at("/root", "/root")]).toEqual(["in", "in", "in", "out", "in"]);
   });
 });
 

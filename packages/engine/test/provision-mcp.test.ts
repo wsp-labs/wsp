@@ -4,14 +4,15 @@
 // disk: the file an agent keeps its servers in is merged key by key, every
 // other key of its own stands, and a server the agent or the person has under
 // one of the recipe's names is left with its row saying so.
-import { existsSync, readFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, mkdirSync, mkdtempSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CODEX_TOML, MCP_SERVERS_JSON, OPENCODE_JSON, parseJsonc } from "@wsp/catalog";
-import { MCP_ID_PREFIX, TOOLS_PATH, placeProvisionPaths } from "@wsp/protocol";
+import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, MCP_ID_PREFIX, TOOLS_PATH, configUnreadLine, placeProvisionPaths, serversUnreadLine } from "@wsp/protocol";
 import type { McpPlan } from "../src/golden-mcp.js";
-import { closeAgentFiles, machineServerPort, oncePathsOf, provisionFiles, unlandFiles, unmergeServers, type ProvisionLanding } from "../src/provision-files.js";
+import { closeAgentFiles, machineServerPort, oncePathsOf, provisionFiles, serversOutLines, unlandFiles, unmergeServers, type ProvisionLanding } from "../src/provision-files.js";
+import type { Machine } from "../src/machine.js";
 import { headlessKeys, keyUnreachedLine, provisionMcp, theirServerLine } from "../src/provision-mcp.js";
 import { newSetupRun, provisionStep, type ProvisionPlan } from "../src/provision.js";
 import { tarOf } from "../src/vault.js";
@@ -178,6 +179,14 @@ async function landOnly(g: BoxGuest, files: readonly { path: string; content: st
   await closeAgentFiles(g.machine, g.root, [], stores);
 }
 
+/** Every answer the guest's runs come back with from here on, as the host holds each one. */
+function answered(g: BoxGuest): string[] {
+  const answers: string[] = [];
+  const run = g.machine.run.bind(g.machine);
+  Object.assign(g.machine, { run: async (...a: Parameters<Machine["run"]>) => run(...a).then(r => (answers.push(r.stdout), r)) });
+  return answers;
+}
+
 const list = (root: string): string[] => readFileSync(placeProvisionPaths(root).landed, "utf8").split("\n").filter(l => l !== "");
 const claudeOf = (root: string): { numStartups: number; oauthAccount: unknown; projects: Record<string, unknown>; mcpServers: Record<string, { command: string; args: string[] }> } =>
   JSON.parse(readFileSync(join(root, ".claude-cfg/.claude.json"), "utf8")) as never;
@@ -302,6 +311,86 @@ describe("the recipe's servers on a computer somebody owns", { timeout: 60_000 }
     expect(readFileSync(join(root, ".claude-cfg/.claude.json"), "utf8")).toBe(theirs);
   });
 
+  it("reads no config through a link or past the cap, names the file on each of its servers, and writes neither", async () => {
+    const g = box();
+    const { root } = g;
+    const away = mkdtempSync(join(tmpdir(), "wsp-box-away-"));
+    g.dirs.push(away);
+    const outside = `${JSON.stringify({ mcpServers: {}, note: "a file out of the home" })}\n`;
+    writeFileSync(join(away, "claude.json"), outside);
+    const claude = join(root, ".claude-cfg/.claude.json");
+    const codex = join(root, ".codex/config.toml");
+    mkdirSync(join(root, ".claude-cfg"), { recursive: true });
+    mkdirSync(join(root, ".codex"), { recursive: true });
+    symlinkSync(join(away, "claude.json"), claude);
+    const big = `${CODEX_TRAVELLED}#${"x".repeat(CONFIG_READ_MAX_BYTES)}\n`;
+    writeFileSync(codex, big);
+    const answers = answered(g);
+
+    const r = await run(g);
+    expect(answers.join("\n")).not.toContain(Buffer.from(outside).toString("base64").slice(0, 24));
+    expect(Math.max(...answers.map(s => s.length))).toBeLessThan(CONFIG_READ_MAX_BYTES);
+    expect(r.servers).toEqual([
+      [`${MCP_ID_PREFIX}claude/gsc`, "skipped", configUnreadLine(claude, CONFIG_NOT_PLAIN)],
+      [`${MCP_ID_PREFIX}claude/mine`, "skipped", configUnreadLine(claude, CONFIG_NOT_PLAIN)],
+      [`${MCP_ID_PREFIX}claude/notes`, "skipped", "command is macOS-only, will not run"],
+      [`${MCP_ID_PREFIX}codex/context7`, "skipped", configUnreadLine(codex, CONFIG_PAST_CAP)],
+      [`${MCP_ID_PREFIX}codex/grafana`, "skipped", "unticked"],
+    ]);
+    expect(r.closing).toContain(configUnreadLine(claude, CONFIG_NOT_PLAIN));
+    expect(lstatSync(claude).isSymbolicLink()).toBe(true);
+    expect(readFileSync(join(away, "claude.json"), "utf8")).toBe(outside);
+    expect(readFileSync(codex, "utf8")).toBe(big);
+  });
+
+  it("merges into a config linked inside the home, the link standing, and the leave over the link takes its servers back out", async () => {
+    const g = box();
+    const { root } = g;
+    const claude = join(root, ".claude-cfg/.claude.json");
+    mkdirSync(join(root, ".claude-cfg"), { recursive: true });
+    mkdirSync(join(root, "dotfiles"));
+    writeFileSync(join(root, "dotfiles/claude.json"), CLAUDE_ON_BOX);
+    symlinkSync("../dotfiles/claude.json", claude);
+
+    const r = await run(g);
+    expect(r.servers[0]).toEqual([`${MCP_ID_PREFIX}claude/gsc`, "installed", "npx fetches the package on first use"]);
+    expect(lstatSync(claude).isSymbolicLink()).toBe(true);
+    expect(Object.keys(claudeOf(root).mcpServers)).toContain("gsc");
+
+    const out = await unmergeServers(machineServerPort(g.machine), root, { claude: join(root, ".claude-cfg") });
+    expect(out).toContainEqual({ path: claude, names: ["gsc"] });
+    expect(lstatSync(claude).isSymbolicLink()).toBe(true);
+    expect(Object.keys(claudeOf(root).mcpServers)).toEqual(["mine"]);
+  });
+
+  it("the leave over the link takes nothing out of a config that became a link or grew past the cap, and names each", async () => {
+    const g = box();
+    const { root } = g;
+    mkdirSync(join(root, ".claude-cfg"), { recursive: true });
+    writeFileSync(join(root, ".claude-cfg/.claude.json"), CLAUDE_ON_BOX);
+    await run(g);
+    const claude = join(root, ".claude-cfg/.claude.json");
+    const codex = join(root, ".codex/config.toml");
+    expect(Object.keys(claudeOf(root).mcpServers)).toContain("gsc");
+    const away = mkdtempSync(join(tmpdir(), "wsp-box-away-"));
+    g.dirs.push(away);
+    renameSync(claude, join(away, "claude.json"));
+    symlinkSync(join(away, "claude.json"), claude);
+    const big = `${readFileSync(codex, "utf8")}#${"x".repeat(CONFIG_READ_MAX_BYTES)}\n`;
+    writeFileSync(codex, big);
+    const answers = answered(g);
+
+    const out = await unmergeServers(machineServerPort(g.machine), root, { claude: join(root, ".claude-cfg") });
+    expect(Math.max(...answers.map(s => s.length))).toBeLessThan(CONFIG_READ_MAX_BYTES);
+    expect(out).toEqual([
+      { path: claude, unread: CONFIG_NOT_PLAIN },
+      { path: codex, unread: CONFIG_PAST_CAP },
+    ]);
+    expect(out.flatMap(serversOutLines)).toEqual([serversUnreadLine(claude, CONFIG_NOT_PLAIN), serversUnreadLine(codex, CONFIG_PAST_CAP)]);
+    expect(Object.keys((JSON.parse(readFileSync(join(away, "claude.json"), "utf8")) as { mcpServers: object }).mcpServers)).toContain("gsc");
+    expect(readFileSync(codex, "utf8")).toBe(big);
+  });
+
   it("writes down the keys it no longer owns, so the list stops naming a server that was unticked on this computer", async () => {
     const g = box();
     const { root } = g;
@@ -403,7 +492,7 @@ describe("the recipe's servers on a computer somebody owns", { timeout: 60_000 }
     expect(again.find(r => r.id === `${MCP_ID_PREFIX}codex/context7`)?.outcome).toBe("present");
 
     const out = await unmergeServers(machineServerPort(g.machine), g.root, { codex: logins });
-    expect(out.find(x => x.path === join(logins, "config.toml"))?.names).toEqual(["context7"]);
+    expect(out.find(x => x.path === join(logins, "config.toml"))).toEqual({ path: join(logins, "config.toml"), names: ["context7"] });
     expect(readFileSync(join(logins, "config.toml"), "utf8")).toBe('model = "o4"\n');
   });
 
