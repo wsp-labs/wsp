@@ -302,3 +302,13 @@ export async function untilReached<T>(once: () => Promise<T>, clock: RetryClock 
     }
   }
 }
+
+/** A failure's sentence. fetch says only "fetch failed" and keeps the road's own words in its cause: undici's connect
+ * timeout names the addresses it tried, and node's AggregateError holds one error per address. */
+export function failureWords(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  if (!(e instanceof TypeError) || e.message !== "fetch failed" || !(e.cause instanceof Error)) return e.message;
+  const each = e.cause instanceof AggregateError ? e.cause.errors.map(err => (err instanceof Error ? err.message : String(err))) : [];
+  const said = [e.cause.message, ...each].filter(words => words !== "").join("; ");
+  return said === "" ? e.message : `${e.message}: ${said}`;
+}

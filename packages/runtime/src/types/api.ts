@@ -636,13 +636,18 @@ export interface Runtime {
      * snapshot a template stands on). The split is read again first, so nothing recorded since is touched, and
      * nothing without this host's mark is ever passed to a delete. */
     deleteOrphans(): Promise<OrphansDeleted | undefined>;
-    /** The golden's ancestors older than its head and the head's parent, with what deleting them frees, minus every
-     * version a workspace of this runtime was forked from; undefined with no golden or no snapshot listing. */
-    retention(name?: string): Promise<RetentionPlan | undefined>;
-    /** Deletes the snapshots retention offers and drops those versions and their recipes from the manifest. The plan
-     * is read again first, so a workspace forked since the offer keeps its version; a delete the provider refuses
-     * keeps the version and is reported by version. */
-    prune(name?: string): Promise<{ dropped: GoldenVersion[]; failed: { version: number; message: string }[] }>;
+    /** Every place holding versions of the golden: the place it was sealed at, then the place this host forks on when
+     * that is another place and holds a copy of it. */
+    retentionPlaces(name?: string): Promise<string[]>;
+    /** The golden's ancestors older than its head and the head's parent at one place (the place it was sealed at when
+     * none is named), with what deleting them frees, minus every version a workspace of this runtime was forked from,
+     * listed and priced at that place; undefined with no golden there or no snapshot listing. */
+    retention(name?: string, place?: string): Promise<PlacedRetention | undefined>;
+    /** Deletes the snapshots retention offers at that place and drops those versions and their recipes from its
+     * manifest. The plan is read again first, so a workspace forked since the offer keeps its version; a delete the
+     * provider refuses keeps the version and is reported by version. The storage is that place's, read after the
+     * deletes by the kept versions' ids, so on a place billed by count it holds the named snapshots alone. */
+    prune(name?: string, place?: string): Promise<{ dropped: GoldenVersion[]; failed: { version: number; message: string }[]; storage?: SnapshotStorage }>;
   };
   /** The image this host owns, as against the copy each place holds of it. */
   readonly image: {
@@ -719,6 +724,10 @@ export interface AccountOrphans {
   /** No mark of this host, so nothing here may touch them. */
   others: { snapshots: SnapshotRow[]; templates: TemplateRow[] };
 }
+
+/** A retention plan with the place it was read at: its id, the name a sentence calls it, and whether its versions are
+ * a copy of the image rather than the image's own. */
+export type PlacedRetention = RetentionPlan & { place: string; placeName: string; copy: boolean };
 
 export interface OrphansDeleted {
   snapshots: SnapshotRow[];

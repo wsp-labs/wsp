@@ -44,6 +44,9 @@ export const PAID: BoxLimits = {
 export const TRIAL: BoxLimits = { ...PAID, trial: true, planKey: "trial", planUsd: undefined, machinesAtOnce: 2, sizes: ["small", "default"], starts: { minute: { limit: 5, used: 0 }, hour: { limit: 25, used: 0 }, day: { limit: 75, used: 0 } } };
 /** The classes each plan sells, as a refusal names them. */
 export const PAID_SIZES: SubSize[] = BOX_CLASSES.filter(c => PAID.sizes.includes(c.type)).map(c => ({ name: c.type, cpu: c.cpu, memMb: c.memMb, rateUsdPerHour: c.rateUsdPerHour }));
+/** What node's fetch throws when no address of Boat's name connected, as undici words it. */
+export const CONNECT_TIMED_OUT = "Connect Timeout Error (attempted addresses: 51.68.236.247:443, 64:ff9b::3344:ecf7:443, timeout: 10000ms)";
+export const connectTimedOut = (): TypeError => new TypeError("fetch failed", { cause: Object.assign(new Error(CONNECT_TIMED_OUT), { code: "UND_ERR_CONNECT_TIMEOUT" }) });
 export const TRIAL_SIZES: SubSize[] = PAID_SIZES.filter(s => TRIAL.sizes.includes(s.name as "small"));
 
 /** The setup image on Boat: v1, its sign-ins as the seal recorded them, and the agents its recipe carries. */
