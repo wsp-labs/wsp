@@ -151,8 +151,10 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
     log.step(`Image v${version} was sealed before the base tools existed and cannot take an update; the rebuild is the only road, ${rebuildEstimate(o.lastBuild)}.`, out);
     return "rebuild";
   }
+  // The update boots where the image was sealed, so it is priced there and not at the provider this host forks on.
+  const { pricing } = (await o.rt.golden.buildPlace()).backend;
   const kept = keptBuilder(await o.rt.golden.builders(), version);
-  const rateUsdPerHour = o.rt.backend.pricing.rateUsdPerHour(head?.size ?? kept?.size ?? o.rt.backend.pricing.defaultSize);
+  const rateUsdPerHour = pricing.rateUsdPerHour(head.size ?? kept?.size ?? pricing.defaultSize);
   const offer: UpgradeOffer = { diff, small: isSmallDelta(diff, id => rowOf(id)?.bytes ?? 0), onBuilder: kept !== undefined, version, rateUsdPerHour, lastBuild: o.lastBuild };
   note(describeOffer(offer).join("\n"), `Changes since image v${version}`, out);
 
@@ -208,7 +210,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   o.sealed?.(result.version);
   const seconds = ((Date.now() - t0) / 1000).toFixed(0);
   const builder = keptBuilder(await o.rt.golden.builders(), result.version.version);
-  const rate = o.rt.backend.pricing.rateUsdPerHour(builder?.size ?? o.rt.backend.pricing.defaultSize);
+  const rate = pricing.rateUsdPerHour(builder?.size ?? pricing.defaultSize);
   log.success(
     [
       `Image v${result.version.version} sealed in ${seconds}s ${result.road === "builder" ? "on the builder kept since the save" : "from a fork of your image"}; new workspaces fork it.`,
