@@ -109,14 +109,15 @@ export function placeViews(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
 
   /** The servers wsp merged into the agents' own files on that computer, taken back out over the link before the
    * leave takes the rest: the computer itself driven as a machine, the way the recipe's job drives it. Nothing
-   * here fails the leave, which is a decision already made by the time it runs. */
-  const unmergedOver = async (placeId: string, held: PlaceRecord): Promise<string[]> => {
+   * here fails the leave, which is a decision already made by the time it runs. Answers the lines for the files they
+   * came out of and for the files left unread with them in. */
+  const unmergedOver = async (placeId: string, held: PlaceRecord): Promise<{ took: string[]; kept: string[] }> => {
     const home = held.report.login["HOME"];
-    if (home === undefined) return [];
+    if (home === undefined) return { took: [], kept: [] };
     const machine = new PlaceMachine(linkTo(placeId), { id: held.name, home });
     const unmerged = async () => unmergeServers(machineServerPort(machine), home, await storesOver(placeId, home));
-    const took = await bounded(unmerged(), UNMERGE_MS, `the servers wsp merged into the agents' files on ${held.name}`).catch(() => []);
-    return took.flatMap(serversOutLines);
+    const outs = await bounded(unmerged(), UNMERGE_MS, `the servers wsp merged into the agents' files on ${held.name}`).catch(() => []);
+    return { took: outs.flatMap(out => ("unread" in out ? [] : serversOutLines(out))), kept: outs.flatMap(out => ("unread" in out ? serversOutLines(out) : [])) };
   };
 
   /** The folder each agent's threads there are pointed at that the computer's login reaches, read over the link. */

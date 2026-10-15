@@ -6,14 +6,14 @@
 // computer's own row.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, closeSync, constants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir, arch as osArch, platform, release, type as osType, uptime as upSeconds, userInfo } from "node:os";
 import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
-import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeFile, type ServerPort } from "@wsp/engine";
-import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeRead, type ServerPort } from "@wsp/engine";
+import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, DAEMON_VERSION, underProject, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
@@ -339,8 +339,7 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   const own = ownMarks(sh(landedFilesScript(home)));
   // And what wsp merged into the agents' own files here, which no path of the list names: those files are the
   // agents' own and stay, with wsp's keys taken out of them one by one. The same list, so this read comes first too.
-  const unread: string[] = [];
-  const unmerged = await unmergeServers(hereServerPort(sh, unread), home).catch(() => []);
+  const unmerged = await unmergeServers(hereServerPort(sh), home).catch(() => []);
   const manager = opts.manager === undefined ? serviceManagerFor(platform()) : opts.manager;
   const removed: string[] = [];
   if (manager !== undefined) {
@@ -366,7 +365,7 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     const ended = await run(["sh", "-c", threadCgroupsEndScript()], THREADS_END_MS);
     removed.push(...(ended.code === 0 ? ended.output.split("\n").filter(line => line !== "") : [`the threads' processes there were not all ended: ${ended.output}`]));
   }
-  for (const out of unmerged) removed.push(...serversOutLines(out));
+  for (const out of unmerged) if (!("unread" in out)) removed.push(...serversOutLines(out));
   // Every file wsp itself landed in an agent's home here whose bytes are still the ones wsp left. A file the
   // person has written since hashes differently, so the read never named it and it stays where it is.
   for (const rel of own) {
@@ -429,6 +428,7 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   }
   const said = unsourced(sshDaemonPlace({ home, path: "" }), home);
   removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
+  const unread = unmerged.flatMap(out => ("unread" in out ? serversOutLines(out) : []));
   return { removed, kept: [placeKeptLine(workFolderIn(home)), ...unread, ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
 }
 
@@ -630,22 +630,13 @@ const shStdout = (script: string): string => {
 
 const SH = "/bin/sh";
 
-/** The most of an agent's own config file the leave here reads, far past the 968 KB Claude file its own issues call
- * bloated: the file sits in a home a workspace writes, and a leave runs as root. */
-export const SERVERS_READ_MAX_BYTES = 32 * 1024 * 1024;
-/** Why the leave left an agent's config file unread. */
-export const PLACE_SERVERS_UNREAD = "it is a link or not a plain file, and a leave reads neither";
-export const PLACE_SERVERS_PAST_CAP = "it is over 32 MiB, more than a leave reads of an agent's config";
-/** What the leave says of an agent's config file it did not read: wsp's servers in it stay. */
-export const placeServersUnreadLine = (file: string, why: string): string => `wsp's MCP servers were not looked for in ${file}: ${why}`;
-
 /** The port the unmerge runs on when it runs on the computer it is taking wsp off: that computer's own sh for
  * the read of the list, its own file system for the read of the agents' files, and the one config write for
  * putting one back. */
-function hereServerPort(sh: (script: string) => string, kept: string[]): ServerPort {
+function hereServerPort(sh: (script: string) => string): ServerPort {
   return {
     run: script => Promise.resolve(sh(script)),
-    read: files => Promise.resolve(configHere(files, kept)),
+    read: (files, base) => Promise.resolve(configHere(files, base)),
     write: (file, text, base) => {
       writeConfigHere(file.path, base, file.sum, text);
       return Promise.resolve();
@@ -653,26 +644,40 @@ function hereServerPort(sh: (script: string) => string, kept: string[]): ServerP
   };
 }
 
-/** The first of an agent's config files that is there, read as the login files are. One that is there and not read
- * keeps its servers, is said in `kept`, and ends the look, since it is the file the agent reads. */
-function configHere(files: readonly string[], kept: string[]): ScopeFile | undefined {
+/** The first of an agent's config files that is there, read as the login files are, at its real path where that sits
+ * inside `base`, as the remote read takes it. One that is there and not read keeps its servers, says why, and ends the
+ * look, since it is the file the agent reads. */
+function configHere(files: readonly string[], base: string): ScopeRead | undefined {
   for (const path of files) {
     let read: PlainRead;
     try {
-      read = readPlainHere(path, SERVERS_READ_MAX_BYTES);
+      const real = realInside(path, base);
+      read = real === undefined ? { unread: "not-plain" } : readPlainHere(real, CONFIG_READ_MAX_BYTES);
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code;
       if (code === "ENOENT" || code === "ENOTDIR") continue;
-      kept.push(placeServersUnreadLine(path, e instanceof Error ? e.message : String(e)));
-      return undefined;
+      return { path, unread: e instanceof Error ? e.message : String(e) };
     }
-    if ("unread" in read) {
-      kept.push(placeServersUnreadLine(path, read.unread === "past-cap" ? PLACE_SERVERS_PAST_CAP : PLACE_SERVERS_UNREAD));
-      return undefined;
-    }
+    if ("unread" in read) return { path, unread: read.unread === "past-cap" ? CONFIG_PAST_CAP : CONFIG_NOT_PLAIN };
     return { path, text: read.bytes.toString("utf8"), sum: configSum(read.bytes) };
   }
   return undefined;
+}
+
+/** The real path of `path` where it sits inside `base`, nothing where it sits out of it, a linked folder on the way
+ * included, and `path` itself where it does not resolve, which the no-link open then answers for. */
+function realInside(path: string, base: string): string | undefined {
+  let real: string;
+  try {
+    real = realpathSync(path);
+  } catch {
+    return path;
+  }
+  try {
+    return underProject(real, realpathSync(base)) ? real : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 type PlainRead = { bytes: Buffer; nlink: number } | { unread: "not-plain" | "past-cap" };

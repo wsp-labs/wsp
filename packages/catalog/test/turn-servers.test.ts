@@ -65,6 +65,7 @@ describe("a Claude Code turn's servers", () => {
   it("reads every .mcp.json from the folder up to the root", () => {
     expect(turnServerFiles(agent("claude"), "/root/acme/web", "/root", "/root/.claude-cfg")).toEqual({
       user: ["/root/.claude-cfg/.claude.json"],
+      base: "/root",
       projects: ["/root/acme/web/.mcp.json", "/root/acme/.mcp.json", "/root/.mcp.json", "/.mcp.json"],
     });
   });
@@ -96,7 +97,7 @@ describe("a Codex turn's servers", () => {
   });
 
   it("reads the folder's own .codex/config.toml under the store its turns read, and each one up to its checkout's top", () => {
-    expect(turnServerFiles(agent("codex"), "/root/acme", "/root", "/wsp/logins/codex")).toEqual({ user: ["/wsp/logins/codex/config.toml"], projects: ["/root/acme/.codex/config.toml"] });
+    expect(turnServerFiles(agent("codex"), "/root/acme", "/root", "/wsp/logins/codex")).toEqual({ user: ["/wsp/logins/codex/config.toml"], base: "/wsp/logins/codex", projects: ["/root/acme/.codex/config.toml"] });
     expect(turnServerFiles(agent("codex"), "/root/acme/web/src", "/root", "/wsp/logins/codex", "/root/acme").projects).toEqual(["/root/acme/web/src/.codex/config.toml", "/root/acme/web/.codex/config.toml", "/root/acme/.codex/config.toml"]);
     // A worktree outside the main checkout reads its own folder's file alone.
     expect(turnServerFiles(agent("codex"), "/root/.wsp/worktrees/acme-fix", "/root", undefined, "/root/acme").projects).toEqual(["/root/.wsp/worktrees/acme-fix/.codex/config.toml"]);

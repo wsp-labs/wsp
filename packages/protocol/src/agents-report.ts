@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AgentSetupView } from "./thread-defaults.js";
 import { HERE_PLACE_ID } from "./place-word.js";
 import { EXEC_BODY_MAX } from "./wire/limits.js";
+import { fmtBytes } from "./words/units.js";
 
 /** Whether an agent on a computer can run a turn there without anybody signing anything in: its own login stands on
  * that computer, the vault this host holds has the variable that agent reads, or neither. One word per agent, worked
@@ -183,6 +184,18 @@ export const serverThereRefusal = (name: string, file: string): string => `${nam
 
 /** Why a config that is a link out of the home, or out of the project for a project's file, was not written. */
 export const configLinkRefusal = (file: string, to: string): string => `${file} is a link to ${to}, outside the folder it belongs to, so wsp does not write through it.`;
+
+/** The most of one agent's config wsp reads, on a machine or here, far past the 968 KB Claude file its own issues
+ * call bloated: the file sits in a home a workspace writes, and a link to a device there never ends. */
+export const CONFIG_READ_MAX_BYTES = 32 * 1024 * 1024;
+/** Why wsp left an agent's config unread: it is not a plain file, or a link to one outside the folder it belongs to. */
+export const CONFIG_NOT_PLAIN = "it is not a plain file, or it is a link out of the folder it belongs to, and wsp reads neither";
+/** Why wsp left an agent's config unread: it is past CONFIG_READ_MAX_BYTES. */
+export const CONFIG_PAST_CAP = `it is over ${fmtBytes(CONFIG_READ_MAX_BYTES)}, more than wsp reads of an agent's config`;
+/** What a server of a config wsp left unread says: the file and why, its servers in it standing as they are. */
+export const configUnreadLine = (file: string, why: string): string => `${file} was not read: ${why}`;
+/** What a leave says of an agent's config it did not read: wsp's servers in it stay. */
+export const serversUnreadLine = (file: string, why: string): string => `wsp's MCP servers were not looked for in ${file}: ${why}`;
 
 /** Why a config was not written: a second hard link to it would keep the old text after a write by rename; and how
  * to find that link and let the write through. */

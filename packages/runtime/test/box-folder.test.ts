@@ -5,7 +5,7 @@
 // runs on the computer itself as that login. The computer is a fake on the
 // link, answering the frames the host sends it and keeping every one.
 import { describe, expect, it } from "vitest";
-import { cgroupJoinLine, childOnAnotherComputerLine, claudeMemoryDir, claudeProjectKey, HERE_PLACE_ID, placeLoginNotRootLine, placeOwnedPaths, rootsPathIn, SIGNED_IN_THERE, threadCgroup, type AsideQuestion, type ThreadScope, type TurnResult } from "@wsp/protocol";
+import { CONFIG_NOT_PLAIN, configUnreadLine, cgroupJoinLine, childOnAnotherComputerLine, claudeMemoryDir, claudeProjectKey, HERE_PLACE_ID, placeLoginNotRootLine, placeOwnedPaths, rootsPathIn, SIGNED_IN_THERE, threadCgroup, type AsideQuestion, type ThreadScope, type TurnResult } from "@wsp/protocol";
 import type { HarnessAdapterFactory, HarnessStartOptions } from "../src/runtime.js";
 import type { ServersActs } from "../src/agents-read.js";
 import { secretsOf } from "../src/adapters.js";
@@ -417,6 +417,20 @@ describe("the MCP servers a thread on a computer you joined starts", () => {
     const said = await failureOf(rt.sessions.start(at.workspace.id, { prompt: "hello", harness: "claude" }));
     expect(said).toMatch(/^Claude Code's MCP servers on that computer could not be read whole/);
     expect(readsAs(said)).not.toContain("PERSONS-OWN");
+    expect(seen.execs.some(e => e.cmd.includes("WSP_LAUNCHED"))).toBe(false);
+  });
+
+  it("fails a turn whose agent's config there was left unread, naming the file, rather than handing values to a launch that reads it", async () => {
+    const { HARNESS_ADAPTERS } = await import("../src/adapters.js");
+    const { rt, project, seen } = await joined({ adapters: { claude: HARNESS_ADAPTERS.claude }, vault: VALUED });
+    seen.configs.set("/root/.claude-cfg/.claude.json", TRACKER);
+    // What the read answers for a link at the config's name: the word in place of its bytes.
+    seen.readAs = stdout => ({ stdout: stdout.replace(/^wsp-mcp 0 0 \S+$/m, "wsp-mcp 0 0 -plain"), exitCode: 0 });
+    const at = await rt.workspaces.folderFor({ project: project.id });
+    const said = await failureOf(rt.sessions.start(at.workspace.id, { prompt: "hello", harness: "claude" }));
+    expect(said).toContain(configUnreadLine("/root/.claude-cfg/.claude.json", CONFIG_NOT_PLAIN));
+    // Both halves, as the cut read's line has them: what happened, then what the person does before sending again.
+    expect(said).toMatch(/so the turn did not start; make it a plain file under 32 MB, or a link to one inside its folder, and send again$/);
     expect(seen.execs.some(e => e.cmd.includes("WSP_LAUNCHED"))).toBe(false);
   });
 
