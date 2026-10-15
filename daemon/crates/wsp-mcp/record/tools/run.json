@@ -168,6 +168,10 @@
           "type": "boolean",
           "const": true
         },
+        "notice": {
+          "type": "string",
+          "description": "what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine"
+        },
         "sub": {
           "type": "object",
           "properties": {
@@ -464,6 +468,10 @@
         "afterCut": {
           "type": "boolean",
           "const": true
+        },
+        "notice": {
+          "type": "string",
+          "description": "what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine"
         },
         "sub": {
           "type": "object",

@@ -13,7 +13,8 @@ import { ReadBuffer, serializeMessage } from "@modelcontextprotocol/sdk/shared/s
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { CATALOG, THREAD_AGENTS } from "@wsp/catalog";
-import { worktreeRemovedLine, noProjectLine, READ_PROJECTS_FIX, refusalLine, type ProjectView, childStartedLine, cloneIntoTakenLine, HERE_PLACE_ID, noProjectImageLine, projectImageInUseRefusal, projectImageRemoveNotice, projectImageRemovedLine, addedProjectLine, goneRoadRefusal, EMPTY_MESSAGE_LINE, EXIT_CODES, NO_SUCH_TURN, noSuchProjectLine, noThreadTargetLine, ProjectGolden, Recipe, registeredLine, registerTakesNoConsentLine, threadOpenedLine, ThreadView, TURN_TOKEN_ENV, type ExitClass, NOT_DELIVERED_LINE, BUILT_IN_LIST_CLAUSE } from "@wsp/protocol";
+import { DiskGoneError } from "@wsp/engine";
+import { worktreeRemovedLine, noProjectLine, READ_PROJECTS_FIX, refusalLine, type ProjectView, childStartedLine, cloneIntoTakenLine, HERE_PLACE_ID, noProjectImageLine, projectImageInUseRefusal, projectImageRemoveNotice, projectImageRemovedLine, addedProjectLine, goneRoadRefusal, EMPTY_MESSAGE_LINE, EXIT_CODES, NO_SUCH_TURN, noSuchProjectLine, noThreadTargetLine, ProjectGolden, Recipe, registeredLine, registerTakesNoConsentLine, threadOpenedLine, ThreadView, TURN_TOKEN_ENV, type ExitClass, NOT_DELIVERED_LINE, BUILT_IN_LIST_CLAUSE, BOAT_DISK_GONE_LINE, diskGoneReplacedLine } from "@wsp/protocol";
 import { copyKey, createRuntime, memoryStore, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localWiring, serve } from "../src/cli.js";
@@ -528,6 +529,34 @@ describe("the MCP server over the host", () => {
     expect(sent.isError).toBe(false);
     expect(sent.text).toBe("re: again");
     expect((await rt.workspaces.list())[0]!.phase).toBe("running");
+  });
+
+  it.runIf(CLOUD_ON)("a send and a wake whose wake met a deleted disk answer with the line that says so, the send's before its reply", async () => {
+    await call("new", { name: "alpha" });
+    const line = diskGoneReplacedLine(BOAT_DISK_GONE_LINE);
+    const gone = (m: StubBackend["machines"][number]): void => {
+      m.resume = async () => {
+        throw new DiskGoneError(m.id, BOAT_DISK_GONE_LINE, "The sandbox stayed stopped for 14 days. Boat deleted its data.");
+      };
+    };
+    const opened = await call("run", { workspace: "alpha", task: "hello" });
+    const threadId = (opened.structured as { threadId: string }).threadId;
+    await call("pause", { workspace: "alpha" });
+    gone(backend.machines[0]!);
+    const sent = await call("send", { thread: threadId, message: "again" });
+    expect(sent.isError).toBe(false);
+    expect(sent.text).toBe(`${line}\nre: again`);
+    expect(sent.structured).toMatchObject({ notice: line, text: "re: again" });
+    expect(backend.machines).toHaveLength(2);
+    await call("pause", { workspace: "alpha" });
+    gone(backend.machines[1]!);
+    const woken = await call("wake", { workspace: "alpha" });
+    expect(woken.isError).toBe(false);
+    expect((woken.structured as { workspace: { diskGone?: string; machineId: string } }).workspace).toMatchObject({ diskGone: line, machineId: backend.machines[2]!.id });
+    // A send to a machine that is already up says nothing of a disk.
+    const plain = await call("send", { thread: threadId, message: "and on" });
+    expect(plain.text).toBe("re: and on");
+    expect(plain.structured).not.toHaveProperty("notice");
   });
 
   it.runIf(CLOUD_ON)("rebuild puts a new machine under a gone workspace and answers with it; one that still answers is a tool error in the row's own words", async () => {

@@ -1148,7 +1148,7 @@ export async function beforeSending<T>(client: HostClient, read: () => Promise<T
 /** The verbs' way through a detached start: the queued and joined lines on stderr as a follow prints them, then the
  * thread's id on stdout the moment the runtime names it, and nothing of the reply, which the thread's finished line
  * carries to whoever its start named. */
-export async function detachVerb(ctx: VerbContext, client: HostClient, start: Record<string, unknown>, picks: Picks = {}, opened?: (threadId: string, folder?: string) => string, sub?: SubOut): Promise<void> {
+export async function detachVerb(ctx: VerbContext, client: HostClient, start: Record<string, unknown>, picks: Picks = {}, opened?: (threadId: string, folder?: string) => string, sub?: SubOut, said?: string): Promise<void> {
   let waitedFor: string | undefined;
   const turn = await startDetached(client, start, "cli", e => {
     waitedFor = e.waitsFor;
@@ -1157,7 +1157,7 @@ export async function detachVerb(ctx: VerbContext, client: HostClient, start: Re
   for (const line of turn.notice?.split("\n") ?? []) ctx.io.error(line);
   if (turn.outcome === "held" && turn.session.capped !== undefined) ctx.io.error(capWaitLine(turn.session.capped));
   else if (turn.outcome !== "started" && turn.outcome !== "held") ctx.io.error(JOINED[turn.outcome](picks, waitedFor));
-  ctx.out.emit({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}) }, openedThreadSaid(turn.threadId, opened, turn.session.cwd));
+  ctx.out.emit({ ...turnView(turn), ...(sub !== undefined ? { sub } : {}), ...(said !== undefined ? { notice: said } : {}) }, openedThreadSaid(turn.threadId, opened, turn.session.cwd));
 }
 
 export const turnView = (turn: Turn): z.infer<typeof TurnOut> => ({

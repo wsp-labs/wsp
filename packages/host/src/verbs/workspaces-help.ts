@@ -64,6 +64,8 @@ import {
   workspaceStateLine,
   type PauseMode,
   workspaceStateOf,
+  DISK_EXPIRED_WORD,
+  diskExpired,
   workspaceStaysAwakeLine,
   type Capabilities,
   type MachineSizeOffer,
@@ -380,6 +382,8 @@ export function renamedWorkspaceLine(r: RenamedWorkspace): string {
 export interface Woken {
   workspace: WorkspaceOut;
   woke: boolean;
+  /** The line this call's wake left when the provider had deleted the machine's disk, said on the call's own road. */
+  said?: string;
 }
 
 /** The states a machine is down in, which are the only ones a wake can lift it out of. A machine another client is
@@ -398,7 +402,9 @@ export async function awake(client: HostClient, workspace: WorkspaceView, action
   if (before === "released" && action === "send") return { workspace, woke: false };
   if (before !== "running") tell(`waking ${workspace.name}`);
   const woken = (await client.request<{ workspace: WorkspaceOut }>("workspaces.wake", { workspaceId: workspace.id })).workspace;
-  return { workspace: woken, woke: MACHINE_DOWN.has(before) && workspaceState({ phase: woken.phase }) === "running" };
+  const said = MACHINE_DOWN.has(before) ? woken.diskGone : undefined;
+  if (said !== undefined) tell(said);
+  return { workspace: woken, woke: MACHINE_DOWN.has(before) && workspaceState({ phase: woken.phase }) === "running", ...(said !== undefined ? { said } : {}) };
 }
 
 /** Why a commit has no message when the thread's agent drafted none, and what to do instead. */
@@ -737,9 +743,17 @@ export const THREAD_HEAD = ["PROJECT", "FOLDER", "BRANCH", "THREAD", "SUBAGENT",
  * the two words `wsp stop <thread> --subagent <id>` takes, and BY is the agent that started it. */
 export function threadLines(t: ThreadRow, indent = ""): string[][] {
   const folder = shortenedFront(homeShortened(t.folder, homedir()), FOLDER_WIDTH);
-  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, subThreadWord(t) ?? threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
+  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, expiredWord(t) ?? subThreadWord(t) ?? threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
   const under = (t.subagents ?? []).map(c => [t.projectName, folder, t.branch, `${indent}  ${t.id}`, c.id, t.harness, subagentStateWord(c.state), "agent", t.computerName, shortenedEnd(c.title, TITLE_WIDTH)]);
   return [own, ...under];
+}
+
+/** The lines under the threads table: each thread whose workspace's last wake met a deleted disk, by its id. */
+export const diskGoneLines = (rows: readonly ThreadRow[]): string[] => rows.flatMap(t => (t.diskGone === undefined ? [] : [`${t.id}: ${t.diskGone}`]));
+
+/** A thread whose napping machine is past the keep of its disk, where neither a question nor a failure says more. */
+function expiredWord(t: ThreadRow): string | undefined {
+  return t.waitingOn === undefined && threadState(t) !== "failed" && diskExpired(t, Date.now()) ? DISK_EXPIRED_WORD : undefined;
 }
 
 /** A sub-thread's state where its machine says more than its turn: waiting for a slot on its cloud, its machine being

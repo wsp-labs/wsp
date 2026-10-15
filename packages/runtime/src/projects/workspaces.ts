@@ -2,10 +2,10 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { LOGIN_PATHS, remoteHost } from "@wsp/catalog";
-import { NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, presentPaths, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
-import type { ProjectGolden, ProjectView, WorkspaceProject, WorkspaceStatus } from "@wsp/protocol";
+import { DiskGoneError, NotFirstLifeError, RestoreUnfinishedError, ResumeUnansweredError, isMissing, readGone, MachineAliveError, answerOf, diskUse, presentPaths, projectSnapshotName, syncDisk, CHECK_MS, INLINE_EXEC_MS, checkScripts, projectInstalls } from "@wsp/engine";
+import type { ProjectGolden, ProjectView, WorkspaceProject, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
 import { childStartedLine, noParentWorkspaceLine, parentProjectRefusal, BringBackResult, GitPrReply, GitPushReply, GitCommitReply, GitDiscardReply, noChangeLine, GitDiffReply, GitRunLogReply, GitPrMergeReply, GitMergeInReply, DETACHED_HEAD, leadBusyRefusal, FIX_CHECK_OR_CHILD, childOnNoBranchRefusal, mergeChildPrompt, mergeIntoOwnRefusal, noRemoteForTreeLine, type TreeRecord, GitPrReplyReply, GitPrResolveReply, GitPrReactReply, REPLY_EMPTY_LINE, type PullRequestItem, GIT_DIFF_CAP_BYTES, pullRequestSendPrompt, checkFailedPrompt, conflictsPrompt, checkNotFailedRefusal, childPushedLine, isPullRequestFact, mergeMethodRefusal, noPullRequestRefusal, noSuchCheckRefusal, notOpenRefusal, AUTO_MERGE_OFF_LINE, DRAFT_NOTES, cleanCheckoutLine, commitMessage, cutDiff, draftPrompt, agentsFrom, agentsKindRefusal, agentsMayDrive, askerOf, openingCut, scopeOf, spawnGoldenRefusal, workspaceIdOf } from "@wsp/protocol";
-import { isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, snapshotLoginLine, SNAPSHOT_LOGIN_FIX, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
+import { diskGoneReleasedLine, diskGoneReplacedLine, isLocalWorkspace, kindWords, noCommandsYetLine, readingRoad, forgetUndrivenRefusal, goneRefusal, goneWords, inFolder, machineWord, deleteRefusedLine, snapshotRefusedLine, snapshotManagerLine, snapshotLoginLine, SNAPSHOT_LOGIN_FIX, noWorkspaceRefusal, threadElsewhereLine, ID_PREFIX_MIN, idPrefixRefusal, notFoundRefusal, refusalLine, notOnThisComputerLine, noBranchesLine, notMadeWorktreeLine, WORKTREE_FORCE_LINE, copiesFolder, copyTakesNone, placeBranchLine, runsInFolder, workspaceLands, shellQuote, WAKE_STOPPED, wakeAsksIn, wakeGaveUpLine, HERE_PLACE_ID, placeServesDaemonLine, placeNotAWorkspaceLine, placeNotAWorkspaceFix, refusal, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, folderForkRefusal, folderForkFix, providerKeyName, resizeBusyLine, resizeLandedLine, resizeNoMoveLine, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX, sizeRefusal, sizeWord, SIZE_PICK_FIX } from "@wsp/protocol";
 import { harnessExec, putFiles } from "@wsp/engine";
 import { ownerRepoOf, WorkspaceTalked } from "@wsp/protocol";
 import { providerSaid } from "../status.js";
@@ -28,6 +28,41 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     store, adapters, local, placeDoor, bus, clock, githubCache, readsState, tookTheResume, sleeps, live,
     threadRecords, sessions, execs, places,
   } = ctx;
+  /** A wake the provider refused because it deleted the paused machine's disk, which no later resume brings back: a
+   * sub-thread is released and its next send starts anew, and any other workspace goes onto a new machine from the
+   * image here, since the files the replacement would lose are already gone. */
+  const diskGone = async (entry: LiveWorkspace, e: DiskGoneError): Promise<WorkspaceView> => {
+    console.warn(`wake of ${entry.record.id}: ${e.machineId} cannot resume: ${e.said}`);
+    if (entry.record.sub !== undefined) {
+      const line = diskGoneReleasedLine(e.message);
+      // Boat lists a box whose disk it deleted until someone deletes it, and the release forgets the box's id.
+      await ctx.unfork(entry).catch((x: unknown) => console.warn(`wake of ${entry.record.id}: ${e.machineId} was not deleted: ${x instanceof Error ? x.message : String(x)}`));
+      entry.record.diskGone = line;
+      await ctx.subLost(entry, line);
+      ctx.tellThreads(entry.record.id, () => line);
+      throw Object.assign(new Error(line), { kind: "conflict" });
+    }
+    const old = entry.record.machineId;
+    try {
+      await entry.ws.rebuild();
+    } catch (x) {
+      entry.record.phase = entry.ws.currentPhase;
+      await ctx.persist(entry.record);
+      const words = `${e.message}, and no new machine started: ${x instanceof Error ? x.message : String(x)}`;
+      await ctx.emitStatus(entry, "napping", words);
+      throw new Error(words);
+    }
+    const line = diskGoneReplacedLine(e.message);
+    ctx.followMachine(entry);
+    delete entry.record.wakeRefused;
+    entry.record.diskGone = line;
+    await ctx.persist(entry.record);
+    bus.emit({ type: "workspace.upgraded", workspaceId: entry.record.id, machineId: entry.record.machineId });
+    console.warn(`wake of ${entry.record.id}: ${old} replaced by ${entry.record.machineId}`);
+    ctx.tellThreads(entry.record.id, () => line);
+    await ctx.emitStatus(entry, ctx.reachOf(entry), line);
+    return ctx.view(entry.record);
+  };
   const workspaces: Runtime["workspaces"] = {
     async landing(o, origin) {
       await ctx.ready();
@@ -337,6 +372,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
                   continue;
                 }
               }
+              if (!stopped() && e instanceof DiskGoneError) return await diskGone(entry, e);
               // A resume the provider answered 404 for is a sighting like any other: the record settles gone only
               // where the reads agree, and the refusal says what went with the machine.
               if (!stopped() && isMissing(e) && settled(await ctx.settleGone(entry, goneWords(entry.record.machineId, { by: "wake", at: clock.now(), answer: providerSaid(e) })))) {
@@ -450,11 +486,14 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       // that cannot land refuses the rebuild rather than replacing with no backup. Where the pause does not keep the
       // disk, the rebuild reads the vault the nap stored.
       if (ctx.keepsImages(at) && ctx.pauseKeepsDisk(at) && entry.record.phase !== "running") {
+        const asleep = entry.record.machineId;
         try {
           await workspaces.wake(id, origin);
         } catch (e) {
           throw Object.assign(new Error(`${entry.record.name} could not be woken to back up before the rebuild: ${e instanceof Error ? e.message : String(e)}`), { kind: "conflict" });
         }
+        // A wake that met a deleted disk has already moved the record onto a new machine from the image.
+        if (entry.record.machineId !== asleep) return ctx.view(entry.record);
       }
       const old = entry.record.machineId;
       const fromRunning = ctx.keepsImages(at) && ctx.pauseKeepsDisk(at) && entry.record.phase === "running";

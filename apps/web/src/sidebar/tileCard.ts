@@ -5,8 +5,9 @@
 // changed, then whatever holds the thread. The tile itself keeps two rows and
 // one mark: an open pull request's icon.
 import { agentName } from "@wsp/catalog";
-import { PULL_REQUEST_WORDS, capWaitLine, cloudSaid, fmtRate, fmtRateDollars, fmtMemGb, forkedFromLine, sizeNameOf, subNotPushedReason, type PullRequestState, type SubRow, type ThreadCapWait } from "@wsp/protocol";
+import { PULL_REQUEST_WORDS, capWaitLine, cloudSaid, diskExpired, diskExpiredLine, fmtRate, fmtRateDollars, fmtMemGb, forkedFromLine, sizeNameOf, subNotPushedReason, type PullRequestState, type SubRow, type ThreadCapWait } from "@wsp/protocol";
 import { PR_WORDS } from "../pull-request/words.js";
+import { APP_LOCALE } from "../lib/timestampFormat.js";
 import { CLOCK } from "../settings/image.js";
 import type { TilePlace } from "./ThreadTile.js";
 
@@ -62,6 +63,13 @@ export const minutesWord = (ms: number): string => {
   const minutes = Math.max(1, Math.ceil(ms / 60_000));
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 === 0 ? "" : ` ${minutes % 60} min`}`;
 };
+
+const KEPT_DAY = new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" });
+
+/** The card's line for a thread whose napping machine is past the keep of its disk; null on every other. */
+export function expiredNote(t: { diskKeptUntil?: number; status: string; asking?: string | null }, now: number): string | null {
+  return t.diskKeptUntil !== undefined && diskExpired(t, now) ? diskExpiredLine(KEPT_DAY.format(t.diskKeptUntil)) : null;
+}
 
 /** What a sub-thread's card says of its machine on the computer's line: its size and what it costs while it runs, when
  * it is deleted once done, that its work holds it, that it was deleted, or that its cloud left the host. */

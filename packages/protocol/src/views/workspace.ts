@@ -504,6 +504,10 @@ export const WorkspaceView = z.object({
    * words that also name the rebuild road. Persisted, unlike the wake's own status line, since the machine stays
    * unreachable until something replaces it; cleared by a wake that lands and by the rebuild. */
   wakeRefused: z.string().optional(),
+  /** The line a wake left when the provider had deleted the paused machine's disk: what went and where the record
+   * went on, a new machine or none until the next send. Persisted, so every row and answer can say it; cleared by the
+   * next nap and by a sub-thread's next machine. */
+  diskGone: z.string().optional(),
   /** What the agents on this workspace may ask of this host, read off the root of its tree; a workspace whose root this
    * host no longer holds carries none, and spawns nothing. */
   agents: WorkspaceAgents.optional(),
@@ -577,7 +581,7 @@ export type WorkspaceStatus = z.infer<typeof WorkspaceStatus>;
  * handed over by having been forgotten, which is how the display stream rode these doors until now. */
 const WORKSPACE_OUT = {
   id: true, name: true, machineId: true, phase: true, kind: true, golden: true, createdAt: true, project: true, folder: true, home: true,
-  claudeSessionId: true, gone: true, theme: true, glyph: true, daemonNote: true, daemonRefusedAt: true, vaultedAt: true, vaultRefused: true, wakeRefused: true,
+  claudeSessionId: true, gone: true, theme: true, glyph: true, daemonNote: true, daemonRefusedAt: true, vaultedAt: true, vaultRefused: true, wakeRefused: true, diskGone: true,
   agents: true, parentThreadId: true, rootThreadId: true, parentWorkspaceId: true, place: true, provider: true, worktree: true, from: true, review: true,
 } as const;
 
