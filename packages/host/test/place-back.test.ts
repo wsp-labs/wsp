@@ -71,6 +71,7 @@ function box(binds: (port: number) => string[], env?: NodeJS.ProcessEnv): { tran
     if (bind !== null && script === backBindScript(Number(bind[1]))) return { exitCode: 0, stdout: binds(Number(bind[1])).map(at => `WSP_BIND ${at}\n`).join(""), stderr: "" };
     return new Promise(done => {
       const child = execFile("/bin/bash", ["-c", script], env === undefined ? {} : { env }, (error, stdout, stderr) => done({ exitCode: error === null ? 0 : Number(error.code ?? 1), stdout, stderr }));
+      child.stdin?.on("error", () => undefined);
       child.stdin?.end(opts.stdin === undefined ? undefined : Buffer.from(opts.stdin));
     });
   };
