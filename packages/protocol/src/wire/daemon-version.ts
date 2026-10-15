@@ -171,6 +171,7 @@ const DAEMON_CONTENTS = [
   "d3c7718aa9f812ff2ea30a61c3ff39d646edcacecada029efaa3d5e9ed67ba95",
   "dbb7603225dde99935a392e25c291c06d7456df0f3351f74298b9f8224330d23",
   "7597d805e74eefc52ec0bf1ee32836227fcce64919f7a32ad46500daedf4a609",
+  "abdf6f4ac5c99fe513c25c9b1fedbfc466b7c3a45b011a5e172cc58e18749b8a",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -690,7 +691,10 @@ const DAEMON_CONTENTS = [
  * Version 160: A provider's machine serves the open socket and the gh door under /run/wsp-daemon, where the gh door
  * writes its gh/config.yml, since Boat mounts the machine's own /root over the one the daemon bound them in seconds
  * after a fork or a wake and every connect to a socket file under /root is refused from then on.
- * Version 161: refuse a broken join at the add, leave line in bash files. */
+ * Version 161: refuse a broken join at the add, leave line in bash files.
+ * Version 162: The place file and the key it names are read with no link followed at the last name, no wait on a fifo,
+ * a plain file only and at most 64 KiB, so what a workspace leaves there can no longer hold the daemon's one thread or
+ * its memory. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

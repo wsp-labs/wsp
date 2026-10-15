@@ -17,19 +17,15 @@ use wsp_frames::{
 
 use crate::under_home::{prune_empty, remove_empty_under_home, remove_under_home, Removed};
 
+mod file;
 mod login_lines;
 mod outside;
 mod versions;
+pub(crate) use file::{read_place_file, read_place_key};
 pub(crate) use login_lines::sweep_login_lines;
 pub(crate) use outside::{leave_here, leave_takes_runtime, unsaved_under};
 use versions::version_line;
 pub(crate) use versions::WspBuild;
-
-/// The place file as it stands, or nothing when this computer is no place: a file that is there and is not one
-/// reads the same as none, since the one road that writes it is wsp join.
-pub(crate) fn read_place_file(path: &Path) -> Option<PlaceFile> {
-    PlaceFile::parse(&std::fs::read_to_string(path).ok()?)
-}
 
 /// This place's signature over the transcript, with the pkcs8 PEM key wsp join wrote.
 pub(crate) fn sign_place_bytes(private_key_pem: &str, bytes: &[u8]) -> Result<PlaceSignature, String> {

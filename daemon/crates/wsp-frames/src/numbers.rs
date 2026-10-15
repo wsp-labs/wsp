@@ -2,7 +2,7 @@
 //! The numbers and paths the protocol and the node daemon own, as the contract fixture pins them.
 
 /// The daemon's protocol version, carried in its hello: the length of the protocol's DAEMON_CONTENTS record.
-pub const DAEMON_VERSION: u32 = 161;
+pub const DAEMON_VERSION: u32 = 162;
 
 pub const DEFAULT_HOST: &str = "0.0.0.0";
 pub const DEFAULT_PORT: u16 = 7070;
@@ -74,6 +74,9 @@ pub const PLACE_FOUND_MAX_BYTES: u64 = 32 * 1024 * 1024;
 /// The most of a person's own login file a leave reads, far past any real one: the file sits in a home a workspace
 /// writes, and a leave runs as root.
 pub const LOGIN_READ_MAX_BYTES: u64 = 1024 * 1024;
+/// The most of the place file or its key a read takes, far past the few hundred bytes a join writes: both sit in a
+/// home a workspace writes, read by the host's leave and at every one of the daemon's dials.
+pub const PLACE_READ_MAX_BYTES: u64 = 64 * 1024;
 pub const OPEN_SOCKET_PATH: &str = "/run/wsp-daemon/open.sock";
 
 /// The computer's own system directories a workspace on a computer somebody owns reads through a tree of its own,
