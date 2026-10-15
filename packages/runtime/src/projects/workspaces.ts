@@ -1194,6 +1194,10 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       return ctx.moduleOf(entry.record.kind).daemonRoad(entry);
     },
 
+    async tokenRefused(id) {
+      ctx.daemonTokens.delete((await ctx.entryOf(id)).machine.id);
+    },
+
     async daemonChannel(id, onEvent, origin) {
       const entry = await ctx.entryOf(id, origin);
       if (!ctx.moduleOf(entry.record.kind).sharedDaemon) return ctx.threadTagged(id, await ctx.copyChannel(entry, onEvent, ctx.WORKSPACE_FRAMES));

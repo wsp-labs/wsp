@@ -303,6 +303,9 @@ export interface Runtime {
     reviewPost(o: { workspaceId: string; threadId?: string }, origin?: Caller): Promise<ReviewPostResult>;
     /** How a browser dials this workspace's daemon; throws on backends without preview URLs. */
     daemonReach(id: string, origin?: Caller): Promise<DaemonReachView>;
+    /** The workspace's daemon refused the token daemonReach handed out: the next daemonReach writes this host's token on
+     * the machine again. The host's own link alone calls it. */
+    tokenRefused(id: string): Promise<void>;
     /** One channel to the daemon answering for this workspace, frame by frame, with every event that daemon
      * pushes for it: the dial of its own daemon where it runs one, and the link of the computer holding it where
      * that computer answers for it. The one reading of how a workspace's daemon is reached, so the pane's road

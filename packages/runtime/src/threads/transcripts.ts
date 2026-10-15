@@ -527,11 +527,18 @@ export function transcriptsArea(ctx: RuntimeContext): TranscriptsArea {
   };
   // Whether each machine answered a daemon, keyed by machine id: a resurrect or upgrade brings a fresh guest and file.
   const daemonTokens = new Map<string, { hasDaemon: boolean; at: number }>();
+  /** The write of each machine's token in flight: the pool dials its pipes at once, and they share one write. */
+  const writing = new Map<string, Promise<boolean>>();
   const daemonTokenOf = async (machine: Machine, path?: string): Promise<string | undefined> => {
     const token = tokenForMachine(machine.id);
     const cached = daemonTokens.get(machine.id);
     if (cached && (cached.hasDaemon || Date.now() - cached.at < DAEMON_TOKEN_MISS_TTL_MS)) return cached.hasDaemon ? token : undefined;
-    const hasDaemon = await rotateDaemonToken(machine, token, daemonTokenPathOf(machine, path));
+    let wrote = writing.get(machine.id);
+    if (wrote === undefined) {
+      wrote = rotateDaemonToken(machine, token, daemonTokenPathOf(machine, path)).finally(() => writing.delete(machine.id));
+      writing.set(machine.id, wrote);
+    }
+    const hasDaemon = await wrote;
     daemonTokens.set(machine.id, { hasDaemon, at: Date.now() });
     return hasDaemon ? token : undefined;
   };
