@@ -3727,6 +3727,55 @@ describe("wsp init with a golden already built from a recipe", () => {
     }
   });
 
+  it("an image sealed at Boat on a host that forks on another provider offers its oldest version for deletion at Boat's own count price, and deletes it at Boat", async () => {
+    const store = ownedStore();
+    const other = stubBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    // Ten named snapshots not of this image fill Boat's free count, so the version the offer deletes is one Boat bills.
+    for (let i = 1; i <= 10; i += 1) boat.snapshots.push({ id: `snap_acme-${i}`, name: `acme-${i}`, sizeBytes: 1e9, restoredBytes: 1e9, createdAt: new Date().toISOString() });
+    other.snapshots.push({ id: "snap_lab-1", name: "lab-1", sizeBytes: 1e9, restoredBytes: 1e9, createdAt: new Date().toISOString() });
+    // Boat pages the account's whole history on a listing that names no ids, which took minutes on a real account.
+    const listed: (readonly string[] | undefined)[] = [];
+    const list = boat.listSnapshots.bind(boat);
+    boat.listSnapshots = async (ids?: readonly string[]) => (listed.push(ids), list());
+    const at = (f: Fake) => (recipe: GoldenRecipe) => {
+      f.backends.push(boat);
+      const rt = createRuntime({ backend: other, store, adapters: {}, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, hostId: "box:h1", places: { wired: "other", backend: p => ({ other, boat })[p], list: () => ["other", "boat"] } });
+      f.runtimes.push(rt);
+      return rt;
+    };
+    const first = fake({ yes: true, place: "boat", placeBackend: boat, pricing: BOX_PRICING });
+    first.opts.runtime = at(first);
+    first.opts.host = quietHost();
+    const runs = [first];
+    const update = async (zshrc: string): Promise<string> => {
+      await runs.at(-1)!.runtimes.at(-1)!.close();
+      writeFileSync(join(first.opts.home, ".zshrc"), zshrc);
+      const f = fake({ yes: true, tty: false, home: first.opts.home, statePath: first.opts.statePath });
+      f.opts.runtime = at(f);
+      runs.push(f);
+      expect((await runInit(f.opts, f.io)).code).toBe(0);
+      return f.text();
+    };
+    try {
+      expect((await runInit(first.opts, first.io)).code).toBe(0);
+      expect(await update("export A=1\nexport B=2\n")).toMatch(/Image v2 sealed in \d+s/);
+      const out = await update("export A=1\nexport B=2\nexport C=3\n");
+      expect(out).toMatch(/Image v3 sealed in \d+s/);
+      expect(out).toContain("Delete image v1, 1 named snapshot, saving about $1.70/month? v3 and v2 stay. Taken as yes (--yes).");
+      expect(out).toContain("Deleted image v1.");
+      expect(out).toContain("storage at boat: 12 named snapshots, 26.0 GB; about $3.40/month for the 2 past the 10 free. 2 kept here, 16.0 GB; 10 not this host's, 10.0 GB");
+      expect(boat.snapshots.map(r => r.id).filter(id => id.includes("default"))).toEqual(["snap_wsp-h1s1-default-v2", "snap_wsp-h1s1-default-v3"]);
+      expect(other.snapshots.map(r => r.id)).toEqual(["snap_lab-1"]);
+      expect(listed.length).toBeGreaterThan(0);
+      expect(listed.filter(ids => ids === undefined)).toEqual([]);
+      expect(await store.get("goldens", copyKey("boat", "default"))).toMatchObject({ head: 3, versions: [{ version: 2 }, { version: 3 }] });
+      expect(await store.get("golden-recipes", copyKey("boat", "default@v1"))).toBeUndefined();
+    } finally {
+      for (const f of runs) for (const rt of f.runtimes) await rt.close();
+    }
+  });
+
   it("--yes with a small change: the changes since v1 are listed, the update runs on the kept builder with the one sentence, v2 is current, and no machine boots", async () => {
     const { store, shared, first, next } = await sealed();
     const before = JSON.parse(readFileSync(join(dirname(first.opts.statePath), "golden-import.json"), "utf8")) as { recipeHash: string; build: unknown };
@@ -3975,7 +4024,7 @@ describe("wsp init with a golden already built from a recipe", () => {
     expect(out).toMatch(/Image v3 sealed in \d+s/);
     expect(out).toContain("Delete image v1, 8.0 GB, saving about $0.40/month from 2026-10-01? v3 and v2 stay. Taken as yes (--yes).");
     expect(out).toContain("Deleted image v1.");
-    expect(out).toContain("storage: 2 snapshots, 16.0 GB; about $0.30/month above the free 10 GB from 2026-10-01");
+    expect(out).toContain("storage at default: 2 snapshots, 16.0 GB; about $0.30/month above the free 10 GB from 2026-10-01");
     expect(shared.snapshots.map(r => r.id)).toEqual(["snap_wsp-h1s1-default-v2", "snap_wsp-h1s1-default-v3"]);
     expect(await store.get("goldens", copyKey("default", "default"))).toMatchObject({ head: 3, versions: [{ version: 2 }, { version: 3 }] });
     expect(await store.get("golden-recipes", copyKey("default", "default@v1"))).toBeUndefined();

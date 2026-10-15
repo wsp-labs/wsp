@@ -13,7 +13,7 @@ import { writeStub } from "../../protocol/test/stub-script.js";
 import { CreateCancelledError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS } from "../src/exec-detached.js";
 import { EXEC_ENV } from "../src/golden-import.js";
-import { GONE_READS, killUntilGone } from "../src/golden.js";
+import { GONE_READS, killUntilGone, snapshotUntilGone } from "../src/golden.js";
 import {
   BACKSTOP_SLACK_MS,
   BOX_BASE_TEMPLATE,
@@ -1108,6 +1108,16 @@ describe("BoxBackend against a fake Box API", () => {
     expect(api.seen.filter(s => s.path === "/snapshots")).toEqual([]);
     expect((await backend.listSnapshots(["866f04de-8e8a-4401-9e29-cf58e1738213"])).map(r => r.id)).toEqual(["wsp-mac-default-v1", "866f04de-8e8a-4401-9e29-cf58e1738213"]);
     expect(api.seen.filter(s => s.path === "/snapshots").map(s => s.query.get("cursor"))).toEqual([null]);
+  });
+
+  it("a named snapshot's delete is read back off the named listing alone: the history (49k rows, 248 requests on a real account) is never paged", async () => {
+    const api = new FakeBox()
+      .on("DELETE", "/named-snapshots/wsp-mac-default-v1", { status: 200, body: { ok: true } })
+      .on("GET", "/named-snapshots", { status: 200, body: { ok: true, snapshots: [] } })
+      .on("GET", "/snapshots", { status: 200, body: { ok: true, type: "snapshot.list", snapshots: [], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } } });
+    const { backend } = backendOn(api);
+    expect(await snapshotUntilGone(backend, "wsp-mac-default-v1", { graceMs: 1_000, pollMs: 1 })).toEqual({ verdict: "deleted" });
+    expect(api.calls()).toEqual(["DELETE /named-snapshots/wsp-mac-default-v1", "GET /named-snapshots"]);
   });
 
   it("deletes a snapshot by what its id is: the provider's history with the confirm header, a named one by name, and one already gone is done", async () => {
