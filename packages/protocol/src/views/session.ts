@@ -232,6 +232,9 @@ export const SessionView = z.object({
   /** While this row's machine naps on a cloud that deletes a paused machine's disk after a while: when that keep runs
    * out, ms epoch, stamped off the record as sub is. Past it a wake may find the disk gone and start a new machine. */
   diskKeptUntil: z.number().optional(),
+  /** The line its workspace's last wake left when the provider had deleted the machine's disk, stamped off the record
+   * as sub is. */
+  diskGone: z.string().optional(),
   /** The computer's threads at once this turn waits on before it starts; absent on every turn that is not held. */
   capped: ThreadCapWait.optional(),
   /** The computer this send waits on to connect, by name, while a stop that could not reach it owes it the end of
@@ -322,6 +325,8 @@ export const ThreadView = z.object({
   sub: SubRow.optional(),
   /** When the keep of its napping machine's disk runs out, as SessionView.diskKeptUntil carries it. */
   diskKeptUntil: z.number().optional(),
+  /** The line a wake left when its machine's disk was gone, as SessionView.diskGone carries it. */
+  diskGone: z.string().optional(),
   /** The cap the latest turn waits on before it starts, as SessionView.capped carries it. */
   capped: ThreadCapWait.optional(),
   /** The usage limit that stopped the latest turn, and the reset it is armed to go on at, as SessionView carries them. */
@@ -405,6 +410,7 @@ export function foldThreads(sessions: ReadonlyArray<SessionView>): ThreadView[] 
       ...(latest.setupRefusal !== undefined ? { setupRefusal: latest.setupRefusal } : {}),
       ...(latest.sub !== undefined ? { sub: latest.sub } : {}),
       ...(latest.diskKeptUntil !== undefined ? { diskKeptUntil: latest.diskKeptUntil } : {}),
+      ...(latest.diskGone !== undefined ? { diskGone: latest.diskGone } : {}),
       ...(latest.capped !== undefined ? { capped: latest.capped } : {}),
       ...(latest.limit !== undefined ? { limit: latest.limit } : {}),
       ...(latest.resumeAt !== undefined ? { resumeAt: latest.resumeAt } : {}),

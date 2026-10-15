@@ -353,7 +353,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
     model,
     pr: checkout.pr,
     changed: checkout.changed,
-    notes: [snoozed ? SNOOZE_WORDS.workingHover(snoozedWorking) : null, ...capNotes(capped), thread.setupRefusal ?? null, expiredNote(thread, Date.now()), ...checkout.counts, checkout.why ?? null],
+    notes: [snoozed ? SNOOZE_WORDS.workingHover(snoozedWorking) : null, ...capNotes(capped), thread.setupRefusal ?? null, thread.diskGone ?? null, expiredNote(thread, Date.now()), ...checkout.counts, checkout.why ?? null],
   });
   // The card leads with the status row, the reason whole under its word, an ended turn's last line among them; a
   // settled tile's card has none.

@@ -8,8 +8,8 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
-import { NapRefusedError } from "@wsp/engine";
-import { localFolderRefusal, napRefusedLine, EXIT_CODES, shellLine } from "@wsp/protocol";
+import { DiskGoneError, NapRefusedError } from "@wsp/engine";
+import { BOAT_DISK_GONE_LINE, diskGoneReplacedLine, localFolderRefusal, napRefusedLine, EXIT_CODES, shellLine } from "@wsp/protocol";
 import { type HostSsh } from "@wsp/runtime";
 import { describe, expect, it, vi } from "vitest";
 import { cli, serve } from "../src/cli.js";
@@ -78,6 +78,44 @@ describe("wsp verbs over the host: pause, wake, ssh, rename, forget and delete",
     const missing = await h.run("wake", "nope");
     expect(missing.code).toBe(EXIT_CODES.usage);
     expect(missing.io.errors).toEqual(["wsp wake: no workspace nope"]);
+  });
+
+  it.runIf(CLOUD_ON)("a wake that met a deleted disk says so: wsp wake and wsp send on stderr and in their answers, and wsp threads under the table", async () => {
+    const line = diskGoneReplacedLine(BOAT_DISK_GONE_LINE);
+    const gone = (i: number): void => {
+      const m = h.backend.machines[i]!;
+      m.resume = async () => {
+        throw new DiskGoneError(m.id, BOAT_DISK_GONE_LINE, "The sandbox stayed stopped for 14 days. Boat deleted its data.");
+      };
+    };
+    await h.run("new", "alpha");
+    await h.run("run", "alpha", "first");
+    const [row] = await h.rt.sessions.list();
+    await h.run("pause", "alpha");
+    gone(0);
+    const woken = await h.run("wake", "alpha");
+    expect(woken.code).toBe(0);
+    expect(woken.io.errors).toEqual(["waking alpha", line]);
+    expect(woken.io.lines).toEqual(["alpha running"]);
+    const listed = await h.run("threads");
+    expect(listed.io.lines.join("\n").split("\n").at(-1)).toBe(`${row!.threadId}: ${line}`);
+    await h.run("pause", "alpha");
+    expect((await h.run("threads")).io.lines.some(l => l.includes(line))).toBe(false);
+    gone(1);
+    const asJson = await h.run("wake", "alpha", "--json");
+    expect(h.json(asJson.io)).toEqual([{ workspace: expect.objectContaining({ name: "alpha", phase: "running", diskGone: line }) }]);
+    await h.run("pause", "alpha");
+    gone(2);
+    const sent = await h.run("send", row!.threadId!, "again", "--json");
+    expect(sent.code).toBe(0);
+    expect(sent.io.errors).toContain(line);
+    expect(h.json(sent.io).at(-1)).toMatchObject({ notice: line });
+    await h.run("pause", "alpha");
+    gone(3);
+    const detached = await h.run("send", row!.threadId!, "once more", "--detach", "--json");
+    expect(detached.io.errors).toContain(line);
+    expect(h.json(detached.io).at(-1)).toMatchObject({ notice: line });
+    expect(h.backend.machines).toHaveLength(5);
   });
 
   it.runIf(CLOUD_ON)("wake says a machine that came up and answers nothing is up and not answering yet", async () => {

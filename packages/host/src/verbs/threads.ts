@@ -47,7 +47,7 @@ import {
 import { hostBack, type VerbDeps, type VerbContext, usageIs, tool, type CliVerb, type Verb, PICK_OPTIONS, SEND_OPTIONS, flag, flagList, absolutePath, absoluteFolder } from "./client.js";
 import { workspaceOf, threadOf, threadCwd, SSH_PIPES_HERE_LINE, sshWorkspaceOf, pipeBytes, awake, napAfterDeadLaunch, withLine, stop, stopLine, forgetThread, threadForgotLine, rename, renameLine, threadsOf, settleThreads, restoreThreads, settledLines, restoredLines } from "./workspaces-help.js";
 import { type Turn, threadAt, pickFlags, checkedStart, filesFrom, runTarget, forkFor, subFor, worktreeFor, openingOf, threadFork, notifyOf, replacedOf, messageTo, startDetached, follow, hostRestartedLine, restartHost, readThread, readLine, threadHead, headLine, resumeAsked, type AnswerRoad, ANSWER_ROADS, answerOpenAsk, followVerb, beforeSending, detachVerb, turnView } from "./turns-help.js";
-import { confirmed, execOn, type ExportRequest, exportProject, withReplaceHint, agentsFlag, QUIET_LINE, QUIET_TURN, SEND_MEETS, CAP_MEETS, TurnOut, RunOut, Argv, asJson, asText, turnText, detachedOut, turnOut, WorkspaceIn, ThreadIn, AgentIn, NotifyIn, RunProjectIn, BesideIn, BranchIn, OnIn, SubSizeIn, SubFromIn, RunCwdIn, ExecCwdIn, DetachIn, TitleIn, ReplacesIn, ForkIn, AtIn, FilesIn, FastIn, ResumeIn, CopyIn, PICK_INPUTS, SEND_INPUTS, schemeFlag, hostFolders, initSetup, folderLines, REASON_FLAG } from "./io.js";
+import { confirmed, execOn, type ExportRequest, exportProject, withReplaceHint, agentsFlag, QUIET_LINE, QUIET_TURN, SEND_MEETS, CAP_MEETS, TurnOut, RunOut, Argv, asJson, asText, turnText, noticed, detachedOut, turnOut, WorkspaceIn, ThreadIn, AgentIn, NotifyIn, RunProjectIn, BesideIn, BranchIn, OnIn, SubSizeIn, SubFromIn, RunCwdIn, ExecCwdIn, DetachIn, TitleIn, ReplacesIn, ForkIn, AtIn, FilesIn, FastIn, ResumeIn, CopyIn, PICK_INPUTS, SEND_INPUTS, schemeFlag, hostFolders, initSetup, folderLines, REASON_FLAG } from "./io.js";
 import { SLATE_VERBS } from "./slate.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
 
@@ -157,8 +157,8 @@ export const THREAD_VERBS: readonly Verb[] = [
       });
       let started: Turn | undefined;
       try {
-        if (ctx.flags["detach"] === true) await detachVerb(ctx, client, opening, {}, opened);
-        else ctx.out.emit(turnView(await followVerb(ctx, client, opening, true, {}, { opened, spend: turnSpendWord(woken?.workspace ?? { kind: "local" }) }, t => (started = t))));
+        if (ctx.flags["detach"] === true) await detachVerb(ctx, client, opening, {}, opened, undefined, woken?.said);
+        else ctx.out.emit(noticed(turnView(await followVerb(ctx, client, opening, true, {}, { opened, spend: turnSpendWord(woken?.workspace ?? { kind: "local" }) }, t => (started = t))), woken?.said));
       } catch (e) {
         throw woken === undefined ? e : withLine(e, await napAfterDeadLaunch(client, woken, started));
       }
@@ -205,9 +205,9 @@ export const THREAD_VERBS: readonly Verb[] = [
         });
         let started: Turn | undefined;
         try {
-          if (detach === true) return detachedOut(await startDetached(client, opening, "agent", undefined, () => hostBack(deps)), opened);
+          if (detach === true) return detachedOut(await startDetached(client, opening, "agent", undefined, () => hostBack(deps)), opened, undefined, woken?.said);
           const turn = await follow(client, opening, "agent", { ...QUIET_TURN, started: t => (started = t) }, () => hostBack(deps));
-          const out = turnOut(turn);
+          const out = noticed(turnOut(turn), woken?.said);
           return asText(opened === undefined ? turnText(out) : `${opened(out.threadId, turn.session.cwd)}\n${turnText(out)}`, out);
         } catch (e) {
           throw woken === undefined ? e : withLine(e, await napAfterDeadLaunch(client, woken, started));
@@ -458,14 +458,14 @@ export const THREAD_VERBS: readonly Verb[] = [
       if (ref === undefined || message === undefined || ctx.args.length !== 2) throw usageRefusal("wsp send takes a thread and one message.", usageIs(ctx));
       const client = await ctx.client();
       const picks = pickFlags(ctx.flags);
-      const { thread, workspace } = await beforeSending(client, async () => {
+      const { thread, workspace, said } = await beforeSending(client, async () => {
         const thread = await threadOf(client, ref);
         await checkedStart(client, message, thread.harness, picks, thread.workspaceId);
         return { thread, ...(await awake(client, await workspaceOf(client, thread.workspaceId), "send", line => ctx.io.error(line))) };
       });
       const files = flagList(ctx.flags, "file");
-      if (ctx.flags["detach"] === true) await detachVerb(ctx, client, messageTo(thread, message, picks, files, ctx.elsewhere), picks);
-      else ctx.out.emit(turnView(await followVerb(ctx, client, messageTo(thread, message, picks, files, ctx.elsewhere), false, picks, { spend: turnSpendWord(workspace) })));
+      if (ctx.flags["detach"] === true) await detachVerb(ctx, client, messageTo(thread, message, picks, files, ctx.elsewhere), picks, undefined, undefined, said);
+      else ctx.out.emit(noticed(turnView(await followVerb(ctx, client, messageTo(thread, message, picks, files, ctx.elsewhere), false, picks, { spend: turnSpendWord(workspace) })), said));
       return 0;
     },
     tool: tool({
@@ -474,14 +474,13 @@ export const THREAD_VERBS: readonly Verb[] = [
       output: TurnOut.shape,
       call: async ({ thread: ref, message, files, detach, ...input }, deps) => {
         const client = await deps.client();
-        const thread = await beforeSending(client, async () => {
+        const { thread, said } = await beforeSending(client, async () => {
           const thread = await threadOf(client, ref);
           await checkedStart(client, message, thread.harness, input, thread.workspaceId);
-          await awake(client, await workspaceOf(client, thread.workspaceId), "send", QUIET_LINE);
-          return thread;
+          return { thread, said: (await awake(client, await workspaceOf(client, thread.workspaceId), "send", QUIET_LINE)).said };
         });
-        if (detach === true) return detachedOut(await startDetached(client, messageTo(thread, message, input, files, deps.elsewhere), "agent", undefined, () => hostBack(deps)));
-        const out = turnOut(await follow(client, messageTo(thread, message, input, files, deps.elsewhere), "agent", QUIET_TURN, () => hostBack(deps)));
+        if (detach === true) return detachedOut(await startDetached(client, messageTo(thread, message, input, files, deps.elsewhere), "agent", undefined, () => hostBack(deps)), undefined, undefined, said);
+        const out = noticed(turnOut(await follow(client, messageTo(thread, message, input, files, deps.elsewhere), "agent", QUIET_TURN, () => hostBack(deps))), said);
         return asText(turnText(out), out);
       },
     }),

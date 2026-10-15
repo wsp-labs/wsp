@@ -233,6 +233,9 @@
             "wakeRefused": {
               "type": "string"
             },
+            "diskGone": {
+              "type": "string"
+            },
             "agents": {
               "type": "object",
               "properties": {
@@ -781,6 +784,9 @@
               "type": "string"
             },
             "wakeRefused": {
+              "type": "string"
+            },
+            "diskGone": {
               "type": "string"
             },
             "agents": {
