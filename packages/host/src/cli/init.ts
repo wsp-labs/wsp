@@ -5,7 +5,7 @@ import { computeRecipe, nodeHost, scanProject } from "@wsp/collect";
 import { THREAD_AGENTS } from "@wsp/catalog";
 import { boatForksNoFirstLine, jsonLine, imageHomeKeptLine, placeSaid, subThreadsOnly, forksNoMachines, initJobOver, InitSetup, type SetupPlace, NO_BUILD_PLACE_LINE, shellQuote, THIS_COMPUTER, usageRefusal } from "@wsp/protocol";
 import { providerBackendFor, providerKeyRow, wiredProviderId, type ProviderEnv } from "../providers.js";
-import { DAEMON_DEPLOYED_LINE, deployDaemon, missingBundleFile } from "../doctor.js";
+import { missingBundleFile } from "../doctor.js";
 import { envFileFor, writeEnvFile } from "../env-keys.js";
 import { keychainReader } from "../init-import.js";
 import { adoptLoginPath } from "../login-path.js";
@@ -29,7 +29,7 @@ import { type CliIO, jsonCliIO } from "./io.js";
 import { keySources, loadKeys, keysFound, vaultNow } from "./keys.js";
 import { statesHere } from "./state.js";
 import { type ServeAsked, SERVE_FLAGS, type SharedOpts, type SharedFlags } from "./flags.js";
-import { goldenRecipe, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
+import { deployHostDaemon, goldenRecipe, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
 import { stopOnSignals, stayOnUncaught, hostFor } from "./serve.js";
 
 /** With --json stdout carries the objects alone, so every line the run says moves to stderr beside it. */
@@ -293,7 +293,7 @@ export async function init(
         platform: hostPlatform(),
         brew: () => readBrewTable(nodeHost()),
         scan: alsoHere,
-        runtime: recipe => makeRuntime(keys, opts.statePath, { ...recipe, deployDaemon: async machine => deployDaemon(machine).then(() => DAEMON_DEPLOYED_LINE) }, providerEnv, undefined, undefined, links),
+        runtime: recipe => makeRuntime(keys, opts.statePath, { ...recipe, deployDaemon: deployHostDaemon }, providerEnv, undefined, undefined, links),
         bundleFile: () => missingBundleFile(),
         ports: { port: opts.port, named: opts.named, states: statesHere(opts.statePath) },
         address: opts.address,
