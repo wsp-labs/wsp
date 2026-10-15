@@ -119,6 +119,7 @@ const SHARED_STARTERS = new Set([
   "fakeStty",
   "gitCopier",
   "grandchild",
+  "heldReadOf",
   "leadAndBox",
   "leadOnThisComputer",
   "loginShell",

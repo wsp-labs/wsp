@@ -6,14 +6,14 @@
 // computer's own row.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir, arch as osArch, platform, release, type as osType, uptime as upSeconds, userInfo } from "node:os";
 import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ServerPort } from "@wsp/engine";
-import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
@@ -422,8 +422,8 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     removed.push(...sweepCgroups(opts.cgroupRoots ?? []));
   }
   const said = unsourced(sshDaemonPlace({ home, path: "" }), home);
-  if (said !== undefined && "removed" in said) removed.push(said.removed);
-  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...(said !== undefined && "kept" in said ? [said.kept] : [])] };
+  removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
+  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
 }
 
 /** The paths the add found standing before it wrote anything, off the record its deploy left here. Nothing where
@@ -697,29 +697,49 @@ function there(path: string): boolean {
   }
 }
 
-/** Takes wsp's own line back out of the person's own login file, which would otherwise print an error at every
- * login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written in,
- * since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
- * opened only when wsp's file is named in it and written back by the one config write: a .profile symlinked into a
- * dotfiles checkout under the home stays a symlink. Answers the lines it took, or the lines it left with the write's
- * refusal, or nothing when the file named none. */
-function unsourced(place: DaemonPlace, home: string): { removed: string } | { kept: string } | undefined {
-  const file = place.profileSource;
-  if (file === undefined || !there(file)) return undefined;
+/** Takes wsp's own line back out of each of the person's own login files, which would otherwise print an error at
+ * every login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written
+ * in, since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
+ * opened only when wsp's file is named in it and written back by the one config write. A link, a file with a second
+ * name, a file past the size any login file has, and anything that is not a plain file are left as they are, as the
+ * leave over the link leaves them. Answers, per file, the lines it took, the lines it left and why, or why it did not
+ * read the file, and nothing for a file that named none. */
+function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { kept: string })[] {
+  return (place.profileSources ?? []).flatMap(file => {
+    const said = unsourcedFrom(place, home, file);
+    return said === undefined ? [] : [said];
+  });
+}
+
+function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
   let bytes: Buffer;
+  let twinned: boolean;
+  let fd: number | undefined;
   try {
-    bytes = readFileSync(file);
-  } catch {
-    return undefined;
+    // Opened with no link followed and without waiting, and read by the bytes it gives, never the size it states:
+    // opening what a link points at runs a fifo's other end or a device's driver, a fifo there would hold the leave,
+    // and a file that never ends would fill its memory.
+    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
+    const read = fstatSync(fd);
+    if (!read.isFile()) return { kept: placeLoginUnreadLine(file) };
+    twinned = read.nlink > 1;
+    const most = Buffer.alloc(LOGIN_READ_MAX_BYTES + 1);
+    bytes = most.subarray(0, readSync(fd, most, 0, most.length, 0));
+    if (bytes.length > LOGIN_READ_MAX_BYTES) return { kept: placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) };
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ELOOP" ? { kept: placeLoginUnreadLine(file) } : undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
   }
   const rows = bytes.toString("utf8").split("\n");
   const gone = rows.filter(row => row.includes(place.profileFile));
   if (gone.length === 0) return undefined;
   const lines = gone.map(row => row.trim()).join("; ");
+  if (twinned) return { kept: placeLineStaysLine(lines, file, PLACE_LOGIN_LINKED) };
   try {
     writeConfigHere(file, home, configSum(bytes), rows.filter(row => !row.includes(place.profileFile)).join("\n"));
   } catch (e) {
-    return { kept: `${lines} stays in ${file}: ${e instanceof Error ? e.message : String(e)}` };
+    return { kept: placeLineStaysLine(lines, file, e instanceof Error ? e.message : String(e)) };
   }
-  return { removed: `${lines} (out of ${file})` };
+  return { removed: placeLineOutLine(lines, file) };
 }

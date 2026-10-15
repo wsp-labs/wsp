@@ -189,6 +189,13 @@ import {
   guestNoDaemonLine,
   HOST_CLOSED_LINE,
   placeKeptForLinkLine,
+  placeLineOutLine,
+  placeLineStaysLine,
+  PLACE_LOGIN_PAST_CAP,
+  PLACE_LOGIN_LINKED,
+  placeLoginUnreadLine,
+  LOGIN_READ_MAX_BYTES,
+  placeLoginFiles,
   placeKeptMountedLine,
   placeKeptMountsUnreadLine,
   placeRuntimeStandsLine,
@@ -328,6 +335,11 @@ const words = (): Record<string, string> => ({
   guestNoDaemon: guestNoDaemonLine("{port}"),
   hostClosed: HOST_CLOSED_LINE,
   placeKeptForLink: placeKeptForLinkLine("{path}"),
+  placeLineOut: placeLineOutLine("{lines}", "{file}"),
+  placeLineStays: placeLineStaysLine("{lines}", "{file}", "{why}"),
+  placeLoginPastCap: PLACE_LOGIN_PAST_CAP,
+  placeLoginLinked: PLACE_LOGIN_LINKED,
+  placeLoginUnread: placeLoginUnreadLine("{file}"),
   placeKeptMounted: placeKeptMountedLine("{path}", "{mount}"),
   placeKeptMountsUnread: placeKeptMountsUnreadLine("{path}", "{why}"),
   placeRuntimeStands: placeRuntimeStandsLine("{path}"),
@@ -454,6 +466,7 @@ const numbers = (): Record<string, number | string | readonly string[]> => ({
   toolLinksDir: TOOL_LINKS_DIR,
   placeFoundEnd: PLACE_FOUND_END,
   placeFoundMaxBytes: PLACE_FOUND_MAX_BYTES,
+  loginReadMaxBytes: LOGIN_READ_MAX_BYTES,
   openSocketPath: OPEN_SOCKET_PATH,
   guestDaemonSocketPath: GUEST_DAEMON_SOCKET_PATH,
   brokerPort: BROKER_PORT,
@@ -1037,6 +1050,8 @@ describe("the words and numbers are what this package exports", () => {
     // The order a leave walks, which the daemon's own list is held to: the provision folder after the daemon's,
     // and never wsp's own folder, which holds the person's own wsp and a host's state on the same login.
     ["place-paths.json", () => placeOwnedPaths(FIXTURE_HOME)],
+    // The login files wsp writes its line in and every leave takes it back out of, the daemon's over the link among them.
+    ["place-login-files.json", () => placeLoginFiles(FIXTURE_HOME)],
   ] as const) {
     it(`${name} equals its regeneration`, () => {
       const fresh = regenerate();

@@ -124,6 +124,13 @@ pub fn probe_path(home: &Path) -> String {
     numbers::TOOLS_PATH.split(':').filter(|dir| !dir.is_empty() && !under(dir)).collect::<Vec<_>>().join(":")
 }
 
+/// The login files wsp puts its one line in on a computer the person owns, as the protocol's placeLoginFiles names
+/// them: `.profile`, then bash's own two, since a bash login reads the first of the three it finds.
+pub fn place_login_files(home: &Path) -> Vec<PathBuf> {
+    let at = trimmed(home);
+    [".profile", ".bash_profile", ".bash_login"].iter().map(|name| at.join(name)).collect()
+}
+
 /// Every path a leave takes off a place, in the order the protocol's placeOwnedPaths names them, each for the line it
 /// puts in front of a person reading the leave. Not wsp's own folder, which holds the person's own wsp and a host's
 /// state on the same login, so every write under it, the daemon's or the host's over the link, has its own row here.
