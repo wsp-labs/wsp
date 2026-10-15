@@ -340,6 +340,10 @@ pub async fn awake(client: &Client, workspace: &Workspace, action: &str) -> Resu
         };
         return Err(Failure::new(said));
     }
+    // A released sub-thread has no machine to wake: its send makes a new one.
+    if before == "released" && action == "send" {
+        return Ok(Woken { workspace: workspace.clone(), woke: false, said: None });
+    }
     #[derive(Deserialize)]
     struct Waking {
         workspace: Workspace,
