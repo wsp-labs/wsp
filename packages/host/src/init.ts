@@ -1176,7 +1176,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, yes: opts.yes, input: io.input, output: io.output, stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
     if (road !== "rebuild") {
       if (road === 0 && landed !== undefined) log.info(installsTally(landed, resultsPath).join("\n"), out);
-      if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output })).then(() => done());
+      if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) })).then(() => done());
       return { code: road };
     }
   }
@@ -1517,7 +1517,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     out,
   );
 
-  if (version > 1) await retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output });
+  if (version > 1) await retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) });
 
   // The golden is on the account and in the state file by here: nothing under this line can lose it, and a run with
   // nobody at a terminal has no app to serve, so it ends with the golden recorded and says what starts the app.

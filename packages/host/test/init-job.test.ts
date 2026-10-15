@@ -80,12 +80,12 @@ function downFor(backend: StubBackend, times: number, pick: (m: StubMachine) => 
 
 /** wsp init at a terminal beside a serving host, on that host's job: what the person reads, and the code the run
  * ends on. The socket between the two has its own test, so the door here is wired straight to the job. */
-function besideRun(jobs: InitJobs): { code: Promise<number>; text(): string } {
+function besideRun(jobs: InitJobs, over: { rebuild?: boolean } = {}): { code: Promise<number>; text(): string } {
   const output = new PassThrough();
   const said: string[] = [];
   output.on("data", (c: Buffer) => said.push(c.toString()));
   const io: InitIO = { input: new PassThrough(), output, stderr: output, isTTY: false, env: {}, open: async () => false, signals: new EventEmitter(), exit: () => {} };
-  return { code: buildBesideHost({ client: inProcessDoor(jobs), io, yes: true }), text: () => stripVTControlCharacters(said.join("")) };
+  return { code: buildBesideHost({ client: inProcessDoor(jobs), io, yes: true, ...over }), text: () => stripVTControlCharacters(said.join("")) };
 }
 
 function inProcessDoor(jobs: InitJobs): DoorClient {
@@ -1904,5 +1904,28 @@ describe("the init job, terminal road", () => {
     expect(f.jobs.view()!.phase).toBe("done");
     expect(f.backend.machines).toEqual([]);
     expect((await f.rt.image.get()).image).toMatchObject({ version: 2, place: "box" });
+  });
+
+  it("a terminal beside the host prints the cleanup offer after a seal and what it deleted, as wsp init with no host serving does", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    const said: string[] = [];
+    for (const n of [1, 2, 3, 4]) {
+      // v2 and v3 seal from fresh machines and v4 is an update, so no live machine is a fork of a version the offer
+      // deletes, which the stub, like Solari, refuses.
+      if (n === 4) writeFileSync(join(f.home, ".zshrc"), "export A=4\n");
+      const run = besideRun(f.jobs, { rebuild: n === 2 || n === 3 });
+      expect(await run.code, run.text()).toBe(0);
+      said.push(run.text());
+    }
+    const [rebuilt, updated] = [said[2]!, said[3]!];
+    expect(rebuilt).toContain("Image v3 sealed on the host serving this state.");
+    expect(rebuilt).toMatch(/Delete image v1, [\d.]+ GB, .*\? v3 and v2 stay\..* Taken as yes \(--yes\)\./);
+    expect(rebuilt).toContain("Deleted image v1.");
+    expect(rebuilt).toContain("storage at default: 2 snapshots, 16.0 GB");
+    expect(rebuilt.indexOf("Image v3 sealed")).toBeLessThan(rebuilt.indexOf("Delete image v1"));
+    expect(updated).toMatch(/Delete image v2, [\d.]+ GB, .*\? v4 and v3 stay\..* Taken as yes \(--yes\)\./);
+    expect(updated).toContain("Deleted image v2.");
+    expect(f.backend.snapshots.map(r => r.id.replace(/^.*-default-/, ""))).toEqual(["v3", "v4"]);
   });
 });
