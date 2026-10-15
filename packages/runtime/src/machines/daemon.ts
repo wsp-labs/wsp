@@ -252,6 +252,15 @@ export function daemonArea(ctx: RuntimeContext): DaemonArea {
     return work;
   };
 
+  /** What a turn's launch waits out: the sync on the workspace's machine, while no turn runs there. The agent reaches
+   * its model and gh through doors the daemon serves, so a turn launched ahead of the update runs on the old daemon
+   * and gets connection refused, and the update then waits for that turn. A turn already running holds the old daemon
+   * anyway, and the sync waits for it, so a launch beside it waits for nothing. */
+  const daemonSettled = (entry: LiveWorkspace): Promise<void> => {
+    const sync = daemonSyncs.get(entry.machine.id);
+    return sync === undefined || turnRuns(entry.record.id) ? Promise.resolve() : sync.catch(() => {});
+  };
+
   /** Every attempt to put a daemon back on a workspace's current machine, and when the last one was. */
   const revivedAt = new Map<string, MachineMoment>();
   /** Every workspace whose last sync could not read its daemon's version, and when that read gave up. */
@@ -345,7 +354,7 @@ export function daemonArea(ctx: RuntimeContext): DaemonArea {
     void syncDaemon(entry);
   };
   return {
-    sendDetached, toFirstThread, writeDaemonRoots, turnRuns, deployDaemonOn, daemonSyncs, syncDaemon,
+    sendDetached, toFirstThread, writeDaemonRoots, turnRuns, deployDaemonOn, daemonSyncs, syncDaemon, daemonSettled,
     revivedAt, unreadAt, unreached, unreachedOf, reviveDaemon, offerDaemonAgain, readVersionAgain,
   };
 }
