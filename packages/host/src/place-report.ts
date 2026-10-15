@@ -713,23 +713,21 @@ function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { k
 
 function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
   let bytes: Buffer;
-  let linked: boolean;
   let twinned: boolean;
   let fd: number | undefined;
   try {
-    const stands = lstatSync(file);
-    linked = stands.isSymbolicLink();
-    // Opened without waiting and read by the bytes it gives, never the size it states: a fifo there would hold the
-    // leave, and a link to /dev/zero would fill its memory, and both stat as 0 bytes.
-    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK | (linked ? 0 : constants.O_NOFOLLOW));
+    // Opened with no link followed and without waiting, and read by the bytes it gives, never the size it states:
+    // opening what a link points at runs a fifo's other end or a device's driver, a fifo there would hold the leave,
+    // and a file that never ends would fill its memory.
+    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW);
     const read = fstatSync(fd);
-    if (!read.isFile() || (!linked && !stands.isFile())) return { kept: placeLoginUnreadLine(file) };
+    if (!read.isFile()) return { kept: placeLoginUnreadLine(file) };
     twinned = read.nlink > 1;
     const most = Buffer.alloc(LOGIN_READ_MAX_BYTES + 1);
     bytes = most.subarray(0, readSync(fd, most, 0, most.length, 0));
     if (bytes.length > LOGIN_READ_MAX_BYTES) return { kept: placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) };
-  } catch {
-    return undefined;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "ELOOP" ? { kept: placeLoginUnreadLine(file) } : undefined;
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
@@ -737,7 +735,7 @@ function unsourcedFrom(place: DaemonPlace, home: string, file: string): { remove
   const gone = rows.filter(row => row.includes(place.profileFile));
   if (gone.length === 0) return undefined;
   const lines = gone.map(row => row.trim()).join("; ");
-  if (linked || twinned) return { kept: placeLineStaysLine(lines, file, PLACE_LOGIN_LINKED) };
+  if (twinned) return { kept: placeLineStaysLine(lines, file, PLACE_LOGIN_LINKED) };
   try {
     writeConfigHere(file, home, configSum(bytes), rows.filter(row => !row.includes(place.profileFile)).join("\n"));
   } catch (e) {
