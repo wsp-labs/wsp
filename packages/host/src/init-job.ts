@@ -16,7 +16,7 @@ import { stripVTControlCharacters } from "node:util";
 import { catalogEntry, loginSignIn, mintsToken, tokenIn } from "@wsp/catalog";
 import { keyCheckLine, type BackendPricing, type KeyCheck, type MachineBackend } from "@wsp/engine";
 import { RUNGS } from "@wsp/collect";
-import { capWaitLine, subThreadsOnly, CLOUD_SETUP_WORDS, namesPlace, noSuchPlaceRefusal, tableName, FIRST_WORKSPACE, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, INIT_ROW_STATES, KEY_REFUSED, KEY_UNCHECKED, NEVER_REACHED, pasteHereLine, STOP_LEFT_MACHINE_LINE, SIGN_IN_NEVER_REACHED, LoginState, SignInFinish, startPicks, THIS_COMPUTER, initAgentNoRecipeLine, initAgentPrompt, initBuildRows, initJobBuilding, initJobOver, MACHINE_ROW_LABEL, initNeedWhat, initRowOver, initSignInOutcome, initFailedLine, initStageCount, initStoppedAt, isLocalWorkspace, isSessionEvent, noMcpServersLine, plural, takesMcpServers, threadWorkingLine, type GoldenStep, type InitJob, type InitJobEvent, type InitKeys, type InitNeedsYouEvent, type InitPhase, type InitRoad, type InitRow, type InitScreen, type InitScreenId, type InitSetup, type McpServerSpec, type PlaceKind, type SetupPlace, type TurnResult } from "@wsp/protocol";
+import { capWaitLine, subThreadsOnly, CLOUD_SETUP_WORDS, namesPlace, noSuchPlaceRefusal, tableName, FIRST_WORKSPACE, GOLDEN_STAGE_WORDS, INIT_BUILD_STEP, INIT_ROW_STATES, InitCleanupLine, KEY_REFUSED, KEY_UNCHECKED, NEVER_REACHED, pasteHereLine, STOP_LEFT_MACHINE_LINE, SIGN_IN_NEVER_REACHED, LoginState, SignInFinish, startPicks, THIS_COMPUTER, initAgentNoRecipeLine, initAgentPrompt, initBuildRows, initJobBuilding, initJobOver, MACHINE_ROW_LABEL, initNeedWhat, initRowOver, initSignInOutcome, initFailedLine, initStageCount, initStoppedAt, isLocalWorkspace, isSessionEvent, noMcpServersLine, plural, takesMcpServers, threadWorkingLine, type GoldenStep, type InitJob, type InitJobEvent, type InitKeys, type InitNeedsYouEvent, type InitPhase, type InitRoad, type InitRow, type InitScreen, type InitScreenId, type InitSetup, type McpServerSpec, type PlaceKind, type SetupPlace, type TurnResult } from "@wsp/protocol";
 import { harnessCatalog, type GoldenRecipe, type InitDoor, type Runtime, type SessionHandle } from "@wsp/runtime";
 import type { AgentHere } from "./agents-here.js";
 import { vaultOf } from "./env-keys.js";
@@ -144,6 +144,7 @@ interface State {
   /** What the agent road listens to on the runtime while its thread runs, dropped when the thread is done with. */
   watching: (() => void)[];
   golden?: { version: number };
+  cleanup?: InitCleanupLine[];
   workspace?: { id: string; name: string };
   place?: SetupPlace;
   /** The screens were drawn for a build at a provider, which has no Sign-ins screen. */
@@ -268,6 +269,7 @@ export class InitJobs implements InitDoor {
       ...(s.error !== undefined ? { error: s.error } : {}),
       ...(s.keyRefused === true ? { keyRefused: true } : {}),
       ...(s.golden !== undefined ? { golden: s.golden } : {}),
+      ...(s.cleanup !== undefined ? { cleanup: s.cleanup.map(c => ({ ...c })) } : {}),
       ...(s.workspace !== undefined ? { workspace: s.workspace } : {}),
       ...(s.place !== undefined ? { place: s.place } : {}),
     };
@@ -983,6 +985,11 @@ export class InitJobs implements InitDoor {
         const workspace = record["workspace"] as { id: string; name: string } | undefined;
         if (workspace !== undefined) s.workspace = workspace;
         s.phase = "finishing";
+        break;
+      }
+      case "cleanup": {
+        const said = InitCleanupLine.safeParse(record);
+        if (said.success) (s.cleanup ??= []).push(said.data);
         break;
       }
       case "import": {
