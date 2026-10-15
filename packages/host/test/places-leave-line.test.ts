@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, linkSync, mkdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { LOGIN_READ_MAX_BYTES, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, placeDaemonPaths, placeLineStaysLine, placeLoginUnreadLine, wspBinIn, type PlaceFile } from "@wsp/protocol";
+import { LOGIN_READ_MAX_BYTES, PLACE_LOGIN_PAST_CAP, placeDaemonPaths, placeLineStaysLine, placeLoginUnreadLine, wspBinIn, type PlaceFile } from "@wsp/protocol";
 import { LOGIN_KEPT_LINE, profileSourceLine } from "../src/login-files.js";
 import { addFoundScript, addUndoScript, addFound, DAEMON_GONE_LINE, joinedAddWrites, joinedPlace, loginFilesStep, sshDaemonPlace } from "../src/doctor.js";
 import { brokenJoinLine, joinCutByLeaveLine, placeHeldRefusal, placeLeaveLineAs, placeNoKeyForSudoLine, placeUndoNeedsSudoLine, placeUndoNoKeyLine, placeUndoOtherKeyLine } from "../src/places.js";
@@ -142,6 +142,36 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
     expect(found.status, found.error?.message).toBe(0);
   });
 
+  it("writes the take-out's copy beside no login file, so nothing put at that name takes the update's or the undo's write or holds it", () => {
+    const outside = tmp("leave-line-beside-outside");
+    writeFileSync(join(outside, "passwd"), "theirs\n");
+    const run = (script: string) => spawnSync("/bin/bash", ["-c", script], { encoding: "utf8", timeout: 10_000 });
+    // An update over a box already holding wsp's line in each login file takes it out before it writes it again.
+    const home = tmp("leave-line-beside");
+    const line = `${profileSourceLine(placeDaemonPaths(home).profileFile)}\n`;
+    for (const name of [".profile", ".bash_profile", ".bash_login"]) writeFileSync(join(home, name), `${OWN}${line}`);
+    symlinkSync(join(outside, "passwd"), join(home, ".profile.wsp-out"));
+    symlinkSync(join(outside, "passwd"), join(home, ".bash_profile.wsp-out"));
+    expect(spawnSync("mkfifo", [join(home, ".bash_login.wsp-out")]).status).toBe(0);
+    const update = run(loginFilesStep(sshDaemonPlace({ home, path: "/usr/bin" })).join("\n"));
+    expect(readFileSync(join(outside, "passwd"), "utf8")).toBe("theirs\n");
+    expect(update.status, update.error?.message).toBe(0);
+    for (const name of [".profile", ".bash_profile", ".bash_login"]) expect(readFileSync(join(home, name), "utf8")).toBe(`${OWN}${line}`);
+    // The undo of a failed add takes the line out the same way.
+    const undone = tmp("leave-line-beside-undo");
+    writeFileSync(join(undone, ".bash_profile"), OWN);
+    const place = joinedPlace({ home: undone, path: "/usr/bin" }, { hostUrls: [], codeFile: `${placeDaemonPaths(undone).wsp}/join-code`, name: "box" });
+    const writes = joinedAddWrites(place, "/nonexistent/wsp-place.service").filter(w => w.path.startsWith(`${undone}/`));
+    const found = addFound(run(addFoundScript(place, writes, "true")).stdout, writes.length)!;
+    expect(run(loginFilesStep(place).join("\n")).status).toBe(0);
+    symlinkSync(join(outside, "passwd"), join(undone, ".bash_profile.wsp-out"));
+    expect(spawnSync("mkfifo", [join(undone, ".profile.wsp-out")]).status).toBe(0);
+    const undo = run(addUndoScript(place, writes, found, "true", true));
+    expect(readFileSync(join(outside, "passwd"), "utf8")).toBe("theirs\n");
+    expect(undo.status, undo.error?.message).toBe(0);
+    expect(readFileSync(join(undone, ".bash_profile"), "utf8")).toBe(OWN);
+  });
+
   it("leaves its line in a login file the leave at the box finds linked or past the cap, and says why", async () => {
     const home = tmp("leave-line-sweep-linked");
     const line = profileSourceLine(placeDaemonPaths(home).profileFile);
@@ -152,7 +182,7 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
     truncateSync(join(home, ".bash_login"), LOGIN_READ_MAX_BYTES + 1);
     const swept = await sweepPlace({ home, manager: undefined, run: fakeRunner().run });
     expect(readFileSync(join(home, "dotfiles", "bash_profile"), "utf8")).toBe(`${OWN}${line}\n`);
-    expect(swept.kept).toContain(placeLineStaysLine(line, join(home, ".bash_profile"), PLACE_LOGIN_LINKED));
+    expect(swept.kept).toContain(placeLoginUnreadLine(join(home, ".bash_profile")));
     expect(swept.kept).toContain(placeLineStaysLine("wsp's line", join(home, ".bash_login"), PLACE_LOGIN_PAST_CAP));
     // Neither a fifo nor a link to a device that never ends is read, and both stat as 0 bytes: the leave reads a plain
     // file only, and no further than the cap.
@@ -163,5 +193,23 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
     expect(left.removed.filter(said => said.includes(odd))).toEqual([]);
     expect(left.kept).toContain(placeLoginUnreadLine(join(odd, ".bash_profile")));
     expect(left.kept).toContain(placeLoginUnreadLine(join(odd, ".bash_login")));
+  });
+
+  it("opens no link at a login file in the leave at the box, whatever it points at", async () => {
+    // A writer's open of a fifo waits until something opens its read end, so its return says the leave opened it.
+    const far = join(tmp("leave-line-sweep-far"), "fifo");
+    expect(spawnSync("mkfifo", [far]).status).toBe(0);
+    const pointed = tmp("leave-line-sweep-pointed");
+    symlinkSync(far, join(pointed, ".bash_profile"));
+    const writer = spawn("/bin/sh", ["-c", 'exec 3>"$1"; echo opened', "sh", far], { stdio: ["ignore", "pipe", "ignore"] });
+    try {
+      let opened = "";
+      writer.stdout.on("data", chunk => (opened += String(chunk)));
+      expect((await sweepPlace({ home: pointed, manager: undefined, run: fakeRunner().run })).kept).toContain(placeLoginUnreadLine(join(pointed, ".bash_profile")));
+      await new Promise(resolve => setTimeout(resolve, 200));
+      expect(opened).toBe("");
+    } finally {
+      writer.kill();
+    }
   });
 });

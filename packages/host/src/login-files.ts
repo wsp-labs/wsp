@@ -25,14 +25,15 @@ export const sh = (place: DaemonPlace, path: string): string => (place.quotePath
  * their own. Every line of it exits 0, since the deploy runs under set -e. What the take-out writes back is the
  * file line by line, so a last line the person left without a trailing newline comes back with one. */
 export function unsourceStep(place: DaemonPlace, file: string): string {
-  const copy = `${file}.wsp-out`;
   const named = shellQuote(place.profileFile);
   return [
-    `if [ -f ${sh(place, file)} ] && grep -qF ${named} ${sh(place, file)}; then`,
+    // The copy goes in a folder of its own that only this run can write, never at a name beside the file: a workspace
+    // writes in this home, and a link or a fifo it put there would take the write, as root, or hold it.
+    `if [ -f ${sh(place, file)} ] && grep -qF ${named} ${sh(place, file)} && taken=$(mktemp -d); then`,
     "  kept=0",
-    `  grep -vF ${named} ${sh(place, file)} > ${sh(place, copy)} || kept=$?`,
-    `  if [ "$kept" -le 1 ]; then cat ${sh(place, copy)} > ${sh(place, file)}; fi`,
-    `  rm -f ${sh(place, copy)}`,
+    `  grep -vF ${named} ${sh(place, file)} > "$taken/login" || kept=$?`,
+    `  if [ "$kept" -le 1 ]; then cat "$taken/login" > ${sh(place, file)}; fi`,
+    '  rm -rf "$taken"',
     "fi",
   ].join("\n");
 }
