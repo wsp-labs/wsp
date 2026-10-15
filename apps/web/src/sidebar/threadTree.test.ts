@@ -119,6 +119,17 @@ describe("the sidebar's tiles", () => {
     expect(shape(folded.settled)).toEqual([["attempt:att", ["a1", "b1"]]]);
   });
 
+  it("keeps each settled group of attempts in the Settled fold beside the other settled trees", () => {
+    const rows = [
+      row("ws_a", "pr_1", [done("a1", "ws_a", 4, null, { attempt: "att", title: "one" })]),
+      row("ws_b", "pr_1", [done("b1", "ws_b", 3.9, null, { attempt: "att", title: "one" })]),
+      row("ws_c", "pr_1", [done("c1", "ws_c", 5, null, { attempt: "att2", title: "two" })]),
+      row("ws_d", "pr_1", [done("d1", "ws_d", 5.1, null, { attempt: "att2", title: "two" })]),
+      row("ws_e", "pr_1", [done("alone", "ws_e", 6)]),
+    ];
+    expect(shape(sidebarTiles(rows, { picked: null, nowMs: NOW }).settled)).toEqual([["attempt:att", ["a1", "b1"]], ["attempt:att2", ["d1", "c1"]], "alone"]);
+  });
+
   it("draws a workspace with no thread as a tile of its own, so no copy the host holds loses its place in the list", () => {
     const rows = [row("ws_a", "pr_1", []), row("ws_b", "pr_1", [thread("t", "ws_b")])];
     const live = sidebarTiles(rows, { picked: null, nowMs: NOW }).live;
@@ -480,6 +491,9 @@ describe("the order a person moves trees into", () => {
     expect(shape(listed(rows))).toEqual(["one", "three", "two"]);
     const ended = sidebarTiles([row("ws_a", "pr_1", [done("e-late", "ws_a", 0.1, null, { settledAt: ago(0.05), order: agoMs(9) }), done("e-early", "ws_a", 0.2, null, { settledAt: ago(0.05), order: agoMs(0.01) })])], { picked: null, nowMs: NOW });
     expect(shape(ended.settled)).toEqual(["e-late", "e-early"]);
+    // Settled later, a tree that ended earlier stands above one settled before it.
+    const late = sidebarTiles([row("ws_a", "pr_1", [done("ended-last", "ws_a", 0.1, null, { settledAt: ago(0.09) }), done("settled-last", "ws_a", 0.3, null, { settledAt: ago(0.01) })])], { picked: null, nowMs: NOW });
+    expect(shape(late.settled)).toEqual(["settled-last", "ended-last"]);
     // A snoozed tree is out of the list and keeps its key, so it comes back to its place.
     const snoozed = [row("ws_a", "pr_1", rows[0]!.threads.map(t => (t.id === "one" ? { ...t, snoozedUntil: ago(-1) } : t)))];
     expect(shape(listed(snoozed))).toEqual(["three", "two"]);

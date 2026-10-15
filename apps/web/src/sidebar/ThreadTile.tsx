@@ -339,7 +339,7 @@ export const ThreadTile = memo(function ThreadTile(props: ThreadTileProps) {
   const status = settled || snoozed ? RESTING : threadStatusOf(thread);
   // A working or read row recedes unless it is the one open, as T3 Code's shouldRecede; a row that calls for the
   // person keeps the foreground ink, and the label keeps its hue either way.
-  const recede = !active && (status === RESTING || status.id === "working" || status.id === "resuming" || status.id === "stopped");
+  const recede = !active && (status === RESTING || status.id === "working" || status.id === "resuming" || status.id === "stopped" || status.id === "released");
   const startedBy = inboxOf === undefined || inboxOf.parent === null ? undefined : inboxOf.parent;
   const path = startedBy === undefined ? openers : inboxOf!.path;
   const card = tileCardLines({
