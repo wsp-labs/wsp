@@ -300,6 +300,7 @@ describe("the agents report off this computer and off a workspace", () => {
     config.mcpServers["open"] = { type: "http", url: `${local}/open` };
     config.mcpServers["keyed"] = { command: "node", args: ["keyed.js"], env: { API_TOKEN: "${SOME_VAR}" } };
     config.mcpServers["homed"] = { command: "node", args: ["homed.js"], env: { DATA_DIR: "${HOME}/data" } };
+    config.mcpServers["aws-mcp"] = { command: "uvx", args: ["mcp-proxy-for-aws@latest", "https://aws-mcp.us-east-1.api.aws/mcp"] };
     writeFileSync(file, JSON.stringify(config));
     const { machine, lines: ran } = road(at);
     const on = { kind: "machine" as const, machine, projects: [{ id: "pr_app", name: "app", path: at.project }] };
@@ -312,6 +313,7 @@ describe("the agents report off this computer and off a workspace", () => {
     expect(server("claude", "cf")).toMatchObject({ auth: "env-key", off: cloudServerOffLine("cf") });
     expect(server("codex", "linear")).toMatchObject({ off: cloudServerOffLine("linear") });
     expect(server("claude", "keyed")).toMatchObject({ off: cloudServerOffLine("keyed") });
+    expect(server("claude", "aws-mcp")).toMatchObject({ off: cloudServerOffLine("aws-mcp") });
     // A server that needs no sign-in, and one whose address did not answer, stay on as on main.
     for (const [agent, name] of [["claude", "open"], ["claude", "homed"], ["claude", "notion"], ["claude", "airtable"], ["claude", "local"], ["claude", "project-db"]] as const) expect(server(agent, name).off, name).toBeUndefined();
     expect(read.servers.filter(s => s.signInLine !== undefined)).toEqual([]);
