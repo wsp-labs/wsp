@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { adoptLoginPath, agentsHere, aimedHost, appLogsDir, computerNameHere, daemonBinaryHere, dialHost, hostLogPath, installEach, mcpServerSpec, releaseFetch, runningWsp, serviceAddressHere, shimPath, systemService, wspHome, VERSION, type CliIO } from "@wsp/host";
+import { adoptLoginPath, agentsHere, aimedHost, appLogsDir, computerNameHere, connectPatiently, daemonBinaryHere, dialHost, hostLogPath, installEach, mcpServerSpec, releaseFetch, runningWsp, serviceAddressHere, shimPath, systemService, wspHome, VERSION, type CliIO } from "@wsp/host";
 import { BROWSER_PARTITION, DEFAULT_PREFERENCES, HOME_ENV, type BundleOutcome, HOST_WORDS, OutsideLine, ThemePreference, hostMenuAction, hostsMenuItems } from "@wsp/protocol";
 import { BrowserWindow, Menu, Notification, Tray, app, crashReporter, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, session as sessions, shell, webContents, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { APP_LOG, openAppLog, rendererReport } from "./app-log.js";
@@ -32,6 +32,9 @@ import { sayStartFailed, startingAfter } from "./starting.js";
 import { trayModel, trayNotice, type TrayAct, type TrayModel, type TrayRow } from "./tray.js";
 import { desktopOf, setsMenu, titleBarOverlayFor, vibrancyFor, windowOptions, type UpdateRoad } from "./window.js";
 import { isShellZoomChord, shellChordOf } from "./zoom.js";
+
+// Before any fetch: node gives each address 250 ms, which drops GitHub's first on a network slow to connect.
+connectPatiently();
 
 const here = (rel: string): string => fileURLToPath(new URL(rel, import.meta.url));
 const PRELOAD = here("./preload.cjs");

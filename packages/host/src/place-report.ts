@@ -30,11 +30,16 @@ export const placeLogPath = (home: string): string => placeDaemonPaths(home).pla
  * port its daemon bound: the daemon fills those two in on every link. */
 export type PlaceSelfReport = Omit<PlaceReport, "dialed" | "daemonPort">;
 
-/** The place file as it stands, or nothing when this computer is no place. The shape, the parse and the mode are
- * the protocol's; this is the read on the host's side of the wire. */
+/** The most of a place file a read takes, far past the few hundred bytes a join writes. */
+export const PLACE_READ_MAX_BYTES = 64 * 1024;
+
+/** The place file as it stands, or nothing when this computer is no place or what stands there is not read. The
+ * shape, the parse and the mode are the protocol's; this is the read on the host's side of the wire. It sits in a
+ * home a workspace writes and a leave reads it first, as root on a box, so it is read as the login files are. */
 export function readPlaceFile(path: string): PlaceFile | undefined {
   try {
-    return parsePlaceFile(readFileSync(path, "utf8"));
+    const read = readPlainHere(path, PLACE_READ_MAX_BYTES);
+    return "unread" in read ? undefined : parsePlaceFile(read.bytes.toString("utf8"));
   } catch {
     return undefined;
   }
