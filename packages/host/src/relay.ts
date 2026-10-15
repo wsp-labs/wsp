@@ -13,7 +13,7 @@ import { createServer, type Server, type Socket } from "node:net";
 import { platform } from "node:os";
 import { PassThrough } from "node:stream";
 import { DaemonEvent, FORWARD_MAX_PER_TARGET, LOOPBACK, runsInFolder, SSH_BEHIND_KIND, SshStartReply, sshBehindLine, unknownOpLine, callbackPortOf, hostOf, isHttpUrl, isJoinedComputer, isLoopback, type AgentsTarget, type DaemonReachView, type ForwardEvent, type GoldenBuilderView, type PortForward, type WorkspaceKind } from "@wsp/protocol";
-import { plumbTunnel, realClock, tunnelFrame, type Clock, type DaemonChannel, type EventUnion, type Runtime, type SignInForward } from "@wsp/runtime";
+import { DaemonTokenError, plumbTunnel, realClock, tokenRefusals, tokenRefusedLine, tunnelFrame, type Clock, type DaemonChannel, type EventUnion, type Runtime, type SignInForward } from "@wsp/runtime";
 import { DAEMON_CONNECT_TIMEOUT_MS, connectDaemonSocket, type ConnectOptions, type DaemonSocket } from "./doctor.js";
 import type { GuestDoor } from "./guest.js";
 
@@ -151,6 +151,9 @@ interface Target {
    * answers for it has none: the ports that daemon sees are the whole computer's, and forwarding them here would
    * carry another workspace's listener to this computer's loopback. */
   ownPorts: boolean;
+  /** The daemon refused the token this link was dialled with: the next open writes the host's own on the machine
+   * again. Only a dial of a machine's own daemon carries a token the host writes. */
+  tokenRefused?: () => Promise<void>;
   /** The workspace as the computer answering for it names it on every frame it relays up, where the far end
    * answers for more than one; what tells this target's sessions from another workspace's on the one link. None
    * where a session names no workspace: a machine's own daemon, and the computer's own link, whose sessions are
@@ -762,8 +765,10 @@ export function startCallbackRelay(o: RelayOptions): CallbackRelay {
 
   const run = async (link: Link): Promise<void> => {
     let attempt = 0;
+    const refusals = tokenRefusals();
     while (!link.stopped) {
       let sock: DaemonSocket | undefined;
+      let refused = false;
       try {
         // The daemon pushes to a socket the moment it has authed it, which is before this dial resolves and before
         // the link is holding it. An event acted on in that gap reaches a link with no socket: a sign-in page
@@ -820,16 +825,28 @@ export function startCallbackRelay(o: RelayOptions): CallbackRelay {
         // for them and the watch reply is what seeds those.
         recorded = true;
         for (const raw of early) deliver(raw);
-        await sock.closed;
+        // A socket the daemon took the token on is closed 4401 only when the token in its file is no longer that one.
+        refused = (await sock.closed) === 4401;
         // Every forward stays bound here across the redial; only its tunnels died with the socket.
         for (const f of allForwards(link.target.id)) {
           for (const c of f.conns.values()) c.destroy();
           f.conns.clear();
         }
-      } catch {
+      } catch (e) {
         sock?.close();
+        refused = e instanceof DaemonTokenError;
       }
       link.sock = undefined;
+      if (refused && link.target.tokenRefused !== undefined && !link.stopped) {
+        const { count, waitMs } = refusals.refused(clock.now());
+        const line = tokenRefusedLine(link.target.name, "its link was dialled with", count, waitMs);
+        if (line !== undefined) o.log(line);
+        await link.target.tokenRefused().catch(() => undefined);
+        await sleep(waitMs, link);
+        refusals.wrote(clock.now());
+        attempt = 0;
+        continue;
+      }
       attempt++;
       if (!link.stopped) {
         const base = Math.min(REDIAL_CEILING_MS, retryMs * 2 ** (attempt - 1));
@@ -922,7 +939,7 @@ export function startCallbackRelay(o: RelayOptions): CallbackRelay {
 
   /** A machine with a daemon of its own: the link is one dial of it, beaten to stay alive under the edge's sweep
    * of quiet sockets, and every port it watches is that machine's own. */
-  const dialled = (id: string, name: string, reach: () => Promise<DaemonReachView>): Target => ({
+  const dialled = (id: string, name: string, reach: () => Promise<DaemonReachView>, tokenRefused?: () => Promise<void>): Target => ({
     id,
     name,
     noun: "workspace",
@@ -935,6 +952,7 @@ export function startCallbackRelay(o: RelayOptions): CallbackRelay {
       if (road.daemonToken === undefined) throw new Error("no daemon token");
       return connect({ url: road.url, token: road.daemonToken, ...at });
     },
+    ...(tokenRefused !== undefined ? { tokenRefused } : {}),
   });
 
   /** A workspace whose computer answers its daemon frames: the link is the channel the runtime holds over that
@@ -959,7 +977,7 @@ export function startCallbackRelay(o: RelayOptions): CallbackRelay {
     if (closed || !holdsWorkspaces || links.has(w.id)) return;
     void rt.workspaces.servedByItsComputer(w.id).then(
       served =>
-        add(served ? servedTarget(w.id, w.name, w.machineId, w.kind !== undefined && !runsInFolder(w.kind)) : dialled(w.id, w.name, () => rt.workspaces.daemonReach(w.id))),
+        add(served ? servedTarget(w.id, w.name, w.machineId, w.kind !== undefined && !runsInFolder(w.kind)) : dialled(w.id, w.name, () => rt.workspaces.daemonReach(w.id), () => rt.workspaces.tokenRefused(w.id))),
       () => {},
     );
   };

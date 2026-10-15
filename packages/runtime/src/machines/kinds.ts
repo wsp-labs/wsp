@@ -207,8 +207,8 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
     return local.daemonRoad();
   };
   /** Puts this runtime's daemon on a fork with the token this runtime holds for it. A token of the deploy's own makes
-   * the old daemon close 4401 every socket the host dialled, the pipes too, and a pool refused stops dialling until the
-   * machine's next wake. A machine with no token yet takes the deploy's, replaced the moment the deploy is done. */
+   * the old daemon close 4401 every socket the host dialled, the pipes too, and they wait a minute for the host to
+   * write its own back. A machine with no token yet takes the deploy's, replaced the moment the deploy is done. */
   const cloudDeploy = async (entry: LiveWorkspace): Promise<void> => {
     await opts.goldenRecipe!.deployDaemon!(entry.machine, await ctx.daemonTokenOf(entry.machine, DAEMON_TOKEN_PATH));
     ctx.daemonTokens.delete(entry.machine.id);

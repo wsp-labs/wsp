@@ -3,13 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
 import { realClock, type Clock } from "../src/clock.js";
 import type { RuntimeContext } from "../src/context.js";
 import { PIPE_BEHIND_AGAIN_MS, PIPE_DIAL_RATE, PIPE_IDLE, PIPE_IDLE_MAX_MS, pipeArea, pipePool, type PipeHandler, type PipePool } from "../src/pipe.js";
 import { eventBus } from "../src/types/events.js";
-import { PIPE_DAEMON_VERSION, PIPE_POOL_FULL, PIPE_POOL_MAX, type EventUnion, type PipeOpen } from "@wsp/protocol";
+import { DAEMON_TOKEN_ROTATED, PIPE_DAEMON_VERSION, PIPE_POOL_FULL, PIPE_POOL_MAX, type EventUnion, type PipeOpen } from "@wsp/protocol";
 import { fakeClock } from "./fake-clock.js";
 import { until } from "./until.js";
 
@@ -26,6 +26,10 @@ interface FakeDaemon {
   open(): number;
   /** Every pipe the daemon took, still open or not. */
   taken: WebSocket[];
+  /** Another writer puts a token in the daemon's file: every socket authed with other bytes is cut, as the daemon cuts them. */
+  write(token: string): void;
+  /** The token the daemon's file holds now. */
+  file(): string;
   /** The daemon replaced by one of another kind, as an update does. */
   become(mode: "pipes" | "old" | "refuse" | "deny" | "grab" | "full"): void;
   take(door: "http" | "gh", heldMs?: number): WebSocket;
@@ -52,6 +56,8 @@ async function fakeDaemon(first: "pipes" | "old" | "refuse" | "deny" | "grab" | 
   const parked: WebSocket[] = [];
   const taken: WebSocket[] = [];
   const firstFrames: Record<string, unknown>[] = [];
+  let file = TOKEN;
+  const authed = new Map<WebSocket, string>();
   const attach = (s: Server): void => {
     s.on("upgrade", (req, socket, head) => wss.handleUpgrade(req, socket, head, ws => wss.emit("connection", ws, req)));
   };
@@ -59,10 +65,12 @@ async function fakeDaemon(first: "pipes" | "old" | "refuse" | "deny" | "grab" | 
     ws.once("message", data => {
       const frame = JSON.parse(data.toString()) as Record<string, unknown>;
       firstFrames.push(frame);
-      if (frame["token"] !== TOKEN || mode === "refuse") return ws.close(4401, "unauthorized");
+      if (frame["token"] !== file || mode === "refuse") return ws.close(4401, "unauthorized");
       if (mode === "deny") return ws.send(JSON.stringify({ id: 0, ok: false, error: "unauthorized" }));
       if (mode === "full") return ws.close(1008, PIPE_POOL_FULL);
       ws.send(JSON.stringify({ id: 0, ok: true }));
+      authed.set(ws, file);
+      ws.once("close", () => authed.delete(ws));
       if (mode === "old") return ws.send(JSON.stringify({ type: "daemon.hello", root: "/root", version: 157 }));
       if (mode === "grab") {
         taken.push(ws);
@@ -84,6 +92,11 @@ async function fakeDaemon(first: "pipes" | "old" | "refuse" | "deny" | "grab" | 
     firstFrames,
     taken,
     open: () => wss.clients.size,
+    write(token) {
+      file = token;
+      for (const [ws, held] of authed) if (held !== token) ws.close(4401, DAEMON_TOKEN_ROTATED);
+    },
+    file: () => file,
     become(next) {
       mode = next;
     },
@@ -122,9 +135,10 @@ interface Handed {
 function poolOn(
   d: FakeDaemon,
   o: { ready?: () => boolean; version?: () => number | null; idleMaxMs?: number; behindAgainMs?: number; dialRate?: number; backoffMs?: (attempt: number) => number; handler?: PipeHandler | null; clock?: Clock } = {},
-): { pool: PipePool; handed: Handed[]; logs: string[] } {
+): { pool: PipePool; handed: Handed[]; logs: string[]; rewrites: string[] } {
   const handed: Handed[] = [];
   const logs: string[] = [];
+  const rewrites: string[] = [];
   const handler: PipeHandler =
     o.handler ??
     ((workspaceId, open, duplex) => {
@@ -136,6 +150,7 @@ function poolOn(
     version: async () => (o.version === undefined ? PIPE_DAEMON_VERSION : o.version()),
     handler: () => (o.handler === null ? undefined : handler),
     ready: o.ready ?? (() => true),
+    rewrite: id => rewrites.push(id),
     backoffMs: o.backoffMs ?? (() => 20),
     ...(o.dialRate !== undefined ? { dialRate: o.dialRate } : {}),
     ...(o.idleMaxMs !== undefined ? { idleMaxMs: o.idleMaxMs } : {}),
@@ -144,7 +159,7 @@ function poolOn(
     log: line => logs.push(line),
   });
   pools.push(pool);
-  return { pool, handed, logs };
+  return { pool, handed, logs, rewrites };
 }
 
 const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
@@ -357,22 +372,24 @@ describe("the pipe pool", () => {
     expect(pool.idle("ws-a")).toBe(4);
   });
 
-  it("stops dialling a daemon that refuses the token, by its close or its answer, until the link comes up again", async () => {
+  it("has the host's token written again when the daemon refuses it, by its close or its answer, and dials again a minute later", async () => {
     for (const mode of ["refuse", "deny"] as const) {
       const d = await fakeDaemon(mode);
-      const { pool, logs } = poolOn(d);
+      const { clock, advance } = fakeClock();
+      const { pool, logs, rewrites } = poolOn(d, { clock });
       pool.up("ws-a");
-      await until(() => d.firstFrames.length >= 1);
-      await sleep(200);
+      await until(() => rewrites.length === 1);
+      await sleep(100);
       expect(d.firstFrames.length).toBeLessThanOrEqual(4);
       expect(pool.idle("ws-a")).toBe(0);
-      expect(logs.at(-1)).toBe("ws-a: its daemon refused the token a pipe was dialled with, so none are dialled until its link comes up again");
+      expect(logs.at(-1)).toBe("ws-a: its daemon refused the token a pipe was dialled with, so the host writes its own there again and dials in 60 s");
       d.become("pipes");
+      advance(PIPE_BEHIND_AGAIN_MS - 1);
       await sleep(100);
       expect(d.parked).toHaveLength(0);
-      pool.down("ws-a");
-      pool.up("ws-a");
+      advance(1);
       await until(() => d.parked.length === 4);
+      expect(rewrites).toEqual(["ws-a"]);
     }
   });
 });
@@ -476,18 +493,30 @@ describe("the pipe pool in the runtime", () => {
 
   /** The parts of the runtime the pool reads: its live records, its bus, a daemon token and the broker the host wired.
    * A record on `boat` is brokered and one on `hetzner` is not. */
-  function runtimeOn(d: FakeDaemon, broker: { ready(): boolean; pipe?: PipeHandler } | undefined) {
+  function runtimeOn(d: FakeDaemon, broker: { ready(): boolean; pipe?: PipeHandler } | undefined, clock: Clock = realClock) {
     const bus = eventBus();
     const live = new Map<string, { record: { id: string; phase: string; place: string }; ws: { daemonReach(): Promise<{ url: string }> }; machine: { id: string } }>();
     const put = (id: string, place: "boat" | "hetzner", phase = "running"): void => {
       live.set(id, { record: { id, phase, place }, ws: { daemonReach: async () => ({ url: d.url }) }, machine: { id: `m-${id}` } });
     };
+    // The host's own token, written on the machine the first time it is asked for after the entry is dropped, as
+    // daemonTokenOf does.
+    const daemonTokens = new Map<string, { hasDaemon: boolean; at: number }>();
+    const writes: number[] = [];
     const ctx = {
       opts: broker === undefined ? {} : { broker },
       live,
       bus,
-      clock: realClock,
-      daemonTokenOf: async () => TOKEN,
+      clock,
+      daemonTokens,
+      daemonTokenOf: async (machine: { id: string }) => {
+        if (!daemonTokens.has(machine.id)) {
+          d.write(TOKEN);
+          writes.push(clock.now());
+          daemonTokens.set(machine.id, { hasDaemon: true, at: clock.now() });
+        }
+        return TOKEN;
+      },
       moduleOf: () => ({ daemonVersion: async () => PIPE_DAEMON_VERSION }),
       ready: async () => {},
     } as unknown as RuntimeContext;
@@ -496,7 +525,7 @@ describe("the pipe pool in the runtime", () => {
       if (a !== undefined) closers.push(a);
       return a;
     };
-    return { put, area, emit: (e: unknown) => bus.emit(e as EventUnion), live };
+    return { put, area, emit: (e: unknown) => bus.emit(e as EventUnion), live, writes };
   }
 
   it("dials nothing on a host that wired no broker", async () => {
@@ -548,6 +577,60 @@ describe("the pipe pool in the runtime", () => {
     await until(() => d.parked.length === 0);
     await sleep(150);
     expect(d.firstFrames.length).toBe(dialled);
+  });
+
+  it("writes the host's token again over another writer's and has 4 pipes parked again a minute later, with no wake", async () => {
+    const d = await fakeDaemon();
+    const { clock, advance } = fakeClock();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rt = runtimeOn(d, { ready: () => true, pipe: (_id, _h, duplex) => duplexes.push(duplex) }, clock);
+    rt.put("ws-a", "boat");
+    rt.area();
+    await until(() => d.parked.length === 4);
+    expect(rt.writes).toHaveLength(1);
+    d.write("another-hosts-token");
+    await until(() => d.parked.length === 0);
+    await sleep(100);
+    expect(d.file()).toBe("another-hosts-token");
+    advance(PIPE_BEHIND_AGAIN_MS);
+    await until(() => d.parked.length === 4);
+    expect(d.file()).toBe(TOKEN);
+    expect(rt.writes).toHaveLength(2);
+    expect(warn.mock.calls.map(c => c[0])).toContain("ws-a: its daemon refused the token a pipe was dialled with, so the host writes its own there again and dials in 60 s");
+    warn.mockRestore();
+  });
+
+  it("says once that another writer keeps taking the file back, and waits twice as long each time it does", async () => {
+    const d = await fakeDaemon();
+    const { clock, advance } = fakeClock();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const refusalsSaid = (): string[] => warn.mock.calls.map(c => String(c[0])).filter(l => l.includes("refused"));
+    const rt = runtimeOn(d, { ready: () => true, pipe: (_id, _h, duplex) => duplexes.push(duplex) }, clock);
+    rt.put("ws-a", "boat");
+    rt.area();
+    await until(() => d.parked.length === 4);
+    // The other writer takes the file back each time the host's pipes are parked on it again.
+    const waits: number[] = [];
+    for (let round = 0; round < 4; round++) {
+      d.write("another-hosts-token");
+      await until(() => d.parked.length === 0);
+      await sleep(50);
+      const before = rt.writes.length;
+      let waited = 0;
+      while (rt.writes.length === before) {
+        advance(15_000);
+        waited += 15_000;
+        await sleep(20);
+      }
+      waits.push(waited);
+      await until(() => d.parked.length === 4);
+    }
+    expect(waits).toEqual([PIPE_BEHIND_AGAIN_MS, 2 * PIPE_BEHIND_AGAIN_MS, 4 * PIPE_BEHIND_AGAIN_MS, 8 * PIPE_BEHIND_AGAIN_MS]);
+    expect(refusalsSaid()).toEqual([
+      "ws-a: its daemon refused the token a pipe was dialled with, so the host writes its own there again and dials in 60 s",
+      "ws-a: its daemon refused the host's token again right after the host wrote it, so something else writes that file too; the host writes its own there again and dials in 2 min, waiting twice as long each time up to 30 min",
+    ]);
+    warn.mockRestore();
   });
 
   it("dials a brokered workspace's pipes while its create still runs, so its clone reaches GitHub, and closes them as the create fails", async () => {

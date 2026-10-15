@@ -9,6 +9,7 @@ export * from "./local-exec.js";
 export * from "./reach.js";
 export * from "./daemon-channel.js";
 export * from "./daemon-token.js";
+export { PIPE_BEHIND_AGAIN_MS, TOKEN_REFUSED_MAX_MS, tokenRefusals, tokenRefusedLine } from "./pipe.js";
 export * from "./devices.js";
 export * from "./places.js";
 export * from "./agents-read.js";
