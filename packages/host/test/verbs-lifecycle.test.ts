@@ -177,6 +177,7 @@ describe("wsp verbs over the host: pause, wake, ssh, rename, forget and delete",
   it.runIf(CLOUD_ON)("ssh pipes its stdin and stdout to the workspace's ssh server through the port the host answers, the workspace named by its alias", async () => {
     await h.run("new", "Cart rounding");
     const echo = createServer(c => {
+      c.on("error", () => {});
       c.on("data", d => c.write(`echo: ${String(d)}`));
       c.on("end", () => c.end());
     });

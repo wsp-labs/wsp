@@ -107,6 +107,8 @@ async function github(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (req.headers["content-encoding"]) env.HTTP_CONTENT_ENCODING = req.headers["content-encoding"];
   if (req.headers["git-protocol"]) env.GIT_PROTOCOL = req.headers["git-protocol"] as string;
   const cgi = spawn("git", ["http-backend"], { env });
+  // http-backend answers a GET without reading stdin, so it can exit before the body is written.
+  cgi.stdin.on("error", () => undefined);
   cgi.stdin.end(body);
   const out = await readBody(cgi.stdout as unknown as IncomingMessage);
   const split = out.indexOf("\r\n\r\n");
