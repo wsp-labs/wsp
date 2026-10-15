@@ -9,7 +9,7 @@ import { GUEST_HOME, THREAD_AGENTS } from "@wsp/catalog";
 import { forksNoMachines, isLoopback, listenBeyondLoopbackLine, loopbackThreadsLine, LOOPBACK, verbFailure } from "@wsp/protocol";
 import { checkProviderKeyLive, providerBackendFor, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
 import { webDirFor } from "../assets.js";
-import { DAEMON_DEPLOYED_LINE, deployDaemon, missingBundleFile } from "../doctor.js";
+import { missingBundleFile } from "../doctor.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
 import { agentsHere } from "../agents-here.js";
 import { InitJobs } from "../init-job.js";
@@ -39,7 +39,7 @@ import { analyticsOff, hostAnalytics } from "../analytics.js";
 import { followUsage, hostCommon } from "../analytics-events.js";
 import type { CliIO } from "./io.js";
 import { keySources, providerEnvNow, loadKeys, vaultNow } from "./keys.js";
-import { goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
+import { deployHostDaemon, goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
 
 /** The init job on this computer for a serving host: wsp init's own readers and build pieces, the keys read off the
  * .env beside the state file this host serves and nothing else at each ask (a key in this process's environment or
@@ -94,7 +94,7 @@ function hostInitDoor(rt: Runtime, statePath: string, run: RunningWsp, openUrl: 
           builder,
         }),
       roads: () => workspaceRoads(rt, workspaceEnvsFor()),
-      recipe: recipe => ({ ...recipe, deployDaemon: async machine => deployDaemon(machine).then(() => DAEMON_DEPLOYED_LINE) }),
+      recipe: recipe => ({ ...recipe, deployDaemon: deployHostDaemon }),
       bundleFile: () => missingBundleFile(),
     },
   });

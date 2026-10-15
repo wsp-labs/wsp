@@ -48,9 +48,14 @@ export function goldenRecipe(hooks: { deployDaemon?: (machine: Machine) => Promi
     setup: GOLDEN_SETUP,
     smoke: GOLDEN_SMOKE,
     envs: claudeEnvs(),
-    deployDaemon: hooks.deployDaemon ?? (async machine => deployDaemon(machine).then(() => DAEMON_DEPLOYED_LINE)),
+    deployDaemon: hooks.deployDaemon ?? deployHostDaemon,
   };
 }
+
+/** The deploy every runtime is handed. It writes the token the runtime passes, since one of its own would stand on the
+ * machine until the runtime wrote its own back, and the daemon closes every socket the host holds in between. */
+export const deployHostDaemon = async (machine: Machine, token?: string): Promise<string> =>
+  deployDaemon(machine, token === undefined ? {} : { token }).then(() => DAEMON_DEPLOYED_LINE);
 
 /** The folder every turn and every exec on this computer starts in, made when it is first used. Not the person's
  * home: a turn that starts there is one `cd` from the checkouts they work in themselves, and the first build thread
@@ -399,7 +404,7 @@ function hostCopyRecipe(statePath: string): (image: SealedImage, at: { cloud: bo
       home: homedir(),
       platform: hostPlatform(),
       vault: serverVault(statePath),
-      deployDaemon: async machine => deployDaemon(machine).then(() => DAEMON_DEPLOYED_LINE),
+      deployDaemon: deployHostDaemon,
     });
 }
 
