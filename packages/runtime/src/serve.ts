@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import type { IncomingMessage, Server as HttpServer } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
+import { failureWords } from "@wsp/engine";
 import {
   ACCOUNT_TICKET_REFUSAL,
   usageRefusal,
@@ -1931,9 +1932,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
         } catch (e) {
           const { kind, fix } = e as { kind?: unknown; fix?: unknown };
           send({
-            id: msg.id,
-            ok: false,
-            error: e instanceof Error ? e.message : String(e),
+            id: msg.id, ok: false,
+            error: failureWords(e),
             ...(typeof kind === "string" ? { kind } : {}),
             ...(typeof fix === "string" ? { fix } : {}),
             ...refusalFields(e),
