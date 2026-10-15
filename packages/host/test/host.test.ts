@@ -7,7 +7,7 @@ import { DAEMON_VERSION, probePath, RecipeFile, type AdapterEvent, type TurnResu
 import { CATALOG, GUEST_HOME } from "@wsp/catalog";
 import { allRows, type RecipeAnswer } from "../src/recipe-answer.js";
 import { HERE } from "./recipe-fixture.js";
-import { BUILDER_IDLE_MS, goldenName, type GoldenImport } from "@wsp/engine";
+import { BOX_PRICING, BUILDER_IDLE_MS, goldenName, NoProviderBackend, type GoldenImport } from "@wsp/engine";
 import { copyKey, createRuntime, memoryStore, type HarnessAdapterFactory, type ReapResult, type Runtime, type Store } from "@wsp/runtime";
 import { execFileSync } from "node:child_process";
 import { DAEMON_PORT } from "@wsp/engine";
@@ -712,6 +712,25 @@ describe("host sweeps orphaned machines", () => {
     expect(later).toEqual([`reap: stopping ${b.id}: the builder kept after the save for one more change; its ten-minute window is over`, "storage: 1 snapshot, 8.0 GB; inside the free 10 GB, nothing to pay from 2026-10-01"]);
     expect(backend.machines[0]!.killed).toBe(true);
     expect(await store.list("builders")).toEqual([]);
+  });
+
+  it("a builder kept at Boat on a host that forks on no provider is named at start at Boat's own rate", async () => {
+    const store = memoryStore();
+    const none = new NoProviderBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    const places = { wired: "none", backend: (p: string) => ({ none, boat })[p], list: () => ["none", "boat"] };
+    const imp: GoldenImport = { recipeHash: "h1", recipe: { ticks: [], files: [] }, tools: [], agents: [] };
+    const crashed = createRuntime({ backend: none, store, adapters: {}, places, goldenRecipe: { setup: "true", smoke: "true", import: imp } });
+    const b = await crashed.golden.prepare({ place: "boat" });
+    await crashed.golden.seal(b.id);
+    await crashed.close();
+    expect(boat.machines.map(m => m.killed)).toEqual([false, true]);
+    const rate = BOX_PRICING.rateUsdPerHour(b.size).toFixed(2);
+    expect(rate).toBe("0.02");
+    const lines: string[] = [];
+    handle = await startHost({ runtime: createRuntime({ backend: none, store, adapters: {}, places }), port: 0, webDir: webDir(), log: l => lines.push(l) });
+    expect(boat.machines[0]!.killed).toBe(false);
+    expect(lines.filter(l => l.startsWith("reap:"))).toEqual([expect.stringMatching(new RegExp(`^reap: left alone ${b.id}: your builder saved as image v1, kept \\d+ s since the save and holding one of the account's machine slots, \\$${rate.replace(".", "\\.")}/h \\(about \\$0\\.00 so far\\); `))]);
   });
 
   it("a recorded builder wearing another setup's owner label is named as such at start and never touched", async () => {
