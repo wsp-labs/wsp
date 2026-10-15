@@ -294,7 +294,8 @@ export interface MachineBackend {
    * and the starts used in each window, as the provider's own read keeps them. */
   limits?(): Promise<BoxLimits>;
   /** Optional: only backends whose capabilities include snapshotListing have it. Every snapshot on the account, with its
-   * size; given ids, at least the rows of those, which a provider with a long history may stop reading at. */
+   * size; given ids, at least the rows of those and every named one, which a provider with a long unnamed history may
+   * stop reading at. */
   listSnapshots?(ids?: readonly string[]): Promise<SnapshotRow[]>;
   /** Optional, the four together: only backends whose capabilities include templates have them. Promotes a snapshot
    * to a durable template under the name and answers the template's id; the snapshot stays and cannot be deleted
