@@ -4,9 +4,9 @@
 import { lstatSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { placeFileText } from "@wsp/protocol";
+import { placeFileText, PLACE_READ_MAX_BYTES } from "@wsp/protocol";
 import { brokenPlaceLeftLine } from "../src/places.js";
-import { PLACE_READ_MAX_BYTES, placeFilePath, readPlaceFile } from "../src/place-report.js";
+import { placeFilePath, readPlaceFile } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { fakeRunner, fifoWriter, leaveCommand, made, tmp } from "./places-fixture.js";
 
