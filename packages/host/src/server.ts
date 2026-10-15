@@ -328,6 +328,7 @@ function describeReaped(r: ReapedMachine): string {
   if (r.reason === "grace") return `reap: stopping ${r.id}: the builder kept after the save for one more change; its ten-minute window is over`;
   if (r.reason === "lost") return `reap: deleting ${r.id}, a machine the provider made for this host after the answer to its create was lost${r.name !== undefined ? ` (named ${r.name}, ${describeAge(r.ageMs)})` : `, ${describeAge(r.ageMs)}`}; no record waits for it`;
   if (r.reason === "stray") return `reap: deleting ${r.id}, named ${r.name ?? "after one of this host's images"} and ${describeAge(r.ageMs)}: a machine made from this host's image that no record or create of it names`;
+  if (r.reason === "unrecorded") return `reap: deleting ${r.id}${describeLabels(r.labels)}: a machine of yours no workspace of this host reaches, a day after the sweep first named it, ${describeAge(r.ageMs)}`;
   const why = r.reason === "own" ? `${kind} from this setup that no record claims` : `${kind} with no owner`;
   return `reap: stopping ${r.id}${describeLabels(r.labels)}: ${why}, ${describeAge(r.ageMs)}`;
 }

@@ -46,8 +46,9 @@ export interface ReapedMachine {
    * own: wears this owner's label with no record left; orphan: no owner label and past its backstop;
    * grace: a builder kept after its seal for one more change, past that window; lost: made for an attempt whose
    * answer was lost, found by asking again, with no record waiting for it; stray: named after one of this host's
-   * images, which nothing of this host names. */
-  reason: "recorded" | "unfinished" | "expired" | "grace" | "own" | "orphan" | "lost" | "stray";
+   * images, which nothing of this host names; unrecorded: wears this owner's label and a workspace id this host keeps
+   * no record or name for, a day past the sweep that first listed it. */
+  reason: "recorded" | "unfinished" | "expired" | "grace" | "own" | "orphan" | "lost" | "stray" | "unrecorded";
   ageMs?: number;
   /** The name the provider listed it under, where that is not one wsp gave it. */
   name?: string;
