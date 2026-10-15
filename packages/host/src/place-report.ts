@@ -13,7 +13,7 @@ import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ServerPort } from "@wsp/engine";
-import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
@@ -422,8 +422,8 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     removed.push(...sweepCgroups(opts.cgroupRoots ?? []));
   }
   const said = unsourced(sshDaemonPlace({ home, path: "" }), home);
-  if (said !== undefined && "removed" in said) removed.push(said.removed);
-  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...(said !== undefined && "kept" in said ? [said.kept] : [])] };
+  removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
+  return { removed, kept: [placeKeptLine(workFolderIn(home)), ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
 }
 
 /** The paths the add found standing before it wrote anything, off the record its deploy left here. Nothing where
@@ -697,15 +697,21 @@ function there(path: string): boolean {
   }
 }
 
-/** Takes wsp's own line back out of the person's own login file, which would otherwise print an error at every
- * login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written in,
- * since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
+/** Takes wsp's own line back out of each of the person's own login files, which would otherwise print an error at
+ * every login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written
+ * in, since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
  * opened only when wsp's file is named in it and written back by the one config write: a .profile symlinked into a
- * dotfiles checkout under the home stays a symlink. Answers the lines it took, or the lines it left with the write's
- * refusal, or nothing when the file named none. */
-function unsourced(place: DaemonPlace, home: string): { removed: string } | { kept: string } | undefined {
-  const file = place.profileSource;
-  if (file === undefined || !there(file)) return undefined;
+ * dotfiles checkout under the home stays a symlink. Answers, per file, the lines it took, or the lines it left with
+ * the write's refusal, and nothing for a file that named none. */
+function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { kept: string })[] {
+  return (place.profileSources ?? []).flatMap(file => {
+    const said = unsourcedFrom(place, home, file);
+    return said === undefined ? [] : [said];
+  });
+}
+
+function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
+  if (!there(file)) return undefined;
   let bytes: Buffer;
   try {
     bytes = readFileSync(file);
@@ -721,5 +727,5 @@ function unsourced(place: DaemonPlace, home: string): { removed: string } | { ke
   } catch (e) {
     return { kept: `${lines} stays in ${file}: ${e instanceof Error ? e.message : String(e)}` };
   }
-  return { removed: `${lines} (out of ${file})` };
+  return { removed: placeLineOutLine(lines, file) };
 }

@@ -189,6 +189,8 @@ import {
   guestNoDaemonLine,
   HOST_CLOSED_LINE,
   placeKeptForLinkLine,
+  placeLineOutLine,
+  placeLoginFiles,
   placeKeptMountedLine,
   placeKeptMountsUnreadLine,
   placeRuntimeStandsLine,
@@ -328,6 +330,7 @@ const words = (): Record<string, string> => ({
   guestNoDaemon: guestNoDaemonLine("{port}"),
   hostClosed: HOST_CLOSED_LINE,
   placeKeptForLink: placeKeptForLinkLine("{path}"),
+  placeLineOut: placeLineOutLine("{lines}", "{file}"),
   placeKeptMounted: placeKeptMountedLine("{path}", "{mount}"),
   placeKeptMountsUnread: placeKeptMountsUnreadLine("{path}", "{why}"),
   placeRuntimeStands: placeRuntimeStandsLine("{path}"),
@@ -1037,6 +1040,8 @@ describe("the words and numbers are what this package exports", () => {
     // The order a leave walks, which the daemon's own list is held to: the provision folder after the daemon's,
     // and never wsp's own folder, which holds the person's own wsp and a host's state on the same login.
     ["place-paths.json", () => placeOwnedPaths(FIXTURE_HOME)],
+    // The login files wsp writes its line in and every leave takes it back out of, the daemon's over the link among them.
+    ["place-login-files.json", () => placeLoginFiles(FIXTURE_HOME)],
   ] as const) {
     it(`${name} equals its regeneration`, () => {
       const fresh = regenerate();

@@ -37,13 +37,15 @@ export function unsourceStep(place: DaemonPlace, file: string): string {
   ].join("\n");
 }
 
-/** wsp's line in the person's own login file as this version spells it: the lines naming wsp's profile file taken
+/** wsp's line in the person's own login files as this version spells it: the lines naming wsp's profile file taken
  * out first, so a second deploy replaces the line rather than sitting beside it, then this one appended, which
- * makes the file where the login has none. Nothing at all for a place whose profile file is wsp's own to load. */
+ * makes the first file where the login has none and goes in each of the others only where it stands. Nothing at
+ * all for a place whose profile file is wsp's own to load. */
 export function profileSourceStep(place: DaemonPlace): string[] {
-  const file = place.profileSource;
-  if (file === undefined) return [];
-  return [unsourceStep(place, file), `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`];
+  const [first, ...rest] = place.profileSources ?? [];
+  if (first === undefined) return [];
+  const sourced = (file: string): string[] => [unsourceStep(place, file), `printf '%s\\n' ${shellQuote(profileSourceLine(place.profileFile))} >> ${sh(place, file)}`];
+  return [...sourced(first), ...rest.flatMap(file => [`if [ -f ${sh(place, file)} ]; then`, ...sourced(file), "fi"])];
 }
 
 /** The login files this wsp puts on a machine: its own profile file, holding the browser shim and the display

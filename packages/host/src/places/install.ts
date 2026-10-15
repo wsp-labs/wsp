@@ -2,7 +2,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
-import { heldPlaceScript, leaveAsks, leaveTakes, machineLacksLine, machineNeverAnswered, PLACE_LEAVE_VERB, parsePlaceFile, PlaceAddStep, lastLine, readJoinToken, type PlaceBack, placeDaemonPaths, shellQuote, shellLine, placeNoChipLine, MACHINE_PUT_PART_BYTES, backUrl, hostKeyKeptNote, hostKeyMatches, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, PLACE_HOST_KEY_KIND, hostKeyUnscannableRefusal, KNOWN_HOSTS, PLACE_ROOT_SHELLS, placeRootShellRefusal, isLoopback, joinAddressOf } from "@wsp/protocol";
+import { heldPlaceScript, readHeldPlace, leaveAsks, leaveTakes, machineLacksLine, machineNeverAnswered, PLACE_LEAVE_VERB, PlaceAddStep, lastLine, readJoinToken, type PlaceBack, placeDaemonPaths, shellQuote, shellLine, placeNoChipLine, MACHINE_PUT_PART_BYTES, backUrl, hostKeyKeptNote, hostKeyMatches, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, PLACE_HOST_KEY_KIND, hostKeyUnscannableRefusal, KNOWN_HOSTS, PLACE_ROOT_SHELLS, placeRootShellRefusal, isLoopback, joinAddressOf } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV, MissingKnownHostsError, PlaceMachine, runChild, SshBackend, SSH_DIAL_MS, SSH_LINE_CAP, SUDO_ASKS_LINE, clientWords, knownHostKey, landBytes, parseSshAddress, sshClient, sshDial, sshDialsThisComputer, sshLoginWord, sshMachineName, sshRefusalLine, sshWordReach, readSshSudo, trySshSudo, knownHostsWritten, type SshReach, type SshSudo, type SshTransport } from "@wsp/engine";
 import { PlaceAddTakenBackError, PlaceHostKeyChangedError, PlaceLoginRefusedError, type PlaceDialler, type PlaceInstaller, type PlaceLeaver, type PlaceLogReader, type PlaceStaging, type PlaceUpdateLanded, type PlaceUpdater, type PlaceWiring, type PlaceBackHolder } from "@wsp/runtime";
 import { BackCutError } from "../place-back.js";
@@ -15,7 +15,7 @@ import { placeService, sweptSaid } from "../place-report.js";
 import { advertiseWord } from "../pairing.js";
 import { serviceManagerFor } from "../service.js";
 import { envFileFor, writeEnvFile } from "../env-keys.js";
-import { ADD_LOOPBACK_REFUSAL, PLACE_CHECK_SCRIPT, PLACE_CHECK_SPARE_BYTES, REACH_LINE, REACH_MS, UNDO_MS, addTakenLine, addUndoneLine, advertisedLoopbackRefusal, backRefusedLine, dialsBackLine, dialsBackOverSshNote, guestTargetSaid, noPlaceManagerLine, parsePlaceCheck, placeCheckNote, placeCheckRows, placeHeldRefusal, placeLeaveLineAs, placeRootHomeRefusal, placeSudoRefusal, reachScript, reachUnsaidLine, reachedUrls, unreachedLine } from "./add-words.js";
+import { ADD_LOOPBACK_REFUSAL, PLACE_CHECK_SCRIPT, PLACE_CHECK_SPARE_BYTES, REACH_LINE, REACH_MS, UNDO_MS, addTakenLine, addUndoneLine, advertisedLoopbackRefusal, backRefusedLine, dialsBackLine, dialsBackOverSshNote, guestTargetSaid, noPlaceManagerLine, parsePlaceCheck, placeCheckNote, placeCheckRows, placeBrokenRefusal, placeHeldRefusal, placeLeaveLineAs, placeRootHomeRefusal, placeSudoRefusal, reachScript, reachUnsaidLine, reachedUrls, unreachedLine } from "./add-words.js";
 import type { SshWordReader } from "./add-words.js";
 
 /** How the daemon is put on a computer over ssh, for the host that wires the runtime: the ssh road the workspace
@@ -139,10 +139,12 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
       // the two are different computers as often as they are alike, and a binary for the wrong one starts and dies.
       // Read before anything is sent, so a chip wsp builds no daemon for leaves the box exactly as it was found.
       const target = guestTargetSaid(system, arch);
-      // The join on the box refuses a computer that already holds a place file, and only after the bundle landed; read
-      // by the same rule here so a box in another wsp is refused with nothing of this one's sent.
-      const held = parsePlaceFile((await machine.run(heldPlaceScript(login.HOME), { deadlineMs: SSH_DIAL_MS })).stdout);
-      if (held !== undefined) throw new Error(placeHeldRefusal(req.address, held, readJoinToken(req.code).hostKey, req.held, placeLeaveLineAs(road === "root")));
+      // The join on the box refuses a computer that already holds a place file or what a join left broken, and only
+      // after the bundle landed; read by the same rule here so such a box is refused with nothing of this one's sent.
+      const held = readHeldPlace((await machine.run(heldPlaceScript(login.HOME), { deadlineMs: SSH_DIAL_MS })).stdout, login.HOME);
+      const leave = placeLeaveLineAs(road === "root");
+      if (held !== undefined && "broken" in held) throw new Error(placeBrokenRefusal(req.address, held.broken, leave));
+      if (held !== undefined) throw new Error(placeHeldRefusal(req.address, held.joined, readJoinToken(req.code).hostKey, req.held, leave));
       return { root: true as const, machine, login, hostKey, target, chip };
     };
     const standing = await stood().catch(async (e: unknown) => {

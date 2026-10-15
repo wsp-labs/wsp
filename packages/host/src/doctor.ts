@@ -12,7 +12,7 @@ import { dirname, join, posix } from "node:path";
 import { promisify } from "node:util";
 import { agentName, CATALOG_AGENTS, CLAUDE_CONFIG_DIR, GOLDEN_SETUP, GOLDEN_SMOKE, keyEnvOf, mintsToken, VAULT_VARIABLES } from "@wsp/catalog";
 import { CREATED_AT_LABEL, DAEMON_ENV_FILE, DAEMON_LISTENING_CHECK, DAEMON_PORT, DOCTOR_LABEL, EXEC_ENV, GUEST_USER_ENV, OWNER_LABEL, RUN_DIR, TOOLS_PATH, WSP_LABEL, clientWords, isMissing, isReserved, landBytes, presenceTests, presentElsewhere, presentSteps, whoseMachine, type DaemonSupervisor, type Machine, type MachineBackend, type ProvisionPlan } from "@wsp/engine";
-import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
+import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, placeLoginFiles, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
 import { goldenHead, writeDaemonTokenScript, type AccountOrphans, type GoldenVersion, type HereDaemon, type Runtime } from "@wsp/runtime";
 import { daemonFlags } from "./daemon-flags.js";
 import { loginFilesStep, sh, unsourceStep } from "./login-files.js";
@@ -84,10 +84,10 @@ export interface DaemonPlace {
   manifestPath: string;
   /** The file wsp owns and rewrites on every deploy, holding the BROWSER export. */
   profileFile: string;
-  /** The person's own login file one guarded source line is added to. A guest reads its whole profile.d folder and
-   * needs none; .profile rather than .bashrc on a machine that is somebody's, since bash reads .bashrc only for an
-   * interactive shell that is not a login, and every road onto the machine that reads a dotfile at all is a login. */
-  profileSource?: string;
+  /** The person's own login files one guarded source line is added to (placeLoginFiles). A guest reads its whole
+   * profile.d folder and needs none; login files rather than .bashrc on a machine that is somebody's, since bash reads
+   * .bashrc only for an interactive shell that is not a login, and every road onto the machine reads a login file. */
+  profileSources?: readonly string[];
   /** What keeps the daemon running here: the lines that start it, wait for it and read its log. Every line of the
    * deploy that used to ask which supervisor this was reads this instead. The module itself, and no id beside it:
    * an id would be the second copy of the fact, and the next reader would branch on it. */
@@ -377,7 +377,7 @@ export function sshDaemonPlace(login: { home: string; path: string }): DaemonPla
     openSocket: at.openSocket,
     manifestPath: at.manifestPath,
     profileFile: at.profileFile,
-    profileSource: `${login.home.replace(/\/+$/, "")}/.profile`,
+    profileSources: placeLoginFiles(login.home),
     // Their own login's systemd, which is the same module a fork's root unit reads, told a different scope.
     supervise: SYSTEMD,
     scope: "user",
@@ -834,7 +834,7 @@ export function joinedAddWrites(place: DaemonPlace, unitPath: string): AddWrite[
     { path: unitPath, as: "enabled" },
     ...own.map((path): AddWrite => ({ path, as: "own" })),
     { path: WSP_WORKSPACE_APPARMOR_PATH, as: "apparmor" },
-    ...(place.profileSource === undefined ? [] : [{ path: place.profileSource, as: "line" } as const, { path: place.profileSource, as: "login" } as const]),
+    ...(place.profileSources ?? []).flatMap((path, i): AddWrite[] => (i === 0 ? [{ path, as: "line" }, { path, as: "login" }] : [{ path, as: "line" }])),
     ...folders.map((path): AddWrite => ({ path, as: "folder" })),
   ];
 }
