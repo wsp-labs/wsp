@@ -4,10 +4,9 @@
 // the delete or holds the machine over work not pushed, and naps it. At the
 // delete the box goes at the cloud and the record stays, released, with its
 // thread, transcript, result and session. The timer is the record's deleteAt,
-// or for a held machine the day its cloud deletes the paused disk, so a
-// restarted host arms it again.
+// so a restarted host arms it again.
 import { INLINE_EXEC_MS, failureWords, isMissing } from "@wsp/engine";
-import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subKeepRanOutLine, subResultLine, isGitPush, pushRefusedOf, subSessionNotKeptLine, subSessionTooLargeLine, subSpawning, type SessionEvent, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
+import { DELETE_AFTER_MS, THREAD_WORKING_LINE, cloudSaid, fmtBytes, foldThreads, scopeOf, shellQuote, subAllPushed, subCloudGoneRefusal, subDeleteQuestion, subDeleteRefusedLine, subHeldDeleteRefusal, subReleasedRefusal, subResultLine, isGitPush, pushRefusedOf, subSessionNotKeptLine, subSessionTooLargeLine, subSpawning, type SessionEvent, type SubResult, type SubRow, type SubState, type SubUnpushed } from "@wsp/protocol";
 import { GONE_REASON, deadMachine } from "../types/internal.js";
 import type { GoneOutcome, LiveWorkspace, SubSession, WorkspaceRecord } from "../types/wiring.js";
 import type { RuntimeContext, SubLifeArea } from "../context.js";
@@ -137,6 +136,23 @@ function sessionNotKept(session: SubSession | undefined): string | undefined {
   return subSessionNotKeptLine(session.why ?? "no reason was given");
 }
 
+/** How long a record's cloud keeps a paused machine's disk; undefined where it keeps it as long as the machine. */
+export function diskKeptMs(ctx: Pick<RuntimeContext, "backendFor">, record: WorkspaceRecord): number | undefined {
+  try {
+    return ctx.backendFor(record).lifecycle?.diskKeptMs;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The day from which a record's cloud may delete its machine's disk, counted from the stop: the nap where the machine
+ * naps, else `stoppedAt` where a caller names the stop to come. The row's day, Expired and a held sub-thread's words. */
+export function diskKeptUntil(ctx: Pick<RuntimeContext, "backendFor">, record: WorkspaceRecord, stoppedAt?: number): number | undefined {
+  const from = record.phase === "napping" && record.nappedAt !== undefined ? record.nappedAt : stoppedAt;
+  const ms = from === undefined ? undefined : diskKeptMs(ctx, record);
+  return ms === undefined ? undefined : from! + ms;
+}
+
 export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   const { live, store, bus, clock, sessions, threadRecords } = ctx;
   const timers = new Map<string, () => void>();
@@ -250,37 +266,18 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     }
   };
 
-  /** How long the record's cloud keeps a paused machine's disk; undefined where it keeps it as long as the machine. */
-  const diskKeptMs = (entry: LiveWorkspace): number | undefined => {
-    try {
-      return ctx.backendFor(entry.record).lifecycle?.diskKeptMs;
-    } catch {
-      return undefined;
-    }
-  };
-
-  /** When the cloud deletes a held machine's disk: the keep from its nap, or from the hold where `orHeld` asks and the
-   * nap has not landed yet, as at the lead's line, which goes before the nap. */
-  const keepEnds = (entry: LiveWorkspace, orHeld = false): number | undefined => {
-    const held = entry.record.sub?.held;
-    const ms = diskKeptMs(entry);
-    if (held === undefined || ms === undefined) return undefined;
-    if (entry.record.phase === "napping" && entry.record.nappedAt !== undefined) return entry.record.nappedAt + ms;
-    return orHeld ? held.at + ms : undefined;
-  };
-
-  /** The timer on a sub-thread's record: the delete at deleteAt, or the release of a held one at the end of its keep. */
-  const arm = (entry: LiveWorkspace, at = entry.record.sub?.deleteAt ?? keepEnds(entry)): void => {
+  const arm = (entry: LiveWorkspace): void => {
     const id = entry.record.id;
     timers.get(id)?.();
     timers.delete(id);
+    const at = entry.record.sub?.deleteAt;
     if (at === undefined || entry.record.phase === "released") return;
     timers.set(
       id,
       clock.schedule(
         () => {
           timers.delete(id);
-          void serial(id, () => (live.get(id)?.record.sub?.deleteAt !== undefined ? expire(id) : lapse(id)));
+          void serial(id, () => expire(id));
         },
         Math.max(0, at - clock.now()),
         { unref: true },
@@ -421,32 +418,6 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     await release(entry);
   };
 
-  /** The end of a held machine's keep at its cloud, which deletes the disk then: the box is deleted with it and the record
-   * released, saying so on its row and its timeline. A turn since takes the machine back, and its nap counts anew. */
-  const lapse = async (id: string): Promise<void> => {
-    const entry = live.get(id);
-    const sub = entry?.record.sub;
-    const at = entry === undefined ? undefined : keepEnds(entry);
-    const ms = entry === undefined ? undefined : diskKeptMs(entry);
-    if (entry === undefined || sub?.held === undefined || at === undefined || ms === undefined || entry.record.phase === "released") return;
-    const threadId = threadOf(id);
-    if (threadId !== undefined && busy(threadId)) return;
-    if (at > clock.now()) return arm(entry, at);
-    const line = subKeepRanOutLine({ on: cloudOf(entry), keptMs: ms, at, held: { files: sub.held.files, commits: sub.held.commits, ...(sub.result?.readFailed !== undefined ? { readFailed: sub.result.readFailed } : {}) }, branch: sub.branch });
-    await cutOff(ctx, entry);
-    try {
-      await ctx.unfork(entry);
-    } catch (e) {
-      if (!isMissing(e)) {
-        console.warn(subDeleteRefusedLine(cloudOf(entry), entry.record.name, failureWords(e), SUB_DELETE_RETRY_MS / 60_000));
-        return arm(entry, clock.now() + SUB_DELETE_RETRY_MS);
-      }
-    }
-    entry.record.diskGone = line;
-    await release(entry, { lost: line });
-    ctx.tellThreads(id, () => line);
-  };
-
   /** A turn starting on the thread takes back its machine: no delete, no hold. */
   const reclaim = (workspaceId: string): void => {
     const entry = live.get(workspaceId);
@@ -469,11 +440,6 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   for (const type of ["session.start", "session.held", "session.queued"] as const) {
     bus.on(type, e => reclaim((e as { workspaceId: string }).workspaceId));
   }
-  // A held machine's keep runs from its nap, which lands after the done that held it.
-  bus.on("workspace.napped", e => {
-    const entry = e.type === "workspace.napped" ? live.get(e.workspaceId) : undefined;
-    if (entry?.record.sub?.held !== undefined && entry.record.sub.deleteAt === undefined) arm(entry);
-  });
   bus.on("workspace.deleted", e => {
     if (e.type !== "workspace.deleted") return;
     timers.get(e.workspaceId)?.();
@@ -548,7 +514,8 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     if (now?.record.sub === undefined || result === undefined || threadId === undefined || busy(threadId)) return undefined;
     const sub = now.record.sub;
     const deleteAt = sub.deleteAt;
-    const keptUntil = now.record.phase === "released" ? undefined : keepEnds(now, true);
+    // The line goes on the read, before the nap lands, so a hold counts from its own time until it does.
+    const keptUntil = sub.held === undefined || now.record.phase === "released" ? undefined : diskKeptUntil(ctx, now.record, sub.held.at);
     return subResultLine({
       threadId,
       lead: now.record.lead?.threadId ?? threadId,
@@ -568,10 +535,10 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       for (const entry of live.values()) {
         const sub = entry.record.sub;
         if (sub === undefined || entry.record.phase === "released" || sub.cloudGone === true) continue;
-        if (sub.deleteAt !== undefined || sub.held !== undefined) arm(entry);
+        if (sub.deleteAt !== undefined) arm(entry);
         // A done a restart cut short wrote neither, and no end comes again: it runs now. One with a turn running, or
         // with none run yet, returns at once.
-        else void serial(entry.record.id, () => done(entry.record.id));
+        else if (sub.held === undefined) void serial(entry.record.id, () => done(entry.record.id));
       }
     },
     subLost: async (entry, reason): Promise<GoneOutcome> => {
