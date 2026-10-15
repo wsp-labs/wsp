@@ -56,21 +56,26 @@ import type { RuntimeContext, BuildersArea } from "../context.js";
 
 export function buildersArea(ctx: RuntimeContext): BuildersArea {
   const { opts, backend, store, placeDoor, bus, clock, hostId, builders, gone, stageAt, places } = ctx;
-  const builderView = (r: BuilderRecord, b: LiveBuilder): GoldenBuilderView => ({
-    id: r.id,
-    name: r.name,
-    kind: r.kind,
-    createdAt: r.createdAt,
-    size: r.size,
-    ...(r.streamUrl !== undefined ? { screen: { streamUrl: r.streamUrl } } : {}),
-    sealable: b.sealable,
-    ...(r.import !== undefined ? { recipeHash: r.import.recipeHash } : {}),
-    ...(r.import?.recipe !== undefined ? { recipe: r.import.recipe } : {}),
-    ...(b.life === "foreign" ? { foreignOwner: b.builder.machine.labels?.[OWNER_LABEL] ?? "" } : {}),
-    ...(b.life === "held" && r.heldBy !== undefined ? { heldBy: r.heldBy } : {}),
-    ...(r.building === true ? { building: true } : {}),
-    ...(r.sealed !== undefined ? { sealed: r.sealed } : {}),
-  });
+  const builderView = (r: BuilderRecord, b: LiveBuilder): GoldenBuilderView => {
+    const place = r.place ?? places.wired;
+    const rate = (places.backend(place) ?? placeDoor?.backendOf(place))?.pricing.rateUsdPerHour(r.size);
+    return {
+      id: r.id,
+      name: r.name,
+      kind: r.kind,
+      createdAt: r.createdAt,
+      size: r.size,
+      ...(rate !== undefined ? { rateUsdPerHour: rate } : {}),
+      ...(r.streamUrl !== undefined ? { screen: { streamUrl: r.streamUrl } } : {}),
+      sealable: b.sealable,
+      ...(r.import !== undefined ? { recipeHash: r.import.recipeHash } : {}),
+      ...(r.import?.recipe !== undefined ? { recipe: r.import.recipe } : {}),
+      ...(b.life === "foreign" ? { foreignOwner: b.builder.machine.labels?.[OWNER_LABEL] ?? "" } : {}),
+      ...(b.life === "held" && r.heldBy !== undefined ? { heldBy: r.heldBy } : {}),
+      ...(r.building === true ? { building: true } : {}),
+      ...(r.sealed !== undefined ? { sealed: r.sealed } : {}),
+    };
+  };
 
   /** One timer per kept builder, so the grace ends on time inside a process; the sweep is the road across processes. */
   const graceTimers = new Map<string, () => void>();
