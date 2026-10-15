@@ -171,3 +171,26 @@ describe("a sub-thread's row reads its machine", () => {
     expect((await card()).machine).toBe("Boat was removed from zingzy's MacBook Pro");
   });
 });
+
+describe("a thread whose machine naps past the keep of its disk", () => {
+  it("reads Expired and its card says the day the keep ran out and what a send may do, settled or not", async () => {
+    const until = Date.parse("2026-10-11T04:50:29.157Z");
+    const line = `Its machine's disk was kept until ${new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" }).format(until)}, so a send may find it gone and start a new machine`;
+    mount({ parentThreadId: null, startedBy: "person", status: "completed", endedAt: "2026-09-27T04:00:00.000Z", diskKeptUntil: until });
+    expect(slot().dataset["threadStatus"]).toBe("expired");
+    expect((await card()).notes).toEqual([line]);
+    cleanup();
+    render(
+      <SidebarProvider defaultOpen>
+        <ThreadTile thread={thread({ parentThreadId: null, startedBy: "person", status: "completed", endedAt: "2026-09-27T04:00:00.000Z", diskKeptUntil: until })} place={PLACE} model={null} time="18d" depth={1} active={false} settled renaming={false} saving={false} onSelect={() => {}} onContextMenu={() => {}} onRename={() => {}} onRenameCancel={() => {}} />
+      </SidebarProvider>,
+    );
+    expect(slot().dataset["threadStatus"]).toBe("resting");
+    expect((await card()).notes).toEqual([line]);
+  });
+
+  it("reads as it did before the day comes", () => {
+    mount({ parentThreadId: null, startedBy: "person", status: "completed", endedAt: "2026-10-12T07:00:00.000Z", diskKeptUntil: Date.now() + 86_400_000 });
+    expect(slot().dataset["threadStatus"]).toBe("resting");
+  });
+});

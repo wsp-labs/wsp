@@ -64,6 +64,8 @@ import {
   workspaceStateLine,
   type PauseMode,
   workspaceStateOf,
+  DISK_EXPIRED_WORD,
+  diskExpired,
   workspaceStaysAwakeLine,
   type Capabilities,
   type MachineSizeOffer,
@@ -737,9 +739,14 @@ export const THREAD_HEAD = ["PROJECT", "FOLDER", "BRANCH", "THREAD", "SUBAGENT",
  * the two words `wsp stop <thread> --subagent <id>` takes, and BY is the agent that started it. */
 export function threadLines(t: ThreadRow, indent = ""): string[][] {
   const folder = shortenedFront(homeShortened(t.folder, homedir()), FOLDER_WIDTH);
-  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, subThreadWord(t) ?? threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
+  const own = [t.projectName, folder, t.branch, `${indent}${t.id}`, "", t.harness, expiredWord(t) ?? subThreadWord(t) ?? threadWordOf(t), t.startedBy, t.computerName, shortenedEnd(t.title, TITLE_WIDTH)];
   const under = (t.subagents ?? []).map(c => [t.projectName, folder, t.branch, `${indent}  ${t.id}`, c.id, t.harness, subagentStateWord(c.state), "agent", t.computerName, shortenedEnd(c.title, TITLE_WIDTH)]);
   return [own, ...under];
+}
+
+/** A thread whose napping machine is past the keep of its disk, where neither a question nor a failure says more. */
+function expiredWord(t: ThreadRow): string | undefined {
+  return t.waitingOn === undefined && threadState(t) !== "failed" && diskExpired(t, Date.now()) ? DISK_EXPIRED_WORD : undefined;
 }
 
 /** A sub-thread's state where its machine says more than its turn: waiting for a slot on its cloud, its machine being

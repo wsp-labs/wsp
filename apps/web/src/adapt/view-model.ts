@@ -452,6 +452,8 @@ export interface SidebarThreadSnapshot {
   readonly capped?: ThreadCapWait;
   /** A sub-thread's machine on its cloud: its state, the work holding it and when it goes or went. */
   readonly sub?: SubRow;
+  /** When the keep of its napping machine's disk runs out, ms epoch, as the thread carries it. */
+  readonly diskKeptUntil?: number;
   /** The usage limit that stopped the latest turn, as the protocol's fold reads it; null on a turn that ended another
    * way. resumeAt is the reset the turn is armed to go on at, null while nobody pressed Resume at reset. */
   readonly limit?: TurnLimit | null;

@@ -304,7 +304,12 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     };
     if (phase === "gone") record.gone = stored.gone ?? goneWords(stored.machineId, { by: "record load", at: clock.now(), ...(missing !== undefined ? { answer: missing } : {}) });
     else delete record.gone;
+    // The provider's reading of the pause beats this host's: a nap the host never saw land, or one before it kept any.
+    const pausedAt = phase === "napping" ? Date.parse(machine.seen?.pausedAt ?? "") : NaN;
+    const napMoved = Number.isFinite(pausedAt) && pausedAt !== stored.nappedAt;
+    if (napMoved) record.nappedAt = pausedAt;
     ctx.attach(record, machine);
+    if (napMoved && phase === stored.phase) await ctx.persist(record);
     if (phase !== stored.phase) {
       if (phase === "gone") console.warn(goneLogLine(stored.id, record.gone!));
       else console.warn(`workspace ${stored.id} was left ${stored.phase} and its machine is ${String(atProvider)} at the provider; the record hydrates ${phase}`);
@@ -706,6 +711,17 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       };
     });
   };
+  /** When the keep of a napping machine's disk runs out, where its provider deletes one after a while. */
+  const diskKeptUntil = (record: WorkspaceRecord | undefined): { diskKeptUntil?: number } => {
+    if (record?.phase !== "napping" || record.nappedAt === undefined) return {};
+    let keptMs: number | undefined;
+    try {
+      keptMs = ctx.backendFor(record).lifecycle?.diskKeptMs;
+    } catch {
+      return {};
+    }
+    return keptMs === undefined ? {} : { diskKeptUntil: record.nappedAt + keptMs };
+  };
   /** A thread's facts off its rows here, as a listing folds them; undefined where the host holds no row of it. */
   const threadFacts = (threadId: string): ThreadFacts | undefined => {
     const held = [...sessions.values()].filter(s => threadKeyOf(s.view) === threadId);
@@ -719,6 +735,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     return {
       ...thread,
       ...(sub !== undefined ? { sub } : {}),
+      ...diskKeptUntil(record),
       ...(latest.model !== undefined ? { model: latest.model } : {}),
       ...(latest.effort !== undefined ? { effort: latest.effort } : {}),
       ...(latest.contextWindow !== undefined ? { contextWindow: latest.contextWindow } : {}),
@@ -760,7 +777,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       // A sub-thread names the lead's project and runs on its cloud, which is the computer its row reads.
       const at = sub !== undefined && record !== undefined ? ctx.placeIdOf(record) : project?.computer;
       const computer = computers.find(r => r.id === at);
-      const placed = sub === undefined ? view : { ...view, sub };
+      const placed = { ...view, ...(sub !== undefined ? { sub } : {}), ...diskKeptUntil(record) };
       if (project === undefined) return placed;
       return { ...placed, project: { id: project.id, name: project.name }, computerName: computer !== undefined ? tableName(computer) : sub !== undefined ? cloudSaid(sub.on) : project.computer };
     });

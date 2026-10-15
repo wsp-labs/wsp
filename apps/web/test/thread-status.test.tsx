@@ -44,8 +44,19 @@ describe("threadStatusOf", () => {
     expect(threadStatusOf(thread({ unread: true, status: "failed" })).id).toBe("failed");
   });
 
+  it("a thread whose napping machine is past the keep of its disk reads Expired from that day, below a failure and a finish nobody has seen", () => {
+    const past = Date.now() - 60_000;
+    expect(threadStatusOf(thread({ diskKeptUntil: past })).id).toBe("expired");
+    expect(threadStatusOf(thread({ diskKeptUntil: past })).word).toBe("Expired");
+    expect(threadStatusOf(thread({ diskKeptUntil: past, status: "interrupted" })).id).toBe("expired");
+    expect(threadStatusOf(thread({ diskKeptUntil: Date.now() + 86_400_000 })).id).toBe("resting");
+    expect(threadStatusOf(thread({ diskKeptUntil: past, status: "failed" })).id).toBe("failed");
+    expect(threadStatusOf(thread({ diskKeptUntil: past, unread: true })).id).toBe("done");
+    expect(threadStatusOf(thread({ diskKeptUntil: past, asking: "Bash: ls" })).id).toBe("needs-you");
+  });
+
   it("the registry ends on the kind every thread reads as, so no thread falls through it", () => {
-    expect(THREAD_STATUS_KINDS.map(k => k.id)).toEqual(["needs-you", "waiting", "starting", "working", "limited", "resuming", "failed", "released", "stopped", "not-pushed", "done", "resting"]);
+    expect(THREAD_STATUS_KINDS.map(k => k.id)).toEqual(["needs-you", "waiting", "starting", "working", "limited", "resuming", "failed", "released", "expired", "stopped", "not-pushed", "done", "resting"]);
     expect(threadStatusOf(thread({ status: "failed", limit: { resetsAt: 1 } })).id).toBe("limited");
     expect(threadStatusOf(thread({ status: "failed", limit: { resetsAt: 1 }, resumeAt: 1 })).id).toBe("resuming");
     expect(THREAD_STATUS_KINDS.at(-1)!.is(thread({ status: "failed", asking: "x" }))).toBe(true);

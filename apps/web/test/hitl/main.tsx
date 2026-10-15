@@ -6,7 +6,8 @@
 // wire's shapes, so a screenshot of one is what the app would draw for that
 // record. ?keys=down,down,space sends those keys to the dock after it mounts,
 // ?typed=words types into its open field, ?write=1 presses Write a message
-// instead, and ?hover=tile rests the pointer on the waiting tile.
+// instead, and ?hover=tile rests the pointer on the waiting tile. ?screen=expired adds a read thread whose machine is
+// four days past the keep of its disk.
 import { createRoot } from "react-dom/client";
 import { askingLine as askingLineOf, DEFAULT_PREFERENCES, type HarnessCatalog, type PlaceView, type ProjectView, type SessionEvent, type SessionView, type WorkspaceView } from "@wsp/protocol";
 import { Button } from "../../src/components/ui/button";
@@ -115,7 +116,7 @@ const PROMPTS: Record<string, { toolName: string; input: string; detail?: string
   codex: { toolName: "command_execution", toolUseId: "exec-267f4a9f", input: JSON.stringify({ command: "/bin/zsh -lc 'touch hi.txt'", cwd: "/Users/zingzy/wsp" }), detail: "Allow me to create hi.txt in the current folder?", options: codexOptions },
 };
 const promptFor = (name: string) => PROMPTS[name] ?? PROMPTS["single"]!;
-const KIND: Record<string, string> = { other: "single", "other-multi": "multi", deny: "bash", answered: "single", collapsed: "single", tile: "single", threads: "single", "form-step2": "form" };
+const KIND: Record<string, string> = { other: "single", "other-multi": "multi", deny: "bash", answered: "single", collapsed: "single", tile: "single", threads: "single", expired: "single", "form-step2": "form" };
 const kind = KIND[screen] ?? screen;
 const prompt = promptFor(kind);
 /** The prompt is closed: on answered the agent is back at work with the composer returned, on threads the turn is over. */
@@ -156,6 +157,7 @@ const others: SessionView[] = [
   { id: "s_work", threadId: "thr_work", workspaceId: MAC.id, harness: "codex", status: "running", prompt: "Review 1605: the switcher after the sidebar's three parts", harnessTitle: "Review 1605: the switcher after the sidebar's three parts", startedBy: "cli", startedAt: ago(41) } as SessionView,
   { id: "s_done", threadId: "thr_done", workspaceId: MAC.id, harness: "claude", status: "completed", prompt: "Probe: send latency on the relay", harnessTitle: "Probe: send latency", startedBy: "person", startedAt: ago(70), endedAt: ago(52) } as SessionView,
   { id: "s_read", threadId: "thr_read", workspaceId: MAC.id, harness: "claude", status: "completed", prompt: "Questions with visual options", harnessTitle: "Questions with visual options", startedBy: "person", startedAt: ago(150), endedAt: ago(140), readAt: ago(130) } as SessionView,
+  ...(screen === "expired" ? [{ id: "s_kept", threadId: "thr_kept", workspaceId: MAC.id, harness: "claude", status: "completed", prompt: "Trim the relay's reconnect backoff", harnessTitle: "Trim the relay's reconnect backoff", startedBy: "person", startedAt: ago(40), endedAt: ago(20), readAt: ago(10), diskKeptUntil: ago(4 * 1440) } as SessionView] : []),
 ];
 // The lead's own children, for the THREADS block under its reply: one of them stopped on a prompt of its own.
 const children: SessionView[] =

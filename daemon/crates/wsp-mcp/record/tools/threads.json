@@ -440,6 +440,9 @@
                 ],
                 "additionalProperties": false
               },
+              "diskKeptUntil": {
+                "type": "number"
+              },
               "capped": {
                 "type": "object",
                 "properties": {
@@ -1157,6 +1160,9 @@
                   "branch"
                 ],
                 "additionalProperties": false
+              },
+              "diskKeptUntil": {
+                "type": "number"
               },
               "capped": {
                 "type": "object",
