@@ -212,4 +212,19 @@ describe("the window's sources", () => {
     const second = Number(screen.getByText(/^\d+$/).textContent);
     expect(second - first).toBeGreaterThanOrEqual(1_000);
   });
+
+  it("moves a label that reads a run's end through ago() with the clock, and starts it over at the run's next record", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout", "Date"] });
+    vi.setSystemTime(new Date("2026-10-15T09:00:00Z"));
+    const doc = slate({ root: "t", runs: { check: { kind: "cmd", cmd: "true", every: 60 } }, pieces: text("t", "Checked ${ago($check.endedAt)}") });
+    const { engine } = drawBound(doc, fakeApp(), fakeHost({}));
+    const record = (runs: number) => ({ $check: { state: "done", exit: 0, runs, startedAt: Date.now() - 2_000, endedAt: Date.now(), out: "" } });
+    await act(async () => engine.applyValues(record(1), 2));
+    await act(async () => vi.advanceTimersByTime(54_000));
+    expect(screen.getByText(/^Checked/).textContent).toBe("Checked 54s ago");
+    await act(async () => vi.advanceTimersByTime(6_000));
+    await act(async () => engine.applyValues(record(2), 3));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(screen.getByText(/^Checked/).textContent).toBe("Checked 1s ago");
+  });
 });
