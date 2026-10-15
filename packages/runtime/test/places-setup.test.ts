@@ -72,6 +72,7 @@ import {
   heldPlaceScript,
   placeFileText,
 } from "@wsp/protocol";
+import { heldReadOf } from "../../protocol/test/held-read.js";
 import { loginSignIn } from "@wsp/catalog";
 import type { EngineStep, ProvisionOn, ProvisionPlan, ProvisionStage } from "@wsp/engine";
 import type { AgentsActs, SignInAsk, SignInRun } from "../src/agents-read.js";
@@ -538,7 +539,7 @@ describe("a remove of a computer set up with picks", () => {
       hostKey,
       runOver: async (login, script) => {
         // The place file names this computer, which is what the remove reads before anything else runs there.
-        if (script === held) return { exitCode: 0, stdout: file(), stderr: "" };
+        if (script === held) return { exitCode: 0, stdout: heldReadOf(file()), stderr: "" };
         over.push({ login: login.ssh, script });
         order.push(script);
         return script.includes("stuck") ? { exitCode: 1, stdout: "", stderr: "Plugin is in use" } : { exitCode: 0, stdout: "", stderr: "" };

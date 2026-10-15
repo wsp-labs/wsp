@@ -13,7 +13,8 @@ import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noGuestDaemonLine, noPlaceSystemL
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, joinedAddWrites, joinedLine, joinedPlace, PLACE_JOINED_LINE, WSP_READY_LINE } from "../src/doctor.js";
 import { placeInstaller, addLineWords, backRefusedLine, dialsBackOverSshNote, placeHeldRefusal, reachScript, unreachedLine, UNSAID_CHIP_REFUSAL, ADD_LOOPBACK_REFUSAL, advertisedLoopbackRefusal, placeUnit, joinUnansweredLine, addUndoneLine, addTakenLine, placeRootHomeRefusal, PLACE_CHECK_SCRIPT, placeNoRootLine, placeBrokenRefusal, brokenJoinLine } from "../src/places.js";
 import { BackCutError, backBindLine } from "../src/place-back.js";
-import { heldPlaceScript, PLACE_LEFT_LINE } from "@wsp/protocol";
+import { LOGIN_KEPT_LINE, loginKeptLine } from "../src/login-files.js";
+import { heldPlaceScript, PLACE_HELD_LINE, PLACE_LEFT_LINE } from "@wsp/protocol";
 import { placeReport } from "../src/place-report.js";
 import { opts, spooConfig, tmp } from "./places-fixture.js";
 
@@ -35,7 +36,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
 
   /** A box that takes the deploy and answers the word it is told to say about its own chip, recording every script
    * run on it and every file landed there. `arch` is what its `uname -m` answered on the read that adopted it. */
-  function fakeBox(arch: string | undefined, shell = "bash", box: { reaches?: (url: string) => boolean; holds?: string; dials?: string; proxied?: boolean; home?: string; checks?: string[]; road?: SshSudoRoad; tries?: (password: string) => SshSudo; minusNRefused?: boolean } = {}): { backend: unknown; ran: string[]; landed: string[]; stages: string[]; times: Record<string, number | undefined>; stage: PlaceStaging; tried: string[]; ridden: SshRiding[]; order: string[] } {
+  function fakeBox(arch: string | undefined, shell = "bash", box: { reaches?: (url: string) => boolean; holds?: string; held?: string; dials?: string; proxied?: boolean; home?: string; checks?: string[]; road?: SshSudoRoad; tries?: (password: string) => SshSudo; minusNRefused?: boolean } = {}): { backend: unknown; ran: string[]; landed: string[]; stages: string[]; times: Record<string, number | undefined>; stage: PlaceStaging; tried: string[]; ridden: SshRiding[]; order: string[] } {
     const tried: string[] = [];
     const order: string[] = [];
     const ridden: SshRiding[] = [];
@@ -53,7 +54,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       run: async (script: string, opts?: { onLine?: (line: string) => void }) => {
         ran.push(script);
         if (script.includes("PREFLIGHT_OK")) return { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" };
-        if (script === heldPlaceScript("/home/maya")) return { exitCode: 0, stdout: box.holds ?? "", stderr: "" };
+        if (script === heldPlaceScript("/home/maya")) return { exitCode: 0, stdout: box.held ?? `${PLACE_HELD_LINE}\n${box.holds ?? ""}`, stderr: "" };
         if (script === PLACE_CHECK_SCRIPT) return { exitCode: 0, stdout: (box.checks ?? []).map(l => `wsp-check ${l}\n`).join(""), stderr: "" };
         const reached = reachAnswer(script, box.reaches);
         if (reached !== undefined) return reached;
@@ -625,6 +626,47 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       expect(box.ran).toEqual([heldPlaceScript("/home/maya")]);
     }
     warned.mockRestore();
+  });
+
+  it("adds a box whose login prints a line before the held read, and still refuses one whose read after that line is broken", async () => {
+    const at = placeDaemonPaths("/home/maya");
+    const own = joinToken("7QK3M2VD", keyFingerprint("dGhpcyBob3N0"));
+    const rc = "Welcome to box\n";
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const holds of [rc, `${rc}${PLACE_HELD_LINE}\n`]) {
+      const box = fakeBox("x86_64", "bash", { held: holds, road: "free" });
+      expect(await placeInstaller({ backend: box.backend as never, ...assets(tmp("held-rc"), [X86]) })({ address: "maya@box", code: own, hostUrls: ["http://192.168.1.20:4720"] }, box.stage)).toMatchObject({ name: "box" });
+    }
+    const broken = fakeBox("x86_64", "bash", { held: `${rc}${PLACE_HELD_LINE}\n{"placeId": "p_1", "na`, road: "free" });
+    const said = await placeInstaller({ backend: broken.backend as never, ...assets(tmp("held-rc-broken"), [X86]) })({ address: "maya@box", code: own, hostUrls: ["http://192.168.1.20:4720"] }, broken.stage).then(() => "the add stood", (e: unknown) => (e as Error).message);
+    warned.mockRestore();
+    expect(said).toBe(placeBrokenRefusal("maya@box", at.placeFile, "sudo -i wsp leave"));
+    expect(broken.landed).toEqual([]);
+  });
+
+  it("names a login file the deploy left as it was in the host's log, and the deploy checks each one before it writes", async () => {
+    const box = fakeBox("x86_64");
+    const backend = { ...(box.backend as { adopt: () => Promise<{ machine: { run: (script: string, o?: { onLine?: (line: string) => void }) => Promise<unknown> } }> }) };
+    const adopt = backend.adopt;
+    backend.adopt = async () => {
+      const adopted = await adopt();
+      const run = adopted.machine.run;
+      adopted.machine.run = async (script, o) => {
+        if (script.includes(`case "$(uname -m)" in`)) o?.onLine?.(`${LOGIN_KEPT_LINE} /home/maya/.bash_profile`);
+        return run(script, o);
+      };
+      return adopted;
+    };
+    const warned: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation((...said: unknown[]) => void warned.push(said.map(String).join(" ")));
+    try {
+      expect(await placeInstaller({ backend: backend as never, ...assets(tmp("login-kept"), [X86]) })({ address: "maya@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4720"] }, box.stage)).toMatchObject({ name: "box" });
+    } finally {
+      warn.mockRestore();
+    }
+    expect(warned).toContain(loginKeptLine("/home/maya/.bash_profile"));
+    const deploy = box.ran.find(script => script.includes(`case "$(uname -m)" in`))!;
+    for (const name of [".profile", ".bash_profile", ".bash_login"]) expect(deploy).toContain(`find '/home/maya/${name}' -maxdepth 0 -links +1`);
   });
 
   it("refuses a box whose login has / for its home before it reads what the box holds", async () => {

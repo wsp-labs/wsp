@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { placeDaemonPaths, wspBinIn, type PlaceFile } from "@wsp/protocol";
+import { LOGIN_READ_MAX_BYTES, PLACE_LOGIN_PAST_CAP, placeDaemonPaths, placeLineStaysLine, wspBinIn, type PlaceFile } from "@wsp/protocol";
+import { LOGIN_KEPT_LINE, LOGIN_LINKED_WHY, profileSourceLine } from "../src/login-files.js";
 import { addFoundScript, addUndoScript, addFound, DAEMON_GONE_LINE, joinedAddWrites, joinedPlace, loginFilesStep, sshDaemonPlace } from "../src/doctor.js";
 import { brokenJoinLine, joinCutByLeaveLine, placeHeldRefusal, placeLeaveLineAs, placeNoKeyForSudoLine, placeUndoNeedsSudoLine, placeUndoNoKeyLine, placeUndoOtherKeyLine } from "../src/places.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -109,5 +110,40 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
     expect(bash(addUndoScript(place, writes, found, "true", true)).stdout).toContain(DAEMON_GONE_LINE);
     expect(readFileSync(join(home, file), "utf8")).toBe(OWN);
     expect(existsSync(join(home, ".profile"))).toBe(false);
+  });
+
+  it("writes through no login file that is a link or has a second name, and names each one it left", () => {
+    const home = tmp("leave-line-linked");
+    const outside = tmp("leave-line-outside");
+    const theirs = "root:x:0:0:root:/root:/bin/bash\n";
+    writeFileSync(join(outside, "passwd"), theirs);
+    writeFileSync(join(outside, "profile"), OWN);
+    writeFileSync(join(outside, "login"), OWN);
+    symlinkSync(join(outside, "passwd"), join(home, ".bash_profile"));
+    symlinkSync(join(outside, "profile"), join(home, ".profile"));
+    linkSync(join(outside, "login"), join(home, ".bash_login"));
+    const ran = spawnSync("/bin/bash", ["-c", loginFilesStep(sshDaemonPlace({ home, path: "/usr/bin" })).join("\n")], { encoding: "utf8" });
+    expect(ran.status, ran.stderr).toBe(0);
+    for (const name of ["passwd", "profile", "login"]) expect(readFileSync(join(outside, name), "utf8")).toBe(name === "passwd" ? theirs : OWN);
+    expect(ran.stdout.split("\n").filter(line => line.startsWith(`${LOGIN_KEPT_LINE} `))).toEqual([".profile", ".bash_profile", ".bash_login"].map(name => `${LOGIN_KEPT_LINE} ${join(home, name)}`));
+    // A dangling link is a link too: nothing is made at the far end of it.
+    const dangling = tmp("leave-line-dangling");
+    symlinkSync(join(outside, "nowhere"), join(dangling, ".profile"));
+    expect(spawnSync("/bin/bash", ["-c", loginFilesStep(sshDaemonPlace({ home: dangling, path: "/usr/bin" })).join("\n")]).status).toBe(0);
+    expect(existsSync(join(outside, "nowhere"))).toBe(false);
+  });
+
+  it("leaves its line in a login file the leave at the box finds linked or past the cap, and says why", async () => {
+    const home = tmp("leave-line-sweep-linked");
+    const line = profileSourceLine(placeDaemonPaths(home).profileFile);
+    mkdirSync(join(home, "dotfiles"));
+    writeFileSync(join(home, "dotfiles", "bash_profile"), `${OWN}${line}\n`);
+    symlinkSync(join(home, "dotfiles", "bash_profile"), join(home, ".bash_profile"));
+    writeFileSync(join(home, ".bash_login"), "");
+    truncateSync(join(home, ".bash_login"), LOGIN_READ_MAX_BYTES + 1);
+    const swept = await sweepPlace({ home, manager: undefined, run: fakeRunner().run });
+    expect(readFileSync(join(home, "dotfiles", "bash_profile"), "utf8")).toBe(`${OWN}${line}\n`);
+    expect(swept.kept).toContain(placeLineStaysLine(line, join(home, ".bash_profile"), LOGIN_LINKED_WHY));
+    expect(swept.kept).toContain(placeLineStaysLine("wsp's line", join(home, ".bash_login"), PLACE_LOGIN_PAST_CAP));
   });
 });

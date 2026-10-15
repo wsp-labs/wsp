@@ -436,6 +436,8 @@ fn rendered_words() -> BTreeMap<&'static str, String> {
     m.insert("hostClosed", words::HOST_CLOSED.to_owned());
     m.insert("placeKeptForLink", words::place_kept_for_link("{path}"));
     m.insert("placeLineOut", words::place_line_out("{lines}", "{file}"));
+    m.insert("placeLineStays", words::place_line_stays("{lines}", "{file}", "{why}"));
+    m.insert("placeLoginPastCap", words::PLACE_LOGIN_PAST_CAP.to_owned());
     m.insert("placeOutsideLeft", words::place_outside_left("{prefix}"));
     m.insert("placeStoodBefore", words::place_stood_before("{path}"));
     m.insert("placeKeptMounted", words::place_kept_mounted("{path}", "{mount}"));
@@ -553,6 +555,7 @@ fn rendered_numbers() -> BTreeMap<&'static str, Value> {
     m.insert("toolLinksDir", Value::from(numbers::TOOL_LINKS_DIR));
     m.insert("placeFoundEnd", Value::from(numbers::PLACE_FOUND_END));
     m.insert("placeFoundMaxBytes", Value::from(numbers::PLACE_FOUND_MAX_BYTES));
+    m.insert("loginReadMaxBytes", Value::from(numbers::LOGIN_READ_MAX_BYTES));
     m.insert("openSocketPath", Value::from(numbers::OPEN_SOCKET_PATH));
     m.insert("guestDaemonSocketPath", Value::from(numbers::GUEST_DAEMON_SOCKET_PATH));
     m.insert("brokerPort", Value::from(numbers::BROKER_PORT));

@@ -17,7 +17,7 @@ import {
   placeRefusalTranscript,
   sshRoadOf,
   heldPlaceScript,
-  parsePlaceFile,
+  heldPlaceFile,
   placeFileNames,
   lastLine,
   refusalParts,
@@ -233,7 +233,7 @@ export function placeRecords(ctx: PlaceDoorContext) {
     if (read.exitCode === CHILD_TIMED_OUT) return { unread: `the read timed out after ${Math.round(dialWaitMs / 1000)}s` };
     // The read itself answers empty where no place file stands, so a failed run is the login or its sudo.
     if (read.exitCode !== 0) return { unread: lastLine(read.stderr) ?? `the read exited ${read.exitCode}` };
-    const file = parsePlaceFile(read.stdout);
+    const file = heldPlaceFile(read.stdout);
     if (placeFileNames(file, [record.id], wiring.hostKey.publicKey)) return { same: true };
     const other = (await records()).find(r => r.id !== record.id && placeFileNames(file, [r.id], wiring.hostKey.publicKey));
     return { same: false, ...(other !== undefined ? { other: other.name } : {}) };

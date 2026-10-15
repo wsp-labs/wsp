@@ -143,6 +143,15 @@ pub fn place_line_out(lines: impl std::fmt::Display, file: impl std::fmt::Displa
     format!("{lines} (out of {file})")
 }
 
+/// What a leave says of wsp's lines it left in a person's own login file, and why. Said on both roads a leave runs
+/// on, and pinned to one text by the contract fixture.
+pub fn place_line_stays(lines: impl std::fmt::Display, file: impl std::fmt::Display, why: impl std::fmt::Display) -> String {
+    format!("{lines} stays in {file}: {why}")
+}
+
+/// Why a leave left a login file unread.
+pub const PLACE_LOGIN_PAST_CAP: &str = "it is over 1 MiB, more than a leave reads of a login file";
+
 /// Why a path outside the home a leave would have taken is still there: it stood before wsp was added, as the add
 /// wrote down, so it is the computer's own. Said on both roads a leave runs on, and pinned to one text by the
 /// contract fixture.

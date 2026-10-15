@@ -6,6 +6,7 @@ import { heldPlaceScript, readHeldPlace, leaveAsks, leaveTakes, machineLacksLine
 import { GITHUB_TOKEN_ENV, MissingKnownHostsError, PlaceMachine, runChild, SshBackend, SSH_DIAL_MS, SSH_LINE_CAP, SUDO_ASKS_LINE, clientWords, knownHostKey, landBytes, parseSshAddress, sshClient, sshDial, sshDialsThisComputer, sshLoginWord, sshMachineName, sshRefusalLine, sshWordReach, readSshSudo, trySshSudo, knownHostsWritten, type SshReach, type SshSudo, type SshTransport } from "@wsp/engine";
 import { PlaceAddTakenBackError, PlaceHostKeyChangedError, PlaceLoginRefusedError, type PlaceDialler, type PlaceInstaller, type PlaceLeaver, type PlaceLogReader, type PlaceStaging, type PlaceUpdateLanded, type PlaceUpdater, type PlaceWiring, type PlaceBackHolder } from "@wsp/runtime";
 import { BackCutError } from "../place-back.js";
+import { LOGIN_KEPT_LINE, loginKeptLine } from "../login-files.js";
 import { floorBytes } from "@wsp/catalog";
 import { ADD_TAKEN_LINE, DAEMON_GONE_LINE, PLACE_JOINED_LINE, PlaceAlreadyJoinedError, PlaceJoinedThenFailedError, WSP_READY_LINE, addFound, addFoundScript, addUndoScript, deployDaemon, joinedAddWrites, joinedPlace, loginFilesStep, placeInstallFailedLine, sshDaemonPlace } from "../doctor.js";
 import { assetDir, assetName } from "../assets.js";
@@ -232,6 +233,8 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
           stage("service", "running", dialsBackLine(joinUrls, back === undefined ? undefined : { boxPort: back.boxPort, name }));
         } else if (line.includes(PLACE_JOINED_LINE)) {
           stage("service", "done");
+        } else if (line.startsWith(`${LOGIN_KEPT_LINE} `)) {
+          console.warn(loginKeptLine(line.slice(LOGIN_KEPT_LINE.length + 1).trim()));
         }
       },
       ...(deps.daemonDir !== undefined ? { daemonDir: deps.daemonDir } : {}),

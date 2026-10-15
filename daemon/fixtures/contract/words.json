@@ -22,6 +22,8 @@
   "hostClosed": "the host closed the connection",
   "placeKeptForLink": "nothing was removed at {path}: a folder on the way to it is a link",
   "placeLineOut": "{lines} (out of {file})",
+  "placeLineStays": "{lines} stays in {file}: {why}",
+  "placeLoginPastCap": "it is over 1 MiB, more than a leave reads of a login file",
   "placeKeptMounted": "nothing was removed at {path}: {mount} is mounted under it; stop what runs there and leave again",
   "placeKeptMountsUnread": "nothing was removed at {path}: the mount table could not be read ({why}), so what is mounted under it is not known",
   "placeRuntimeStands": "{path} still stands: the leave could not remove all of it; remove what is left there by hand",

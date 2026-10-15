@@ -6,16 +6,17 @@
 // computer's own row.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, rmdirSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, rmdirSync, statSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir, arch as osArch, platform, release, type as osType, uptime as upSeconds, userInfo } from "node:os";
 import { spawnRun } from "@wsp/collect";
 import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileText, workspacesBlockedBy, type ModprobeRun, type PlaceEngine, type PlaceFile, type PlaceReport } from "@wsp/protocol";
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ServerPort } from "@wsp/engine";
-import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { DAEMON_VERSION, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
+import { LOGIN_LINKED_WHY } from "./login-files.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
 import { runAll, runFailureLine, serviceManagerFor, STOP_WAIT_MS, systemRunner, type ServiceAddress, type ServiceManager, type ServiceRunner } from "./service.js";
 
@@ -700,9 +701,9 @@ function there(path: string): boolean {
 /** Takes wsp's own line back out of each of the person's own login files, which would otherwise print an error at
  * every login for a file that is gone. Every line naming wsp's profile file goes, whatever spelling it was written
  * in, since a computer joined before the line was guarded on that file carries the older one. Their file, so it is
- * opened only when wsp's file is named in it and written back by the one config write: a .profile symlinked into a
- * dotfiles checkout under the home stays a symlink. Answers, per file, the lines it took, or the lines it left with
- * the write's refusal, and nothing for a file that named none. */
+ * opened only when wsp's file is named in it and written back by the one config write, which refuses a second name;
+ * a link, or a file past the size any login file has, is left as it is, as the leave over the link leaves it.
+ * Answers, per file, the lines it took, or the lines it left and why, and nothing for a file that named none. */
 function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { kept: string })[] {
   return (place.profileSources ?? []).flatMap(file => {
     const said = unsourcedFrom(place, home, file);
@@ -711,9 +712,11 @@ function unsourced(place: DaemonPlace, home: string): ({ removed: string } | { k
 }
 
 function unsourcedFrom(place: DaemonPlace, home: string, file: string): { removed: string } | { kept: string } | undefined {
-  if (!there(file)) return undefined;
   let bytes: Buffer;
+  let linked: boolean;
   try {
+    linked = lstatSync(file).isSymbolicLink();
+    if (statSync(file).size > LOGIN_READ_MAX_BYTES) return { kept: placeLineStaysLine("wsp's line", file, PLACE_LOGIN_PAST_CAP) };
     bytes = readFileSync(file);
   } catch {
     return undefined;
@@ -722,10 +725,11 @@ function unsourcedFrom(place: DaemonPlace, home: string, file: string): { remove
   const gone = rows.filter(row => row.includes(place.profileFile));
   if (gone.length === 0) return undefined;
   const lines = gone.map(row => row.trim()).join("; ");
+  if (linked) return { kept: placeLineStaysLine(lines, file, LOGIN_LINKED_WHY) };
   try {
     writeConfigHere(file, home, configSum(bytes), rows.filter(row => !row.includes(place.profileFile)).join("\n"));
   } catch (e) {
-    return { kept: `${lines} stays in ${file}: ${e instanceof Error ? e.message : String(e)}` };
+    return { kept: placeLineStaysLine(lines, file, e instanceof Error ? e.message : String(e)) };
   }
   return { removed: placeLineOutLine(lines, file) };
 }

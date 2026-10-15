@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { DEFAULT_PLACE_PORT } from "../app-ports.js";
 import { PLACE_LEAVE_LINE } from "../format.js";
-import { PLACE_LEFT_LINE, placeDaemonPaths } from "../project-path.js";
+import { PLACE_HELD_LINE, PLACE_LEFT_LINE, placeDaemonPaths } from "../project-path.js";
 import { base64, reqId } from "./helpers.js";
 import { isHttpUrl, isUnderPath } from "./limits.js";
 import { WorkspaceSize } from "./capabilities.js";
@@ -446,14 +446,27 @@ export function parsePlaceFile(text: string): PlaceFile | undefined {
   return ok ? f : undefined;
 }
 
+/** What the held read printed after its own line, skipping whatever the login's rc file printed before it, or
+ * nothing where that line never came, which is a read that never ran and says nothing about the box. */
+function heldText(stdout: string): string | undefined {
+  const mark = `${PLACE_HELD_LINE}\n`;
+  const at = `\n${stdout}`.indexOf(`\n${mark}`);
+  return at === -1 ? undefined : stdout.slice(at + mark.length);
+}
+
+/** The place file the held read found, read past what the login printed before it. */
+export const heldPlaceFile = (stdout: string): PlaceFile | undefined => parsePlaceFile(heldText(stdout) ?? "");
+
 /** What the held read of a box says stands there, by the rule the join on that box refuses by: a place file that
- * parses is a join; anything else it answered is what a join left broken, named by the path that stands. */
+ * parses is a join; anything else it answered after its own line is what a join left broken, named by the path
+ * that stands. */
 export function readHeldPlace(stdout: string, home: string): { joined: PlaceFile } | { broken: string } | undefined {
-  const joined = parsePlaceFile(stdout);
+  const text = heldText(stdout);
+  if (text === undefined || text === "") return undefined;
+  const joined = parsePlaceFile(text);
   if (joined !== undefined) return { joined };
-  if (stdout === "") return undefined;
   const at = placeDaemonPaths(home);
-  return { broken: stdout.trim() === `${PLACE_LEFT_LINE} key` ? at.placeKey : at.placeFile };
+  return { broken: text.trim() === `${PLACE_LEFT_LINE} key` ? at.placeKey : at.placeFile };
 }
 
 /** Whether a place file names one of these computers and this host's key: the one test every road over a computer's

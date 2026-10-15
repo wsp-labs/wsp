@@ -9,6 +9,7 @@ import { PlaceHostKeyChangedError, PlaceLoginRefusedError, newPlaceKeyPair, plac
 import { serveRuntime } from "../src/serve.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { stubBackend } from "./stub-backend.js";
+import { heldReadOf } from "../../protocol/test/held-read.js";
 import { until } from "./until.js";
 import { WsClient } from "./ws-client.js";
 import { DOOR, report, wiring } from "./place-join.js";
@@ -167,15 +168,16 @@ const placeFile = (placeId: string, hostPublicKey: string): string =>
   placeFileText({ placeId, name: "vps", hostName: "zingzys-mac", hostUrls: ["http://192.168.1.10:14621"], hostPublicKey, keyPath: "/home/maya/.wsp/place.key", joinedAt: "2026-10-07T00:00:00.000Z" });
 
 /** A login that reaches whatever box `file` says stands there, writing down every script it was asked to run. */
-const boxAnswering = (file: () => string, ran: string[] = []): NonNullable<PlaceWiring["runOver"]> => async (_login, script) => {
+const boxAnswering = (file: () => string, ran: string[] = [], rc?: string): NonNullable<PlaceWiring["runOver"]> => async (_login, script) => {
   ran.push(script);
-  return { exitCode: 0, stdout: script === heldPlaceScript(report("vps").login["HOME"]!) ? file() : "", stderr: "" };
+  const held = file();
+  return { exitCode: 0, stdout: script === heldPlaceScript(report("vps").login["HOME"]!) ? heldReadOf(held === "" ? undefined : held, rc) : "", stderr: "" };
 };
 
 describe("taking a place back out over the login the install used", () => {
   /** A computer this host put the agent on over ssh and then stopped hearing from: its record carries that login
    * and no link, which is the box a remove has to reach itself. */
-  const installedAndSilent = async (leave?: PlaceLeaver, more: Partial<PlaceWiring> = {}, boxKey?: string): Promise<{ placeId: string; store: Store; hostKey: PlaceKeyPair }> => {
+  const installedAndSilent = async (leave?: PlaceLeaver, more: Partial<PlaceWiring> = {}, boxKey?: string, rc?: string): Promise<{ placeId: string; store: Store; hostKey: PlaceKeyPair }> => {
     const hostKey = newPlaceKeyPair();
     const store = memoryStore();
     let joined = "";
@@ -196,7 +198,7 @@ describe("taking a place back out over the login the install used", () => {
           return { name: "vps", ssh: "root@65.21.4.12", sshKeyPath: "/Users/lena/.ssh/hetzner", ...(boxKey === undefined ? {} : { hostKey: boxKey }) };
         },
         ...(leave === undefined ? {} : { leave }),
-        runOver: boxAnswering(() => placeFile(joined, hostKey.publicKey)),
+        runOver: boxAnswering(() => placeFile(joined, hostKey.publicKey), [], rc),
         ...more,
       },
       placeJoinWaitMs: 60,
@@ -230,6 +232,14 @@ describe("taking a place back out over the login the install used", () => {
     expect(removed.swept).toEqual(took);
     expect(removed.note).toBe("wsp and the service that kept it running are removed from vps");
     expect(await store.get("places", placeId)).toBeUndefined();
+  });
+
+  it("runs the leave over a login whose rc file prints before the place file is read, since that is still the computer added here", async () => {
+    const asked: PlaceLeaveRequest[] = [];
+    const { placeId } = await installedAndSilent(async req => (asked.push(req), ["/home/maya/.wsp/place.json"]), {}, undefined, "Welcome to box");
+    const removed = await ctx.runtime!.places!.remove(placeId);
+    expect(asked).toHaveLength(1);
+    expect(removed.note).toBe("wsp and the service that kept it running are removed from vps");
   });
 
   it("asks for the sudo password before anything touches that computer, and rides it on the leave once sudo took it", async () => {
@@ -565,7 +575,7 @@ describe("taking a place back out over the login the install used", () => {
       sudoOver: async () => "taken",
       runOver: async (_login, script, _timeoutMs, sudoPassword) => {
         if (script === heldPlaceScript("/home/maya")) reads.push(sudoPassword);
-        return { exitCode: 0, stdout: script === heldPlaceScript("/home/maya") ? placeFile(live, hostKey.publicKey) : "", stderr: "" };
+        return { exitCode: 0, stdout: script === heldPlaceScript("/home/maya") ? heldReadOf(placeFile(live, hostKey.publicKey)) : "", stderr: "" };
       },
     }, "ssh-ed25519 SHA256:kept");
     live = placeId;
