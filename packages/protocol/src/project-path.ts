@@ -259,9 +259,9 @@ export const PLACE_LEFT_LINE = "WSP_PLACE_LEFT";
 export const PLACE_HELD_LINE = "WSP_PLACE_HELD";
 
 /** The place file on a box, read over ssh before anything of wsp's lands, before a forward's new port is written
- * into it, and before a new login is kept as that box's: nothing after its own line where it holds none. Where the join on that box would
- * refuse what stands as broken (an empty or unreadable file, a dangling link, a key with no file beside it) it says
- * so, since the join only refuses once the bundle has landed. Every line exits 0. */
+ * into it, and before a new login is kept as that box's: nothing after its own line where it holds none. Where the
+ * join on that box would refuse what stands as broken (an empty or unreadable file, a dangling link, a key with no
+ * file beside it) it says so, since the join only refuses once the bundle has landed. Every line exits 0. */
 export const heldPlaceScript = (home: string): string => {
   const at = placeDaemonPaths(home);
   const [file, key] = [shellQuote(at.placeFile), shellQuote(at.placeKey)];
