@@ -142,7 +142,7 @@ async fn every_recorded_answer_is_printed_byte_for_byte() {
                 frames.sort_by_key(Value::to_string);
                 frames
             };
-            assert_eq!(in_order(frames.lock().unwrap().clone()), in_order(expected.asked), "{named}: what the host was asked");
+            assert_eq!(in_order(frames.settled(&named).await), in_order(expected.asked), "{named}: what the host was asked");
             if let Some(wsp) = case.wsp.as_ref().filter(|_| case.guest.is_none() || !guest) {
                 let ran = std::fs::read_to_string(dir.path().join("argv")).unwrap();
                 let asked: Vec<String> = wsp.argv.iter().map(|w| w.replace("{state}", &state.to_string_lossy())).collect();

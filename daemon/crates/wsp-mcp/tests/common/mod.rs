@@ -3,11 +3,13 @@
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+use tokio::sync::watch;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
@@ -26,14 +28,50 @@ pub struct Script {
     pub closes: Option<String>,
 }
 
+/// The frames a scripted host was asked, and how many of its sockets are still open.
+pub struct Asked {
+    frames: Arc<Mutex<Vec<Value>>>,
+    open: watch::Sender<usize>,
+}
+
+impl Asked {
+    /// Every frame asked once each socket is closed: a call can answer on one reply while a frame it wrote beside it
+    /// is still on the wire, and the host reads everything before the close.
+    // start.rs shares this module and reads only the port.
+    #[allow(dead_code)]
+    pub async fn settled(&self, named: &str) -> Vec<Value> {
+        let mut open = self.open.subscribe();
+        let closed = tokio::time::timeout(Duration::from_secs(10), open.wait_for(|n| *n == 0)).await;
+        assert!(closed.is_ok(), "{named}: a socket to the host stayed open after the call answered");
+        self.frames.lock().unwrap().clone()
+    }
+}
+
+/// One socket counted open until it goes, however its loop ends.
+struct Open(watch::Sender<usize>);
+
+impl Open {
+    fn new(open: &watch::Sender<usize>) -> Open {
+        open.send_modify(|n| *n += 1);
+        Open(open.clone())
+    }
+}
+
+impl Drop for Open {
+    fn drop(&mut self) {
+        self.0.send_modify(|n| *n -= 1);
+    }
+}
+
 /// A host on loopback that takes the token it was given and answers as `script` says, under the id each op was asked
 /// with, and every op past the token and the events it was asked, without its id. One port, as the host's: a plain
 /// request gets a status line, which is all a probe asks, and the runtime's socket is upgraded on its path alone.
 // The path check is tungstenite's handshake callback, whose error type is tungstenite's to size.
 #[allow(clippy::result_large_err)]
-pub async fn scripted(token: &'static str, script: Script) -> (u16, Arc<Mutex<Vec<Value>>>) {
-    let asked_all = Arc::new(Mutex::new(Vec::new()));
-    let noted = asked_all.clone();
+pub async fn scripted(token: &'static str, script: Script) -> (u16, Asked) {
+    let asked = Asked { frames: Arc::new(Mutex::new(Vec::new())), open: watch::channel(0).0 };
+    let noted = asked.frames.clone();
+    let open = asked.open.clone();
     // How many times each op was asked, so the frame recorded under `<op> #<n>` answers its nth ask.
     let seen = Arc::new(Mutex::new(std::collections::HashMap::<String, usize>::new()));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -43,6 +81,7 @@ pub async fn scripted(token: &'static str, script: Script) -> (u16, Arc<Mutex<Ve
             let script = script.clone();
             let noted = noted.clone();
             let seen = seen.clone();
+            let open = open.clone();
             tokio::spawn(async move {
                 let mut head = [0u8; 2048];
                 let read = tcp.peek(&mut head).await.unwrap();
@@ -50,6 +89,7 @@ pub async fn scripted(token: &'static str, script: Script) -> (u16, Arc<Mutex<Ve
                     let _ = tcp.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n").await;
                     return;
                 }
+                let _open = Open::new(&open);
                 let on_path = |asked: &Request, answer: Response| {
                     assert_eq!(asked.uri().path(), "/ws", "the runtime's socket is dialled on its path");
                     Ok(answer)
@@ -104,5 +144,5 @@ pub async fn scripted(token: &'static str, script: Script) -> (u16, Arc<Mutex<Ve
             });
         }
     });
-    (port, asked_all)
+    (port, asked)
 }
