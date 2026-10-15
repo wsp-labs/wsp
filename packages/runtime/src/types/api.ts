@@ -152,6 +152,9 @@ export interface Runtime {
     landing(o: { project: string; sized?: true }, origin?: Caller): Promise<{ place?: string; name: string; capabilities: Capabilities; kind?: WorkspaceKind }>;
     /** `threadId` is the thread the caller named, which a refusal names in place of the record. */
     get(id: string, origin?: Caller, threadId?: string): Promise<WorkspaceView>;
+    /** The workspace this host holds under an id, one whose create is still under way included, read by no caller's
+     * rule: what the host's broker holds a machine's call against, since a create's own clone calls through it. */
+    heldOrCreating(id: string): Promise<WorkspaceView | undefined>;
     /** Where a thread runs, as every refusal to its own token names it: its computer by name where it runs in a
      * folder, else its kind's machine; nothing for a thread whose workspace this host no longer holds. */
     threadPlace(scope: ThreadScope): string | undefined;

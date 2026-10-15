@@ -12,7 +12,7 @@ import type { BrokerStatus, PipeDoor, PipeOpen } from "@wsp/protocol";
 import { brokerCredentials, type CredentialPorts } from "./credentials.js";
 import type { BrokerLog } from "./log.js";
 import { offSwitch, type OffSwitch } from "./off.js";
-import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, FAILED_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, writeRefusal, type RefusalStatus } from "./refuse.js";
+import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, FAILED_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, UNHELD_SAID, writeRefusal, type RefusalStatus } from "./refuse.js";
 import { dropCallerAuth, hostOf, isConnectorCall, isRefreshCall, pathOf, REFRESH_BODY_MAX, refreshToken, tokenOf } from "./tokens.js";
 import type { BrokerContext, BrokerLogLine, BrokerService, BrokerWorkspace, Grant, LiveGrant, PushedRef, RefusalShape } from "./types.js";
 
@@ -308,7 +308,8 @@ export function createBroker(o: BrokerOptions): Broker {
     const { grant } = admitted;
     line.grant(grant);
     const workspace = await o.workspace(p.workspaceId);
-    if (isOff(p.workspaceId) || workspace === undefined) return refuse(403, REVOKED_SAID);
+    if (isOff(p.workspaceId)) return refuse(403, REVOKED_SAID);
+    if (workspace === undefined) return refuse(403, UNHELD_SAID);
     if (!p.waitedSaid) {
       p.waitedSaid = true;
       if (line.heldMs > 0) o.waited?.(grant, line.heldMs);

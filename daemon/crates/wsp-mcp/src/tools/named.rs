@@ -255,6 +255,8 @@ pub struct Workspace {
     pub phase: String,
     #[serde(default)]
     pub gone: Option<String>,
+    #[serde(default, rename = "diskGone")]
+    pub disk_gone: Option<String>,
 }
 
 const PHASES: [&str; 6] = ["running", "pausing", "napping", "waking", "gone", "released"];
@@ -324,6 +326,8 @@ pub struct Woken {
     pub workspace: Workspace,
     /// Whether this call took the machine off its nap, which is what makes a launch that died owe it one back.
     pub woke: bool,
+    /// The line this call's wake left when the provider had deleted the machine's disk.
+    pub said: Option<String>,
 }
 
 /// The machine awake before a tool asks it anything: a gone one is refused in the words of the tool's action.
@@ -341,8 +345,10 @@ pub async fn awake(client: &Client, workspace: &Workspace, action: &str) -> Resu
         workspace: Workspace,
     }
     let woken: Waking = client.request("workspaces.wake", params([("workspaceId", Value::from(workspace.id.as_str()))])).await?;
-    let woke = matches!(before, "paused" | "pausing") && state(&woken.workspace.phase) == "running";
-    Ok(Woken { workspace: woken.workspace, woke })
+    let down = matches!(before, "paused" | "pausing");
+    let woke = down && state(&woken.workspace.phase) == "running";
+    let said = woken.workspace.disk_gone.clone().filter(|_| down);
+    Ok(Woken { workspace: woken.workspace, woke, said })
 }
 
 /// One thread's transcript as the host holds it, each event as it came: the host reads that thread alone, never its
