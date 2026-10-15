@@ -21,11 +21,15 @@ export const ENV_STRIP_PATTERNS: readonly RegExp[] = [
 // run ends background tasks still working 600 s after its agent goes idle
 // (claude-code#98170); 0 is the CLI's own word for never, so the turn's held
 // reply and the person's stop are the only ends a background subagent has.
+// Unset, a stream-json run given --mcp-config holds its first model call until
+// every server has connected (8.3 s behind one 8 s server, 2.1.299 and 2.1.300);
+// at 0 it calls at once and names a late server on its next request.
 const HEADLESS_OVERRIDES = {
   CLAUDE_CODE_AUTO_CONNECT_IDE: "0",
   CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL: "1",
   CLAUDE_CODE_ENABLE_TODO_TOOLS: "1",
   CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0",
+  CLAUDE_CODE_MCP_STARTUP_WAIT_MS: "0",
 } as const;
 
 /** The variable that tells the CLI which folder under its projects directory to keep this run's sessions and its
@@ -347,7 +351,9 @@ export function mcpConfigFlag(servers: Readonly<Record<string, McpServerSpec>> |
   if (servers === undefined || Object.keys(servers).length === 0) return [];
   // The wsp server loads its tools up front and marks every one but the slate's to stay behind tool search: Claude Code
   // 2.1.289 takes a tool's own alwaysLoad only as an exception to its server's, and Haiku never searched for the slate.
-  const mcpServers = Object.fromEntries(Object.entries(servers).map(([name, s]) => [name, { command: s.command, args: [...s.args], ...(name === MCP_SERVER_NAME ? { alwaysLoad: true } : {}) }]));
+  // With no slate it buys nothing, and the first call still waits up to 5 s on an alwaysLoad server (2.1.299).
+  const upFront = launchHasSlate(servers);
+  const mcpServers = Object.fromEntries(Object.entries(servers).map(([name, s]) => [name, { command: s.command, args: [...s.args], ...(upFront && name === MCP_SERVER_NAME ? { alwaysLoad: true } : {}) }]));
   return [`--mcp-config ${shellQuote(JSON.stringify({ mcpServers }))}`];
 }
 

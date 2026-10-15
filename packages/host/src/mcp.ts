@@ -63,7 +63,7 @@ export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelea
     if (!hasTool(verb) || opts.skip?.(verb) === true) continue;
     const name = toolName(verb.name);
     if (opts.noSlate === true && SLATE_TOOL_NAMES.has(name)) continue;
-    // A Claude Code launch loads this server's tools up front (alwaysLoad); every tool but the slate's stays behind its tool search.
+    // A Claude Code launch with a slate loads this server's tools up front (alwaysLoad); every tool but the slate's stays behind its tool search.
     const listed = { _meta: { "anthropic/alwaysLoad": SLATE_TOOL_NAMES.has(name) } };
     server.registerTool(name, { description: verb.tool.description, inputSchema: verb.tool.input, outputSchema: verb.tool.output, ...listed }, args => verb.tool.call(args, "anyRelease" in verb && verb.anyRelease !== undefined ? anyRelease : deps).catch((e: unknown) => toolFailure(e, "usage" in verb ? verb.usage : undefined)));
   }
