@@ -844,6 +844,8 @@ export interface PendingCreate {
   request?: string;
   /** The image the attempt asked for: a machine made from it carries the image's name until wsp names it. */
   image?: string;
+  /** The place the attempt was sent to, where it is asked again; none is the provider this host forks on. */
+  place?: string;
 }
 
 /** How long an attempt nothing is making any more waits before the sweep asks it again: past a create's own asks. */
