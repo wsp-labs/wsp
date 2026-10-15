@@ -387,6 +387,8 @@ const SITE_FORK = { ...WORKSPACE, id: "ws-5", name: "fix the login page now 2", 
 const GONE = { ...WORKSPACE, phase: "gone", gone: "deleted at the provider \u0085" };
 /** The machine a wake moved the workspace onto when Boat had deleted the napping one's disk, with the line it left. */
 const REPLACED = { ...WORKSPACE, machineId: "m-2", diskGone: diskGoneReplacedLine(BOAT_DISK_GONE_LINE) };
+/** A sub-thread whose machine Boat deleted on release: its next turn starts a new one, with no wake asked first. */
+const RELEASED = { ...WORKSPACE, machineId: "", phase: "released" };
 const sessionRow = (fields: Record<string, unknown>) => ({ workspaceId: "ws-1", harness: "claude", status: "completed", ...fields });
 const SESSIONS = [
   sessionRow({ id: "sess-1", threadId: THREAD, status: "completed", claudeSessionId: "cs-1", prompt: "fix the \u0085 build", costUsd: 0.1 }),
@@ -726,6 +728,7 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "another version", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ outcome: "started" }) } },
     { case: "a wake onto a new machine says why first", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
     { case: "a wake onto a new machine, detached", arguments: { project: "attic-work", message: "fix it", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(NAPPING), "harnesses.list": HARNESSES, "workspaces.wake": resolved(REPLACED), "sessions.start": START } },
+    { case: "to a released sub-thread", arguments: { project: "attic-work", message: "fix it" }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(RELEASED), "harnesses.list": HARNESSES, "sessions.start": START }, pushed: { "sessions.start": TURN } },
     { case: "held by its computer's threads at once", arguments: { project: "wsp", message: "t", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": HELD } },
   ],
   send: [
@@ -740,6 +743,7 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "a wake onto a new machine says why first", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
     { case: "a wake onto a new machine, detached", arguments: { thread: THREAD, message: "and the tests", detach: true }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(NAPPING), "workspaces.wake": resolved(REPLACED), "sessions.start": START } },
     { case: "a machine already running says no earlier wake's line", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(REPLACED), "workspaces.wake": resolved(REPLACED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
+    { case: "to a released sub-thread", arguments: { thread: THREAD, message: "and the tests" }, replies: { "sessions.list": listed(), "harnesses.list": HARNESSES, "workspaces.resolve": resolved(RELEASED), "sessions.start": START }, pushed: { "sessions.start": TURN } },
   ],
 };
 
