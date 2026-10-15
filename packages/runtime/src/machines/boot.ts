@@ -8,7 +8,7 @@ import { harnessCatalog } from "../harness-catalog.js";
 import { accountOnComputer } from "../usage.js";
 import { phaseLeavingGone, providerSaid } from "../status.js";
 import type { WorkspaceRecord, LiveWorkspace, FoundMachine } from "../types/wiring.js";
-import { subRowOf } from "./sub-life.js";
+import { diskKeptUntil as keptUntilOf, subRowOf } from "./sub-life.js";
 import { WORKSPACES, PROJECTS, TRANSCRIPTS, SESSIONS, HELD_STARTS, type HeldStartRecord, READS, READS_ID, RESTARTED_REASON, goneLogLine, labelOf, restartCutLine, turnWritten, type TranscriptRecord, type TurnLive, type TurnAsked, readAsked, readScope, readRoad, readSteered, type ThreadRecord, type ThreadStamps, type TreeTalk, type SessionIndexRecord, BUILDERS, OWNER, HELD_TTL_MS, pidAlive, type BuilderRecord, type LiveBuilder, deadMachine, isAbsentMachine, absentMachine, type StoredBuilder } from "../types/internal.js";
 import type { RuntimeContext, BootArea } from "../context.js";
 import { agentPidOf } from "../local-exec.js";
@@ -720,14 +720,8 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     ...diskKeptUntil(record),
   });
   const diskKeptUntil = (record: WorkspaceRecord | undefined): { diskKeptUntil?: number } => {
-    if (record?.phase !== "napping" || record.nappedAt === undefined) return {};
-    let keptMs: number | undefined;
-    try {
-      keptMs = ctx.backendFor(record).lifecycle?.diskKeptMs;
-    } catch {
-      return {};
-    }
-    return keptMs === undefined ? {} : { diskKeptUntil: record.nappedAt + keptMs };
+    const until = record === undefined ? undefined : keptUntilOf(ctx, record);
+    return until === undefined ? {} : { diskKeptUntil: until };
   };
   /** A thread's facts off its rows here, as a listing folds them; undefined where the host holds no row of it. */
   const threadFacts = (threadId: string): ThreadFacts | undefined => {

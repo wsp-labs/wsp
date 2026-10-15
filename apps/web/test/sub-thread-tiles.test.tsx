@@ -134,6 +134,16 @@ describe("a sub-thread's row reads its machine", () => {
     expect(seen.machine).toBe("Boat, small, napping, kept until its work is pushed");
   });
 
+  it("Not pushed on a napping machine whose disk Boat may delete, the card naming the day from which it may", async () => {
+    const until = Date.parse("2026-10-26T12:00:00.000Z");
+    const day = new Intl.DateTimeFormat(APP_LOCALE, { month: "short", day: "numeric" }).format(until);
+    mount({ status: "completed", endedAt: "2026-10-12T08:09:00.000Z", diskKeptUntil: until, sub: sub({ state: "napping", held: { commits: 2, files: 3 } }) });
+    expect(slot().dataset["threadStatus"]).toBe("not-pushed");
+    const seen = await card();
+    expect(seen.reason).toBe(`Boat may delete its disk from ${day}, with 2 commits and 3 changed files on ${BRANCH} not pushed.`);
+    expect(seen.machine).toBe(`Boat, small, napping; Boat may delete its disk from ${day}`);
+  });
+
   it("Done once everything is pushed, the card counting down to the delete, or saying Boat would not stop it", async () => {
     mount({ status: "completed", endedAt: "2026-10-12T08:09:00.000Z", unread: true, sub: sub({ state: "napping", deleteAt: Date.now() + 18 * MIN }) });
     expect(slot().dataset["threadStatus"]).toBe("done");

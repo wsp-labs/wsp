@@ -136,6 +136,23 @@ function sessionNotKept(session: SubSession | undefined): string | undefined {
   return subSessionNotKeptLine(session.why ?? "no reason was given");
 }
 
+/** How long a record's cloud keeps a paused machine's disk; undefined where it keeps it as long as the machine. */
+export function diskKeptMs(ctx: Pick<RuntimeContext, "backendFor">, record: WorkspaceRecord): number | undefined {
+  try {
+    return ctx.backendFor(record).lifecycle?.diskKeptMs;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The day from which a record's cloud may delete its machine's disk, counted from the stop: the nap where the machine
+ * naps, else `stoppedAt` where a caller names the stop to come. The row's day, Expired and a held sub-thread's words. */
+export function diskKeptUntil(ctx: Pick<RuntimeContext, "backendFor">, record: WorkspaceRecord, stoppedAt?: number): number | undefined {
+  const from = record.phase === "napping" && record.nappedAt !== undefined ? record.nappedAt : stoppedAt;
+  const ms = from === undefined ? undefined : diskKeptMs(ctx, record);
+  return ms === undefined ? undefined : from! + ms;
+}
+
 export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   const { live, store, bus, clock, sessions, threadRecords } = ctx;
   const timers = new Map<string, () => void>();
@@ -497,12 +514,15 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
     if (now?.record.sub === undefined || result === undefined || threadId === undefined || busy(threadId)) return undefined;
     const sub = now.record.sub;
     const deleteAt = sub.deleteAt;
+    // The line goes on the read, before the nap lands, so a hold counts from its own time until it does.
+    const keptUntil = sub.held === undefined || now.record.phase === "released" ? undefined : diskKeptUntil(ctx, now.record, sub.held.at);
     return subResultLine({
       threadId,
       lead: now.record.lead?.threadId ?? threadId,
       result,
       base: sub.base.branch,
       ...(deleteAt !== undefined && now.record.phase !== "released" ? { deleteInMs: Math.max(0, deleteAt - clock.now()) } : {}),
+      ...(keptUntil !== undefined ? { kept: { on: cloudOf(now), until: keptUntil } } : {}),
     });
   };
 
