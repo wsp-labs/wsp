@@ -278,7 +278,8 @@ export async function snapshotUntilGone(backend: MachineBackend, snapshotId: str
   const graceMs = confirm.graceMs ?? KILL_GRACE_MS;
   const deadline = Date.now() + graceMs;
   do {
-    const rows = await list.call(backend).catch(() => undefined);
+    // Asked for this id, Boat reads its named snapshots alone, not the account's whole history (248 requests).
+    const rows = await list.call(backend, [snapshotId]).catch(() => undefined);
     if (rows !== undefined && !rows.some(r => r.id === snapshotId)) return { verdict: "deleted" };
     await new Promise(r => setTimeout(r, confirm.pollMs ?? 1_000));
   } while (Date.now() < deadline);
