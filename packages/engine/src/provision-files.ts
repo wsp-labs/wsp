@@ -19,6 +19,7 @@ import {
   provisionListReadLine,
   provisionPackedLine,
   provisionShippedLine,
+  serversUnreadLine,
   shellQuote,
   TOOL_PREFIX,
   type PlaceProvisionRow,
@@ -27,7 +28,7 @@ import { CATALOG_AGENTS, LAUNCH_SERVER_ROADS, MCP_AGENTS, ownServerConfig, rewri
 import { INLINE_EXEC_MS, OLD_APPEND_MARKS } from "./exec-detached.js";
 import type { SkippedPath } from "./golden-import.js";
 import type { PackFiles } from "./golden.js";
-import { READ_MS, landConfigs, parseConfigs, parseMcpId, readConfigsCmd, type ScopeFile } from "./golden-mcp.js";
+import { READ_MS, landConfigs, parseConfigs, parseMcpId, readConfigsCmd, type ScopeFile, type ScopeRead } from "./golden-mcp.js";
 import type { Machine } from "./machine.js";
 import { importInto } from "./vault.js";
 
@@ -540,8 +541,9 @@ export async function landedServers(machine: Machine, home: string, say: FilesSa
 export interface ServerPort {
   /** Runs a script there and answers what it printed; nothing where it would not run. */
   run(script: string): Promise<string>;
-  /** The first of an agent's files that is there, with its text; nothing where none of them is. */
-  read(files: readonly string[]): Promise<ScopeFile | undefined>;
+  /** The first of an agent's files that is there, with its text or why it was left unread; nothing where none of
+   * them is. */
+  read(files: readonly string[], base: string): Promise<ScopeRead | undefined>;
   /** That file, as it was read, with this text by the one config write inside `base`. */
   write(file: ScopeFile, text: string, base: string): Promise<void>;
 }
@@ -554,10 +556,10 @@ export function machineServerPort(machine: Machine): ServerPort {
       const res = await machine.run(script, { deadlineMs: LAND_MS }).catch(() => undefined);
       return res === undefined || res.exitCode !== 0 ? "" : res.stdout;
     },
-    read: async files => {
+    read: async (files, base) => {
       // The answer is that file whole, the servers' env and headers with it, so it goes by the road that says its
       // output is not a log's.
-      const asked = [{ files }];
+      const asked = [{ files, base }];
       const res = await machine.run(readConfigsCmd(asked), { deadlineMs: READ_MS, unlogged: true }).catch(() => undefined);
       return res === undefined || res.exitCode !== 0 ? undefined : parseConfigs(res.stdout, asked)?.[0];
     },
@@ -568,14 +570,11 @@ export function machineServerPort(machine: Machine): ServerPort {
   };
 }
 
-/** One agent's own file on that computer with wsp's servers taken back out of it. */
-export interface ServersOut {
-  path: string;
-  names: string[];
-}
+/** One agent's own file on that computer with wsp's servers taken back out of it, or left unread with them in it. */
+export type ServersOut = { path: string; names: string[] } | { path: string; unread: string };
 
-/** What a leave says it took out of one agent's own file: the names and the file they came out of. */
-export const serversOutLines = (out: ServersOut): string[] => [`${out.names.join(", ")} (out of ${out.path})`];
+/** What a leave says of one agent's own file: the names and the file they came out of, or why none were looked for. */
+export const serversOutLines = (out: ServersOut): string[] => ["unread" in out ? serversUnreadLine(out.path, out.unread) : `${out.names.join(", ")} (out of ${out.path})`];
 
 /** Takes the servers wsp merged into the agents' own files on a computer back out of them, which is what a leave
  * cannot do by taking a path: those files are the agents' own and only the keys in them are wsp's. The list
@@ -610,8 +609,12 @@ export async function unmergeServers(port: ServerPort, home: string, stores: Rea
     }
     for (const at of files.values()) {
       try {
-        const file = await port.read(at.files);
+        const file = await port.read(at.files, at.base);
         if (file === undefined) continue;
+        if ("unread" in file) {
+          out.push({ path: file.path, unread: file.unread });
+          continue;
+        }
         let text = file.text;
         const took: string[] = [];
         for (const { project, keys } of at.under) {

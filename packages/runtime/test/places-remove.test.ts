@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { readJoinToken, placeNoLinkLine, MCP_ID_PREFIX, placeStillInstalledLine, PLACE_SUDO_KIND, heldPlaceScript, placeFileText, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine } from "@wsp/protocol";
+import { CONFIG_NOT_PLAIN, serversUnreadLine, readJoinToken, placeNoLinkLine, MCP_ID_PREFIX, placeStillInstalledLine, PLACE_SUDO_KIND, heldPlaceScript, placeFileText, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine } from "@wsp/protocol";
 import { CODEX_TOML, MCP_SERVERS_JSON } from "@wsp/catalog";
 import { createRuntime } from "../src/runtime.js";
 import { HANDSHAKE, MCP_READ_MARK, SERVER_MARK } from "@wsp/engine";
@@ -65,6 +65,33 @@ describe("taking a place back out", () => {
     const wrote = order.findIndex(cmd => cmd.includes(`f='${config}'`) && cmd.includes('mv -f "$n" "$r"'));
     expect(wrote, order.join("\n")).toBeGreaterThanOrEqual(0);
     expect(wrote).toBeLessThan(order.indexOf("place.leave"));
+  });
+
+  it("names an agent's file there it left unread in the note, not among what came off, and writes nothing over it", async () => {
+    const { hostKey } = await serving();
+    const { client, placeId } = await join(hostKey, { code: await code() });
+    sockets.push(client.ws);
+    const home = report().login["HOME"]!;
+    const config = `${home}/.codex/config.toml`;
+    const reads = [`${SERVER_MARK}\t${"0".repeat(64)}\t${MCP_ID_PREFIX}codex/context7`, `${MCP_READ_MARK} 0 0 -plain`];
+    const polled = (out: string): string => ["WSP_POLL", "0", Buffer.from(`${out}\n`).toString("base64"), "", "down", "WSP_POLL_END"].join("\n");
+    const order: string[] = [];
+    client.onFrame(raw => {
+      const frame = raw as unknown as { id?: number; op?: string; cmd?: string };
+      const say = (body: Record<string, unknown>): void => client.say({ id: frame.id, ok: true, ...body });
+      if (frame.op === "exec") {
+        const cmd = String(frame.cmd);
+        order.push(cmd);
+        const stdout = cmd.includes(HANDSHAKE.launched) ? `${HANDSHAKE.launched}\n` : cmd.includes("WSP_POLL") ? polled(reads.shift() ?? "") : "";
+        return say({ exitCode: 0, stdout, stderr: "", truncated: false });
+      }
+      if (frame.op === "place.leave") say({ swept: [`${home}/.wsp`] });
+    });
+
+    const answer = await remove(placeId);
+    expect(answer["swept"]).toEqual([`${home}/.wsp`]);
+    expect(String(answer["note"])).toContain(serversUnreadLine(config, CONFIG_NOT_PLAIN));
+    expect(order.some(cmd => cmd.includes('mv -f "$n" "$r"'))).toBe(false);
   });
 
   for (const login of [{ user: "root", home: "/root", codex: "/var/lib/wsp/logins/codex/config.toml" }, { user: "maya", home: "/home/maya", codex: "/home/maya/.codex/config.toml" }]) {
