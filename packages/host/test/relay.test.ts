@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { BROWSER_SHIM_PATH, type GoldenManifest, type Machine } from "@wsp/engine";
-import { DAEMON_TOKEN_PATH, SSH_BEHIND_KIND, sshBehindLine, type DaemonResponse, type ForwardEvent, unknownOpLine } from "@wsp/protocol";
-import { copyKey, DAEMON_TOKEN_SET, createRuntime, memoryStore, type Clock, type GoldenRecipe, type GuestOpening, type Runtime } from "@wsp/runtime";
+import { DAEMON_TOKEN_PATH, DAEMON_TOKEN_REFUSED, SSH_BEHIND_KIND, sshBehindLine, type DaemonResponse, type ForwardEvent, unknownOpLine } from "@wsp/protocol";
+import { copyKey, DAEMON_TOKEN_SET, DaemonTokenError, PIPE_BEHIND_AGAIN_MS, createRuntime, memoryStore, type Clock, type GoldenRecipe, type GuestOpening, type Runtime } from "@wsp/runtime";
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeProcTree } from "../../daemon/test/fake-proc.js";
 import { daemonUnderTest, machineDaemonToken, type DaemonUnderTest } from "../../daemon/test/harness.js";
@@ -68,7 +68,7 @@ interface FakeLink extends DaemonSocket {
   /** What ssh.start answers in whole, where a case wants a refusal or another shape. */
   sshStart?: Record<string, unknown>;
   emit(event: Record<string, unknown>): void;
-  drop(): void;
+  drop(code?: number): void;
 }
 
 /** A daemon socket the test drives: records ops, answers ok, pushes events. */
@@ -131,9 +131,9 @@ function fakeConnect(): {
           return open;
         },
         emit: event => o.onEvent?.(event),
-        drop() {
+        drop(code = 1006) {
           open = false;
-          resolveClosed(1006);
+          resolveClosed(code);
         },
       };
       links.push(link);
@@ -409,6 +409,66 @@ describe("callback relay over a fake daemon link", () => {
     await until(() => second.ops.some(x => x.op === "guest.reply"));
     expect(second.ops.find(x => x.op === "guest.reply")!.extra).toEqual({ session: "g0", message: { n: 1 } });
     expect(runs).toBe(1);
+  });
+
+  it("writes the host's token again after another writer's cut the link, and dials it a minute later", async () => {
+    const { rt, backend } = relayRuntime("http://guest.test");
+    // The machine's token file: the host's own once a rotation writes it, another writer's after the cut.
+    let file = "host";
+    const writes: string[] = [];
+    const answer = backend.execImpl;
+    backend.execImpl = (m, cmd) => {
+      if (cmd.includes(DAEMON_TOKEN_PATH)) {
+        file = "host";
+        writes.push(cmd);
+      }
+      return answer(m, cmd);
+    };
+    const fake = fakeConnect();
+    const lines: string[] = [];
+    const clock = fakeClock();
+    await createOn(rt, { golden: "snap_gold", name: "task-1" });
+    relay = startCallbackRelay({
+      runtime: rt,
+      openUrl: async () => true,
+      log: l => lines.push(l),
+      clock,
+      connect: async c => {
+        if (file !== "host") throw new DaemonTokenError(DAEMON_TOKEN_REFUSED);
+        return fake.connect(c);
+      },
+      retryMs: 1,
+      jitter: () => 0,
+    });
+    await until(() => fake.links.length === 1 && fake.links[0]!.ops.some(x => x.op === "ports.watch"));
+    const wrote = writes.length;
+    file = "another host's";
+    fake.links[0]!.drop(4401);
+    await new Promise(r => setTimeout(r, 50));
+    clock.advance(PIPE_BEHIND_AGAIN_MS - 1);
+    await new Promise(r => setTimeout(r, 50));
+    expect(fake.links).toHaveLength(1);
+    expect(writes).toHaveLength(wrote);
+    clock.advance(1);
+    await until(() => fake.links.length === 2 && fake.links[1]!.ops.some(x => x.op === "ports.watch"));
+    expect(writes).toHaveLength(wrote + 1);
+    expect(lines).toEqual(["task-1: its daemon refused the token its link was dialled with, so the host writes its own there again and dials in 60 s"]);
+  });
+
+  it("writes the host's token once for every dial that asks for it at once after a refusal, as the pool's 4 pipes do", async () => {
+    const { rt, backend } = relayRuntime("http://guest.test");
+    const writes: string[] = [];
+    const answer = backend.execImpl;
+    backend.execImpl = (m, cmd) => {
+      if (cmd.includes(DAEMON_TOKEN_PATH)) writes.push(cmd);
+      return answer(m, cmd);
+    };
+    const ws = await createOn(rt, { golden: "snap_gold", name: "task-1" });
+    await rt.workspaces.daemonReach(ws.id);
+    const wrote = writes.length;
+    await rt.workspaces.tokenRefused(ws.id);
+    await Promise.all([1, 2, 3, 4].map(() => rt.workspaces.daemonReach(ws.id)));
+    expect(writes).toHaveLength(wrote + 1);
   });
 
   it("holds a workspace whose computer answers for it over the runtime's own channel: the guest watch alone, no dial, and its own sessions", async () => {
