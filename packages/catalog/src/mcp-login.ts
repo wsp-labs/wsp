@@ -48,13 +48,25 @@ const ENV_READ = /\$\{([A-Za-z_]\w*)\}|\{env:([A-Za-z_]\w*)\}/g;
 const LOGIN_NAMES = new Set(["HOME", "PATH", "USER", "LOGNAME", "SHELL", "PWD", "TMPDIR", "LANG"]);
 const isKey = (name: string): boolean => !LOGIN_NAMES.has(name);
 
+/** Programs that sign every request with a CLI's login kept in files on the person's computer, by the flag that sends
+ * them unsigned instead: mcp-proxy-for-aws, and mcp-proxy-for-aws-cli, the pinned copy its README runs, read the AWS
+ * credential chain (~/.aws), and with none fail each call with "No AWS credentials available" (1.7.0, measured
+ * 2026-10-16). */
+const SIGNS_WITH_LOGIN: Readonly<Record<string, string>> = { "mcp-proxy-for-aws": "--skip-auth", "mcp-proxy-for-aws-cli": "--skip-auth" };
+/** A word as the program it names, without its folder or its `@version`, `==version` or `:tag` pin. */
+const programWord = (word: string): string => word.slice(word.lastIndexOf("/") + 1).replace(/(?:@|==|:).*$/, "");
+const signsWithLogin = (t: { command: string; args: readonly string[] }): boolean => {
+  const words = [t.command, ...t.args].flatMap(w => w.split(/\s+/)).map(programWord);
+  return Object.entries(SIGNS_WITH_LOGIN).some(([program, unsigned]) => words.includes(program) && !words.includes(unsigned));
+};
+
 /** Whether a server needs a sign-in or a key of the person's, which a cloud machine never holds: a header the copy to a
- * cloud machine blanked, a variable it reads, which a cloud turn is never handed, or an address with no header that
- * asks for a sign-in, as `signsIn` says this host's one unsigned initialize to it answered (true on 401 or 403). An
- * address nobody has asked yet stays on, as one that needs nothing does. */
+ * cloud machine blanked, a variable it reads, which a cloud turn is never handed, a program that signs with a CLI's
+ * login, or an address with no header that asks for a sign-in, as `signsIn` says this host's one unsigned initialize
+ * to it answered (true on 401 or 403). An address nobody has asked yet stays on, as one that needs nothing does. */
 export const needsOwnCredential = (s: McpServer, signsIn: (url: string) => boolean | undefined): boolean => {
   if (s.envRefs.some(isKey)) return true;
-  if (s.transport.kind === "stdio") return Object.values(s.transport.env).some(v => [...v.matchAll(ENV_READ)].some(m => isKey((m[1] ?? m[2])!)));
+  if (s.transport.kind === "stdio") return signsWithLogin(s.transport) || Object.values(s.transport.env).some(v => [...v.matchAll(ENV_READ)].some(m => isKey((m[1] ?? m[2])!)));
   const headers = Object.values(s.transport.headers);
   return headers.length === 0 ? signsIn(s.transport.url) === true : headers.some(v => v.replace(/^\s*(Bearer|Basic|Token)\b/i, "").trim() === "");
 };
