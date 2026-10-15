@@ -378,6 +378,12 @@ export function pipeArea(ctx: RuntimeContext, brokered: (record: WorkspaceRecord
   };
   const detach = ctx.bus.on("*", e => {
     switch (e.type) {
+      // A create's own clone reaches GitHub through these pipes, so they are dialled from its first stage after the
+      // machine is bound; one that fails takes them down with it.
+      case "workspace.creating":
+        if (e.stage === "failed") pool.down(e.workspaceId);
+        else upIf(e.workspaceId);
+        return;
       case "workspace.created":
         if (e.workspace.phase === "running") upIf(e.workspace.id);
         return;
