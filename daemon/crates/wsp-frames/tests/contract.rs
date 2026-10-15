@@ -438,6 +438,8 @@ fn rendered_words() -> BTreeMap<&'static str, String> {
     m.insert("placeLineOut", words::place_line_out("{lines}", "{file}"));
     m.insert("placeLineStays", words::place_line_stays("{lines}", "{file}", "{why}"));
     m.insert("placeLoginPastCap", words::PLACE_LOGIN_PAST_CAP.to_owned());
+    m.insert("placeLoginLinked", words::PLACE_LOGIN_LINKED.to_owned());
+    m.insert("placeLoginUnread", words::place_login_unread("{file}"));
     m.insert("placeOutsideLeft", words::place_outside_left("{prefix}"));
     m.insert("placeStoodBefore", words::place_stood_before("{path}"));
     m.insert("placeKeptMounted", words::place_kept_mounted("{path}", "{mount}"));

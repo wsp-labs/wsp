@@ -3,8 +3,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, linkSync, mkdirSync, readFileSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { LOGIN_READ_MAX_BYTES, PLACE_LOGIN_PAST_CAP, placeDaemonPaths, placeLineStaysLine, wspBinIn, type PlaceFile } from "@wsp/protocol";
-import { LOGIN_KEPT_LINE, LOGIN_LINKED_WHY, profileSourceLine } from "../src/login-files.js";
+import { LOGIN_READ_MAX_BYTES, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, placeDaemonPaths, placeLineStaysLine, placeLoginUnreadLine, wspBinIn, type PlaceFile } from "@wsp/protocol";
+import { LOGIN_KEPT_LINE, profileSourceLine } from "../src/login-files.js";
 import { addFoundScript, addUndoScript, addFound, DAEMON_GONE_LINE, joinedAddWrites, joinedPlace, loginFilesStep, sshDaemonPlace } from "../src/doctor.js";
 import { brokenJoinLine, joinCutByLeaveLine, placeHeldRefusal, placeLeaveLineAs, placeNoKeyForSudoLine, placeUndoNeedsSudoLine, placeUndoNoKeyLine, placeUndoOtherKeyLine } from "../src/places.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -131,6 +131,15 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
     symlinkSync(join(outside, "nowhere"), join(dangling, ".profile"));
     expect(spawnSync("/bin/bash", ["-c", loginFilesStep(sshDaemonPlace({ home: dangling, path: "/usr/bin" })).join("\n")]).status).toBe(0);
     expect(existsSync(join(outside, "nowhere"))).toBe(false);
+    // A fifo is no plain file: an append to it, or a grep of it, waits for the other end for as long as the run lasts.
+    const fifo = tmp("leave-line-fifo");
+    expect(spawnSync("mkfifo", [join(fifo, ".bash_login")]).status).toBe(0);
+    const step = spawnSync("/bin/bash", ["-c", loginFilesStep(sshDaemonPlace({ home: fifo, path: "/usr/bin" })).join("\n")], { encoding: "utf8", timeout: 10_000 });
+    expect(step.status, step.error?.message).toBe(0);
+    expect(step.stdout).toContain(`${LOGIN_KEPT_LINE} ${join(fifo, ".bash_login")}\n`);
+    const place = joinedPlace({ home: fifo, path: "/usr/bin" }, { hostUrls: [], codeFile: `${placeDaemonPaths(fifo).wsp}/join-code`, name: "box" });
+    const found = spawnSync("/bin/bash", ["-c", addFoundScript(place, joinedAddWrites(place, "/nonexistent/wsp-place.service"), "true")], { encoding: "utf8", timeout: 10_000 });
+    expect(found.status, found.error?.message).toBe(0);
   });
 
   it("leaves its line in a login file the leave at the box finds linked or past the cap, and says why", async () => {
@@ -143,7 +152,16 @@ describe("a box whose root login reads a bash login file before ~/.profile", () 
     truncateSync(join(home, ".bash_login"), LOGIN_READ_MAX_BYTES + 1);
     const swept = await sweepPlace({ home, manager: undefined, run: fakeRunner().run });
     expect(readFileSync(join(home, "dotfiles", "bash_profile"), "utf8")).toBe(`${OWN}${line}\n`);
-    expect(swept.kept).toContain(placeLineStaysLine(line, join(home, ".bash_profile"), LOGIN_LINKED_WHY));
+    expect(swept.kept).toContain(placeLineStaysLine(line, join(home, ".bash_profile"), PLACE_LOGIN_LINKED));
     expect(swept.kept).toContain(placeLineStaysLine("wsp's line", join(home, ".bash_login"), PLACE_LOGIN_PAST_CAP));
+    // Neither a fifo nor a link to a device that never ends is read, and both stat as 0 bytes: the leave reads a plain
+    // file only, and no further than the cap.
+    const odd = tmp("leave-line-sweep-odd");
+    expect(spawnSync("mkfifo", [join(odd, ".bash_login")]).status).toBe(0);
+    symlinkSync("/dev/zero", join(odd, ".bash_profile"));
+    const left = await sweepPlace({ home: odd, manager: undefined, run: fakeRunner().run });
+    expect(left.removed.filter(said => said.includes(odd))).toEqual([]);
+    expect(left.kept).toContain(placeLoginUnreadLine(join(odd, ".bash_profile")));
+    expect(left.kept).toContain(placeLoginUnreadLine(join(odd, ".bash_login")));
   });
 });

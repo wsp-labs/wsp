@@ -329,6 +329,12 @@ export const placeLineStaysLine = (lines: string, file: string, why: string): st
 export const LOGIN_READ_MAX_BYTES = 1024 * 1024;
 /** Why a leave left a login file unread. */
 export const PLACE_LOGIN_PAST_CAP = "it is over 1 MiB, more than a leave reads of a login file";
+/** Why wsp left a person's own login file as it was, on every road that writes wsp's line or takes it out: a write
+ * through a link or a second name would land, as root, in a file elsewhere, and one to a fifo waits for good. */
+export const PLACE_LOGIN_LINKED = "it is a link, has a second name or is not a plain file, and wsp writes through none of those in a login file";
+/** What a leave says of a login file it did not read, since no plain file stands there. Said on both roads a leave
+ * runs on, and pinned to one text by the contract fixture. */
+export const placeLoginUnreadLine = (file: string): string => `wsp's line was not looked for in ${file}: ${PLACE_LOGIN_LINKED}`;
 /** Why wsp's install folder is still there after a leave: the list in it of what the setup wrote outside the home
  * still has lines, which only a leave cut short leaves, and the folder holds that list for a leave that finishes.
  * Said on both roads a leave runs on, and pinned to one text by the contract fixture. */

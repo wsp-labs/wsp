@@ -854,7 +854,7 @@ function stillThere(place: DaemonPlace, w: AddWrite, systemctl: string): string 
   const unit = shellQuote(posix.basename(w.path));
   if (w.as === "running") return `${systemctl} is-active --quiet ${unit} 2>/dev/null`;
   if (w.as === "enabled") return `${systemctl} is-enabled --quiet ${unit} 2>/dev/null`;
-  if (w.as === "line") return `grep -qF ${shellQuote(place.profileFile)} ${sh(place, w.path)} 2>/dev/null`;
+  if (w.as === "line") return `[ -f ${sh(place, w.path)} ] && grep -qF ${shellQuote(place.profileFile)} ${sh(place, w.path)} 2>/dev/null`;
   return `{ [ -e ${sh(place, w.path)} ] || [ -L ${sh(place, w.path)} ]; }`;
 }
 

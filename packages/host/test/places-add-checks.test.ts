@@ -9,12 +9,12 @@ import { promisify } from "node:util";
 import { appendFileSync, chmodSync, existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { configHardLinkRefusal, PLACE_DOOR_UNSERVED, doorPortHeldLine, joinToken, placeDaemonPaths, placeOwnedPaths, shellQuote, workFolderIn, type PlaceDoorView } from "@wsp/protocol";
+import { PLACE_DOOR_UNSERVED, doorPortHeldLine, joinToken, placeDaemonPaths, placeOwnedPaths, shellQuote, workFolderIn, type PlaceDoorView } from "@wsp/protocol";
 import { SSH_LINE_CAP, keyFingerprint } from "@wsp/engine";
 import { ADD_FOUND_END, ADD_TAKEN_LINE, DAEMON_GONE_LINE, addFound, addFoundScript, addUndoScript, joinedAddWrites, joinedPlace, profileSourceLine } from "../src/doctor.js";
 import { refusedPort } from "../../runtime/test/held-port.js";
 import { addCommand, placeBrokenRefusal, placeHeldRefusal, reachScript, reachedUrls, unreachedLine, hostKeyHere, placeUnit } from "../src/places.js";
-import { heldPlaceFile, heldPlaceScript, PLACE_HELD_LINE, placeFileText, readHeldPlace } from "@wsp/protocol";
+import { heldPlaceFile, heldPlaceScript, PLACE_HELD_LINE, PLACE_LOGIN_LINKED, placeFileText, placeLineStaysLine, readHeldPlace } from "@wsp/protocol";
 import { joinStanding } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -187,7 +187,7 @@ describe("the place file an add reads off a box before anything lands", () => {
     const file = placeDaemonPaths(home).placeFile;
     mkdirSync(dirname(file), { recursive: true });
     const run = async (): Promise<string> => (await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { timeout: 10_000, maxBuffer: 1 << 24 })).stdout;
-    const mark = `${PLACE_HELD_LINE}\n`;
+    const mark = `\n${PLACE_HELD_LINE}\n`;
     writeFileSync(file, "x".repeat(200_000));
     expect((await run()).length).toBe(mark.length + 65_536);
     rmSync(file);
@@ -229,6 +229,11 @@ describe("the place file an add reads off a box before anything lands", () => {
     rmSync(at.placeKey);
     writeFileSync(at.placeFile, file);
     expect(heldPlaceFile((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout)).toEqual(JSON.parse(file));
+    // An rc file whose last line has no newline still leaves the read's own line on a line of its own.
+    writeFileSync(join(home, ".bashrc"), "printf 'Welcome to box'\n");
+    expect(heldPlaceFile((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout)).toEqual(JSON.parse(file));
+    writeFileSync(at.placeFile, '{"placeId": "p_1", "na');
+    expect(readHeldPlace((await promisify(execFile)("/bin/bash", ["-c", heldPlaceScript(home)], { env: { HOME: home, PATH: "/usr/bin:/bin", SSH_CLIENT: "192.168.1.20 50000 22" } })).stdout, home)).toEqual({ broken: at.placeFile });
     // A read that never ran says nothing about the box, whatever the login printed before it failed.
     expect(readHeldPlace("Welcome to box\nsudo: a password is required\n", home)).toBeUndefined();
   });
@@ -358,7 +363,7 @@ describe("the sweep a computer runs on itself", () => {
     const swept = await sweepPlace({ home, manager: undefined, run: fakeRunner().run });
     expect(readFileSync(join(home, "profile-twin"), "utf8")).toBe(`# theirs\n${line}\n`);
     expect(readFileSync(join(home, ".profile"), "utf8")).toBe(`# theirs\n${line}\n`);
-    expect(swept.kept).toContain(`${line} stays in ${join(home, ".profile")}: ${configHardLinkRefusal(join(home, ".profile"))}`);
+    expect(swept.kept).toContain(placeLineStaysLine(line, join(home, ".profile"), PLACE_LOGIN_LINKED));
   });
 
   it("leaves a login file it never wrote to exactly as it was", async () => {
