@@ -564,8 +564,9 @@ export interface GoldenRecipe {
   memMb?: number;
   envs?: Record<string, string>;
   labels?: Record<string, string>;
-  /** A returned string rides the deploying-daemon stage as its detail (the guest's Node version). */
-  deployDaemon?: (machine: Machine) => Promise<void | string>;
+  /** A returned string rides the deploying-daemon stage as its detail (the guest's Node version). The token, where
+   * the runtime holds one for the machine, is the one the deploy writes. */
+  deployDaemon?: (machine: Machine, token?: string) => Promise<void | string>;
   /** The person's files, tools and agents from the saved recipe; applied after the daemon, before the harness. */
   import?: GoldenImport;
   /** Every exec on a builder or its smoke fork, once it has returned or failed; the host's run log. */
