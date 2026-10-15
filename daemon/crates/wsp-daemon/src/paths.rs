@@ -38,14 +38,15 @@ pub(crate) fn not_found(requested: &str) -> OpError {
     OpError::coded(DaemonErrorCode::NotFound, format!("{requested} does not exist"))
 }
 
+/// The most of the roots file read: one absolute path per project, so a file past this is not one the host wrote.
+const ROOTS_READ_MAX_BYTES: u64 = 1 << 20;
+
 /// The roots as they are now: the daemon's root, then each absolute line of the roots file, no repeats. Read per
-/// op, not once: the host writes the file when a project lands and the daemon keeps running.
+/// op, not once: the host writes the file when a project lands and the daemon keeps running. On a place the file
+/// sits in a home the place's own threads write, so a link, a fifo or a file past the cap there is refused.
 pub(crate) fn roots_now(root: &Path, roots_path: &Path) -> io::Result<Vec<PathBuf>> {
-    let named = match std::fs::read_to_string(roots_path) {
-        Ok(text) => text,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(e),
-    };
+    let named = crate::beneath::read_capped(roots_path, ROOTS_READ_MAX_BYTES).map_err(io::Error::other)?.unwrap_or_default();
+    let named = String::from_utf8(named).map_err(|_| io::Error::other(format!("{} is not text", roots_path.display())))?;
     let mut roots = vec![root.to_path_buf()];
     for line in named.lines().map(str::trim).filter(|line| line.starts_with('/')) {
         let named = PathBuf::from(line);
@@ -332,6 +333,34 @@ mod tests {
         assert_eq!(roots_now(t.root.path(), &file).unwrap(), vec![t.root.path().to_path_buf(), t.project.path().to_path_buf()]);
         fs::write(&file, format!("{project}\n{}\n", t.outside.path().display())).unwrap();
         assert_eq!(roots_now(t.root.path(), &file).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn a_fifo_a_link_or_a_file_past_the_cap_at_the_roots_file_is_refused_at_once() {
+        let t = tree();
+        let file = t.root.path().join("roots");
+        nix::unistd::mkfifo(&file, nix::sys::stat::Mode::from_bits_truncate(0o600)).unwrap();
+        let (root, at) = (t.root.path().to_path_buf(), file.clone());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || drop(tx.send(roots_now(&root, &at).map_err(|e| e.to_string()))));
+        let read = rx.recv_timeout(std::time::Duration::from_secs(1));
+        let _freed = nix::fcntl::open(&file, nix::fcntl::OFlag::O_WRONLY | nix::fcntl::OFlag::O_NONBLOCK, nix::sys::stat::Mode::empty());
+        assert!(read.expect("the read of a fifo at the roots file is still waiting after 1s").unwrap_err().contains("is not a file"));
+        fs::remove_file(&file).unwrap();
+        std::os::unix::fs::symlink("/dev/zero", &file).unwrap();
+        assert!(roots_now(t.root.path(), &file).unwrap_err().to_string().contains("a link stands at"));
+        fs::remove_file(&file).unwrap();
+        let theirs = t.outside.path().join("roots");
+        fs::write(&theirs, format!("{}\n", t.outside.path().display())).unwrap();
+        std::os::unix::fs::symlink(&theirs, &file).unwrap();
+        assert!(
+            roots_now(t.root.path(), &file).unwrap_err().to_string().contains("a link stands at"),
+            "a link at the roots file was followed"
+        );
+        fs::remove_file(&file).unwrap();
+        let line = format!("{}\n", t.project.path().display());
+        fs::write(&file, line.repeat(usize::try_from(ROOTS_READ_MAX_BYTES).unwrap() / line.len() + 1)).unwrap();
+        assert!(roots_now(t.root.path(), &file).unwrap_err().to_string().contains("is past"), "a roots file past the cap was read");
     }
 
     #[test]

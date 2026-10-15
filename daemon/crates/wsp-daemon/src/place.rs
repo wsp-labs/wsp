@@ -15,6 +15,7 @@ use wsp_frames::{
     words, Base64Bytes, PlaceFile, PlacePublicKey, PlaceReport, PlaceSignature, Platform, WorkspaceSize,
 };
 
+use crate::beneath;
 use crate::under_home::{prune_empty, remove_empty_under_home, remove_under_home, Removed};
 
 mod file;
@@ -557,6 +558,21 @@ fn update_next(part: &Path) -> PathBuf {
     part.with_extension("next")
 }
 
+/// The most of a seq read, and of a landed binary: a daemon is under 10 MB.
+const UPDATE_NEXT_MAX_BYTES: u64 = 32;
+const UPDATE_MAX_BYTES: u64 = 256 << 20;
+
+/// A file under the place's own folder, which its threads write, opened to write with no link followed at its name
+/// and no wait on a fifo.
+fn open_put(path: &Path, options: &mut std::fs::OpenOptions) -> Result<std::fs::File, String> {
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let file = options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path).map_err(|e| match e.raw_os_error() {
+        Some(libc::ELOOP) => format!("a link stands at {}", path.display()),
+        _ => format!("{}: {e}", path.display()),
+    })?;
+    file.metadata().is_ok_and(|m| m.is_file()).then_some(file).ok_or_else(|| format!("{} is not a file", path.display()))
+}
+
 /// Everything under the put folder except the upload named, removed. A link that drops mid-upload leaves its parts
 /// there and the host picks a fresh id for its next try, so without this the box keeps every abandoned attempt.
 /// Run when the agent starts and again when an upload begins, which are the two moments nothing else is arriving.
@@ -585,8 +601,9 @@ pub(crate) fn take_update_part(part: &Path, seq: u64, bytes: &[u8], upload_id: &
         let _ = std::fs::remove_file(part);
         let _ = std::fs::remove_file(update_next(part));
     };
-    let next = std::fs::read_to_string(update_next(part)).ok().and_then(|text| text.trim().parse::<u64>().ok());
-    let wanted = match (next, std::fs::metadata(part).is_ok()) {
+    let next = beneath::read_capped(&update_next(part), UPDATE_NEXT_MAX_BYTES).inspect_err(|_| dropped(part))?;
+    let next = next.and_then(|bytes| String::from_utf8(bytes).ok()).and_then(|text| text.trim().parse::<u64>().ok());
+    let wanted = match (next, std::fs::symlink_metadata(part).is_ok()) {
         // Nothing landed and nothing recorded: this upload starts here.
         (None, false) => 0,
         (Some(wanted), true) => wanted,
@@ -603,9 +620,10 @@ pub(crate) fn take_update_part(part: &Path, seq: u64, bytes: &[u8], upload_id: &
     if let Some(parent) = part.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
     }
-    let mut file = std::fs::OpenOptions::new().append(true).create(true).open(part).map_err(|e| format!("{}: {e}", part.display()))?;
+    let mut file = open_put(part, std::fs::OpenOptions::new().append(true).create(true)).inspect_err(|_| dropped(part))?;
     std::io::Write::write_all(&mut file, bytes).map_err(|e| format!("{}: {e}", part.display()))?;
-    std::fs::write(update_next(part), format!("{}", seq + 1)).map_err(|e| format!("{}: {e}", update_next(part).display()))
+    let mut next = open_put(&update_next(part), std::fs::OpenOptions::new().write(true).create(true).truncate(true))?;
+    std::io::Write::write_all(&mut next, format!("{}", seq + 1).as_bytes()).map_err(|e| format!("{}: {e}", update_next(part).display()))
 }
 
 /// Lowercase hex sha256 of some bytes, as the host spells the one it names on the frame.
@@ -631,7 +649,7 @@ pub(crate) fn running_daemon(said: std::io::Result<PathBuf>) -> Result<PathBuf, 
 /// the one write a running executable takes: writing into it is refused while it is mapped, and a copy that failed
 /// halfway would leave the unit starting a truncated file forever under Restart=always.
 pub(crate) fn install_daemon(exe: &Path, part: &Path, sha256: &str, upload_id: &str) -> Result<(String, String), String> {
-    let landed = std::fs::read(part).map_err(|e| format!("{}: {e}", part.display()))?;
+    let landed = beneath::read_capped(part, UPDATE_MAX_BYTES)?.ok_or_else(|| format!("{}: nothing landed", part.display()))?;
     let held = sha256_hex(&landed);
     if held != sha256 {
         let _ = std::fs::remove_file(part);
@@ -640,11 +658,14 @@ pub(crate) fn install_daemon(exe: &Path, part: &Path, sha256: &str, upload_id: &
     }
     let fresh = exe.with_extension("new");
     let kept = exe.with_extension("old");
-    std::fs::write(&fresh, &landed).map_err(|e| format!("{}: {e}", fresh.display()))?;
-    std::fs::set_permissions(&fresh, std::os::unix::fs::PermissionsExt::from_mode(0o755))
-        .map_err(|e| format!("{}: {e}", fresh.display()))?;
+    let mut new = open_put(&fresh, std::fs::OpenOptions::new().write(true).create(true).truncate(true))?;
+    std::io::Write::write_all(&mut new, &landed).map_err(|e| format!("{}: {e}", fresh.display()))?;
+    new.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o755)).map_err(|e| format!("{}: {e}", fresh.display()))?;
     // The old binary kept beside the new one, so a box whose daemon will not come up still holds the one it ran.
-    std::fs::copy(exe, &kept).map_err(|e| format!("{}: {e}", kept.display()))?;
+    let mut old = open_put(&kept, std::fs::OpenOptions::new().write(true).create(true).truncate(true))?;
+    std::io::copy(&mut std::fs::File::open(exe).map_err(|e| format!("{}: {e}", exe.display()))?, &mut old)
+        .map_err(|e| format!("{}: {e}", kept.display()))?;
+    old.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o755)).map_err(|e| format!("{}: {e}", kept.display()))?;
     std::fs::rename(&fresh, exe).map_err(|e| format!("{}: {e}", exe.display()))?;
     let _ = std::fs::remove_file(part);
     let _ = std::fs::remove_file(update_next(part));
@@ -655,6 +676,9 @@ pub(crate) fn install_daemon(exe: &Path, part: &Path, sha256: &str, upload_id: &
 pub(crate) fn place_home(given: Option<&Path>) -> PathBuf {
     given.map(Path::to_path_buf).or_else(|| std::env::var_os("HOME").map(PathBuf::from)).unwrap_or_else(|| PathBuf::from("/"))
 }
+
+#[cfg(test)]
+mod update_tests;
 
 #[cfg(test)]
 mod version_tests;
