@@ -425,7 +425,7 @@ impl Link {
         ephemerals: LinkEphemerals<'_>,
         (agent_versions, wsp_daemon_version): &(BTreeMap<String, String>, Option<u32>),
     ) -> Result<PlaceProveRequest, String> {
-        let pem = std::fs::read_to_string(Path::new(&file.key_path)).map_err(|e| format!("{}: {e}", file.key_path))?;
+        let pem = place::read_place_key(Path::new(&file.key_path)).ok_or_else(|| words::place_key_unread(&file.key_path))?;
         let door = self.ctx.computer_door.get();
         let report = place::place_report(&ReportInput {
             file,
