@@ -172,6 +172,7 @@ const DAEMON_CONTENTS = [
   "dbb7603225dde99935a392e25c291c06d7456df0f3351f74298b9f8224330d23",
   "7597d805e74eefc52ec0bf1ee32836227fcce64919f7a32ad46500daedf4a609",
   "abdf6f4ac5c99fe513c25c9b1fedbfc466b7c3a45b011a5e172cc58e18749b8a",
+  "0e91401e923d085a796c4ad82b0ed6ff84aba2f9f4453e8a01a41737e069a076",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -694,7 +695,11 @@ const DAEMON_CONTENTS = [
  * Version 161: refuse a broken join at the add, leave line in bash files.
  * Version 162: The place file and the key it names are read with no link followed at the last name, no wait on a fifo,
  * a plain file only and at most 64 KiB, so what a workspace leaves there can no longer hold the daemon's one thread or
- * its memory. */
+ * its memory.
+ * Version 163: The token file, the roots file and an update's parts are read with no link followed at the last name, no
+ * wait on a fifo, a plain file only and under a cap, and an update's parts and the new and old binaries beside the
+ * daemon are written with no link followed and no wait on a fifo, so a fifo or a link a home's threads leave there can
+ * no longer hold the daemon's one thread, its memory, its update or a file the link names. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
