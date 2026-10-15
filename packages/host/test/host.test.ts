@@ -760,6 +760,26 @@ describe("host sweeps orphaned machines", () => {
     expect(lines).toEqual([`reap: left alone ${held.id}: your earlier builder from this setup, in use by another wsp process (pid ${process.ppid}); never touched by this host`]);
   });
 
+  it("a machine of this setup's that no workspace here reaches is named with its delete time, and deleted at the sweep past it", async () => {
+    const { rt, backend, store } = testRuntime();
+    await rt.workspaces.list();
+    const { id: owner } = (await store.get("owner", "id")) as { id: string };
+    const at = new Date(Date.now() - 3_600_000).toISOString();
+    const young = await backend.create({ kind: "sandbox", labels: { wsp: "1", "wsp-owner": owner, "wsp-workspace": "ws_young", createdAt: at } });
+    const old = await backend.create({ kind: "sandbox", labels: { wsp: "1", "wsp-owner": owner, "wsp-workspace": "ws_old", createdAt: at } });
+    for (const m of [young, old]) (m as unknown as { paused: boolean }).paused = true;
+    await store.put("unrecorded-machines", old.id, { machineId: old.id, place: "default", seenAt: new Date(Date.now() - 25 * 3_600_000).toISOString() });
+    const lines: string[] = [];
+
+    handle = await startHost({ runtime: rt, port: 0, webDir: webDir(), log: l => lines.push(l), recipePath: "/home/me/.wsp/state/golden-recipe.json" });
+
+    expect(lines).toEqual([
+      `reap: deleting ${old.id} (wsp=1 wsp-owner=${owner} wsp-workspace=ws_old createdAt=${at}): a machine of yours no workspace of this host reaches, a day after the sweep first named it, 1.0 h old`,
+      expect.stringMatching(new RegExp(`^reap: ${young.id}: not recorded: no workspace of this host is ws_young, so nothing here reaches this paused machine of yours; deleted at \\S+, a day after this host first saw it$`)),
+    ]);
+    expect((old as unknown as { killed: boolean }).killed).toBe(true);
+  });
+
   it("a placeholder left mid-setup by a dead process is stopped at start with the line saying its setup never finished", async () => {
     const { rt, backend, store } = testRuntime();
     const gate = new Promise<void>(() => {});
