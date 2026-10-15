@@ -5,8 +5,8 @@
 // name would be.
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlaceView, SubRow } from "@wsp/protocol";
-import { threadIndicator, type SidebarThreadSnapshot } from "../src/adapt/index.js";
+import type { PlaceView, SessionView, SubRow, WorkspaceView } from "@wsp/protocol";
+import { deriveSidebarProjects, threadIndicator, type SidebarThreadSnapshot } from "../src/adapt/index.js";
 import { SidebarProvider } from "../src/components/ui/sidebar.js";
 import { useStore } from "../src/protocol/store.js";
 import { ThreadTile, type TilePlace } from "../src/sidebar/ThreadTile.js";
@@ -58,7 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  useStore.setState({ places: [], costs: {} });
+  useStore.setState({ places: [], costs: {}, workspaces: [], sessions: {} });
 });
 
 describe("a sub-thread holding work not pushed", () => {
@@ -165,6 +165,20 @@ describe("a sub-thread's row reads its machine", () => {
     expect(slot().dataset["threadStatus"]).toBe("done");
     cleanup();
     mount({ status: "interrupted", endedAt: "2026-10-12T07:00:00.000Z", sub: sub({ state: "released", releasedAt: Date.parse("2026-10-12T07:31:00.000Z") }) });
+    expect(slot().dataset["threadStatus"]).toBe("released");
+  });
+
+  it("reads Released from the row the host pushes at the release, with no reload", () => {
+    const workspace: WorkspaceView = { id: "ws_fix", name: "Fix the flaky upload test", machineId: "", project: { id: "pr_web", name: "web", path: "/root/web", computer: "box" }, phase: "napping", golden: "", createdAt: "2026-10-12T08:00:00.000Z" };
+    const row: SessionView = { id: "s_1", workspaceId: "ws_fix", threadId: "th_1", harness: "claude", status: "completed", startedAt: Date.parse("2026-10-12T07:50:00.000Z"), endedAt: Date.parse("2026-10-12T08:09:00.000Z"), readAt: Date.parse("2026-10-12T08:10:00.000Z"), sub: sub({ state: "napping", deleteAt: Date.now() + MIN }) };
+    useStore.setState({ workspaces: [workspace], sessions: { ws_fix: [row] } });
+    const tile = (): SidebarThreadSnapshot => deriveSidebarProjects({ workspaces: useStore.getState().workspaces, sessions: useStore.getState().sessions })[0]!.threads[0]!;
+    mount(tile());
+    expect(slot().dataset["threadStatus"]).toBe("resting");
+    cleanup();
+    useStore.getState().applyEvent({ type: "workspace.released", workspaceId: "ws_fix" });
+    useStore.getState().applyEvent({ type: "session.row", workspaceId: "ws_fix", threadId: "th_1", id: "s_1", row: { ...row, sub: sub({ state: "released", releasedAt: Date.now() }) } });
+    mount(tile());
     expect(slot().dataset["threadStatus"]).toBe("released");
   });
 
