@@ -1041,6 +1041,45 @@ export function envLandingScript(envs: Record<string, string>): string {
  * bash -c, never -lc: a login shell resets PATH. */
 export const sudoCommand = (cmd: string): string => `sudo -n bash -c ${shellQuote(`${DROP_SUDO_MARKS}\n${EXEC_ENV}\n${cmd}`)}`;
 
+/** The first line of what DAEMON_EXITS_CMD prints for a daemon that keeps exiting, then the unit's SubState, Result
+ * and ExecMainStatus. */
+const DAEMON_EXITS_MARK = "WSP_DAEMON_EXITS";
+
+/** Under Restart=always with RestartSec=1 a daemon that dies at start reads active most of the time and its restart
+ * count climbs about once a second (systemd 255 on a box, 2026-10-16); a unit with a start limit, as older ones had,
+ * ends failed. Two restarts in five seconds rather than one, so a daemon that exits once on purpose is not read as
+ * one that cannot start. A daemon that lives a few seconds before it exits restarts once a window, so five since the
+ * count was last cleared, one of them inside the window, reads the same; only systemd's own restarts count, and a stop
+ * or start by hand clears them (systemd 255, 2026-10-16). Only the daemon's own lines are printed, never systemd's. */
+export const DAEMON_EXITS_CMD = [
+  `u=${DAEMON_UNIT}`,
+  `a=$(systemctl show -p NRestarts --value "$u")`,
+  "sleep 5",
+  `b=$(systemctl show -p NRestarts --value "$u")`,
+  `if [ "$(systemctl show -p ActiveState --value "$u")" = failed ] || [ $(( \${b:-0} - \${a:-0} )) -ge 2 ] || { [ "\${b:-0}" -ge 5 ] && [ "\${b:-0}" -gt "\${a:-0}" ]; }; then`,
+  `  echo "${DAEMON_EXITS_MARK} $(systemctl show -p SubState --value "$u") $(systemctl show -p Result --value "$u") $(systemctl show -p ExecMainStatus --value "$u")"`,
+  `  journalctl _SYSTEMD_UNIT="$u" -n 20 --no-pager -o cat`,
+  "fi",
+].join("\n");
+
+/** How a daemon that printed nothing ended, by the unit's Result. Read only while the unit waits to restart or sits
+ * failed: once the next copy runs, Result reads success and ExecMainStatus 0 (systemd 255 on a box, 2026-10-16). */
+const exitWords = (result: string, status: string): string =>
+  result === "exit-code" ? `exit status ${status}` : result === "signal" || result === "core-dump" ? `killed by signal ${status}` : result === "oom-kill" ? "killed for want of memory" : result;
+
+/** The daemon's words out of what DAEMON_EXITS_CMD printed: its distinct lines in the order they last came, since the
+ * journal's last twenty lines can begin inside one run's output, each cut short, since the daemon's usage line after a
+ * refused flag runs to 767 characters and would bury the error before it; or how it ended where it printed nothing. */
+export function daemonExitsOf(stdout: string): string | undefined {
+  const lines = stdout.split("\n").map(l => l.trim());
+  const at = lines.findIndex(l => l.startsWith(DAEMON_EXITS_MARK));
+  if (at === -1) return undefined;
+  const said = [...new Set(lines.slice(at + 1).filter(l => l !== "").reverse())].reverse();
+  if (said.length > 0) return said.slice(-4).map(l => (l.length > 120 ? `${l.slice(0, 120)}…` : l)).join("; ");
+  const [sub = "", result = "", status = ""] = lines[at]!.slice(DAEMON_EXITS_MARK.length).trim().split(/\s+/);
+  return (sub.startsWith("auto-restart") || sub === "failed") && result !== "" ? exitWords(result, status) : "it printed nothing";
+}
+
 export class BoxMachine implements Machine {
   /** The desktop stream is minted per open and lives ten minutes, which a field read once cannot carry; the desktop
    * stays off on this backend until the seam reads the stream as a call. */
@@ -1072,6 +1111,10 @@ export class BoxMachine implements Machine {
    * the unit sat enabled and dead 49 minutes after boot, and a start by hand listened a second later. */
   startDaemon(): Promise<ExecResult> {
     return this.exec(`systemctl start ${DAEMON_UNIT}`);
+  }
+
+  async daemonExits(): Promise<string | undefined> {
+    return daemonExitsOf((await this.exec(DAEMON_EXITS_CMD)).stdout);
   }
 
   /** One command on the sync endpoint, with the two readings that make a guest nothing can run the provider's fault.
