@@ -7,7 +7,7 @@
 // a read of the cloud's limits shows room. The start is written down, so a
 // host that restarts starts it all the same; a stop drops it with no start spent.
 import { randomUUID } from "node:crypto";
-import type { BoxLimits } from "@wsp/engine";
+import { failureWords, type BoxLimits } from "@wsp/engine";
 import { CLOUD_CAP_DEFAULT, SUB_DROPPED_LINE, capWaitLine, deletedBeforeStartLine, keptOpening, listedFailure, providerKeyName, roadOf, scopeOf, subWaitingRefusal, type Caller, type SessionView, type ThreadCapWait } from "@wsp/protocol";
 import { SUB_STARTS, absentMachine, deadMachine, isCapRefusal, type SessionEntry, type SubStartRecord } from "../types/internal.js";
 import type { LiveWorkspace, SessionHandle, WorkspaceRecord } from "../types/wiring.js";
@@ -249,7 +249,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
    * caller hears the refusal. A send into it, the line's Try again, starts a machine again. */
   const failFirst = async (h: Held, record: WorkspaceRecord, e: unknown): Promise<void> => {
     const r = h.record;
-    const why = e instanceof Error ? e.message : String(e);
+    const why = failureWords(e);
     forget(r.workspaceId);
     record.phase = "released";
     record.machineId = "";
@@ -316,7 +316,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       } finally {
         pumping = undefined;
       }
-    })().catch((e: unknown) => console.warn(`the queue of held spawns did not move: ${e instanceof Error ? e.message : String(e)}`));
+    })().catch((e: unknown) => console.warn(`the queue of held spawns did not move: ${failureWords(e)}`));
     return pumping;
   };
 
@@ -407,7 +407,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
         const standing = live.get(record.id);
         if (standing !== undefined) {
           await cutOff(ctx, standing);
-          await ctx.unfork(standing).catch((e: unknown) => console.warn(`workspace ${record.id}: its machine was not deleted after the stop: ${e instanceof Error ? e.message : String(e)}`));
+          await ctx.unfork(standing).catch((e: unknown) => console.warn(`workspace ${record.id}: its machine was not deleted after the stop: ${failureWords(e)}`));
         }
         await drop(h, h.stopped, false);
         return;
@@ -433,7 +433,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
         if (row !== undefined) row.view.capped = wait;
         return;
       }
-      const why = e instanceof Error ? e.message : String(e);
+      const why = failureWords(e);
       console.warn(`workspace ${record.id}: the held spawn did not start: ${why}`);
       if (held.get(record.id) === h) await failFirst(h, record, e);
       else {

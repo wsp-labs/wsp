@@ -23,8 +23,8 @@ function quietSqliteWarning(): void {
 }
 
 /** How long each address of a name is given to connect before the next is tried. node gives 250 ms and drops the
- * attempt it gives up on, so on a road where every connect takes longer (Boat over NAT64 or IPv4, 260 to 280 ms,
- * measured 2026-10-15) a fetch fails that curl makes. */
+ * attempt it gives up on, so where every connect takes longer (Boat over NAT64 or IPv4, 260 to 280 ms, measured
+ * 2026-10-15) the first address is always dropped, and a stall on the last fails a fetch that curl makes. */
 const CONNECT_ATTEMPT_MS = 2_000;
 
 export function connectPatiently(): void {
