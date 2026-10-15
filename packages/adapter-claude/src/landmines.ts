@@ -90,8 +90,9 @@ const PLACEHOLDER: Readonly<Record<BrokeredSignIn["kind"], (token: string) => Re
  * straight to api.anthropic.com; without the provider switch a copied settings env block's base URL beats the
  * door's and the turn hangs; DISABLE_AUTOUPDATER leaves `claude update` working where DISABLE_UPDATES does not; the
  * client waits API_TIMEOUT_MS on a request the host holds; and a base URL that is not first party turns MCP tool
- * search off, which only a gateway's upstream should. */
-function brokeredEnv(b: BrokeredSignIn): Record<string, string> {
+ * search off, which only a gateway's upstream should. A terminal on that machine carries them too, so `claude` typed
+ * there signs in as the turn does. */
+export function brokeredSignInEnv(b: BrokeredSignIn): Record<string, string> {
   return {
     ANTHROPIC_BASE_URL: BROKER_DOOR_URL,
     ...PLACEHOLDER[b.kind](b.token),
@@ -130,7 +131,7 @@ export function buildEnv(options: ClaudeEnvOptions = {}): Record<string, string>
     return {
       ...base,
       ...HEADLESS_OVERRIDES,
-      ...brokeredEnv(options.brokered),
+      ...brokeredSignInEnv(options.brokered),
       ...(options.projectDirName === undefined ? {} : { [PROJECT_DIR_ENV]: options.projectDirName }),
     };
   }
