@@ -177,6 +177,9 @@ const WORKSPACES = reply({
   ],
 });
 
+/** The projects those workspaces stand on, as the host lists them. */
+const PROJECTS = reply({ projects: [{ id: "proj-1", name: "wsp", computer: "place-9" }, { id: "proj-2", name: "site", computer: "place-unnamed" }] });
+
 const at = (ms: number) => 1727431200000 + ms;
 
 const EVENTS = [
@@ -340,7 +343,7 @@ export const READS: Record<string, Case[]> = {
     { case: "rows", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }) } },
     { case: "within a project", arguments: { project: "wsp" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }) } },
     { case: "within a project by id", arguments: { project: "proj-2" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }) } },
-    { case: "a word naming no project", arguments: { project: "wsp@feat" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }) } },
+    { case: "a word naming no project", arguments: { project: "wsp@feat" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }), "projects.list": PROJECTS } },
     { case: "a lead's child in a box folder", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: BOX_CHILD }) } },
     { case: "a thread on a cloud project", arguments: {}, replies: { "workspaces.list": WITH_CLOUD, "sessions.list": reply({ sessions: ON_CLOUD }) } },
     { case: "a sub-thread on Boat", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SUB_CHILD }) } },
@@ -349,7 +352,7 @@ export const READS: Record<string, Case[]> = {
     { case: "pinned, snoozed and in a section", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: PLACED }) } },
     { case: "a last line, a failure, a fold and subagents", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: LINED }) } },
     { case: "a restart and the thread it replaced", arguments: {}, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: RESTARTED }) } },
-    { case: "no such project", arguments: { project: "nope" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }) } },
+    { case: "no such project", arguments: { project: "nope" }, replies: { "workspaces.list": WORKSPACES, "sessions.list": reply({ sessions: SESSIONS }), "projects.list": PROJECTS } },
   ],
   thread_read: [
     { case: "messages", arguments: { thread: "t-1111" }, replies: { "sessions.list": reply({ sessions: SESSIONS }), "sessions.history": reply({ events: EVENTS }), "sessions.read": reply({}) } },
