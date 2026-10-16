@@ -196,18 +196,23 @@ describe("what a turn changed", () => {
     expect(events).toEqual([]);
   });
 
-  it("on a box seeds the prompt at the launch of an agent that could take it late, the snapshot in first", async () => {
-    const daemon = fakeDaemon({ hold: true });
+  it("on a box starts an agent that takes its prompt late while the launch's snapshot is taken, and hands it the prompt once the snapshot is in", async () => {
+    const files = [{ path: "README.md", kind: "modified", additions: 1, deletions: 0 }];
+    const daemon = fakeDaemon({ files, hold: true });
     const agent = gated({ waitsForPrompt: true });
-    const { ws } = await workspaceWith(daemon, agent.factory);
-    const starting = rt!.sessions.start(ws.id, { prompt: "go" });
+    const { ws, events } = await workspaceWith(daemon, agent.factory);
+    const handle = await rt!.sessions.start(ws.id, { prompt: "edit the readme" });
+    expect(agent.starts).toHaveLength(1);
+    let prompted = false;
+    void agent.starts[0]!.promptAfter!.then(() => (prompted = true));
     await new Promise(resolve => setTimeout(resolve, 20));
-    expect(agent.starts).toHaveLength(0);
+    expect(prompted).toBe(false);
     daemon.letGo();
-    const handle = await starting;
-    expect(agent.starts[0]).not.toHaveProperty("promptAfter");
+    await until(() => prompted);
     agent.release(0);
     await handle.finished;
+    await until(() => events.length > 0);
+    expect(events).toEqual([expect.objectContaining({ type: "session.changes", from: sha(1), to: sha(2), files })]);
   });
 
   it("records nothing for a turn that changed nothing", async () => {

@@ -9,7 +9,7 @@ import {
   type SessionView, type TurnImage, type TurnResult, foldThreads, MCP_SERVER_NAME, threadForgetRefusal, threadKeyOf, threadRan, threadWord, roadOf, scopeOf,
   RUN_PERSONS_LINE, runOutputTail, type SessionRunEvent, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE,
   asideUnsupportedLine, isLocalWorkspace, mcpServersBlocked, actionRefusal, homeShortened, EMPTY_TITLE_LINE, threadRunsOnLine, notFoundRefusal, NOTIFY_ME, noCwdLine,
-  THREAD_WORKING_LINE, threadOnMachineLine, WORKTREE_BUSY_LINE, copiesFolder, runsInFolder, sendRefusal, startPicks, titleLine,
+  THREAD_WORKING_LINE, threadOnMachineLine, WORKTREE_BUSY_LINE, runsInFolder, sendRefusal, startPicks, titleLine,
   THREAD_ENV, TURN_TOKEN_ENV, turnImagesDir, workspaceState, REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE,
   REWIND_SHARED_LINE, REWIND_WORKING_LINE, rewindBesideLine, rewindChildrenLine, rewindKeptLine, rewindNoAnchorLine,
   attachmentRecord, attachmentKey, filesBlocked, filesRefusal, steerFilesBlocked, type Attachment, isImage, sendFilesDir, attachedFilesPrompt, threadMessages,
@@ -458,8 +458,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         dropScope();
         throw e;
       }
-      // Only on this computer: a box keeps the prompt in its launch seed, since a write there is one more exec trip.
-      const promptsLate = adapter.waitsForPrompt === true && copiesFolder(entry.record.kind);
+      const promptsLate = adapter.waitsForPrompt === true;
       // The wsp tools ride every launch, for a harness that takes servers with one: under the same name as the
       // person's own wsp server, which Claude Code's --mcp-config and Codex's -c overrides both replace while the
       // person's other servers stay (measured on 2.1.284 and 0.155.1 against the user-scope config; a project's own
@@ -547,8 +546,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       let filePaths: string[] = [];
       let launchServers: Pick<HarnessStartOptions, "serverValues" | "offServers"> = {};
       let filesFolder: string | undefined;
-      // Every send takes one trip before its launch: its files land and its folder's snapshot is taken, or only started
-      // where the agent takes its prompt late.
+      // Every send takes one trip before its launch, its files landing; its folder's snapshot is only started where the
+      // agent takes its prompt late, which on a machine is one more trip to hand it over, made while the agent starts.
       let landed = false;
       // Let through by its computer's threads at once, which it is asked once, and whether the caller heard it held.
       let through = false;
@@ -690,7 +689,6 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
             ({ images, dir: imagesDir } = await ctx.landImages(entry, adapter.attachments, landing, turnImagesDir(landing, threadId, o.requestId, minted), (o.attachments ?? []).filter(a => isImage(a.mediaType))));
             filePaths = await ctx.landFiles(entry, landing, sendFilesDir(landing, threadId, o.requestId, minted), (o.attachments ?? []).filter(a => !isImage(a.mediaType)));
             if (filePaths.length > 0) filesFolder = landing;
-            if (adapter.mcpServers === true || adapter.deniesServers === true) launchServers = await ctx.launchServersFor(entry, harness, adapter, landing);
             // A fork's session is readied now, on the source's computer: a copy this turn resumes, or the turn the
             // start forks itself.
             if (plan !== undefined) {
@@ -701,7 +699,9 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               await copyImages(ctx, plan, { workspaceId, threadId });
             }
             if (!opens && resume !== undefined) resume = await payCutOwed(ctx, adapter, { workspaceId, threadId }, resume);
-            const taken = promptsLate ? ctx.snapshotOf(entry, landing) : await ctx.snapshotOf(entry, landing);
+            const taking = ctx.snapshotOf(entry, landing);
+            if (adapter.mcpServers === true || adapter.deniesServers === true) launchServers = await ctx.launchServersFor(entry, harness, adapter, landing);
+            const taken = promptsLate ? taking : await taking;
             snapshot = taken === undefined ? undefined : { from: taken, cwd: landing };
             refuse();
             continue;

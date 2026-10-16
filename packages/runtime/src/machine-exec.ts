@@ -9,9 +9,12 @@
 // engine's execDetached polls the same way for a command that ends on its
 // own, while this one streams and can be signalled while it runs, which is
 // what a harness turn needs. A stream started with an input channel gets a
-// file the launch seeds and every write() appends to through putFiles; a tail
-// feeds it to the command's stdin through a fifo, so a message reaches a
-// running process the runtime holds no pipe to. The tail's pid is recorded:
+// file the launch seeds and every write() appends to through putFiles. A seed
+// not due yet waits in a held file beside it, and a line written ahead of when
+// it is due in a late file; each goes in once due, the seed also at the next
+// write, and both at a later host's attach. A tail feeds the channel to the
+// command's stdin through a fifo, so a message reaches a running process the
+// runtime holds no pipe to. The tail's pid is recorded:
 // closeInput() kills it so the command reads EOF, and the script kills it once
 // the command ended. When the stream ends, however it ends, the recorded
 // process group gets TERM then KILL and the run's files go: the CLI's own
@@ -270,6 +273,15 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
   /** The one path that says a run is on the machine: the launch makes it, the reap takes it with the rest of the
    * run's files, and every road that asks whether a run is still there asks about this one. */
   const claim = (base: string): string => `${base}.d`;
+  /** Hands a run the seed its launch held back: into the channel where nothing reached it yet, then dropped. The
+   * channel's size is the check, so a host that went between the two steps leaves no road to a second copy. */
+  const releaseHeld = (b: string): string =>
+    `if [ -e ${q(b)}.held ]; then if [ -d ${q(claim(b))} ] && [ ! -s ${q(b)}.in ]; then cat ${q(b)}.held >> ${q(b)}.in; fi; rm -f ${q(b)}.held; fi`;
+  /** A line written after the seed and held until it is due goes in once, after the seed, onto a run that has not
+   * ended. Its key says whether it went, never its words: a thread may send one agent the same words twice, and a host
+   * that went between the append and the drop left the key it appended under beside the channel. */
+  const releaseLate = (b: string): string =>
+    `${releaseHeld(b)}; if [ -e ${q(b)}.late ]; then if [ -d ${q(claim(b))} ] && [ ! -e ${q(b)}.exit ] && [ "$(cat ${q(b)}.late.key 2>/dev/null)" != "$(cat ${q(b)}.late.went 2>/dev/null)" ]; then cat ${q(b)}.late >> ${q(b)}.in && cp ${q(b)}.late.key ${q(b)}.late.went; fi; rm -f ${q(b)}.late ${q(b)}.late.key; fi`;
   /** What ending one run comes to on the guest, in the shell both the reader's own reap and the connect sweep run:
    * the recorded process group gets TERM, then KILL once the stop grace passes, and the run's files go. `read` runs
    * between the two, once nothing of the group is left to write. Without `signal` the group is not sent anything:
@@ -290,9 +302,20 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
    * host process left behind. `opened` settles once the run is known to be on the machine and rejects with the words
    * the turn fails on when it is not. The log is read from its first byte either way, so a run that printed while no
    * host was listening is replayed to whoever attaches. */
-  const open = (base: string, hasInput: boolean, launched: Promise<void>, turnStartedAt?: number, taken?: readonly string[], posting?: Posting, from?: number): ExecStream => {
+  const open = (base: string, hasInput: boolean, launched: Promise<void>, turnStartedAt?: number, taken?: readonly string[], posting?: Posting, from?: number, seedDue?: Promise<void>): ExecStream => {
     const sentinel = `__WSP_EOF_${randomBytes(6).toString("hex")}__`;
     const reapMark = `__WSP_REAPED_${randomBytes(6).toString("hex")}__`;
+    /** Every shell that hands the channel a line runs after the last one ended: two hand-overs of one held seed that
+     * ran together would both read the channel as empty and append the seed twice. */
+    let handing: Promise<unknown> = Promise.resolve();
+    const oneAtATime = <T>(f: () => Promise<T>): Promise<T> => {
+      const next = handing.then(f, f);
+      handing = next.catch(() => undefined);
+      return next;
+    };
+    /** Settles once every line parked with writeAfter went in or was dropped; set only while one is parked. A line written
+     * meanwhile goes after it, and a second parked line parks once the first is out of the way. */
+    let parkedLine: Promise<void> | undefined;
 
     let killed = false;
     /** Set once this side sent the run a signal: a run it ended is not one the kernel killed. */
@@ -562,6 +585,24 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         .catch(() => undefined);
     };
 
+    /** One line onto the channel, after a seed still held. */
+    const append = async (line: string): Promise<"written" | "gone"> => {
+      // The guest knows the command ended the moment its exit file exists, up to a poll before this side does,
+      // and a reap in flight has taken the claim with the rest of the run.
+      const res = await oneAtATime(() => putFiles(machine, [{ path: `${base}.in`, text: `${line}\n`, append: true }], {
+        // Any line the channel takes goes after a seed still held, or the release would read the seed as handed over.
+        before: [`{ [ -e ${q(base)}.exit ] || [ ! -d ${q(claim(base))} ]; } && { echo ${HANDSHAKE.gone}; exit 0; }`, releaseHeld(base)],
+        after: [`echo ${HANDSHAKE.written}`],
+        timeoutMs: execTimeoutMs,
+      }));
+      if (res.stdout.includes(HANDSHAKE.gone)) return "gone";
+      if (res.exitCode !== 0 || !res.stdout.includes(HANDSHAKE.written)) throw new Error(`remote write failed on ${machine.id}: nothing came back saying ${HANDSHAKE.written}, the word the guest prints once the message landed; ${machineAnswer(res)}`);
+      // The person just acted, so the turn gets its idle time over.
+      activity.touch(now());
+      hurryPolls();
+      return "written";
+    };
+
     const stream: ExecStream = {
       lines: lines(),
       run: base,
@@ -573,20 +614,12 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
       write: async line => {
         if (!hasInput) throw new Error("this stream has no input channel");
         if (finishCode !== undefined) throw new Error("the stream has ended");
+        // Only what was parked before this write goes ahead of it: a kept Codex writes thread/resume and parks its
+        // turn/start in the same tick, and a turn/start on a thread the server let go is never answered.
+        const ahead = parkedLine;
         await opened;
-        // The guest knows the command ended the moment its exit file exists, up to a poll before this side does,
-        // and a reap in flight has taken the claim with the rest of the run.
-        const res = await putFiles(machine, [{ path: `${base}.in`, text: `${line}\n`, append: true }], {
-          before: [`{ [ -e ${q(base)}.exit ] || [ ! -d ${q(claim(base))} ]; } && { echo ${HANDSHAKE.gone}; exit 0; }`],
-          after: [`echo ${HANDSHAKE.written}`],
-          timeoutMs: execTimeoutMs,
-        });
-        if (res.stdout.includes(HANDSHAKE.gone)) return "gone";
-        if (res.exitCode !== 0 || !res.stdout.includes(HANDSHAKE.written)) throw new Error(`remote write failed on ${machine.id}: nothing came back saying ${HANDSHAKE.written}, the word the guest prints once the message landed; ${machineAnswer(res)}`);
-        // The person just acted, so the turn gets its idle time over.
-        activity.touch(now());
-        hurryPolls();
-        return "written";
+        await ahead;
+        return append(line);
       },
       closeInput: () => {
         if (!hasInput || inputClosed || finishCode !== undefined) return;
@@ -594,8 +627,47 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         if (resting) hurryPolls();
         void opened
           .catch(() => undefined)
-          .then(() => machine.exec(`P=$(cat ${q(base)}.tail 2>/dev/null); [ -n "$P" ] && kill -TERM "$P" 2>/dev/null; true`, { timeoutMs: execTimeoutMs }))
+          .then(async () => {
+            while (parkedLine !== undefined) await parkedLine;
+          })
+          .then(() => oneAtATime(() => machine.exec(`${releaseHeld(base)}; P=$(cat ${q(base)}.tail 2>/dev/null); [ -n "$P" ] && kill -TERM "$P" 2>/dev/null; true`, { timeoutMs: execTimeoutMs })))
           .catch(() => undefined);
+      },
+      writeAfter: (line, after) => {
+        if (!hasInput) throw new Error("this stream has no input channel");
+        const before = parkedLine ?? Promise.resolve();
+        let settled: () => void = () => {};
+        const mine: Promise<void> = new Promise(resolve => (settled = resolve));
+        parkedLine = mine;
+        // Beside the run rather than in this process, so a host that goes before the line is due leaves it for the next.
+        // Its key lands first, so a parked line always has one; both are the login's alone, as every file of the run is.
+        const park = async (): Promise<void> => {
+          await before;
+          const parked = await opened
+            .then(() => putFiles(machine, [{ path: `${base}.late.key`, text: randomBytes(6).toString("hex") }, { path: `${base}.late`, text: `${line}\n` }], { before: ["umask 077"], timeoutMs: execTimeoutMs }))
+            .then(
+              () => true,
+              () => false,
+            );
+          const due = await after.then(
+            () => true,
+            () => false,
+          );
+          if (!due) {
+            if (parked) await machine.exec(`rm -f ${q(base)}.late ${q(base)}.late.key`, { timeoutMs: execTimeoutMs });
+            return;
+          }
+          if (!parked) return void (await append(line));
+          await oneAtATime(() => untilReached(() => machine.exec(releaseLate(base), { timeoutMs: execTimeoutMs }), { now, sleep }));
+          activity.touch(now());
+          hurryPolls();
+        };
+        void park()
+          .catch(() => undefined)
+          .finally(() => {
+            if (parkedLine === mine) parkedLine = undefined;
+            settled();
+          });
       },
       rest: () => {
         resting = true;
@@ -611,17 +683,26 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
       exited,
       ...(taken !== undefined ? { taken } : {}),
     };
+    // A launch that failed fails the stream on its own; a seed that never comes due, or never reaches the run, ends it.
+    if (seedDue !== undefined)
+      void seedDue
+        .then(() => opened.then(() => oneAtATime(() => untilReached(() => machine.exec(releaseHeld(base), { timeoutMs: execTimeoutMs }), { now, sleep })), () => undefined))
+        .catch(() => stream.kill());
     return stream;
   };
 
   const factory: ExecStreamFactory = (command, { env, input, inputAfter, secret }) => {
     const base = `${runDir}/${randomBytes(6).toString("hex")}`;
+    // A seed that is not due yet waits on the guest rather than in this process, so a host that goes before it is due
+    // leaves it for the next one, and the command starts meanwhile.
+    const holdsSeed = input !== undefined && inputAfter !== undefined;
+    const seedPath = `${base}.${holdsSeed ? "held" : "in"}`;
     if (secret !== undefined && machine.takesStdin !== true) throw new Error(`${machine.id} takes no input on its launch, so text holding a value would ride its command; nothing was started`);
     // Text that holds values rides the launch's input under names of its own, is written to the run's files under
     // its mask and leaves the shell before the run starts, so the run's environment never carries it.
     const held = [
       ...Object.entries(secret?.files ?? {}).map(([variable, text], i) => ({ name: `WSP_LAND_${i}`, path: `${base}.f${i}`, text, variable })),
-      ...(secret?.input === true && input !== undefined ? [{ name: "WSP_LAND_IN", path: `${base}.in`, text: input.map(line => `${line}\n`).join(""), variable: undefined }] : []),
+      ...(secret?.input === true && input !== undefined ? [{ name: "WSP_LAND_IN", path: seedPath, text: input.map(line => `${line}\n`).join(""), variable: undefined }] : []),
     ];
 
     // The environment reaches the run as the one setsid starts it under and never sits in its script. A machine
@@ -640,16 +721,15 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     // The turn's processes are what the kernel takes first when memory runs out: the work outgrew the machine, and
     // the daemon and the guest agent are how anyone hears of it.
     const files: GuestWrite[] = [{ path: `${base}.sh`, text: `${workScoreLine()}\n${run}` }];
-    if (input !== undefined && !held.some(h => h.variable === undefined)) files.push({ path: `${base}.in`, text: input.map(line => `${line}\n`).join("") });
+    if (input !== undefined && !held.some(h => h.variable === undefined)) files.push({ path: seedPath, text: input.map(line => `${line}\n`).join("") });
 
     // Whether a post of the launch went out and got no answer: one that failed before it left this computer started
     // nothing there, and one the far end answered, a refusal included, said what came of it.
     let mayHaveRun = false;
     let posts = 0;
     const since = now();
-    // Spawn eagerly, like a local child process would, unless the seed is held: a write here is one more exec trip, so
-    // the launch waits and carries the seed with it.
-    const posted: Promise<ExecResult> = Promise.resolve(inputAfter).then(() => untilReached(
+    // Spawn eagerly, like a local child process would: a held seed's one more exec trip goes while the command starts.
+    const posted: Promise<ExecResult> = untilReached(
       () => {
         posts++;
         return putFiles(opts.launchOn ?? machine, files, {
@@ -662,7 +742,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
           before: ["umask 077", `mkdir ${q(claim(base))} 2>/dev/null || { [ -d ${q(claim(base))} ] && { echo ${HANDSHAKE.launched}; exit 0; }; echo ${q(`no run folder on this machine: ${claim(base)}`)} >&2; exit 1; }`],
           // The agent writes its pid beside the run, where that computer's daemon reads it before any kill, since this
           // host knows no pid there.
-          after: [`export ${AGENT_PID_FILE_ENV}=${q(`${base}.agent`)}`, ...(input === undefined ? [] : [`mkfifo ${q(base)}.fifo`]), ...envLines, ...heldLines, `setsid bash ${q(base)}.sh > ${q(base)}.log 2>&1 & echo $! > ${q(base)}.pid; echo ${HANDSHAKE.launched}`],
+          after: [`export ${AGENT_PID_FILE_ENV}=${q(`${base}.agent`)}`, ...(holdsSeed ? [`: > ${q(base)}.in`] : []), ...(input === undefined ? [] : [`mkfifo ${q(base)}.fifo`]), ...envLines, ...heldLines, `setsid bash ${q(base)}.sh > ${q(base)}.log 2>&1 & echo $! > ${q(base)}.pid; echo ${HANDSHAKE.launched}`],
           timeoutMs: execTimeoutMs,
           ...(machine.takesStdin === true ? { stdin: envInput({ ...named, ...Object.fromEntries(held.map(h => [h.name, h.text])) }) } : {}),
         }).catch((e: unknown) => {
@@ -671,7 +751,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         });
       },
       { now, sleep },
-    ));
+    );
     const opened = posted.then(
       res => {
         if (res.exitCode !== 0 || !res.stdout.includes(HANDSHAKE.launched)) throw new Error(`remote launch failed on ${machine.id}: nothing came back saying ${HANDSHAKE.launched}, the word the guest prints once the run is up; ${machineAnswer(res)}`);
@@ -682,7 +762,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
         throw new Error(`remote launch failed on ${machine.id}: ${e instanceof Error ? e.message : String(e)}`);
       },
     );
-    return open(base, input !== undefined, opened, undefined, undefined, { since, posts: () => posts, mayHaveRun: () => mayHaveRun });
+    return open(base, input !== undefined, opened, undefined, undefined, { since, posts: () => posts, mayHaveRun: () => mayHaveRun }, undefined, holdsSeed ? inputAfter : undefined);
   };
 
   factory.attach = async (run, { input, startedAt, from }) => {
@@ -694,7 +774,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     const channel = input
       ? ` n=$({ wc -c < ${q(run)}.in; } 2>/dev/null || echo 0); if [ "$n" -gt ${EXEC_CHUNK_BYTES} ]; then tail -c ${EXEC_CHUNK_BYTES + 1} ${q(run)}.in | sed 1d; else cat ${q(run)}.in 2>/dev/null; fi;`
       : "";
-    const res = await untilReached(() => machine.exec(`if [ -d ${q(claim(run))} ]; then echo ${HANDSHAKE.run};${channel} else echo ${HANDSHAKE.gone}; fi`, { timeoutMs: execTimeoutMs }), { now, sleep });
+    const res = await untilReached(() => machine.exec(`if [ -d ${q(claim(run))} ]; then echo ${HANDSHAKE.run};${input ? ` ${releaseLate(run)};` : ""}${channel} else echo ${HANDSHAKE.gone}; fi`, { timeoutMs: execTimeoutMs }), { now, sleep });
     // Only these two answers say anything about the run. Anything else is the machine failing to answer the
     // question, which is the unreached road, not a run to end: the reader is built and the run swept on WSP_GONE
     // alone, so nothing here can take a live turn's process group with it.

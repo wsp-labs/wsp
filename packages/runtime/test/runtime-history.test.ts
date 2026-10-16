@@ -637,6 +637,32 @@ describe("runtime session history", () => {
       await rt.close();
     });
 
+    it("past the TTL does not run a binary to read its version once its command reads as installing on its first run again", async () => {
+      const shim = '#!/bin/sh\n# ascii-harness-shim\nexec /usr/local/lib/ascii-harnesses/claude "$@"\n';
+      const backend = stubBackend();
+      let lazy = false;
+      const versionReads: string[] = [];
+      backend.execImpl = (_m, cmd) => {
+        if (cmd.includes("head -c 4096")) return { exitCode: 0, stdout: lazy ? `\x1e${shim}\x1e` : "\x1e\x1e", stderr: "" };
+        if (cmd.includes("ascii-lazy-harness")) return { exitCode: 0, stdout: lazy ? "1\n" : "0\n", stderr: "" };
+        if (cmd.includes("claude --help")) return { exitCode: 0, stdout: PROBE_OUTPUT, stderr: "" };
+        if (cmd.includes("claude --version")) {
+          if (lazy) versionReads.push(cmd);
+          return { exitCode: 0, stdout: PROBE_OUTPUT.split("__WSP_CATALOG_SEP__")[0]!, stderr: "" };
+        }
+        return { exitCode: 0, stdout: "", stderr: "" };
+      };
+      const fc = fakeClock();
+      const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: manual().adapter }, clock: fc.clock });
+      const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+      expect((await rt.harnesses.list(ws.id)).find(c => c.harness === "claude")).toMatchObject({ source: "harness" });
+      lazy = true;
+      fc.advance(CATALOG_TTL_MS);
+      await rt.harnesses.list(ws.id);
+      await rt.close();
+      expect(versionReads).toEqual([]);
+    });
+
     it("answers from the table, marked so, when the binary gives nothing or the exec fails, and does not ask again within the TTL", async () => {
       const backend = stubBackend();
       backend.execImpl = (_m, cmd) => {
