@@ -267,6 +267,13 @@
             "provider": {
               "type": "string"
             },
+            "pauseMode": {
+              "type": "string",
+              "enum": [
+                "memory",
+                "disk"
+              ]
+            },
             "worktree": {
               "type": "object",
               "properties": {
@@ -805,6 +812,13 @@
             },
             "provider": {
               "type": "string"
+            },
+            "pauseMode": {
+              "type": "string",
+              "enum": [
+                "memory",
+                "disk"
+              ]
             },
             "worktree": {
               "type": "object",

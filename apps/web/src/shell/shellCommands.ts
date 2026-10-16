@@ -29,7 +29,7 @@ import { focusPanelSurface } from "../lib/panelFocus.js";
 import { getTerminalFocusOwner } from "../lib/terminalFocus.js";
 import { addNotice } from "../notices/store.js";
 import { failureOf } from "../protocol/failure.js";
-import { pauseModesOf, useStore } from "../protocol/store.js";
+import { useStore } from "../protocol/store.js";
 import { panelKeyOf, selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore.js";
 import { absenceOf } from "../settings/places.js";
 import { sidebarThreadOrder, topSidebarThread } from "../sidebar/Sidebar.logic.js";
@@ -150,8 +150,8 @@ export function splitActivePanelTerminal(workspaceId: string, direction: SplitDi
     creation row has no workspace to switch to, and counting one would move every slot under the person's fingers
     while a fork is in flight. */
 function sidebarProjects(): SidebarProjectSnapshot[] {
-  const { workspaces, statuses, sessions, heldKeys, landings } = useStore.getState();
-  return withHeldThreads(deriveSidebarProjects({ workspaces, statuses, sessions, pauseModes: pauseModesOf(landings) }), heldKeys);
+  const { workspaces, statuses, sessions, heldKeys } = useStore.getState();
+  return withHeldThreads(deriveSidebarProjects({ workspaces, statuses, sessions }), heldKeys);
 }
 
 function orderedWorkspaceIds(): string[] {

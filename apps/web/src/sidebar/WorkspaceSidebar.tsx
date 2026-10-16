@@ -191,7 +191,6 @@ export function WorkspaceSidebar() {
   const places = useStore(s => s.places);
   // What a workspace is made of. Named apart from the sidebar's own `projects`, which are its workspace snapshots.
   const recorded = useStore(s => s.projects);
-  const loadLanding = useStore(s => s.loadLanding);
   const selectedId = useSelectedId();
   const selectedThreadId = useSelectedThreadId();
   // A subagent's page marks the subagent's row, not its lead's tile, unless the lead is folded over it.
@@ -291,11 +290,6 @@ export function WorkspaceSidebar() {
   useLayoutEffect(() => {
     drawnTiles.current = tiles;
   });
-  // One landing per project, for the pause mode a copy's phase verb reads. Asked here, where the tiles are drawn,
-  // so no tile asks for itself.
-  useEffect(() => {
-    for (const group of groups) void loadLanding(group.project.id);
-  }, [groups, loadLanding]);
   const tripTarget = trip === null ? undefined : workspaces.find(w => w.id === trip.workspaceId);
   const forgetTargets = forgetting === null ? [] : fleet.filter(p => forgetting.workspaceIds.includes(p.id));
   // The worktree wsp made goes with the last thread in it, as the host deletes.

@@ -11,6 +11,7 @@ import { getLive, resetLive } from "../src/machine/live.js";
 import { useStore } from "../src/protocol/store.js";
 import { HERE_KEY } from "../src/terminal/computer.js";
 import { resetSurfaces, view, WS } from "./surface-harness.js";
+import { caps } from "./caps.js";
 
 const GIB = 1024 ** 3;
 const sample = (load1: number, at: number): SysSample => ({ type: "sys.sample", cpu: 10, load1, mem: { used: 4 * GIB, total: 16 * GIB }, disk: { used: 95 * GIB, total: 100 * GIB }, at });
@@ -57,6 +58,19 @@ describe("the Workspace pane", () => {
     act(() => useStore.setState({ workspaces: [{ ...view, phase: "napping" }] }));
     expect(slot("load")).toBe("paused");
     expect(line("load")!.closest("div")!.getAttribute("class")).toContain("text-muted-foreground/40");
+  });
+
+  it("names the nap off the workspace's own computer: a Boat sub-thread of a project on a cloud that keeps the memory reads Stopped", () => {
+    // The host forks on a cloud that keeps the memory and the project lands there; the sub-thread's machine is on Boat.
+    const { pauseMode: _none, ...forksOnNone } = caps();
+    act(() => useStore.setState({ capabilities: caps(), landings: { [view.project.id]: { name: "Solari", capabilities: caps() } } }));
+    act(() => useStore.setState({ workspaces: [{ ...view, phase: "napping", parentThreadId: "thr_lead", rootThreadId: "thr_lead", place: "box", provider: "box", pauseMode: "disk" }], statuses: { [WS]: status({ phase: "napping", machineState: "paused" }) } }));
+    render(<MachineSurface workspaceId={WS} />);
+    expect(facts()[0]).toBe("Stopped");
+    // A host that forks on none, the dev host and every public build, with the machine on a cloud that keeps the memory.
+    act(() => useStore.setState({ capabilities: forksOnNone, landings: {}, workspaces: [{ ...view, phase: "napping", pauseMode: "memory" }] }));
+    expect(facts()[0]).toBe("Paused");
+    act(() => useStore.setState({ capabilities: null }));
   });
 
   it("states the workspace's facts as chips and its folder in one mono line, and nothing else in words", () => {

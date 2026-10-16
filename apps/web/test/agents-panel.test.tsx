@@ -610,10 +610,15 @@ describe("the states", () => {
     expect(saysNotAnswering(NOT_ANSWERING_AFTER_MS)).toBe(true);
   });
 
-  it("says paused on a paused task's last report and holds what it offers", () => {
-    drawPanel({ report: { ...AGENTS_REPORT, stale: "napping" }, ctx: { where: "here", typeInTerminal: () => {} } });
+  it("says paused on a paused task's last report where its machine keeps the memory, and holds what it offers", () => {
+    drawPanel({ report: { ...AGENTS_REPORT, stale: "napping" }, ctx: { where: "here", typeInTerminal: () => {} }, pauseMode: "memory" });
     expect(panel().querySelector("[data-k=agents-stale]")?.textContent).toBe("Paused");
     expect(stepOf("claude", "open-terminal")).toBeNull();
+  });
+
+  it("says stopped on the last report of a task whose machine's nap ends every process, as its sidebar row does", () => {
+    drawPanel({ report: { ...AGENTS_REPORT, stale: "napping" }, ctx: { where: "box" }, pauseMode: "disk" });
+    expect(panel().querySelector("[data-k=agents-stale]")?.textContent).toBe("Stopped");
   });
 
   it("offers Edit image on a fork in Add's place and on every item's page, and nothing else", () => {
