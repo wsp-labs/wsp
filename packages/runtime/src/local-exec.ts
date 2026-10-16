@@ -350,13 +350,20 @@ function releaseHeld(base: string): void {
   rmSync(`${base}.held`, { force: true });
 }
 
-/** A line written after the seed and held until it is due goes in once, onto a run that has not ended: a host that
- * went between the append and the drop left it in the channel already. */
+/** A line written after the seed and held until it is due goes in once, after the seed, onto a run that has not ended.
+ * Its key says whether it went, never its words: a thread may send one agent the same words twice, and a host that went
+ * between the append and the drop left the key it appended under beside the channel. */
 function releaseLate(base: string): void {
+  releaseHeld(base);
   const late = readFile(`${base}.late`);
   if (late === undefined) return;
-  if (existsSync(`${base}.d`) && !existsSync(`${base}.exit`) && !(readFile(`${base}.in`) ?? "").includes(late)) appendFileSync(`${base}.in`, late);
+  const key = readFile(`${base}.late.key`);
+  if (existsSync(`${base}.d`) && !existsSync(`${base}.exit`) && key !== readFile(`${base}.late.went`)) {
+    appendFileSync(`${base}.in`, late);
+    writeFileSync(`${base}.late.went`, key ?? "", { mode: OWNER_FILE });
+  }
   rmSync(`${base}.late`, { force: true });
+  rmSync(`${base}.late.key`, { force: true });
 }
 
 /** One complete line at a time out of a growing byte stream: what precedes each newline is yielded, the tail waits
@@ -445,6 +452,12 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     };
     let killed = false;
     let inputClosed = false;
+    /** Settles once every line parked with writeAfter went in or was dropped; set only while one is parked. A line written
+     * meanwhile goes after it, and a second parked line parks once the first is out of the way. */
+    let parkedLine: Promise<void> | undefined;
+    const parkedOut = async (): Promise<void> => {
+      while (parkedLine !== undefined) await parkedLine;
+    };
     let finishCode: number | null | undefined;
     let resolveExit: (code: number | null) => void = () => {};
     const exited = new Promise<number | null>(resolve => {
@@ -598,6 +611,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       },
       write: async line => {
         if (!hasInput) throw new Error("this stream has no input channel");
+        if (parkedLine !== undefined) await parkedOut();
         if (finishCode !== undefined || inputClosed) return "gone";
         // The run knows the command ended the moment its exit file exists, up to a poll before this side does, and
         // a reap in flight has taken the claim with the rest of the run.
@@ -616,20 +630,40 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       closeInput: () => {
         if (!hasInput || inputClosed || finishCode !== undefined) return;
         inputClosed = true;
-        try {
-          releaseHeld(base);
-          appendFileSync(`${base}.in`, `${endMarker(base)}\n`);
-        } catch {
-          return;
-        }
+        const close = (): void => {
+          try {
+            releaseHeld(base);
+            appendFileSync(`${base}.in`, `${endMarker(base)}\n`);
+          } catch {
+            return;
+          }
+        };
+        if (parkedLine === undefined) close();
+        else void parkedOut().then(close);
       },
       writeAfter: (line, after) => {
         if (!hasInput) throw new Error("this stream has no input channel");
-        writeOwned(`${base}.late`, `${line}\n`);
-        void after.then(
-          () => releaseLate(base),
-          () => rmSync(`${base}.late`, { force: true }),
-        );
+        const before = parkedLine;
+        let settled: () => void = () => {};
+        const mine: Promise<void> = new Promise(resolve => (settled = resolve));
+        parkedLine = mine;
+        const park = (): Promise<void> => {
+          writeOwned(`${base}.late.key`, randomBytes(6).toString("hex"));
+          writeOwned(`${base}.late`, `${line}\n`);
+          return after.then(
+            () => releaseLate(base),
+            () => {
+              rmSync(`${base}.late`, { force: true });
+              rmSync(`${base}.late.key`, { force: true });
+            },
+          );
+        };
+        void (before === undefined ? park() : before.then(park))
+          .catch(() => undefined)
+          .finally(() => {
+            if (parkedLine === mine) parkedLine = undefined;
+            settled();
+          });
       },
       rest: () => {
         resting = true;

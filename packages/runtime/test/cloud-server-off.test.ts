@@ -6,12 +6,13 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { MCP_READ_END, MCP_READ_MARK, type MachineBackend } from "@wsp/engine";
-import { cloudServerOffLine, type Caller, type TurnResult } from "@wsp/protocol";
+import { cloudServerOffLine, type Caller, type DaemonFrame, type DaemonResponse, type TurnResult } from "@wsp/protocol";
+import type { DaemonChannel } from "../src/daemon-channel.js";
 import { SERVER_NOT_SET_UP, SERVER_OFF, type AgentsOn, type AgentsReader, type ServersActs } from "../src/agents-read.js";
 import { createRuntime, type HarnessAdapterFactory, type HarnessStartOptions, type PlaceBackends, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { memoryStore } from "../src/store.js";
-import { stubBackend, createOn } from "./stub-backend.js";
+import { stubBackend, createOn, tokenGuest } from "./stub-backend.js";
 import { wiring } from "./place-join.js";
 import { answering, joined, type Started } from "./box-fixture.js";
 
@@ -158,6 +159,37 @@ describe("a server that needs the person's sign-in or key, on a cloud machine", 
     const fork = await createOn(rt, { golden: "snap_g", name: "x-aws" });
     await (await rt.sessions.start(fork.id, { prompt: "buckets", harness: "claude" })).finished;
     expect(starts.map(o => o.offServers)).toEqual([["aws-mcp", "aws-installed", "aws-readme", "aws-wrapped"]]);
+  }, 40_000);
+
+  it("a turn's launch takes its folder's snapshot while the machine's config is still being read", async () => {
+    const starts: HarnessStartOptions[] = [];
+    const agentsReader: AgentsReader = { read: () => Promise.reject(new Error("not read here")), tools: () => Promise.reject(new Error("not asked here")), signsIn: async () => () => undefined };
+    const boat = stubBackend();
+    const answer = tokenGuest;
+    let configRead: () => void = () => {};
+    const reading = new Promise<void>(resolve => (configRead = resolve));
+    let readsStarted = 0;
+    boat.execImpl = async (m, cmd) => {
+      if (!cmd.includes("wsp_mcp_read")) return answer(m, cmd);
+      readsStarted += 1;
+      await reading;
+      return { exitCode: 0, stdout: `${MCP_READ_MARK} 0 0 ${Buffer.from("{}").toString("base64")}\n${MCP_READ_END}\n`, stderr: "" };
+    };
+    const ops: unknown[] = [];
+    const daemonChannel = async (): Promise<DaemonChannel> => ({
+      send: async (frame: DaemonFrame) => (ops.push(frame.op), { id: 1, ok: true, commit: "1".repeat(40) } as DaemonResponse),
+      close: () => {},
+      closed: new Promise(() => {}),
+    });
+    rt = createRuntime({ backend: boat, store: memoryStore(), adapters: { claude: quietHarness(starts, true) }, agentsReader, daemonToken: "cafef00d".repeat(3), daemonChannel });
+    const fork = await createOn(rt, { golden: "snap_g", name: "x-snap" });
+    boat.machines[0]!.previewUrl = async () => ({ url: "http://127.0.0.1:7070", token: "e", expiresAt: Date.now() + 3_600_000 });
+    const turn = rt.sessions.start(fork.id, { prompt: "zones", harness: "claude" });
+    await expect.poll(() => readsStarted).toBe(1);
+    await expect.poll(() => ops).toContain("git.snapshot");
+    configRead();
+    await (await turn).finished;
+    expect(starts).toHaveLength(1);
   }, 40_000);
 
   it("a turn on a computer the person joined reads no config for it and leaves nothing out", async () => {

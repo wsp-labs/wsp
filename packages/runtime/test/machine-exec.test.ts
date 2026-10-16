@@ -292,20 +292,6 @@ describe("machineExecStream", () => {
     expect(script.indexOf(`echo $? > '${base}'.exit`)).toBeLessThan(script.indexOf(`kill $(cat '${base}'.tail)`));
   });
 
-  it("with its seed held the launch waits until the seed is due and carries it, since a write is one more exec trip", async () => {
-    const { backend, machine } = await makeMachine();
-    const guest = scriptGuest(backend, [{ append: '{"type":"result"}\n', exit: 0 }, {}]);
-    let due: () => void = () => {};
-    const inputAfter = new Promise<void>(resolve => (due = resolve));
-    const stream = machineExecStream(machine, { pollMs: 5 })("claude -p --input-format stream-json", { env: {}, input: ['{"type":"user","text":"go"}'], inputAfter });
-    await new Promise(resolve => setTimeout(resolve, 20));
-    expect(guest.calls).toEqual([]);
-    due();
-    for await (const _ of stream.lines) void _;
-    expect(await stream.exited).toBe(0);
-    expect(guest.getInput()).toBe('{"type":"user","text":"go"}\n');
-  });
-
   it("a seeded prompt over the cap goes up in pieces ahead of the launch, every exec body under the cap, and the input file decodes byte for byte", async () => {
     const prompt = `{"type":"user","text":${JSON.stringify(Array.from({ length: 520 }, (_, i) => `line ${i} it's ünïcödé ${"y".repeat(50)}`).join("\n"))}}`;
     expect(Buffer.byteLength(prompt)).toBeGreaterThan(40_000);
@@ -347,7 +333,7 @@ describe("machineExecStream", () => {
     now = 900;
     expect(await stream.write("late")).toBe("gone");
     expect(guest.writes).toHaveLength(1);
-    expect(guest.writes[0]).toMatch(/^mkdir -p '\/tmp\/wsp-run'\n\{ \[ -e '\/tmp\/wsp-run\/[a-f0-9]+'\.exit \] \|\| \[ ! -d '\/tmp\/wsp-run\/[a-f0-9]+\.d' \]; \} && \{ echo WSP_GONE; exit 0; \}\nset -o pipefail\n\[ "\$\(cat '\/tmp\/wsp-run\/[a-f0-9]+\.in\.appended' 2>\/dev\/null\)" = '[0-9a-f]{12}\.0' \] \|\| \{ printf %s '[A-Za-z0-9+/=]+' \| base64 -d >> '\/tmp\/wsp-run\/[a-f0-9]+\.in' && printf %s '[0-9a-f]{12}\.0' > '[^']+'; \} \|\| exit 1\necho WSP_OK$/);
+    expect(guest.writes[0]).toMatch(/^mkdir -p '\/tmp\/wsp-run'\n\{ \[ -e '\/tmp\/wsp-run\/[a-f0-9]+'\.exit \] \|\| \[ ! -d '\/tmp\/wsp-run\/[a-f0-9]+\.d' \]; \} && \{ echo WSP_GONE; exit 0; \}\nif \[ -e '\/tmp\/wsp-run\/[a-f0-9]+'\.held \]; then [^\n]+; fi\nset -o pipefail\n\[ "\$\(cat '\/tmp\/wsp-run\/[a-f0-9]+\.in\.appended' 2>\/dev\/null\)" = '[0-9a-f]{12}\.0' \] \|\| \{ printf %s '[A-Za-z0-9+/=]+' \| base64 -d >> '\/tmp\/wsp-run\/[a-f0-9]+\.in' && printf %s '[0-9a-f]{12}\.0' > '[^']+'; \} \|\| exit 1\necho WSP_OK$/);
     expect(guest.getInput()).toBe("first\n");
     now = 1100;
     await expect(first).rejects.toThrow(/^stopped after 0m 01s with no output for 0m$/);
@@ -1001,7 +987,18 @@ describe("machineExecStream", () => {
 const dirs: string[] = [];
 const children: number[] = [];
 afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  // A red run leaves its guest's group going, its tail following a channel the rm takes: the group ends first.
+  for (const d of dirs.splice(0)) {
+    const run = join(d, "run");
+    for (const pid of existsSync(run) ? readdirSync(run).filter(f => f.endsWith(".pid")).map(f => Number(readFileSync(join(run, f), "utf8"))) : []) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        continue;
+      }
+    }
+    rmSync(d, { recursive: true, force: true });
+  }
   // The test asserts the child is gone; this keeps a red run from leaving a sleep behind on the Mac.
   for (const pid of children.splice(0)) {
     try {
@@ -1015,12 +1012,12 @@ afterEach(() => {
 /** This machine's bash as the guest, given what a Linux machine has (`LINUX_SHELL_PRELUDE`). */
 /** `stdin` makes it a machine whose exec hands the command its input, as a computer you own does; without it the
  * input is dropped, as a provider's exec drops it. `calls` is the text of every exec, in order. */
-function localGuest(o: { stdin?: boolean } = {}): { machine: Machine; runDir: string; calls: string[] } {
+function localGuest(o: { stdin?: boolean; shell?: string } = {}): { machine: Machine; runDir: string; calls: string[] } {
   const dir = mkdtempSync(join(tmpdir(), "wsp-machine-exec-"));
   dirs.push(dir);
   const calls: string[] = [];
   // Functions, not shim files: macOS assesses a freshly written executable at its first exec, 110 ms idle, seconds under load.
-  const prelude = LINUX_SHELL_PRELUDE;
+  const prelude = `${LINUX_SHELL_PRELUDE}${o.shell ?? ""}`;
   const machine = {
     id: "local",
     ...(o.stdin === true ? { takesStdin: true } : {}),
@@ -1545,6 +1542,231 @@ describe("machineExecStream feeding a real process over the input channel", () =
     expect(lines).toEqual(["hello"]);
     expect(await stream.exited).toBe(0);
     expect(readdirSync(runDir)).toEqual([]);
+  }, 15_000);
+});
+
+describe("machineExecStream holding a seed until it is due", () => {
+  const file = (runDir: string, suffix: string): string | undefined => readdirSync(runDir).find(f => f.endsWith(suffix));
+  const read = (stream: ExecStream): { lines: string[]; done: Promise<void> } => {
+    const lines: string[] = [];
+    const done = (async () => {
+      for await (const l of stream.lines) lines.push(l);
+    })();
+    return { lines, done };
+  };
+
+  it("starts the command at once, hands it the seed once due and not before, and leaves no held file", async () => {
+    const { machine, runDir } = localGuest();
+    let due: () => void = () => {};
+    const inputAfter = new Promise<void>(resolve => (due = resolve));
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["hello"], inputAfter });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(readFileSync(join(runDir, file(runDir, ".tail")!), "utf8").trim()).not.toBe(""), { timeout: 5000 });
+    expect(readFileSync(join(runDir, file(runDir, ".in")!), "utf8")).toBe("");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(lines).toEqual([]);
+    due();
+    await vi.waitFor(() => expect(lines).toEqual(["hello"]), { timeout: 5000 });
+    expect(file(runDir, ".held")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["hello"]);
+    expect(await stream.exited).toBe(0);
+  }, 15_000);
+
+  it("puts a line written before the seed is due after the seed, and hands the seed over once", async () => {
+    const { machine, runDir } = localGuest();
+    let due: () => void = () => {};
+    const inputAfter = new Promise<void>(resolve => (due = resolve));
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["hello"], inputAfter });
+    const { lines, done } = read(stream);
+    expect(await stream.write("world")).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["hello", "world"]), { timeout: 5000 });
+    due();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["hello", "world"]);
+  }, 15_000);
+
+  it("a host that attaches to a run whose seed is still held hands the seed over and reads it back as taken", async () => {
+    const { machine, runDir } = localGuest();
+    const factory = machineExecStream(machine, { pollMs: 20, runDir });
+    const launched = factory("cat", { env: {}, input: ["hello"], inputAfter: new Promise<void>(() => {}) });
+    await vi.waitFor(() => expect(file(runDir, ".held")).toBeDefined(), { timeout: 5000 });
+    const run = launched.run!;
+    const attached = await machineExecStream(machine, { pollMs: 20, runDir }).attach!(run, { input: true, startedAt: Date.now() });
+    expect(attached).not.toBe("gone");
+    const stream = attached as ExecStream;
+    expect(stream.taken).toEqual(["hello"]);
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["hello"]), { timeout: 5000 });
+    expect(file(runDir, ".held")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    expect(await stream.exited).toBe(0);
+    launched.kill();
+  }, 15_000);
+});
+
+describe("machineExecStream holding a line written ahead of when it is due", () => {
+  const file = (runDir: string, suffix: string): string | undefined => readdirSync(runDir).find(f => f.endsWith(suffix));
+  const read = (stream: ExecStream): { lines: string[]; done: Promise<void> } => {
+    const lines: string[] = [];
+    const done = (async () => {
+      for await (const l of stream.lines) lines.push(l);
+    })();
+    return { lines, done };
+  };
+
+  it("parks the line beside the run and appends it once due, after what the channel took before", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    let due: () => void = () => {};
+    stream.writeAfter!("two", new Promise<void>(resolve => (due = resolve)));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(lines).toEqual(["one"]);
+    due();
+    await vi.waitFor(() => expect(lines).toEqual(["one", "two"]), { timeout: 5000 });
+    expect(file(runDir, ".late")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one", "two"]);
+  }, 15_000);
+
+  it("drops the line when what it waits on is refused", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    let refuse: () => void = () => {};
+    stream.writeAfter!("two", new Promise<void>((_, reject) => (refuse = () => reject(new Error("stopped")))));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    refuse();
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeUndefined(), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one"]);
+  }, 15_000);
+
+  it("hands a held seed over once when a write lands as it comes due, and a prompt with the same words goes in each time, through the guest's own shell", async () => {
+    // The guest's cat reads a held seed at once and prints it a second later, so two hand-overs that ran at once would
+    // both have found the channel empty and both append it.
+    const { machine, runDir } = localGuest({ shell: 'cat() { case "$1" in *.held) local t; t=$(command cat "$1"); sleep 1; printf \'%s\\n\' "$t"; return ;; esac; command cat "$@"; }\n' });
+    let due: () => void = () => {};
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["seed"], inputAfter: new Promise<void>(resolve => (due = resolve)) });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(file(runDir, ".held")).toBeDefined(), { timeout: 5000 });
+    due();
+    expect(await stream.write("steer")).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "steer"]), { timeout: 5000 });
+    const yes = '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"yes"}]},"parent_tool_use_id":null,"session_id":"s"}';
+    stream.writeAfter!(yes, Promise.resolve());
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "steer", yes]), { timeout: 5000 });
+    stream.writeAfter!(yes, Promise.resolve());
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "steer", yes, yes]), { timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 300));
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["seed", "steer", yes, yes]);
+  }, 20_000);
+
+  it("parks the line as the login's alone, as every other file of the run", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"], inputAfter: new Promise<void>(() => {}) });
+    const { done } = read(stream);
+    await vi.waitFor(() => expect(file(runDir, ".held")).toBeDefined(), { timeout: 5000 });
+    stream.writeAfter!("two", new Promise<void>(() => {}));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    const mode = (suffix: string): string => (statSync(join(runDir, file(runDir, suffix)!)).mode & 0o777).toString(8);
+    expect([mode(".in"), mode(".held"), mode(".late")]).toEqual(["600", "600", "600"]);
+    stream.kill();
+    await done.catch(() => undefined);
+  }, 15_000);
+
+  it("puts a line written while another is parked after the parked one", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    let due: () => void = () => {};
+    stream.writeAfter!("prompt", new Promise<void>(resolve => (due = resolve)));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    const steered = stream.write("steer");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    due();
+    expect(await steered).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["one", "prompt", "steer"]), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+  }, 15_000);
+
+  it("puts a line written in the tick before another is parked ahead of it, as a kept Codex writes thread/resume before its turn/start", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    const resumed = stream.write("resume");
+    stream.writeAfter!("turn", new Promise<void>(resolve => setTimeout(resolve, 200)));
+    expect(await resumed).toBe("written");
+    await vi.waitFor(() => expect(lines).toEqual(["one", "resume", "turn"]), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one", "resume", "turn"]);
+  }, 15_000);
+
+  it("hands two lines parked one after the other over in order, neither lost", async () => {
+    const { machine, runDir } = localGuest();
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one"]), { timeout: 5000 });
+    let first: () => void = () => {};
+    let second: () => void = () => {};
+    stream.writeAfter!("two", new Promise<void>(resolve => (first = resolve)));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    stream.writeAfter!("three", new Promise<void>(resolve => (second = resolve)));
+    second();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    expect(lines).toEqual(["one"]);
+    first();
+    await vi.waitFor(() => expect(lines).toEqual(["one", "two", "three"]), { timeout: 5000 });
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["one", "two", "three"]);
+  }, 15_000);
+
+  it("a line parked while the seed is still held goes after the seed, which is not lost", async () => {
+    const { machine, runDir } = localGuest();
+    let due: () => void = () => {};
+    const stream = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["seed"], inputAfter: new Promise<void>(resolve => (due = resolve)) });
+    const { lines, done } = read(stream);
+    stream.writeAfter!("late", Promise.resolve());
+    await vi.waitFor(() => expect(lines).toEqual(["seed", "late"]), { timeout: 5000 });
+    due();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    stream.closeInput();
+    await done;
+    expect(lines).toEqual(["seed", "late"]);
+  }, 15_000);
+
+  it("a host that attaches to the run hands a parked line over once, after the channel's own", async () => {
+    const { machine, runDir } = localGuest();
+    const launched = machineExecStream(machine, { pollMs: 20, runDir })("cat", { env: {}, input: ["one"] });
+    const first = read(launched);
+    await vi.waitFor(() => expect(first.lines).toEqual(["one"]), { timeout: 5000 });
+    launched.writeAfter!("two", new Promise<void>(() => {}));
+    await vi.waitFor(() => expect(file(runDir, ".late")).toBeDefined(), { timeout: 5000 });
+    const attached = await machineExecStream(machine, { pollMs: 20, runDir }).attach!(launched.run!, { input: true, startedAt: Date.now() });
+    const stream = attached as ExecStream;
+    expect(stream.taken).toEqual(["one", "two"]);
+    const { lines, done } = read(stream);
+    await vi.waitFor(() => expect(lines).toEqual(["one", "two"]), { timeout: 5000 });
+    expect(file(runDir, ".late")).toBeUndefined();
+    stream.closeInput();
+    await done;
+    launched.kill();
   }, 15_000);
 });
 
