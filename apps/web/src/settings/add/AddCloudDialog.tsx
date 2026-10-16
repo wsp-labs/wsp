@@ -10,7 +10,7 @@
 import { CheckIcon, CircleAlertIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon, TerminalIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { catalogEntry } from "@wsp/catalog";
-import { CLOUD_SETUP_WORDS, HERE_PLACE_ID, INIT_ROW_STATES, PROVIDER_KEY_WORDS, UNKNOWN_SIZE, fmtBytes, fmtDuration, hereName, initBuildRows, initJobBuilding, initRowFailed, initRowOver, initRowUnrun, initSizeTone, initStageCount, isLocalWorkspace, type AgentRow, type AgentsReport, type AgentsTarget, type InitJob, type InitRow, type InitScreen, type InitSetup, type RecipeOptions } from "@wsp/protocol";
+import { CLOUD_SETUP_WORDS, HERE_PLACE_ID, INIT_ROW_STATES, PROVIDER_KEY_WORDS, SIGN_IN_STAGE_ID, UNKNOWN_SIZE, fmtBytes, fmtDuration, hereName, initBuildRows, initJobBuilding, initRowFailed, initRowOver, initRowUnrun, initSizeTone, initStageCount, isLocalWorkspace, type AgentRow, type AgentsReport, type AgentsTarget, type InitJob, type InitRow, type InitScreen, type InitSetup, type RecipeOptions } from "@wsp/protocol";
 import { ActButton } from "../../components/agents/agentsParts.js";
 import { agentSignInStart, catalogSignInRow, signInAct, type FlowView, type RowAct, type RowsContext } from "../../components/agents/agentsRows.js";
 import { SignInFlowView } from "../../components/agents/SignInFlowView.js";
@@ -45,7 +45,7 @@ import { Choice, Size } from "./PickLists.js";
 import { PickRow } from "./PickRow.js";
 import { ReadyPage } from "./AddComputerDialog.js";
 import { STEP_BODY, STEP_FRAME, STEP_HEAD, StepFoot } from "./StepDialog.js";
-import { StepRow } from "./StepRow.js";
+import { StepLog, StepRow } from "./StepRow.js";
 import type { StepLine, StepState } from "./setup.js";
 
 /** Each pick step's title and its line, `cloud` the provider's name and `here` the computer the host runs on. */
@@ -294,11 +294,17 @@ function BuildingView({ job }: { job: InitJob }) {
     const state = stepState(row);
     return { id: row.id, name: row.label, state, ...(row.ms === undefined ? {} : { ms: row.ms }), ...(state === "working" && row.since !== undefined ? { since: row.since } : {}), ...(state === "failed" && row.detail !== undefined ? { said: row.detail } : {}) };
   });
+  const lines = new Map(job.rows.map(r => [r.id, r.lines]));
+  const [turned, setTurned] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const opens = (row: StepLine): boolean => row.state !== "waiting" && row.id !== SIGN_IN_STAGE_ID;
+  const isOpen = (row: StepLine): boolean => opens(row) && (turned.get(row.id) ?? row.state === "failed");
   return (
     <>
       <Card id="cloud-setup">
         {rows.map(row => (
-          <StepRow key={row.id} row={row} />
+          <StepRow key={row.id} row={row} toggle={opens(row) ? { open: isOpen(row), onToggle: () => setTurned(was => new Map(was).set(row.id, !isOpen(row))) } : { open: false }}>
+            {isOpen(row) ? <StepLog lines={lines.get(row.id)} /> : undefined}
+          </StepRow>
         ))}
       </Card>
       {job.phase === "failed" && job.error !== undefined ? <RefusalSlot k="build-failed" said={job.error} /> : null}
