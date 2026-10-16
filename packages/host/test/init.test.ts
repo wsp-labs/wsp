@@ -3541,14 +3541,15 @@ describe("disk estimate before the boot", () => {
 describe("wsp init with a golden already built from a recipe", () => {
   /** A first init under --yes that prepared and sealed golden v1; the builder stays for its window. Its first
    * workspace is refused by the host fake so the machines here are the builder and the forks the seals boot. */
-  async function sealed(over: Partial<InitOptions> = {}, answer?: (cmd: string) => ExecResult) {
+  async function sealed(over: Partial<InitOptions> = {}, answer?: (cmd: string) => ExecResult, boat?: StubBackend) {
     const store = ownedStore();
     const shared = stubBackend();
     if (answer !== undefined) shared.execImpl = (_m, cmd) => answer(cmd);
+    const places = boat === undefined ? {} : { places: { wired: "default", backend: (p: string) => ({ default: shared, boat })[p], list: () => ["default", "boat"] } };
     const first = fake({ yes: true, ...over });
     first.opts.runtime = recipe => {
       first.backends.push(shared);
-      const rt = createRuntime({ backend: shared, store, adapters: {}, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, hostId: "box:h1" });
+      const rt = createRuntime({ backend: shared, store, adapters: {}, ...places, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, hostId: "box:h1" });
       first.runtimes.push(rt);
       return rt;
     };
@@ -3564,13 +3565,13 @@ describe("wsp init with a golden already built from a recipe", () => {
       const f = fake({ yes: true, home: first.opts.home, statePath: first.opts.statePath, ...o });
       f.opts.runtime = recipe => {
         f.backends.push(shared);
-        const rt = createRuntime({ backend: shared, store, adapters: {}, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, snapshotRetryMs: 1 , hostId: "box:h1" });
+        const rt = createRuntime({ backend: shared, store, adapters: {}, ...places, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, snapshotRetryMs: 1 , hostId: "box:h1" });
         f.runtimes.push(rt);
         return rt;
       };
       return f;
     };
-    return { store, shared, first, next };
+    return { store, shared, places, first, next };
   }
 
   it("--non-interactive at a terminal takes the update for that flag, and off a terminal for the terminal that is missing", async () => {
@@ -3886,6 +3887,80 @@ describe("wsp init with a golden already built from a recipe", () => {
     expect((await runInit(again.opts, again.io)).code).toBe(0);
     expect(again.text()).toContain("Image v2 already matches this recipe. Nothing to update; run wsp to serve it.");
     expect(shared.machines).toHaveLength(3);
+  });
+
+  /** Golden v1 sealed here, then a copy of it started at Boat two hours ago and left unsealed: an earlier builder of
+   * this image at another place, still billing. The recipe has changed since v1 unless asked not to, so the next run takes the update road. */
+  async function strayAtBoat(change = true) {
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    const s = await sealed({}, undefined, boat);
+    // The two stubs number machines alike, so the stray takes m2 at Boat and keeps apart from the kept builder m1.
+    await boat.create({ kind: "sandbox", cpu: 2, memMb: 4096 });
+    const stray = createRuntime({ backend: s.shared, store: s.store, adapters: {}, ...s.places, goldenRecipe: { setup: "true", smoke: "true", cpu: 2, memMb: 4096 }, hostId: "box:h1" });
+    const b = await stray.golden.prepare({ place: "boat", copy: true });
+    await stray.close();
+    const record = (await s.store.get("builders", b.id)) as { createdAt: string };
+    await s.store.put("builders", b.id, { ...record, createdAt: new Date(Date.now() - 2 * 3_600_000).toISOString() });
+    if (change) writeFileSync(join(s.first.opts.home, ".zshrc"), "export A=1\nexport B=2\n");
+    return { ...s, boat, b };
+  }
+
+  it("an earlier builder left at another place is named at that place's price and stopped on the yes before the update runs", async () => {
+    const { shared, boat, b, next } = await strayAtBoat();
+    const f = next({ tty: false });
+    expect((await runInit(f.opts, f.io)).code).toBe(0);
+    const out = f.text();
+    const cost = (2 * BOX_PRICING.rateUsdPerHour(b.size)).toFixed(2);
+    expect(out).toContain("A builder from an earlier wsp init is still running on the account:");
+    expect(out).toMatch(new RegExp(`^.*default \\(${b.id}\\), 2\\.0 h old, about \\$${reEscape(cost)} so far; at boat, and this run builds at default$`, "m"));
+    expect(out).toContain("Stop it, then compare your image with this recipe? Taken as yes (--yes).");
+    expect(out).toContain(`Stopped default (${b.id}).`);
+    expect(out.indexOf(`Stopped default (${b.id}).`)).toBeLessThan(out.indexOf("Changes since image v1"));
+    expect(out).toMatch(/Image v2 sealed in \d+s on the builder kept since the save/);
+    expect(boat.machines.map(m => [m.id, m.killed])).toEqual([["m1", false], [b.id, true]]);
+    expect(shared.machines[0]!.killed).toBe(false);
+  });
+
+  it("an earlier builder left at another place is stopped on the update road when the image already matches the recipe", async () => {
+    const { boat, b, next } = await strayAtBoat(false);
+    const f = next({ tty: false });
+    expect((await runInit(f.opts, f.io)).code).toBe(0);
+    const out = f.text();
+    expect(out).toContain("Stop it, then compare your image with this recipe? Taken as yes (--yes).");
+    expect(out.indexOf(`Stopped default (${b.id}).`)).toBeLessThan(out.indexOf("Image v1 already matches this recipe."));
+    expect(boat.machines.map(m => [m.id, m.killed])).toEqual([["m1", false], [b.id, true]]);
+  });
+
+  it("interactive: a no to stopping an earlier builder at another place changes and stops nothing; a yes stops it once, and a rebuild picked after asks only its boot question", async () => {
+    const { shared, boat, b, next } = await strayAtBoat();
+    const no = next({ yes: false, tty: true });
+    const refused = runInit(no.opts, no.io);
+    await throughScreens(no);
+    await no.until("Stop it, then compare your image with this recipe?");
+    await no.press("n");
+    expect((await refused).code).toBe(1);
+    expect(no.text()).toMatch(new RegExp(`default \\(${b.id}\\), 2\\.0 h old, about \\$[\\d.]+ so far; at boat, and this run builds at default`));
+    expect(no.text()).toContain("Nothing was changed or stopped. The recipe is kept.");
+    expect(no.text()).not.toContain("Changes since image v1");
+    expect(boat.machines.map(m => m.killed)).toEqual([false, false]);
+    await no.runtimes.at(-1)!.close();
+
+    const yes = next({ yes: false, tty: true });
+    const run = runInit(yes.opts, yes.io);
+    await throughScreens(yes);
+    await yes.until("Stop it, then compare your image with this recipe?");
+    await yes.press("y");
+    await yes.until("How do you want to apply them?");
+    await yes.press(KEY.down, KEY.enter);
+    await yes.until(BOOT);
+    await yes.press(KEY.esc);
+    expect((await run).code).toBe(1);
+    const out = yes.text();
+    expect(out.match(/still running on the account/g)).toHaveLength(1);
+    expect(out).not.toContain("Stop it, then boot");
+    expect(out.indexOf(`Stopped default (${b.id}).`)).toBeLessThan(out.indexOf("Changes since image v1"));
+    expect(boat.machines.map(m => [m.id, m.killed])).toEqual([["m1", false], [b.id, true]]);
+    expect(shared.machines[0]!.killed).toBe(false);
   });
 
   /** The recipe with yq off: the formula this Mac has comes off the golden on the next update. */
