@@ -1152,3 +1152,22 @@ describe("createSessionFold: one event at a time", () => {
   });
 });
 
+
+describe("a retry of a failed model call", () => {
+  const turn = { workspaceId: "ws_t", sessionId: "sess_t", turnId: "turn_r", threadId: "thr_r" };
+  const retry: SessionEvent = { type: "session.retry", ...turn, line: 1, attempt: 1, of: 10, why: "Anthropic did not answer" };
+  const retryingAfter = (...later: SessionEvent[]) => deriveSession([{ type: "session.start", ...turn, prompt: "hi" }, retry, ...later]).retrying;
+
+  it("stands through what lands in the turn while the call still fails: a slate's run on its timer, a steer and a notice", () => {
+    const slateRun: SessionEvent = { type: "session.slate", ...turn, cause: "run", version: 2, by: "timer", pieces: ["clock"], run: "clock" };
+    const steer: SessionEvent = { type: "session.steer", ...turn, prompt: "still there?", requestId: "req_s" };
+    const notice: SessionEvent = { type: "session.notice", ...turn, text: "the disk is past 90 percent" };
+    expect(retryingAfter(slateRun, steer, notice)).toEqual(retry);
+  });
+
+  it("goes when the agent writes into the turn, and with the turn's end", () => {
+    expect(retryingAfter({ type: "session.delta", ...turn, kind: "text", text: "back" })).toBeNull();
+    expect(retryingAfter({ type: "session.context", ...turn, context: 2_000 })).toBeNull();
+    expect(retryingAfter({ type: "session.end", ...turn, exitCode: 1, sawResult: false })).toBeNull();
+  });
+});

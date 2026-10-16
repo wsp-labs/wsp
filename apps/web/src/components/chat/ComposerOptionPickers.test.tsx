@@ -94,6 +94,7 @@ const view: ChatThreadView = {
   runs: new Map(),
   plan: null,
   earlier: false,
+  retrying: null,
 };
 const thread = { view, hydrated: true, busy: false, sending: false, fresh: true, thread: undefined, threadKey: WS, named: null } as unknown as ChatThreadHandle;
 
