@@ -14,11 +14,12 @@ export const GUARD_END = "# <<< wsp guard <<<";
 /** A name a function definition or a call may carry in zsh and bash; what a guard can define. */
 const WORD = /^[A-Za-z_][\w.+-]*$/;
 
-/** Builtins and the functions zsh's own package ships, beyond what the history parser already knows: on any
- * image with the shell, never a call to guard. */
+/** Builtins, reserved words and the functions zsh's own package ships, beyond what the history parser already knows: on
+ * any image with the shell, never a call to guard. zsh 5.9 reads a guard by a reserved word's name as a parse error
+ * (`repeat() {`) or a function it runs at once (`nocorrect() {`), and one by a builtin's shadows it (`private`). */
 const RC_BUILTIN = new Set([
   "autoload", "bg", "bindkey", "bye", "chdir", "compadd", "compdef", "compdescribe", "compinit", "complete", "compgen", "compopt", "coproc", "dirs", "disable", "disown", "echotc", "echoti", "emulate", "enable", "fc", "fg",
-  "functions", "getln", "getopts", "hash", "history", "in", "integer", "jobs", "let", "limit", "logout", "mapfile", "popd", "print", "pushd", "pushln", "r", "readarray", "rehash", "sched", "select", "setopt", "shopt",
+  "float", "functions", "getln", "getopts", "hash", "history", "in", "integer", "jobs", "let", "limit", "logout", "mapfile", "nocorrect", "noglob", "popd", "print", "private", "pushd", "pushln", "r", "readarray", "rehash", "repeat", "sched", "select", "setopt", "shopt",
   "suspend", "times", "ttyctl", "umask", "unalias", "unfunction", "unhash", "unlimit", "unsetopt", "vared", "whence", "where", "zcompile", "zformat", "zle", "zmodload", "zparseopts", "zprof", "zstyle",
   "add-zsh-hook", "add-zle-hook-widget", "bashcompinit", "colors", "compaudit", "is-at-least", "promptinit", "prompt", "run-help", "select-word-style", "vcs_info", "zargs", "zcalc", "zed", "zmv", "zrecompile",
   "bracketed-paste-magic", "url-quote-magic", "edit-command-line", "up-line-or-beginning-search", "down-line-or-beginning-search", "history-search-end",
