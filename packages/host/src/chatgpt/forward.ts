@@ -64,6 +64,42 @@ function open(target: Target, method: string, headers: string[], pooled: boolean
 const REWRITE_MAX = 1024 * 1024;
 export type Rewrite = (body: Buffer) => Buffer | undefined;
 
+/** How long a model call may go with no reply started, plus a second per 32 KB it sends, and what to do once it is cut. */
+export interface FirstByteWait {
+  ms: number;
+  cut: () => void;
+}
+
+const waitFor = (wait: FirstByteWait, bytes: number) => wait.ms + Math.floor(bytes / 32_768) * 1_000;
+
+/** Reads the frame headers off one direction of a websocket, calling onData with each message's payload bytes as
+ * they pass, so a ping, a pong or a close is never taken for a call or for its reply. */
+function messageBytes(onData: (bytes: number) => void): (chunk: Buffer) => void {
+  let head: number[] = [];
+  let left = 0;
+  let data = false;
+  return (chunk) => {
+    for (let at = 0; at < chunk.length; ) {
+      if (left > 0) {
+        const n = Math.min(left, chunk.length - at);
+        left -= n;
+        at += n;
+        if (data) onData(n);
+        continue;
+      }
+      head.push(chunk[at++]!);
+      if (head.length < 2) continue;
+      const short = head[1]! & 0x7f;
+      if (head.length < 2 + (short === 126 ? 2 : short === 127 ? 8 : 0) + (head[1]! & 0x80 ? 4 : 0)) continue;
+      left = short === 126 ? (head[2]! << 8) | head[3]! : short === 127 ? Number(Buffer.from(head.slice(2, 10)).readBigUInt64BE()) : short;
+      // Opcodes 8 and up are control frames.
+      data = (head[0]! & 0x0f) < 8;
+      head = [];
+      if (data && left === 0) onData(0);
+    }
+  };
+}
+
 function answerRewritten(u: IncomingMessage, res: ServerResponse, rewrite: Rewrite): void {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -80,14 +116,25 @@ function answerRewritten(u: IncomingMessage, res: ServerResponse, rewrite: Rewri
   });
 }
 
-export function passHttp(req: IncomingMessage, res: ServerResponse, target: Target, headers: string[], refuse: Refusal, said: Sentences, rewrite?: Rewrite): Promise<void> {
+/** wait: once it passes with no reply started, the call is cut and answered as an event stream that ends before its
+ * last event, which Codex retries at once and says so. */
+export function passHttp(req: IncomingMessage, res: ServerResponse, target: Target, headers: string[], refuse: Refusal, said: Sentences, opts: { rewrite?: Rewrite; wait?: FirstByteWait } = {}): Promise<void> {
+  const { rewrite, wait } = opts;
   return new Promise((resolve) => {
     const up = open(target, req.method ?? "GET", headers, true);
+    const timer = wait === undefined ? undefined : setTimeout(() => {
+      wait.cut();
+      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
+      res.end();
+      up.destroy();
+    }, waitFor(wait, Number(req.headers["content-length"] ?? 0)));
     res.on("close", () => {
+      clearTimeout(timer);
       if (!res.writableFinished) up.destroy();
       resolve();
     });
     up.on("response", (u) => {
+      clearTimeout(timer);
       if (u.statusCode === 401) {
         u.resume();
         refuse(res, 403, said.refused);
@@ -101,6 +148,7 @@ export function passHttp(req: IncomingMessage, res: ServerResponse, target: Targ
       u.pipe(res);
     });
     up.on("error", () => {
+      if (res.writableEnded) return;
       if (res.headersSent) res.destroy();
       else refuse(res, 503, said.unreachable);
     });
@@ -123,7 +171,40 @@ export function responseOn(req: IncomingMessage, socket: Duplex): ServerResponse
   return res;
 }
 
-export function passUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, target: Target, headers: string[], refuse: Refusal, said: Sentences): Promise<void> {
+/** Cuts a websocket, both ways, once the caller has sent a message and the upstream has sent none back within the
+ * message's wait, which Codex reads as a dropped stream and retries. A ping, a pong or a close is never a message.
+ * The wait is asked for as each message starts, since one socket carries a thread's calls from turn to turn. */
+function cutUnanswered(socket: Duplex, upSocket: Duplex, next: () => FirstByteWait | undefined): { sent: (chunk: Buffer) => void; got: (chunk: Buffer) => void } {
+  let since: number | undefined;
+  let wait: FirstByteWait | undefined;
+  let bytes = 0;
+  let timer: NodeJS.Timeout | undefined;
+  socket.on("close", () => clearTimeout(timer));
+  const sent = messageBytes((n) => {
+    if (since === undefined) {
+      since = Date.now();
+      wait = next();
+    }
+    bytes += n;
+    const w = wait;
+    if (w === undefined) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      w.cut();
+      socket.destroy();
+      upSocket.destroy();
+    }, since + waitFor(w, bytes) - Date.now());
+  });
+  const got = messageBytes(() => {
+    since = undefined;
+    bytes = 0;
+    clearTimeout(timer);
+  });
+  return { sent, got };
+}
+
+/** wait: the wait for a reply to start after each message the caller sends, as passHttp's, asked for as it starts. */
+export function passUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, target: Target, headers: string[], refuse: Refusal, said: Sentences, wait?: () => FirstByteWait | undefined): Promise<void> {
   return new Promise((resolve) => {
     const up = open(target, req.method ?? "GET", headers, false);
     let answer: ServerResponse | undefined;
@@ -146,6 +227,13 @@ export function passUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, 
       upSocket.on("error", () => socket.destroy());
       upSocket.on("close", () => socket.destroy());
       socket.on("close", () => upSocket.destroy());
+      if (wait !== undefined) {
+        const watch = cutUnanswered(socket, upSocket, wait);
+        watch.got(upHead);
+        watch.sent(head);
+        upSocket.on("data", watch.got);
+        socket.on("data", watch.sent);
+      }
       upSocket.pipe(socket);
       socket.pipe(upSocket);
     });
