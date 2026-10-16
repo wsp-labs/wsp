@@ -292,13 +292,94 @@ describe("the retention offer over the stub backend", () => {
     }
   });
 
+  it("an image sealed where this host forks has its copies at another provider offered and deleted there, at that provider's rate", async () => {
+    const store = memoryStore();
+    const backend = stubBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    await store.put("goldens", copyKey("default", "default"), { head: 2, versions: [1, 2].map(n => version(n, n > 1 ? n - 1 : undefined)) });
+    for (const n of [1, 2]) backend.snapshots.push({ id: `snap_golden-v${n}`, sizeBytes: (7 + n) * GB });
+    await store.put("goldens", copyKey("boat", "default"), { head: 4, versions: [1, 2, 3, 4].map(n => ({ ...version(n, n > 1 ? n - 1 : undefined), snapshotId: `snap_copy-v${n}`, ...(n > 1 ? { parentSnapshotId: `snap_copy-v${n - 1}` } : {}) })) });
+    for (let i = 1; i <= 10; i += 1) boat.snapshots.push({ id: `snap_acme-${i}`, name: `acme-${i}`, sizeBytes: GB });
+    for (const n of [1, 2, 3, 4]) boat.snapshots.push({ id: `snap_copy-v${n}`, name: `copy-v${n}`, sizeBytes: GB });
+    await store.put("images", "default", { name: "default", version: 2, hash: "a".repeat(64), recipeHash: "h1", recipe: {}, pins: [], logins: [], sealedAt: "2026-09-01T00:00:00.000Z", sealedFrom: "h1", place: "default" });
+    const rt = createRuntime({ backend, store, adapters: {}, places: { wired: "default", backend: p => ({ default: backend, boat })[p], list: () => ["default", "boat"] } });
+    const g = { input: new PassThrough(), output: new PassThrough() };
+    const chunks: string[] = [];
+    g.output.on("data", (c: Buffer) => chunks.push(c.toString()));
+    try {
+      await retentionOffer({ rt, interactive: false, takenAs: "--yes", ...g });
+      const out = stripVTControlCharacters(chunks.join(""));
+      expect(out).toContain("Delete v1 and v2 of the copy of your image at boat, 2 named snapshots, saving about $3.40/month? v4 and v3 stay. Taken as yes (--yes).");
+      expect(out).toContain("Deleted v1 and v2 of the copy of your image at boat.");
+      expect(boat.snapshots.filter(r => r.id.startsWith("snap_copy")).map(r => r.id)).toEqual(["snap_copy-v3", "snap_copy-v4"]);
+      expect(backend.snapshots.map(r => r.id)).toEqual(["snap_golden-v1", "snap_golden-v2"]);
+    } finally {
+      await rt.close();
+    }
+  });
+
+  it("a copy's guarded and refused versions are named as the copy's, with the version written as it is", async () => {
+    const store = memoryStore();
+    const backend = stubBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    await store.put("goldens", copyKey("default", "default"), { head: 2, versions: [1, 2].map(n => version(n, n > 1 ? n - 1 : undefined)) });
+    await store.put("goldens", copyKey("boat", "default"), { head: 5, versions: [1, 2, 3, 4, 5].map(n => ({ ...version(n, n > 1 ? n - 1 : undefined), snapshotId: `snap_copy-v${n}`, ...(n > 1 ? { parentSnapshotId: `snap_copy-v${n - 1}` } : {}) })) });
+    for (const n of [1, 2, 3, 4, 5]) boat.snapshots.push({ id: `snap_copy-v${n}`, name: `copy-v${n}`, sizeBytes: GB });
+    const deleteSnapshot = boat.deleteSnapshot.bind(boat);
+    boat.deleteSnapshot = async (id: string) => {
+      if (id === "snap_copy-v3") throw new Error("busy");
+      await deleteSnapshot(id);
+    };
+    const rt = createRuntime({ backend, store, adapters: {}, places: { wired: "default", backend: p => ({ default: backend, boat })[p], list: () => ["default", "boat"] } });
+    const g = { input: new PassThrough(), output: new PassThrough() };
+    const chunks: string[] = [];
+    g.output.on("data", (c: Buffer) => chunks.push(c.toString()));
+    try {
+      await createOn(rt, { golden: "snap_copy-v1", name: "alpha" });
+      await store.put("images", "default", { name: "default", version: 2, hash: "a".repeat(64), recipeHash: "h1", recipe: {}, pins: [], logins: [], sealedAt: "2026-09-01T00:00:00.000Z", sealedFrom: "h1", place: "default" });
+      await retentionOffer({ rt, interactive: false, takenAs: "--yes", ...g });
+      const out = stripVTControlCharacters(chunks.join(""));
+      expect(out).toContain("The copy of your image at boat keeps v1: workspace alpha was forked from it.");
+      expect(out).toContain("The copy of your image at boat keeps v3, which was not deleted (busy); it stays in the lineage.");
+      expect(out).toContain("Deleted v2 of the copy of your image at boat.");
+      expect(boat.snapshots.map(r => r.id)).toEqual(["snap_copy-v1", "snap_copy-v3", "snap_copy-v4", "snap_copy-v5"]);
+    } finally {
+      await rt.close();
+    }
+  });
+
+  it("a place that refuses its listing after deletes at another is named, and only its own versions are said to stay", async () => {
+    const store = memoryStore();
+    const backend = stubBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    await store.put("goldens", copyKey("default", "default"), { head: 4, versions: [1, 2, 3, 4].map(n => version(n, n > 1 ? n - 1 : undefined)) });
+    for (const n of [1, 2, 3, 4]) backend.snapshots.push({ id: `snap_golden-v${n}`, sizeBytes: (7 + n) * GB });
+    await store.put("goldens", copyKey("boat", "default"), { head: 3, versions: [1, 2, 3].map(n => ({ ...version(n, n > 1 ? n - 1 : undefined), snapshotId: `snap_copy-v${n}`, ...(n > 1 ? { parentSnapshotId: `snap_copy-v${n - 1}` } : {}) })) });
+    boat.listSnapshots = async () => {
+      throw new Error("unauthorized");
+    };
+    const rt = createRuntime({ backend, store, adapters: {}, places: { wired: "default", backend: p => ({ default: backend, boat })[p], list: () => ["default", "boat"] } });
+    const g = { input: new PassThrough(), output: new PassThrough() };
+    const chunks: string[] = [];
+    g.output.on("data", (c: Buffer) => chunks.push(c.toString()));
+    try {
+      await retentionOffer({ rt, interactive: false, takenAs: "--yes", ...g });
+      const out = stripVTControlCharacters(chunks.join(""));
+      expect(out).toContain("Deleted image v1 and v2.");
+      expect(out).toContain("Snapshot storage at boat was not read (unauthorized); every version there is kept.");
+      expect(out).not.toContain("every image version is kept");
+    } finally {
+      await rt.close();
+    }
+  });
+
   it("a listing the provider refuses keeps every version and says so", async () => {
     const g = await golden();
     g.backend.listSnapshots = async () => {
       throw new Error("502 Bad Gateway");
     };
     await retentionOffer({ rt: g.rt, interactive: false, takenAs: "--yes", ...streams(g) });
-    expect(g.text()).toContain("Snapshot storage was not read (502 Bad Gateway); every image version is kept.");
+    expect(g.text()).toContain("Snapshot storage at default was not read (502 Bad Gateway); every version there is kept.");
     expect((await g.rt.golden.get())!.versions).toHaveLength(4);
   });
 });
