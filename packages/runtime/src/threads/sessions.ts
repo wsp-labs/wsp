@@ -250,6 +250,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     replaceable,
     warm,
     noteWaited: ctx.noteWaited,
+    noteRetry: ctx.noteRetry,
 
     async start(workspaceId, opened, origin) {
       await ctx.ready();

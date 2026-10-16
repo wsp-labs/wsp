@@ -95,6 +95,8 @@ export interface BrokerContext {
   credential<K extends CredentialKind>(kind: K): Promise<CredentialOf[K] | undefined>;
   workspace(id: string): Promise<BrokerWorkspace>;
   refuse(res: ServerResponse, status: 403 | 503, said: string, shape: RefusalShape): void;
+  /** The call failed in a way its agent makes it again, which the calling thread is told. */
+  retrying(retry: { attempt: number; why: string }): void;
   /** What a service adds to this call's line, such as the refs a push named; the broker writes the line once. */
   log(line: Partial<BrokerLogLine>): void;
 }
