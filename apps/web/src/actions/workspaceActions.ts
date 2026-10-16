@@ -4,7 +4,7 @@
 // cannot take says so with `applies` and is not drawn at all; `refusal` is for
 // what this object could take and cannot right now.
 import { CopyIcon, FolderOutputIcon, GlobeIcon, GitForkIcon, GitPullRequestArrowIcon, MessageSquarePlusIcon, PauseIcon, PencilIcon, PlayIcon, RefreshCwIcon, SquareIcon, SquareTerminalIcon, Trash2Icon } from "lucide-react";
-import { actionRefusal, folderOnJoined, goneRoadRefusal, isBilling, kindWords, machineWord, needsRebuild, startFailed, undrivenRefusal, workspaceKind, workspaceState, type AbsentComputer, type MachineState, type PlaceView, type ReachState, type WorkspaceKind, type WorkspacePhase, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { folderOnJoined, goneRoadRefusal, isBilling, kindWords, machineWord, needsRebuild, startFailed, undrivenRefusal, workspaceKind, workspaceState, type AbsentComputer, type MachineState, type PlaceView, type ReachState, type WorkspaceKind, type WorkspacePhase, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import {
   BRING_BACK_HINT,
   CLIENT_CANNOT_DELETE,
@@ -31,6 +31,7 @@ import {
   rowVerb,
 } from "./format.js";
 import { absenceOf } from "../settings/places.js";
+import { awayLine } from "../pull-request/gitAction.logic.js";
 import { WHERE_WORDS } from "../settings/format.js";
 import type { ActionEntry } from "./registry.js";
 
@@ -201,7 +202,7 @@ const entries: ReadonlyArray<ActionEntry<WorkspaceTarget, WorkspaceVerbs>> = [
     applies: target => !folderOnJoined(target.kind),
     // The daemon inside the workspace is what pushes, so the machine has to be running; the runtime refuses the
     // base branch and a workspace with nothing ahead in its own sentence, which lands in the toast.
-    refusal: (target, verbs) => (verbs.bringBack === undefined ? WHERE_WORDS.notYet : (target.absent?.sentence ?? actionRefusal(stateOf(target), "bring back"))),
+    refusal: (target, verbs) => (verbs.bringBack === undefined ? WHERE_WORDS.notYet : (target.absent?.sentence ?? awayLine(stateOf(target)) ?? null)),
     run: (target, verbs) => verbs.bringBack?.(target.id),
   },
   {

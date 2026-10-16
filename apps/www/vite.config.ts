@@ -31,5 +31,5 @@ export default defineConfig({
   appType: "mpa",
   plugins: [react(), tailwindcss(), likeVercel],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  test: { environment: "jsdom", globals: true, setupFiles: ["./test/setup.ts"], env: TEST_ENV },
+  test: { environment: "jsdom", globals: true, setupFiles: ["./test/setup.ts", fileURLToPath(new URL("../../vitest.stall-note.ts", import.meta.url))], env: TEST_ENV },
 });
