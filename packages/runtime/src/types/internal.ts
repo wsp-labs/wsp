@@ -18,6 +18,7 @@ import type {
   DaemonReachView,
   ExecStreamFactory,
   GoldenBaseTool,
+  GoldenRetired,
   GoldenStage,
   GoldenStep,
   ProjectImportResult,
@@ -897,6 +898,10 @@ export interface BuilderRecord {
   import?: ImportLedger;
   /** The base tools read on this builder, or on the golden it was forked from; the version it seals records them. */
   base?: GoldenBaseTool[];
+  /** An update builder's head and the rows it keeps that its recipe dropped, so a process that rehydrates it seals
+   * the same version this one would. */
+  parentSnapshotId?: string;
+  retired?: GoldenRetired[];
   /** Saved as this version and kept running since; an update of that version lands on it, the sweep stops it at GRACE_MS. */
   sealed?: { at: string; version: number };
   /** The place this builder was made at, so a provider swapped in mid-build never becomes where it seals. Absent,

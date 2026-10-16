@@ -67,6 +67,8 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         machine, kind: record.kind, baseTemplate: record.baseTemplate, setupSha: record.setupSha, createdAt: record.createdAt, firstLife: record.firstLife, size: record.size,
         ...(record.import !== undefined ? { import: record.import } : {}),
         ...(record.base !== undefined ? { base: record.base } : {}),
+        ...(record.parentSnapshotId !== undefined ? { parentSnapshotId: record.parentSnapshotId } : {}),
+        ...(record.retired !== undefined ? { retired: record.retired } : {}),
       },
       sealable,
       life: lifeOf(record, machine, sealable),
