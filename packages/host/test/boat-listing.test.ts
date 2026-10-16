@@ -20,18 +20,18 @@ function boat(): { fetch: typeof globalThis.fetch; seen: string[] } {
   const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const fetch = (async (input: string | URL | Request, init: RequestInit = {}) => {
     const url = new URL(String(input));
-    const path = url.pathname.replace(/^\/api\/box\/v1/, "");
+    const path = url.pathname.replace(/^\/api\/v1/, "");
     seen.push(`${init.method ?? "GET"} ${path}`);
     if (path === "/named-snapshots") {
-      const named = (name: string) => ({ name, status: "ready", sourceBoxId: "bx_acme", createdAt: "2026-10-01T00:00:00.000Z", snapshotId: "dc8cd70e-d16b-472a-b5d7-070bc84db7a7", type: "small", sizeBytes: 2_000_000_000 });
+      const named = (name: string) => ({ name, status: "ready", sourceSandboxId: "bx_acme", createdAt: "2026-10-01T00:00:00.000Z", snapshotId: "dc8cd70e-d16b-472a-b5d7-070bc84db7a7", type: "small", sizeBytes: 2_000_000_000 });
       return json({ ok: true, snapshots: [named("wsp-otherhost-default-v1"), named("wsp-otherhost-default-v2")] });
     }
     if (path === "/snapshots") {
       const page = Number(url.searchParams.get("cursor") ?? "0");
       const next = page + 1 < HISTORY_PAGES ? String(page + 1) : null;
-      return json({ ok: true, snapshots: [{ id: `866f04de-8e8a-4401-9e29-cf58e17382${String(page).padStart(2, "0")}`, boxId: "bx_acme", status: "completed", createdAt: "2026-10-01T00:00:00.000Z", sizeBytes: 50_000_000_000 }], pageInfo: { nextCursor: next, hasMore: next !== null, limit: 200 } });
+      return json({ ok: true, snapshots: [{ id: `866f04de-8e8a-4401-9e29-cf58e17382${String(page).padStart(2, "0")}`, sandboxId: "bx_acme", status: "completed", createdAt: "2026-10-01T00:00:00.000Z", sizeBytes: 50_000_000_000 }], pageInfo: { nextCursor: next, hasMore: next !== null, limit: 200 } });
     }
-    if (path === "/boxes") return json({ ok: true, boxes: [], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } });
+    if (path === "/sandboxes") return json({ ok: true, sandboxes: [], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } });
     return json({ ok: false, error: { code: "not_found", message: "not found" } }, 404);
   }) as typeof globalThis.fetch;
   return { fetch, seen };

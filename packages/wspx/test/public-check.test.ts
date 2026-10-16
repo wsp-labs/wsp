@@ -65,7 +65,7 @@ describe("the check a public build passes", () => {
   it("passes Boat's words, which a public build carries", () => {
     const code = [
       'export const BOX_KEY_ENV = "BOAT_API_KEY";',
-      'const BOX_API_URL = "https://ascii.dev/api/box/v1";',
+      'const BOX_API_URL = "https://boat.dev/api/v1";',
       "export class BoxBackend {}",
       'const words = { box: { name: "Boat", keyConsole: "boat.dev/dashboard" } };',
       'if (x !== "# ascii-harness-shim") return;',
