@@ -172,23 +172,30 @@ describe("Fork from here on a thread's messages", () => {
   });
 });
 
-describe("Fork from here and Rewind on a sub-thread whose machine was deleted", () => {
-  const sub = (releasedAt: number) => ({ state: "running" as const, on: "boat", machine: "api", size: { cpu: 2, memMb: 4096 }, branch: "wsp/api", releasedAt });
+describe("Fork from here and Rewind on a sub-thread's page", () => {
+  const sub = (releasedAt?: number) => ({ state: "running" as const, on: "boat", machine: "api", size: { cpu: 2, memMb: 4096 }, branch: "wsp/api", ...(releasedAt !== undefined ? { releasedAt } : {}) });
   const rewindButtons = () => screen.queryAllByRole("button", { name: "Rewind to here" });
   const words = (buttons: HTMLElement[]) => buttons.map(rowOf).map(t => t.match(/(ask|reply) \d/)?.[0]).sort();
 
-  it("offers neither on a turn that ran on the deleted machine, and both on a turn the new machine ran", async () => {
-    // Turns 1 and 2 ran before the delete, turn 3 on the machine the next send made.
-    const { api } = fixtureApi({ rows: [{ ...ROW, sub: sub(2.5 * 60_000) }] });
+  it("offers no fork on any message, since its machine runs that one thread alone, and Rewind as on any thread", async () => {
+    const { api } = fixtureApi({ rows: [{ ...ROW, sub: sub() }] });
     await mount(api);
-    await waitFor(() => expect(words(forkButtons())).toEqual(["ask 1", "reply 3"]));
-    expect(words(rewindButtons())).toEqual([]);
+    await waitFor(() => expect(words(rewindButtons())).toEqual(["reply 1", "reply 2"]));
+    expect(forkButtons()).toEqual([]);
+  });
+
+  it("offers no Rewind on a turn that ran on the deleted machine, and Rewind on a turn the new machine ran", async () => {
+    // Turns 1 and 2 ran before the delete, turn 3 on the machine the next send made.
+    const { api } = fixtureApi({ history: [...HISTORY, ...turn(4, { ref: ref(4), anchor: "a4" })], rows: [{ ...ROW, sub: sub(2.5 * 60_000) }] });
+    await mount(api, THREAD, "reply 4");
+    await waitFor(() => expect(words(rewindButtons())).toEqual(["reply 3"]));
+    expect(forkButtons()).toEqual([]);
   });
 
   it("offers none on any turn while the thread has no machine, and the composer still takes a message", async () => {
     const { api } = fixtureApi({ rows: [{ ...ROW, sub: { ...sub(4 * 60_000), state: "released" } }], workspace: { ...cloud, phase: "released" } });
     await mount(api);
-    await waitFor(() => expect(words(forkButtons())).toEqual(["ask 1"]));
+    expect(forkButtons()).toEqual([]);
     expect(words(rewindButtons())).toEqual([]);
     expect(composerSendBlock({ conn: "live", hasApi: true, state: "released", hydrated: true, agents: true })).toBeNull();
   });
