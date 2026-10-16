@@ -197,6 +197,10 @@ export const noCheckpointLogLine = (threadId: string, workspaceId: string, words
  * whatever its harness did with it, so only the harness's own UI is out of step. */
 export const noNameWriteLogLine = (sessionId: string, workspaceId: string, words: string): string =>
   `the harness did not take the name for session ${sessionId.slice(0, 8)} on ${workspaceId}: ${words}`;
+/** The host log's one line for a resume the agent could not open, said as the turn starts a new session: what the
+ * machine held for the lost one, so the next loss names its own cause. */
+export const lostSessionLogLine = (sessionId: string, threadId: string, workspaceId: string, words: string): string =>
+  `session ${sessionId} of thread ${threadId.slice(0, 8)} was gone from ${workspaceId}, so its turn started a new one: ${words}`;
 /** The host log's one line for each stop sent to a turn or one of its subagents: the thread it named and its answer. */
 export const stopLogLine = (thread: string, task: string | undefined, outcome: string, left?: string): string =>
   `stop on thread ${thread.slice(0, 8)}${task !== undefined ? ` subagent ${task.slice(0, 8)}` : ""}: ${outcome}${left !== undefined ? ` (${left})` : ""}`;
