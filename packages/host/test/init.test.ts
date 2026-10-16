@@ -2454,7 +2454,7 @@ describe("wsp init, flags and no terminal", () => {
       await bootedOnly(f);
       const cost = (2 * BOX_PRICING.rateUsdPerHour(b.size)).toFixed(2);
       expect(cost).not.toBe((2 * PRICING.rateUsdPerHour(b.size)).toFixed(2));
-      expect(f.text()).toMatch(new RegExp(`^.*default \\(${b.id}\\), 2\\.0 h old, about \\$${reEscape(cost)} so far; built from a different recipe$`, "m"));
+      expect(f.text()).toMatch(new RegExp(`^.*default \\(${b.id}\\), 2\\.0 h old, about \\$${reEscape(cost)} so far; at boat, and this run builds at other$`, "m"));
       expect(boat.machines.map(m => [m.id, m.killed])).toEqual([[b.id, true]]);
     } finally {
       await earlier.close();
@@ -2512,6 +2512,36 @@ describe("wsp init, flags and no terminal", () => {
     expect(out).not.toMatch(BOOT);
     expect(shared.machines).toHaveLength(1);
     expect(shared.machines[0]!.killed).toBe(false);
+  });
+
+  it("a same-recipe builder at another place is never attached to: it is listed with its place and stopped there, and one at the run's own place still is", async () => {
+    const store = ownedStore();
+    const other = stubBackend();
+    const boat = stubBackend();
+    // The fake reads the builder off the last backend pushed, so it is the one the run builds on.
+    const at = (f: Fake, builds: StubBackend) => (recipe: GoldenRecipe) => {
+      f.backends.push(builds === boat ? other : boat, builds);
+      return createRuntime({ backend: other, store, adapters: {}, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, hostId: "box:h1", places: { wired: "other", backend: p => ({ other, boat })[p], list: () => ["other", "boat"] } });
+    };
+    const first = fake({ yes: true, place: "boat", placeBackend: boat });
+    first.opts.runtime = at(first, boat);
+    await bootedOnly(first);
+
+    const same = fake({ yes: true, tty: false, home: first.opts.home, statePath: first.opts.statePath, place: "boat", placeBackend: boat });
+    same.opts.runtime = at(same, boat);
+    await bootedOnly(same);
+    expect(same.text()).toContain("Attaching to your earlier builder: default (m1)");
+    expect(boat.machines.map(m => [m.id, m.killed])).toEqual([["m1", false]]);
+
+    const f = fake({ yes: true, tty: false, home: first.opts.home, statePath: first.opts.statePath });
+    f.opts.runtime = at(f, other);
+    await bootedOnly(f);
+    const out = f.text();
+    expect(out).not.toContain("Attaching");
+    expect(out).toMatch(/default \(m1\), \d+ s old, about \$\d+\.\d\d so far; at boat, and this run builds at other$/m);
+    expect(out).toContain("Stopped default (m1).");
+    expect(boat.machines.map(m => [m.id, m.killed])).toEqual([["m1", true]]);
+    expect(other.machines.map(m => [m.id, m.killed])).toEqual([["m1", false]]);
   });
 
   it("a recipe saved before the volatile list existed still attaches once ~/.claude.json moved: the catalog supplies the list, the file is re-imported and never reads as gone", async () => {

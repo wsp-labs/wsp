@@ -261,6 +261,18 @@ describe("where a rebuild goes", () => {
     expect([at.place, at.backend]).toEqual(["fake", fake]);
     await rt.close();
   });
+
+  it("prepareAt names the place prepare builds the image's own builder at, before a record and after", async () => {
+    const { rt, seal } = providers();
+    const built = async (o: { place?: string }) => rt.golden.prepare(o).then(v => ({ place: v.placeId, name: v.placeName }));
+    for (const o of [{}, { place: "box" }, { place: "Box" }]) expect(await rt.golden.prepareAt(o)).toEqual(await built(o));
+    await seal({ place: "solari" });
+    for (const o of [{}, { place: "box" }, { place: "fake" }]) {
+      expect(await rt.golden.prepareAt(o)).toEqual({ place: "solari", name: "Solari" });
+      expect(await built(o)).toEqual({ place: "solari", name: "Solari" });
+    }
+    await rt.close();
+  });
 });
 
 describe("the image's home on every road", () => {

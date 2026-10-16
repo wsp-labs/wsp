@@ -262,6 +262,9 @@ export const GoldenBuilderView = z.object({
   name: z.string(),
   kind: MachineKind,
   createdAt: z.string(),
+  /** The place the builder stands at, by the id its record files it under and the name a person reads. */
+  placeId: z.string(),
+  placeName: z.string(),
   /** What the provider built, so a builder left running can be priced. */
   size: z.object({ cpu: z.number(), memMb: z.number() }),
   /** What that size costs an hour at the place the builder runs, which need not be the provider the host forks on;

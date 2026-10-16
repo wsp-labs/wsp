@@ -64,6 +64,8 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
       name: r.name,
       kind: r.kind,
       createdAt: r.createdAt,
+      placeId: place,
+      placeName: placeName(place),
       size: r.size,
       ...(rate !== undefined ? { rateUsdPerHour: rate } : {}),
       ...(r.streamUrl !== undefined ? { screen: { streamUrl: r.streamUrl } } : {}),

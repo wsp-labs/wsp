@@ -603,6 +603,9 @@ export interface Runtime {
      * copy's build, whose frames name the place; the image's own build names none, wherever it runs, which is how
      * the app tells the two apart. */
     prepare(opts?: { name?: string; kind?: MachineKind; signal?: AbortSignal; recipe?: GoldenRecipe; place?: string; copy?: boolean }): Promise<GoldenBuilderView>;
+    /** Where prepare with the same name and place builds the image's own builder, by id and name: only a builder
+     * standing there is one it attaches to. */
+    prepareAt(opts?: { name?: string; place?: string }): Promise<{ place: string; name: string }>;
     /** Snapshot, smoke-fork, append a version. A builder built from a recipe is kept running for GRACE_MS after a
      * successful seal so one more change re-snapshots it; any other builder, and every failed or refused seal, consumes
      * it, except a snapshot the provider refused: that builder is left as it was and stays recorded for the next init

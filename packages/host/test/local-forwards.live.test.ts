@@ -56,7 +56,7 @@ describe.runIf(LIVE)("localhost forwards (live)", () => {
     machineId = machine.id;
     const { token } = await deployDaemon(machine);
     const notes: string[] = [`machine ${machine.id} created and ${DAEMON_DEPLOYED_LINE} deployed at ${Date.now() - t0}ms`];
-    const builder: GoldenBuilderView = { id: machine.id, name: "forwards-live", kind: "sandbox", createdAt: new Date().toISOString(), size: { cpu: 2, memMb: 4096 } };
+    const builder: GoldenBuilderView = { id: machine.id, name: "forwards-live", kind: "sandbox", createdAt: new Date().toISOString(), placeId: "solari", placeName: "Solari", size: { cpu: 2, memMb: 4096 } };
     let minted: PreviewReach | undefined;
     const base = createRuntime({ backend, store: memoryStore(), adapters: {} });
     const rt: Runtime = {

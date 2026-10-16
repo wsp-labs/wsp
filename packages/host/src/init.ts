@@ -36,7 +36,6 @@ import {
   lockRefused,
   loginShown,
   manifestFor,
-  recipeChanges,
   recipePath,
   recipeWithAnswers,
   withPins,
@@ -61,6 +60,7 @@ import { openRunLog, runLogPath } from "./init-log.js";
 import { secretsStage, type SecretOutcome } from "./init-secrets.js";
 import { buildTakes, buildTimes, readBuildTimes } from "./init-times.js";
 import { keptBuilder, stopKeptBuilder, updateRoad } from "./init-upgrade.js";
+import { earlierReason, type Earlier } from "./init-earlier.js";
 import { retentionOffer } from "./storage.js";
 import { DONE_LINE, appUrl, askFirst, checkImportFolder, firstWorkspaceName, runFirst, runLocal, subThreadsReady, type FirstResult } from "./init-first.js";
 import { SIGN_IN_CAP_MS, builderLink, flowHooks, noteOutcomes, signInStage, stageLogins, type BuilderLink, type HostHooks, type LoginOutcome, type SignInCodes, type SignInFlow } from "./init-signin.js";
@@ -227,14 +227,6 @@ export interface InitResult {
   handle?: HostHandle;
   logins?: LoginOutcome[];
   secrets?: SecretOutcome[];
-}
-
-/** What an earlier run left on the account for this recipe. */
-interface Earlier {
-  /** The builder of this setup carrying this recipe that can still be sealed, when there is one. */
-  attach?: GoldenBuilderView;
-  /** This setup's builders that cannot be attached to; the boot question offers to stop them first. */
-  stop: GoldenBuilderView[];
 }
 
 /** The one golden wsp init builds; every stage frame the run draws is this name's. */
@@ -1089,38 +1081,28 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     const ageMs = Math.max(0, Date.now() - Date.parse(b.createdAt));
     return `${b.name} (${b.id}), ${describeAge(ageMs)}${b.rateUsdPerHour === undefined ? "" : `, about $${((ageMs / 3_600_000) * b.rateUsdPerHour).toFixed(2)} so far`}`;
   };
-  const reasonOf = (b: GoldenBuilderView): string => {
-    if (b.foreignOwner !== undefined) return "not this setup's builder";
-    if (b.heldBy !== undefined) return `in use by another wsp process (pid ${b.heldBy.pid})`;
-    if (b.building === true) return "its setup never finished";
-    if (b.sealable !== true) return "cannot be sealed after a restart";
-    const changes = b.recipe !== undefined && imp.recipe !== undefined ? recipeChanges(b.recipe, imp.recipe, manifest) : [];
-    if (changes.length === 0) return "built from a different recipe";
-    const named = changes.slice(0, 4);
-    if (changes.length > named.length) named.push(`${changes.length - named.length} more`);
-    return `built from a different recipe: ${named.join(", ")}`;
-  };
-  const listEarlier = (blocking: GoldenBuilderView[], attach: GoldenBuilderView | undefined): void => {
-    const lines = blocking.map(b => `${describeBuilder(b)}; ${reasonOf(b)}`);
+  const listEarlier = (blocking: GoldenBuilderView[], attach: GoldenBuilderView | undefined, at: Earlier["at"]): void => {
+    const lines = blocking.map(b => `${describeBuilder(b)}; ${earlierReason(b, at, imp.recipe, manifest)}`);
     if (attach !== undefined) lines.push(`${describeBuilder(attach)}; reusable by this run once the others are stopped`);
     log.warn(["A builder from an earlier wsp init is still running on the account:", ...lines].join("\n"), out);
   };
-  // An earlier run's builder is attached to when a seal can still be taken from it, this setup's, and carries this
-  // recipe. Another of this setup's is stopped by its recorded id once the person says so; one another
-  // live process holds or another setup owns is never touched from here.
+  // An earlier run's builder is attached to when a seal can still be taken from it, this setup's, stands where this
+  // run builds and carries this recipe. Another of this setup's is stopped by its recorded id once the person says
+  // so; one another live process holds or another setup owns is never touched from here.
   const earlierBuilder = async (): Promise<Earlier | "blocked"> => {
     const earlier = await rt.golden.builders();
+    const at = await rt.golden.prepareAt({ name: GOLDEN_NAME, ...(opts.place !== undefined ? { place: opts.place } : {}) });
     // A builder kept since a save is the golden's own machine: the update's, never an attach target or a blocker.
-    const attach = earlier.find(b => b.name === GOLDEN_NAME && b.sealable === true && b.foreignOwner === undefined && b.heldBy === undefined && b.building !== true && b.sealed === undefined && b.recipeHash === imp.recipeHash);
+    const attach = earlier.find(b => b.name === GOLDEN_NAME && b.sealable === true && b.foreignOwner === undefined && b.heldBy === undefined && b.building !== true && b.sealed === undefined && b.placeId === at.place && b.recipeHash === imp.recipeHash);
     const blocking = earlier.filter(b => b !== attach && b.sealed === undefined);
     const pids = blocking.flatMap(b => (b.heldBy !== undefined ? [b.heldBy.pid] : []));
     if (pids.length > 0 || blocking.some(b => b.foreignOwner !== undefined)) {
-      listEarlier(blocking, attach);
+      listEarlier(blocking, attach, at);
       if (pids.length > 0) cancel(`Nothing was booted. Another wsp process (pid ${pids.join(", ")}) is using it; wait for it or stop that process, then run wsp init again.`, out);
       else cancel("Nothing was booted. It belongs to another wsp setup: stop it from there, or from its provider's console if it is yours and forgotten; then run wsp init again.", out);
       return "blocked";
     }
-    return { ...(attach !== undefined ? { attach } : {}), stop: blocking };
+    return { ...(attach !== undefined ? { attach } : {}), stop: blocking, at };
   };
   let earlier = await earlierBuilder();
   if (earlier === "blocked") return { code: 1 };
@@ -1174,7 +1156,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   }
   const question = bootQuestion(recipe, opts.pricing);
   const ready = readyLine(manifest, ticks, choices, uploadBytes, brew, buildTakes(lastBuild), customRows(catalogRecipe));
-  const { attach, stop } = earlier;
+  const { attach, stop, at: buildsAt } = earlier;
   // A golden built from a recipe takes the delta instead of a rebuild, unless the person picks the rebuild or asked
   // for one on the command line; a builder already carrying this recipe is attached to instead, since the update
   // would bill beside it.
@@ -1189,7 +1171,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     }
   }
   if (stop.length > 0) {
-    listEarlier(stop, attach);
+    listEarlier(stop, attach, buildsAt);
     const then = attach !== undefined ? `attach to your earlier builder ${describeBuilder(attach)}?` : `${question.charAt(0).toLowerCase()}${question.slice(1)}`;
     const ask = `Stop ${stop.length === 1 ? "it" : "them"}, then ${then}`;
     if (interactive) {
