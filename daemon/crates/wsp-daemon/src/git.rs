@@ -405,7 +405,7 @@ enum Op {
     /// A merge the turn made, clean, fast-forward or resolved by hand: a line, and every file it brought, HEAD before it
     /// against HEAD after it.
     Merged(String),
-    /// A commit the turn wrote: its own files are collected one by one, whatever moved HEAD after it.
+    /// A commit the turn wrote: what it changed, HEAD before it against HEAD after it, whatever moved HEAD after it.
     Own,
 }
 
@@ -519,18 +519,12 @@ async fn snapshot_reflog<R: Runs>(runner: &R, cwd: &Path, snapshot: &str) -> Res
     Ok(stdout_text(&res).lines().find_map(|l| l.trim().strip_prefix("reflog ").and_then(|n| n.trim().parse::<u64>().ok())))
 }
 
-/// A commit's first parent, or the empty tree where it has none, so a turn's first commit in a fresh checkout still
-/// diffs against something.
-async fn first_parent_or_empty<R: Runs>(runner: &R, cwd: &Path, commit: &str) -> Result<String, OpError> {
-    Ok(snapshot_head(runner, cwd, commit).await?.unwrap_or_else(|| EMPTY_TREE.to_owned()))
-}
-
 /// The ops a turn made, read from HEAD's reflog over the turn's own window: the commits it wrote, the merges it
 /// made, and the lines naming its merges and the moves it did not write. The window is the entries git.snapshot's two
 /// stamps bound, by count: in the newest-first reflog it is the slice between the length at the end snapshot and the
 /// length at the start one, so a later re-read past more turns still lands on this turn's entries, and a turn that
 /// leaves and returns to its start HEAD still has every move it made read, never matched by sha or by time.
-async fn turn_ops<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Result<TurnOps, OpError> {
+async fn turn_ops<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str, start: Option<&str>) -> Result<TurnOps, OpError> {
     let current = reflog_count(runner, cwd).await?;
     let skip = snapshot_reflog(runner, cwd, to).await?.map_or(0, |end| current.saturating_sub(end));
     let take = match snapshot_reflog(runner, cwd, from).await? {
@@ -550,12 +544,15 @@ async fn turn_ops<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Resu
     let mut walk = Walk { on: snapshot_on(runner, cwd, to).await?, returning: None };
     for (at, line) in lines.iter().enumerate().skip(skip as usize).take(take as usize) {
         let Some((oid, subject)) = line.split_once(' ') else { continue };
+        // Newest first, so the entry below is HEAD before this one (a fast-forward may skip many commits, an amend stands
+        // on the commit it replaced), or the start HEAD where a reflog emptied before the turn has none. A first commit,
+        // in a fresh checkout or on an orphan branch, stands on the empty tree whatever HEAD stood on before it.
+        let below = lines.get(at + 1).and_then(|prior| prior.split_once(' ')).map(|(prior, _)| prior).or(start);
+        let before = || if subject.starts_with("commit (initial)") { EMPTY_TREE } else { below.unwrap_or(EMPTY_TREE) }.to_owned();
         match walk.classify(subject) {
-            Op::Own => ops.own.push(oid.to_owned()),
+            Op::Own => ops.steps.push((before(), oid.to_owned())),
             Op::Merged(named) => {
-                // Newest first, so the entry below is HEAD before the merge; a fast-forward may skip many commits.
-                let before = lines.get(at + 1).and_then(|prior| prior.split_once(' ')).map_or(EMPTY_TREE, |(prior, _)| prior);
-                ops.merged.push((before.to_owned(), oid.to_owned()));
+                ops.steps.push((before(), oid.to_owned()));
                 ops.moves.push(named);
             }
             Op::Foreign(Some(named)) => ops.moves.push(named),
@@ -567,12 +564,11 @@ async fn turn_ops<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Resu
     Ok(ops)
 }
 
-/// What a turn's reflog window holds: the commits it wrote, each merge it made as HEAD before and after it, and the
-/// lines naming every move.
+/// What a turn's reflog window holds: each commit it wrote and merge it made as HEAD before and after it, newest
+/// first, and the lines naming every move.
 #[derive(Default)]
 struct TurnOps {
-    own: Vec<String>,
-    merged: Vec<(String, String)>,
+    steps: Vec<(String, String)>,
     moves: Vec<String>,
 }
 
@@ -587,18 +583,17 @@ fn merge_into(reply: GitDiffReply, files: &mut Vec<GitDiffFile>, seen: &mut Hash
     }
 }
 
-/// Of the paths given, those whose content differs between the two snapshots. A turn's own worktree edits are the
-/// uncommitted files it actually touched, never the ones that merely stood uncommitted before it and read the same in
-/// both snapshots. Names only and narrowed to the paths given, so it costs nothing where the uncommitted set is small.
-async fn changed_between<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str, files: &[GitDiffFile]) -> Result<HashSet<String>, OpError> {
-    if files.is_empty() {
-        return Ok(HashSet::new());
-    }
-    let specs: Vec<String> = files.iter().map(|f| format!(":(top,literal){}", f.path)).collect();
-    let specs: Vec<&str> = specs.iter().map(String::as_str).collect();
-    let out = run_git(runner, cwd, &GitLine::new(&["diff", "--name-only", "-z"]).revs(&[from, to]).operands(&specs), None, None).await?;
+/// The paths whose content differs between two commits, names only.
+async fn changed_between<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Result<HashSet<String>, OpError> {
+    let out = run_git(runner, cwd, &GitLine::new(&["diff", "--name-only", "-z"]).revs(&[from, to]), None, None).await?;
     check(&out, "diff --name-only")?;
     Ok(stdout_text(&out).split('\0').filter(|s| !s.is_empty()).map(str::to_owned).collect())
+}
+
+/// The files uncommitted at the turn's end that read the same in both snapshots, so they stood uncommitted before it.
+async fn untouched<R: Runs>(runner: &R, cwd: &Path, end_base: &str, from: &str, to: &str) -> Result<HashSet<String>, OpError> {
+    let touched = changed_between(runner, cwd, from, to).await?;
+    Ok(changed_between(runner, cwd, end_base, to).await?.into_iter().filter(|p| !touched.contains(p)).collect())
 }
 
 /// The diff between two commits, each named by its full sha the caller checked: a pure diff of the two trees, as
@@ -635,12 +630,13 @@ async fn range_held<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Re
 }
 
 /// A turn's changed-files card: every change the agent itself made between the snapshot taken as the turn launched and
-/// the one taken as it ended, collected one by one and unioned by path. Each commit it wrote contributes its own
-/// files, whatever moved HEAD after it; its end worktree holds the edits it left uncommitted (less any that stood
-/// uncommitted before it and it never touched); each merge it made, clean, fast-forward or resolved by hand, is a line
-/// and every file it brought. A HEAD move it did not write (a checkout, pull, rebase, reset or rename) is one line
-/// with no files; a rebase's replayed commits and any conflict it resolved mid-rebase are not listed. Each snapshot is
-/// a full sha the caller checked, so neither reaches git as an option.
+/// the one taken as it ended, unioned by path. Each commit it wrote and each merge it made, clean, fast-forward or
+/// resolved by hand, counts HEAD before it against HEAD after it, whatever moved HEAD after it; its end worktree holds
+/// the edits it left uncommitted (less any that stood uncommitted before it and it never touched). Steps that follow
+/// one another are one range, so a file several of them changed counts what the turn's whole range did to it. A HEAD
+/// move it did not write (a checkout, pull, rebase, reset or rename) is one line with no files and breaks the range; a
+/// rebase's replayed commits and any conflict it resolved mid-rebase are not listed. Each snapshot is a full sha the
+/// caller checked, so neither reaches git as an option.
 pub(crate) async fn git_turn<R: Runs>(
     runner: &R,
     cwd: &Path,
@@ -652,41 +648,28 @@ pub(crate) async fn git_turn<R: Runs>(
 ) -> Result<GitDiffReply, OpError> {
     range_held(runner, cwd, from, to).await?;
     let start_head = snapshot_head(runner, cwd, from).await?;
-    let end_head = snapshot_head(runner, cwd, to).await?;
-    let TurnOps { own, merged, moves: moved } = turn_ops(runner, cwd, from, to).await?;
-    let listing = Listing { cached: false, untracked: false, blobs: false, whole: false, worktree: false };
-    let mut files: Vec<GitDiffFile> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut truncated = false;
-    // The edits standing in the turn's end worktree that the turn itself made: uncommitted against the HEAD it ended
-    // on, less the files that stood uncommitted before it and read the same in both snapshots.
-    let end_base = end_head.clone().unwrap_or_else(|| EMPTY_TREE.to_owned());
-    let uncommitted = diff_listed(runner, cwd, bound, &[end_base, to.to_owned()], path, &[], listing, cap, None).await?;
-    let touched = changed_between(runner, cwd, from, to, &uncommitted.files).await?;
-    truncated |= uncommitted.truncated;
-    for file in uncommitted.files {
-        if touched.contains(&file.path) && seen.insert(file.path.clone()) {
-            files.push(file);
-        }
-    }
-    // Each commit the turn wrote, its own files against its own first parent.
-    for commit in &own {
-        let parent = first_parent_or_empty(runner, cwd, commit).await?;
-        let own_diff = diff_listed(runner, cwd, bound, &[parent, commit.clone()], path, &[], listing, cap, None).await?;
-        merge_into(own_diff, &mut files, &mut seen, &mut truncated);
-    }
-    // Each merge adds every file it brought: HEAD before it against HEAD after it. Merges made one after another are
-    // one range, so a file two of them changed counts every line both brought.
+    let end_base = snapshot_head(runner, cwd, to).await?.unwrap_or_else(|| EMPTY_TREE.to_owned());
+    let TurnOps { mut steps, moves: moved } = turn_ops(runner, cwd, from, to, start_head.as_deref()).await?;
+    let untouched = untouched(runner, cwd, &end_base, from, to).await?;
+    steps.insert(0, (end_base.clone(), to.to_owned()));
     let mut ranges: Vec<(String, String)> = Vec::new();
-    for (before, after) in merged.into_iter().rev() {
+    for (before, after) in steps.into_iter().rev() {
         match ranges.last_mut() {
             Some((_, end)) if *end == before => *end = after,
             _ => ranges.push((before, after)),
         }
     }
+    let listing = Listing { cached: false, untracked: false, blobs: false, whole: false, worktree: false };
+    let mut files: Vec<GitDiffFile> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut truncated = false;
     for (before, after) in ranges.iter().rev() {
-        let brought = diff_listed(runner, cwd, bound, &[before.clone(), after.clone()], path, &[], listing, cap, None).await?;
-        merge_into(brought, &mut files, &mut seen, &mut truncated);
+        let mut changed = diff_listed(runner, cwd, bound, &[before.clone(), after.clone()], path, &[], listing, cap, None).await?;
+        if after == to && !untouched.is_empty() {
+            let committed = if *before == end_base { HashSet::new() } else { changed_between(runner, cwd, before, &end_base).await? };
+            changed.files.retain(|f| !untouched.contains(&f.path) || committed.contains(&f.path));
+        }
+        merge_into(changed, &mut files, &mut seen, &mut truncated);
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(GitDiffReply { base: start_head, files, truncated, moved })
