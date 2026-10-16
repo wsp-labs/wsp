@@ -338,7 +338,7 @@ describe("the configs a recipe carries", () => {
     writeFileSync(join(home, ".config", "fish", "fish_variables"), "SETUVAR GH_TOKEN:ghp_x\n");
     const texts = configTexts("shell", home);
     expect(texts.map(t => t.rel)).toEqual([".zshrc", ".config/fish/config.fish"]);
-    expect(texts[0]!.text).toBe("alias g=git\nexport EDITOR=vim\n");
+    expect(texts[0]!.text).toBe("alias g=git\ntrue\nexport EDITOR=vim\n");
   });
 });
 
