@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { Manifest } from "@wsp/collect";
-import type { RecipeDigest } from "@wsp/engine";
+import { describeAge, type RecipeDigest } from "@wsp/engine";
 import type { GoldenBuilderView } from "@wsp/runtime";
 import { recipeChanges } from "./init-recipe.js";
 
@@ -8,10 +8,16 @@ import { recipeChanges } from "./init-recipe.js";
 export interface Earlier {
   /** The builder of this setup carrying this recipe that can still be sealed, when there is one. */
   attach?: GoldenBuilderView;
-  /** This setup's builders that cannot be attached to; the boot question offers to stop them first. */
+  /** This setup's builders that cannot be attached to; init offers to stop them before it boots or updates anything. */
   stop: GoldenBuilderView[];
   /** Where this run's builder is made, the one place a builder is attached to. */
   at: { place: string; name: string };
+}
+
+/** An earlier builder as init names it: its age and what it has cost so far at its own place's rate. */
+export function describeBuilder(b: GoldenBuilderView): string {
+  const ageMs = Math.max(0, Date.now() - Date.parse(b.createdAt));
+  return `${b.name} (${b.id}), ${describeAge(ageMs)}${b.rateUsdPerHour === undefined ? "" : `, about $${((ageMs / 3_600_000) * b.rateUsdPerHour).toFixed(2)} so far`}`;
 }
 
 /** Why an earlier builder is not the one this run attaches to, as its line in the list says it. */
