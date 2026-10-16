@@ -3513,6 +3513,18 @@ describe("wsp init with a golden already built from a recipe", () => {
     return { store, shared, first, next };
   }
 
+  it("--non-interactive at a terminal takes the update for that flag, and off a terminal for the terminal that is missing", async () => {
+    const { first, next } = await sealed();
+    writeFileSync(join(first.opts.home, ".zshrc"), "export A=1\nexport B=2\n");
+    const tty = next({ yes: false, nonInteractive: true, tty: true });
+    expect((await runInit(tty.opts, tty.io)).code).toBe(0);
+    expect(tty.text()).toContain("Updating your image. Taken as the default (--non-interactive).");
+    writeFileSync(join(first.opts.home, ".zshrc"), "export A=1\nexport B=3\n");
+    const pipe = next({ yes: false, tty: false });
+    expect((await runInit(pipe.opts, pipe.io)).code).toBe(0);
+    expect(pipe.text()).toContain("Updating your image. Taken as the default (no terminal).");
+  });
+
   it("a release pin recorded at v1 rides the small recipe for wsp recipe to show and feeds no build: the same recipe reads as no change, a pin edited in the file changes nothing, and a version cut for another row carries the pin onto its record", async () => {
     const sha = "b".repeat(64);
     // The fake guest serves whatever tag the road asks for, and hashes every asset the same.

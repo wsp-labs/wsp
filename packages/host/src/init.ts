@@ -56,7 +56,7 @@ import type { ScanRow } from "./scan.js";
 import { installEach, installLines, mcpServerSpec, registeredLine } from "./mcp-install.js";
 import { applySets, carriedOver, historyLine, historyProgressLine } from "./recipe-command.js";
 import { outsideRowsOf } from "./recipe-file.js";
-import { CARD_FRAME, GUTTER, card, cells, confirmPrompt, ellipsize, isTTY, plainLine, rewind, rowsOf, table, widthOf, wrap } from "./init-layout.js";
+import { GUTTER, card, cells, confirmPrompt, ellipsize, isTTY, plainLine, rewind, rowsOf, table, widthOf, wrap } from "./init-layout.js";
 import { openRunLog, runLogPath } from "./init-log.js";
 import { secretsStage, type SecretOutcome } from "./init-secrets.js";
 import { buildTakes, buildTimes, readBuildTimes } from "./init-times.js";
@@ -65,7 +65,7 @@ import { retentionOffer } from "./storage.js";
 import { DONE_LINE, appUrl, askFirst, checkImportFolder, firstWorkspaceName, runFirst, runLocal, subThreadsReady, type FirstResult } from "./init-first.js";
 import { SIGN_IN_CAP_MS, builderLink, flowHooks, noteOutcomes, signInStage, stageLogins, type BuilderLink, type HostHooks, type LoginOutcome, type SignInCodes, type SignInFlow } from "./init-signin.js";
 import { handoffStage } from "./init-handoff.js";
-import { detectionNote, readyLine, summaryNote } from "./init-summary.js";
+import { detectionNote, installsTally, readyLine, sealSummary, summaryNote } from "./init-summary.js";
 import { hostSignIns } from "./init-host-signins.js";
 import { vaultRows, vaultStage } from "./init-vault.js";
 import { type PortProbes } from "./ports.js";
@@ -105,6 +105,8 @@ export interface InitOptions extends BuildsAt {
   /** Ask nothing here, but still run the sign-ins on the machine and hand each page to the person: the shape an
    * agent drives wsp init in. Off a terminal this is what a run without --yes does anyway. */
   nonInteractive?: boolean;
+  /** A serving host's init job: whoever started it, at a terminal or in the app, cannot be asked from it. */
+  hostJob?: boolean;
   /** The small recipe of catalog ids that ticks the agents and tools rows: the screens for them are skipped and the
    * run lands on the sign-ins. This machine is still read for the rows and files. */
   recipeFile?: string;
@@ -220,6 +222,8 @@ export type { HostHooks };
 
 export interface InitResult {
   code: number;
+  /** Ended on the update road, nothing to update and a failed update included: it signs in to nothing. */
+  updateRoad?: boolean;
   handle?: HostHandle;
   logins?: LoginOutcome[];
   secrets?: SecretOutcome[];
@@ -830,6 +834,10 @@ export interface SignInContext {
   pollMs?: number;
 }
 
+/** Why a host's init job takes every default: the person who started it is at a terminal or in the app, and the job
+ * has no way to ask either. */
+const HOST_ASKS_NOTHING = "the host serving this state runs the build and asks nothing";
+
 export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult> {
   const out = { output: io.output };
   // Off a terminal, and under --non-interactive on one, there is nobody to ask: it runs as if --yes were given.
@@ -839,8 +847,8 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const cloud = opts.cloud !== false;
   // Nobody to ask, but the sign-ins still run and each page is handed to the person; --yes is the one road that skips them.
   const handoff = !interactive && !opts.yes;
-  // Which of the three reasons nothing is asked, in the words every taken-as-yes line uses.
-  const takenAs = opts.yes ? "--yes" : io.isTTY ? "--non-interactive" : "no terminal";
+  // Why nothing is asked, in the words every taken-as line uses, the update road's and the cleanup offer's included.
+  const takenAs = opts.yes ? "--yes" : opts.hostJob === true ? HOST_ASKS_NOTHING : io.isTTY ? "--non-interactive" : "no terminal";
   // A person at a terminal gets the app served at the end, --yes or not; --non-interactive says an agent is driving,
   // and off a terminal nobody is here, so neither serves anything. Only a run that serves needs the ports.
   const serves = io.isTTY && opts.nonInteractive !== true && opts.handOff === undefined;
@@ -1173,11 +1181,11 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const current = attach === undefined && opts.rebuild !== true ? await rt.golden.recipe(GOLDEN_NAME) : undefined;
   if (current !== undefined) {
     let done = (): void => {};
-    const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}), stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
+    const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}), stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
     if (road !== "rebuild") {
       if (road === 0 && landed !== undefined) log.info(installsTally(landed, resultsPath).join("\n"), out);
-      if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) })).then(() => done());
-      return { code: road };
+      if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) })).then(() => done());
+      return { code: road, updateRoad: true };
     }
   }
   if (stop.length > 0) {
@@ -1369,8 +1377,9 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     if (!cloud) opts.signIns?.({ flow, dial, signal: stopLogins.signal, ...(opts.pollMs !== undefined ? { pollMs: opts.pollMs } : {}) });
   }
   // Secrets first: a key cut from an rc file is on the machine before any status check looks for it.
-  // Nobody is here to type: the flag that said so when there was a terminal, else the terminal that is missing.
-  const nobodyAsks = !io.isTTY ? "no terminal to paste into" : opts.yes ? "--yes asks nothing" : "--non-interactive asks nothing";
+  // Nobody is here to type: the terminal that is missing, else takenAs; a host's job has none, but its person may.
+  const noTerminal = !io.isTTY && opts.hostJob !== true;
+  const nobodyAsks = noTerminal ? "no terminal to paste into" : takenAs === HOST_ASKS_NOTHING ? takenAs : `${takenAs} asks nothing`;
   const skipSecretsWhy = interactive ? undefined : `${nobodyAsks}; set them from the app's terminal`;
   // The agents' own tokens and keys stay here: the vault step below asks for them and saves them in the wsp home,
   // and the machine is never told. What is left for the machine is what the pack cut out of the rc files it carried.
@@ -1406,7 +1415,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
       hide: value => runLog.hide(value),
     });
   // Only --yes gets here: every other run without a terminal hands its sign-ins over instead of skipping them.
-  const skipWhy = interactive || handoff ? undefined : io.isTTY ? "--yes asks nothing; sign in from the app's terminal" : "no terminal to sign in from; use the app's terminal";
+  const skipWhy = interactive || handoff ? undefined : noTerminal ? "no terminal to sign in from; use the app's terminal" : `${nobodyAsks}; sign in from the app's terminal`;
   const staged = stageLogins(offered, choices, ticks);
   // The pack's notes on a copied login's Keychain and helper items join what its reads left behind, once each.
   for (const s of landed?.files?.skipped ?? []) {
@@ -1436,6 +1445,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
           dial,
           terminal: { input: io.input, output: io.output },
           ...(skipWhy !== undefined ? { skipWhy } : {}),
+          ...(io.json !== undefined ? { json: io.json } : {}),
           open: url => io.open(url),
           flow,
         });
@@ -1517,7 +1527,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     out,
   );
 
-  if (version > 1) await retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) });
+  if (version > 1) await retentionOffer({ rt, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) });
 
   // The golden is on the account and in the state file by here: nothing under this line can lose it, and a run with
   // nobody at a terminal has no app to serve, so it ends with the golden recorded and says what starts the app.
@@ -1604,45 +1614,3 @@ export async function streamStages(rt: Pick<Runtime, "events">, io: Pick<InitIO,
   }
   return view;
 }
-
-/** The tally after the build: how the tools, agents and the machine context came out, each failure named with its
- * reason, and where the list is. */
-function installsTally(landed: ImportResult, resultsPath: string): string[] {
-  const all = [...landed.tools.map(t => ({ ...t, name: t.label })), ...landed.agents];
-  const n = (o: string) => all.filter(x => x.outcome === o).length;
-  // The header counts tools, editors, agents, a machine context that was not written, and the rows this run took
-  // out of the recipe, whatever their rung: a retired dotfile is counted here too.
-  const retired = landed.retired ?? [];
-  const failed = n("failed") + (landed.contextFailure === undefined ? 0 : 1);
-  return [
-    `Tools, agents and machine context: ${n("installed")} installed, ${retired.length > 0 ? `${retired.length} retired, ` : ""}${failed} failed, ${n("skipped")} skipped; the list is in ${resultsPath}`,
-    ...all.filter(x => x.outcome === "failed").map(x => dim(`${x.name} failed: ${x.note ?? "no reason given"}`)),
-    ...(landed.contextFailure === undefined ? [] : [dim(`machine context failed: ${landed.contextFailure}`)]),
-    ...all.filter(x => x.outcome === "skipped").map(x => dim(`${x.name} skipped: ${x.note ?? "no reason given"}`)),
-    ...retired.map(x => dim(`${x.name} retired: out of the recipe, left on the image`)),
-  ];
-}
-
-/** What the machine holds before the seal: the tools and agents as the import counted them, each sign-in
- * with its state, each cut secret with its state. */
-function sealSummary(landed: ImportResult | undefined, logins: readonly LoginOutcome[], secrets: readonly SecretOutcome[], width: number): string[] {
-  const inner = width - CARD_FRAME;
-  const tools = landed?.tools ?? [];
-  const agents = landed?.agents ?? [];
-  const count = (rows: readonly { outcome: string }[]): string => {
-    const n = (o: string) => rows.filter(x => x.outcome === o).length;
-    return rows.length === 0 ? "none" : [`${n("installed")} installed`, ...(n("failed") > 0 ? [`${n("failed")} failed`] : []), ...(n("skipped") > 0 ? [`${n("skipped")} skipped`] : [])].join(", ");
-  };
-  const states = (rows: readonly string[][]): string[] => (rows.length === 0 ? ["none"] : table(rows));
-  const loginRows = logins.map(r => [r.label, r.state.replace(/-/g, " ")]);
-  const secretRows = secrets.map(r => [r.name, r.state === "set" ? `set on the machine${r.note !== undefined ? ` (${r.note})` : ""}` : r.state === "failed" ? `not set${r.note !== undefined ? ` (${r.note})` : ""}` : `skipped${r.note !== undefined ? ` (${r.note})` : ""}`]);
-  const section = (title: string, lines: readonly string[]): string[] => [title, ...lines.flatMap(l => wrap(`  ${l}`, inner, "    "))];
-  const installed = agents.filter(a => a.outcome === "installed").map(a => a.name);
-  return [
-    ...section("Tools", [count(tools)]),
-    ...section("Agents", [agents.length === 0 ? "none" : `${count(agents)}${installed.length > 0 ? `: ${installed.join(", ")}` : ""}`]),
-    ...section("Sign-ins", states(loginRows)),
-    ...section("Secrets", states(secretRows)),
-  ];
-}
-
