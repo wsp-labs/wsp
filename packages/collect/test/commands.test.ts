@@ -54,6 +54,10 @@ describe("calledCommands", () => {
     }
   });
 
+  it("zsh's precommand and reserved words are no calls: a guard by their name breaks the file or the word", () => {
+    expect(calledCommands("noglob git status\nnocorrect git log\nfloat -x F=1.5\nprivate P=1\nrepeat 2 echo hi\n")).toEqual([]);
+  });
+
   it("a fish config is not shell and yields nothing; an empty file yields nothing", () => {
     expect(calledCommands("")).toEqual([]);
     expect(calledCommands("set -gx EDITOR nvim\nstarship init fish | source\n", "fish")).toEqual([]);
