@@ -183,7 +183,7 @@ describe("the retention offer over the stub backend", () => {
 
   it("under --yes the line is printed, taken as yes, the older ancestors are deleted, and the storage line follows", async () => {
     const g = await golden();
-    await retentionOffer({ rt: g.rt, interactive: false, yes: true, ...streams(g) });
+    await retentionOffer({ rt: g.rt, interactive: false, takenAs: "--yes", ...streams(g) });
     const out = g.text();
     expect(out).toContain("Delete image v1 and v2, 17.0 GB, saving about $0.85/month from 2026-10-01? v4 and v3 stay. Taken as yes (--yes).");
     expect(out).toContain("Deleted image v1 and v2.");
@@ -196,7 +196,7 @@ describe("the retention offer over the stub backend", () => {
     const g = await golden();
     const alpha = await createOn(g.rt, { golden: "snap_golden-v1", name: "alpha" });
     await g.rt.workspaces.nap(alpha.id);
-    await retentionOffer({ rt: g.rt, interactive: false, yes: false, ...streams(g) });
+    await retentionOffer({ rt: g.rt, interactive: false, takenAs: "no terminal", ...streams(g) });
     const out = g.text();
     expect(out).toContain("Image v1 stays: workspace alpha was forked from it.");
     expect(out).toContain("Delete image v2, 9.0 GB, saving about $0.45/month from 2026-10-01? v4 and v3 stay. Taken as yes (no terminal).");
@@ -207,7 +207,7 @@ describe("the retention offer over the stub backend", () => {
   it("right after a rollback nothing is offered; once an update seals past the branch rolled back from it is offered as abandoned, and a workspace forked from it keeps its version", async () => {
     const g = await golden();
     await g.rt.golden.rollback(2);
-    await retentionOffer({ rt: g.rt, interactive: false, yes: true, ...streams(g) });
+    await retentionOffer({ rt: g.rt, interactive: false, takenAs: "--yes", ...streams(g) });
     expect(g.text()).toBe("");
     // An update seals v5 from v2; the manifest is written as the runtime records it.
     const sealed = async (h: { rt: Runtime; backend: StubBackend; store: Store }): Promise<void> => {
@@ -216,7 +216,7 @@ describe("the retention offer over the stub backend", () => {
       h.backend.snapshots.push({ id: "snap_golden-v5", sizeBytes: 12 * GB });
     };
     await sealed(g);
-    await retentionOffer({ rt: g.rt, interactive: false, yes: true, ...streams(g) });
+    await retentionOffer({ rt: g.rt, interactive: false, takenAs: "--yes", ...streams(g) });
     expect(g.text()).toContain("Delete image v1, v3 and v4, 29.0 GB, saving about $1.45/month from 2026-10-01? v5 and v2 stay. v3 and v4 are abandoned branches: v5 was not built through them. Taken as yes (--yes).");
     expect(g.text()).toContain("Deleted image v1, v3 and v4.");
     expect(g.backend.snapshots.map(r => r.id)).toEqual(["snap_golden-v2", "snap_golden-v5"]);
@@ -225,7 +225,7 @@ describe("the retention offer over the stub backend", () => {
     await h.rt.golden.rollback(2);
     await sealed(h);
     await createOn(h.rt, { golden: "snap_golden-v4", name: "alpha" });
-    await retentionOffer({ rt: h.rt, interactive: false, yes: true, ...streams(h) });
+    await retentionOffer({ rt: h.rt, interactive: false, takenAs: "--yes", ...streams(h) });
     expect(h.text()).toContain("Image v4 stays: workspace alpha was forked from it.");
     expect(h.text()).toContain("Delete image v1 and v3, 18.0 GB, saving about $0.90/month from 2026-10-01? v5 and v2 stay. v3 is an abandoned branch: v5 was not built through it. Taken as yes (--yes).");
     expect(h.backend.snapshots.map(r => r.id)).toEqual(["snap_golden-v2", "snap_golden-v4", "snap_golden-v5"]);
@@ -234,7 +234,7 @@ describe("the retention offer over the stub backend", () => {
 
   it("interactive: No keeps every version; y deletes", async () => {
     const g = await golden();
-    const asked = retentionOffer({ rt: g.rt, interactive: true, yes: false, ...streams(g) });
+    const asked = retentionOffer({ rt: g.rt, interactive: true, takenAs: "no terminal", ...streams(g) });
     await new Promise(r => setTimeout(r, 20));
     // The prompt wraps the question to the terminal's width, so the line is read back unwrapped.
     const asOneLine = (): string => g.text().replace(/\n┃\s+/g, " ");
@@ -245,7 +245,7 @@ describe("the retention offer over the stub backend", () => {
     expect(g.text()).toContain("Every image version is kept.");
     expect(g.backend.snapshots).toHaveLength(4);
 
-    const again = retentionOffer({ rt: g.rt, interactive: true, yes: false, ...streams(g) });
+    const again = retentionOffer({ rt: g.rt, interactive: true, takenAs: "no terminal", ...streams(g) });
     await new Promise(r => setTimeout(r, 20));
     await g.press("y");
     await again;
@@ -256,12 +256,12 @@ describe("the retention offer over the stub backend", () => {
   it("with two versions, or a backend that cannot list snapshots, nothing is said", async () => {
     const g = await golden();
     await g.rt.golden.prune();
-    await retentionOffer({ rt: g.rt, interactive: false, yes: true, ...streams(g) });
+    await retentionOffer({ rt: g.rt, interactive: false, takenAs: "--yes", ...streams(g) });
     expect(g.text()).toBe("");
     const bare = stubBackend();
     const { listSnapshots: _l, ...rest } = bare;
     const rt = createRuntime({ backend: { ...rest, capabilities: { ...bare.capabilities, snapshotListing: false } }, store: memoryStore(), adapters: {} });
-    await retentionOffer({ rt, interactive: false, yes: true, ...streams(g) });
+    await retentionOffer({ rt, interactive: false, takenAs: "--yes", ...streams(g) });
     expect(g.text()).toBe("");
   });
 
@@ -280,7 +280,7 @@ describe("the retention offer over the stub backend", () => {
     const chunks: string[] = [];
     g.output.on("data", (c: Buffer) => chunks.push(c.toString()));
     try {
-      await retentionOffer({ rt, interactive: false, yes: true, ...g });
+      await retentionOffer({ rt, interactive: false, takenAs: "--yes", ...g });
       const out = stripVTControlCharacters(chunks.join(""));
       expect(out).toContain("Delete image v1, 1 named snapshot, saving about $1.70/month? v3 and v2 stay. Taken as yes (--yes).");
       expect(out).toContain("Delete v1 and v2 of the copy of your image at default, 17.0 GB, saving about $0.85/month from 2026-10-01? v4 and v3 stay. Taken as yes (--yes).");
@@ -297,7 +297,7 @@ describe("the retention offer over the stub backend", () => {
     g.backend.listSnapshots = async () => {
       throw new Error("502 Bad Gateway");
     };
-    await retentionOffer({ rt: g.rt, interactive: false, yes: true, ...streams(g) });
+    await retentionOffer({ rt: g.rt, interactive: false, takenAs: "--yes", ...streams(g) });
     expect(g.text()).toContain("Snapshot storage was not read (502 Bad Gateway); every image version is kept.");
     expect((await g.rt.golden.get())!.versions).toHaveLength(4);
   });

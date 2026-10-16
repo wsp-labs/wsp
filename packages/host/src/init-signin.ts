@@ -158,6 +158,8 @@ export interface SignInStageOptions {
   terminal: RelayTerminal;
   /** Set when nobody can type here (no terminal, or --yes): every login is skipped with this note. */
   skipWhy?: string;
+  /** Each login settled or skipped is sent here too, so a host's init job never ends its row as not reached. */
+  json?: (record: Record<string, unknown>) => void;
   open(url: string): Promise<boolean>;
   flow: SignInFlow;
   /** How long a sign-in that runs here is given. Without it, SIGN_IN_CAP_MS. */
@@ -197,9 +199,9 @@ const SETTLED_AT: Record<LoginChoice, LoginState | undefined> = { copy: "copied"
 /** Where this row lands with nothing run for it, or nothing when the stage is to sign it in. */
 const settledAt = (e: ManifestEntry): LoginState | undefined => (e.choice === undefined ? undefined : SETTLED_AT[e.choice]);
 
-/** The outcomes a sign-in stage starts from, with every answer the build runs nothing for already settled. What is
- * left is the rows to sign in on the machine, each beside the outcome it fills in. */
-export function settledOutcomes(logins: readonly ManifestEntry[], left: ReadonlyMap<string, string> | undefined, output: Writable): { outcomes: LoginOutcome[]; machine: [ManifestEntry, LoginOutcome][] } {
+/** The outcomes a sign-in stage starts from, with every answer the build runs nothing for already settled and sent
+ * to json as a row of the build. What is left is the rows to sign in on the machine, each beside its outcome. */
+export function settledOutcomes(logins: readonly ManifestEntry[], left: ReadonlyMap<string, string> | undefined, output: Writable, json?: (record: Record<string, unknown>) => void): { outcomes: LoginOutcome[]; machine: [ManifestEntry, LoginOutcome][] } {
   const outcomes = logins.map((e): LoginOutcome => {
     const had = left?.get(e.id);
     return { id: e.id, label: e.label, state: "skipped", ...(had !== undefined ? { left: had } : {}) };
@@ -210,6 +212,7 @@ export function settledOutcomes(logins: readonly ManifestEntry[], left: Readonly
     if (settled === undefined) continue;
     r.state = settled;
     log.message(stateLine(r), { output, symbol: dim(S_BAR) });
+    json?.({ event: "sign-in-result", tool: agentName(e), label: r.label, state: r.state });
   }
   return { outcomes, machine: rows.filter(([e]) => settledAt(e) === undefined) };
 }
@@ -231,9 +234,12 @@ export async function signInStage(o: SignInStageOptions): Promise<LoginOutcome[]
   const out = { output: o.terminal.output };
   const capMs = o.capMs ?? SIGN_IN_CAP_MS;
   if (o.logins.length === 0) return [];
-  const { outcomes, machine } = settledOutcomes(o.logins, o.left, o.terminal.output);
+  const { outcomes, machine } = settledOutcomes(o.logins, o.left, o.terminal.output, o.json);
   if (o.skipWhy !== undefined) {
-    for (const [, r] of machine) r.note = o.skipWhy;
+    for (const [entry, r] of machine) {
+      r.note = o.skipWhy;
+      o.json?.({ event: "sign-in-result", tool: agentName(entry), label: r.label, state: r.state, note: r.note });
+    }
     if (machine.length > 0) log.step(`Sign-ins on the machine skipped: ${machine.map(([, r]) => r.label).join(", ")}. ${o.skipWhy[0]!.toUpperCase()}${o.skipWhy.slice(1)}.`, out);
     return outcomes;
   }

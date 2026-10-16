@@ -119,7 +119,8 @@ export function describeGuarded(g: RetentionPlan["guarded"][number], plan: Whose
 export interface RetentionOfferOptions {
   rt: Runtime;
   interactive: boolean;
-  yes: boolean;
+  /** Why nothing is asked, in runInit's words, when the offer is taken as yes. */
+  takenAs: string;
   input: Readable;
   output: Writable;
   /** Each line said is sent here too, so a host's init job hands it to the terminal beside it. */
@@ -164,7 +165,7 @@ async function offerAt(o: RetentionOfferOptions, place: string): Promise<void> {
       return;
     }
   } else {
-    say(o, "step", `${line} Taken as yes (${o.yes ? "--yes" : "no terminal"}).`);
+    say(o, "step", `${line} Taken as yes (${o.takenAs}).`);
   }
   const { dropped, failed, storage } = await o.rt.golden.prune(undefined, place);
   if (dropped.length > 0) say(o, "success", `Deleted ${whose(plan, versionList(dropped))}.`);
