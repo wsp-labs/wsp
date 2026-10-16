@@ -2431,6 +2431,37 @@ describe("wsp init, flags and no terminal", () => {
     expect(await store.list("builders")).toHaveLength(1);
   });
 
+  it("a builder kept at Boat is listed at Boat's own rate while this run builds at another place", async () => {
+    const store = ownedStore();
+    const other = stubBackend();
+    const boat = Object.assign(stubBackend(), { pricing: BOX_PRICING });
+    const places = { wired: "other", backend: (p: string) => ({ other, boat })[p], list: () => ["other", "boat"] };
+    const earlier = createRuntime({ backend: other, store, adapters: {}, places, goldenRecipe: { setup: "true", smoke: "true", cpu: 2, memMb: 4096 }, hostId: "box:h1" });
+    const b = await earlier.golden.prepare({ place: "boat" });
+    // Two hours old, so the two places' rates read apart in cents.
+    const [key] = await store.keys("builders");
+    const record = (await store.get("builders", key!)) as { createdAt: string };
+    await store.put("builders", key!, { ...record, createdAt: new Date(Date.now() - 2 * 3_600_000).toISOString() });
+    const f = fake({ yes: true });
+    withGhCopy(f);
+    f.opts.runtime = recipe => {
+      f.backends.push(other);
+      const rt = createRuntime({ backend: other, store, adapters: {}, places, goldenRecipe: { ...recipe, deployDaemon: async () => "node v22.12.0" }, hostId: "box:h1" });
+      f.runtimes.push(rt);
+      return rt;
+    };
+    try {
+      await bootedOnly(f);
+      const cost = (2 * BOX_PRICING.rateUsdPerHour(b.size)).toFixed(2);
+      expect(cost).not.toBe((2 * PRICING.rateUsdPerHour(b.size)).toFixed(2));
+      expect(f.text()).toMatch(new RegExp(`^.*default \\(${b.id}\\), 2\\.0 h old, about \\$${reEscape(cost)} so far; built from a different recipe$`, "m"));
+      expect(boat.machines.map(m => [m.id, m.killed])).toEqual([[b.id, true]]);
+    } finally {
+      await earlier.close();
+      for (const rt of f.runtimes) await rt.close();
+    }
+  });
+
   it("a changed byte in a planned file is named in the refusal; the earlier builder is stopped on the yes and a fresh one boots", async () => {
     const store = ownedStore();
     const shared = stubBackend();
