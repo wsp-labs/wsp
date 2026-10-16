@@ -6,7 +6,7 @@
 // install in its own session and, at the timeout, kills that session and every
 // process descended from it before returning, so a slow brew never holds a
 // cellar lock into the next tool's turn.
-import { BREW_PREFIX, HOMEBREW, MIB, ROAD_MODULES, ROAD_STEPS, type RoadName } from "@wsp/catalog";
+import { BREW_PREFIX, HOMEBREW, MIB, NODE_PATH_LINE, ROAD_MODULES, ROAD_STEPS, type RoadName } from "@wsp/catalog";
 import { fmtBytes, listedName, nameList, pinsReadLine, shellQuote, stepRetryLine, timedOutLine, type DiskUse, type GoldenStage, type GoldenStep, type RecipeDigest, type ToolPin } from "@wsp/protocol";
 import { INLINE_EXEC_MS, markersOf, pagedReads } from "./exec-detached.js";
 import { TOOLS_PATH, brewHousekeeping as brewHousekeepingCmds, pathLine, type ToolInstall } from "./golden-import.js";
@@ -561,4 +561,52 @@ export async function installTools(machine: Machine, tools: readonly ToolInstall
   const housekeeping = installed.has("tools/homebrew") ? await brewHousekeeping(machine, run, path, opts.prefix) : undefined;
   stage(closing(summarize(out.tools, housekeeping), await sweep(), await freeNote(machine, opts.prefix)));
   return out;
+}
+
+/** The plugins the ticked agents switch on, built into the folder every turn on a fork of the image reads in place. */
+export interface PluginSeedPlan {
+  dir: string;
+  plugins: readonly { id: string; label: string; cmd: string; asked?(out: string): string | undefined }[];
+  /** Read off the folder once the plugins are in it, `read` taking a path in it. */
+  links(read: (rel: string) => Promise<string | undefined>): Promise<[string, string][]>;
+}
+
+/** What a build does for the ticked agents' plugins: the files an older image copied come off, then the seed builds. */
+export interface PluginsPlan {
+  /** Absolute on the guest. */
+  dropped: readonly string[];
+  seed?: PluginSeedPlan;
+}
+
+/** Takes off what an older image copied, whether or not there is a plugin to seed, then builds the seed. Both fail
+ * soft: the image is sealed without what did not take, and a turn there fetches as it did before. */
+export async function applyPlugins(machine: Machine, plan: PluginsPlan, onStage: Stage): Promise<void> {
+  if (plan.dropped.length > 0) {
+    const gone = await machine.exec(`rm -f ${plan.dropped.map(shellQuote).join(" ")}`, { timeoutMs: INLINE_EXEC_MS }).catch((e: unknown): ExecResult => ({ exitCode: -1, stdout: "", stderr: e instanceof Error ? e.message : String(e) }));
+    if (gone.exitCode !== 0) onStage("installing-harness", `left on the image: ${plan.dropped.join(", ")} (${gone.stderr.trim() || `exit ${gone.exitCode}`})`);
+  }
+  if (plan.seed !== undefined) await buildPluginSeed(machine, plan.seed, onStage);
+}
+
+/** How long one plugin gets: its marketplace's clone and the plugin's own files. */
+const SEED_PLUGIN_S = 300;
+
+/** Builds each plugin into the seed, then the links the agent finds them by. One that does not build is said and
+ * left out, and the image is sealed without it: a turn there fetches it through the person's computer as before. */
+export async function buildPluginSeed(machine: Machine, seed: PluginSeedPlan, onStage: Stage): Promise<void> {
+  const built: string[] = [];
+  const left: string[] = [];
+  for (const p of seed.plugins) {
+    onStage("installing-harness", `plugin ${p.label}`);
+    const res = await machine.run(guarded(`${NODE_PATH_LINE}\n${p.cmd}`, SEED_PLUGIN_S), { deadlineMs: guardDeadlineMs(SEED_PLUGIN_S) }).catch((e: unknown): ExecResult => ({ exitCode: -1, stdout: "", stderr: e instanceof Error ? e.message : String(e) }));
+    if (res.exitCode === 0) built.push(p.label);
+    else left.push(`${p.label} (${p.asked?.(res.stdout) ?? reasonOf(res, SEED_PLUGIN_S)})`);
+  }
+  if (built.length > 0) {
+    const read = (rel: string): Promise<string | undefined> => machine.exec(`cat ${shellQuote(`${seed.dir}/${rel}`)}`, { timeoutMs: INLINE_EXEC_MS }).then(r => (r.exitCode === 0 ? r.stdout : undefined), () => undefined);
+    const links = (await seed.links(read)).map(([link, target]) => `ln -sfn ${shellQuote(target)} ${shellQuote(`${seed.dir}/${link}`)}`);
+    const linked = links.length === 0 ? undefined : await machine.exec(links.join("\n"), { timeoutMs: INLINE_EXEC_MS }).catch((e: unknown): ExecResult => ({ exitCode: -1, stdout: "", stderr: e instanceof Error ? e.message : String(e) }));
+    if (linked !== undefined && linked.exitCode !== 0) left.push(`the links into ${seed.dir} (${linked.stderr.trim() || `exit ${linked.exitCode}`})`);
+  }
+  onStage("installing-harness", closing(built.length > 0 ? `plugins built in: ${built.join(", ")}` : undefined, left.length > 0 ? `left out: ${left.join(", ")}` : undefined));
 }

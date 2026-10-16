@@ -2502,7 +2502,7 @@ describe("wsp init, flags and no terminal", () => {
     };
     await bootedOnly(first);
     const [recorded] = (await store.list("builders")) as { import: { recipe: { files: { path: string; volatile?: boolean }[] } } }[];
-    expect(recorded!.import.recipe.files.map(f => [f.path, f.volatile])).toEqual([["~/.claude.json", true], ["~/.claude/settings.json", undefined], ["~/.gitconfig", undefined]]);
+    expect(recorded!.import.recipe.files.map(f => [f.path, f.volatile])).toEqual([["~/.claude.json", true], ["~/.claude/plugins", undefined], ["~/.claude/settings.json", undefined], ["~/.gitconfig", undefined]]);
 
     writeFileSync(join(home, ".claude.json"), JSON.stringify({ projects: { one: {}, two: {} } }));
     const f = fake({ yes: true, tty: false, home, collect: async () => saved });

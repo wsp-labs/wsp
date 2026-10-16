@@ -14,7 +14,7 @@ import { AGENT_INSTALLERS, NODE_PATH_LINE, PATH_LINE, TOOLS_PATH, type AgentInst
 import { PRELUDE } from "./dotfiles-presets.js";
 import { INLINE_EXEC_MS, machineAnswer } from "./exec-detached.js";
 import { DiskSyncError, diskUnsettled, syncDisk } from "./disk-sync.js";
-import { MIB, closing, freeBytes, freeNote, guardDeadlineMs, guarded, installTools, pinRead, plural, reasonOf, sweepCaches, usedBytes, withRecordedPins, type ToolResult } from "./golden-tools.js";
+import { MIB, applyPlugins, closing, freeBytes, freeNote, guardDeadlineMs, guarded, installTools, pinRead, plural, reasonOf, sweepCaches, usedBytes, withRecordedPins, type PluginsPlan, type ToolResult } from "./golden-tools.js";
 import { PROFILE_PATH_FILE, installBase, profilePathLine } from "./golden-base.js";
 import { applyMcp, mcpTally, type McpPlan, type McpResult } from "./golden-mcp.js";
 import { BROWSER_SHIM_PATH, applyMachineContext, boundedCommand, type ContextResult } from "./machine-context.js";
@@ -500,6 +500,8 @@ export interface GoldenImport {
   /** Runs once before the agents when a ticked agent's engines floor may be above the base image's Node. */
   node?: NodeInstall;
   agents: AgentInstall[];
+  /** Applied once the agents are on; absent when no ticked agent keeps plugins. */
+  plugins?: PluginsPlan;
   /** Ticked agents the plan set aside (no installer, no pinned Node); they count as ticked and land in the result. */
   skippedAgents?: { id: string; name: string; note: string }[];
   /** Ticked tools the plan set aside (no Linux bottle, a macOS app); they land in the result with the installs. */
@@ -738,6 +740,7 @@ export async function applyGoldenImport(machine: Machine, opts: ApplyImportOptio
         const header = failed.length > 0 ? `${failed.length === 1 ? "an agent" : `${failed.length} agents`} did not install, so nothing is sealed:` : "no agent installed, so there is nothing to seal:";
         throw new Error([header, ...result.agents.filter(r => r.outcome !== "installed").map(a => `${a.name}: ${a.note ?? "unknown reason"}`)].join("\n"));
       }
+      if (imp.plugins !== undefined) await applyPlugins(machine, imp.plugins, stage);
       ledger.smoke = joinSmoke(installed.map(a => a.smoke));
       const summary = result.agents.length === 0 ? "no agent ticked" : summarizeAgents(result.agents);
       const pinned = result.agents.filter(a => a.pin !== undefined);
@@ -1335,7 +1338,6 @@ export function nextLeftBehind(previous: readonly GoldenLeftBehind[], delta: Gol
   const touched = touchedBy(delta);
   return [...previous.filter(p => !touched.has(p.id)), ...fresh];
 }
-
 
 /** Runs the delta through the import stages. Nothing is taken off the machine:
  * a row the recipe dropped keeps its bytes and rides the version's retired
