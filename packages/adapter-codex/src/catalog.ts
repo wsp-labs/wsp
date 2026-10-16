@@ -11,10 +11,14 @@
 
 import { ENV_FROM_INPUT, codexNotSignedInLine } from "@wsp/protocol";
 import type { AgentLaunch, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessCatalogProbe } from "@wsp/protocol";
-import { answersOf, appServerScript, initializeRequest, request, resultOf } from "@wsp/catalog";
-import { codexWord, type CodexBroker } from "./command.js";
+import { CATALOG_AGENTS, answersOf, appServerScript, initializeRequest, request, resultOf } from "@wsp/catalog";
+import { codexWord, type AccountModels, type CodexBroker } from "./command.js";
 
 const SEP = "__WSP_CATALOG_SEP__";
+const INSTALL = CATALOG_AGENTS.find(a => a.id === "codex")?.installRoad;
+/** wsp's npm pin for codex, which the account's list is asked for where no binary has named its version. A machine may
+ * run another codex: Boat's own first-run installer puts 0.163.0 there. */
+const PINNED_VERSION = INSTALL?.road === "npm" ? INSTALL.version : undefined;
 /** Request ids, in the order the probe sends them; the parser reads each answer by its own id. */
 const INIT = 1;
 const MODELS = 2;
@@ -96,6 +100,30 @@ function modelsOf(listed: Record<string, unknown> | undefined, configured: strin
   return models;
 }
 
+const num = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+/** ChatGPT's /codex/models answer as model/list rows, the way codex turns the same answer into its picker with a
+ * ChatGPT login: sorted by priority, the rows marked list shown, the first shown the default (codex-rs
+ * protocol/src/openai_models.rs at rust-v0.155.1). Undefined where it shows no model. */
+function accountRows(answer: unknown): Record<string, unknown> | undefined {
+  const raw = rec(answer)?.["models"];
+  if (!Array.isArray(raw)) return undefined;
+  const rows = raw.map(rec).filter((m): m is Record<string, unknown> => str(m?.["slug"]) !== undefined).sort((a, b) => num(a["priority"]) - num(b["priority"]));
+  const first = rows.find(m => m["visibility"] === "list");
+  if (first === undefined) return undefined;
+  const data = rows.map(m => ({
+    id: m["slug"],
+    displayName: m["display_name"],
+    description: m["description"],
+    supportedReasoningEfforts: (Array.isArray(m["supported_reasoning_levels"]) ? m["supported_reasoning_levels"] : []).map(l => ({ reasoningEffort: rec(l)?.["effort"] })),
+    defaultReasoningEffort: m["default_reasoning_level"],
+    additionalSpeedTiers: m["additional_speed_tiers"],
+    hidden: m["visibility"] !== "list",
+    isDefault: m === first,
+  }));
+  return { data };
+}
+
 /** The efforts the listed models take between them, in the order the binary first named each. */
 function effortsOf(models: readonly HarnessCatalogModelProbe[]): string[] {
   const efforts: string[] = [];
@@ -108,14 +136,14 @@ function effortsOf(models: readonly HarnessCatalogModelProbe[]): string[] {
  * offered no model because its provider wants a sign-in the machine has not got, so the table stands with words for
  * why. `login` is the catalog's command for signing codex in on a machine, the one a failed turn already names.
  */
-export function parseCatalogProbe(stdout: string, login: string): HarnessCatalogAnswer {
+export function parseCatalogProbe(stdout: string, login: string, accountList?: unknown): HarnessCatalogAnswer {
   const parts = stdout.split(SEP);
   if (parts.length < 3) return null;
   const [versionPart, help, serverPart] = parts as [string, string, string];
   const answers = answersOf(serverPart);
   if (resultOf(answers, INIT) === undefined) return null;
   const config = rec(resultOf(answers, CONFIG)?.["config"]);
-  const models = modelsOf(resultOf(answers, MODELS), str(config?.["model"]));
+  const models = modelsOf(accountRows(accountList) ?? resultOf(answers, MODELS), str(config?.["model"]));
   if (models.length === 0) {
     const account = resultOf(answers, ACCOUNT);
     const wantsSignIn = account?.["requiresOpenaiAuth"] === true && account["account"] === null;
@@ -128,4 +156,21 @@ export function parseCatalogProbe(stdout: string, login: string): HarnessCatalog
     permissionModes: possibleValues(help, "--sandbox <SANDBOX_MODE>"),
   };
   return probe;
+}
+
+/** The probe's answer where the host holds the machine's ChatGPT sign-in: the models are the account's own, which the
+ * host reads for the version the binary printed, and the binary's where the host could not read them. */
+export async function readCatalogProbe(stdout: string, login: string, models: AccountModels | undefined): Promise<HarnessCatalogAnswer> {
+  const version = parseVersion(stdout.split(SEP)[0] ?? "");
+  const accountList = models !== undefined && version !== null ? await models(version).catch(() => undefined) : undefined;
+  return parseCatalogProbe(stdout, login, accountList);
+}
+
+/** The account's models where no binary on the machine has described itself yet, read for the version named, else
+ * wsp's npm pin: what a start is checked against before its machine answers. Undefined where the host could not
+ * read them. */
+export async function accountModelsOf(models: AccountModels, version: string | undefined = PINNED_VERSION): Promise<HarnessCatalogModelProbe[] | undefined> {
+  if (version === undefined) return undefined;
+  const rows = accountRows(await models(version).catch(() => undefined));
+  return rows === undefined ? undefined : modelsOf(rows, undefined);
 }

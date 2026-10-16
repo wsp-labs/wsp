@@ -6,6 +6,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
+import { chatgptModels } from "../src/chatgpt/models.js";
 import { CHATGPT_WORDS, chatgptService, OPENAI_WORDS, openaiService } from "../src/chatgpt/service.js";
 import { codexAuthFile, codexKeyFile, codexPlaceholders, TURN_CLAIM } from "../src/chatgpt/placeholders.js";
 import type { BrokerContext, BrokerService, ChatgptCredential, OpenaiCredential } from "../src/chatgpt/types.js";
@@ -487,5 +488,29 @@ describe("placeholders", () => {
 
   it("mint an apikey file holding the turn as an sk-wsp- key", () => {
     expect(codexKeyFile("turn-9")).toEqual({ auth_mode: "apikey", OPENAI_API_KEY: "sk-wsp-turn-9" });
+  });
+});
+
+describe("the account's Codex models, read by the host", () => {
+  // upstreamUrl is set in beforeAll, so the stand-in is named at each read.
+  const read = (version: string) => chatgptModels(async () => chatgptCred, version, { dial: url => dialTo({ [CHATGPT]: upstreamUrl })(url) });
+
+  it("asks chatgpt.com for the version named with the host's own login, as codex asks at a turn", async () => {
+    chatgptCred = { ...CLAIMS, fedramp: true, accessToken: REAL_ACCESS };
+    answer = (_req, res) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ models: [{ slug: "gpt-6-sol", visibility: "list" }] }));
+    expect(await read("0.155.1")).toEqual({ models: [{ slug: "gpt-6-sol", visibility: "list" }] });
+    expect(seen.map(s => `${s.method} ${s.url}`)).toEqual(["GET /backend-api/codex/models?client_version=0.155.1"]);
+    expect(seen[0]!.headers).toMatchObject({ authorization: `Bearer ${REAL_ACCESS}`, "chatgpt-account-id": "acct-real-1", "x-openai-fedramp": "true" });
+  });
+
+  it("answers nothing with no login to read with, or when chatgpt.com refuses or answers no JSON", async () => {
+    chatgptCred = undefined;
+    expect(await read("0.155.1")).toBeUndefined();
+    expect(seen).toEqual([]);
+    chatgptCred = { ...CLAIMS, accessToken: REAL_ACCESS };
+    answer = (_req, res) => res.writeHead(401, { "content-type": "application/json" }).end('{"detail":"Unauthorized"}');
+    expect(await read("0.155.1")).toBeUndefined();
+    answer = (_req, res) => res.writeHead(200, { "content-type": "text/html" }).end("<html>");
+    expect(await read("0.155.1")).toBeUndefined();
   });
 });

@@ -8,10 +8,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import { outgoingHeaders, passHttp, passUpgrade, responseOn, type Sentences, type Target } from "./forward.js";
+import { CHATGPT_ORIGIN, chatgptSignIn } from "./models.js";
 import { codexPlaceholders, turnOfRefreshToken } from "./placeholders.js";
 import type { BrokerContext, BrokerRequest, BrokerService, ChatgptCredential, Door, OpenaiCredential } from "./types.js";
 
-const CHATGPT_ORIGIN = "https://chatgpt.com";
 const OPENAI_BASE = "https://api.openai.com/v1";
 const BACKEND = "/backend-api/";
 const V1 = "/v1/";
@@ -47,9 +47,7 @@ const CHATGPT_OWNED = ["chatgpt-account-id", "x-openai-fedramp"];
 const OPENAI_OWNED = ["openai-organization", "openai-project"];
 
 function chatgptHeaders(req: IncomingMessage, cred: ChatgptCredential, upgrade: boolean, extra: Record<string, string> = {}): string[] {
-  const added: Record<string, string> = { ...extra, Authorization: `Bearer ${cred.accessToken}`, "ChatGPT-Account-ID": cred.accountId };
-  if (cred.fedramp) added["X-OpenAI-Fedramp"] = "true";
-  return outgoingHeaders(req, CHATGPT_OWNED, added, upgrade);
+  return outgoingHeaders(req, CHATGPT_OWNED, { ...extra, ...chatgptSignIn(cred) }, upgrade);
 }
 
 function openaiHeaders(req: IncomingMessage, cred: OpenaiCredential, upgrade: boolean): string[] {
