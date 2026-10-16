@@ -19,6 +19,7 @@ export function PickRow({
   checked,
   dim = true,
   onCheckedChange,
+  locked = false,
   glyph,
   name,
   tag,
@@ -35,6 +36,8 @@ export function PickRow({
   /** Whether an unticked row's words go muted; off for a list where every row is an answer to read. */
   dim?: boolean;
   onCheckedChange?: (next: boolean) => void;
+  /** A tick the host fixed: drawn as fixed, taking no click. */
+  locked?: boolean;
   /** The mark in its frame, where the thing has one of its own. */
   glyph?: ReactNode;
   name: string;
@@ -54,9 +57,9 @@ export function PickRow({
 }) {
   return (
     <div data-pick-row={id} data-checked={checked} className="flex flex-col" {...attrs}>
-      <label {...(hover === undefined ? {} : { title: hover })} className={cn("flex cursor-pointer flex-col justify-center gap-3 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5", CARD_INSET, ROW_FLOOR)}>
+      <label {...(hover === undefined ? {} : { title: hover })} className={cn("flex flex-col", locked ? "cursor-default" : "cursor-pointer", "justify-center gap-3 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5", CARD_INSET, ROW_FLOOR)}>
         <span className="flex min-w-0 items-center gap-3">
-          <Checkbox checked={checked} {...(onCheckedChange === undefined ? {} : { onCheckedChange })} className="shrink-0" />
+          <Checkbox checked={checked} disabled={locked} {...(onCheckedChange === undefined || locked ? {} : { onCheckedChange })} className="shrink-0" />
           {glyph === undefined ? null : <GlyphFrame>{glyph}</GlyphFrame>}
           <span className={cn("flex min-w-0 flex-col", dim && !checked && "text-muted-foreground")}>
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">

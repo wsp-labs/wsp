@@ -79,6 +79,10 @@ export function RecipeScreen({ screen, draft, onDraft, image }: { screen: InitSc
                     {item.why}
                   </span>
                 )
+              ) : item.lock === "on" ? (
+                <span data-k="why" className={cn(META, WHY)}>
+                  {CLOUD_SETUP_WORDS.screen.alwaysOn}
+                </span>
               ) : null}
             </span>
             {item.size !== undefined ? <SizeCell tone={initSizeTone(screen, item.size)}>{item.size === null ? UNKNOWN_SIZE : fmtBytes(item.size)}</SizeCell> : null}
