@@ -658,6 +658,22 @@ describe("runtime guest hostname", () => {
     }
   });
 
+  it("names the guest again on every wake, since a resume can come up under the provider's own name", async () => {
+    const backend = stubBackend();
+    const rt = createRuntime({ backend, store: memoryStore(), adapters: {} });
+    try {
+      const ws = await createOn(rt, { golden: "snap_g", name: "task-1" });
+      for (let i = 0; i < 2; i++) {
+        await rt.workspaces.nap(ws.id);
+        await rt.workspaces.wake(ws.id);
+      }
+      expect(backend.machines[0]!.resumes).toBe(2);
+      expect(hostnameCmds(backend.machines[0]!)).toEqual(Array(3).fill("hostname task-1 && echo task-1 > /etc/hostname"));
+    } finally {
+      await rt.close();
+    }
+  });
+
   it("sanitizes a name that is not a valid hostname", async () => {
     const backend = stubBackend();
     const rt = createRuntime({ backend, store: memoryStore(), adapters: {} });
