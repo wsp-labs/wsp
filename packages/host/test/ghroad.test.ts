@@ -386,4 +386,23 @@ describe("the gh road routes by Host", () => {
     expect([graph.status, refusal(graph)]).toEqual([200, "wsp: gh is not signed in on acme's MacBook Pro. Run gh auth login there."]);
     expect(seen).toHaveLength(1);
   });
+
+  it("refuses a call gh gave up on only on the response gh closed, which the broker writes no row for", async () => {
+    let reached!: () => void;
+    const held = new Promise<void>(done => (reached = done));
+    const holding = await listen(req => {
+      req.resume();
+      reached();
+    });
+    const refusals: { said: string; callerLeft: boolean }[] = [];
+    const watched: GhContext = { ...context, refuse: (res, _status, said) => void refusals.push({ said, callerLeft: res.destroyed }) };
+    const service = ghRoad({ origin: host => `http://127.0.0.1:${holding}/_/${host}`, computer: () => "acme's MacBook Pro" });
+    const port = await listen((req, res) => void service.serve({ workspaceId: "w1", req, res }, watched));
+    const call = request({ host: "127.0.0.1", port, method: "GET", path: "/repos/acme/lab", headers: { host: "api.github.com", authorization: `token ${PLACEHOLDER}` } });
+    call.on("error", () => undefined);
+    call.end();
+    await held;
+    call.destroy();
+    await expect.poll(() => refusals).toEqual([{ said: "wsp: api.github.com did not answer acme's MacBook Pro. gh can try again.", callerLeft: true }]);
+  });
 });
