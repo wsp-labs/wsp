@@ -41,7 +41,7 @@ export {
   type StoppedPort,
 } from "./ports.js";
 export { deriveSidebarProjects, sidebarWorkspaceOrder, workspaceIndicator, threadIndicator, turnWait, type SidebarInput } from "./workspaces.js";
-export { terminalPaneState, terminalPaneTitle, terminalPaneHints, terminalEmptyLine, terminalInputRefusal, linkDownLine, linkDownWord, LINK_DOWN_WORDS, SHELL_ENDED_LINE, type TerminalPaneState, type TerminalPaneInput } from "./terminal-pane.js";
+export { terminalPaneState, terminalPaneTitle, terminalPaneHints, terminalEmptyLine, terminalInputRefusal, linkDownLine, linkDownWord, LINK_DOWN_WORDS, SHELL_ENDED_LINE, SHELL_STOPPED_LINE, type TerminalPaneState, type TerminalPaneInput } from "./terminal-pane.js";
 export { toTerminalAttachEvent, isPtyEvent } from "./terminal.js";
 export { ASIDE_COMMAND, asideQuestion, catalogFor, catalogFromHarness, COMPOSER_PLACEHOLDER_SHORT, composerPlaceholder, offersSlashCommands, slashHoldLine } from "./catalog.js";
 export { repoAbsence } from "./git.js";
