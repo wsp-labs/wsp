@@ -630,8 +630,9 @@ export const under = (path: string, root: string): boolean => path === root || p
  * directory already walked, as the pack follows them. Stat times never enter,
  * so a file rewritten with the same bytes digests the same. An entry that
  * cannot be read digests by its error; the pack is what fails on it, with the
- * person watching. */
-export function digestOf(file: PlannedFile, home: string): string {
+ * person watching. For a provider's machine a file digests as the cut lands it,
+ * so a change to the cut reads as a change to the image. */
+export function digestOf(file: PlannedFile, home: string, cloud = false): string {
   const { excludes } = file;
   const hash = createHash("sha256");
   const entered = new Set<string>();
@@ -675,8 +676,16 @@ export function digestOf(file: PlannedFile, home: string): string {
         hash.update(`D ${rel} ${mode}\n`);
         for (const name of readdirSync(real).sort()) walk(join(abs, name), `${rel}/${name}`);
       } else {
-        hash.update(`F ${rel} ${mode} ${st.size}\n`);
-        hash.update(readFileSync(real));
+        const bytes = readFileSync(real);
+        const lands = cloud && file.rung !== "logins" && file.volatile !== true ? cloudBytes(`~/${relative(home, abs)}`, bytes, home) : bytes;
+        if (lands === undefined) {
+          hash.update(`N ${rel} stays here whole\n`);
+          return;
+        }
+        hash.update(`F ${rel} ${mode} ${lands.length}\n`);
+        hash.update(lands);
+        // What the cut takes out of an MCP server reaches the machine through the vault, which only a re-pack refreshes.
+        if (lands !== bytes) hash.update(createHash("sha256").update(bytes).digest("hex"));
       }
     } catch (e) {
       hash.update(`X ${rel} ${(e as { code?: string }).code ?? "error"}\n`);
@@ -684,6 +693,15 @@ export function digestOf(file: PlannedFile, home: string): string {
   };
   walk(file.source, "");
   return hash.digest("hex");
+}
+
+/** A file's bytes as leaveSecretsHome lands them on a provider's machine; nothing for one that stays here whole. */
+function cloudBytes(path: string, bytes: Buffer, home: string): Buffer | undefined {
+  if (bytes.includes(0)) return bytes;
+  const text = bytes.toString("utf8");
+  if (leftWhole(basename(path), text) !== undefined) return undefined;
+  const cut = cloudCut(path, text, home).text;
+  return cut === text ? bytes : Buffer.from(cut);
 }
 
 /** Where a laptop config lands on the guest, by the same rewrite the files plan applies. */
@@ -761,7 +779,7 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
   // fresher token, so the file is volatile too and the pair re-renders on attach.
   const withSecret = new Set(plan.secrets.map(s => s.id));
   const files = plan.files.map(f => (withSecret.has(f.id) && !f.volatile ? { ...f, volatile: true } : f));
-  const digested = files.map(f => ({ id: f.id, path: tilde(f), dest: f.dest, digest: digestOf(f, home), volatile: f.volatile }));
+  const digested = files.map(f => ({ id: f.id, path: tilde(f), dest: f.dest, digest: digestOf(f, home, opts.cloud === true), volatile: f.volatile }));
   const lands = files.map(f => ({ id: f.id, label: label(f.id), dest: f.dest }));
   // The values are read after the earlier-builder check, so they are digested when the recipe is read, not here.
   const secretDigests = () =>

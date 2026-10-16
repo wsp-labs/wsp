@@ -405,6 +405,15 @@ describeWithDists("what the host loads to start", ["host", "runtime", "protocol"
     expect((await startLoads()).filter(url => url.includes("@modelcontextprotocol"))).toEqual([]);
   });
 
+  it("leaves the TOML parser until a copy to a provider cuts a TOML config", async () => {
+    // The parser rides inlined in the host's chunks, so each of its modules a start-up file holds is named by the
+    // bundler's path line, and only one held as a factory waits for the first require.
+    const eager = (await startLoads()).flatMap(url =>
+      url.includes("smol-toml") ? [url] : url.startsWith("file:") ? [...readFileSync(fileURLToPath(url), "utf8").matchAll(/^\/\/ (\S*\/smol-toml\/\S+)\n(.*)$/gm)].filter(m => !/= __commonJS\(\{$/.test(m[2]!)).map(m => m[1]!) : [],
+    );
+    expect(eager).toEqual([]);
+  });
+
   it("leaves the slate's code until a thread uses a slate", async () => {
     // Read off the files themselves, as the bundler names the chunk the parser and the slate store land in.
     const holding = (await startLoads()).filter(url => url.startsWith("file:") && /function (parseSlate|createSlates)\(/.test(readFileSync(fileURLToPath(url), "utf8")));
