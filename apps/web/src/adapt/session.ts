@@ -7,7 +7,7 @@
 // session id repeats across turns. Wire order is the timeline order. createdAt
 // is the wire's `at` (ms epoch) as ISO, else the caller's receipt clock, else
 // "" for unstamped history.
-import { AFTER_CUT_LINE, LIMIT_WORDS, isSubOomLine, NOTIFY_ME, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, waitedLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
+import { AFTER_CUT_LINE, LIMIT_WORDS, isSubOomLine, NOTIFY_ME, compactedLine, copiedFromOf, spawnsThread, internalToolResult, subagentPrompt, subagentTaskLine, toolActivityLine, toolCallFacts, toolDoneLine, toolResultLine, waitedLine, type PlanStep, type SessionEvent, type SessionHarness, type SessionRetryEvent, type SessionRunEvent, type SubagentView, type TurnResult } from "@wsp/protocol";
 import { spawnedThreadOf } from "./spawned.js";
 import type {
   CallResult,
@@ -50,6 +50,8 @@ export interface SessionModel {
   readonly plan: TurnPlan | null;
   /** The thread opened on a conversation kept outside wsp, whose rows come ahead of its first turn. */
   readonly earlier: boolean;
+  /** The retry the running turn's agent is making of a failed model call; null once anything else of that turn lands. */
+  readonly retrying: SessionRetryEvent | null;
 }
 
 export interface DeriveSessionOptions {
@@ -145,6 +147,10 @@ export function deriveSession(events: ReadonlyArray<SessionEvent>, options: Deri
   return fold.model();
 }
 
+/** What only an agent whose model call got through writes into its turn. A steer, a slate run's start and a notice
+ * land in the turn too while the call is still failing, and leave its retry standing. */
+const AGENT_WROTE: ReadonlySet<SessionEvent["type"]> = new Set(["session.delta", "session.context", "session.compacted", "session.plan", "session.subagent", "session.permission", "session.done", "session.end"]);
+
 export function createSessionFold(): SessionFold {
   const timeline: TimelineEntry[] = [];
   const plans = new Map<string, PlanState>();
@@ -164,6 +170,7 @@ export function createSessionFold(): SessionFold {
   let permissionMode: string | null = null;
   let cwd: string | null = null;
   let shellCwd: string | null = null;
+  let retry: SessionRetryEvent | null = null;
   let taken = 0;
   /** The transcript position of the event being folded, which names the rows it opens: a thread held from the middle
    * of a turn names a row the same before and after its older events arrive, so the list keeps the row in place. */
@@ -369,6 +376,8 @@ export function createSessionFold(): SessionFold {
     const at = event.at !== undefined ? new Date(event.at).toISOString() : received ?? "";
     if (event.type === "session.start" && event.cwd !== undefined) cwd = event.cwd;
     if (event.type === "session.delta" && event.cwd !== undefined) shellCwd = event.cwd;
+    if (event.type === "session.retry") retry = event;
+    else if (retry !== null && AGENT_WROTE.has(event.type) && "turnId" in event && event.turnId === retry.turnId) retry = null;
     switch (event.type) {
       case "session.start": {
         if (turn && turn.summary.state === "running") endRunningTurn(turn, at);
@@ -545,6 +554,7 @@ export function createSessionFold(): SessionFold {
         addWork(t, { createdAt: at, label, tone: "notice", sourceActivityKind: "runtime.notice" }, at);
         return;
       }
+      case "session.retry":
       case "session.moved":
       case "session.behind":
       case "session.capped":
@@ -769,6 +779,7 @@ export function createSessionFold(): SessionFold {
   const model = (): SessionModel => {
     const open = turn as TurnBuild | null;
     const running = open !== null && open.summary.state === "running";
+    const retrying = running && retry !== null && retry.turnId === open.summary.turnId ? retry : null;
     const messages: ChatMessage[] = [];
     const workEntries: WorkLogEntry[] = [];
     for (const entry of timeline) {
@@ -779,7 +790,7 @@ export function createSessionFold(): SessionFold {
     const latestPlan = latestTurn === null ? undefined : plans.get(latestTurn.turnId);
     const plan = latestTurn === null || latestPlan === undefined ? null : { turnId: latestTurn.turnId, steps: latestPlan.steps };
     if (runsSeen.size !== runs.size || [...runs].some(([block, run]) => runsSeen.get(block) !== run)) runsSeen = new Map(runs);
-    return { turns: [...turns], messages, workEntries, timeline: [...timeline], latestTurn, running, model: modelName, harness, agent, permissionMode, cwd, shellCwd, runs: runsSeen, plan, earlier: earlier > 0 };
+    return { turns: [...turns], messages, workEntries, timeline: [...timeline], latestTurn, running, model: modelName, harness, agent, permissionMode, cwd, shellCwd, runs: runsSeen, plan, earlier: earlier > 0, retrying };
   };
   return { add, model, size: () => taken };
 }

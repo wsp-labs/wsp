@@ -61,6 +61,7 @@ const view = (model: string | null, running = false, recorded: Recorded = UNRECO
   model,
   plan: null,
   earlier: false,
+  retrying: null,
   ...recorded,
 });
 

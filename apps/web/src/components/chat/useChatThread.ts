@@ -18,7 +18,7 @@ import { isProjectHomeKey } from "../../protocol/store";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { agentName } from "@wsp/catalog";
 import { HISTORY_PAGE_EVENTS, agentStartingLine, isSessionEvent, sendWaitsForLine, threadKeyOf } from "@wsp/protocol";
-import type { AttachmentRecord, SessionEvent, SessionHarness, SessionHeldEvent, SessionStartingEvent, SessionQueuedEvent, SessionRunEvent, SessionView } from "@wsp/protocol";
+import type { AttachmentRecord, SessionEvent, SessionHarness, SessionHeldEvent, SessionRetryEvent, SessionStartingEvent, SessionQueuedEvent, SessionRunEvent, SessionView } from "@wsp/protocol";
 import { useProtocolEvents, useStore } from "../../protocol/store";
 import type { Api, ProtocolEvent } from "../../protocol/client";
 import { createSessionFold } from "../../adapt/session";
@@ -52,6 +52,8 @@ export interface ChatThreadView {
   readonly plan: TurnPlan | null;
   /** The thread opened on a conversation kept outside wsp, whose rows come ahead of its first turn. */
   readonly earlier: boolean;
+  /** The retry the running turn's agent is making of a failed model call, until anything else of that turn lands. */
+  readonly retrying: SessionRetryEvent | null;
 }
 
 export interface ChatThreadHandle {
@@ -210,7 +212,8 @@ function ownPlace(e: SessionEvent): string | undefined {
     case "session.subagent":
       return e.line === undefined ? undefined : `session.subagent:${e.turnId}:${e.line}`;
     case "session.compacted":
-      return e.line === undefined ? undefined : `session.compacted:${e.turnId}:${e.line}`;
+    case "session.retry":
+      return e.line === undefined ? undefined : `${e.type}:${e.turnId}:${e.line}`;
     case "session.context":
       return undefined;
     case "session.slate":
@@ -713,6 +716,7 @@ export function deriveChatView(state: ThreadState, previous: ReadonlyArray<Timel
     runs: model.runs,
     plan: model.plan,
     earlier: model.earlier,
+    retrying: model.retrying,
   };
   return { view, fold };
 }

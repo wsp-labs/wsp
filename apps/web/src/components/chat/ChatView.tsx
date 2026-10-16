@@ -20,7 +20,7 @@ import { answerPrompt } from "./answerPrompt.js";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownIcon } from "lucide-react";
 import type { LegendListRef } from "@legendapp/list/react";
-import { HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, modelOf, modelPicks, workspaceKind, workspaceWord } from "@wsp/protocol";
+import { HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, modelOf, modelPicks, retryLine, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { agentName } from "@wsp/catalog";
 import { Button } from "../ui/button";
 import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
@@ -177,11 +177,13 @@ export function ChatView({
   const capabilities = useCapabilities();
   const where = useComputerName(workspaceId);
   const runs = useMemo(() => ({ name: workspace?.name ?? workspaceId, where }), [workspace, workspaceId, where]);
+  // A model call its agent is making again is all a turn on a running workspace is doing until the call gets through.
   const machineWait = useMemo<MachineWait | null>(() => {
-    if (state === null || !working) return null;
-    const wait = turnWait(state, runs);
-    return wait === null ? null : { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
-  }, [state, working, wake, workspaceId, runs]);
+    if (!working) return null;
+    const wait = state === null ? null : turnWait(state, runs);
+    if (wait !== null) return { label: wait.label, elapsed: wait.elapsed, act: wait.wake ? { label: WAKE_ACT, run: () => void wake(workspaceId) } : null };
+    return view.retrying === null ? null : { label: retryLine(view.retrying), elapsed: true, act: null };
+  }, [state, working, wake, workspaceId, runs, view.retrying]);
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.
   // A sub-machine's nap is its delete timer's, with no Wake of its own: the line above the composer says what holds it.

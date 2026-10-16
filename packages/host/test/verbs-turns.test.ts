@@ -477,6 +477,24 @@ describe("wsp verbs over the host: prompts, answers and what a turn prints", () 
     expect(io.streamed).not.toContain("failed");
   });
 
+  it.runIf(CLOUD_ON)("a model call its agent makes again streams one muted line per retry, which and why, above the reply", async () => {
+    const retrying = sayingAgent([{ kind: "text", text: "ready", messageId: "msg_a" }], { status: "completed", text: "ready" });
+    await h.restartHost({
+      claude: deps => {
+        const agent = retrying(deps);
+        return { ...agent, start: o => agent.start({ ...o, onEvent: e => {
+          if (e.type === "turn.delta") for (const attempt of [1, 2]) o.onEvent({ type: "turn.retry", sessionId: e.sessionId, attempt, of: 10, why: "Anthropic is overloaded" });
+          o.onEvent(e);
+        } }) };
+      },
+    });
+    await h.run("new", "alpha");
+    const io = captured();
+    io.muted = text => `~${text}~`;
+    expect(await cli(["run", "alpha", "say ready", "--state", h.statePath], io, undefined, h.env)).toBe(0);
+    expect(io.streamed.split("\n")).toEqual(["~Anthropic is overloaded, trying again (1 of 10)~", "~Anthropic is overloaded, trying again (2 of 10)~", "ready", "~completed~", ""]);
+  });
+
   it.runIf(CLOUD_ON)("a turn's tool calls stream one muted line each as they land, what each answered behind it, and its end reads as the app's status line", async () => {
     await h.restartHost({
       claude: toolingAgent(
