@@ -12,7 +12,7 @@ import type { BrokerStatus, PipeDoor, PipeOpen } from "@wsp/protocol";
 import { brokerCredentials, type CredentialPorts } from "./credentials.js";
 import type { BrokerLog } from "./log.js";
 import { offSwitch, type OffSwitch } from "./off.js";
-import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, failedSaid, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, stopStatus, UNHELD_SAID, writeRefusal, type RefusalStatus } from "./refuse.js";
+import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, failedSaid, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, UNHELD_SAID, writeRefusal, type RefusalStatus } from "./refuse.js";
 import { dropCallerAuth, hostOf, isConnectorCall, isRefreshCall, pathOf, REFRESH_BODY_MAX, refreshToken, tokenOf } from "./tokens.js";
 import type { BrokerContext, BrokerLogLine, BrokerService, BrokerWorkspace, Grant, LiveGrant, PushedRef, RefusalShape } from "./types.js";
 
@@ -337,7 +337,7 @@ export function createBroker(o: BrokerOptions): Broker {
         await admitted.service.serve(brokerRequest(p, admitted.grant, admitted.req, res, line.heldMs), contextFor(p, line.note));
       } catch (e) {
         // A 503 reads to Claude Code as overloaded, three of which end the turn, though a retry fails the same way.
-        writeRefusal(res, stopStatus(shape), failedSaid(admitted.service.id, e), shape);
+        writeRefusal(res, 403, failedSaid(admitted.service.id, e), shape);
       }
     })().catch(() => res.destroy());
   });
@@ -364,7 +364,7 @@ export function createBroker(o: BrokerOptions): Broker {
       } catch (e) {
         if (p.rawStatus !== undefined || socket.destroyed) return socket.destroy();
         res.assignSocket(socket as Parameters<ServerResponse["assignSocket"]>[0]);
-        writeRefusal(res, stopStatus(shape), failedSaid(admitted.service.id, e), shape);
+        writeRefusal(res, 403, failedSaid(admitted.service.id, e), shape);
       }
     })().catch(() => socket.destroy());
   });
