@@ -2634,8 +2634,7 @@ describe("wsp init, flags and no terminal", () => {
     const out = f.text();
     expect(out).toMatch(/Stop them, then boot a 2 vCPU/);
     expect(out).toContain("Stopped default (m1).");
-    expect(out).toContain("Stopping default (m2) failed: provider said no");
-    expect(out).toContain("Nothing was booted. default (m2) is still running; run wsp init again to retry.");
+    expect(out).toContain("Nothing was booted. Stopping default (m2) failed (provider said no), so it is still running; run wsp init again to retry.");
     expect(out).not.toContain("It is still running");
     expect(shared.machines.map(m => [m.id, m.killed])).toEqual([["m1", true], ["m2", false]]);
   });

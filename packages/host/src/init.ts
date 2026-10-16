@@ -20,7 +20,7 @@ import { writeFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
 import { estimateDisk, isMcpRow, PACK_BUDGET_BYTES, plural, TOOLS_DISK_FLOOR, type BrewTable, type ImportResult } from "@wsp/engine";
-import { ALREADY_APPLIED, subThreadsOnly, BREW_ID_PREFIX, BUILD_NEEDS_FILE_FIX, buildNeedsFileLine, builderStaysLine, customRows, fmtBytes, fmtDuration, fmtElapsed, fmtMemGb, initStageWhile, initStoppedAt, INIT_ROW_STATES, MACHINE_GONE_LINE, notHereLine, packageOf, savedKeyStoppedLine, SEAL_FAILED_BUILDER_GONE_LINE, SEAL_FAILED_LINE, SIGN_IN_ANSWERS, sealFailedBuilderStaysLine, sealFailedBuilderUnreadLine, shellQuote, type AppPorts, type PortsAsked, GOLDEN_STAGE_WORDS, HOST_SIGN_INS } from "@wsp/protocol";
+import { ALREADY_APPLIED, type InitSaidLine, subThreadsOnly, BREW_ID_PREFIX, BUILD_NEEDS_FILE_FIX, buildNeedsFileLine, builderStaysLine, customRows, fmtBytes, fmtDuration, fmtElapsed, fmtMemGb, initStageWhile, initStoppedAt, INIT_ROW_STATES, MACHINE_GONE_LINE, notHereLine, packageOf, savedKeyStoppedLine, SEAL_FAILED_BUILDER_GONE_LINE, SEAL_FAILED_LINE, SIGN_IN_ANSWERS, sealFailedBuilderStaysLine, sealFailedBuilderUnreadLine, shellQuote, type AppPorts, type PortsAsked, GOLDEN_STAGE_WORDS, HOST_SIGN_INS } from "@wsp/protocol";
 import { serverVault } from "./env-keys.js";
 import { importResultPath, keychainLogins, readSecrets, refusedIsDir, type SecretReader } from "./init-import.js";
 import { planGoldenRecipe, planImport, wantsBrew, type BuildContext, type BuildsAt } from "./image-recipe.js";
@@ -1081,11 +1081,10 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     const ageMs = Math.max(0, Date.now() - Date.parse(b.createdAt));
     return `${b.name} (${b.id}), ${describeAge(ageMs)}${b.rateUsdPerHour === undefined ? "" : `, about $${((ageMs / 3_600_000) * b.rateUsdPerHour).toFixed(2)} so far`}`;
   };
-  const listEarlier = (blocking: GoldenBuilderView[], attach: GoldenBuilderView | undefined, at: Earlier["at"]): void => {
-    const lines = blocking.map(b => `${describeBuilder(b)}; ${earlierReason(b, at, imp.recipe, manifest)}`);
-    if (attach !== undefined) lines.push(`${describeBuilder(attach)}; reusable by this run once the others are stopped`);
-    log.warn(["A builder from an earlier wsp init is still running on the account:", ...lines].join("\n"), out);
-  };
+  // A terminal beside a host never reads the job's log, so what is said of an earlier builder goes out as a record too.
+  const sayOfBuilders = (level: InitSaidLine["level"], line: string): void => { log[level](line, out); io.json?.({ event: "builders", level, line }); };
+  const listEarlier = (blocking: GoldenBuilderView[], attach: GoldenBuilderView | undefined, at: Earlier["at"]): void =>
+    sayOfBuilders("warn", ["A builder from an earlier wsp init is still running on the account:", ...blocking.map(b => `${describeBuilder(b)}; ${earlierReason(b, at, imp.recipe, manifest)}`), ...(attach !== undefined ? [`${describeBuilder(attach)}; reusable by this run once the others are stopped`] : [])].join("\n"));
   // An earlier run's builder is attached to when a seal can still be taken from it, this setup's, stands where this
   // run builds and carries this recipe. Another of this setup's is stopped by its recorded id once the person says
   // so; one another live process holds or another setup owns is never touched from here.
@@ -1181,21 +1180,21 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
         return { code: 1 };
       }
     } else {
-      log.step(`${ask} Taken as yes (${takenAs}).`, out);
+      sayOfBuilders("step", `${ask} Taken as yes (${takenAs}).`);
     }
     for (const b of stop) {
       try {
         await rt.golden.kill(b.id);
       } catch (e) {
-        log.error(`Stopping ${b.name} (${b.id}) failed: ${e instanceof Error ? e.message : String(e)}`, out);
-        cancel(`Nothing was booted. ${b.name} (${b.id}) is still running; run wsp init again to retry.`, out);
+        // One line, since beside a host the job's last line is the whole of what the terminal hears of the failure.
+        cancel(`Nothing was booted. Stopping ${b.name} (${b.id}) failed (${e instanceof Error ? e.message : String(e)}), so it is still running; run wsp init again to retry.`, out);
         return { code: 1 };
       }
-      log.step(`Stopped ${b.name} (${b.id}).`, out);
+      sayOfBuilders("step", `Stopped ${b.name} (${b.id}).`);
     }
   }
   if (attach !== undefined) {
-    log.step(`Attaching to your earlier builder: ${describeBuilder(attach)}. Nothing new boots; stages already applied are skipped.`, out);
+    sayOfBuilders("step", `Attaching to your earlier builder: ${describeBuilder(attach)}. Nothing new boots; stages already applied are skipped.`);
   } else if (stop.length === 0 && interactive) {
     // Enter takes the defaults every screen showed, so a run that changes nothing is one keypress a screen and one here.
     const go = await confirmPrompt({ message: `${ready}\n${question}`, hint: "No costs nothing and keeps the recipe for wsp init --recipe.", initialValue: true, input: io.input, output: io.output });
