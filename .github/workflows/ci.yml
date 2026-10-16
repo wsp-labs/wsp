@@ -189,7 +189,7 @@ jobs:
         run: |
           affected=()
           if [ -f "$RUNNER_TEMP/affected.txt" ]; then mapfile -t affected < "$RUNNER_TEMP/affected.txt"; fi
-          pnpm exec vitest run --minWorkers=1 --maxWorkers=4 --shard=${{ matrix.shard }}/4 "${affected[@]}"
+          pnpm exec vitest run --minWorkers=1 --maxWorkers=4 --shard=${{ matrix.shard }}/4 --reporter=default --reporter=github-actions --reporter=./vitest.stall.ts "${affected[@]}"
 
   flake:
     name: The test files this change added or modified, five times over
@@ -225,7 +225,7 @@ jobs:
           if [ "${#files[@]}" -gt 30 ]; then echo "${#files[@]} test files changed, over 30, so they run once"; exit 0; fi
           for run in 1 2 3 4 5; do
             report="$RUNNER_TEMP/repeat-$run.json"
-            if ! pnpm exec vitest run --minWorkers=1 --maxWorkers=2 --reporter=default --reporter=json --outputFile.json="$report" "${files[@]}"; then
+            if ! pnpm exec vitest run --minWorkers=1 --maxWorkers=2 --reporter=default --reporter=json --reporter=./vitest.stall.ts --outputFile.json="$report" "${files[@]}"; then
               failed=$(jq -r --arg top "$GITHUB_WORKSPACE/" '[.testResults[] | select(.status == "failed") | .name | ltrimstr($top)] | unique | join(", ")' "$report")
               echo "::error::run $run of 5 failed: ${failed:-no file reported}"
               exit 1
@@ -501,7 +501,7 @@ jobs:
         run: |
           export WSP_MCP_BIN=$PWD/daemon/target/debug/wsp-daemon
           report="$RUNNER_TEMP/mac-tests.json"
-          if pnpm exec vitest run --minWorkers=1 --maxWorkers=3 --shard=${{ matrix.shard }}/2 --reporter=default --reporter=json --outputFile.json="$report" $TESTS 2>&1 | tee "$RUNNER_TEMP/mac-tests.log"; then exit 0; fi
+          if pnpm exec vitest run --minWorkers=1 --maxWorkers=3 --shard=${{ matrix.shard }}/2 --reporter=default --reporter=json --reporter=./vitest.stall.ts --outputFile.json="$report" $TESTS 2>&1 | tee "$RUNNER_TEMP/mac-tests.log"; then exit 0; fi
           # The JSON report leaves out an error thrown outside any test, so no failure main shares can excuse one.
           if grep -q "Vitest caught [0-9]* unhandled error" "$RUNNER_TEMP/mac-tests.log"; then echo "::error::vitest caught an error outside any test"; exit 1; fi
           scripts/mac-base-red.sh "$BASE" "$report"
