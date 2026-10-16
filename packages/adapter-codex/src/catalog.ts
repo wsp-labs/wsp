@@ -21,6 +21,8 @@ const MODELS = 2;
 const CONFIG = 3;
 const ACCOUNT = 4;
 const REQUESTS = [initializeRequest(INIT), request(MODELS, "model/list"), request(CONFIG, "config/read"), request(ACCOUNT, "account/read")];
+/** A brokered machine signs in at the door, so its codex reads no login and account/read would always say none. */
+const BROKERED_REQUESTS = REQUESTS.slice(0, -1);
 
 /**
  * The probe as one bash script for the guest, since guest exec is `bash -c` and may span lines. `cd ~` for the same
@@ -29,7 +31,8 @@ const REQUESTS = [initializeRequest(INIT), request(MODELS, "model/list"), reques
  */
 export function catalogProbeCommand(options: { launch?: AgentLaunch; broker?: CodexBroker } = {}): string {
   const codex = codexWord(options.launch, options.broker);
-  const server = appServerScript(codex, [{ lines: REQUESTS, answers: REQUESTS.length }]);
+  const lines = options.broker === undefined ? REQUESTS : BROKERED_REQUESTS;
+  const server = appServerScript(codex, [{ lines, answers: lines.length }]);
   return `${versionProbeCommand(options)}; echo ${SEP}; ${codex} --help; echo ${SEP}\n${server}`;
 }
 

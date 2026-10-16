@@ -2,7 +2,7 @@
 // A brokered launch run in a real shell, the program in place of codex a stand-in that keeps the line it was handed
 // and the environment it ran under, so what is read here is the auth.json the launch itself wrote on the machine.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BROKER_PORT, HOST_TOKEN_ENV, PLACEHOLDER_KEY_PREFIX, PLACEHOLDER_REFRESH_PREFIX, PLACEHOLDER_SIGNATURE, programWord, TURN_CLAIM } from "@wsp/protocol";
@@ -21,6 +21,11 @@ const CHATGPT: CodexBroker = { mode: "chatgpt", claims: CLAIMS };
 const YEAR_S = 365 * 24 * 60 * 60;
 const DOOR = `http://127.0.0.1:${BROKER_PORT}`;
 const TOKEN_WORD = "$" + HOST_TOKEN_ENV;
+/** The launch with the overrides ahead of whatever follows, as the terminal's codex runs it. */
+const ahead = (launch: { program: string }, broker: CodexBroker): string => {
+  const { word, flags } = codexLaunch(launch, broker);
+  return [word, ...flags].join(" ");
+};
 
 const made: string[] = [];
 afterEach(() => {
@@ -166,7 +171,7 @@ describe("a brokered Codex launch on an API key", () => {
 describe("every other Codex launch on a brokered machine", () => {
   it("writes the placeholder login and runs codex with the broker's overrides ahead of the subcommand", () => {
     const { dir, program } = standIn();
-    expect(run(dir, `${codexWord({ program }, CHATGPT)} exec --json -`, CHATGPT, { [HOST_TOKEN_ENV]: TOKEN })).toBe(0);
+    expect(run(dir, `${ahead({ program }, CHATGPT)} exec --json -`, CHATGPT, { [HOST_TOKEN_ENV]: TOKEN })).toBe(0);
     expect(payloadOf(loginOf(dir).tokens.access_token!)[TURN_CLAIM]).toBe(TOKEN);
     const args = argsOf(dir);
     expect(args.slice(-3)).toEqual(["exec", "--json", "-"]);
@@ -179,7 +184,7 @@ describe("every other Codex launch on a brokered machine", () => {
 
   it("with no turn token, writes nothing and still runs at the door on the login the last turn left", () => {
     const { dir, program } = standIn();
-    expect(run(dir, `${codexWord({ program }, CHATGPT)} --version`, CHATGPT, {})).toBe(0);
+    expect(run(dir, `${ahead({ program }, CHATGPT)} --version`, CHATGPT, {})).toBe(0);
     expect(existsSync(join(dir, "home", "auth.json"))).toBe(false);
     expect(argsOf(dir)).toContain(`openai_base_url="${DOOR}/backend-api/codex"`);
   });
@@ -187,13 +192,37 @@ describe("every other Codex launch on a brokered machine", () => {
   it("on an API key, writes the key file and leaves the key out of codex's environment", () => {
     const { dir, program } = standIn();
     const broker: CodexBroker = { mode: "apikey" };
-    expect(run(dir, `${codexWord({ program }, broker)} --version`, broker, { [HOST_TOKEN_ENV]: TOKEN })).toBe(0);
+    expect(run(dir, `${ahead({ program }, broker)} --version`, broker, { [HOST_TOKEN_ENV]: TOKEN })).toBe(0);
     expect(loginOf(dir)).toEqual({ auth_mode: "apikey", OPENAI_API_KEY: KEY });
     expect(envOf(dir)[KEY_FILE_ENV]).toBeUndefined();
   });
 
   it("is the plain program word on today's road", () => {
     expect(codexWord(undefined, undefined)).toBe(programWord("codex", undefined));
+  });
+
+  it("a probe, a rename or a conversation read reads no login, not even the one the last turn left, and runs no plugin sync", () => {
+    // Outside a turn the last turn's token is dead: on codex-cli 0.163.0 a probe on that login made 11 calls the door
+    // refused 403 at every wake, and one with neither the login nor plugins made none.
+    for (const [broker, env] of [[CHATGPT, {}], [CHATGPT, { [HOST_TOKEN_ENV]: TOKEN }], [{ mode: "apikey" }, {}]] as const) {
+      const { dir, program } = standIn();
+      mkdirSync(join(dir, "home"));
+      writeFileSync(join(dir, "home", "auth.json"), "last turn's");
+      expect(run(dir, `${codexWord({ program }, broker)} app-server`, broker, env)).toBe(0);
+      const args = argsOf(dir);
+      expect(args).toContain('cli_auth_credentials_store="ephemeral"');
+      expect(args).not.toContain('cli_auth_credentials_store="file"');
+      expect(args).toContain("features.plugins=false");
+      expect(args.at(-1)).toBe("app-server");
+      expect(args).toContain(broker.mode === "chatgpt" ? `chatgpt_base_url="http://localhost:${BROKER_PORT}/backend-api/"` : `openai_base_url="${DOOR}/v1"`);
+      expect(readFileSync(join(dir, "home", "auth.json"), "utf8")).toBe("last turn's");
+      expect(envOf(dir)[KEY_FILE_ENV]).toBeUndefined();
+    }
+  });
+
+  it("a brokered probe asks nothing of the sign-in, which the host holds", () => {
+    expect(catalogProbeCommand({ broker: CHATGPT })).not.toContain("account/read");
+    expect(catalogProbeCommand()).toContain("account/read");
   });
 
   it("a title hands codex the broker's overrides after exec, beside its own, where codex keeps both", () => {
