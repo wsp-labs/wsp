@@ -63,7 +63,7 @@ function context(credential: AnthropicCredential | undefined): AnthropicContext 
 
 async function door(upstreamUrl: string, credential: AnthropicCredential | undefined): Promise<string> {
   const service = anthropicService({ upstream: upstreamUrl, computer: () => COMPUTER });
-  return listen((req, res) => void service.serve({ req, res }, context(credential)));
+  return listen((req, res) => void service.serve({ req, res, grant: { workspaceId: "ws_lab", threadId: "th_lab" } }, context(credential)));
 }
 
 interface Got { status: number; rawHeaders: string[]; body: Buffer }
@@ -265,12 +265,105 @@ describe("a credential the host cannot add stops the turn with a sentence instea
     const refusals: { said: string; callerLeft: boolean }[] = [];
     const ctx: AnthropicContext = { credential: async () => ({ kind: "key", key: "key-for-test" }), refuse: (res, _status, said) => void refusals.push({ said, callerLeft: res.destroyed }) };
     const service = anthropicService({ upstream: up, computer: () => COMPUTER });
-    const { port } = new URL(await listen((req, res) => void service.serve({ req, res }, ctx)));
+    const { port } = new URL(await listen((req, res) => void service.serve({ req, res, grant: { workspaceId: "ws_lab", threadId: "th_lab" } }, ctx)));
     const call = request({ host: "127.0.0.1", port, method: RECORDED.key.method, path: RECORDED.key.url, headers: RECORDED.key.rawHeaders, setHost: false });
     call.on("error", () => undefined);
     call.end(RECORDED.key.body);
     await held;
     call.destroy();
     await expect.poll(() => refusals).toEqual([{ said: `wsp: Anthropic did not answer ${COMPUTER}. Claude Code tries again.`, callerLeft: true }]);
+  });
+});
+
+describe("a model call no reply has started for is cut at a wait, so Claude Code says it is trying again", () => {
+  const key: AnthropicCredential = { kind: "key", key: "key-for-test" };
+  const lab = { workspaceId: "ws_lab", threadId: "th_one" };
+
+  /** An upstream that starts each reply only after the wait given for that call, in order. */
+  async function slowUpstream(waits: number[]): Promise<{ url: string; calls: () => number; left: () => number }> {
+    let calls = 0;
+    let left = 0;
+    const url = await listen((req, res) => {
+      const wait = waits[calls++] ?? Infinity;
+      req.resume();
+      res.on("close", () => void (res.writableFinished || left++));
+      if (wait === Infinity) return;
+      setTimeout(() => {
+        res.writeHead(200, STREAM_HEADERS);
+        res.end(Buffer.concat(SSE));
+      }, wait);
+    });
+    return { url, calls: () => calls, left: () => left };
+  }
+
+  async function doorFor(upstreamUrl: string, credential: AnthropicCredential, firstByteMs: number) {
+    const service = anthropicService({ upstream: upstreamUrl, computer: () => COMPUTER, firstByteMs });
+    const refusals: string[] = [];
+    const ctx: AnthropicContext = { credential: async () => credential, refuse: (res, status, said) => (refusals.push(said), context(credential).refuse(res, status, said, "anthropic")) };
+    let grant = lab;
+    const url = await listen((req, res) => void service.serve({ req, res, grant }, ctx));
+    return { url, refusals, as: (g: typeof lab) => void (grant = g) };
+  }
+
+  const withText = (body: string): Recorded => {
+    const rawHeaders = RECORDED.key.rawHeaders.map((v, i, all) => (i % 2 === 1 && all[i - 1]!.toLowerCase() === "content-length" ? String(Buffer.byteLength(body)) : v));
+    return { ...RECORDED.key, body, rawHeaders };
+  };
+  const withBody = (bytes: number): Recorded => withText(RECORDED.key.body.padEnd(bytes, " "));
+
+  it("cuts a call whose upstream took it and never answered, as Claude Code's own wait does, so it reads that Anthropic did not answer", async () => {
+    const up = await slowUpstream([Infinity]);
+    const door = await doorFor(up.url, key, 150);
+    await expect(send(door.url, RECORDED.key)).rejects.toThrow(/socket hang up|ECONNRESET/);
+    await expect.poll(up.left).toBe(1);
+    expect(door.refusals).toEqual([]);
+  });
+
+  it("lets a cut call's retry wait as long as Claude Code does, so a reply slow to start costs a retry, never the reply", async () => {
+    const up = await slowUpstream([Infinity, 400, 400]);
+    const door = await doorFor(up.url, key, 150);
+    await expect(send(door.url, RECORDED.key)).rejects.toThrow();
+    const retried = await send(door.url, RECORDED.key);
+    expect(retried.status).toBe(200);
+    expect(retried.body.equals(Buffer.concat(SSE))).toBe(true);
+    door.as({ workspaceId: "ws_lab", threadId: "th_two" });
+    await expect(send(door.url, RECORDED.key)).rejects.toThrow();
+  });
+
+  it("cuts each of a thread's calls at most once when several wait at once, as a turn's subagents do", async () => {
+    const up = await slowUpstream([Infinity, Infinity, 400, 400]);
+    const door = await doorFor(up.url, key, 150);
+    const [main, subagent] = [withText(`${RECORDED.key.body}  `), withText(`${RECORDED.key.body}\n\n`)];
+    await Promise.all([expect(send(door.url, main)).rejects.toThrow(), expect(send(door.url, subagent)).rejects.toThrow()]);
+    const retried = await Promise.all([send(door.url, main), send(door.url, subagent)]);
+    expect(retried.map(got => got.status)).toEqual([200, 200]);
+  });
+
+  it("never cuts a call that asks for a whole reply, which starts only once it is done", async () => {
+    const up = await slowUpstream([400]);
+    const door = await doorFor(up.url, key, 150);
+    expect((await send(door.url, withText(RECORDED.key.body.replace('"stream":true', '"stream":false')))).status).toBe(200);
+  });
+
+  it("adds a second per 32 KB of the request to the wait, as Claude Code's own does, since the API starts no reply before its first token", async () => {
+    const up = await slowUpstream([600]);
+    const door = await doorFor(up.url, key, 150);
+    const got = await send(door.url, withBody(70_000));
+    expect(got.status).toBe(200);
+  });
+
+  it("never cuts a reply that has started, however long it runs", async () => {
+    let clientHas!: () => void;
+    const clientSaw = new Promise<void>(done => (clientHas = done)).then(() => new Promise<void>(done => setTimeout(done, 400)));
+    const up = await upstream({ status: 200, headers: STREAM_HEADERS, chunks: SSE, clientSaw });
+    const door = await doorFor(up.url, key, 150);
+    const got = await send(door.url, RECORDED.key, clientHas);
+    expect(got.body.equals(Buffer.concat(SSE))).toBe(true);
+  });
+
+  it("leaves a gateway's call to the wait Claude Code gives it, since a gateway may hold a reply until it is whole", async () => {
+    const up = await slowUpstream([400]);
+    const door = await doorFor(up.url, { kind: "gateway", url: up.url, token: "gateway-for-test" }, 150);
+    expect((await send(door.url, RECORDED.key)).status).toBe(200);
   });
 });
