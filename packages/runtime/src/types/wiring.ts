@@ -793,6 +793,9 @@ export interface RuntimeOptions {
   broker?: {
     ready(): boolean;
     codexClaims(): Promise<CodexClaims | undefined>;
+    /** ChatGPT's list of the models the host's Codex login may run on the codex version named, read with that login;
+     * undefined where it could not be read. What a probe lists on a machine that holds no live login of its own. */
+    codexModels?(clientVersion: string): Promise<unknown>;
     /** Each pipe a daemon hands over, under the workspace whose link it was dialled on, read through pipeOpenOf. */
     pipe?(workspaceId: string, open: PipeOpen, duplex: Duplex): void;
     /** The kind of credential the host holds for each road, so a brokered turn picks the placeholder it runs on. */

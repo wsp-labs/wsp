@@ -424,6 +424,31 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     await after.close();
   });
 
+  it("lists the account's own Codex models from the host's read of its sign-in, and starts a thread on one the binary does not ship", async () => {
+    const backend = stubBackend();
+    const probe = readFileSync(new URL("../../adapter-codex/test/fixtures/catalog-probe.txt", import.meta.url), "utf8");
+    const guest = backend.execImpl;
+    backend.execImpl = (m, cmd, stdin) => (cmd.includes("__WSP_CATALOG_SEP__") ? { exitCode: 0, stdout: probe, stderr: "" } : guest(m, cmd, stdin));
+    const asked: string[] = [];
+    const account = { models: [{ slug: "gpt-6-sol", display_name: "GPT-6-Sol", visibility: "list", priority: 3, default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "medium", description: "" }] }] };
+    const broker: RuntimeOptions["broker"] = { ...chatgptBroker, codexModels: async version => (asked.push(version), account) };
+    const started: (string | undefined)[] = [];
+    const ending = endingCodex([]);
+    const factory: HarnessAdapterFactory = ctx => {
+      const adapter = ending(ctx);
+      return { ...adapter, start: o => (started.push(o.model), adapter.start(o)) };
+    };
+    const rt = createRuntime({ backend, store: memoryStore(), adapters: { codex: factory }, vault: () => HELD, broker, ...here() });
+    const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+    const codex = (await rt.harnesses.list(ws.id)).find(c => c.harness === "codex")!;
+    expect(codex.models.map(m => m.value)).toEqual(["gpt-6-sol"]);
+    expect(asked).toEqual(["0.153.0"]);
+    const turn = await rt.sessions.start(ws.id, { prompt: "one", harness: "codex", model: "gpt-6-sol" });
+    await turn.finished;
+    expect(started).toEqual(["gpt-6-sol"]);
+    await rt.close();
+  });
+
   it("refuses a Codex turn whose broker read ran late, with the host's login named and nothing launched", { timeout: 20_000 }, async () => {
     const launches: { command: string; env: Readonly<Record<string, string>> }[] = [];
     const late: RuntimeOptions["broker"] = { ready: () => true, codexClaims: async () => CODEX_CLAIMS, status: () => new Promise(() => {}) };

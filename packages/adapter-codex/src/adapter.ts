@@ -44,6 +44,7 @@ import type {
   ExecStreamFactory,
   FilePatch,
   HarnessCatalogAnswer,
+  HarnessCatalogModelProbe,
   HarnessExec,
   McpServerSpec,
   PermissionAsk,
@@ -70,7 +71,7 @@ import type {
   LimitWindow,
   ResetCredit,
 } from "@wsp/protocol";
-import { catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
+import { accountModelsOf, catalogProbeCommand, readCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
 import { accessParams, buildCommand, buildEnv, imagePath, slug, type CodexBroker } from "./command.js";
 import {
   INITIALIZED_LINE,
@@ -220,6 +221,9 @@ export interface CodexAdapter {
   probeCatalog(exec: HarnessExec): Promise<HarnessCatalogAnswer>;
   /** Asks the binary only its version, under the same environment as the probe; null where it printed none. */
   probeVersion(exec: HarnessExec): Promise<string | null>;
+  /** The models the person's ChatGPT account offers, read by the host with the sign-in it holds and without the
+   * binary; present only on a machine whose sign-in the host holds. */
+  accountModels?(version?: string): Promise<HarnessCatalogModelProbe[] | undefined>;
   /** What the CLI's thread index calls a thread: the name the person gave it, or the title it derived. */
   sessionTitle: SessionTitleReader;
   /** The thread's rollout file, under the home's sessions folder by date. */
@@ -1427,7 +1431,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
       return { ...opened, ...newest, ...(o.count === false ? { earlier: 0 } : {}) };
     },
   };
-  const probeCatalog = (exec: HarnessExec): Promise<HarnessCatalogAnswer> => exec(catalogProbeCommand(launch), questionEnv()).then(stdout => parseCatalogProbe(stdout, deps.login));
+  const accountModels = deps.broker?.mode === "chatgpt" ? deps.broker.models : undefined;
+  const probeCatalog = (exec: HarnessExec): Promise<HarnessCatalogAnswer> => exec(catalogProbeCommand(launch), questionEnv()).then(stdout => readCatalogProbe(stdout, deps.login, accountModels));
 
   return {
     start,
@@ -1465,6 +1470,7 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     forksByCount: true,
     conversations,
     probeCatalog,
+    ...(accountModels !== undefined ? { accountModels: (version?: string) => accountModelsOf(accountModels, version) } : {}),
     probeVersion: (exec: HarnessExec) => exec(versionProbeCommand(launch), questionEnv()).then(parseVersion),
     sessionTitle: (threadId, exec) => exec(sessionTitleCommand({ home: deps.home, threadId })).then(parseSessionTitle),
     sessionFile: threadId => rolloutIn(deps.home, threadId),

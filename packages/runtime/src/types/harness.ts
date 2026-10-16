@@ -2,7 +2,7 @@
 import { TOOL_PREFIX, installEnv, installHomes } from "@wsp/catalog";
 import { type Machine, GUEST_USER_ENV, TOOLS_PATH } from "@wsp/engine";
 import type { CodexBroker } from "@wsp/adapter-codex";
-import type { KeptAgent } from "@wsp/protocol";
+import type { HarnessCatalogModelProbe, KeptAgent } from "@wsp/protocol";
 import type {
   AdapterAttachOptions,
   AdapterEvent,
@@ -246,6 +246,9 @@ export interface HarnessAdapter {
   /** Asks the same binary its version alone, which says whether lists it answered before are still its lists; absent,
    * nothing can say so and lists held from before wait for the probe. */
   probeVersion?(exec: HarnessExec): Promise<string | null>;
+  /** The models the agent's account offers, read by the host with the sign-in it holds, without the binary: what the
+   * lists answer where the binary described nothing. Absent where the host holds no such sign-in. */
+  accountModels?(version?: string): Promise<HarnessCatalogModelProbe[] | undefined>;
   /** Reads the harness's own title for a session out of its store on the machine; absent on a harness that keeps none. */
   sessionTitle?: SessionTitleReader;
   /** Where one session's own file sits on the machine: under `folder`, `depth` folders down, its name ending in
