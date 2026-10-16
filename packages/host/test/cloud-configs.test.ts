@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import type { ManifestEntry } from "@wsp/collect";
 import { CLAUDE_CONFIG_REL, GUEST_REWRITES } from "@wsp/catalog";
 import { planFiles, type SkippedPath } from "@wsp/engine";
+import { parse as parseToml } from "smol-toml";
 import { afterEach, describe, expect, it } from "vitest";
 import { serverVault, type ServerVault } from "../src/env-keys.js";
 import { packPlan, statOf } from "../src/init-import.js";
@@ -234,6 +235,86 @@ describe("a copy to a provider's machine", () => {
     expect(read(root, ".config/fish/config.fish")).toBe(quiet[".config/fish/config.fish"]);
     expect(blanked).toEqual([]);
     expect(skipped.filter(s => /on this computer/.test(s.note))).toEqual([]);
+  });
+
+  it("leaves out the env variables an agent reads as header lines", async () => {
+    const settings = { env: { ANTHROPIC_CUSTOM_HEADERS: "x-api-key: plain0customheader", OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer plain0otel", CLAUDE_CODE_OTEL_HEADERS_HELPER_DEBOUNCE_MS: "1000", DISABLE_TELEMETRY: "1" } };
+    const h = home({ ".claude/settings.json": `${JSON.stringify(settings, null, 2)}\n` });
+    const { root, blanked } = await landed(h, [row("agents/claude", ["~/.claude/settings.json"])], true);
+    expect(JSON.parse(read(root, `${CLAUDE_CONFIG_REL}/settings.json`)).env).toEqual({ CLAUDE_CODE_OTEL_HEADERS_HELPER_DEBOUNCE_MS: "1000", DISABLE_TELEMETRY: "1" });
+    expect(notes(blanked, "~/.claude/settings.json")).toMatch(/^ANTHROPIC_CUSTOM_HEADERS, OTEL_EXPORTER_OTLP_HEADERS blanked or left out/);
+  });
+
+  it("leaves out every header of Codex's otel exporter and model providers that holds a value, and the file still parses", async () => {
+    const codex = [
+      "[otel]",
+      'exporter = { otlp-http = { endpoint = "https://otel.example.com", headers = { "x-lab-team" = "plain0codexotel", "x-var" = "${V}" } } }',
+      "",
+      "[model_providers.gw]",
+      'base_url = "https://gw.example.com/v1"',
+      'http_headers = { "X-Gw-Key" = "plain0codexprov" }',
+      "",
+      "[model_providers.lab.http_headers]",
+      '"X-Lab-Key" = "Bearer plain0codextable"',
+      '"X-Lab-Ref" = "${LAB_REF}"',
+      "",
+    ].join("\n");
+    const { root, blanked } = await landed(home({ ".codex/config.toml": codex }), [row("agents/codex", ["~/.codex/config.toml"])], true);
+    const text = read(root, ".codex/config.toml");
+    expect(text).not.toContain("plain0");
+    expect(parseToml(text)).toEqual({
+      otel: { exporter: { "otlp-http": { endpoint: "https://otel.example.com", headers: { "x-var": "${V}" } } } },
+      model_providers: { gw: { base_url: "https://gw.example.com/v1", http_headers: {} }, lab: { http_headers: { "X-Lab-Ref": "${LAB_REF}" } } },
+    });
+    expect(notes(blanked, "~/.codex/config.toml")).toMatch(/^the x-lab-team header, the X-Gw-Key header, the X-Lab-Key header blanked or left out/);
+  });
+
+  it("leaves out a Codex header, query secret, key and shell secret however the TOML spells it, and the file still parses", async () => {
+    const codex = [
+      'model_providers.top.http_headers.X-Top = "plain0top"',
+      "",
+      "[model_providers.gw]",
+      'experimental_bearer_token = "plain0bearer"',
+      'http_headers.X-Gw-Key = "plain0dotted"',
+      'query_params = { "api-version" = "2025-01-01", "api-key" = "plain0query" }',
+      "",
+      "[model_providers.ml]",
+      "http_headers = {",
+      '  "X-Multi" = "plain0multi",',
+      '  "X-Ref" = "${REF}",',
+      "}",
+      "",
+      "[otel.exporter.otlp-grpc]",
+      'headers.x-team = "plain0otel"',
+      "",
+      "[shell_environment_policy]",
+      "set = {",
+      '  GITHUB_TOKEN = "plain0shell",',
+      '  PLAIN = "ok",',
+      "}",
+      "",
+    ].join("\n");
+    const { root, blanked } = await landed(home({ ".codex/config.toml": codex }), [row("agents/codex", ["~/.codex/config.toml"])], true);
+    const text = read(root, ".codex/config.toml");
+    expect(text).not.toContain("plain0");
+    expect(parseToml(text)).toEqual({
+      model_providers: {
+        top: { http_headers: { "X-Top": "" } },
+        gw: { experimental_bearer_token: "", http_headers: { "X-Gw-Key": "" }, query_params: { "api-version": "2025-01-01", "api-key": "" } },
+        ml: { http_headers: { "X-Multi": "", "X-Ref": "${REF}" } },
+      },
+      otel: { exporter: { "otlp-grpc": { headers: { "x-team": "" } } } },
+      shell_environment_policy: { set: { GITHUB_TOKEN: "", PLAIN: "ok" } },
+    });
+    expect(notes(blanked, "~/.codex/config.toml")).toMatch(/^the X-Top header, experimental_bearer_token, the X-Gw-Key header, api-key, the X-Multi header, the x-team header, GITHUB_TOKEN blanked or left out/);
+  });
+
+  it("leaves out the API key OpenCode sends for a provider", async () => {
+    const opencode = { provider: { openai: { options: { baseURL: "https://gw.example.com/v1", apiKey: "plain0key" } }, ref: { options: { apiKey: "{env:REF_KEY}" } } } };
+    const h = home({ ".config/opencode/opencode.json": `${JSON.stringify(opencode, null, 2)}\n` });
+    const { root, blanked } = await landed(h, [row("agents/opencode", ["~/.config/opencode/opencode.json"])], true);
+    expect(JSON.parse(read(root, ".config/opencode/opencode.json")).provider).toEqual({ openai: { options: { baseURL: "https://gw.example.com/v1" } }, ref: { options: { apiKey: "{env:REF_KEY}" } } });
+    expect(notes(blanked, "~/.config/opencode/opencode.json")).toMatch(/^apiKey blanked or left out/);
   });
 
   it("leaves the secret names of Codex's shell environment out, inline or as a table", async () => {

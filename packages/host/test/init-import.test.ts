@@ -6,7 +6,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { GUARD_BEGIN, GUARD_END, detectAgents, nodeHost, type ManifestEntry, withIgnoreUnknown } from "@wsp/collect";
@@ -584,6 +584,57 @@ describe("packPlan", () => {
     const diff = diffRecipes(sealed, imp.recipe!);
     expect(diff.files).toEqual([{ id: "agents/claude", dest: ".claude-plugin-seed", change: "added" }]);
     expect(deltaFor(diff, imp, [claude], rows => importFor(rows, opts)).import.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme", "y@priv", "z@raw", "w@user"]);
+  });
+
+  it("a marketplace's headers and its address's secrets stay on this computer on a provider's image, and an image sealed holding them reads changed", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    const queried = { source: "url", url: "https://plugins.example.com/lab.json?token=plain0query0value", headers: { "X-Lab-Org": "plain0header0value" } };
+    const open = { source: "url", url: "https://plugins.example.com/acme.json", headers: { Authorization: "Bearer plain0bearer0value", "X-Lab-Team": "${LAB_TEAM}" } };
+    writeFileSync(join(home, ".claude", "settings.json"), `${JSON.stringify({ enabledPlugins: { "x@lab": true, "y@acme": true }, extraKnownMarketplaces: { lab: { source: queried }, acme: { source: open } } }, null, 2)}\n`);
+    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ lab: { source: queried }, acme: { source: open } }));
+    writeFileSync(join(home, ".claude", "CLAUDE.md"), "# rules\n");
+    const claude = row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json", "~/.claude/CLAUDE.md"] });
+    const opts = { home, secrets: new Map<string, string>(), platform: "darwin" as const };
+    const imp = importFor([claude], { ...opts, cloud: true });
+    expect(imp.plugins?.seed?.plugins.map(p => p.label)).toEqual(["y@acme"]);
+    expect(imp.plugins?.seed?.plugins.some(p => p.cmd.includes("plain0"))).toBe(false);
+    const packed = await imp.files!.pack();
+    expect(packed.blanked?.map(b => b.note)).toEqual(["token, the X-Lab-Org header, the Authorization header blanked or left out; the values stay on this computer"]);
+    const root = extract(packed.tar);
+    const settings = JSON.parse(readFileSync(join(root, ".claude-cfg", "settings.json"), "utf8"));
+    expect(settings.extraKnownMarketplaces).toEqual({ lab: { source: { ...queried, url: "https://plugins.example.com/lab.json?token=", headers: {} } }, acme: { source: { ...open, headers: { "X-Lab-Team": "${LAB_TEAM}" } } } });
+    const held = (dir: string): string[] => readdirSync(dir, { recursive: true, encoding: "utf8" }).filter(rel => statSync(join(dir, rel)).isFile() && readFileSync(join(dir, rel), "utf8").includes("plain0"));
+    expect(held(root)).toEqual([]);
+    // The digest of a sealed image is of the bytes the copy lands, so one sealed holding the header reads changed.
+    const planned = (rel: string): PlannedFile => plannedAt(join(home, rel), home, { id: "agents/claude", rung: "agents", dir: false });
+    const sealed = { ...imp.recipe!, files: imp.recipe!.files.map(f => (f.dest === ".claude-cfg/settings.json" ? { ...f, digest: digestOf(planned(".claude/settings.json"), home) } : f)) };
+    const diff = diffRecipes(sealed, imp.recipe!);
+    expect(diff.files).toEqual([{ id: "agents/claude", dest: ".claude-cfg/settings.json", change: "changed" }]);
+    expect(rowsToApply(diff)).toEqual(new Set(["agents/claude"]));
+    // A file the cut leaves alone, and every file on a computer the person owns, digests as it did.
+    const owned = importFor([claude], opts).recipe!.files;
+    expect(owned.find(f => f.dest === ".claude-cfg/settings.json")?.digest).toBe(digestOf(planned(".claude/settings.json"), home));
+    expect(imp.recipe!.files.find(f => f.dest === ".claude-cfg/CLAUDE.md")?.digest).toBe(digestOf(planned(".claude/CLAUDE.md"), home));
+  });
+
+  it("on a provider, a rotated MCP server secret reads changed so the re-pack writes the new value", () => {
+    const home = laptop();
+    mkdirSync(join(home, ".codex"), { recursive: true });
+    const codex = (value: string) => writeFileSync(join(home, ".codex", "config.toml"), ["[mcp_servers.lab]", 'command = "lab-server"', "", "[mcp_servers.lab.env]", `LAB_TOKEN = "${value}"`, ""].join("\n"));
+    const rows = [row({ rung: "agents", id: "agents/codex", paths: ["~/.codex/config.toml"] })];
+    const opts = { home, secrets: new Map<string, string>(), platform: "darwin" as const, cloud: true };
+    codex("plain0v1");
+    const r1 = importFor(rows, opts).recipe!;
+    codex("plain0v2");
+    expect(diffRecipes(r1, importFor(rows, opts).recipe!).files).toEqual([{ id: "agents/codex", dest: ".codex/config.toml", change: "changed" }]);
+  });
+
+  it("on a provider, a volatile file digests as it does on an owned computer, since no recipe reads its digest", () => {
+    const home = laptop();
+    writeFileSync(join(home, ".claude.json"), `${JSON.stringify({ numStartups: 3, oauthAccount: { emailAddress: "me@example.com" } })}\n`);
+    const volatile = plannedAt(join(home, ".claude.json"), home, { id: "agents/claude", rung: "agents", dir: false, volatile: true });
+    expect(digestOf(volatile, home, true)).toBe(digestOf(volatile, home));
   });
 
   it("a hook is judged by the file it points at: a link to a script under home travels as its bytes, one to a private key comes out and is listed as left behind", async () => {
