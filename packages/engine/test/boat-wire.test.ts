@@ -34,7 +34,7 @@ describe("the Boat canary's wire", () => {
     );
     await expect(backend.create({ kind: "sandbox", fromSnapshot: "wsp-acme-default-v4", cpu: 2, memMb: 4096, labels: { "wsp-owner": "h_canary" }, idleTimeoutMs: 60_000, idempotencyKey: "key-1" })).rejects.toThrow("noEnv is not allowed");
     const said = boatSaid(wire);
-    expect(said).toContain('POST /boxes answered 400 {"ok":false,"code":"invalid_request","message":"noEnv is not allowed","requestId":"req_1"}');
+    expect(said).toContain('POST /sandboxes answered 400 {"ok":false,"code":"invalid_request","message":"noEnv is not allowed","requestId":"req_1"}');
     expect(said).toContain('body sent: {"type":"small","ttlSeconds":60,"noEnv":true,"name":"wsp;o=h_canary","from":"wsp-acme-default-v4"}');
   });
 
@@ -50,32 +50,30 @@ describe("the Boat canary's wire", () => {
     expect(boatSaid(ok.wire)).toBeUndefined();
 
     const empty = backendAnswering(() => new Response(null, { status: 204 }));
-    expect(await empty.backend.request("PATCH", "/boxes/bx_1", { body: { name: "n" } })).toEqual({});
+    expect(await empty.backend.request("PATCH", "/sandboxes/bx_1", { body: { name: "n" } })).toEqual({});
   });
 
   it("names a field wsp reads that Boat's answer lost", () => {
-    const box = exchange("GET", "/boxes/bx_23456789", 200, { box: { id: "bx_23456789", status: "ready" } });
-    expect(missingField(box)).toBe("box.state");
-    expect(() => checkReads([box])).toThrow('Boat\'s answer lost box.state, which wsp reads: GET /boxes/bx_23456789 answered 200 {"box":{"id":"bx_23456789","status":"ready"}}');
-    expect(missingField(exchange("GET", "/boxes/bx_23456789", 200, { box: { id: "bx_23456789", state: "ready", name: null } }))).toBeUndefined();
+    const box = exchange("GET", "/sandboxes/bx_23456789", 200, { sandbox: { id: "bx_23456789", status: "ready" } });
+    expect(missingField(box)).toBe("sandbox.state");
+    expect(() => checkReads([box])).toThrow('Boat\'s answer lost sandbox.state, which wsp reads: GET /sandboxes/bx_23456789 answered 200 {"sandbox":{"id":"bx_23456789","status":"ready"}}');
+    expect(missingField(exchange("GET", "/sandboxes/bx_23456789", 200, { sandbox: { id: "bx_23456789", state: "ready", name: null } }))).toBeUndefined();
   });
 
-  it("reads a renamed field in a list and on the documented base", () => {
-    const listing = exchange("GET", "/boxes?limit=200", 200, { boxes: [{ id: "bx_1", name: "wsp;o=h", state: "ready" }, { id: "bx_2", name: null, status: "ready" }] });
-    expect(missingField(listing)).toBe("boxes[].state");
-    const limits = exchange("GET", "/limits", 200, { maxActiveSandboxes: 100, activeBoxes: 3 });
-    expect(missingField(limits, ["maxActiveSandboxes", "activeSandboxes"])).toBe("activeSandboxes");
+  it("reads a field in a list", () => {
+    const listing = exchange("GET", "/sandboxes?limit=200", 200, { sandboxes: [{ id: "bx_1", name: "wsp;o=h", state: "ready" }, { id: "bx_2", name: null, status: "ready" }] });
+    expect(missingField(listing)).toBe("sandboxes[].state");
   });
 
   it("leaves a refusal to the refusal line and reads nothing off it", () => {
-    expect(missingField(exchange("GET", "/boxes/bx_23456789", 404, { code: "not_found" }))).toBeUndefined();
+    expect(missingField(exchange("GET", "/sandboxes/bx_23456789", 404, { code: "not_found" }))).toBeUndefined();
   });
 
   it("prints no file bytes and no route token", () => {
-    const put = exchange("PUT", "/boxes/bx_1/files", 400, { code: "sandbox_direct_failed" }, { path: "/tmp/x", content: "c2VjcmV0", encoding: "base64" });
+    const put = exchange("PUT", "/sandboxes/bx_1/files", 400, { code: "sandbox_direct_failed" }, { path: "/tmp/x", content: "c2VjcmV0", encoding: "base64" });
     expect(shown(put)).toContain('"content":"<8 chars>"');
     expect(shown(put)).not.toContain("c2VjcmV0");
-    const host = exchange("POST", "/boxes/bx_1/host", 200, { url: "https://bx-1.example.dev/?_token=abc" }, { port: 7070, public: true });
+    const host = exchange("POST", "/sandboxes/bx_1/host", 200, { url: "https://bx-1.example.dev/?_token=abc" }, { port: 7070, public: true });
     expect(shown(host)).toContain('"url":"https://bx-1.example.dev/?<token>"');
     expect(shown(host)).not.toContain("abc");
   });

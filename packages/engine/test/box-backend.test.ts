@@ -73,7 +73,7 @@ class FakeBox {
     const method = init?.method ?? "GET";
     const headers = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]));
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-    const seen: Seen = { method, path: u.pathname.replace(/^\/api\/box\/v1/, ""), query: u.searchParams, headers, body, ...(typeof init?.body === "string" ? { raw: init.body } : {}) };
+    const seen: Seen = { method, path: u.origin === "https://boat.dev" && u.pathname.startsWith("/api/v1/") ? u.pathname.slice("/api/v1".length) : u.href, query: u.searchParams, headers, body, ...(typeof init?.body === "string" ? { raw: init.body } : {}) };
     this.seen.push(seen);
     const queue = this.routes.get(`${method} ${seen.path}`);
     if (queue === undefined || queue.length === 0) return new Response(JSON.stringify(ERROR(404, "not_found", "not_found")), { status: 404 });
@@ -101,7 +101,7 @@ const BOX = (id: string, state: string, extra: Record<string, unknown> = {}): Re
   memoryGB: 4,
   billingMultiplier: 0.5,
   machineProvider: state === "archived" ? null : "hetzner",
-  url: state === "archived" ? null : "https://box-node-f06a49ff29e4ed7a.on.ascii.dev",
+  url: state === "archived" ? null : "https://box-node-f06a49ff29e4ed7a.on.boat.dev",
   ip: state === "archived" ? null : "2001:41d0:8:8d24:100::29",
   sshEndpoint: null,
   createdAt: "2026-09-11T06:28:06.053Z",
@@ -116,9 +116,9 @@ const BOX = (id: string, state: string, extra: Record<string, unknown> = {}): Re
   ...extra,
 });
 
-const INFO = (id: string, state: string, extra: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, type: "box.info", box: BOX(id, state, extra) } });
-const ERROR = (status: number, code: string, message: string): Record<string, unknown> => ({ ok: false, type: "box.error", status, code, message, requestId: "req_b603629401be48d082e623575a1b9111" });
-const LIMITS = (tier: string): Reply => ({ status: 200, body: { ok: true, type: "limits.info", accessTier: tier, maxActiveBoxes: 2, startLimits: { perMinute: 5, perHour: 25, perDay: 75 } } });
+const INFO = (id: string, state: string, extra: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, type: "sandbox.info", sandbox: BOX(id, state, extra) } });
+const ERROR = (status: number, code: string, message: string): Record<string, unknown> => ({ ok: false, type: "sandbox.error", status, code, message, requestId: "req_b603629401be48d082e623575a1b9111" });
+const LIMITS = (tier: string): Reply => ({ status: 200, body: { ok: true, type: "limits.info", accessTier: tier, maxActiveSandboxes: 2, startLimits: { perMinute: 5, perHour: 25, perDay: 75 } } });
 const COMMAND = (stdout: string, exitCode: number | null = 0, extra: Record<string, unknown> = {}): Reply => ({
   status: 200,
   body: { ok: true, type: "command.finished", success: exitCode === 0, exitCode, signal: null, stdout, stderr: "", stdoutTruncated: false, stderrTruncated: false, timedOut: false, ...extra },
@@ -126,7 +126,7 @@ const COMMAND = (stdout: string, exitCode: number | null = 0, extra: Record<stri
 const NAMED = (name: string, status: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   name,
   status,
-  sourceBoxId: "bx_tumrjngm",
+  sourceSandboxId: "bx_tumrjngm",
   createdAt: "2026-09-11T06:47:23.959Z",
   ...(status === "ready" ? { snapshotId: "dc8cd70e-d16b-472a-b5d7-070bc84db7a7", type: "small", sizeBytes: 1255755776 } : {}),
   ...extra,
@@ -293,9 +293,9 @@ describe("BoxBackend declarations", () => {
 describe("BoxBackend against a fake Box API", () => {
   it("creates from the stock image on the trial: the class, the two hour auto-stop, no account secrets, the labels in the name, the key on the header, ready before the handle", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", ttlSeconds: 7200, box: BOX("bx_tumrjngm", "provisioning") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "provisioning", { name: "wsp;o=h_1a2b3c4d" }), INFO("bx_tumrjngm", "ready", { name: "wsp;o=h_1a2b3c4d" }))
-      .on("POST", "/boxes/bx_tumrjngm/commands", detachedGuest());
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, type: "sandbox.created", status: "provisioning", ttlSeconds: 7200, sandbox: BOX("bx_tumrjngm", "provisioning") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "provisioning", { name: "wsp;o=h_1a2b3c4d" }), INFO("bx_tumrjngm", "ready", { name: "wsp;o=h_1a2b3c4d" }))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", detachedGuest());
     const { backend } = backendOn(api);
     const machine = await backend.create({
       kind: "sandbox",
@@ -309,7 +309,7 @@ describe("BoxBackend against a fake Box API", () => {
     expect(machine.id).toBe("bx_tumrjngm");
     expect(machine.replayed).toBe(false);
     expect(machine.streamUrl).toBeUndefined();
-    const create = api.took("POST", "/boxes")!;
+    const create = api.took("POST", "/sandboxes")!;
     expect(create.body).toEqual({ type: "small", ttlSeconds: TRIAL_TTL_S, noEnv: true, name: "wsp;o=h_1a2b3c4d" });
     expect(create.headers["idempotency-key"]).toBe("wsp-golden-default-1");
     // The environment lands where root's services read it, carried onto the guest as the launched script's own file.
@@ -317,15 +317,15 @@ describe("BoxBackend against a fake Box API", () => {
     expect(landed).toBe(envLandingScript({ IS_SANDBOX: "1", ANTHROPIC_API_KEY: "sk-ant-x" }));
     expect(landed).toContain(`cat > '${DAEMON_ENV_FILE}'`);
     expect(landed).toContain('ANTHROPIC_API_KEY="sk-ant-x"');
-    expect(api.calls()).toEqual(["GET /limits", "POST /boxes", "GET /boxes/bx_tumrjngm", "GET /boxes/bx_tumrjngm", ...Array<string>(4).fill("POST /boxes/bx_tumrjngm/commands")]);
+    expect(api.calls()).toEqual(["GET /limits", "POST /sandboxes", "GET /sandboxes/bx_tumrjngm", "GET /sandboxes/bx_tumrjngm", ...Array<string>(4).fill("POST /sandboxes/bx_tumrjngm/commands")]);
   });
 
   it("creates from a named snapshot with `from`, sets the name the provider replaced with the snapshot's, and off the trial asks no auto-stop", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", ttlSeconds: null, from: "wsp-mac-default-v1", box: BOX("bx_uwepudz7", "provisioned", { name: "wsp-mac-default-v1" }) } })
-      .on("GET", "/boxes/bx_uwepudz7", INFO("bx_uwepudz7", "cloning", { name: "wsp-mac-default-v1" }), INFO("bx_uwepudz7", "idle", { name: "wsp-mac-default-v1" }))
-      .on("PATCH", "/boxes/bx_uwepudz7", INFO("bx_uwepudz7", "idle", { name: "wsp;o=h_1" }))
-      .on("POST", "/boxes/bx_uwepudz7/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, type: "sandbox.created", status: "provisioning", ttlSeconds: null, from: "wsp-mac-default-v1", sandbox: BOX("bx_uwepudz7", "provisioned", { name: "wsp-mac-default-v1" }) } })
+      .on("GET", "/sandboxes/bx_uwepudz7", INFO("bx_uwepudz7", "cloning", { name: "wsp-mac-default-v1" }), INFO("bx_uwepudz7", "idle", { name: "wsp-mac-default-v1" }))
+      .on("PATCH", "/sandboxes/bx_uwepudz7", INFO("bx_uwepudz7", "idle", { name: "wsp;o=h_1" }))
+      .on("POST", "/sandboxes/bx_uwepudz7/commands", COMMAND(""));
     const { backend } = backendOn(api, "standard");
     const heard: { line: string; box?: { id: string; state: string } }[] = [];
     const machine = await backend.create({ kind: "sandbox", template: "wsp-mac-default-v1", cpu: 4, memMb: 8192, labels: { [OWNER_LABEL]: "h_1" } }, (line, box) => heard.push({ line, ...(box !== undefined ? { box } : {}) }));
@@ -333,13 +333,13 @@ describe("BoxBackend against a fake Box API", () => {
     // Each of Boat's own states the box passed through, once, for the person following the create.
     expect(heard).toEqual(["provisioned", "cloning", "idle"].map(state => ({ line: `Boat's machine bx_uwepudz7 is ${state}`, box: { id: "bx_uwepudz7", state } })));
     // No window named and no cap on the account: no timer, the provider's own meaning of null.
-    expect(api.took("POST", "/boxes")!.body).toEqual({ type: "default", ttlSeconds: null, noEnv: true, name: "wsp;o=h_1", from: "wsp-mac-default-v1" });
+    expect(api.took("POST", "/sandboxes")!.body).toEqual({ type: "default", ttlSeconds: null, noEnv: true, name: "wsp;o=h_1", from: "wsp-mac-default-v1" });
     // The deployed box came back named after its snapshot, so the labels went back on with one update.
-    expect(api.took("PATCH", "/boxes/bx_uwepudz7")!.body).toEqual({ name: "wsp;o=h_1" });
+    expect(api.took("PATCH", "/sandboxes/bx_uwepudz7")!.body).toEqual({ name: "wsp;o=h_1" });
     // fromSnapshot names the image the same way.
-    api.on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", box: BOX("bx_uwepudz7", "provisioned") } });
+    api.on("POST", "/sandboxes", { status: 202, body: { ok: true, type: "sandbox.created", status: "provisioning", sandbox: BOX("bx_uwepudz7", "provisioned") } });
     await backend.create({ kind: "sandbox", fromSnapshot: "wsp-mac-default-v2" });
-    expect(api.seen.filter(s => s.method === "POST" && s.path === "/boxes").at(-1)!.body).toMatchObject({ from: "wsp-mac-default-v2", type: "small", name: "wsp" });
+    expect(api.seen.filter(s => s.method === "POST" && s.path === "/sandboxes").at(-1)!.body).toMatchObject({ from: "wsp-mac-default-v2", type: "small", name: "wsp" });
     expect(api.seen.filter(s => s.method === "PATCH").at(-1)!.body).toEqual({ name: "wsp" });
     // One read of the tier serves every create.
     expect(api.calls().filter(c => c === "GET /limits")).toHaveLength(1);
@@ -347,27 +347,27 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("the create carries the runtime's idle window as the stop timer: the seconds to it off the trial, the cap on it when shorter", async () => {
     const off = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_t1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_t1", INFO("bx_t1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_t1/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_t1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_t1", INFO("bx_t1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_t1/commands", COMMAND(""));
     await backendOn(off, "standard").backend.create({ kind: "sandbox", onIdle: "pause", idleTimeoutMs: 40 * 60_000 });
-    expect(off.took("POST", "/boxes")!.body).toMatchObject({ ttlSeconds: 40 * 60 });
+    expect(off.took("POST", "/sandboxes")!.body).toMatchObject({ ttlSeconds: 40 * 60 });
     const trial = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_t2", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_t2", INFO("bx_t2", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_t2/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_t2", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_t2", INFO("bx_t2", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_t2/commands", COMMAND(""));
     const { backend } = backendOn(trial);
     await backend.create({ kind: "sandbox", onIdle: "pause", idleTimeoutMs: 6 * 60 * 60_000 });
-    expect(trial.took("POST", "/boxes")!.body).toMatchObject({ ttlSeconds: TRIAL_TTL_S });
+    expect(trial.took("POST", "/sandboxes")!.body).toMatchObject({ ttlSeconds: TRIAL_TTL_S });
     await backend.create({ kind: "sandbox", onIdle: "pause", idleTimeoutMs: 40 * 60_000 });
-    expect(trial.seen.filter(s => s.method === "POST" && s.path === "/boxes").at(-1)!.body).toMatchObject({ ttlSeconds: 40 * 60 });
+    expect(trial.seen.filter(s => s.method === "POST" && s.path === "/sandboxes").at(-1)!.body).toMatchObject({ ttlSeconds: 40 * 60 });
   });
 
   it("a create answered from an earlier key reads replayed, and the envs still land", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "ready", ttlSeconds: 7200, box: BOX("bx_tumrjngm", "idle", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle", { name: "wsp" }))
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, type: "sandbox.created", status: "ready", ttlSeconds: 7200, sandbox: BOX("bx_tumrjngm", "idle", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     const { backend } = backendOn(api);
     const machine = await backend.create({ kind: "sandbox" });
     expect(machine.replayed).toBe(true);
@@ -376,41 +376,41 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a create the provider leaves in error, or one that never reads ready inside the budget, fails naming the state, and the box it made is deleted", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", box: BOX("bx_e1", "provisioning") } })
-      .on("GET", "/boxes/bx_e1", INFO("bx_e1", "error", { error: "no capacity" }))
-      .on("DELETE", "/boxes/bx_e1", { status: 202, body: { ok: true, operation: { id: "bdop_1" } } });
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, type: "sandbox.created", status: "provisioning", sandbox: BOX("bx_e1", "provisioning") } })
+      .on("GET", "/sandboxes/bx_e1", INFO("bx_e1", "error", { error: "no capacity" }))
+      .on("DELETE", "/sandboxes/bx_e1", { status: 202, body: { ok: true, operation: { id: "bdop_1" } } });
     const { backend } = backendOn(api);
     await expect(backend.create({ kind: "sandbox" })).rejects.toThrow(/bx_e1 reads error during create: no capacity/);
-    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /boxes/bx_e1"]);
-    api.on("GET", "/boxes/bx_e1", INFO("bx_e1", "provisioning"));
+    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /sandboxes/bx_e1"]);
+    api.on("GET", "/sandboxes/bx_e1", INFO("bx_e1", "provisioning"));
     await expect(backend.create({ kind: "sandbox" })).rejects.toThrow(/still reads provisioning/);
     expect(api.calls().filter(c => c.startsWith("DELETE"))).toHaveLength(2);
     // The environment failing to land ends the create the same way: nothing the caller cannot name is left running.
-    api.on("GET", "/boxes/bx_e1", INFO("bx_e1", "ready", { name: "wsp" }));
-    api.on("POST", "/boxes/bx_e1/commands", detachedGuest(1, "", "systemctl: not found"));
+    api.on("GET", "/sandboxes/bx_e1", INFO("bx_e1", "ready", { name: "wsp" }));
+    api.on("POST", "/sandboxes/bx_e1/commands", detachedGuest(1, "", "systemctl: not found"));
     await expect(backend.create({ kind: "sandbox", envs: { A: "1" } })).rejects.toThrow(/environment did not land on bx_e1/);
     expect(api.calls().filter(c => c.startsWith("DELETE"))).toHaveLength(3);
   });
 
   it("a create Boat cancels ends on the first read with its reason, typed, and the box it made is deleted", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, type: "box.created", status: "provisioning", box: BOX("bx_c1", "provisioning") } })
-      .on("GET", "/boxes/bx_c1", INFO("bx_c1", "cancelled", { error: "no capacity" }))
-      .on("DELETE", "/boxes/bx_c1", { status: 202, body: { ok: true, operation: { id: "bdop_c" } } });
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, type: "sandbox.created", status: "provisioning", sandbox: BOX("bx_c1", "provisioning") } })
+      .on("GET", "/sandboxes/bx_c1", INFO("bx_c1", "cancelled", { error: "no capacity" }))
+      .on("DELETE", "/sandboxes/bx_c1", { status: 202, body: { ok: true, operation: { id: "bdop_c" } } });
     const { backend } = backendOn(api);
     const failed = await backend.create({ kind: "sandbox" }).catch((e: unknown) => e);
     expect(failed).toBeInstanceOf(CreateCancelledError);
     expect(failed).toMatchObject({ machineId: "bx_c1", why: "no capacity" });
-    expect(api.calls().filter(c => c === "GET /boxes/bx_c1")).toHaveLength(1);
-    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /boxes/bx_c1"]);
+    expect(api.calls().filter(c => c === "GET /sandboxes/bx_c1")).toHaveLength(1);
+    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /sandboxes/bx_c1"]);
   });
 
   it("an environment still not landed at the restore budget is typed with its box and its exit, which a sub-thread's start replaces", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_t1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_t1", INFO("bx_t1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_t1/commands", COMMAND(""), detachedGuest(DEADLINE_EXIT))
-      .on("DELETE", "/boxes/bx_t1", { status: 202, body: { ok: true, operation: { id: "bdop_t" } } });
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_t1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_t1", INFO("bx_t1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_t1/commands", COMMAND(""), detachedGuest(DEADLINE_EXIT))
+      .on("DELETE", "/sandboxes/bx_t1", { status: 202, body: { ok: true, operation: { id: "bdop_t" } } });
     const { backend } = backendOn(api, "trial", { restoreMs: 0 });
     const failed = await backend.create({ kind: "sandbox", envs: { A: "1" } }).catch((e: unknown) => e);
     expect(failed).toBeInstanceOf(EnvNotLandedError);
@@ -420,28 +420,28 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a landing of the environment runs detached and one that times out on a box still taking its disk in is launched again inside the budget", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_l1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_l1", INFO("bx_l1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_l1/commands", COMMAND(""), detachedGuest(DEADLINE_EXIT), detachedGuest(DEADLINE_EXIT), detachedGuest(DEADLINE_EXIT), detachedGuest());
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_l1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_l1", INFO("bx_l1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_l1/commands", COMMAND(""), detachedGuest(DEADLINE_EXIT), detachedGuest(DEADLINE_EXIT), detachedGuest(DEADLINE_EXIT), detachedGuest());
     const { backend } = backendOn(api);
     const machine = await backend.create({ kind: "sandbox", envs: { A: "1" } });
     expect(machine.id).toBe("bx_l1");
     // Every command the road sends is an inline exec of its own, none of them near the edge's cut.
-    const asked = api.seen.filter(s => s.path === "/boxes/bx_l1/commands").map(s => (s.body as { timeoutSeconds: number }).timeoutSeconds);
+    const asked = api.seen.filter(s => s.path === "/sandboxes/bx_l1/commands").map(s => (s.body as { timeoutSeconds: number }).timeoutSeconds);
     expect(new Set(asked)).toEqual(new Set([INLINE_EXEC_MS / 1000]));
     // The environment script travelled as the launched file's text, and the run that timed out was launched again.
     const launches = commandsSent(api).filter(c => c.includes("WSP_LAUNCHED"));
     expect(launches).toHaveLength(2);
     for (const l of launches) expect(launchedText(l)).toBe(envLandingScript({ A: "1" }));
     // A landing that fails for another reason is the failure at once, and a timeout past the budget too.
-    api.on("POST", "/boxes/bx_l1/commands", detachedGuest(DEADLINE_EXIT)).on("DELETE", "/boxes/bx_l1", { status: 202, body: { ok: true, operation: { id: "bdop_l" } } });
+    api.on("POST", "/sandboxes/bx_l1/commands", detachedGuest(DEADLINE_EXIT)).on("DELETE", "/sandboxes/bx_l1", { status: 202, body: { ok: true, operation: { id: "bdop_l" } } });
     await expect(backend.create({ kind: "sandbox", envs: { A: "1" } })).rejects.toThrow(/environment did not land on bx_l1 \(exit 124\)/);
   });
 
   it("a box that reads ready but still refuses commands while its disk streams in is asked again inside the restore budget", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") }, { status: 409, body: ERROR(409, "box_starting", "Box is starting.") }, COMMAND("up\n"))
-      .on("PUT", "/boxes/bx_tumrjngm/files", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") }, { status: 200, body: { ok: true } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "sandbox_restoring", "Box is restoring.") }, { status: 409, body: ERROR(409, "sandbox_starting", "Box is starting.") }, COMMAND("up\n"))
+      .on("PUT", "/sandboxes/bx_tumrjngm/files", { status: 409, body: ERROR(409, "sandbox_restoring", "Box is restoring.") }, { status: 200, body: { ok: true } });
     const { machine, clock } = machineOn(api);
     const before = clock.at;
     expect(await machine.exec("echo up")).toEqual({ exitCode: 0, stdout: "up\n", stderr: "" });
@@ -450,23 +450,23 @@ describe("BoxBackend against a fake Box API", () => {
     await machine.putBytes("/tmp/x", new Uint8Array([1]));
     expect(api.calls().filter(c => c.endsWith("/files"))).toHaveLength(2);
     // Past the budget the refusal is the caller's, in the provider's words.
-    const stuck = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") });
-    await expect(machineOn(stuck).machine.exec("true")).rejects.toMatchObject({ code: "box_restoring" });
+    const stuck = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "sandbox_restoring", "Box is restoring.") });
+    await expect(machineOn(stuck).machine.exec("true")).rejects.toMatchObject({ code: "sandbox_restoring" });
     expect(stuck.calls().length).toBeGreaterThan(5);
   });
 
   it("a proof that the box takes commands, still refused as restoring at the deadline, ends typed with the provider's request id", async () => {
-    const stuck = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") });
+    const stuck = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "sandbox_restoring", "Box is restoring.") });
     const e = await machineOn(stuck).machine.proveRoad().catch((err: unknown) => err);
     expect(e).toBeInstanceOf(RestoreUnfinishedError);
-    expect(e).toMatchObject({ kind: "conflict", status: 409, code: "box_restoring", message: "Box is restoring.", requestId: "req_b603629401be48d082e623575a1b9111" });
+    expect(e).toMatchObject({ kind: "conflict", status: 409, code: "sandbox_restoring", message: "Box is restoring.", requestId: "req_b603629401be48d082e623575a1b9111" });
   });
 
   it("a box that reads ready and answers 502 to its first commands is asked again at the poll pace inside the restore budget, and past it the 502 is the caller's", async () => {
     const gateway = { status: 502, body: ERROR(502, "bad_gateway", "Bad Gateway") };
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", gateway, gateway, gateway, gateway, gateway, COMMAND("up\n"))
-      .on("PUT", "/boxes/bx_tumrjngm/files", gateway, gateway, gateway, gateway, gateway, { status: 200, body: { ok: true } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", gateway, gateway, gateway, gateway, gateway, COMMAND("up\n"))
+      .on("PUT", "/sandboxes/bx_tumrjngm/files", gateway, gateway, gateway, gateway, gateway, { status: 200, body: { ok: true } });
     const { backend, clock } = backendOn(api, "trial", { restoreMs: 10_000 });
     const machine = new BoxMachine(backend, "bx_tumrjngm", "sandbox");
     const before = clock.at;
@@ -476,18 +476,18 @@ describe("BoxBackend against a fake Box API", () => {
     await machine.putBytes("/tmp/x", new Uint8Array([1]));
     expect(api.calls().filter(c => c.endsWith("/files"))).toHaveLength(6);
     // Past the budget the gateway answer is the caller's, in the kind the engine reads it as.
-    const stuck = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", gateway);
+    const stuck = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", gateway);
     const { backend: stuckBackend } = backendOn(stuck, "trial", { restoreMs: 10_000 });
     await expect(new BoxMachine(stuckBackend, "bx_tumrjngm", "sandbox").exec("true")).rejects.toMatchObject({ kind: "transient", status: 502 });
     expect(stuck.calls().filter(c => c.endsWith("/commands")).length).toBeGreaterThan(5);
     // A refusal that is neither the restore conflicts nor a gateway status is the caller's after one round.
-    const refused = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", { status: 400, body: ERROR(400, "invalid_timeout", "timeoutSeconds must be between 1 and 600.") });
+    const refused = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 400, body: ERROR(400, "invalid_timeout", "timeoutSeconds must be between 1 and 600.") });
     await expect(machineOn(refused).machine.exec("true")).rejects.toMatchObject({ kind: "unknown", code: "invalid_timeout" });
     expect(refused.calls().filter(c => c.endsWith("/commands"))).toHaveLength(1);
   });
 
   it("a refusal is the provider's own envelope: the code, the message and the request id, as the engine's kinds", async () => {
-    const api = new FakeBox().on("POST", "/boxes", { status: 429, body: ERROR(429, "rate_limited", "Too many machine starts this minute.") });
+    const api = new FakeBox().on("POST", "/sandboxes", { status: 429, body: ERROR(429, "rate_limited", "Too many machine starts this minute.") });
     const { backend } = backendOn(api);
     const e = await backend.create({ kind: "sandbox" }).catch((err: unknown) => err) as { kind: string; code: string; message: string; requestId: string; status: number };
     // The trial's answer here numbers no window, so the refusal keeps Boat's words, read by its code all the same.
@@ -498,12 +498,14 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("the concurrent-box cap is the concurrency kind whatever status carries it, so the seal kills the builder and the row names the holders", async () => {
-    const trial = new FakeBox().on("POST", "/boxes", { status: 403, body: ERROR(403, "trial_limit", "Trial accounts can run 2 concurrent boxes. End the trial or buy a pack after subscribing to move to 100 concurrent boxes.") });
+    const trial = new FakeBox().on("POST", "/sandboxes", { status: 403, body: ERROR(403, "trial_limit", "Trial accounts can run 2 concurrent boxes. End the trial or buy a pack after subscribing to move to 100 concurrent boxes.") });
     await expect(backendOn(trial).backend.create({ kind: "sandbox" })).rejects.toMatchObject({ kind: "concurrency", status: 403, code: "trial_limit" });
-    const plan = new FakeBox().on("POST", "/boxes", { status: 429, body: ERROR(429, "limit_reached", "Concurrent box limit reached.") });
+    const trialNew = new FakeBox().on("POST", "/sandboxes", { status: 403, body: ERROR(403, "trial_limit", "Trial accounts can run 2 concurrent sandboxes. End the trial or buy a pack after subscribing to move to 100 concurrent sandboxes.") });
+    await expect(backendOn(trialNew).backend.create({ kind: "sandbox" })).rejects.toMatchObject({ kind: "concurrency", status: 403, code: "trial_limit" });
+    const plan = new FakeBox().on("POST", "/sandboxes", { status: 429, body: ERROR(429, "limit_reached", "Concurrent box limit reached.") });
     await expect(backendOn(plan).backend.create({ kind: "sandbox" })).rejects.toMatchObject({ kind: "concurrency", code: "limit_reached" });
     // A refusal about something else keeps its own kind.
-    const forbidden = new FakeBox().on("POST", "/boxes", { status: 403, body: ERROR(403, "trial_machine_class_not_allowed", "large was requested on a trial account.") });
+    const forbidden = new FakeBox().on("POST", "/sandboxes", { status: 403, body: ERROR(403, "trial_machine_class_not_allowed", "large was requested on a trial account.") });
     await expect(backendOn(forbidden).backend.create({ kind: "sandbox" })).rejects.toMatchObject({ kind: "plan", code: "trial_machine_class_not_allowed" });
     // A size the trial does not sell is refused before Boat is asked.
     const large = new FakeBox();
@@ -519,17 +521,17 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("starts the daemon's unit through the box's own commands endpoint, as root", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     const { machine } = machineOn(api);
     expect(await machine.startDaemon()).toEqual({ exitCode: 0, stdout: "", stderr: "" });
     expect(commandsSent(api)).toEqual([sudoCommand(`systemctl start ${DAEMON_UNIT}`)]);
   });
 
   it("runs every command as root through sudo under the exec environment, with the timeout in seconds", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("hi\n"), COMMAND("", null, { timedOut: true, signal: "SIGTERM" }), { status: 409, body: ERROR(409, "machine_not_running", "Box machine is not running.") });
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("hi\n"), COMMAND("", null, { timedOut: true, signal: "SIGTERM" }), { status: 409, body: ERROR(409, "machine_not_running", "Box machine is not running.") });
     const { machine } = machineOn(api);
     expect(await machine.exec("echo hi")).toEqual({ exitCode: 0, stdout: "hi\n", stderr: "" });
-    const sent = api.took("POST", "/boxes/bx_tumrjngm/commands")!.body as { command: string; timeoutSeconds: number };
+    const sent = api.took("POST", "/sandboxes/bx_tumrjngm/commands")!.body as { command: string; timeoutSeconds: number };
     expect(sent.command).toBe(sudoCommand("echo hi"));
     expect(sent.command).toMatch(/^sudo -n bash -c '/);
     expect(inner(sent.command).split("\n")).toEqual(["unset SUDO_USER SUDO_UID SUDO_GID SUDO_COMMAND", EXEC_ENV, "echo hi"]);
@@ -544,7 +546,7 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("an exec asked for longer than the edge allows goes through the detached road, and no command sent carries more than the inline cap", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", (seen: Seen) => {
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", (seen: Seen) => {
       const { command, timeoutSeconds } = seen.body as { command: string; timeoutSeconds: number };
       // The edge cuts a long request itself, whatever the command asked for.
       if (timeoutSeconds > 30) return { status: 504, body: ERROR(504, "request_timeout", "Request timeout after 69998ms") };
@@ -565,7 +567,7 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("a command road whose shell dies on the open-file limit is the provider's fault, not a command that failed", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "bash: error while loading shared libraries: libtinfo.so.6: cannot open shared object file: Error 24\n" }));
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "bash: error while loading shared libraries: libtinfo.so.6: cannot open shared object file: Error 24\n" }));
     const { machine } = machineOn(api);
     const e = await machine.exec("true").catch((err: unknown) => err);
     expect(e).toBeInstanceOf(GuestUnusableError);
@@ -573,18 +575,18 @@ describe("BoxBackend against a fake Box API", () => {
     expect((e as Error).message).toContain("libtinfo.so.6");
     expect((e as GuestUnusableError).status).toBe(200);
     // A command of its own that fails, even with a loader error of its own kind, is still a command's exit code.
-    const ordinary = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "bash: nosuchthing: command not found\n" }));
+    const ordinary = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "bash: nosuchthing: command not found\n" }));
     expect((await machineOn(ordinary).machine.exec("nosuchthing")).exitCode).toBe(127);
     // So is a child of the command that hits the same limit: the line is the box's only when what wsp starts died.
-    const child = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "gh: error while loading shared libraries: libssl.so.3: cannot open shared object file: Error 24\n" }));
+    const child = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "gh: error while loading shared libraries: libssl.so.3: cannot open shared object file: Error 24\n" }));
     expect((await machineOn(child).machine.exec("gh auth status")).exitCode).toBe(127);
     // The sudo that wraps every command is wsp's own and runs under the same limit, so it is the box's fault too.
-    const wrapper = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "sudo: error while loading shared libraries: libaudit.so.1: cannot open shared object file: Error 24\n" }));
+    const wrapper = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "sudo: error while loading shared libraries: libaudit.so.1: cannot open shared object file: Error 24\n" }));
     await expect(machineOn(wrapper).machine.exec("true")).rejects.toBeInstanceOf(GuestUnusableError);
   });
 
   it("a commands endpoint that answers 500 because its agent could not spawn the shell is the same fault, with the agent's words", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", { status: 500, body: ERROR(500, "internal_error", "undefined is not an object (evaluating 'D.stdout.on')") });
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 500, body: ERROR(500, "internal_error", "undefined is not an object (evaluating 'D.stdout.on')") });
     const { machine } = machineOn(api);
     const e = await machine.exec("true").catch((err: unknown) => err);
     expect(e).toBeInstanceOf(GuestUnusableError);
@@ -592,13 +594,13 @@ describe("BoxBackend against a fake Box API", () => {
     // The status the provider answered with rides along: a caller that keys its creates spends the key on it.
     expect((e as GuestUnusableError).status).toBe(500);
     // Every other refusal of the endpoint keeps its own kind.
-    const busy = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "machine_not_running", "Box machine is not running.") });
+    const busy = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "machine_not_running", "Box machine is not running.") });
     await expect(machineOn(busy).machine.exec("true")).rejects.toMatchObject({ kind: "conflict", code: "machine_not_running" });
   });
 
   it("a box whose work folder is gone names the folder and the machine, and says a rebuild is the way out", async () => {
     for (const status of [400, 500]) {
-      const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/commands", { status, body: ERROR(status, "invalid_cwd", "cwd must be an existing directory.") });
+      const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", { status, body: ERROR(status, "invalid_cwd", "cwd must be an existing directory.") });
       const e = await machineOn(api).machine.exec("true").catch((err: unknown) => err);
       expect(e).toBeInstanceOf(GuestUnusableError);
       expect((e as Error).message).toBe(
@@ -610,43 +612,43 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a create whose box reads ready and then cannot run a command is deleted, and fails with the provider's line", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_d1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_d1", INFO("bx_d1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_d1/commands", COMMAND("", 127, { stderr: "bash: error while loading shared libraries: libtinfo.so.6: cannot open shared object file: Error 24\n" }))
-      .on("DELETE", "/boxes/bx_d1", { status: 202, body: { ok: true, operation: { id: "bdop_d" } } });
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_d1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_d1", INFO("bx_d1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_d1/commands", COMMAND("", 127, { stderr: "bash: error while loading shared libraries: libtinfo.so.6: cannot open shared object file: Error 24\n" }))
+      .on("DELETE", "/sandboxes/bx_d1", { status: 202, body: { ok: true, operation: { id: "bdop_d" } } });
     const { backend } = backendOn(api);
     const e = await backend.create({ kind: "sandbox" }).catch((err: unknown) => err);
     expect(e).toBeInstanceOf(GuestUnusableError);
     expect((e as Error).message).toContain("Boat left bx_d1 running but nothing on it can run");
-    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /boxes/bx_d1"]);
+    expect(api.calls().filter(c => c.startsWith("DELETE"))).toEqual(["DELETE /sandboxes/bx_d1"]);
   });
 
   it("a healthy create proves the road once, after the box reads ready and before the name and the environment", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_p1", "provisioning", { name: "wsp-mac-default-v1" }) } })
-      .on("GET", "/boxes/bx_p1", INFO("bx_p1", "ready", { name: "wsp-mac-default-v1" }))
-      .on("PATCH", "/boxes/bx_p1", INFO("bx_p1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_p1/commands", COMMAND(""), detachedGuest());
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_p1", "provisioning", { name: "wsp-mac-default-v1" }) } })
+      .on("GET", "/sandboxes/bx_p1", INFO("bx_p1", "ready", { name: "wsp-mac-default-v1" }))
+      .on("PATCH", "/sandboxes/bx_p1", INFO("bx_p1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_p1/commands", COMMAND(""), detachedGuest());
     const { backend } = backendOn(api);
     await backend.create({ kind: "sandbox", fromSnapshot: "wsp-mac-default-v1", envs: { A: "1" } });
     expect(api.calls()).toEqual([
       "GET /limits",
-      "POST /boxes",
-      "GET /boxes/bx_p1",
-      "POST /boxes/bx_p1/commands",
-      "PATCH /boxes/bx_p1",
-      "POST /boxes/bx_p1/commands",
-      "POST /boxes/bx_p1/commands",
-      "POST /boxes/bx_p1/commands",
+      "POST /sandboxes",
+      "GET /sandboxes/bx_p1",
+      "POST /sandboxes/bx_p1/commands",
+      "PATCH /sandboxes/bx_p1",
+      "POST /sandboxes/bx_p1/commands",
+      "POST /sandboxes/bx_p1/commands",
+      "POST /sandboxes/bx_p1/commands",
     ]);
     expect(commandsSent(api)[0]).toBe(sudoCommand("true"));
   });
 
   it("a resume whose box reads ready and then cannot run a command ends the same way, so the wake reads it as a fault", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "bash: error while loading shared libraries: libtinfo.so.6: cannot open shared object file: Error 24\n" }));
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("", 127, { stderr: "bash: error while loading shared libraries: libtinfo.so.6: cannot open shared object file: Error 24\n" }));
     await expect(machineOn(api).machine.resume()).rejects.toBeInstanceOf(GuestUnusableError);
   });
 
@@ -667,23 +669,23 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("pauses with one stop and reads the box until archived; archiving is the stop under way, never a second stop, never force", async () => {
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archived"))
-      .on("POST", "/boxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "box.stopping", id: "bx_tumrjngm", status: "archiving", box: BOX("bx_tumrjngm", "archiving") } });
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archived"))
+      .on("POST", "/sandboxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "sandbox.stopping", id: "bx_tumrjngm", status: "archiving", sandbox: BOX("bx_tumrjngm", "archiving") } });
     const { machine } = machineOn(api);
     await machine.pause();
-    expect(api.calls()).toEqual(["GET /boxes/bx_tumrjngm", "POST /boxes/bx_tumrjngm/stop", "GET /boxes/bx_tumrjngm", "GET /boxes/bx_tumrjngm", "GET /boxes/bx_tumrjngm"]);
-    expect(api.took("POST", "/boxes/bx_tumrjngm/stop")!.body).toEqual({});
+    expect(api.calls()).toEqual(["GET /sandboxes/bx_tumrjngm", "POST /sandboxes/bx_tumrjngm/stop", "GET /sandboxes/bx_tumrjngm", "GET /sandboxes/bx_tumrjngm", "GET /sandboxes/bx_tumrjngm"]);
+    expect(api.took("POST", "/sandboxes/bx_tumrjngm/stop")!.body).toEqual({});
   });
 
   it("resumes a stopped box at a size with one resume naming that size's class, and answers once it runs again", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     await machineOn(api).machine.resumeAt({ cpu: 4, memMb: 8192 });
-    expect(api.calls().filter(c => c.startsWith("POST /boxes/bx_tumrjngm/") && !c.endsWith("/commands"))).toEqual(["POST /boxes/bx_tumrjngm/resume"]);
-    expect(api.took("POST", "/boxes/bx_tumrjngm/resume")!.body).toMatchObject({ type: "default" });
-    expect(api.calls().at(-1)).toBe("POST /boxes/bx_tumrjngm/commands");
+    expect(api.calls().filter(c => c.startsWith("POST /sandboxes/bx_tumrjngm/") && !c.endsWith("/commands"))).toEqual(["POST /sandboxes/bx_tumrjngm/resume"]);
+    expect(api.took("POST", "/sandboxes/bx_tumrjngm/resume")!.body).toMatchObject({ type: "default" });
+    expect(api.calls().at(-1)).toBe("POST /sandboxes/bx_tumrjngm/commands");
   });
 
   it("names the root disk each size reads as measured, and none for a size nobody measured", () => {
@@ -694,26 +696,26 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a plain resume names no class, so the box keeps its own", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     await machineOn(api).machine.resume();
-    expect(api.took("POST", "/boxes/bx_tumrjngm/resume")!.body).not.toHaveProperty("type");
+    expect(api.took("POST", "/sandboxes/bx_tumrjngm/resume")!.body).not.toHaveProperty("type");
   });
 
   it("a resume Boat refuses because it deleted the stopped box's disk ends in the disk-gone error, in wsp's line, and reads nothing more", async () => {
     const said = "The sandbox stayed stopped for 14 days. Boat deleted its data.";
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/resume", { status: 409, body: ERROR(409, "snapshot_data_expired", said) });
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 409, body: ERROR(409, "snapshot_data_expired", said) });
     const e = await machineOn(api).machine.resume().catch((x: unknown) => x);
     expect(e).toBeInstanceOf(DiskGoneError);
     expect(e).toMatchObject({ machineId: "bx_tumrjngm", message: BOAT_DISK_GONE_LINE, said });
-    expect(api.calls().filter(c => c !== "GET /limits")).toEqual(["POST /boxes/bx_tumrjngm/resume"]);
+    expect(api.calls().filter(c => c !== "GET /limits")).toEqual(["POST /sandboxes/bx_tumrjngm/resume"]);
   });
 
   it("a stopped box's handle carries its stop, the last save Boat completed, and a running one's none", async () => {
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_a1", INFO("bx_a1", "archived", { snapshotCompletedAt: "2026-09-27T04:50:29.157Z" }))
-      .on("GET", "/boxes/bx_r1", INFO("bx_r1", "ready", { snapshotCompletedAt: "2026-09-27T04:50:29.157Z" }));
+      .on("GET", "/sandboxes/bx_a1", INFO("bx_a1", "archived", { snapshotCompletedAt: "2026-09-27T04:50:29.157Z" }))
+      .on("GET", "/sandboxes/bx_r1", INFO("bx_r1", "ready", { snapshotCompletedAt: "2026-09-27T04:50:29.157Z" }));
     const { backend } = backendOn(api);
     expect((await backend.get("bx_a1")).seen).toMatchObject({ state: "paused", pausedAt: "2026-09-27T04:50:29.157Z" });
     expect((await backend.get("bx_r1")).seen?.pausedAt).toBeUndefined();
@@ -721,19 +723,19 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("a box already archiving or archived gets no stop at all", async () => {
-    const api = new FakeBox().on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archived"));
+    const api = new FakeBox().on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "archived"));
     const { machine } = machineOn(api);
     await machine.pause();
-    expect(api.calls()).toEqual(["GET /boxes/bx_tumrjngm", "GET /boxes/bx_tumrjngm"]);
-    api.on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "archived"));
+    expect(api.calls()).toEqual(["GET /sandboxes/bx_tumrjngm", "GET /sandboxes/bx_tumrjngm"]);
+    api.on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "archived"));
     await machine.pause();
     expect(api.calls().filter(c => c.startsWith("POST"))).toEqual([]);
   });
 
   it("a stop the provider refuses is thrown in its words, and one it takes back leaves the machine running and the pause not taken", async () => {
     const refused = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"))
-      .on("POST", "/boxes/bx_tumrjngm/stop", { status: 400, body: ERROR(400, "stop_failed", "Snapshot failed; the box keeps running.") });
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"))
+      .on("POST", "/sandboxes/bx_tumrjngm/stop", { status: 400, body: ERROR(400, "stop_failed", "Snapshot failed; the box keeps running.") });
     await expect(machineOn(refused).machine.pause()).rejects.toMatchObject({ code: "stop_failed", message: "Snapshot failed; the box keeps running." });
     expect(refused.calls().filter(c => c.endsWith("/stop"))).toHaveLength(1);
 
@@ -741,8 +743,8 @@ describe("BoxBackend against a fake Box API", () => {
     // while the last that completed stays behind, which is how it says its snapshots keep failing.
     const failing = { lastSnapshotStatus: "failed", lastSnapshotAttemptAt: "2026-10-01T00:40:00Z", snapshotCompletedAt: "2026-09-30T21:02:00Z" };
     const undone = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "idle", failing))
-      .on("POST", "/boxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "box.stopping", status: "archiving", box: BOX("bx_tumrjngm", "archiving") } });
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), INFO("bx_tumrjngm", "archiving"), INFO("bx_tumrjngm", "idle", failing))
+      .on("POST", "/sandboxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "sandbox.stopping", status: "archiving", sandbox: BOX("bx_tumrjngm", "archiving") } });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const e = await machineOn(undone).machine.pause().catch((err: unknown) => err);
@@ -763,8 +765,8 @@ describe("BoxBackend against a fake Box API", () => {
   it("a pause given a longer wait, as a move to another size gives it, outlasts the budget while a full disk archives", async () => {
     const archiving = Array.from({ length: 20 }, () => INFO("bx_tumrjngm", "archiving"));
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), ...archiving, INFO("bx_tumrjngm", "archived"))
-      .on("POST", "/boxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "box.stopping", status: "archiving", box: BOX("bx_tumrjngm", "archiving") } });
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), ...archiving, INFO("bx_tumrjngm", "archived"))
+      .on("POST", "/sandboxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "sandbox.stopping", status: "archiving", sandbox: BOX("bx_tumrjngm", "archiving") } });
     const { machine, clock } = machineOn(api);
     const before = clock.at;
     await machine.pause({ waitMs: 30 * 60_000 });
@@ -774,8 +776,8 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a stop that never lands inside the budget ends the pause with the row's words, the machine still read as paused-in-progress", async () => {
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), INFO("bx_tumrjngm", "archiving"))
-      .on("POST", "/boxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "box.stopping", status: "archiving", box: BOX("bx_tumrjngm", "archiving") } });
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"), INFO("bx_tumrjngm", "archiving"))
+      .on("POST", "/sandboxes/bx_tumrjngm/stop", { status: 202, body: { ok: true, type: "sandbox.stopping", status: "archiving", sandbox: BOX("bx_tumrjngm", "archiving") } });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const { machine, clock } = machineOn(api);
@@ -791,54 +793,54 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("resumes with the account's auto-stop and reads the box until ready; one attempt, nothing about the address kept", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, type: "box.resuming", id: "bx_tumrjngm", status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "provisioned"), INFO("bx_tumrjngm", "ready", { ip: "116.203.245.5" }))
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, type: "sandbox.resuming", id: "bx_tumrjngm", status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "provisioned"), INFO("bx_tumrjngm", "ready", { ip: "116.203.245.5" }))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     const { machine } = machineOn(api);
     await machine.resume();
     // The road every command takes is proved once the box reads ready, before the handle is anyone's to use.
-    expect(api.calls()).toEqual(["GET /limits", "POST /boxes/bx_tumrjngm/resume", "GET /boxes/bx_tumrjngm", "GET /boxes/bx_tumrjngm", "POST /boxes/bx_tumrjngm/commands"]);
-    expect(api.took("POST", "/boxes/bx_tumrjngm/resume")!.body).toEqual({ ttlSeconds: TRIAL_TTL_S });
+    expect(api.calls()).toEqual(["GET /limits", "POST /sandboxes/bx_tumrjngm/resume", "GET /sandboxes/bx_tumrjngm", "GET /sandboxes/bx_tumrjngm", "POST /sandboxes/bx_tumrjngm/commands"]);
+    expect(api.took("POST", "/sandboxes/bx_tumrjngm/resume")!.body).toEqual({ ttlSeconds: TRIAL_TTL_S });
     expect(JSON.stringify(machine)).not.toContain("116.203.245.5");
   });
 
   it("a resume arms the timer the box last had again from now, the create's window or the last backstop, and the cap where none is on record", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_r1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_r1", INFO("bx_r1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_r1/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_r1", "provisioned") } })
-      .on("PATCH", "/boxes/bx_r1", INFO("bx_r1", "idle", { name: "wsp" }))
-      .on("POST", "/boxes/bx_r1/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_r1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_r1", INFO("bx_r1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_r1/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_r1", "provisioned") } })
+      .on("PATCH", "/sandboxes/bx_r1", INFO("bx_r1", "idle", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_r1/commands", COMMAND(""));
     const { backend, clock } = backendOn(api, "standard");
     const machine = await backend.create({ kind: "sandbox", onIdle: "pause", idleTimeoutMs: 40 * 60_000 });
     // Hours later, with no arming since the create: the create's window, from now, not the instant that has passed.
     clock.at += 5 * 60 * 60_000;
     await machine.resume();
-    expect(api.took("POST", "/boxes/bx_r1/resume")!.body).toEqual({ ttlSeconds: 40 * 60 });
+    expect(api.took("POST", "/sandboxes/bx_r1/resume")!.body).toEqual({ ttlSeconds: 40 * 60 });
     // A backstop armed since is the span a resume arms again.
     await backend.backstop(machine, clock.at + 90 * 60_000);
     clock.at += 3 * 60 * 60_000;
     await machine.resume();
-    expect(api.seen.filter(s => s.path === "/boxes/bx_r1/resume").at(-1)!.body).toEqual({ ttlSeconds: 90 * 60 });
+    expect(api.seen.filter(s => s.path === "/sandboxes/bx_r1/resume").at(-1)!.body).toEqual({ ttlSeconds: 90 * 60 });
     // A handle from get() has nothing on record: the cap, which off the trial is no timer.
-    api.on("POST", "/boxes/bx_r2/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_r2", "provisioned") } }).on("GET", "/boxes/bx_r2", INFO("bx_r2", "ready")).on("POST", "/boxes/bx_r2/commands", COMMAND(""));
+    api.on("POST", "/sandboxes/bx_r2/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_r2", "provisioned") } }).on("GET", "/sandboxes/bx_r2", INFO("bx_r2", "ready")).on("POST", "/sandboxes/bx_r2/commands", COMMAND(""));
     await new BoxMachine(backend, "bx_r2", "sandbox").resume();
-    expect(api.took("POST", "/boxes/bx_r2/resume")!.body).toEqual({ ttlSeconds: null });
+    expect(api.took("POST", "/sandboxes/bx_r2/resume")!.body).toEqual({ ttlSeconds: null });
   });
 
   it("a resume of a box the provider lost is missing, one that reads error names it, and one the caller stopped ends at once", async () => {
-    const gone = new FakeBox().on("POST", "/boxes/bx_gone/resume", { status: 404, body: ERROR(404, "not_found", "not_found") });
+    const gone = new FakeBox().on("POST", "/sandboxes/bx_gone/resume", { status: 404, body: ERROR(404, "not_found", "not_found") });
     const lost = await machineOn(gone, "bx_gone").machine.resume().catch((e: unknown) => e);
     expect(isMissing(lost)).toBe(true);
 
     const broken = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "error", { error: "restore failed" }));
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "error", { error: "restore failed" }));
     await expect(machineOn(broken).machine.resume()).rejects.toThrow(/reads error during resume: restore failed/);
 
     const slow = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "provisioned"));
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "provisioned"));
     const stop = new AbortController();
     const { machine } = machineOn(slow);
     const waiting = machine.resume(stop.signal);
@@ -850,9 +852,9 @@ describe("BoxBackend against a fake Box API", () => {
     const stop = new AbortController();
     let refusals = 0;
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", box: BOX("bx_tumrjngm", "provisioned") } })
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
-      .on("POST", "/boxes/bx_tumrjngm/commands", () => {
+      .on("POST", "/sandboxes/bx_tumrjngm/resume", { status: 202, body: { ok: true, status: "resuming", sandbox: BOX("bx_tumrjngm", "provisioned") } })
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "ready"))
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", () => {
         if (++refusals === 1) stop.abort(new Error("the person stopped waiting"));
         return { status: 502, body: ERROR(502, "bad_gateway", "Bad Gateway") };
       });
@@ -864,30 +866,30 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("routes the daemon's port public with no firewall call, since the provider opens its own firewall for a public route and the daemon's token is the gate", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_tumrjngm/host", { status: 200, body: { ok: true, type: "port.hosted", success: true, port: 7070, url: "https://box-node-f06a49ff29e4ed7a-7070.on.ascii.dev", isProtected: false, access: "public" } });
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/host", { status: 200, body: { ok: true, type: "port.hosted", success: true, port: 7070, url: "https://box-node-f06a49ff29e4ed7a-7070.on.boat.dev", isProtected: false, access: "public" } });
     const { machine } = machineOn(api);
     const reach = await machine.previewUrl(7070);
-    expect(reach).toEqual({ url: "https://box-node-f06a49ff29e4ed7a-7070.on.ascii.dev", token: "", expiresAt: Number.MAX_SAFE_INTEGER });
-    expect(api.calls()).toEqual(["POST /boxes/bx_tumrjngm/host"]);
-    expect(api.took("POST", "/boxes/bx_tumrjngm/host")!.body).toEqual({ port: 7070, public: true });
+    expect(reach).toEqual({ url: "https://box-node-f06a49ff29e4ed7a-7070.on.boat.dev", token: "", expiresAt: Number.MAX_SAFE_INTEGER });
+    expect(api.calls()).toEqual(["POST /sandboxes/bx_tumrjngm/host"]);
+    expect(api.took("POST", "/sandboxes/bx_tumrjngm/host")!.body).toEqual({ port: 7070, public: true });
   });
 
   it("mints a private route for any other port once the guest firewall rule stands; the token rides in the query and never expires", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""))
-      .on("POST", "/boxes/bx_tumrjngm/host", { status: 200, body: { ok: true, type: "port.hosted", success: true, port: 3000, url: "https://box-node-f06a49ff29e4ed7a-3000.on.ascii.dev?_token=tok_abc", isProtected: true, access: "private" } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""))
+      .on("POST", "/sandboxes/bx_tumrjngm/host", { status: 200, body: { ok: true, type: "port.hosted", success: true, port: 3000, url: "https://box-node-f06a49ff29e4ed7a-3000.on.boat.dev?_token=tok_abc", isProtected: true, access: "private" } });
     const { machine } = machineOn(api);
     const reach = await machine.previewUrl(3000);
-    expect(reach).toEqual({ url: "https://box-node-f06a49ff29e4ed7a-3000.on.ascii.dev?_token=tok_abc", token: "tok_abc", expiresAt: Number.MAX_SAFE_INTEGER });
-    expect(api.calls()).toEqual(["POST /boxes/bx_tumrjngm/commands", "POST /boxes/bx_tumrjngm/host"]);
-    expect(inner((api.took("POST", "/boxes/bx_tumrjngm/commands")!.body as { command: string }).command)).toContain("ufw status | grep -q '^3000/tcp '");
-    expect(api.took("POST", "/boxes/bx_tumrjngm/host")!.body).toEqual({ port: 3000, public: false });
+    expect(reach).toEqual({ url: "https://box-node-f06a49ff29e4ed7a-3000.on.boat.dev?_token=tok_abc", token: "tok_abc", expiresAt: Number.MAX_SAFE_INTEGER });
+    expect(api.calls()).toEqual(["POST /sandboxes/bx_tumrjngm/commands", "POST /sandboxes/bx_tumrjngm/host"]);
+    expect(inner((api.took("POST", "/sandboxes/bx_tumrjngm/commands")!.body as { command: string }).command)).toContain("ufw status | grep -q '^3000/tcp '");
+    expect(api.took("POST", "/sandboxes/bx_tumrjngm/host")!.body).toEqual({ port: 3000, public: false });
   });
 
   it("mints the route with one read when the firewall rule already stands", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""))
-      .on("POST", "/boxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.ascii.dev?_token=t2", isProtected: true, access: "private" } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""))
+      .on("POST", "/sandboxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.boat.dev?_token=t2", isProtected: true, access: "private" } });
     const { machine } = machineOn(api);
     expect((await machine.previewUrl(3000)).token).toBe("t2");
     const commands = api.seen.filter(s => s.path.endsWith("/commands")).map(s => inner((s.body as { command: string }).command).split("\n").at(-1));
@@ -899,8 +901,8 @@ describe("BoxBackend against a fake Box API", () => {
     // rewrite); the add again; then reads that keep finding it until the hold window is over.
     const script = [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const api = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", ...script.map(code => COMMAND("", code)))
-      .on("POST", "/boxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.ascii.dev?_token=t2", isProtected: true, access: "private" } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", ...script.map(code => COMMAND("", code)))
+      .on("POST", "/sandboxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.boat.dev?_token=t2", isProtected: true, access: "private" } });
     const { machine, clock } = machineOn(api);
     const before = clock.at;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -921,21 +923,21 @@ describe("BoxBackend against a fake Box API", () => {
     // Two adds five seconds of watching apart, then a full hold after the second: the loop ran past the first add's
     // hold window by the whole of the second's.
     expect(clock.at - before).toBeGreaterThanOrEqual(2 * FIREWALL_WATCH_MS + FIREWALL_HOLD_MS);
-    expect(api.calls().at(-1)).toBe("POST /boxes/bx_tumrjngm/host");
+    expect(api.calls().at(-1)).toBe("POST /sandboxes/bx_tumrjngm/host");
   });
 
   it("a rule the guest refuses while it boots is asked for again; one that never holds is said once and the route minted anyway", async () => {
     const early = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND("", 1), COMMAND("", 1, { stderr: "ERROR: problem running ufw-init" }), COMMAND("", 1, { stderr: "ERROR: problem running ufw-init" }), COMMAND("Rule added\n"), COMMAND(""))
-      .on("POST", "/boxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.ascii.dev?_token=t2", isProtected: true, access: "private" } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND("", 1), COMMAND("", 1, { stderr: "ERROR: problem running ufw-init" }), COMMAND("", 1, { stderr: "ERROR: problem running ufw-init" }), COMMAND("Rule added\n"), COMMAND(""))
+      .on("POST", "/sandboxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.boat.dev?_token=t2", isProtected: true, access: "private" } });
     const { machine } = machineOn(early);
     expect((await machine.previewUrl(3000)).token).toBe("t2");
     const commands = early.seen.filter(s => s.path.endsWith("/commands")).map(s => inner((s.body as { command: string }).command).split("\n").at(-1));
     expect(commands.slice(0, 4)).toEqual(["ufw status | grep -q '^3000/tcp '", "ufw allow 3000/tcp", "ufw allow 3000/tcp", "ufw allow 3000/tcp"]);
 
     const never = new FakeBox()
-      .on("POST", "/boxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "machine_not_running", "Box machine is not running.") })
-      .on("POST", "/boxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.ascii.dev?_token=t3", isProtected: true, access: "private" } });
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", { status: 409, body: ERROR(409, "machine_not_running", "Box machine is not running.") })
+      .on("POST", "/sandboxes/bx_tumrjngm/host", { status: 200, body: { ok: true, port: 3000, url: "https://sulu-axioms-gelant-3000.on.boat.dev?_token=t3", isProtected: true, access: "private" } });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const { machine: stuck } = machineOn(never);
@@ -943,7 +945,7 @@ describe("BoxBackend against a fake Box API", () => {
       expect(never.calls().filter(c => c.endsWith("/commands")).length).toBeGreaterThan(2);
       // The refusal is logged once however often the watch meets it, and the rule that never held is said once.
       const lines = warn.mock.calls.map(c => String(c[0]));
-      expect(lines.filter(l => l.startsWith("Boat refused POST /boxes/bx_tumrjngm/commands: 409 code=machine_not_running"))).toHaveLength(1);
+      expect(lines.filter(l => l.startsWith("Boat refused POST /sandboxes/bx_tumrjngm/commands: 409 code=machine_not_running"))).toHaveLength(1);
       expect(lines.filter(l => !l.startsWith("Boat refused"))).toHaveLength(1);
       expect(lines.find(l => !l.startsWith("Boat refused"))).toMatch(/firewall did not hold a rule for port 3000 \(Box machine is not running\.\)/);
     } finally {
@@ -953,12 +955,12 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("puts bytes through PUT /files: straight into /tmp, and by way of /tmp into root's folders under sudo", async () => {
     const api = new FakeBox()
-      .on("PUT", "/boxes/bx_tumrjngm/files", { status: 200, body: { ok: true, type: "file.written", success: true, path: "../../tmp/x", encoding: "base64", size: 3 } })
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+      .on("PUT", "/sandboxes/bx_tumrjngm/files", { status: 200, body: { ok: true, type: "file.written", success: true, path: "../../tmp/x", encoding: "base64", size: 3 } })
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     const { machine } = machineOn(api);
     await machine.putBytes("/tmp/wsp-ping.sh", new Uint8Array([1, 2, 3]));
-    expect(api.took("PUT", "/boxes/bx_tumrjngm/files")!.body).toEqual({ path: "/tmp/wsp-ping.sh", content: Buffer.from([1, 2, 3]).toString("base64"), encoding: "base64" });
-    expect(api.calls()).toEqual(["PUT /boxes/bx_tumrjngm/files"]);
+    expect(api.took("PUT", "/sandboxes/bx_tumrjngm/files")!.body).toEqual({ path: "/tmp/wsp-ping.sh", content: Buffer.from([1, 2, 3]).toString("base64"), encoding: "base64" });
+    expect(api.calls()).toEqual(["PUT /sandboxes/bx_tumrjngm/files"]);
 
     await machine.putBytes("/root/wsp-daemon.tgz", new Uint8Array([4, 5]));
     const staged = api.seen.at(-2)!.body as { path: string };
@@ -971,8 +973,8 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a join over a file already at the new bytes' size still writes them, and one sent again after its pieces are gone is done", async () => {
     const api = new FakeBox()
-      .on("PUT", "/boxes/bx_tumrjngm/files", { status: 200, body: { ok: true } })
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""));
+      .on("PUT", "/sandboxes/bx_tumrjngm/files", { status: 200, body: { ok: true } })
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""));
     const { machine } = machineOn(api);
     await machine.putBytes("/root/.wsp/daemon-token", new TextEncoder().encode("new-token"));
     const staged = (api.seen.at(-2)!.body as { path: string }).path;
@@ -1001,8 +1003,8 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("bytes past the files endpoint's cap go up in pieces under the cap and are joined into place, the size read back; a join that fails says why", async () => {
     const api = new FakeBox()
-      .on("PUT", "/boxes/bx_tumrjngm/files", { status: 200, body: { ok: true } })
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""), COMMAND("WSP_SHORT 5242880\n", 1));
+      .on("PUT", "/sandboxes/bx_tumrjngm/files", { status: 200, body: { ok: true } })
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""), COMMAND("WSP_SHORT 5242880\n", 1));
     const { machine } = machineOn(api);
     const big = new Uint8Array(2 * FILE_PUT_MAX + 7);
     big[FILE_PUT_MAX] = 9;
@@ -1024,8 +1026,8 @@ describe("BoxBackend against a fake Box API", () => {
     const small = Buffer.from("gzipped session");
     const head = Buffer.alloc(FILE_GET_MAX, 1);
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm/files", { status: 200, body: { ok: true, type: "file.read", path: "/tmp/s.gz", encoding: "base64", size: small.length, content: small.toString("base64") } }, { status: 200, body: { ok: true, content: head.toString("base64") } }, { status: 200, body: { ok: true, content: Buffer.from("abc").toString("base64") } })
-      .on("POST", "/boxes/bx_tumrjngm/commands", COMMAND(""), COMMAND(""));
+      .on("GET", "/sandboxes/bx_tumrjngm/files", { status: 200, body: { ok: true, type: "file.read", path: "/tmp/s.gz", encoding: "base64", size: small.length, content: small.toString("base64") } }, { status: 200, body: { ok: true, content: head.toString("base64") } }, { status: 200, body: { ok: true, content: Buffer.from("abc").toString("base64") } })
+      .on("POST", "/sandboxes/bx_tumrjngm/commands", COMMAND(""), COMMAND(""));
     const { machine } = machineOn(api);
     expect(await machine.readBytes("/tmp/s.gz", { size: small.length })).toEqual(small);
     expect([...api.seen[0]!.query]).toEqual([["path", "/tmp/s.gz"], ["encoding", "base64"]]);
@@ -1046,7 +1048,7 @@ describe("BoxBackend against a fake Box API", () => {
       .on("GET", "/named-snapshots/wsp-mac-default-v1", { status: 200, body: { ok: true, snapshot: NAMED("wsp-mac-default-v1", "saving") } }, { status: 200, body: { ok: true, snapshot: NAMED("wsp-mac-default-v1", "ready") } });
     const { machine } = machineOn(api);
     expect(await machine.snapshot(goldenName("mac", "default", 1), { firstLife: false })).toBe("wsp-mac-default-v1");
-    expect(api.took("POST", "/named-snapshots")!.body).toEqual({ boxId: "bx_tumrjngm", name: "wsp-mac-default-v1" });
+    expect(api.took("POST", "/named-snapshots")!.body).toEqual({ sandboxId: "bx_tumrjngm", name: "wsp-mac-default-v1" });
     expect(api.calls()).toEqual(["POST /named-snapshots", "GET /named-snapshots/wsp-mac-default-v1", "GET /named-snapshots/wsp-mac-default-v1"]);
   });
 
@@ -1093,8 +1095,8 @@ describe("BoxBackend against a fake Box API", () => {
             ok: true,
             type: "snapshot.list",
             snapshots: first
-              ? [{ id: "866f04de-8e8a-4401-9e29-cf58e1738213", boxId: "bx_tumrjngm", status: "completed", kind: "incremental", generation: 4, chainId: "d9365279-5b40-4860-85b4-4a168a878da1", createdAt: "2026-09-11T06:32:52.039Z", completedAt: "2026-09-11T06:32:53.272Z", sizeBytes: 343, contentSizeBytes: 7_838_315_315, fileCount: 2 }]
-              : [{ id: "1826c6c1-6f77-4beb-8406-93f9e27281a2", boxId: "bx_tumrjngm", status: "completed", kind: "noop", generation: null, chainId: null, createdAt: "2026-09-11T06:55:43.354Z", completedAt: "2026-09-11T06:55:43.547Z", sizeBytes: null }],
+              ? [{ id: "866f04de-8e8a-4401-9e29-cf58e1738213", sandboxId: "bx_tumrjngm", status: "completed", kind: "incremental", generation: 4, chainId: "d9365279-5b40-4860-85b4-4a168a878da1", createdAt: "2026-09-11T06:32:52.039Z", completedAt: "2026-09-11T06:32:53.272Z", sizeBytes: 343, contentSizeBytes: 7_838_315_315, fileCount: 2 }]
+              : [{ id: "1826c6c1-6f77-4beb-8406-93f9e27281a2", sandboxId: "bx_tumrjngm", status: "completed", kind: "noop", generation: null, chainId: null, createdAt: "2026-09-11T06:55:43.354Z", completedAt: "2026-09-11T06:55:43.547Z", sizeBytes: null }],
             pageInfo: { nextCursor: first ? "c2" : null, hasMore: first, limit: 200 },
           },
         };
@@ -1116,7 +1118,7 @@ describe("BoxBackend against a fake Box API", () => {
     const history = (cursor: string | null): Record<string, unknown> => ({
       ok: true,
       type: "snapshot.list",
-      snapshots: [{ id: cursor === null ? "866f04de-8e8a-4401-9e29-cf58e1738213" : "1826c6c1-6f77-4beb-8406-93f9e27281a2", boxId: "bx_tumrjngm", status: "completed", createdAt: "2026-09-11T06:32:52.039Z", sizeBytes: 343, contentSizeBytes: 7_838_315_315 }],
+      snapshots: [{ id: cursor === null ? "866f04de-8e8a-4401-9e29-cf58e1738213" : "1826c6c1-6f77-4beb-8406-93f9e27281a2", sandboxId: "bx_tumrjngm", status: "completed", createdAt: "2026-09-11T06:32:52.039Z", sizeBytes: 343, contentSizeBytes: 7_838_315_315 }],
       pageInfo: { nextCursor: cursor === null ? "c2" : null, hasMore: cursor === null, limit: 200 },
     });
     const api = new FakeBox()
@@ -1154,47 +1156,47 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("kills with the confirm header, keeps the operation id, and takes a box already gone as killed", async () => {
-    const api = new FakeBox().on("DELETE", "/boxes/bx_tumrjngm", {
+    const api = new FakeBox().on("DELETE", "/sandboxes/bx_tumrjngm", {
       status: 202,
-      body: { ok: true, type: "box.deleting", operation: { id: "bdop_e35decb98f414320a0da76eb36fbf98d", kind: "box", targetId: "bx_tumrjngm", reason: "explicit", status: "pending", attemptCount: 0 } },
+      body: { ok: true, type: "sandbox.deleting", operation: { id: "bdop_e35decb98f414320a0da76eb36fbf98d", kind: "box", targetId: "bx_tumrjngm", reason: "explicit", status: "pending", attemptCount: 0 } },
     });
     const { machine } = machineOn(api);
     await machine.kill();
-    expect(api.took("DELETE", "/boxes/bx_tumrjngm")!.headers["x-ascii-confirm-delete"]).toBe("bx_tumrjngm");
+    expect(api.took("DELETE", "/sandboxes/bx_tumrjngm")!.headers["x-ascii-confirm-delete"]).toBe("bx_tumrjngm");
     expect(machine.deletion).toBe("bdop_e35decb98f414320a0da76eb36fbf98d");
     // Nothing waits on the operation: the box is gone from GET within seconds while the operation reads blocked.
-    expect(api.calls()).toEqual(["DELETE /boxes/bx_tumrjngm"]);
-    const gone = new FakeBox().on("DELETE", "/boxes/bx_gone", { status: 404, body: ERROR(404, "not_found", "not_found") });
+    expect(api.calls()).toEqual(["DELETE /sandboxes/bx_tumrjngm"]);
+    const gone = new FakeBox().on("DELETE", "/sandboxes/bx_gone", { status: 404, body: ERROR(404, "not_found", "not_found") });
     await machineOn(gone, "bx_gone").machine.kill();
   });
 
   it("a delete is done when GET reads the box gone on every read in a row: a 404 and then the box running asks for the delete again", async () => {
-    const deleting = { status: 202, body: { ok: true, type: "box.deleting", operation: { id: "bdop_1" } } };
+    const deleting = { status: 202, body: { ok: true, type: "sandbox.deleting", operation: { id: "bdop_1" } } };
     const missing = { status: 404, body: ERROR(404, "not_found", "not_found") };
-    const api = new FakeBox().on("DELETE", "/boxes/bx_tumrjngm", deleting).on("GET", "/boxes/bx_tumrjngm", missing, INFO("bx_tumrjngm", "running"), missing);
+    const api = new FakeBox().on("DELETE", "/sandboxes/bx_tumrjngm", deleting).on("GET", "/sandboxes/bx_tumrjngm", missing, INFO("bx_tumrjngm", "running"), missing);
     const { backend, machine } = machineOn(api);
     await killUntilGone(backend, machine, { graceMs: 50, pollMs: 1 });
     const calls = api.calls();
     expect(calls.filter(c => c.startsWith("DELETE"))).toHaveLength(2);
-    expect(calls.slice(calls.lastIndexOf("DELETE /boxes/bx_tumrjngm") + 1)).toEqual(Array(GONE_READS).fill("GET /boxes/bx_tumrjngm"));
+    expect(calls.slice(calls.lastIndexOf("DELETE /sandboxes/bx_tumrjngm") + 1)).toEqual(Array(GONE_READS).fill("GET /sandboxes/bx_tumrjngm"));
   });
 
   it("reads the provider's states onto the machine's four, a box it lost as gone", async () => {
     const api = new FakeBox();
     const { machine } = machineOn(api);
     for (const [theirs, ours] of [["init", "starting"], ["provisioning", "starting"], ["provisioned", "starting"], ["cloning", "starting"], ["ready", "running"], ["idle", "running"], ["running", "running"], ["archiving", "paused"], ["archived", "paused"], ["error", "gone"]] as const) {
-      api.on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", theirs));
+      api.on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", theirs));
       expect(await machine.state(), theirs).toBe(ours);
     }
-    api.on("GET", "/boxes/bx_tumrjngm", { status: 404, body: ERROR(404, "not_found", "not_found") });
+    api.on("GET", "/sandboxes/bx_tumrjngm", { status: 404, body: ERROR(404, "not_found", "not_found") });
     expect(await machine.state()).toBe("gone");
   });
 
   it("a state the table never learned reads running on the machine, its handle and the listing, so a delete never reads it gone", async () => {
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "deleting"))
-      .on("GET", "/boxes", seen => ({ status: 200, body: { ok: true, type: "box.list", boxes: seen.query.get("state") === "archived" ? [] : [BOX("bx_tumrjngm", "deleting", { name: "wsp" })], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } } }))
-      .on("DELETE", "/boxes/bx_tumrjngm", { status: 202, body: { ok: true, operation: { id: "bdop_1" } } });
+      .on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "deleting"))
+      .on("GET", "/sandboxes", seen => ({ status: 200, body: { ok: true, type: "sandbox.list", sandboxes: seen.query.get("state") === "archived" ? [] : [BOX("bx_tumrjngm", "deleting", { name: "wsp" })], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } } }))
+      .on("DELETE", "/sandboxes/bx_tumrjngm", { status: 202, body: { ok: true, operation: { id: "bdop_1" } } });
     const { backend, machine } = machineOn(api);
     expect(await machine.state()).toBe("running");
     expect((await backend.get("bx_tumrjngm")).seen?.state).toBe("running");
@@ -1203,13 +1205,13 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("describes the class the box runs as, its disk the class floor, and its creation time", async () => {
-    const api = new FakeBox().on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle", { type: "default", vcpu: 4, memoryGB: 8 }));
+    const api = new FakeBox().on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle", { type: "default", vcpu: 4, memoryGB: 8 }));
     const { machine } = machineOn(api);
     expect(await machine.describe()).toEqual({ cpu: 4, memMb: 8192, diskGb: 50, createdAt: "2026-09-11T06:28:06.053Z" });
   });
 
   it("get() reads the labels off the name and what the provider saw", async () => {
-    const api = new FakeBox().on("GET", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_1" }));
+    const api = new FakeBox().on("GET", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_1" }));
     const { backend } = backendOn(api);
     const machine = await backend.get("bx_tumrjngm");
     expect(machine.labels).toEqual({ [WSP_LABEL]: "1", [OWNER_LABEL]: "h_1a2b3c4d", [WORKSPACE_LABEL]: "ws_1" });
@@ -1219,17 +1221,17 @@ describe("BoxBackend against a fake Box API", () => {
   it("lists wsp's boxes alone off both listings, the plain one and the archived one, a box on both once, by the labels asked for, following the cursor", async () => {
     // The plain listing as the spike read it at 20f: an archived box beside an idle one. The archived listing as it
     // read it at 26d, with the boxes the plain one may leave out on another day.
-    const api = new FakeBox().on("GET", "/boxes", seen => {
+    const api = new FakeBox().on("GET", "/sandboxes", seen => {
       if (seen.query.get("state") === "archived") {
-        return { status: 200, body: { ok: true, type: "box.list", boxes: [BOX("bx_s24x3q6e", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_1" }), BOX("bx_napping", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_2" })], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } } };
+        return { status: 200, body: { ok: true, type: "sandbox.list", sandboxes: [BOX("bx_s24x3q6e", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_1" }), BOX("bx_napping", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_2" })], pageInfo: { nextCursor: null, hasMore: false, limit: 200 } } };
       }
       const first = seen.query.get("cursor") === null;
       return {
         status: 200,
         body: {
           ok: true,
-          type: "box.list",
-          boxes: first
+          type: "sandbox.list",
+          sandboxes: first
             ? [BOX("bx_s24x3q6e", "archived", { name: "wsp;o=h_1a2b3c4d;w=ws_1" }), BOX("bx_other", "idle", { name: "Box 2026-09-11 06:28" })]
             : [BOX("bx_tumrjngm", "idle", { name: "wsp;o=h_1a2b3c4d;b=1", type: "default", vcpu: 4, memoryGB: 8 }), BOX("bx_theirs", "idle", { name: "wsp;o=h_other" })],
           pageInfo: { nextCursor: first ? "c2" : null, hasMore: first, limit: 200 },
@@ -1247,10 +1249,10 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("pushes the provider's stop timer to the runtime's backstop instant, capped by the trial, once a minute at most", async () => {
-    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", seen => INFO("bx_tumrjngm", "idle", { archiveAfter: new Date((seen.body as { ttlSeconds: number }).ttlSeconds * 1000).toISOString() }));
+    const api = new FakeBox().on("PATCH", "/sandboxes/bx_tumrjngm", seen => INFO("bx_tumrjngm", "idle", { archiveAfter: new Date((seen.body as { ttlSeconds: number }).ttlSeconds * 1000).toISOString() }));
     const { backend, machine, clock } = machineOn(api);
     await backend.lifecycle.backstop!(machine, clock.at + 40 * 60_000);
-    expect(api.took("PATCH", "/boxes/bx_tumrjngm")!.body).toEqual({ ttlSeconds: 40 * 60 });
+    expect(api.took("PATCH", "/sandboxes/bx_tumrjngm")!.body).toEqual({ ttlSeconds: 40 * 60 });
     // Armed again a few seconds later on a streamed chunk: not worth a call.
     clock.at += 5_000;
     await backend.lifecycle.backstop!(machine, clock.at + 40 * 60_000);
@@ -1266,7 +1268,7 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("an exact backstop goes as it is, earlier than the last one sent", async () => {
-    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
+    const api = new FakeBox().on("PATCH", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
     const { backend, machine, clock } = machineOn(api);
     await backend.lifecycle.backstop!(machine, clock.at + 40 * 60_000);
     await backend.lifecycle.backstop!(machine, clock.at + 12 * 60_000);
@@ -1277,13 +1279,13 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("off the trial the backstop is the runtime's instant whole, and a killed box's instant is forgotten", async () => {
     const api = new FakeBox()
-      .on("PATCH", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"))
-      .on("DELETE", "/boxes/bx_tumrjngm", { status: 202, body: { ok: true, operation: { id: "bdop_1" } } });
+      .on("PATCH", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"))
+      .on("DELETE", "/sandboxes/bx_tumrjngm", { status: 202, body: { ok: true, operation: { id: "bdop_1" } } });
     const { backend } = backendOn(api, "standard");
     const machine = new BoxMachine(backend, "bx_tumrjngm", "sandbox");
     const clock = backend.clock as ReturnType<typeof fakeClock>;
     await backend.backstop(machine, clock.at + 6 * 60 * 60_000);
-    expect(api.took("PATCH", "/boxes/bx_tumrjngm")!.body).toEqual({ ttlSeconds: 6 * 60 * 60 });
+    expect(api.took("PATCH", "/sandboxes/bx_tumrjngm")!.body).toEqual({ ttlSeconds: 6 * 60 * 60 });
     await machine.kill();
     await backend.backstop(machine, clock.at + 6 * 60 * 60_000);
     expect(api.calls().filter(c => c.startsWith("PATCH"))).toHaveLength(2);
@@ -1291,7 +1293,7 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a failed backstop waits its backoff, 30 s doubling to five minutes, and every delta inside it is dropped", async () => {
     const tries: number[] = [];
-    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", () => {
+    const api = new FakeBox().on("PATCH", "/sandboxes/bx_tumrjngm", () => {
       tries.push(clock.at);
       throw offline();
     });
@@ -1307,7 +1309,7 @@ describe("BoxBackend against a fake Box API", () => {
   });
 
   it("a second backstop never starts while one is in flight", async () => {
-    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
+    const api = new FakeBox().on("PATCH", "/sandboxes/bx_tumrjngm", INFO("bx_tumrjngm", "idle"));
     let open!: () => void;
     const gate = new Promise<void>(r => (open = r));
     let sent = 0;
@@ -1365,7 +1367,7 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a backstop that lands resets the backoff, and the minute's slack still holds after it", async () => {
     let down = true;
-    const api = new FakeBox().on("PATCH", "/boxes/bx_tumrjngm", () => {
+    const api = new FakeBox().on("PATCH", "/sandboxes/bx_tumrjngm", () => {
       if (down) throw offline();
       return INFO("bx_tumrjngm", "idle");
     });
@@ -1398,9 +1400,9 @@ describe("BoxBackend against a fake Box API", () => {
 
   it("a desktop machine boots the same box with no stream: the desktop stays off until the seam reads it per open", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_d1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_d1", INFO("bx_d1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_d1/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_d1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_d1", INFO("bx_d1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_d1/commands", COMMAND(""));
     const { backend } = backendOn(api);
     const machine = await backend.create({ kind: "desktop" });
     expect(machine.kind).toBe("desktop");
@@ -1415,21 +1417,19 @@ describe("BoxBackend against a fake Box API", () => {
   });
 });
 
-/** The owner's account read with `GET /limits` on 2026-10-11 17:06 UTC as wsp's base spells it. */
+/** The owner's account read with `GET /limits` on 2026-10-11 17:06 UTC, in boat.dev's field names. */
 const OWNER_LIMITS = {
   accessTier: "standard",
-  maxActiveBoxes: 100,
-  activeBoxes: 11,
+  maxActiveSandboxes: 100,
+  activeSandboxes: 11,
   startLimits: { perMinute: 12, perHour: 60, perDay: 200 },
   starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
   activeStates: ["provisioned", "cloning", "ready", "idle", "running"],
   canStart: true,
   startBlockedReason: null,
   creditBalanceHours: 81.6,
-  boxPlanKey: "box_20",
+  sandboxPlanKey: "box_20",
 };
-/** The same answer as boat.dev's base spells it: Sandboxes where wsp's base says Boxes. */
-const OWNER_LIMITS_BOAT = Object.fromEntries(Object.entries(OWNER_LIMITS).map(([k, v]) => [k.replace("Boxes", "Sandboxes").replace("boxPlan", "sandboxPlan"), v]));
 /** A trial account, in the documented shape with the trial's own numbers (2 machines, 5, 25 and 75
  * starts, 25 h, small and default). */
 const TRIAL_LIMITS = {
@@ -1473,27 +1473,25 @@ describe("Boat's limits, read from Boat", () => {
     expect(snapshotStorage([...named(13), ...history], BOX_PRICING.snapshotStorage, read).monthlyUsd).toBeCloseTo(3 * 1.7);
   });
 
-  it("reads the owner's answer of 17:06 UTC on either base's spelling: the $20 plan, 100 machines, the three windows, small to large", async () => {
-    for (const body of [OWNER_LIMITS, OWNER_LIMITS_BOAT]) {
-      const api = new FakeBox().on("GET", "/limits", limitsReply(body));
-      const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
-      expect(await backend.limits()).toEqual({
-        trial: false,
-        planKey: "box_20",
-        planUsd: 20,
-        machinesAtOnce: 100,
-        activeBoxes: 11,
-        starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
-        sizes: ["small", "default", "large"],
-        canStart: true,
-        creditBalanceHours: 81.6,
-      });
-      expect(backend.capabilities.sizes).toEqual([
-        { name: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
-        { name: "default", cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
-        { name: "large", cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
-      ]);
-    }
+  it("reads the owner's answer of 17:06 UTC: the $20 plan, 100 machines, the three windows, small to large", async () => {
+    const api = new FakeBox().on("GET", "/limits", limitsReply(OWNER_LIMITS));
+    const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
+    expect(await backend.limits()).toEqual({
+      trial: false,
+      planKey: "box_20",
+      planUsd: 20,
+      machinesAtOnce: 100,
+      activeBoxes: 11,
+      starts: { minute: { used: 0, limit: 12 }, hour: { used: 9, limit: 60 }, day: { used: 187, limit: 200 } },
+      sizes: ["small", "default", "large"],
+      canStart: true,
+      creditBalanceHours: 81.6,
+    });
+    expect(backend.capabilities.sizes).toEqual([
+      { name: "small", cpu: 2, memMb: 4096, rateUsdPerHour: 0.018 },
+      { name: "default", cpu: 4, memMb: 8192, rateUsdPerHour: 0.036 },
+      { name: "large", cpu: 8, memMb: 16384, rateUsdPerHour: 0.072 },
+    ]);
   });
 
   it("a trial offers small and default and reads 2 machines; a $100 plan adds xlarge", async () => {
@@ -1501,17 +1499,17 @@ describe("Boat's limits, read from Boat", () => {
     const backend = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, clock: fakeClock() });
     expect(await backend.limits()).toMatchObject({ trial: true, machinesAtOnce: 2, sizes: ["small", "default"], starts: { minute: { limit: 5 }, hour: { limit: 25 }, day: { limit: 75 } }, creditBalanceHours: 25 });
     expect(backend.capabilities.sizes.map(s => s.cpu)).toEqual([2, 4]);
-    const big = new FakeBox().on("GET", "/limits", limitsReply({ ...OWNER_LIMITS, boxPlanKey: "box_100", maxActiveBoxes: 300 }));
+    const big = new FakeBox().on("GET", "/limits", limitsReply({ ...OWNER_LIMITS, sandboxPlanKey: "box_100", maxActiveSandboxes: 300 }));
     const bigger = new BoxBackend({ apiKey: "box_x", fetch: big.fetch, clock: fakeClock() });
     expect((await bigger.limits()).sizes).toEqual(["small", "default", "large", "xlarge"]);
   });
 
   it("keeps a read 10 s, reads before every create and resume past that, and counts each start it made up without a read", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_c1", "provisioning", { name: "wsp" }) } })
-      .on("GET", "/boxes/bx_c1", INFO("bx_c1", "ready", { name: "wsp" }))
-      .on("POST", "/boxes/bx_c1/commands", COMMAND(""))
-      .on("POST", "/boxes/bx_c1/resume", { status: 202, body: { ok: true, box: BOX("bx_c1", "provisioning") } });
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_c1", "provisioning", { name: "wsp" }) } })
+      .on("GET", "/sandboxes/bx_c1", INFO("bx_c1", "ready", { name: "wsp" }))
+      .on("POST", "/sandboxes/bx_c1/commands", COMMAND(""))
+      .on("POST", "/sandboxes/bx_c1/resume", { status: 202, body: { ok: true, sandbox: BOX("bx_c1", "provisioning") } });
     const { backend, clock } = backendOn(api, "standard");
     api.on("GET", "/limits", limitsReply(OWNER_LIMITS));
     await backend.create({ kind: "sandbox" });
@@ -1521,14 +1519,14 @@ describe("Boat's limits, read from Boat", () => {
     clock.at += 10_000;
     await new BoxMachine(backend, "bx_c1", "sandbox").resume();
     expect(api.calls().filter(c => c === "GET /limits")).toHaveLength(2);
-    expect(api.calls().indexOf("POST /boxes/bx_c1/resume")).toBeGreaterThan(api.calls().lastIndexOf("GET /limits"));
+    expect(api.calls().indexOf("POST /sandboxes/bx_c1/resume")).toBeGreaterThan(api.calls().lastIndexOf("GET /limits"));
     expect((await backend.limits()).starts?.day).toEqual({ used: 188, limit: 200 });
   });
 });
 
 describe("Boat's refusals, each naming the limit it met", () => {
   const refusedOn = async (answer: Reply, limits: Reply = limitsReply(OWNER_LIMITS)): Promise<{ e: Record<string, unknown> & Error; api: FakeBox }> => {
-    const api = new FakeBox().on("POST", "/boxes", answer);
+    const api = new FakeBox().on("POST", "/sandboxes", answer);
     const { backend } = backendOn(api, "standard");
     api.on("GET", "/limits", limits);
     const e = (await backend.create(NAMED_SPEC).catch((err: unknown) => err)) as Record<string, unknown> & Error;
@@ -1565,7 +1563,7 @@ describe("Boat's refusals, each naming the limit it met", () => {
   });
 
   it("a start with no name, such as a builder, names the machine in the line", async () => {
-    const api = new FakeBox().on("POST", "/boxes", { status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") });
+    const api = new FakeBox().on("POST", "/sandboxes", { status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") });
     const { backend } = backendOn(api, "standard");
     api.on("GET", "/limits", spent("day"));
     const e = (await backend.create({ kind: "sandbox", labels: { [BUILDER_LABEL]: "1" } }).catch((err: unknown) => err)) as Error;
@@ -1597,8 +1595,8 @@ describe("Boat's refusals, each naming the limit it met", () => {
 
   it("two boxes refused in turn each keep their own quiet minute in the log", async () => {
     const api = new FakeBox()
-      .on("GET", "/boxes/bx_a", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") })
-      .on("GET", "/boxes/bx_b", { status: 409, body: ERROR(409, "box_restoring", "Box is restoring.") });
+      .on("GET", "/sandboxes/bx_a", { status: 409, body: ERROR(409, "sandbox_restoring", "Box is restoring.") })
+      .on("GET", "/sandboxes/bx_b", { status: 409, body: ERROR(409, "sandbox_restoring", "Box is restoring.") });
     const { backend, clock } = backendOn(api, "standard");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -1610,8 +1608,8 @@ describe("Boat's refusals, each naming the limit it met", () => {
       }
       const lines = warn.mock.calls.map(c => String(c[0])).filter(l => l.startsWith("Boat refused"));
       expect(lines).toEqual([
-        "Boat refused GET /boxes/bx_a: 409 code=box_restoring requestId=req_b603629401be48d082e623575a1b9111: Box is restoring.",
-        "Boat refused GET /boxes/bx_b: 409 code=box_restoring requestId=req_b603629401be48d082e623575a1b9111: Box is restoring.",
+        "Boat refused GET /sandboxes/bx_a: 409 code=sandbox_restoring requestId=req_b603629401be48d082e623575a1b9111: Box is restoring.",
+        "Boat refused GET /sandboxes/bx_b: 409 code=sandbox_restoring requestId=req_b603629401be48d082e623575a1b9111: Box is restoring.",
       ]);
     } finally {
       warn.mockRestore();
@@ -1619,7 +1617,7 @@ describe("Boat's refusals, each naming the limit it met", () => {
   });
 
   it("a resume that meets a start limit says so too", async () => {
-    const api = new FakeBox().on("POST", "/boxes/bx_w1/resume", { status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") });
+    const api = new FakeBox().on("POST", "/sandboxes/bx_w1/resume", { status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") });
     const { backend } = backendOn(api, "standard");
     api.on("GET", "/limits", spent("day"));
     const machine = new BoxMachine(backend, "bx_w1", "sandbox", { [NAME_LABEL]: "Write the upload docs" });
@@ -1642,17 +1640,17 @@ describe("Boat's refusals, each naming the limit it met", () => {
     expect(full.e.message).toBe("Boat has no free machines of this size right now; try again in a few minutes, or a smaller size.");
     // A 5xx on a create may come after Boat made the box, so it is asked again inside the lost-answer window first:
     // 16 asks of 3 tries each on the fake clock before the 120 s window ends.
-    expect(full.api.calls().filter(c => c === "POST /boxes")).toHaveLength(48);
+    expect(full.api.calls().filter(c => c === "POST /sandboxes")).toHaveLength(48);
   });
 
   it("cancelled reads as gone and ends a create's wait on the first read, with Boat's reason", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 202, body: { ok: true, status: "provisioning", box: BOX("bx_x1", "provisioning") } })
-      .on("GET", "/boxes/bx_x1", INFO("bx_x1", "cancelled", { error: "no machine available" }))
-      .on("DELETE", "/boxes/bx_x1", { status: 404, body: ERROR(404, "not_found", "not_found") });
+      .on("POST", "/sandboxes", { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_x1", "provisioning") } })
+      .on("GET", "/sandboxes/bx_x1", INFO("bx_x1", "cancelled", { error: "no machine available" }))
+      .on("DELETE", "/sandboxes/bx_x1", { status: 404, body: ERROR(404, "not_found", "not_found") });
     const { backend } = backendOn(api, "standard", { createMs: 60_000 });
     await expect(backend.create(NAMED_SPEC)).rejects.toThrow("Boat could not get a machine for Fix the flaky upload test and cancelled the create (no machine available); start it again.");
-    expect(api.calls().filter(c => c === "GET /boxes/bx_x1")).toHaveLength(1);
+    expect(api.calls().filter(c => c === "GET /sandboxes/bx_x1")).toHaveLength(1);
     expect(await (await backend.get("bx_x1")).state()).toBe("gone");
   });
 
@@ -1662,8 +1660,8 @@ describe("Boat's refusals, each naming the limit it met", () => {
       await refusedOn({ status: 429, body: ERROR(429, "daily_limit_reached", "Rate limit hit.") }, spent("day"));
       await refusedOn({ status: 402, body: ERROR(402, "billing_required", "Add credits.") });
       const lines = warn.mock.calls.map(c => String(c[0]));
-      expect(lines).toContain("Boat refused POST /boxes: 429 code=daily_limit_reached requestId=req_b603629401be48d082e623575a1b9111: Rate limit hit.");
-      expect(lines).toContain("Boat refused POST /boxes: 402 code=billing_required requestId=req_b603629401be48d082e623575a1b9111: Add credits.");
+      expect(lines).toContain("Boat refused POST /sandboxes: 429 code=daily_limit_reached requestId=req_b603629401be48d082e623575a1b9111: Rate limit hit.");
+      expect(lines).toContain("Boat refused POST /sandboxes: 402 code=billing_required requestId=req_b603629401be48d082e623575a1b9111: Add credits.");
     } finally {
       warn.mockRestore();
     }
@@ -1679,7 +1677,7 @@ describe("a create whose answer is lost", () => {
     let left = lost;
     return async (url, init) => {
       const res = await api.fetch(url as RequestInfo, init);
-      if (init?.method === "POST" && new URL(String(url)).pathname.endsWith("/boxes") && left-- > 0) throw dropped();
+      if (init?.method === "POST" && new URL(String(url)).pathname.endsWith("/sandboxes") && left-- > 0) throw dropped();
       return res;
     };
   };
@@ -1688,16 +1686,16 @@ describe("a create whose answer is lost", () => {
     const clock = fakeClock();
     return { backend: new BoxBackend({ apiKey: "box_x", fetch: losing(api, lost), clock, budgets: { pollMs: 10, createMs: 100, restoreMs: 100 } }), clock };
   };
-  const MADE = (id: string, status = "provisioning"): Reply => ({ status: 202, body: { ok: true, type: "box.created", status, box: BOX(id, status === "provisioning" ? "provisioning" : "ready", { name: "wsp-mac-default-v4" }) } });
+  const MADE = (id: string, status = "provisioning"): Reply => ({ status: 202, body: { ok: true, type: "sandbox.created", status, sandbox: BOX(id, status === "provisioning" ? "provisioning" : "ready", { name: "wsp-mac-default-v4" }) } });
   const SPEC = { kind: "sandbox" as const, fromSnapshot: "wsp-mac-default-v4", cpu: 2, memMb: 4096, labels: { [OWNER_LABEL]: "h_1" }, idleTimeoutMs: 20 * 60_000, idempotencyKey: "workspace/ws_1:0011223344556677" };
-  const creates = (api: FakeBox): Seen[] => api.seen.filter(s => s.method === "POST" && s.path === "/boxes");
+  const creates = (api: FakeBox): Seen[] => api.seen.filter(s => s.method === "POST" && s.path === "/sandboxes");
 
   it("is asked again at once with the same key and the same bytes, and the box Boat made is the one the create goes on with", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", MADE("bx_ca2bqxuk", "ready"))
-      .on("GET", "/boxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4" }))
-      .on("PATCH", "/boxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp;o=h_1" }))
-      .on("POST", "/boxes/bx_ca2bqxuk/commands", COMMAND(""));
+      .on("POST", "/sandboxes", MADE("bx_ca2bqxuk", "ready"))
+      .on("GET", "/sandboxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4" }))
+      .on("PATCH", "/sandboxes/bx_ca2bqxuk", INFO("bx_ca2bqxuk", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/sandboxes/bx_ca2bqxuk/commands", COMMAND(""));
     const { backend } = backendLosing(api, 1);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -1711,7 +1709,7 @@ describe("a create whose answer is lost", () => {
       expect(again!.headers["idempotency-key"]).toBe(SPEC.idempotencyKey);
       expect(first!.headers["idempotency-key"]).toBe(SPEC.idempotencyKey);
       // Adopted: named back, and nothing deleted.
-      expect(api.took("PATCH", "/boxes/bx_ca2bqxuk")!.body).toEqual({ name: "wsp;o=h_1" });
+      expect(api.took("PATCH", "/sandboxes/bx_ca2bqxuk")!.body).toEqual({ name: "wsp;o=h_1" });
       expect(api.calls().some(c => c.startsWith("DELETE"))).toBe(false);
       expect(warn.mock.calls.map(c => String(c[0]))).toContain("the answer to Boat's create was lost (fetch failed: ECONNRESET); wsp asked again and found bx_ca2bqxuk, which this create goes on with.");
     } finally {
@@ -1728,9 +1726,9 @@ describe("a create whose answer is lost", () => {
       return reply;
     };
     api
-      .on("POST", "/boxes", at(MADE("bx_1")), at(MADE("bx_1")), at({ status: 409, body: ERROR(409, "idempotency_in_progress", "A request with this key is still being processed") }), at(MADE("bx_1", "ready")))
-      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
-      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+      .on("POST", "/sandboxes", at(MADE("bx_1")), at(MADE("bx_1")), at({ status: 409, body: ERROR(409, "idempotency_in_progress", "A request with this key is still being processed") }), at(MADE("bx_1", "ready")))
+      .on("GET", "/sandboxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/sandboxes/bx_1/commands", COMMAND(""));
     vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       expect((await backend.create(SPEC)).id).toBe("bx_1");
@@ -1745,9 +1743,9 @@ describe("a create whose answer is lost", () => {
 
   it("a 500 is an answer Boat may give after it made the box, so it is asked again the same way, and a refusal below 500 is not", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 500, body: ERROR(500, "http_500", "Internal error") }, MADE("bx_1", "ready"))
-      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
-      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+      .on("POST", "/sandboxes", { status: 500, body: ERROR(500, "http_500", "Internal error") }, MADE("bx_1", "ready"))
+      .on("GET", "/sandboxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/sandboxes/bx_1/commands", COMMAND(""));
     const { backend } = backendLosing(api, 0);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -1759,16 +1757,16 @@ describe("a create whose answer is lost", () => {
     expect(new Set(creates(api).map(s => s.raw)).size).toBe(1);
     expect(creates(api)).toHaveLength(2);
 
-    const refused = new FakeBox().on("POST", "/boxes", { status: 409, body: ERROR(409, "idempotency_key_reused", "This key was used with another body") });
+    const refused = new FakeBox().on("POST", "/sandboxes", { status: 409, body: ERROR(409, "idempotency_key_reused", "This key was used with another body") });
     await expect(backendLosing(refused, 0).backend.create(SPEC)).rejects.toThrow("This key was used with another body");
     expect(creates(refused)).toHaveLength(1);
   });
 
   it("an ask that hears nothing inside a read's cap is a lost answer, asked again at once under the same key with the same bytes", async () => {
-    const api = new FakeBox().on("GET", "/limits", LIMITS("standard")).on("POST", "/boxes", MADE("bx_1", "ready")).on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" })).on("POST", "/boxes/bx_1/commands", COMMAND(""));
+    const api = new FakeBox().on("GET", "/limits", LIMITS("standard")).on("POST", "/sandboxes", MADE("bx_1", "ready")).on("GET", "/sandboxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" })).on("POST", "/sandboxes/bx_1/commands", COMMAND(""));
     const silent: string[] = [];
     const fetch: typeof globalThis.fetch = (url, init) => {
-      if (init?.method !== "POST" || !String(url).endsWith("/boxes") || silent.length > 0) return api.fetch(url as RequestInfo, init);
+      if (init?.method !== "POST" || !String(url).endsWith("/sandboxes") || silent.length > 0) return api.fetch(url as RequestInfo, init);
       silent.push(String(init.body));
       return new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
     };
@@ -1784,21 +1782,21 @@ describe("a create whose answer is lost", () => {
   });
 
   it("an answer still lost after two minutes fails the create with the road's words and deletes nothing, so the sweep can ask again", async () => {
-    const api = new FakeBox().on("POST", "/boxes", MADE("bx_1"));
+    const api = new FakeBox().on("POST", "/sandboxes", MADE("bx_1"));
     const { backend, clock } = backendLosing(api, 1_000);
     const began = clock.at;
     await expect(backend.create(SPEC)).rejects.toThrow("fetch failed");
     expect(clock.at - began).toBeLessThanOrEqual(120_000);
     expect(clock.at - began).toBeGreaterThanOrEqual(115_000);
     expect(new Set(creates(api).map(s => s.raw)).size).toBe(1);
-    expect(api.calls().some(c => c.startsWith("DELETE") || c.startsWith("GET /boxes/"))).toBe(false);
+    expect(api.calls().some(c => c.startsWith("DELETE") || c.startsWith("GET /sandboxes/"))).toBe(false);
   });
 
   it("an attempt's bytes are made once: a create handed them sends them as they are, though the same spec now reads otherwise", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", MADE("bx_1"))
-      .on("GET", "/boxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
-      .on("POST", "/boxes/bx_1/commands", COMMAND(""));
+      .on("POST", "/sandboxes", MADE("bx_1"))
+      .on("GET", "/sandboxes/bx_1", INFO("bx_1", "ready", { name: "wsp;o=h_1" }))
+      .on("POST", "/sandboxes/bx_1/commands", COMMAND(""));
     const { backend, clock } = backendLosing(api, 0);
     // The first read of the account's cap takes a second and a half, between the instant the timer is set for and
     // the clock the seconds to it are read off.
@@ -1816,8 +1814,8 @@ describe("a create whose answer is lost", () => {
 
   it("a replay sends the attempt's bytes under its key, names the box Boat made back to what the bytes asked, and hands it back", async () => {
     const api = new FakeBox()
-      .on("POST", "/boxes", { status: 200, body: { ok: true, type: "box.created", status: "ready", box: BOX("bx_sxtfdf4c", "ready", { name: "wsp-mac-default-v4" }) } })
-      .on("PATCH", "/boxes/bx_sxtfdf4c", INFO("bx_sxtfdf4c", "ready", { name: "wsp;o=h_1" }));
+      .on("POST", "/sandboxes", { status: 200, body: { ok: true, type: "sandbox.created", status: "ready", sandbox: BOX("bx_sxtfdf4c", "ready", { name: "wsp-mac-default-v4" }) } })
+      .on("PATCH", "/sandboxes/bx_sxtfdf4c", INFO("bx_sxtfdf4c", "ready", { name: "wsp;o=h_1" }));
     const { backend, clock } = backendLosing(api, 0);
     const sent = await backend.createRequest({ ...SPEC, labels: { [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" } });
     const machine = (await backend.replayCreate("workspace/ws_1:0011223344556677", sent, new Date(clock.at).toISOString()))!;
@@ -1825,11 +1823,11 @@ describe("a create whose answer is lost", () => {
     expect(machine.labels).toEqual({ [WSP_LABEL]: "1", [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" });
     expect(creates(api)[0]!.raw).toBe(sent);
     expect(creates(api)[0]!.headers["idempotency-key"]).toBe("workspace/ws_1:0011223344556677");
-    expect(api.took("PATCH", "/boxes/bx_sxtfdf4c")!.body).toEqual({ name: JSON.parse(sent).name });
+    expect(api.took("PATCH", "/sandboxes/bx_sxtfdf4c")!.body).toEqual({ name: JSON.parse(sent).name });
   });
 
   it("a replay of an attempt as old as Boat keeps a key, less its own asks, sends nothing and answers no box", async () => {
-    const api = new FakeBox().on("POST", "/boxes", MADE("bx_new")).on("PATCH", "/boxes/bx_new", INFO("bx_new", "ready", { name: "wsp;o=h_1" }));
+    const api = new FakeBox().on("POST", "/sandboxes", MADE("bx_new")).on("PATCH", "/sandboxes/bx_new", INFO("bx_new", "ready", { name: "wsp;o=h_1" }));
     const { backend, clock } = backendLosing(api, 0);
     const sent = await backend.createRequest({ ...SPEC, labels: { [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" } });
     const madeAt = (ms: number): string => new Date(clock.at - ms).toISOString();
@@ -1841,11 +1839,11 @@ describe("a create whose answer is lost", () => {
 
   it("lists the boxes named exactly one of the names asked, running or archived, and no other", async () => {
     const api = new FakeBox()
-      .on("GET", "/boxes", ({ query }) => ({
+      .on("GET", "/sandboxes", ({ query }) => ({
         status: 200,
         body: {
           ok: true,
-          boxes: query.get("state") === "archived"
+          sandboxes: query.get("state") === "archived"
             ? [BOX("bx_old", "archived", { name: "wsp-mac-default-v3", createdAt: "2026-10-11T09:00:00.000Z" })]
             : [
                 BOX("bx_ca2bqxuk", "ready", { name: "wsp-mac-default-v4", createdAt: "2026-10-11T09:48:00.000Z" }),

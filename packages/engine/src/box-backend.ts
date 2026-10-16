@@ -20,7 +20,9 @@ import { DAEMON_PORT } from "./preview.js";
 
 type Fetch = typeof globalThis.fetch;
 
-export const BOX_API_URL = "https://ascii.dev/api/box/v1";
+/** Boat's base since its rename from Box; the old one, ascii.dev/api/box/v1, answers with a Sunset of 2026-10-31
+ * (docs.boat.dev/migrating-from-box, read 2026-10-16). */
+export const BOX_API_URL = "https://boat.dev/api/v1";
 
 /** The classes Boat sells, with the disk for files each one gets and the published rate (boat.dev pricing, read
  * 2026-10-11). Which of them a plan sells is read off `GET /limits` (`planSizes`). */
@@ -94,7 +96,7 @@ export const BOX_CREATE_MS = 10 * 60_000;
 /** A named snapshot of a live box read ready in 11 to 32 s; the provider's own words are "can run minutes". */
 export const BOX_SNAPSHOT_MS = 10 * 60_000;
 export const BOX_POLL_MS = 2_000;
-/** How long a box that reads ready may go on refusing commands with box_restoring or box_starting before the refusal
+/** How long a box that reads ready may go on refusing commands with sandbox_restoring or sandbox_starting before the refusal
  * is the caller's: the restored disk streams in behind a ready box. */
 export const BOX_RESTORE_MS = 120_000;
 
@@ -152,23 +154,17 @@ export interface BoxLimits {
 type RawWindow = { limit?: unknown; used?: unknown } | null | undefined;
 type RawTier = { key?: unknown; dollars?: unknown };
 
-/** `GET /limits` on either base: ascii.dev spells the account's boxes Boxes, boat.dev Sandboxes. */
 interface RawLimits {
   accessTier?: unknown;
-  maxActiveBoxes?: unknown;
   maxActiveSandboxes?: unknown;
-  activeBoxes?: unknown;
   activeSandboxes?: unknown;
   starts?: { unlimited?: unknown; minute?: RawWindow; hour?: RawWindow; day?: RawWindow } | null;
   canStart?: unknown;
   startBlockedReason?: unknown;
   creditBalanceHours?: unknown;
   billingStatus?: unknown;
-  boxPlanKey?: unknown;
   sandboxPlanKey?: unknown;
-  boxPlanDollars?: unknown;
   sandboxPlanDollars?: unknown;
-  boxPlanTiers?: RawTier[];
   sandboxPlanTiers?: RawTier[];
 }
 
@@ -195,17 +191,17 @@ export function placeLimitsOf(limits: BoxLimits): CloudLimits | undefined {
 }
 
 export function limitsOf(raw: RawLimits): BoxLimits {
-  const planKey = textOf(raw.boxPlanKey ?? raw.sandboxPlanKey);
+  const planKey = textOf(raw.sandboxPlanKey);
   const trial = raw.accessTier === "trial" || planKey === "trial";
-  const tier = (raw.boxPlanTiers ?? raw.sandboxPlanTiers ?? []).find(t => t.key === planKey);
-  const planUsd = trial ? undefined : (numberOf(raw.boxPlanDollars ?? raw.sandboxPlanDollars) ?? numberOf(tier?.dollars) ?? numberOf(Number(/^box_(\d+)$/.exec(planKey ?? "")?.[1])));
+  const tier = (raw.sandboxPlanTiers ?? []).find(t => t.key === planKey);
+  const planUsd = trial ? undefined : (numberOf(raw.sandboxPlanDollars) ?? numberOf(tier?.dollars) ?? numberOf(Number(/^box_(\d+)$/.exec(planKey ?? "")?.[1])));
   const count = (w: RawWindow): StartCount | undefined => {
     const limit = numberOf(w?.limit);
     return limit === undefined ? undefined : { used: numberOf(w?.used) ?? 0, limit };
   };
   const [minute, hour, day] = [count(raw.starts?.minute), count(raw.starts?.hour), count(raw.starts?.day)];
-  const machinesAtOnce = numberOf(raw.maxActiveBoxes ?? raw.maxActiveSandboxes);
-  const activeBoxes = numberOf(raw.activeBoxes ?? raw.activeSandboxes);
+  const machinesAtOnce = numberOf(raw.maxActiveSandboxes);
+  const activeBoxes = numberOf(raw.activeSandboxes);
   const startBlockedReason = textOf(raw.startBlockedReason);
   const creditBalanceHours = numberOf(raw.creditBalanceHours);
   const billingStatus = textOf(raw.billingStatus);
@@ -380,7 +376,7 @@ interface NamedSnapshotView {
   name: string;
   status: "saving" | "ready" | "failed";
   error?: string;
-  sourceBoxId?: string;
+  sourceSandboxId?: string;
   snapshotId?: string;
   type?: string;
   sizeBytes?: number;
@@ -389,7 +385,7 @@ interface NamedSnapshotView {
 
 interface SnapshotView {
   id: string;
-  boxId?: string;
+  sandboxId?: string;
   status?: string;
   kind?: string;
   chainId?: string | null;
@@ -404,8 +400,8 @@ interface SnapshotView {
 interface Paged {
   pageInfo?: { nextCursor?: string | null };
 }
-type BoxPage = Paged & { boxes?: BoxView[] };
-type CreateAnswer = { status?: string; box: BoxView };
+type BoxPage = Paged & { sandboxes?: BoxView[] };
+type CreateAnswer = { status?: string; sandbox: BoxView };
 type SnapshotPage = Paged & { snapshots?: SnapshotView[] };
 
 /** Why the provider would not stop a box, in its own fields: its error for the box, else what its latest snapshot
@@ -434,7 +430,7 @@ const DISK_EXPIRED_CODE = "snapshot_data_expired";
  * carries a message naming the cap under a status of its own (measured 2026-09-11), and the seal and the runtime read
  * a cap only as the concurrency kind: the builder is killed before the smoke fork, the row names the slot holders. */
 const CAP_CODES: ReadonlySet<string> = new Set(["limit_reached", "member_limit_reached"]);
-const CAP_WORDS = /concurrent box/i;
+const CAP_WORDS = /concurrent (box|sandbox)/i;
 /** The two codes of a window of starts used: rate_limited is the minute or the hour, which only a read of /limits
  * tells apart (`startRefused`). */
 const START_CODES: ReadonlySet<string> = new Set(["rate_limited", "daily_limit_reached"]);
@@ -462,7 +458,7 @@ function boxRefusal(e: WspError): WspError {
 const stillRestoring = (e: unknown): boolean => {
   const { kind, code } = e as Partial<WspError>;
   if (kind === "transient") return true;
-  return kind === "conflict" && (code === "box_restoring" || code === "box_starting");
+  return kind === "conflict" && (code === "sandbox_restoring" || code === "sandbox_starting");
 };
 
 /** What a call whose answer was lost said: the status a gateway gave, or the system's code under a road's failure. */
@@ -729,7 +725,7 @@ export class BoxBackend implements MachineBackend {
   }
 
   view(id: string): Promise<BoxView> {
-    return this.request<{ box: BoxView }>("GET", `/boxes/${encodeURIComponent(id)}`).then(r => r.box);
+    return this.request<{ sandbox: BoxView }>("GET", `/sandboxes/${encodeURIComponent(id)}`).then(r => r.sandbox);
   }
 
   /** Reads the box until `done` says so, at the poll pace, inside `budgetMs`; a box the provider lost throws missing,
@@ -793,7 +789,7 @@ export class BoxBackend implements MachineBackend {
     for (let ask = 0; ; ask++) {
       try {
         // Boat answers a create while the box still provisions, so an ask silent past a read's cap is lost (fetch waits 300 s).
-        const answer = await this.request<CreateAnswer>("POST", "/boxes", { bytes, headers: { "Idempotency-Key": key }, capMs: this.budgets.readMs });
+        const answer = await this.request<CreateAnswer>("POST", "/sandboxes", { bytes, headers: { "Idempotency-Key": key }, capMs: this.budgets.readMs });
         return { answer, ...(lost !== undefined ? { lost } : {}) };
       } catch (e) {
         const { code, status } = e as WspError;
@@ -825,7 +821,7 @@ export class BoxBackend implements MachineBackend {
     // this attempt's own, not an earlier one's.
     const replayed = lost === undefined && res.status !== undefined && res.status !== "provisioning";
     if (!replayed) this.counted();
-    const id = res.box.id;
+    const id = res.sandbox.id;
     if (lost !== undefined) console.warn(createAnswerLostLine(providerKeyName("box"), lost, id));
     const machine = new BoxMachine(this, id, spec.kind, spec.labels, undefined, replayed);
     if (timerUntil !== undefined) this.backstops.set(id, { until: timerUntil, spanMs: spec.idleTimeoutMs! });
@@ -836,14 +832,14 @@ export class BoxBackend implements MachineBackend {
       said = state;
       waiting?.(boatBoxStateLine(id, state), { id, state });
     };
-    tell(res.box.state);
+    tell(res.sandbox.state);
     try {
       // Commands sent before ready run before the box is usable, so the handle is given back once it reads ready.
       const view = await this.settle(id, v => STATE_MAP[v.state] === "running", this.budgets.createMs, "create", undefined, what, v => tell(v.state));
       await machine.proveRoad();
       // A box deployed from a named snapshot is named after the snapshot, whatever the create asked (measured
       // 2026-09-11), and the name is where the labels live: it is set again once the box stands.
-      if (view.name !== name) await this.request("PATCH", `/boxes/${encodeURIComponent(id)}`, { body: { name } });
+      if (view.name !== name) await this.request("PATCH", `/sandboxes/${encodeURIComponent(id)}`, { body: { name } });
       if (spec.envs !== undefined && Object.keys(spec.envs).length > 0) await machine.landEnvs(spec.envs);
     } catch (e) {
       // A box the provider made that never became a machine is nobody's but this backend's: the caller never learns
@@ -861,11 +857,11 @@ export class BoxBackend implements MachineBackend {
     if (this.clock.now() - Date.parse(madeAt) >= BOX_KEY_KEPT_MS - LOST_ANSWER_MS - LOST_ANSWER_EVERY_MS) return undefined;
     const { answer } = await this.postCreate(key, bytes);
     const name = (JSON.parse(bytes) as { name: string }).name;
-    const state = stateOf(answer.box.state);
-    if (state !== "gone" && answer.box.name !== name) await this.request("PATCH", `/boxes/${encodeURIComponent(answer.box.id)}`, { body: { name } });
-    return new BoxMachine(this, answer.box.id, "sandbox", boxLabels(name), {
+    const state = stateOf(answer.sandbox.state);
+    if (state !== "gone" && answer.sandbox.name !== name) await this.request("PATCH", `/sandboxes/${encodeURIComponent(answer.sandbox.id)}`, { body: { name } });
+    return new BoxMachine(this, answer.sandbox.id, "sandbox", boxLabels(name), {
       state,
-      ...(answer.box.createdAt !== undefined && answer.box.createdAt !== null ? { createdAt: answer.box.createdAt } : {}),
+      ...(answer.sandbox.createdAt !== undefined && answer.sandbox.createdAt !== null ? { createdAt: answer.sandbox.createdAt } : {}),
     }, true);
   }
 
@@ -910,9 +906,9 @@ export class BoxBackend implements MachineBackend {
   /** The plain listing and the archived one: the plain one carried an archived row beside a running one when it was
    * read (2026-09-11), so a napping box is on whichever of the two the provider keeps it, and may be on both. */
   private async everyBox(): Promise<BoxView[]> {
-    const rows = (p: BoxPage): unknown[] | undefined => p.boxes;
+    const rows = (p: BoxPage): unknown[] | undefined => p.sandboxes;
     const next = (p: BoxPage): string | null | undefined => p.pageInfo?.nextCursor;
-    return [...(await this.pages<BoxPage>("/boxes", rows, next)), ...(await this.pages<BoxPage>("/boxes", rows, next, { state: "archived" }))] as BoxView[];
+    return [...(await this.pages<BoxPage>("/sandboxes", rows, next)), ...(await this.pages<BoxPage>("/sandboxes", rows, next, { state: "archived" }))] as BoxView[];
   }
 
   /** Every box wsp named, archived ones included; the other boxes on the account are not wsp's to list. A box on
@@ -1006,7 +1002,7 @@ export class BoxBackend implements MachineBackend {
       const instant = cap === null ? until : Math.min(until, now + cap * 1000);
       const last = this.backstops.get(machine.id);
       if (o.exact !== true && last !== undefined && instant - last.until < BACKSTOP_SLACK_MS) return;
-      await this.request("PATCH", `/boxes/${encodeURIComponent(machine.id)}`, { body: { ttlSeconds: Math.max(1, Math.ceil((instant - now) / 1000)) }, capMs: this.budgets.backstopMs, once: true });
+      await this.request("PATCH", `/sandboxes/${encodeURIComponent(machine.id)}`, { body: { ttlSeconds: Math.max(1, Math.ceil((instant - now) / 1000)) }, capMs: this.budgets.backstopMs, once: true });
       this.backstops.set(machine.id, { until: instant, spanMs: instant - now });
       this.backstopFailures.delete(machine.id);
     } catch (e) {
@@ -1102,7 +1098,7 @@ export class BoxMachine implements Machine {
   ) {}
 
   private path(suffix = ""): string {
-    return `/boxes/${encodeURIComponent(this.id)}${suffix}`;
+    return `/sandboxes/${encodeURIComponent(this.id)}${suffix}`;
   }
 
   async exec(cmd: string, opts?: { timeoutMs?: number }): Promise<ExecResult> {
@@ -1180,7 +1176,7 @@ export class BoxMachine implements Machine {
    * resumed box saves like a fresh one. Answers with the name once the provider reads it ready. */
   async snapshot(name: string, _life: MachineLife): Promise<string> {
     const saved = boxSnapshotName(name);
-    await this.backend.request("POST", "/named-snapshots", { body: { boxId: this.id, name: saved } });
+    await this.backend.request("POST", "/named-snapshots", { body: { sandboxId: this.id, name: saved } });
     const started = this.backend.clock.now();
     for (;;) {
       await this.backend.clock.sleep(this.backend.budgets.pollMs);
