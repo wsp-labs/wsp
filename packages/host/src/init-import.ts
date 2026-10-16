@@ -32,6 +32,7 @@ import {
   type PathInfo,
   type PlannedFile,
   type PlannedSecret,
+  type PluginsPlan,
   type RecipeEntry,
   type SkippedPath,
   secretKey,
@@ -41,7 +42,7 @@ import {
 } from "@wsp/engine";
 import { baseNote, CATALOG_AGENTS, CLAUDE_SETTINGS_FILE, GUEST_HOME, GUEST_REWRITES, MCP_AGENTS, rewrittenRel, serversByName } from "@wsp/catalog";
 import type { GoldenLeftBehind, RecipeCustomRow } from "@wsp/protocol";
-import { cloudCut, leftWhole, SIGN_INS_STAY, stayedLine } from "./cloud-configs.js";
+import { carriesSecret, cloudCut, leftWhole, SIGN_INS_STAY, stayedLine } from "./cloud-configs.js";
 import { tarPackCommand } from "./doctor.js";
 import type { ServerVault } from "./env-keys.js";
 import { keyOwner } from "./providers.js";
@@ -463,6 +464,15 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
         skipped.push({ id: key.id, path: secretPath(key), note: "the machine's settings.json names only the key file; your Claude Code config stayed here" });
       }
     }
+    // A marketplace no switched-on plugin comes from is fetched by every first turn there, through this computer.
+    for (const a of CATALOG_AGENTS) {
+      const road = a.plugins;
+      const found = road?.usedOnly === undefined ? undefined : stagedFor(road.settings);
+      if (road?.usedOnly === undefined || found === undefined || !existsSync(found.staged)) continue;
+      const text = readFileSync(found.staged, "utf8");
+      const used = road.usedOnly(text);
+      if (used !== text) writeFileSync(found.staged, used);
+    }
     // A hook's script travels beside the settings when it is a plain file under home, at the path the machine reads
     // it from; a hook the machine could not run comes out, since the agent prints not found for it on every start.
     const left: GoldenLeftBehind[] = [];
@@ -693,6 +703,27 @@ function volatileOf(e: ManifestEntry): string[] | undefined {
   return list !== undefined && list.length > 0 ? [...list] : undefined;
 }
 
+/** What a brought agent's plugins come to on the image: the files an older image copied come off, and the plugins
+ * it switches on in the settings that travel are built into the seed, each from the marketplace this computer's
+ * index names for it. One with no marketplace there that a builder can fetch, a folder on this computer among them,
+ * is not built, and a turn fetches it as it would without a seed. On a provider's builder no address holding what
+ * the copy's cut blanks is fetched, since the seed keeps the address it cloned (2.1.296). */
+function pluginsFor(bring: readonly ManifestEntry[], home: string, settingsTravel: boolean, cloud: boolean): { row: string; from: string; dest: string; plan: PluginsPlan } | undefined {
+  const agent = CATALOG_AGENTS.find(a => a.plugins?.seed !== undefined && bring.some(e => e.id === `agents/${a.id}`));
+  const road = agent?.plugins;
+  const seed = road?.seed;
+  if (agent === undefined || road === undefined || seed === undefined) return undefined;
+  const settings = settingsTravel ? readSmall(join(home, road.settings.slice(2))) : undefined;
+  const index = readSmall(join(home, road.marketplaces.slice(2)));
+  const plugins = (settings === undefined || index === undefined ? [] : road.enabled(settings)).flatMap(name => {
+    const source = index === undefined ? undefined : road.sourceOf(index, name.slice(name.lastIndexOf("@") + 1));
+    if (source === undefined || name.lastIndexOf("@") <= 0 || (cloud && carriesSecret(source))) return [];
+    return [{ id: `plugins/${name}`, label: name, cmd: seed.build(name, source), asked: (out: string) => road.asked(out, name) }];
+  });
+  const plan: PluginsPlan = { dropped: road.copiedBefore ?? [], ...(plugins.length > 0 ? { seed: { dir: seed.dir, plugins, links: seed.links } } : {}) };
+  return { row: `agents/${agent.id}`, from: dirname(road.marketplaces), dest: relative(GUEST_HOME, seed.dir), plan };
+}
+
 /** What the ticked rows add up to for the builder, the rows the plan itself set
  * aside (a formula with no Linux bottle) beside the installs so the saved result
  * is complete. */
@@ -738,9 +769,14 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
       const value = opts.secrets.get(secretKey(s));
       return value === undefined ? [] : [{ id: s.id, path: secretPath(s), dest: s.dest, digest: createHash("sha256").update(value).digest("hex"), volatile: true }];
     });
-  const hash = recipeHash(recipeDigest(bring, digested, custom, brew));
   const settingsSource = join(home, CLAUDE_SETTINGS_FILE.slice(2));
-  const packOpts: PackOptions = { secrets: opts.secrets, home, settingsPlanned: plan.files.some(f => f.source === settingsSource || f.source === dirname(settingsSource)), onImage: imageCommands(bring, tools, brew), tools: toolNames(opts.rows ?? bring, brew), ...(opts.vault !== undefined ? { vault: opts.vault } : {}), ...(opts.cloud === true ? { cloud: true } : {}) };
+  const settingsPlanned = plan.files.some(f => f.source === settingsSource || f.source === dirname(settingsSource));
+  const plugins = pluginsFor(bring, home, settingsPlanned, opts.cloud === true);
+  // What the plugins step does is part of the image, so one sealed without it, or with other plugins in it, reads
+  // changed and the update applies its agent's row again, which takes off an older image's copies and builds the seed.
+  const seeded = plugins === undefined ? [] : [{ id: plugins.row, path: plugins.from, dest: plugins.dest, digest: createHash("sha256").update([...plugins.plan.dropped, ...(plugins.plan.seed?.plugins ?? []).map(p => p.cmd)].join("\n")).digest("hex") }];
+  const hash = recipeHash(recipeDigest(bring, [...digested, ...seeded], custom, brew));
+  const packOpts: PackOptions = { secrets: opts.secrets, home, settingsPlanned, onImage: imageCommands(bring, tools, brew), tools: toolNames(opts.rows ?? bring, brew), ...(opts.vault !== undefined ? { vault: opts.vault } : {}), ...(opts.cloud === true ? { cloud: true } : {}) };
   const packWith = (files: FilesPlan): PackFiles => leaveOut => packPlan(files, { ...packOpts, ...(leaveOut !== undefined ? { leaveOut } : {}) });
   const pack = packWith(plan);
   const volatileFiles = files.filter(f => f.volatile);
@@ -751,7 +787,7 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
   return {
     recipeHash: hash,
     get recipe() {
-      return recipeDigest(bring, [...digested, ...secretDigests()], custom, brew);
+      return recipeDigest(bring, [...digested, ...seeded, ...secretDigests()], custom, brew);
     },
     ...(anyFiles
       ? { files: { count, rungs: plan.rungs, bytes: plan.bytes, skipped: plan.skipped, lands, pack, ...(volatile !== undefined ? { volatile } : {}) } }
@@ -760,6 +796,7 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
     tools: tools.installs,
     ...(agents.node !== undefined ? { node: agents.node } : {}),
     agents: agents.installs,
+    ...(plugins !== undefined ? { plugins: plugins.plan } : {}),
     skippedAgents: agents.skipped.map(s => ({ id: s.id, name: label(s.id), note: s.note })),
     skippedTools: tools.skipped.map(s => ({ id: s.id, label: label(s.id), note: s.note })),
     baseTools: tools.base.map(b => ({ id: b.id, label: label(b.id), note: baseNote(b.entry, b.version, opts.platform) })),

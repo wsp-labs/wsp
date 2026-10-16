@@ -2,7 +2,7 @@
 // NOTICE; logic only) and measured behavior in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { agentWord, BROKER_PORT, inFolder, launchHasSlate, MCP_SERVER_NAME, programWord, shellLine, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
+import { agentWord, BROKER_PORT, inFolder, launchHasSlate, MCP_SERVER_NAME, PLUGIN_SEED_ENV, programWord, shellLine, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 import type { AgentLaunch, BrokerStatus, McpServerSpec, TurnImage } from "@wsp/protocol";
 import { PERMISSION_PROMPT_TOOL, SKIP_PROMPTS_MODE } from "./permissions.js";
 
@@ -110,7 +110,8 @@ export function stripLandmineEnv(
   const clean: Record<string, string> = {};
   for (const [key, value] of Object.entries(base)) {
     if (value === undefined) continue;
-    if (ENV_STRIP_PATTERNS.some((pattern) => pattern.test(key))) continue;
+    // The seed a guest's login names is the machine's own, not a mark of a nested run.
+    if (key !== PLUGIN_SEED_ENV && ENV_STRIP_PATTERNS.some((pattern) => pattern.test(key))) continue;
     clean[key] = value;
   }
   return clean;

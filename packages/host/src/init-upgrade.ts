@@ -4,10 +4,12 @@
 // the delta with the full rebuild one keypress away, and the update itself
 // through the runtime. An update only ever adds: a row the recipe dropped is
 // retired on the new version, never taken off the image.
+import { relative } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { styleText } from "node:util";
 import type { ManifestEntry } from "@wsp/collect";
-import { SnapshotFailedError, changeCounts, describeDiff, diffRecipes, isEmptyDiff, isSmallDelta, retiredBy, rowsToApply, type GoldenDelta, type GoldenImport, type RecipeDiff } from "@wsp/engine";
+import { GUEST_HOME } from "@wsp/catalog";
+import { SnapshotFailedError, changeCounts, describeDiff, diffRecipes, isEmptyDiff, isSmallDelta, retiredBy, rowsToApply, type DiffWords, type GoldenDelta, type GoldenImport, type RecipeDiff } from "@wsp/engine";
 import { goldenBuildLine, upgradeSealFailedGoneLine, upgradeSealFailedStaysLine, upgradeSealFailedUnreadLine, type GoldenLogin, type GoldenRetired, type InitSaidLine, type RecipeDigest, GOLDEN_STAGE_WORDS } from "@wsp/protocol";
 import { GRACE_MS, goldenHead, type GoldenBuilderView, type Runtime } from "@wsp/runtime";
 import { cancel, isCancel, log, note, outro, select } from "@clack/prompts";
@@ -46,6 +48,8 @@ export interface UpgradeOffer {
   rateUsdPerHour: number;
   /** The last build this computer measured, when there is one; the rebuild road is estimated from it. */
   lastBuild: BuildTimes | undefined;
+  /** What the words know beyond the diff, off the import. */
+  words?: DiffWords;
 }
 
 /** The cost line: the fork road boots a fork and a smoke fork, the kept builder road a smoke fork beside the builder. */
@@ -77,8 +81,8 @@ const ON_FORK = "about two minutes";
 export function describeOffer(o: UpgradeOffer): string[] {
   const where = o.onBuilder ? `on the builder kept since the save, ${ON_BUILDER}` : `on a fork of your image, ${ON_FORK}`;
   return [
-    goldenBuildLine(o.version, o.version + 1, changeCounts(o.diff)),
-    ...describeDiff(o.diff),
+    goldenBuildLine(o.version, o.version + 1, changeCounts(o.diff, o.words)),
+    ...describeDiff(o.diff, o.words),
     "",
     o.small ? `Small change: update ${where}; ${describeCost(o)}.` : `A big change: a rebuild from scratch is the safer road, ${rebuildEstimate(o.lastBuild)}.`,
     ...(o.small ? [] : [`An update would run ${where}; ${describeCost(o)}.`]),
@@ -152,6 +156,8 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   if (o.imp.recipe === undefined) return "rebuild";
   const rowOf = (id: string): ManifestEntry | undefined => o.rows.find(e => e.id === id);
   const diff = diffRecipes(o.current, o.imp.recipe, id => rowOf(id)?.label ?? id.slice(id.lastIndexOf("/") + 1));
+  const seed = o.imp.plugins?.seed;
+  const words: DiffWords = { takenOff: new Set((o.imp.plugins?.dropped ?? []).map(p => relative(GUEST_HOME, p))), ...(seed !== undefined ? { plugins: { dest: relative(GUEST_HOME, seed.dir), count: seed.plugins.length } } : {}) };
   if (isEmptyDiff(diff)) {
     log.success(`Image v${version} already matches this recipe. Nothing to update; run wsp to serve it.`, out);
     // Sent without the serve clause, which is wrong beside a host: that host serves the image already.
@@ -160,7 +166,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   }
   const head = goldenHead(manifest);
   if (head?.base === undefined) {
-    changes(describeDiff(diff));
+    changes(describeDiff(diff, words));
     say("step", `Image v${version} was sealed before the base tools existed and cannot take an update; the rebuild is the only road, ${rebuildEstimate(o.lastBuild)}.`);
     return "rebuild";
   }
@@ -168,7 +174,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
   const { pricing } = (await o.rt.golden.buildPlace()).backend;
   const kept = keptBuilder(await o.rt.golden.builders(), version);
   const rateUsdPerHour = pricing.rateUsdPerHour(head.size ?? kept?.size ?? pricing.defaultSize);
-  const offer: UpgradeOffer = { diff, small: isSmallDelta(diff, id => rowOf(id)?.bytes ?? 0), onBuilder: kept !== undefined, version, rateUsdPerHour, lastBuild: o.lastBuild };
+  const offer: UpgradeOffer = { diff, small: isSmallDelta(diff, id => rowOf(id)?.bytes ?? 0), onBuilder: kept !== undefined, version, rateUsdPerHour, lastBuild: o.lastBuild, words };
   changes(describeOffer(offer));
 
   let road: "update" | "rebuild";

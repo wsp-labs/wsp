@@ -5,7 +5,7 @@ import { AGENTS, detectAgents } from "../src/index.js";
 import { fakeHost } from "./fake-host.js";
 
 describe("agents", () => {
-  it("Claude Code brings settings, memory, skills, the plugin index and MCP config; never the credential file or marketplace clones", async () => {
+  it("Claude Code brings settings, memory, skills and MCP config; never the credential file, the plugin index or marketplace clones", async () => {
     const host = fakeHost({
       files: {
         "~/.claude/settings.json": 400,
@@ -24,10 +24,10 @@ describe("agents", () => {
     expect(rows).toEqual([
       {
         rung: "agents", id: "agents/claude", label: "Claude Code",
-        paths: ["~/.claude/settings.json", "~/.claude/CLAUDE.md", "~/.claude/skills", "~/.claude/agents", "~/.claude/plugins/installed_plugins.json", "~/.claude.json"],
-        bytes: 7000, default: "bring",
-        // Rewritten by Claude Code while it runs (project state, plugin timestamps): they travel but never decide the recipe hash.
-        volatile: ["~/.claude/plugins/installed_plugins.json", "~/.claude.json"],
+        paths: ["~/.claude/settings.json", "~/.claude/CLAUDE.md", "~/.claude/skills", "~/.claude/agents", "~/.claude.json"],
+        bytes: 6400, default: "bring",
+        // Rewritten by Claude Code while it runs (project state): it travels but never decides the recipe hash.
+        volatile: ["~/.claude.json"],
       },
     ]);
   });
