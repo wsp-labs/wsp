@@ -1818,14 +1818,25 @@ describe("a create whose answer is lost", () => {
     const api = new FakeBox()
       .on("POST", "/boxes", { status: 200, body: { ok: true, type: "box.created", status: "ready", box: BOX("bx_sxtfdf4c", "ready", { name: "wsp-mac-default-v4" }) } })
       .on("PATCH", "/boxes/bx_sxtfdf4c", INFO("bx_sxtfdf4c", "ready", { name: "wsp;o=h_1" }));
-    const { backend } = backendLosing(api, 0);
+    const { backend, clock } = backendLosing(api, 0);
     const sent = await backend.createRequest({ ...SPEC, labels: { [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" } });
-    const machine = await backend.replayCreate("workspace/ws_1:0011223344556677", sent);
+    const machine = (await backend.replayCreate("workspace/ws_1:0011223344556677", sent, new Date(clock.at).toISOString()))!;
     expect(machine.id).toBe("bx_sxtfdf4c");
     expect(machine.labels).toEqual({ [WSP_LABEL]: "1", [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" });
     expect(creates(api)[0]!.raw).toBe(sent);
     expect(creates(api)[0]!.headers["idempotency-key"]).toBe("workspace/ws_1:0011223344556677");
     expect(api.took("PATCH", "/boxes/bx_sxtfdf4c")!.body).toEqual({ name: JSON.parse(sent).name });
+  });
+
+  it("a replay of an attempt as old as Boat keeps a key, less its own asks, sends nothing and answers no box", async () => {
+    const api = new FakeBox().on("POST", "/boxes", MADE("bx_new")).on("PATCH", "/boxes/bx_new", INFO("bx_new", "ready", { name: "wsp;o=h_1" }));
+    const { backend, clock } = backendLosing(api, 0);
+    const sent = await backend.createRequest({ ...SPEC, labels: { [OWNER_LABEL]: "h_1", [WORKSPACE_LABEL]: "ws_1" } });
+    const madeAt = (ms: number): string => new Date(clock.at - ms).toISOString();
+    expect(await backend.replayCreate("workspace/ws_1:0011223344556677", sent, madeAt(24 * 3_600_000 - 125_000))).toBeUndefined();
+    expect(creates(api)).toEqual([]);
+    expect(await backend.replayCreate("workspace/ws_1:0011223344556677", sent, madeAt(24 * 3_600_000 - 126_000))).toMatchObject({ id: "bx_new" });
+    expect(creates(api)).toHaveLength(1);
   });
 
   it("lists the boxes named exactly one of the names asked, running or archived, and no other", async () => {
