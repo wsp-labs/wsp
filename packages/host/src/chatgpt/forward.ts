@@ -114,6 +114,8 @@ export function responseOn(req: IncomingMessage, socket: Duplex): ServerResponse
   const res = new ServerResponse(req);
   res.shouldKeepAlive = false;
   res.assignSocket(socket as Socket);
+  // Node's server stops passing the socket's drain to its response once it upgrades, so a pipe into res would stall.
+  socket.on("drain", () => void (res.writableNeedDrain && res.emit("drain")));
   res.on("finish", () => {
     res.detachSocket(socket as Socket);
     socket.destroy();
@@ -124,6 +126,7 @@ export function responseOn(req: IncomingMessage, socket: Duplex): ServerResponse
 export function passUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, target: Target, headers: string[], refuse: Refusal, said: Sentences): Promise<void> {
   return new Promise((resolve) => {
     const up = open(target, req.method ?? "GET", headers, false);
+    let answer: ServerResponse | undefined;
     let done = false;
     const finish = () => {
       if (!done) resolve();
@@ -147,18 +150,20 @@ export function passUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, 
       socket.pipe(upSocket);
     });
     up.on("response", (u) => {
-      const res = responseOn(req, socket);
+      const res = (answer = responseOn(req, socket));
       if (u.statusCode === 401) {
         u.resume();
         refuse(res, 403, said.refused);
         return;
       }
+      u.on("error", () => res.destroy());
+      u.on("aborted", () => res.destroy());
       res.writeHead(u.statusCode ?? 502, u.statusMessage, responseHeaders(u.rawHeaders));
       u.pipe(res);
     });
     up.on("error", () => {
-      if (socket.destroyed) return;
-      refuse(responseOn(req, socket), 503, said.unreachable);
+      if (answer !== undefined) answer.destroy();
+      else if (!socket.destroyed) refuse(responseOn(req, socket), 503, said.unreachable);
     });
     up.end();
   });
