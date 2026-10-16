@@ -41,8 +41,10 @@ const ROWS: SessionView[] = [
   { id: "s_b", workspaceId: WS, harness: "claude", status: "completed", prompt: "do you have access", startedAt: T0 + 60_000, endedAt: T0 + 61_100, threadId: "thr_b" },
 ];
 
+const STORE_OFFLINE = "the transcript store is offline";
+
 /** A host that records each event with its transcript position and answers heads and pages off that transcript. */
-function hostApi(more: { workspaces?: WorkspaceView[]; rows?: SessionView[] } = {}) {
+function hostApi(more: { workspaces?: WorkspaceView[]; rows?: SessionView[]; refuses?: string } = {}) {
   const workspaces = [workspace, ...(more.workspaces ?? [])];
   const rows = [...ROWS, ...(more.rows ?? [])];
   const history: SessionEvent[] = TRANSCRIPT.map((e, i) => ({ ...e, pos: i + 1 }));
@@ -63,16 +65,19 @@ function hostApi(more: { workspaces?: WorkspaceView[]; rows?: SessionView[] } = 
     daemon: noDaemonApi,
     sessionHistory: async id => {
       asked.push("history");
+      if (more.refuses !== undefined && row(more.refuses).workspaceId === id) throw new Error(STORE_OFFLINE);
       return history.filter(e => e.workspaceId === id);
     },
     sessionHead: async (threadId): Promise<ThreadHead> => {
       asked.push(`head ${threadId}`);
+      if (threadId === more.refuses) throw new Error(STORE_OFFLINE);
       const own = history.filter(e => e.threadId === threadId);
       const r = row(threadId);
       return { facts: { id: r.id, threadId, workspaceId: r.workspaceId, harness: r.harness, startedBy: "person", status: r.status, title: r.prompt ?? "", sessionId: r.id, turns: 1, ran: true }, events: own, pos: newest(), total: own.length };
     },
     sessionPage: async (_workspaceId, threadId, window = {}): Promise<HistoryPage> => {
       asked.push(`page ${threadId}${window.before === undefined ? "" : ` before ${window.before}`}`);
+      if (threadId === more.refuses) throw new Error(STORE_OFFLINE);
       const own = history.filter(e => e.threadId === threadId && (window.before === undefined || (e.pos ?? 0) < window.before));
       return { events: own.slice(-(window.limit ?? 200)), pos: newest(), total: history.filter(e => e.threadId === threadId).length };
     },
@@ -271,6 +276,33 @@ describe("a thread listed before its first event", () => {
     emit({ type: "session.start", workspaceId: WS, sessionId: "s_thr_c", turnId: "turn_c", threadId: "thr_c", at: Date.now(), prompt: SUB });
     await waitFor(() => expect(chat().queryAllByText(SUB)).toHaveLength(1));
     expect(seconds()).toBeGreaterThanOrEqual(6);
+  });
+
+  // A sub-thread's machine on Boat while it is made: the host answers its thread's head with no events yet.
+  const MAKING: WorkspaceView = { ...workspace, id: "ws_boat", name: "pricing table", machineId: "", kind: "cloud", parentThreadId: "thr_b", rootThreadId: "thr_b", parentWorkspaceId: WS };
+
+  it("a sub-thread opened while its machine is made shows no history-unavailable row, and draws its first turn when it starts with no read again", async () => {
+    const { asked, center, emit, threadRow } = await mount({ workspaces: [MAKING], rows: [running("thr_e", MAKING.id)] });
+    fireEvent.click(threadRow(SUB));
+    await waitFor(() => expect(useStore.getState()).toMatchObject({ selectedId: MAKING.id, selectedThreadId: "thr_e" }));
+    await waitFor(() => expect(asked).toContain("page thr_e"));
+    await waitFor(() => expect(chat().getByText(SUB)).toBeDefined());
+    const before = asked.length;
+    const E = { workspaceId: MAKING.id, sessionId: "sess_e", turnId: "turn_e", threadId: "thr_e" };
+    emit({ type: "session.start", ...E, at: Date.now(), prompt: SUB });
+    emit({ type: "session.delta", ...E, at: Date.now(), kind: "text", text: "The suite is green." });
+    await waitFor(() => expect(chat().getByText("The suite is green.")).toBeDefined());
+    expect(center().queryByText(/history unavailable/i)).toBeNull();
+    expect(asked.slice(before).filter(a => !a.startsWith("checkout "))).toEqual([]);
+    neverNew(center);
+  });
+
+  it("a thread whose read fails on a workspace the host holds shows the history-unavailable row", async () => {
+    const other: WorkspaceView = { ...workspace, id: "ws_fable", name: "fable", machineId: "m_fable" };
+    const { threadRow } = await mount({ workspaces: [other], rows: [running("thr_f", other.id)], refuses: "thr_f" });
+    fireEvent.click(threadRow(SUB));
+    await waitFor(() => expect(useStore.getState()).toMatchObject({ selectedId: other.id, selectedThreadId: "thr_f" }));
+    await waitFor(() => expect(chat().getByText(new RegExp(`history unavailable: ${STORE_OFFLINE}`, "i"))).toBeDefined());
   });
 
   const FORK: WorkspaceView = { ...workspace, id: "ws_fork", name: "fable", machineId: "m_fork", parentThreadId: "thr_b", rootThreadId: "thr_b", parentWorkspaceId: WS };

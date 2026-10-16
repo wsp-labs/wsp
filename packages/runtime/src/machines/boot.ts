@@ -622,13 +622,15 @@ export function bootArea(ctx: RuntimeContext): BootArea {
 
   /** Every verb that names a workspace comes through here, so the origin rule is read once for all of them. A verb
    * may start a run on the machine, so it waits for what the boot still has out there; `now` is for a read that
-   * walks every workspace, which no one machine may hold, and `act` is what the verb asks there, as a refusal names it. */
-  const entryOf = async (id: string, origin?: Caller, o: { now?: true; act?: AcrossAct; thread?: string } = {}): Promise<LiveWorkspace> => {
+   * walks every workspace, which no one machine may hold, and `act` is what the verb asks there, as a refusal names it.
+   * `beingMade` is for a read of what this host keeps, a transcript, which a workspace whose machine is still being
+   * made already has: a sub-thread's page opens on it while its machine starts. */
+  const entryOf = async (id: string, origin?: Caller, o: { now?: true; act?: AcrossAct; thread?: string; beingMade?: true } = {}): Promise<LiveWorkspace> => {
     await ready();
     const entry = live.get(id);
     // A workspace this host does not hold and one outside the caller's tree read alike to a thread: telling the two
     // apart is how a thread walks what else stands here.
-    if (!entry || entry.creating) throw notFoundRefusal(scopeOf(origin) !== undefined ? noWorkspaceRefusal() : `${noWorkspaceRefusal()}: ${id}`);
+    if (!entry || (entry.creating && o.beingMade !== true)) throw notFoundRefusal(scopeOf(origin) !== undefined ? noWorkspaceRefusal() : `${noWorkspaceRefusal()}: ${id}`);
     // A thread named here words a refusal only where it is of the caller's tree and on this record, which it knows.
     const thread = o.thread !== undefined && ctx.threadRecords.get(o.thread)?.workspaceId === id && ctx.drivesThread(o.thread, origin) ? o.thread : undefined;
     ctx.refuseRelayed(entry.record, origin, o.act, thread);
@@ -660,11 +662,11 @@ export function bootArea(ctx: RuntimeContext): BootArea {
    * entryOf: the entry the row stands on, or nothing when the caller is a thread the row is out of reach for, so
    * the verb answers absence and no sentence says which rule hid the row. A caller that is no thread reads the
    * workspace as every verb naming one does. */
-  const entryOfRow = async (row: { threadId?: string; workspaceId: string }, origin: Caller | undefined, talk?: TreeTalk): Promise<LiveWorkspace | undefined> => {
-    if (scopeOf(origin) === undefined) return entryOf(row.workspaceId, origin);
+  const entryOfRow = async (row: { threadId?: string; workspaceId: string }, origin: Caller | undefined, talk?: TreeTalk, o: { beingMade?: true } = {}): Promise<LiveWorkspace | undefined> => {
+    if (scopeOf(origin) === undefined) return entryOf(row.workspaceId, origin, o);
     await ready();
     const entry = live.get(row.workspaceId);
-    if (entry === undefined || entry.creating || !reachesRow(row, origin, talk)) return undefined;
+    if (entry === undefined || (entry.creating && o.beingMade !== true) || !reachesRow(row, origin, talk)) return undefined;
     await ctx.bootWork.get(row.workspaceId);
     return live.get(row.workspaceId) ?? entry;
   };
