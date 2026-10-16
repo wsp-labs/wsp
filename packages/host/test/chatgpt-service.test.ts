@@ -9,6 +9,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { chatgptModels } from "../src/chatgpt/models.js";
 import { CHATGPT_WORDS, chatgptService, OPENAI_WORDS, openaiService } from "../src/chatgpt/service.js";
 import { codexAuthFile, codexKeyFile, codexPlaceholders, TURN_CLAIM } from "../src/chatgpt/placeholders.js";
+import { writeRefusal } from "../src/broker/refuse.js";
 import type { BrokerContext, BrokerService, ChatgptCredential, OpenaiCredential } from "../src/chatgpt/types.js";
 
 const REAL_ACCESS = "eyJ-real-chatgpt-access-x";
@@ -39,11 +40,9 @@ let agent: "claude" | "codex" | undefined = "codex";
 
 const ctx: BrokerContext = {
   credential: (async (kind: "chatgpt" | "openai") => (kind === "chatgpt" ? chatgptCred : openaiCred)) as BrokerContext["credential"],
-  refuse(res, status, said) {
+  refuse(res, status, said, shape) {
     refusals.push({ status, said });
-    const text = JSON.stringify({ error: { message: said, type: "wsp_refused" } });
-    res.writeHead(status, { "content-type": "application/json", "x-should-retry": "false", "content-length": Buffer.byteLength(text) });
-    res.end(text);
+    writeRefusal(res, status, said, shape);
   },
 };
 
@@ -114,6 +113,27 @@ afterAll(async () => {
   await new Promise((resolve) => upstream.close(resolve));
 });
 
+/** The answer a refusal stops Codex with: the sentence as a plain-text 400, the one status codex-cli 0.155.1 does not retry. */
+async function stopped(res: Response): Promise<[number, string | null, string]> {
+  return [res.status, res.headers.get("content-type"), await res.text()];
+}
+const stop = (said: string): [number, string, string] => [400, "text/plain; charset=utf-8", `${said}\n`];
+/** The answer to a websocket upgrade that was not switched. */
+function refusedUpgrade(url: string, headers: Record<string, string> = {}): Promise<[number, string | null, string]> {
+  const socket = new WebSocket(url, { headers });
+  socket.on("error", () => undefined);
+  return new Promise((resolve) =>
+    socket.on("unexpected-response", (_req, res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        socket.terminate();
+        resolve([res.statusCode ?? 0, (res.headers["content-type"] as string | undefined) ?? null, Buffer.concat(chunks).toString("utf8")]);
+      });
+    }),
+  );
+}
+
 const placeholder = () => codexPlaceholders(CLAIMS, "turn-1", 1_760_000_000_000);
 
 describe("refresh and revoke stay home", () => {
@@ -155,7 +175,7 @@ describe("refresh and revoke stay home", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ grant_type: "refresh_token", refresh_token: "rt_real_refresh_x" }),
     });
-    expect(res.status).toBe(403);
+    expect(await stopped(res)).toEqual(stop(CHATGPT_WORDS.notOurs));
     expect(refusals).toEqual([{ status: 403, said: CHATGPT_WORDS.notOurs }]);
     expect(seen).toEqual([]);
   });
@@ -214,7 +234,7 @@ describe("the websocket turn", () => {
     await closed;
   });
 
-  it("answers an upgrade refused upstream with 401 as a 403 sentence", async () => {
+  it("answers an upgrade refused upstream with 401 as a sentence that stops Codex", async () => {
     chatgptCred = { ...CLAIMS, accessToken: REAL_ACCESS };
     const refusing = createServer((_req, res) => res.writeHead(500).end());
     refusing.on("upgrade", (_req, socket) => socket.on("error", () => undefined).end("HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"));
@@ -225,12 +245,8 @@ describe("the websocket turn", () => {
       void service.upgrade!({ workspaceId: "ws-1", door: "http", grant: { kind: "turn", workspaceId: "ws-1" }, req, res: undefined as never, heldMs: 0 }, socket, head, ctx);
     });
     const localAt = await listen(local);
-    const socket = new WebSocket(`ws://${localAt}/backend-api/codex/responses`);
-    socket.on("error", () => undefined);
-    const status = await new Promise<number>((resolve) => socket.on("unexpected-response", (_req, res) => resolve(res.statusCode ?? 0)));
-    expect(status).toBe(403);
+    expect(await refusedUpgrade(`ws://${localAt}/backend-api/codex/responses`)).toEqual(stop(CHATGPT_WORDS.refused));
     expect(refusals).toEqual([{ status: 403, said: CHATGPT_WORDS.refused }]);
-    socket.terminate();
     local.closeAllConnections();
     refusing.closeAllConnections();
     await new Promise((resolve) => local.close(resolve));
@@ -251,21 +267,25 @@ describe("connectors and every /backend-api/ path", () => {
     expect(seen[0]!.body.toString()).toBe(body);
   });
 
-  it("never hands Codex a 401 on connectors: the upstream's 401 reaches it as a 403 sentence", async () => {
+  it("never hands Codex a 401 on connectors: the upstream's 401 reaches it as a sentence that stops it", async () => {
     answer = (_req, res) => res.writeHead(401, { "www-authenticate": 'Bearer resource_metadata="x"' }).end("{}");
     const res = await fetch(`${brokerUrl}/backend-api/ps/mcp`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-    expect(res.status).toBe(403);
     expect(res.headers.get("www-authenticate")).toBeNull();
-    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(CHATGPT_WORDS.refused);
+    expect(await stopped(res)).toEqual(stop(CHATGPT_WORDS.refused));
   });
 
-  it("refuses with 403, not 401, when the host holds no ChatGPT sign-in, and reaches no upstream", async () => {
+  it("stops Codex, never with a 401, when the host holds no ChatGPT sign-in, and reaches no upstream", async () => {
     chatgptCred = undefined;
     const res = await fetch(`${brokerUrl}/backend-api/ps/mcp`, { method: "POST", body: "{}" });
-    expect(res.status).toBe(403);
-    expect(refusals).toEqual([{ status: 403, said: CHATGPT_WORDS.signedOut }]);
+    expect(await stopped(res)).toEqual(stop(CHATGPT_WORDS.signedOut));
+    expect(await refusedUpgrade(`${brokerUrl.replace("http", "ws")}/backend-api/codex/responses`)).toEqual(stop(CHATGPT_WORDS.signedOut));
+    expect(refusals).toEqual([
+      { status: 403, said: CHATGPT_WORDS.signedOut },
+      { status: 403, said: CHATGPT_WORDS.signedOut },
+    ]);
     expect(CHATGPT_WORDS.signedOut).toContain('cli_auth_credentials_store = "file"');
     expect(seen).toEqual([]);
+    expect(wsSeen).toEqual([]);
   });
 
   it("swaps the caller's auth and cookies for the host's, passes the rest and the body byte for byte, and streams the reply", async () => {
@@ -437,12 +457,20 @@ describe("the OpenAI road", () => {
     socket.terminate();
   });
 
-  it("refuses with 403 when the host holds no key", async () => {
+  it("stops Codex when the host holds no key", async () => {
     openaiCred = undefined;
     const res = await fetch(`${brokerUrl}/v1/responses`, { method: "POST", body: "{}" });
-    expect(res.status).toBe(403);
-    expect(refusals).toEqual([{ status: 403, said: OPENAI_WORDS.noKey }]);
+    expect(await stopped(res)).toEqual(stop(OPENAI_WORDS.noKey));
+    expect(await refusedUpgrade(`${brokerUrl.replace("http", "ws")}/v1/responses`)).toEqual(stop(OPENAI_WORDS.noKey));
     expect(seen).toEqual([]);
+    expect(wsSeen).toEqual([]);
+  });
+
+  it("stops Codex with a sentence when the key's upstream answers 401", async () => {
+    openaiCred = { key: REAL_KEY, baseUrl: `${upstreamUrl}/v1` };
+    answer = (_req, res) => res.writeHead(401, { "content-type": "application/json" }).end('{"error":{"message":"Incorrect API key provided"}}');
+    const res = await fetch(`${brokerUrl}/v1/responses`, { method: "POST", body: "{}" });
+    expect(await stopped(res)).toEqual(stop(OPENAI_WORDS.refused));
   });
 });
 
