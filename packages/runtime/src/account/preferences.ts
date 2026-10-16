@@ -116,7 +116,8 @@ export function preferencesArea(ctx: RuntimeContext): PreferencesArea {
         }),
       );
       const brokered = !local && atProvider(ctx.placeIdOf(entry.record), ctx.places);
-      return { name: entry.record.name, phase: entry.record.phase, local, machine: entry.machine, project: { id: project.id, name: project.name, path: ctx.checkoutOf(entry.record) }, stores, seeds, ...(brokered ? { brokered } : {}) };
+      const { pauseMode } = ctx.view(entry.record);
+      return { name: entry.record.name, phase: entry.record.phase, local, machine: entry.machine, project: { id: project.id, name: project.name, path: ctx.checkoutOf(entry.record) }, stores, seeds, ...(brokered ? { brokered } : {}), ...(pauseMode !== undefined ? { pauseMode } : {}) };
     },
     placeStores: ctx.placeStores,
     storesHere: ctx.storesHere,

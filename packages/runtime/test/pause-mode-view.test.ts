@@ -43,6 +43,46 @@ describe("a workspace's pause mode", () => {
     expect(Object.fromEntries((await rt.workspaces.list()).map(w => [w.name, w.pauseMode]))).toEqual({ "on-box": "disk", "on-solari": "memory" });
   });
 
+  it("is what every refusal on a napping workspace's agents says: stopped where the nap ends every process, napping where the memory is kept", async () => {
+    const solari = stubBackend();
+    const box = stubBackend();
+    box.capabilities.pauseMode = "disk";
+    const never = async (): Promise<never> => {
+      throw new Error("a napping workspace is never asked");
+    };
+    const rt = createRuntime({
+      backend: solari,
+      store: memoryStore(),
+      adapters: {},
+      places: twoProviders("solari", { solari, box }),
+      placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }),
+      agentsReader: { read: never, tools: never },
+      agentsActs: { signInLine: never, signIn: never, key: never, addTools: never },
+      skillsActs: { search: never, get: never, preview: never, add: never, remove: never, toggle: never },
+      serversActs: { add: never, remove: never, toggle: never },
+      pluginsActs: { toggle: never },
+    });
+    open.push(rt);
+    const there = await createOn(rt, { golden: "snap_g", name: "on-box", on: "box" });
+    const here = await createOn(rt, { golden: "snap_g", name: "on-solari", on: "solari" });
+    await rt.workspaces.nap(there.id);
+    await rt.workspaces.nap(here.id);
+    const asks: [(target: { workspaceId: string }) => Promise<unknown>, string][] = [
+      [t => rt.agents.read(t), " and was not read while it ran; wake it to read what stands there"],
+      [t => rt.agents.tools(t, { agent: "claude", name: "acme" }), ", and a server is started there only while it runs; wake it to list the tools"],
+      [t => rt.agents.signIn(t, { agent: "codex" }, () => {}), ", and a sign-in runs there only while it runs; wake it to sign in"],
+      [t => rt.agents.signInLine(t, { agent: "codex" }), ", and a sign-in runs there only while it runs; wake it to sign in"],
+      [t => rt.agents.addTools(t, "claude"), ", and a sign-in runs there only while it runs; wake it to sign in"],
+      [t => rt.agents.skillsToggle(t, { name: "pdf", on: false }), ", and its skills are read and changed only while it runs; wake it first"],
+      [t => rt.agents.serversToggle(t, { agent: "claude", name: "acme", on: false }), ", and its servers are changed only while it runs; wake it first"],
+      [t => rt.agents.pluginsToggle(t, { agent: "claude", plugin: "lint", on: false }), ", and its plugins are switched only while it runs; wake it first"],
+    ];
+    const said = async (act: () => Promise<unknown>): Promise<string> => act().then(() => "answered", (e: unknown) => (e instanceof Error ? e.message : String(e)));
+    const got: string[] = [];
+    for (const [ask] of asks) got.push(await said(() => ask({ workspaceId: there.id })), await said(() => ask({ workspaceId: here.id })));
+    expect(got).toEqual(asks.flatMap(([, tail]) => [`on-box is stopped${tail}`, `on-solari is napping${tail}`]));
+  });
+
   it("is a Boat sub-thread's own on a host wired to a cloud that keeps the memory, whatever its project's computer does", async () => {
     const solari = stubBackend();
     // Boat joins the table once the fixture has made it, and the host starts again on the same state to hold both.
