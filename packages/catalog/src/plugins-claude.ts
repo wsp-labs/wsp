@@ -176,6 +176,9 @@ function entriesOf(known: unknown, marketplace: string, seen: Peeked): Map<strin
 }
 
 const MARKETPLACE_FILE = ".claude-plugin/marketplace.json";
+/** A seed folder holds what the config folder's plugins folder does (code.claude.com/docs/en/plugins/org). */
+const SEED_INDEX = "installed_plugins.json";
+const SEED_MARKETPLACES = "known_marketplaces.json";
 
 export const CLAUDE_PLUGIN_SHELF: PluginShelf = {
   // One peek reads the config and every plugin's folder, its paths read off the index on the computer, so one reached
@@ -183,35 +186,50 @@ export const CLAUDE_PLUGIN_SHELF: PluginShelf = {
   // manifest that keeps a component outside its default place.
   async read(io: PluginIo, projects: readonly PluginProject[]): Promise<PluginsFound> {
     const path = (p: string): string => inStore(CLAUDE_HOME, p, io);
+    const seeds = (io.seed ?? "").split(":").filter(d => d.startsWith("/"));
     const first = await io.peek([
       { roots: ["/"], files: [path(INDEX), path(MARKETPLACES), path(SETTINGS)] },
       { roots: projects.map(p => p.path), files: [PROJECT_SETTINGS, LOCAL_SETTINGS] },
-      { rootsFrom: { file: path(INDEX), key: "installPath" }, files: FOLDER_FILES, dirs: FOLDER_DIRS },
-      { rootsFrom: { file: path(MARKETPLACES), key: "installLocation" }, files: [MARKETPLACE_FILE] },
+      { rootsFrom: { files: [path(INDEX), ...seeds.map(s => joinPath(s, SEED_INDEX))], key: "installPath" }, files: FOLDER_FILES, dirs: FOLDER_DIRS },
+      // A turn copies a seed's marketplace list into the config folder, so both name one folder, read once.
+      { rootsFrom: { files: [path(MARKETPLACES), ...seeds.map(s => joinPath(s, SEED_MARKETPLACES))], key: "installLocation" }, files: [MARKETPLACE_FILE] },
+      { roots: seeds, files: [SEED_INDEX, SEED_MARKETPLACES] },
     ]);
     if (first === undefined) return { plugins: [], refused: ["plugins: Claude Code's plugin files could not be read"] };
     const indexText = first.text(path(INDEX));
-    if (indexText === undefined) return { plugins: [], refused: [] };
-    const index = jsonOf(indexText);
+    const seedIndexes = seeds.map(s => jsonOf(first.text(joinPath(s, SEED_INDEX))));
+    // Before its first turn a machine's config folder has no index, and every plugin it loads is in the seed.
+    if (indexText === undefined && seedIndexes.every(i => i === undefined)) return { plugins: [], refused: [] };
+    const index = indexText === undefined ? {} : jsonOf(indexText);
     if (index === undefined) return { plugins: [], refused: [`plugins: ${path(INDEX)} does not parse, so Claude Code's plugins were not read`] };
-    const known = jsonOf(first.text(path(MARKETPLACES)));
+    // Each startup a seed's marketplace overwrites the config folder's entry of that name, the first seed's winning.
+    const known = Object.assign({}, ...[jsonOf(first.text(path(MARKETPLACES))), ...seeds.map(s => jsonOf(first.text(joinPath(s, SEED_MARKETPLACES)))).reverse()].filter(isRecord)) as Json;
+    const inSeed = new Map<string, Install>();
+    for (const [id, installs] of seedIndexes.flatMap(i => [...installsOf(i)])) {
+      const mine = installs.find(i => i.scope === "user");
+      if (mine !== undefined && !inSeed.has(id)) inSeed.set(id, mine);
+    }
     const user = jsonOf(first.text(path(SETTINGS)));
     const settingsOf = (p: PluginProject) => ({ shared: jsonOf(first.text(joinPath(p.path, PROJECT_SETTINGS))), local: jsonOf(first.text(joinPath(p.path, LOCAL_SETTINGS))) });
     // A project or local install is a row only in a project the read covers; one for a folder gone is dropped.
-    const rows: { id: string; install: Install; project?: PluginProject }[] = [];
+    // A user install the seed also holds keeps the seed's beside it, which a turn loads where the config folder's is gone.
+    const listed: { id: string; install: Install; project?: PluginProject; seed?: Install }[] = [];
     for (const [id, installs] of installsOf(index)) {
       const mine = installs.find(i => i.scope === "user");
-      if (mine !== undefined) rows.push({ id, install: mine });
+      const seed = inSeed.get(id);
+      if (mine !== undefined) listed.push({ id, install: mine, ...(seed !== undefined ? { seed } : {}) });
       for (const scope of ["project", "local"] as const) {
         for (const p of projects) {
           const install = installs.find(i => i.scope === scope && i.projectPath === p.path);
-          if (install !== undefined) rows.push({ id, install, project: p });
+          if (install !== undefined) listed.push({ id, install, project: p });
         }
       }
     }
-    const unread = [...new Set(rows.map(r => r.install.installPath))].filter(r => !first.looked(r));
-    const unknown = [...new Set(rows.flatMap(r => locationOf(known, pluginIdParts(r.id).marketplace) ?? []))].filter(r => !first.looked(r));
+    for (const [id, seed] of inSeed) if (!listed.some(r => r.id === id && r.project === undefined)) listed.push({ id, install: seed, seed });
+    const unread = [...new Set(listed.flatMap(r => [r.install.installPath, ...(r.seed !== undefined ? [r.seed.installPath] : [])]))].filter(r => !first.looked(r));
+    const unknown = [...new Set(listed.flatMap(r => locationOf(known, pluginIdParts(r.id).marketplace) ?? []))].filter(r => !first.looked(r));
     const folders = unread.length + unknown.length === 0 ? first : both(first, await io.peek([{ roots: unread, files: FOLDER_FILES, dirs: FOLDER_DIRS }, { roots: unknown, files: [MARKETPLACE_FILE] }]));
+    const rows = listed.map(({ seed, ...r }) => (seed !== undefined && (r.install === seed || folders.list(r.install.installPath) === undefined) ? { ...r, install: seed, seeded: true } : { ...r, seeded: false }));
     const entries = new Map<string, Map<string, Json>>();
     const manifests = rows.map(({ id, install }) => {
       const { name, marketplace } = pluginIdParts(id);
@@ -226,11 +244,12 @@ export const CLAUDE_PLUGIN_SHELF: PluginShelf = {
       return d.dirs.length === 0 && d.files.length === 0 ? [] : [{ roots: [install.installPath], files: d.files, dirs: d.dirs }];
     });
     const seen = both(folders, extra.length === 0 ? undefined : await io.peek(extra));
-    const plugins = rows.map(({ id, install, project }, i): FoundPlugin => {
+    const plugins = rows.map(({ id, install, project, seeded }, i): FoundPlugin => {
       const { name, marketplace } = pluginIdParts(id);
       const { entry, there, m } = manifests[i]!;
       const prefix = typeof m.name === "string" && m.name !== "" ? m.name : name;
-      const fallback = typeof entry?.defaultEnabled === "boolean" ? entry.defaultEnabled : typeof m.defaultEnabled === "boolean" ? m.defaultEnabled : true;
+      // A seed's plugins are not on of themselves: a turn loads one only where a settings file switches it on (2.1.296).
+      const fallback = seeded ? false : typeof entry?.defaultEnabled === "boolean" ? entry.defaultEnabled : typeof m.defaultEnabled === "boolean" ? m.defaultEnabled : true;
       const set = project === undefined ? undefined : settingsOf(project);
       const local = set === undefined ? undefined : switchIn(set.local, id);
       const shared = set === undefined ? undefined : switchIn(set.shared, id);

@@ -55,6 +55,8 @@ export interface Host {
   /** The folder each agent's store variable names for a thread there, by agent id, where wsp points it somewhere of its
    * own: the agent reads its own config under that folder rather than under the home. */
   stores?: Readonly<Record<string, string>>;
+  /** What each agent's plugin seed variable holds for a thread there, by agent id, where the image built one. */
+  seeds?: Readonly<Record<string, string>>;
   fs: HostFs;
   exec: HostExec;
 }

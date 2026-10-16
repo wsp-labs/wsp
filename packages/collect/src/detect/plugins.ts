@@ -42,9 +42,10 @@ const PEEK = [
   "    done",
   "  done",
   "}",
-  // Every plain string value of a key in a JSON file, each once: a value holding an escape is the reader's to ask for.
+  // Every plain string value of a key in some JSON files, each once: a value holding an escape is the reader's to ask for.
   "from() {",
-  String.raw`  [ -f "$1" ] && LC_ALL=C grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"\\]*\"" "$1" | sed 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//; s/"$//' | sort -u`,
+  "  k=$1; shift",
+  String.raw`  for f; do [ -f "$f" ] && LC_ALL=C grep -o "\"$k\"[[:space:]]*:[[:space:]]*\"[^\"\\]*\"" "$f"; done | sed 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//; s/"$//' | sort -u`,
   "}",
 ].join("\n");
 
@@ -54,7 +55,7 @@ async function peekOn(run: (line: string) => Promise<string | undefined>, groups
   const calls = groups.flatMap(g => {
     const what = `${shellQuote((g.files ?? []).join("\n"))} ${shellQuote((g.dirs ?? []).map(d => `${d.depth} ${d.path}`).join("\n"))}`;
     const named = (g.roots ?? []).length === 0 ? [] : [`peek ${what} ${g.roots!.map(shellQuote).join(" ")}`];
-    const from = g.rootsFrom === undefined ? [] : [`from ${shellQuote(g.rootsFrom.file)} ${shellQuote(g.rootsFrom.key)} | while IFS= read -r r; do peek ${what} "$r"; done`];
+    const from = g.rootsFrom === undefined ? [] : [`from ${shellQuote(g.rootsFrom.key)} ${g.rootsFrom.files.map(shellQuote).join(" ")} | while IFS= read -r r; do peek ${what} "$r"; done`];
     return [...named, ...from];
   });
   const said = await run([PEEK, ...calls, String.raw`printf '\036END\n'`].join("\n"));
@@ -77,9 +78,11 @@ async function peekOn(run: (line: string) => Promise<string | undefined>, groups
 /** The module's view of the computer, for one agent: its files, and its lines run pointed at its store. */
 export function pluginIo(host: Host, agent: string): PluginIo {
   const store = host.stores?.[agent];
+  const seed = host.seeds?.[agent];
   return {
     home: host.home,
     ...(store !== undefined ? { store } : {}),
+    ...(seed !== undefined ? { seed } : {}),
     peek: groups => peekOn(line => host.exec.run("sh", ["-c", line], { timeoutMs: 30_000 }), groups),
     // bash: Codex's app server script reads its answers with read -u.
     run: line => host.exec.run("bash", ["-c", harnessLine(agent, line, { stores: host.stores })], { timeoutMs: 30_000 }),
