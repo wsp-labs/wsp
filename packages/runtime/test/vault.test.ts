@@ -196,11 +196,11 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     for (const at of roots.splice(0)) rmSync(at, { recursive: true, force: true });
   });
   /** This computer, whose gh answers a brokered start's reads of the project's repo as GitHub does. */
-  const here = (): { local: LocalWiring } => {
+  const here = (gh = (_root: string): string => `#!/bin/sh\ncase "$2" in\n  repos/*/commits/*) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;\n  repos/*) printf '4242\\tacme\\tweb\\n' ;;\n  *) exit 1 ;;\nesac\n`): { local: LocalWiring; root: string } => {
     const root = mkdtempSync(join(tmpdir(), "wsp-brokered-"));
     roots.push(root);
     mkdirSync(join(root, "bin"));
-    writeStub(join(root, "bin", "gh"), `#!/bin/sh\ncase "$2" in\n  repos/*/commits/*) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;\n  repos/*) printf '4242\\tacme\\tweb\\n' ;;\n  *) exit 1 ;;\nesac\n`);
+    writeStub(join(root, "bin", "gh"), gh(root));
     const local: LocalWiring = {
       backend: new LocalBackend({ root, env: { ...process.env, PATH: `${join(root, "bin")}:${process.env["PATH"] ?? ""}` } }),
       execStream: o => localExecStream({ root, runDir: join(root, "runs"), ...o }),
@@ -211,7 +211,7 @@ describe("a turn on a machine whose credentials the host keeps", () => {
       platform: testPlatform(),
       copier: copyingFake(),
     };
-    return { local };
+    return { local, root };
   };
   /** A broker that is up and adds Claude Code's token and Codex's key, unless told what it holds. */
   const ready = (status: BrokerStatus = { claude: "token", codex: "key" }): RuntimeOptions["broker"] => ({ ready: () => true, codexClaims: async () => undefined, status: async () => status });
@@ -224,6 +224,34 @@ describe("a turn on a machine whose credentials the host keeps", () => {
   /** git's configuration as the environment's GIT_CONFIG_COUNT pairs hand it, key and value in order. */
   const gitPairs = (env: Readonly<Record<string, string>>): [string, string][] =>
     Array.from({ length: Number(env["GIT_CONFIG_COUNT"] ?? 0) }, (_, i) => [env[`GIT_CONFIG_KEY_${i}`]!, env[`GIT_CONFIG_VALUE_${i}`]!]);
+
+  it("fetches a public repo of record from GitHub itself and pushes it through the door, until GitHub answers it private", async () => {
+    const { factory, contexts } = recording();
+    // GitHub's answer for the repo by its id, read again beside a later launch.
+    const hidden = (root: string): string => join(root, "private");
+    const { local, root } = here(at => `#!/bin/sh\ncase "$2" in\n  repos/*/commits/*) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;\n  repositories/4242) cat ${hidden(at)} ;;\n  repos/*) printf '4242\\tacme\\tweb\\tfalse\\n' ;;\n  *) exit 1 ;;\nesac\n`);
+    writeFileSync(hidden(root), "false\n");
+    let shift = 0;
+    const clock = { now: () => Date.now() + shift, schedule: (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); t.unref(); return () => clearTimeout(t); } };
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: factory }, broker: READY, clock, local });
+    const ws = await createOn(rt, { golden: "snap_g", name: "x" });
+    expect((await rt.workspaces.get(ws.id)).branchOfRecord).toMatchObject({ owner: "acme", name: "web", public: true });
+    const turn = async (): Promise<[string, string][]> => {
+      const before = contexts.length;
+      await (await rt.sessions.start(ws.id, { prompt: "one", harness: "claude" })).finished;
+      const env = contexts.slice(before).find(c => TURN_TOKEN_ENV in c.env)!.env;
+      // gh is the same as on any machine whose credentials the host keeps: the turn token, down the gh door.
+      expect(env).toMatchObject({ GH_TOKEN: env[HOST_TOKEN_ENV], GH_CONFIG_DIR: "/run/wsp-daemon/gh" });
+      return gitPairs(env).filter(([key]) => key.startsWith("url.") && !key.startsWith("url.http://github.com/.insteadOf"));
+    };
+    const forms = ["https://github.com/", "git@github.com:", "ssh://git@github.com/", "ssh://git@ssh.github.com:443/"];
+    expect(await turn()).toEqual(forms.flatMap(from => [["url.https://github.com/acme/web.git.insteadOf", `${from}acme/web.git`], ["url.http://github.com/acme/web.git.pushInsteadOf", `${from}acme/web.git`]]));
+    writeFileSync(hidden(root), "true\n");
+    shift = 6 * 60_000;
+    await turn();
+    await until(async () => (await rt.workspaces.get(ws.id)).branchOfRecord?.public === undefined);
+    expect(await turn()).toEqual([]);
+  });
 
   it("holds none of the vault's names or values and no server value, and the turn token in each place 01 lists", async () => {
     const { factory, contexts } = recording();

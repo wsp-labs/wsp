@@ -5,7 +5,7 @@
 // one refspec for that branch, run through real git against a repo here. With the
 // broker not ready, every line is today's.
 import { execFileSync, spawn as spawnProcess, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -20,6 +20,7 @@ import { memoryStore } from "../src/store.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { freeBranchName } from "../src/projects/branch-of-record.js";
 import { leadOnThisComputer } from "./sub-fixture.js";
+import { until } from "./until.js";
 import { fakeLocal, projectOn, stubBackend, tokenGuest, type StubMachine } from "./stub-backend.js";
 
 const roots: string[] = [];
@@ -37,16 +38,19 @@ afterEach(() => {
 const GH = `#!/bin/sh
 [ "$*" = "auth token --hostname github.com" ] && { echo gho_TESTONLY; exit 0; }
 case "$2" in
-  repos/acme/web|repos/acme/old) printf '4242\\tacme\\tweb\\n' ;;
-  repos/acme/web/pulls/7) printf '9001\\tana\\tweb-fork\\tfix-typo\\ttrue\\t4242\\tec5c10de663bd1860925ad42e9580bab4eb1d377\\n' ;;
+  repos/acme/web|repos/acme/old) printf '4242\\tacme\\tweb\\ttrue\\n' ;;
+  repos/acme/web/pulls/7) printf '9001\\tana\\tweb-fork\\tfix-typo\\ttrue\\t4242\\tec5c10de663bd1860925ad42e9580bab4eb1d377\\ttrue\\n' ;;
   repos/acme/web/pulls/8) printf '9001\\tana\\tweb-fork\\tfix-typo\\tfalse\\t4242\\tec5c10de663bd1860925ad42e9580bab4eb1d377\\n' ;;
-  repos/acme/web/pulls/9) printf '4242\\tacme\\tweb\\tlab/review-me\\tfalse\\t4242\\t9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\\n' ;;
+  repos/acme/web/pulls/9) printf '4242\\tacme\\tweb\\tlab/review-me\\tfalse\\t4242\\t9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e\\tfalse\\n' ;;
   repos/acme/web/commits/main) echo 1d2c3b4a5f6e7d8c9b0a1d2c3b4a5f6e7d8c9b0a ;;
   repos/acme/web/commits/feat/parent) echo 7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b ;;
   repos/acme/web/pulls/10) printf '\\t\\t\\tfix-typo\\tfalse\\t4242\\n' ;;
+  repositories/4242) touch "$(dirname "$0")/reread"; echo false ;;
   *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
 esac
 `;
+/** The same gh where GitHub answers acme/web as public. */
+const GH_PUBLIC = GH.replace("4242\\tacme\\tweb\\ttrue", "4242\\tacme\\tweb\\tfalse");
 const BRANCH = "wsp/fix-the-flaky-upload-test";
 const NAME = "Fix the flaky upload test";
 const spawn = (rt: Runtime, project: string, lead: Caller, from: string, name = NAME) => rt.workspaces.create({ project, name, sub: { on: "boat", from } }, lead);
@@ -102,6 +106,16 @@ describe("a sub-thread started where the host keeps its machine's credentials", 
       expect(runPreamble(made.sub!.preamble, bare), c.from).toEqual({ head: c.sha, depth: "1", branch: c.branch, fetch: `+refs/heads/${c.branch}*:refs/remotes/origin/${c.branch}*`, plainFetch: 0 });
       expect((await rt.workspaces.get(made.id)).branchOfRecord).toEqual({ repoId: 4242, owner: "acme", name: "web", branch: c.branch, startSha: c.sha });
     }
+  });
+
+  it("records a public repo as public, read off GitHub at the start, and a private one as it was", async () => {
+    expect(GH_PUBLIC).not.toBe(GH);
+    const open = await leadOnThisComputer({ broker: true, gh: GH_PUBLIC });
+    const made = await open.rt.workspaces.create({ project: open.project.id, name: NAME, sub: { on: "boat" } }, open.lead);
+    expect((await open.rt.workspaces.get(made.id)).branchOfRecord).toMatchObject({ repoId: 4242, owner: "acme", name: "web", public: true });
+    const hidden = await leadOnThisComputer({ broker: true, gh: GH });
+    const kept = await hidden.rt.workspaces.create({ project: hidden.project.id, name: NAME, sub: { on: "boat" } }, hidden.lead);
+    expect((await hidden.rt.workspaces.get(kept.id)).branchOfRecord).not.toHaveProperty("public");
   });
 
   it("names its lead and its branch of record in the first event, the record, before the cloud is asked", async () => {
@@ -295,6 +309,58 @@ describe("a clone where the host keeps the machine's credentials", () => {
     const auth = `Proxy-Authorization: Basic ${Buffer.from("wsp:wsp-op-token").toString("base64")}`;
     expect(heard).toEqual(Array(4).fill(`GET http://github.com/acme/web.git/info/refs?service=git-upload-pack HTTP/1.1 | ${auth}`));
   });
+
+  it("fetches a public repo of record's .git remote from GitHub itself with no credential, and still pushes it through the door", async () => {
+    const env = brokeredGitEnv("wsp-op-token", { owner: "acme", name: "web", public: true });
+    expect(brokeredGitEnv("wsp-op-token", { owner: "acme", name: "web" })).toEqual(brokeredGitEnv("wsp-op-token"));
+    /** A listener answering nothing, which hears the first lines git sends it. */
+    const listener = async (heard: string[]) => {
+      const server = createServer((s: Socket) => {
+        s.once("data", d => {
+          heard.push(d.toString("latin1").split("\r\n").filter(l => /^(GET|CONNECT|Proxy-Authorization|Authorization)/.test(l)).join(" | "));
+          s.destroy();
+        });
+      });
+      await new Promise<void>(r => server.listen(0, "127.0.0.1", r));
+      return { server, port: (server.address() as { port: number }).port };
+    };
+    const atDoor: string[] = [];
+    const direct: string[] = [];
+    const door = await listener(atDoor);
+    // Standing in for github.com:443: git's https road takes curl's own proxy, which no pair sets, so a CONNECT here is
+    // git going to GitHub itself.
+    const github = await listener(direct);
+    const local = Object.fromEntries(Object.entries(env).map(([k, v]) => [k, v.replace(`:${BROKER_PORT}`, `:${door.port}`)]));
+    const outer = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(no|all)_proxy$/i.test(k)));
+    const runEnv = { ...outer, ...local, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", HTTPS_PROXY: `http://127.0.0.1:${github.port}`, https_proxy: `http://127.0.0.1:${github.port}` };
+    const gitHere = (args: string[], cwd: string) =>
+      new Promise<number>(resolve => {
+        const p = spawnProcess("git", args, { cwd, env: runEnv, stdio: "ignore" });
+        p.on("exit", code => resolve(code ?? -1));
+      });
+    const dir = scratch();
+    git(["init", "-q", "-b", "main", dir]);
+    git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "one"], dir);
+    const forms = ["https://github.com/acme/web.git", "git@github.com:acme/web.git", "ssh://git@github.com/acme/web.git", "ssh://git@ssh.github.com:443/acme/web.git"];
+    try {
+      for (const remote of forms) expect(await gitHere(["ls-remote", remote], dir)).not.toBe(0);
+      expect(atDoor).toEqual([]);
+      expect(direct).toEqual(Array(4).fill("CONNECT github.com:443 HTTP/1.1"));
+      for (const remote of forms) expect(await gitHere(["push", remote, "HEAD:refs/heads/wsp/x"], dir)).not.toBe(0);
+      expect(await gitHere(["ls-remote", "https://github.com/acme/web-private.git"], dir)).not.toBe(0);
+      expect(await gitHere(["ls-remote", "https://github.com/acme/web"], dir)).not.toBe(0);
+    } finally {
+      door.server.close();
+      github.server.close();
+    }
+    const auth = `Proxy-Authorization: Basic ${Buffer.from("wsp:wsp-op-token").toString("base64")}`;
+    expect(direct).toHaveLength(4);
+    expect(atDoor).toEqual([
+      ...Array(4).fill(`GET http://github.com/acme/web.git/info/refs?service=git-receive-pack HTTP/1.1 | ${auth}`),
+      `GET http://github.com/acme/web-private.git/info/refs?service=git-upload-pack HTTP/1.1 | ${auth}`,
+      `GET http://github.com/acme/web/info/refs?service=git-upload-pack HTTP/1.1 | ${auth}`,
+    ]);
+  });
 });
 
 
@@ -381,7 +447,7 @@ async function onProvider(o: { leadBranch?: string; image?: true; clone?: { exit
     await rt.close();
     rt = boot();
   }
-  return { rt, backend, stdin, frames, broker, project };
+  return { rt, backend, stdin, frames, broker, project, bin };
 }
 
 const PARENT_SHA = "7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b";
@@ -552,11 +618,13 @@ describe("a thread started from a pull request at a provider", () => {
     expect((await rt.workspaces.get(reviewing.workspace.id)).branchOfRecord).toMatchObject({ owner: "ana", name: "web-fork", branch: "fix-typo" });
   });
 
-  it("records the head branch on the project's own repo for a pull request that is not a fork's, and clones onto it from origin", async () => {
-    const { rt, broker, stdin } = await onProvider();
+  it("records the head branch on the project's own repo for a pull request that is not a fork's, public as GitHub says, and clones onto it from origin", async () => {
+    const { rt, broker, stdin, bin } = await onProvider();
     broker.on = true;
     const started = await start(rt, 9);
-    expect((await rt.workspaces.get(started.workspace.id)).branchOfRecord).toEqual({ repoId: 4242, owner: "acme", name: "web", branch: "lab/review-me", startSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e" });
+    // The launch reads a public head's repo again beside it; that read ends before the stub's folder goes.
+    await until(() => existsSync(join(bin, "reread")));
+    expect((await rt.workspaces.get(started.workspace.id)).branchOfRecord).toEqual({ repoId: 4242, owner: "acme", name: "web", branch: "lab/review-me", startSha: "9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e", public: true });
     expect(stdin.find(s => s.cmd.includes("git clone --depth 1"))!.cmd.split("\n").slice(-5)).toEqual([
       "git -C /root/web checkout -q -B lab/review-me 9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e",
       "git -C /root/web update-ref refs/remotes/origin/lab/review-me 9c2e1d4b7a0f3e8c5d6a1b2c3d4e5f6a7b8c9d0e",
