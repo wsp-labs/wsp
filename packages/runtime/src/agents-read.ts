@@ -4,7 +4,7 @@
 // reading the agents, skills and servers off it is the host's, since the
 // catalog's readers live there. A read never wakes a machine.
 import { randomBytes } from "node:crypto";
-import { AgentsReport, GITHUB_CLI, HERE_PLACE_ID, installingFirstLine, refusal, toolNotInstalledFix, toolNotInstalledLine, lastLine, type McpServerSpec as LaunchServer, type PlaceProvisionRow, ptyBareOn, type AgentRow, type AgentSetupSet, type AgentSetupView, THIS_COMPUTER, noSuchAgentsProjectRefusal, sharedAgentsProjectRefusal, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview, isJoinedComputer, nappingAgentsRefusal, nappingPluginsRefusal, nappingServersRefusal, nappingSignInRefusal, nappingSkillsRefusal, nappingToolsRefusal, noSignInRefusal, noSuchPlaceRefusal, tableName, providerAgentsRefusal, type AgentSignInState, type AgentsProject, type AgentsSignInEvent, type AgentsTarget, type DaemonFrame, type PageReach, type PluginAsk, PluginRow, type ServerAdd, type ServerAsk, type WorkspacePhase, withoutControlChars, SIGN_IN_ENDED_KEPT_MS, type AgentsSignInRun, type McpScope } from "@wsp/protocol";
+import { AgentsReport, GITHUB_CLI, HERE_PLACE_ID, installingFirstLine, refusal, toolNotInstalledFix, toolNotInstalledLine, lastLine, type McpServerSpec as LaunchServer, type PlaceProvisionRow, ptyBareOn, type AgentRow, type AgentSetupSet, type AgentSetupView, THIS_COMPUTER, noSuchAgentsProjectRefusal, sharedAgentsProjectRefusal, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview, isJoinedComputer, nappingAgentsRefusal, nappingPluginsRefusal, nappingServersRefusal, nappingSignInRefusal, nappingSkillsRefusal, nappingToolsRefusal, noSignInRefusal, noSuchPlaceRefusal, tableName, providerAgentsRefusal, type AgentSignInState, type AgentsProject, type AgentsSignInEvent, type AgentsTarget, type DaemonFrame, type PageReach, type PluginAsk, PluginRow, type ServerAdd, type ServerAsk, type WorkspacePhase, withoutControlChars, SIGN_IN_ENDED_KEPT_MS, type AgentsSignInRun, type McpScope, type PauseMode } from "@wsp/protocol";
 import type { Machine, TargetLogin } from "@wsp/engine";
 import { CATALOG_AGENTS, catalogEntry, mintsToken } from "@wsp/catalog";
 import type { DaemonChannel } from "./daemon-channel.js";
@@ -202,6 +202,8 @@ export interface AgentsWorkspace {
   seeds?: Readonly<Record<string, string>>;
   /** It runs at a provider, whose machines the host keeps the credentials of. */
   brokered?: boolean;
+  /** How the computer holding its machine naps, absent where that cannot be read. */
+  pauseMode?: PauseMode;
 }
 
 export interface AgentsReadOptions<Caller> {
@@ -250,6 +252,7 @@ const usage = (sentence: string): Error => Object.assign(new Error(sentence), { 
 /** A workspace that is napping, which nothing here wakes. */
 interface Napping {
   napping: string;
+  pauseMode?: PauseMode;
 }
 
 export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
@@ -346,9 +349,9 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
     };
   };
   /** Where a skill or a server there is read or written; a napping workspace is never woken for one. */
-  const awakeOn = async (target: AgentsTarget, napping: (name: string) => string, origin?: Caller): Promise<AgentsOn> => {
+  const awakeOn = async (target: AgentsTarget, napping: (name: string, pauseMode?: PauseMode) => string, origin?: Caller): Promise<AgentsOn> => {
     const on = await onOf(target, origin);
-    if ("napping" in on) throw usage(napping(on.napping));
+    if ("napping" in on) throw usage(napping(on.napping, on.pauseMode));
     return on;
   };
   const skillOn = (target: AgentsTarget, origin?: Caller): Promise<AgentsOn> => awakeOn(target, nappingSkillsRefusal, origin);
@@ -416,7 +419,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       };
     }
     const ws = await o.workspace(target.workspaceId, origin);
-    if (ws.phase === "napping") return { napping: ws.name };
+    if (ws.phase === "napping") return { napping: ws.name, ...(ws.pauseMode !== undefined ? { pauseMode: ws.pauseMode } : {}) };
     const here = ws.local ? await o.storesHere?.().catch(() => undefined) : undefined;
     return ws.local ? { kind: "here", projects: [ws.project], ...storesOn(here) } : { kind: "machine", machine: ws.machine, projects: [ws.project], ...(o.relayed?.() === true ? { relayed: true } : {}), ...(ws.brokered === true ? { brokered: true } : {}), ...(ws.stores !== undefined ? { stores: ws.stores } : {}), ...(ws.seeds !== undefined ? { seeds: ws.seeds } : {}) };
   };
@@ -440,7 +443,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       const on = await onOf(target, origin, true);
       if ("napping" in on) {
         const held = "workspaceId" in target ? last.get(target.workspaceId) : undefined;
-        if (held === undefined) throw usage(nappingAgentsRefusal(on.napping));
+        if (held === undefined) throw usage(nappingAgentsRefusal(on.napping, on.pauseMode));
         return { ...held, stale: "napping" };
       }
       const { runAs, ...read } = await reader.read(on, { latest: (await o.latestOn?.()) ?? true });
@@ -459,7 +462,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       if (o.setupWrite === undefined) throw new Error(NO_AGENTS_READER);
       const write = o.setupWrite;
       const on = await onOf({ placeId }, origin);
-      if ("napping" in on) throw usage(nappingAgentsRefusal(on.napping));
+      if ("napping" in on) throw usage(nappingAgentsRefusal(on.napping, on.pauseMode));
       await written({ placeId }, () => write(placeId, agent, change));
       const row = (await reads.read({ placeId }, origin)).agents.find(a => a.id === agent);
       if (row === undefined) throw usage(`there is no agent ${agent} in the catalog`);
@@ -468,14 +471,14 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
     async tools(target, ask, origin) {
       const reader = readerOf();
       const on = await onOf(target, origin);
-      if ("napping" in on) throw usage(nappingToolsRefusal(on.napping));
+      if ("napping" in on) throw usage(nappingToolsRefusal(on.napping, on.pauseMode));
       return ServerToolsAnswer.parse(await reader.tools(on, { key: JSON.stringify(target), ...ask }));
     },
     async server(target, ask, origin) {
       const reader = readerOf();
       if (reader.server === undefined) throw new Error(NO_AGENTS_READER);
       const on = await onOf(target, origin);
-      if ("napping" in on) throw usage(nappingToolsRefusal(on.napping));
+      if ("napping" in on) throw usage(nappingToolsRefusal(on.napping, on.pauseMode));
       return reader.server(on, ask);
     },
     /** A removed workspace's last report goes with it. */
@@ -492,7 +495,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       const begun = (async () => {
         const acts = actsOf();
         const on = await onOf(target, origin);
-        if ("napping" in on) throw usage(nappingSignInRefusal(on.napping));
+        if ("napping" in on) throw usage(nappingSignInRefusal(on.napping, on.pauseMode));
         const plan = await acts.signIn(on, ask).catch((e: unknown) => {
           log(`sign-in refused: ${what}: ${e instanceof Error ? e.message : String(e)}`);
           throw e;
@@ -594,7 +597,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
     async signInLine(target, ask, origin) {
       const acts = actsOf();
       const on = await onOf(target, origin);
-      if ("napping" in on) throw usage(nappingSignInRefusal(on.napping));
+      if ("napping" in on) throw usage(nappingSignInRefusal(on.napping, on.pauseMode));
       const failed = await ghFirst(target, ask, () => undefined);
       const gh = catalogEntry(GITHUB_CLI)?.name ?? GITHUB_CLI;
       if (failed !== undefined) throw refusal(toolNotInstalledLine(gh, failed), toolNotInstalledFix(gh));
@@ -632,7 +635,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
     async addTools(target, agent, origin) {
       const acts = actsOf();
       const on = await onOf(target, origin);
-      if ("napping" in on) throw usage(nappingSignInRefusal(on.napping));
+      if ("napping" in on) throw usage(nappingSignInRefusal(on.napping, on.pauseMode));
       const added = await acts.addTools(on, agent);
       changed(target);
       return added;

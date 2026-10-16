@@ -7,8 +7,13 @@
 import { z } from "zod";
 import { AgentSetupView } from "./thread-defaults.js";
 import { HERE_PLACE_ID } from "./place-word.js";
+import type { PauseMode } from "./wire/capabilities.js";
 import { EXEC_BODY_MAX } from "./wire/limits.js";
 import { fmtBytes } from "./words/units.js";
+
+/** What a napping workspace is in a refusal's words: only a computer that keeps the machine's memory naps it, and every
+ * other one, or one whose mode cannot be read, stops it, as workspaceWord says. */
+const nappedWord = (pauseMode?: PauseMode): string => (pauseMode === "memory" ? "napping" : "stopped");
 
 /** Whether an agent on a computer can run a turn there without anybody signing anything in: its own login stands on
  * that computer, the vault this host holds has the variable that agent reads, or neither. One word per agent, worked
@@ -138,7 +143,7 @@ export const projectSkillOffRefusal = (name: string, path: string): string => `$
 export const noSuchSkillRefusal = (name: string): string => `There is no skill named ${name} there.`;
 
 /** Why a napping workspace's skills were not read or changed: nothing here wakes a machine. */
-export const nappingSkillsRefusal = (name: string): string => `${name} is napping, and its skills are read and changed only while it runs; wake it first`;
+export const nappingSkillsRefusal = (name: string, pauseMode?: PauseMode): string => `${name} is ${nappedWord(pauseMode)}, and its skills are read and changed only while it runs; wake it first`;
 
 /** A command line as a person types it, in words: split at spaces, a word in single quotes as written, one in double
  * quotes with its backslash escapes, and a backslash outside quotes taking the next character as it is. Nothing is
@@ -212,7 +217,7 @@ export const noServerSwitchRefusal = (agent: string): string => `${agent} keeps 
 export const noServersConfigRefusal = (agent: string): string => `${agent} keeps no MCP servers in a file wsp writes.`;
 
 /** Why a napping workspace's servers were not changed: nothing here wakes a machine. */
-export const nappingServersRefusal = (name: string): string => `${name} is napping, and its servers are changed only while it runs; wake it first`;
+export const nappingServersRefusal = (name: string, pauseMode?: PauseMode): string => `${name} is ${nappedWord(pauseMode)}, and its servers are changed only while it runs; wake it first`;
 
 /** Where a plugin is installed for: every folder of the login, one project for everyone in its repo, or one project
  * for this login alone. */
@@ -287,7 +292,7 @@ export const projectPluginRefusal = (id: string, file: string): string => `${id}
 export const noPluginSwitchRefusal = (agent: string): string => `${agent} keeps no plugin switch wsp turns, so nothing was switched.`;
 
 /** Why a napping workspace's plugins were not switched: nothing here wakes a machine. */
-export const nappingPluginsRefusal = (name: string): string => `${name} is napping, and its plugins are switched only while it runs; wake it first`;
+export const nappingPluginsRefusal = (name: string, pauseMode?: PauseMode): string => `${name} is ${nappedWord(pauseMode)}, and its plugins are switched only while it runs; wake it first`;
 
 /** One property of a tool's input, off its input schema: its name, the type its schema gives it where it gives one,
  * and whether a call has to carry it. */
@@ -414,10 +419,10 @@ export const providerAgentsRefusal = (name: string): string =>
   `${name} keeps no computer to read, since every workspace there is forked fresh from the image; name a workspace there, or edit the image`;
 
 /** Why a napping workspace read nothing: a read never wakes a machine, and none was read while it ran. */
-export const nappingAgentsRefusal = (name: string): string => `${name} is napping and was not read while it ran; wake it to read what stands there`;
+export const nappingAgentsRefusal = (name: string, pauseMode?: PauseMode): string => `${name} is ${nappedWord(pauseMode)} and was not read while it ran; wake it to read what stands there`;
 
 /** Why a napping workspace's server was not started: nothing here wakes a machine. */
-export const nappingToolsRefusal = (name: string): string => `${name} is napping, and a server is started there only while it runs; wake it to list the tools`;
+export const nappingToolsRefusal = (name: string, pauseMode?: PauseMode): string => `${name} is ${nappedWord(pauseMode)}, and a server is started there only while it runs; wake it to list the tools`;
 
 /** Why a computer that runs every line as root refused to read: the lines would run as root in somebody's home. */
 export const noRunuserRefusal = (user: string): string => `this computer runs wsp as root and has no runuser to run as ${user}, the owner of the home, so nothing was read`;
@@ -526,7 +531,7 @@ export const controlSignInRefusal = "That name holds a control character, so no 
 export const noSignInRefusal = "That sign-in is not running any more.";
 
 /** Why a napping workspace ran no sign-in: nothing here wakes a machine. */
-export const nappingSignInRefusal = (name: string): string => `${name} is napping, and a sign-in runs there only while it runs; wake it to sign in`;
+export const nappingSignInRefusal = (name: string, pauseMode?: PauseMode): string => `${name} is ${nappedWord(pauseMode)}, and a sign-in runs there only while it runs; wake it to sign in`;
 
 /** What a sign-in on a computer says while the tool its login runs goes on there first. */
 export const installingFirstLine = (name: string): string => `Installing ${name} first.`;
