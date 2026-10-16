@@ -99,4 +99,12 @@ describe("the person's own gateway", () => {
   it("parses custom headers as Claude Code sends them, one per line", () => {
     expect(customHeadersOf("x-litellm-api-key: sk-for-test\nx-team: lab\n\nno colon here\n: no name")).toEqual({ "x-litellm-api-key": "sk-for-test", "x-team": "lab" });
   });
+
+  it("refuses a custom header name that is not an HTTP token, naming it, or by its place when it is shaped like a token", async () => {
+    const gateway = (headers: string) => claudeGateway({ env: { ANTHROPIC_BASE_URL: "https://gateway.acme.dev", ANTHROPIC_CUSTOM_HEADERS: headers }, home: dir })();
+    expect(await gateway("x-team: lab\nx team: lab\nx-lab: acme")).toEqual({ kind: "gateway", url: "https://gateway.acme.dev", token: "", headers: { "x-team": "lab", "x team": "lab", "x-lab": "acme" }, invalidHeader: 'header "x team"' });
+    const keyed = `x-api-key ${["sk", "ant", "api03", `fake${"0".repeat(28)}fake`].join("-")}`;
+    expect(await gateway(`x-team: lab\n${keyed}: on`)).toMatchObject({ invalidHeader: "header 2 of 2" });
+    expect(await gateway("x-team: lab")).not.toHaveProperty("invalidHeader");
+  });
 });

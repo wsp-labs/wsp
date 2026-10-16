@@ -14,7 +14,7 @@ export type AnthropicCredential =
   | { kind: "token"; token: string; expiresAt?: number }
   | { kind: "key"; key: string }
   | { kind: "helper"; value: string }
-  | { kind: "gateway"; url: string; token: string; headers?: Readonly<Record<string, string>> };
+  | { kind: "gateway"; url: string; token: string; headers?: Readonly<Record<string, string>>; invalidHeader?: string };
 
 /** The parts of the broker's request and context this service reads, written here so it imports no broker. */
 export interface AnthropicRequest {
@@ -81,6 +81,7 @@ const sentences = (computer: string) => ({
   key: `wsp: Anthropic refused the API key on ${computer}. Set a working key in Settings, Agents.`,
   helper: `wsp: Anthropic refused the key your apiKeyHelper gave on ${computer}. Check the helper, then Settings, Agents.`,
   gateway: `wsp: your gateway refused the token on ${computer}. Check it in Settings, Agents.`,
+  header: (header: string) => `wsp: ${header} in ANTHROPIC_CUSTOM_HEADERS on ${computer} has a name HTTP does not allow, so your gateway was not called. Fix that line there, which Claude Code refuses too.`,
 });
 
 /** The wait for an upstream's reply to start, Claude Code's own first-byte rule, which it keeps off a base URL such as
@@ -166,6 +167,11 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
       if (credential === undefined || (credential.kind === "token" && credential.expiresAt !== undefined && credential.expiresAt <= Date.now())) {
         req.resume();
         stop(res, ctx, credential === undefined ? said.missing : said.expired);
+        return;
+      }
+      if (credential.kind === "gateway" && credential.invalidHeader !== undefined) {
+        req.resume();
+        stop(res, ctx, said.header(credential.invalidHeader));
         return;
       }
       const target = new URL(`${(credential.kind === "gateway" ? credential.url : upstream).replace(/\/+$/, "")}${req.url ?? "/"}`);
