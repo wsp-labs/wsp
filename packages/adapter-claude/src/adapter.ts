@@ -4,7 +4,7 @@
 // recorded in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
+import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, STEER_JOIN_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, settlesWithin, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
 import type { AdapterAttachOptions, AdapterEvent, AgentLaunch, KeptAgent, KeptRun, KeptTurn, SubagentState, TaskStop, AsideAnswer, AsideQuestion, ExecStream, ExecStreamFactory, HarnessCatalogProbe, HarnessExec, McpServerSpec, PermissionAsk, PermissionOutcome, ScreenCommand, SessionAsker, SessionForker, SessionHarness, SessionRenamer, SessionTitleMaker, SessionTitleReader, TurnImage, TurnRefusal, TurnResult, TurnStatus, CommitDrafter, ConversationStore, TurnTokens } from "@wsp/protocol";
 import { SKIP_PROMPTS_MODE, controlAllowLine, controlAnswerLine, controlErrorLine, controlLine, interruptLine, modeOptionOn, setModeLine, stopTaskLine } from "./permissions.js";
 import { CLAUDE_SCREEN_COMMANDS, catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
@@ -133,6 +133,8 @@ export interface AdapterDeps {
    * are ended for it. The same window it gets to wake its agent in once the background tasks of a held reply are
    * done, for the same reason: it is how long this adapter waits on a CLI that has something left to do. */
   resultExitMs?: number;
+  /** How long a message sent before the CLI's init waits for it; STEER_JOIN_MS unless a test says otherwise. */
+  steerJoinMs?: number;
   /** wsp's half of a turn this workspace's agent refuses for want of a sign-in, from the one rule every door reads
    * for how it is signed in; it differs between the person's own computer and a machine, which only the caller
    * knows. Absent leaves such a turn carrying the CLI's own sentence alone. */
@@ -592,14 +594,6 @@ function normalizeEvent(event: Record<string, unknown>, fallbackSessionId: strin
   }
 }
 
-/** Whether the turn settled inside `ms`. */
-async function settlesWithin(turn: Promise<unknown>, ms: number): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const settled = await Promise.race([turn.then(() => true, () => true), new Promise<boolean>(resolve => (timer = setTimeout(() => resolve(false), ms)))]);
-  clearTimeout(timer);
-  return settled;
-}
-
 /** A session's one file: `<config>/projects/<folder key>/<id>.jsonl`, the key being the folder it ran in. */
 const sessionFileIn = (configDir: string, sessionId: string): { folder: string; name: string; depth: number } => ({ folder: `${configDir}/projects`, name: `${sessionId}.jsonl`, depth: 1 });
 
@@ -642,6 +636,9 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
 
     let claudeSessionId = localId;
     let sawInit = o.announced;
+    /** Settles at the CLI's init or at a stop: a stop on a computer that is away ends no stream that would settle finished. */
+    let openSteer!: () => void;
+    const steerOpen = new Promise<void>(r => (openSteer = r));
     let sawResult = false;
     let exited = false;
     let interruptRequested = false;
@@ -1007,6 +1004,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
               claudeSessionId = normalized.sessionId;
               initModel = normalized.model ?? initModel;
               sawInit = true;
+              openSteer();
               harnessCwd = normalized.cwd;
               shellCwd = normalized.cwd;
               if (normalized.harness?.permissionMode === SKIP_PROMPTS_MODE) skipsPrompts = true;
@@ -1138,6 +1136,8 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
         return steers.reports;
       },
       steer: async (prompt, uuid = randomUUID(), images = []) => {
+        // A message sent while the CLI is still starting joins the turn once its init names the session the line carries.
+        if (!sawInit) await settlesWithin(Promise.race([steerOpen, finished]), deps.steerJoinMs ?? STEER_JOIN_MS);
         if (!running()) return "not-running";
         steers.add(uuid);
         const wrote = await stream.write(userMessageLine(prompt, claudeSessionId, images, uuid));
@@ -1204,6 +1204,7 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
       interrupt: async () => {
         const live = running();
         interruptRequested = true;
+        openSteer();
         const graceMs = deps.interruptGraceMs ?? INTERRUPT_GRACE_MS;
         // A reply held for messages the CLI has not taken up yet, on a CLI that cannot be asked to cancel them: nothing
         // of the agent's is running to stop, so the held words are the turn's now, stopped, and the messages go back.
