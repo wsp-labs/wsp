@@ -44,7 +44,7 @@ export type AnthropicCredential =
   | { kind: "token"; token: string; expiresAt?: number }
   | { kind: "key"; key: string }
   | { kind: "helper"; value: string }
-  | { kind: "gateway"; url: string; token: string; headers?: Readonly<Record<string, string>> };
+  | { kind: "gateway"; url: string; token: string; headers?: Readonly<Record<string, string>>; invalidHeader?: string };
 export type ChatgptCredential = CodexClaims & { accessToken: string };
 export interface OpenaiCredential {
   key: string;
