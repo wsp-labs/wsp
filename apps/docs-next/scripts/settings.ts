@@ -27,7 +27,6 @@ const CTX: SettingsContext = {
   workspaces: [],
   sessions: {},
   statuses: {},
-  landings: {},
   reads: { ...NO_READS, loginStart: true, sshInclude: false },
   now: 0,
   shell: { inShell: true, app: undefined, host: undefined },

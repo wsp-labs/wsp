@@ -58,8 +58,10 @@ const workspace: WorkspaceView = {
   id: WS,
   name: "api",
   machineId: "m1", project: { id: "pr_1", name: "the-project", path: "/root", computer: "default" },
-  // A fork, so its record carries the provider it was made at; that is the word the waking line names.
+  // A fork, so its record carries the provider it was made at and how that provider naps; the provider is the word the
+  // waking line names.
   provider: "solari",
+  pauseMode: "memory",
   phase: "running",
   golden: "snap_g",
   createdAt: "2026-09-01T00:00:00Z",
@@ -366,6 +368,18 @@ describe("ChatView", () => {
     // It is the workspace's line, not a turn's: a running workspace draws none.
     emit({ type: "workspace.status", status: { ...status, phase: "running", machineState: "running", reach: { state: "reachable" } } });
     await waitFor(() => expect(document.querySelector("[data-workspace-paused]")).toBeNull());
+  });
+
+  it("a Boat workspace on a host whose own cloud keeps the memory says Stopped, the word its sidebar row and its pane read", async () => {
+    const boat: WorkspaceView = { ...workspace, place: "box", provider: "box", pauseMode: "disk" };
+    const { api, emit } = fixtureApi([boat], { [WS]: settledTurn(WS, "add a health route", "Added GET /health.") });
+    api.workspacesLanding = async () => ({ name: "Solari", capabilities: caps() });
+    await setup(api);
+    await screen.findByText("Added GET /health.");
+    const status = { ...boat, machineState: "paused" as const, reach: { state: "napping" as const }, size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.018 };
+    emit({ type: "workspace.napped", workspaceId: WS });
+    emit({ type: "workspace.status", status: { ...status, phase: "napping" } });
+    await waitFor(() => expect(document.querySelector("[data-workspace-paused]")?.textContent).toBe("StoppedWake"));
   });
 
   it("stamps the thread it shows as read when its latest turn ended after the last stamp, and not while the window is hidden", async () => {

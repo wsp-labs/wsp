@@ -11,10 +11,6 @@ export interface SidebarInput {
   readonly workspaces: ReadonlyArray<WorkspaceView>;
   readonly statuses?: Readonly<Record<string, WorkspaceStatus>>;
   readonly sessions?: Readonly<Record<string, ReadonlyArray<SessionView>>>;
-  /** How the computer each workspace's project lands on pauses a machine, by the project's id: the state word is
-   * Paused on a computer that keeps the machine's memory and Stopped on every other. A project the host has not
-   * answered a landing for reads the stopping words, as every caller holding no mode does. */
-  readonly pauseModes?: Readonly<Record<string, PauseMode | undefined>>;
 }
 
 const NO_ROWS: ReadonlyArray<SessionView> = [];
@@ -22,7 +18,7 @@ const NO_ROWS: ReadonlyArray<SessionView> = [];
 /** The snapshot last built for each workspace record and what it was built from, and the threads last folded from
  * each list of rows: a frame about one workspace builds that one again, and every other row and thread keeps its
  * identity. */
-const built = new WeakMap<WorkspaceView, { status: WorkspaceStatus | null; rows: ReadonlyArray<SessionView>; pauseMode: PauseMode | undefined; snapshot: SidebarProjectSnapshot }>();
+const built = new WeakMap<WorkspaceView, { status: WorkspaceStatus | null; rows: ReadonlyArray<SessionView>; snapshot: SidebarProjectSnapshot }>();
 const folded = new WeakMap<ReadonlyArray<SessionView>, { project: string; threads: SidebarThreadSnapshot[] }>();
 
 function threadsOf(rows: ReadonlyArray<SessionView>, workspace: WorkspaceView): SidebarThreadSnapshot[] {
@@ -45,9 +41,8 @@ export function deriveSidebarProjects(input: SidebarInput): SidebarProjectSnapsh
     .map(workspace => {
       const status = input.statuses?.[workspace.id] ?? null;
       const rows = input.sessions?.[workspace.id] ?? NO_ROWS;
-      const pauseMode = input.pauseModes?.[workspace.project.id];
       const held = built.get(workspace);
-      if (held !== undefined && held.status === status && held.rows === rows && held.pauseMode === pauseMode) return held.snapshot;
+      if (held !== undefined && held.status === status && held.rows === rows) return held.snapshot;
       const phase = status?.phase ?? workspace.phase;
       const state = workspaceStateOf({ phase }, status);
       const snapshot: SidebarProjectSnapshot = {
@@ -64,10 +59,10 @@ export function deriveSidebarProjects(input: SidebarInput): SidebarProjectSnapsh
         machineState: status?.machineState ?? null,
         reach: status?.reach.state ?? null,
         state,
-        indicator: indicatorFor(state, pauseMode),
+        indicator: indicatorFor(state, workspace.pauseMode),
         threads: threadsOf(rows, workspace),
       };
-      built.set(workspace, { status, rows, pauseMode, snapshot });
+      built.set(workspace, { status, rows, snapshot });
       return snapshot;
     });
   if (last !== null && last.snapshots.length === snapshots.length && last.snapshots.every((snapshot, i) => snapshot === snapshots[i])) return last.sorted;

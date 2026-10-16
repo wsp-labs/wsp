@@ -8,7 +8,7 @@ import type { Failure } from "../failure.js";
 import { absenceOf } from "../../settings/places.js";
 import { useStore } from "./useStore.js";
 import { withHeldThreads } from "./heldKeys.js";
-import { catalogIn, catalogsIn, NO_SESSIONS, pauseModesOf, selectedWorkspaceIdOf, shownThreadIdOf, threadRows } from "./selectors.js";
+import { catalogIn, catalogsIn, NO_SESSIONS, selectedWorkspaceIdOf, shownThreadIdOf, threadRows } from "./selectors.js";
 import type { CostTick, Creation } from "./types.js";
 
 /** Every workspace with its threads, as the sidebar's rows read them, for the surfaces that need the whole fleet
@@ -19,8 +19,7 @@ export function useSidebarProjects(): SidebarProjectSnapshot[] {
   const statuses = useStore(s => s.statuses);
   const sessions = useStore(s => s.sessions);
   const held = useStore(s => s.heldKeys);
-  const landings = useStore(s => s.landings);
-  const derived = useMemo(() => deriveSidebarProjects({ workspaces, statuses, sessions, pauseModes: pauseModesOf(landings) }), [workspaces, statuses, sessions, landings]);
+  const derived = useMemo(() => deriveSidebarProjects({ workspaces, statuses, sessions }), [workspaces, statuses, sessions]);
   return useMemo(() => withHeldThreads(derived, held), [derived, held]);
 }
 

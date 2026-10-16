@@ -22,7 +22,6 @@ export const saysNotAnswering = (awayMs: number | null): boolean => awayMs === n
 export const AGENTS_LIST_WORDS = {
   section: "Agents, tool servers, skills and plugins",
   readAgain: "Read again",
-  paused: "paused",
   notAnswering: "not answering",
   nothingMatches: (q: string): string => `Nothing matches "${q}".`,
   openComputer: (computer: string): string => `Open ${computer} in Settings`,

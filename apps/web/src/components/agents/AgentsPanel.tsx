@@ -7,6 +7,7 @@
 // opens its page in Settings.
 import { ChevronLeftIcon } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { workspaceWord, type PauseMode } from "@wsp/protocol";
 import { AgentsCards, AGENTS_TABS } from "../../settings/agents.js";
 import { KindPages, type KindRead, type Stale } from "../../settings/agentKinds.js";
 import { AGENTS_PAGE_WORDS, capitalised, SETTINGS_WORDS } from "../../settings/format.js";
@@ -28,6 +29,8 @@ export interface AgentsPanelProps {
   readonly read: KindRead;
   readonly ctx: RowsContext;
   readonly now: number;
+  /** How the task's own machine naps: the word its last report wears while it sleeps. */
+  readonly pauseMode?: PauseMode;
 }
 
 /** What takes a key of its own on a form: a field, a select, a toggle, a switch, a button. */
@@ -36,15 +39,16 @@ const CONTROL = "button, a[href], input, textarea, select, [tabindex], [role=com
 /** The Not read card in a task's panel holds the report's own lines: the recipe's rows are its computer's page's. */
 const NO_MISSES = [] as const;
 
-export function AgentsPanel({ on, read, ctx: given, now }: AgentsPanelProps) {
+export function AgentsPanel({ on, read, ctx: given, now, pauseMode }: AgentsPanelProps) {
   const [tab, setTab] = useState<AgentsTab>("agents");
   const [level, setLevel] = useState<AgentsLevel | null>(null);
   const { report } = read;
   const paused = pausedReport(report);
+  const napped = workspaceWord("paused", pauseMode);
   // A paused task's report is the last one read while it ran, so nothing it offers can be done now.
-  const held = given.heldWhy ?? (paused ? W.paused : null);
+  const held = given.heldWhy ?? (paused ? napped.toLowerCase() : null);
   const ctx: RowsContext = { ...given, on: on.name, ...(held === null ? {} : { heldWhy: held }), ...(report?.reach === undefined ? {} : { reach: report.reach }) };
-  const stale: Stale | undefined = paused ? { word: capitalised(W.paused) } : given.heldWhy !== null && given.heldWhy !== undefined ? { word: capitalised(W.notAnswering), why: given.heldWhy } : undefined;
+  const stale: Stale | undefined = paused ? { word: napped } : given.heldWhy !== null && given.heldWhy !== undefined ? { word: capitalised(W.notAnswering), why: given.heldWhy } : undefined;
   const computer = { ...on, ...(stale === undefined ? {} : { stale }) };
   const nav = { level, open: setLevel };
   const pick = (next: AgentsTab): void => {

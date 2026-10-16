@@ -13,7 +13,7 @@ import { ReviewDraft, WorkspaceFrom } from "../start.js";
 import { AGENTS_ON } from "../place-state.js";
 import { WorkspaceGlyph, WorkspaceTheme } from "../workspace-look.js";
 import type { Held, Same } from "../wire/helpers.js";
-import { WorkspaceSize } from "../wire/capabilities.js";
+import { PauseMode, WorkspaceSize } from "../wire/capabilities.js";
 
 // --- views -----------------------------------------------------------------
 
@@ -532,6 +532,10 @@ export const WorkspaceView = z.object({
    * has not yet heard what it forks with. A row names this where it would otherwise have only the provider's
    * opaque id for the machine. */
   provider: z.string().optional(),
+  /** How the computer this workspace's own machine stands on naps, off the backend holding that machine: a sub-thread
+   * on another cloud than its project's naps the way its own cloud does. Absent where that computer declares none,
+   * which reads the stopping words. The one reading every state word of this workspace takes. */
+  pauseMode: PauseMode.optional(),
   /** Where the work came from where it started off an issue or a pull request, or is a review of one. */
   from: WorkspaceFrom.optional(),
   /** A review workspace's review as the person shapes it before Post, read off the reviewer's reply. */
@@ -582,7 +586,7 @@ export type WorkspaceStatus = z.infer<typeof WorkspaceStatus>;
 const WORKSPACE_OUT = {
   id: true, name: true, machineId: true, phase: true, kind: true, golden: true, createdAt: true, project: true, folder: true, home: true,
   claudeSessionId: true, gone: true, theme: true, glyph: true, daemonNote: true, daemonRefusedAt: true, vaultedAt: true, vaultRefused: true, wakeRefused: true, diskGone: true,
-  agents: true, parentThreadId: true, rootThreadId: true, parentWorkspaceId: true, place: true, provider: true, worktree: true, from: true, review: true,
+  agents: true, parentThreadId: true, rootThreadId: true, parentWorkspaceId: true, place: true, provider: true, pauseMode: true, worktree: true, from: true, review: true,
 } as const;
 
 /** A workspace as every verb answers with it: the view without the display stream a desktop machine carries, which
