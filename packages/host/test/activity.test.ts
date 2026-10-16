@@ -346,7 +346,7 @@ describe("activity on the command line", () => {
       { pid: 4200, ports: [5173], memory: 80_000_000 },
       { pid: 4300, ports: [], memory: 20_000_000 },
     ]);
-    expect(failure((await h.run("thread", "settle", threadId, "--json")).io).error).not.toContain("4600");
+    expect(failure((await h.run("thread", "settle", threadId, "--json")).io).error).toBe(refusalLine(processesLeftLine("settle", left), processesLeftFix("settle")));
 
     const stopped = await h.run("thread", "settle", threadId, "--processes", "stop", "--json");
     expect(stopped.code, stopped.io.errors.join("\n")).toBe(0);
