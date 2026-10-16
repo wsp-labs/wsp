@@ -300,6 +300,30 @@ describe("the pipe pool", () => {
     expect(got.digest("hex")).toBe(hash.digest("hex"));
   }, 30_000);
 
+  // A clone's pack crosses one pipe over a 150 ms road, where a window of its own (64 KiB a round trip) is 0.4 MB/s:
+  // nothing here waits on the daemon's word before the next bytes go (#2352).
+  it("puts 8 MiB through to a daemon that answers nothing, with no window of its own holding the writer back", async () => {
+    const d = await fakeDaemon();
+    const { pool, handed } = poolOn(d);
+    pool.up("ws-a");
+    await until(() => d.parked.length === 4);
+    const far = d.take("http");
+    await until(() => handed.length === 1);
+    const { duplex } = handed[0]!;
+    let received = 0;
+    far.on("message", (data: Buffer) => {
+      received += data.length;
+    });
+    const chunk = randomBytes(64 << 10);
+    const total = 8 << 20;
+    for (let written = 0; written < total; written += chunk.length) {
+      if (duplex.write(chunk)) continue;
+      const drained = await Promise.race([new Promise<boolean>(r => duplex.once("drain", () => r(true))), sleep(5_000).then(() => false)]);
+      expect(drained, `the writer waited after ${written} bytes with ${received} received`).toBe(true);
+    }
+    await until(() => received === total, 10_000);
+  }, 30_000);
+
   it("replaces a pipe left idle past its limit with a fresh one, and logs no dial for it", async () => {
     expect(PIPE_IDLE_MAX_MS).toBe(600_000);
     const d = await fakeDaemon();
