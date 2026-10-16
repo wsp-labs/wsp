@@ -644,6 +644,26 @@ describe("the road's wire", () => {
     expect(r.body.toString()).toBe("wsp: sign gh in on this computer with gh auth login\n");
   });
 
+  it("refuses a fetch git gave up on only on the response git closed, which the broker writes no row for", async () => {
+    resetState("wsp/gaveup");
+    let reached!: () => void;
+    const held = new Promise<void>((done) => (reached = done));
+    const holding = await listen((req) => {
+      req.resume();
+      reached();
+    });
+    const refusals: { said: string; callerLeft: boolean }[] = [];
+    const watched: GitContext = { ...context, refuse: (res, _status, said) => void refusals.push({ said, callerLeft: res.destroyed }) };
+    const service = gitRoad({ origin: `http://127.0.0.1:${holding}`, api: `http://127.0.0.1:${apiPort}`, scratch: root, guard: async () => undefined });
+    const port = await listen((req, res) => void service.serve({ workspaceId: "ws1", door: "http", grant: { kind: "turn", workspaceId: "ws1", threadId: "th1" }, req, res, heldMs: 0 }, watched));
+    const call = request({ host: "127.0.0.1", port, method: "GET", path: "http://github.com/acme/app.git/info/refs?service=git-upload-pack", headers: { host: "github.com" } });
+    call.on("error", () => undefined);
+    call.end();
+    await held;
+    call.destroy();
+    await expect.poll(() => refusals).toEqual([{ said: "wsp: GitHub did not answer your computer; try again", callerLeft: true }]);
+  });
+
   it("refuses LFS and every path that is not a fetch or a push, and claims only absolute-form github.com on the HTTP door", async () => {
     resetState("wsp/paths");
     const lfs = await viaDoor("POST", "http://github.com/acme/app.git/info/lfs/objects/batch", {}, Buffer.from("{}"));
