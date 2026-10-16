@@ -2,8 +2,7 @@
 // The Boat canary: one box made the way wsp makes one, from a named snapshot, and driven through every call wsp's
 // BoxBackend sends: the create and two replays under its key, the rename and the stop timer, the environment,
 // commands, PUT and GET /files, the daemon's token and hosted route, stop, resume, delete, the listing, and the
-// account's limits on both base URLs (Boat documents boat.dev/api/v1; wsp calls ascii.dev, and the two name their
-// fields apart). Every call is recorded off the wire, so a refused body fails naming Boat's answer next to the body
+// account's limits. Every call is recorded off the wire, so a refused body fails naming Boat's answer next to the body
 // sent, and an answer that lost a field wsp reads fails naming the field. It records the seconds a sub-thread
 // waits on: create to ready, the environment landing, the daemon's first answer, stop and resume. Everything it made
 // is deleted by id and read gone.
@@ -19,10 +18,9 @@ import { CREATED_AT_LABEL, OWNER_LABEL, WSP_LABEL } from "../src/labels.js";
 import { landBytes } from "../src/land-bytes.js";
 import { DAEMON_PORT } from "../src/preview.js";
 import { nameOwner } from "../src/snapshot-names.js";
-import { BOAT_LIMITS_READS, boatSaid, checkReads, missingField, recordingFetch, shown, type Exchange } from "./boat-wire.js";
+import { boatSaid, checkReads, missingField, recordingFetch, shown, type Exchange } from "./boat-wire.js";
 import { boatKey, LIVE, sleep } from "./live.js";
 
-const BOAT_DOCS_URL = "https://boat.dev/api/v1";
 /** A foreign owner, so no host's sweep claims this box. */
 const OWNER = "h_canary";
 const LABELS = { [WSP_LABEL]: "1", [OWNER_LABEL]: OWNER, "wsp-test": "box-canary", [CREATED_AT_LABEL]: new Date().toISOString() };
@@ -42,16 +40,16 @@ const MINUTE = 60_000;
 const secs = (ms: number): string => `${(ms / 1000).toFixed(1)} s`;
 const startedLine = (starts: number): string => (starts === 0 ? "" : `, after wsp started it${starts > 1 ? ` (${starts} starts)` : ""}`);
 interface BoxView { id?: string; state?: string; name?: string | null; archiveAfter?: string | null; hydrated?: boolean; type?: string }
-interface BoxReply { status?: string; code?: string; box?: BoxView }
+interface BoxReply { status?: string; code?: string; sandbox?: BoxView }
 const reply = (e: Exchange): BoxReply => JSON.parse(e.text || "{}") as BoxReply;
 
 interface Limits {
   accessTier?: string;
-  maxActiveBoxes?: number;
-  activeBoxes?: number;
+  maxActiveSandboxes?: number;
+  activeSandboxes?: number;
   canStart?: boolean;
   startBlockedReason?: string | null;
-  boxPlanKey?: string;
+  sandboxPlanKey?: string;
   starts?: Record<"minute" | "hour" | "day", { limit: number; used: number; remaining: number }>;
 }
 
@@ -97,7 +95,7 @@ describe.runIf(LIVE)("Boat canary, live", () => {
         apiKey: boatKey(),
         fetch: async (input, init) => {
           const res = await recorded(input, init);
-          if (replayAtOnce && init?.method === "POST" && String(input) === `${BOX_API_URL}/boxes`) {
+          if (replayAtOnce && init?.method === "POST" && String(input) === `${BOX_API_URL}/sandboxes`) {
             replayAtOnce = false;
             // A cap of its own: the first ask's signal has been running since that ask was sent.
             await recorded(input, { ...init, signal: AbortSignal.timeout(PROVIDER_READ_CAP_MS) }).catch(() => {});
@@ -141,11 +139,11 @@ describe.runIf(LIVE)("Boat canary, live", () => {
 
   /** The box's own reading, with the fields wsp reads off a ready box checked. */
   async function view(fields: readonly string[] = []): Promise<BoxView> {
-    await step(`GET /boxes/${box().id}`, () => backend.view(box().id));
+    await step(`GET /sandboxes/${box().id}`, () => backend.view(box().id));
     const e = wire.at(-1)!;
     const lost = missingField(e, fields);
     if (lost !== undefined) throw new Error(`Boat's answer lost ${lost}, which wsp reads: ${shown(e)}`);
-    return reply(e).box ?? {};
+    return reply(e).sandbox ?? {};
   }
 
   const hydrated = (v: BoxView = {}): string => ("hydrated" in v ? String(v.hydrated) : "not in the answer");
@@ -191,7 +189,7 @@ describe.runIf(LIVE)("Boat canary, live", () => {
   }
 
   /** Every box any create answered with, so the cleanup reaches a replay that made a second one. */
-  const made = (): string[] => [...new Set(wire.filter(e => e.method === "POST" && e.path === "/boxes" && e.status !== null && e.status < 300).map(e => reply(e).box?.id).filter((id): id is string => typeof id === "string"))];
+  const made = (): string[] => [...new Set(wire.filter(e => e.method === "POST" && e.path === "/sandboxes" && e.status !== null && e.status < 300).map(e => reply(e).sandbox?.id).filter((id): id is string => typeof id === "string"))];
 
   afterAll(async () => {
     if (!LIVE) return;
@@ -204,18 +202,11 @@ describe.runIf(LIVE)("Boat canary, live", () => {
     if (alive.length > 0) throw new Error(`boxes still at Boat after the canary: ${alive.join(", ")}`);
   }, 5 * MINUTE);
 
-  it("reads the account's limits on both base URLs", async () => {
+  it("reads the account's limits", async () => {
     const limits = await step("GET /limits", () => backend.request<Limits>("GET", "/limits"));
-    const docsWire: Exchange[] = [];
-    const docs = new BoxBackend({ apiKey: boatKey(), baseUrl: BOAT_DOCS_URL, fetch: recordingFetch(docsWire, BOAT_DOCS_URL) });
-    await docs.request("GET", "/limits").catch((e: unknown) => {
-      throw new Error(`GET ${BOAT_DOCS_URL}/limits failed: ${boatSaid(docsWire) ?? String(e)}`);
-    });
-    const lost = missingField(docsWire.at(-1)!, BOAT_LIMITS_READS);
-    if (lost !== undefined) throw new Error(`Boat's answer on ${BOAT_DOCS_URL} lost ${lost}: ${shown(docsWire.at(-1)!)}`);
     const s = limits.starts!;
     startsBefore = s.day.used;
-    note("plan", `${limits.accessTier} ${limits.boxPlanKey}, ${limits.activeBoxes} of ${limits.maxActiveBoxes} boxes running, starts left ${s.minute.remaining}/min ${s.hour.remaining}/h ${s.day.remaining}/day`);
+    note("plan", `${limits.accessTier} ${limits.sandboxPlanKey}, ${limits.activeSandboxes} of ${limits.maxActiveSandboxes} boxes running, starts left ${s.minute.remaining}/min ${s.hour.remaining}/h ${s.day.remaining}/day`);
     expect(limits.canStart, `Boat will make no start now: ${limits.startBlockedReason}`).toBe(true);
     expect(Math.min(s.minute.remaining, s.hour.remaining, s.day.remaining), `the canary spends ${STARTS_NEEDED} starts and Boat has fewer left in one window`).toBeGreaterThanOrEqual(STARTS_NEEDED);
   });
@@ -237,40 +228,40 @@ describe.runIf(LIVE)("Boat canary, live", () => {
     replayAtOnce = true;
     const from = wire.length;
     machine = (await step("create", () => backend.create({ kind: "sandbox", fromSnapshot: image, cpu: 2, memMb: 4096, labels: LABELS, idleTimeoutMs: IDLE_MS, idempotencyKey: key }))) as BoxMachine;
-    const creates = wire.slice(from).filter(e => e.method === "POST" && e.path === "/boxes");
+    const creates = wire.slice(from).filter(e => e.method === "POST" && e.path === "/sandboxes");
     const [first, atOnce] = creates;
     sentAt = first!.at;
     const id = machine.id;
-    expect(reply(first!).box?.id).toBe(id);
-    const ready = wire.slice(from).find(e => e.method === "GET" && e.path === `/boxes/${id}` && e.status === 200 && RUNNING.has(reply(e).box?.state ?? ""));
+    expect(reply(first!).sandbox?.id).toBe(id);
+    const ready = wire.slice(from).find(e => e.method === "GET" && e.path === `/sandboxes/${id}` && e.status === 200 && RUNNING.has(reply(e).sandbox?.state ?? ""));
     readyAt = ready!.at + ready!.ms;
     note("create to ready", `${secs(readyAt - sentAt)} (${id}), handed back after the command check and the rename at ${secs(Date.now() - sentAt)}`);
     note("create answered", `${first!.status} status ${reply(first!).status}`);
 
     // A create whose answer was lost is asked again at once: Boat gives the same box or says the first is still minting.
     const atOnceReply = reply(atOnce!);
-    const sameBox = atOnce!.status !== null && atOnce!.status < 300 && atOnceReply.box?.id === id;
+    const sameBox = atOnce!.status !== null && atOnce!.status < 300 && atOnceReply.sandbox?.id === id;
     const stillMinting = atOnce!.status === 409 && atOnceReply.code === "idempotency_in_progress";
     expect(atOnce!.sent, "the replay at once did not carry the first create's bytes").toBe(first!.sent);
     expect(sameBox || stillMinting, `a replay of the create at once got neither the same box nor idempotency_in_progress: ${shown(atOnce!)}`).toBe(true);
     note("replay at once", sameBox ? `${atOnce!.status} status ${atOnceReply.status}, the same box` : "409 idempotency_in_progress");
 
-    const later = await step("replay of the create", () => backend.request<{ status?: string; box: { id: string } }>("POST", "/boxes", { body: JSON.parse(first!.sent!), headers: { "Idempotency-Key": key }, once: true }));
+    const later = await step("replay of the create", () => backend.request<{ status?: string; sandbox: { id: string } }>("POST", "/sandboxes", { body: JSON.parse(first!.sent!), headers: { "Idempotency-Key": key }, once: true }));
     expect(wire.at(-1)!.sent, "the replay after ready did not carry the first create's bytes").toBe(first!.sent);
-    expect(later.box.id, `a replay under ${key} made another box: ${shown(wire.at(-1)!)}`).toBe(id);
+    expect(later.sandbox.id, `a replay under ${key} made another box: ${shown(wire.at(-1)!)}`).toBe(id);
     note("replay after ready", `${wire.at(-1)!.status} status ${later.status}, the same box`);
 
     // A replay is safe only while Boat refuses a changed body under a used key rather than making a second box; a
     // stop timer computed again per call is the change that would trip it.
     const sent = JSON.parse(first!.sent!) as { ttlSeconds: number | null };
     const changed = { ...sent, ttlSeconds: (sent.ttlSeconds ?? 0) + 60 };
-    const refusal = await backend.request("POST", "/boxes", { body: changed, headers: { "Idempotency-Key": key }, once: true }).then(
+    const refusal = await backend.request("POST", "/sandboxes", { body: changed, headers: { "Idempotency-Key": key }, once: true }).then(
       () => undefined,
       (e: unknown) => e as WspError,
     );
     expect(refusal?.code, `a changed body under a used key was not refused idempotency_key_reused: ${shown(wire.at(-1)!)}`).toBe("idempotency_key_reused");
     note("changed body, same key", `${refusal!.status} ${refusal!.code}`);
-    note("hydrated at ready", hydrated(reply(ready!).box));
+    note("hydrated at ready", hydrated(reply(ready!).sandbox));
   }, BOX_CREATE_MS + 2 * MINUTE);
 
   it("lands the environment for the daemon", async () => {
@@ -290,18 +281,18 @@ describe.runIf(LIVE)("Boat canary, live", () => {
 
   it("carries wsp's name and moves the stop timer", async () => {
     const id = box().id;
-    const renamed = wire.some(e => e.method === "PATCH" && e.path === `/boxes/${id}` && e.sent?.includes('"name"'));
+    const renamed = wire.some(e => e.method === "PATCH" && e.path === `/sandboxes/${id}` && e.sent?.includes('"name"'));
     note("rename", renamed ? "sent: Boat named the box after its snapshot, as measured 2026-09-11" : "not needed: Boat named the box as the create asked");
-    const named = await view(["box.name", "box.type", "box.vcpu", "box.memoryGB", "box.createdAt", "box.archiveAfter"]);
+    const named = await view(["sandbox.name", "sandbox.type", "sandbox.vcpu", "sandbox.memoryGB", "sandbox.createdAt", "sandbox.archiveAfter"]);
     expect(named.name, `the box reads a name wsp did not give it: ${shown(wire.at(-1)!)}`).toBe(boxName(LABELS));
-    const listed = await step("GET /boxes", () => backend.list({ [OWNER_LABEL]: OWNER }));
+    const listed = await step("GET /sandboxes", () => backend.list({ [OWNER_LABEL]: OWNER }));
     expect(listed.map(b => b.id), "the listing the sweep reads does not carry the box under its owner").toContain(id);
 
     await step("PATCH ttlSeconds", () => backend.backstop(box(), Date.now() + TIMER_MS));
-    const patch = wire.filter(e => e.method === "PATCH" && e.path === `/boxes/${id}` && e.sent?.includes('"ttlSeconds"')).at(-1);
+    const patch = wire.filter(e => e.method === "PATCH" && e.path === `/sandboxes/${id}` && e.sent?.includes('"ttlSeconds"')).at(-1);
     expect(patch, "the backstop sent no PATCH").toBeDefined();
     expect(patch!.date, `Boat's answer to the PATCH carried no Date header to read the timer against: ${shown(patch!)}`).toBeDefined();
-    const timed = await view(["box.archiveAfter"]);
+    const timed = await view(["sandbox.archiveAfter"]);
     // Read on Boat's own clock, off the PATCH answer's Date header, so a skew between the two computers reads nothing.
     const asked = Date.parse(patch!.date ?? "") + (JSON.parse(patch!.sent!) as { ttlSeconds: number }).ttlSeconds * 1000;
     const off = Date.parse(String(timed.archiveAfter)) - asked;
@@ -321,7 +312,7 @@ describe.runIf(LIVE)("Boat canary, live", () => {
     await step("PUT /files", () => box().putBytes(path, bytes));
     note("PUT /files", `${READ_BYTES} bytes in ${secs(Date.now() - began)}`);
     began = Date.now();
-    const read = await step("GET /files", () => backend.request<{ content: string; encoding: string; size: number }>("GET", `/boxes/${encodeURIComponent(id)}/files?path=${encodeURIComponent(path)}&encoding=base64`));
+    const read = await step("GET /files", () => backend.request<{ content: string; encoding: string; size: number }>("GET", `/sandboxes/${encodeURIComponent(id)}/files?path=${encodeURIComponent(path)}&encoding=base64`));
     note("GET /files", `${read.size} bytes in ${secs(Date.now() - began)}`);
     const sha = (b: Uint8Array): string => createHash("sha256").update(b).digest("hex");
     expect({ encoding: read.encoding, size: read.size, sha: sha(Buffer.from(read.content, "base64")) }).toEqual({ encoding: "base64", size: READ_BYTES, sha: sha(bytes) });

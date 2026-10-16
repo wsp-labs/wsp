@@ -23,18 +23,15 @@ export interface Exchange {
 
 /** The fields wsp reads off each answer, by call: a leaf may be null, its key must be there. `[]` walks an array. */
 export const READS: readonly { method: string; path: RegExp; fields: readonly string[] }[] = [
-  { method: "GET", path: /^\/limits$/, fields: ["accessTier", "maxActiveBoxes", "activeBoxes", "canStart", "startBlockedReason", "boxPlanKey", "creditBalanceHours", ...["minute", "hour", "day"].flatMap(w => ["limit", "used", "remaining"].map(f => `starts.${w}.${f}`))] },
+  { method: "GET", path: /^\/limits$/, fields: ["accessTier", "maxActiveSandboxes", "activeSandboxes", "canStart", "startBlockedReason", "sandboxPlanKey", "creditBalanceHours", ...["minute", "hour", "day"].flatMap(w => ["limit", "used", "remaining"].map(f => `starts.${w}.${f}`))] },
   { method: "GET", path: /^\/named-snapshots$/, fields: ["snapshots[].name", "snapshots[].status", "snapshots[].createdAt"] },
-  { method: "POST", path: /^\/boxes$/, fields: ["status", "box.id"] },
-  { method: "GET", path: /^\/boxes\?/, fields: ["boxes[].id", "boxes[].name", "boxes[].state"] },
-  { method: "GET", path: /^\/boxes\/[^/?]+$/, fields: ["box.id", "box.state"] },
-  { method: "POST", path: /^\/boxes\/[^/]+\/commands$/, fields: ["exitCode", "stdout", "stderr"] },
-  { method: "POST", path: /^\/boxes\/[^/]+\/host$/, fields: ["url"] },
-  { method: "GET", path: /^\/boxes\/[^/]+\/files\?/, fields: ["content", "encoding", "size"] },
+  { method: "POST", path: /^\/sandboxes$/, fields: ["status", "sandbox.id"] },
+  { method: "GET", path: /^\/sandboxes\?/, fields: ["sandboxes[].id", "sandboxes[].name", "sandboxes[].state"] },
+  { method: "GET", path: /^\/sandboxes\/[^/?]+$/, fields: ["sandbox.id", "sandbox.state"] },
+  { method: "POST", path: /^\/sandboxes\/[^/]+\/commands$/, fields: ["exitCode", "stdout", "stderr"] },
+  { method: "POST", path: /^\/sandboxes\/[^/]+\/host$/, fields: ["url"] },
+  { method: "GET", path: /^\/sandboxes\/[^/]+\/files\?/, fields: ["content", "encoding", "size"] },
 ];
-
-/** Boat's own documented base answers /limits under its new words; the canary fails when either base drops its own. */
-export const BOAT_LIMITS_READS: readonly string[] = ["maxActiveSandboxes", "activeSandboxes"];
 
 /** A fetch that records every call through it and hands the answer on unchanged. */
 export function recordingFetch(wire: Exchange[], baseUrl: string, base: Fetch = globalThis.fetch): Fetch {

@@ -28,10 +28,8 @@ not a flake to rerun.
 `packages/engine/test/box.live.test.ts` drives wsp's own `BoxBackend`
 through a fetch that records every call, in order:
 
-- `GET /limits` on wsp's base (`ascii.dev/api/box/v1`) and on Boat's
-  documented one (`boat.dev/api/v1`), which name the same counts `activeBoxes`
-  and `activeSandboxes`; it fails when either drops its own.
-- `GET /named-snapshots`, then the create from the image (`POST /boxes` with
+- `GET /limits` on Boat's base (`boat.dev/api/v1`).
+- `GET /named-snapshots`, then the create from the image (`POST /sandboxes` with
   `type`, `ttlSeconds`, `noEnv`, `name`, `from` and an `Idempotency-Key`). The
   same request is sent again the moment the first answers, as a lost answer
   is, and once more after the box is ready, with the same bytes: both must

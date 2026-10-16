@@ -52,10 +52,6 @@ async function read(base: string, path: string, key: string, post?: object): Pro
   }
 }
 
-/** An action as the dashboard a person gives the key its actions on spells it: ascii.dev's base says box.* for
- * sandbox.*. */
-const dashboardAction = (action: string): string => action.replace(/^box\./, "sandbox.");
-
 /** The envelope's code, message and the action a 403 names, at the top or under `error.details`. */
 function envelope(body: Record<string, unknown>): { code?: string; message?: string; action?: string } {
   const error = (body["error"] ?? {}) as Record<string, unknown>;
@@ -64,8 +60,7 @@ function envelope(body: Record<string, unknown>): { code?: string; message?: str
   const code = text(body["code"]) ?? text(error["code"]);
   const message = text(body["message"]) ?? text(error["message"]);
   const named = text(details["action"]) ?? /cannot perform ([\w*-]+(?:\.[\w*-]+)*)/.exec(message ?? "")?.[1];
-  const action = named === undefined ? undefined : dashboardAction(named);
-  return { ...(code === undefined ? {} : { code }), ...(message === undefined ? {} : { message }), ...(action === undefined ? {} : { action }) };
+  return { ...(code === undefined ? {} : { code }), ...(message === undefined ? {} : { message }), ...(named === undefined ? {} : { action: named }) };
 }
 
 /** The one refusal a set of answers reads as: a key Boat does not know before a key that expired, before an action it
@@ -92,7 +87,7 @@ function lateMissing(probes: readonly Answer[], keys: Answer, key: string): stri
   const refusedTo = probes.flatMap(a => (a.status === 403 ? [envelope(a.body)] : [])).filter(e => e.code === "api_key_action_forbidden").flatMap(e => (e.action === undefined ? [] : [e.action]));
   const rows = (keys.status === 200 && Array.isArray(keys.body["apiKeys"]) ? keys.body["apiKeys"] : []) as { keyPrefix?: unknown; keyLastFour?: unknown; scope?: { actions?: unknown } }[];
   const own = rows.find(r => typeof r.keyPrefix === "string" && typeof r.keyLastFour === "string" && key.startsWith(r.keyPrefix) && key.endsWith(r.keyLastFour));
-  const held = Array.isArray(own?.scope?.actions) ? (own.scope.actions as unknown[]).filter((a): a is string => typeof a === "string").map(dashboardAction) : undefined;
+  const held = Array.isArray(own?.scope?.actions) ? (own.scope.actions as unknown[]).filter((a): a is string => typeof a === "string") : undefined;
   const ownLacks = held === undefined || held.includes("*") ? [] : LATE_ACTIONS.filter(a => !held.includes(a));
   return LATE_ACTIONS.filter(a => refusedTo.includes(a) || ownLacks.includes(a));
 }
@@ -101,14 +96,14 @@ function lateMissing(probes: readonly Answer[], keys: Answer, key: string): stri
 export const planWords = (limits: Pick<BoxLimits, "trial" | "planUsd">): string => (limits.trial ? "trial" : limits.planUsd === undefined ? "paid plan" : `$${limits.planUsd} plan`);
 
 /** Boat's check, read at once: the account (`GET /me`), the plan and machines (`GET /limits`), one page of machines
- * (`GET /boxes`), a resume of a box that does not exist, and the key's own row (`GET /api-keys`). Throws the
+ * (`GET /sandboxes`), a resume of a box that does not exist, and the key's own row (`GET /api-keys`). Throws the
  * refusal; answers the key's facts and its limits for the line `wsp add` prints. */
 export async function boatKeyCheck(key: string, name = "Boat", base = BOX_API_URL): Promise<{ works: ProviderKeyWorks; limits: BoxLimits }> {
   const [me, limitsRead, boxes, resume, keys] = await Promise.all([
     read(base, "/me", key),
     read(base, "/limits", key),
-    read(base, "/boxes?limit=1", key),
-    read(base, `/boxes/${NO_BOX}/resume`, key, {}),
+    read(base, "/sandboxes?limit=1", key),
+    read(base, `/sandboxes/${NO_BOX}/resume`, key, {}),
     read(base, "/api-keys", key),
   ]);
   const refused = refusedBy([me, limitsRead, boxes], name);
