@@ -23,6 +23,7 @@ import { localWiring } from "../src/cli.js";
 import { buildBesideHost, type DoorClient } from "../src/init-beside.js";
 import { envFileFor, writeEnvFile } from "../src/env-keys.js";
 import { InitJobs, type InitJobDeps } from "../src/init-job.js";
+import { upgradeSentence } from "../src/init-upgrade.js";
 import type { InitIO } from "../src/init.js";
 import { loadRecipe, saveSmallRecipe, smallRecipePath } from "../src/recipe-file.js";
 import { workspaceRoads } from "../src/server.js";
@@ -1927,5 +1928,44 @@ describe("the init job, terminal road", () => {
     expect(updated).toMatch(/Delete image v2, [\d.]+ GB, .*\? v4 and v3 stay\..* Taken as yes \(--yes\)\./);
     expect(updated).toContain("Deleted image v2.");
     expect(f.backend.snapshots.map(r => r.id.replace(/^.*-default-/, ""))).toEqual(["v3", "v4"]);
+  });
+
+  it("a terminal beside the host prints the update road's own lines: an image that already matches, and the changes it applies", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    const said: string[] = [];
+    for (const n of [1, 2, 3]) {
+      if (n === 3) writeFileSync(join(f.home, ".zshrc"), "export A=3\n");
+      const run = besideRun(f.jobs);
+      expect(await run.code, run.text()).toBe(0);
+      said.push(run.text());
+    }
+    const [same, changed] = [said[1]!, said[2]!];
+    expect(same).toContain("Image v1 already matches this recipe. Nothing to update.");
+    expect(same).not.toContain("run wsp to serve it");
+    expect(changed).toContain("Changes since image v1\n│  Builds version 2 on top of version 1: 1 file updated\n│  update 1 file: ~/.zshrc");
+    expect(changed).not.toContain("already matches");
+    expect(changed).toContain("Updating your image. Taken as the default (--yes).");
+    expect(changed).toContain(upgradeSentence(1, 2));
+    expect(changed.indexOf("Changes since image v1")).toBeLessThan(changed.indexOf("Creating the machine"));
+    expect(changed).toContain("Image v2 sealed on the host serving this state.");
+    expect(changed).toMatch(/The builder stays up \(about \$[\d.]+\/h, one of the account's machine slots\) until wsp init updates on it again, wsp stops it ten minutes after the save while wsp serves/);
+    expect(changed).not.toContain("Run wsp to serve");
+  });
+
+  it("a terminal beside the host prints the update road's last line when the update fails, before the build's own failed line", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    const sealed = besideRun(f.jobs);
+    expect(await sealed.code, sealed.text()).toBe(0);
+    writeFileSync(join(f.home, ".zshrc"), "export A=3\n");
+    const guest = f.backend.execImpl;
+    f.backend.execImpl = (m, cmd) => (m.spec.labels?.[SMOKE_LABEL] === "1" ? { exitCode: 1, stdout: "", stderr: "the fork did not boot" } : guest(m, cmd));
+    const run = besideRun(f.jobs);
+    expect(await run.code, run.text()).toBe(1);
+    await f.settled();
+    const said = run.text();
+    expect(said).toContain("Image v1 is unchanged. Run wsp init again to retry, or pick the rebuild.");
+    expect(said.indexOf("Image v1 is unchanged")).toBeLessThan(said.indexOf(CLOUD_SETUP_WORDS.build.failed));
   });
 });
