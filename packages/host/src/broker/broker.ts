@@ -347,7 +347,8 @@ export function createBroker(o: BrokerOptions): Broker {
     res.assignSocket(socket as Parameters<ServerResponse["assignSocket"]>[0]);
     p.sniff = true;
     socket.on("close", () => line.done(res.headersSent ? res.statusCode : (p.rawStatus ?? 0)));
-    res.on("finish", () => socket.end());
+    // An ended pipe's ws stream emits no close until something destroys it (measured on ws 8.21), and the line waits on that close.
+    res.on("finish", () => socket.destroy());
     void (async () => {
       const admitted = await admit(req, res, p, line);
       if (admitted === undefined) return;
@@ -372,7 +373,7 @@ export function createBroker(o: BrokerOptions): Broker {
     const shape = shapeOf(req, p.door);
     dropCallerAuth(req);
     writeRefusal(res, 403, isOff(p.workspaceId) ? REVOKED_SAID : CONNECT_SAID, shape);
-    res.on("finish", () => socket.end());
+    res.on("finish", () => socket.destroy());
   });
 
   return {

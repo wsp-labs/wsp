@@ -11,8 +11,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { brokerCredentials, GITHUB_CACHE_MS, type RunCommand } from "../src/broker/credentials.js";
 import { brokerLogFile, cleanLine, LOG_KEEP_MS } from "../src/broker/log.js";
 import type { AnthropicCredential, BrokerLogLine, BrokerService } from "../src/broker/types.js";
+import { responseOn } from "../src/chatgpt/forward.js";
 import { tokenShaped } from "../src/token-shapes.js";
-import { CLAUDE, OP, REAL, TERMINAL, TURN, WS, placeholderJwt, proxyLogin, rig, type Rig } from "./broker-fixture.js";
+import { CLAUDE, OP, REAL, TERMINAL, TURN, WS, pipePair, placeholderJwt, proxyLogin, rig, type Rig } from "./broker-fixture.js";
 
 let r: Rig | undefined;
 const dirs: string[] = [];
@@ -29,7 +30,83 @@ const readLog = (dir: string): { text: string; lines: BrokerLogLine[] } => {
   return { text, lines: text.split("\n").filter(Boolean).map(l => JSON.parse(l) as BrokerLogLine) };
 };
 
+const UPGRADE = "Connection: Upgrade\r\nUpgrade: websocket\r\n";
+
+/** Writes one request head on a fresh pipe and never ends its own side, as a machine's client waiting on an answer
+ * does. Answers the status it read, how long until the pipe closed (nothing past `waitMs`) and the log then. */
+async function held(r: Rig, head: string, waitMs: number): Promise<{ status: number; closedMs?: number; lines: BrokerLogLine[] }> {
+  const [host, client] = pipePair();
+  const started = Date.now();
+  const closed = new Promise<number>(resolve => host.once("close", () => resolve(Date.now() - started)));
+  r.broker.take(WS, { op: "pipe.open", door: "http", heldMs: 0 }, host);
+  let seen = "";
+  const status = new Promise<number>(resolve =>
+    client.on("data", (d: Buffer) => {
+      seen += d.toString("latin1");
+      const got = /^HTTP\/1\.1 (\d{3})/.exec(seen)?.[1];
+      if (got !== undefined) resolve(Number(got));
+    }),
+  );
+  client.write(head);
+  try {
+    const timer = new Promise<undefined>(resolve => setTimeout(resolve, waitMs));
+    const [answered, closedMs] = await Promise.all([Promise.race([status, timer]), Promise.race([closed, timer])]);
+    return { status: answered ?? 0, ...(closedMs !== undefined ? { closedMs } : {}), lines: readLog(r.logDir).lines };
+  } finally {
+    client.destroy();
+  }
+}
+
 describe("the log", () => {
+  it("writes a refused call's line when it is refused and closes its pipe then, however long the machine waits", async () => {
+    const signedOut: BrokerService = {
+      id: "chatgpt",
+      claims: (_req, door) => door === "http",
+      serve: async ({ res }) => void res.end(),
+      upgrade: async (q, socket, _head, ctx) => ctx.refuse(responseOn(q.req, socket), 403, "wsp: signed out.", "openai"),
+    };
+    r = await rig();
+    const service = await rig({ services: [signedOut] });
+    try {
+      const threadless = await held(r, `GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\n${UPGRADE}\r\n`, 1_000);
+      const connect = await held(r, "CONNECT api.example.com:443 HTTP/1.1\r\nHost: api.example.com:443\r\n\r\n", 1_000);
+      const refused = await held(service, `GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\nAuthorization: Bearer ${placeholderJwt(TURN)}\r\n${UPGRADE}\r\n`, 1_000);
+      expect([threadless.status, threadless.closedMs !== undefined]).toEqual([403, true]);
+      expect(threadless.lines.map(l => [l.method, l.path, l.status])).toEqual([["GET", "/backend-api/codex/responses", 403]]);
+      expect([connect.status, connect.closedMs !== undefined]).toEqual([403, true]);
+      expect(connect.lines.map(l => [l.method, l.status])).toEqual([["GET", 403], ["CONNECT", 403]]);
+      expect([refused.status, refused.closedMs !== undefined]).toEqual([403, true]);
+      expect(refused.lines.map(l => [l.token, l.service, l.status])).toEqual([["turn", "chatgpt", 403]]);
+    } finally {
+      await service.close();
+    }
+  });
+
+  it("keeps an answered call's whole time in its line, an upgrade's until its connection closes", async () => {
+    const slow: BrokerService = {
+      id: "anthropic",
+      claims: (_req, door) => door === "http",
+      async serve({ res }) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        res.writeHead(200, { "content-length": "2" }).end("ok");
+      },
+    };
+    r = await rig();
+    const answered = await rig({ services: [slow] });
+    try {
+      await answered.call({ method: "POST", path: "/v1/messages", headers: { ...CLAUDE, "x-api-key": TURN }, body: "{}" });
+      const [line] = readLog(answered.logDir).lines;
+      expect([line?.status, line!.ms >= 190]).toEqual([200, true]);
+
+      const upgraded = await held(r, `GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\nAuthorization: Bearer ${placeholderJwt(TURN)}\r\n${UPGRADE}\r\n`, 300);
+      expect([upgraded.status, upgraded.closedMs, upgraded.lines]).toEqual([101, undefined, []]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const [open] = readLog(r.logDir).lines;
+      expect([open?.service, open?.status, open!.ms >= 290]).toEqual(["chatgpt", 101, true]);
+    } finally {
+      await answered.close();
+    }
+  });
   it("keeps one line per call with every field the policy names and no body, query, header value or credential", async () => {
     const pushing: BrokerService = {
       id: "git",
