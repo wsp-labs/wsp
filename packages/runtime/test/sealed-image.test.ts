@@ -617,6 +617,19 @@ describe("a version's sign-ins live as long as the version and no longer", () =>
     expect(((await store.get("images", "default")) as SealedImage).version).toBe(2);
     await rt.close();
   });
+
+  it("retention reads every place this host has that holds a copy, the image's own first, and none it no longer has", async () => {
+    const store = memoryStore();
+    const backend = stubBackend();
+    const spoo = stubBackend();
+    const boat = stubBackend();
+    const head = { head: 1, versions: [{ version: 1, snapshotId: "snap_v1", baseTemplate: "base", setupSha: "sha1", createdAt: "2026-08-11T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 } }] };
+    for (const place of ["default", "spoo", "boat", "gone"]) await store.put("goldens", copyKey(place, "default"), head);
+    await recorded(store, { tar: tarOf([]), place: "spoo" });
+    const rt = createRuntime({ backend, store, adapters: {}, hostId: "box:h1", places: { wired: "default", backend: p => ({ default: backend, spoo, boat })[p], list: () => ["default", "spoo", "boat"] } });
+    expect(await rt.golden.retentionPlaces()).toEqual(["spoo", "default", "boat"]);
+    await rt.close();
+  });
 });
 
 describe("the image over the protocol", () => {

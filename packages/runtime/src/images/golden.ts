@@ -54,7 +54,9 @@ import { PlaceForksNowhereError } from "../places.js";
 import type { Runtime, OrphansDeleted } from "../types/api.js";
 import {
   PROJECT_GOLDENS,
+  GOLDENS,
   copyKey,
+  copyKeyParts,
   BUILDERS,
   HELD_TTL_MS,
   type LiveBuilder,
@@ -527,7 +529,14 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       await ctx.ready();
       const key = name ?? "default";
       const own = await ctx.imagePlace(key);
-      return own === places.wired || (await ctx.copyOf(places.wired, key)) === undefined ? [own] : [own, places.wired];
+      const held = new Set<string>();
+      for (const stored of await store.keys(GOLDENS)) {
+        const parts = copyKeyParts(stored);
+        if (parts.name === key) held.add(parts.place ?? places.wired);
+      }
+      // A copy filed at a provider this host has since removed has no backend to list or delete it with.
+      const others = [...held].filter(p => p !== own && p !== places.wired && (places.backend(p) ?? placeDoor?.backendOf(p)) !== undefined).sort();
+      return [own, ...(own !== places.wired && held.has(places.wired) ? [places.wired] : []), ...others];
     },
 
     async retention(name, asked) {
