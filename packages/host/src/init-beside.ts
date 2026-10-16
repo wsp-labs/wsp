@@ -7,7 +7,7 @@
 // Nothing here reads a key or the provider: the host owns both.
 import { log } from "@clack/prompts";
 import { styleText } from "node:util";
-import { CLOUD_SETUP_WORDS, InitJob, subThreadsOnly, SIGN_IN_OPEN_STATE, fmtDuration, initJobOver, initRowOver, initRowUnrun, INIT_ROW_STATES, type InitRow } from "@wsp/protocol";
+import { CLOUD_SETUP_WORDS, InitJob, subThreadsOnly, SIGN_IN_OPEN_STATE, fmtDuration, initJobOver, initRowFailed, initRowOver, initRowUnrun, INIT_ROW_STATES, type InitRow } from "@wsp/protocol";
 import { appUrl, subThreadsReady } from "./init-first.js";
 import { textPrompt } from "./init-layout.js";
 import { openApp, type ServedAt } from "./init-serve.js";
@@ -43,11 +43,14 @@ export interface BesideOptions {
   app?: { at: ServedAt; runDir: string; interactive: boolean };
 }
 
-/** A row's state as one line under the terminal's own glyphs: the label, what the row said and how long it took. */
+/** A row's state as one line under the terminal's own glyphs: the label, what the row said, how long it took, and
+ * the state word where the glyph alone would read as work done: a sign-in's outcome, as the setup sheet prints it,
+ * and a row that ended with nothing run. */
 function rowLine(row: InitRow): string {
   const detail = row.detail === undefined || row.detail === "" ? "" : `  ${dim(row.detail)}`;
   const took = row.ms === undefined ? "" : `  ${dim(fmtDuration(row.ms))}`;
-  return `${row.label}${detail}${took}`;
+  const word = row.kind === "sign-in" || initRowUnrun(row.state) ? `  ${dim(row.state)}` : "";
+  return `${row.label}${detail}${took}${word}`;
 }
 
 /** The states a row sits in while it waits on something this run cannot hurry. */
@@ -94,8 +97,8 @@ export async function buildBesideHost(o: BesideOptions): Promise<number> {
         continue;
       }
       if (!initRowOver(row)) continue;
-      if (row.state === INIT_ROW_STATES.failed) log.error(rowLine(row), out);
-      else if (initRowUnrun(row.state)) log.warn(`${rowLine(row)}  ${dim(row.state)}`, out);
+      if (initRowFailed(row)) log.error(rowLine(row), out);
+      else if (initRowUnrun(row.state)) log.warn(rowLine(row), out);
       else log.step(rowLine(row), out);
     }
   };
