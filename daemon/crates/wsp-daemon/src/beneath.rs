@@ -87,11 +87,17 @@ pub(crate) fn read_capped(path: &Path, cap: u64) -> Result<Option<Vec<u8>>, Stri
         Err(Errno::ENOENT | Errno::ENOTDIR) => return Ok(None),
         Err(e) => return Err(format!("{}: {e}", folder.display())),
     };
-    let Some(file) = file(&held, name).map_err(|e| format!("{}: {e}", folder.display()))? else { return Ok(None) };
+    read_capped_in(&held, name, cap).map_err(|e| format!("{}: {e}", folder.display()))
+}
+
+/// A plain file's bytes under a held folder, no further than the cap, the name opened through `file()`. None where
+/// nothing or a folder stands there.
+pub(crate) fn read_capped_in(at: &OwnedFd, name: &str, cap: u64) -> Result<Option<Vec<u8>>, String> {
+    let Some(file) = file(at, name)? else { return Ok(None) };
     let mut bytes = Vec::new();
-    file.take(cap + 1).read_to_end(&mut bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    file.take(cap + 1).read_to_end(&mut bytes).map_err(|e| format!("{name}: {e}"))?;
     if bytes.len() as u64 > cap {
-        return Err(format!("{} is past {cap} bytes", path.display()));
+        return Err(format!("{name} is past {cap} bytes"));
     }
     Ok(Some(bytes))
 }
