@@ -109,8 +109,8 @@ export type Capabilities = z.infer<typeof Capabilities>;
 
 /** Where a workspace of one project would land: the row it stands on where that is a computer this host holds, the
  * computer's name as the runtime words it, and what that computer offers. The reply of workspaces.landing, read
- * ahead of a create by the command line and by every row of that project in the app, which takes its words about a
- * copy's ports and its state word's pause mode off these flags. */
+ * ahead of a create by the command line and by the app's new thread page. A workspace that stands already reads its
+ * pause mode off its own view, since a sub-thread on another cloud does not land where its project does. */
 export const WorkspaceLanding = z.object({ place: z.string().optional(), name: z.string(), capabilities: Capabilities, kind: WorkspaceKind.optional() });
 export type WorkspaceLanding = z.infer<typeof WorkspaceLanding>;
 

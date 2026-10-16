@@ -665,9 +665,9 @@ export const FORGET_NEEDS_GONE = "Only a workspace whose computer is gone can be
  * own road in the second half, which is all that differs between them. The command line and the app refuse a
  * rebuild through this same sentence off the same state, so the terminal and the row can no longer say two things
  * about one workspace. Two halves as every refusal here has them: what is so, then when the road is there to take. */
-export function goneRoadRefusal(state: WorkspaceState, road: "rebuild" | "forget"): string {
+export function goneRoadRefusal(state: WorkspaceState, road: "rebuild" | "forget", pauseMode?: PauseMode): string {
   if (state === "unreachable") return notAnsweringYet(road);
-  const word = workspaceWord(state).toLowerCase();
+  const word = workspaceWord(state, pauseMode).toLowerCase();
   return road === "rebuild" ? `This one is ${word}, so nothing needs rebuilding; the rebuild is offered once a workspace is gone` : `${FORGET_NEEDS_GONE}; this one is ${word}`;
 }
 

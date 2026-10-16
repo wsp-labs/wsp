@@ -23,7 +23,7 @@ import type { LegendListRef } from "@legendapp/list/react";
 import { HERE_PLACE_ID, threadKeyOf, USAGE_WORDS, WAKE_ACT, copiesFolder, FORK_BRANCH_DAEMON_VERSION, foldThreads, folderOnJoined, modelOf, modelPicks, workspaceKind, workspaceWord } from "@wsp/protocol";
 import { agentName } from "@wsp/catalog";
 import { Button } from "../ui/button";
-import { useCapabilities, useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
+import { useHarnessCatalog, usePlaces, useSidebarProjects, useStore, useThreadSessions, useWorkspace, useWorkspaceState } from "../../protocol/store";
 import { childNodesOf, TreeRows } from "../../tree/TreeRows.js";
 import { Facts } from "../Facts.js";
 import { useMachineLine } from "../../notices/workspaceLines.js";
@@ -174,7 +174,6 @@ export function ChatView({
   // A Working thread on a workspace that is not running is a contradiction: the row says what it waits for instead,
   // naming the workspace and, while it wakes, where it runs, since that is what the send is waiting on.
   const state = useWorkspaceState(workspaceId);
-  const capabilities = useCapabilities();
   const where = useComputerName(workspaceId);
   const runs = useMemo(() => ({ name: workspace?.name ?? workspaceId, where }), [workspace, workspaceId, where]);
   const machineWait = useMemo<MachineWait | null>(() => {
@@ -185,7 +184,7 @@ export function ChatView({
   // Nothing is running and the workspace is paused, which is no fault: a machine naps when its work is done. One quiet
   // word under the transcript in the timeline's own rule grammar, with the wake beside it, never a dialog.
   // A sub-machine's nap is its delete timer's, with no Wake of its own: the line above the composer says what holds it.
-  const paused = state === "paused" && !working && sub === undefined ? workspaceWord(state, capabilities?.pauseMode) : null;
+  const paused = state === "paused" && !working && sub === undefined ? workspaceWord(state, workspace?.pauseMode) : null;
   const { startNewThread, hydrated, threadKey } = thread;
   // A reply's shell blocks run in the thread the view holds, in its folder: the one its start named, else the
   // workspace's thread folder, as a file named in the transcript opens. Neither known, or no thread yet, offers no Run.

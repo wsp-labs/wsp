@@ -21,10 +21,10 @@ export interface PanelOver extends Partial<Omit<AgentsPanelProps, "read">> {
 }
 
 /** The panel as a host draws it: spoo's rows for a task there unless the test says otherwise. */
-export function panelOf({ report = AGENTS_REPORT, reading = false, error = null, readAt = READ_AT, refresh = () => {}, on = { name: "spoo" }, ctx = { where: "box" }, now = NOW }: PanelOver = {}) {
+export function panelOf({ report = AGENTS_REPORT, reading = false, error = null, readAt = READ_AT, refresh = () => {}, on = { name: "spoo" }, ctx = { where: "box" }, now = NOW, pauseMode }: PanelOver = {}) {
   return (
     <TooltipProvider>
-      <AgentsPanel on={on} read={{ report, reading, error, readAt, refresh }} ctx={ctx} now={now} />
+      <AgentsPanel on={on} read={{ report, reading, error, readAt, refresh }} ctx={ctx} now={now} {...(pauseMode === undefined ? {} : { pauseMode })} />
     </TooltipProvider>
   );
 }

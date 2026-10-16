@@ -4,7 +4,7 @@
 // page, and the acts a row can raise. A page is a plain function of this, so
 // the search can walk every group's rows with one call each and the sidebar
 // can dim a group with no match.
-import type { AccountView, HarnessCatalog, PendingComputer, PlaceView, Preferences, PreferencesPatch, ProjectView, ReleaseView, SessionView, WorkspaceLanding, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
+import type { AccountView, HarnessCatalog, PendingComputer, PlaceView, Preferences, PreferencesPatch, ProjectView, ReleaseView, SessionView, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
 import { useNowMinute } from "../hooks/useNowMinute.js";
 import { isDesktopShell } from "../lib/desktopShell.js";
 import type { Api } from "../protocol/client.js";
@@ -34,7 +34,6 @@ export interface SettingsContext {
   readonly workspaces: ReadonlyArray<WorkspaceView>;
   readonly sessions: Readonly<Record<string, SessionView[]>>;
   readonly statuses: Readonly<Record<string, WorkspaceStatus>>;
-  readonly landings: Readonly<Record<string, WorkspaceLanding | null>>;
   readonly reads: SettingsReads;
   readonly now: number;
   readonly shell: { readonly inShell: boolean; readonly app: string | undefined; readonly host: string | undefined };
@@ -73,7 +72,6 @@ export function useSettingsContext(): SettingsContext {
   const workspaces = useStore(s => s.workspaces);
   const sessions = useStore(s => s.sessions);
   const statuses = useStore(s => s.statuses);
-  const landings = useStore(s => s.landings);
   const api = useStore(s => s.api);
   const release = useStore(s => s.release);
   const reads = useSettingsStore(s => s.reads);
@@ -92,7 +90,6 @@ export function useSettingsContext(): SettingsContext {
     workspaces,
     sessions,
     statuses,
-    landings,
     reads,
     now,
     shell: shellVersions(),

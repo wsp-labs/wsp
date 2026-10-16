@@ -773,17 +773,25 @@ const PANE_WS: WorkspaceView = { id: WS, name: "api", machineId: "m1", project: 
 function paneStatus(over: Partial<WorkspaceStatus>): WorkspaceStatus {
   return { ...PANE_WS, machineState: "running", reach: { state: "reachable" }, size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.11, ...over };
 }
+/** The record the pane's workspace carries beside its phase: its own computer's pause mode, and whose sub-thread it is. */
+let paneRecord: Partial<WorkspaceView> = {};
 function setPane(phase: WorkspaceView["phase"], status: Partial<WorkspaceStatus>, wakes: string[] = []): void {
-  const api = { subscribe: () => () => {}, wake: async (id: string) => { wakes.push(id); return { ...PANE_WS, phase: "running" as const }; } } as unknown as Api;
-  useStore.setState({ api, workspaces: [{ ...PANE_WS, phase }], statuses: { [WS]: paneStatus({ ...status, phase }) } });
+  const api = { subscribe: () => () => {}, wake: async (id: string) => { wakes.push(id); return { ...PANE_WS, ...paneRecord, phase: "running" as const }; } } as unknown as Api;
+  useStore.setState({ api, workspaces: [{ ...PANE_WS, ...paneRecord, phase }], statuses: { [WS]: paneStatus({ ...paneRecord, ...status, phase }) } });
 }
 const overlay = () => document.querySelector<HTMLElement>("[data-terminal-overlay]");
 const hints = () => Array.from(overlay()?.querySelectorAll<HTMLElement>("[data-terminal-hint]") ?? []).map(p => p.textContent);
 
 describe("panes on a workspace that is not running", () => {
-  // The project lands on a provider that keeps a paused machine's memory unless a test names another: the one nap a shell survives.
-  beforeEach(() => useStore.setState({ capabilities: caps(), landings: { [PANE_WS.project.id]: { name: "Solari", capabilities: caps() } } }));
-  afterEach(() => useStore.setState({ api: null, workspaces: [], statuses: {}, capabilities: null, landings: {} }));
+  // The machine stands on a provider that keeps a paused machine's memory unless a test names another: the one nap a shell survives.
+  beforeEach(() => {
+    paneRecord = { pauseMode: "memory" };
+    useStore.setState({ capabilities: caps() });
+  });
+  afterEach(() => {
+    paneRecord = {};
+    useStore.setState({ api: null, workspaces: [], statuses: {}, capabilities: null, landings: {} });
+  });
 
   it("a paused workspace dims the frozen frame, refuses keys with the reason, and its Wake calls the wake op; on wake the same pty continues", async () => {
     const { wt, writes, count } = fakeLink();
@@ -829,7 +837,7 @@ describe("panes on a workspace that is not running", () => {
   it("on a cloud whose nap ends every process, the stopping, stopped and waking words promise no kept shell", async () => {
     fakeLink();
     const wakes: string[] = [];
-    useStore.setState({ landings: { [PANE_WS.project.id]: { name: "Boat", capabilities: caps({ pauseMode: "disk" }) } } });
+    paneRecord = { pauseMode: "disk" };
     setPane("running", {}, wakes);
     useTerminalDrawerStore.getState().setOpen(WS, true);
     render(<WorkspaceTerminalDrawer workspaceId={WS} />);
@@ -857,11 +865,12 @@ describe("panes on a workspace that is not running", () => {
     }
   }, 20_000);
 
-  it("reads the nap off the computer the project lands on, as its sidebar row does, never off the host's own provider", async () => {
+  it("reads the nap off the workspace's own computer: a Boat sub-thread of a project on a cloud that keeps the memory says its shell ended", async () => {
     fakeLink();
     const wakes: string[] = [];
-    // A host forking on a provider that keeps the memory, with this project on a computer whose nap ends every process.
-    useStore.setState({ capabilities: caps(), landings: { [PANE_WS.project.id]: { name: "Boat", capabilities: caps({ pauseMode: "disk" }) } } });
+    // A host forking on a provider that keeps the memory, the project landing there, and this sub-thread's machine on Boat.
+    useStore.setState({ capabilities: caps(), landings: { [PANE_WS.project.id]: { name: "Solari", capabilities: caps() } } });
+    paneRecord = { parentThreadId: "thr_lead", rootThreadId: "thr_lead", place: "box", provider: "box", pauseMode: "disk" };
     setPane("running", {}, wakes);
     useTerminalDrawerStore.getState().setOpen(WS, true);
     render(<WorkspaceTerminalDrawer workspaceId={WS} />);
@@ -869,9 +878,13 @@ describe("panes on a workspace that is not running", () => {
     act(() => setPane("napping", { machineState: "paused", reach: { state: "napping" } }, wakes));
     await waitFor(() => expect(overlay()?.dataset["terminalOverlay"]).toBe("paused"));
     expect(overlay()!.textContent).toContain("Stopped. The shell ended with the stop");
-    // A host that forks on none, the dev host and every public build, with this project on a provider that keeps the memory.
+    // A host that forks on none, the dev host and every public build, with the machine on a provider that keeps the memory.
     const { pauseMode: _none, ...forksOnNone } = caps();
-    act(() => useStore.setState({ capabilities: forksOnNone, landings: { [PANE_WS.project.id]: { name: "Solari", capabilities: caps() } } }));
+    paneRecord = { pauseMode: "memory" };
+    act(() => {
+      useStore.setState({ capabilities: forksOnNone, landings: {} });
+      setPane("napping", { machineState: "paused", reach: { state: "napping" } }, wakes);
+    });
     await waitFor(() => expect(overlay()!.textContent).toContain("Paused. The shell is kept"));
   }, 20_000);
 

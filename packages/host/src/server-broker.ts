@@ -129,12 +129,13 @@ function grantOf(who: Awaited<ReturnType<RuntimeServer["authorize"]>>): Grant | 
 }
 
 /** A service whose refusals are also written into the calling thread: an agent may not print a refusal's body, so the
- * sentence is a row there too, once per turn. */
+ * sentence is a row there too, once per turn. A refusal to a caller already gone writes no row: a service cuts its
+ * upstream when its caller leaves and reads the cut as unreachable, as when Codex's process ends mid-poll. */
 function withRows(service: BrokerService, row: (grant: Grant, said: string) => void): BrokerService {
   const told = (grant: Grant, ctx: BrokerContext): BrokerContext => ({
     ...ctx,
     refuse: (res, status, said, shape) => {
-      row(grant, said);
+      if (!res.destroyed) row(grant, said);
       ctx.refuse(res, status, said, shape);
     },
   });

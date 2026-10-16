@@ -21,6 +21,7 @@ import { writeStub } from "../../protocol/test/stub-script.js";
 import { createOn, fakeLocal, stubBackend, tokenGuest, type StubBackend, type StubMachine } from "../../runtime/test/stub-backend.js";
 import { WsClient } from "../../runtime/test/ws-client.js";
 import { anthropicService } from "../src/anthropic/service.js";
+import { chatgptService } from "../src/chatgpt/service.js";
 import { DEAD_TOKEN_SAID, REVOKED_SAID, UNHELD_SAID } from "../src/broker/refuse.js";
 import type { BrokerService } from "../src/broker/types.js";
 import { brokerLogDir, hostBroker, type HostBroker } from "../src/server-broker.js";
@@ -29,6 +30,7 @@ import { startHost, type HostHandle } from "../src/server.js";
 // Built at run time so no literal in the tree looks like a live key to a scanner.
 const REAL_KEY = ["sk", "ant", "api03", `fake${"0".repeat(28)}fake`].join("-");
 const VAULT = { ANTHROPIC_API_KEY: REAL_KEY };
+const CODEX_CLAIMS = { accountId: "acct-acme", planType: "plus" };
 /** Over the five seconds a hold must pass to be written into the thread. */
 const HELD_MS = 6_000;
 
@@ -111,6 +113,10 @@ async function standInDaemon(): Promise<{ url: string; parked: WebSocket[]; door
         final(done) {
           ws.close();
           done();
+        },
+        destroy(err, done) {
+          ws.close();
+          done(err);
         },
       });
       local.on("error", () => undefined);
@@ -217,7 +223,33 @@ function claudeTurns(daemon: Daemon): { factory: HarnessAdapterFactory; turns: T
   return { factory, turns };
 }
 
-async function served(o: { gh?: string } = {}): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
+/** A Codex stand-in whose brokered turn polls ChatGPT's plugin list through its machine's door, as Codex does about
+ * once a second, and whose process ends with its result while the last poll is still held upstream. */
+function codexTurns(daemon: Daemon, seen: IncomingHttpHeaders[]): HarnessAdapterFactory {
+  return ctx => ({
+    steers: false,
+    start: ({ onEvent }) => {
+      const sessionId = randomUUID();
+      const finished = (async (): Promise<TurnResult> => {
+        onEvent({ type: "session.start", sessionId });
+        await expect.poll(() => daemon.parked.length, { timeout: 10_000 }).toBeGreaterThan(0);
+        const local = daemon.door(0);
+        const poll = request({ createConnection: () => local as never, method: "GET", path: "/backend-api/ps/plugins/list", headers: { host: "127.0.0.1:7071", authorization: `Bearer ${ctx.env[HOST_TOKEN_ENV] ?? ""}`, "x-acme-hold": "1" } });
+        poll.on("error", () => undefined);
+        poll.end();
+        await expect.poll(() => seen.length, { timeout: 10_000 }).toBe(1);
+        const result: TurnResult = { status: "completed", text: "ok" };
+        onEvent({ type: "turn.done", sessionId, result });
+        onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+        poll.destroy();
+        return result;
+      })();
+      return { localId: sessionId, finished, interrupt: async () => {} };
+    },
+  });
+}
+
+async function served(o: { gh?: string; codex?: boolean } = {}): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
   const dir = mkdtempSync(join(tmpdir(), "wsp-server-broker-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const statePath = join(dir, "state.json");
@@ -233,8 +265,8 @@ async function served(o: { gh?: string } = {}): Promise<{ rt: Runtime; broker: H
     hostBroker({
       statePath,
       vault: () => VAULT,
-      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" }), gitDoor],
-      signIns: { anthropic: { gateway: none, helper: none, login: none }, codex: { credential: none, claims: none } },
+      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" }), chatgptService({ dial: url => new URL(`${url.pathname}${url.search}`, up.url) }), gitDoor],
+      signIns: { anthropic: { gateway: none, helper: none, login: none }, codex: o.codex === true ? { credential: async () => ({ ...CODEX_CLAIMS, accessToken: "acme-chatgpt-access" }), claims: async () => CODEX_CLAIMS } : { credential: none, claims: none } },
       run: async (file, args) => (ran.push([file, ...args]), { code: 1, stdout: "" }),
     });
   const broker = brokerOn();
@@ -252,7 +284,7 @@ async function served(o: { gh?: string } = {}): Promise<{ rt: Runtime; broker: H
   mkdirSync(bin, { recursive: true });
   if (o.gh !== undefined) writeStub(join(bin, "gh"), o.gh);
   const local = o.gh === undefined ? {} : { local: { ...fakeLocal(join(dir, "home")), backend: new LocalBackend({ root: join(dir, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } };
-  const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: factory }, vault: () => VAULT, broker: broker.port, ...local });
+  const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: factory, codex: codexTurns(daemon, up.seen) }, vault: () => VAULT, broker: broker.port, ...local });
   const host = async (): Promise<HostHandle> => {
     const handle = await startHost({ runtime: rt, webDir, port: 0, statePath, broker, checkKey: async () => ({ works: true, account: "acme-dev", plan: "$20 plan", running: 0, limit: 100 }) });
     let closed: Promise<void> | undefined;
@@ -372,6 +404,21 @@ describe("the broker the host serves", () => {
     expect(s.seen).toHaveLength(4);
     // The broker reads the workspace on every call; the project repo's id gh could not read was asked for once.
     expect(s.ran.filter(args => args[1] === "api")).toEqual([["gh", "api", expect.stringMatching(/^repos\//), "--jq", ".id"]]);
+  });
+
+  it("writes nothing into a Codex thread for a poll its process cut as its turn completed", async () => {
+    const s = await served({ codex: true });
+    const ws = await createOn(s.rt, { golden: "snap_g", name: "acme-lab" });
+    await s.host();
+    const waited: unknown[] = [];
+    s.rt.events.on("thread.waited", e => void waited.push(e));
+    const turn = await s.rt.sessions.start(ws.id, { prompt: "one", harness: "codex" });
+    expect(await turn.finished).toMatchObject({ status: "completed" });
+    // A call cut before any answer is logged with status 0.
+    const polls = () => readdirSync(brokerLogDir(s.statePath)).flatMap(day => readFileSync(join(brokerLogDir(s.statePath), day), "utf8").trim().split("\n")).map(line => JSON.parse(line) as Record<string, unknown>).filter(line => line["path"] === "/backend-api/ps/plugins/list");
+    await expect.poll(polls, { timeout: 5_000 }).toEqual([expect.objectContaining({ machine: ws.id, token: "turn", service: "chatgpt", status: 0 })]);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    expect(waited).toEqual([]);
   });
 
   it("carries a create's own clone to the git door while the machine is still being made", async () => {
