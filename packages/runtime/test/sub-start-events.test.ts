@@ -73,6 +73,31 @@ describe("a sub-thread's start, as a window hears it", () => {
     await (await child).finished;
   });
 
+  it("answers a window's reads of its thread while its machine is made, and the reads after it hold the turn", async () => {
+    const { rt, boat, project, lead, token } = await leadOnThisComputer();
+    open.push(rt);
+    let land!: () => void;
+    const landed = new Promise<void>(r => (land = r));
+    let making!: () => void;
+    const made$ = new Promise<void>(r => (making = r));
+    const exec = boat.execImpl;
+    boat.execImpl = async (m, cmd, stdin) => (cmd.startsWith("install -d ") ? (making(), await landed, exec(m, cmd, stdin)) : exec(m, cmd, stdin));
+    const made = await rt.workspaces.create({ project: project.id, name: "Kid", sub: { on: "boat" } }, lead);
+    const child = rt.sessions.start(made.id, { prompt: subOpening(made.sub!.preamble, "Run the suite."), harness: made.sub!.harness, turnToken: token, cwd: made.sub!.folder }, lead);
+    await made$;
+    const threadId = (await rt.sessions.list()).find(r => r.workspaceId === made.id)!.threadId!;
+    // The window's reads, as the app asks them: no thread names the caller.
+    expect(await rt.sessions.history(made.id)).toEqual([]);
+    expect(await rt.sessions.page(made.id, { threadId })).toMatchObject({ events: [] });
+    expect(await rt.sessions.threadHistory(made.id, { threadId })).toEqual([]);
+    expect(await rt.sessions.head(threadId)).toMatchObject({ facts: { threadId, workspaceId: made.id }, events: [] });
+    land();
+    await (await child).finished;
+    const types = (await rt.sessions.page(made.id, { threadId })).events.map(e => e.type);
+    expect(types).toContain("session.start");
+    expect(types).toContain("session.end");
+  });
+
   it("keeps a first start that failed on its row under the lead, saying why, through a restart, and Try again sends the first message as it was", async () => {
     const { rt, boat, project, lead, threadId, token, restart, starts } = await leadOnThisComputer();
     open.push(rt);

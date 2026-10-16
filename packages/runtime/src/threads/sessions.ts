@@ -929,14 +929,14 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       await ctx.ready();
       // A thread reads the transcript of a workspace its tree stands on, its lead's included, and of its own tree's
       // workspaces; any other it names reads as every workspace verb reads it, so it learns nothing by asking.
-      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin);
+      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin, { beingMade: true });
       return (await ctx.openTranscript(workspaceId)).filter(e => ctx.drivesThread(e.threadId, origin)).map(e => ({ ...e }));
     },
 
     async threadHistory(workspaceId, { threadId, before, limit }, origin) {
       if (threadId === undefined || before !== undefined || limit !== undefined) throw usageRefusal("whole reads one thread's every event.", "Name the thread with threadId, and no before or limit.");
       await ctx.ready();
-      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin);
+      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin, { beingMade: true });
       if (!ctx.drivesThread(threadId, origin)) return [];
       ctx.openedWords(workspaceId, threadId);
       return (await ctx.openThread(workspaceId, threadId)).map(e => ({ ...e }));
@@ -944,7 +944,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
 
     async page(workspaceId, window, origin) {
       await ctx.ready();
-      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin);
+      if (!ctx.treeStandsOn(workspaceId, origin)) await ctx.entryOf(workspaceId, origin, { beingMade: true });
       if (!ctx.drivesThread(window.threadId, origin)) return { events: [], pos: transcriptIndex.get(workspaceId)?.pos ?? 0, total: 0 };
       ctx.openedWords(workspaceId, window.threadId);
       return ctx.transcriptReader.read(workspaceId, window.threadId, {
@@ -957,7 +957,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
     async head(threadId, origin, o = {}) {
       await ctx.ready();
       const facts = o.afterRead === true ? await ctx.factsAfterRead(threadId, origin) : ctx.threadFacts(threadId);
-      if (facts === undefined || (await ctx.entryOfRow({ threadId: facts.threadId ?? threadId, workspaceId: facts.workspaceId }, origin)) === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
+      if (facts === undefined || (await ctx.entryOfRow({ threadId: facts.threadId ?? threadId, workspaceId: facts.workspaceId }, origin, undefined, { beingMade: true })) === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       // The events take what the facts leave of the head's bytes, less the reply's own keys and numbers.
       const room = HEAD_BYTES - Buffer.byteLength(JSON.stringify(facts)) - 100;
       return { facts, ...(await ctx.transcriptReader.read(facts.workspaceId, facts.threadId ?? threadId, { limit: Infinity, bytes: room, strict: true, shape: headShape })) };

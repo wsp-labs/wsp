@@ -47,7 +47,7 @@ import { AddCloudDialog } from "./AddCloudDialog.js";
 import { useCloudFlow } from "./cloudFlow.js";
 import { checkRows, opensLog, runningSince, setupCount, setupRows, setupStanding, stepLogs, type StepLine } from "./setup.js";
 import { STEP_BODY, STEP_FRAME, STEP_HEAD, StepFoot } from "./StepDialog.js";
-import { CopyKeysAct, RetryActs, SkipAct, StepRow } from "./StepRow.js";
+import { CopyKeysAct, RetryActs, SkipAct, StepLog, StepRow } from "./StepRow.js";
 import { keyTakenAt } from "../../keyOwners.js";
 
 const sshLogin = (host: SshHostSuggestion): string => [host.user, host.hostName ?? host.alias].filter(Boolean).join("@");
@@ -332,16 +332,6 @@ function useStepLogs(placeId: string, want: boolean, live: boolean): Partial<Rec
     };
   }, [api, placeId, want, live]);
   return logs;
-}
-
-/** A step's last lines of output under its open row, in the mono, wrapping. */
-function StepLog({ lines }: { lines: readonly string[] | undefined }) {
-  if (lines === undefined || lines.length === 0) return <p className={NOTE}>No output yet.</p>;
-  return (
-    <pre data-k="step-log" className="max-h-48 overflow-auto font-mono text-[11px] leading-4 whitespace-pre-wrap break-all text-muted-foreground tabular-nums">
-      {lines.join("\n")}
-    </pre>
-  );
 }
 
 /** The steps of a setup with what each row asks, each act running its own row again and no other: Retry where a row
