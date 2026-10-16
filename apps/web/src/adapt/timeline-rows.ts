@@ -5,7 +5,7 @@
 // wsp's turns can express: no proposed plans, subagent fleets, checkpoints or
 // MCP presentation tables. Turn duration comes from the turn summary because
 // entries are unstamped on our wire.
-import { CONVERSATION_WORDS, fmtDuration, isCodeSearchTool, subSpawning, waitingAskerLine, type ThreadWaitingOn } from "@wsp/protocol";
+import { CONVERSATION_WORDS, fmtDuration, isCodeSearchTool, subSpawning, turnWorkedMs, waitingAskerLine, type ThreadWaitingOn } from "@wsp/protocol";
 import { isEarlierEntry, isPromptOpen } from "./session.js";
 import { spawnCallOf, type SpawnedChildren } from "./spawned.js";
 import type { MachineStart, MessagesTimelineRow, PermissionPrompt, SpawnCall, TimelineEntry, ToolGroupAction, ToolGroupSummaryKind, TurnSummary, WorkLogEntry, WorkLogTone } from "./view-model.js";
@@ -336,7 +336,7 @@ function deriveTurnFolds(
   const stops = new Map<string, TurnFold>();
   const durationOf = (turnId: string, group: { entries: TimelineEntry[] }): string | null => {
     const turn = turnById.get(turnId);
-    const durationMs = turn?.durationMs ?? elapsedMs(turn?.startedAt ?? group.entries[0]!.createdAt, turn?.completedAt ?? group.entries[group.entries.length - 1]!.createdAt);
+    const durationMs = turnWorkedMs(turn ?? {})?.worked ?? elapsedMs(turn?.startedAt ?? group.entries[0]!.createdAt, turn?.completedAt ?? group.entries[group.entries.length - 1]!.createdAt);
     return durationMs !== null ? fmtDuration(durationMs) : null;
   };
   for (const [turnId, group] of groups) {
