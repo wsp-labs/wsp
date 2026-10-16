@@ -395,3 +395,130 @@ async fn a_pull_finished_by_hand_after_a_conflict_is_one_pull_line() {
     assert!(reply.files.is_empty(), "{:?}", paths_of(&reply));
     assert_eq!(reply.moved, vec!["Pulled into main".to_owned()]);
 }
+
+/// A checkout on main whose server.js has three lines added at its bottom on branch b.
+fn bottom_on_b() -> (tempfile::TempDir, String) {
+    let dir = committed(&["server.js"]);
+    let p = dir.path();
+    let base = std::fs::read_to_string(p.join("server.js")).unwrap();
+    git_in(p, &["checkout", "-q", "-b", "b"]);
+    std::fs::write(p.join("server.js"), format!("{base}b1\nb2\nb3\n")).unwrap();
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-am", "b"]);
+    git_in(p, &["checkout", "-q", "main"]);
+    (dir, base)
+}
+
+fn counts_of(reply: &GitDiffReply) -> Vec<(&str, u64, u64)> {
+    reply.files.iter().map(|f| (f.path.as_str(), f.additions as u64, f.deletions as u64)).collect()
+}
+
+/// A commit and a later merge that both change one file count every line both brought, as the branch's own diff does.
+#[tokio::test]
+async fn a_commit_then_a_merge_on_one_file_count_every_line_both_brought() {
+    let (dir, base) = bottom_on_b();
+    let p = dir.path();
+    let from = git_snapshot(&here(), p).await.unwrap().commit;
+    std::fs::write(p.join("server.js"), format!("a1\na2\n{base}")).unwrap();
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-am", "top"]);
+    git_in(p, &["-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "b"]);
+    let to = git_snapshot(&here(), p).await.unwrap().commit;
+    let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
+    assert_eq!(counts_of(&reply), vec![("server.js", 5, 0)]);
+    assert_eq!(reply.moved, vec!["Merged b into main".to_owned()]);
+}
+
+/// A merge, a commit, its amend and an edit left uncommitted, all on one file: the card's lines are the turn's whole
+/// range, its start HEAD against its end worktree, as `git diff --numstat` reads them.
+#[tokio::test]
+async fn any_mix_of_commits_merges_and_edits_on_one_file_counts_the_turns_whole_range() {
+    let (dir, base) = bottom_on_b();
+    let p = dir.path();
+    let from = git_snapshot(&here(), p).await.unwrap().commit;
+    let start = git_in(p, &["rev-parse", "HEAD"]);
+    git_in(p, &["-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "b"]);
+    let merged = std::fs::read_to_string(p.join("server.js")).unwrap();
+    std::fs::write(p.join("server.js"), format!("a1\na2\n{merged}")).unwrap();
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-am", "top"]);
+    std::fs::write(p.join("server.js"), format!("a1\na2\na3\n{merged}")).unwrap();
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-a", "--amend", "--no-edit"]);
+    std::fs::write(p.join("server.js"), format!("a1\na2\na3\n{}b1\nb2\nb3\nc1\n", base.replacen("server.js 1\n", "", 1))).unwrap();
+    let to = git_snapshot(&here(), p).await.unwrap().commit;
+    let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
+    let numstat = git_in(p, &["diff", "--numstat", start.trim(), &to]);
+    let whole: Vec<(&str, u64, u64)> = numstat
+        .lines()
+        .map(|l| {
+            let mut cols = l.split('\t');
+            let added = cols.next().unwrap().parse().unwrap();
+            let deleted = cols.next().unwrap().parse().unwrap();
+            (cols.next().unwrap(), added, deleted)
+        })
+        .collect();
+    assert_eq!(whole, vec![("server.js", 7, 1)]);
+    assert_eq!(counts_of(&reply), whole);
+}
+
+/// An edit that stood uncommitted before the turn and that it never touched is not the turn's, even when the turn's
+/// commit and its own uncommitted edit run on into its end worktree as one range.
+#[tokio::test]
+async fn an_edit_left_uncommitted_before_the_turn_stays_off_its_card() {
+    let dir = committed(&["a.txt", "b.txt", "c.txt"]);
+    let p = dir.path();
+    std::fs::write(p.join("a.txt"), "the person's own edit\n").unwrap();
+    let from = git_snapshot(&here(), p).await.unwrap().commit;
+    std::fs::write(p.join("b.txt"), "committed\n").unwrap();
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "b", "b.txt"]);
+    std::fs::write(p.join("c.txt"), "left uncommitted\n").unwrap();
+    let to = git_snapshot(&here(), p).await.unwrap().commit;
+    let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
+    assert_eq!(paths_of(&reply), vec!["b.txt", "c.txt"]);
+}
+
+/// A turn that starts an orphan branch and commits one file lists that file as new, never the files of the branch it
+/// left, which git's reflog puts just below the orphan's first commit.
+#[tokio::test]
+async fn an_orphan_branchs_first_commit_counts_against_the_empty_tree() {
+    let dir = committed(&["a.txt"]);
+    let p = dir.path();
+    let from = git_snapshot(&here(), p).await.unwrap().commit;
+    git_in(p, &["checkout", "-q", "--orphan", "fresh"]);
+    git_in(p, &["rm", "-q", "-r", "--cached", "."]);
+    std::fs::remove_file(p.join("a.txt")).unwrap();
+    std::fs::write(p.join("b.txt"), "b\n").unwrap();
+    git_in(p, &["add", "b.txt"]);
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "fresh"]);
+    let to = git_snapshot(&here(), p).await.unwrap().commit;
+    let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
+    assert_eq!(counts_of(&reply), vec![("b.txt", 1, 0)]);
+}
+
+/// A commit after HEAD's reflog was emptied has no entry below it and counts against the HEAD the turn started on,
+/// never the empty tree.
+#[tokio::test]
+async fn a_commit_after_the_reflog_was_emptied_counts_against_the_start_head() {
+    let dir = committed(&["a.txt", "b.txt"]);
+    let p = dir.path();
+    git_in(p, &["reflog", "expire", "--expire=now", "--all"]);
+    let from = git_snapshot(&here(), p).await.unwrap().commit;
+    std::fs::write(p.join("a.txt"), "edited\n").unwrap();
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-am", "edit a"]);
+    let to = git_snapshot(&here(), p).await.unwrap().commit;
+    let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
+    assert_eq!(counts_of(&reply), vec![("a.txt", 1, 30)]);
+}
+
+/// A turn that commits the staged part of an edit left from before it keeps that file, counted over its whole range.
+#[tokio::test]
+async fn a_commit_of_part_of_an_edit_left_before_the_turn_keeps_its_file() {
+    let dir = committed(&["f.txt"]);
+    let p = dir.path();
+    let base = std::fs::read_to_string(p.join("f.txt")).unwrap();
+    std::fs::write(p.join("f.txt"), format!("s1\ns2\n{base}")).unwrap();
+    git_in(p, &["add", "f.txt"]);
+    std::fs::write(p.join("f.txt"), format!("s1\ns2\n{base}u1\n")).unwrap();
+    let from = git_snapshot(&here(), p).await.unwrap().commit;
+    git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "staged"]);
+    let to = git_snapshot(&here(), p).await.unwrap().commit;
+    let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
+    assert_eq!(counts_of(&reply), vec![("f.txt", 3, 0)]);
+}
