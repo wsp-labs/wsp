@@ -56,6 +56,21 @@ describe("shell rc exports", () => {
     });
   });
 
+  it("in a script a cut command stands as true at its own indent, so a block it was the only line of is never empty; a cut comment or heredoc line leaves nothing, and outside a script nothing stands", () => {
+    const login = (l: string): string | undefined => (l.includes("plain0") ? "a login" : undefined);
+    const text = 'if [ -f ~/.work ]; then\n  export GH_TOKEN=x\nfi\ndb() {\n\texport API_KEY="a\nb"\n}\n';
+    expect(stripExports(text, login, [], true)).toEqual({ names: ["GH_TOKEN", "API_KEY"], carried: "if [ -f ~/.work ]; then\n  true\nfi\ndb() {\n\ttrue\n}\n" });
+    expect(stripExports(text, login).carried).toBe("if [ -f ~/.work ]; then\nfi\ndb() {\n}\n");
+    expect(stripExports("cat <<EOF\nplain0\nEOF\n", login, [], true).carried).toBe("cat <<EOF\nEOF\n");
+    expect(stripExports("# psql plain0\nalias g=git\n", login, [], true).carried).toBe("alias g=git\n");
+    expect(stripExports("case $OSTYPE in\n  darwin*) export GH_TOKEN=x ;;\n  *) export A=1 ;;\nesac\n", login, [], true).carried).toBe("case $OSTYPE in\n  *) export A=1 ;;\nesac\n");
+  });
+
+  it("a script with nothing to cut comes back byte for byte", () => {
+    const text = "if [ -f ~/.work ]; then\n  export EDITOR=vim\nfi\n\nalias g=git\n";
+    expect(stripExports(text, () => undefined, [], true)).toEqual({ names: [], carried: text });
+  });
+
   it("a quoted value spanning lines and a backslash continuation are cut whole", () => {
     expect(stripExports('export A=1\nexport API_KEY="first\nsecond"\nexport B=2\n')).toEqual({ names: ["API_KEY"], carried: "export A=1\nexport B=2\n" });
     expect(stripExports("export DB_PASSWORD='p\nq\nr'\nalias x=y\n").carried).toBe("alias x=y\n");
