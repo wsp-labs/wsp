@@ -1769,6 +1769,45 @@ describe("golden import stages", () => {
     expect(cmds.some(c => c.includes("brew-bootstrap") || c.includes("brew install gh") || c.includes("bun@1.4.0"))).toBe(false);
   });
 
+  it("the switched-on plugins are built into the seed once the agents are on, the links a turn finds them by go in, and one that does not build is said and left out without failing the build", async () => {
+    const index = JSON.stringify({ version: 2, plugins: { "v@acme": [{ installPath: "/seed/cache/acme/v/1.0.0", gitCommitSha: "aaaaaaaaaaaabbbb" }] } });
+    const { backend, cmds, fetch } = backendFor([
+      ["seed-build-bad", { exitCode: 1, stdout: "", stderr: "fatal: repository not found" }],
+      ["cat '/seed/installed_plugins.json'", { exitCode: 0, stdout: index, stderr: "" }],
+    ]);
+    const { stages, onStage } = stageRecorder();
+    const pluginSeed = {
+      dir: "/seed",
+      plugins: [
+        { id: "plugins/v@acme", label: "v@acme", cmd: "seed-build-good" },
+        { id: "plugins/w@acme", label: "w@acme", cmd: "seed-build-bad" },
+      ],
+      links: async (read: (rel: string) => Promise<string | undefined>): Promise<[string, string][]> => ((await read("installed_plugins.json"))?.includes("1.0.0") === true ? [["cache/acme/v/aaaaaaaaaaaa", "1.0.0"]] : []),
+    };
+    await prepareBuilder({ backend, setup: "true", fetch, onStage, import: importOf({ plugins: { dropped: ["/root/.claude-cfg/plugins/known_marketplaces.json"], seed: pluginSeed } }) });
+    const at = (needle: string): number => cmds.findIndex(c => c.includes(needle));
+    expect(at("rm -f '/root/.claude-cfg/plugins/known_marketplaces.json'")).toBeGreaterThan(at("codex-install"));
+    expect(at("seed-build-good")).toBeGreaterThan(at("rm -f '/root/.claude-cfg/plugins/known_marketplaces.json'"));
+    expect(at("seed-build-bad")).toBeGreaterThan(at("seed-build-good"));
+    expect(cmds).toContain("ln -sfn '1.0.0' '/seed/cache/acme/v/aaaaaaaaaaaa'");
+    expect(stages).toContain("installing-harness:plugins built in: v@acme; left out: w@acme (fatal: repository not found)");
+  });
+
+  it("an older image's copied plugin list comes off with no plugin to seed, and a link step whose transport fails is said without failing the build", async () => {
+    const bare = backendFor();
+    await prepareBuilder({ backend: bare.backend, setup: "true", fetch: bare.fetch, import: importOf({ plugins: { dropped: ["/root/.claude-cfg/plugins/known_marketplaces.json", "/root/.claude-cfg/plugins/installed_plugins.json"] } }) });
+    expect(bare.cmds).toContain("rm -f '/root/.claude-cfg/plugins/known_marketplaces.json' '/root/.claude-cfg/plugins/installed_plugins.json'");
+    const { backend, fetch } = backendFor([
+      ["ln -sfn '1.0.0' '/seed/", () => {
+        throw new Error("socket hang up");
+      }],
+    ]);
+    const { stages, onStage } = stageRecorder();
+    const seed = { dir: "/seed", plugins: [{ id: "plugins/v@acme", label: "v@acme", cmd: "seed-build-good" }], links: async (): Promise<[string, string][]> => [["cache/acme/v/aaaaaaaaaaaa", "1.0.0"]] };
+    await prepareBuilder({ backend, setup: "true", fetch, onStage, import: importOf({ plugins: { dropped: [], seed } }) });
+    expect(stages.some(s => /^installing-harness:plugins built in: v@acme; left out: the links into \/seed \(.*socket hang up/.test(s))).toBe(true);
+  });
+
   it("when every ticked agent fails the build stops, names each agent and its reason, kills the builder, and still reports the result", async () => {
     const { backend, killed, fetch } = backendFor([
       ["claude-install", { exitCode: 1, stdout: "", stderr: "curl: (6) Could not resolve host" }],

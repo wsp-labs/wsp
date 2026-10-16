@@ -2,7 +2,7 @@
 // Which agents wsp can open a thread on: one list, the adapter registry keyed
 // by exactly it, and every id a catalog agent.
 import { CATALOG_AGENTS, THREAD_AGENTS } from "@wsp/catalog";
-import { movesRunningAccess, screenCommandsOf, signInRefusalLine, takesMcpServers } from "@wsp/protocol";
+import { movesRunningAccess, PLUGIN_SEED_ENV, screenCommandsOf, signInRefusalLine, takesMcpServers } from "@wsp/protocol";
 import type { Machine } from "@wsp/engine";
 import { describe, expect, it } from "vitest";
 import { SKIP_PROMPTS_MODE } from "@wsp/adapter-claude";
@@ -62,6 +62,11 @@ describe("the agents wsp can open a thread on", () => {
     const set = HARNESS_ADAPTERS.claude({ ...ctx, env: { CLAUDE_CONFIG_DIR: "/Users/dev/claude work" }, launch: { program: "/opt/claude/bin/claude" } });
     expect(set.terminalResume).toBe("CLAUDE_CONFIG_DIR='/Users/dev/claude work' '/opt/claude/bin/claude' --resume");
     for (const id of ["codex", "opencode", "cursor"] as const) expect(HARNESS_ADAPTERS[id](ctx).terminalResume, id).toBeUndefined();
+  });
+
+  it("the catalog points a guest's Claude Code at its image's plugins by the variable the adapter keeps through its strip", () => {
+    expect(PLUGIN_SEED_ENV).toBe("CLAUDE_CODE_PLUGIN_SEED_DIR");
+    expect(CATALOG_AGENTS.find(a => a.id === "claude")?.plugins?.seed?.env).toBe(PLUGIN_SEED_ENV);
   });
 
   it("OpenCode's row offers Auto alone and says why, Cursor's the two modes its CLI has, and neither takes a message mid-turn", () => {
