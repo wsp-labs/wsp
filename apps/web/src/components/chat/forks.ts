@@ -58,8 +58,8 @@ export function forkableMessages(turns: ReadonlyArray<TurnSummary>, entries: Rea
   return out;
 }
 
-/** The turns that ran on a sub-thread's machine since deleted, which offer neither Fork from here nor Rewind: their
- * checkpoints went with that machine. */
+/** The turns that ran on a sub-thread's machine since deleted, which offer no Rewind: their checkpoints went with that
+ * machine. */
 export function goneTurns(turns: ReadonlyArray<Pick<TurnSummary, "turnId" | "startedAt">>, sub: { readonly releasedAt?: number } | undefined): ReadonlySet<string> {
   if (sub?.releasedAt === undefined) return new Set();
   return new Set(turns.filter(t => subTurnGone(sub, t.startedAt === null ? undefined : Date.parse(t.startedAt))).map(t => t.turnId));
