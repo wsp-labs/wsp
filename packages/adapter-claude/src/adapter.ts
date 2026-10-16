@@ -4,7 +4,7 @@
 // recorded in solari-poc/RESULTS.md.
 
 import { randomUUID } from "node:crypto";
-import { ASIDE_WALL_MS, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, STEER_JOIN_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, settlesWithin, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
+import { ASIDE_WALL_MS, anthropicRetryWhy, baseModel, INTERRUPT_GRACE_MS, PERMISSION_ALLOW, PERMISSION_DENY, QUESTION_TOOL, RUN_EXIT_MS, STEER_JOIN_MS, asideWallLine, backgroundTasksLine, claudeMemoryDir, endAfterResult, endRun, fmtDuration, keepRun, harnessExitLine, refusedTurn, settlesWithin, startAfterLoss, subagentAsked, taskFinishedLine, titlePrompt } from "@wsp/protocol";
 import type { AdapterAttachOptions, AdapterEvent, AgentLaunch, KeptAgent, KeptRun, KeptTurn, SubagentState, TaskStop, AsideAnswer, AsideQuestion, ExecStream, ExecStreamFactory, HarnessCatalogProbe, HarnessExec, McpServerSpec, PermissionAsk, PermissionOutcome, ScreenCommand, SessionAsker, SessionForker, SessionHarness, SessionRenamer, SessionTitleMaker, SessionTitleReader, TurnImage, TurnRefusal, TurnResult, TurnStatus, CommitDrafter, ConversationStore, TurnTokens } from "@wsp/protocol";
 import { SKIP_PROMPTS_MODE, controlAllowLine, controlAnswerLine, controlErrorLine, controlLine, interruptLine, modeOptionOn, setModeLine, stopTaskLine } from "./permissions.js";
 import { CLAUDE_SCREEN_COMMANDS, catalogProbeCommand, parseCatalogProbe, versionProbeCommand, parseVersion } from "./catalog.js";
@@ -410,15 +410,18 @@ function retryOf(event: Record<string, unknown>, sessionId: string): AdapterEven
   const attempt = num(event.attempt);
   if (attempt === undefined) return undefined;
   const of = num(event.max_retries);
-  const why = retryWhy(str(event.error), num(event.error_status));
+  const why = anthropicRetryWhy(str(event.error), num(event.error_status));
   return { type: "turn.retry", sessionId, attempt, ...(of !== undefined ? { of } : {}), why };
 }
 
-function retryWhy(error: string | undefined, status: number | undefined): string {
-  if (error === "overloaded") return "Anthropic was overloaded";
-  if (error === "rate_limit") return "Anthropic's rate limit was reached";
-  if (error === "server_error") return status === undefined ? "Anthropic answered with a server error" : `Anthropic answered with a server error (${status})`;
-  return status === undefined ? "Anthropic did not answer" : `Anthropic answered ${status}`;
+/** The retry a subagent the agent waits on is about to make, off the progress line its call carries; the CLI prints
+ * no api_retry for any subagent, and nothing at all for one in the background (measured on 2.1.301). */
+function subagentRetryOf(event: Record<string, unknown>, sessionId: string): AdapterEvent | undefined {
+  const retry = rec(event.subagent_retry);
+  const attempt = num(retry?.attempt);
+  if (attempt === undefined) return undefined;
+  const of = num(retry?.max_retries);
+  return { type: "turn.retry", sessionId, attempt, ...(of !== undefined ? { of } : {}), why: anthropicRetryWhy(str(retry?.error_category), num(retry?.error_status)) };
 }
 
 /** The last lines the process printed that were not stream-json events: the CLI's stderr shares the log. */
@@ -608,6 +611,10 @@ function normalizeEvent(event: Record<string, unknown>, fallbackSessionId: strin
     case "rate_limit_event": {
       const limit = limitOf(rec(event.rate_limit_info));
       return limit === undefined ? [] : [{ type: "limit", sessionId, limit }];
+    }
+    case "tool_progress": {
+      const retry = subagentRetryOf(event, sessionId);
+      return retry === undefined ? [] : [retry];
     }
     default:
       return [];

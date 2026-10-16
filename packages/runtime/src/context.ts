@@ -940,6 +940,9 @@ export interface ConversationsArea {
 
 export interface WaitsArea {
   readonly noteWaited: Runtime["sessions"]["noteWaited"];
+  readonly noteRetry: Runtime["sessions"]["noteRetry"];
+  /** The turn's agent said a retry of its own, which stands for one the host saw a moment before. */
+  readonly agentRetried: (turnId: string, why?: string) => void;
 }
 
 export interface StatusArea {

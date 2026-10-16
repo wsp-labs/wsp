@@ -167,6 +167,15 @@ export function compactedLine(before: number | undefined, after: number | undefi
   return before === undefined ? `Compacted the context to ${fmtTokens(after)} tokens` : `Compacted the context, ${fmtTokens(before)} to ${fmtTokens(after)} tokens`;
 }
 
+/** Why Claude Code is making a model call again, by the category it gives the failure: a call held past its wait or cut
+ * reads `unknown` with no status, a 529 `overloaded`, a 500 `server_error`. */
+export function anthropicRetryWhy(error: string | undefined, status: number | undefined): string {
+  if (error === "overloaded") return "Anthropic was overloaded";
+  if (error === "rate_limit") return "Anthropic's rate limit was reached";
+  if (error === "server_error") return status === undefined ? "Anthropic answered with a server error" : `Anthropic answered with a server error (${status})`;
+  return status === undefined ? "Anthropic did not answer" : `Anthropic answered ${status}`;
+}
+
 /** What a running turn says in place of Working while its agent makes a failed model call again: the thread names
  * the agent already, and the line has to fit beside the turn's time on a phone. */
 export function retryLine(retry: { attempt: number; of?: number; why?: string }): string {

@@ -481,10 +481,10 @@ export interface TurnWritten {
   changes: boolean;
 }
 export const turnWritten = (events: readonly SessionEvent[], turnId: string): TurnWritten => {
-  const lastOf = <T extends SessionEvent["type"]>(type: T): Extract<SessionEvent, { type: T }> | undefined => {
+  const lastOf = <T extends SessionEvent["type"]>(type: T, lined = false): Extract<SessionEvent, { type: T }> | undefined => {
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i]!;
-      if (e.type === type && e.turnId === turnId) return e as Extract<SessionEvent, { type: T }>;
+      if (e.type === type && e.turnId === turnId && (!lined || ("line" in e && e.line !== undefined))) return e as Extract<SessionEvent, { type: T }>;
     }
     return undefined;
   };
@@ -494,7 +494,8 @@ export const turnWritten = (events: readonly SessionEvent[], turnId: string): Tu
   const lines = lastOf("session.delta")?.line ?? 0;
   const subagents = lastOf("session.subagent")?.line ?? 0;
   const compactions = lastOf("session.compacted")?.line ?? 0;
-  const retries = lastOf("session.retry")?.line ?? 0;
+  // A retry the host saw itself has no line, since the run log it re-reads holds only the agent's.
+  const retries = lastOf("session.retry", true)?.line ?? 0;
   const reply = lastOf("session.done")?.result.status;
   // A turn with a line or a reply already written had its start written too, whether or not the cap still holds it:
   // a second start row at the tail of the transcript would sit after the work it opened.
