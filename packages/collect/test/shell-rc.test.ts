@@ -50,8 +50,15 @@ describe("shell rc exports", () => {
     expect(plain.filter(isSecretName)).toEqual([]);
   });
 
+  it("PASS or PASSPHRASE as a word in any case, and in capitals glued at the end or a last AUTH or PAT, mean a secret; a word that only holds those letters does not", () => {
+    const secret = ["SSHPASS", "BORG_PASSPHRASE", "REDISCLI_AUTH", "RCLONE_CONFIG_PASS", "GITHUB_PAT", "DB_PASS", "PASS", "SMTP_PASS_FILE", "GPGPASSPHRASE", "LAB_ROOTPASS", "NPM_CONFIG__AUTH", "DB_REPASS", "db_pass", "borg_passphrase", "_mysql_pass"];
+    expect(secret.filter(n => !isSecretName(n))).toEqual([]);
+    const plain = ["BYPASS", "PATH", "PATCH", "AUTHOR", "COMPASS", "PROXY_BYPASS", "LAB_ENCOMPASS", "SSH_ASKPASS", "SUDO_ASKPASS", "GIT_ASKPASS", "SSH_AUTH_SOCK", "AUTH_SOCK", "PAT", "AUTH", "XAUTHORITY", "MANPATH", "QUILT_PATCHES", "PASSED", "pat", "_target_opt_pat", "sshpass", "github_pat"];
+    expect(plain.filter(isSecretName)).toEqual([]);
+  });
+
   it("a shell's or oh-my-zsh's own setting that holds a secret word alone is plain", () => {
-    const settings = ["fish_key_bindings", "fish_sequence_key_delay_ms", "DISABLE_FZF_KEY_BINDINGS", "PASSWORD_STORE_DIR", "PASSWORD_STORE_KEY", "PASSWORD_STORE_SIGNING_KEY", "TIKTOKEN_CACHE_DIR"];
+    const settings = ["fish_key_bindings", "fish_sequence_key_delay_ms", "DISABLE_FZF_KEY_BINDINGS", "PASSWORD_STORE_DIR", "PASSWORD_STORE_KEY", "PASSWORD_STORE_SIGNING_KEY", "TIKTOKEN_CACHE_DIR", "CLAUDE_CODE_SKIP_BEDROCK_AUTH", "CLAUDE_CODE_SKIP_ANTHROPIC_GOOGLE_CLOUD_AUTH"];
     expect(settings.filter(isSecretName)).toEqual([]);
     const fish = "set -g fish_key_bindings fish_vi_key_bindings\nset -U fish_sequence_key_delay_ms 200\nset -gx PGPASSWORD plain0pg\n";
     expect(stripExports(fish, undefined, [], true)).toEqual({ names: ["PGPASSWORD"], carried: "set -g fish_key_bindings fish_vi_key_bindings\nset -U fish_sequence_key_delay_ms 200\ntrue\n" });

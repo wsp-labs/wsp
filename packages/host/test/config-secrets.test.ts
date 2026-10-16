@@ -200,6 +200,15 @@ describe("a copied shell file or git config", () => {
     }
   });
 
+  it("git's own password keys are cut on a box and on a provider's image", () => {
+    const git = [...PLAIN_GIT, "[imap]", "\thost = imaps://imap.acme.dev", "\tpass = plain0imap", '[gitcvs "ext"]', "\tdbPass = plain0cvs", "[sendemail]", "\tsmtpPass = plain0smtp", ""].join("\n");
+    for (const cuts of [undefined, CLOUD_GIT_CUTS]) {
+      const names: string[] = [];
+      expect(gitCut(git, false, cuts, names)).toBe([...PLAIN_GIT, "[imap]", "\thost = imaps://imap.acme.dev", '[gitcvs "ext"]', "[sendemail]", ""].join("\n"));
+      expect(names).toEqual(["imap.pass", "gitcvs.ext.dbpass", "sendemail.smtppass"]);
+    }
+  });
+
   it("keeps a plain remote and a long repository name on a box and on a provider's image", () => {
     const git = [...PLAIN_GIT, '[remote "lab"]', "\turl = https://github.com/acme/terraform-provider-aws-v5-modules.git", ""].join("\n");
     expect(gitCut(git, false)).toBe(git);
@@ -653,17 +662,19 @@ describe("a copied shell file or git config", () => {
   const SETTINGS = ["export KEYTIMEOUT=1", "HISTKEY=1", "DISABLE_FZF_KEY_BINDINGS=true", "export PASSWORD_STORE_DIR=~/.pass", "cd ~ && echo $OLDPWD", "export TIKTOKEN_CACHE_DIR=~/.cache/tiktoken", `alias yt='curl -s "https://www.googleapis.com/youtube/v3/search?part=snippet&pageToken=CAUQAA"'`, "export AFTER=1", ""].join("\n");
   const FISH_SETTINGS = ["set -g fish_key_bindings fish_vi_key_bindings", "set -U fish_sequence_key_delay_ms 200", "set -g fish_prompt_pwd_dir_length 3", "set -gx AFTER 1", ""].join("\n");
 
+  /** The names init asks for after a pack of `posix` in `~/.zshrc` and `~/.bashrc` and `fish` in config.fish. */
+  const cut = async (posix: string, fish: string): Promise<{ path: string; names: string[] }[] | undefined> => {
+    const home = laptop();
+    mkdirSync(join(home, ".config", "fish"), { recursive: true });
+    for (const rc of [".zshrc", ".bashrc"]) writeFileSync(join(home, rc), posix);
+    writeFileSync(join(home, ".config", "fish", "config.fish"), fish);
+    const rows = [...ROWS.slice(0, 2), row({ rung: "shell", id: "shell/fish", paths: ["~/.config/fish"] })];
+    return (await importFor(rows, { home, secrets: new Map(), platform: "darwin" }).files!.pack()).cut;
+  };
+
   it("a secret word glued to another part of the name is cut and a shell's own setting holding one lands as it was, on a box and on an image, and init asks only for the cut ones", async () => {
     const landed = unguarded(await landedTexts(GLUED + SETTINGS, FISH_GLUED + FISH_SETTINGS));
     expect(landed).toEqual(landed.map(([where]) => [where, where.endsWith(".fish") ? `true\ntrue\ntrue\ntrue\n${FISH_SETTINGS}` : `true\ntrue\ntrue\ntrue\n${SETTINGS}`]));
-    const home = laptop();
-    mkdirSync(join(home, ".config", "fish"), { recursive: true });
-    const rows = [...ROWS.slice(0, 2), row({ rung: "shell", id: "shell/fish", paths: ["~/.config/fish"] })];
-    const cut = async (posix: string, fish: string): Promise<{ path: string; names: string[] }[] | undefined> => {
-      for (const rc of [".zshrc", ".bashrc"]) writeFileSync(join(home, rc), posix);
-      writeFileSync(join(home, ".config", "fish", "config.fish"), fish);
-      return (await importFor(rows, { home, secrets: new Map(), platform: "darwin" }).files!.pack()).cut;
-    };
     const glued = ["PGPASSWORD", "MYSQL_PWD", "GHTOKEN", "LAB_CLIENTSECRET"];
     expect(await cut(GLUED + SETTINGS, FISH_GLUED + FISH_SETTINGS)).toEqual([
       { path: "~/.bashrc", names: glued },
@@ -671,6 +682,23 @@ describe("a copied shell file or git config", () => {
       { path: "~/.zshrc", names: glued },
     ]);
     expect(await cut(SETTINGS, FISH_SETTINGS)).toEqual([]);
+  });
+
+  const PASSES = ["export SSHPASS=plain0ssh", "export BORG_PASSPHRASE=plain0borg", "REDISCLI_AUTH=plain0redis", "export RCLONE_CONFIG_PASS=plain0rclone GITHUB_PAT=plain0pat", "DB_PASS=plain0db", "db_pass=plain0lower", ""].join("\n");
+  const FISH_PASSES = ["set -gx SSHPASS plain0ssh", "set -gx BORG_PASSPHRASE plain0borg", "set -gx REDISCLI_AUTH plain0redis", "set -gx RCLONE_CONFIG_PASS plain0rclone", "set -gx GITHUB_PAT plain0pat", "set -gx DB_PASS plain0db", "set -gx db_pass plain0lower", ""].join("\n");
+  const PASS_LETTERS = ["export BYPASS=1 COMPASS=north", "export PATH=$HOME/bin:$PATH", "PATCH=1", "export AUTHOR='A. Lab'", "export SSH_ASKPASS=/usr/local/bin/askpass SSH_AUTH_SOCK=~/.ssh/agent.sock", "pat='*.ts'", "export CLAUDE_CODE_SKIP_BEDROCK_AUTH=1", "export AFTER=1", ""].join("\n");
+  const FISH_PASS_LETTERS = ["set -gx BYPASS 1", "set -gx COMPASS north", "set -gx PATH $HOME/bin $PATH", "set -gx AUTHOR 'A. Lab'", "set -gx SSH_ASKPASS /usr/local/bin/askpass", "set -gx CLAUDE_CODE_SKIP_VERTEX_AUTH 1", "set -gx AFTER 1", ""].join("\n");
+
+  it("a PASS or PASSPHRASE word or ending, or a last AUTH or PAT, is cut on a box and on an image, and a name that only holds those letters lands as it was", async () => {
+    const landed = unguarded(await landedTexts(PASSES + PASS_LETTERS, FISH_PASSES + FISH_PASS_LETTERS));
+    expect(landed).toEqual(landed.map(([where]) => [where, where.endsWith(".fish") ? `${"true\n".repeat(7)}${FISH_PASS_LETTERS}` : `${"true\n".repeat(6)}${PASS_LETTERS}`]));
+    const passes = ["SSHPASS", "BORG_PASSPHRASE", "REDISCLI_AUTH", "RCLONE_CONFIG_PASS", "GITHUB_PAT", "DB_PASS", "db_pass"];
+    expect(await cut(PASSES + PASS_LETTERS, FISH_PASSES + FISH_PASS_LETTERS)).toEqual([
+      { path: "~/.bashrc", names: passes },
+      { path: "~/.config/fish/config.fish", names: passes },
+      { path: "~/.zshrc", names: passes },
+    ]);
+    expect(await cut(PASS_LETTERS, FISH_PASS_LETTERS)).toEqual([]);
   });
 
   it("a shell row's file that is no script loses a cut line with nothing in its place, on a box and on a provider's image", async () => {
