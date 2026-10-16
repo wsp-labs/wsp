@@ -323,7 +323,7 @@ describe("codex typed in a terminal on a brokered machine", () => {
     const { dir, status } = typed(CHATGPT, 'codex exec "say ok"');
     expect(status).toBe(0);
     const args = argsOf(dir);
-    expect(args.slice(-2)).toEqual(["exec", "say ok"]);
+    expect(args.slice(-3)).toEqual(["exec", "--skip-git-repo-check", "say ok"]);
     expect(args).toContain(`openai_base_url="${DOOR}/backend-api/codex"`);
     expect(args).toContain(`chatgpt_base_url="http://localhost:${BROKER_PORT}/backend-api/"`);
     expect(args).toContain('cli_auth_credentials_store="file"');
@@ -331,6 +331,24 @@ describe("codex typed in a terminal on a brokered machine", () => {
     // The real codex is found past the program's own folder, which it takes off the PATH codex inherits.
     expect(envOf(dir).PATH?.split(":")).not.toContain(join(dir, "bin"));
     expect(envOf(dir).CODEX_REFRESH_TOKEN_URL_OVERRIDE).toBe(`${DOOR}/oauth/token`);
+  });
+
+  it("runs exec in a folder that holds no repo, which codex's exec refuses without its own flag whatever the trust table says", () => {
+    for (const word of ["exec", "e"]) {
+      const { dir, status } = typed(CHATGPT, `codex ${word} --json "say ok"`);
+      expect(status).toBe(0);
+      expect(argsOf(dir).slice(-4)).toEqual([word, "--skip-git-repo-check", "--json", "say ok"]);
+    }
+    for (const line of ['codex exec --skip-git-repo-check "say ok"', 'codex e resume --last --skip-git-repo-check']) {
+      const { dir, status } = typed(CHATGPT, line);
+      expect(status).toBe(0);
+      expect(argsOf(dir).filter(a => a === "--skip-git-repo-check")).toHaveLength(1);
+    }
+    for (const line of ["codex", "codex --version", 'codex review "say ok"']) {
+      const { dir, status } = typed(CHATGPT, line);
+      expect(status).toBe(0);
+      expect(argsOf(dir)).not.toContain("--skip-git-repo-check");
+    }
   });
 
   it("writes the key file from the shell's placeholder key and leaves the key out of codex's environment", () => {
