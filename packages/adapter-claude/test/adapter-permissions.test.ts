@@ -38,13 +38,14 @@ const nextAskLine = JSON.stringify({
 const resultLine = JSON.stringify({ type: "result", subtype: "success", session_id: SESSION, result: "Done.", usage: { output_tokens: 3 }, total_cost_usd: 0.01 });
 
 /** A stream the test feeds: `push` sends the CLI's next line, `end` exits the process, and `stdin` is every line the
- * adapter wrote back, which is where an answer to a prompt has to land. */
-function driven(): { factory: ExecStreamFactory; push: (line: string) => void; end: (code?: number) => void; stdin: string[]; gone: () => void } {
+ * adapter wrote back, which is where an answer to a prompt has to land. `failNext` makes the next write throw. */
+function driven(): { factory: ExecStreamFactory; push: (line: string) => void; end: (code?: number) => void; stdin: string[]; gone: () => void; failNext: (e: Error) => void } {
   const stdin: string[] = [];
   const queue: string[] = [];
   let wake: (() => void) | undefined;
   let done = false;
   let writable = true;
+  let failing: Error | undefined;
   let resolveExit: (code: number | null) => void = () => {};
   const exited = new Promise<number | null>(resolve => {
     resolveExit = resolve;
@@ -65,6 +66,11 @@ function driven(): { factory: ExecStreamFactory; push: (line: string) => void; e
       teardown: () => {},
       kill: () => {},
       write: async line => {
+        if (failing !== undefined) {
+          const e = failing;
+          failing = undefined;
+          throw e;
+        }
         if (!writable) return "gone";
         stdin.push(line);
         return "written";
@@ -92,6 +98,9 @@ function driven(): { factory: ExecStreamFactory; push: (line: string) => void; e
     },
     gone: () => {
       writable = false;
+    },
+    failNext: e => {
+      failing = e;
     },
   };
 }
@@ -161,6 +170,27 @@ describe("a turn that raises a permission prompt", () => {
     expect(await session.answer(ASK, { optionId: PERMISSION_DENY, outcome: "denied", denyMessage: "no" })).toBe("gone");
     expect(io.stdin).toHaveLength(2);
     expect(closes(events)).toHaveLength(1);
+
+    io.push(resultLine);
+    io.end();
+    await session.finished;
+  });
+
+  it("an answer whose write failed leaves the prompt open, so answering again lands it", async () => {
+    const { events, session, io } = start();
+    io.push(initLine);
+    io.push(askLine);
+    await settle();
+    const refused = Object.assign(new Error("Boat is refusing requests from this computer's address"), { kind: "transient", status: 429 });
+    io.failNext(refused);
+    await expect(session.answer(ASK, { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "unused" })).rejects.toBe(refused);
+    expect(io.stdin).toHaveLength(1);
+    expect(closes(events)).toHaveLength(0);
+
+    expect(await session.answer(ASK, { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "unused" })).toBe("answered");
+    expect(io.stdin).toHaveLength(2);
+    expect(JSON.parse(io.stdin[1]!)).toMatchObject({ type: "control_response", response: { subtype: "success", request_id: ASK, response: { behavior: "allow" } } });
+    expect(closes(events)).toEqual([{ type: "permission.close", sessionId: SESSION, askId: ASK, outcome: "allowed", optionId: PERMISSION_ALLOW }]);
 
     io.push(resultLine);
     io.end();
