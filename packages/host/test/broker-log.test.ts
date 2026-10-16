@@ -86,12 +86,12 @@ describe("the log", () => {
       const threadless = await held(r, `GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\n${UPGRADE}\r\n`, 1_000);
       const connect = await held(r, "CONNECT api.example.com:443 HTTP/1.1\r\nHost: api.example.com:443\r\n\r\n", 1_000);
       const refused = await held(service, `GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\nAuthorization: Bearer ${placeholderJwt(TURN)}\r\n${UPGRADE}\r\n`, 1_000);
-      expect([threadless.status, threadless.closedMs !== undefined]).toEqual([403, true]);
-      expect(threadless.lines.map(l => [l.method, l.path, l.status])).toEqual([["GET", "/backend-api/codex/responses", 403]]);
-      expect([connect.status, connect.closedMs !== undefined]).toEqual([403, true]);
-      expect(connect.lines.map(l => [l.method, l.status])).toEqual([["GET", 403], ["CONNECT", 403]]);
-      expect([refused.status, refused.closedMs !== undefined]).toEqual([403, true]);
-      expect(refused.lines.map(l => [l.token, l.service, l.status])).toEqual([["turn", "chatgpt", 403]]);
+      expect([threadless.status, threadless.closedMs !== undefined]).toEqual([400, true]);
+      expect(threadless.lines.map(l => [l.method, l.path, l.status])).toEqual([["GET", "/backend-api/codex/responses", 400]]);
+      expect([connect.status, connect.closedMs !== undefined]).toEqual([400, true]);
+      expect(connect.lines.map(l => [l.method, l.status])).toEqual([["GET", 400], ["CONNECT", 400]]);
+      expect([refused.status, refused.closedMs !== undefined]).toEqual([400, true]);
+      expect(refused.lines.map(l => [l.token, l.service, l.status])).toEqual([["turn", "chatgpt", 400]]);
     } finally {
       await service.close();
     }
