@@ -44,8 +44,6 @@ const ASSIGNED = new RegExp(`^(${NAME})\\+?=`);
 const PRECOMMAND = String.raw`\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|coproc|repeat\s+\S+|time(?:\s+-p)?|command(?:\s+-p)?|exec(?:\s+-[cl]*a\s+\S+|\s+-[cl]+)*)`;
 /** Words that open a compound command's body, and the precommand words. */
 const KEYWORDS = new RegExp(String.raw`^\s*(?:then|do|else|elif|if|while|until|${PRECOMMAND})\s+`);
-/** `eval 'export X=1'`: the quoted argument is shell again. */
-const EVAL = /^\s*eval\s+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|(\S.*))$/;
 /** A command whose status is 0 whatever it held, so `true` stands for it anywhere: an export-like builtin, or a bare
  * assignment with no substitution (a bare `X=$(cmd)` answers with cmd's status). */
 const ASSIGNS = new RegExp(`^(?:(?:export|typeset|declare|readonly|local|set)\\s|${NAME}\\+?=(?:"[^"$\`]*"|'[^']*'|[^\\s"'$\`])*$)`);
@@ -150,13 +148,21 @@ function aliasBodies(words: string[]): string[] {
   return bodies;
 }
 
-/** The variables a simple command assigns, each of its leading assignments among them. A quoted builtin or name is read
- * as the bare one, and an alias or abbr body, like eval's argument, is shell again. */
-function assignedIn(command: string): string[] {
-  const ev = EVAL.exec(command);
-  if (ev !== null) return assignedNames(ev[1] ?? ev[2] ?? ev[3] ?? "");
+/** A simple command's words as the shell hands them over, split where its leading assignments end. */
+function commandWords(command: string): [string[], string[]] {
   const words = shellWords(command);
-  if (words[0] === "alias" || words[0] === "abbr") return aliasBodies(words).flatMap(assignedNames);
+  const at = words.findIndex(w => !ASSIGNED.test(w));
+  return at < 0 ? [words, []] : [words.slice(0, at), words.slice(at)];
+}
+
+/** The variables a simple command assigns, each of its leading assignments among them. A quoted builtin or name is read
+ * as the bare one, and eval's arguments, joined by blanks as eval joins them, and an alias or abbr body are shell again. */
+function assignedIn(command: string): string[] {
+  const [lead, run] = commandWords(command);
+  const leading = lead.map(w => ASSIGNED.exec(w)![1]!);
+  if (run[0] === "eval") return [...leading, ...assignedNames(run.slice(1).join(" "))];
+  if (run[0] === "alias" || run[0] === "abbr") return [...leading, ...aliasBodies(run).flatMap(assignedNames)];
+  const words = shellWords(command.replace(/\\?\n/g, " "));
   const bare = skipKeywords(words.join(" "));
   const fish = FISH_SET.exec(bare);
   if (fish?.[2] !== undefined) return FISH_READS.test(fish[1]!) ? [] : [fish[2]];
@@ -173,8 +179,19 @@ function assignedIn(command: string): string[] {
   return names;
 }
 
-function assignedNames(line: string): string[] {
-  return simpleCommands(line).flatMap(assignedIn);
+function assignedNames(text: string): string[] {
+  return text.split("\n").flatMap(line => simpleCommands(line).flatMap(assignedIn));
+}
+
+/** A line's ANSI-C strings, escapes and quoted strings, as bash and zsh read them. */
+const QUOTED = /\$'(?:[^'\\]|\\[^])*'?|\\[^]|"(?:[^"\\]|\\[^])*"?|'[^']*'?/g;
+
+/** Whether a line leaves open the quoted argument of an `eval`, `alias` or `abbr`, whose text is shell: the lines up to
+ * the quote's close are read as one command. A single-quoted string ending in `\'` is fish's escaped quote, which this
+ * reading takes for a close, so such a line is read alone. */
+function opensShell(line: string, arith: number): boolean {
+  if ((line.match(QUOTED) ?? []).some(t => /^'[^']*\\'$/.test(t)) || !["'", '"', "$'"].includes(scanLine(line, { ...CLOSED, arith }).quote)) return false;
+  return ["eval", "alias", "abbr"].includes(commandWords(simpleCommands(line).at(-1) ?? "")[1][0] ?? "");
 }
 
 /** What is still open at the end of a line: a quote, a backtick, `$(`, `${` and array groups, `((` arithmetic, a heredoc waiting for its word, or a trailing backslash. */
@@ -284,8 +301,7 @@ function scanLine(line: string, start: Open): Open {
       i += 2;
       continue;
     }
-    // A heredoc body is checked for a token's shape alone, so one inside a quoted `$(` stays lines and keeps the name check.
-    if (o.quote === "" && o.arith === 0 && c === "<" && !o.groups.some(g => g.quote === '"')) {
+    if (o.quote === "" && o.arith === 0 && c === "<") {
       const m = HEREDOC.exec(line.slice(i));
       const word = m?.[1] ?? m?.[2] ?? m?.[3] ?? m?.[4];
       if (word !== undefined) {
@@ -371,19 +387,20 @@ function commandSpans(text: string, lists = false): [number, number][] {
 }
 
 /** The arithmetic depth is one stream over the file: a cut line reads it and writes it back like a kept line does. A
- * line `secretIn` finds a secret in goes too, a heredoc's included. `names` holds only variables, each one a cut line
- * assigns a secret to, since init asks the person for each; `held` gets what `secretIn` names for a cut line that
- * assigns none. In a `script`, each cut command stands as `true`, a cut comment goes, and the rest of its line stays, so
- * a block it opened, closed or was the only line of still parses. What a cut command that does more than assign decided
- * never runs: an `if`, `elif` or `while` condition holding one stands as false and an `until` condition as true, and a
- * list where one leads into `&&`, `||` or `|` stands as one `true`. A cut that cannot split (a heredoc, the head of a
- * for, select or case) stands as one `true` at its indent, or as nothing when it is a comment or holds a case arm's `;;`,
- * `;&` or `;|`. */
+ * line `secretIn` finds a secret in goes too, a heredoc's included, and a heredoc's line that assigns a secret goes with
+ * what it leaves open, up to the heredoc's word. An `eval`, `alias` or `abbr` whose quote runs over lines is one
+ * command. `names` holds only variables, each one a cut line assigns a secret to, since init asks the person for each;
+ * `held` gets what `secretIn` names for a cut line that assigns none. In a `script`, each cut command stands as `true`,
+ * a cut comment goes, and the rest of its line stays, so a block it opened, closed or was the only line of still
+ * parses. What a cut command that does more than assign decided never runs: an `if`, `elif` or `while` condition
+ * holding one stands as false and an `until` condition as true, and a list where one leads into `&&`, `||` or `|`
+ * stands as one `true`. A cut that cannot split (a heredoc, the head of a for, select or case) stands as one `true` at
+ * its indent, or as nothing when it is a comment or holds a case arm's `;;`, `;&` or `;|`. */
 export function stripExports(text: string, secretIn?: (line: string) => string | undefined, held: string[] = [], script = false): { names: string[]; carried: string } {
   const names: string[] = [];
   const kept: string[] = [];
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-  const holds = (command: string): boolean => assignedIn(command.replace(/\\?\n/g, " ")).some(isSecretName) || secretIn?.(command) !== undefined;
+  const holds = (command: string): boolean => assignedIn(command).some(isSecretName) || secretIn?.(command) !== undefined;
   const leave = (lines: string[], whole: boolean): void => {
     if (!script) return;
     const cut = lines.join("\n");
@@ -416,7 +433,26 @@ export function stripExports(text: string, secretIn?: (line: string) => string |
     else if (!first.trimStart().startsWith("#") && !/;;|;&|;\|/.test(first)) kept.push(`${/^[ \t]*/.exec(first)?.[0] ?? ""}true`);
   };
   let cutting: { open: Open; lines: string[]; whole: boolean } | undefined;
-  let passing: Pick<Open, "heredoc" | "arith"> = { arith: 0 };
+  /** With a heredoc open, `value` is what a cut body line left open: the body lines up to its close go with it. */
+  let passing: Pick<Open, "heredoc" | "arith"> & { value?: Open } = { arith: 0 };
+  let joining: { open: Open; lines: string[] } | undefined;
+  const take = (line: string): void => {
+    const found = secretIn?.(line);
+    const hits = simpleCommands(line).flatMap(c => assignedIn(c).filter(n => isSecretName(n) || (found !== undefined && secretIn?.(c) !== undefined)));
+    if (hits.length === 0 && found === undefined) {
+      kept.push(...line.split("\n"));
+      passing = carried(line, passing.arith);
+      return;
+    }
+    for (const h of hits) if (!names.includes(h)) names.push(h);
+    if (hits.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
+    const o = scanLine(line, { ...CLOSED, arith: passing.arith });
+    if (isOpen(o)) cutting = { open: o, lines: line.split("\n"), whole: o.heredoc === undefined };
+    else {
+      leave(line.split("\n"), true);
+      passing = { arith: o.arith };
+    }
+  };
   for (const line of text.split(/\r?\n/)) {
     if (cutting !== undefined) {
       const o = scanLine(line, cutting.open);
@@ -429,29 +465,40 @@ export function stripExports(text: string, secretIn?: (line: string) => string |
       }
       continue;
     }
+    if (joining !== undefined) {
+      const o = scanLine(line, joining.open);
+      joining.lines.push(line);
+      if (o.quote !== "" || o.groups.length > 0 || o.continues) joining.open = o;
+      else {
+        take(joining.lines.join("\n"));
+        joining = undefined;
+      }
+      continue;
+    }
     if (passing.heredoc !== undefined) {
-      const found = line.trim() === passing.heredoc ? undefined : secretIn?.(line);
-      if (found === undefined) kept.push(line);
-      else if (!held.includes(found)) held.push(found);
-      if (line.trim() === passing.heredoc) passing = { arith: passing.arith };
+      if (line.trim() === passing.heredoc) {
+        kept.push(line);
+        passing = { arith: passing.arith };
+      } else if (passing.value !== undefined) {
+        const o = scanLine(line, passing.value);
+        passing.value = isOpen(o) ? o : undefined;
+      } else {
+        const found = secretIn?.(line);
+        const named = simpleCommands(line).flatMap(assignedIn).filter(isSecretName);
+        for (const n of named) if (!names.includes(n)) names.push(n);
+        if (named.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
+        if (named.length === 0 && found === undefined) kept.push(line);
+        // In an unquoted heredoc a body line ending in a backslash joins the next: a blank one stands for the cut line.
+        else if (/(?:^|[^\\])(?:\\\\)*\\$/.test(kept.at(-1) ?? "")) kept.push("");
+        const o = scanLine(line, CLOSED);
+        if (named.length > 0 && isOpen(o) && o.heredoc === undefined) passing.value = o;
+      }
       continue;
     }
-    const found = secretIn?.(line);
-    const hits = simpleCommands(line).flatMap(c => assignedIn(c).filter(n => isSecretName(n) || (found !== undefined && secretIn?.(c) !== undefined)));
-    if (hits.length === 0 && found === undefined) {
-      kept.push(line);
-      passing = carried(line, passing.arith);
-      continue;
-    }
-    for (const h of hits) if (!names.includes(h)) names.push(h);
-    if (hits.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
-    const o = scanLine(line, { ...CLOSED, arith: passing.arith });
-    if (isOpen(o)) cutting = { open: o, lines: [line], whole: o.heredoc === undefined };
-    else {
-      leave([line], true);
-      passing = { arith: o.arith };
-    }
+    if (opensShell(line, passing.arith)) joining = { open: scanLine(line, { ...CLOSED, arith: passing.arith }), lines: [line] };
+    else take(line);
   }
+  if (joining !== undefined) take(joining.lines.join("\n"));
   if (cutting !== undefined) leave(cutting.lines, false);
   return { names, carried: kept.join(eol) };
 }

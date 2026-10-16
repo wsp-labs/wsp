@@ -245,7 +245,7 @@ describe("shell rc exports", () => {
     expect(stripExports("export A_TOKEN=$(\n  op read x\n)\nnext\n").carried).toBe("next\n");
     expect(stripExports("export DB_PASSWORD=`cat \n  file`\nnext\n").carried).toBe("next\n");
     expect(stripExports('export X_SECRET="$(cat <<-EOT\n\tv\n\tEOT\n)"\nnext\n').carried).toBe("next\n");
-    expect(stripExports("cat <<EOF\nexport NOT_A_TOKEN=inside-heredoc\nEOF\n").carried).toBe("cat <<EOF\nexport NOT_A_TOKEN=inside-heredoc\nEOF\n");
+    expect(stripExports("cat <<EOF\nexport NOT_A_TOKEN=inside-heredoc\nPLAIN=1\nEOF\n")).toEqual({ names: ["NOT_A_TOKEN"], carried: "cat <<EOF\nPLAIN=1\nEOF\n" });
   });
 
   it("readonly, local, a quoted assignment and a flagless fish set are assignments too", () => {
@@ -267,7 +267,7 @@ describe("shell rc exports", () => {
     expect(stripExports("read x <<< hello\nexport A_TOKEN=fake\nnext\n")).toEqual({ names: ["A_TOKEN"], carried: "read x <<< hello\nnext\n" });
     expect(stripExports('cat <<< "hello"\nexport B_TOKEN=fake\n').names).toEqual(["B_TOKEN"]);
     expect(stripExports("(( f = 1 << SHIFT ))\nexport C_TOKEN=fake\nnext\n")).toEqual({ names: ["C_TOKEN"], carried: "(( f = 1 << SHIFT ))\nnext\n" });
-    expect(stripExports("(( f = 1 << SHIFT ))\ncat <<EOF\nexport NOT_TOKEN=inside\nEOF\nexport D_TOKEN=fake\n")).toEqual({ names: ["D_TOKEN"], carried: "(( f = 1 << SHIFT ))\ncat <<EOF\nexport NOT_TOKEN=inside\nEOF\n" });
+    expect(stripExports("(( f = 1 << SHIFT ))\ncat <<EOF\nexport NOT_TOKEN=inside\nEOF\nexport D_TOKEN=fake\n")).toEqual({ names: ["NOT_TOKEN", "D_TOKEN"], carried: "(( f = 1 << SHIFT ))\ncat <<EOF\nEOF\n" });
     expect(stripExports("read x <<< $y\nexport E_TOKEN=fake\n").names).toEqual(["E_TOKEN"]);
   });
 
@@ -283,9 +283,9 @@ describe("shell rc exports", () => {
 
   it("(( inside double quotes counts for nothing; an unbalanced (( suppresses heredoc recognition until a )), which over-cuts and never leaks", () => {
     const text = 'echo "(("\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport A_TOKEN=fake\nnext\n';
-    expect(stripExports(text)).toEqual({ names: ["A_TOKEN"], carried: 'echo "(("\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nnext\n' });
+    expect(stripExports(text)).toEqual({ names: ["NOT_TOKEN", "A_TOKEN"], carried: 'echo "(("\ncat <<EOF\nEOF\nnext\n' });
     expect(stripExports("(( x = 1\nl1\nl2\nl3\nl4\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport B_TOKEN=fake\n")).toEqual({ names: ["NOT_TOKEN", "B_TOKEN"], carried: "(( x = 1\nl1\nl2\nl3\nl4\ncat <<EOF\nEOF\n" });
-    expect(stripExports('echo "$((1+2))"\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport C_TOKEN=fake\n')).toEqual({ names: ["C_TOKEN"], carried: 'echo "$((1+2))"\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\n' });
+    expect(stripExports('echo "$((1+2))"\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport C_TOKEN=fake\n')).toEqual({ names: ["NOT_TOKEN", "C_TOKEN"], carried: 'echo "$((1+2))"\ncat <<EOF\nEOF\n' });
   });
 
   it("an arithmetic block spanning kept lines keeps << a shift on every one of them, however long", () => {
@@ -296,15 +296,15 @@ describe("shell rc exports", () => {
   it("the arithmetic depth is one stream across cut and kept lines", () => {
     expect(stripExports("export A_TOKEN=fake; (( y = 1 +\nexport B_KEY=fake\n")).toEqual({ names: ["A_TOKEN", "B_KEY"], carried: "" });
     expect(stripExports("export A_TOKEN=fake; (( y = 1 +\nz << SHIFT ))\nexport B_KEY=fake\nnext\n")).toEqual({ names: ["A_TOKEN", "B_KEY"], carried: "z << SHIFT ))\nnext\n" });
-    expect(stripExports("(( x = 1 +\nexport A_TOKEN=fake )); y=2\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport B_KEY=fake\n")).toEqual({ names: ["A_TOKEN", "B_KEY"], carried: "(( x = 1 +\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\n" });
-    expect(stripExports('(( x = 1 +\nexport A_TOKEN="a\nb" )); y=2\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport B_KEY=fake\n')).toEqual({ names: ["A_TOKEN", "B_KEY"], carried: "(( x = 1 +\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\n" });
+    expect(stripExports("(( x = 1 +\nexport A_TOKEN=fake )); y=2\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport B_KEY=fake\n")).toEqual({ names: ["A_TOKEN", "NOT_TOKEN", "B_KEY"], carried: "(( x = 1 +\ncat <<EOF\nEOF\n" });
+    expect(stripExports('(( x = 1 +\nexport A_TOKEN="a\nb" )); y=2\ncat <<EOF\nexport NOT_TOKEN=data\nEOF\nexport B_KEY=fake\n')).toEqual({ names: ["A_TOKEN", "NOT_TOKEN", "B_KEY"], carried: "(( x = 1 +\ncat <<EOF\nEOF\n" });
     expect(stripExports("(( x = 1 +\nexport A_TOKEN=fake +\n2 << SHIFT ))\nexport B_TOKEN=fake\nnext\n")).toEqual({ names: ["A_TOKEN", "B_TOKEN"], carried: "(( x = 1 +\n2 << SHIFT ))\nnext\n" });
   });
 
   it("a parameter expansion spanning lines and a backslash-quoted heredoc word are cut whole", () => {
     expect(stripExports("export A_TOKEN=${SECRET:-\nfake}\nnext\n")).toEqual({ names: ["A_TOKEN"], carried: "next\n" });
     expect(stripExports("export API_KEY=$(cat <<\\EOF\nline)\nfake\nEOF\n)\nnext\n")).toEqual({ names: ["API_KEY"], carried: "next\n" });
-    expect(stripExports("cat <<\\EOF\nexport NOT_TOKEN=inside\nEOF\nexport F_TOKEN=fake\n")).toEqual({ names: ["F_TOKEN"], carried: "cat <<\\EOF\nexport NOT_TOKEN=inside\nEOF\n" });
+    expect(stripExports("cat <<\\EOF\nexport NOT_TOKEN=inside\nEOF\nexport F_TOKEN=fake\n")).toEqual({ names: ["NOT_TOKEN", "F_TOKEN"], carried: "cat <<\\EOF\nEOF\n" });
   });
 
   it("a comment right after ; & or ( on a cut line ends the scan there, and ${#var} is a length, not a comment", () => {
@@ -364,6 +364,58 @@ describe("shell rc exports", () => {
       names: ["A_TOKEN", "B_TOKEN", "C_TOKEN", "D_TOKEN", "E_TOKEN", "F_TOKEN", "G_TOKEN", "I_KEY"],
       carried: ["true", "true", "true", "true", "true", "true", "true", "set -gx 'PLAIN' 1", 'export "PATH=$HOME/bin:$PATH"', "case $x in", "  true) echo has ;;", "esac", ""].join("\n"),
     });
+  });
+
+  it("a heredoc body line, or an eval or alias body over lines, that assigns a secret is cut like a bare assignment, and one that assigns none stays", () => {
+    const text = [
+      "cat > ~/.lab.env <<EOF",
+      "API_KEY=lit",
+      "PLAIN=1",
+      "EOF",
+      "cat >> ~/.lab.env <<'EOF'",
+      "  export GH_TOKEN=lit",
+      'DB_PASSWORD="lit',
+      'lit"',
+      "LAB=2",
+      "EOF",
+      "eval 'cd /tmp",
+      "export LAB_TOKEN=lit'",
+      'eval "',
+      "  LAB_SECRET=lit",
+      '"',
+      "alias gh='cd /tmp",
+      "AL_TOKEN=lit gh'",
+      "eval 'echo it'\\''s",
+      "export QT_TOKEN=lit'",
+      "x=\\'; eval $'echo it\\'s",
+      "export AC_TOKEN=lit'",
+      "if x; then eval '",
+      "  export IF_KEY=lit",
+      "'; y; fi",
+      "eval 'echo kept",
+      "export EVAL_PLAIN=1'",
+      "cat <<EOF",
+      "KEYTIMEOUT=1",
+      "it's",
+      "EOF",
+      "export AFTER=1",
+      "",
+    ].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["API_KEY", "GH_TOKEN", "DB_PASSWORD", "LAB_TOKEN", "LAB_SECRET", "AL_TOKEN", "QT_TOKEN", "AC_TOKEN", "IF_KEY"],
+      carried: ["cat > ~/.lab.env <<EOF", "PLAIN=1", "EOF", "cat >> ~/.lab.env <<'EOF'", "LAB=2", "EOF", "true", "true", "true", "true", "x=\\'; true", "if x; then true; y; fi", ...text.split("\n").slice(24)].join("\n"),
+    });
+    expect(stripExports("eval 'cd /tmp\nexport LAB_TOKEN=lit'\nnext\n")).toEqual({ names: ["LAB_TOKEN"], carried: "next\n" });
+    for (const word of ["\\eval", '"eval"', "'eval'", "e\\val", "LANG=C eval"]) {
+      expect(stripExports(`${word} 'export LAB_TOKEN=lit'\n${word} 'cd /tmp\nexport LAB_TOKEN=lit'\nnext\n`, undefined, [], true)).toEqual({ names: ["LAB_TOKEN"], carried: "true\ntrue\nnext\n" });
+    }
+    expect(stripExports("cat <<EOF\nexport \\\nAPI_KEY=lit\nEOF\nnext\n")).toEqual({ names: ["API_KEY"], carried: "cat <<EOF\nexport \\\n\nEOF\nnext\n" });
+    const held: string[] = [];
+    expect(stripExports("eval 'cd /tmp\necho tok-lit'\nnext\n", l => (l.includes("tok-") ? "a token" : undefined), held, true)).toEqual({ names: [], carried: "true\nnext\n" });
+    expect(held).toEqual(["a token"]);
+    expect(stripExports('X="$(cat <<EOF\nAPI_KEY=lit\nPLAIN=1\nEOF\n)"\nnext\n', undefined, [], true)).toEqual({ names: ["API_KEY"], carried: 'X="$(cat <<EOF\nPLAIN=1\nEOF\n)"\nnext\n' });
+    const fish = "abbr -a gw 'git commit -m \\'wip\\''\nset -gx API_KEY lit\nabbr -a gs 'git status'\n";
+    expect(stripExports(fish, undefined, [], true)).toEqual({ names: ["API_KEY"], carried: fish.replace("set -gx API_KEY lit", "true") });
   });
 
   it("ANSI-C quoting on a cut line closes at its own quote", () => {
