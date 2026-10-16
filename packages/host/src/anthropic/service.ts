@@ -23,7 +23,7 @@ export interface AnthropicRequest {
 }
 export interface AnthropicContext {
   credential(kind: "anthropic"): Promise<AnthropicCredential | undefined>;
-  refuse(res: ServerResponse, status: 403 | 503, said: string, shape: "anthropic"): void;
+  refuse(res: ServerResponse, status: 403, said: string, shape: "anthropic"): void;
 }
 
 const ALLOWED = new Set(["POST /v1/messages", "POST /v1/messages/count_tokens", "GET /v1/models", "HEAD /api/hello"]);
@@ -79,8 +79,6 @@ const sentences = (computer: string) => ({
   key: `wsp: Anthropic refused the API key on ${computer}. Set a working key in Settings, Agents.`,
   helper: `wsp: Anthropic refused the key your apiKeyHelper gave on ${computer}. Check the helper, then Settings, Agents.`,
   gateway: `wsp: your gateway refused the token on ${computer}. Check it in Settings, Agents.`,
-  away: `wsp: Anthropic did not answer ${computer}. Claude Code tries again.`,
-  gatewayAway: `wsp: your gateway did not answer ${computer}. Claude Code tries again.`,
 });
 
 /** The wait for an upstream's reply to start, Claude Code's own first-byte rule, which it keeps off a base URL such as
@@ -146,7 +144,6 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
       const send = target.protocol === "https:" ? httpsRequest : httpRequest;
       const wait = credential.kind === "gateway" ? undefined : firstByteMs + Math.floor(Number(req.headers["content-length"] ?? 0) / 32_768) * PER_32KB_MS;
       await new Promise<void>(done => {
-        let late = false;
         let call: string | undefined;
         const out = send(target, { method: req.method, headers: upstreamHeaders(req.rawHeaders, credential, target.host), setHost: false }, up => {
           clearTimeout(timer);
@@ -161,7 +158,6 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
           pipeline(up, res, () => done());
         });
         const timer = wait === undefined ? undefined : setTimeout(() => {
-          late = true;
           if (call !== undefined) cut.set(call, Date.now());
           out.destroy(new Error("no reply started"));
         }, wait);
@@ -175,11 +171,10 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
             if (retried(call) || !streams(whole)) clearTimeout(timer);
           });
         }
+        // Claude Code reads any status as an answer, a 503 overloaded_error as overloaded; only a cut reads as Anthropic not answering.
         out.on("error", () => {
           clearTimeout(timer);
-          if (late) res.destroy();
-          else if (!res.headersSent) ctx.refuse(res, 503, credential.kind === "gateway" ? said.gatewayAway : said.away, "anthropic");
-          else if (!res.writableEnded) res.destroy();
+          if (!res.writableEnded) res.destroy();
           done();
         });
         res.on("close", () => {

@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import { anthropicService, type AnthropicContext, type AnthropicCredential } from "../src/anthropic/service.js";
+import { writeRefusal } from "../src/broker/refuse.js";
 
 interface Recorded { method: string; url: string; rawHeaders: string[]; body: string }
 const RECORDED = JSON.parse(readFileSync(new URL("./anthropic-request.json", import.meta.url), "utf8")) as { oauth: Recorded; key: Recorded };
@@ -236,11 +237,19 @@ describe("a credential the host cannot add stops the turn with a sentence instea
     expect(stopped(got)).toContain(sentence);
     expect(got.body.toString()).not.toContain("invalid x-api-key");
   });
+});
+
+describe("an upstream the host cannot reach reads to Claude Code as Anthropic not answering, and a real overload as one", () => {
+  /** The broker's own refusal, so a refusal reaches the caller in the shape and status Claude Code reads. */
+  function brokerContext(credential: AnthropicCredential): AnthropicContext & { refusals: string[] } {
+    const refusals: string[] = [];
+    return { refusals, credential: async () => credential, refuse: (res, status, said, shape) => (refusals.push(said), writeRefusal(res, status, said, shape)) };
+  }
 
   it.each([
-    ["Anthropic", { kind: "key", key: "key-for-test" }, "Anthropic did not answer"],
-    ["a gateway", { kind: "gateway", url: "", token: "gateway-for-test" }, "your gateway did not answer"],
-  ] as const)("answers 503, which Claude Code waits on, when %s cannot be reached", async (_who, credential, sentence) => {
+    ["Anthropic", { kind: "key", key: "key-for-test" }],
+    ["a gateway", { kind: "gateway", url: "", token: "gateway-for-test" }],
+  ] as const)("cuts the call with no answer when %s refuses the connection, since Claude Code reads any status as an answer and a 503 overloaded_error as overloaded", async (_who, credential) => {
     const up = await upstream({ status: 200, headers: [], chunks: [] });
     const gone = up.url;
     await new Promise(done => {
@@ -248,30 +257,25 @@ describe("a credential the host cannot add stops the turn with a sentence instea
       server.closeAllConnections();
       server.close(done);
     });
-    const given: AnthropicCredential = credential.kind === "gateway" ? { ...credential, url: gone } : credential;
-    const got = await send(await door(gone, given), RECORDED.key);
-    expect(got.status).toBe(503);
-    expect(pairs(got.rawHeaders).some(([name]) => name.toLowerCase() === "x-should-retry")).toBe(false);
-    expect(JSON.parse(got.body.toString()).error.message).toContain(sentence);
+    const ctx = brokerContext(credential.kind === "gateway" ? { ...credential, url: gone } : credential);
+    const service = anthropicService({ upstream: gone, computer: () => COMPUTER });
+    const doorUrl = await listen((req, res) => void service.serve({ req, res, grant: { workspaceId: "ws_lab", threadId: "th_lab" } }, ctx));
+    const answered = await send(doorUrl, RECORDED.key).then(got => `${got.status} ${got.body.toString()}`, (e: Error) => e.message);
+    expect(answered).toMatch(/^(socket hang up|read ECONNRESET)$/);
+    expect(ctx.refusals).toEqual([]);
   });
 
-  it("refuses a call Claude Code gave up on only on the response it closed, which the broker writes no row for", async () => {
-    let reached!: () => void;
-    const held = new Promise<void>(done => (reached = done));
-    const up = await listen(req => {
-      req.resume();
-      reached();
-    });
-    const refusals: { said: string; callerLeft: boolean }[] = [];
-    const ctx: AnthropicContext = { credential: async () => ({ kind: "key", key: "key-for-test" }), refuse: (res, _status, said) => void refusals.push({ said, callerLeft: res.destroyed }) };
-    const service = anthropicService({ upstream: up, computer: () => COMPUTER });
-    const { port } = new URL(await listen((req, res) => void service.serve({ req, res, grant: { workspaceId: "ws_lab", threadId: "th_lab" } }, ctx)));
-    const call = request({ host: "127.0.0.1", port, method: RECORDED.key.method, path: RECORDED.key.url, headers: RECORDED.key.rawHeaders, setHost: false });
-    call.on("error", () => undefined);
-    call.end(RECORDED.key.body);
-    await held;
-    call.destroy();
-    await expect.poll(() => refusals).toEqual([{ said: `wsp: Anthropic did not answer ${COMPUTER}. Claude Code tries again.`, callerLeft: true }]);
+  it.each([529, 503])("passes Anthropic's own %s through whole, which Claude Code reads as overloaded", async status => {
+    const overloaded = Buffer.from('{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}');
+    const up = await upstream({ status, headers: ["Content-Type", "application/json", "x-should-retry", "true"], chunks: [overloaded] });
+    const ctx = brokerContext({ kind: "key", key: "key-for-test" });
+    const service = anthropicService({ upstream: up.url, computer: () => COMPUTER });
+    const doorUrl = await listen((req, res) => void service.serve({ req, res, grant: { workspaceId: "ws_lab", threadId: "th_lab" } }, ctx));
+    const got = await send(doorUrl, RECORDED.key);
+    expect(got.status).toBe(status);
+    expect(got.body.equals(overloaded)).toBe(true);
+    expect(pairs(got.rawHeaders)).toContainEqual(["x-should-retry", "true"]);
+    expect(ctx.refusals).toEqual([]);
   });
 });
 
