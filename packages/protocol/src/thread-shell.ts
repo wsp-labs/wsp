@@ -18,12 +18,14 @@ export function threadShellFiles(dir: string, env: Readonly<Record<string, strin
   const first = shellQuote(`:${dir}:`);
   const own = env["ZDOTDIR"] === undefined || env["ZDOTDIR"] === "" ? "$HOME" : shellQuote(env["ZDOTDIR"]);
   // The person's file runs with ZDOTDIR at their own folder, as theirs may read it or move it; zsh reads its next file
-  // out of ZDOTDIR, so it points back here after each.
+  // out of ZDOTDIR, so it points back here after each. A host started from a thread's shell was launched with a
+  // wrapper folder as ZDOTDIR, this one or another home's: a wrapper never sources its own folder, and keeps the
+  // person's folder another home's wrapper settled on rather than that wrapper's folder.
   const zsh = ZSH_FILES.map((name): [string, string] => [
     name,
-    [`ZDOTDIR=\${_wsp_zdotdir:-${own}}`, `[[ -r "$ZDOTDIR/${name}" ]] && source "$ZDOTDIR/${name}"`, "_wsp_zdotdir=$ZDOTDIR", `ZDOTDIR=${shellQuote(dir)}`, `[[ :$PATH: == ${first}* ]] || PATH=${shellQuote(dir)}:$PATH`, ""].join("\n"),
+    [`ZDOTDIR=\${_wsp_zdotdir:-${own}}`, `[[ $ZDOTDIR -ef ${shellQuote(dir)} ]] && ZDOTDIR=$HOME`, "_wsp_zdotdir=", `[[ -r "$ZDOTDIR/${name}" ]] && source "$ZDOTDIR/${name}"`, "_wsp_zdotdir=${_wsp_zdotdir:-$ZDOTDIR}", `ZDOTDIR=${shellQuote(dir)}`, `[[ :$PATH: == ${first}* ]] || PATH=${shellQuote(dir)}:$PATH`, ""].join("\n"),
   ]);
   const bashEnv = env["BASH_ENV"];
-  const bash = [...(bashEnv === undefined || bashEnv === "" ? [] : [`[ -r ${shellQuote(bashEnv)} ] && . ${shellQuote(bashEnv)}`]), `case :$PATH: in ${first}*) ;; *) PATH=${shellQuote(dir)}:$PATH ;; esac`, ""].join("\n");
+  const bash = [...(bashEnv === undefined || bashEnv === "" ? [] : [`[ -r ${shellQuote(bashEnv)} ] && ! [ ${shellQuote(bashEnv)} -ef ${shellQuote(`${dir}/${BASH_ENV_FILE}`)} ] && . ${shellQuote(bashEnv)}`]), `case :$PATH: in ${first}*) ;; *) PATH=${shellQuote(dir)}:$PATH ;; esac`, ""].join("\n");
   return [...zsh, [BASH_ENV_FILE, bash]];
 }
