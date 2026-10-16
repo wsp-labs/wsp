@@ -4,7 +4,7 @@
 // of the account listing into this host's, this host's orphans and the rest.
 import type { Readable, Writable } from "node:stream";
 import { billedByCount, plural, type SnapshotStoragePricing } from "@wsp/engine";
-import type { GoldenVersion, InitSaidLine, SnapshotStorage } from "@wsp/protocol";
+import { providerKeyName, type GoldenVersion, type InitSaidLine, type SnapshotStorage } from "@wsp/protocol";
 import type { AccountOrphans, OrphansDeleted, PlacedRetention, RetentionPlan, Runtime } from "@wsp/runtime";
 import { isCancel, log } from "@clack/prompts";
 import { confirmPrompt } from "./init-layout.js";
@@ -95,7 +95,6 @@ export function describeDeleted(done: OrphansDeleted): string {
 /** The versions a plan names, as the image's own or as the copy of it at another place. */
 type Whose = Partial<Pick<PlacedRetention, "copy" | "placeName">>;
 const whose = (plan: Whose, versions: string): string => (plan.copy === true ? `${versions} of the copy of your image at ${plan.placeName}` : `image ${versions}`);
-const sentence = (words: string): string => `${words[0]!.toUpperCase()}${words.slice(1)}`;
 
 /** The one line the offer asks with: what goes, what it holds, what it saves, what stays. */
 export function describeRetention(plan: RetentionPlan & Whose): string {
@@ -113,7 +112,8 @@ export function describeRetention(plan: RetentionPlan & Whose): string {
 
 export function describeGuarded(g: RetentionPlan["guarded"][number], plan: Whose = {}): string {
   const who = g.workspaces.length === 1 ? `workspace ${g.workspaces[0]} was` : `workspaces ${g.workspaces.join(", ")} were`;
-  return `${sentence(whose(plan, `v${g.version.version}`))} stays: ${who} forked from it.`;
+  const v = `v${g.version.version}`;
+  return plan.copy === true ? `The copy of your image at ${plan.placeName} keeps ${v}: ${who} forked from it.` : `Image ${v} stays: ${who} forked from it.`;
 }
 
 export interface RetentionOfferOptions {
@@ -151,7 +151,7 @@ async function offerAt(o: RetentionOfferOptions, place: string): Promise<void> {
   try {
     plan = await o.rt.golden.retention(undefined, place);
   } catch (e) {
-    say(o, "warn", `Snapshot storage was not read (${e instanceof Error ? e.message : String(e)}); every image version is kept.`);
+    say(o, "warn", `Snapshot storage at ${providerKeyName(place)} was not read (${e instanceof Error ? e.message : String(e)}); every version there is kept.`);
     return;
   }
   if (plan === undefined) return;
@@ -169,6 +169,9 @@ async function offerAt(o: RetentionOfferOptions, place: string): Promise<void> {
   }
   const { dropped, failed, storage } = await o.rt.golden.prune(undefined, place);
   if (dropped.length > 0) say(o, "success", `Deleted ${whose(plan, versionList(dropped))}.`);
-  for (const f of failed) say(o, "warn", `${sentence(whose(plan, `v${f.version}`))} was not deleted (${f.message}); it stays in the lineage.`);
+  for (const f of failed) {
+    const v = `v${f.version}`;
+    say(o, "warn", plan.copy ? `The copy of your image at ${plan.placeName} keeps ${v}, which was not deleted (${f.message}); it stays in the lineage.` : `Image ${v} was not deleted (${f.message}); it stays in the lineage.`);
+  }
   if (storage !== undefined) say(o, "info", describeStorage(storage, plan.placeName));
 }
