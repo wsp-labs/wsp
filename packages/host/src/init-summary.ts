@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What wsp init says before anything boots: the Found card, the Summary card
-// and the build question's own line, off the rows as the screens left them.
+// and the build question's own line, off the rows as the screens left them;
+// and the tally and the card of what the build left on the machine.
 import { styleText } from "node:util";
 import { LOGIN_CHOICES, MCP_REMOTE_ID, RUNGS, type Manifest, type ManifestEntry } from "@wsp/collect";
-import { agentInstallsFor, brewfileFor, estimateDisk, isMcpRow, PACK_BUDGET_BYTES, plural, shownOf, toolInstallsFor, type BrewTable } from "@wsp/engine";
+import { agentInstallsFor, brewfileFor, estimateDisk, isMcpRow, PACK_BUDGET_BYTES, plural, shownOf, toolInstallsFor, type BrewTable, type ImportResult } from "@wsp/engine";
 import { SIGN_IN_ANSWERS, fmtBytes, type RecipeCustomRow } from "@wsp/protocol";
 import { RUNG_TITLE, isLoginChoice, isTickable } from "./init-recipe.js";
 import { CARD_FRAME, GUTTER, ellipsize, table, wrap } from "./init-layout.js";
 import type { Tone } from "./init-select.js";
 import { diskLine, diskTone } from "./init-weight.js";
+import type { SecretOutcome } from "./init-secrets.js";
+import type { LoginOutcome } from "./init-signin.js";
 
+const dim = (s: string): string => styleText("dim", s);
 const bytesOf = (entries: readonly ManifestEntry[]): string => {
   const n = entries.reduce((sum, e) => sum + e.bytes, 0);
   return n > 0 ? fmtBytes(n) : "";
@@ -128,4 +132,45 @@ export function summaryNote(
   ];
   const column = Math.max(...closing.map(([label]) => label.length)) + GUTTER.length;
   return [...lines, "", ...closing.flatMap(([label, text, tone]) => wrap(`${label.padEnd(column)}${text}`, inner, " ".repeat(column)).map(l => (tone === undefined ? l : styleText(tone, l))))];
+}
+
+/** The tally after the build: how the tools, agents and the machine context came out, each failure named with its
+ * reason, and where the list is. */
+export function installsTally(landed: ImportResult, resultsPath: string): string[] {
+  const all = [...landed.tools.map(t => ({ ...t, name: t.label })), ...landed.agents];
+  const n = (o: string) => all.filter(x => x.outcome === o).length;
+  // The header counts tools, editors, agents, a machine context that was not written, and the rows this run took
+  // out of the recipe, whatever their rung: a retired dotfile is counted here too.
+  const retired = landed.retired ?? [];
+  const failed = n("failed") + (landed.contextFailure === undefined ? 0 : 1);
+  return [
+    `Tools, agents and machine context: ${n("installed")} installed, ${retired.length > 0 ? `${retired.length} retired, ` : ""}${failed} failed, ${n("skipped")} skipped; the list is in ${resultsPath}`,
+    ...all.filter(x => x.outcome === "failed").map(x => dim(`${x.name} failed: ${x.note ?? "no reason given"}`)),
+    ...(landed.contextFailure === undefined ? [] : [dim(`machine context failed: ${landed.contextFailure}`)]),
+    ...all.filter(x => x.outcome === "skipped").map(x => dim(`${x.name} skipped: ${x.note ?? "no reason given"}`)),
+    ...retired.map(x => dim(`${x.name} retired: out of the recipe, left on the image`)),
+  ];
+}
+
+/** What the machine holds before the seal: the tools and agents as the import counted them, each sign-in
+ * with its state, each cut secret with its state. */
+export function sealSummary(landed: ImportResult | undefined, logins: readonly LoginOutcome[], secrets: readonly SecretOutcome[], width: number): string[] {
+  const inner = width - CARD_FRAME;
+  const tools = landed?.tools ?? [];
+  const agents = landed?.agents ?? [];
+  const count = (rows: readonly { outcome: string }[]): string => {
+    const n = (o: string) => rows.filter(x => x.outcome === o).length;
+    return rows.length === 0 ? "none" : [`${n("installed")} installed`, ...(n("failed") > 0 ? [`${n("failed")} failed`] : []), ...(n("skipped") > 0 ? [`${n("skipped")} skipped`] : [])].join(", ");
+  };
+  const states = (rows: readonly string[][]): string[] => (rows.length === 0 ? ["none"] : table(rows));
+  const loginRows = logins.map(r => [r.label, r.state.replace(/-/g, " ")]);
+  const secretRows = secrets.map(r => [r.name, r.state === "set" ? `set on the machine${r.note !== undefined ? ` (${r.note})` : ""}` : r.state === "failed" ? `not set${r.note !== undefined ? ` (${r.note})` : ""}` : `skipped${r.note !== undefined ? ` (${r.note})` : ""}`]);
+  const section = (title: string, lines: readonly string[]): string[] => [title, ...lines.flatMap(l => wrap(`  ${l}`, inner, "    "))];
+  const installed = agents.filter(a => a.outcome === "installed").map(a => a.name);
+  return [
+    ...section("Tools", [count(tools)]),
+    ...section("Agents", [agents.length === 0 ? "none" : `${count(agents)}${installed.length > 0 ? `: ${installed.join(", ")}` : ""}`]),
+    ...section("Sign-ins", states(loginRows)),
+    ...section("Secrets", states(secretRows)),
+  ];
 }
