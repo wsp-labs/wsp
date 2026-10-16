@@ -4,7 +4,7 @@
 // the pull request in its menu. A push always goes through bring back, which
 // pushes and opens the pull request, or answers the one already open; a copy a
 // lead's thread opened pushes and opens nothing, so it is never offered one.
-import { DETACHED_HEAD, isPullRequestNamed, type Checkout, type PullRequestSeen } from "@wsp/protocol";
+import { actionRefusal, DETACHED_HEAD, isPullRequestNamed, type Checkout, type PullRequestSeen, type WorkspaceState } from "@wsp/protocol";
 
 export type GitAct = "commit-push-pr" | "commit-push" | "push" | "create-pr" | "view-pr";
 
@@ -16,6 +16,8 @@ export interface GitState {
   /** False on a copy a lead's thread opened, whose work lands in the lead's pull request. */
   readonly opensPr: boolean;
   readonly busy: boolean;
+  /** Why the copy cannot be asked right now, where its machine is not running: every act but View PR is held on it. */
+  readonly away?: string | undefined;
 }
 
 /** The main part: its label, the act it runs, or null with the reason it is held. */
@@ -23,6 +25,8 @@ export interface GitQuick {
   readonly label: string;
   readonly act: GitAct | null;
   readonly hint?: string;
+  /** The act a part held for an away machine stands for, which its icon still shows. */
+  readonly holds?: GitAct;
 }
 
 /** What a menu item does: open Changes to commit there, or one of the pushing acts. */
@@ -53,11 +57,17 @@ export const GIT_WORDS = {
 
 const held = (label: string, hint: string): GitQuick => ({ label, act: null, hint });
 
+/** What holds the git acts on a machine that is not running: the protocol's refusal, which says how to bring it back.
+ * The rows that count the acts are given "git action", since the protocol adds an s to the word it is given. */
+export const awayLine = (state: WorkspaceState): string | undefined =>
+  actionRefusal(state, state === "waking" || state === "unreachable" || state === "waiting" ? "git action" : "push") ?? undefined;
+
 export function gitQuickAction(s: GitState): GitQuick {
   const { checkout, pr } = s;
   if (checkout === undefined) return held(GIT_WORDS.commit, GIT_WORDS.unread);
   if (checkout.branch === "" || checkout.branch === DETACHED_HEAD) return held(GIT_WORDS.commit, GIT_WORDS.noBranch);
   const quick = pick(s, checkout, isPullRequestNamed(pr) && pr.state === "open");
+  if (s.away !== undefined && quick.act !== null && quick.act !== "view-pr") return { ...held(quick.label, s.away), holds: quick.act };
   return s.busy && quick.act !== null ? held(quick.label, GIT_WORDS.busy) : quick;
 }
 
@@ -78,10 +88,11 @@ export function gitMenu(s: GitState): GitMenuItem[] {
   const ahead = checkout !== undefined && checkout.ahead > 0;
   const openPr = isPullRequestNamed(pr) && pr.state === "open";
   const onBase = s.base !== undefined && checkout?.branch === s.base;
+  const stopped = s.busy || s.away !== undefined;
   const items: GitMenuItem[] = [
-    { id: "commit", label: GIT_WORDS.commit, act: "changes", disabled: s.busy || !changes },
-    { id: "push", label: GIT_WORDS.push, act: "push", disabled: s.busy || !branched || onBase || !ahead || (s.opensPr && !openPr) },
+    { id: "commit", label: GIT_WORDS.commit, act: "changes", disabled: stopped || !changes },
+    { id: "push", label: GIT_WORDS.push, act: "push", disabled: stopped || !branched || onBase || !ahead || (s.opensPr && !openPr) },
   ];
   if (!s.opensPr) return items;
-  return [...items, openPr ? { id: "pr", label: GIT_WORDS.viewPr, act: "view-pr", disabled: false } : { id: "pr", label: GIT_WORDS.createPr, act: "create-pr", disabled: s.busy || !branched || changes || onBase }];
+  return [...items, openPr ? { id: "pr", label: GIT_WORDS.viewPr, act: "view-pr", disabled: false } : { id: "pr", label: GIT_WORDS.createPr, act: "create-pr", disabled: stopped || !branched || changes || onBase }];
 }

@@ -26,7 +26,7 @@ export default defineConfig(({ command }) => ({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["./test/setup.ts"],
+    setupFiles: ["./test/setup.ts", fileURLToPath(new URL("../../vitest.stall-note.ts", import.meta.url))],
     env: TEST_ENV,
     // A budget, not a retry: the slowest case here runs half a second idle, and a gate at load average 135
     // stretched cases of 0.05 to 0.2 s to 5 to 8 s. 20 s is 40 times the slowest idle case, 2.5 times that stretch.
