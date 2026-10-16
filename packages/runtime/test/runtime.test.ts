@@ -422,7 +422,7 @@ describe("runtime", () => {
     expect(contexts.every(ctx => ctx.projectKey === project.memoryKey)).toBe(true);
     for (const ctx of contexts) {
       const { [TURN_TOKEN_ENV]: token, [HOST_TOKEN_ENV]: scoped, [THREAD_ENV]: thread, ...login } = ctx.env;
-      expect(login).toEqual({ ...GUEST_LOGIN_ENV, CLAUDE_CONFIG_DIR: "/root/.claude-cfg" });
+      expect(login).toEqual({ ...GUEST_LOGIN_ENV, CLAUDE_CONFIG_DIR: "/root/.claude-cfg", CLAUDE_CODE_PLUGIN_SEED_DIR: "/root/.claude-plugin-seed" });
       if (token !== undefined) expect(token).toMatch(/^[0-9a-f]{32}$/);
       expect(scoped !== undefined).toBe(token !== undefined);
       expect(thread).toBe(token !== undefined ? threadId : undefined);

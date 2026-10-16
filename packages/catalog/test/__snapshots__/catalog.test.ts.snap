@@ -4,7 +4,7 @@ exports[`catalog > is the seeded catalog 1`] = `
 [
   {
     "argument": "10 lines",
-    "configPaths": 8,
+    "configPaths": 6,
     "id": "claude",
     "kind": "agent",
     "projectState": [

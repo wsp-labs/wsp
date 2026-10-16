@@ -5,7 +5,7 @@ import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { BROKER_DOOR_URL, OFF_SERVERS_FILE, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
-import { agentWord, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
+import { agentWord, PLUGIN_SEED_ENV, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -27,6 +27,15 @@ describe("buildEnv", () => {
     expect(env.CLAUDE_CODE_SSE_PORT).toBeUndefined();
     expect(env.FORCE_CODE_TERMINAL).toBeUndefined();
     expect(env.PATH).toBe(base.PATH);
+  });
+
+  it("keeps the plugin seed a guest's login names through the strip, on every road, so a turn there reads the image's plugins and fetches no marketplace", () => {
+    expect(PLUGIN_SEED_ENV).toBe("CLAUDE_CODE_PLUGIN_SEED_DIR");
+    const guest = { ...base, CLAUDE_CONFIG_DIR: "/root/.claude-cfg", CLAUDE_CODE_PLUGIN_SEED_DIR: "/root/.claude-plugin-seed" };
+    expect(buildEnv({ base: guest }).CLAUDE_CODE_PLUGIN_SEED_DIR).toBe("/root/.claude-plugin-seed");
+    expect(buildEnv({ base: guest, brokered: { token: "turn-token-TESTONLY", kind: "token" } }).CLAUDE_CODE_PLUGIN_SEED_DIR).toBe("/root/.claude-plugin-seed");
+    expect(buildEnv({ base: guest }).CLAUDE_CODE_ENTRYPOINT).toBeUndefined();
+    expect(buildEnv({ base }).CLAUDE_CODE_PLUGIN_SEED_DIR).toBeUndefined();
   });
 
   it("turns on the task list tools a headless run leaves off, so the agent keeps its list as it does in its own terminal", () => {

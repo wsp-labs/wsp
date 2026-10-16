@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, onTestFinished } from "vitest";
 import * as catalog from "../src/index.js";
 import { pinMismatchLine, SHARED_TOOL_ROOTS, TOOLS_PATH, WORKSPACE_OVERLAID } from "@wsp/protocol";
-import { agentName, APT_INDEX, BREW_PREFIX, GUEST_HOME, APT_UPDATE, BASE_FLOOR, baseEntryFor, baseNote, BREW_ENV, CATALOG, CATALOG_AGENTS, catalogEntry, catalogToolFor, catalogToolForDependency, CLAUDE_CONFIG_DIR, CURL_NET, DEFAULT_AGENT, GCLOUD, guestEnv, hasLogin, HISTORY_FORMATS, HOMEBREW_STEP, installAfter, installLine, installShown, keysIdOf, keysRowOf, KUBECTL, LINUX_CASKS, LOGIN_ROWS, loginIdOf, loginRow, mintsToken, NO_SIGN_IN, NET_READ_S, NET_RETRIES, pinCheckLine, PLAYWRIGHT, readsRowRoad, RELEASE_PINS, runsThreads, THREAD_AGENTS, LOCAL_BIN, installHomes, TOOL_PREFIX, ROAD_MODULES, ROAD_STEPS, roadModule, ROADS, SIGN_IN_ROWS, SIZE_METHODS, sizeBytes, smokeOf, standingPin, unpinned, versionOf, fixesVersion, catalogIdOfRow, type AgentEntry, type InstallRoad, type ToolEntry } from "../src/index.js";
+import { agentName, APT_INDEX, BREW_PREFIX, GUEST_HOME, APT_UPDATE, BASE_FLOOR, baseEntryFor, baseNote, BREW_ENV, CATALOG, CATALOG_AGENTS, catalogEntry, catalogToolFor, catalogToolForDependency, CLAUDE_CODE, CLAUDE_CONFIG_DIR, CLAUDE_PLUGINS, CURL_NET, DEFAULT_AGENT, GCLOUD, guestEnv, hasLogin, HISTORY_FORMATS, HOMEBREW_STEP, installAfter, installLine, installShown, keysIdOf, keysRowOf, KUBECTL, LINUX_CASKS, LOGIN_ROWS, loginIdOf, loginRow, mintsToken, NO_SIGN_IN, NET_READ_S, NET_RETRIES, pinCheckLine, PLAYWRIGHT, readsRowRoad, RELEASE_PINS, runsThreads, THREAD_AGENTS, LOCAL_BIN, installHomes, TOOL_PREFIX, ROAD_MODULES, ROAD_STEPS, roadModule, ROADS, SIGN_IN_ROWS, SIZE_METHODS, sizeBytes, smokeOf, standingPin, unpinned, versionOf, fixesVersion, catalogIdOfRow, type AgentEntry, type InstallRoad, type ToolEntry } from "../src/index.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { AGENT_BINS, AGENT_STORE_ENVS } from "../../../vitest.env.js";
 
@@ -66,9 +66,50 @@ describe("catalog", () => {
     expect(agentName("zed")).toBe("zed");
   });
 
-  it("a golden's env for an agent points it at its guest state home only when the entry names the variable", () => {
-    expect(guestEnv(catalogEntry("claude") as AgentEntry)).toEqual({ CLAUDE_CONFIG_DIR });
+  it("a golden's env for an agent points it at its guest state home and its image's plugin seed only when the entry names the variables", () => {
+    expect(guestEnv(catalogEntry("claude") as AgentEntry)).toEqual({ CLAUDE_CONFIG_DIR, CLAUDE_CODE_PLUGIN_SEED_DIR: "/root/.claude-plugin-seed" });
     for (const a of CATALOG_AGENTS.slice(1)) expect(guestEnv(a), a.id).toEqual({});
+  });
+
+  it("Claude Code's plugin seed: only a plugin its marketplace pins to a commit of its own repo gets the sha-named link a turn looks it up by, and the settings keep only the marketplaces a switched-on plugin comes from", async () => {
+    const seed = CLAUDE_PLUGINS.seed!;
+    const record = (installPath: string) => [{ scope: "user", installPath, gitCommitSha: "0123456789abcdef0123456789abcdef01234567" }];
+    const files: Record<string, string> = {
+      "installed_plugins.json": JSON.stringify({
+        version: 2,
+        plugins: {
+          "vercel@claude-plugins-official": record(`${seed.dir}/cache/claude-plugins-official/vercel/0.50.0`),
+          "code-simplifier@claude-plugins-official": record(`${seed.dir}/cache/claude-plugins-official/code-simplifier/1.0.0`),
+          "pinned@claude-plugins-official": record(`${seed.dir}/cache/claude-plugins-official/pinned/882e66c26986`),
+          "x@gone": record(`${seed.dir}/cache/gone/x/1.0.0`),
+        },
+      }),
+      "marketplaces/claude-plugins-official/.claude-plugin/marketplace.json": JSON.stringify({
+        plugins: [
+          { name: "vercel", source: { source: "url", url: "https://github.com/acme/vercel-plugin.git", sha: "882e66c2698689324c341b7bb8fd8beb92c27bf6" } },
+          { name: "code-simplifier", source: "./plugins/code-simplifier" },
+          { name: "pinned", source: { source: "url", url: "https://github.com/acme/pinned.git", sha: "882e66c2698689324c341b7bb8fd8beb92c27bf6" } },
+        ],
+      }),
+    };
+    const reads: string[] = [];
+    const read = async (rel: string) => (reads.push(rel), files[rel]);
+    expect(await seed.links(read)).toEqual([["cache/claude-plugins-official/vercel/882e66c26986", "0.50.0"]]);
+    expect(reads.filter(r => r.includes("claude-plugins-official"))).toHaveLength(1);
+    expect(await seed.links(async () => "not json")).toEqual([]);
+    // The rule keys on the install layout of the Claude Code it was measured on; a pin bump measures it again.
+    expect(CLAUDE_CODE.version, "re-measure the seed link rule").toBe("2.1.296");
+    // An index an older image copied names another computer's folders, and every build takes it off, seed or not.
+    expect(CLAUDE_PLUGINS.copiedBefore).toEqual([`${CLAUDE_CONFIG_DIR}/plugins/known_marketplaces.json`, `${CLAUDE_CONFIG_DIR}/plugins/installed_plugins.json`]);
+    expect(seed.build("x@acme", "acme/plugins")).not.toContain("rm -f");
+    const settings = `{\n  "model": "opus",\n  "enabledPlugins": { "a@used": true, "b@off": false },\n  "extraKnownMarketplaces": {\n    "used": { "source": { "source": "github", "repo": "acme/used" } },\n    "off": { "source": { "source": "github", "repo": "acme/off" } }\n  }\n}\n`;
+    expect(JSON.parse(CLAUDE_PLUGINS.usedOnly!(settings))).toEqual({ model: "opus", enabledPlugins: { "a@used": true, "b@off": false }, extraKnownMarketplaces: { used: { source: { source: "github", repo: "acme/used" } } } });
+    for (const same of ['{"model":"opus"}', "{ not json", '{"extraKnownMarketplaces":{"used":{}},"enabledPlugins":{"a@used":true}}']) expect(CLAUDE_PLUGINS.usedOnly!(same)).toBe(same);
+  });
+
+  it("Claude Code's plugin indexes never travel: they name this computer's plugin folders", () => {
+    const claude = catalogEntry("claude") as AgentEntry;
+    expect([...claude.configPaths, ...(claude.volatile ?? [])].filter(p => p.includes("/plugins/"))).toEqual([]);
   });
 
   it("sends every entry down a known road with its argument", () => {
