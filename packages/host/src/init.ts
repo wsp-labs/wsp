@@ -1087,7 +1087,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const logLine = (): string => dim(runLog.failed === undefined ? `The run log is ${runLog.path}` : `The run log ${runLog.path} could not be written (${runLog.failed})`);
   const describeBuilder = (b: GoldenBuilderView): string => {
     const ageMs = Math.max(0, Date.now() - Date.parse(b.createdAt));
-    return `${b.name} (${b.id}), ${describeAge(ageMs)}, about $${((ageMs / 3_600_000) * opts.pricing.rateUsdPerHour(b.size)).toFixed(2)} so far`;
+    return `${b.name} (${b.id}), ${describeAge(ageMs)}${b.rateUsdPerHour === undefined ? "" : `, about $${((ageMs / 3_600_000) * b.rateUsdPerHour).toFixed(2)} so far`}`;
   };
   const reasonOf = (b: GoldenBuilderView): string => {
     if (b.foreignOwner !== undefined) return "not this setup's builder";
