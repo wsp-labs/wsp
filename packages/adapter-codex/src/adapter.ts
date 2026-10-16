@@ -1171,7 +1171,12 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
         if (open === undefined || exited) return "gone";
         // Taken off the map before the write, so two answers racing on one request cannot both reach the server.
         pending.delete(askId);
-        const wrote = await stream.write(decisionLine(open.id, answer.optionId === PERMISSION_ALLOW ? "accept" : "decline")).catch(() => "gone" as const);
+        // A failed write leaves the request open, or the server waits on an answer nobody can give again.
+        const wrote = await stream.write(decisionLine(open.id, answer.optionId === PERMISSION_ALLOW ? "accept" : "decline")).catch((e: unknown) => {
+          if (exited) return "gone" as const;
+          pending.set(askId, open);
+          throw e;
+        });
         if (wrote !== "written") return "gone";
         emit({ type: "permission.close", sessionId: threadId, askId, outcome: answer.outcome, optionId: answer.optionId });
         // A decline carries no words on this server, so the person's reason goes to the turn as their own message.
