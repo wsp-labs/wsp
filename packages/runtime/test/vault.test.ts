@@ -385,7 +385,8 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     const revert = launches.find(l => l.command.includes(" app-server"))!;
     expect(revert, JSON.stringify(launches.map(l => l.command))).toBeDefined();
     expect(revert.env[HOST_TOKEN_ENV]).toBeUndefined();
-    expect(revert.command).toContain(`-c openai_base_url='"http://127.0.0.1:7071/backend-api/codex"'`);
+    expect(revert.command).toContain(`-c chatgpt_base_url='"http://localhost:7071/backend-api/"'`);
+    expect(revert.command).toContain(`-c openai_base_url='"http://127.0.0.1:0/backend-api/codex"'`);
     // The line run as the machine runs it, a stand-in in place of codex keeping the words it was handed.
     const dir = mkdtempSync(join(tmpdir(), "wsp-revert-"));
     roots.push(dir);
@@ -420,7 +421,7 @@ describe("a turn on a machine whose credentials the host keeps", () => {
     expect(await after.sessions.rename(turn.id, "named")).toMatchObject({ outcome: expect.any(String) });
     const renamed = machine.execLog.slice(from).find(line => line.includes("app-server"));
     expect(renamed, machine.execLog.slice(from).join("\n")).toBeDefined();
-    expect(renamed).toContain(`openai_base_url='"http://127.0.0.1:7071/backend-api/codex"'`);
+    expect(renamed).toContain(`chatgpt_base_url='"http://localhost:7071/backend-api/"'`);
     await after.close();
   });
 
