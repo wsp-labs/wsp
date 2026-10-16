@@ -247,6 +247,27 @@ describe("weighing by project", () => {
 });
 
 describe("readHistories", () => {
+  it("ends a store at a file it cannot read: no file of that store is read or told after the store is said unreadable", async () => {
+    const files = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`~/.claude/projects/-Users-dev-proj/s${i}.jsonl`, claudeLine(`s${i}`, [{ name: "Read", input: { file_path: "/x" } }])]));
+    const host = fakeHost({ files });
+    const failing = {
+      ...host,
+      fs: {
+        ...host.fs,
+        lines: (path: string, holding?: string) =>
+          path.endsWith("/s3.jsonl")
+            ? (async function* (): AsyncGenerator<string> {
+                throw new Error("EIO");
+              })()
+            : host.fs.lines(path, holding),
+      },
+    };
+    const heard: string[] = [];
+    await readHistories(failing, CATALOG_AGENTS.filter(a => a.id === "claude"), { onAgent: h => heard.push(`${h.agent} ${h.state}`), onProgress: p => heard.push(`${p.agent} ${p.read}/${p.files}`) });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(heard.at(-1)).toBe("claude unreadable");
+  });
+
   it("names every catalog agent: read with counts, empty, unreadable, or no reader for its format", async () => {
     const host = fakeHost({
       files: {
@@ -284,8 +305,8 @@ describe("the session cache", () => {
   };
 
   const CLAUDE = CATALOG_AGENTS.filter(a => a.id === "claude");
-  /** PARSE_VERSION and what the files that fill a bucket hashed to when it was last bumped. */
-  const FINGERPRINT = "2:8d7258f9d6375eff";
+  /** PARSE_VERSION and what the files that fill a bucket hashed to when it was last weighed against them. */
+  const FINGERPRINT = "2:0c3a5eccb3e02774";
   const S1 = "~/.claude/projects/-Users-dev-proj/s1.jsonl";
   const S2 = "~/.claude/projects/-Users-dev-proj/s2.jsonl";
   const FIRST = [claudeLine("s1", [{ name: "Bash", input: { command: "gh pr view" } }]), claudeLine("s1", [{ name: "Read", input: { file_path: "/x" } }])].join("\n");

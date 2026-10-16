@@ -34,20 +34,37 @@ export interface StoreOptions {
   onFile?: (read: number, files: number) => void;
 }
 
+/** How many of a store's files are read at once: a first read of a busy computer's sessions spent a quarter of its time
+ * waiting on the disk one file at a time, and another file's lines are parsed while one waits. */
+const FILES_AT_ONCE = 4;
+
 /** What one agent's store came to. Every session file is either taken from the cache, when its stamp says it has
  * not changed, or read; the folders are weighed after the merge, so one cache serves a run for any project. */
 export async function readStore(host: Host, reader: HistoryReader, root: string, opts: StoreOptions = {}): Promise<Usage> {
   const files = await reader.files(host, root);
-  const held: { holder: string; buckets: readonly HistoryBucket[] }[] = [];
-  for (const [i, f] of files.entries()) {
-    let buckets = opts.cache?.get(f.path, f.stamp);
-    if (buckets === undefined) {
-      buckets = await reduceCalls(reader.read(host, root, f.path));
-      opts.cache?.set(f.path, f.stamp, buckets);
+  const held: { holder: string; buckets: readonly HistoryBucket[] }[] = new Array(files.length);
+  let next = 0;
+  let read = 0;
+  const reading = async (): Promise<void> => {
+    for (let i = next++; i < files.length; i = next++) {
+      const f = files[i]!;
+      let buckets = opts.cache?.get(f.path, f.stamp);
+      if (buckets === undefined) {
+        buckets = await reduceCalls(reader.read(host, root, f.path));
+        opts.cache?.set(f.path, f.stamp, buckets);
+      }
+      held[i] = { holder: reader.holder(root, f.path), buckets };
+      opts.onFile?.(++read, files.length);
     }
-    held.push({ holder: reader.holder(root, f.path), buckets });
-    opts.onFile?.(i + 1, files.length);
-  }
+  };
+  // A file that cannot be read ends the store: no file is started after it, and the throw waits for the reads already
+  // open, so nothing reports on a store after it was said unreadable.
+  const ran = await Promise.allSettled(Array.from({ length: Math.min(FILES_AT_ONCE, files.length) }, () => reading().catch((e: unknown) => {
+    next = files.length;
+    throw e;
+  })));
+  const failed = ran.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (failed !== undefined) throw failed.reason;
   return usageOf(oneHolder(held), opts.folders);
 }
 
