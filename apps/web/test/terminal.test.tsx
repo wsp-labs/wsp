@@ -4,6 +4,7 @@
 // surfaces over this model have their own suites.
 import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { SHELL_ENDED_LINE, SHELL_STOPPED_LINE } from "../src/adapt/index.js";
 import { WorkspaceTerminals, type TerminalWire } from "../src/terminal/link.js";
 import { boot, teardown, WS_ID } from "./terminal-harness.js";
 
@@ -95,6 +96,37 @@ describe("WorkspaceTerminals", () => {
     const seen: string[] = [];
     wt.bind("p1", { data: d => seen.push(d), reset: () => {} })();
     expect(seen.join("")).toContain("[This shell ended when the terminal process on its computer restarted]");
+  });
+
+  it("a pty a nap's stop ended says the stop ended it, in its scrollback and on its tab, and only for that wake", async () => {
+    let nextPty = 1;
+    let reattaching = false;
+    const wire: TerminalWire = {
+      request: async (op, params = {}) => {
+        if (op === "pty.create") return { ok: true, ptyId: `p${nextPty++}` };
+        if (op === "pty.attach" && reattaching) throw new Error(`no such pty: ${String(params["ptyId"])}`);
+        return { ok: true };
+      },
+    };
+    const wt = new WorkspaceTerminals(wire);
+    wt.feedStatus("live");
+    await wt.open();
+    reattaching = true;
+    wt.feedStop();
+    wt.feedStatus("connecting");
+    wt.feedStatus("live");
+    await waitFor(() => expect(wt.tabs()[0]).toMatchObject({ lost: true, ended: SHELL_STOPPED_LINE }));
+    const seen: string[] = [];
+    wt.bind("p1", { data: d => seen.push(d), reset: () => {} })();
+    expect(seen.join("")).toContain(`[${SHELL_STOPPED_LINE}]`);
+    await waitFor(() => expect(wt.status()).toBe("live"));
+    // A shell lost on a later drop with no stop before it ended with the terminal process.
+    reattaching = false;
+    await wt.open();
+    reattaching = true;
+    wt.feedStatus("connecting");
+    wt.feedStatus("live");
+    await waitFor(() => expect(wt.tabs()[1]).toMatchObject({ lost: true, ended: SHELL_ENDED_LINE }));
   });
 
   it("a connection dying mid-reattach does not mark ptys lost", async () => {

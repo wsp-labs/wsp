@@ -781,7 +781,9 @@ const overlay = () => document.querySelector<HTMLElement>("[data-terminal-overla
 const hints = () => Array.from(overlay()?.querySelectorAll<HTMLElement>("[data-terminal-hint]") ?? []).map(p => p.textContent);
 
 describe("panes on a workspace that is not running", () => {
-  afterEach(() => useStore.setState({ api: null, workspaces: [], statuses: {} }));
+  // The project lands on a provider that keeps a paused machine's memory unless a test names another: the one nap a shell survives.
+  beforeEach(() => useStore.setState({ capabilities: caps(), landings: { [PANE_WS.project.id]: { name: "Solari", capabilities: caps() } } }));
+  afterEach(() => useStore.setState({ api: null, workspaces: [], statuses: {}, capabilities: null, landings: {} }));
 
   it("a paused workspace dims the frozen frame, refuses keys with the reason, and its Wake calls the wake op; on wake the same pty continues", async () => {
     const { wt, writes, count } = fakeLink();
@@ -822,6 +824,55 @@ describe("panes on a workspace that is not running", () => {
     expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1"]);
     fireEvent.keyDown(inputs("drawer")[0]!, { key: "a", code: "KeyA" });
     await waitFor(() => expect(writes()).toEqual(["a"]));
+  }, 20_000);
+
+  it("on a cloud whose nap ends every process, the stopping, stopped and waking words promise no kept shell", async () => {
+    fakeLink();
+    const wakes: string[] = [];
+    useStore.setState({ landings: { [PANE_WS.project.id]: { name: "Boat", capabilities: caps({ pauseMode: "disk" }) } } });
+    setPane("running", {}, wakes);
+    useTerminalDrawerStore.getState().setOpen(WS, true);
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    await waitFor(() => expect(inputs("drawer")).toHaveLength(1), { timeout: 15_000 });
+
+    const said: string[] = [];
+    act(() => setPane("pausing", { machineState: "running", reach: { state: "napping" } }, wakes));
+    await waitFor(() => expect(overlay()?.dataset["terminalOverlay"]).toBe("paused"));
+    said.push(overlay()!.textContent!);
+    act(() => setPane("napping", { machineState: "paused", reach: { state: "napping" } }, wakes));
+    await waitFor(() => expect(overlay()!.textContent).toContain("Stopped."));
+    said.push(overlay()!.textContent!);
+    fireEvent.keyDown(inputs("drawer")[0]!, { key: "a", code: "KeyA" });
+    await waitFor(() => expect(document.querySelector("[data-terminal-refused]")?.textContent).toBe("Typing is refused: the thread is stopped"));
+    fireEvent.click(within(overlay()!).getByRole("button", { name: "Wake" }));
+    await waitFor(() => expect(overlay()?.dataset["terminalOverlay"]).toBe("waking"));
+    said.push(overlay()!.textContent!);
+
+    expect(said[0]).toContain("Stopping. The shell ends with the stop; wake the thread to open a new one");
+    expect(said[1]).toContain("Stopped. The shell ended with the stop; wake the thread to open a new one");
+    expect(said[2]).toContain("Waking the thread. The shell ended with the stop; open a new one when it is back");
+    for (const line of said) {
+      expect(line).not.toMatch(/kept|continues/);
+      expect(line).not.toMatch(/\bPaus/);
+    }
+  }, 20_000);
+
+  it("reads the nap off the computer the project lands on, as its sidebar row does, never off the host's own provider", async () => {
+    fakeLink();
+    const wakes: string[] = [];
+    // A host forking on a provider that keeps the memory, with this project on a computer whose nap ends every process.
+    useStore.setState({ capabilities: caps(), landings: { [PANE_WS.project.id]: { name: "Boat", capabilities: caps({ pauseMode: "disk" }) } } });
+    setPane("running", {}, wakes);
+    useTerminalDrawerStore.getState().setOpen(WS, true);
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    await waitFor(() => expect(inputs("drawer")).toHaveLength(1), { timeout: 15_000 });
+    act(() => setPane("napping", { machineState: "paused", reach: { state: "napping" } }, wakes));
+    await waitFor(() => expect(overlay()?.dataset["terminalOverlay"]).toBe("paused"));
+    expect(overlay()!.textContent).toContain("Stopped. The shell ended with the stop");
+    // A host that forks on none, the dev host and every public build, with this project on a provider that keeps the memory.
+    const { pauseMode: _none, ...forksOnNone } = caps();
+    act(() => useStore.setState({ capabilities: forksOnNone, landings: { [PANE_WS.project.id]: { name: "Solari", capabilities: caps() } } }));
+    await waitFor(() => expect(overlay()!.textContent).toContain("Paused. The shell is kept"));
   }, 20_000);
 
   it("a pty refused on a computer that is not answering says nothing in the corner: its pane already says why", async () => {
@@ -1031,6 +1082,34 @@ describe("panes on a workspace that is not running", () => {
     fireEvent.click(within(overlay()!).getByRole("button", { name: /^New terminal/ }));
     await waitFor(() => expect(wt.tabs().map(t => t.ptyId)).toEqual(["p1", "p2"]));
     await waitFor(() => expect(overlay()).toBeNull());
+  }, 20_000);
+
+  it("a shell open before a nap that ends every process says the stop ended it once the thread is back", async () => {
+    let stopped = false;
+    const wire: TerminalWire = {
+      request: async (op, params = {}) => {
+        if (op === "pty.create") return { ok: true, ptyId: "p2" };
+        if (op === "pty.attach" && stopped && params["ptyId"] === "p1") throw new Error("no such pty: p1");
+        if (op === "pty.list") return { ok: true, ptys: stopped ? [] : [{ id: "p1", pid: 1, cols: 80, rows: 24, exited: false }] };
+        return { ok: true };
+      },
+    };
+    const wt = new WorkspaceTerminals(wire);
+    wt.feedStatus("live");
+    provideTerminals(WS, wt);
+    setPane("running", {});
+    useTerminalDrawerStore.getState().setOpen(WS, true);
+    render(<WorkspaceTerminalDrawer workspaceId={WS} />);
+    await waitFor(() => expect(inputs("drawer")).toHaveLength(1), { timeout: 15_000 });
+    stopped = true;
+    act(() => {
+      wt.feedStop();
+      wt.feedStatus("connecting");
+    });
+    act(() => wt.feedStatus("live"));
+    await waitFor(() => expect(overlay()?.dataset["terminalOverlay"]).toBe("shell-gone"));
+    expect(overlay()!.textContent).toContain("This shell ended when the thread stopped");
+    expect(overlay()!.textContent).not.toContain("restarted");
   }, 20_000);
 });
 
