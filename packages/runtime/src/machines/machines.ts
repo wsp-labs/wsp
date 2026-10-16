@@ -116,12 +116,17 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
       if (at?.replayCreate === undefined) continue;
       const release = await hold(purpose);
       try {
-        let machine: Machine;
+        let machine: Machine | undefined;
         try {
-          machine = await at.replayCreate(row.key, row.request);
+          machine = await at.replayCreate(row.key, row.request, row.createdAt);
         } catch (e) {
           if (isMissing(e)) await store.delete(CREATES, purpose);
           else failed.push({ message: `the create under ${row.key} was asked again and not answered: ${e instanceof Error ? e.message : String(e)}; asked again next sweep` });
+          continue;
+        }
+        // Past the key's window the box the first ask made is left to the sweep of boxes no record names.
+        if (machine === undefined) {
+          await store.delete(CREATES, purpose);
           continue;
         }
         // The record waits where the sweep records a machine again: its name kept, its project held, no record live.
@@ -150,23 +155,27 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
 
   /** Deletes what the provider lists under the name of one of this host's images that no record and no attempt of
    * this host names: a machine whose create lost its answer before anything named it. A machine under any other
-   * name is never asked about. */
-  const sweepStrays = async (known: () => Iterable<string>, failed: ReapFailure[]): Promise<ReapedMachine[]> => {
-    if (backend.namedAfter === undefined) return [];
+   * name is never asked about. `at` is every provider the sweep listed, since a create at a place loses its answer
+   * there too. */
+  const sweepStrays = async (known: () => Iterable<string>, failed: ReapFailure[], at: readonly MachineBackend[]): Promise<ReapedMachine[]> => {
+    const asking = at.filter(b => b.namedAfter !== undefined);
+    if (asking.length === 0) return [];
     const mark = imageMark();
     const attempts = (await store.list(CREATES)) as PendingCreate[];
     const asked = new Set(attempts.flatMap(a => (a.image !== undefined ? [a.image] : [])));
     const names = new Set([...(await ctx.recordedImages()), ...asked].filter(n => nameOwner(n) === mark));
     if (names.size === 0) return [];
     const deleted: ReapedMachine[] = [];
-    for (const m of strays(await backend.namedAfter(names), { known: new Set(known()), asked, now: Date.now() })) {
-      try {
-        await gone.stop(backend, await backend.get(m.id));
-      } catch (e) {
-        if (!isMissing(e)) failed.push({ id: m.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}` });
-        continue;
+    for (const b of asking) {
+      for (const m of strays(await b.namedAfter!(names), { known: new Set(known()), asked, now: Date.now() })) {
+        try {
+          await gone.stop(b, await b.get(m.id));
+        } catch (e) {
+          if (!isMissing(e)) failed.push({ id: m.id, message: `could not stop: ${e instanceof Error ? e.message : String(e)}` });
+          continue;
+        }
+        deleted.push({ id: m.id, builder: false, reason: "stray", name: m.name, ageMs: m.ageMs });
       }
-      deleted.push({ id: m.id, builder: false, reason: "stray", name: m.name, ageMs: m.ageMs });
     }
     return deleted;
   };
