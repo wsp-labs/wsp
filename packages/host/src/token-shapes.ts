@@ -49,7 +49,7 @@ const SIGNATURE_WORDS = new Set(["SIG", "SIGNATURE"]);
 /** A query parameter that holds something under a secret's name or a signature's, in an address or in Codex's `query_params`. */
 export const querySecret = (name: string, value: string): boolean => {
   const words = name.toUpperCase().split(/[-_]/);
-  return carries(value) && (secretNamed(words.join("_")) || words.some(w => SIGNATURE_WORDS.has(w)));
+  return carries(value) && (secretNamed(name.replace(/-/g, "_")) || words.some(w => SIGNATURE_WORDS.has(w)));
 };
 
 /** An address's login is a secret where it holds a password, or a user name shaped like a key; `git@` and `dev@` are
