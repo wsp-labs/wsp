@@ -109,8 +109,14 @@ export function preferencesArea(ctx: RuntimeContext): PreferencesArea {
           return folder === undefined ? [] : [[a.id, folder]];
         }),
       );
+      const seeds = Object.fromEntries(
+        CATALOG_AGENTS.flatMap(a => {
+          const seed = local || a.plugins?.seed === undefined ? undefined : ctx.threadEnv(entry, a.id)[a.plugins.seed.env];
+          return seed === undefined ? [] : [[a.id, seed]];
+        }),
+      );
       const brokered = !local && atProvider(ctx.placeIdOf(entry.record), ctx.places);
-      return { name: entry.record.name, phase: entry.record.phase, local, machine: entry.machine, project: { id: project.id, name: project.name, path: ctx.checkoutOf(entry.record) }, stores, ...(brokered ? { brokered } : {}) };
+      return { name: entry.record.name, phase: entry.record.phase, local, machine: entry.machine, project: { id: project.id, name: project.name, path: ctx.checkoutOf(entry.record) }, stores, seeds, ...(brokered ? { brokered } : {}) };
     },
     placeStores: ctx.placeStores,
     storesHere: ctx.storesHere,

@@ -327,7 +327,7 @@ export function agentsReader(o: {
   const hostOf = async (on: Exclude<AgentsOn, { kind: "here" }>): Promise<{ host: MachineHost; user: string; runAs?: string; login: TargetLogin }> => {
     const login = await targetLogin(on.machine, on.kind === "box" ? on.login : {});
     const host = machineHost(on.machine, login, on.kind === "box" ? { stdin: true } : { land: on.machine });
-    return { host: on.stores === undefined ? host : { ...host, stores: on.stores }, user: login.user, ...(login.runAs !== undefined ? { runAs: login.runAs } : {}), login };
+    return { host: { ...host, ...(on.stores !== undefined ? { stores: on.stores } : {}), ...(on.kind === "machine" && on.seeds !== undefined ? { seeds: on.seeds } : {}) }, user: login.user, ...(login.runAs !== undefined ? { runAs: login.runAs } : {}), login };
   };
   const readOn = async (on: AgentsOn): Promise<AgentsRead> => {
     if (on.kind === "here") {
