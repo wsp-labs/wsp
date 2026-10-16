@@ -72,6 +72,12 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
     if (!at.capabilities.snapshotListing || at.listSnapshots === undefined) return undefined;
     return snapshotStorage(await at.listSnapshots(ids), at.pricing.snapshotStorage, { hostId: ctx.imageMark(), recorded: await ctx.recordedImages(), now: clock.now() });
   };
+  // A seal over a standing record files it where the builder was made, so the image's own build goes to the
+  // record's place whatever was asked, and only a copy is built anywhere else.
+  const prepareAt = async (name: string, word: string | undefined, copy: boolean): Promise<{ place: string; at: MachineBackend }> => {
+    const asked = !copy && (await ctx.recordOf(name)) !== undefined ? await ctx.imagePlace(name) : word;
+    return asked === undefined ? { place: places.wired, at: ctx.backendAt(places.wired) } : await ctx.placeAt(asked);
+  };
   const golden: Runtime["golden"] = {
     async build(o) {
       await ctx.ready();
@@ -126,6 +132,12 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       return running[0]!;
     },
 
+    async prepareAt(o) {
+      await ctx.ready();
+      const { place } = await prepareAt(o?.name ?? "default", o?.place, false);
+      return { place, name: ctx.placeName(place) };
+    },
+
     async prepare(o) {
       await ctx.ready();
       const recipe = ctx.recipeOrThrow(o?.recipe);
@@ -133,10 +145,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       const signal = o?.signal;
       const { deployDaemon, smoke, import: imp, ...size } = recipe;
       void smoke;
-      // A seal over a standing record files it where the builder was made, so the image's own build goes to the
-      // record's place whatever was asked, and only a copy is built anywhere else.
-      const asked = o?.copy !== true && (await ctx.recordOf(name)) !== undefined ? await ctx.imagePlace(name) : o?.place;
-      const { place, at } = asked === undefined ? { place: places.wired, at: ctx.backendAt(places.wired) } : await ctx.placeAt(asked);
+      const { place, at } = await prepareAt(name, o?.place, o?.copy === true);
       // Per place as well as per name: a copy building at one place and the image building at another are two
       // prepares of one golden, and neither is the other's to join.
       const preparingKey = copyKey(place, name);
