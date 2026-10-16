@@ -558,6 +558,90 @@ describe("a copied shell file or git config", () => {
     });
   }
 
+  const HEREDOCS = [
+    "cat > ~/.lab.env <<EOF",
+    "API_KEY=plain0heredoc",
+    "PLAIN=1",
+    "EOF",
+    "cat >> ~/.lab.env <<'EOF'",
+    "  export GH_TOKEN=plain0export",
+    'DB_PASSWORD="plain0multi',
+    'plain0line"',
+    "LAB=2",
+    "EOF",
+    "cat >> ~/.lab.env <<-EOF",
+    "\tLAB_SECRET=plain0tab",
+    "\tEOF",
+    "cat >> ~/.lab.env <<EOF",
+    "export \\",
+    "CONT_KEY=plain0cont",
+    "EOF",
+    "eval 'cd /tmp",
+    "export LAB_TOKEN=plain0eval'",
+    'eval "',
+    "  EVAL_SECRET=plain0double",
+    '"',
+    "eval 'ARR_KEY=(",
+    "  plain0array",
+    ")'",
+    "eval 'cd /tmp",
+    "LAB_VALUE=ghp_plain0tokenAbCdEfGh1234567890'",
+    "eval 'echo it'\\''s",
+    "export QT_TOKEN=plain0idiom'",
+    "x=\\'; eval $'echo it\\'s",
+    "export AC_TOKEN=plain0ansi'",
+    "\\eval 'cd /tmp",
+    "export QE_TOKEN=plain0escaped'",
+    "LANG=C eval 'cd /tmp",
+    "export LC_TOKEN=plain0lead'",
+    'if [ -n "$HOME" ]; then eval \'',
+    "  export IF_TOKEN=plain0if",
+    "'; export IN_BLOCK=1; fi",
+    "export AFTER=1",
+    "",
+  ].join("\n");
+  /** Heredocs and evals over lines that hold no secret, a name check's near misses among them: each lands as it was. */
+  const PLAIN_HEREDOCS = [
+    "cat > ~/.lab.env <<EOF",
+    "PLAIN=1",
+    "KEYTIMEOUT=1",
+    "export LAB_PATH=\\$HOME/bin",
+    "EOF",
+    "eval 'cd /tmp",
+    "export EVAL_PLAIN=1'",
+    'eval "',
+    '  export QUOTE=\\"it\'s\\"',
+    '"',
+    "alias up='cd ..",
+    "ls'",
+    "cat >> ~/.lab.env <<'EOF'",
+    "it's a body with a stray quote $KEY",
+    "EOF",
+    "export AFTER=1",
+    "",
+  ].join("\n");
+  const HEREDOC_LEFT = ["API_KEY", "GH_TOKEN", "DB_PASSWORD", "LAB_SECRET", "LAB_TOKEN", "EVAL_SECRET", "ARR_KEY", "LAB_VALUE", "QT_TOKEN", "AC_TOKEN", "IF_TOKEN", "CONT_KEY", "QE_TOKEN", "LC_TOKEN"];
+  const unguarded = (landed: [string, string][]): [string, string][] => landed.map(([where, text]) => [where, text.replace(new RegExp(`^${GUARD_BEGIN}\\n[^]*?${GUARD_END}\\n\\n`), "")]);
+
+  it("a heredoc body line or an eval body over lines that assigns a secret lands cut like a bare assignment, and one that holds none lands byte for byte, on a box and on an image", async () => {
+    const want = ["cat > ~/.lab.env <<EOF", "PLAIN=1", "EOF", "cat >> ~/.lab.env <<'EOF'", "LAB=2", "EOF", "cat >> ~/.lab.env <<-EOF", "\tEOF", "cat >> ~/.lab.env <<EOF", "export \\", "", "EOF", "true", "true", "true", "true", "true", "x=\\'; true", "true", "true", 'if [ -n "$HOME" ]; then true; export IN_BLOCK=1; fi', "export AFTER=1", ""].join("\n");
+    const landed = unguarded(await landedTexts(HEREDOCS));
+    expect(landed).toEqual(landed.map(([where]) => [where, want]));
+    const plain = unguarded(await landedTexts(PLAIN_HEREDOCS));
+    expect(plain).toEqual(plain.map(([where]) => [where, PLAIN_HEREDOCS]));
+  });
+
+  for (const name of ["bash", "zsh"]) {
+    const shell = (process.env["PATH"] ?? "").split(delimiter).filter(d => d !== "").map(d => join(d, name)).find(p => existsSync(p));
+    it.skipIf(shell === undefined)(`a cut heredoc line or eval leaves a file ${name} reads to its end with no value set or written, and a plain one still runs, on a box and on an image`, async () => {
+      const left = HEREDOC_LEFT.map(v => `\${${v}:+${v}}`).join("");
+      const read = await readLanded(shell!, name, HEREDOCS, `printf "%s " "$IN_BLOCK" "$AFTER" "${left}"; cat ~/.lab.env`);
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, "1 1  PLAIN=1\nLAB=2\nexport \n"]));
+      const plain = await readLanded(shell!, name, PLAIN_HEREDOCS, 'printf "%s " "$EVAL_PLAIN" "$QUOTE" "$AFTER"; cat ~/.lab.env');
+      expect(plain).toEqual(plain.map(([where]) => [where, false, 0, "1 it's 1 PLAIN=1\nKEYTIMEOUT=1\nexport LAB_PATH=$HOME/bin\nit's a body with a stray quote $KEY\n"]));
+    });
+  }
+
   it("a shell row's file that is no script loses a cut line with nothing in its place, on a box and on a provider's image", async () => {
     const home = laptop();
     mkdirSync(join(home, ".config"));
