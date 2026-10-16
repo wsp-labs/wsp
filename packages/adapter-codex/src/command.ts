@@ -132,12 +132,12 @@ const PRINT_KEY = ["-c", `printf %s "${PLACEHOLDER_KEY_PREFIX}$${HOST_TOKEN_ENV}
 
 /** One of the person's providers as the machine runs it, as overrides of the entry the copied config holds: codex
  * merges a `-c` table into the file's rather than replacing it (measured on codex-cli 0.162.1), so a credential field
- * cannot be taken away, only given the placeholder key. The base_url goes to the door, which maps it onto the one the
- * host recorded; an auth command prints the placeholder key, a bearer token is it, and any other entry reads it through
- * env_key, unless it asks for OpenAI's own sign-in and so takes the placeholder login. Every http_headers value goes
- * blank. An entry codex read as Azure keeps a name that reads azure, since a loopback URL carries no Azure marker. An
- * AWS-signed entry keeps today's road, untouched. */
-export function providerFlags(id: string, entry: Readonly<Record<string, unknown>>, mode: CodexBroker["mode"]): { flags: string[]; keyed: boolean } {
+ * cannot be taken away, only given the placeholder key. The base_url goes to `models`: the door, which maps it onto the
+ * one the host recorded, or nowhere for a launch that asks no model. An auth command prints the placeholder key, a
+ * bearer token is it, and any other entry reads it through env_key, unless it asks for OpenAI's own sign-in and so
+ * takes the placeholder login. Every http_headers value goes blank. An entry codex read as Azure keeps a name that
+ * reads azure, since a loopback URL carries no Azure marker. An AWS-signed entry keeps today's road, untouched. */
+export function providerFlags(id: string, entry: Readonly<Record<string, unknown>>, mode: CodexBroker["mode"], models = DOOR): { flags: string[]; keyed: boolean } {
   if (!SERVER_NAME_RE.test(id)) throw new Error(`a model provider's id must be one plain word of a config key, got "${id}"`);
   if (entry.aws !== undefined) return { flags: [], keyed: false };
   const at = `model_providers.${id}`;
@@ -158,7 +158,7 @@ export function providerFlags(id: string, entry: Readonly<Record<string, unknown
   return {
     keyed,
     flags: [
-      config(`${at}.base_url`, openaiAuth && mode === "chatgpt" ? `${DOOR}/backend-api/codex` : `${DOOR}/v1`),
+      config(`${at}.base_url`, openaiAuth && mode === "chatgpt" ? `${models}/backend-api/codex` : `${models}/v1`),
       ...(azure ? [config(`${at}.name`, "azure")] : []),
       ...credential,
       ...(headers.length > 0 ? [configRaw(`${at}.http_headers`, `{${headers.map(h => `${JSON.stringify(h)}=""`).join(",")}}`)] : []),
@@ -166,8 +166,8 @@ export function providerFlags(id: string, entry: Readonly<Record<string, unknown
   };
 }
 
-const providersOf = (broker: CodexBroker): { flags: string[]; keyed: boolean }[] =>
-  Object.entries(broker.providers ?? {}).map(([id, entry]) => providerFlags(id, entry, broker.mode));
+const providersOf = (broker: CodexBroker, models = DOOR): { flags: string[]; keyed: boolean }[] =>
+  Object.entries(broker.providers ?? {}).map(([id, entry]) => providerFlags(id, entry, broker.mode, models));
 
 /** The overrides and the steps a brokered launch adds: the placeholder login, the placeholder key the providers that
  * read one find, both base URLs at the door, the login read from its file, analytics off, and each provider's fields.
@@ -177,13 +177,13 @@ function brokeredLine(broker: CodexBroker, now: number, turn: boolean): { steps:
   const providers = providersOf(broker);
   return {
     steps: [placeholderLogin(broker, now, turn), ...(broker.mode === "apikey" ? [`unset ${KEY_FILE_ENV}`] : []), ...(providers.some(p => p.keyed) ? [`export ${PROVIDER_KEY_ENV}="${PLACEHOLDER_KEY_PREFIX}$${HOST_TOKEN_ENV}"`] : [])],
-    flags: doorFlags(broker, providers, "file"),
+    flags: doorFlags(broker, providers, "file", DOOR),
   };
 }
 
-function doorFlags(broker: CodexBroker, providers: readonly { flags: string[] }[], store: "file" | "ephemeral"): string[] {
+function doorFlags(broker: CodexBroker, providers: readonly { flags: string[] }[], store: "file" | "ephemeral", models: string): string[] {
   return [
-    config("openai_base_url", broker.mode === "chatgpt" ? `${DOOR}/backend-api/codex` : `${DOOR}/v1`),
+    config("openai_base_url", broker.mode === "chatgpt" ? `${models}/backend-api/codex` : `${models}/v1`),
     config("chatgpt_base_url", `${BACKEND_DOOR}/backend-api/`),
     config("cli_auth_credentials_store", store),
     configRaw("analytics.enabled", "false"),
@@ -215,8 +215,13 @@ export function codexWord(launch: AgentLaunch | undefined, broker: CodexBroker |
   return [word, ...flags].join(" ");
 }
 
+/** The model address of a launch that asks no model. A thread/resume, which a revert sends, starts a session, and
+ * codex-cli 0.163.0 opens the Responses websocket of the thread's provider at every session start whatever the login,
+ * so at the door it was a call with no token. Nothing can listen on port 0, so it fails on the machine itself. */
+const NO_MODELS = "http://127.0.0.1:0";
+
 function noLoginLine(broker: CodexBroker): { steps: string[]; flags: string[] } {
-  return { steps: broker.mode === "apikey" ? [`unset ${KEY_FILE_ENV}`] : [], flags: [...doorFlags(broker, providersOf(broker), "ephemeral"), configRaw("features.plugins", "false")] };
+  return { steps: broker.mode === "apikey" ? [`unset ${KEY_FILE_ENV}`] : [], flags: [...doorFlags(broker, providersOf(broker, NO_MODELS), "ephemeral", NO_MODELS), configRaw("features.plugins", "false")] };
 }
 
 /** The program a terminal on a brokered machine finds as codex in `folder`, ahead of the real one on its PATH: codex
