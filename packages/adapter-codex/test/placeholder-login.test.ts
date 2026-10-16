@@ -214,7 +214,7 @@ describe("every other Codex launch on a brokered machine", () => {
       expect(args).not.toContain('cli_auth_credentials_store="file"');
       expect(args).toContain("features.plugins=false");
       expect(args.at(-1)).toBe("app-server");
-      expect(args).toContain(broker.mode === "chatgpt" ? `chatgpt_base_url="http://localhost:${BROKER_PORT}/backend-api/"` : `openai_base_url="${DOOR}/v1"`);
+      expect(args).toContain(broker.mode === "chatgpt" ? `chatgpt_base_url="http://localhost:${BROKER_PORT}/backend-api/"` : 'openai_base_url="http://127.0.0.1:0/v1"');
       expect(readFileSync(join(dir, "home", "auth.json"), "utf8")).toBe("last turn's");
       expect(envOf(dir)[KEY_FILE_ENV]).toBeUndefined();
     }
@@ -246,6 +246,31 @@ describe("every other Codex launch on a brokered machine", () => {
         expect(args).toContain("features.plugins=false");
         expect(readFileSync(join(dir, "home", "auth.json"), "utf8")).toBe("last turn's");
         expect(envOf(dir)[KEY_FILE_ENV]).toBeUndefined();
+      }
+    }
+  });
+
+  it("a revert or a fork's turn lookup names no model address at the door, its provider's or a person's own", async () => {
+    // A thread/resume starts a session, and codex opens the provider's Responses websocket at every session start,
+    // login or not: a revert's two reached the door with no token.
+    const providers = { acme: { base_url: "https://gw.acme.dev/v1", supports_websockets: true, experimental_bearer_token: "acme-real" } };
+    const sideRuns: ((adapter: ReturnType<typeof createCodexAdapter>) => Promise<unknown>)[] = [
+      adapter => adapter.revert!({ session: "t1", beforeTurn: "turn-1" }),
+      adapter => adapter.forkSession!({ session: "t1", turn: { anchor: "turn-1" } }),
+    ];
+    for (const broker of [{ ...CHATGPT, providers }, { mode: "apikey", providers }] as const) {
+      for (const sideRun of sideRuns) {
+        const { dir, program } = standIn();
+        let command = "";
+        const exec = ((line: string) => {
+          command = line;
+          throw new Error("no server here");
+        }) as never;
+        await sideRun(createCodexAdapter({ exec, home: join(dir, "home"), login: "codex login", broker, launch: { program } })).catch(() => undefined);
+        expect(run(dir, command, broker, {})).toBe(0);
+        const models = argsOf(dir).filter(arg => /^(openai_base_url|model_providers\.acme\.base_url)=/.test(arg));
+        expect(models).toHaveLength(2);
+        for (const arg of models) expect(arg).toMatch(/="http:\/\/127\.0\.0\.1:0\//);
       }
     }
   });
