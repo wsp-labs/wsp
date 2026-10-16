@@ -26,11 +26,22 @@ export function rcFiles(confD: readonly string[]): string[] {
   return [...RC_PATHS, ...confD.filter(n => n.endsWith(".fish")).map(n => `${FISH_CONF_D}/${n}`)];
 }
 
-const SECRET_WORDS = new Set(["KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD"]);
+const SECRET_WORDS = new Set(["KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD"]);
+/** A part of a name in capitals that ends in one of these is a secret's even glued: `PGPASSWORD`, `GHTOKEN`. */
+const SECRET_END = /(?:APIKEY|TOKEN|SECRET|PASSWORD|PASSWD)$/;
+/** fish's, oh-my-zsh's, pass's and tiktoken's own settings that hold a secret's word: a keyboard's key, a store's path or
+ * gpg key ids, a cache folder. pass's are the twelve its man page names, so a name past them is read as any other. */
+const SETTING = /^(?:FISH_KEY_BINDINGS|FISH_SEQUENCE_KEY_DELAY_MS|DISABLE_FZF_KEY_BINDINGS|TIKTOKEN_CACHE_DIR|PASSWORD_STORE_(?:DIR|KEY|SIGNING_KEY|GPG_OPTS|X_SELECTION|CLIP_TIME|UMASK|GENERATED_LENGTH|CHARACTER_SET|CHARACTER_SET_NO_SYMBOLS|ENABLE_EXTENSIONS|EXTENSIONS_DIR))$/;
 
-/** `KEYTIMEOUT` is not a key; the word has to stand alone between underscores. */
+/** A secret's word alone between underscores, any case; `KEYTIMEOUT` and `HISTKEY` are no key. A glued word or a last
+ * `PWD` counts only in capitals, as a program reads `PGPASSWORD` and `MYSQL_PWD`: in shell code `ctoken` is a word of the
+ * command line and `old_pwd` a folder. */
 export function isSecretName(name: string): boolean {
-  return name.toUpperCase().split("_").some(w => SECRET_WORDS.has(w));
+  const upper = name.toUpperCase();
+  if (SETTING.test(upper)) return false;
+  const parts = upper.split("_").filter(w => w !== "");
+  if (parts.some(w => SECRET_WORDS.has(w))) return true;
+  return name === upper && (parts.some(w => SECRET_END.test(w)) || (parts.length > 1 && parts.at(-1) === "PWD"));
 }
 
 const NAME = "[A-Za-z_][A-Za-z0-9_]*";

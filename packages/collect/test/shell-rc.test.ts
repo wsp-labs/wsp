@@ -43,9 +43,18 @@ describe("shell rc exports", () => {
     }
   });
 
-  it("names that mean a secret, as whole words between underscores", () => {
-    expect(["ANTHROPIC_API_KEY", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD", "KEY", "npm_token", "OPENAI_APIKEY"].map(isSecretName)).toEqual(Array<boolean>(7).fill(true));
-    expect(["KEYTIMEOUT", "PATH", "EDITOR", "SECRETS_DIR", "TOKENIZERS_PARALLELISM"].map(isSecretName)).toEqual(Array<boolean>(5).fill(false));
+  it("names that mean a secret: a secret word alone between underscores, and in capitals one glued to its part or a last PWD", () => {
+    const secret = ["ANTHROPIC_API_KEY", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD", "KEY", "npm_token", "OPENAI_APIKEY", "PGPASSWORD", "MYSQL_PWD", "GHTOKEN", "LAB_CLIENTSECRET", "smtp_passwd", "MYAPIKEY", "PASSWORD_STORE_GITHUB_TOKEN", "password_store_token"];
+    expect(secret.filter(n => !isSecretName(n))).toEqual([]);
+    const plain = ["KEYTIMEOUT", "PATH", "EDITOR", "SECRETS_DIR", "TOKENIZERS_PARALLELISM", "HISTKEY", "MONKEY", "MAX_TOKENS", "PWD", "OLDPWD", "_PWD", "fish_prompt_pwd_dir_length", "old_pwd", "ctoken"];
+    expect(plain.filter(isSecretName)).toEqual([]);
+  });
+
+  it("a shell's or oh-my-zsh's own setting that holds a secret word alone is plain", () => {
+    const settings = ["fish_key_bindings", "fish_sequence_key_delay_ms", "DISABLE_FZF_KEY_BINDINGS", "PASSWORD_STORE_DIR", "PASSWORD_STORE_KEY", "PASSWORD_STORE_SIGNING_KEY", "TIKTOKEN_CACHE_DIR"];
+    expect(settings.filter(isSecretName)).toEqual([]);
+    const fish = "set -g fish_key_bindings fish_vi_key_bindings\nset -U fish_sequence_key_delay_ms 200\nset -gx PGPASSWORD plain0pg\n";
+    expect(stripExports(fish, undefined, [], true)).toEqual({ names: ["PGPASSWORD"], carried: "set -g fish_key_bindings fish_vi_key_bindings\nset -U fish_sequence_key_delay_ms 200\ntrue\n" });
   });
 
   it("lists the names and cuts the lines, exported or plain, single or multiple per line", () => {

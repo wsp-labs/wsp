@@ -120,7 +120,7 @@ export const mcpRemoteTokenFile = (host: Host, hash: string, env: Readonly<Recor
 
 /** isSecretName's words plus the ones a file-valued variable tends to carry. */
 export function secretNamed(name: string): boolean {
-  return isSecretName(name) || name.toUpperCase().split("_").some(w => ["CREDENTIAL", "CREDENTIALS", "AUTH", "CERT", "PASSWD"].includes(w));
+  return isSecretName(name) || name.toUpperCase().split("_").some(w => ["CREDENTIAL", "CREDENTIALS", "AUTH", "CERT"].includes(w));
 }
 
 /** Flags whose next argument is a secret whatever its name says: a header line, mcp-remote's OAuth client record with its client_secret. */
