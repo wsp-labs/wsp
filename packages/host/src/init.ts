@@ -11,7 +11,7 @@ import type { Readable, Writable } from "node:stream";
 import { styleText } from "node:util";
 import { catalogEntry } from "@wsp/catalog";
 import { type HistoryProgress, type Manifest, type ManifestEntry, type Platform, type ProjectScan, type Rung } from "@wsp/collect";
-import { SnapshotFailedError, checkProviderKey, describeAge, keyCheckLine, type BackendPricing, type MachineBackend } from "@wsp/engine";
+import { SnapshotFailedError, checkProviderKey, keyCheckLine, type BackendPricing, type MachineBackend } from "@wsp/engine";
 import type { GoldenStageEvent, GoldenStep, Recipe, RecipeCustomRow, RecipeHistory, ToolPin, WorkspaceView } from "@wsp/protocol";
 import { PrepareStoppedError, type GoldenBuilderView, type GoldenImport, type GoldenRecipe, type GoldenStage, type Runtime } from "@wsp/runtime";
 import { S_BAR, S_STEP_CANCEL, S_STEP_ERROR, S_STEP_SUBMIT, cancel, isCancel, log, outro } from "@clack/prompts";
@@ -60,7 +60,7 @@ import { openRunLog, runLogPath } from "./init-log.js";
 import { secretsStage, type SecretOutcome } from "./init-secrets.js";
 import { buildTakes, buildTimes, readBuildTimes } from "./init-times.js";
 import { keptBuilder, stopKeptBuilder, updateRoad } from "./init-upgrade.js";
-import { earlierReason, type Earlier } from "./init-earlier.js";
+import { describeBuilder, earlierReason, type Earlier } from "./init-earlier.js";
 import { retentionOffer } from "./storage.js";
 import { DONE_LINE, appUrl, askFirst, checkImportFolder, firstWorkspaceName, runFirst, runLocal, subThreadsReady, type FirstResult } from "./init-first.js";
 import { SIGN_IN_CAP_MS, builderLink, flowHooks, noteOutcomes, signInStage, stageLogins, type BuilderLink, type HostHooks, type LoginOutcome, type SignInCodes, type SignInFlow } from "./init-signin.js";
@@ -1077,10 +1077,6 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
     await rt.close().catch((e: unknown) => log.error(`runtime close failed: ${e instanceof Error ? e.message : String(e)}`, out));
   };
   const logLine = (): string => dim(runLog.failed === undefined ? `The run log is ${runLog.path}` : `The run log ${runLog.path} could not be written (${runLog.failed})`);
-  const describeBuilder = (b: GoldenBuilderView): string => {
-    const ageMs = Math.max(0, Date.now() - Date.parse(b.createdAt));
-    return `${b.name} (${b.id}), ${describeAge(ageMs)}${b.rateUsdPerHour === undefined ? "" : `, about $${((ageMs / 3_600_000) * b.rateUsdPerHour).toFixed(2)} so far`}`;
-  };
   // A terminal beside a host never reads the job's log, so what is said of an earlier builder goes out as a record too.
   const sayOfBuilders = (level: InitSaidLine["level"], line: string): void => { log[level](line, out); io.json?.({ event: "builders", level, line }); };
   const listEarlier = (blocking: GoldenBuilderView[], attach: GoldenBuilderView | undefined, at: Earlier["at"]): void =>
@@ -1156,28 +1152,15 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const question = bootQuestion(recipe, opts.pricing);
   const ready = readyLine(manifest, ticks, choices, uploadBytes, brew, buildTakes(lastBuild), customRows(catalogRecipe));
   const { attach, stop, at: buildsAt } = earlier;
-  // A golden built from a recipe takes the delta instead of a rebuild, unless the person picks the rebuild or asked
-  // for one on the command line; a builder already carrying this recipe is attached to instead, since the update
-  // would bill beside it.
-  const current = attach === undefined && opts.rebuild !== true ? await rt.golden.recipe(GOLDEN_NAME) : undefined;
-  if (current !== undefined) {
-    let done = (): void => {};
-    const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}), stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
-    if (road !== "rebuild") {
-      if (road === 0 && landed !== undefined) log.info(installsTally(landed, resultsPath).join("\n"), out);
-      if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) })).then(() => done());
-      return { code: road, updateRoad: true };
-    }
-  }
-  if (stop.length > 0) {
+  // A builder this run cannot attach to bills until it is stopped, so either road lists them and stops them on one yes.
+  const stopEarlier = async (then: string, refused: string): Promise<boolean> => {
     listEarlier(stop, attach, buildsAt);
-    const then = attach !== undefined ? `attach to your earlier builder ${describeBuilder(attach)}?` : `${question.charAt(0).toLowerCase()}${question.slice(1)}`;
     const ask = `Stop ${stop.length === 1 ? "it" : "them"}, then ${then}`;
     if (interactive) {
       const go = await confirmPrompt({ message: ask, hint: "No costs nothing; nothing is stopped and the recipe is kept.", input: io.input, output: io.output });
       if (isCancel(go) || !go) {
-        cancel("Nothing was booted or stopped. The recipe is kept.", out);
-        return { code: 1 };
+        cancel(refused, out);
+        return false;
       }
     } else {
       sayOfBuilders("step", `${ask} Taken as yes (${takenAs}).`);
@@ -1188,11 +1171,29 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
       } catch (e) {
         // One line, since beside a host the job's last line is the whole of what the terminal hears of the failure.
         cancel(`Nothing was booted. Stopping ${b.name} (${b.id}) failed (${e instanceof Error ? e.message : String(e)}), so it is still running; run wsp init again to retry.`, out);
-        return { code: 1 };
+        return false;
       }
       sayOfBuilders("step", `Stopped ${b.name} (${b.id}).`);
     }
+    return true;
+  };
+  // A golden built from a recipe takes the delta instead of a rebuild, unless the person picks the rebuild or asked
+  // for one on the command line; a builder already carrying this recipe is attached to instead, since the update
+  // would bill beside it.
+  const current = attach === undefined && opts.rebuild !== true ? await rt.golden.recipe(GOLDEN_NAME) : undefined;
+  if (current !== undefined) {
+    if (stop.length > 0 && !(await stopEarlier("compare your image with this recipe?", "Nothing was changed or stopped. The recipe is kept."))) return { code: 1 };
+    // Stopped now, so a rebuild picked next asks only its boot question.
+    stop.splice(0);
+    let done = (): void => {};
+    const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}), stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
+    if (road !== "rebuild") {
+      if (road === 0 && landed !== undefined) log.info(installsTally(landed, resultsPath).join("\n"), out);
+      if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, takenAs, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) })).then(() => done());
+      return { code: road, updateRoad: true };
+    }
   }
+  if (stop.length > 0 && !(await stopEarlier(attach !== undefined ? `attach to your earlier builder ${describeBuilder(attach)}?` : `${question.charAt(0).toLowerCase()}${question.slice(1)}`, "Nothing was booted or stopped. The recipe is kept."))) return { code: 1 };
   if (attach !== undefined) {
     sayOfBuilders("step", `Attaching to your earlier builder: ${describeBuilder(attach)}. Nothing new boots; stages already applied are skipped.`);
   } else if (stop.length === 0 && interactive) {
