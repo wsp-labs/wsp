@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -128,6 +128,43 @@ describe("the wsp a thread's shell runs on this computer", () => {
   it.skipIf(BASH === undefined)("runs the person's own BASH_ENV where the launch carried one, and still comes first after it", () => {
     const { env, bin } = ownStartup();
     expect(execFileSync(BASH!, ["-c", 'echo "$OWN_BASH_ENV $PATH"'], { env, encoding: "utf8", stdio: SHELL_STDIO }).trim()).toMatch(`1 ${bin}:/elsewhere:`);
+  });
+
+  /** A host started from inside a thread's shell, which launched it with that shell's ZDOTDIR and BASH_ENV: its own
+   * folder's, or another home's. The person's files leave a mark each time they are read; with `zdot`, their .zshenv
+   * moves ZDOTDIR to that folder under their home, where the rest of their files live. */
+  const fromThread = (launchedIn: (bin: string) => string, zdot = ""): { env: Record<string, string>; bin: string } => {
+    const home = join(dir, "person");
+    mkdirSync(join(home, zdot), { recursive: true });
+    writeFileSync(join(home, ".zshenv"), `${zdot === "" ? "" : `export ZDOTDIR="$HOME/${zdot}"\n`}export ZSHENV_READS="\${ZSHENV_READS}x"\n`);
+    writeFileSync(join(home, zdot, ".zprofile"), 'export ZPROFILE_READS="${ZPROFILE_READS}x"\n');
+    const statePath = join(dir, "home", "state.json");
+    const bin = threadBinDir(statePath);
+    const outer = launchedIn(bin);
+    const env = servingWiring(statePath, { here: {}, run: started(join(dir, "none.mjs")) }, home, { PATH: "/usr/bin:/bin", HOME: home, ZDOTDIR: outer, BASH_ENV: join(outer, ".bash_env") }).env();
+    return { env, bin };
+  };
+  const otherHome = (): string => {
+    const statePath = join(dir, "other", "state.json");
+    servingWiring(statePath, { here: {}, run: started(join(dir, "none.mjs")) }, dir, { PATH: "/usr/bin:/bin" });
+    return threadBinDir(statePath);
+  };
+
+  for (const [whose, launchedIn] of [["its own", (bin: string) => bin], ["another home's", otherHome]] as const) {
+    for (const zdot of ["", ".config/zsh"]) {
+      it.skipIf(ZSH === undefined)(`reads the person's zsh files${zdot === "" ? "" : ` in ~/${zdot}`} once per shell, nested twice, in a host started from ${whose} thread`, () => {
+        const { env, bin } = fromThread(launchedIn, zdot);
+        const line = 'echo "$ZSHENV_READS $ZPROFILE_READS ${PATH%%:*}"';
+        const out = spawnSync(ZSH!, ["-lc", `${line}; ${ZSH} -lc '${line}; ${ZSH} -lc '\\''${line}'\\'''`], { env, encoding: "utf8", stdio: SHELL_STDIO, timeout: 20_000 });
+        expect([out.stdout.trim().split("\n"), out.stderr]).toEqual([[`x x ${bin}`, `xx xx ${bin}`, `xxx xxx ${bin}`], ""]);
+      });
+    }
+  }
+
+  it.skipIf(BASH === undefined)("runs bash in a host started from its own thread, which carried the folder's own BASH_ENV", () => {
+    const { env, bin } = fromThread(b => b);
+    const out = spawnSync(BASH!, ["-c", 'echo "${PATH%%:*}"'], { env, encoding: "utf8", stdio: SHELL_STDIO, timeout: 20_000 });
+    expect([out.status, out.stdout.trim(), out.stderr]).toEqual([0, bin, ""]);
   });
 
   it("is what a runtime built to serve turns wires, with no wiring handed in", async () => {
