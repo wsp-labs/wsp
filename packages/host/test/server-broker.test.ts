@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { Duplex, PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
-import { HOST_TOKEN_ENV, PIPE_DAEMON_VERSION, THREAD_ENV, WS_PATH, type TurnResult } from "@wsp/protocol";
+import { HOST_TOKEN_ENV, PIPE_DAEMON_VERSION, THREAD_ENV, WS_PATH, retryLine, type TurnResult } from "@wsp/protocol";
 import { createRuntime, memoryStore, type HarnessAdapterContext, type HarnessAdapterFactory, type Runtime } from "@wsp/runtime";
 import { LocalBackend } from "@wsp/engine";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -40,7 +40,8 @@ afterEach(async () => {
 });
 
 /** A loopback upstream that keeps the headers of every request that reaches it and answers 200, holding a request
- * that asks to be held until `release` and refusing one that asks to be refused. */
+ * that asks to be held until `release`, refusing one that asks to be refused and answering one that asks for it as
+ * Anthropic answers when it is overloaded. */
 async function upstream(): Promise<{ url: string; seen: IncomingHttpHeaders[]; release(): void }> {
   const seen: IncomingHttpHeaders[] = [];
   const held: Array<() => void> = [];
@@ -49,7 +50,8 @@ async function upstream(): Promise<{ url: string; seen: IncomingHttpHeaders[]; r
     req.resume();
     const answer = (): void => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ type: "message", content: [] }));
     const refuse = (): void => void res.writeHead(401, { "content-type": "application/json" }).end(JSON.stringify({ type: "error", error: { type: "authentication_error" } }));
-    req.on("end", () => (req.headers["x-acme-hold"] !== undefined ? held.push(answer) : req.headers["x-acme-refuse"] !== undefined ? refuse() : answer()));
+    const overloaded = (): void => void res.writeHead(529, { "content-type": "application/json" }).end(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }));
+    req.on("end", () => (req.headers["x-acme-hold"] !== undefined ? held.push(answer) : req.headers["x-acme-refuse"] !== undefined ? refuse() : req.headers["x-acme-overloaded"] !== undefined ? overloaded() : answer()));
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   cleanups.push(() => new Promise<void>(resolve => server.close(() => resolve())));
@@ -129,7 +131,7 @@ async function standInDaemon(): Promise<{ url: string; parked: WebSocket[]; door
 
 /** One model call the way Claude Code makes it on such a machine, at the daemon's HTTP door: the turn token in the
  * header its placeholder's kind rides. */
-function modelCall(daemon: Daemon, ctx: HarnessAdapterContext, more: Record<string, string> = {}): Promise<{ status: number; body: string }> {
+function modelCall(daemon: Daemon, ctx: HarnessAdapterContext, more: Record<string, string> = {}, content = "hi"): Promise<{ status: number; body: string }> {
   const token = ctx.env[HOST_TOKEN_ENV] ?? "";
   const header = ctx.brokered?.kind === "key" ? { "x-api-key": token } : { authorization: `Bearer ${token}` };
   return new Promise((resolve, reject) => {
@@ -143,7 +145,7 @@ function modelCall(daemon: Daemon, ctx: HarnessAdapterContext, more: Record<stri
       },
     );
     req.on("error", reject);
-    req.end(JSON.stringify({ model: "claude-haiku", max_tokens: 1, messages: [{ role: "user", content: "hi" }] }));
+    req.end(JSON.stringify({ model: "claude-haiku", max_tokens: 1, stream: true, messages: [{ role: "user", content }] }));
   });
 }
 
@@ -223,6 +225,37 @@ function claudeTurns(daemon: Daemon): { factory: HarnessAdapterFactory; turns: T
   return { factory, turns };
 }
 
+/** A Claude Code stand-in whose brokered turn has two subagents call the model through its machine's door, stopping at
+ * `gate` after each. The first's call is held upstream and cut, and its retry, the same bytes, is answered overloaded;
+ * its agent says nothing of either, as Claude Code says nothing of a background subagent's retries. The second's call
+ * is cut too, and its agent says its own retry, as Claude Code does for a subagent it waits on. */
+function subagentTurns(daemon: Daemon, gate: () => Promise<void>): HarnessAdapterFactory {
+  return ctx => ({
+    steers: false,
+    start: ({ onEvent }) => {
+      const sessionId = randomUUID();
+      const call = async (content: string, header: string): Promise<unknown> => {
+        await expect.poll(() => daemon.parked.length, { timeout: 10_000 }).toBeGreaterThan(0);
+        return modelCall(daemon, ctx, { [header]: "1" }, content).catch((e: Error) => e);
+      };
+      const finished = (async (): Promise<TurnResult> => {
+        onEvent({ type: "session.start", sessionId });
+        expect(await call("sub one", "x-acme-hold")).toBeInstanceOf(Error);
+        expect(await call("sub one", "x-acme-overloaded")).toMatchObject({ status: 529 });
+        await gate();
+        expect(await call("sub two", "x-acme-hold")).toBeInstanceOf(Error);
+        onEvent({ type: "turn.retry", sessionId, attempt: 1, of: 10, why: "Anthropic did not answer" });
+        await gate();
+        const result: TurnResult = { status: "completed", text: "ok" };
+        onEvent({ type: "turn.done", sessionId, result });
+        onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+        return result;
+      })();
+      return { localId: sessionId, finished, interrupt: async () => {} };
+    },
+  });
+}
+
 /** A Codex stand-in whose brokered turn polls ChatGPT's plugin list through its machine's door, as Codex does about
  * once a second, and whose process ends with its result while the last poll is still held upstream. */
 function codexTurns(daemon: Daemon, seen: IncomingHttpHeaders[]): HarnessAdapterFactory {
@@ -249,7 +282,7 @@ function codexTurns(daemon: Daemon, seen: IncomingHttpHeaders[]): HarnessAdapter
   });
 }
 
-async function served(o: { gh?: string; codex?: boolean } = {}): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
+async function served(o: { gh?: string; codex?: boolean; firstByteMs?: number; claude?: (daemon: Daemon) => HarnessAdapterFactory } = {}): Promise<{ rt: Runtime; broker: HostBroker; brokerOn: () => HostBroker; daemon: Daemon; host: () => Promise<HostHandle>; turns: Turn[]; seen: IncomingHttpHeaders[]; release(): void; ran: string[][]; statePath: string; backend: StubBackend }> {
   const dir = mkdtempSync(join(tmpdir(), "wsp-server-broker-"));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const statePath = join(dir, "state.json");
@@ -265,7 +298,7 @@ async function served(o: { gh?: string; codex?: boolean } = {}): Promise<{ rt: R
     hostBroker({
       statePath,
       vault: () => VAULT,
-      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop" }), chatgptService({ dial: url => new URL(`${url.pathname}${url.search}`, up.url) }), gitDoor],
+      services: [anthropicService({ upstream: up.url, computer: () => "acme's laptop", ...(o.firstByteMs !== undefined ? { firstByteMs: o.firstByteMs } : {}) }), chatgptService({ dial: url => new URL(`${url.pathname}${url.search}`, up.url) }), gitDoor],
       signIns: { anthropic: { gateway: none, helper: none, login: none }, codex: o.codex === true ? { credential: async () => ({ ...CODEX_CLAIMS, accessToken: "acme-chatgpt-access" }), claims: async () => CODEX_CLAIMS } : { credential: none, claims: none } },
       run: async (file, args) => (ran.push([file, ...args]), { code: 1, stdout: "" }),
     });
@@ -284,7 +317,7 @@ async function served(o: { gh?: string; codex?: boolean } = {}): Promise<{ rt: R
   mkdirSync(bin, { recursive: true });
   if (o.gh !== undefined) writeStub(join(bin, "gh"), o.gh);
   const local = o.gh === undefined ? {} : { local: { ...fakeLocal(join(dir, "home")), backend: new LocalBackend({ root: join(dir, "home"), env: { ...process.env, PATH: `${bin}:${process.env["PATH"] ?? ""}` } }) } };
-  const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: factory, codex: codexTurns(daemon, up.seen) }, vault: () => VAULT, broker: broker.port, ...local });
+  const rt = createRuntime({ backend, store: memoryStore(), adapters: { claude: o.claude?.(daemon) ?? factory, codex: codexTurns(daemon, up.seen) }, vault: () => VAULT, broker: broker.port, ...local });
   const host = async (): Promise<HostHandle> => {
     const handle = await startHost({ runtime: rt, webDir, port: 0, statePath, broker, checkKey: async () => ({ works: true, account: "acme-dev", plan: "$20 plan", running: 0, limit: 100 }) });
     let closed: Promise<void> | undefined;
@@ -419,6 +452,26 @@ describe("the broker the host serves", () => {
     await expect.poll(polls, { timeout: 5_000 }).toEqual([expect.objectContaining({ machine: ws.id, token: "turn", service: "chatgpt", status: 0 })]);
     await new Promise(resolve => setTimeout(resolve, 250));
     expect(waited).toEqual([]);
+  });
+
+  it("writes into the thread the retry of a model call it cut or Anthropic refused, which Claude Code never says for a background subagent", async () => {
+    const gates: Array<() => void> = [];
+    const s = await served({ firstByteMs: 200, claude: daemon => subagentTurns(daemon, () => new Promise<void>(open => gates.push(open))) });
+    const ws = await createOn(s.rt, { golden: "snap_g", name: "acme-lab" });
+    await s.host();
+    const turn = await s.rt.sessions.start(ws.id, { prompt: "one", harness: "claude" });
+    const retries = async (): Promise<string[]> => (await s.rt.sessions.history(ws.id)).flatMap(e => (e.type === "session.retry" ? [retryLine(e)] : []));
+    await expect.poll(retries, { timeout: 10_000 }).toEqual(["Anthropic did not answer, trying again (1)", "Anthropic was overloaded, trying again (2)"]);
+    await expect.poll(() => gates.length).toBe(1);
+    gates.shift()!();
+    await expect.poll(retries, { timeout: 10_000 }).toHaveLength(3);
+    // The agent said this one itself as the host cut it, so the host's own word on the cut, past the moment it waits
+    // for the agent's, is not a second row.
+    await new Promise(resolve => setTimeout(resolve, 3_000));
+    expect(await retries()).toEqual(["Anthropic did not answer, trying again (1)", "Anthropic was overloaded, trying again (2)", "Anthropic did not answer, trying again (1 of 10)"]);
+    await expect.poll(() => gates.length).toBe(1);
+    gates.shift()!();
+    expect(await turn.finished).toMatchObject({ status: "completed" });
   });
 
   it("carries a create's own clone to the git door while the machine is still being made", async () => {

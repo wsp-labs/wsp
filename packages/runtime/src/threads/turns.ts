@@ -498,6 +498,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
             replayingRetries--;
             return;
           }
+          ctx.agentRetried(turnId, event.why);
           ctx.record({ type: "session.retry", workspaceId, sessionId, turnId, threadId, line: ++retryRows, attempt: event.attempt, ...(event.of !== undefined ? { of: event.of } : {}), ...(event.why !== undefined ? { why: event.why } : {}) });
           return;
         case "turn.plan":
