@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createHash } from "node:crypto";
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { pipeline } from "node:stream";
@@ -18,6 +19,7 @@ export type AnthropicCredential =
 export interface AnthropicRequest {
   req: IncomingMessage;
   res: ServerResponse;
+  grant: { workspaceId: string; threadId?: string };
 }
 export interface AnthropicContext {
   credential(kind: "anthropic"): Promise<AnthropicCredential | undefined>;
@@ -81,6 +83,25 @@ const sentences = (computer: string) => ({
   gatewayAway: `wsp: your gateway did not answer ${computer}. Claude Code tries again.`,
 });
 
+/** The wait for an upstream's reply to start, Claude Code's own first-byte rule, which it keeps off a base URL such as
+ * the door: 30 s plus a second per 32 KB of the request, since the API sends no header before the first token. Cut
+ * there, the call reads to Claude Code as one Anthropic never answered, and it says it is trying again; its retry
+ * inside a minute, the same bytes from the same thread, waits as long as Claude Code does, as its own retry does. A
+ * gateway's call is never cut: a gateway may hold a reply until it is whole. */
+const FIRST_BYTE_MS = 30_000;
+const PER_32KB_MS = 1_000;
+const RETRY_WITHIN_MS = 60_000;
+
+/** Whether a call asks for its reply as a stream: a reply that is not streamed starts only once it is whole, so no
+ * first-byte wait, Claude Code's own included, covers it. A body that does not parse keeps the wait. */
+function streams(body: Buffer): boolean {
+  try {
+    return (JSON.parse(body.toString()) as { stream?: unknown }).stream === true;
+  } catch {
+    return true;
+  }
+}
+
 /** 403 with x-should-retry false, which Claude Code obeys at once, printing the sentence. */
 function stop(res: ServerResponse, ctx: AnthropicContext, said: string): void {
   res.setHeader("x-should-retry", "false");
@@ -90,16 +111,24 @@ function stop(res: ServerResponse, ctx: AnthropicContext, said: string): void {
 /** Claude Code's model calls from a brokered machine: the four paths it needs, to a fixed upstream, with
  * the person's credential swapped in and every other byte passed both ways as it streams. Never answers 401, which
  * ends the turn with "Please run /login" on a machine that has nothing to log in with. */
-export function anthropicService(options: { upstream?: string; computer?: () => string } = {}) {
+export function anthropicService(options: { upstream?: string; computer?: () => string; firstByteMs?: number } = {}) {
   const upstream = options.upstream ?? "https://api.anthropic.com";
   const computer = options.computer ?? computerNameHere;
+  const firstByteMs = options.firstByteMs ?? FIRST_BYTE_MS;
+  /** When each call was cut at the wait, by its thread and its body, kept a minute. */
+  const cut = new Map<string, number>();
+  const retried = (call: string): boolean => {
+    const now = Date.now();
+    for (const [key, at] of cut) if (now - at > RETRY_WITHIN_MS) cut.delete(key);
+    return cut.delete(call);
+  };
   return {
     id: "anthropic" as const,
     // git reaches the same door as its proxy, with absolute-form requests (http://github.com/...), which match no call.
     claims(req: IncomingMessage, door: "http" | "gh", agent: "claude" | "codex" | undefined): boolean {
       return door === "http" && ALLOWED.has(callOf(req)) && (agent === "claude" || (agent === undefined && req.headers["anthropic-version"] !== undefined));
     },
-    async serve({ req, res }: AnthropicRequest, ctx: AnthropicContext): Promise<void> {
+    async serve({ req, res, grant }: AnthropicRequest, ctx: AnthropicContext): Promise<void> {
       if (!ALLOWED.has(callOf(req))) {
         req.resume();
         res.writeHead(404, { "content-type": "application/json", "x-should-retry": "false" });
@@ -115,8 +144,12 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
       }
       const target = new URL(`${(credential.kind === "gateway" ? credential.url : upstream).replace(/\/+$/, "")}${req.url ?? "/"}`);
       const send = target.protocol === "https:" ? httpsRequest : httpRequest;
+      const wait = credential.kind === "gateway" ? undefined : firstByteMs + Math.floor(Number(req.headers["content-length"] ?? 0) / 32_768) * PER_32KB_MS;
       await new Promise<void>(done => {
+        let late = false;
+        let call: string | undefined;
         const out = send(target, { method: req.method, headers: upstreamHeaders(req.rawHeaders, credential, target.host), setHost: false }, up => {
+          clearTimeout(timer);
           if (up.statusCode === 401) {
             up.resume();
             stop(res, ctx, credential.kind === "token" && credential.expiresAt !== undefined ? said.expired : said[credential.kind]);
@@ -127,12 +160,30 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
           res.flushHeaders();
           pipeline(up, res, () => done());
         });
+        const timer = wait === undefined ? undefined : setTimeout(() => {
+          late = true;
+          if (call !== undefined) cut.set(call, Date.now());
+          out.destroy(new Error("no reply started"));
+        }, wait);
+        if (timer !== undefined) {
+          const body: Buffer[] = [];
+          req.on("data", (chunk: Buffer) => body.push(chunk));
+          req.on("end", () => {
+            const whole = Buffer.concat(body);
+            body.length = 0;
+            call = `${grant.workspaceId} ${grant.threadId ?? ""} ${createHash("sha256").update(whole).digest("hex")}`;
+            if (retried(call) || !streams(whole)) clearTimeout(timer);
+          });
+        }
         out.on("error", () => {
-          if (!res.headersSent) ctx.refuse(res, 503, credential.kind === "gateway" ? said.gatewayAway : said.away, "anthropic");
+          clearTimeout(timer);
+          if (late) res.destroy();
+          else if (!res.headersSent) ctx.refuse(res, 503, credential.kind === "gateway" ? said.gatewayAway : said.away, "anthropic");
           else if (!res.writableEnded) res.destroy();
           done();
         });
         res.on("close", () => {
+          clearTimeout(timer);
           if (!res.writableFinished) out.destroy();
         });
         pipeline(req, out, () => {});
