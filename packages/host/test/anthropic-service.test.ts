@@ -254,4 +254,23 @@ describe("a credential the host cannot add stops the turn with a sentence instea
     expect(pairs(got.rawHeaders).some(([name]) => name.toLowerCase() === "x-should-retry")).toBe(false);
     expect(JSON.parse(got.body.toString()).error.message).toContain(sentence);
   });
+
+  it("refuses a call Claude Code gave up on only on the response it closed, which the broker writes no row for", async () => {
+    let reached!: () => void;
+    const held = new Promise<void>(done => (reached = done));
+    const up = await listen(req => {
+      req.resume();
+      reached();
+    });
+    const refusals: { said: string; callerLeft: boolean }[] = [];
+    const ctx: AnthropicContext = { credential: async () => ({ kind: "key", key: "key-for-test" }), refuse: (res, _status, said) => void refusals.push({ said, callerLeft: res.destroyed }) };
+    const service = anthropicService({ upstream: up, computer: () => COMPUTER });
+    const { port } = new URL(await listen((req, res) => void service.serve({ req, res }, ctx)));
+    const call = request({ host: "127.0.0.1", port, method: RECORDED.key.method, path: RECORDED.key.url, headers: RECORDED.key.rawHeaders, setHost: false });
+    call.on("error", () => undefined);
+    call.end(RECORDED.key.body);
+    await held;
+    call.destroy();
+    await expect.poll(() => refusals).toEqual([{ said: `wsp: Anthropic did not answer ${COMPUTER}. Claude Code tries again.`, callerLeft: true }]);
+  });
 });
