@@ -92,7 +92,7 @@ export const WHERE_WORDS = {
   remove: "Remove",
   removeTitle: (computer: string): string => `Remove ${computer}`,
   removeDescription: (computer: string, here: string): string => onceNamed(here, h => `wsp comes off ${computer} and its threads' records leave ${h}. Your files there stay.`),
-  removeCloudDescription: "Deletes every machine wsp made there and forgets the key.",
+  removeCloudDescription: "Deletes every machine and image snapshot wsp made there, then forgets the key.",
   removing: "Removing…",
   /** A remove the host answered as not made with no reason of its own: the record went before the ask landed. */
   removeUnmade: (computer: string): string => `${computer} was not removed: this host no longer holds it.`,

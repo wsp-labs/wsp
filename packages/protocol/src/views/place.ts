@@ -688,7 +688,14 @@ const PlaceHeldRow = z.object({ name: z.string(), threads: z.number().int() });
 /** What a remove of a computer takes with it: the forks wsp made there and the projects recorded on it, each with
  * its threads, and, one line each, the work among them that is on no remote yet, which stops a remove unforced.
  * `away` is a computer whose link is down, whose work nothing read: its forks and projects go only by a forget. */
-export const PlaceHolds = z.object({ forks: z.array(PlaceHeldRow), projects: z.array(PlaceHeldRow), unsaved: z.array(z.string()), away: z.literal(true).optional() });
+export const PlaceHolds = z.object({
+  forks: z.array(PlaceHeldRow),
+  projects: z.array(PlaceHeldRow),
+  unsaved: z.array(z.string()),
+  away: z.literal(true).optional(),
+  /** A provider's: the image snapshots this host saved there, by the provider's id, with the size it lists. */
+  images: z.array(z.object({ id: z.string(), sizeBytes: z.number().nonnegative().optional() })).optional(),
+});
 export type PlaceHolds = z.infer<typeof PlaceHolds>;
 
 /** Whether a remove of that computer can only forget it: away, with forks or projects on it. */
@@ -696,9 +703,10 @@ export const placeForgetsOnly = (holds: PlaceHolds): boolean => holds.away === t
 
 /** What places.remove answers: whether a computer of that id was there, the forks and projects that went with it,
  * every line of what the sweep took off it, and the one line for a computer that was not connected to sweep. A
- * provider answers how many machines it deleted there; `removed` false with a note is one it would not delete all
- * of, its key kept, and `removed` true with a note names where its key still is. */
-export const PlaceRemoved = z.object({ removed: z.boolean(), took: PlaceHolds.omit({ unsaved: true }).optional(), swept: z.array(z.string()), note: z.string().optional(), deleted: z.number().int().optional() });
+ * provider answers how many machines it deleted there, and `snapshots` how many image snapshots; `removed` false
+ * with a note is one it would not delete all of, its key kept, and `removed` true with a note names where its key
+ * still is. */
+export const PlaceRemoved = z.object({ removed: z.boolean(), took: PlaceHolds.omit({ unsaved: true }).optional(), swept: z.array(z.string()), note: z.string().optional(), deleted: z.number().int().optional(), snapshots: z.number().int().optional() });
 export type PlaceRemoved = z.infer<typeof PlaceRemoved>;
 
 export { HERE_PLACE_ID, cloudNamed, namesPlace, placeRenameRefusal, placeSshRefusal, placeSshOtherRefusal, placeSshUncheckedRefusal, placeLoginOtherRefusal, placeLoginUncheckedRefusal, placeLoginElsewhere, placeLoginElsewhereRemovedLine, type RefusalHalves };

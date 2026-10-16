@@ -250,6 +250,7 @@ import { connectDaemon, type DaemonReach } from "./reach.js";
 import { POLL_INTERVAL_MS, createStatusTracker, machineStateOf, phaseLeavingGone, providerSaid, type StatusApi, type StatusListOptions, type StatusWatchOptions } from "./status.js";
 import { makeDevices, type DeviceDoor, type ScopedRoad } from "./devices.js";
 import { loginHere, servableOptions } from "./places/helpers.js";
+import { heldImages } from "./images/held.js";
 import { makePlaceDoor, NO_PLACE_DOOR, PlaceForksNowhereError, PlaceProvisioningError, type PlaceDoor, type PlaceRecord, type PlaceWiring } from "./places.js";
 import type { BlobMark, Store } from "./store.js";
 import { memoryGitHubCache, type GitHubCache } from "./github-cache.js";
@@ -709,6 +710,8 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           await ctx.ready();
           await ctx.releaseSubsOn(placeId);
         },
+        imagesOn: placeId => heldImages(ctx).on(placeId),
+        dropImageOn: (placeId, id) => heldImages(ctx).drop(placeId, id),
         spentToday: places => ctx.status.spend(places, clock.now()),
         signInLine: (placeId, agent) => ctx.agentsRead.signInLine({ placeId }, { agent }),
         storesOn: (placeId, home) => ctx.placeStores(placeId, home),

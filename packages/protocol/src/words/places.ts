@@ -413,8 +413,10 @@ export const providerKeyStillLine = (still: readonly KeyStill[]): string => {
 
 /** What removing a provider answers once every machine this host made there is gone: the key forgotten with them, or
  * where it still is. */
-export const providerRemovedLine = (name: string, deleted: number, still?: string): string =>
-  still === undefined ? `${name} removed: ${plural(deleted, "machine")} deleted, the key forgotten.` : `${name} removed: ${plural(deleted, "machine")} deleted. ${still}`;
+export const providerRemovedLine = (name: string, deleted: number, still?: string, snapshots = 0): string => {
+  const went = snapshots === 0 ? plural(deleted, "machine") : `${plural(deleted, "machine")} and ${plural(snapshots, "image snapshot")}`;
+  return still === undefined ? `${name} removed: ${went} deleted, the key forgotten.` : `${name} removed: ${went} deleted. ${still}`;
+};
 
 const forgetBills = (name: string, touched: string): string => `Nothing at ${name} ${touched} touched, so machines wsp made there may bill until ${name}'s own timer ends them.`;
 
@@ -435,6 +437,7 @@ export const PROVIDER_LEFT_WORDS = {
   unread: (said: string): string => `could not be read: ${said}`,
   undeleted: (said: string): string => `could not be deleted: ${said}`,
   late: "made while the remove ran",
+  listed: (graceMs: number): string => `still listed ${Math.round(graceMs / 1000)} s after its delete`,
 } as const;
 
 /** How many machines the kept line names before it counts the rest. */
@@ -449,6 +452,32 @@ export function providerKeptLine(name: string, deleted: number, left: readonly {
   const more = left.length > PROVIDER_LEFT_NAMED ? ` and ${left.length - PROVIDER_LEFT_NAMED} more` : "";
   const one = left.length === 1;
   return `${plural(left.length, "machine")} wsp made at ${name} ${one ? "is" : "are"} not gone: ${named}${more}. The key is kept until ${one ? "it goes" : "they go"}${othersDeleted(deleted)}. Remove ${name} again to ask once more.`;
+}
+
+const listed = (names: readonly string[]): string => (names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
+const namedImages = (images: readonly { id: string; sizeBytes?: number }[]): string => listed(images.map(i => (i.sizeBytes === undefined ? i.id : `${i.id} (${fmtBytes(i.sizeBytes)})`)));
+
+/** The image snapshots this host saved at a provider, each with its size where the provider listed one: what a remove
+ * deletes there after the machines and before the key, since once the key is forgotten nothing here can reach them. */
+export function providerImagesLine(name: string, images: readonly { id: string; sizeBytes?: number }[]): string {
+  const named = namedImages(images);
+  return images.length === 1 ? `Its image snapshot ${named} is deleted at ${name} before the key goes.` : `Its ${images.length} image snapshots, ${named}, are deleted at ${name} before the key goes.`;
+}
+
+/** What a forget leaves at a provider beside its machines: the image snapshots this host saved there, which no timer
+ * ends there, and which a remove with the key held again deletes. */
+export function providerImagesLeftLine(name: string, images: readonly { id: string; sizeBytes?: number }[]): string {
+  const one = images.length === 1;
+  return `${one ? `Its image snapshot ${namedImages(images)} stays` : `Its ${images.length} image snapshots, ${namedImages(images)}, stay`} at ${name} and ${one ? "bills" : "bill"} every month; add the key again and remove ${name} to delete ${one ? "it" : "them"}.`;
+}
+
+/** What it answers when every machine is gone and an image snapshot is not: each named with why, and the key kept,
+ * since the snapshot bills every month and only that key reaches it. */
+export function providerImagesKeptLine(name: string, deleted: number, left: readonly { id: string; said: string }[]): string {
+  const one = left.length === 1;
+  const machines = deleted === 0 ? "" : `; ${plural(deleted, "machine")} ${deleted === 1 ? "was" : "were"} deleted`;
+  return `${plural(left.length, "image snapshot")} this host saved at ${name} ${one ? "is" : "are"} not gone: ${left.map(l => `${l.id} (${l.said})`).join(", ")}. The key is kept until ${one ? "it goes" : "they go"}${machines}. Remove ${name} again to ask once more.`;
 }
 
 /** What it answers when the listing read again after the deletes failed: a machine a create made meanwhile may be

@@ -139,7 +139,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
       <AlertDialogPopup data-remove-place-dialog>
         <AlertDialogHeader>
           <AlertDialogTitle data-k="remove-title">{madeNote !== null ? removedTitle(place, forgets) : forgets ? forgetTitle(place) : removeTitle(place)}</AlertDialogTitle>
-          <AlertDialogDescription data-k="remove-sentence">{keyRefused ? providerForgetSentence(place, holding, hereName(places)) : forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects }, hereName(places), imageBytes)}</AlertDialogDescription>
+          <AlertDialogDescription data-k="remove-sentence">{keyRefused ? providerForgetSentence(place, { ...holding, ...(holds?.images === undefined ? {} : { images: holds.images }) }, hereName(places)) : forgets && holds !== null ? forgetSentence(place, holds) : removeSentence(place, { ...holding, projects, ...(holds?.images === undefined ? {} : { images: holds.images }) }, hereName(places), imageBytes)}</AlertDialogDescription>
         </AlertDialogHeader>
         {placeIsOffline(place) ? (
           <div className="flex flex-col gap-3 px-5 pt-2">

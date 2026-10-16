@@ -382,6 +382,13 @@ export interface PlaceInstalled {
 export type PlaceStaging = (step: PlaceAddStep, state: "running" | "done" | "failed", note?: string, placeId?: string, ms?: number) => void;
 export type PlaceInstaller = (req: PlaceInstallRequest, stage: PlaceStaging) => Promise<PlaceInstalled>;
 
+/** One image snapshot this host saved at a provider, by the provider's id: a version of an image's copy there, with
+ * the template standing on it where the provider promoted one, or a project image. */
+export interface HeldImage {
+  id: string;
+  templateId?: string;
+}
+
 /** The one road into the runtime a place needs, handed in because it is the runtime's own: a place holds its forks
  * and the projects recorded on it, and a remove refuses to take the place out from under either. */
 export interface PlaceRecording {
@@ -413,6 +420,10 @@ export interface PlaceRecording {
   /** Marks every sub-thread's record at that place released with its cloud gone, its thread and transcript kept: the
    * provider's machines are deleted and its key forgotten. */
   releaseRecordsOn?(placeId: string): Promise<void>;
+  /** Every image snapshot this host's records say it saved at that place. Absent, a provider's remove deletes none. */
+  imagesOn?(placeId: string): Promise<HeldImage[]>;
+  /** Drops the record of one of those once the provider deleted it, so no road boots from it or names it again. */
+  dropImageOn?(placeId: string, id: string): Promise<void>;
   /** What each of these rows that has a spend per day spent since midnight, as `wsp computers` reads its spend. */
   spentToday?(places: readonly PlaceView[]): Promise<{ place: string; todayUsd: number }[]>;
   /** Signs an agent in on that computer through the sign-in relay, as the app's own sign-in does: every step it
