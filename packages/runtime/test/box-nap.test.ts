@@ -574,7 +574,7 @@ describe("the nap and rebuild of a workspace whose pause keeps the disk", () => 
 });
 
 /** A Boat box as the provider's API shows it to a host that finds it running: its state is whatever `state()` says,
- * and every command is refused with box_restoring until the box's own clock reaches `restoredAt`, as a box does while
+ * and every command is refused with sandbox_restoring until the box's own clock reaches `restoredAt`, as a box does while
  * its disk streams in behind a ready reading. The backend's sleeps move that clock and cost nothing. A test can hold
  * the answer to one command until it lets go (an abort of the call ends the wait the way a cut connection does),
  * delete the box, or have the provider's agent fail every command. A stop archives the box, which then refuses every
@@ -598,30 +598,30 @@ function restoringBox(id: string, o: { state: () => string; restoredAt: number; 
   const reply = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status });
   const missing = (): Response => reply(404, { ok: false, status: 404, code: "not_found", message: "Box not found." });
   const fetch = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const path = new URL(String(url)).pathname.replace(/^\/api\/box\/v1/, "");
+    const path = new URL(String(url)).pathname.replace(/^\/api\/v1/, "");
     const method = init?.method ?? "GET";
     if (path === "/limits") return reply(200, { ok: true, accessTier: "paid" });
-    if (method === "DELETE" && path === `/boxes/${id}`) {
+    if (method === "DELETE" && path === `/sandboxes/${id}`) {
       box.deleted = true;
       return reply(202, { ok: true, operation: { id: "bdop_x" } });
     }
-    if (method === "POST" && path === `/boxes/${id}/stop`) {
+    if (method === "POST" && path === `/sandboxes/${id}/stop`) {
       box.archived = true;
       return reply(202, { ok: true });
     }
-    if (method === "POST" && path === `/boxes/${id}/resume`) {
+    if (method === "POST" && path === `/sandboxes/${id}/resume`) {
       box.archived = false;
       o.resumed?.();
       return reply(202, { ok: true });
     }
-    if (method === "GET" && path === `/boxes/${id}` && box.readHold !== undefined) {
+    if (method === "GET" && path === `/sandboxes/${id}` && box.readHold !== undefined) {
       const held = box.readHold;
       box.readHold = undefined;
       box.readHeld = true;
       await held;
     }
-    if (method === "GET" && path === `/boxes/${id}`) return box.deleted ? missing() : reply(200, { ok: true, box: { id, state: box.archived ? "archived" : o.state() } });
-    if (method === "POST" && path === `/boxes/${id}/commands`) {
+    if (method === "GET" && path === `/sandboxes/${id}`) return box.deleted ? missing() : reply(200, { ok: true, sandbox: { id, state: box.archived ? "archived" : o.state() } });
+    if (method === "POST" && path === `/sandboxes/${id}/commands`) {
       const held = box.hold;
       if (held !== undefined && (JSON.parse(String(init?.body)) as { command: string }).command === sudoCommand("true")) {
         box.hold = undefined;
@@ -637,7 +637,7 @@ function restoringBox(id: string, o: { state: () => string; restoredAt: number; 
       const restoring = clock.at < box.restoredAt;
       box.commands.push(restoring);
       return restoring
-        ? reply(409, { ok: false, status: 409, code: "box_restoring", message: "Box is restoring." })
+        ? reply(409, { ok: false, status: 409, code: "sandbox_restoring", message: "Box is restoring." })
         : reply(200, { ok: true, exitCode: 0, stdout: "", stderr: "", timedOut: false });
     }
     return missing();
@@ -706,7 +706,7 @@ describe("a wake that finds a Boat box already running", () => {
       t.ready();
       const woken = await t.rt.workspaces.wake(t.ws.id);
       expect(woken.phase).toBe("running");
-      // The box answered box_restoring while the wake waited, and took a command before the wake answered.
+      // The box answered sandbox_restoring while the wake waited, and took a command before the wake answered.
       expect(t.box.commands.at(-1)).toBe(false);
       expect(t.box.commands).toContain(true);
       expect(t.phases).toContain("waking");

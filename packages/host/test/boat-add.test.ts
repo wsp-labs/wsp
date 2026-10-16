@@ -19,12 +19,12 @@ import { joinToken } from "@wsp/protocol";
 import { KEY_LAYER_WORDS } from "../src/env-keys.js";
 import { captured } from "./verbs-fixture.js";
 
-/** The owner's account read on ascii.dev's base, in its field names. */
-const PAID_BOX = { ok: true, type: "limits.info", accessTier: "paid", canStart: true, activeBoxes: 3, maxActiveBoxes: 100, boxPlanKey: "box_20", boxPlanDollars: 20, startLimits: { perMinute: 12, perHour: 60, perDay: 200 }, starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } }, billingStatus: "active" };
-/** The same plan on boat.dev's documented base, in its sandbox field names. */
+/** The owner's account as Boat reads it, three machines running. */
+const PAID_BOX = { ok: true, type: "limits.info", accessTier: "paid", canStart: true, activeSandboxes: 3, maxActiveSandboxes: 100, sandboxPlanKey: "box_20", sandboxPlanDollars: 20, startLimits: { perMinute: 12, perHour: 60, perDay: 200 }, starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } }, billingStatus: "active" };
+/** The same plan with one running and no access tier named. */
 const PAID_SANDBOX = { ok: true, type: "limits.info", canStart: true, activeSandboxes: 1, maxActiveSandboxes: 100, sandboxPlanKey: "box_20", sandboxPlanDollars: 20, starts: { unlimited: false, minute: { limit: 12, used: 3, remaining: 9 }, hour: { limit: 60, used: 12, remaining: 48 }, day: { limit: 200, used: 47, remaining: 153 } }, billingStatus: "active" };
 /** A trial that never paid. */
-const TRIAL = { ok: true, type: "limits.info", accessTier: "trial", canStart: true, activeBoxes: 0, maxActiveBoxes: 2, boxPlanKey: "trial", trialComputeCapSeconds: 90_000, creditBalanceHours: 25, starts: { unlimited: false, minute: { limit: 5, used: 0 }, hour: { limit: 25, used: 0 }, day: { limit: 75, used: 0 } }, billingStatus: "trial" };
+const TRIAL = { ok: true, type: "limits.info", accessTier: "trial", canStart: true, activeSandboxes: 0, maxActiveSandboxes: 2, sandboxPlanKey: "trial", trialComputeCapSeconds: 90_000, creditBalanceHours: 25, starts: { unlimited: false, minute: { limit: 5, used: 0 }, hour: { limit: 25, used: 0 }, day: { limit: 75, used: 0 } }, billingStatus: "trial" };
 
 // The suite runs with the cloud off, and Boat is a row of the provider table only with it on: this file is about
 // that row, so it reads the table as a host started with WSP_CLOUD=1 does.
@@ -81,8 +81,8 @@ function fakeBoatFor(answerOf: (key: string) => unknown) {
     const path = new URL(url).pathname;
     if (path.endsWith("/limits")) return Response.json(answer);
     if (path.endsWith("/me")) return Response.json({ ok: true, user: { login: "acme-dev" } });
-    if (/\/boxes\/[^/]+\//.test(path)) return Response.json({ ok: false, error: { code: "not_found" } }, { status: 404 });
-    return Response.json({ ok: true, boxes: [], apiKeys: [] });
+    if (/\/sandboxes\/[^/]+\//.test(path)) return Response.json({ ok: false, error: { code: "not_found" } }, { status: 404 });
+    return Response.json({ ok: true, sandboxes: [], apiKeys: [] });
   }) as typeof globalThis.fetch;
   // The add puts the key to the provider row's own check, which reads Boat with the global fetch.
   const checkKey: typeof DEPS.checkKey = async (env, key, provider) => {
@@ -117,15 +117,15 @@ const FIRST_PROMPT = { question: `Boat API key\nNo BOAT_API_KEY in ${KEY_LAYER_W
 describe("Boat's plan line", () => {
   const small = boxClassFor(BOX_PRICING.defaultSize);
 
-  it("reads the plan off the engine's reading of either base's field names and says it as one line", () => {
+  it("reads the plan off the engine's reading and says it as one line", () => {
     expect(boatAddedLine(limitsOf(PAID_BOX), small)).toBe(PAID_LINE);
     expect(boatAddedLine(limitsOf(PAID_SANDBOX), small)).toBe(PAID_LINE);
     expect(boatAddedLine(limitsOf(TRIAL), small)).toBe(TRIAL_LINE);
   });
 
   it("says only what the answer held, and the size alone where nothing was read", () => {
-    expect(boatAddedLine(limitsOf({ boxPlanKey: "box_100" }), small)).toBe("Boat added: $100 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
-    expect(boatAddedLine(limitsOf({ boxPlanKey: "box_20", starts: { unlimited: true } }), small)).toBe("Boat added: $20 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
+    expect(boatAddedLine(limitsOf({ sandboxPlanKey: "box_100" }), small)).toBe("Boat added: $100 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
+    expect(boatAddedLine(limitsOf({ sandboxPlanKey: "box_20", starts: { unlimited: true } }), small)).toBe("Boat added: $20 plan; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
     expect(boatAddedLine(undefined, small)).toBe("Boat added; small 2 vCPU 4 GB at $0.018/h until you pick another size.");
     expect(boatAddedLine(undefined, { ...small, rateUsdPerHour: 0.09 })).toContain("at $0.09/h until");
   });
@@ -140,7 +140,7 @@ describe("wsp add boat", () => {
       expect(await addCommand(io, opts(home, {}), [word], {}, boat.deps)).toBe(0);
       // Asked once, at the secret prompt, by the key's own name and where it is made.
       expect(prompts).toEqual([FIRST_PROMPT]);
-      expect(boat.limits).toEqual([{ method: "GET", url: "https://ascii.dev/api/box/v1/limits", auth: `Bearer ${KEY}` }]);
+      expect(boat.limits).toEqual([{ method: "GET", url: "https://boat.dev/api/v1/limits", auth: `Bearer ${KEY}` }]);
       expect(new Set(boat.asked.map(a => a.auth))).toEqual(new Set([`Bearer ${KEY}`]));
       // The key alone is saved: Boat opens as a place beside this computer, and the provider it forks on stays.
       expect(readFileSync(join(home, ".env"), "utf8")).toBe(`BOAT_API_KEY=${KEY}\n`);
