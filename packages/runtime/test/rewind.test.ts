@@ -32,7 +32,7 @@ import {
   type TurnResult,
 } from "@wsp/protocol";
 import { createRuntime, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime } from "../src/runtime.js";
-import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
+import { DaemonDoorError, type DaemonChannel, type DaemonChannelOptions } from "../src/daemon-channel.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { sqliteStore } from "../src/sqlite-store.js";
 import { createOn, stubBackend, tokenGuest } from "./stub-backend.js";
@@ -432,6 +432,22 @@ describe("rewinding a thread to one of its replies", () => {
     await rt!.workspaces.nap(ws.id);
     expect(await rt!.sessions.rewind(threadId, { undo: true })).toEqual({ turns: 0, files: 2 });
     expect(machine.resumes).toBe(2);
+  });
+
+  it("reads the provider when the daemon's road refuses a record that reads running, so a machine stopped behind it wakes at the next rewind", async () => {
+    let machine: { paused: boolean; resumes: number } | undefined;
+    const daemon = fakeDaemon();
+    // A stopped box's route answers the upgrade with a redirect to its archived page, and the box stays stopped.
+    const open = async (o: DaemonChannelOptions): Promise<DaemonChannel> => (machine?.paused === true ? Promise.reject(new DaemonDoorError(302, "")) : daemon.open(o));
+    const { ws, backend } = await workspace(harness({ cuts: "copy" }), { ...daemon, open });
+    machine = backend.machines[0]!;
+    backend.machines[0]!.daemonAnswers = async () => true;
+    const { threadId, turns } = await threeTurns(ws.id);
+    machine.paused = true;
+    await expect(rt!.sessions.rewind(threadId, { turnId: turns[0]!, files: true })).rejects.toThrow("the connection was refused with 302");
+    expect(machine.resumes).toBe(0);
+    expect(await rt!.sessions.rewind(threadId, { turnId: turns[0]!, files: true })).toEqual({ turns: 2, files: 2 });
+    expect(machine.resumes).toBe(1);
   });
 
   it("leaves the slate as the rewind left it on undo, since undo never puts the conversation back", async () => {
