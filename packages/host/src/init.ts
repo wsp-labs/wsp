@@ -1173,7 +1173,7 @@ export async function runInit(opts: InitOptions, io: InitIO): Promise<InitResult
   const current = attach === undefined && opts.rebuild !== true ? await rt.golden.recipe(GOLDEN_NAME) : undefined;
   if (current !== undefined) {
     let done = (): void => {};
-    const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, yes: opts.yes, input: io.input, output: io.output, stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
+    const road = await updateRoad({ rt, current, imp, bring, rows: manifest.entries, importOf, lastBuild, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}), stream: (words, run) => streamStages(rt, io, words, run, runLog.note), sealed: v => (done = () => io.json?.({ event: "done", golden: GOLDEN_NAME, version: v.version, snapshotId: v.snapshotId, nextCommand: opts.upCommand })) });
     if (road !== "rebuild") {
       if (road === 0 && landed !== undefined) log.info(installsTally(landed, resultsPath).join("\n"), out);
       if (road === 0) await recordPins().then(() => retentionOffer({ rt, interactive, yes: opts.yes, input: io.input, output: io.output, ...(io.json !== undefined ? { json: io.json } : {}) })).then(() => done());

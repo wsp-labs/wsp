@@ -563,6 +563,12 @@
                         "additionalProperties": false
                       }
                     },
+                    "update": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/properties/setup/properties/job/anyOf/0/properties/cleanup/items"
+                      }
+                    },
                     "workspace": {
                       "type": "object",
                       "properties": {
@@ -1188,6 +1194,12 @@
                           "line"
                         ],
                         "additionalProperties": false
+                      }
+                    },
+                    "update": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/properties/setup/properties/job/anyOf/0/properties/cleanup/items"
                       }
                     },
                     "workspace": {
