@@ -292,6 +292,12 @@ const phases = (f: Fake): string[] => f.events.map(e => e.job.phase).filter((p, 
 const JQ = { id: "brew/jq", name: "jq", manager: "brew" as const, group: "Homebrew formulae", install: "brew install jq", check: "command -v jq", size: 2 * 1024 * 1024 };
 
 describe("the init job, manual road", () => {
+  it("names the first build of a second host life apart from the first life's, so an id a window kept never matches a later build", async () => {
+    const a = await fake().jobs.start({ road: "manual" });
+    const b = await fake().jobs.start({ road: "manual" });
+    expect(b.id).not.toBe(a.id);
+  });
+
   it("opens with the provider key's presence, the agents here and the price, and no job", async () => {
     const f = fake({ atProvider: true });
     const setup = await f.jobs.get();
@@ -1115,7 +1121,7 @@ describe("the init job, manual road", () => {
   it("the sweep belongs to the host, not to the job that died: Start over leaves the machine's row on the new job and on the sidebar's line until the provider takes it", async () => {
     const f = fake();
     await forkable(f);
-    await f.jobs.start({ road: "manual" });
+    const first = await f.jobs.start({ road: "manual" });
     await f.settled();
     await f.jobs.answer({ screen: "logins", answers: { "logins/gh": "machine", "logins/claude": "skip", "logins/codex": "skip" } });
     f.setLink(scriptedLink({ signedIn: false, hold: true, missing: false }));
@@ -1154,7 +1160,7 @@ describe("the init job, manual road", () => {
     expect(f.jobs.view()!.rows.find(r => r.kind === "machine")).toMatchObject({ state: INIT_ROW_STATES.retrying });
     // Start over: a different job, and the machine that is still billing rides onto it rather than going quiet.
     const next = await f.jobs.start({ road: "manual" });
-    expect(next.id).not.toBe("init_1");
+    expect(next.id).not.toBe(first.id);
     expect(next.rows.find(r => r.kind === "machine")).toMatchObject({ id: `machine/${builder.id}`, state: INIT_ROW_STATES.retrying });
     // And the sidebar's keycap says so rather than the new job's own phase.
     expect(initProgressLine(next)).toBe(MACHINE_SWEEP_LINE);

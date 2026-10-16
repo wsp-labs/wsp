@@ -9,6 +9,7 @@
 // is wsp init's own non-interactive run, on the host's one runtime with the
 // answered recipe carried per call, its sign-ins handed over as rows the
 // person finishes in their browser. Every change is one view on the channel.
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { basename } from "node:path";
 import { PassThrough, Writable } from "node:stream";
@@ -210,7 +211,6 @@ export class InitJobs implements InitDoor {
   private state: State | undefined;
   private readonly listeners = new Set<(e: InitJobEvent | InitNeedsYouEvent) => void>();
   private running: Promise<void> = Promise.resolve();
-  private count = 0;
   /** Set while a start is opening its thread, before the job stands: a second start meanwhile is refused too. */
   private starting = false;
   /** Every machine a stop could not reach the provider to kill, by builder id, with the row that says so. These
@@ -372,10 +372,9 @@ export class InitJobs implements InitDoor {
         this.starting = false;
       }
     }
-    this.count += 1;
     // A sweep that ended stays on the job it belonged to and no further; one still trying rides on.
     for (const [id, row] of this.sweeps) if (row.state !== STATE.retrying) this.sweeps.delete(id);
-    const state: State = { id: `init_${this.count}`, road: o.road, phase: o.road === "agent" ? "agent" : "reading", screens: [], step: 0, drafts: new Map(), facts: [], rows: [], frames: [], building: false, log: [], signals: new EventEmitter(), cancelled: false, keys: this.held(), watching: [], ...(place !== undefined ? { place } : {}) };
+    const state: State = { id: `init_${randomUUID()}`, road: o.road, phase: o.road === "agent" ? "agent" : "reading", screens: [], step: 0, drafts: new Map(), facts: [], rows: [], frames: [], building: false, log: [], signals: new EventEmitter(), cancelled: false, keys: this.held(), watching: [], ...(place !== undefined ? { place } : {}) };
     if (o.road === "agent") {
       const path = smallRecipePath(this.deps.statePath);
       // Read before the thread is launched: whatever recipe is beside the state now is not this thread's.
