@@ -41,7 +41,7 @@ const FIRST_SESSION = "44444444-4444-4444-8444-444444444444";
 const DAEMON_TOKEN = "cafef00d".repeat(3);
 
 /** A daemon that answers each checkpoint with a ref of the turn it names and records every frame. */
-function fakeDaemon(o: { refuseCheckpoint?: boolean; unbased?: boolean } = {}) {
+function fakeDaemon(o: { refuseCheckpoint?: boolean; unbased?: boolean; unreached?: () => boolean } = {}) {
   const frames: Record<string, unknown>[] = [];
   let seen: string | undefined;
   /** The folder the first checkpoint was asked at: the stub names each checkout it makes by a count of its own. */
@@ -49,6 +49,7 @@ function fakeDaemon(o: { refuseCheckpoint?: boolean; unbased?: boolean } = {}) {
   const open = async (_: DaemonChannelOptions): Promise<DaemonChannel> => ({
     send: async (frame: DaemonFrame) => {
       const f = frame as unknown as Record<string, unknown>;
+      if (o.unreached?.() === true) throw new Error("Sandbox machine is not running.");
       frames.push(f);
       if (f["op"] === "git.checkpoint") {
         seen ??= String(f["cwd"]);
@@ -73,6 +74,7 @@ function harness(o: {
   copied?: Parameters<SessionForker>[0][];
   reverted?: Parameters<SessionReverter>[0][];
   revertFails?: boolean;
+  forkFails?: boolean;
   /** What the harness answers a revert with where it keeps the conversation whole. */
   revertKeeps?: string;
   /** Turns that name no anchor, as a Codex turn from before wsp kept one did; with anchorsFrom, only the turns before
@@ -93,6 +95,7 @@ function harness(o: {
       ? {
           forkSession: async (f: Parameters<SessionForker>[0]) => {
             o.copied?.push(f);
+            if (o.forkFails === true) throw new Error("claude would not copy the session");
             return { resume: `c0c0c0c0-0000-4000-8000-${String(o.copied?.length ?? 0).padStart(12, "0")}`, drop: async () => {} };
           },
         }
@@ -156,7 +159,7 @@ async function workspace(adapter: HarnessAdapterFactory, daemon = fakeDaemon(), 
   backend.machines[0]!.previewUrl = async () => ({ url: "http://127.0.0.1:7070", token: "e", expiresAt: Date.now() + 3_600_000 });
   const events: EventUnion[] = [];
   rt.events.on("*", e => events.push(e as EventUnion));
-  return { ws, daemon, events };
+  return { ws, daemon, events, backend };
 }
 
 /** Three finished turns on one thread; answers the thread id and each turn's id in order. */
@@ -321,6 +324,18 @@ describe("rewinding a thread to one of its replies", () => {
     expect(await texts(ws.id)).toEqual(["reply 1", "reply 2", "reply 3"]);
   });
 
+  it("refused whole when the harness will not copy the session: the files go back and the transcript keeps every turn", async () => {
+    const { ws, daemon } = await workspace(harness({ cuts: "copy", copied: [], forkFails: true }));
+    const { threadId, turns } = await threeTurns(ws.id);
+    daemon.frames.length = 0;
+    await expect(rt!.sessions.rewind(threadId, { turnId: turns[0]!, files: true })).rejects.toThrow("claude would not copy the session");
+    expect(daemon.frames).toEqual([
+      { op: "git.restore", cwd: daemon.checkout(), checkpoint: `refs/wsp/checkpoints/stub-1/${threadId}/${turns[0]}`, scope: ws.id },
+      { op: "git.restore", cwd: daemon.checkout(), checkpoint: `refs/wsp/checkpoints/stub-1/${threadId}/${turns[0]}-before-1`, scope: ws.id },
+    ]);
+    expect(await texts(ws.id)).toEqual(["reply 1", "reply 2", "reply 3"]);
+  });
+
   it("a harness whose turns named no anchor is handed how each cut turn ended, and the transcript is cut", async () => {
     const reverted: Parameters<SessionReverter>[0][] = [];
     const refused: TurnResult = { status: "failed", error: "Codex is not signed in where this thread runs", refusal: "sign-in" };
@@ -399,6 +414,24 @@ describe("rewinding a thread to one of its replies", () => {
     // The transcript is as the rewind left it: undo brings the files back, not the conversation.
     expect(await texts(ws.id)).toEqual(["reply 1"]);
     await expect(rt!.sessions.rewind(threadId, { undo: true })).rejects.toThrow(REWIND_NO_UNDO_LINE);
+  });
+
+  it("wakes a napped machine before its files go back, on a rewind and on its undo", async () => {
+    let machine: { paused: boolean; resumes: number } | undefined;
+    const { ws, backend } = await workspace(harness({ cuts: "copy" }), fakeDaemon({ unreached: () => machine?.paused === true }));
+    machine = backend.machines[0]!;
+    // The wake's check asks the daemon here rather than at a preview address nothing serves.
+    backend.machines[0]!.daemonAnswers = async () => true;
+    const { threadId, turns } = await threeTurns(ws.id);
+    await rt!.workspaces.nap(ws.id);
+    expect(machine.paused).toBe(true);
+    await expect(rt!.sessions.rewind(threadId, { turnId: turns[2]!, files: true })).rejects.toThrow(REWIND_LATEST_LINE);
+    expect(machine.resumes).toBe(0);
+    expect(await rt!.sessions.rewind(threadId, { turnId: turns[0]!, files: true })).toEqual({ turns: 2, files: 2 });
+    expect(machine.resumes).toBe(1);
+    await rt!.workspaces.nap(ws.id);
+    expect(await rt!.sessions.rewind(threadId, { undo: true })).toEqual({ turns: 0, files: 2 });
+    expect(machine.resumes).toBe(2);
   });
 
   it("leaves the slate as the rewind left it on undo, since undo never puts the conversation back", async () => {
