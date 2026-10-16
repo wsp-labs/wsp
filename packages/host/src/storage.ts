@@ -4,7 +4,7 @@
 // of the account listing into this host's, this host's orphans and the rest.
 import type { Readable, Writable } from "node:stream";
 import { billedByCount, plural, type SnapshotStoragePricing } from "@wsp/engine";
-import type { GoldenVersion, InitCleanupLine, SnapshotStorage } from "@wsp/protocol";
+import type { GoldenVersion, InitSaidLine, SnapshotStorage } from "@wsp/protocol";
 import type { AccountOrphans, OrphansDeleted, PlacedRetention, RetentionPlan, Runtime } from "@wsp/runtime";
 import { isCancel, log } from "@clack/prompts";
 import { confirmPrompt } from "./init-layout.js";
@@ -126,7 +126,7 @@ export interface RetentionOfferOptions {
   json?: (record: Record<string, unknown>) => void;
 }
 
-function say(o: RetentionOfferOptions, level: InitCleanupLine["level"], line: string): void {
+function say(o: RetentionOfferOptions, level: InitSaidLine["level"], line: string): void {
   log[level](line, { output: o.output });
   o.json?.({ event: "cleanup", level, line });
 }
