@@ -103,7 +103,7 @@ function LinkedPanel({
       pane={pane}
       paneHints={hints}
       onWake={onWake}
-      lostTerminalIds={lost}
+      lostTerminals={lost}
       onSplitTerminal={() => split("horizontal")}
       onSplitTerminalVertical={() => split("vertical")}
       onNewTerminal={() => void newPanelTerminal(workspaceId, surface.id)}

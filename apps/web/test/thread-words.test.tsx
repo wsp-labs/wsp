@@ -7,7 +7,7 @@ import { render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { absentComputer, type PlaceView, type WorkspaceState, type WorkspaceView } from "@wsp/protocol";
 import { phaseHint, phaseWord } from "../src/actions/format.js";
-import { linkDownLine, SHELL_ENDED_LINE, terminalEmptyLine, terminalInputRefusal, terminalPaneHints, terminalPaneTitle, terminalPaneState, type TerminalPaneState } from "../src/adapt/index.js";
+import { linkDownLine, SHELL_ENDED_LINE, SHELL_STOPPED_LINE, terminalEmptyLine, terminalInputRefusal, terminalPaneHints, terminalPaneTitle, terminalPaneState, type TerminalPaneState } from "../src/adapt/index.js";
 import { explainRefusal } from "../src/browser/refusal.js";
 import { UNFRAMEABLE } from "../src/components/preview/BrowserSurface.js";
 import { PREVIEW_EMPTY } from "../src/components/preview/PreviewEmptyState.js";
@@ -49,7 +49,9 @@ const PANES: readonly TerminalPaneState[] = [
   { kind: "absent", absent: absentComputer("hetzner", null) },
   { kind: "paused", pausing: false },
   { kind: "paused", pausing: true },
+  { kind: "paused", pausing: false, pauseMode: "memory" },
   { kind: "waking" },
+  { kind: "waking", pauseMode: "memory" },
   { kind: "gone" },
 ];
 
@@ -60,7 +62,7 @@ function linesOf(pane: TerminalPaneState): string[] {
 
 describe("the words for where a thread runs", () => {
   it("the terminal pane says no task in any state it can be in", () => {
-    const said = [...PANES.flatMap(linesOf), SHELL_ENDED_LINE];
+    const said = [...PANES.flatMap(linesOf), SHELL_ENDED_LINE, SHELL_STOPPED_LINE];
     // A pane with no record yet still names somewhere, and that somewhere is not a task either.
     said.push(...linesOf(terminalPaneState({ state: "running", reach: null, socket: "opening" })));
     expect(said.length).toBeGreaterThan(40);
@@ -92,6 +94,7 @@ describe("the words for where a thread runs", () => {
 
   it("a shell that ended names the terminal process that restarted, never the computer", () => {
     expect(SHELL_ENDED_LINE).toBe("This shell ended when the terminal process on its computer restarted");
+    expect(SHELL_STOPPED_LINE).toBe("This shell ended when the thread stopped");
   });
 
   it("names the person's own computer by its own name, and a lent machine as the thread's computer", () => {
