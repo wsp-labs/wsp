@@ -353,6 +353,12 @@ fn short_ref(r: &str) -> String {
     r.strip_prefix("refs/remotes/").or_else(|| r.strip_prefix("refs/heads/")).unwrap_or(r).to_owned()
 }
 
+/// Whether a merge commit's message is the one `git pull` writes, which names the repository after the branch
+/// ("Merge branch 'main' of github.com:o/r").
+fn pulled_from(message: &str) -> bool {
+    message.split_once('\'').and_then(|(_, after)| after.split_once('\'')).is_some_and(|(_, rest)| rest.starts_with(" of "))
+}
+
 /// The branch a merge commit named, read from its own message ("Merge branch 'main' into feature").
 fn merged_ref(message: &str) -> String {
     if let Some((_, after)) = message.split_once('\'') {
@@ -396,9 +402,9 @@ impl Head {
 enum Op {
     /// A HEAD move the turn did not write: at most one line (a rebase names itself once, on its start step), no files.
     Foreign(Option<String>),
-    /// A merge the turn resolved by hand: a line, and the files it resolved added back from the difference between the
-    /// no-hand merge of its parents and its own tree.
-    Resolved(String),
+    /// A merge the turn made, clean, fast-forward or resolved by hand: a line, and every file it brought, HEAD before it
+    /// against HEAD after it.
+    Merged(String),
     /// A commit the turn wrote: its own files are collected one by one, whatever moved HEAD after it.
     Own,
 }
@@ -412,9 +418,9 @@ struct Walk {
 }
 
 impl Walk {
-    /// What a reflog subject says the move was. A clean or fast-forward merge reads as a move with no files; a merge
-    /// completed by `git commit` after a conflict is the hand-resolved one. A rebase, or a pull that rebases, names
-    /// itself once, off its start step; its other steps add no line, and the commits it replayed are not the turn's own.
+    /// What a reflog subject says the move was. A merge, clean, fast-forward or completed by `git commit` after a
+    /// conflict, is the turn's own. A rebase, or a pull that rebases, names itself once, off its start step; its other
+    /// steps add no line, and the commits it replayed are not the turn's own. A branch rename moves no HEAD.
     fn classify(&mut self, subject: &str) -> Op {
         if let Some(rest) = subject.strip_prefix("checkout: moving from ") {
             let (from, to) = rest.rsplit_once(" to ").unwrap_or((rest, rest));
@@ -445,10 +451,19 @@ impl Walk {
         } else if subject.starts_with("pull") {
             Op::Foreign(Some(format!("Pulled{}", self.on.after(" into "))))
         } else if let Some(message) = subject.strip_prefix("commit (merge): ") {
-            Op::Resolved(format!("Merged {}{}", merged_ref(message), self.on.after(" into ")))
+            // A pull that stopped on a conflict is finished by `git commit`, under the message naming where it pulled from.
+            if pulled_from(message) {
+                Op::Foreign(Some(format!("Pulled{}", self.on.after(" into "))))
+            } else {
+                Op::Merged(format!("Merged {}{}", merged_ref(message), self.on.after(" into ")))
+            }
         } else if let Some(rest) = subject.strip_prefix("merge ") {
             let what = short_ref(rest.split_once(':').map_or(rest, |(what, _)| what).trim());
-            Op::Foreign(Some(format!("Merged {what}{}", self.on.after(" into "))))
+            Op::Merged(format!("Merged {what}{}", self.on.after(" into ")))
+        } else if let Some(rest) = subject.strip_prefix("Branch: renamed ") {
+            let (old, new) = rest.split_once(" to ").unwrap_or((rest, rest));
+            self.on = Head::named(old.trim());
+            Op::Foreign(Some(format!("Renamed {} to {}", short_ref(old.trim()), short_ref(new.trim()))))
         } else if let Some(rest) = subject.strip_prefix("reset: moving to ") {
             Op::Foreign(Some(format!("Reset{} to {}", self.on.after(" "), short_ref(rest.trim()))))
         } else if subject.starts_with("clone") {
@@ -510,55 +525,55 @@ async fn first_parent_or_empty<R: Runs>(runner: &R, cwd: &Path, commit: &str) ->
     Ok(snapshot_head(runner, cwd, commit).await?.unwrap_or_else(|| EMPTY_TREE.to_owned()))
 }
 
-/// The tree git writes merging two commits with no hand in it; a merge commit's own tree differs from it by exactly
-/// what the agent resolved. None where this git cannot write it.
-async fn no_hand_merge_tree<R: Runs>(runner: &R, cwd: &Path, a: &str, b: &str) -> Result<Option<String>, OpError> {
-    // merge-tree exits 1 when a path conflicts, and still writes the tree on its first line; only a real error leaves
-    // no object id there, so the id's own shape is what says it wrote one.
-    let res = run_git(runner, cwd, &GitLine::new(&["merge-tree", "--write-tree"]).revs(&[a, b]), None, None).await?;
-    let tree = stdout_text(&res).lines().next().unwrap_or("").trim().to_owned();
-    Ok(GitOid::parse(&tree).is_some().then_some(tree))
-}
-
 /// The ops a turn made, read from HEAD's reflog over the turn's own window: the commits it wrote, the merges it
-/// resolved by hand, and the lines naming the moves it did not write. The window is the entries git.snapshot's two
+/// made, and the lines naming its merges and the moves it did not write. The window is the entries git.snapshot's two
 /// stamps bound, by count: in the newest-first reflog it is the slice between the length at the end snapshot and the
 /// length at the start one, so a later re-read past more turns still lands on this turn's entries, and a turn that
 /// leaves and returns to its start HEAD still has every move it made read, never matched by sha or by time.
-async fn turn_ops<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Result<(Vec<String>, Vec<String>, Vec<String>), OpError> {
+async fn turn_ops<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Result<TurnOps, OpError> {
     let current = reflog_count(runner, cwd).await?;
     let skip = snapshot_reflog(runner, cwd, to).await?.map_or(0, |end| current.saturating_sub(end));
     let take = match snapshot_reflog(runner, cwd, from).await? {
         Some(start) => current.saturating_sub(start).saturating_sub(skip),
         None => current.saturating_sub(skip),
     };
+    let mut ops = TurnOps::default();
     if take == 0 {
-        return Ok((Vec::new(), Vec::new(), Vec::new()));
+        return Ok(ops);
     }
     let log = run_git(runner, cwd, &GitLine::new(&["reflog", "--format=%H %gs", "HEAD"]), None, None).await?;
     if log.code != Some(0) {
-        return Ok((Vec::new(), Vec::new(), Vec::new()));
+        return Ok(ops);
     }
     let text = stdout_text(&log);
+    let lines: Vec<&str> = text.lines().collect();
     let mut walk = Walk { on: snapshot_on(runner, cwd, to).await?, returning: None };
-    let mut own: Vec<String> = Vec::new();
-    let mut resolved: Vec<String> = Vec::new();
-    let mut moves: Vec<String> = Vec::new();
-    for line in text.lines().skip(skip as usize).take(take as usize) {
+    for (at, line) in lines.iter().enumerate().skip(skip as usize).take(take as usize) {
         let Some((oid, subject)) = line.split_once(' ') else { continue };
         match walk.classify(subject) {
-            Op::Own => own.push(oid.to_owned()),
-            Op::Resolved(named) => {
-                resolved.push(oid.to_owned());
-                moves.push(named);
+            Op::Own => ops.own.push(oid.to_owned()),
+            Op::Merged(named) => {
+                // Newest first, so the entry below is HEAD before the merge; a fast-forward may skip many commits.
+                let before = lines.get(at + 1).and_then(|prior| prior.split_once(' ')).map_or(EMPTY_TREE, |(prior, _)| prior);
+                ops.merged.push((before.to_owned(), oid.to_owned()));
+                ops.moves.push(named);
             }
-            Op::Foreign(Some(named)) => moves.push(named),
+            Op::Foreign(Some(named)) => ops.moves.push(named),
             Op::Foreign(None) => {}
         }
     }
-    moves.reverse();
-    moves.dedup();
-    Ok((own, resolved, moves))
+    ops.moves.reverse();
+    ops.moves.dedup();
+    Ok(ops)
+}
+
+/// What a turn's reflog window holds: the commits it wrote, each merge it made as HEAD before and after it, and the
+/// lines naming every move.
+#[derive(Default)]
+struct TurnOps {
+    own: Vec<String>,
+    merged: Vec<(String, String)>,
+    moves: Vec<String>,
 }
 
 /// Union one diff's files into the running set by path, the newest change to a path kept; a file touched twice this
@@ -622,10 +637,10 @@ async fn range_held<R: Runs>(runner: &R, cwd: &Path, from: &str, to: &str) -> Re
 /// A turn's changed-files card: every change the agent itself made between the snapshot taken as the turn launched and
 /// the one taken as it ended, collected one by one and unioned by path. Each commit it wrote contributes its own
 /// files, whatever moved HEAD after it; its end worktree holds the edits it left uncommitted (less any that stood
-/// uncommitted before it and it never touched); each merge it resolved by hand adds back only the files it resolved. A
-/// HEAD move it did not write (a checkout, pull, merge, rebase or reset) is one line with no files; a rebase's
-/// replayed commits and any conflict it resolved mid-rebase are not listed. Each snapshot is a full sha the caller
-/// checked, so neither reaches git as an option.
+/// uncommitted before it and it never touched); each merge it made, clean, fast-forward or resolved by hand, is a line
+/// and every file it brought. A HEAD move it did not write (a checkout, pull, rebase, reset or rename) is one line
+/// with no files; a rebase's replayed commits and any conflict it resolved mid-rebase are not listed. Each snapshot is
+/// a full sha the caller checked, so neither reaches git as an option.
 pub(crate) async fn git_turn<R: Runs>(
     runner: &R,
     cwd: &Path,
@@ -638,7 +653,7 @@ pub(crate) async fn git_turn<R: Runs>(
     range_held(runner, cwd, from, to).await?;
     let start_head = snapshot_head(runner, cwd, from).await?;
     let end_head = snapshot_head(runner, cwd, to).await?;
-    let (own, resolved, moved) = turn_ops(runner, cwd, from, to).await?;
+    let TurnOps { own, merged, moves: moved } = turn_ops(runner, cwd, from, to).await?;
     let listing = Listing { cached: false, untracked: false, blobs: false, whole: false, worktree: false };
     let mut files: Vec<GitDiffFile> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -660,23 +675,21 @@ pub(crate) async fn git_turn<R: Runs>(
         let own_diff = diff_listed(runner, cwd, bound, &[parent, commit.clone()], path, &[], listing, cap, None).await?;
         merge_into(own_diff, &mut files, &mut seen, &mut truncated);
     }
-    // Each hand-resolved merge adds the files it resolved, the difference between the no-hand merge of its parents and
-    // its own tree; nothing else of the merge is the turn's.
-    for merge in &resolved {
-        let parents = parents_of(runner, cwd, merge).await?;
-        let [a, b] = parents.as_slice() else { continue };
-        let Some(tree) = no_hand_merge_tree(runner, cwd, a, b).await? else { continue };
-        let hand = diff_listed(runner, cwd, bound, &[tree, merge.clone()], path, &[], listing, cap, None).await?;
-        merge_into(hand, &mut files, &mut seen, &mut truncated);
+    // Each merge adds every file it brought: HEAD before it against HEAD after it. Merges made one after another are
+    // one range, so a file two of them changed counts every line both brought.
+    let mut ranges: Vec<(String, String)> = Vec::new();
+    for (before, after) in merged.into_iter().rev() {
+        match ranges.last_mut() {
+            Some((_, end)) if *end == before => *end = after,
+            _ => ranges.push((before, after)),
+        }
+    }
+    for (before, after) in ranges.iter().rev() {
+        let brought = diff_listed(runner, cwd, bound, &[before.clone(), after.clone()], path, &[], listing, cap, None).await?;
+        merge_into(brought, &mut files, &mut seen, &mut truncated);
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(GitDiffReply { base: start_head, files, truncated, moved })
-}
-
-/// The parents of a commit, in order; a merge the turn resolved has two.
-async fn parents_of<R: Runs>(runner: &R, cwd: &Path, commit: &str) -> Result<Vec<String>, OpError> {
-    let res = run_git(runner, cwd, &GitLine::new(&["rev-list", "--parents", "-n", "1"]).revs(&[commit]), None, None).await?;
-    Ok(stdout_text(&res).split_whitespace().skip(1).map(str::to_owned).collect())
 }
 
 /// What a diff lists beyond git's own name-status: the untracked files as new ones, each file's worktree blob, and
@@ -1183,7 +1196,7 @@ mod tests {
     use wsp_frames::numbers;
 
     /// git as the daemon runs it on the computer it is, which is what every case below reads.
-    fn here() -> Here {
+    pub(super) fn here() -> Here {
         Here::new()
     }
 
@@ -1309,7 +1322,7 @@ mod tests {
         assert_eq!(counts.len(), 3);
     }
 
-    fn git_in(cwd: &Path, args: &[&str]) -> String {
+    pub(super) fn git_in(cwd: &Path, args: &[&str]) -> String {
         let out = std::process::Command::new("git")
             .args(args)
             .current_dir(cwd)
@@ -1324,7 +1337,7 @@ mod tests {
     }
 
     /// A checkout on main whose one commit holds the files named, each holding its name on thirty lines.
-    fn committed(files: &[&str]) -> tempfile::TempDir {
+    pub(super) fn committed(files: &[&str]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         git_in(dir.path(), &["init", "-q", "-b", "main"]);
         for file in files {
@@ -1337,11 +1350,11 @@ mod tests {
         dir
     }
 
-    fn paths_of(reply: &GitDiffReply) -> Vec<&str> {
+    pub(super) fn paths_of(reply: &GitDiffReply) -> Vec<&str> {
         reply.files.iter().map(|f| f.path.as_str()).collect()
     }
 
-    const CAP: usize = 1024 * 1024;
+    pub(super) const CAP: usize = 1024 * 1024;
 
     /// Real git, except the per-file worktree diff (the one with a `--` pathspec) answers a patch this test hands
     /// it, standing in for what git prints when it reads the worktree through a link swapped in mid-read. The
@@ -1695,307 +1708,8 @@ mod tests {
         assert_eq!(cut_at_line(b"no line end here", 5), b"no li");
         assert_eq!(cut_at_line(b"\nabc", 2), b"\na");
     }
-
-    /// A turn that checks out another branch and edits one file: the card is that one file and the checkout line, not
-    /// the whole branch the checkout brought.
-    #[tokio::test]
-    async fn a_turn_that_checks_out_a_branch_and_edits_one_file_lists_that_file_and_the_checkout() {
-        let dir = committed(&["a.txt"]);
-        let p = dir.path();
-        git_in(p, &["checkout", "-q", "-b", "other"]);
-        std::fs::write(p.join("b.txt"), "b\n").unwrap();
-        std::fs::write(p.join("c.txt"), "c\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "other work"]);
-        git_in(p, &["checkout", "-q", "main"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["checkout", "-q", "other"]);
-        std::fs::write(p.join("a.txt"), "edited\n").unwrap();
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["a.txt"]);
-        assert_eq!(reply.moved, vec!["Checked out other".to_owned()]);
-    }
-
-    /// A turn that pulls and edits nothing: the pull is one line and no files are its own.
-    #[tokio::test]
-    async fn a_turn_that_pulls_and_edits_nothing_shows_the_pull_line_and_no_files() {
-        let up = committed(&["a.txt"]);
-        let work = tempfile::tempdir().unwrap();
-        let dir = work.path().join("clone");
-        git_in(work.path(), &["clone", "-q", up.path().to_str().unwrap(), dir.to_str().unwrap()]);
-        let p = dir.as_path();
-        std::fs::write(up.path().join("b.txt"), "b\n").unwrap();
-        git_in(up.path(), &["add", "-A"]);
-        git_in(up.path(), &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "more"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["pull", "-q"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert!(reply.files.is_empty(), "{:?}", paths_of(&reply));
-        assert_eq!(reply.moved, vec!["Pulled into main".to_owned()]);
-    }
-
-    /// A turn that commits two edits and moves HEAD no other way: both files are its own and it names no move.
-    #[tokio::test]
-    async fn a_turn_that_commits_two_edits_lists_both_and_names_no_move() {
-        let dir = committed(&["a.txt", "b.txt"]);
-        let p = dir.path();
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        std::fs::write(p.join("a.txt"), "edited a\n").unwrap();
-        std::fs::write(p.join("b.txt"), "edited b\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "two edits"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["a.txt", "b.txt"]);
-        assert!(reply.moved.is_empty());
-    }
-
-    /// A merge the turn resolved by hand lists the files it resolved and the merge line, and nothing else the merge
-    /// brought: the file both sides changed, not the file only the other side added.
-    #[tokio::test]
-    async fn a_turn_that_resolves_a_merge_lists_the_resolved_file_and_the_merge_line_only() {
-        let dir = committed(&["a.txt", "shared.txt"]);
-        let p = dir.path();
-        git_in(p, &["checkout", "-q", "-b", "feature"]);
-        std::fs::write(p.join("shared.txt"), "feature side\n").unwrap();
-        std::fs::write(p.join("feat.txt"), "feat\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "feature"]);
-        git_in(p, &["checkout", "-q", "main"]);
-        std::fs::write(p.join("shared.txt"), "main side\n").unwrap();
-        std::fs::write(p.join("other.txt"), "other\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "main moves"]);
-        git_in(p, &["checkout", "-q", "feature"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        // The merge conflicts on shared.txt, so it exits non-zero and git_in cannot run it.
-        let merge = std::process::Command::new("git")
-            .args(["-c", "commit.gpgsign=false", "merge", "main"])
-            .current_dir(p)
-            .env("GIT_AUTHOR_NAME", "t")
-            .env("GIT_AUTHOR_EMAIL", "t@x")
-            .env("GIT_COMMITTER_NAME", "t")
-            .env("GIT_COMMITTER_EMAIL", "t@x")
-            .output()
-            .unwrap();
-        assert!(!merge.status.success(), "the merge was expected to conflict");
-        std::fs::write(p.join("shared.txt"), "resolved\n").unwrap();
-        git_in(p, &["add", "shared.txt"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "--no-edit"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["shared.txt"]);
-        assert_eq!(reply.moved, vec!["Merged main into feature".to_owned()]);
-    }
-
-    /// A clone on a branch of its own with main moved on upstream, the commit on the branch and the fetch done.
-    fn ahead_and_behind() -> (tempfile::TempDir, tempfile::TempDir, PathBuf) {
-        let up = committed(&["a.txt"]);
-        let work = tempfile::tempdir().unwrap();
-        let dir = work.path().join("clone");
-        git_in(work.path(), &["clone", "-q", up.path().to_str().unwrap(), dir.to_str().unwrap()]);
-        git_in(&dir, &["checkout", "-q", "-b", "fix/x"]);
-        std::fs::write(dir.join("own.txt"), "own\n").unwrap();
-        git_in(&dir, &["add", "-A"]);
-        git_in(&dir, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "own"]);
-        std::fs::write(up.path().join("up.txt"), "up\n").unwrap();
-        git_in(up.path(), &["add", "-A"]);
-        git_in(up.path(), &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "up"]);
-        git_in(&dir, &["fetch", "-q"]);
-        (up, work, dir)
-    }
-
-    /// A builder's own merge of main into its branch and its soft-reset squash name the branch HEAD was on, so neither
-    /// reads as a merge into main while the pull request is still open.
-    #[tokio::test]
-    async fn a_merge_of_main_and_a_reset_onto_it_name_the_branch_they_moved() {
-        let (_up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "origin/main"]);
-        git_in(p, &["reset", "-q", "--soft", "origin/main"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "squash"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(reply.moved, vec!["Merged origin/main into fix/x".to_owned(), "Reset fix/x to origin/main".to_owned()]);
-    }
-
-    /// A turn whose end snapshot an older daemon took, with no record of HEAD on it, names no branch rather than one
-    /// it cannot know.
-    #[tokio::test]
-    async fn an_end_snapshot_with_no_record_of_head_names_no_branch() {
-        let (_up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "origin/main"]);
-        let taken = git_snapshot(&here(), p).await.unwrap().commit;
-        let message = git_in(p, &["show", "-s", "--format=%B", &taken]);
-        let older = message.lines().filter(|l| !l.starts_with("head ")).collect::<Vec<_>>().join("\n");
-        let tree = format!("{taken}^{{tree}}");
-        let parent = format!("{taken}^");
-        let to = git_in(p, &["commit-tree", &tree, "-p", &parent, "-m", &older]).trim().to_owned();
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(reply.moved, vec!["Merged origin/main".to_owned()]);
-    }
-
-    /// A move made before a checkout in the same turn names the branch it was made on, not the one the turn ended on.
-    #[tokio::test]
-    async fn a_merge_before_a_checkout_names_the_branch_it_was_made_on() {
-        let (_up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "origin/main"]);
-        git_in(p, &["checkout", "-q", "main"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(reply.moved, vec!["Merged origin/main into fix/x".to_owned(), "Checked out main".to_owned()]);
-    }
-
-    /// On a detached HEAD a merge and a reset say so rather than naming a branch nothing moved.
-    #[tokio::test]
-    async fn a_merge_and_a_reset_on_a_detached_head_say_a_detached_head() {
-        let (_up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        git_in(p, &["checkout", "-q", "--detach"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "merge", "-q", "--no-edit", "origin/main"]);
-        git_in(p, &["reset", "-q", "--hard", "origin/main"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(
-            reply.moved,
-            vec!["Merged origin/main into a detached HEAD".to_owned(), "Reset a detached HEAD to origin/main".to_owned()]
-        );
-    }
-
-    /// A pull that rebases is one line naming the branch it returned to, though HEAD was detached for its steps.
-    #[tokio::test]
-    async fn a_pull_that_rebases_is_one_line_naming_the_branch() {
-        let (_up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "pull", "-q", "--rebase", "origin", "main"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(reply.moved, vec!["Pulled into fix/x".to_owned()]);
-    }
-
-    /// A turn that ends with its rebase stopped on a conflict names the branch being rebased, which git keeps beside
-    /// the rebase while HEAD is detached under it.
-    #[tokio::test]
-    async fn a_rebase_stopped_on_a_conflict_names_the_branch_it_rebases() {
-        let (up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        std::fs::write(up.path().join("a.txt"), "theirs\n").unwrap();
-        git_in(up.path(), &["-c", "commit.gpgsign=false", "commit", "-q", "-am", "theirs"]);
-        std::fs::write(p.join("a.txt"), "mine\n").unwrap();
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-am", "mine"]);
-        git_in(p, &["fetch", "-q"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        // The rebase stops on a.txt, so it exits non-zero and git_in cannot run it.
-        let rebase = std::process::Command::new("git")
-            .args(["-c", "commit.gpgsign=false", "rebase", "origin/main"])
-            .current_dir(p)
-            .env("GIT_AUTHOR_NAME", "t")
-            .env("GIT_AUTHOR_EMAIL", "t@x")
-            .env("GIT_COMMITTER_NAME", "t")
-            .env("GIT_COMMITTER_EMAIL", "t@x")
-            .output()
-            .unwrap();
-        assert!(!rebase.status.success(), "the rebase was expected to stop on a conflict");
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(reply.moved, vec!["Rebased fix/x onto origin/main".to_owned()]);
-    }
-
-    /// A rebase of a detached HEAD has no branch to return to and says so.
-    #[tokio::test]
-    async fn a_rebase_of_a_detached_head_says_a_detached_head() {
-        let (_up, _work, dir) = ahead_and_behind();
-        let p = dir.as_path();
-        git_in(p, &["checkout", "-q", "--detach"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "rebase", "-q", "origin/main"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(reply.moved, vec!["Rebased a detached HEAD onto origin/main".to_owned()]);
-    }
-
-    /// A turn that leaves its start HEAD and comes back to it keeps every move line: the window is the entries the two
-    /// snapshots bound by count, not a match on the start sha that would end at the first row.
-    #[tokio::test]
-    async fn a_turn_that_leaves_and_returns_to_its_start_keeps_the_move_lines() {
-        let dir = committed(&["a.txt"]);
-        let p = dir.path();
-        git_in(p, &["branch", "other"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["checkout", "-q", "other"]);
-        git_in(p, &["checkout", "-q", "main"]);
-        std::fs::write(p.join("a.txt"), "edited\n").unwrap();
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["a.txt"]);
-        assert_eq!(reply.moved, vec!["Checked out other".to_owned(), "Checked out main".to_owned()]);
-    }
-
-    /// A turn that commits a file and then moves HEAD keeps the file it committed: each commit contributes its own
-    /// files, collected one by one, whatever moved HEAD after it, and the move is only a line.
-    #[tokio::test]
-    async fn a_turn_that_commits_then_checks_out_keeps_the_commit_and_names_the_checkout() {
-        let dir = committed(&["a.txt"]);
-        let p = dir.path();
-        git_in(p, &["branch", "other"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        std::fs::write(p.join("own.txt"), "own\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "own work"]);
-        git_in(p, &["checkout", "-q", "other"]);
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["own.txt"]);
-        assert_eq!(reply.moved, vec!["Checked out other".to_owned()]);
-    }
-
-    /// A HEAD move made right before the start snapshot is not the turn's: the window is the reflog length the snapshot
-    /// stamped, so an entry below it is left out even in the same wall-clock second the turn starts in.
-    #[tokio::test]
-    async fn a_move_just_before_the_start_snapshot_is_not_the_turns() {
-        let dir = committed(&["a.txt"]);
-        let p = dir.path();
-        git_in(p, &["branch", "other"]);
-        git_in(p, &["checkout", "-q", "other"]);
-        git_in(p, &["checkout", "-q", "main"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        std::fs::write(p.join("a.txt"), "edited\n").unwrap();
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["a.txt"]);
-        assert!(reply.moved.is_empty(), "{:?}", reply.moved);
-    }
-
-    /// A rebase is one line and the edits standing at the turn's end, not the commits it replayed: the turn rebases
-    /// onto main and then edits a file, and the card is that file and "Rebased feature onto main".
-    #[tokio::test]
-    async fn a_turn_that_rebases_names_it_once_and_lists_only_the_end_edits() {
-        let dir = committed(&["a.txt"]);
-        let p = dir.path();
-        git_in(p, &["checkout", "-q", "-b", "feature"]);
-        std::fs::write(p.join("feat.txt"), "feat\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "feature work"]);
-        git_in(p, &["checkout", "-q", "main"]);
-        std::fs::write(p.join("main.txt"), "main\n").unwrap();
-        git_in(p, &["add", "-A"]);
-        git_in(p, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "main work"]);
-        git_in(p, &["checkout", "-q", "feature"]);
-        let from = git_snapshot(&here(), p).await.unwrap().commit;
-        git_in(p, &["-c", "commit.gpgsign=false", "rebase", "-q", "main"]);
-        std::fs::write(p.join("after.txt"), "after\n").unwrap();
-        let to = git_snapshot(&here(), p).await.unwrap().commit;
-        let reply = git_turn(&here(), p, Path::new("/"), &from, &to, None, CAP).await.unwrap();
-        assert_eq!(paths_of(&reply), vec!["after.txt"]);
-        assert_eq!(reply.moved, vec!["Rebased feature onto main".to_owned()]);
-    }
 }
+
+#[cfg(test)]
+#[path = "../tests/turn_git/mod.rs"]
+mod turn_tests;
