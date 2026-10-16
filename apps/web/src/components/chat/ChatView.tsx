@@ -333,13 +333,14 @@ export function ChatView({
   );
   // Fork from here stands on each finished turn's last reply and on the person's message that opened one, on an agent
   // that forks; a new branch is offered where the thread runs in a git folder on this computer, whose daemon cuts
-  // worktrees at a checkpoint, and the turn kept one.
+  // worktrees at a checkpoint, and the turn kept one. A sub-thread offers none: its machine runs that one thread alone.
+  const onSub = sub !== undefined;
   const forkable = useMemo(
     () =>
-      api === null || agent === null || subagent !== null
+      api === null || agent === null || subagent !== null || onSub
         ? new Map<string, never>()
-        : new Map([...forkableMessages(view.turns, view.entries, { forks: catalog?.forks === true, byCount: catalog?.forksByCount === true }, thread.fromStart && !view.earlier)].filter(([, pick]) => pick.turnId === null || !gone.has(pick.turnId))),
-    [agent, api, catalog?.forks, catalog?.forksByCount, subagent, view.turns, view.entries, thread.fromStart, view.earlier, gone],
+        : forkableMessages(view.turns, view.entries, { forks: catalog?.forks === true, byCount: catalog?.forksByCount === true }, thread.fromStart && !view.earlier),
+    [agent, api, catalog?.forks, catalog?.forksByCount, subagent, onSub, view.turns, view.entries, thread.fromStart, view.earlier],
   );
   const forkableKey = [...forkable.keys()].join("\n");
   const forkableIds = useMemo(() => new Set(forkableKey === "" ? [] : forkableKey.split("\n")), [forkableKey]);
