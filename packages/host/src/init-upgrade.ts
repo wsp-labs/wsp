@@ -123,7 +123,8 @@ export interface UpdateRoadOptions {
   importOf: (rows: readonly ManifestEntry[]) => GoldenImport;
   lastBuild: BuildTimes | undefined;
   interactive: boolean;
-  yes: boolean;
+  /** Why nothing is asked, in runInit's words, when the run takes the default road without asking. */
+  takenAs: string;
   /** Draws the update's stages as they arrive; returns once the runtime call settles. */
   stream: (words: readonly StageWords[], run: () => Promise<unknown>) => Promise<{ failure?: string }>;
   /** Told the version the update sealed, the one road out that seals one: the app's init job reads the version off
@@ -190,7 +191,7 @@ export async function updateRoad(o: UpdateRoadOptions): Promise<0 | 1 | "rebuild
     road = picked;
   } else {
     road = offer.small ? "update" : "rebuild";
-    say("step", `${road === "update" ? "Updating your image" : "Rebuilding from scratch"}. Taken as the default (${o.yes ? "--yes" : "no terminal"}).`);
+    say("step", `${road === "update" ? "Updating your image" : "Rebuilding from scratch"}. Taken as the default (${o.takenAs}).`);
   }
   if (road === "rebuild") return "rebuild";
 

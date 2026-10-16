@@ -535,6 +535,7 @@ export class InitJobs implements InitDoor {
       // that said it wants no waiting gets none. The app never says it; its person is there to finish them.
       yes: o.yes === true,
       nonInteractive: true,
+      hostJob: true,
       ...(o.rebuild === true ? { rebuild: true } : {}),
       recipeFile: path,
       reading: { ...reading, catalogRecipe: recipe },
@@ -569,8 +570,10 @@ export class InitJobs implements InitDoor {
       ...(this.deps.vaultWaitMs !== undefined ? { vaultWaitMs: this.deps.vaultWaitMs } : {}),
     };
     this.run(s, async () => {
+      let updated = false;
       try {
         const result = await runInit(opts, io);
+        updated = result.updateRoad === true;
         if (s.cancelled) s.phase = "cancelled";
         else if (!initJobOver(s.phase)) {
           s.phase = result.code === 0 ? "done" : "failed";
@@ -579,6 +582,8 @@ export class InitJobs implements InitDoor {
       } finally {
         for (const off of offs) off();
         delete s.slotWait;
+        // The sign-in rows were drawn for a full build; a run that ended on the update road never had a sign-in to reach.
+        if (updated) s.rows = s.rows.filter(row => row.kind !== "sign-in");
         // Every row the run left unfinished, not only the ones it never started: forking and importing hang too.
         // A first workspace or its project reads not made, since skipped would read as a step the build passed on.
         for (const row of s.rows) {

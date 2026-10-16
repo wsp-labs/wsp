@@ -126,12 +126,8 @@ export async function handoffStage(o: HandoffOptions): Promise<LoginOutcome[]> {
   const pollMs = o.pollMs ?? POLL_MS;
   const graceMs = o.graceMs ?? GRACE_MS;
   if (o.logins.length === 0) return [];
-  const { outcomes, machine } = settledOutcomes(o.logins, o.left, o.output);
-  // A login the build runs nothing for is a row of the build too: it settles here, before any page, and is never
-  // announced otherwise.
-  for (const [entry, r] of o.logins.map((e, i): [ManifestEntry, LoginOutcome] => [e, outcomes[i]!])) {
-    if (r.state === "copied" || r.state === "deferred") o.json?.({ event: "sign-in-result", tool: agentName(entry), label: r.label, state: r.state });
-  }
+  // A login the build runs nothing for is a row of the build too: it settles here, before any page.
+  const { outcomes, machine } = settledOutcomes(o.logins, o.left, o.output, o.json);
   if (machine.length === 0) return outcomes;
   log.step("Signing in on the machine. Each page below is yours to open on this computer; the run waits for you.", out);
 
