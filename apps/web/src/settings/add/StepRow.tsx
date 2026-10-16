@@ -142,3 +142,18 @@ export function SkipAct({ word, onSkip, busy = false, bare = false }: { word: st
     </Button>
   );
 }
+
+/** A step's last lines of output under its open row, in the mono, wrapping. */
+export function StepLog({ lines }: { lines: readonly string[] | undefined }) {
+  const block = useRef<HTMLPreElement>(null);
+  const text = lines?.join("\n") ?? "";
+  useEffect(() => {
+    if (block.current !== null) block.current.scrollTop = block.current.scrollHeight;
+  }, [text]);
+  if (lines === undefined || lines.length === 0) return <p className={NOTE}>No output yet.</p>;
+  return (
+    <pre ref={block} data-k="step-log" className="max-h-48 overflow-auto font-mono text-[11px] leading-4 whitespace-pre-wrap break-all text-muted-foreground tabular-nums">
+      {text}
+    </pre>
+  );
+}
