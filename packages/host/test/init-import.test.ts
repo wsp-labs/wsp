@@ -618,6 +618,36 @@ describe("packPlan", () => {
     expect(imp.recipe!.files.find(f => f.dest === ".claude-cfg/CLAUDE.md")?.digest).toBe(digestOf(planned(".claude/CLAUDE.md"), home));
   });
 
+  it("a signed marketplace address keeps its signature on this computer on a provider's image, and its builder never fetches it", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    const signed = {
+      azure: { source: "url", url: "https://lab.blob.core.windows.net/p/m.json?sv=2024-11-04&sp=r&sig=plain0azure" },
+      s3: { source: "url", url: "https://lab.s3.amazonaws.com/m.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=3600&X-Amz-Signature=plain0amz" },
+      gcs: { source: "url", url: "https://storage.googleapis.com/lab/m.json?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=plain0goog" },
+      cdn: { source: "url", url: "https://cdn.example.com/m.json?Expires=1767290400&signature=plain0cdn" },
+    };
+    const markets = { ...signed, acme: { source: "github", repo: "acme/plugins" } };
+    const enabled = { "a@azure": true, "b@s3": true, "c@gcs": true, "d@cdn": true, "x@acme": true };
+    writeFileSync(join(home, ".claude", "settings.json"), `${JSON.stringify({ enabledPlugins: enabled, extraKnownMarketplaces: Object.fromEntries(Object.entries(signed).map(([n, source]) => [n, { source }])) }, null, 2)}\n`);
+    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify(Object.fromEntries(Object.entries(markets).map(([n, source]) => [n, { source }]))));
+    const claude = row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] });
+    const opts = { home, secrets: new Map<string, string>(), platform: "darwin" as const };
+    expect(importFor([claude], opts).plugins?.seed?.plugins.map(p => p.label)).toEqual(["a@azure", "b@s3", "c@gcs", "d@cdn", "x@acme"]);
+    const imp = importFor([claude], { ...opts, cloud: true });
+    expect(imp.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme"]);
+    const packed = await imp.files!.pack();
+    expect(packed.blanked?.map(b => b.note)).toEqual(["sig, X-Amz-Signature, X-Goog-Signature, signature blanked or left out; the values stay on this computer"]);
+    const root = extract(packed.tar);
+    expect(readFileSync(join(root, ".claude-cfg", "settings.json"), "utf8")).not.toContain("plain0");
+    expect(Object.values(JSON.parse(readFileSync(join(root, ".claude-cfg", "settings.json"), "utf8")).extraKnownMarketplaces).map(m => (m as { source: { url: string } }).source.url)).toEqual([
+      "https://lab.blob.core.windows.net/p/m.json?sv=2024-11-04&sp=r&sig=",
+      "https://lab.s3.amazonaws.com/m.json?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=3600&X-Amz-Signature=",
+      "https://storage.googleapis.com/lab/m.json?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=",
+      "https://cdn.example.com/m.json?Expires=1767290400&signature=",
+    ]);
+  });
+
   it("on a provider, a rotated MCP server secret reads changed so the re-pack writes the new value", () => {
     const home = laptop();
     mkdirSync(join(home, ".codex"), { recursive: true });
