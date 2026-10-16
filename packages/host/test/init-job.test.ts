@@ -2050,6 +2050,27 @@ describe("the init job, terminal road", () => {
     expect(f.backend.machines[0]!.killed).toBe(true);
   });
 
+  it("a terminal beside the host on the update road prints an earlier builder at another place with its price and its stop, and says why the stop was not asked", async () => {
+    const box = stubBackend();
+    const f = fake({ places: wired => { box.execImpl = wired.execImpl; return { wired: "solari", backend: p => (p === "solari" ? wired : p === "box" ? box : undefined), list: () => ["solari", "box"] }; } });
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    const first = besideRun(f.jobs);
+    expect(await first.code, first.text()).toBe(0);
+    // The two stubs number machines alike, so a spent one keeps the copy's builder apart from the kept builder m1.
+    await box.create({ kind: "sandbox", cpu: 2, memMb: 4096 });
+    const stray = await f.rt.golden.prepare({ place: "box", copy: true, recipe: { setup: "true", smoke: "true", cpu: 2, memMb: 4096 } });
+    writeFileSync(join(f.home, ".zshrc"), "export A=3\n");
+    const run = besideRun(f.jobs, { yes: false });
+    expect(await run.code, run.text()).toBe(0);
+    const said = run.text();
+    expect(said).toContain("A builder from an earlier wsp init is still running on the account:");
+    expect(said).toMatch(new RegExp(`default \\(${stray.id}\\), \\d+ s old, about \\$\\d+\\.\\d\\d so far; at Boat, and this run builds at Solari$`, "m"));
+    expect(said).toContain("Stop it, then compare your image with this recipe? Taken as yes (the host serving this state runs the build and asks nothing).");
+    expect(said.indexOf(`Stopped default (${stray.id}).`)).toBeLessThan(said.indexOf("Changes since image v1"));
+    expect(said).toContain("Image v2 sealed on the host serving this state.");
+    expect(box.machines.map(m => [m.id, m.killed])).toEqual([["m1", false], [stray.id, true]]);
+  });
+
   it("a terminal beside the host prints why an earlier builder's stop failed, and that it still runs", async () => {
     const f = fake();
     saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
