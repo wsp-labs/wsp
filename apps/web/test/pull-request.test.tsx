@@ -808,6 +808,13 @@ describe("the thread header's git button", () => {
     expect(api.bringBack).not.toHaveBeenCalled();
   });
 
+  it("draws nothing on a sub-thread whose machine was deleted after its work was pushed", () => {
+    withGit({ branch: "wsp/walk-a-split" }, undefined);
+    act(() => useStore.setState({ workspaces: [{ ...view, kind: "cloud", phase: "released", parentThreadId: "th_lead" }] }));
+    render(<GitSplit workspaceId={WS} />);
+    expect(document.querySelector("[data-git-split]")).toBeNull();
+  });
+
   it("draws nothing where the checkout is not read", () => {
     withApi(fact());
     expect(render(<GitSplit workspaceId={WS} />).container.innerHTML).toBe("");
