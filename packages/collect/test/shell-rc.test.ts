@@ -168,6 +168,66 @@ describe("shell rc exports", () => {
     expect(stripExports('export QUOTED="a\\"b"\nexport A_KEY="x\\"y\nz"\nlast\n').carried).toBe('export QUOTED="a\\"b"\nlast\n');
   });
 
+  it("an array spanning lines under a secret name is cut whole, quotes, comments and nested parentheses in it held, while one under a plain name stays", () => {
+    const text = [
+      "API_KEY=(",
+      "  hunter2-prod",
+      "  hunter2-stage",
+      ")",
+      "declare -a GH_TOKEN=(",
+      '  "a ) b"',
+      "  'c)'",
+      "  $(pass show gh)",
+      ")",
+      "typeset -a LAB_SECRET=(",
+      "  x # note (",
+      "  *(.)",
+      ")",
+      "LAB_TOKEN+=(",
+      "  more",
+      ")",
+      "if x; then",
+      "  DB_PASSWORD=(",
+      "    p # (",
+      "  ); export IN=1; fi",
+      "PLAIN=(",
+      "  one",
+      "  two",
+      ")",
+      "",
+    ].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["API_KEY", "GH_TOKEN", "LAB_SECRET", "LAB_TOKEN", "DB_PASSWORD"],
+      carried: "true\ntrue\ntrue\ntrue\nif x; then\n  true; export IN=1; fi\nPLAIN=(\n  one\n  two\n)\n",
+    });
+    expect(stripExports("PLAIN=(\n  one\n  two\n)\nLIST=( a\n  b )\n", () => undefined, [], true).carried).toBe("PLAIN=(\n  one\n  two\n)\nLIST=( a\n  b )\n");
+  });
+
+  it("an array under a secret name is cut whole past a comment right after its =(, a ) inside ${...} and a ) quoted inside $(...)", () => {
+    const text = [
+      "API_KEY=(#prod)",
+      "  hunter2-prod",
+      ")",
+      "DB_PASSWORD=(#it's here",
+      "  hunter2-db",
+      ")",
+      "GH_TOKEN=(",
+      "  ${x%)}",
+      "  hunter2-gh",
+      ")",
+      "LAB_SECRET=(",
+      '  $(op read "op://Private/Lab (work)/key")',
+      "  hunter2-lab",
+      ")",
+      "export AFTER=1",
+      "",
+    ].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["API_KEY", "DB_PASSWORD", "GH_TOKEN", "LAB_SECRET"],
+      carried: "true\ntrue\ntrue\ntrue\nexport AFTER=1\n",
+    });
+  });
+
   it("CRLF files are stripped too and keep their line endings", () => {
     expect(stripExports("export A_TOKEN=x\r\nexport B=1\r\n")).toEqual({ names: ["A_TOKEN"], carried: "export B=1\r\n" });
   });
