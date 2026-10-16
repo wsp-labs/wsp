@@ -202,7 +202,10 @@ describe("a create on a computer that names its own machines", () => {
     const named = stubBackend();
     (named as { namesWorkspace?: boolean }).namesWorkspace = true;
     const rt = createRuntime({ backend: named, store: memoryStore(), adapters: {} });
-    await createOn(rt, { golden: "snap_g", name: "on-a-box" });
+    const ws = await createOn(rt, { golden: "snap_g", name: "on-a-box" });
+    await rt.workspaces.nap(ws.id);
+    await rt.workspaces.wake(ws.id);
+    expect(named.machines[0]!.resumes).toBe(1);
     expect(named.machines[0]!.execLog.filter(cmd => cmd.startsWith("hostname "))).toEqual([]);
 
     // The provider's own fork boots as localhost, so that road still names it: the flag is the backend's, not a

@@ -462,13 +462,20 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
             } satisfies Pick<WorkspaceHooks, "vaultExport" | "vaultImport" | "stashVault" | "restoreVault">)
           : {}),
         // The backend settles its own moves under its own budgets; the runtime sends each once, hands the resume
-        // the person's stop, and says on the row that a resume the backend gave up on is being read about.
+        // the person's stop, and says on the row that a resume the backend gave up on is being read about. A Boat
+        // resume comes up on a fresh machine under a host name of its own, which sends oh-my-zsh's first login after
+        // every wake through a whole compinit, so the name the fork set is set again before the wake answers.
         move: (m, move) =>
           move === "resume"
-            ? (entry.resizeTo !== undefined && m.resumeAt !== undefined ? m.resumeAt(entry.resizeTo, entry.wakeStop?.signal) : m.resume(entry.wakeStop?.signal)).catch(async (e: unknown) => {
-                if (e instanceof ResumeUnansweredError) await ctx.saysWaking(entry, RESUME_UNANSWERED);
-                throw e;
-              })
+            ? (entry.resizeTo !== undefined && m.resumeAt !== undefined ? m.resumeAt(entry.resizeTo, entry.wakeStop?.signal) : m.resume(entry.wakeStop?.signal)).then(
+                async () => {
+                  if (!ctx.namesWorkspace(at)) await setHostname(m, record.name);
+                },
+                async (e: unknown) => {
+                  if (e instanceof ResumeUnansweredError) await ctx.saysWaking(entry, RESUME_UNANSWERED);
+                  throw e;
+                },
+              )
             : m.pause(entry.napWaitMs !== undefined ? { waitMs: entry.napWaitMs } : undefined),
         wakeCheck: async m => {
           const expected = record.shape;
