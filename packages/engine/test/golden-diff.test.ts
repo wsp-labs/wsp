@@ -148,6 +148,23 @@ describe("recipe diff", () => {
     expect(isSmallDelta(diffRecipes(from, to), bytesIn(to))).toBe(false);
   });
 
+  it("a missing file the update takes off is said to come off, not to stay", () => {
+    const from = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/plugins/known_marketplaces.json"), file("agents/claude", ".claude-cfg/settings.json")]);
+    const to = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json")]);
+    expect(describeDiff(diffRecipes(from, to), { takenOff: new Set([".claude-cfg/plugins/known_marketplaces.json"]) })).toEqual(["taken off the golden, no longer copied: ~/.claude-cfg/plugins/known_marketplaces.json"]);
+  });
+
+  it("the plugin folder an update builds is said as the plugins it holds, never counted as a file, and has no line with nothing to build", () => {
+    const from = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json")]);
+    const to = snap([row("agents", "agents/claude")], [file("agents/claude", ".claude-cfg/settings.json"), file("agents/claude", ".claude-plugin-seed")]);
+    const d = diffRecipes(from, to);
+    const plugins = { dest: ".claude-plugin-seed", count: 2 };
+    expect(describeDiff(d, { plugins })).toEqual(["build 2 plugins into ~/.claude-plugin-seed, which every turn reads in place of fetching their marketplaces"]);
+    expect(changeCounts(d, { plugins }).filter(c => c.count > 0)).toEqual([{ count: 2, noun: "plugin", word: "built in" }]);
+    expect(describeDiff(d, { plugins: { ...plugins, count: 0 } })).toEqual([]);
+    expect(describeDiff(d)).toEqual(["add 1 file: ~/.claude-plugin-seed"]);
+  });
+
   it("an unticked row on either side is not a tool, agent or login of that side", () => {
     const from = snap([row("tools", "tools/brew/jq", { bring: false }), row("agents", "agents/codex", { bring: false })]);
     const to = snap([row("tools", "tools/brew/jq"), row("agents", "agents/codex")]);

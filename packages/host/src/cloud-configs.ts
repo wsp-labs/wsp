@@ -85,6 +85,10 @@ function blankString(s: string, own: boolean): Cut {
   return { text, names };
 }
 
+/** Whether an address holds anything a copy to a provider's machine blanks out of one: a login, a value under a
+ * secret's name in its query, a path segment shaped like a key, or a token's shape. */
+export const carriesSecret = (address: string): boolean => blankString(address, true).text !== address;
+
 /** One argument as the collector read it: a flag's or an assignment's secret value goes, an assignment that holds an
  * address loses what the address carries, and every argument loses its tokens. */
 function argCut(arg: string, read: ArgRead, names: string[]): string {

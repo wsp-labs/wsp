@@ -320,9 +320,11 @@ if (firstAgent === undefined) throw new Error("the catalog has no agent");
 export const DEFAULT_AGENT: AgentEntry = firstAgent;
 export const CATALOG_TOOLS: readonly ToolEntry[] = CATALOG.filter((e): e is ToolEntry => e.kind === "tool");
 
-/** The envs a golden carries for an agent on it: the variable that points it at its state home on the guest. */
+/** The envs a golden carries for an agent on it: the variables that point it at its state home and at the plugins
+ * the image built for it on the guest. A seed folder an older image never built is read as empty. */
 export function guestEnv(a: AgentEntry): Record<string, string> {
-  return a.stateHomeEnv !== undefined && a.guestStateHome !== undefined ? { [a.stateHomeEnv]: a.guestStateHome } : {};
+  const seed = a.plugins?.seed;
+  return { ...(a.stateHomeEnv !== undefined && a.guestStateHome !== undefined ? { [a.stateHomeEnv]: a.guestStateHome } : {}), ...(seed !== undefined ? { [seed.env]: seed.dir } : {}) };
 }
 
 /** An agent entry whose MCP config the catalog knows. */
