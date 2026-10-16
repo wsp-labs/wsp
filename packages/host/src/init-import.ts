@@ -43,6 +43,7 @@ import {
 import { baseNote, CATALOG_AGENTS, CLAUDE_SETTINGS_FILE, GUEST_HOME, GUEST_REWRITES, MCP_AGENTS, rewrittenRel, serversByName } from "@wsp/catalog";
 import type { GoldenLeftBehind, RecipeCustomRow } from "@wsp/protocol";
 import { carriesSecret, cloudCut, leftWhole, SIGN_INS_STAY, stayedLine } from "./cloud-configs.js";
+import { shellCut } from "./recipe-configs.js";
 import { tarPackCommand } from "./doctor.js";
 import type { ServerVault } from "./env-keys.js";
 import { keyOwner } from "./providers.js";
@@ -377,19 +378,26 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
       chmodSync(target, f.mode);
     }
     const cut: CutNames[] = [];
+    const rcBlanked: SkippedPath[] = [];
     const silenced: string[] = [];
     const macPaths: string[] = [];
     const { onImage, tools } = opts;
     const strip = (staged: string): void => {
       const text = readFileSync(staged, "utf8");
-      const { names, carried } = stripExports(text);
+      const { names, held, carried } = shellCut(text);
       const fish = staged.endsWith(".fish");
       const sourced = fish ? carried : guardSources(carried, opts.home, rel => existsSync(join(stage, rel)));
       const pruned = fish || onImage === undefined || tools === undefined ? { text: sourced, dropped: [] } : dropPlugins(sourced, name => tools.has(name) && !onImage.has(name));
       const missing = onImage === undefined || fish ? [] : calledCommands(pruned.text).filter(n => !onImage.has(n));
       const guarded = fish ? sourced : guardCommands(pruned.text, missing, pruned.dropped);
       for (const n of [...pruned.dropped, ...missing]) if (!silenced.includes(n)) silenced.push(n);
-      if (names.length > 0) cut.push({ path: `~/${relative(stage, staged)}`, names });
+      const path = `~/${relative(stage, staged)}`;
+      if (names.length > 0) cut.push({ path, names });
+      // A provider's machine asks for nothing, so the image's stage line is the only place this cut is named.
+      if (opts.cloud === true && names.length + held.length > 0) {
+        const rel = relative(stage, staged);
+        rcBlanked.push({ id: files.find(f => rel === f.dest || rel.startsWith(`${f.dest}/`))?.id ?? path, path, note: stayedLine([...names, ...held]) });
+      }
       if (guarded !== text) rewriteStaged(staged, guarded);
     };
     const walk = (dir: string): void => {
@@ -402,6 +410,7 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
     };
     walk(stage);
     cut.sort((a, b) => (a.path < b.path ? -1 : 1));
+    rcBlanked.sort((a, b) => (a.path < b.path ? -1 : 1));
     // A dropped account leaves the staged file before any token lands, so the active mark has moved by the time
     // the account it moved to is placed and the host token follows it.
     for (const s of plan.secrets) {
@@ -554,7 +563,7 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
     const { file, args, env } = tarPackCommand(stage, tgz);
     await execFileAsync(file, args, { env });
     const tar = readFileSync(tgz);
-    return { tar, bytes: tar.length, unpacked, files: paths.length - stood.length, stood, skipped, cut, silenced, macPaths, ...(left.length > 0 ? { leftBehind: left } : {}), ...(cloud !== undefined && cloud.blanked.length > 0 ? { blanked: cloud.blanked } : {}) };
+    return { tar, bytes: tar.length, unpacked, files: paths.length - stood.length, stood, skipped, cut, silenced, macPaths, ...(left.length > 0 ? { leftBehind: left } : {}), ...(cloud !== undefined && rcBlanked.length + cloud.blanked.length > 0 ? { blanked: [...rcBlanked, ...cloud.blanked] } : {}) };
   } finally {
     rmSync(stage, { recursive: true, force: true });
     rmSync(out, { recursive: true, force: true });
@@ -636,6 +645,13 @@ export function digestOf(file: PlannedFile, home: string, cloud = false): string
   const { excludes } = file;
   const hash = createHash("sha256");
   const entered = new Set<string>();
+  let rc: { real: Set<string>; names: Set<string> } | undefined;
+  // The pack strips an rc file by its name or by its real path; a file not a link has the base name its real path has.
+  const stripped = (rel: string, real: string): boolean => {
+    if (isRcFile(`${file.dest}${rel}`)) return true;
+    rc ??= (r => ({ real: r, names: new Set([...r].map(p => basename(p))) }))(rcIdentities(home));
+    return rc.names.has(basename(real)) && rc.real.has(resolved(real) ?? real);
+  };
   const walk = (abs: string, rel: string): void => {
     if (excludes.some(x => abs === x || abs.startsWith(`${x}/`))) return;
     try {
@@ -684,6 +700,12 @@ export function digestOf(file: PlannedFile, home: string, cloud = false): string
         }
         hash.update(`F ${rel} ${mode} ${lands.length}\n`);
         hash.update(lands);
+        // A line the pack cuts for the value it holds digests apart, so an image packed before that cut reads changed.
+        if (stripped(rel, real)) {
+          const text = bytes.toString("utf8");
+          const cut = shellCut(text).carried;
+          if (cut !== stripExports(text).carried) hash.update(`S ${rel} ${cut.length}\n${cut}`);
+        }
         // What the cut takes out of an MCP server reaches the machine through the vault, which only a re-pack refreshes.
         if (lands !== bytes) hash.update(createHash("sha256").update(bytes).digest("hex"));
       }

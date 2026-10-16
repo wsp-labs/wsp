@@ -39,6 +39,7 @@ import { agentOfRow, GITHUB_CLI as GH, GITHUB_ROW, keysKeptLine, signInRowId, MC
 import type { GoldenImport, PlaceProvisioner, PlaceUndo } from "@wsp/runtime";
 import { serverVault } from "./env-keys.js";
 import { brewTableFor, copyRows, planImport } from "./image-recipe.js";
+import { stayedLine } from "./cloud-configs.js";
 import { CONFIG_PATHS, configTexts, type ConfigText } from "./recipe-configs.js";
 import { folderFiles, LINKED_FOLDER_NOTE } from "./folder-files.js";
 import { loadRecipe, smallRecipePath } from "./recipe-file.js";
@@ -200,7 +201,10 @@ function configsOf(picks: RecipeFile, home: string): { lands: ProvisionLanding[]
   if (texts.length === 0) return undefined;
   return {
     lands: texts.map(t => ({ id: `configs/${t.id}`, label: CONFIG_LABELS[t.id], dest: t.rel })),
-    pack: packOf(() => ({ files: texts.map(t => ({ dest: t.rel, bytes: Buffer.from(t.text), mode: 0o644 })) })),
+    pack: packOf(() => ({
+      files: texts.map(t => ({ dest: t.rel, bytes: Buffer.from(t.text), mode: 0o644 })),
+      skipped: texts.filter(t => t.cut.length > 0).map(t => ({ id: `configs/${t.id}`, path: `~/${t.rel}`, note: stayedLine(t.cut) })),
+    })),
   };
 }
 

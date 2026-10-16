@@ -9,10 +9,10 @@
 // inline (a login, a key-shaped path segment); git's credential helpers and url
 // rewrites; and every value shaped like a token. What a config holds besides
 // lands as it is, so a config with no secret lands byte for byte.
-import { KEYLIKE_SEGMENT, hidesValue, plainArg, readArgs, secretNamed, type ArgRead } from "@wsp/collect";
+import { KEYLIKE_SEGMENT, hidesValue, isRcPath, plainArg, readArgs, secretNamed, type ArgRead } from "@wsp/collect";
 import { CATALOG_AGENTS, MCP_AGENTS, editJson, readJsonc, rewriteTomlLine, tomlOpenArray, tomlStrings, uncommentToml, type JsonEdit } from "@wsp/catalog";
-import { CLOUD_GIT_CUTS, CONFIG_PATHS, FISH_VARIABLES, gitCut } from "./recipe-configs.js";
-import { blankTokens, holdsPrivateKey } from "./token-shapes.js";
+import { CLOUD_GIT_CUTS, CONFIG_PATHS, FISH_VARIABLES, gitCut, shellCut } from "./recipe-configs.js";
+import { ADDRESS_RUN, LOGIN_NAME, TOKEN_NAME, blankTokens, carries, holdsPrivateKey, querySecret, unquoted } from "./token-shapes.js";
 
 const CLAUDE_JSON = "~/.claude.json";
 /** The account signed in here, and the key a /login keeps in the file where there is no Keychain (2.1.296). */
@@ -20,8 +20,11 @@ const CLAUDE_ACCOUNT_KEYS = ["oauthAccount", "customApiKeyResponses", "primaryAp
 /** Every config file an agent keeps its MCP servers or its hooks in, home-relative. */
 const AGENT_CONFIGS = new Set([CLAUDE_JSON, ...MCP_AGENTS.flatMap(a => a.mcp.files), ...CATALOG_AGENTS.flatMap(a => (a.hooks !== undefined ? [a.hooks.file] : []))]);
 const GIT_CONFIGS = new Set(CONFIG_PATHS.git.filter(p => p.endsWith("config")).map(p => `~/${p}`));
-
-export const TOKEN_NAME = "a value shaped like a token";
+/** A shell file the pack's own rc cut does not reach, under a path the shell row carries: a fish function, an oh-my-zsh custom file. */
+const shellFile = (path: string): boolean => {
+  const rel = path.slice(2);
+  return !isRcPath(rel) && CONFIG_PATHS.shell.some(p => rel === p || rel.startsWith(`${p}/`));
+};
 
 /** The line a copy notes for a file it cut, naming what stayed. */
 export const stayedLine = (names: readonly string[]): string => `${[...new Set(names)].join(", ")} blanked or left out; the values stay on this computer`;
@@ -29,21 +32,9 @@ export const SIGN_INS_STAY = "mcp-remote's sign-ins stay on this computer; sign 
 export const FISH_VARIABLES_STAY = "fish keeps its universal variables, secrets among them, here; they stay on this computer";
 export const PRIVATE_KEY_STAYS = "holds a private key, which stays on this computer";
 
-/** Every reference to a variable an agent expands: `${X}` with or without a default, a bare `$X`, OpenCode's `{env:X}`. */
-const REFS = /\$\{[A-Za-z_]\w*(?::-[^}]*)?\}|\$[A-Za-z_]\w*|\{env:[A-Za-z_]\w*\}/g;
-/** A command substitution: the shell runs it and its output is the value, so the text holds none. */
-const COMMAND = /\$\(|`/;
-const ADDRESS_RUN = /[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s"'<>`]+/g;
 const VALUE = "(\\$\\([^)]*\\)|`[^`]*`|\"[^\"]*\"|'[^']*'|[^\\s\"';&|]*)";
 const ASSIGN = new RegExp(`(?<![\\w-])([A-Za-z_]\\w*)=${VALUE}`, "g");
 const FLAG_ASSIGN = new RegExp(`(?<![\\w-])(--?[A-Za-z][\\w-]*)=${VALUE}`, "g");
-const unquoted = (v: string): string => (/^(["']).*\1$/.test(v) ? v.slice(1, -1) : v);
-
-/** Whether a value holds something of the person's: not empty, not references alone, not a command. */
-const carries = (value: string): boolean => {
-  const v = unquoted(value);
-  return !COMMAND.test(v) && v.replace(REFS, "").trim() !== "";
-};
 /** A flag's value written as a header line holds only what follows the name and an Authorization header's scheme. */
 const flagCarries = (value: string): boolean => carries(/^[A-Za-z0-9-]+:\s*(?:(?:Bearer|Basic|Token)\s+)?(.*)$/i.exec(value)?.[1] ?? value);
 /** A header's value holds only what follows an Authorization header's scheme. */
@@ -54,14 +45,6 @@ const envSecret = (name: string): boolean => secretNamed(name) || name.toUpperCa
 /** Keys an agent sends as its API key, so a literal there is the person's key: Codex's `experimental_bearer_token` on a
  * model provider (0.155.1), OpenCode's provider `apiKey` (1.18.30). */
 const KEY_FIELDS = new Set(["experimental_bearer_token", "apiKey"]);
-/** The words a signed address names its signature with: Azure's SAS `sig`, S3's `X-Amz-Signature`, Cloud Storage's
- * `X-Goog-Signature`, CloudFront's `Signature`. */
-const SIGNATURE_WORDS = new Set(["SIG", "SIGNATURE"]);
-/** A query parameter that holds something under a secret's name or a signature's, in an address or in Codex's `query_params`. */
-const querySecret = (name: string, value: string): boolean => {
-  const words = name.replace(/-/g, "_");
-  return carries(value) && (secretNamed(words) || words.toUpperCase().split("_").some(w => SIGNATURE_WORDS.has(w)));
-};
 /** Words that name a flag taking a mode or a file, as in `--auth oauth` or `--cert none`, rather than the secret. */
 const MODE_WORDS = new Set(["AUTH", "CERT"]);
 /** A lowercase word after a flag that only auth or cert names a secret is a mode; a flag named by any other secret word
@@ -80,7 +63,7 @@ interface Cut {
  * collector reads as a key taken out. */
 function blankAddress(url: string, own: boolean, names: string[]): string {
   let out = url.replace(/^([^:]+:\/\/)[^/@?#]+@/, (_, scheme: string) => {
-    names.push("a login in an address");
+    names.push(LOGIN_NAME);
     return scheme;
   });
   out = out.replace(/([?&])([^=&#]+)=([^&#]*)/g, (m, sep: string, name: string, value: string) => {
@@ -370,14 +353,22 @@ export function cloudCut(path: string, text: string, home: string): Cut {
       : jsonCut(text, path === CLAUDE_JSON ? CLAUDE_ACCOUNT_KEYS : [], home)
     : GIT_CONFIGS.has(path)
       ? gitConfigCut(text, path === "~/.gitconfig")
-      : { text, names: [] };
+      : shellFile(path)
+        ? shellFileCut(text)
+        : { text, names: [] };
   const blanked = blankTokens(structured.text, "");
   return { text: blanked, names: blanked === structured.text ? structured.names : [...structured.names, TOKEN_NAME] };
 }
 
+function shellFileCut(text: string): Cut {
+  const { names, held, carried } = shellCut(text);
+  return { text: carried, names: [...names, ...held] };
+}
+
 function gitConfigCut(text: string, main: boolean): Cut {
-  const cut = gitCut(text, main, CLOUD_GIT_CUTS);
+  const keys: string[] = [];
+  const cut = gitCut(text, main, CLOUD_GIT_CUTS, keys);
   if (cut === text) return { text, names: [] };
   const sections = ["credential", "url"].filter(s => new RegExp(`^\\s*\\[\\s*${s}\\b`, "im").test(text)).map(s => `its [${s}] sections`);
-  return { text: cut, names: sections.length > 0 ? sections : ["its secret values"] };
+  return { text: cut, names: [...sections, ...keys] };
 }
