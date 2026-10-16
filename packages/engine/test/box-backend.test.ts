@@ -7,11 +7,11 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { BOAT_DISK_GONE_LINE, DAEMON_UNIT, stopRefusedLine } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MachineStoppedError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
-import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS } from "../src/exec-detached.js";
+import { DAEMON_ENV_FILE, DEADLINE_EXIT, HANDSHAKE, INLINE_EXEC_MS, putFiles } from "../src/exec-detached.js";
 import { EXEC_ENV } from "../src/golden-import.js";
 import { GONE_READS, killUntilGone, snapshotUntilGone } from "../src/golden.js";
 import {
@@ -1629,6 +1629,94 @@ describe("Boat's refusals, each naming the limit it met", () => {
   it("a 429 with a code Boat never listed keeps today's reading and Boat's own words", async () => {
     const { e } = await refusedOn({ status: 429, body: ERROR(429, "slow_down", "Please slow down.") });
     expect(e).toMatchObject({ kind: "concurrency", code: "slow_down", message: "Please slow down.", said: "Please slow down." });
+  });
+
+  /** Boat's refusal of an address past 1,000 requests a minute (docs.boat.dev/limits.md): the code, and the wait in
+   * the body under `retryAfter` in seconds, with no Retry-After header. */
+  const IP_LIMIT = (retryAfter?: number, at: "top" | "details" = "top"): Reply => {
+    const body = ERROR(429, "IP_RATE_LIMIT_EXCEEDED", "Too many requests from this IP address.");
+    if (retryAfter === undefined) return { status: 429, body };
+    return { status: 429, body: at === "top" ? { ...body, retryAfter } : { ...body, error: { code: "IP_RATE_LIMIT_EXCEEDED", status: 429, details: { retryAfter } } } };
+  };
+  const slept = (clock: RetryClock): number[] => {
+    const waits: number[] = [];
+    const sleep = clock.sleep;
+    clock.sleep = async (ms: number) => {
+      waits.push(ms);
+      await sleep(ms);
+    };
+    return waits;
+  };
+
+  it("an address past Boat's request limit waits the seconds Boat names and asks again, on a create, an exec and a file write", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const created = new FakeBox()
+        .on("POST", "/sandboxes", IP_LIMIT(7), { status: 202, body: { ok: true, status: "provisioning", sandbox: BOX("bx_c1", "provisioning", { name: "wsp" }) } })
+        .on("GET", "/sandboxes/bx_c1", INFO("bx_c1", "ready", { name: "wsp" }))
+        .on("POST", "/sandboxes/bx_c1/commands", COMMAND(""));
+      const { backend, clock } = backendOn(created, "standard");
+      created.on("GET", "/limits", limitsReply(OWNER_LIMITS));
+      const waits = slept(clock);
+      expect((await backend.create({ kind: "sandbox" })).id).toBe("bx_c1");
+      const posts = created.seen.filter(s => s.method === "POST" && s.path === "/sandboxes");
+      // The same bytes under the same key, so the ask that Boat refused and the one it took are one create.
+      expect(posts).toHaveLength(2);
+      expect(posts[1]!.raw).toBe(posts[0]!.raw);
+      expect(posts[1]!.headers["idempotency-key"]).toBe(posts[0]!.headers["idempotency-key"]);
+      expect(waits[0]).toBe(7_000);
+      expect(warn.mock.calls.map(c => String(c[0]))).toContain("POST /sandboxes met Boat's limit of 1,000 requests a minute from one address; asking again in 7s, try 2 of 3");
+
+      const execd = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", IP_LIMIT(3, "details"), COMMAND("hi\n"));
+      const exec = machineOn(execd);
+      const execWaits = slept(exec.clock);
+      expect(await exec.machine.exec("echo hi")).toMatchObject({ exitCode: 0, stdout: "hi\n" });
+      expect(execd.calls().filter(c => c.endsWith("/commands"))).toHaveLength(2);
+      expect(execWaits).toEqual([3_000]);
+
+      const put = new FakeBox().on("PUT", "/sandboxes/bx_tumrjngm/files", IP_LIMIT(), { status: 200, body: { ok: true } });
+      const file = machineOn(put);
+      const putWaits = slept(file.clock);
+      await file.machine.putBytes("/tmp/note", new TextEncoder().encode("hi"));
+      expect(put.calls().filter(c => c.endsWith("/files"))).toHaveLength(2);
+      // No wait named: the minute the limit counts.
+      expect(putWaits).toEqual([60_000]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("a line the person wrote into a run that meets the request limit lands once the wait passes", async () => {
+    const api = new FakeBox().on("POST", "/sandboxes/bx_tumrjngm/commands", IP_LIMIT(5), IP_LIMIT(5), COMMAND(`${HANDSHAKE.written}\n`));
+    const { machine, clock } = machineOn(api);
+    const waits = slept(clock);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warn.mockRestore());
+    // The append a steer or an answer makes onto a run's input channel.
+    const res = await putFiles(machine, [{ path: "/tmp/run.in", text: "stop and rebase onto main\n", append: true }], { after: [`echo ${HANDSHAKE.written}`] });
+    expect(res.stdout).toContain(HANDSHAKE.written);
+    const asks = api.seen.filter(s => s.path.endsWith("/commands"));
+    expect(asks).toHaveLength(3);
+    expect(new Set(asks.map(s => s.raw)).size).toBe(1);
+    expect((asks[0]!.body as { command: string }).command).toContain(Buffer.from("stop and rebase onto main\n").toString("base64"));
+    expect(waits).toEqual([5_000, 5_000]);
+  });
+
+  it("the request limit is asked three times at most, then fails as passing in its own line, never as the machine cap", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { e, api } = await refusedOn(IP_LIMIT(2));
+      expect(e.kind).not.toBe("concurrency");
+      expect(e).toMatchObject({ kind: "transient", status: 429, code: "IP_RATE_LIMIT_EXCEEDED", said: "Too many requests from this IP address." });
+      expect(e.message).toBe("Boat is refusing requests from this computer's address, past its limit of 1,000 a minute, and still was after waiting and asking again; try again in a minute.");
+      expect(api.calls().filter(c => c === "POST /sandboxes")).toHaveLength(3);
+      // The machine cap keeps its own reading and is asked once.
+      const cap = await refusedOn({ status: 429, body: ERROR(429, "limit_reached", "Concurrent box limit reached.") });
+      expect(cap.e).toMatchObject({ kind: "concurrency", code: "limit_reached", message: "Concurrent box limit reached." });
+      expect(cap.api.calls().filter(c => c === "POST /sandboxes")).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("402 and 503 out_of_capacity print Boat's lines; 503 only once the create's asks run out", async () => {

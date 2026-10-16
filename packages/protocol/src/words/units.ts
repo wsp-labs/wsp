@@ -324,6 +324,10 @@ export const boatPlanWords = (trial: boolean, usd: number | undefined): string |
 export const BOAT_BALANCE_LINE = "Boat's balance is used up, so no machine starts; add time at boat.dev/dashboard. Boat stops running machines 24 hours after the balance ran out.";
 export const BOAT_MEMBER_CAP_LINE = "this Boat organization caps your usage; ask its owner to raise your cap.";
 export const BOAT_NO_CAPACITY_LINE = "Boat has no free machines of this size right now; try again in a few minutes, or a smaller size.";
+export const BOAT_REQUEST_LIMIT_LINE = "Boat is refusing requests from this computer's address, past its limit of 1,000 a minute, and still was after waiting and asking again; try again in a minute.";
+/** The host log's line for a call Boat refused under its request limit, asked again after the wait Boat named. */
+export const boatRequestLimitWaitLine = (call: string, waitMs: number, tryNumber: number, tries: number): string =>
+  `${call} met Boat's limit of 1,000 requests a minute from one address; asking again in ${Math.ceil(waitMs / 1000)}s, try ${tryNumber} of ${tries}`;
 /** A resume Boat refused because the box sat stopped past the 14 days it keeps a disk. */
 export const BOAT_DISK_GONE_LINE = "Boat deleted this machine's disk once it had been paused for 14 days, so it cannot wake";
 
