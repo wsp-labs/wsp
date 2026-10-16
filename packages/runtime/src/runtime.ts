@@ -1204,7 +1204,7 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
           swept.spared.push(...one.spared);
           if (one.failed !== undefined) swept.failed = [...(swept.failed ?? []), ...one.failed];
         }
-        const strayed = await ctx.sweepStrays(() => [...knownIds(), ...claimed], failed).catch((e: unknown) => {
+        const strayed = await ctx.sweepStrays(() => [...knownIds(), ...claimed], failed, listings.map(l => l.backend)).catch((e: unknown) => {
           failed.push({ message: `machines named after this host's images: ${messageOf(e)}` });
           return [];
         });
