@@ -972,11 +972,60 @@ describe("steer over the stdin channel", () => {
     expect(createClaudeAdapter({ exec: manualExec().factory, configDir: "/root/.claude-cfg" }).steers).toBe(true);
   });
 
-  it("before system/init answers not-running and writes nothing", async () => {
+  it("before system/init waits for it and writes under the session it names", async () => {
     const exec = manualExec();
     const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" });
     const session = adapter.start({ prompt: "go", onEvent: () => {} });
-    expect(await session.steer("also this")).toBe("not-running");
+    let answer: string | undefined;
+    const steering = session.steer("also this").then(a => (answer = a));
+    await new Promise(r => setTimeout(r, 50));
+    expect(answer).toBeUndefined();
+    expect(exec.writes).toEqual([]);
+    exec.push(init);
+    await steering;
+    expect(answer).toBe("accepted");
+    expect(exec.writes).toEqual([userMessageLine("also this", FIXTURE_SESSION_ID, [], (JSON.parse(exec.writes[0]!) as { uuid: string }).uuid)]);
+    exec.push(result);
+    exec.end(0);
+    await session.finished;
+  });
+
+  it("before system/init, on a CLI that exits without one, answers not-running and writes nothing", async () => {
+    const exec = manualExec();
+    const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" });
+    const session = adapter.start({ prompt: "go", onEvent: () => {} });
+    const steering = session.steer("also this");
+    exec.end(1);
+    expect(await steering).toBe("not-running");
+    expect(exec.writes).toEqual([]);
+    await session.finished;
+  });
+
+  it("before system/init, at a stop on a CLI whose stream does not end, answers not-running and writes nothing", async () => {
+    const exec = manualExec({ slowTeardown: true });
+    const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg", interruptGraceMs: 60_000 });
+    const session = adapter.start({ prompt: "go", onEvent: () => {} });
+    let answer: string | undefined;
+    const steering = session.steer("also this").then(a => (answer = a));
+    void session.interrupt();
+    await new Promise(r => setTimeout(r, 50));
+    expect(answer).toBe("not-running");
+    expect(exec.writes).toEqual([]);
+    exec.end(0);
+    await steering;
+    await session.finished;
+  });
+
+  it("before system/init, on a CLI that stays silent past the bound, answers not-running and writes nothing", async () => {
+    const exec = manualExec();
+    const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg", steerJoinMs: 100 });
+    const session = adapter.start({ prompt: "go", onEvent: () => {} });
+    let answer: string | undefined;
+    const steering = session.steer("also this").then(a => (answer = a));
+    await new Promise(r => setTimeout(r, 50));
+    expect(answer).toBeUndefined();
+    await steering;
+    expect(answer).toBe("not-running");
     expect(exec.writes).toEqual([]);
     exec.end(0);
     await session.finished;

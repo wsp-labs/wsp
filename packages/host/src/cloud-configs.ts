@@ -11,7 +11,7 @@
 // lands as it is, so a config with no secret lands byte for byte.
 import { KEYLIKE_SEGMENT, hidesValue, isRcPath, plainArg, readArgs, secretNamed, type ArgRead } from "@wsp/collect";
 import { CATALOG_AGENTS, MCP_AGENTS, editJson, readJsonc, rewriteTomlLine, tomlOpenArray, tomlStrings, uncommentToml, type JsonEdit } from "@wsp/catalog";
-import { CLOUD_GIT_CUTS, CONFIG_PATHS, FISH_VARIABLES, gitCut, shellCut } from "./recipe-configs.js";
+import { CLOUD_GIT_CUTS, CONFIG_PATHS, FISH_VARIABLES, gitCut, shellCut, shellScript } from "./recipe-configs.js";
 import { ADDRESS_RUN, LOGIN_NAME, TOKEN_NAME, blankTokens, carries, holdsPrivateKey, querySecret, unquoted } from "./token-shapes.js";
 
 const CLAUDE_JSON = "~/.claude.json";
@@ -354,14 +354,14 @@ export function cloudCut(path: string, text: string, home: string): Cut {
     : GIT_CONFIGS.has(path)
       ? gitConfigCut(text, path === "~/.gitconfig")
       : shellFile(path)
-        ? shellFileCut(text)
+        ? shellFileCut(text, path)
         : { text, names: [] };
   const blanked = blankTokens(structured.text, "");
   return { text: blanked, names: blanked === structured.text ? structured.names : [...structured.names, TOKEN_NAME] };
 }
 
-function shellFileCut(text: string): Cut {
-  const { names, held, carried } = shellCut(text);
+function shellFileCut(text: string, path: string): Cut {
+  const { names, held, carried } = shellCut(text, shellScript(path));
   return { text: carried, names: [...names, ...held] };
 }
 
