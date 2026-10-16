@@ -116,7 +116,7 @@ export function responseOn(req: IncomingMessage, socket: Duplex): ServerResponse
   res.assignSocket(socket as Socket);
   res.on("finish", () => {
     res.detachSocket(socket as Socket);
-    socket.end();
+    socket.destroy();
   });
   return res;
 }

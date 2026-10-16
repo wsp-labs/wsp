@@ -9,7 +9,7 @@ import { createServer, request, type IncomingHttpHeaders, type IncomingMessage, 
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Duplex, PassThrough } from "node:stream";
+import { Duplex, PassThrough, Writable } from "node:stream";
 import { createBroker, type Broker, type BrokerOptions } from "../src/broker/broker.js";
 import type { RunCommand } from "../src/broker/credentials.js";
 import { brokerLogFile } from "../src/broker/log.js";
@@ -133,10 +133,21 @@ export function forwarding(id: ServiceId, port: number, o: {
 export function pipePair(): [Duplex, Duplex] {
   const toHost = new PassThrough();
   const toClient = new PassThrough();
-  const host = Duplex.from({ readable: toHost, writable: toClient });
+  // The daemon shuts the machine's side down however the pipe ends, so the client reads what was sent, then its end.
+  const down = new Writable({
+    write: (chunk: Buffer, _encoding, done) => void toClient.write(chunk, done),
+    final: done => void toClient.end(done),
+    destroy: (err, done) => {
+      if (!toClient.writableEnded) toClient.end();
+      done(err);
+    },
+  });
+  const up = toHost.pipe(new PassThrough());
+  toHost.once("close", () => up.destroy());
+  const host = Duplex.from({ readable: up, writable: down });
   const client = Duplex.from({ readable: toClient, writable: toHost });
-  // Destroying one end aborts the streams under both, which is the cut a dropped pipe is and no failure of a test.
-  for (const s of [toHost, toClient, host, client]) s.on("error", () => undefined);
+  // Destroying the client's end aborts the streams under both, which is the cut a dropped pipe is and no failure of a test.
+  for (const s of [toHost, toClient, up, down, host, client]) s.on("error", () => undefined);
   return [host, client];
 }
 
