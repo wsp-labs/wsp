@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { EXEC_BODY_MAX } from "@wsp/protocol";
-import { GuestUnusableError } from "../src/errors.js";
+import { GuestUnusableError, MachineStoppedError } from "../src/errors.js";
 import { CANCELLED_EXIT, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached, putFiles } from "../src/exec-detached.js";
 import type { ExecResult, Machine } from "../src/machine.js";
 import { EXEC_ENV } from "../src/golden-import.js";
@@ -246,6 +246,12 @@ describe("execDetached over a scripted guest", () => {
     const polls = g.calls.flatMap((c, at) => (c.cmd.includes("echo WSP_POLL") ? [at] : []));
     expect(polls).toHaveLength(2);
     expect(g.calls).toHaveLength(polls[1]! + 1);
+  });
+
+  it("a poll that meets a machine the provider stopped ends the run with its refusal at once", async () => {
+    const stopped = new MachineStoppedError("m1", Object.assign(new Error("Sandbox machine is not running."), { kind: "conflict", status: 409, code: "machine_not_running" }));
+    const g = guest([{ out: "started\n" }, { gone: stopped }]);
+    await expect(execDetached(g.machine, "sleep 999", { deadlineMs: 1_000, pollMs: 1 })).rejects.toBe(stopped);
   });
 
   it("a nap that outlasts the deadline still ends in 124, with the kill attempted", async () => {
