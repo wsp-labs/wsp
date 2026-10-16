@@ -13,6 +13,9 @@ import { useStore } from "../src/protocol/store.js";
 import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
 import { closeCloudAdd, openCloudAdd, useCloudFlow } from "../src/settings/add/cloudFlow.js";
 import { ADD_COMPUTER_WORDS } from "../src/settings/format.js";
+import { useSettingsStore } from "../src/settings/settingsStore.js";
+import { useHostNotices } from "../src/notices/hostNotices.js";
+import { useNotices } from "../src/notices/store.js";
 import { mountSettings, resetSettings, settingsApi, settle } from "./settings-harness.js";
 
 const here: PlaceView = { id: "here", kind: "computer", name: "acme-laptop", default: true, present: true, takesForks: false, engine: "none", buildsImages: false };
@@ -354,6 +357,172 @@ describe("the summary and the build", () => {
     expect(useCloudFlow.getState().open).toBe(false);
     expect(useStore.getState().selectedId).toBe("ws_here");
     expect(useComposerDraftStore.getState().drafts["ws_here"]).toEqual({ prompt: "Start a sub-thread on Boat to ", cursor: "Start a sub-thread on Boat to ".length });
+  });
+});
+
+describe("the ready page after the dialog closed mid-build", () => {
+  const local = { id: "ws_here", name: "home", kind: "local", project: "p_home", phase: "running" } as unknown as WorkspaceView;
+  const building = jobOf({ phase: "building", rows: [{ id: "boot", kind: "stage", label: "Start a builder on Boat", state: "running" }] });
+  const sealed = jobOf({ phase: "done", golden: { version: 1 } });
+  // A seal reads the host's capabilities again.
+  const sealing = () => host({ capabilities: async () => ({ upgrade: false, snapshot: false }) } as unknown as Partial<Api>);
+  function Notices() {
+    useHostNotices();
+    return null;
+  }
+  const seal = (push: (e: never) => void): void =>
+    act(() => {
+      useStore.getState().applyEvent({ type: "init.job", job: sealed } as never);
+      push({ type: "init.job", job: sealed } as never);
+    });
+  const readyAction = (): HTMLButtonElement => {
+    const notice = [...document.querySelectorAll<HTMLElement>("[data-notice]")].find(n => n.querySelector("[data-notice-title]")?.textContent === "Boat is ready");
+    return notice!.querySelector<HTMLButtonElement>("[data-notice-action]")!;
+  };
+
+  it("opens the ready page from the seal's Open after a reload, and its act starts the first thread", async () => {
+    const fake = sealing();
+    useStore.setState({ places: [here, boat], workspaces: [local], initJob: building });
+    mountSettings({ api: fake.api, children: <Notices /> });
+    act(() => openCloudAdd("box"));
+    await settle();
+    expect(stepOf()).toBe("building");
+    fireEvent.click(document.querySelector("[data-add-cloud] [data-k='close']")!);
+    expect(useCloudFlow.getState().open).toBe(false);
+    // The window reloads: the page and its stores start again, the browser's storage stays.
+    cleanup();
+    forgetHeld();
+    act(() => useNotices.getState().clear());
+    useStore.setState({ settingsOpen: false });
+    const after = sealing();
+    mountSettings({ api: after.api, children: <Notices /> });
+    act(() => useStore.setState({ settingsOpen: false }));
+    await settle();
+    seal(after.push);
+    await settle();
+    fireEvent.click(readyAction());
+    await settle();
+    expect(stepOf()).toBe("ready");
+    expect(document.querySelector("[data-k='ready-title']")?.textContent).toBe("Boat is ready");
+    fireEvent.click(document.querySelector("[data-k='start-thread']")!);
+    expect(useStore.getState().selectedId).toBe("ws_here");
+    expect(useComposerDraftStore.getState().drafts["ws_here"]).toEqual({ prompt: "Start a sub-thread on Boat to ", cursor: "Start a sub-thread on Boat to ".length });
+  });
+
+  it("goes to the cloud's page once its ready page was shown, and for a build the dialog never showed", async () => {
+    const fake = sealing();
+    useStore.setState({ places: [here, boat], workspaces: [local], initJob: building });
+    mountSettings({ api: fake.api, children: <Notices /> });
+    act(() => openCloudAdd("box"));
+    await settle();
+    fireEvent.click(document.querySelector("[data-add-cloud] [data-k='close']")!);
+    act(() => useStore.setState({ settingsOpen: false }));
+    seal(fake.push);
+    await settle();
+    const open = useNotices.getState().notices.find(n => n.text === "Boat is ready")!.action!;
+    fireEvent.click(readyAction());
+    await settle();
+    expect(stepOf()).toBe("ready");
+    fireEvent.click(document.querySelector("[data-k='ready-close']")!);
+    await settle();
+    expect(useCloudFlow.getState().open).toBe(false);
+    act(() => open.run());
+    await settle();
+    expect(useCloudFlow.getState().open).toBe(false);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "box" });
+    // A rebuild from Settings the dialog never stood on owes no ready page.
+    cleanup();
+    act(() => useNotices.getState().clear());
+    useStore.setState({ settingsOpen: false, initJob: { ...building, id: "init_2" } });
+    const again = sealing();
+    mountSettings({ api: again.api, children: <Notices /> });
+    act(() => useStore.setState({ settingsOpen: false }));
+    await settle();
+    act(() => {
+      useStore.getState().applyEvent({ type: "init.job", job: { ...sealed, id: "init_2" } } as never);
+      again.push({ type: "init.job", job: { ...sealed, id: "init_2" } } as never);
+    });
+    await settle();
+    fireEvent.click(readyAction());
+    await settle();
+    expect(useCloudFlow.getState().open).toBe(false);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "box" });
+  });
+
+  it("never opens the ready page for a later host life's build, whose id the host names afresh", async () => {
+    const fake = sealing();
+    useStore.setState({ places: [here, boat], workspaces: [local], initJob: building });
+    mountSettings({ api: fake.api, children: <Notices /> });
+    act(() => openCloudAdd("box"));
+    await settle();
+    fireEvent.click(document.querySelector("[data-add-cloud] [data-k='close']")!);
+    // The host restarts before the seal and the window reloads; the next life's build is a rebuild from Settings.
+    cleanup();
+    act(() => useNotices.getState().clear());
+    const later = { ...sealed, id: "init_7c1e9a52-3f0b-4d6e-9b1a-2e8f5c4d7a10" };
+    useStore.setState({ settingsOpen: false, initJob: { ...building, id: later.id } });
+    const after = sealing();
+    mountSettings({ api: after.api, children: <Notices /> });
+    act(() => useStore.setState({ settingsOpen: false }));
+    await settle();
+    act(() => {
+      useStore.getState().applyEvent({ type: "init.job", job: later } as never);
+      after.push({ type: "init.job", job: later } as never);
+    });
+    await settle();
+    fireEvent.click(readyAction());
+    await settle();
+    expect(useCloudFlow.getState().open).toBe(false);
+    expect(useSettingsStore.getState().at).toEqual({ kind: "computer", id: "box" });
+  });
+
+  it("says the seal it held back once Close shuts it on the sealed build, and that Open shows the ready page", async () => {
+    const fake = sealing();
+    useStore.setState({ places: [here, boat], workspaces: [local], initJob: building });
+    mountSettings({ api: fake.api, children: <Notices /> });
+    act(() => openCloudAdd("box"));
+    act(() => useStore.setState({ settingsOpen: false }));
+    await settle();
+    seal(fake.push);
+    await settle();
+    expect(dialog()!.querySelector("[data-slot=dialog-title]")?.textContent).toBe("Boat is ready");
+    expect(useNotices.getState().notices.filter(n => n.text === "Boat is ready")).toEqual([]);
+    fireEvent.click(document.querySelector("[data-add-cloud] [data-k='close']")!);
+    await settle();
+    expect(useNotices.getState().notices.filter(n => n.text === "Boat is ready")).toHaveLength(1);
+    fireEvent.click(readyAction());
+    await settle();
+    expect(stepOf()).toBe("ready");
+    fireEvent.click(document.querySelector("[data-k='start-thread']")!);
+    expect(useComposerDraftStore.getState().drafts["ws_here"]).toEqual({ prompt: "Start a sub-thread on Boat to ", cursor: "Start a sub-thread on Boat to ".length });
+  });
+
+  it("says nothing when sent to the background mid-build", async () => {
+    useStore.setState({ places: [here, boat], workspaces: [local], initJob: building });
+    mountSettings({ api: sealing().api, children: <Notices /> });
+    act(() => openCloudAdd("box"));
+    await settle();
+    fireEvent.click(document.querySelector("[data-add-cloud] [data-k='close']")!);
+    await settle();
+    expect(useCloudFlow.getState().open).toBe(false);
+    expect(useNotices.getState().notices).toEqual([]);
+  });
+
+  it("sends Open to Settings once the cloud is gone, never to an empty dialog", async () => {
+    const fake = sealing();
+    useStore.setState({ places: [here, boat], workspaces: [local], initJob: building });
+    mountSettings({ api: fake.api, children: <Notices /> });
+    act(() => openCloudAdd("box"));
+    await settle();
+    fireEvent.click(document.querySelector("[data-add-cloud] [data-k='close']")!);
+    act(() => useStore.setState({ settingsOpen: false }));
+    seal(fake.push);
+    await settle();
+    act(() => useStore.setState({ places: [here] }));
+    fireEvent.click(readyAction());
+    await settle();
+    expect(useCloudFlow.getState().open).toBe(false);
+    expect(dialog()).toBeNull();
   });
 });
 
