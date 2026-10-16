@@ -81,7 +81,7 @@ function downFor(backend: StubBackend, times: number, pick: (m: StubMachine) => 
 
 /** wsp init at a terminal beside a serving host, on that host's job: what the person reads, and the code the run
  * ends on. The socket between the two has its own test, so the door here is wired straight to the job. */
-function besideRun(jobs: InitJobs, over: { rebuild?: boolean } = {}): { code: Promise<number>; text(): string } {
+function besideRun(jobs: InitJobs, over: { rebuild?: boolean; yes?: boolean } = {}): { code: Promise<number>; text(): string } {
   const output = new PassThrough();
   const said: string[] = [];
   output.on("data", (c: Buffer) => said.push(c.toString()));
@@ -1708,8 +1708,8 @@ describe("the init job, terminal road", () => {
     await yes.settled();
     const done = yes.jobs.view()!;
     expect(done.phase).toBe("done");
-    // Every sign-in on the machine is skipped; Claude Code's row is the vault's and its token is already held here.
-    expect(done.rows.filter(r => r.kind === "sign-in" && r.tool !== "claude").every(r => r.state === INIT_ROW_STATES.skipped)).toBe(true);
+    // GitHub CLI's answer is later, which no flag skips; Claude Code's row is the vault's and its token is held here.
+    expect(done.rows.find(r => r.tool === "gh")).toMatchObject(initSignInOutcome("deferred", "darwin"));
     expect(done.rows.find(r => r.tool === "claude")).toMatchObject(initSignInOutcome("signed-in", "darwin"));
   });
 
@@ -1951,6 +1951,70 @@ describe("the init job, terminal road", () => {
     expect(changed).toContain("Image v2 sealed on the host serving this state.");
     expect(changed).toMatch(/The builder stays up \(about \$[\d.]+\/h, one of the account's machine slots\) until wsp init updates on it again, wsp stops it ten minutes after the save while wsp serves/);
     expect(changed).not.toContain("Run wsp to serve");
+  });
+
+  it("beside the host without --yes, the update and the cleanup offer are taken without asking for the one reason true at the terminal", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    for (const n of [1, 2, 3]) {
+      const run = besideRun(f.jobs, { rebuild: n !== 1 });
+      expect(await run.code, run.text()).toBe(0);
+    }
+    writeFileSync(join(f.home, ".zshrc"), "export A=4\n");
+    const run = besideRun(f.jobs, { yes: false });
+    expect(await run.code, run.text()).toBe(0);
+    const said = run.text();
+    expect(said).toContain("Updating your image. Taken as the default (the host serving this state runs the build and asks nothing).");
+    expect(said).toMatch(/Delete image v2, [\d.]+ GB, .*\? v4 and v3 stay\..* Taken as yes \(the host serving this state runs the build and asks nothing\)\./);
+    expect(said).not.toContain("no terminal");
+  });
+
+  it("beside the host under --yes, a token nobody pastes is skipped for --yes, never for a missing terminal", async () => {
+    const f = fake({ tokenHeld: false });
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    const run = besideRun(f.jobs, { yes: true });
+    expect(await run.code, run.text()).toBe(0);
+    expect(run.text()).toContain("Claude Code login  --yes asks nothing; paste it from the app");
+    expect(run.text()).not.toContain("no terminal");
+  });
+
+  it("beside the host under --yes, a sign-in the build settled or the flag skipped ends as that on the job the setup sheet reads, never as not reached", async () => {
+    const ghRow = async (recipe: Recipe): Promise<unknown> => {
+      const f = fake();
+      saveSmallRecipe(smallRecipePath(f.statePath), recipe);
+      const run = besideRun(f.jobs, { yes: true });
+      expect(await run.code, run.text()).toBe(0);
+      await f.settled();
+      expect(run.text()).not.toContain(SIGN_IN_NEVER_REACHED);
+      return f.jobs.view()!.rows.find(r => r.id === "sign-in/gh");
+    };
+    expect(await ghRow(RECIPE)).toMatchObject(initSignInOutcome("deferred", "darwin"));
+    const onMachine: Recipe = { ...RECIPE, rows: RECIPE.rows.map(r => (r.id === "gh" ? { ...r, signIn: "machine" } : r)) };
+    expect(await ghRow(onMachine)).toMatchObject({ state: INIT_ROW_STATES.skipped, detail: "--yes asks nothing; sign in from the app's terminal" });
+  });
+
+  it("a run beside the host that ends on the update road leaves no sign-in rows, at the terminal or on the job the setup sheet reads", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    const sealed = besideRun(f.jobs);
+    expect(await sealed.code, sealed.text()).toBe(0);
+    await f.settled();
+    expect(f.jobs.view()!.rows.filter(r => r.kind === "sign-in").length).toBeGreaterThan(0);
+    const same = besideRun(f.jobs);
+    expect(await same.code, same.text()).toBe(0);
+    await f.settled();
+    expect(same.text()).toContain("Image v1 already matches this recipe. Nothing to update.");
+    expect(same.text()).not.toContain(SIGN_IN_NEVER_REACHED);
+    expect(f.jobs.view()!.rows.filter(r => r.kind === "sign-in")).toEqual([]);
+    writeFileSync(join(f.home, ".zshrc"), "export A=3\n");
+    const guest = f.backend.execImpl;
+    f.backend.execImpl = (m, cmd) => (m.spec.labels?.[SMOKE_LABEL] === "1" ? { exitCode: 1, stdout: "", stderr: "the fork did not boot" } : guest(m, cmd));
+    const failed = besideRun(f.jobs);
+    expect(await failed.code, failed.text()).toBe(1);
+    await f.settled();
+    expect(failed.text()).toContain("Image v1 is unchanged.");
+    expect(failed.text()).not.toContain(SIGN_IN_NEVER_REACHED);
+    expect(f.jobs.view()!.rows.filter(r => r.kind === "sign-in")).toEqual([]);
   });
 
   it("a terminal beside the host prints the update road's last line when the update fails, before the build's own failed line", async () => {
