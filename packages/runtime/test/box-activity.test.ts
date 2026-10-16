@@ -34,11 +34,14 @@ async function boxThread() {
 describe("wsp activity on a box", () => {
   it("lists a box's threads by their cgroups there, named by the box, and nothing of a cgroup no thread here names", async () => {
     const b = await boxThread();
-    const view = await b.rt.activity.read({ computer: "hetzner" });
+    // A clock whose epoch milliseconds hold the digits of the other cgroup's pid.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1_792_172_009_000);
+    const view = await b.rt.activity.read({ computer: "hetzner" }).finally(() => clock.mockRestore());
+    expect(view.at).toBe(1_792_172_009_000);
     expect(view.computer).toBe("hetzner");
     expect(view.threads.map(t => ({ threadId: t.threadId, pids: t.processes.map(p => p.pid), memory: t.memory }))).toEqual([{ threadId: b.threadId, pids: [7100, 7101], memory: 100_000_000 }]);
     expect(view.threads[0]!.processes[0]!.ports).toEqual([5173]);
-    expect(JSON.stringify(view)).not.toContain("7200");
+    expect([...view.threads.flatMap(t => t.processes), ...view.wsp, ...view.unowned].map(p => p.pid)).not.toContain(7200);
   });
 
   it("totals a box thread by its cgroup's memory where the daemon read it, not its rows' resident sum", async () => {
