@@ -4,7 +4,7 @@ import { dirname, join, posix, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, DEFAULT_AGENT, LAUNCH_SERVER_ROADS, MCP_AGENTS, addressesToAsk, checkoutArgs, checkoutOf, installsOnFirstRun, needsOwnCredential, serverValuesOf, turnServerFiles, type LaunchConfigs, type LaunchServerRoad, type TurnServer } from "@wsp/catalog";
 import { INLINE_EXEC_MS, harnessExec, isPlaceAbsent, landBytes, agentHomes, parseConfigs, readConfigsCmd, readReason, readWhole, wasRead, type ScopeUnread } from "@wsp/engine";
 import {
-  type AttachmentRoad, type HarnessCatalog, type HarnessCatalogProbe, type Preferences, type SessionView, type TitleSource, type Attachment,
+  type AttachmentRoad, type HarnessCatalog, type HarnessCatalogModelProbe, type HarnessCatalogProbe, compareVersions, type Preferences, type SessionView, type TitleSource, type Attachment,
   type TurnImage, threadKeyOf, isLocalWorkspace, catalogRefused, imagePathIn, noAdapterLine, shellQuote,
   signInRefusalLine, storedTitleSource, workspaceState, HERE_PLACE_ID, filePathIn, landFilesLine, filesNotLandedLine,
   dropFilesLine, accessMode, accessRefusal, configDirLaunchRefusal, configDirRefusal, markedFor, openDefaults,
@@ -31,6 +31,13 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
    * binary answers the version they were read off. A send waits on the probe where nothing says what the binary takes:
    * a machine never asked, a binary since changed, a version it does not print. */
   const catalogs = new Map<string, { at: number; catalog: Promise<HarnessCatalog> }>();
+  /** The account's models are the host's one sign-in's, so one read per agent and version per TTL serves every
+   * machine, a failed one included: a machine whose first run is still to come is never probed and would read at
+   * every ask. */
+  const accountReads = new Map<string, { at: number; models: Promise<HarnessCatalogModelProbe[] | undefined> }>();
+  /** The newest version a binary on a machine whose sign-in the host holds named this host's life, which the account's
+   * models are read for before a new machine's binary is there to ask: ChatGPT's list differs by version. */
+  const heardVersions = new Map<string, string>();
   /** Every ask of an agent's own CLI the host set going on its own, a probe or a title question, which a close waits
    * for: one let go on past the close runs that CLI after the host let the machine go. */
   const agentAsks = new Set<Promise<unknown>>();
@@ -68,6 +75,22 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
       ...(adapter.screenCommands !== undefined ? { screenCommands: [...adapter.screenCommands] } : {}),
     };
     if (adapter.probeCatalog === undefined) return Promise.resolve(known);
+    /** Where the binary described nothing (its machine not up yet, its first run still to install it, or no answer),
+     * the models the agent's account offers under the table's other lists, and the table alone where none was read. */
+    const fromAccount = async (): Promise<HarnessCatalog> => {
+      if (adapter.accountModels === undefined) return known;
+      const version = heardVersions.get(table.harness);
+      const readKey = `${table.harness}:${version ?? ""}`;
+      let read = accountReads.get(readKey);
+      if (read === undefined || clock.now() - read.at >= CATALOG_TTL_MS) accountReads.set(readKey, (read = { at: clock.now(), models: adapter.accountModels(version).catch(() => undefined) }));
+      const models = await read.models;
+      if (models === undefined || models.length === 0) return known;
+      // The table's default stands where the account lists it: the account's first row is its picker's default only
+      // where no config names one, and a start that names no model opened on the table's before.
+      const own = known.models.find(m => m.isDefault)?.value;
+      const marked = models.some(m => m.slug === own) ? models.map(m => ({ ...m, isDefault: m.slug === own })) : models;
+      return catalogFromProbe(known, { version: null, models: marked, efforts: known.efforts.map(e => e.value), permissionModes: known.permissionModes.map(p => p.value) });
+    };
     const key = `${machine.id}:${table.harness}`;
     const hit = catalogs.get(key);
     const now = clock.now();
@@ -87,8 +110,10 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
       // A binary that named why it described nothing keeps the table's lists and lends the footer its words.
       .then(
         answer => {
-          if (answer === null) return known;
+          if (answer === null) return fromAccount();
           if (catalogRefused(answer)) return { ...known, refusal: answer.refused };
+          const was = heardVersions.get(table.harness);
+          if (adapter.accountModels !== undefined && answer.version !== null && (was === undefined || compareVersions(answer.version, was) > 0)) heardVersions.set(table.harness, answer.version);
           // The answer is kept, not the catalog: what wsp itself says of the agent is this build's.
           void ctx.store.put(AGENT_LISTS, key, answer).catch((e: unknown) => console.warn(`${table.harness} on ${machine.id}: its lists were not kept for the next host (${e instanceof Error ? e.message : String(e)}); its first send there waits on the probe`));
           return catalogFromProbe(known, answer);
@@ -96,7 +121,7 @@ export function agentsArea(ctx: RuntimeContext): AgentsArea {
         (e: unknown) => {
           // The lists a start is checked against are then wsp's own, which refuse a model the binary there takes.
           console.warn(`${table.harness} on ${machine.id}: the probe of the agent failed (${e instanceof Error ? e.message : String(e)}); wsp's built-in list answers until the next probe`);
-          return known;
+          return fromAccount();
         },
       ));
     void catalog.then(() => {

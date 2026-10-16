@@ -21,9 +21,14 @@ const BACKEND_DOOR = `http://localhost:${BROKER_PORT}`;
 /** The variable each custom provider's env_key names on a brokered turn, holding the turn's placeholder key. */
 export const PROVIDER_KEY_ENV = "WSP_CODEX_PROVIDER_KEY";
 
+/** ChatGPT's list of the models the host's sign-in may run on the codex version named, as its /codex/models answers it;
+ * undefined where the host could not read it. A machine reads it nowhere itself, since outside a turn it holds no
+ * live login. */
+export type AccountModels = (clientVersion: string) => Promise<unknown>;
+
 /** A turn on a machine whose credentials the host keeps: the kind of placeholder login it runs on, and the person's
  * own `model_providers` entries, each rewritten to the door. */
-export type CodexBroker = ({ mode: "chatgpt"; claims: CodexClaims } | { mode: "apikey" }) & {
+export type CodexBroker = ({ mode: "chatgpt"; claims: CodexClaims; models?: AccountModels } | { mode: "apikey" }) & {
   providers?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 };
 
@@ -200,8 +205,8 @@ export function codexLaunch(launch: AgentLaunch | undefined, broker: CodexBroker
  * the subcommand. On a brokered machine it runs at the door on no login at all, since outside a turn the token the
  * last turn wrote is dead, and with plugins off, whose sync codex runs at every start: on codex-cli 0.163.0 a probe on
  * the last turn's login made 11 calls the door refused 403, and one on neither made none. With no login, model/list
- * answers only the models the binary ships, every time: codex keys its models cache by the login, so the account's own
- * list a turn fetched is never read, where the last turn's login read it within the cache's 300 s (codex-cli 0.155.1). */
+ * answers only the models the binary ships: codex keys its models cache by the login, so the account's own list a turn
+ * fetched is never read (codex-cli 0.155.1). A probe takes the account's list from the host instead. */
 export function codexWord(launch: AgentLaunch | undefined, broker: CodexBroker | undefined): string {
   const program = programWord("codex", launch);
   if (broker === undefined) return program;

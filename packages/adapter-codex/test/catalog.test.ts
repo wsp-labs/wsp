@@ -4,11 +4,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { CATALOG_AGENTS } from "@wsp/catalog";
 import { ENV_FROM_INPUT, type HarnessCatalogProbe } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
+import { createCodexAdapter } from "../src/adapter.js";
 import { catalogProbeCommand, parseCatalogProbe } from "../src/catalog.js";
-import { buildEnv } from "../src/command.js";
+import { buildEnv, type CodexBroker } from "../src/command.js";
 
 const LOGIN = "codex login --device-auth";
 const SEP = "__WSP_CATALOG_SEP__";
@@ -184,5 +186,73 @@ describe("parseCatalogProbe", () => {
     const probe = lists(probeOutput([...hidden].reverse()));
     expect(probe.models.map(m => m.slug)).toEqual(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.2"]);
     expect(probe.version).toBe("0.153.0");
+  });
+});
+
+describe("a probe on a machine whose ChatGPT sign-in the host holds", () => {
+  const CLAIMS = { accountId: "11111111-2222-4333-8444-555555555555", planType: "plus" };
+  const levels = (...efforts: string[]) => efforts.map(effort => ({ effort, description: `${effort} effort` }));
+  // ChatGPT's /backend-api/codex/models answer for codex-cli 0.155.1 on 2026-10-16, cut to the fields the picker reads,
+  // out of codex's order: it sorts by priority, shows only the rows marked list, and makes the first shown the default.
+  const ACCOUNT = {
+    models: [
+      { slug: "gpt-6-luna", display_name: "GPT-6-Luna", visibility: "list", priority: 4, default_reasoning_level: "medium", supported_reasoning_levels: levels("low", "medium", "high"), additional_speed_tiers: ["fast"] },
+      { slug: "gpt-reserve", display_name: "GPT-Reserve", visibility: "hide", priority: 4, supported_reasoning_levels: levels("low") },
+      { slug: "gpt-6-astra", display_name: "GPT-6-Astra", description: "Frontier model", visibility: "list", priority: 2, default_reasoning_level: "low", supported_reasoning_levels: levels("low", "medium", "high", "xhigh", "max", "ultra"), additional_speed_tiers: ["fast"] },
+      { slug: "gpt-6-sol", display_name: "GPT-6-Sol", visibility: "list", priority: 3, default_reasoning_level: "medium", supported_reasoning_levels: levels("low", "medium", "high", "xhigh"), additional_speed_tiers: [] },
+    ],
+  };
+  const probeOn = async (broker: CodexBroker | undefined) => {
+    const adapter = createCodexAdapter({ exec: () => Promise.reject(new Error("no turn here")) as never, home: "/root/.codex", login: LOGIN, ...(broker !== undefined ? { broker } : {}) });
+    return adapter.probeCatalog(() => Promise.resolve(REAL));
+  };
+  const listsOf = (answer: Awaited<ReturnType<typeof probeOn>>): HarnessCatalogProbe => {
+    if (answer === null || "refused" in answer) throw new Error(`expected lists, got ${JSON.stringify(answer)}`);
+    return answer;
+  };
+
+  it("lists the account's own models, read through the host for the binary's version, in codex's order with its first shown the default", async () => {
+    const asked: string[] = [];
+    const probe = listsOf(await probeOn({ mode: "chatgpt", claims: CLAIMS, models: version => (asked.push(version), Promise.resolve(ACCOUNT)) }));
+    expect(asked).toEqual(["0.153.0"]);
+    expect(probe.models.map(m => m.slug)).toEqual(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]);
+    expect(probe.models.filter(m => m.isDefault).map(m => m.slug)).toEqual(["gpt-6-astra"]);
+    expect(probe.models[0]).toMatchObject({ label: "GPT-6-Astra", description: "Frontier model", defaultEffort: "low", fast: true });
+    expect(probe.models[1]).toMatchObject({ slug: "gpt-6-sol", efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" });
+    expect(probe.models[1]!.fast).toBeUndefined();
+    expect(probe.efforts).toEqual(["low", "medium", "high", "xhigh", "max", "ultra"]);
+    expect(probe.version).toBe("0.153.0");
+  });
+
+  it("keeps the binary's own list where the host's read fails, answers nothing or holds no shown model", async () => {
+    const own = lists(REAL).models.map(m => m.slug);
+    const reads = [
+      () => Promise.reject(new Error("chatgpt.com unreachable")),
+      () => Promise.resolve(undefined),
+      () => Promise.resolve({ models: [] }),
+      () => Promise.resolve({ models: [{ slug: "gpt-reserve", visibility: "hide", priority: 1 }] }),
+      () => Promise.resolve({ detail: "Unauthorized" }),
+    ];
+    for (const models of reads) expect(listsOf(await probeOn({ mode: "chatgpt", claims: CLAIMS, models })).models.map(m => m.slug)).toEqual(own);
+  });
+
+  it("asks the host nothing on an API key, with no read handed, or where the binary printed no version", async () => {
+    expect(listsOf(await probeOn({ mode: "apikey" })).models.map(m => m.slug)).toEqual(lists(REAL).models.map(m => m.slug));
+    expect(listsOf(await probeOn({ mode: "chatgpt", claims: CLAIMS })).models.map(m => m.slug)).toEqual(lists(REAL).models.map(m => m.slug));
+    let asked = 0;
+    const adapter = createCodexAdapter({ exec: () => Promise.reject(new Error("no turn here")) as never, home: "/root/.codex", login: LOGIN, broker: { mode: "chatgpt", claims: CLAIMS, models: () => (asked++, Promise.resolve(ACCOUNT)) } });
+    await adapter.probeCatalog(() => Promise.resolve(probeOutput(serverLines(REAL), `${SEP}${SEP}`)));
+    expect(asked).toBe(0);
+  });
+
+  it("offers the account's models without the binary, read for wsp's npm pin, only where the host holds the ChatGPT sign-in", async () => {
+    const asked: string[] = [];
+    const make = (broker?: CodexBroker) => createCodexAdapter({ exec: () => Promise.reject(new Error("no turn here")) as never, home: "/root/.codex", login: LOGIN, ...(broker !== undefined ? { broker } : {}) });
+    const held = make({ mode: "chatgpt", claims: CLAIMS, models: version => (asked.push(version), Promise.resolve(ACCOUNT)) });
+    expect((await held.accountModels!())?.map(m => m.slug)).toEqual(["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]);
+    const road = CATALOG_AGENTS.find(a => a.id === "codex")?.installRoad;
+    expect(asked).toEqual([road?.road === "npm" ? road.version : "a pinned version"]);
+    expect(await make({ mode: "chatgpt", claims: CLAIMS, models: () => Promise.reject(new Error("chatgpt.com unreachable")) }).accountModels!()).toBeUndefined();
+    for (const broker of [undefined, { mode: "apikey" as const }, { mode: "chatgpt" as const, claims: CLAIMS }]) expect(make(broker).accountModels).toBeUndefined();
   });
 });

@@ -5,7 +5,7 @@
 // so the machine, the provider's exec text and anything a turn leaves running
 // hold a token that dies with the turn.
 import { brokeredSignInEnv, type BrokeredSignIn } from "@wsp/adapter-claude";
-import { brokeredCodexEnv, codexForShell, type CodexBroker } from "@wsp/adapter-codex";
+import { brokeredCodexEnv, codexForShell, type AccountModels, type CodexBroker } from "@wsp/adapter-codex";
 import { CATALOG_AGENTS, keyEnvOf } from "@wsp/catalog";
 import { BROKER_PORT, BROKER_SOCKET_PATH, GUEST_SOCKET_DIR, HOST_TOKEN_ENV, brokeredAgentRefusal, shellQuote, type BrokerStatus, type CodexClaims, type ExecStreamFactory } from "@wsp/protocol";
 import { BROKERED_AGENTS, secretsOf } from "../adapters.js";
@@ -123,9 +123,9 @@ export function terminalSignIn(own: string, read: LaunchRead, token: string): { 
 
 /** The placeholder login Codex runs on, as the broker says it holds: the host's ChatGPT login under the claims the
  * host read off it, or its key. Nothing where the host holds neither, or its login answered no claims in time. */
-export function codexBrokerOf(status: BrokerStatus | undefined, claims: CodexClaims | undefined): HarnessAdapterContext["codexBroker"] {
+export function codexBrokerOf(status: BrokerStatus | undefined, claims: CodexClaims | undefined, models?: AccountModels): HarnessAdapterContext["codexBroker"] {
   if (status?.codex === "key") return { mode: "apikey" };
-  return status?.codex !== undefined && claims !== undefined ? { mode: "chatgpt", claims } : undefined;
+  return status?.codex !== undefined && claims !== undefined ? { mode: "chatgpt", claims, ...(models !== undefined ? { models } : {}) } : undefined;
 }
 
 /** The refusal for an agent the host's broker adds no key for, naming the agents it does; nothing for one it does. */
