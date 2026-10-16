@@ -2034,4 +2034,65 @@ describe("the init job, terminal road", () => {
     expect(said).toContain("Image v1 is unchanged. Run wsp init again to retry, or pick the rebuild.");
     expect(said.indexOf("Image v1 is unchanged")).toBeLessThan(said.indexOf(CLOUD_SETUP_WORDS.build.failed));
   });
+
+  it("a terminal beside the host prints an earlier builder with its price and its stop, and says why the stop was not asked", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    await f.rt.golden.prepare({ recipe: { setup: "true", smoke: "true", cpu: 2, memMb: 4096 } });
+    const run = besideRun(f.jobs, { yes: false });
+    expect(await run.code, run.text()).toBe(0);
+    const said = run.text();
+    expect(said).toContain("A builder from an earlier wsp init is still running on the account:");
+    expect(said).toMatch(/default \(m1\), \d+ s old, about \$\d+\.\d\d so far; built from a different recipe$/m);
+    expect(said).toMatch(/Stop it, then boot .*\? .*Taken as yes \(the host serving this state runs the build and asks nothing\)\./);
+    expect(said).toContain("Stopped default (m1).");
+    expect(said.indexOf("Stopped default (m1).")).toBeLessThan(said.indexOf("Image v1 sealed on the host serving this state."));
+    expect(f.backend.machines[0]!.killed).toBe(true);
+  });
+
+  it("a terminal beside the host prints why an earlier builder's stop failed, and that it still runs", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    await f.rt.golden.prepare({ recipe: { setup: "true", smoke: "true", cpu: 2, memMb: 4096 } });
+    f.rt.golden.kill = async () => {
+      throw new Error("provider said no");
+    };
+    const run = besideRun(f.jobs);
+    expect(await run.code, run.text()).toBe(1);
+    expect(run.text()).toMatch(/default \(m1\), \d+ s old, about \$\d+\.\d\d so far; built from a different recipe$/m);
+    expect(run.text()).toContain(`${CLOUD_SETUP_WORDS.build.failed}: Nothing was booted. Stopping default (m1) failed (provider said no), so it is still running; run wsp init again to retry.`);
+    expect(f.backend.machines.map(m => m.killed)).toEqual([false]);
+  });
+
+  it("a terminal beside the host prints an earlier builder another wsp process holds, and why it was left running", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    await f.rt.golden.prepare({ recipe: { setup: "true", smoke: "true", cpu: 2, memMb: 4096 } });
+    const builders = f.rt.golden.builders.bind(f.rt.golden);
+    f.rt.golden.builders = async () => (await builders()).map(b => ({ ...b, heldBy: { host: "box:h1", pid: 4242, heartbeat: new Date().toISOString() } }));
+    const run = besideRun(f.jobs);
+    expect(await run.code, run.text()).toBe(1);
+    expect(run.text()).toMatch(/default \(m1\), \d+ s old, about \$\d+\.\d\d so far; in use by another wsp process \(pid 4242\)$/m);
+    expect(run.text()).toContain("Nothing was booted. Another wsp process (pid 4242) is using it; wait for it or stop that process, then run wsp init again.");
+    expect(f.backend.machines.map(m => m.killed)).toEqual([false]);
+  });
+
+  it("a terminal beside the host prints the earlier builder a run attaches to, with its price", async () => {
+    const f = fake();
+    saveSmallRecipe(smallRecipePath(f.statePath), RECIPE);
+    // The first build dies right after its builder finished setup, as a host killed then would leave it.
+    const prepare = f.rt.golden.prepare.bind(f.rt.golden);
+    f.rt.golden.prepare = async o => {
+      f.rt.golden.prepare = prepare;
+      await prepare(o);
+      throw new Error("the host went down in this fixture");
+    };
+    const first = besideRun(f.jobs);
+    expect(await first.code, first.text()).toBe(1);
+    await f.settled();
+    const run = besideRun(f.jobs);
+    expect(await run.code, run.text()).toBe(0);
+    expect(run.text()).toMatch(/Attaching to your earlier builder: default \(m1\), \d+ s old, about \$\d+\.\d\d so far\. Nothing new boots; stages already applied are skipped\./);
+    expect(f.backend.machines.filter(m => m.spec.labels?.[SMOKE_LABEL] !== "1").map(m => m.id)).toEqual(["m1"]);
+  });
 });
