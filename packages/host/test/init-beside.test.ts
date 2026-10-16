@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
-import { BOAT_READY_LINE, CLOUD_SETUP_WORDS, INIT_ROW_STATES, initSignInOutcome, SIGN_IN_OPEN_STATE, type InitJob, type InitJobEvent, type InitRow, type InitSetup, WS_PATH } from "@wsp/protocol";
+import { BOAT_READY_LINE, CLOUD_SETUP_WORDS, INIT_ROW_STATES, initSignInOutcome, SIGN_IN_DEFERRED_WORD, SIGN_IN_OPEN_STATE, type InitJob, type InitJobEvent, type InitRow, type InitSetup, type LoginState, WS_PATH } from "@wsp/protocol";
 import { createRuntime, memoryStore, type InitDoor } from "@wsp/runtime";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildBesideHost } from "../src/init-beside.js";
@@ -205,6 +205,36 @@ describe("the build wsp init hands to the host serving the state", () => {
     expect(typeof admitted.deviceToken).toBe("string");
     const { devices } = await client.request<{ devices: { id: string; here?: true }[] }>("devices.list");
     expect(devices).toEqual([{ id: admitted.deviceId, here: true, name: "a Mac in a browser", createdAt: expect.any(String), lastSeenAt: expect.any(String) }]);
+    client.close();
+  });
+
+  it("prints every sign-in with the state word the setup sheet shows, so a later or copied login never reads as signed in", async () => {
+    const f = await serving();
+    const client = await dialHost(f.statePath);
+    const run = buildBesideHost({ client, io: f.io, yes: true });
+    await until(() => f.door.calls.some(c => c.op === "start"));
+    f.door.push({ phase: "answering" });
+    await until(() => f.door.calls.some(c => c.op === "build"));
+    const signIn = (tool: string, label: string, login: LoginState, detail?: string): InitRow => ({ id: `sign-in/${tool}`, kind: "sign-in", tool, label, ...initSignInOutcome(login, "darwin"), ...(detail !== undefined ? { detail } : {}) });
+    const rows: InitRow[] = [
+      signIn("gh", "GitHub CLI login", "deferred"),
+      signIn("claude", "Claude Code login", "copied"),
+      signIn("codex", "Codex login", "signed-in"),
+      signIn("opencode", "OpenCode login", "skipped", "--yes asks nothing"),
+      signIn("cursor", "Cursor login", "not-signed-in", "stopped after 10 minutes"),
+      signIn("amp", "Amp login", "not-verified", "no status command known for amp"),
+      { id: "sign-in/gemini", kind: "sign-in", tool: "gemini", label: "Gemini login", state: INIT_ROW_STATES.keySet },
+    ];
+    f.door.push({ phase: "done", golden: { version: 1 }, rows });
+    expect(await run).toBe(0);
+    const lines = f.text().split("\n");
+    const line = (label: string): string => lines.find(l => l.includes(label)) ?? "";
+    for (const row of rows) expect(line(row.label), f.text()).toContain(row.state);
+    expect(line("GitHub CLI login")).toContain(SIGN_IN_DEFERRED_WORD);
+    expect(line("Claude Code login")).toContain("copied from this Mac");
+    expect(line("OpenCode login")).toMatch(/--yes asks nothing\s+skipped/);
+    // A login that ran out wears the failure's glyph, as the sheet gives it the cross, and never the step's.
+    expect(line("Cursor login")).toMatch(/^■\s+Cursor login\s+stopped after 10 minutes\s+not signed in$/);
     client.close();
   });
 
