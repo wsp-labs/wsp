@@ -69,7 +69,7 @@ describe.runIf(LIVE)("callback relay (live)", () => {
     const { token } = await deployDaemon(machine);
     const notes: string[] = [`machine ${machine.id} created and ${DAEMON_DEPLOYED_LINE} deployed at ${Date.now() - t0}ms`];
     // The relay dials builders through the runtime; this one stands in for a prepared builder with the same reach shape.
-    const builder: GoldenBuilderView = { id: machine.id, name: "relay-live", kind: "sandbox", createdAt: new Date().toISOString(), size: { cpu: 2, memMb: 4096 } };
+    const builder: GoldenBuilderView = { id: machine.id, name: "relay-live", kind: "sandbox", createdAt: new Date().toISOString(), placeId: "solari", placeName: "Solari", size: { cpu: 2, memMb: 4096 } };
     let minted: PreviewReach | undefined;
     const base = createRuntime({ backend, store: memoryStore(), adapters: {} });
     const rt: Runtime = {
