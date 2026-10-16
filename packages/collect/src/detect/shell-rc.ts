@@ -3,7 +3,7 @@
 // whose name says KEY, TOKEN, SECRET or PASSWORD are listed by name and cut
 // from a carried copy of the rc file, wherever on the line the assignment
 // sits. Values never leave here, so a cut line takes its continuation and any
-// open quote, substitution or heredoc with it.
+// open quote, substitution, array or heredoc with it.
 import { RC_FILES as SHELL_RUNG_RC } from "./shell.js";
 
 /** fish reads every .fish file directly in this directory at startup, before config.fish. */
@@ -38,8 +38,8 @@ const EXPORTED = new RegExp(`^\\s*\\\\?(?:export|typeset|declare|readonly|local|
 const FISH_SET = new RegExp(`^\\s*set((?:\\s+--?[\\w-]+)*)\\s+(${NAME})(?:\\s|$)`);
 /** fish's `set` flags that query, erase, show or list a variable: such a `set` assigns nothing. */
 const FISH_READS = /\s(?:-[A-Za-z]*[eqnS][A-Za-z]*|--(?:erase|query|names|show))(?=\s|$)/;
-const ASSIGNED = new RegExp(`^["']?(${NAME})=`);
-const PLAIN = new RegExp(`^\\s*(${NAME})=`);
+const ASSIGNED = new RegExp(`^["']?(${NAME})\\+?=`);
+const PLAIN = new RegExp(`^\\s*(${NAME})\\+?=`);
 /** The precommand words of bash, zsh and fish (fish's `and`, `or` and `not` among them), zsh's `repeat N` and `coproc`,
  * with their flags and an alias-dodging backslash: what follows is a simple command of its own. */
 const PRECOMMAND = String.raw`\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|coproc|repeat\s+\S+|time(?:\s+-p)?|command(?:\s+-p)?|exec(?:\s+-[cl]*a\s+\S+|\s+-[cl]+)*)`;
@@ -49,7 +49,7 @@ const KEYWORDS = new RegExp(String.raw`^\s*(?:then|do|else|elif|if|while|until|$
 const EVAL = /^\s*eval\s+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|(\S.*))$/;
 /** A command whose status is 0 whatever it held, so `true` stands for it anywhere: an export-like builtin, or a bare
  * assignment with no substitution (a bare `X=$(cmd)` answers with cmd's status). */
-const ASSIGNS = new RegExp(`^(?:(?:export|typeset|declare|readonly|local|set)\\s|${NAME}=(?:"[^"$\`]*"|'[^']*'|[^\\s"'$\`])*$)`);
+const ASSIGNS = new RegExp(`^(?:(?:export|typeset|declare|readonly|local|set)\\s|${NAME}\\+?=(?:"[^"$\`]*"|'[^']*'|[^\\s"'$\`])*$)`);
 /** The keyword whose condition a list is, `!` and the precommand words left to the condition: what follows an `if`,
  * `elif`, `while` or `until`. */
 const GUARD = new RegExp(String.raw`(?<=^|[\s;&|({])(if|elif|while|until)\s+(?=(?:${PRECOMMAND}\s+)*$)`);
@@ -109,40 +109,42 @@ function assignedNames(line: string): string[] {
   return simpleCommands(line).flatMap(assignedIn);
 }
 
-/** What is still open at the end of a line: a quote, a backtick, `$(` or `${` groups, `((` arithmetic, a heredoc waiting for its word, or a trailing backslash. */
+/** What is still open at the end of a line: a quote, a backtick, `$(`, `${` and array groups, `((` arithmetic, a heredoc waiting for its word, or a trailing backslash. */
 interface Open {
   quote: "" | "'" | '"' | "`" | "$'";
-  parens: number;
-  braces: number;
+  /** The open `$(`, `${`, array `=(` and bare `(` groups, innermost last, each with the quote it opened inside: a
+   * `$(` reads its text unquoted and gives that quote back at its `)`, and a `)` or `}` closes only the group on top. */
+  groups: { close: ")" | "}"; quote: "" | '"' }[];
   /** Depth of `((` and `$((`; while open, `<<` is a shift and never a heredoc. */
   arith: number;
   heredoc?: string;
   continues: boolean;
 }
 
-const CLOSED: Open = { quote: "", parens: 0, braces: 0, arith: 0, continues: false };
+const CLOSED: Open = { quote: "", groups: [], arith: 0, continues: false };
 
 function isOpen(o: Open): boolean {
-  return o.quote !== "" || o.parens > 0 || o.braces > 0 || o.heredoc !== undefined || o.continues;
+  return o.quote !== "" || o.groups.length > 0 || o.heredoc !== undefined || o.continues;
 }
 
 /** `<<WORD`, `<<-WORD`, `<<"WORD"`, `<<\WORD`: the word starts with a letter or underscore, so `x << 2` is arithmetic. The caller skips `<<<` (a here-string) and `<<` inside `(( ))` before this runs. */
 const HEREDOC = /^<<-?\s*(?:"([A-Za-z_]\w*)"|'([A-Za-z_]\w*)'|\\([A-Za-z_]\w*)|([A-Za-z_]\w*))/;
 
-/** A `#` outside quotes at the start of a word begins a comment; nothing after it is shell. After `(` or `{` it is a zsh glob flag, a brace expansion or `${#var}`, never a comment. */
+/** A `#` outside quotes at the start of a word begins a comment; nothing after it is shell. After `(` or `{` it is a zsh glob flag, a brace expansion or `${#var}`, never a comment, but right after an array's `=(` bash and zsh both read one. */
 function commentAt(line: string, i: number): boolean {
-  return line[i] === "#" && (i === 0 || /[\s;&|]/.test(line[i - 1] ?? ""));
+  return line[i] === "#" && (i === 0 || /[\s;&|]/.test(line[i - 1] ?? "") || line.slice(i - 2, i) === "=(");
 }
 
 /** Carries the shell's quoting state across a line. Inside a heredoc only the terminator word matters. */
 function scanLine(line: string, start: Open): Open {
-  const o: Open = { ...start, continues: false };
+  const o: Open = { ...start, groups: [...start.groups], continues: false };
   if (o.heredoc !== undefined) {
     if (line.trim() === o.heredoc) delete o.heredoc;
     return o;
   }
   for (let i = 0; i < line.length; i += 1) {
     const c = line[i];
+    const top = o.groups.at(-1);
     o.continues = false;
     if (c === "\\" && o.quote !== "'") {
       if (i === line.length - 1) o.continues = true;
@@ -177,12 +179,13 @@ function scanLine(line: string, start: Open): Open {
       continue;
     }
     if (c === "$" && line[i + 1] === "(") {
-      o.parens += 1;
+      o.groups.push({ close: ")", quote: o.quote === '"' ? '"' : "" });
+      o.quote = "";
       i += 1;
       continue;
     }
     if (c === "$" && line[i + 1] === "{") {
-      o.braces += 1;
+      o.groups.push({ close: "}", quote: "" });
       i += 1;
       continue;
     }
@@ -196,19 +199,25 @@ function scanLine(line: string, start: Open): Open {
       i += 1;
       continue;
     }
-    if (c === ")" && o.parens > 0) {
-      o.parens -= 1;
+    if (o.quote === "" && c === "(" && (top?.close === ")" || line[i - 1] === "=")) {
+      o.groups.push({ close: ")", quote: "" });
       continue;
     }
-    if (c === "}" && o.braces > 0) {
-      o.braces -= 1;
+    if (o.quote === "" && c === ")" && top?.close === ")") {
+      o.groups.pop();
+      o.quote = top.quote;
+      continue;
+    }
+    if (c === "}" && top?.close === "}") {
+      o.groups.pop();
       continue;
     }
     if (c === "<" && line[i + 1] === "<" && line[i + 2] === "<") {
       i += 2;
       continue;
     }
-    if (o.quote === "" && o.arith === 0 && c === "<") {
+    // A heredoc body is checked for a token's shape alone, so one inside a quoted `$(` stays lines and keeps the name check.
+    if (o.quote === "" && o.arith === 0 && c === "<" && !o.groups.some(g => g.quote === '"')) {
       const m = HEREDOC.exec(line.slice(i));
       const word = m?.[1] ?? m?.[2] ?? m?.[3] ?? m?.[4];
       if (word !== undefined) {
@@ -262,7 +271,8 @@ function commandSpans(text: string, lists = false): [number, number][] {
       stack.push("$'");
       i += 1;
     } else if (top !== undefined) {
-      if (c === "(") stack.push(c);
+      if (top === "(" && commentAt(text, i)) while (i + 1 < text.length && text[i + 1] !== "\n") i += 1;
+      else if (c === "(") stack.push(c);
       else if ((c === ")" && top === "(") || (c === "}" && top === "{")) stack.pop();
       else if (top === "[[" && text.startsWith("]]", i)) {
         stack.pop();
