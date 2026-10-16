@@ -10,7 +10,7 @@
 import { randomBytes } from "node:crypto";
 import { posix } from "node:path";
 import { EXEC_BODY_MAX, EXEC_CHUNK_BYTES, EXEC_DEADLINE_EXIT, shellQuote } from "@wsp/protocol";
-import { GuestUnusableError, isMissing } from "./errors.js";
+import { GuestUnusableError, MachineStoppedError, isMissing } from "./errors.js";
 import type { ExecResult, Framing, Machine, RunOptions } from "./machine.js";
 
 /** The longest one plain exec may take. The provider cuts any exec still running at about 29 s with a 502
@@ -372,8 +372,9 @@ export async function execDetached(machine: Machine, script: string, opts: RunOp
     try {
       poll = parsePoll((await exec(pollCommand(base, out.offset, err.offset))).stdout);
     } catch (e) {
-      // An unusable guest or a machine the provider no longer has answers no later poll; waiting ends in a bare 124.
-      if (e instanceof GuestUnusableError || isMissing(e)) throw e;
+      // An unusable guest, a machine the provider no longer has, or one it stopped, whose run went with the stop,
+      // answers no later poll; waiting ends in a bare 124.
+      if (e instanceof GuestUnusableError || e instanceof MachineStoppedError || isMissing(e)) throw e;
       poll = undefined;
     }
     if (poll === undefined) {

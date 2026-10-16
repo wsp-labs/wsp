@@ -131,9 +131,17 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
 
   /** One dial of a workspace's own daemon, for the frames this host sends itself and for a client of this host
    * driving that daemon one frame at a time: the road its kind answers, and the one sentence for a machine with no
-   * daemon answering on it yet. The caller closes what it opened. */
-  const ownDaemonChannel = async (entry: LiveWorkspace, onEvent: (event: Record<string, unknown>) => void): Promise<DaemonChannel> =>
-    channelOver(await ctx.moduleOf(entry.record.kind).daemonRoad(entry), entry.record.name, onEvent);
+   * daemon answering on it yet. The caller closes what it opened. A dial that fails under a record reading running
+   * asks the provider once, and a machine it holds paused is adopted, since a stopped box's route refuses the link
+   * and no command is ever sent there to be refused. */
+  const ownDaemonChannel = async (entry: LiveWorkspace, onEvent: (event: Record<string, unknown>) => void): Promise<DaemonChannel> => {
+    try {
+      return await channelOver(await ctx.moduleOf(entry.record.kind).daemonRoad(entry), entry.record.name, onEvent);
+    } catch (e) {
+      if (entry.record.phase === "running" && (await entry.machine.state().catch(() => "running")) === "paused") await ctx.adoptPause(entry);
+      throw e;
+    }
+  };
   const channelOver = (reach: DaemonReachView, name: string, onEvent: (event: Record<string, unknown>) => void): Promise<DaemonChannel> => {
     if (reach.daemonToken === undefined) throw new Error(`${name} is not answering yet`);
     return ctx.openChannel({ url: reach.url, token: reach.daemonToken, onEvent });

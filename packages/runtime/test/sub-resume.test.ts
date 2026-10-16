@@ -11,7 +11,7 @@ import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
-import { BOX_WORK_DIR, DiskGoneError, NoProviderBackend, type Machine, type MachineBackend } from "@wsp/engine";
+import { BOX_WORK_DIR, DiskGoneError, MachineStoppedError, NoProviderBackend, type Machine, type MachineBackend } from "@wsp/engine";
 import { BOAT_DISK_GONE_LINE, DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, diskExpired, diskGoneReleasedLine, SUB_TURN_GONE_LINE, fmtBytes, foldThreads, lostSessionPrompt, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
 import { PIPE_IDLE } from "../src/pipe.js";
@@ -515,6 +515,70 @@ describe("rewind on a sub-thread whose machine napped after its turn", () => {
     expect(held.first.resumes).toBe(resumes + 1);
     expect(reverted).toHaveLength(1);
     expect(new Set((await held.rt.sessions.history(held.made.id)).filter(e => e.threadId === held.threadId && e.turnId !== undefined).map(e => e.turnId!))).toEqual(new Set([turns[0]]));
+  });
+});
+
+describe("a sub-thread whose box Boat stopped while its record reads running", () => {
+  /** Two turns done on Codex, the record woken to running, and then the box stopped at Boat with nothing said to wsp,
+   * as its backstop timer or its console does. Codex starts a turn and cuts one by a command on the machine, which
+   * Boat refuses while the box is stopped. */
+  async function stoppedBehind() {
+    const reverted: string[] = [];
+    const codex = (stub: HarnessAdapterFactory): HarnessAdapterFactory => hctx => {
+      const inner = stub(hctx);
+      return {
+        ...inner,
+        start: o => {
+          let turn: ReturnType<typeof inner.start> | undefined;
+          const finished = hctx.machine.exec("codex exec --json").then(() => (turn = inner.start(o)).finished);
+          return { localId: "codex-launch", finished, interrupt: async () => turn?.interrupt() };
+        },
+        revert: async r => {
+          await hctx.machine.exec(`codex app-server revert ${r.session}`);
+          reverted.push(r.session);
+          return undefined;
+        },
+      };
+    };
+    const held = await doneOnce({ agent: "codex", codex });
+    const answer = held.boat.execImpl;
+    held.boat.execImpl = (m, cmd, stdin) => {
+      if (m.paused) throw new MachineStoppedError(m.id, Object.assign(new Error("Sandbox machine is not running."), { kind: "conflict", status: 409, code: "machine_not_running" }));
+      return answer(m, cmd, stdin);
+    };
+    const send = (prompt: string) => held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt, harness: "codex" });
+    await held.rt.workspaces.wake(held.made.id);
+    await (await send("and the colour?")).finished;
+    await until(async () => ((await held.record()).phase === "napping" ? true : undefined), "the nap after the second turn");
+    const turns = [...new Set((await held.rt.sessions.history(held.made.id)).filter(e => e.threadId === held.threadId && e.turnId !== undefined).map(e => e.turnId!))];
+    expect(turns).toHaveLength(2);
+    await held.rt.workspaces.wake(held.made.id);
+    held.first.paused = true;
+    expect((await held.record()).phase).toBe("running");
+    return { ...held, reverted, send, turns, resumes: held.first.resumes };
+  }
+
+  it("a send refused as not running puts the record to napping, and the window's wake and send then wakes the box and answers", async () => {
+    const held = await stoppedBehind();
+    await expect((await held.send("are you there?")).finished).rejects.toThrow("Sandbox machine is not running.");
+    expect((await held.record()).phase).toBe("napping");
+    expect(held.first.resumes).toBe(held.resumes);
+
+    // The window wakes a record that reads napping before its send.
+    await held.rt.workspaces.wake(held.made.id);
+    expect(held.first.resumes).toBe(held.resumes + 1);
+    expect(await (await held.send("are you there?")).finished).toMatchObject({ status: "completed" });
+  });
+
+  it("a rewind refused as not running puts the record to napping, and the rewind after it wakes the box and cuts the turn", async () => {
+    const held = await stoppedBehind();
+    await expect(held.rt.sessions.rewind(held.threadId, { turnId: held.turns[0]! })).rejects.toThrow("Sandbox machine is not running.");
+    expect(held.reverted).toHaveLength(0);
+
+    expect(await held.rt.sessions.rewind(held.threadId, { turnId: held.turns[0]! })).toMatchObject({ turns: 1 });
+    expect(held.first.resumes).toBe(held.resumes + 1);
+    expect(held.reverted).toHaveLength(1);
+    expect(new Set((await held.rt.sessions.history(held.made.id)).filter(e => e.threadId === held.threadId && e.turnId !== undefined).map(e => e.turnId!))).toEqual(new Set([held.turns[0]]));
   });
 });
 

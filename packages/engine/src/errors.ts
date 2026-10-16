@@ -50,6 +50,20 @@ export class RestoreUnfinishedError extends Error {
   }
 }
 
+/** A command the provider refused because the machine is stopped, which a stop of its own (its backstop timer, its
+ * console) leaves behind a record that still says running. Carries the refusal's kind, status, code and request id. */
+export class MachineStoppedError extends Error {
+  constructor(
+    readonly machineId: string,
+    said: Error,
+  ) {
+    super(said.message);
+    this.name = "MachineStoppedError";
+    const { kind, status, code, requestId } = said as Partial<WspError>;
+    Object.assign(this, { kind, status, code, ...(requestId !== undefined ? { requestId } : {}) });
+  }
+}
+
 /** Thrown by a backend that refuses a snapshot of a machine that has been resumed. Typed so callers (the wizard) can
  * tell "start over" from an ordinary failure. */
 export class NotFirstLifeError extends Error {
