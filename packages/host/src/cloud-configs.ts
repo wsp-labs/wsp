@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What a copy to a provider's machine cuts out of the configs it carries: the
-// Claude account fields, the secret names of an env block, a secret a hook, an
-// MCP argument or an address holds inline, git's credential helpers and url
-// rewrites, and every value shaped like a token. What a config holds besides
-// lands as it is, so a config with no secret lands byte for byte.
+// Claude account fields; the secret-named variables of an env block or of
+// Codex's shell set, and every variable an agent reads as header lines; every
+// header that holds a value, in JSON or in TOML however it is spelled; a query
+// value under a secret's name, in an address or in Codex's query_params; the
+// API key Codex (experimental_bearer_token) or OpenCode (apiKey) sends; a
+// secret a hook, an MCP argument or an address holds inline (a login, a
+// key-shaped path segment); git's credential helpers and url rewrites; and
+// every value shaped like a token. What a config holds besides lands as it is,
+// so a config with no secret lands byte for byte.
 import { KEYLIKE_SEGMENT, hidesValue, plainArg, readArgs, secretNamed, type ArgRead } from "@wsp/collect";
 import { CATALOG_AGENTS, MCP_AGENTS, editJson, readJsonc, rewriteTomlLine, tomlOpenArray, tomlStrings, uncommentToml, type JsonEdit } from "@wsp/catalog";
 import { CLOUD_GIT_CUTS, CONFIG_PATHS, FISH_VARIABLES, gitCut } from "./recipe-configs.js";
@@ -41,6 +46,16 @@ const carries = (value: string): boolean => {
 };
 /** A flag's value written as a header line holds only what follows the name and an Authorization header's scheme. */
 const flagCarries = (value: string): boolean => carries(/^[A-Za-z0-9-]+:\s*(?:(?:Bearer|Basic|Token)\s+)?(.*)$/i.exec(value)?.[1] ?? value);
+/** A header's value holds only what follows an Authorization header's scheme. */
+const headerCarries = (value: string): boolean => carries(/^(?:(?:Bearer|Basic|Token)\s+)?(.*)$/i.exec(value)?.[1] ?? value);
+/** A variable an agent reads as header lines, so its value is headers: ANTHROPIC_CUSTOM_HEADERS (2.1.296),
+ * OTEL_EXPORTER_OTLP_HEADERS and its per-signal kin. */
+const envSecret = (name: string): boolean => secretNamed(name) || name.toUpperCase().split("_").at(-1) === "HEADERS";
+/** Keys an agent sends as its API key, so a literal there is the person's key: Codex's `experimental_bearer_token` on a
+ * model provider (0.155.1), OpenCode's provider `apiKey` (1.18.30). */
+const KEY_FIELDS = new Set(["experimental_bearer_token", "apiKey"]);
+/** A query parameter that holds something under a secret's name, in an address or in Codex's `query_params`. */
+const querySecret = (name: string, value: string): boolean => carries(value) && secretNamed(name.replace(/-/g, "_"));
 /** Words that name a flag taking a mode or a file, as in `--auth oauth` or `--cert none`, rather than the secret. */
 const MODE_WORDS = new Set(["AUTH", "CERT"]);
 /** A lowercase word after a flag that only auth or cert names a secret is a mode; a flag named by any other secret word
@@ -63,7 +78,7 @@ function blankAddress(url: string, own: boolean, names: string[]): string {
     return scheme;
   });
   out = out.replace(/([?&])([^=&#]+)=([^&#]*)/g, (m, sep: string, name: string, value: string) => {
-    if (!carries(value) || !secretNamed(name.replace(/-/g, "_"))) return m;
+    if (!querySecret(name, value)) return m;
     names.push(name);
     return `${sep}${name}=`;
   });
@@ -138,8 +153,9 @@ function commandLine(entry: Record<string, unknown>, key: string, value: unknown
   return undefined;
 }
 
-/** A JSON config with the keys named dropped, the secret names of every env block left out, every server's command
- * line cut, and every other string's inline secrets blanked, each edit made in place so comments and layout stand. */
+/** A JSON config with the keys named dropped, the secret names of every env block left out, every header that holds a
+ * value left out whatever its name (a marketplace's, 2.1.296), every server's command line cut, and every other
+ * string's inline secrets blanked, each edit made in place so comments and layout stand. */
 function jsonCut(text: string, drop: readonly string[], home: string): Cut {
   let root: unknown;
   try {
@@ -172,7 +188,13 @@ function jsonCut(text: string, drop: readonly string[], home: string): Cut {
             if (arg !== line.args[i]) edits.push([[...path, name, i + line.from], arg]);
           });
           names.push(...serverNamed(path, cut.names));
-        } else if (typeof key === "string" && ENV_KEYS.has(key) && typeof value === "string" && secretNamed(name) && carries(value)) {
+        } else if (typeof key === "string" && ENV_KEYS.has(key) && typeof value === "string" && envSecret(name) && carries(value)) {
+          edits.push([[...path, name], undefined]);
+          names.push(...serverNamed(path, [name]));
+        } else if (key === "headers" && typeof value === "string" && headerCarries(value)) {
+          edits.push([[...path, name], undefined]);
+          names.push(...serverNamed(path, [`the ${name} header`]));
+        } else if (KEY_FIELDS.has(name) && typeof value === "string" && carries(value)) {
           edits.push([[...path, name], undefined]);
           names.push(...serverNamed(path, [name]));
         } else walk(value, [...path, name], name);
@@ -187,16 +209,20 @@ const TOML_KEY = /^("[^"]+"|'[^']+'|[A-Za-z0-9_-]+)\s*=\s*(.*)$/;
 const TOML_SERVER = /^\[\s*mcp_servers\s*\.\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))\s*(\.\s*env\s*)?\]$/;
 /** Codex's tables of variables, the TOML twin of an env block: a server's env and the shell's set. */
 const TOML_ENV_TABLE = /^\[\s*shell_environment_policy\s*\.\s*set\s*\]$/;
+/** Codex's tables of headers, inline or not: a model provider's `http_headers`, an otel exporter's `headers` (0.155.1). */
+const TOML_HEADERS_TABLE = /\.\s*(?:http_)?headers\s*\]$/;
+const TOML_INLINE_HEADERS = /(\b(?:http_)?headers\s*=\s*\{)((?:"(?:[^"\\]|\\.)*"|'[^']*'|[^{}"'])*)\}/g;
+const TOML_MEMBER = /("(?:[^"\\]|\\.)*"|'[^']*'|[A-Za-z0-9_-]+)\s*=\s*("(?:[^"\\]|\\.)*"|'[^']*')/g;
 
 /** An inline table of variables with every secret-named member that holds something taken out, the others as written. */
 function inlineEnvCut(line: string, names: string[]): string {
   const code = uncommentToml(line);
   const table = /^(\s*[^=]+=\s*)\{(.*)\}(\s*)$/.exec(code);
   if (table === null) return line;
-  const members = [...table[2]!.matchAll(/("(?:[^"\\]|\\.)*"|'[^']*'|[A-Za-z0-9_-]+)\s*=\s*("(?:[^"\\]|\\.)*"|'[^']*')/g)];
+  const members = [...table[2]!.matchAll(TOML_MEMBER)];
   const kept = members.filter(m => {
     const name = unquoted(m[1]!);
-    if (!secretNamed(name) || !carries(tomlStrings(m[2]!)[0] ?? "")) return true;
+    if (!envSecret(name) || !carries(tomlStrings(m[2]!)[0] ?? "")) return true;
     names.push(name);
     return false;
   });
@@ -204,8 +230,61 @@ function inlineEnvCut(line: string, names: string[]): string {
   return `${table[1]!}${kept.length === 0 ? "{}" : `{ ${kept.map(m => m[0]).join(", ")} }`}${table[3]!}${line.slice(code.length)}`;
 }
 
+/** Every member of an inline table of headers on the line that holds a value taken out, nested in another or not. */
+function inlineHeadersCut(line: string, names: string[]): string {
+  return line.replace(TOML_INLINE_HEADERS, (whole, open: string, body: string) => {
+    const members = [...body.matchAll(TOML_MEMBER)];
+    const kept = members.filter(m => {
+      if (!headerCarries(tomlStrings(m[2]!)[0] ?? "")) return true;
+      names.push(`the ${unquoted(m[1]!)} header`);
+      return false;
+    });
+    return kept.length === members.length ? whole : `${open}${kept.length === 0 ? "" : ` ${kept.map(m => m[0]).join(", ")} `}}`;
+  });
+}
+
+/** Why a string a TOML config holds at this path goes, or nothing where it stays. */
+function tomlGoes(path: readonly (string | number)[], value: string): string | undefined {
+  const member = String(path.at(-1));
+  const parent = path.at(-2);
+  if (parent === "headers" || parent === "http_headers") return headerCarries(value) ? `the ${member} header` : undefined;
+  if (parent === "query_params") return querySecret(member, value) ? member : undefined;
+  if (parent === "env" || (parent === "set" && path.at(-3) === "shell_environment_policy")) return envSecret(member) && carries(value) ? member : undefined;
+  return KEY_FIELDS.has(member) && carries(value) ? member : undefined;
+}
+
+/** The TOML parser, loaded by the first cut that reads a TOML config rather than at host start: the cut is synchronous,
+ * and host's build inlines a literal require as a factory run on that first call. */
+let toml: typeof import("smol-toml") | undefined;
+const parseToml = (text: string): unknown => (toml ??= require("smol-toml") as typeof import("smol-toml")).parse(text);
+
+/** Every string of a TOML config that goes by tomlGoes, read by a parser, since Codex 0.155.1 reads a dotted key and an
+ * inline table spread over lines as the same table the line cut knows. */
+function tomlLeft(text: string): { values: Set<string>; names: string[] } {
+  const values = new Set<string>();
+  const names: string[] = [];
+  let root: unknown;
+  try {
+    root = parseToml(text);
+  } catch {
+    return { values, names };
+  }
+  const walk = (v: unknown, path: (string | number)[]): void => {
+    if (typeof v === "string") {
+      const why = tomlGoes(path, v);
+      if (why === undefined) return;
+      values.add(v);
+      names.push(...serverNamed(path, [why]));
+    } else if (Array.isArray(v)) v.forEach((item, i) => walk(item, [...path, i]));
+    else if (isRecord(v)) for (const [name, item] of Object.entries(v)) walk(item, [...path, name]);
+  };
+  walk(root, []);
+  return { values, names };
+}
+
 /** A TOML config cut line by line: a server's `args` array by collect's reading across the lines it spans, the secret
- * names of a table of variables left out, and every other string's inline secrets blanked. */
+ * names of a table of variables left out, and every other string's inline secrets blanked; then whatever the parser
+ * still finds that goes is blanked wherever it is written. */
 function tomlCut(text: string, home: string): Cut {
   const lines = text.split("\n");
   const codes = lines.map(l => uncommentToml(l).trim());
@@ -237,7 +316,7 @@ function tomlCut(text: string, home: string): Cut {
       continue;
     }
     const inEnv = TOML_ENV_TABLE.test(table) || server?.[4] !== undefined;
-    if (inEnv && name !== undefined && secretNamed(name) && carries(tomlStrings(key![2]!)[0] ?? "")) {
+    if (inEnv && name !== undefined && envSecret(name) && carries(tomlStrings(key![2]!)[0] ?? "")) {
       names.push(...serverNamed(path, [name]));
       continue;
     }
@@ -248,15 +327,25 @@ function tomlCut(text: string, home: string): Cut {
       names.push(...serverNamed(path, found));
       continue;
     }
+    if (TOML_HEADERS_TABLE.test(table) && name !== undefined && headerCarries(tomlStrings(key![2]!)[0] ?? "")) {
+      names.push(...serverNamed(path, [`the ${name} header`]));
+      continue;
+    }
+    const headers: string[] = [];
+    const line = inlineHeadersCut(lines[i]!, headers);
+    names.push(...serverNamed(path, headers));
     out.push(
-      rewriteTomlLine(lines[i]!, v => {
+      rewriteTomlLine(line, v => {
         const cut = blankString(v, name === "url");
         names.push(...serverNamed(path, cut.names));
         return cut.text;
       }),
     );
   }
-  return { text: out.join("\n"), names };
+  const cut = out.join("\n");
+  const left = tomlLeft(cut);
+  if (left.values.size === 0) return { text: cut, names };
+  return { text: cut.split("\n").map(l => rewriteTomlLine(l, v => (left.values.has(v) ? "" : v))).join("\n"), names: [...names, ...left.names] };
 }
 
 /** Why a staged file stays on this computer whole, or nothing: fish's universal variables, or a private key. */

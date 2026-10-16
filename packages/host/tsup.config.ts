@@ -8,4 +8,7 @@ export default defineConfig({
   format: ["esm"],
   define: cloudDefine(),
   esbuildPlugins: [skillText()],
+  // Inlined, so the cut's require of the TOML parser becomes a factory run on first use, which every bundle of this
+  // dist carries with no require of its own (a require banner here collides with the bundles').
+  noExternal: ["smol-toml"],
 });
