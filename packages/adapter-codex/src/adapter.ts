@@ -98,7 +98,7 @@ import { LETS_GO, LIST_PAGES, WRITER_HELD, itemsCommand, listCommand, newestLine
 import { draftForCommand, parseDraftFor, parseRename, parseSessionTitle, parseTitleFor, renameCommand, sessionTitleCommand, titleForCommand } from "./session-title.js";
 import { shellScriptOf } from "./shell-script.js";
 import { forkSessionOn, revertOn, type SideRunner } from "./turn-pages.js";
-import { startSeeded } from "./lost-session.js";
+import { parseSessionHeld, sessionHeldCommand, startSeeded } from "./lost-session.js";
 import { endedBetween, type Background } from "./background.js";
 
 export interface CodexStartOptions {
@@ -228,6 +228,7 @@ export interface CodexAdapter {
   sessionTitle: SessionTitleReader;
   /** The thread's rollout file, under the home's sessions folder by date. */
   sessionFile(threadId: string): { folder: string; name: string; depth: number };
+  sessionHeld(threadId: string, exec: HarnessExec): Promise<string>;
   /** Names the thread through the app server's own rename, which writes the column that read takes. */
   renameSession: SessionRenamer;
   /** Asks the CLI itself, in one read-only turn, for a name for a thread it has just replied in. */
@@ -1474,8 +1475,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
     probeVersion: (exec: HarnessExec) => exec(versionProbeCommand(launch), questionEnv()).then(parseVersion),
     sessionTitle: (threadId, exec) => exec(sessionTitleCommand({ home: deps.home, threadId })).then(parseSessionTitle),
     sessionFile: threadId => rolloutIn(deps.home, threadId),
-    renameSession: (threadId, title, exec) =>
-      exec(renameCommand({ threadId, title, ...launch }), questionEnv()).then(parseRename),
+    sessionHeld: (threadId, exec) => exec(sessionHeldCommand({ home: deps.home, threadId })).then(parseSessionHeld),
+    renameSession: (threadId, title, exec) => exec(renameCommand({ threadId, title, ...launch }), questionEnv()).then(parseRename),
     titleFor: (turn, exec) =>
       exec(
         titleForCommand({
