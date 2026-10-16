@@ -242,6 +242,8 @@ export interface Setup {
    * own ahead of the PATH, which writes each line it is asked to gh-asked under the fixture's folder and holds a login
    * while gh-signed-in stands there. */
   hostGh?: boolean;
+  /** The Codex agent made from the fixture's stub, for a case that needs the real adapter's lists beside its turns. */
+  codex?: (stub: HarnessAdapterFactory) => HarnessAdapterFactory;
   /** Options the host starts with beside the fixture's own: a deploy road and the daemon's token. */
   host?: Partial<Parameters<typeof createRuntime>[0]>;
 }
@@ -292,7 +294,7 @@ export async function leadOnThisComputer(o: Setup = {}) {
     const inner = boat.execImpl;
     boat.execImpl = (m, cmd, stdin) => (cmd.startsWith(`${STORE_TITLE} `) ? { exitCode: 0, stdout: storeTitle(starts.map(s => s.o)) ?? "", stderr: "" } : inner(m, cmd, stdin));
   }
-  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: harness(starts, leadTurn, CODEX_SESSION_FILE, storeTitle !== undefined), opencode: harness(starts, leadTurn, CODEX_SESSION_FILE) };
+  const adapters = { claude: onBoat === undefined ? claude : (hctx: Parameters<HarnessAdapterFactory>[0]) => (boat.machines.some(m => m.id === hctx.machine.id) ? onBoat : claude)(hctx), codex: (o.codex ?? (stub => stub))(harness(starts, leadTurn, CODEX_SESSION_FILE, storeTitle !== undefined)), opencode: harness(starts, leadTurn, CODEX_SESSION_FILE) };
   const options = { backend: boat, places: wiredPlace("box", boat), store, adapters, ...(onBoat !== undefined ? { machineExec: { pollMs: 5 } } : {}), local, daemonChannel: daemon.open, seed: seedWiring(sizes, o.left), killConfirm: { graceMs: 20, pollMs: 1 }, goneConfirmMs: 0, ...placeLinks, ...agents, ...broker, ...(o.clock !== undefined ? { clock: o.clock } : {}), ...o.host };
   const rt: Runtime = createRuntime(options);
   const make = (): Runtime => createRuntime(options);

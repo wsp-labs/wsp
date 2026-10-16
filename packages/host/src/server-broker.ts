@@ -19,6 +19,7 @@ import { brokerCredentials, type CredentialPorts } from "./broker/credentials.js
 import { brokerLogFile } from "./broker/log.js";
 import { offSwitch } from "./broker/off.js";
 import type { AnthropicCredential, BrokerContext, BrokerService, BrokerWorkspace, Grant, LiveGrant } from "./broker/types.js";
+import { chatgptModels } from "./chatgpt/models.js";
 import { codexLogin, type CodexLogin } from "./codexlogin/login.js";
 import type { DoctorBroker } from "./doctor-fork.js";
 import { loginFolders } from "./login-path.js";
@@ -228,6 +229,7 @@ export function hostBroker(o: HostBrokerOptions): HostBroker {
     port: {
       ready: () => serving !== undefined,
       codexClaims: () => codex.claims(),
+      codexModels: version => chatgptModels(() => codex.credential(), version),
       pipe: (workspaceId, open, duplex) => {
         if (serving === undefined) return void duplex.destroy();
         serving.broker.take(workspaceId, open, duplex);

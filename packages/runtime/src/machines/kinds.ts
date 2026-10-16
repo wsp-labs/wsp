@@ -280,7 +280,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
    * launches keep today's road. */
   const brokeredLaunch = (entry: LiveWorkspace, harness: string, token: string | undefined): ReturnType<KindsArea["brokeredLaunch"]> => {
     if (!brokered(entry.record)) return undefined;
-    const codexBroker = harness === "codex" ? codexBrokerOf(brokerSaid, claimsSaid) : undefined;
+    const codexBroker = harness === "codex" ? codexBrokerOf(brokerSaid, claimsSaid, opts.broker?.codexModels?.bind(opts.broker)) : undefined;
     const codex = codexBroker !== undefined ? { codex: codexBroker } : {};
     if (token === undefined) return { env: {}, vault: {}, ...codex };
     const refused = unbrokeredRefusal(harness) ?? (harness === "codex" && codexBroker === undefined ? codexLoginUnreadRefusal() : undefined);
