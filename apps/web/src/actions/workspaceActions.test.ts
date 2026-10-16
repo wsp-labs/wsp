@@ -54,8 +54,8 @@ describe("bring back on the workspace row", () => {
     expect(entry("running", { bringBack: undefined }).refusal).toBe(WHERE_WORDS.notYet);
   });
 
-  it("is held on a machine that is not running, in the words every machine action is held in", () => {
-    expect(entry("napping").refusal).toBe("Workspace is paused; wake it to bring back");
+  it("is held on a machine that is not running, in the words the header's git button is held in", () => {
+    expect(entry("napping").refusal).toBe("Workspace is paused; wake it to push");
   });
 
   it("says pull request in full on the row's third line, and what happened where there is none", () => {

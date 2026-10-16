@@ -7,7 +7,7 @@
 import { cloneElement } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { capWaitLine, fixAskedLine, updateConflictsLine, type Checkout, type PullRequestFact, type PullRequestKept, type PullRequestPage, type WorkspaceStatus } from "@wsp/protocol";
+import { capWaitLine, fixAskedLine, updateConflictsLine, type Checkout, type PlaceView, type PullRequestFact, type PullRequestKept, type PullRequestPage, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { useNotices } from "../src/notices/store.js";
 import { useStore } from "../src/protocol/store.js";
 import { useDiffStore } from "../src/diffs/store.js";
@@ -810,9 +810,84 @@ describe("the thread header's git button", () => {
 
   it("draws nothing on a sub-thread whose machine was deleted after its work was pushed", () => {
     withGit({ branch: "wsp/walk-a-split" }, undefined);
-    act(() => useStore.setState({ workspaces: [{ ...view, kind: "cloud", phase: "released", parentThreadId: "th_lead" }] }));
+    act(() =>
+      useStore.setState(s => ({
+        workspaces: [{ ...view, kind: "cloud", phase: "released", machineId: "", parentThreadId: "th_lead" }],
+        statuses: { [WS]: { ...s.statuses[WS]!, phase: "released", machineState: "gone", reach: { state: "gone" } } },
+      })),
+    );
     render(<GitSplit workspaceId={WS} />);
     expect(document.querySelector("[data-git-split]")).toBeNull();
+  });
+
+  const cloud = (workspace: Partial<WorkspaceView>, status: Partial<WorkspaceStatus>, places: PlaceView[] = []) =>
+    act(() => useStore.setState(s => ({ places, workspaces: [{ ...view, kind: "cloud", ...workspace }], statuses: { [WS]: { ...s.statuses[WS]!, ...workspace, ...status } } })));
+
+  it.each([
+    ["deleted", { machineState: "gone", reach: { state: "gone" } }],
+    ["deleted, before its status is read again", { machineState: "running", reach: { state: "reachable" } }],
+  ] as const)("draws nothing on a cloud workspace whose machine was %s, though its last read had work to push", (_, status) => {
+    const api = withGit({ ahead: 2 }, undefined);
+    cloud({ phase: "gone" }, status);
+    render(<GitSplit workspaceId={WS} />);
+    expect(document.querySelector("[data-git-split]")).toBeNull();
+    expect(api.bringBack).not.toHaveBeenCalled();
+  });
+
+  it("keeps View PR on a cloud workspace whose machine was deleted while its pull request is open, and draws Push held", () => {
+    withGit({}, fact());
+    cloud({ phase: "gone" }, { machineState: "gone", reach: { state: "gone" } });
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().textContent).toBe("View PR");
+    fireEvent.click(quick());
+    expect(useRightPanelStore.getState().byWorkspaceId[panelKeyOf(WS)]?.activeSurfaceId).toBe("pr");
+    cleanup();
+    const api = withGit({ ahead: 1 }, fact());
+    cloud({ phase: "gone" }, { machineState: "gone", reach: { state: "gone" } });
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().disabled).toBe(true);
+    expect(quick().title).toMatch(/; rebuild it to push, /);
+    fireEvent.click(quick());
+    expect(api.bringBack).not.toHaveBeenCalled();
+  });
+
+  it("holds the push on a stopped machine and says to wake it, and still opens the pull request it has", () => {
+    const api = withGit({ ahead: 2 }, undefined);
+    cloud({ phase: "napping" }, { machineState: "paused" });
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().textContent).toBe("Push and create PR");
+    expect(quick().disabled).toBe(true);
+    expect(quick().title).toBe("Workspace is paused; wake it to push");
+    fireEvent.click(quick());
+    expect(api.bringBack).not.toHaveBeenCalled();
+    cleanup();
+    withGit({}, fact());
+    cloud({ phase: "napping" }, { machineState: "paused" });
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().textContent).toBe("View PR");
+    fireEvent.click(quick());
+    expect(useRightPanelStore.getState().byWorkspaceId[panelKeyOf(WS)]?.activeSurfaceId).toBe("pr");
+  });
+
+  it("holds the push on a machine that does not answer, in the computer's own sentence where it has one", () => {
+    withGit({ changed: 1 }, undefined);
+    cloud({ phase: "running" }, { machineState: "running", reach: { state: "unreachable" } });
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().disabled).toBe(true);
+    expect(quick().title).toBe("Workspace is unreachable; git actions open when the machine answers");
+    cleanup();
+    const laptop: PlaceView = { id: "pc_laptop", kind: "computer", name: "laptop", default: false, present: false };
+    withGit({ changed: 1 }, undefined);
+    cloud({ phase: "running", place: "pc_laptop" }, { machineState: "running", reach: { state: "unreachable" } }, [laptop]);
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().disabled).toBe(true);
+    expect(quick().title).toMatch(/^laptop is not answering/);
+    cleanup();
+    const here: PlaceView = { id: "here", kind: "computer", name: "mac", default: true, present: true };
+    withGit({ changed: 1 }, undefined);
+    cloud({ kind: "local", phase: "running" }, { machineState: "running", reach: { state: "no-daemon" } }, [here]);
+    render(<GitSplit workspaceId={WS} />);
+    expect(quick().title).toBe("mac's terminals and files stopped; git actions open once they start again");
   });
 
   it("draws nothing where the checkout is not read", () => {
