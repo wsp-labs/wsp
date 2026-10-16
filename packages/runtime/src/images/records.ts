@@ -14,6 +14,7 @@ import {
   readValues,
 } from "@wsp/engine";
 import type {
+  PauseMode,
   RecipeDigest,
   SealedImage,
   ProjectGolden,
@@ -38,6 +39,16 @@ import type { WorkspaceRecord } from "../types/wiring.js";
 
 export function recordsArea(ctx: RuntimeContext): RecordsArea {
   const { backend, store, hostId, live, places } = ctx;
+  /** How the backend holding this record's machine naps; none while that backend cannot be read, as on a joined
+   * computer whose updated daemon has not said again what it forks with, so one such record never fails a list. */
+  const pauseModeOf = (r: WorkspaceRecord): { pauseMode?: PauseMode } => {
+    try {
+      const mode = ctx.backendFor(r).capabilities.pauseMode;
+      return mode !== undefined ? { pauseMode: mode } : {};
+    } catch {
+      return {};
+    }
+  };
   const view = (r: WorkspaceRecord): WorkspaceView => ({
     ...((): { folder?: string } => {
       const folder = ctx.moduleOf(r.kind).folder(r);
@@ -74,6 +85,7 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
     ...(r.parentWorkspaceId !== undefined ? { parentWorkspaceId: r.parentWorkspaceId } : {}),
     ...(r.place !== undefined ? { place: r.place } : {}),
     ...(ctx.providerOf(r) !== undefined ? { provider: ctx.providerOf(r)! } : {}),
+    ...pauseModeOf(r),
   });
 
   /** One fact of a workspace's look: a value sets it, null clears it back to none, and undefined leaves what the
