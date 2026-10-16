@@ -101,6 +101,61 @@ describe("shell rc exports", () => {
     expect(cut("if export GH_TOKEN=x; then y; fi\nexport GH_TOKEN=x && y\nGH_TOKEN=$(pass show gh) || y\nGH_TOKEN=x gh auth status && y\n")).toBe("if true; then y; fi\ntrue && y\ntrue\ntrue\n");
   });
 
+  it("an assignment behind a precommand word, a declaration builtin or fish's and, or and not is cut, the word staying, and a command behind one is kept; fish's long flags assign too, and a set that queries, erases or shows assigns nothing", () => {
+    const text = [
+      "time -p export A_TOKEN=x",
+      "noglob builtin typeset -x B_TOKEN=x",
+      "nocorrect export C_TOKEN=x",
+      "- export D_TOKEN=x",
+      "command -p export E_TOKEN=x",
+      "exec -a lab env F_TOKEN=x make",
+      "float -x G_KEY=x",
+      "integer H_KEY=1",
+      "private I_TOKEN=x",
+      "and set -gx J_TOKEN x",
+      "or set -x K_TOKEN x",
+      "not set -gx L_TOKEN x",
+      "set --global --export M_TOKEN x",
+      "and set -gx --path N_TOKEN x",
+      "if not set -q GH_TOKEN",
+      "set -qg GH_TOKEN; or echo none",
+      "set --erase GH_TOKEN; set -S GH_TOKEN",
+      "time make && noglob git status",
+      "and git status; or command -v git",
+      "",
+    ].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["A_TOKEN", "B_TOKEN", "C_TOKEN", "D_TOKEN", "E_TOKEN", "F_TOKEN", "G_KEY", "H_KEY", "I_TOKEN", "J_TOKEN", "K_TOKEN", "L_TOKEN", "M_TOKEN", "N_TOKEN"],
+      carried: "time -p true\nnoglob builtin true\nnocorrect true\n- true\ncommand -p true\nexec -a lab true\ntrue\ntrue\ntrue\nand true\nor true\nnot true\ntrue\nand true\nif not set -q GH_TOKEN\nset -qg GH_TOKEN; or echo none\nset --erase GH_TOKEN; set -S GH_TOKEN\ntime make && noglob git status\nand git status; or command -v git\n",
+    });
+  });
+
+  it("zsh's repeat and coproc, a backslash before the word and exec's bundled flags hide no assignment, and a condition behind a precommand word stands as false", () => {
+    const text = [
+      "repeat 1 export A_TOKEN=x",
+      "coproc export B_TOKEN=x",
+      "\\export C_TOKEN=x",
+      "\\builtin export D_TOKEN=x",
+      "exec -cla lab env E_TOKEN=x zsh",
+      "while noglob F_TOKEN=x check; do sleep 1; done",
+      "until time G_TOKEN=x check; do sleep 1; done",
+      "repeat 3 echo hi",
+      "",
+    ].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["A_TOKEN", "B_TOKEN", "C_TOKEN", "D_TOKEN", "E_TOKEN", "F_TOKEN", "G_TOKEN"],
+      carried: "repeat 1 true\ncoproc true\ntrue\n\\builtin true\nexec -cla lab true\nwhile false; do sleep 1; done\nuntil true; do sleep 1; done\nrepeat 3 echo hi\n",
+    });
+  });
+
+  it("an assignment sudo, doas, nohup or nice passes on is cut, and a line naming the variable without a value stays", () => {
+    const text = ["sudo -u root GH_TOKEN=x gh auth status", "doas GH_TOKEN=x cmd", "nohup env GH_TOKEN=x cmd &", "nice -n 5 env GH_TOKEN=x cmd", "sudo --preserve-env=GH_TOKEN gh auth status", "sudo printenv GH_TOKEN", ""].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["GH_TOKEN"],
+      carried: "true\ntrue\ntrue &\ntrue\nsudo --preserve-env=GH_TOKEN gh auth status\nsudo printenv GH_TOKEN\n",
+    });
+  });
+
   it("a script with nothing to cut comes back byte for byte", () => {
     const text = "if [ -f ~/.work ]; then\n  export EDITOR=vim\nfi\n\nalias g=git\n";
     expect(stripExports(text, () => undefined, [], true)).toEqual({ names: [], carried: text });
