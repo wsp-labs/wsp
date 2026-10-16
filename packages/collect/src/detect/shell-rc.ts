@@ -26,22 +26,30 @@ export function rcFiles(confD: readonly string[]): string[] {
   return [...RC_PATHS, ...confD.filter(n => n.endsWith(".fish")).map(n => `${FISH_CONF_D}/${n}`)];
 }
 
-const SECRET_WORDS = new Set(["KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD"]);
-/** A part of a name in capitals that ends in one of these is a secret's even glued: `PGPASSWORD`, `GHTOKEN`. */
-const SECRET_END = /(?:APIKEY|TOKEN|SECRET|PASSWORD|PASSWD)$/;
-/** fish's, oh-my-zsh's, pass's and tiktoken's own settings that hold a secret's word: a keyboard's key, a store's path or
- * gpg key ids, a cache folder. pass's are the twelve its man page names, so a name past them is read as any other. */
-const SETTING = /^(?:FISH_KEY_BINDINGS|FISH_SEQUENCE_KEY_DELAY_MS|DISABLE_FZF_KEY_BINDINGS|TIKTOKEN_CACHE_DIR|PASSWORD_STORE_(?:DIR|KEY|SIGNING_KEY|GPG_OPTS|X_SELECTION|CLIP_TIME|UMASK|GENERATED_LENGTH|CHARACTER_SET|CHARACTER_SET_NO_SYMBOLS|ENABLE_EXTENSIONS|EXTENSIONS_DIR))$/;
+const SECRET_WORDS = new Set(["KEY", "APIKEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PASS", "PASSPHRASE"]);
+/** A part of a name in capitals that ends in one of these is a secret's even glued: `PGPASSWORD`, `GHTOKEN`, `BORG_PASSPHRASE`. */
+const SECRET_END = /(?:APIKEY|TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE)$/;
+/** The words /usr/share/dict/words lists ending in PASS less REPASS, a retyped password's usual name, and ssh's, sudo's
+ * and git's ASKPASS, a program's path. */
+const PLAIN_PASS = /^(?:ASK|BY|ANTI|DE|OUT|OVER|SUB|SUR|TO|UN|UNDER|(?:BE|EN|GYRO|OUT|PRE|RE|UN)?COM|(?:COUNTER|NON)?TRES)PASS$/;
+/** A last part after another that means a secret in capitals: `MYSQL_PWD`, `REDISCLI_AUTH`, `GITHUB_PAT`. */
+const SECRET_LAST = new Set(["PWD", "AUTH", "PAT"]);
+/** fish's, oh-my-zsh's, pass's, tiktoken's and Claude Code's own settings that hold a secret's word: a keyboard's key, a
+ * store's path or gpg key ids, a cache folder, a switch that skips a cloud's sign-in. pass's are the twelve its man page
+ * names, so a name past them is read as any other. */
+const SETTING = /^(?:FISH_KEY_BINDINGS|FISH_SEQUENCE_KEY_DELAY_MS|DISABLE_FZF_KEY_BINDINGS|TIKTOKEN_CACHE_DIR|CLAUDE_CODE_SKIP_\w+_AUTH|PASSWORD_STORE_(?:DIR|KEY|SIGNING_KEY|GPG_OPTS|X_SELECTION|CLIP_TIME|UMASK|GENERATED_LENGTH|CHARACTER_SET|CHARACTER_SET_NO_SYMBOLS|ENABLE_EXTENSIONS|EXTENSIONS_DIR))$/;
 
-/** A secret's word alone between underscores, any case; `KEYTIMEOUT` and `HISTKEY` are no key. A glued word or a last
- * `PWD` counts only in capitals, as a program reads `PGPASSWORD` and `MYSQL_PWD`: in shell code `ctoken` is a word of the
- * command line and `old_pwd` a folder. */
+/** A secret's word alone between underscores, any case; `KEYTIMEOUT` and `HISTKEY` are no key. A glued word, a PASS
+ * ending, or a last `PWD`, `AUTH` or `PAT` counts only in capitals, as a program reads `PGPASSWORD`, `SSHPASS` and
+ * `GITHUB_PAT`: in shell code `ctoken` is a word of the command line, `old_pwd` a folder and `_target_opt_pat` a pattern. */
 export function isSecretName(name: string): boolean {
   const upper = name.toUpperCase();
   if (SETTING.test(upper)) return false;
   const parts = upper.split("_").filter(w => w !== "");
   if (parts.some(w => SECRET_WORDS.has(w))) return true;
-  return name === upper && (parts.some(w => SECRET_END.test(w)) || (parts.length > 1 && parts.at(-1) === "PWD"));
+  if (name !== upper) return false;
+  const last = parts.at(-1) ?? "";
+  return parts.some(w => SECRET_END.test(w)) || (last.endsWith("PASS") && !PLAIN_PASS.test(last)) || (parts.length > 1 && SECRET_LAST.has(last));
 }
 
 const NAME = "[A-Za-z_][A-Za-z0-9_]*";
