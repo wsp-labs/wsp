@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { isSecretName, stripExports } from "@wsp/collect";
+import { RC_NAMES, isSecretName, stripExports } from "@wsp/collect";
 import { folderFiles } from "./folder-files.js";
 import { secretIn } from "./token-shapes.js";
 
@@ -89,11 +89,19 @@ const BOX_GIT_CUTS: GitCuts = { sections: GIT_DROPPED_SECTIONS, runs: true, help
  * helper, and a url rewrite, whose section name can carry a token. A config that loses nothing lands as it is. */
 export const CLOUD_GIT_CUTS: GitCuts = { sections: /^(credential|url)$/i, runs: false, helper: "replacing" };
 
+/** Whether a file is one a shell reads as commands; readline's inputrc and tmux, starship and zellij files are not.
+ * `rc` is for a caller that already knows the file is an rc file, which a linked copy's name need not say. */
+export const shellScript = (path: string, rc = false): boolean => {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  if (/^\.?inputrc$/.test(name)) return false;
+  return rc || RC_NAMES.has(name) || /^direnvrc$|\.(?:sh|bash|zsh|zsh-theme|fish)$/.test(name);
+};
+
 /** A shell file with every line that holds a secret cut: the variables that held one, and what a cut line that
- * assigns none held. */
-export const shellCut = (text: string): { names: string[]; held: string[]; carried: string } => {
+ * assigns none held. In a `script`, each cut command leaves a `true`. */
+export const shellCut = (text: string, script: boolean): { names: string[]; held: string[]; carried: string } => {
   const held: string[] = [];
-  return { ...stripExports(text, secretIn, held), held };
+  return { ...stripExports(text, secretIn, held, script), held };
 };
 
 /** A git config with what never travels cut, and on the main file the gh credential helper added; `names` gets each
@@ -179,7 +187,7 @@ export function configTexts(id: ConfigFiles, home: string): ConfigText[] {
     filesUnder(home, path).map(rel => {
       const raw = readFileSync(join(home, rel), "utf8");
       if (id === "shell") {
-        const { names, held, carried } = shellCut(raw);
+        const { names, held, carried } = shellCut(raw, shellScript(rel));
         return { rel, text: carried, cut: [...names, ...held] };
       }
       const cut: string[] = [];
