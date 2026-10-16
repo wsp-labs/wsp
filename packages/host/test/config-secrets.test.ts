@@ -2,15 +2,15 @@
 // A copied shell file or git config lands no value that holds a secret: a login
 // in an address, a signed address's signature or a token's shape, on a box and on
 // an image alike, while a plain remote and a long repository name stay.
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { type SpawnSyncOptionsWithStringEncoding, execFileSync, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import { stripExports, type ManifestEntry } from "@wsp/collect";
 import { importFor } from "../src/init-import.js";
-import { CLOUD_GIT_CUTS, configDigest, configTexts, gitCut } from "../src/recipe-configs.js";
+import { CLOUD_GIT_CUTS, configDigest, configTexts, gitCut, shellScript } from "../src/recipe-configs.js";
 import { placeProvisioner } from "../src/place-provision.js";
 import { FIXTURE } from "./init-fixture.js";
 
@@ -42,6 +42,8 @@ const ZSHRC = [
   PLAIN_ZSH[5],
   "",
 ].join("\n");
+/** ZSHRC as it lands: each command that held a value stands as `true`, the comment that held one is gone. */
+const LANDED_ZSH = [PLAIN_ZSH[0], "true", PLAIN_ZSH[1], "true", "true", PLAIN_ZSH[2], "true", "true", PLAIN_ZSH[3], PLAIN_ZSH[4], PLAIN_ZSH[5], ""].join("\n");
 const ZSH_VARIABLES = ["DATABASE_URL", "MARKET_URL", "BUCKET_URL", "LAB_VALUE"];
 const ZSH_NAMES = [...ZSH_VARIABLES, "X-Goog-Signature", "a login in an address"];
 
@@ -54,6 +56,8 @@ const BASHRC = [
   PLAIN_BASH[1],
   "",
 ].join("\n");
+
+const LANDED_BASH = ["true", PLAIN_BASH[0], "true", "true", PLAIN_BASH[1], ""].join("\n");
 
 const GITCONFIG = [
   "[user]",
@@ -123,8 +127,8 @@ describe("a copied shell file or git config", () => {
     const packed = await imp.files!.pack();
     expect(gunzipSync(packed.tar).includes("plain0")).toBe(false);
     const root = extract(packed.tar);
-    expect(readFileSync(join(root, ".zshrc"), "utf8")).toBe(`${PLAIN_ZSH.join("\n")}\n`);
-    expect(readFileSync(join(root, ".bashrc"), "utf8")).toBe(`${PLAIN_BASH.join("\n")}\n`);
+    expect(readFileSync(join(root, ".zshrc"), "utf8")).toBe(LANDED_ZSH);
+    expect(readFileSync(join(root, ".bashrc"), "utf8")).toBe(LANDED_BASH);
     expect(readFileSync(join(root, ".gitconfig"), "utf8")).toBe([...PLAIN_GIT, "[http]", "[lfs]", "[alias]", "\tst = status", "[lab]", '[remote "azure"]', ""].join("\n"));
     expect(packed.cut).toEqual([
       { path: "~/.bashrc", names: ["DATABASE_URL", "CDN", "SLACK_HOOK"] },
@@ -147,8 +151,8 @@ describe("a copied shell file or git config", () => {
     const packed = await importFor(rows, { home, secrets: new Map(), platform: "darwin", cloud: true }).files!.pack();
     expect(gunzipSync(packed.tar).includes("plain0")).toBe(false);
     const root = extract(packed.tar);
-    expect(readFileSync(join(root, ".config", "fish", "functions", "db.fish"), "utf8")).toBe("function db\nend\n");
-    expect(readFileSync(join(root, ".oh-my-zsh", "custom", "env.zsh"), "utf8")).toBe("export MIRROR=https://github.com/acme/lab\n");
+    expect(readFileSync(join(root, ".config", "fish", "functions", "db.fish"), "utf8")).toBe("function db\n  true\nend\n");
+    expect(readFileSync(join(root, ".oh-my-zsh", "custom", "env.zsh"), "utf8")).toBe("true\nexport MIRROR=https://github.com/acme/lab\n");
     expect(packed.blanked?.map(b => [b.path, b.note])).toEqual([
       ["~/.config/fish/functions/db.fish", "a login in an address blanked or left out; the values stay on this computer"],
       ["~/.oh-my-zsh/custom/env.zsh", "GH_TOKEN blanked or left out; the values stay on this computer"],
@@ -159,8 +163,8 @@ describe("a copied shell file or git config", () => {
     const home = laptop();
     const packed = await importFor(ROWS, { home, secrets: new Map(), platform: "darwin" }).files!.pack();
     const root = extract(packed.tar);
-    expect(readFileSync(join(root, ".zshrc"), "utf8")).toBe(`${PLAIN_ZSH.join("\n")}\n`);
-    expect(readFileSync(join(root, ".bashrc"), "utf8")).toBe(`${PLAIN_BASH.join("\n")}\n`);
+    expect(readFileSync(join(root, ".zshrc"), "utf8")).toBe(LANDED_ZSH);
+    expect(readFileSync(join(root, ".bashrc"), "utf8")).toBe(LANDED_BASH);
     expect(packed.cut).toEqual([
       { path: "~/.bashrc", names: ["DATABASE_URL", "CDN", "SLACK_HOOK"] },
       { path: "~/.zshrc", names: ZSH_VARIABLES },
@@ -174,7 +178,7 @@ describe("a copied shell file or git config", () => {
     const home = laptop();
     const texts = configTexts("shell", home).concat(configTexts("git", home));
     expect(texts.map(t => t.rel)).toEqual([".zshrc", ".gitconfig"]);
-    expect(texts[0]!.text).toBe(`${PLAIN_ZSH.join("\n")}\n`);
+    expect(texts[0]!.text).toBe(LANDED_ZSH);
     expect(texts[1]!.text).toBe([...PLAIN_GIT, "[http]", "[lfs]", "[alias]", "\tst = status", "[lab]", '[remote "azure"]', "[credential]", "\thelper = !gh auth git-credential", ""].join("\n"));
     const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => FIXTURE, brew: async () => new Map() });
     const picks = { name: "laptop", agents: {}, mcp: {}, clis: {}, skills: {}, plugins: {}, folders: {}, configs: { git: {}, shell: {} } };
@@ -207,9 +211,79 @@ describe("a copied shell file or git config", () => {
     writeFileSync(join(home, ".zshrc"), "cat > ~/.pgpass.example <<EOF\npostgres://lab:plain0heredoc@db/app\nhost=db\nEOF\nalias g=git\n");
     expect(configTexts("shell", home)[0]!.text).toBe("cat > ~/.pgpass.example <<EOF\nhost=db\nEOF\nalias g=git\n");
   });
+
+  for (const name of ["bash", "zsh"]) {
+    const shell = (process.env["PATH"] ?? "").split(delimiter).filter(d => d !== "").map(d => join(d, name)).find(p => existsSync(p));
+    it.skipIf(shell === undefined)(`a cut line that was the only line of an if, a function or a loop stands as a no-op, so ${name} reads the landed file and runs past it, on a box and on an image`, async () => {
+      const home = laptop();
+      const blocks = [
+        "if [ -f ~/.work ]; then",
+        "  export DATABASE_URL=postgres://lab:plain0if@db.acme.dev/app",
+        "fi",
+        "db() {",
+        "  export GH_TOKEN=plain0fn",
+        "}",
+        "for f in a b; do",
+        "  export LAB_VALUE=ghp_plain0tokenAbCdEfGh1234567890",
+        "done",
+        'case "$OSTYPE" in',
+        "  darwin*) export HOMEBREW_GITHUB_API_TOKEN=plain0case ;;",
+        "  *) export ON_ANY=1 ;;",
+        "esac",
+        "db",
+        "export AFTER=1",
+        "",
+      ].join("\n");
+      writeFileSync(join(home, ".zshrc"), blocks);
+      writeFileSync(join(home, ".bashrc"), blocks);
+      const landed: [string, string][] = [["a box's ~/.zshrc", configTexts("shell", home)[0]!.text]];
+      for (const cloud of [false, true]) {
+        const root = extract((await importFor(ROWS.slice(0, 2), { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack()).tar);
+        for (const rc of [".zshrc", ".bashrc"]) landed.push([`${cloud ? "a provider's" : "an owned"} image's ~/${rc}`, readFileSync(join(root, rc), "utf8")]);
+      }
+      // An empty home and no stdin: bash on a socket for stdin reads ~/.bashrc first, as if sshd had started it.
+      const bare = mkdtempSync(join(tmpdir(), "wsp-config-secrets-sh-"));
+      dirs.push(bare);
+      const read = landed.map(([where, text]) => {
+        const file = join(bare, "landed.sh");
+        writeFileSync(file, text);
+        const opts: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { PATH: process.env["PATH"], HOME: bare } };
+        const parse = spawnSync(shell!, ["-n", file], opts);
+        const run = spawnSync(shell!, ["-c", '. "$1"; printf %s "$AFTER"', name, file], opts);
+        return [where, text.includes("plain0"), parse.status, run.stdout];
+      });
+      expect(read).toEqual(landed.map(([where]) => [where, false, 0, "1"]));
+    });
+  }
+
+  it("a shell row's file that is no script loses a cut line with nothing in its place, on a box and on a provider's image", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".config"));
+    writeFileSync(join(home, ".config", "starship.toml"), '[custom.db]\ncommand = "psql postgres://lab:plain0toml@db.acme.dev/app"\nwhen = true\n');
+    writeFileSync(join(home, ".tmux.conf"), 'set -g mouse on\nset -g @db "postgres://lab:plain0tmux@db.acme.dev/app"\n');
+    const rows = [row({ rung: "shell", id: "shell/starship", paths: ["~/.config/starship.toml"] }), row({ rung: "shell", id: "shell/tmux", paths: ["~/.tmux.conf"] })];
+    const root = extract((await importFor(rows, { home, secrets: new Map(), platform: "darwin", cloud: true }).files!.pack()).tar);
+    const image = Object.fromEntries([".config/starship.toml", ".tmux.conf"].map(rel => [rel, readFileSync(join(root, rel), "utf8")]));
+    for (const landed of [Object.fromEntries(configTexts("shell", home).map(t => [t.rel, t.text])), image]) {
+      expect(landed[".config/starship.toml"]).toBe("[custom.db]\nwhen = true\n");
+      expect(landed[".tmux.conf"]).toBe("set -g mouse on\n");
+    }
+    expect([".inputrc", "dotfiles/inputrc"].map(p => shellScript(p, true))).toEqual([false, false]);
+    expect(["dotfiles/zshenv", ".zprofile", ".oh-my-zsh/custom/themes/lab.zsh-theme", ".config/direnv/direnvrc", ".config/direnv/direnv.toml", ".zsh_plugins.txt"].map(p => shellScript(p))).toEqual([false, true, true, true, false, false]);
+    expect(shellScript("dotfiles/zshenv", true)).toBe(true);
+  });
 });
 
 describe("an image or a box that already carries such a value", () => {
+  it("an inputrc row digests the cut the pack lands, which leaves no true", () => {
+    const home = laptop();
+    writeFileSync(join(home, ".inputrc"), '"\\C-xg": "git clone https://lab:plain0rl@github.com/acme/x"\nset editing-mode vi\n');
+    chmodSync(join(home, ".inputrc"), 0o644);
+    const files = importFor([row({ rung: "shell", id: "shell/inputrc", paths: ["~/.inputrc"] })], { home, secrets: new Map(), platform: "darwin" }).recipe!.files;
+    // Main's digest for this file: the pack lands the same bytes on main and here.
+    expect(files[0]!.digest).toBe("bcba343886145fbdadbd4891afd1b91157b6d5cc6779c69864e6e6fbf3ae4179");
+  });
+
   it("reads changed on a box: the config's digest moves off the one the names-only cut gave", () => {
     const home = laptop();
     const before = configDigest([{ rel: ".zshrc", text: stripExports(ZSHRC).carried, cut: [] }]);
@@ -220,6 +294,8 @@ describe("an image or a box that already carries such a value", () => {
     const home = laptop();
     writeFileSync(join(home, ".zprofile"), "export EDITOR=vim\nexport GH_TOKEN=plain0named\n");
     chmodSync(join(home, ".zprofile"), 0o644);
+    writeFileSync(join(home, ".zlogin"), "if [ -f ~/.work ]; then\n  export EDITOR=vim\nfi\n");
+    chmodSync(join(home, ".zlogin"), 0o644);
     mkdirSync(join(home, ".config", "fish", "functions"), { recursive: true });
     writeFileSync(join(home, ".config", "fish", "functions", "db.fish"), "function db\n  psql postgres://lab:plain0fish@db.acme.dev/app\nend\n");
     chmodSync(join(home, ".config"), 0o755);
@@ -235,17 +311,18 @@ describe("an image or a box that already carries such a value", () => {
     const rows = [
       ...ROWS,
       row({ rung: "shell", id: "shell/zprofile", paths: ["~/.zprofile"] }),
+      row({ rung: "shell", id: "shell/zlogin", paths: ["~/.zlogin"] }),
       row({ rung: "shell", id: "shell/fish", paths: ["~/.config/fish"] }),
       row({ rung: "shell", id: "shell/dotfiles", paths: ["~/dotfiles"] }),
     ];
     const digests = (cloud: boolean): Record<string, string | undefined> => {
       const files = importFor(rows, { home, secrets: new Map(), platform: "darwin", cloud }).recipe!.files;
-      return Object.fromEntries([".zshrc", ".zprofile", ".config/fish", "dotfiles"].map(dest => [dest, files.find(f => f.dest === dest)?.digest]));
+      return Object.fromEntries([".zshrc", ".zprofile", ".zlogin", ".config/fish", "dotfiles"].map(dest => [dest, files.find(f => f.dest === dest)?.digest]));
     };
     // Each digest as main's cut read it: a value cut since moves it, a file whose cut is unchanged keeps it.
     const main = {
-      owned: { ".zshrc": "2cf364a38f65d3bd550a6ecd3eb20a28de7fe071ff8130ba39b56c910e867ca1", ".zprofile": "1790b8d4b3f92655798cfc1bb8c449bf0375c8551c344890da3312578e9367db", ".config/fish": "9f377f40cb6cdc97d5c1f206cd7f78a848214e5ec3e27d90a9d8dc921ebf740f", dotfiles: "b535bbf9d58fb2666aa618ec9edc109d9690a98fb7943297409153e996e68af8" },
-      cloud: { ".zshrc": "83be9c0cd7ac363af2118d8f2684ec139348334ddec7926dfc1b48a65da7d9e7", ".zprofile": "1790b8d4b3f92655798cfc1bb8c449bf0375c8551c344890da3312578e9367db", ".config/fish": "9f377f40cb6cdc97d5c1f206cd7f78a848214e5ec3e27d90a9d8dc921ebf740f", dotfiles: "b535bbf9d58fb2666aa618ec9edc109d9690a98fb7943297409153e996e68af8" },
+      owned: { ".zshrc": "2cf364a38f65d3bd550a6ecd3eb20a28de7fe071ff8130ba39b56c910e867ca1", ".zprofile": "1790b8d4b3f92655798cfc1bb8c449bf0375c8551c344890da3312578e9367db", ".zlogin": "d6cb968c060d366b13aba61d7b684638cc44ff5e6ee02be22785cf9ed4dedf8e", ".config/fish": "9f377f40cb6cdc97d5c1f206cd7f78a848214e5ec3e27d90a9d8dc921ebf740f", dotfiles: "b535bbf9d58fb2666aa618ec9edc109d9690a98fb7943297409153e996e68af8" },
+      cloud: { ".zshrc": "83be9c0cd7ac363af2118d8f2684ec139348334ddec7926dfc1b48a65da7d9e7", ".zprofile": "1790b8d4b3f92655798cfc1bb8c449bf0375c8551c344890da3312578e9367db", ".zlogin": "d6cb968c060d366b13aba61d7b684638cc44ff5e6ee02be22785cf9ed4dedf8e", ".config/fish": "9f377f40cb6cdc97d5c1f206cd7f78a848214e5ec3e27d90a9d8dc921ebf740f", dotfiles: "b535bbf9d58fb2666aa618ec9edc109d9690a98fb7943297409153e996e68af8" },
     };
     const now = { owned: digests(false), cloud: digests(true) };
     expect(now.owned[".zshrc"]).not.toBe(main.owned[".zshrc"]);
@@ -253,8 +330,12 @@ describe("an image or a box that already carries such a value", () => {
     expect(now.cloud[".config/fish"]).not.toBe(main.cloud[".config/fish"]);
     expect(now.owned.dotfiles).not.toBe(main.owned.dotfiles);
     expect(now.cloud.dotfiles).not.toBe(main.cloud.dotfiles);
-    expect(now.owned[".zprofile"]).toBe(main.owned[".zprofile"]);
-    expect(now.cloud[".zprofile"]).toBe(main.cloud[".zprofile"]);
+    // A cut export now lands as `true`, so an image whose cut left a block empty reads changed.
+    expect(now.owned[".zprofile"]).not.toBe(main.owned[".zprofile"]);
+    expect(now.cloud[".zprofile"]).not.toBe(main.cloud[".zprofile"]);
+    expect(now.owned[".zlogin"]).toBe(main.owned[".zlogin"]);
+    expect(now.cloud[".zlogin"]).toBe(main.cloud[".zlogin"]);
+    expect(configTexts("shell", home).find(t => t.rel === ".zlogin")?.text).toBe(readFileSync(join(home, ".zlogin"), "utf8"));
     // A computer the person owns keeps a fish function's values, as it did.
     expect(now.owned[".config/fish"]).toBe(main.owned[".config/fish"]);
   });
