@@ -14,6 +14,9 @@ import { codexLaunch, codexWord, slug, type CodexBroker } from "./command.js";
 
 const PROMPT_END = "WSP_PROMPT_END";
 
+/** Sets $d to the highest-versioned state db in CODEX_HOME, empty where it holds none. */
+export const NEWEST_STATE_DB = `d=$(ls -1 state_*.sqlite 2>/dev/null | sort -t_ -k2,2n | tail -n 1)`;
+
 /**
  * One shell line for the guest: the thread's row as JSON, out of the highest-versioned state db (the file name
  * carries the schema version, so a codex upgrade moves it). The names are sorted inside CODEX_HOME on the number
@@ -27,7 +30,7 @@ export function sessionTitleCommand(options: { home: string; threadId: string })
   return (
     `command -v sqlite3 > /dev/null 2>&1 || exit 0; ` +
     `cd ${shellQuote(options.home)} 2>/dev/null || exit 0; ` +
-    `d=$(ls -1 state_*.sqlite 2>/dev/null | sort -t_ -k2,2n | tail -n 1); [ -n "$d" ] || exit 0; ` +
+    `${NEWEST_STATE_DB}; [ -n "$d" ] || exit 0; ` +
     `sqlite3 -readonly "$d" ${shellQuote(query)} 2>/dev/null; true`
   );
 }
