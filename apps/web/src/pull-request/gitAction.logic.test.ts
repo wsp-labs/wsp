@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { Checkout, PullRequestSeen } from "@wsp/protocol";
 import { describe, expect, it } from "vitest";
-import { gitMenu, gitQuickAction } from "./gitAction.logic";
+import { awayLine, gitMenu, gitQuickAction } from "./gitAction.logic";
 
 const checkout = (over: Partial<Checkout> = {}): Checkout => ({ branch: "fix/cart", ahead: 0, behind: 0, changed: 0, readAt: 1, ...over });
 const open: PullRequestSeen = { number: 42, url: "https://github.com/o/r/pull/42", state: "open", draft: false, base: "main", mergeable: "mergeable", review: "none", checks: [], readAt: 1 } as unknown as PullRequestSeen;
@@ -69,5 +69,22 @@ describe("the git button's menu", () => {
     ]);
     expect(gitMenu({ checkout: checkout(), pr: undefined, base: "main", opensPr: true, busy: false }).at(-1)).toEqual({ id: "pr", label: "Create PR", act: "create-pr", disabled: false });
     expect(gitMenu({ checkout: checkout({ changed: 1 }), pr: undefined, base: "main", opensPr: false, busy: false }).map(item => item.id)).toEqual(["commit", "push"]);
+  });
+
+  it("holds every act but View PR while the machine is away, in the sentence that says how to bring it back", () => {
+    const away = awayLine("paused");
+    expect(away).toBe("Workspace is paused; wake it to push");
+    expect(awayLine("waking")).toBe("Workspace is waking; git actions open when it is running");
+    expect(awayLine("running")).toBeUndefined();
+    expect(awayLine("unreachable")).toBe("Workspace is unreachable; git actions open when the machine answers");
+    expect(awayLine("gone")).toMatch(/; rebuild it to push, /);
+    expect(awayLine("released")).toMatch(/, so there is none to push on$/);
+    expect(at({ checkout: checkout({ ahead: 2 }), away })).toEqual({ label: "Push and create PR", act: null, hint: away, holds: "create-pr" });
+    expect(at({ pr: open, away })).toEqual({ label: "View PR", act: "view-pr" });
+    expect(gitMenu({ checkout: checkout({ changed: 1, ahead: 1 }), pr: open, base: "main", opensPr: true, busy: false, away })).toEqual([
+      { id: "commit", label: "Commit", act: "changes", disabled: true },
+      { id: "push", label: "Push", act: "push", disabled: true },
+      { id: "pr", label: "View PR", act: "view-pr", disabled: false },
+    ]);
   });
 });
