@@ -318,16 +318,52 @@ describe("shell rc exports", () => {
   });
 
   it("an export that is not the first word of the line is found and the whole line cut", () => {
-    const shapes = ['[ -z "$X" ] && export FOO_TOKEN=lit', "if true; then export BAR_KEY=lit; fi", "cd /tmp && export BAZ_SECRET=lit", "env QUX_TOKEN=lit somecommand", "{ export A_KEY=lit; }", "alias x='y'; export E_TOKEN=lit"];
-    const names = ["FOO_TOKEN", "BAR_KEY", "BAZ_SECRET", "QUX_TOKEN", "A_KEY", "E_TOKEN"];
+    const shapes = ['[ -z "$X" ] && export FOO_TOKEN=lit', "if true; then export BAR_KEY=lit; fi", "cd /tmp && export BAZ_SECRET=lit", "env QUX_TOKEN=lit somecommand", "{ export A_KEY=lit; }", "alias x='y'; export E_TOKEN=lit", "LAB=1 H_TOKEN=lit cmd"];
+    const names = ["FOO_TOKEN", "BAR_KEY", "BAZ_SECRET", "QUX_TOKEN", "A_KEY", "E_TOKEN", "H_TOKEN"];
     for (const [i, line] of shapes.entries()) {
       expect(stripExports(`${line}\nnext\n`), line).toEqual({ names: [names[i]], carried: "next\n" });
     }
     expect(stripExports("exec env J_TOKEN=lit cmd\nnext\n")).toEqual({ names: ["J_TOKEN"], carried: "next\n" });
     expect(stripExports("eval 'export I_TOKEN=lit'\nnext\n")).toEqual({ names: ["I_TOKEN"], carried: "next\n" });
     expect(stripExports('eval "cd /tmp; export K_SECRET=lit"\ncommand export L_KEY=lit\nbuiltin export M_TOKEN=lit\nnext\n')).toEqual({ names: ["K_SECRET", "L_KEY", "M_TOKEN"], carried: "next\n" });
-    expect(stripExports("alias x=';export FAKE_TOKEN=1'\nnext\n")).toEqual({ names: [], carried: "alias x=';export FAKE_TOKEN=1'\nnext\n" });
     expect(stripExports("echo \"a && export NOT_TOKEN=1\"\n").names).toEqual([]);
+  });
+
+  it("an alias or abbr body is shell again, so a secret it assigns is cut like a bare one, and a body that only names one stays", () => {
+    const text = [
+      "alias gh='GH_TOKEN=lit gh'",
+      'alias gl="GITLAB_TOKEN=lit glab"',
+      "alias x=';export FAKE_TOKEN=1'",
+      "alias -g DBP='DB_PASSWORD=lit' a1='A1_TOKEN=lit'",
+      "\\alias bs='env BS_TOKEN=lit gh'",
+      "alias -- dd='DD_TOKEN=lit gh'",
+      "alias fa 'FA_TOKEN=lit gh'",
+      "alias fs 'set -lx FS_TOKEN lit; gh'",
+      "abbr -a ab 'AB_TOKEN=lit gh'",
+      "abbr --add aw AW_TOKEN=lit gh",
+      "abbr ap --position anywhere -- 'AP_TOKEN=lit'",
+      "abbr -a -r '^g.+' ar 'AR_TOKEN=lit'",
+      "abbr -ac git ac 'AC_TOKEN=lit'",
+      "alias lp='LAB=1 LP_TOKEN=lit gh'",
+      "if x; then alias in='IN_TOKEN=lit gh'; fi",
+      "alias tok='printenv GH_TOKEN'",
+      "alias ft 'printenv GH_TOKEN'",
+      "abbr -a fe 'echo $GH_TOKEN'",
+      "alias g=git",
+      "",
+    ].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["GH_TOKEN", "GITLAB_TOKEN", "FAKE_TOKEN", "DB_PASSWORD", "A1_TOKEN", "BS_TOKEN", "DD_TOKEN", "FA_TOKEN", "FS_TOKEN", "AB_TOKEN", "AW_TOKEN", "AP_TOKEN", "AR_TOKEN", "AC_TOKEN", "LP_TOKEN", "IN_TOKEN"],
+      carried: [...Array<string>(14).fill("true"), "if x; then true; fi", "alias tok='printenv GH_TOKEN'", "alias ft 'printenv GH_TOKEN'", "abbr -a fe 'echo $GH_TOKEN'", "alias g=git", ""].join("\n"),
+    });
+  });
+
+  it("a quoted builtin, set or variable name is read as the bare one, a case pattern's too", () => {
+    const text = ['"export" A_TOKEN=lit', "ex'port' B_TOKEN=lit", 'export "C_TOKEN=lit"', 'export "D_TOKEN"=lit', "'typeset' -x E_TOKEN=lit", 'set -gx "F_TOKEN" lit', "\"set\" -gx G_TOKEN lit", "set -gx 'PLAIN' 1", 'export "PATH=$HOME/bin:$PATH"', "case $x in", '  "I_KEY="*) echo has ;;', "esac", ""].join("\n");
+    expect(stripExports(text, undefined, [], true)).toEqual({
+      names: ["A_TOKEN", "B_TOKEN", "C_TOKEN", "D_TOKEN", "E_TOKEN", "F_TOKEN", "G_TOKEN", "I_KEY"],
+      carried: ["true", "true", "true", "true", "true", "true", "true", "set -gx 'PLAIN' 1", 'export "PATH=$HOME/bin:$PATH"', "case $x in", "  true) echo has ;;", "esac", ""].join("\n"),
+    });
   });
 
   it("ANSI-C quoting on a cut line closes at its own quote", () => {
