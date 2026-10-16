@@ -220,6 +220,36 @@ describe("every other Codex launch on a brokered machine", () => {
     }
   });
 
+  it("a revert or a fork's turn lookup reads no login, not even the one the last turn left, and runs no plugin sync", async () => {
+    // Neither asks a model, and the runtime hands a revert no turn token, so on the last turn's dead login codex's
+    // startup calls reached the door with no thread.
+    const sideRuns: ((adapter: ReturnType<typeof createCodexAdapter>) => Promise<unknown>)[] = [
+      adapter => adapter.revert!({ session: "t1", beforeTurn: "turn-1" }),
+      adapter => adapter.forkSession!({ session: "t1", turn: { anchor: "turn-1" } }),
+    ];
+    for (const [broker, env] of [[CHATGPT, {}], [CHATGPT, { [HOST_TOKEN_ENV]: TOKEN }], [{ mode: "apikey" }, {}]] as const) {
+      for (const sideRun of sideRuns) {
+        const { dir, program } = standIn();
+        let command = "";
+        const exec = ((line: string) => {
+          command = line;
+          throw new Error("no server here");
+        }) as never;
+        await sideRun(createCodexAdapter({ exec, home: join(dir, "home"), login: "codex login", broker, baseEnv: env, launch: { program } })).catch(() => undefined);
+        mkdirSync(join(dir, "home"));
+        writeFileSync(join(dir, "home", "auth.json"), "last turn's");
+        expect(run(dir, command, broker, env)).toBe(0);
+        const args = argsOf(dir);
+        expect(args).toContain("app-server");
+        expect(args).toContain('cli_auth_credentials_store="ephemeral"');
+        expect(args).not.toContain('cli_auth_credentials_store="file"');
+        expect(args).toContain("features.plugins=false");
+        expect(readFileSync(join(dir, "home", "auth.json"), "utf8")).toBe("last turn's");
+        expect(envOf(dir)[KEY_FILE_ENV]).toBeUndefined();
+      }
+    }
+  });
+
   it("a brokered probe asks nothing of the sign-in, which the host holds", () => {
     expect(catalogProbeCommand({ broker: CHATGPT })).not.toContain("account/read");
     expect(catalogProbeCommand()).toContain("account/read");
