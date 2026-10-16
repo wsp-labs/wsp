@@ -67,11 +67,14 @@ export async function buildBesideHost(o: BesideOptions): Promise<number> {
   const asking = new Map<string, { stop: AbortController; done: Promise<void> }>();
   let view: InitJob | undefined;
   const waiting = new Set<() => void>();
-  let printed = 0;
+  const printed = { update: 0, builders: 0 };
 
   const draw = (job: InitJob): void => {
-    for (const said of (job.update ?? []).slice(printed)) log[said.level](said.line, out);
-    printed = Math.max(printed, job.update?.length ?? 0);
+    // The update road runs before any earlier builder is stopped or attached to, so this order is the run's own.
+    for (const field of ["update", "builders"] as const) {
+      for (const said of (job[field] ?? []).slice(printed[field])) log[said.level](said.line, out);
+      printed[field] = Math.max(printed[field], job[field]?.length ?? 0);
+    }
     for (const row of job.rows) {
       if (row.kind === "fact") continue;
       if (seen.get(row.id) === row.state) continue;
