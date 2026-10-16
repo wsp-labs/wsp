@@ -32,6 +32,15 @@ const HEADLESS_OVERRIDES = {
   CLAUDE_CODE_MCP_STARTUP_WAIT_MS: "0",
 } as const;
 
+/** How long the CLI waits for a reply to a model call to start before it gives up and tries again, which is when it
+ * reports the retry. Unset, a call taken and never answered was retried at 180 s on the Anthropic API (2.1.301); at
+ * 30 s it is retried at 30 s plus a second per 32 KB of the request, and that one retry waits API_TIMEOUT_MS, so a
+ * reply slow to start costs a retry, never the reply. The API sends no header before the first token: 8.9 s for a
+ * 150k-token prompt on Opus 5.5, 2026-10-16. The CLI keeps this wait off a base URL that is not Anthropic's, where
+ * the host's own wait stands for a brokered launch. */
+export const FIRST_BYTE_ENV = "CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS";
+const FIRST_BYTE_MS = "30000";
+
 /** The variable that tells the CLI which folder under its projects directory to keep this run's sessions and its
  * auto memory in. Set after the strip, never through `base`: the strip drops every inherited CLAUDE_CODE_* as a
  * nesting mark, and this one is ours. */
@@ -137,6 +146,7 @@ export function buildEnv(options: ClaudeEnvOptions = {}): Record<string, string>
     };
   }
   return {
+    [FIRST_BYTE_ENV]: FIRST_BYTE_MS,
     ...base,
     ...HEADLESS_OVERRIDES,
     ...(vaulted(options) ? {} : inheritedSignIn(options.base ?? {})),

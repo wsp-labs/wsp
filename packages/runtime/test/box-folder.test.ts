@@ -364,6 +364,11 @@ describe("the MCP servers a thread on a computer you joined starts", () => {
     expect(inputOf(launch.stdin)["CLAUDE_CODE_MCP_STARTUP_WAIT_MS"]).toBe("0");
   });
 
+  it("launches Claude Code there to give up on a model call no reply has started for in 30 s, so its retry shows", async () => {
+    const { launch } = await launchOn("claude", {}, { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-fake" });
+    expect(inputOf(launch.stdin)["CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS"]).toBe("30000");
+  });
+
   it("hands Codex each server's value in its thread's start, the seed landed off the launch's input, every key of the entry its own", async () => {
     const user = ['[mcp_servers.notion]', 'command = "npx"', 'env_vars = ["NOTION_TOKEN"]', 'disabled_tools = ["delete_page"]', ""].join("\n");
     const { launch, seen } = await launchOn("codex", { "/root/.codex/config.toml": user }, { NOTION_TOKEN: "ntn_TESTONLY", OPENAI_API_KEY: "sk-openai-fake" });
