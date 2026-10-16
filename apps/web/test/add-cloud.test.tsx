@@ -200,6 +200,29 @@ describe("Add pressed while a setup stands", () => {
     expect(fake.asked.filter(a => a.op === "start")).toEqual([]);
   });
 
+  it("opens a stage that ran or runs on a click to the machine's last lines, as a computer's setup does, and a waiting stage not at all", async () => {
+    const fake = host();
+    const rows = [
+      { id: "boot", kind: "stage" as const, label: "Creating the machine", state: "done", ms: 4200, lines: ["machine bx_1 is up"] },
+      { id: "base", kind: "stage" as const, label: "Installing the base tools", state: "running", lines: ["Setting up git (1:2.43.0)", "Setting up curl (8.5.0)"] },
+      { id: "agents", kind: "stage" as const, label: "Installing agents", state: "waiting" },
+      { id: "signin/claude", kind: "sign-in" as const, tool: "claude", label: "Claude Code", state: "done" },
+    ];
+    useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "building", rows }) });
+    await openFromComputers(fake.api);
+    expect(stepOf()).toBe("building");
+    const toggle = (id: string) => document.querySelector(`[data-step-row='${id}'] [data-k=step-toggle]`);
+    expect(toggle("agents")).toBeNull();
+    expect(toggle("stage/sign-ins")).toBeNull();
+    expect(document.querySelector("[data-k=step-log]")).toBeNull();
+    fireEvent.click(toggle("base")!);
+    await settle();
+    expect(document.querySelector("[data-step-row='base'] [data-k=step-log]")?.textContent).toBe("Setting up git (1:2.43.0)\nSetting up curl (8.5.0)");
+    fireEvent.click(toggle("base")!);
+    await settle();
+    expect(document.querySelector("[data-k=step-log]")).toBeNull();
+  });
+
   it("opens the picks where the host stands while they are being made, and never on another computer's setup", () => {
     useStore.setState({ initJob: jobOf({ step: 1 }) });
     openCloudAdd("box");
