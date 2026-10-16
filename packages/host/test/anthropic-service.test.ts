@@ -161,6 +161,15 @@ describe("the Anthropic service passes Claude Code's calls through with only the
     expect(seen.filter(([name]) => ["authorization", "x-api-key", "x-litellm-api-key"].includes(name.toLowerCase()))).toEqual([["x-litellm-api-key", "sk-for-test"]]);
   });
 
+  it("stops a gateway call whose custom header name the reader refused, naming the header, and calls no gateway", async () => {
+    const up = await upstream({ status: 200, headers: [], chunks: [] });
+    const got = await send(await door(up.url, { kind: "gateway", url: up.url, token: "gateway-for-test", headers: { "x team": "lab" }, invalidHeader: 'header "x team"' }), RECORDED.oauth);
+    expect(got.status).toBe(403);
+    expect(pairs(got.rawHeaders)).toContainEqual(["x-should-retry", "false"]);
+    expect(JSON.parse(got.body.toString()).error.message).toBe(`wsp: header "x team" in ANTHROPIC_CUSTOM_HEADERS on ${COMPUTER} has a name HTTP does not allow, so your gateway was not called. Fix that line there, which Claude Code refuses too.`);
+    expect(up.seen).toEqual([]);
+  });
+
   it("passes a compressed body as the upstream's bytes, never decoded", async () => {
     const models = gzipSync(JSON.stringify({ data: [{ id: "claude-opus-5-5", type: "model" }] }));
     const up = await upstream({ status: 200, headers: ["Content-Type", "application/json", "Content-Encoding", "gzip", "Content-Length", String(models.length)], chunks: [models] });
