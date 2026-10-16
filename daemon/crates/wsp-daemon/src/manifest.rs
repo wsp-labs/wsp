@@ -34,6 +34,10 @@ pub(crate) struct ProcessManifest {
     log_dir: String,
 }
 
+/// The most of the manifest read: one entry per command a person started, and the file sits in a home local threads
+/// write, so a link, a fifo or a file past this there loads as no manifest at all.
+const MANIFEST_READ_MAX_BYTES: u64 = 16 << 20;
+
 fn key_of(cwd: &str, cmd: &str) -> String {
     format!("{cwd} {cmd}")
 }
@@ -50,9 +54,9 @@ impl ProcessManifest {
             log_dir: log_dir.map_or_else(|| numbers::DEFAULT_LOG_DIR.to_owned(), |p| p.to_string_lossy().into_owned()),
         };
         let Some(path) = manifest.path.clone() else { return Ok(manifest) };
-        let raw = match fs::read_to_string(&path) {
-            Ok(raw) => raw,
-            Err(_) => return Ok(manifest),
+        let raw = match crate::beneath::read_capped(&path, MANIFEST_READ_MAX_BYTES).map(|bytes| bytes.map(String::from_utf8)) {
+            Ok(Some(Ok(raw))) => raw,
+            _ => return Ok(manifest),
         };
         let saved: Saved = serde_json::from_str(&raw).map_err(|e| io::Error::other(format!("{}: {e}", path.display())))?;
         manifest.next_id = saved.next_id;
@@ -258,5 +262,33 @@ mod tests {
         let _ = nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), nix::sys::signal::Signal::SIGKILL);
         assert_eq!(lines.trim().lines().count(), 1, "{lines}");
         assert!(alive, "the survivor is alive");
+    }
+
+    /// How many entries a load of the planted manifest found inside a second; Err where it was still loading then.
+    fn load_planted(plant: impl FnOnce(&Path)) -> Result<Option<usize>, std::sync::mpsc::RecvTimeoutError> {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("manifest.json");
+        plant(&path);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let at = path.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(ProcessManifest::load(Some(at), None, None).map(|m| m.entries().len()).ok());
+        });
+        let loaded = rx.recv_timeout(std::time::Duration::from_secs(1));
+        // A read still waiting on a fifo's open is let go by a writer that opens it and closes it at once.
+        let _freed = nix::fcntl::open(&path, nix::fcntl::OFlag::O_WRONLY | nix::fcntl::OFlag::O_NONBLOCK, nix::sys::stat::Mode::empty());
+        loaded
+    }
+
+    #[test]
+    fn a_fifo_at_the_manifest_loads_empty_at_once() {
+        let loaded = load_planted(|at| nix::unistd::mkfifo(at, nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap());
+        assert_eq!(loaded.expect("the load is still waiting on a fifo at the manifest after 1s"), Some(0));
+    }
+
+    #[test]
+    fn a_link_to_dev_zero_at_the_manifest_loads_empty_at_once() {
+        let loaded = load_planted(|at| std::os::unix::fs::symlink("/dev/zero", at).unwrap());
+        assert_eq!(loaded.expect("the load is still reading a link to /dev/zero at the manifest after 1s"), Some(0));
     }
 }
