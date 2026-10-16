@@ -6,11 +6,11 @@ import type { PluginBrings, PluginMissing, PluginScope } from "@wsp/protocol";
 
 /** Files and folders under each of some roots, asked of a computer in one round trip: each file's text, and each
  * folder's names to `depth` levels down (`name`, then `name/inner`), as paths relative to that folder. The roots are
- * named, or read on the computer off a JSON file there: every plain string value of `key` in it, so a read that needs
- * a file's paths first asks no second round trip. */
+ * named, or read on the computer off JSON files there: every plain string value of `key` in them, each once, so a read
+ * that needs a file's paths first asks no second round trip. */
 export interface PeekGroup {
   roots?: readonly string[];
-  rootsFrom?: { file: string; key: string };
+  rootsFrom?: { files: readonly string[]; key: string };
   files?: readonly string[];
   dirs?: readonly { path: string; depth: 1 | 2 }[];
 }
@@ -33,6 +33,8 @@ export interface PluginIo {
   readonly home: string;
   /** The folder the agent's store variable names there, where wsp points it somewhere of its own. */
   readonly store?: string;
+  /** What the agent's plugin seed variable holds for a thread there: folders of plugins an image built, `:` between. */
+  readonly seed?: string;
   /** Nothing where the computer did not answer. */
   peek(groups: readonly PeekGroup[]): Promise<Peeked | undefined>;
   /** The line's stdout where it exits 0; nothing where it fails or could not run. */
