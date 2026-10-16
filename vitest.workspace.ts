@@ -46,6 +46,7 @@ export default [
       // A budget, not a retry, as apps/web's: a case that starts a git, a node or a stub waits on the scheduler, and a
       // gate at a load near 30 stretched cases of 1.4 s idle past vitest's 5 s default.
       testTimeout: 20_000,
+      setupFiles: [here("./vitest.stall-note.ts")],
     },
   },
   {
@@ -84,6 +85,7 @@ export default [
       environment: "node",
       env: { XDG_CONFIG_HOME: join(RUN_TMPDIR, "wsp-test-config"), ...TEST_ENV, [CLOUD_ENV]: "1" },
       testTimeout: 20_000,
+      setupFiles: [here("./vitest.stall-note.ts")],
     },
   },
   here("./apps/web/vite.config.ts"),
