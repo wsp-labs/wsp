@@ -183,14 +183,14 @@ function PickStep({ screen, ticks, onTicks, here }: { screen: InitScreen; ticks:
       onSet={set}
       row={({ item, on }, tick) => {
         const signsIn = screen.id === "tools" && (catalogEntry(item.id)?.signIn.kind ?? "none") !== "none";
-        const note = agentNote(item.id) ?? (signsIn ? "Installed signed out." : screen.id === "tools" ? undefined : item.why);
+        const note = agentNote(item.id) ?? (item.lock === "on" ? CLOUD_SETUP_WORDS.screen.alwaysOn : signsIn ? "Installed signed out." : screen.id === "tools" ? undefined : item.why);
         const tag = screen.id === "tools" ? item.why : undefined;
         return (
           <PickRow
             key={item.id}
             id={item.id}
             checked={on}
-            {...(item.lock === undefined ? { onCheckedChange: tick } : {})}
+            {...(item.lock === undefined ? { onCheckedChange: tick } : { locked: true })}
             hover={item.detail.length > 0 ? item.detail.join("\n") : RANGE_HOVER}
             glyph={hasRowMark(item.mark ?? item.id) ? <RowMark id={item.mark ?? item.id} /> : <TerminalIcon aria-hidden className={GLYPH} />}
             name={item.label}
