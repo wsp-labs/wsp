@@ -193,7 +193,7 @@ describe("a provider as a place", () => {
 
   describe.skipIf(CLOUD_ON)("Boat with the cloud off", () => {
     // Boat's own answer to a key it does not know, empty or wrong alike, as GET /limits replied on 2026-10-12.
-    const UNAUTHORIZED = { ok: false, type: "box.error", status: 401, code: "unauthorized", message: "unauthorized", error: { code: "unauthorized", message: "unauthorized", status: 401 } };
+    const UNAUTHORIZED = { ok: false, type: "sandbox.error", status: 401, code: "unauthorized", message: "unauthorized", error: { code: "unauthorized", message: "unauthorized", status: 401 } };
     const boatTaking = (good: string): string[] => {
       const asked: string[] = [];
       vi.stubGlobal("fetch", async (url: string, init: { headers: Record<string, string> }) => {
@@ -213,7 +213,7 @@ describe("a provider as a place", () => {
       const asked = boatTaking("bx_good");
       const io = captured();
       await expect(addCommand(io, opts(home, { BOAT_API_KEY: "bx_plainly_wrong_key" }), ["box"], {}, checking)).rejects.toMatchObject({ kind: "auth", message: expect.stringContaining("401 unauthorized") });
-      expect(asked.map(u => new URL(u).pathname)).toContain("/api/box/v1/limits");
+      expect(asked.map(u => new URL(u).pathname)).toContain("/api/v1/limits");
       expect(io.lines).toEqual([]);
       expect(existsSync(join(home, ".env"))).toBe(false);
     });

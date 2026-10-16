@@ -590,8 +590,8 @@ describe("the key a run is asked for is the one its own provider reads", () => {
     expect(called).toEqual([
       { url: `${BOX_API_URL}/me`, auth: "Bearer box_fake_key" },
       { url: `${BOX_API_URL}/limits`, auth: "Bearer box_fake_key" },
-      { url: `${BOX_API_URL}/boxes?limit=1`, auth: "Bearer box_fake_key" },
-      { url: `${BOX_API_URL}/boxes/bx_wspkeycheck0000000000/resume`, auth: "Bearer box_fake_key" },
+      { url: `${BOX_API_URL}/sandboxes?limit=1`, auth: "Bearer box_fake_key" },
+      { url: `${BOX_API_URL}/sandboxes/bx_wspkeycheck0000000000/resume`, auth: "Bearer box_fake_key" },
       { url: `${BOX_API_URL}/api-keys`, auth: "Bearer box_fake_key" },
       { url: "https://api.getsolari.com/templates", auth: "Bearer slr_live_fake_key" },
     ]);

@@ -27,9 +27,9 @@ describe("a provider that never answers a read", () => {
     const box = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, budgets: { readMs: 150 } });
     for (const read of [() => box.get("bx_acme"), () => box.list(), () => box.listSnapshots()]) await expect(read()).rejects.toThrow();
     expect(api.asked.map(a => [a.method, a.path, a.capped])).toEqual([
-      ["GET", "/api/box/v1/boxes/bx_acme", true],
-      ["GET", "/api/box/v1/boxes", true],
-      ["GET", "/api/box/v1/named-snapshots", true],
+      ["GET", "/api/v1/sandboxes/bx_acme", true],
+      ["GET", "/api/v1/sandboxes", true],
+      ["GET", "/api/v1/named-snapshots", true],
     ]);
   });
 
@@ -47,9 +47,9 @@ describe("a provider that never answers a read", () => {
   it("leaves a write uncapped where its own road gives it none", async () => {
     const api = neverAnswers();
     const box = new BoxBackend({ apiKey: "box_x", fetch: api.fetch, budgets: { readMs: 150 } });
-    void box.request("POST", "/boxes/bx_acme/stop").catch(() => {});
+    void box.request("POST", "/sandboxes/bx_acme/stop").catch(() => {});
     await new Promise(resolve => setTimeout(resolve, 20));
-    expect(api.asked).toEqual([{ method: "POST", path: "/api/box/v1/boxes/bx_acme/stop", capped: false }]);
+    expect(api.asked).toEqual([{ method: "POST", path: "/api/v1/sandboxes/bx_acme/stop", capped: false }]);
   });
 
   it("asks Box for the account's limits again once a read of them ended at its cap", async () => {

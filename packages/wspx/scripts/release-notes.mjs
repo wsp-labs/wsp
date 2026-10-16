@@ -74,14 +74,19 @@ export function cliArgs(argv) {
 /** What an ad hoc signed release says about the app replacing itself: each update is a new identity to macOS. */
 export const PERMISSIONS_AGAIN = "macOS may ask again for permissions you gave wsp, since each update is signed on its own.";
 
+/** Boat's Sunset on the base wsp called before it moved to boat.dev; past it the line has nothing left to ask. */
+export const BOAT_SUNSET = Date.parse("2026-10-31T00:00:00Z");
+export const BOAT_MOVED = "wsp now calls Boat at boat.dev/api/v1. Boat set 31 October 2026 as the sunset of the address older versions call, ascii.dev/api/box/v1, so if you use Boat, update wsp before then.";
+
 /**
- * @param {{ version: string, previous?: string, changes: string[], bundles: string, renames?: string, signed?: boolean }} notes
+ * @param {{ version: string, previous?: string, changes: string[], bundles: string, renames?: string, signed?: boolean, now?: number }} notes
  */
-export function releaseNotes({ version, previous, changes, bundles, renames, signed = false }) {
+export function releaseNotes({ version, previous, changes, bundles, renames, signed = false, now = Date.now() }) {
   const names = bundleNames(version);
   return [
     previous === undefined ? "## What changed" : `## What changed since ${previous}`,
     "",
+    ...(now < BOAT_SUNSET ? [BOAT_MOVED, ""] : []),
     ...(renames === undefined ? [] : [renames, ""]),
     ...(changes.length > 0 ? changes.map(line => `- ${line}`) : ["- The first release."]),
     "",
