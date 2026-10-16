@@ -222,4 +222,13 @@ describe("Boat's Remove", () => {
     expect(note).toMatch(/^Work not pushed goes with their machines: (Fix the flaky upload test, Bump the upload size cap|Bump the upload size cap, Fix the flaky upload test)\. Ask each to push first\.$/);
     expect(document.querySelector("[data-k='remove-confirm']")?.textContent).toBe("Remove anyway");
   });
+
+  it("names each image snapshot this host saved at Boat with its size, deleted before the key goes", async () => {
+    useStore.setState({ places: [here, boatRow()], workspaces: [], sessions: {} });
+    const { api } = settingsApi({ initGet: async () => setup, placeHolds: async () => ({ forks: [], projects: [], unsaved: [], images: [{ id: "wsp-acme-default-v1", sizeBytes: 345_000_000 }] }) } as never);
+    mountSettings({ api, at: { kind: "computer", id: "box" } });
+    await settle();
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    await waitFor(() => expect(document.querySelector("[data-k='remove-sentence']")?.textContent).toBe("The key for Boat is forgotten on zingzy's MacBook Pro. Its image snapshot wsp-acme-default-v1 (329 MB) is deleted at Boat before the key goes."));
+  });
 });

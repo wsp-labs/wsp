@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { platform } from "node:os";
-import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerRemovedLine, providerForgetQuestion, providerForgotLine, providerForceRefusal, namesPlace, placeOf, type WorkspaceView, tableName, foldThreads, subHeldOnRemoveLine, type SessionView } from "@wsp/protocol";
+import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, placeEngineLine, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerImagesLine, providerImagesLeftLine, providerRemovedLine, providerForgetQuestion, providerForgotLine, providerForceRefusal, namesPlace, placeOf, type WorkspaceView, tableName, foldThreads, subHeldOnRemoveLine, type SessionView } from "@wsp/protocol";
 import { keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type SshReach } from "@wsp/engine";
 import { sharedOn } from "@wsp/catalog";
 import { randomBytes } from "node:crypto";
@@ -637,15 +637,17 @@ async function removeProviderAt(io: CliIO, client: HostClient, place: PlaceView,
   const forget = flags.forget === true;
   // Work no remote has goes with the machines either way, so the question names it, as the host reads it, before
   // anybody says yes; a sub-thread's record stays, so a forget counts it among no records that leave.
-  const warned = subHeldOnRemoveLine(PlaceHolds.parse(await client.request("places.holds", { placeId: place.id })).unsaved);
+  const holds = PlaceHolds.parse(await client.request("places.holds", { placeId: place.id }));
+  const warned = subHeldOnRemoveLine(holds.unsaved);
   const { sessions } = await client.request<{ sessions: SessionView[] }>("sessions.list", {});
   const subs = foldThreads(sessions).filter(t => t.sub !== undefined && there.has(t.workspaceId));
   const tasks = forget ? there.size - new Set(subs.map(t => t.workspaceId)).size : there.size;
-  const question = forget ? providerForgetQuestion(name, tasks) : providerRemoveQuestion(name, tasks);
+  const images = holds.images === undefined ? "" : ` ${forget ? providerImagesLeftLine(name, holds.images) : providerImagesLine(name, holds.images)}`;
+  const question = `${forget ? providerForgetQuestion(name, tasks) : providerRemoveQuestion(name, tasks)}${images}`;
   if (!(await confirmedAt(io, flags.yes === true, warned === undefined ? question : `${question}\n${warned}`, name))) return 1;
   const answer = PlaceRemoved.parse(await client.request("places.remove", { placeId: place.id, ...(forget ? { forget: true } : {}) }));
   if (!answer.removed) throw new Error(answer.note ?? noPlaceLine(typed, []));
-  io.log(flags.json === true ? jsonLine(answer) : forget ? providerForgotLine(name, tasks, answer.note) : providerRemovedLine(name, answer.deleted ?? 0, answer.note));
+  io.log(flags.json === true ? jsonLine(answer) : forget ? providerForgotLine(name, tasks, answer.note) : providerRemovedLine(name, answer.deleted ?? 0, answer.note, answer.snapshots ?? 0));
   return 0;
 }
 

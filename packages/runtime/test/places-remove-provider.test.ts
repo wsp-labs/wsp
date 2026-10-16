@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { OWNER_LABEL, WSP_LABEL, type MachineBackend, type MachineSpec } from "@wsp/engine";
-import { PROVIDER_LEFT_WORDS, providerKeptLine, providerKeyRefused, providerKeyStillLine, providerUnlistedLine, refusalLine } from "@wsp/protocol";
+import { PROVIDER_LEFT_WORDS, providerImagesKeptLine, providerKeptLine, providerKeyRefused, providerKeyStillLine, providerUnlistedLine, refusalLine, type GoldenManifest } from "@wsp/protocol";
 import { createRuntime, type PlaceBackends } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { serveRuntime } from "../src/serve.js";
-import { memoryStore } from "../src/store.js";
+import { memoryStore, type Store } from "../src/store.js";
+import { GOLDENS, PROJECTS, PROJECT_GOLDENS, copyKey } from "../src/types/internal.js";
 import { answersGoneOnce, stubBackend, createOn, type StubBackend } from "./stub-backend.js";
 import { WsClient } from "./ws-client.js";
 import { wiring } from "./place-join.js";
 import { ctx, placesOf, remove } from "./places-fixture.js";
 
 /** A host wired to Solari that also holds a Boat key, which `forgetKey` takes away: the row goes once it is gone. */
-async function holdingBoat(box: StubBackend, still?: string): Promise<{ forgot: string[]; aliveAtForget: () => number }> {
-  const solari = stubBackend();
+async function holdingBoat(box: StubBackend, still?: string, o: { store?: Store; solari?: StubBackend } = {}): Promise<{ forgot: string[]; aliveAtForget: () => number; snapshotsAtForget: () => string[] }> {
+  const solari = o.solari ?? stubBackend();
   const at: Record<string, MachineBackend> = { solari, box };
   const forgot: string[] = [];
   let alive = -1;
+  let snapshots: string[] = [];
   const places: PlaceBackends = {
     get wired() {
       return "solari";
@@ -26,7 +28,7 @@ async function holdingBoat(box: StubBackend, still?: string): Promise<{ forgot: 
   };
   ctx.runtime = createRuntime({
     backend: solari,
-    store: memoryStore(),
+    store: o.store ?? memoryStore(),
     adapters: {},
     places,
     killConfirm: { graceMs: 20, pollMs: 1 },
@@ -34,13 +36,34 @@ async function holdingBoat(box: StubBackend, still?: string): Promise<{ forgot: 
       ...wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }),
       forgetKey: async placeId => {
         alive = box.machines.filter(m => !m.killed).length;
+        snapshots = box.snapshots.map(r => r.id);
         forgot.push(placeId);
         return still;
       },
     },
   });
   ctx.srv = await serveRuntime(ctx.runtime, { port: 0, authToken: "host-token", devices: ctx.runtime.devices });
-  return { forgot, aliveAtForget: () => alive };
+  return { forgot, aliveAtForget: () => alive, snapshotsAtForget: () => snapshots };
+}
+
+const sealed = (snapshotId: string): GoldenManifest => ({ head: 1, versions: [{ version: 1, snapshotId, baseTemplate: "base", setupSha: "s", createdAt: "2026-10-16T13:33:52.413Z", smoke: { cmd: "true", exitCode: 0 } }] });
+
+/** This host's image sealed at Boat with a project image beside it, and the wired cloud's own image, each listed by its provider. */
+async function imagesAt(box: StubBackend, solari: StubBackend): Promise<Store> {
+  const store = memoryStore();
+  await store.put(GOLDENS, copyKey("box", "default"), sealed("wsp-acme-default-v1"));
+  await store.put(PROJECT_GOLDENS, "wsp-acme-project-api", { snapshotId: "wsp-acme-project-api", projects: [], golden: "default", workspaceId: "w1", workspaceName: "api", createdAt: "2026-10-16T14:00:00.000Z", place: "box" });
+  await store.put(GOLDENS, "default", sealed("snap_solari"));
+  box.snapshots.push({ id: "wsp-acme-default-v1", name: "wsp-acme-default-v1", sizeBytes: 345_000_000 }, { id: "wsp-acme-project-api", name: "wsp-acme-project-api", sizeBytes: 9_120_485_376 });
+  solari.snapshots.push({ id: "snap_solari", sizeBytes: 8_000_000_000 });
+  return store;
+}
+
+async function holdsOf(placeId: string): Promise<Record<string, unknown>> {
+  const c = await WsClient.connect(ctx.srv!.port, { token: "host-token" });
+  const answer = await c.request("places.holds", { placeId });
+  c.close();
+  return answer;
 }
 
 /** A remove with what it asks beyond the place, for a forget. */
@@ -288,5 +311,66 @@ describe("removing a provider", () => {
     expect(answer).toMatchObject({ removed: false, deleted: 0, note: providerUnlistedLine("Boat", 0, "Too Many Requests") });
     expect(answer["note"]).toBe("Boat's machines could not be listed again (Too Many Requests), so one made meanwhile may still be there and the key is kept. Remove Boat again to finish.");
     expect(held.forgot).toEqual([]);
+  });
+
+  it("names this host's image snapshots there with their sizes, and deletes each before the key goes", async () => {
+    const box = stubBackend();
+    const solari = stubBackend();
+    const store = await imagesAt(box, solari);
+    const held = await holdingBoat(box, undefined, { store, solari });
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
+
+    expect((await holdsOf("box"))["images"]).toEqual([
+      { id: "wsp-acme-default-v1", sizeBytes: 345_000_000 },
+      { id: "wsp-acme-project-api", sizeBytes: 9_120_485_376 },
+    ]);
+
+    expect(await remove("box")).toMatchObject({ removed: true, deleted: 1, snapshots: 2 });
+    expect(held.forgot).toEqual(["box"]);
+    expect(held.snapshotsAtForget()).toEqual([]);
+    expect(box.snapshots).toEqual([]);
+    // The wired cloud's image is another provider's, and its record stays.
+    expect(solari.snapshots.map(r => r.id)).toEqual(["snap_solari"]);
+    expect(await store.get(GOLDENS, copyKey("solari", "default"))).toBeDefined();
+    expect(await store.get(GOLDENS, copyKey("box", "default"))).toBeUndefined();
+    expect(await store.get(PROJECT_GOLDENS, "wsp-acme-project-api")).toBeUndefined();
+  });
+
+  it("names a snapshot the provider will not delete and keeps the key and its record until it goes", async () => {
+    const box = stubBackend();
+    const solari = stubBackend();
+    const store = await imagesAt(box, solari);
+    const held = await holdingBoat(box, undefined, { store, solari });
+    await createOn(ctx.runtime!, { golden: "snap_g", name: "a", on: "box" });
+    const deleteSnapshot = box.deleteSnapshot.bind(box);
+    box.deleteSnapshot = async id => (id === "wsp-acme-default-v1" ? Promise.reject(Object.assign(new Error("Internal Server Error"), { kind: "unknown", status: 500 })) : deleteSnapshot(id));
+
+    const answer = await remove("box");
+    expect(answer).toMatchObject({ removed: false, deleted: 1, note: providerImagesKeptLine("Boat", 1, [{ id: "wsp-acme-default-v1", said: PROVIDER_LEFT_WORDS.undeleted("Internal Server Error") }]) });
+    expect(String(answer["note"])).toContain("wsp-acme-default-v1");
+    expect(held.forgot).toEqual([]);
+    expect((await placesOf()).map(p => p.id)).toContain("box");
+    expect(box.snapshots.map(r => r.id)).toEqual(["wsp-acme-default-v1"]);
+    expect(await store.get(GOLDENS, copyKey("box", "default"))).toBeDefined();
+    expect(await store.get(PROJECT_GOLDENS, "wsp-acme-project-api")).toBeUndefined();
+
+    // Once the provider takes it, the same remove goes through and the key with it.
+    box.deleteSnapshot = deleteSnapshot;
+    expect(await remove("box")).toMatchObject({ removed: true, deleted: 0 });
+    expect(box.snapshots).toEqual([]);
+    expect(held.forgot).toEqual(["box"]);
+  });
+
+  it("deletes the image a project seeded there holds before the key goes, and the project keeps no image", async () => {
+    const box = stubBackend();
+    const store = memoryStore();
+    await store.put(PROJECTS, "p_api", { id: "p_api", name: "api", computer: "box", source: { kind: "git", url: "https://github.com/acme/api.git" }, path: "/root/api", remote: "https://github.com/acme/api.git", defaultBranch: "main", memoryKey: "-root-api", memoryDir: "/root/.claude/projects/-root-api", image: { snapshotId: "api-p_api", builtAt: "2026-10-16T14:00:00.000Z" }, createdAt: "2026-10-16T14:00:00.000Z" });
+    box.snapshots.push({ id: "api-p_api", name: "api-p_api", sizeBytes: 2_000_000_000 });
+    const held = await holdingBoat(box, undefined, { store });
+
+    expect((await holdsOf("box"))["images"]).toEqual([{ id: "api-p_api", sizeBytes: 2_000_000_000 }]);
+    expect(await remove("box")).toMatchObject({ removed: true, snapshots: 1 });
+    expect(held.snapshotsAtForget()).toEqual([]);
+    expect(((await store.get(PROJECTS, "p_api")) as { image?: unknown }).image).toBeUndefined();
   });
 });
