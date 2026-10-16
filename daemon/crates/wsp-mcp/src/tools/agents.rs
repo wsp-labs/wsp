@@ -48,6 +48,8 @@ pub struct Facts {
     pub read_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stale: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pause_mode: Option<String>,
     pub refused: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(test, schemars(with = "Option<Vec<serde_json::Value>>"))]
@@ -308,6 +310,10 @@ fn read(report: &RawValue, rows: Rows, cloud: bool) -> Option<(Facts, Box<RawVal
             Some(raw) => Some(text(raw)?),
             None => None,
         },
+        pause_mode: match field("pauseMode", own)? {
+            Some(raw) => Some(text(raw)?),
+            None => None,
+        },
         refused: serde_json::from_str(required("refused", own)?.get()).ok()?,
         projects: field("projects", own)?,
         reach: None,
@@ -315,11 +321,12 @@ fn read(report: &RawValue, rows: Rows, cloud: bool) -> Option<(Facts, Box<RawVal
     Some((facts, mine?))
 }
 
-/// The lines under every list: `reportTail`.
+/// The lines under every list: `reportTail`, its word `nappedWord`.
 fn tail(facts: &Facts) -> Vec<String> {
     let napping = facts.stale.as_deref() == Some("napping");
+    let word = if facts.pause_mode.as_deref() == Some("memory") { "napping" } else { "stopped" };
     napping
-        .then(|| "napping: this is what stood there when it last ran".to_owned())
+        .then(|| format!("{word}: this is what stood there when it last ran"))
         .into_iter()
         .chain(facts.refused.iter().map(|line| format!("refused: {}", cell(line))))
         .collect()

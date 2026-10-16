@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "skills",
-    "description": "Every skill on one computer or where a thread runs, one row per folder name: its description off its SKILL.md, every folder it lives in with the agent whose own folder that is (none for the shared ~/.agents/skills) and where a folder links to, and whether it is the person's own, a project's inside a thread, or a plugin's. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.",
+    "description": "Every skill on one computer or where a thread runs, one row per folder name: its description off its SKILL.md, every folder it lives in with the agent whose own folder that is (none for the shared ~/.agents/skills) and where a folder links to, and whether it is the person's own, a project's inside a thread, or a plugin's. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -63,6 +63,13 @@
         "stale": {
           "type": "string",
           "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
         },
         "refused": {
           "type": "array",
@@ -182,7 +189,7 @@
   },
   "cloudOn": {
     "name": "skills",
-    "description": "Every skill on one computer or where a thread runs, one row per folder name: its description off its SKILL.md, every folder it lives in with the agent whose own folder that is (none for the shared ~/.agents/skills) and where a folder links to, and whether it is the person's own, a project's inside a thread, or a plugin's. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.",
+    "description": "Every skill on one computer or where a thread runs, one row per folder name: its description off its SKILL.md, every folder it lives in with the agent whose own folder that is (none for the shared ~/.agents/skills) and where a folder links to, and whether it is the person's own, a project's inside a thread, or a plugin's. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -244,6 +251,13 @@
         "stale": {
           "type": "string",
           "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
         },
         "refused": {
           "type": "array",
