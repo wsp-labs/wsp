@@ -273,8 +273,9 @@ export interface ExecStream {
   /** Ends the stdin channel: the process reads EOF. Nothing after the stream ended. */
   closeInput(): void;
   /** Holds one line beside the run and appends it to the channel once `after` settles, as a held seed is: a host that
-   * goes in between leaves it for the next one, whose attach hands it over. A rejection drops the line. Absent where
-   * runs die with their host, and a caller there writes the line itself once it is due. */
+   * goes in between leaves it for the next one, whose attach hands it over. A rejection drops the line. A write or a
+   * closeInput made while it is parked waits until it went in or was dropped, so `after` settles on its own, never on
+   * one of them. Absent where runs die with their host, and a caller there writes the line itself once it is due. */
   writeAfter?(line: string, after: Promise<void>): void;
   /** On a run re-opened by attach, every line its channel had taken by then, a held line handed over included; absent
    * on a launched run and on a road that cannot read the channel back. */
