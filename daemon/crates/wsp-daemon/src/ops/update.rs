@@ -25,15 +25,14 @@ pub(super) async fn place_update(ctx: &Arc<Ctx>, id: Option<RequestId>, frame: &
     };
     let home = crate::place::place_home(ctx.options.home.as_deref());
     let bytes = lenient_base64(&data);
-    let part = crate::place::update_part(&home, &upload_id);
     // An upload beginning is the other moment nothing is arriving, so what an earlier try left goes here too.
     if seq == 0 {
         let (home, upload) = (home.clone(), upload_id.clone());
         let _ = fs::blocking(move || Ok(crate::place::sweep_updates(&home, Some(&upload)))).await;
     }
     let taking = {
-        let (part, upload) = (part.clone(), upload_id.clone());
-        fs::blocking(move || crate::place::take_update_part(&part, seq, &bytes, &upload).map_err(OpError::plain)).await
+        let (home, upload) = (home.clone(), upload_id.clone());
+        fs::blocking(move || crate::place::take_update_part(&home, &upload, seq, &bytes).map_err(OpError::plain)).await
     };
     if let Err(e) = taking {
         return Outgoing::Text(fail(id, e.message));
@@ -47,7 +46,7 @@ pub(super) async fn place_update(ctx: &Arc<Ctx>, id: Option<RequestId>, frame: &
         Ok(exe) => exe,
         Err(e) => return Outgoing::Text(fail(id, e)),
     };
-    let landed = fs::blocking(move || crate::place::install_daemon(&exe, &part, &sha256, &upload_id).map_err(OpError::plain)).await;
+    let landed = fs::blocking(move || crate::place::install_daemon(&exe, &home, &upload_id, &sha256).map_err(OpError::plain)).await;
     match landed {
         Err(e) => Outgoing::Text(fail(id, e.message)),
         Ok((at, kept)) => {

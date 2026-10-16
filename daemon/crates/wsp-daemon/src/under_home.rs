@@ -28,7 +28,7 @@ pub(crate) fn remove_under_home(home: &Path, rel: &Path) -> Removed {
     let (parent, name) = match walk_under_home(home, rel) {
         Under::At(parent, name) => (parent, name),
         Under::Absent => return Removed::Absent,
-        Under::Linked => return Removed::Linked,
+        Under::Linked(_) => return Removed::Linked,
     };
     remove_walked(&parent, &name)
 }
@@ -96,7 +96,7 @@ enum Under {
     Absent,
     /// A folder on the way to it is a link, or is no folder at all: nothing was removed and the path is named as
     /// one that stayed.
-    Linked,
+    Linked(nix::errno::Errno),
 }
 
 /// The walk itself: the home is opened as it stands, since it is what the daemon was pointed at, and every folder
@@ -120,10 +120,41 @@ fn walk_under_home(home: &Path, rel: &Path) -> Under {
         at = match nix::fcntl::openat(&at, *folder, flags | nix::fcntl::OFlag::O_NOFOLLOW, nix::sys::stat::Mode::empty()) {
             Ok(next) => next,
             Err(nix::errno::Errno::ENOENT) => return Under::Absent,
-            Err(_) => return Under::Linked,
+            Err(e) => return Under::Linked(e),
         };
     }
     Under::At(at, leaf.to_os_string())
+}
+
+/// One folder under the home, opened through the same walk and with no link followed at its own name either, it and
+/// each folder on the way made first where `make` asks: mkdirat makes nothing through a link at the name. Refused with
+/// what stood in the way, so a plain file or a full disk is not read as a link.
+pub(crate) fn open_under_home(home: &Path, rel: &Path, make: bool) -> Result<std::os::fd::OwnedFd, String> {
+    use nix::errno::Errno;
+    let stood = |e: Errno| match e {
+        Errno::ELOOP => "a link stands".to_owned(),
+        Errno::ENOTDIR => "a link or a file stands".to_owned(),
+        e => e.desc().to_owned(),
+    };
+    if make {
+        let mut at = std::path::PathBuf::new();
+        for part in rel.components() {
+            at.push(part);
+            if let Under::At(parent, name) = walk_under_home(home, &at) {
+                match nix::sys::stat::mkdirat(&parent, name.as_os_str(), nix::sys::stat::Mode::from_bits_truncate(0o777)) {
+                    Ok(()) | Err(Errno::EEXIST) => {}
+                    Err(e) => return Err(format!("making {}: {}", at.display(), e.desc())),
+                }
+            }
+        }
+    }
+    let (parent, name) = match walk_under_home(home, rel) {
+        Under::At(parent, name) => (parent, name),
+        Under::Absent => return Err("nothing stands at it or on the way to it".to_owned()),
+        Under::Linked(e) => return Err(format!("{} on the way to it", stood(e))),
+    };
+    let flags = nix::fcntl::OFlag::O_DIRECTORY | nix::fcntl::OFlag::O_NOFOLLOW | nix::fcntl::OFlag::O_CLOEXEC;
+    nix::fcntl::openat(&parent, name.as_os_str(), flags, nix::sys::stat::Mode::empty()).map_err(|e| format!("{} at it", stood(e)))
 }
 
 /// One folder under the home, removed only where it is empty, through the same walk. Answers whether it went.
