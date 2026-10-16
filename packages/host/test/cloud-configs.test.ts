@@ -245,6 +245,21 @@ describe("a copy to a provider's machine", () => {
     expect(notes(blanked, "~/.claude/settings.json")).toMatch(/^ANTHROPIC_CUSTOM_HEADERS, OTEL_EXPORTER_OTLP_HEADERS blanked or left out/);
   });
 
+  it("blanks a signed address's signature in a hook, an MCP address and Codex's query_params", async () => {
+    const settings = { hooks: { Stop: [{ hooks: [{ type: "command", command: "curl -s 'https://cdn.example.com/stop?Expires=1767290400&Signature=plain0hook&Key-Pair-Id=K2LAB'" }] }] } };
+    const claude = { mcpServers: { lab: { type: "http", url: "https://lab.blob.core.windows.net/mcp?sv=2024-11-04&sig=plain0mcp" } } };
+    const codex = ["[model_providers.az]", 'base_url = "https://lab.openai.azure.com/v1"', 'query_params = { "api-version" = "2025-01-01", sig = "plain0codex" }', ""].join("\n");
+    const h = home({ ".claude/settings.json": `${JSON.stringify(settings, null, 2)}\n`, ".claude.json": `${JSON.stringify(claude, null, 2)}\n`, ".codex/config.toml": codex });
+    const { root, blanked } = await landed(h, [row("agents/claude", ["~/.claude/settings.json", "~/.claude.json"]), row("agents/codex", ["~/.codex/config.toml"])], true);
+    for (const f of files(root)) expect(read(root, f.slice(root.length + 1)), f).not.toContain("plain0");
+    expect(JSON.parse(read(root, `${CLAUDE_CONFIG_REL}/settings.json`)).hooks.Stop[0].hooks[0].command).toBe("curl -s 'https://cdn.example.com/stop?Expires=1767290400&Signature=&Key-Pair-Id='");
+    expect(JSON.parse(read(root, `${CLAUDE_CONFIG_REL}/.claude.json`)).mcpServers.lab.url).toBe("https://lab.blob.core.windows.net/mcp?sv=2024-11-04&sig=");
+    expect(parseToml(read(root, ".codex/config.toml"))).toEqual({ model_providers: { az: { base_url: "https://lab.openai.azure.com/v1", query_params: { "api-version": "2025-01-01", sig: "" } } } });
+    expect(notes(blanked, "~/.claude/settings.json")).toMatch(/^Signature, Key-Pair-Id blanked or left out/);
+    expect(notes(blanked, "~/.claude.json")).toMatch(/^sig of the MCP server lab blanked or left out/);
+    expect(notes(blanked, "~/.codex/config.toml")).toMatch(/^sig blanked or left out/);
+  });
+
   it("leaves out every header of Codex's otel exporter and model providers that holds a value, and the file still parses", async () => {
     const codex = [
       "[otel]",
