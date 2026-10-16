@@ -110,6 +110,10 @@ export type AdapterEvent =
   /** The agent compacted its own context, sent once per compaction: what the model held before and after it, each
    * where the harness said. */
   | { type: "turn.compacted"; sessionId: string; before?: number; after?: number }
+  /** A model call failed and the harness is making it again by itself, sent once per retry: which retry this is, of
+   * how many the harness allows where it says, and why the last call failed in the adapter's plain words. The turn
+   * says nothing else while a call fails, so this is the only sign it is not simply working. */
+  | { type: "turn.retry"; sessionId: string; attempt: number; of?: number; why?: string }
   /** The agent's step list whole each time it changes, or the plan it proposed as Markdown; read off whichever tool
    * or item the agent keeps them in, which draws no tool row of its own. */
   | { type: "turn.plan"; sessionId: string; steps?: PlanStep[]; text?: string }

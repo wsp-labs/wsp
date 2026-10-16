@@ -67,7 +67,7 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
   }): SessionHandle => {
     const { entry, view, threadId, turnId, opening, outcome, notify, notifyBy, notifyRoad, turnToken, scopeDeviceId } = t;
     const workspaceId = entry.record.id;
-    const { lines: deltasWritten, subagents: subagentsWritten, compactions: compactionsWritten, reply: recordedReply, started: startWritten, changes: changesWritten } = t.written ?? { lines: 0, subagents: 0, compactions: 0, started: false, changes: false };
+    const { lines: deltasWritten, subagents: subagentsWritten, compactions: compactionsWritten, retries: retriesWritten, reply: recordedReply, started: startWritten, changes: changesWritten } = t.written ?? { lines: 0, subagents: 0, compactions: 0, retries: 0, started: false, changes: false };
     /** What the turn changed, read once at the first of its reply and its exit. */
     let changesRead = changesWritten;
     /** The paths the agent's own tool calls wrote, read off every call including the ones a re-opened run reads past. */
@@ -106,6 +106,8 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
     let replayingSubagents = subagentsWritten;
     let compactionRows = compactionsWritten;
     let replayingCompactions = compactionsWritten;
+    let retryRows = retriesWritten;
+    let replayingRetries = retriesWritten;
     /** What the agent held after its latest call, which passes by on the bus as each call reports it. */
     let held: { context: number; window?: number } | undefined;
     /** Set once the turn's result named what the agent held, which the meter then reads off the result. */
@@ -490,6 +492,13 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
             return;
           }
           ctx.record({ type: "session.compacted", workspaceId, sessionId, turnId, threadId, line: ++compactionRows, ...(event.before !== undefined ? { before: event.before } : {}), ...(event.after !== undefined ? { after: event.after } : {}) });
+          return;
+        case "turn.retry":
+          if (replayingRetries > 0) {
+            replayingRetries--;
+            return;
+          }
+          ctx.record({ type: "session.retry", workspaceId, sessionId, turnId, threadId, line: ++retryRows, attempt: event.attempt, ...(event.of !== undefined ? { of: event.of } : {}), ...(event.why !== undefined ? { why: event.why } : {}) });
           return;
         case "turn.plan":
           ctx.record({ type: "session.plan", workspaceId, sessionId, turnId, threadId, ...(event.steps !== undefined ? { steps: event.steps } : {}), ...(event.text !== undefined ? { text: event.text } : {}) });

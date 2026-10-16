@@ -322,6 +322,38 @@ describe("ChatView", () => {
     expect(screen.queryByText(/waiting for/)).toBeNull();
   });
 
+  it("a turn whose agent is making a failed model call again says which retry and why in place of Working, until the call gets through", async () => {
+    const { api, emit } = fixtureApi([workspace]);
+    await setup(api);
+    emit({ type: "session.start", ...scope, agent: "claude", prompt: "hi" });
+    await screen.findByText(/Working for/);
+    emit({ type: "session.retry", ...scope, line: 1, attempt: 1, of: 10, why: "Anthropic is overloaded" });
+    const line = await screen.findByText("Anthropic is overloaded, trying again (1 of 10)");
+    expect(line.closest<HTMLElement>("[data-machine-wait]")!.textContent).toMatch(/^Anthropic is overloaded, trying again \(1 of 10\) \d+s$/);
+    expect(screen.queryByText(/Working for/)).toBeNull();
+    emit({ type: "session.steer", ...scope, prompt: "still there?", requestId: "req_steer" });
+    await screen.findByText("still there?");
+    expect(screen.getByText("Anthropic is overloaded, trying again (1 of 10)")).toBeTruthy();
+    emit({ type: "session.retry", ...scope, line: 2, attempt: 2, of: 10, why: "Anthropic did not answer" });
+    await screen.findByText("Anthropic did not answer, trying again (2 of 10)");
+    expect(screen.queryByText(/\(1 of 10\)/)).toBeNull();
+    emit({ type: "session.delta", ...scope, kind: "text", text: "Got through." });
+    await screen.findByText(/Working for/);
+    expect(screen.queryByText(/trying again/)).toBeNull();
+  });
+
+  it("a turn that ends while its agent retries leaves no retry line behind", async () => {
+    const { api, emit } = fixtureApi([workspace]);
+    await setup(api);
+    emit({ type: "session.start", ...scope, agent: "claude", prompt: "hi" });
+    emit({ type: "session.retry", ...scope, line: 1, attempt: 10, of: 10, why: "Anthropic did not answer" });
+    await screen.findByText(/trying again \(10 of 10\)/);
+    emit({ type: "session.done", ...scope, result: { status: "failed", error: "API Error: Request timed out." } });
+    emit({ type: "session.end", ...scope, exitCode: 1, sawResult: true });
+    await waitFor(() => expect(screen.queryByText(/trying again/)).toBeNull());
+    expect(document.querySelector("[data-machine-wait]")).toBeNull();
+  });
+
   it("the send that wakes a paused workspace draws one rule line in the timeline, naming the workspace, where it runs and how long it has been waking, the time alone in mono", async () => {
     const { api, emit } = fixtureApi([workspace]);
     await setup(api);

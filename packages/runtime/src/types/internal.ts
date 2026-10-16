@@ -473,6 +473,8 @@ export interface TurnWritten {
   subagents: number;
   /** Its compaction rows, counted apart from the deltas for the same reason. */
   compactions: number;
+  /** Its retry rows, counted apart for the same reason. */
+  retries: number;
   reply?: TurnResult["status"];
   started: boolean;
   /** Its card is written, so a host that re-opens it writes no second one, as a reply already written stands. */
@@ -492,10 +494,11 @@ export const turnWritten = (events: readonly SessionEvent[], turnId: string): Tu
   const lines = lastOf("session.delta")?.line ?? 0;
   const subagents = lastOf("session.subagent")?.line ?? 0;
   const compactions = lastOf("session.compacted")?.line ?? 0;
+  const retries = lastOf("session.retry")?.line ?? 0;
   const reply = lastOf("session.done")?.result.status;
   // A turn with a line or a reply already written had its start written too, whether or not the cap still holds it:
   // a second start row at the tail of the transcript would sit after the work it opened.
-  return { lines, subagents, compactions, ...(reply !== undefined ? { reply } : {}), started: lines > 0 || subagents > 0 || compactions > 0 || reply !== undefined || lastOf("session.start") !== undefined, changes: lastOf("session.changes") !== undefined };
+  return { lines, subagents, compactions, retries, ...(reply !== undefined ? { reply } : {}), started: lines > 0 || subagents > 0 || compactions > 0 || retries > 0 || reply !== undefined || lastOf("session.start") !== undefined, changes: lastOf("session.changes") !== undefined };
 };
 
 /** An index as its file holds it, with the mark of the transcript file it was read off: an index whose transcript

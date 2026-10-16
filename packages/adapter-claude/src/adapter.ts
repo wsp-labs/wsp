@@ -403,6 +403,24 @@ function compactedTo(event: Record<string, unknown>): { before?: number; after: 
   return after === undefined ? undefined : { ...(before !== undefined ? { before } : {}), after };
 }
 
+/** The retry Claude Code is about to make of a failed model call, off its api_retry line. Measured on 2.1.301: a call
+ * held past its timeout or refused reads `unknown` with no status, a 529 `overloaded`, a 500 `server_error`. */
+function retryOf(event: Record<string, unknown>, sessionId: string): AdapterEvent | undefined {
+  if (str(event.type) !== "system" || str(event.subtype) !== "api_retry") return undefined;
+  const attempt = num(event.attempt);
+  if (attempt === undefined) return undefined;
+  const of = num(event.max_retries);
+  const why = retryWhy(str(event.error), num(event.error_status));
+  return { type: "turn.retry", sessionId, attempt, ...(of !== undefined ? { of } : {}), why };
+}
+
+function retryWhy(error: string | undefined, status: number | undefined): string {
+  if (error === "overloaded") return "Anthropic was overloaded";
+  if (error === "rate_limit") return "Anthropic's rate limit was reached";
+  if (error === "server_error") return status === undefined ? "Anthropic answered with a server error" : `Anthropic answered with a server error (${status})`;
+  return status === undefined ? "Anthropic did not answer" : `Anthropic answered ${status}`;
+}
+
 /** The last lines the process printed that were not stream-json events: the CLI's stderr shares the log. */
 const STDERR_TAIL_LINES = 5;
 
@@ -485,6 +503,8 @@ function normalizeEvent(event: Record<string, unknown>, fallbackSessionId: strin
   const from = parent === undefined ? {} : { parentToolUseId: parent };
   switch (str(event.type)) {
     case "system": {
+      const retry = retryOf(event, sessionId);
+      if (retry !== undefined) return [retry];
       if (str(event.subtype) !== "init") return [];
       const harness = harnessOf(event);
       // Claude Code names where its credential came from; any source but none is a key, which has no plan window.

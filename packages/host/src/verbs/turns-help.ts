@@ -54,6 +54,7 @@ import {
   threadResult,
   threadStateWord,
   compactedLine,
+  retryLine,
   toolActivityLine,
   toolAnsweredLine,
   turnSettledLine,
@@ -1107,6 +1108,7 @@ export async function followVerb(ctx: VerbContext, client: HostClient, start: Re
         // word of failure, which belongs to a call that failed and to the turn's own end.
         if (e.type === "session.delta" && e.kind === "note") stream.line(e.text);
         if (e.type === "session.compacted") stream.line(compactedLine(e.before, e.after));
+        if (e.type === "session.retry") stream.line(retryLine(e));
         if (e.type === "session.delta" && e.kind === "tool_use") {
           stream.line(toolActivityLine(e.toolName, e.text));
           if (e.toolUseId !== undefined) {
