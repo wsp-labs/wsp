@@ -76,6 +76,7 @@ import {
   subOtherProjectRefusal,
   subSizeNoCloudRefusal,
   subFromNoCloudRefusal,
+  threadOpRefusal,
 } from "@wsp/protocol";
 import { BASE_GROUP, FLOOR_LINE, GROUP_LABEL, tableLines, totalsLine, type TableRow } from "../src/init-table.js";
 import { GUTTER } from "../src/init-layout.js";
@@ -428,7 +429,10 @@ const resolved = (workspace: unknown = WORKSPACE): string => ok({ workspace });
 const atThread = (workspace: { id: string; [field: string]: unknown } = WORKSPACE): Record<string, string> => ({ "sessions.list": listed([{ id: "s-1", workspaceId: workspace.id, harness: "claude", status: "completed", threadId: THREAD }]), "workspaces.get": resolved(workspace) });
 /** A project in a folder on this computer, and the list a run reads it off, with a box project beside it. */
 const HERE_PROJECT = { id: "p-1", name: "wsp", computer: "here", source: { kind: "folder", path: "/Users/me/wsp" }, path: "/Users/me/wsp", git: { top: "/Users/me/wsp" } };
-const PROJECTS = { "projects.list": ok({ projects: [HERE_PROJECT, { ...HERE_PROJECT, id: "p-2", name: "site", computer: "pl-attic", path: "/root/site" }] }) };
+const SITE_PROJECT = { ...HERE_PROJECT, id: "p-2", name: "site", computer: "pl-attic", path: "/root/site" };
+const PROJECTS = { "projects.list": ok({ projects: [HERE_PROJECT, SITE_PROJECT] }) };
+/** The list, the project door answering site, and its landing on a computer that forks a machine for a thread. */
+const SITE_FORKS = { ...PROJECTS, "projects.resolve": ok({ project: SITE_PROJECT }), "workspaces.landing": ok({ place: "pl-attic", name: "attic", capabilities: { sizes: [] }, kind: "cloud" }) };
 /** The list a run reads, and the project door refusing a machine's name as it refuses any word naming no project. */
 const MACHINE_NAMED = { ...PROJECTS, "projects.resolve": no(noSuchProjectLine(WORKSPACE.name, ["wsp", "site"]), "not-found") };
 const startIn = (cwd: string): string => ok({ session: sessionRow({ id: "sess-9", threadId: STARTED, status: "running", startedBy: "agent", cwd }), outcome: "started", turnId: "turn-9" });
@@ -689,19 +693,18 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
       case: "a project of the thread's repository on a box opens in its folder there",
       arguments: { project: "site", message: "build it", notify: ["me"], detach: true },
       env: { [TURN_TOKEN_ENV]: "turn-token-1" },
-      replies: { ...PROJECTS, "workspaces.landing": ok({ kind: "place", place: "pl-attic", name: "attic", capabilities: { sizes: [] } }), "harnesses.list": HARNESSES, "sessions.start": startIn("/root/site") },
+      replies: { ...PROJECTS, "projects.resolve": ok({ project: SITE_PROJECT }), "workspaces.landing": ok({ kind: "place", place: "pl-attic", name: "attic", capabilities: { sizes: [] } }), "harnesses.list": HARNESSES, "sessions.start": startIn("/root/site") },
     },
-    { case: "a branch for a project on another computer", arguments: { project: "site", branch: "x", message: "t" }, replies: PROJECTS },
-    { case: "a branch for a project the thread may not use", arguments: { project: "lab-two", branch: "x", message: "t" }, replies: { ...PROJECTS, "projects.resolve": no(refusalLine(spawnFolderRefusal("thread-7f", "lab-two"), SPAWN_FOLDER_FIX), "usage") } },
+    { case: "a branch for a project on another computer", arguments: { project: "site", branch: "x", message: "t" }, replies: SITE_FORKS },
+    { case: "a branch for a project the thread may not use", arguments: { project: "lab-two", branch: "x", message: "t" }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...PROJECTS, "projects.resolve": no(refusalLine(spawnFolderRefusal("thread-7f", "lab-two"), SPAWN_FOLDER_FIX), "usage") } },
     {
       case: "a project on another computer forks a machine named off the task",
       arguments: { project: "site", message: "fix the login page now please", detach: true },
       replies: {
-        ...PROJECTS,
+        ...SITE_FORKS,
         "workspaces.list": ok({ workspaces: [WORKSPACE, { ...WORKSPACE, id: "ws-2", name: "fix the login page now" }] }),
         "projects.defaults": ok({ defaults: { "p-2": { agent: { value: "claude", from: "default" } } } }),
         "harnesses.list": HARNESSES,
-        "workspaces.landing": ok({ capabilities: { sizes: [] } }),
         "workspaces.create": ok({ workspace: SITE_FORK }),
         "workspaces.wake": resolved(SITE_FORK),
         "sessions.start": START,
@@ -710,11 +713,11 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     {
       case: "a fork's model read against the project's own agent",
       arguments: { project: "site", message: "t", model: "claude-opus-5-5" },
-      replies: { ...PROJECTS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: { "p-2": { agent: { value: "codex", from: "project" } } } }), "harnesses.list": HARNESSES },
+      replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: { "p-2": { agent: { value: "codex", from: "project" } } } }), "harnesses.list": HARNESSES },
     },
-    { case: "a fork's file that is not there", arguments: { project: "site", message: "t", files: ["no-such-shot.png"] }, replies: { ...PROJECTS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: {} }), "harnesses.list": HARNESSES } },
-    { case: "a project elsewhere with a machine of its name", arguments: { project: "site", message: "t", detach: true }, cloud: true, replies: { ...PROJECTS, "workspaces.list": ok({ workspaces: [{ ...WORKSPACE, name: "site" }] }), "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START } },
-    { case: "the projects not read", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, replies: { "projects.resolve": MACHINE_NAMED["projects.resolve"], "workspaces.list": ok({ workspaces: [WORKSPACE] }), "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START } },
+    { case: "a fork's file that is not there", arguments: { project: "site", message: "t", files: ["no-such-shot.png"] }, replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: {} }), "harnesses.list": HARNESSES } },
+    { case: "a project elsewhere with a machine of its name", arguments: { project: "site", message: "t", detach: true }, cloud: true, replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [{ ...WORKSPACE, name: "site" }] }), "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START } },
+    { case: "the projects not read", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "projects.list": no(threadOpRefusal("projects.list", "thread-7f", undefined)), "projects.resolve": MACHINE_NAMED["projects.resolve"], "workspaces.list": ok({ workspaces: [WORKSPACE] }), "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": START } },
     { case: "a project held by the thread's own tree", arguments: { project: "wsp", message: "t", detach: true }, replies: { "workspaces.list": ok({ workspaces: [{ ...WORKSPACE, kind: "local", project: { id: "p-1", name: "wsp", path: "/Users/me/wsp", computer: "here" } }] }), "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") } },
     { case: "beside the thread asking", arguments: { message: "look", detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp") } },
     { case: "on a conversation from outside wsp, in the folder it ran in", arguments: { project: "wsp", message: "go on", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350", detach: true }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/wsp-wt") } },
@@ -722,7 +725,7 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "a conversation open in another app, refused", arguments: { project: "wsp", message: "go on", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: { ...PROJECTS, "projects.resolve": ok({ project: HERE_PROJECT }), "harnesses.list": HARNESSES, "sessions.start": no(refusalLine(conversationOpenLine("lab codewords", "zingzy's MacBook Pro"), conversationOpenFix(undefined)), CONVERSATION_OPEN_KIND) } },
     { case: "a conversation beside a branch", arguments: { project: "wsp", branch: "x", message: "t", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: {} },
     { case: "a copy with no conversation", arguments: { project: "wsp", message: "t", copy: true }, replies: {} },
-    { case: "a conversation on a project that forks a machine", arguments: { project: "site", message: "t", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: { ...PROJECTS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: {} }), "harnesses.list": HARNESSES } },
+    { case: "a conversation on a project that forks a machine", arguments: { project: "site", message: "t", resume: "7414323d-e71b-4957-8b56-eefdf6bfa350" }, replies: { ...SITE_FORKS, "workspaces.list": ok({ workspaces: [WORKSPACE] }), "projects.defaults": ok({ defaults: {} }), "harnesses.list": HARNESSES } },
     { case: "beside the thread with a branch", arguments: { message: "look", branch: "feat/y" }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { "harnesses.list": HARNESSES, "sessions.start": startIn("/Users/me/.wsp/worktrees/p-1/feat-y") }, pushed: { "sessions.start": [done({ status: "completed", text: "ok" })] } },
     { case: "no thread stamped", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ session: sessionRow({ id: "sess-9", status: "running" }), outcome: "started", turnId: "turn-9" }) } },
     { case: "another version", arguments: { project: "attic-work", message: "t", detach: true }, cloud: true, replies: { ...MACHINE_NAMED, "workspaces.resolve": resolved(), "harnesses.list": HARNESSES, "workspaces.wake": resolved(), "sessions.start": ok({ outcome: "started" }) } },
