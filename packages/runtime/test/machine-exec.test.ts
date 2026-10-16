@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EXEC_ENV, ExecFailedError, INLINE_EXEC_MS, MachineUnreachableError, MachineUnreached, PlaceAbsentError, type ExecResult, type Machine } from "@wsp/engine";
 import { EXEC_BODY_MAX, EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS, absentComputer, execFailedLine, machineUnreachableLine, machineUnreachedLine, TURN_IDLE_MS, shellQuote, workScoreLine } from "@wsp/protocol";
 import { AGENT_PID_FILE_ENV, endRun, type ExecStream } from "@wsp/protocol";
+import { createClaudeAdapter } from "@wsp/adapter-claude";
 import { gateLoop } from "../../protocol/test/stub-script.js";
 import { TREE_WORK_AWK, machineExecStream } from "../src/machine-exec.js";
 import { LINUX_SHELL_PRELUDE } from "../../protocol/test/linux-shell.js";
@@ -352,16 +353,113 @@ describe("machineExecStream", () => {
     const lines = stream.lines[Symbol.asyncIterator]();
     guest.append("started\n");
     expect((await lines.next()).value).toBe("started");
+    clock = 3_001;
     const reply = lines.next();
     await vi.waitFor(() => expect(naps.at(-1)).toBe(1500));
     expect(await stream.write("interrupt")).toBe("written");
     guest.append("interrupted\n");
     expect((await reply).value).toBe("interrupted");
     expect(naps.at(-1)).toBe(200);
-    clock = 3_001;
+    clock = 6_002;
     void lines.next();
     await vi.waitFor(() => expect(naps.at(-1)).toBe(1500));
     for (const drop of reading) drop();
+  });
+
+  it("reads a launch at hurried polls until its first line, for 30 s at most, and for a while after every poll in those 30 s that took lines", async () => {
+    let clock = 0;
+    const naps: number[] = [];
+    const sleep = (ms: number): Promise<void> => (naps.push(ms), new Promise<void>(r => setTimeout(r, 1)));
+    const reading = new Set<() => void>();
+    const launch = async () => {
+      const { backend, machine } = await makeMachine();
+      const guest = scriptGuest(backend, []);
+      const lines = machineExecStream(machine, { pollMs: 1500, now: () => clock, sleep, reading })("claude -p", { env: {}, input: ["say hi"] }).lines[Symbol.asyncIterator]();
+      return { guest, lines };
+    };
+    const nextNaps = async (count: number): Promise<number[]> => {
+      const from = naps.length;
+      await vi.waitFor(() => expect(naps.length).toBeGreaterThanOrEqual(from + count));
+      return naps.slice(from, from + count);
+    };
+    const { guest, lines } = await launch();
+    const first = lines.next();
+    expect(await nextNaps(3)).toEqual([200, 200, 200]);
+    guest.append("init\n");
+    expect((await first).value).toBe("init");
+    const second = lines.next();
+    expect(await nextNaps(2)).toEqual([200, 200]);
+    clock += 3_001;
+    expect((await nextNaps(2)).at(-1)).toBe(1500);
+    guest.append("retry\n");
+    expect((await second).value).toBe("retry");
+    void lines.next();
+    expect(await nextNaps(2)).toEqual([200, 200]);
+    for (const drop of reading) drop();
+
+    const silent = (await launch()).lines;
+    void silent.next();
+    expect(await nextNaps(2)).toEqual([200, 200]);
+    clock += 30_001;
+    expect((await nextNaps(2)).at(-1)).toBe(1500);
+    for (const drop of reading) drop();
+
+    const late = await launch();
+    const opening = late.lines.next();
+    late.guest.append("init\n");
+    expect((await opening).value).toBe("init");
+    clock += 30_001;
+    const afterOpening = late.lines.next();
+    late.guest.append("tool result\n");
+    expect((await afterOpening).value).toBe("tool result");
+    void late.lines.next();
+    expect(await nextNaps(1)).toEqual([1500]);
+    for (const drop of reading) drop();
+  });
+
+  it("hands Claude Code each retry of a failing model call before it prints the next, from the turn's first, on a box's pace", async () => {
+    const { backend, machine } = await makeMachine();
+    const guest = scriptGuest(backend, []);
+    let clock = 0;
+    const SID = "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const retry = (attempt: number): string => JSON.stringify({ type: "system", subtype: "api_retry", attempt, max_retries: 10, retry_delay_ms: 500 * 2 ** (attempt - 1), error_status: null, error: "unknown", session_id: SID });
+    // Claude Code 2.1.301 against a refused route: init after its servers came up, the first retry 17 ms after it and
+    // each next one at its backoff (0.56 s, 1.04 s, 2.36 s apart, measured).
+    const printed: [number, string | number][] = [
+      [4_050, JSON.stringify({ type: "system", subtype: "init", session_id: SID, cwd: "/root", tools: [], model: "claude-opus-5-5" })],
+      [4_067, retry(1)],
+      [4_627, retry(2)],
+      [5_667, retry(3)],
+      [8_031, retry(4)],
+      [9_000, JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "hi", session_id: SID, num_turns: 1, usage: { input_tokens: 1, output_tokens: 1 } })],
+      [9_010, 0],
+    ];
+    const due = (): void => {
+      for (let next = printed[0]; next !== undefined && next[0] <= clock; next = printed[0]) {
+        printed.shift();
+        if (typeof next[1] === "number") guest.exit(next[1]);
+        else guest.append(`${next[1]}\n`);
+      }
+    };
+    // An exec on Boat answers in 0.24 to 0.38 s, and the guest's shell reads the log halfway through it.
+    const answer = backend.execImpl;
+    backend.execImpl = async (m, cmd, stdin) => {
+      clock += 125;
+      due();
+      const res = await answer(m, cmd, stdin);
+      clock += 125;
+      return res;
+    };
+    const sleep = async (ms: number): Promise<void> => {
+      clock += ms;
+    };
+    const exec = machineExecStream(machine, { pollMs: 1500, now: () => clock, sleep });
+    const retries: { attempt: number; at: number }[] = [];
+    const adapter = createClaudeAdapter({ exec, configDir: "/root/.claude-cfg" });
+    await adapter.start({ prompt: "say hi", onEvent: e => void (e.type === "turn.retry" && retries.push({ attempt: e.attempt, at: clock })) }).finished;
+    expect(retries.map(r => r.attempt)).toEqual([1, 2, 3, 4]);
+    const nextPrinted = [4_627, 5_667, 8_031, 9_000];
+    for (const [i, r] of retries.entries()) expect(r.at, `retry ${r.attempt} reached the turn at ${r.at} ms`).toBeLessThan(nextPrinted[i]!);
   });
 
   it("closeInput kills the recorded tail pid and nothing else, once", async () => {
