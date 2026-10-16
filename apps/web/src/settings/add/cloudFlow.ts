@@ -89,6 +89,39 @@ export function goCloud(step: CloudStep): void {
   useCloudFlow.setState({ step });
 }
 
+const READY_OWED_KEY = "wsp:cloud-ready-owed";
+
+/** The build each cloud's ready page is owed for, by provider: one the dialog stood on and whose ready page has not
+ * shown. Kept in the window's storage, since a reload mid-build is one of the ways the dialog closes. */
+function readyOwed(): Record<string, string> {
+  try {
+    const held: unknown = JSON.parse(localStorage.getItem(READY_OWED_KEY) ?? "{}");
+    return held !== null && typeof held === "object" ? (held as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The dialog stood on this build, owing its ready page; null once the page has shown. */
+export function oweReady(provider: string, jobId: string | null): void {
+  const held = readyOwed();
+  if ((held[provider] ?? null) === jobId) return;
+  if (jobId === null) delete held[provider];
+  else held[provider] = jobId;
+  try {
+    localStorage.setItem(READY_OWED_KEY, JSON.stringify(held));
+  } catch {
+    // A window that keeps nothing sends the seal's Open to the cloud's page.
+  }
+}
+
+/** The seal's Open for a build: the dialog's ready page where it is owed, so the first thread is one press away. */
+export function openReadyOwed(provider: string, jobId: string): boolean {
+  if (readyOwed()[provider] !== jobId || !useStore.getState().places.some(p => p.id === provider)) return false;
+  useCloudFlow.setState({ open: true, provider, step: "ready", check: { state: "idle" } });
+  return true;
+}
+
 /** The words a key that works reads as: the account, the plan and the machines running of the most it may, each
  * left out where the provider did not say it. */
 export function keyWorksLine(facts: KeyFacts): string {
