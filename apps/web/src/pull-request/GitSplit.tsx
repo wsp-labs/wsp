@@ -7,20 +7,23 @@
 // pane.
 import { ChevronDownIcon, GitCommitHorizontalIcon, GitPullRequestIcon, UploadIcon } from "lucide-react";
 import { useState } from "react";
+import { isPullRequestNamed } from "@wsp/protocol";
 import { Button } from "../components/ui/button.js";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../components/ui/menu.js";
 import { useDiffStore } from "../diffs/store.js";
 import { addNotice, noticeFailure } from "../notices/store.js";
-import { useShownThreadId, useStatus, useStore, useWorkspace } from "../protocol/store.js";
+import { useAbsentComputer, useShownThreadId, useStatus, useStore, useWorkspace, useWorkspaceState } from "../protocol/store.js";
 import { useCheckoutOf } from "../sidebar/tileCheckout.js";
 import { useRightPanelStore } from "../rightPanelStore.js";
-import { GIT_WORDS, gitMenu, gitQuickAction, type GitAct, type GitMenuItem } from "./gitAction.logic.js";
+import { awayLine, GIT_WORDS, gitMenu, gitQuickAction, type GitAct, type GitMenuItem } from "./gitAction.logic.js";
 
 const ICONS: Record<GitMenuItem["id"], typeof GitCommitHorizontalIcon> = { commit: GitCommitHorizontalIcon, push: UploadIcon, pr: GitPullRequestIcon };
 
 export function GitSplit({ workspaceId }: { workspaceId: string }) {
   const workspace = useWorkspace(workspaceId);
   const status = useStatus(workspaceId);
+  const machine = useWorkspaceState(workspaceId);
+  const absent = useAbsentComputer(workspaceId);
   const base = useStore(s => s.projects.find(p => p.id === workspace?.project.id)?.base);
   const api = useStore(s => s.api);
   const threadId = useShownThreadId(workspaceId);
@@ -29,10 +32,14 @@ export function GitSplit({ workspaceId }: { workspaceId: string }) {
   const setScope = useDiffStore(s => s.setScope);
   const [busy, setBusy] = useState(false);
   useCheckoutOf(workspaceId);
-  // A sub-thread's deleted machine leaves no copy to commit or push from.
-  if (workspace === null || workspace.phase === "released" || status?.checkout === undefined || api?.bringBack === undefined) return null;
-  const state = { checkout: status.checkout, pr: status.pr, base, opensPr: workspace.parentThreadId === undefined, busy };
+  // A deleted machine leaves no copy to commit or push from, though the host keeps its last checkout read; an open
+  // pull request is read on this computer, so View PR stays.
+  const prOpen = isPullRequestNamed(status?.pr) && status.pr.state === "open";
+  if (workspace === null || machine === null || machine === "released" || (machine === "gone" && !prOpen) || status?.checkout === undefined || api?.bringBack === undefined) return null;
+  const away = absent === null ? awayLine(machine) : absent.start !== undefined ? `${absent.said}; git actions open once they start again` : absent.sentence;
+  const state = { checkout: status.checkout, pr: status.pr, base, opensPr: workspace.parentThreadId === undefined, busy, away };
   const quick = gitQuickAction(state);
+  const shown = quick.act ?? quick.holds;
   const name = workspace.name;
 
   const openChanges = (): void => {
@@ -78,7 +85,7 @@ export function GitSplit({ workspaceId }: { workspaceId: string }) {
         onClick={() => quick.act !== null && run(quick.act)}
         className="rounded-e-none [-webkit-app-region:no-drag]"
       >
-        {quick.act === "view-pr" || quick.act === "create-pr" ? <GitPullRequestIcon /> : quick.act === "push" ? <UploadIcon /> : <GitCommitHorizontalIcon />}
+        {shown === "view-pr" || shown === "create-pr" ? <GitPullRequestIcon /> : shown === "push" ? <UploadIcon /> : <GitCommitHorizontalIcon />}
         <span className="max-sm:sr-only">{quick.label}</span>
       </Button>
       <Menu>
