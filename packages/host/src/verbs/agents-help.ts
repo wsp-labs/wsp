@@ -28,6 +28,7 @@ import {
   SkillRow,
   SKILL_PREVIEW_BYTES,
   agentSignInWord,
+  nappedWord,
   FIRST_RUN_WORD,
   VERSION_UNREAD_WORD,
   usageRefusal,
@@ -118,14 +119,14 @@ export async function agentsReport(client: HostClient, thread: string | undefine
 export const AGENTS_FRAME = AgentsReport.omit({ agents: true, skills: true, servers: true, plugins: true }).shape;
 
 /** The report's own facts, beside the rows one list prints. */
-export function reportFacts(r: AgentsReport): Pick<AgentsReport, "target" | "home" | "user" | "readAt" | "stale" | "refused" | "projects"> {
-  return { target: r.target, home: r.home, user: r.user, readAt: r.readAt, ...(r.stale !== undefined ? { stale: r.stale } : {}), refused: r.refused, ...(r.projects !== undefined ? { projects: r.projects } : {}) };
+export function reportFacts(r: AgentsReport): Pick<AgentsReport, "target" | "home" | "user" | "readAt" | "stale" | "pauseMode" | "refused" | "projects"> {
+  return { target: r.target, home: r.home, user: r.user, readAt: r.readAt, ...(r.stale !== undefined ? { stale: r.stale } : {}), ...(r.pauseMode !== undefined ? { pauseMode: r.pauseMode } : {}), refused: r.refused, ...(r.projects !== undefined ? { projects: r.projects } : {}) };
 }
 
-/** The lines under every list: a napping machine's report is the one it last had, and each reader that could not
- * answer is named. */
+/** The lines under every list: a paused machine's report is the one it last had, worded by how its computer naps it,
+ * and each reader that could not answer is named. */
 function reportTail(r: AgentsReport): string[] {
-  return [...(r.stale === "napping" ? ["napping: this is what stood there when it last ran"] : []), ...r.refused.map(line => `refused: ${cell(line)}`)];
+  return [...(r.stale === "napping" ? [`${nappedWord(r.pauseMode)}: this is what stood there when it last ran`] : []), ...r.refused.map(line => `refused: ${cell(line)}`)];
 }
 
 export function agentRowLines(r: AgentsReport): string[] {
@@ -569,4 +570,4 @@ export const defaultsCell = (d: ThreadDefaults | undefined): string =>
 export const AgentsThreadIn = z.string().optional().describe("a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer");
 export const AgentsOnIn = z.string().optional().describe("the computer to read, by the name computers lists; absent with no thread is the computer the app runs on");
 export const AGENTS_ON_WORDS = "the computer to read, by the name wsp computers shows; this computer without it, and a thread names its own";
-export const AGENTS_READ_WORDS = "Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.";
+export const AGENTS_READ_WORDS = "Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.";

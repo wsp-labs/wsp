@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "servers",
-    "description": "Every MCP server each agent's own config file defines on one computer or where a thread runs, and a thread's project files: the agent, the file, how it is reached (its command with every value hidden, or its url's host), the names of the variables it sets or reads and never their values, whether the file switches it off, whether wsp's recipe put it there on a box, and its sign-in as the config alone says it: open for a command or a fixed header, unknown for a remote server until something connects. On a machine at a provider, which holds no sign-in or key of the person's, a server that needs one carries off with the sentence saying why, and no server there carries a sign-in line. On any computer but the one the app runs on it also lists the wsp server each thread's launch there hands an agent that takes servers on its launch, marked launch, with no file, and never turned off or removed. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.",
+    "description": "Every MCP server each agent's own config file defines on one computer or where a thread runs, and a thread's project files: the agent, the file, how it is reached (its command with every value hidden, or its url's host), the names of the variables it sets or reads and never their values, whether the file switches it off, whether wsp's recipe put it there on a box, and its sign-in as the config alone says it: open for a command or a fixed header, unknown for a remote server until something connects. On a machine at a provider, which holds no sign-in or key of the person's, a server that needs one carries off with the sentence saying why, and no server there carries a sign-in line. On any computer but the one the app runs on it also lists the wsp server each thread's launch there hands an agent that takes servers on its launch, marked launch, with no file, and never turned off or removed. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -63,6 +63,13 @@
         "stale": {
           "type": "string",
           "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
         },
         "refused": {
           "type": "array",
@@ -276,7 +283,7 @@
   },
   "cloudOn": {
     "name": "servers",
-    "description": "Every MCP server each agent's own config file defines on one computer or where a thread runs, and a thread's project files: the agent, the file, how it is reached (its command with every value hidden, or its url's host), the names of the variables it sets or reads and never their values, whether the file switches it off, whether wsp's recipe put it there on a box, and its sign-in as the config alone says it: open for a command or a fixed header, unknown for a remote server until something connects. On a machine at a provider, which holds no sign-in or key of the person's, a server that needs one carries off with the sentence saying why, and no server there carries a sign-in line. On any computer but the one the app runs on it also lists the wsp server each thread's launch there hands an agent that takes servers on its launch, marked launch, with no file, and never turned off or removed. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.",
+    "description": "Every MCP server each agent's own config file defines on one computer or where a thread runs, and a thread's project files: the agent, the file, how it is reached (its command with every value hidden, or its url's host), the names of the variables it sets or reads and never their values, whether the file switches it off, whether wsp's recipe put it there on a box, and its sign-in as the config alone says it: open for a command or a fixed header, unknown for a remote server until something connects. On a machine at a provider, which holds no sign-in or key of the person's, a server that needs one carries off with the sentence saying why, and no server there carries a sign-in line. On any computer but the one the app runs on it also lists the wsp server each thread's launch there hands an agent that takes servers on its launch, marked launch, with no file, and never turned off or removed. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -338,6 +345,13 @@
         "stale": {
           "type": "string",
           "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
         },
         "refused": {
           "type": "array",

@@ -75,9 +75,13 @@ const BOX_REPORT = {
   servers: [{ agent: "claude", name: "wsp", scope: "user", launch: true, transport: { kind: "stdio", line: "wsp mcp" }, envNames: [], auth: "open", enabled: true }, REPORT.servers[0]],
 };
 
+const THREAD = { "sessions.list": reply({ sessions: [{ id: "s-1", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1 one" }] }), "workspaces.get": reply({ workspace: WORKSPACE }) };
+
 const reportCases = (tool: string): Case[] => [
   { case: "here", arguments: {}, replies: { "agents.read": reply({ report: REPORT }) } },
-  { case: "a thread", arguments: { thread: "t-1" }, replies: { "sessions.list": reply({ sessions: [{ id: "s-1", workspaceId: "ws-1", harness: "claude", status: "completed", threadId: "t-1 one" }] }), "workspaces.get": reply({ workspace: WORKSPACE }), "agents.read": reply({ report: EMPTY_REPORT }) } },
+  { case: "a thread", arguments: { thread: "t-1" }, replies: { ...THREAD, "agents.read": reply({ report: EMPTY_REPORT }) } },
+  { case: "a stopped thread's kept report", arguments: { thread: "t-1" }, replies: { ...THREAD, "agents.read": reply({ report: { ...EMPTY_REPORT, pauseMode: "disk", stale: "napping" } }) } },
+  { case: "a napping thread's kept report", arguments: { thread: "t-1" }, replies: { ...THREAD, "agents.read": reply({ report: { ...EMPTY_REPORT, stale: "napping", pauseMode: "memory" } }) } },
   { case: "a project's name", arguments: { thread: "wsp" }, replies: { "sessions.list": reply({ sessions: [] }), "projects.list": reply({ projects: [WORKSPACE.project] }) } },
   { case: "a computer", arguments: { on: "attic" }, replies: { "places.list": PLACES, "agents.read": reply({ report: { ...REPORT, stale: undefined, target: { placeId: "place-9", project: "wsp" } } }) } },
   { case: "a box with its launch row", arguments: { on: "attic" }, replies: { "places.list": PLACES, "agents.read": reply({ report: BOX_REPORT }) } },
