@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { DAEMON_VERSION, JOINED_COMPUTER, PLACE_BLOCKED_WORD, absentComputer, placeDaemonBehind, placeWord, type PlaceSetup, type PlaceSync, type PlaceView, type SealedImageCopy, type WorkspaceView } from "@wsp/protocol";
 import { copyOn } from "./image.js";
-import { NOTHING_HELD, PLACE_KIND_WORDS, hereName, outcomeWord, placeName, placeOf, placeStateCell, removeSentence, removeTitle } from "./places.js";
+import { NOTHING_HELD, PLACE_KIND_WORDS, hereName, outcomeWord, placeName, placeOf, placeStateCell, providerForgetSentence, removeSentence, removeTitle } from "./places.js";
 
 const NOW = Date.parse("2026-09-12T12:00:00.000Z");
 const ago = (ms: number): string => new Date(NOW - ms).toISOString();
@@ -91,6 +91,19 @@ describe("the remove sentence", () => {
       "Its 2 machines are deleted at Boat and the key is forgotten on zingzy's MacBook Pro. The 3 sub-threads stay with their transcripts, and a message to one asks for Boat again.",
     );
     expect(removeSentence(ascii, { workspaces: [{ name: "events", state: "Deleted", threads: 1 }] }, MAC)).toBe("The key for Boat is forgotten on zingzy's MacBook Pro. Its sub-thread stays with its transcript, and a message to one asks for Boat again.");
+  });
+
+  it("names each image snapshot this host saved at a cloud with its size, deleted there before the key goes", () => {
+    expect(removeSentence(ascii, { workspaces: [{ name: "fix", state: "Running", threads: 1 }], images: [{ id: "wsp-acme-default-v1", sizeBytes: 345_000_000 }, { id: "wsp-acme-project-api" }] }, MAC)).toBe(
+      "Its machine is deleted at Boat and the key is forgotten on zingzy's MacBook Pro. Its 2 image snapshots, wsp-acme-default-v1 (329 MB) and wsp-acme-project-api, are deleted at Boat before the key goes. Its sub-thread stays with its transcript, and a message to one asks for Boat again.",
+    );
+    expect(removeSentence(SOLARI, { workspaces: [], images: [{ id: "snap_7", sizeBytes: 9_120_485_376 }] }, MAC)).toBe("The key for Solari is forgotten on zingzy's MacBook Pro. Its image snapshot snap_7 (8.5 GB) is deleted at Solari before the key goes.");
+  });
+
+  it("names the image snapshots a forget leaves at a cloud whose key it refused, which bill every month", () => {
+    expect(providerForgetSentence(ascii, { workspaces: [], images: [{ id: "wsp-acme-default-v1", sizeBytes: 345_000_000 }] }, MAC)).toBe(
+      "The key leaves zingzy's MacBook Pro. Nothing at Boat is touched, so what wsp made there may bill until Boat's own timer ends it. Its image snapshot wsp-acme-default-v1 (329 MB) stays at Boat and bills every month; add the key again and remove Boat to delete it.",
+    );
   });
 
   it("counts no machine for a sub-thread still waiting for one", () => {
