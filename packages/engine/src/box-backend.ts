@@ -10,7 +10,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { BOAT_BALANCE_LINE, BOAT_DISK_GONE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatBoxStateLine, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
-import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
+import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MachineStoppedError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
 import { DROP_SUDO_MARKS } from "./run-env.js";
@@ -1136,6 +1136,7 @@ export class BoxMachine implements Machine {
       if ((e as Partial<WspError>).kind === "unknown" && (e as Partial<WspError>).status === 500) {
         throw new GuestUnusableError(this.id, providerKeyName("box"), (e as WspError).message, (e as WspError).status);
       }
+      if ((e as Partial<WspError>).code === "machine_not_running" && e instanceof Error) throw new MachineStoppedError(this.id, e);
       throw e;
     });
     const stderr = res.stderr ?? "";
