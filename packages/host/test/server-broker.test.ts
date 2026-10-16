@@ -51,7 +51,8 @@ async function upstream(): Promise<{ url: string; seen: IncomingHttpHeaders[]; r
     const answer = (): void => void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ type: "message", content: [] }));
     const refuse = (): void => void res.writeHead(401, { "content-type": "application/json" }).end(JSON.stringify({ type: "error", error: { type: "authentication_error" } }));
     const overloaded = (): void => void res.writeHead(529, { "content-type": "application/json" }).end(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }));
-    req.on("end", () => (req.headers["x-acme-hold"] !== undefined ? held.push(answer) : req.headers["x-acme-refuse"] !== undefined ? refuse() : req.headers["x-acme-overloaded"] !== undefined ? overloaded() : answer()));
+    const brokenOff = (): void => void res.writeHead(200, { "content-type": "text/event-stream" }).end('event: error\ndata: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}\n\n');
+    req.on("end", () => (req.headers["x-acme-hold"] !== undefined ? held.push(answer) : req.headers["x-acme-refuse"] !== undefined ? refuse() : req.headers["x-acme-overloaded"] !== undefined ? overloaded() : req.headers["x-acme-broken-off"] !== undefined ? brokenOff() : answer()));
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   cleanups.push(() => new Promise<void>(resolve => server.close(() => resolve())));
@@ -245,6 +246,28 @@ function subagentTurns(daemon: Daemon, gate: () => Promise<void>): HarnessAdapte
         await gate();
         expect(await call("sub two", "x-acme-hold")).toBeInstanceOf(Error);
         onEvent({ type: "turn.retry", sessionId, attempt: 1, of: 10, why: "Anthropic did not answer" });
+        await gate();
+        const result: TurnResult = { status: "completed", text: "ok" };
+        onEvent({ type: "turn.done", sessionId, result });
+        onEvent({ type: "session.end", sessionId, exitCode: 0, sawResult: true });
+        return result;
+      })();
+      return { localId: sessionId, finished, interrupt: async () => {} };
+    },
+  });
+}
+
+/** A Claude stand-in whose model call Anthropic answers 200 and then breaks off overloaded, twice, as the CLI makes it
+ * again saying nothing; the turn ends at the gate. */
+function brokenOffTurns(daemon: Daemon, gate: () => Promise<void>): HarnessAdapterFactory {
+  return ctx => ({
+    steers: false,
+    start: ({ onEvent }) => {
+      const sessionId = randomUUID();
+      const finished = (async (): Promise<TurnResult> => {
+        onEvent({ type: "session.start", sessionId });
+        await expect.poll(() => daemon.parked.length, { timeout: 10_000 }).toBeGreaterThan(0);
+        for (let i = 0; i < 2; i++) expect(await modelCall(daemon, ctx, { "x-acme-broken-off": "1" })).toMatchObject({ status: 200, body: expect.stringContaining("overloaded_error") });
         await gate();
         const result: TurnResult = { status: "completed", text: "ok" };
         onEvent({ type: "turn.done", sessionId, result });
@@ -471,6 +494,18 @@ describe("the broker the host serves", () => {
     expect(await retries()).toEqual(["Anthropic did not answer, trying again (1)", "Anthropic was overloaded, trying again (2)", "Anthropic did not answer, trying again (1 of 10)"]);
     await expect.poll(() => gates.length).toBe(1);
     gates.shift()!();
+    expect(await turn.finished).toMatchObject({ status: "completed" });
+  });
+
+  it("writes into the thread the retry of a stream Anthropic broke off overloaded after its 200, which Claude Code never says", async () => {
+    let open!: () => void;
+    const s = await served({ claude: daemon => brokenOffTurns(daemon, () => new Promise<void>(done => (open = done))) });
+    const ws = await createOn(s.rt, { golden: "snap_g", name: "acme-lab" });
+    await s.host();
+    const turn = await s.rt.sessions.start(ws.id, { prompt: "one", harness: "claude" });
+    const retries = async (): Promise<string[]> => (await s.rt.sessions.history(ws.id)).flatMap(e => (e.type === "session.retry" ? [retryLine(e)] : []));
+    await expect.poll(retries, { timeout: 10_000 }).toEqual(["Anthropic was overloaded, trying again (1)", "Anthropic was overloaded, trying again (2)"]);
+    open();
     expect(await turn.finished).toMatchObject({ status: "completed" });
   });
 

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { pipeline } from "node:stream";
+import { StringDecoder } from "node:string_decoder";
 import { anthropicRetryWhy } from "@wsp/protocol";
 import { computerNameHere } from "../places/this-computer.js";
 
@@ -115,6 +116,39 @@ function retried(up: IncomingMessage, kind: AnthropicCredential["kind"], tries: 
   return said === "true" || (said !== "false" && (status === 408 || status === 409 || status >= 500));
 }
 
+/** The error events inside a 200 stream after which Claude Code makes its call again with no api_retry line, by the
+ * category its own line would give (2.1.301): an overload again as a stream twice, then whole; a server or timeout
+ * error whole at once; after a finished text block, a new call to resume, at most three, the fourth break ending it.
+ * Under CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK=1 the third overloaded stream ends it. */
+const STREAM_ERRORS = new Map([
+  ["overloaded_error", "overloaded"],
+  ["api_error", "server_error"],
+  ["timeout_error", "server_error"],
+]);
+
+/** Calls `failed` with the category of an error event inside a 200 stream. An unfinished line keeps its last 4 KB: an
+ * error's is short. */
+function streamError(failed: (category: string) => void): (chunk: Buffer) => void {
+  const text = new StringDecoder("utf8");
+  let rest = "";
+  let event = "";
+  return chunk => {
+    const lines = (rest + text.write(chunk)).split("\n");
+    rest = lines.pop()!.slice(-4_096);
+    for (const raw of lines) {
+      const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+      if (line === "") event = "";
+      else if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (event === "error" && line.startsWith("data:")) {
+        try {
+          const category = STREAM_ERRORS.get(String((JSON.parse(line.slice(5)) as { error?: { type?: unknown } }).error?.type));
+          if (category !== undefined) failed(category);
+        } catch {}
+      }
+    }
+  };
+}
+
 const categoryOf = (status: number): string | undefined => (status === 529 ? "overloaded" : status >= 500 ? "server_error" : undefined);
 
 /** How many times Claude Code makes a failed call again before it gives up, unless its launch sets
@@ -202,6 +236,7 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
           }
           res.writeHead(up.statusCode ?? 502, up.statusMessage, withoutHop(up.rawHeaders));
           res.flushHeaders();
+          if (up.statusCode === 200 && String(up.headers["content-type"]).startsWith("text/event-stream")) up.on("data", streamError(category => again(anthropicRetryWhy(category, undefined), false)));
           pipeline(up, res, () => done());
         });
         const timer = wait === undefined ? undefined : setTimeout(() => {

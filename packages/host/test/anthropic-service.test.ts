@@ -433,6 +433,41 @@ describe("a model call no reply has started for is cut at a wait, so Claude Code
     expect(got.body.equals(Buffer.concat(SSE))).toBe(true);
   });
 
+  it("tells the thread of a stream Anthropic broke off overloaded after its 200, which Claude Code makes again with no line of its own", async () => {
+    // As 2.1.301 met it: the error event alone, then after message_start split across two reads with spaces in its
+    // JSON, then a whole reply whose text names the error, which is no error.
+    const broken = [
+      [Buffer.from('event: error\ndata: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}\n\n')],
+      [SSE[0]!, Buffer.from('event: error\r\ndata: {"type": "error", "error": {"type": "overl'), Buffer.from('oaded_error", "message": "Overloaded"}}\r\n\r\n')],
+      [SSE[0]!, Buffer.from('event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"{\\"type\\":\\"overloaded_error\\"}"}}\n\n'), SSE[2]!],
+    ];
+    const replies = [...broken];
+    const url = await listen((req, res) => {
+      req.resume();
+      const chunks = replies.shift()!;
+      res.writeHead(200, STREAM_HEADERS);
+      for (const chunk of chunks) res.write(chunk);
+      res.end();
+    });
+    const door = await doorFor(url, key, 150);
+    for (const chunks of broken) expect((await send(door.url, RECORDED.key)).body.equals(Buffer.concat(chunks))).toBe(true);
+    expect(door.retries).toEqual(["Anthropic was overloaded, trying again (1)", "Anthropic was overloaded, trying again (2)"]);
+  });
+
+  it("tells the thread of a stream Anthropic broke off with a server or a timeout error after its 200, which Claude Code makes again whole", async () => {
+    const broken = ["api_error", "timeout_error"].map(type => [SSE[0]!, Buffer.from(`event: error\ndata: {"type":"error","error":{"type":"${type}","message":"Internal server error"}}\n\n`)]);
+    const replies = [...broken];
+    const url = await listen((req, res) => {
+      req.resume();
+      res.writeHead(200, STREAM_HEADERS);
+      for (const chunk of replies.shift()!) res.write(chunk);
+      res.end();
+    });
+    const door = await doorFor(url, key, 150);
+    for (const chunks of broken) expect((await send(door.url, RECORDED.key)).body.equals(Buffer.concat(chunks))).toBe(true);
+    expect(door.retries).toEqual(["Anthropic answered with a server error, trying again (1)", "Anthropic answered with a server error, trying again (2)"]);
+  });
+
   it("leaves a gateway's call to the wait Claude Code gives it, since a gateway may hold a reply until it is whole", async () => {
     const up = await slowUpstream([400]);
     const door = await doorFor(up.url, { kind: "gateway", url: up.url, token: "gateway-for-test" }, 150);
