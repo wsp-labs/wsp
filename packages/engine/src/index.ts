@@ -24,6 +24,7 @@ export * from "./no-provider-backend.js";
 export * from "./fake-backend.js";
 export * from "./lifecycle.js";
 export * from "./golden.js";
+export * from "./drop-template.js";
 export * from "./golden-base.js";
 export { SWEEP_STAGED_CMD, TOOLS_DISK_FLOOR, diskUse, missingCommands, sweepLeftovers, ownedFloorBytes, plural, prefixVolume, recordedPin, recordedPins, withRecordedPins, type PluginSeedPlan, type PluginsPlan, type ToolResult, type ToolRoad, type ToolsOutcome } from "./golden-tools.js";
 export * from "./dotfiles-presets.js";

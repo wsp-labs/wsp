@@ -121,7 +121,7 @@ const CUT = {
 const LOCKED_MACHINE_WORDS: ReadonlyArray<{ word: string; file?: string }> = [
   { word: "The computers your threads run on, and the clouds that lend them machines.   is the first one." },
   { word: "Machines" },
-  { word: "Deletes every machine wsp made there and forgets the key." },
+  { word: "Deletes every machine and image snapshot wsp made there, then forgets the key." },
   // A Boat machine is what Boat sells and what its own dashboard calls it: Boat's page,
   // its band, a sub-thread's card and Boat's remove name the machines a sub-thread runs on.
   ...[
