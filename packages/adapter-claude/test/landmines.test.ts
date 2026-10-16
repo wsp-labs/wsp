@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { BROKER_DOOR_URL, OFF_SERVERS_FILE, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
+import { BROKER_DOOR_URL, FIRST_BYTE_ENV, OFF_SERVERS_FILE, buildCommand, buildEnv, forwardsSubagentText, newSessionId, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES, savedSpendCommand, signInGuard, userMessageLine } from "../src/landmines.js";
 import { agentWord, PLUGIN_SEED_ENV, shellQuote, SLATE_BRIEF } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
@@ -93,6 +93,14 @@ describe("buildEnv", () => {
     expect(buildEnv({ base }).CLAUDE_CODE_MCP_STARTUP_WAIT_MS).toBe("0");
     expect(buildEnv({ base: { ...base, CLAUDE_CODE_MCP_STARTUP_WAIT_MS: "30000" } }).CLAUDE_CODE_MCP_STARTUP_WAIT_MS).toBe("0");
     expect(buildEnv({ base, brokered: { token: "wsp-turn-x", kind: "token" } }).CLAUDE_CODE_MCP_STARTUP_WAIT_MS).toBe("0");
+  });
+
+  it("gives up on a model call no reply has started for in 30 s, unless the person set their own wait", () => {
+    expect(buildEnv({ base })[FIRST_BYTE_ENV]).toBe("30000");
+    expect(buildEnv({ base, oauthToken: "sk-ant-oat01-TESTONLY" })[FIRST_BYTE_ENV]).toBe("30000");
+    expect(buildEnv({ base: { ...base, [FIRST_BYTE_ENV]: "120000" } })[FIRST_BYTE_ENV]).toBe("120000");
+    expect(buildEnv({ base })).not.toHaveProperty("API_TIMEOUT_MS");
+    expect(buildEnv({ base, brokered: { token: "wsp-turn-x", kind: "token" } })).not.toHaveProperty(FIRST_BYTE_ENV);
   });
 
   it("passes the API key through when given", () => {
