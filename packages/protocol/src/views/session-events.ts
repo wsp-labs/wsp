@@ -455,6 +455,19 @@ export const SessionCompactedEvent = z.object({
 });
 export type SessionCompactedEvent = z.infer<typeof SessionCompactedEvent>;
 
+/** The agent is making a failed model call again by itself, as `turn.retry` says it. It stands for the turn's state
+ * only until the turn's next event, which is the call getting through or the turn ending. `line` counts the turn's
+ * retries as `line` counts its compactions. */
+export const SessionRetryEvent = z.object({
+  type: z.literal("session.retry"),
+  ...sessionScope,
+  attempt: z.number().int().positive(),
+  of: z.number().int().positive().optional(),
+  why: z.string().optional(),
+  line: z.number().int().positive().optional(),
+});
+export type SessionRetryEvent = z.infer<typeof SessionRetryEvent>;
+
 /** What the thread's own agent held after one of its calls, and the most it can hold where the harness says. Each
  * call's passes by on the bus and is kept nowhere, so the meter reads it while the turn runs; the transcript holds
  * one, the last, for a turn whose result names none (stopped, cut, failed after a call) and for one still running
@@ -632,6 +645,7 @@ export const SessionEvent = z.discriminatedUnion("type", [
   SessionChangesEvent,
   SessionPlanEvent,
   SessionCompactedEvent,
+  SessionRetryEvent,
   SessionContextEvent,
   SessionRunEvent,
   SessionMovedEvent,

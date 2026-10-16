@@ -259,8 +259,18 @@ const UNAUTHORIZED = /401 Unauthorized/;
 /** A provider whose env_key variable is unset: the CLI names the variable and fails the turn at once. */
 const MISSING_ENV = /Missing environment variable: `([^`]+)`/;
 /** A provider that refuses connections: the server says this forever, whatever its retry settings say. */
-const RECONNECTING = /^Reconnecting\.\.\./;
+const RECONNECTING = /^Reconnecting\.\.\.(?: (\d+)\/(\d+))?/;
 const RECONNECT_STALL_MS = 90_000;
+
+/** Which retry of how many a retrying error says it is about to make, and why, off the status the provider answered
+ * where Codex kept one. Measured on 0.155.1: a provider answering 500 reads as a dropped stream with no status. */
+function retryOf(message: string, info: unknown, sessionId: string): AdapterEvent | undefined {
+  const at = RECONNECTING.exec(message);
+  if (at?.[1] === undefined || at[2] === undefined) return undefined;
+  const status = rec(rec(info)?.responseStreamDisconnected)?.httpStatusCode;
+  const why = typeof status === "number" ? `the provider answered ${status}` : "the connection dropped";
+  return { type: "turn.retry", sessionId, attempt: Number(at[1]), of: Number(at[2]), why };
+}
 
 /** What the CLI said after the status it refused on, as a clause a sentence can carry: its own colon and spaces off
  * the front, and the url and bracket it trails with off the end. Empty where it said nothing. */
@@ -1026,6 +1036,8 @@ export function createCodexAdapter(deps: CodexAdapterDeps): CodexAdapter {
           if (error?.codexErrorInfo === USAGE_LIMIT_CODE && params.willRetry !== true) usageLimited = true;
           words = failureWords(`${message} ${str(error?.additionalDetails) ?? ""}`, deps.login, deps.keyEnv) ?? words;
           if (RECONNECTING.test(message)) reconnecting();
+          const retry = params.willRetry === true ? retryOf(message, error?.codexErrorInfo, threadId) : undefined;
+          if (retry !== undefined) emit(retry);
           break;
         }
         case "turn/completed": {
