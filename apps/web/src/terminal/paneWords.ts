@@ -5,11 +5,11 @@
 // surfaces can never say two things about one link. Beside them, the one
 // read of a folder's branch over the link, keyed on the link's word.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { isLocalWorkspace, workspaceStateOf, type DaemonLinkStatus, type PlaceView, type RepoStateWord, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+import { isLocalWorkspace, workspaceStateOf, type DaemonLinkStatus, type PauseMode, type PlaceView, type RepoStateWord, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
 import { linkDownLine, linkDownWord, terminalPaneHints, terminalPaneState, type TerminalPaneState } from "../adapt/index.js";
 import { repoAbsence } from "../adapt/git.js";
 import { useOutOfMemoryReading } from "../machine/live.js";
-import { useCapabilities, usePlaces, useStatus, useStore, useWorkspace } from "../protocol/store.js";
+import { pauseModesOf, useCapabilities, usePlaces, useStatus, useStore, useWorkspace } from "../protocol/store.js";
 import { absenceOf } from "../settings/places.js";
 import { computerName, computerOf } from "../sidebar/workspaceRows.js";
 import { gitStatus } from "./daemon-fs.js";
@@ -35,7 +35,7 @@ export function useOwnComputerName(workspaceId: string): string | undefined {
 
 /** A link's pane state off the store's record of its workspace: the one reading useTerminalPane and useLinkDown
  * both take, so two surfaces cannot say two things about one link. */
-function paneOf(input: { workspace: WorkspaceView | null; status: WorkspaceStatus | null; places: readonly PlaceView[]; socket: DaemonLinkStatus; refusal: string | null; outOfMemory?: Parameters<typeof terminalPaneState>[0]["outOfMemory"] }): TerminalPaneState {
+function paneOf(input: { workspace: WorkspaceView | null; status: WorkspaceStatus | null; places: readonly PlaceView[]; socket: DaemonLinkStatus; refusal: string | null; outOfMemory?: Parameters<typeof terminalPaneState>[0]["outOfMemory"]; pauseMode?: PauseMode | undefined }): TerminalPaneState {
   const { workspace, status } = input;
   const view = status ?? workspace;
   const local = workspace !== null && isLocalWorkspace(workspace);
@@ -53,6 +53,7 @@ function paneOf(input: { workspace: WorkspaceView | null; status: WorkspaceStatu
     absent: absenceOf(input.places, workspace, status, null),
     ...(where === "" ? {} : { where }),
     ...(own === undefined ? {} : { computer: own }),
+    ...(input.pauseMode === undefined ? {} : { pauseMode: input.pauseMode }),
   });
 }
 
@@ -66,7 +67,9 @@ export function useTerminalPane(workspaceId: string, socket: DaemonLinkStatus, r
   const places = usePlaces();
   const phase = status?.phase ?? workspace?.phase ?? "running";
   const outOfMemory = useOutOfMemoryReading(workspaceId, phase);
-  const pane = useMemo(() => paneOf({ workspace, status, places, socket, refusal, outOfMemory }), [workspace, status, places, socket, refusal, outOfMemory]);
+  // The project's landing, as its sidebar row reads it: the host's own provider is not every computer that naps.
+  const pauseMode = useStore(s => (workspace === null ? undefined : pauseModesOf(s.landings)[workspace.project.id]));
+  const pane = useMemo(() => paneOf({ workspace, status, places, socket, refusal, outOfMemory, pauseMode }), [workspace, status, places, socket, refusal, outOfMemory, pauseMode]);
   const size = status?.size ?? null;
   const sizes = capabilities?.sizes ?? null;
   const hints = useMemo(() => terminalPaneHints(pane, size, sizes), [pane, size, sizes]);
