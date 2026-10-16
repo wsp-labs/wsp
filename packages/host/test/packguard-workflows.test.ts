@@ -10,11 +10,13 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { writeStub } from "../../protocol/test/stub-script.js";
 import { OVERSIZE_REFUSAL, UNREAD_PACK_REFUSAL, WORKFLOWS_REFUSAL, githubEntryReader, guardWorkflows, type GithubEntryReader } from "../src/packguard/workflows.js";
 
 const dirs: string[] = [];
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
@@ -52,7 +54,7 @@ rp.on("exit", code => process.exit(code ?? 1));
 `;
 
 /** An upstream whose main holds a workflow, and a depth 1 clone of it on the thread's branch. */
-function project(): { root: string; origin: string; work: string; wrapper: string } {
+function project(extra: Record<string, string> = {}): { root: string; origin: string; work: string; wrapper: string } {
   const root = mkdtempSync(join(tmpdir(), "wsp-packguard-test-"));
   dirs.push(root);
   const origin = join(root, "origin.git");
@@ -63,6 +65,7 @@ function project(): { root: string; origin: string; work: string; wrapper: strin
   mkdirSync(join(seed, ".github", "workflows"), { recursive: true });
   writeFileSync(join(seed, ".github", "workflows", "ci.yml"), "on: push\n");
   writeFileSync(join(seed, "big.txt"), Array.from({ length: 20000 }, (_, i) => `${i}\n`).join(""));
+  for (const [file, text] of Object.entries(extra)) writeFileSync(join(seed, file), text);
   git(seed, "add", "-A");
   git(seed, "commit", "-qm", "one");
   writeFileSync(join(seed, "README"), "hello\n");
@@ -165,6 +168,24 @@ describe("the .github/ guard", () => {
     edit(p.work, "notes.md", "a change\n");
     const { head, pack } = push(p, "wsp/t");
     expect(pack.subarray(0, 4).toString()).toBe("PACK");
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
+  });
+
+  it("passes a pack whose root tree names a .gitattributes and a .gitmodules the pack leaves out, as GitHub already holds them", async () => {
+    const p = project({ ".gitattributes": "*.png binary\n", ".gitmodules": '[submodule "x"]\n\tpath = x\n\turl = https://example.invalid/x\n' });
+    edit(p.work, "README", "hello from a machine\n");
+    const { head, pack } = push(p, "wsp/t");
+    expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
+  });
+
+  it("indexes with the plain fsck check on a git before 2.44, which answers usage to fsck levels", async () => {
+    const p = project();
+    edit(p.work, "README", "hello from a machine\n");
+    const { head, pack } = push(p, "wsp/t");
+    const real = execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim();
+    mkdirSync(join(p.root, "old-git"));
+    writeStub(join(p.root, "old-git", "git"), `#!/bin/sh\nfor a in "$@"; do case "$a" in --fsck-objects=*) exit 129;; esac; done\nexec ${real} "$@"\n`);
+    vi.stubEnv("PATH", `${join(p.root, "old-git")}:${process.env.PATH}`);
     expect(await guardWorkflows({ pack, head, entryAt: upstream(p.origin) })).toEqual({ allow: true });
   });
 
