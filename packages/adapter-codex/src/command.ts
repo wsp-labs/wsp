@@ -161,27 +161,34 @@ export function providerFlags(id: string, entry: Readonly<Record<string, unknown
   };
 }
 
+const providersOf = (broker: CodexBroker): { flags: string[]; keyed: boolean }[] =>
+  Object.entries(broker.providers ?? {}).map(([id, entry]) => providerFlags(id, entry, broker.mode));
+
 /** The overrides and the steps a brokered launch adds: the placeholder login, the placeholder key the providers that
  * read one find, both base URLs at the door, the login read from its file, analytics off, and each provider's fields.
  * A copied config that keeps the login in the keyring would hide the file: codex-cli 0.162.1 reads only the keyring
  * then, and a machine has no secret service. */
 function brokeredLine(broker: CodexBroker, now: number, turn: boolean): { steps: string[]; flags: string[] } {
-  const providers = Object.entries(broker.providers ?? {}).map(([id, entry]) => providerFlags(id, entry, broker.mode));
+  const providers = providersOf(broker);
   return {
     steps: [placeholderLogin(broker, now, turn), ...(broker.mode === "apikey" ? [`unset ${KEY_FILE_ENV}`] : []), ...(providers.some(p => p.keyed) ? [`export ${PROVIDER_KEY_ENV}="${PLACEHOLDER_KEY_PREFIX}$${HOST_TOKEN_ENV}"`] : [])],
-    flags: [
-      config("openai_base_url", broker.mode === "chatgpt" ? `${DOOR}/backend-api/codex` : `${DOOR}/v1`),
-      config("chatgpt_base_url", `${BACKEND_DOOR}/backend-api/`),
-      config("cli_auth_credentials_store", "file"),
-      configRaw("analytics.enabled", "false"),
-      ...providers.flatMap(p => p.flags),
-    ],
+    flags: doorFlags(broker, providers, "file"),
   };
 }
 
+function doorFlags(broker: CodexBroker, providers: readonly { flags: string[] }[], store: "file" | "ephemeral"): string[] {
+  return [
+    config("openai_base_url", broker.mode === "chatgpt" ? `${DOOR}/backend-api/codex` : `${DOOR}/v1`),
+    config("chatgpt_base_url", `${BACKEND_DOOR}/backend-api/`),
+    config("cli_auth_credentials_store", store),
+    configRaw("analytics.enabled", "false"),
+    ...providers.flatMap(p => p.flags),
+  ];
+}
+
 /** How every Codex launch that is not a turn starts codex, on the environment buildEnv gives it: on a brokered
- * machine, a shell that writes the placeholder login and becomes codex, and the broker's overrides, so a title, a draft
- * or a probe reaches the door and never chatgpt.com. The overrides go beside any `-c` the subcommand takes: codex-cli
+ * machine, a shell that writes the placeholder login and becomes codex, and the broker's overrides, so a title or a
+ * draft reaches the door and never chatgpt.com. The overrides go beside any `-c` the subcommand takes: codex-cli
  * 0.162.1 drops every root `-c` once the subcommand names one of its own (measured on `codex exec`). */
 export function codexLaunch(launch: AgentLaunch | undefined, broker: CodexBroker | undefined): { word: string; flags: string[] } {
   if (broker === undefined) return { word: programWord("codex", launch), flags: [] };
@@ -189,10 +196,17 @@ export function codexLaunch(launch: AgentLaunch | undefined, broker: CodexBroker
   return { word: `sh -c ${shellQuote([...steps, 'exec "$0" "$@"'].join(" && "))} ${programWord("codex", launch)}`, flags };
 }
 
-/** The same with the overrides ahead of the subcommand, for a launch whose subcommand takes no `-c` of its own. */
+/** How a launch that asks no model starts codex, a probe, a rename or a conversation read, with the overrides ahead of
+ * the subcommand. On a brokered machine it runs at the door on no login at all, since outside a turn the token the
+ * last turn wrote is dead, and with plugins off, whose sync codex runs at every start: on codex-cli 0.163.0 a probe on
+ * the last turn's login made 11 calls the door refused 403, and one on neither made none. With no login, model/list
+ * answers only the models the binary ships, every time: codex keys its models cache by the login, so the account's own
+ * list a turn fetched is never read, where the last turn's login read it within the cache's 300 s (codex-cli 0.155.1). */
 export function codexWord(launch: AgentLaunch | undefined, broker: CodexBroker | undefined): string {
-  const { word, flags } = codexLaunch(launch, broker);
-  return [word, ...flags].join(" ");
+  const program = programWord("codex", launch);
+  if (broker === undefined) return program;
+  const word = broker.mode === "apikey" ? `sh -c ${shellQuote(`unset ${KEY_FILE_ENV} && exec "$0" "$@"`)} ${program}` : program;
+  return [word, ...doorFlags(broker, providersOf(broker), "ephemeral"), configRaw("features.plugins", "false")].join(" ");
 }
 
 /** The program a terminal on a brokered machine finds as codex in `folder`, ahead of the real one on its PATH: codex
