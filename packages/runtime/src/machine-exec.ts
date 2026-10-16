@@ -194,10 +194,17 @@ const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const RUN_ID = /^[0-9a-f]{12}$/;
 /** How often the reap looks at the group it asked to go, while it waits out the one stop grace both roads give. */
 const GRACE_POLL_MS = 200;
-/** The poll after a write to a run's input, and for how long: at 1500 ms polls a stop on a box took 2.6 s to end its
- * turn, nearly all of it waiting for the poll after the agent's reply had landed (240 ms at these figures). */
+/** The poll after a write to a run's input or a poll that took bytes in a launch's opening, and for how long: at
+ * 1500 ms polls a stop on a box took 2.6 s to end its turn, nearly all of it waiting for the poll after the agent's
+ * reply had landed (240 ms at these figures), and one poll took Claude Code's first three retries of a failing call at
+ * once, which it prints 0.56 s and 1.04 s apart. */
 const HURRIED_POLL_MS = 200;
 const HURRIED_FOR_MS = 3_000;
+/** How long from its launch a run is read at the hurried pace while it has printed nothing, and its lines hurry the
+ * polls: Claude Code's init waits on its MCP servers, 27 s on one that never answers (2.1.301), and its first retry
+ * comes 17 ms after it. Past it a line does not, since every poll on Boat is a request and Boat refuses an address past
+ * 1,000 requests a minute. */
+const OPENING_HURRY_MS = 30_000;
 /** How often a process kept between turns is read while no turn is open: it prints nothing then, and its next turn
  * wakes the reader at once, so the poll is there only to see the process go on its own. Each poll is a shell on the
  * computer, one per kept process. */
@@ -326,8 +333,9 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
     let dropped = false;
     const { nap, wake, hurry } = pollNap(opts.sleep);
     // The agent's reply to a write (a stop, a steer, an answer, or an adapter's own line) would otherwise wait out a
-    // whole poll: the polls run at HURRIED_POLL_MS for a while after any write.
-    let hurriedUntil = 0;
+    // whole poll: the polls run at HURRIED_POLL_MS for a while after any write. So do they in a launch's opening, until
+    // its first line and for a while after each line there.
+    let hurriedUntil = posting === undefined ? 0 : now() + OPENING_HURRY_MS;
     const gap = (): number => (now() < hurriedUntil ? Math.min(pollMs, HURRIED_POLL_MS) : resting ? RESTING_POLL_MS : pollMs);
     /** The polls run at HURRIED_POLL_MS from now for a while, the one under way woken. */
     const hurryPolls = (): void => {
@@ -539,6 +547,7 @@ export function machineExecStream(machine: Machine, opts: MachineExecOptions = {
 
         if (chunk.length > 0) {
           activity.touch(now());
+          if (posting !== undefined && now() - posting.since < OPENING_HURRY_MS) hurriedUntil = now() + HURRIED_FOR_MS;
           pending = Buffer.concat([pending, chunk]);
           let nl: number;
           while ((nl = pending.indexOf(0x0a)) !== -1) {
