@@ -73,22 +73,46 @@ describe("terminalPaneState", () => {
     expect(terminalPaneTitle({ kind: "live" })).toBeNull();
     expect(terminalEmptyLine({ kind: "live" })).toBeNull();
     expect(terminalInputRefusal({ kind: "live" })).toBeNull();
-    expect(terminalPaneTitle({ kind: "paused", pausing: false })).toBe("Paused. The shell is kept; wake the thread to continue");
-    expect(terminalPaneTitle({ kind: "paused", pausing: true })).toBe("Pausing. The shell is kept; wake the thread to continue");
+    expect(terminalPaneTitle({ kind: "paused", pausing: false, pauseMode: "memory" })).toBe("Paused. The shell is kept; wake the thread to continue");
+    expect(terminalPaneTitle({ kind: "paused", pausing: true, pauseMode: "memory" })).toBe("Pausing. The shell is kept; wake the thread to continue");
+    expect(terminalPaneTitle({ kind: "waking", pauseMode: "memory" })).toBe("Waking the thread. The shell continues when it is back");
     expect(terminalPaneTitle({ kind: "reconnecting" })).toBe("Reconnecting to the thread's computer");
     expect(terminalPaneTitle({ kind: "not-answering" })).toBe("The thread's computer is not answering");
     expect(terminalPaneTitle({ kind: "reauth" })).toBe("Reconnecting to the thread's computer");
     expect(terminalEmptyLine({ kind: "reauth" })).toBe("Reconnecting to the thread's computer; terminals open when it is back");
     expect(terminalInputRefusal({ kind: "reauth" })).toBe("Typing is refused while the thread's computer reconnects");
     expect(terminalEmptyLine({ kind: "reconnecting" })).toBe("Reconnecting to the thread's computer; terminals open when it is back");
-    expect(terminalEmptyLine({ kind: "paused", pausing: false })).toBe("The thread is paused; wake it to open a terminal");
-    expect(terminalInputRefusal({ kind: "paused", pausing: false })).toBe("Typing is refused: the thread is paused");
+    expect(terminalEmptyLine({ kind: "paused", pausing: false, pauseMode: "memory" })).toBe("The thread is paused; wake it to open a terminal");
+    expect(terminalInputRefusal({ kind: "paused", pausing: false, pauseMode: "memory" })).toBe("Typing is refused: the thread is paused");
     expect(terminalInputRefusal({ kind: "reconnecting" })).toBe("Typing is refused while the thread's computer reconnects");
     for (const kind of ["reconnecting", "not-answering", "waking", "gone"] as const) {
       expect(terminalPaneTitle({ kind })).toBeTruthy();
       expect(terminalEmptyLine({ kind })).toBeTruthy();
       expect(terminalInputRefusal({ kind })).toBeTruthy();
     }
+  });
+});
+
+describe("a nap on a computer that does not keep the memory", () => {
+  // Boat's nap snapshots the disk and kills every process, and a pane holding no pause mode reads it the same way.
+  for (const pauseMode of ["disk", undefined] as const) {
+    it(`promises no kept shell with pause mode ${pauseMode ?? "unknown"}`, () => {
+      const nap = pauseMode === undefined ? {} : { pauseMode };
+      expect(terminalPaneState({ state: "paused", reach: "napping", socket: "connecting", ...nap })).toEqual({ kind: "paused", pausing: false, ...nap });
+      expect(terminalPaneState({ state: "waking", reach: "napping", socket: "connecting", ...nap })).toEqual({ kind: "waking", ...nap });
+      const panes = [{ kind: "paused", pausing: true, ...nap }, { kind: "paused", pausing: false, ...nap }, { kind: "waking", ...nap }] as const;
+      expect(panes.map(terminalPaneTitle)).toEqual([
+        "Stopping. The shell ends with the stop; wake the thread to open a new one",
+        "Stopped. The shell ended with the stop; wake the thread to open a new one",
+        "Waking the thread. The shell ended with the stop; open a new one when it is back",
+      ]);
+      expect(terminalEmptyLine(panes[1])).toBe("The thread is stopped; wake it to open a terminal");
+      expect(terminalInputRefusal(panes[0])).toBe("Typing is refused: the thread is stopping");
+      for (const line of panes.flatMap(p => [terminalPaneTitle(p), terminalEmptyLine(p), terminalInputRefusal(p)])) expect(line).not.toMatch(/kept|continues|paus/i);
+    });
+  }
+  it("carries a pause mode that keeps the memory through to the pane", () => {
+    expect(terminalPaneState({ state: "pausing", reach: "napping", socket: "live", pauseMode: "memory" })).toEqual({ kind: "paused", pausing: true, pauseMode: "memory" });
   });
 });
 

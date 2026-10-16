@@ -14,6 +14,7 @@ import { useTerminalViewportConfig } from "../terminal/fontSetting.js";
 import { reconcileTerminalIds, type TerminalUiState } from "../terminal/groups.js";
 import { getTerminals, onTerminals, type PtyTabView, type WorkspaceTerminals } from "../terminal/link.js";
 import { useTerminalPane } from "../terminal/paneWords.js";
+import { SHELL_ENDED_LINE } from "../adapt/index.js";
 import { HERE_KEY } from "../terminal/computer.js";
 import { useStateKey } from "../stateKey.js";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer.js";
@@ -37,8 +38,9 @@ export function terminalLabels(tabs: readonly PtyTabView[]): ReadonlyMap<string,
   return new Map(tabs.map(t => [t.ptyId, t.exited ? `${t.title} (exited)` : t.title]));
 }
 
-export function lostTerminals(tabs: readonly PtyTabView[]): ReadonlySet<string> {
-  return new Set(tabs.filter(t => t.lost).map(t => t.ptyId));
+/** Each pty the daemon no longer holds, with the sentence it ended with. */
+export function lostTerminals(tabs: readonly PtyTabView[]): ReadonlyMap<string, string> {
+  return new Map(tabs.filter(t => t.lost).map(t => [t.ptyId, t.ended ?? SHELL_ENDED_LINE]));
 }
 
 export function WorkspaceTerminalDrawer({ workspaceId }: { workspaceId: string }) {
@@ -94,7 +96,7 @@ function LinkedDrawer({ terms, workspaceId, drawerKey, ui }: { terms: WorkspaceT
       pane={pane}
       paneHints={hints}
       onWake={onWake}
-      lostTerminalIds={lost}
+      lostTerminals={lost}
       onSplitTerminal={() => split("horizontal")}
       onSplitTerminalVertical={() => split("vertical")}
       onNewTerminal={() => void openDrawerTerminal(workspaceId)}

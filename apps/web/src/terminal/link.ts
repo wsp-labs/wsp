@@ -7,7 +7,7 @@
 // after the daemon's pty.list has been adopted and attached, so a consumer
 // that sees live can trust tabs() and spawn only when it is truly empty.
 import { PtyListReply, type DaemonEvent, type DaemonLinkStatus } from "@wsp/protocol";
-import { SHELL_ENDED_LINE } from "../adapt/terminal-pane.js";
+import { SHELL_ENDED_LINE, SHELL_STOPPED_LINE } from "../adapt/terminal-pane.js";
 import type { PtyModeReport } from "./compose.js";
 import { composedPtyIo, type TerminalIo } from "./pty-io.js";
 
@@ -41,6 +41,8 @@ export interface PtyTabView {
   readonly exited: boolean;
   /** The daemon no longer holds this pty (the machine was replaced); exited is set with it. */
   readonly lost: boolean;
+  /** The sentence a lost pty ended with, the one its scrollback reads. */
+  readonly ended?: string;
   /** The thread whose pane opened it, as the host names it; `new:<id>` is the New thread page of the tab with that id. */
   readonly thread?: string;
 }
@@ -79,6 +81,7 @@ interface PtyState {
   title: string;
   exited: boolean;
   lost: boolean;
+  ended?: string;
   chunks: string[];
   length: number;
   sinks: Set<TerminalSink>;
@@ -102,7 +105,7 @@ function held(ptyId: string, title: string, reply: boolean, thread?: string): Pt
   return { ptyId, title, exited: false, lost: false, chunks: [], length: 0, sinks: new Set(), mode: null, reply, thread, exit: null, exitFns: new Set(), altFns: new Set(), alt: false, altTail: "" };
 }
 
-const tabOf = (p: PtyState): PtyTabView => ({ ptyId: p.ptyId, title: p.title, exited: p.exited, lost: p.lost, ...(p.thread !== undefined ? { thread: p.thread } : {}) });
+const tabOf = (p: PtyState): PtyTabView => ({ ptyId: p.ptyId, title: p.title, exited: p.exited, lost: p.lost, ...(p.ended !== undefined ? { ended: p.ended } : {}), ...(p.thread !== undefined ? { thread: p.thread } : {}) });
 
 // A shell started at a width other than its view's redraws its prompt on the first resize and leaves zsh's
 // partial-line mark above it, so a new pty starts at the size a view last measured, kept across reloads.
@@ -130,6 +133,8 @@ export class WorkspaceTerminals {
   #status: DaemonLinkStatus = NOT_OPENED_YET;
   #refusal: string | null = null;
   #wasLive = false;
+  /** The computer stopped since the link was last live, ending every process: the ptys the next one misses ended with it. */
+  #stopped = false;
   /** Bumped on every status change; an attach ritual that outlives its transition stops at the next await. */
   #liveGen = 0;
   #statusFns = new Set<() => void>();
@@ -155,6 +160,11 @@ export class WorkspaceTerminals {
     const relive = this.#wasLive;
     this.#wasLive = true;
     void this.#goLive(relive, this.#liveGen);
+  }
+
+  /** The workspace napped on a computer whose nap ends every process. */
+  feedStop(): void {
+    this.#stopped = true;
   }
 
   feedEvent(e: DaemonEvent): void {
@@ -438,6 +448,7 @@ export class WorkspaceTerminals {
     // A new socket lost the daemon-side pty subscriptions; re-attach them all.
     if (relive) await this.#reattachAll(gen);
     if (gen !== this.#liveGen) return;
+    this.#stopped = false;
     await this.#adopt(gen);
     if (gen !== this.#liveGen) return;
     this.#status = "live";
@@ -525,7 +536,8 @@ export class WorkspaceTerminals {
         if (!p.exited) {
           p.exited = true;
           p.lost = true;
-          const note = `\r\n[${SHELL_ENDED_LINE}]\r\n`;
+          p.ended = this.#stopped ? SHELL_STOPPED_LINE : SHELL_ENDED_LINE;
+          const note = `\r\n[${p.ended}]\r\n`;
           this.#mirror(p, note);
           for (const s of p.sinks) s.data(note);
           this.#notifyTabs();

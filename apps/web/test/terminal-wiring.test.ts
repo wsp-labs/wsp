@@ -3,7 +3,7 @@
 // WorkspaceTerminals in the registry, linked through the host's relay.
 import { homedir, tmpdir } from "node:os";
 import type { DaemonLinkStatus, WorkspaceView } from "@wsp/protocol";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { Api, ProtocolEvent } from "../src/protocol/client.js";
 import { useStore } from "../src/protocol/store.js";
 import { createElement } from "react";
@@ -12,7 +12,7 @@ import { getDaemonRoot, provideDaemonHello, useDaemonWire } from "../src/files/w
 import { getLive, resetLive } from "../src/machine/live.js";
 import { getProcs, resetProcs } from "../src/machine/procs.js";
 import { terminalEmptyLine, terminalPaneState, terminalPaneTitle } from "../src/adapt/index.js";
-import { getTerminals } from "../src/terminal/link.js";
+import { getTerminals, WorkspaceTerminals } from "../src/terminal/link.js";
 import { wireTerminals } from "../src/terminal/wiring.js";
 import { useTerminalDrawerStore } from "../src/terminal/drawerStore.js";
 import { caps } from "./caps.js";
@@ -274,6 +274,28 @@ describe("wireTerminals", () => {
     expect(words).not.toContain("opening");
     expect(new Set(words)).toEqual(new Set(["connecting", "live"]));
   }, 20_000);
+
+  it("a nap tells the workspace's terminals the stop ends their shells, only where its project's computer does not keep the memory", async () => {
+    const stops = vi.spyOn(WorkspaceTerminals.prototype, "feedStop");
+    onTestFinished(() => {
+      stops.mockRestore();
+      useStore.setState({ landings: {} });
+    });
+    const { api, emit } = fakeApi([view("ws_a")], () => relay!);
+    unwire = wireTerminals(useStore, { backoffMs: () => 30 });
+    useStore.getState().bind(api);
+    await until(() => getTerminals("ws_a")?.status() === "live");
+    useStore.setState({ landings: { pr_1: { name: "Solari", capabilities: caps() } } });
+    emit({ type: "workspace.napped", workspaceId: "ws_a" });
+    await until(() => getTerminals("ws_a")!.status() === "connecting");
+    expect(stops).not.toHaveBeenCalled();
+    emit({ type: "workspace.woken", workspaceId: "ws_a", machineId: "m_ws_a" });
+    await until(() => getTerminals("ws_a")!.status() === "live");
+    useStore.setState({ landings: { pr_1: { name: "Boat", capabilities: caps({ pauseMode: "disk" }) } } });
+    emit({ type: "workspace.napped", workspaceId: "ws_a" });
+    await until(() => getTerminals("ws_a")!.status() === "connecting");
+    expect(stops).toHaveBeenCalledTimes(1);
+  }, 15_000);
 
   it("unwiring closes every link and empties the registry", async () => {
     const { api } = fakeApi([view("ws_a")], () => relay!);
