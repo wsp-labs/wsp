@@ -274,6 +274,23 @@ describe("the recipe's rows", () => {
     expect(k("tally")?.textContent).toBe(tallyText(0, "more", soFar + 3 * GIB, 20 * GIB));
   });
 
+  it("draws a locked tick as fixed, hollow and muted, says always on, and a press leaves it ticked", async () => {
+    const job: InitJob = { ...JOB, step: 1 };
+    await open(host({ job }), job);
+    expect(stepAt()).toBe("screen-tools");
+    const locked = tick("node");
+    expect(locked.hasAttribute("data-disabled")).toBe(true);
+    expect(locked.className).toContain("data-disabled:border-dashed");
+    expect(locked.className).not.toContain("opacity");
+    expect(locked.querySelector("[data-slot=checkbox-indicator]")!.className).toContain("data-disabled:bg-transparent");
+    expect(row("node").querySelector("[data-k=why]")?.textContent).toBe(CLOUD_SETUP_WORDS.screen.alwaysOn);
+    expect(row("gh").querySelector("[data-k=why]")?.textContent).toBe("29,623 calls");
+    expect(tick("gh").hasAttribute("data-disabled")).toBe(false);
+    fireEvent.click(locked);
+    await settle();
+    expect(locked.getAttribute("aria-checked")).toBe("true");
+  });
+
   it("wears the meter's own table on the tally's estimate: the warning tone from 70 percent of the disk, the danger tone from 90", async () => {
     const job: InitJob = { ...JOB, step: 1, disk: { fixed: 15 * GIB, total: 20 * GIB } };
     await open(host({ job }), job);
