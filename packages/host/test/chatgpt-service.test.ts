@@ -4,7 +4,7 @@
 // and no 401 ever reaching Codex.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
 import { chatgptModels } from "../src/chatgpt/models.js";
 import { CHATGPT_WORDS, chatgptService, OPENAI_WORDS, openaiService } from "../src/chatgpt/service.js";
@@ -512,5 +512,187 @@ describe("the account's Codex models, read by the host", () => {
     expect(await read("0.155.1")).toBeUndefined();
     answer = (_req, res) => res.writeHead(200, { "content-type": "text/html" }).end("<html>");
     expect(await read("0.155.1")).toBeUndefined();
+  });
+});
+
+describe("a model call no reply has started for is cut at a wait, so Codex says it is reconnecting", () => {
+  const WAIT = 150;
+  const servers: Server[] = [];
+  const socketServers: WebSocketServer[] = [];
+  const clients: WebSocket[] = [];
+  afterEach(async () => {
+    for (const client of clients.splice(0)) client.terminate();
+    for (const wss of socketServers.splice(0)) {
+      for (const client of wss.clients) client.terminate();
+      wss.close();
+    }
+    for (const server of servers.splice(0)) {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  /** An upstream answering each call and each socket as the test says, counting the calls it saw cut before their end. */
+  async function stand(onCall: (req: IncomingMessage, res: ServerResponse) => void = () => undefined, onSocket: (socket: WebSocket) => void = () => undefined) {
+    let cut = 0;
+    const server = createServer((req, res) => {
+      res.on("close", () => void (res.writableFinished || cut++));
+      req.resume();
+      req.on("end", () => onCall(req, res));
+    });
+    const wss = new WebSocketServer({ server });
+    wss.on("connection", onSocket);
+    servers.push(server);
+    socketServers.push(wss);
+    return { url: `http://${await listen(server)}`, cut: () => cut };
+  }
+
+  async function doorTo(upstream: string): Promise<string> {
+    openaiCred = { key: REAL_KEY, baseUrl: `${upstream}/v1` };
+    const services = [chatgptService({ dial: dialTo({ [CHATGPT]: upstream }), firstByteMs: WAIT }), openaiService()];
+    const grant = (req: IncomingMessage) => ({ kind: "turn" as const, workspaceId: "ws-1", threadId: String(req.headers["x-lab-thread"] ?? "t-1") });
+    const pick = (req: IncomingMessage) => services.find((s) => s.claims(req, "http", "codex"))!;
+    const door = createServer((req, res) => void pick(req).serve({ workspaceId: "ws-1", door: "http", grant: grant(req), req, res, heldMs: 0 }, ctx));
+    door.on("upgrade", (req: IncomingMessage, socket, head: Buffer) => void pick(req).upgrade!({ workspaceId: "ws-1", door: "http", grant: grant(req), req, res: undefined as never, heldMs: 0 }, socket, head, ctx));
+    servers.push(door);
+    return `http://${await listen(door)}`;
+  }
+
+  const call = (url: string, body = "{}", accept = "text/event-stream", thread = "t-1") => fetch(url, { method: "POST", headers: { accept, "content-type": "application/json", "x-lab-thread": thread }, body });
+  const events = (n: number) => Array.from({ length: n }, (_, i) => `event: response.output_text.delta\ndata: {"delta":"${i}"}\n\n`).join("");
+
+  async function socketTo(url: string): Promise<{ socket: WebSocket; got: string[]; closed: Promise<void> }> {
+    const socket = new WebSocket(url.replace("http", "ws"));
+    clients.push(socket);
+    const got: string[] = [];
+    socket.on("message", (data) => got.push(String(data)));
+    const closed = new Promise<void>((resolve) => socket.on("close", () => resolve()));
+    await new Promise((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+    return { socket, got, closed };
+  }
+
+  it("answers a Responses call its upstream took and never answered with an event stream that ends, which Codex retries at once and says so", async () => {
+    const up = await stand();
+    const res = await call(`${await doorTo(up.url)}/backend-api/codex/responses`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/event-stream");
+    expect(await res.text()).toBe("");
+    await expect.poll(up.cut).toBe(1);
+    expect(refusals).toEqual([]);
+  });
+
+  it("lets a thread's calls wait as long as Codex does once two were cut in the last minute, so a reply slow to start costs retries, never the reply", async () => {
+    const up = await stand((_req, res) => setTimeout(() => res.writeHead(200, { "content-type": "text/event-stream" }).end(events(1)), WAIT * 3));
+    const door = `${await doorTo(up.url)}/backend-api/codex/responses`;
+    expect(await (await call(door)).text()).toBe("");
+    expect(await (await call(door)).text()).toBe("");
+    expect(await (await call(door)).text()).toBe(events(1));
+    expect(await (await call(door, "{}", "text/event-stream", "t-2")).text()).toBe("");
+  });
+
+  it("keeps each agent's two cuts its own, as a turn's subagents call at once on its grant, each named by its thread-id", async () => {
+    const up = await stand((_req, res) => setTimeout(() => res.writeHead(200, { "content-type": "text/event-stream" }).end(events(1)), WAIT * 3));
+    const door = `${await doorTo(up.url)}/backend-api/codex/responses`;
+    const agent = (id: string) => fetch(door, { method: "POST", headers: { accept: "text/event-stream", "thread-id": id }, body: "{}" }).then((res) => res.text());
+    expect(await Promise.all([agent("subagent-a"), agent("subagent-b")])).toEqual(["", ""]);
+    expect(await agent("lead")).toBe("");
+  });
+
+  it("never cuts a reply that has started, however long it runs", async () => {
+    const up = await stand((_req, res) => {
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      let sent = 0;
+      const next = () => (sent++ < 4 ? (res.write(events(1)), setTimeout(next, WAIT)) : res.end());
+      next();
+    });
+    const res = await call(`${await doorTo(up.url)}/backend-api/codex/responses`);
+    expect((await res.text()).match(/response\.output_text\.delta/g)).toHaveLength(4);
+    expect(up.cut()).toBe(0);
+  });
+
+  it("adds a second per 32 KB of the call to the wait, the time a large call takes to send", async () => {
+    const up = await stand((_req, res) => setTimeout(() => res.writeHead(200, { "content-type": "text/event-stream" }).end(events(1)), WAIT * 4));
+    const res = await call(`${await doorTo(up.url)}/backend-api/codex/responses`, `{"input":"${"x".repeat(70_000)}"}`);
+    expect(await res.text()).toBe(events(1));
+  });
+
+  it("never cuts a call that asks for a whole reply, which starts only once it is done", async () => {
+    const up = await stand((_req, res) => setTimeout(() => res.writeHead(200, { "content-type": "application/json" }).end('{"output":[]}'), WAIT * 3));
+    const res = await call(`${await doorTo(up.url)}/backend-api/codex/responses/compact`, "{}", "application/json");
+    expect(await res.text()).toBe('{"output":[]}');
+  });
+
+  it("cuts a websocket whose upstream sends nothing back for a message within the wait, which Codex reads as a dropped stream", async () => {
+    const up = await stand(undefined, (socket) => socket.on("message", () => undefined));
+    const { socket, closed } = await socketTo(`${await doorTo(up.url)}/backend-api/codex/responses`);
+    await new Promise((resolve) => setTimeout(resolve, WAIT * 2));
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    socket.send('{"type":"response.create"}');
+    await closed;
+  });
+
+  it("takes neither the upstream's pings nor the caller's pongs for a call or its reply, as chatgpt.com pings an idle socket every 20 s", async () => {
+    const pinging = (socket: WebSocket) => {
+      const timer = setInterval(() => socket.ping(), WAIT / 3);
+      socket.on("close", () => clearInterval(timer));
+    };
+    const up = await stand(undefined, pinging);
+    const idle = await socketTo(`${await doorTo(up.url)}/backend-api/codex/responses`);
+    await new Promise((resolve) => setTimeout(resolve, WAIT * 3));
+    expect(idle.socket.readyState).toBe(WebSocket.OPEN);
+    idle.socket.send('{"type":"response.create"}');
+    await idle.closed;
+  });
+
+  it("never cuts a websocket reply that has started, and gives the socket's next message a wait of its own", async () => {
+    const up = await stand(undefined, (socket) =>
+      socket.on("message", (data) => {
+        if (String(data) === "held") return;
+        let sent = 0;
+        const next = () => sent++ < 4 && (socket.send(`delta${sent}`), setTimeout(next, WAIT));
+        next();
+      }),
+    );
+    const { socket, got, closed } = await socketTo(`${await doorTo(up.url)}/backend-api/codex/responses`);
+    socket.send('{"type":"response.create"}');
+    await expect.poll(() => got.length, { timeout: WAIT * 10 }).toBe(4);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    socket.send("held");
+    await closed;
+  });
+
+  it("asks for a websocket message's wait as the message starts, as one socket carries a thread's calls from turn to turn", async () => {
+    const slow = (_req: IncomingMessage, res: ServerResponse) => setTimeout(() => res.writeHead(200, { "content-type": "text/event-stream" }).end(events(1)), WAIT * 3);
+    const up = await stand(slow, (socket) => socket.on("message", () => setTimeout(() => socket.send("started"), WAIT * 3)));
+    const door = await doorTo(up.url);
+    const { socket, got } = await socketTo(`${door}/backend-api/codex/responses`);
+    expect(await (await call(`${door}/backend-api/codex/responses`)).text()).toBe("");
+    expect(await (await call(`${door}/backend-api/codex/responses`)).text()).toBe("");
+    socket.send('{"type":"response.create"}');
+    await expect.poll(() => got, { timeout: WAIT * 10 }).toEqual(["started"]);
+  });
+
+  it("leaves the OpenAI key road's calls to the wait Codex gives them, as api.openai.com's first byte is not measured", async () => {
+    const up = await stand(
+      (_req, res) => setTimeout(() => res.writeHead(200, { "content-type": "text/event-stream" }).end(events(1)), WAIT * 3),
+      (socket) => socket.on("message", () => setTimeout(() => socket.send("started"), WAIT * 3)),
+    );
+    const door = await doorTo(up.url);
+    expect(await (await call(`${door}/v1/responses`)).text()).toBe(events(1));
+    const { socket, got } = await socketTo(`${door}/v1/responses`);
+    socket.send('{"type":"response.create"}');
+    await expect.poll(() => got, { timeout: WAIT * 10 }).toEqual(["started"]);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it("adds a second per 32 KB of a websocket message to its wait", async () => {
+    const up = await stand(undefined, (socket) => socket.on("message", () => setTimeout(() => socket.send("started"), WAIT * 4)));
+    const { socket, got } = await socketTo(`${await doorTo(up.url)}/backend-api/codex/responses`);
+    socket.send(`{"input":"${"x".repeat(70_000)}"}`);
+    await expect.poll(() => got, { timeout: WAIT * 10 }).toEqual(["started"]);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
   });
 });
