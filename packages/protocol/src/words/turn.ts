@@ -167,6 +167,13 @@ export function compactedLine(before: number | undefined, after: number | undefi
   return before === undefined ? `Compacted the context to ${fmtTokens(after)} tokens` : `Compacted the context, ${fmtTokens(before)} to ${fmtTokens(after)} tokens`;
 }
 
+/** What a running turn says in place of Working while its agent makes a failed model call again: the thread names
+ * the agent already, and the line has to fit beside the turn's time on a phone. */
+export function retryLine(retry: { attempt: number; of?: number; why?: string }): string {
+  const which = retry.of === undefined ? `${retry.attempt}` : `${retry.attempt} of ${retry.of}`;
+  return retry.why === undefined ? `Trying again (${which})` : `${retry.why.charAt(0).toUpperCase()}${retry.why.slice(1)}, trying again (${which})`;
+}
+
 /** The agent's step list as a read transcript's row says it: the count done, then one task line per step. */
 export function planStepsLine(steps: ReadonlyArray<{ text: string; state: "pending" | "working" | "done" }>): string {
   const done = steps.filter(s => s.state === "done").length;

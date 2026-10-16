@@ -657,7 +657,10 @@ describe("a Codex turn that does not complete", () => {
     const result = await adapterOver(launch).start({ prompt: "hi", onEvent }).finished;
     expect(NOT_SIGNED_IN).toBe("Codex is not signed in where this thread runs; run codex login --device-auth there");
     expect(result).toMatchObject({ status: "failed", error: NOT_SIGNED_IN, refusal: "sign-in" });
-    expect(events.map(e => e.type)).toEqual(["session.start", "session.start", "turn.anchor", "turn.delta", "turn.done", "session.end"]);
+    // The server tried the 401 over its two roads, with its note between them, before it gave up, and said each try.
+    const retries = (n: number) => Array<string>(n).fill("turn.retry");
+    expect(events.map(e => e.type)).toEqual(["session.start", "session.start", "turn.anchor", ...retries(4), "turn.delta", ...retries(5), "turn.done", "session.end"]);
+    expect(events.flatMap(e => (e.type === "turn.retry" ? [`${e.attempt}/${e.of} ${e.why}`] : []))).toEqual([2, 3, 4, 5, 1, 2, 3, 4, 5].map(n => `${n}/5 the provider answered 401`));
     expect(events.at(-1)).toEqual({ type: "session.end", sessionId: NO_LOGIN_THREAD, exitCode: 0, sawResult: true });
     expect(launch.wires[0]!.closed).toBe(true);
   });
@@ -791,6 +794,31 @@ describe("a Codex turn that does not complete", () => {
     const result = await adapterOver(launch, { graceMs: 10, stallMs: 20 }).start({ prompt: "x", onEvent: () => {} }).finished;
     expect(result).toMatchObject({ status: "completed", text: "back" });
     expect(launch.wires[0]!.order).toEqual([]);
+  });
+});
+
+describe("a model call Codex tries again", () => {
+  // As codex 0.155.1's app-server printed them on 2026-10-16 against a provider answering every call 500, and as the
+  // no-login fixture holds them for a provider answering 401.
+  const retrying = (n: number, status: number | null) =>
+    JSON.stringify({ method: "error", params: { error: { message: `Reconnecting... ${n}/5`, codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: status } }, additionalDetails: "We’re currently experiencing high demand, which may cause temporary errors.", misalignment: null }, willRetry: true, threadId: THREAD_ID, turnId: TURN_ID } });
+
+  it("says each retry, which one of how many and why, before the reply the call that got through wrote", async () => {
+    const { events, onEvent } = collect();
+    const result = await adapterOver(launcher(scripted([retrying(1, null), retrying(2, 401), agentMessage("msg_1", "back"), completed("completed")]))).start({ prompt: "x", onEvent }).finished;
+    expect(result).toMatchObject({ status: "completed", text: "back" });
+    expect(events.filter(e => e.type === "turn.retry")).toEqual([
+      { type: "turn.retry", sessionId: THREAD_ID, attempt: 1, of: 5, why: "the connection dropped" },
+      { type: "turn.retry", sessionId: THREAD_ID, attempt: 2, of: 5, why: "the provider answered 401" },
+    ]);
+    expect(events.findIndex(e => e.type === "turn.delta" && e.kind === "text")).toBeGreaterThan(events.map(e => e.type).lastIndexOf("turn.retry"));
+  });
+
+  it("says nothing of an error it will not retry: the turn's own end says that one", async () => {
+    const { events, onEvent } = collect();
+    const final = JSON.stringify({ method: "error", params: { error: { message: "We’re currently experiencing high demand, which may cause temporary errors.", codexErrorInfo: "internalServerError", additionalDetails: null }, willRetry: false, threadId: THREAD_ID, turnId: TURN_ID } });
+    await adapterOver(launcher(scripted([final, completed("failed")]))).start({ prompt: "x", onEvent }).finished;
+    expect(events.filter(e => e.type === "turn.retry")).toEqual([]);
   });
 });
 

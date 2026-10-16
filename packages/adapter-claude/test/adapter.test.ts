@@ -1908,6 +1908,37 @@ function recorded(name: string): string[] {
   return lines.map(line => line.replaceAll(session, FIXTURE_SESSION_ID));
 }
 
+describe("a model call Claude Code tries again", () => {
+  const run = async (lines: string[]) => {
+    const exec = scriptedExec(lines);
+    const adapter = createClaudeAdapter({ exec: exec.factory, configDir: "/root/.claude-cfg" });
+    const { events, onEvent } = collect();
+    const done = await adapter.start({ prompt: "x", onEvent }).finished;
+    return { done, events };
+  };
+  const retry = (attempt: number, status: number | null, error: string) =>
+    JSON.stringify({ type: "system", subtype: "api_retry", attempt, max_retries: 10, retry_delay_ms: 500, error_status: status, error, session_id: FIXTURE_SESSION_ID });
+
+  it("says each retry, which one of how many and why, before the reply the call that got through wrote", async () => {
+    const { done, events } = await run(recorded("api-retry-turn"));
+    expect(done).toMatchObject({ status: "completed", text: "hello" });
+    expect(events.filter(e => e.type === "turn.retry")).toEqual([
+      { type: "turn.retry", sessionId: FIXTURE_SESSION_ID, attempt: 1, of: 10, why: "Anthropic was overloaded" },
+      { type: "turn.retry", sessionId: FIXTURE_SESSION_ID, attempt: 2, of: 10, why: "Anthropic was overloaded" },
+    ]);
+    const lastRetry = events.map(e => e.type).lastIndexOf("turn.retry");
+    expect(events.findIndex(e => e.type === "turn.delta" && e.kind === "text")).toBeGreaterThan(lastRetry);
+  });
+
+  it("names why off the CLI's own error, as measured on 2.1.301 against a call held, refused and answered 500", async () => {
+    const whyOf = async (status: number | null, error: string) => (await run([retry(1, status, error)])).events.find(e => e.type === "turn.retry");
+    expect(await whyOf(null, "unknown")).toMatchObject({ why: "Anthropic did not answer" });
+    expect(await whyOf(500, "server_error")).toMatchObject({ why: "Anthropic answered with a server error (500)" });
+    expect(await whyOf(429, "rate_limit")).toMatchObject({ why: "Anthropic's rate limit was reached" });
+    expect(await whyOf(418, "something_new")).toMatchObject({ why: "Anthropic answered 418" });
+  });
+});
+
 describe("a compaction Claude Code ran by itself mid-session", () => {
   it("says the compaction with both figures, and the reply after it is what the model then held", async () => {
     const exec = scriptedExec(recorded("compact-turn"));
