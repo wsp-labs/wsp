@@ -10,12 +10,13 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { GUARD_BEGIN, GUARD_END, detectAgents, nodeHost, type ManifestEntry, withIgnoreUnknown } from "@wsp/collect";
-import { NODE_RELEASES, planFiles, type PlannedFile, type StagedFile } from "@wsp/engine";
+import { NODE_RELEASES, diffRecipes, planFiles, rowsToApply, type PlannedFile, type StagedFile } from "@wsp/engine";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CLAUDE_INSTALL, GOLDEN_SMOKE, GUEST_HOME, MCP_SERVERS_JSON } from "@wsp/catalog";
 import { withRefused } from "../../runtime/test/fs-refusal.js";
 import { digestOf, importFor, importResultPath, keychainLogins, keychainReader, packPlan, readSecrets, statOf, type SecretReader } from "../src/init-import.js";
 import { serverVault, type ServerVault } from "../src/env-keys.js";
+import { deltaFor } from "../src/init-upgrade.js";
 import { serversActs } from "../src/servers-acts.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
@@ -501,6 +502,88 @@ describe("packPlan", () => {
     ]);
     writeFileSync(join(home, ".claude", "hooks", "no-secret-print"), "#!/bin/sh\nexit 2\n");
     expect(importFor([await scan()], { home, secrets: new Map(), platform: "darwin" }).recipeHash).not.toBe(imp.recipeHash);
+  });
+
+  it("the switched-on plugins are built into the image's seed from this computer's marketplaces, and no plugin index or unused marketplace travels to be fetched on every first turn", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    const github = (repo: string) => ({ source: { source: "github", repo } });
+    writeFileSync(
+      join(home, ".claude", "settings.json"),
+      `${JSON.stringify(
+        {
+          model: "opus",
+          enabledPlugins: { "code-simplifier@claude-plugins-official": true, "no-claude-coauthor@acme": true, "mem@lab": false, "local@here": true },
+          extraKnownMarketplaces: { acme: github("acme/plugins"), lab: github("lab/mem"), here: { source: { source: "directory", path: `${home}/plugins` } } },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const at = (name: string) => ({ installLocation: `${home}/.claude/plugins/marketplaces/${name}`, lastUpdated: "2026-10-01T00:00:00.000Z" });
+    writeFileSync(
+      join(home, ".claude", "plugins", "known_marketplaces.json"),
+      JSON.stringify({ "claude-plugins-official": { ...github("anthropics/claude-plugins-official"), ...at("claude-plugins-official") }, acme: { ...github("acme/plugins"), ...at("acme") }, lab: { ...github("lab/mem"), ...at("lab") }, here: { source: { source: "directory", path: `${home}/plugins` }, ...at("here") } }),
+    );
+    writeFileSync(join(home, ".claude", "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: {} }));
+    const claude = (await detectAgents({ ...nodeHost(), home })).find(r => r.id === "agents/claude")!;
+    expect(claude.paths.filter(p => p.includes("/plugins/"))).toEqual([]);
+    const imp = importFor([claude], { home, secrets: new Map(), platform: "darwin" });
+    expect(imp.files?.lands.map(l => l.dest)).toEqual([".claude-cfg/settings.json"]);
+    // A folder on this computer is no source a builder can fetch from, and a plugin switched off is never built.
+    expect(imp.plugins?.seed?.dir).toBe("/root/.claude-plugin-seed");
+    expect(imp.plugins?.seed?.plugins.map(p => p.label)).toEqual(["code-simplifier@claude-plugins-official", "no-claude-coauthor@acme"]);
+    const settings = JSON.parse(readFileSync(join(extract((await imp.files!.pack()).tar), ".claude-cfg", "settings.json"), "utf8"));
+    expect(Object.keys(settings.extraKnownMarketplaces)).toEqual(["acme", "here"]);
+    expect(settings.enabledPlugins).toEqual({ "code-simplifier@claude-plugins-official": true, "no-claude-coauthor@acme": true, "mem@lab": false, "local@here": true });
+    // The line builds into the seed under a config folder of its own, which it removes, and keeps the install's status.
+    const bin = mkdtempSync(join(tmpdir(), "wsp-seed-bin-"));
+    dirs.push(bin);
+    writeStub(join(bin, "claude"), `#!/bin/sh\necho "$CLAUDE_CODE_PLUGIN_CACHE_DIR|$CLAUDE_CONFIG_DIR|$*" >> "${bin}/calls"\n[ -d "$CLAUDE_CONFIG_DIR" ] || exit 9\n[ "$2" = install ] && exit 3\nexit 0\n`);
+    const ran = spawnSync("sh", ["-c", imp.plugins!.seed!.plugins[1]!.cmd], { env: { PATH: `${bin}:/usr/bin:/bin` }, encoding: "utf8" });
+    expect(ran.status).toBe(3);
+    const calls = readFileSync(join(bin, "calls"), "utf8").trim().split("\n").map(l => l.split("|"));
+    expect(calls.map(([seed, , args]) => [seed, args])).toEqual([
+      ["/root/.claude-plugin-seed", "plugin marketplace add acme/plugins"],
+      ["/root/.claude-plugin-seed", "plugin install no-claude-coauthor@acme --json"],
+    ]);
+    expect(calls[0]![1]).not.toBe(join(home, ".claude"));
+    expect(existsSync(calls[0]![1]!)).toBe(false);
+  });
+
+  it("an image plans no seed where the settings do not travel or switch no plugin on", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: { source: { source: "github", repo: "acme/plugins" } } }));
+    writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@acme": false } }));
+    const none = importFor([row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] })], { home, secrets: new Map(), platform: "darwin" });
+    expect(none.plugins?.seed).toBeUndefined();
+    // With nothing to seed, an older image's copied plugin list still comes off, and the image reads changed until it has.
+    expect(none.plugins?.dropped).toEqual(["/root/.claude-cfg/plugins/known_marketplaces.json", "/root/.claude-cfg/plugins/installed_plugins.json"]);
+    const sealed = { ...none.recipe!, files: none.recipe!.files.filter(f => f.dest !== ".claude-plugin-seed") };
+    expect(rowsToApply(diffRecipes(sealed, none.recipe!))).toEqual(new Set(["agents/claude"]));
+    writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@acme": true } }));
+    expect(importFor([row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/CLAUDE.md"] })], { home, secrets: new Map(), platform: "darwin" }).plugins?.seed).toBeUndefined();
+    expect(importFor([row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] })], { home, secrets: new Map(), platform: "darwin" }).plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme"]);
+  });
+
+  it("an image sealed without the seed reads changed and its update builds it, and a provider's builder never fetches an address holding a secret", async () => {
+    const home = laptop();
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    const login = ["ghp", "TESTONLYfake000000000000000000000000"].join("_");
+    writeFileSync(join(home, ".claude", "plugins", "known_marketplaces.json"), JSON.stringify({ acme: { source: { source: "github", repo: "acme/plugins" } }, priv: { source: { source: "git", url: `https://x-access-token:${login}@github.com/acme/priv.git` } }, raw: { source: { source: "url", url: "https://git.example.com/m.json?private_token=plain0value0here" } }, user: { source: { source: "git", url: "git+https://plain0value0here@git.example.com/acme/p.git" } } }));
+    writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@acme": true, "y@priv": true, "z@raw": true, "w@user": true } }));
+    const claude = row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] });
+    const opts = { home, secrets: new Map<string, string>(), platform: "darwin" as const };
+    const imp = importFor([claude], opts);
+    expect(imp.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme", "y@priv", "z@raw", "w@user"]);
+    const cloud = importFor([claude], { ...opts, cloud: true });
+    expect(cloud.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme"]);
+    expect(cloud.plugins?.seed?.plugins.some(p => p.cmd.includes(login) || p.cmd.includes("plain0value0here"))).toBe(false);
+    const sealed = { ...imp.recipe!, files: imp.recipe!.files.filter(f => f.dest !== ".claude-plugin-seed") };
+    const diff = diffRecipes(sealed, imp.recipe!);
+    expect(diff.files).toEqual([{ id: "agents/claude", dest: ".claude-plugin-seed", change: "added" }]);
+    expect(deltaFor(diff, imp, [claude], rows => importFor(rows, opts)).import.plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme", "y@priv", "z@raw", "w@user"]);
   });
 
   it("a hook is judged by the file it points at: a link to a script under home travels as its bytes, one to a private key comes out and is listed as left behind", async () => {
@@ -1377,7 +1460,7 @@ describe("importFor", () => {
     const saved = [row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json", "~/.claude.json"], bytes: 5 })];
     const imp = () => importFor(saved, { home, secrets: new Map(), platform: "darwin" });
     const before = imp();
-    expect(before.recipe?.files.map(f => [f.path, f.volatile])).toEqual([["~/.claude.json", true], ["~/.claude/settings.json", undefined]]);
+    expect(before.recipe?.files.map(f => [f.path, f.volatile])).toEqual([["~/.claude.json", true], ["~/.claude/plugins", undefined], ["~/.claude/settings.json", undefined]]);
     expect(before.files?.volatile?.paths).toEqual(["~/.claude.json"]);
     writeFileSync(join(home, ".claude.json"), JSON.stringify({ projects: { a: 1, b: 2 } }));
     expect(imp().recipeHash).toBe(before.recipeHash);

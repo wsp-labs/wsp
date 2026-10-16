@@ -127,6 +127,8 @@ export function rewrittenRel(rel: string, rewrites: readonly (readonly [string, 
 
 /** Claude Code's config dir on the guest, always CLAUDE_CONFIG_DIR and never HOME. */
 export const CLAUDE_CONFIG_DIR = `${GUEST_HOME}/${CLAUDE_CONFIG_REL}`;
+/** Where an image builds Claude Code's switched-on plugins, beside its config dir and never in it. */
+export const CLAUDE_PLUGIN_SEED = `${GUEST_HOME}/.claude-plugin-seed`;
 /** The file under Claude Code's config dir that the apiKeyHelper's key is placed in and the copied settings read. */
 export const CLAUDE_KEY_FILE = "anthropic-api-key";
 

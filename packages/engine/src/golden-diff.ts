@@ -3,7 +3,7 @@
 // against the recipe now, as rows to apply on top and rows the recipe stopped
 // asking for. Pure; golden.ts runs the result on a fork or on the kept builder.
 import { ROAD_MODULES, isRoad } from "@wsp/catalog";
-import { INSTALLER_MOVED_LINE, listedName, MCP_ID_PREFIX, NO_ROAD_WORDS, roadMovedLine, SIGN_IN_LATER, versionMovedLine, type GoldenChange, type GoldenRetired, type LoginChoice, type RecipeDigest } from "@wsp/protocol";
+import { INSTALLER_MOVED_LINE, listedName, MCP_ID_PREFIX, NO_ROAD_WORDS, plural, roadMovedLine, SIGN_IN_LATER, versionMovedLine, type GoldenChange, type GoldenRetired, type LoginChoice, type RecipeDigest } from "@wsp/protocol";
 
 type Tick = RecipeDigest["ticks"][number];
 type DigestFile = RecipeDigest["files"][number];
@@ -173,9 +173,27 @@ const LOGIN_ANSWERS: Record<LoginChoice, LoginAnswer> = {
  * asking for that login and the sign-in stays on the image, which is what skipping it does too. */
 const answerFor = (choice: LoginChoice | undefined): LoginAnswer => LOGIN_ANSWERS[choice ?? "skip"];
 
+/** What the words know beyond the diff, from the import they describe. Dests are home-relative. */
+export interface DiffWords {
+  /** What the update takes off the image, which a recipe stopped copying though it is still on this computer. */
+  takenOff?: ReadonlySet<string>;
+  /** The plugin folder the image builds and how many plugins go into it: a folder, never counted as a file. */
+  plugins?: { dest: string; count: number };
+}
+
+/** The plugin folder's entry among the changed files, and the files less it. */
+function pluginsApart(d: RecipeDiff, words: DiffWords): { files: FileChange[]; folder?: FileChange } {
+  const folder = words.plugins === undefined ? undefined : d.files.find(f => f.dest === words.plugins!.dest && f.change !== "missing" && f.change !== "removed");
+  return { files: d.files.filter(f => f !== folder), ...(folder !== undefined ? { folder } : {}) };
+}
+
 /** One line per change, for the person. */
-export function describeDiff(d: RecipeDiff): string[] {
+export function describeDiff(d: RecipeDiff, words: DiffWords = {}): string[] {
+  const takenOff = words.takenOff ?? new Set<string>();
+  const { files, folder } = pluginsApart(d, words);
   const lines: string[] = [];
+  const built = words.plugins?.count ?? 0;
+  if (folder !== undefined && built > 0) lines.push(`${folder.change === "added" ? "build" : "rebuild"} ${plural(built, "plugin")} into ~/${folder.dest}, which every turn reads in place of fetching their marketplaces`);
   const group = (change: Change, items: string[], noun: string): void => {
     if (items.length === 0) return;
     const verb = change === "added" ? "add" : change === "changed" ? "update" : "retire";
@@ -183,8 +201,8 @@ export function describeDiff(d: RecipeDiff): string[] {
     lines.push(`${verb} ${items.length} ${noun}${items.length === 1 ? "" : "s"}: ${items.join(", ")}${tail}`);
   };
   for (const change of ["added", "changed", "removed"] as const) {
-    group(change, d.files.filter(f => f.change === change).map(f => `~/${f.dest}`), "file");
-    if (change === "changed") for (const f of d.files.filter(x => x.change === "missing")) lines.push(`kept on the golden, no longer on this computer: ~/${f.dest}`);
+    group(change, files.filter(f => f.change === change).map(f => `~/${f.dest}`), "file");
+    if (change === "changed") for (const f of files.filter(x => x.change === "missing")) lines.push(takenOff.has(f.dest) ? `taken off the golden, no longer copied: ~/${f.dest}` : `kept on the golden, no longer on this computer: ~/${f.dest}`);
     group(change, d.tools.filter(t => t.change === change).map(t => (change === "changed" ? `${listedName(t.label)} (${t.why ?? versionMovedLine(t.from, t.to)})` : listedName(t.label))), "tool");
     if (change !== "changed") {
       const agents = d.agents.filter(a => a.change === change);
@@ -199,11 +217,13 @@ export function describeDiff(d: RecipeDiff): string[] {
 /** What the build line counts: added and changed rows by noun, then everything the update retires as one. Logins
  * are counted by what the update does with them, so a row moved to sign in on the machine is not counted here at
  * all: that change takes the rebuild road. */
-export function changeCounts(d: RecipeDiff): GoldenChange[] {
+export function changeCounts(d: RecipeDiff, words: DiffWords = {}): GoldenChange[] {
   const added = (n: number, noun: string): GoldenChange => ({ count: n, noun, word: "added" });
+  const { files, folder } = pluginsApart(d, words);
   return [
-    added(d.files.filter(f => f.change === "added").length, "file"),
-    { count: d.files.filter(f => f.change === "changed").length, noun: "file", word: "updated" },
+    added(files.filter(f => f.change === "added").length, "file"),
+    { count: files.filter(f => f.change === "changed").length, noun: "file", word: "updated" },
+    { count: folder === undefined ? 0 : (words.plugins?.count ?? 0), noun: "plugin", word: folder?.change === "added" ? "built in" : "rebuilt" },
     added(d.tools.filter(t => t.change === "added").length, "tool"),
     { count: d.tools.filter(t => t.change === "changed").length, noun: "tool", word: "updated" },
     added(d.agents.filter(a => a.change === "added").length, "agent"),

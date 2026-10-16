@@ -108,3 +108,6 @@ export const LAUNCH_ENV = [HOST_URL_ENV, HOST_TOKEN_ENV, HOST_KEY_ENV, TURN_TOKE
 /** The variables a person sets or meets, which the docs' environment page lists; every other name here is for a
  * harness, a test or the cloud. */
 export const PUBLIC_ENV = [HOME_ENV, HOST_ENV, UPDATE_CHECK_ENV, ANALYTICS_ENV, STATE_STORE_ENV, ...LAUNCH_ENV] as const;
+
+/** The folder of plugins an image built, which Claude Code reads in place of fetching their marketplaces. */
+export const PLUGIN_SEED_ENV = "CLAUDE_CODE_PLUGIN_SEED_DIR";
