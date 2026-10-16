@@ -1283,6 +1283,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (beside !== undefined) throw conflict(rewindBesideLine(beside.title));
       };
       const cwd = ctx.checkoutOf(entry.record);
+      // A napped machine takes no command, and its files and its agent's session are both on it.
+      const awake = (): Promise<unknown> => (entry.record.phase === "running" ? Promise.resolve() : ctx.workspaces.wake(entry.record.id, origin));
       const restore = (checkpoint: string) => ctx.queued(entry.record.id, () => ctx.withDaemon(entry, ask => ask({ op: "git.restore", cwd, checkpoint, scope: entry.record.id })));
       const done = async (): Promise<void> => {
         await ctx.persistSessions(workspaceId);
@@ -1297,6 +1299,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (rewound === undefined) throw conflict(REWIND_NO_UNDO_LINE);
         if (gone(rewound.at)) throw conflict(SUB_TURN_GONE_LINE);
         besideRunning();
+        await awake();
         const back = await restore(rewound.before);
         delete held!.rewound;
         // The slate follows the conversation, which undo never puts back: it stays as the rewind left it.
@@ -1343,8 +1346,13 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
 
       // Files first, since they alone can be put back: a harness that then will not cut has them restored again and
       // the whole rewind refused, rather than a conversation cut over files that never moved.
+      await awake();
       const moved = files ? await restore(kept!.ref!) : undefined;
       const before = moved === undefined ? undefined : String(moved["before"]);
+      const putBack = async (e: unknown): Promise<never> => {
+        if (before !== undefined) await restore(before).catch((back: unknown) => console.warn(`the files of thread ${threadWord(threadId)} were not put back after a refused rewind: ${back instanceof Error ? back.message : String(back)}`));
+        throw e;
+      };
       let keptWhy: string | undefined;
       if (adapter.revert !== undefined && cutsConversation && latest?.claudeSessionId !== undefined) {
         const firstCut = keptOf(cut[0]!)?.anchor;
@@ -1361,22 +1369,11 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
           const result = endOf(turnId);
           return { ...(anchor !== undefined ? { anchor } : {}), ...(result !== undefined ? { result } : {}) };
         };
-        try {
-          const answer = await adapter.revert({ session: latest.claudeSessionId, cwd, ...(firstCut !== undefined ? { beforeTurn: firstCut } : { turns: cut.map(turnOf) }) });
-          keptWhy = answer?.kept;
-        } catch (e) {
-          if (before !== undefined) await restore(before).catch((back: unknown) => console.warn(`the files of thread ${threadWord(threadId)} were not put back after a refused rewind: ${back instanceof Error ? back.message : String(back)}`));
-          throw e;
-        }
+        keptWhy = (await adapter.revert({ session: latest.claudeSessionId, cwd, ...(firstCut !== undefined ? { beforeTurn: firstCut } : { turns: cut.map(turnOf) }) }).catch(putBack))?.kept;
       }
       if (copies && cutsConversation && latest?.claudeSessionId !== undefined) {
-        try {
-          const copy = await adapter.forkSession!({ session: latest.claudeSessionId, turn: { anchor: kept!.anchor! } });
-          if ("resume" in copy) moveSession(ctx, threadId, latest.claudeSessionId, copy.resume);
-        } catch (e) {
-          if (before !== undefined) await restore(before).catch((back: unknown) => console.warn(`the files of thread ${threadWord(threadId)} were not put back after a refused rewind: ${back instanceof Error ? back.message : String(back)}`));
-          throw e;
-        }
+        const copy = await adapter.forkSession!({ session: latest.claudeSessionId, turn: { anchor: kept!.anchor! } }).catch(putBack);
+        if ("resume" in copy) moveSession(ctx, threadId, latest.claudeSessionId, copy.resume);
       }
       const record = held ?? { workspaceId, harness };
       threadRecords.set(threadId, record);
