@@ -298,6 +298,44 @@ describe("runtime golden update and the post-seal grace", () => {
     await next.close();
   });
 
+  it("an update builder the next process attaches to after a restart mid-update seals with the head as its parent and the retired rows, on both roads", async () => {
+    const refused = () => Object.assign(new Error("Failed to snapshot sandbox"), { kind: "snapshotUnavailable", status: 502, requestId: "req_1" });
+    for (const road of ["builder", "fork"] as const) {
+      const backend = stubBackend();
+      backend.execImpl = dfOk;
+      const store = ownedStore();
+      const rt = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(importOf()), snapshotRetryMs: 1, hostId: "h1" });
+      const b = await rt.golden.prepare();
+      await rt.golden.seal(b.id);
+      if (road === "fork") backend.machines[0]!.killed = true;
+      backend.beforeSnapshot = () => { throw refused(); };
+      const delta = deltaOf();
+      await expect(rt.golden.upgrade({ delta })).rejects.toMatchObject({ kind: "snapshotFailed", builderState: "running" });
+      const updated = road === "builder" ? backend.machines[0]! : backend.machines[2]!;
+      expect(await store.get("builders", updated.id)).toMatchObject({ import: { recipeHash: "h2" }, parentSnapshotId: "snap_wsp-h1s1-default-v1", retired: delta.retiredOnImage });
+      await rt.close();
+      backend.beforeSnapshot = undefined;
+      const next = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(delta.import), snapshotRetryMs: 1, hostId: "h1" });
+      expect((await next.golden.prepare()).id).toBe(updated.id);
+      const { version } = await next.golden.seal(updated.id);
+      expect(version).toMatchObject({ version: 2, parentSnapshotId: "snap_wsp-h1s1-default-v1", retired: delta.retiredOnImage });
+      await next.close();
+    }
+  });
+
+  it("a kept builder a second process seals again by id records the version it was kept from as the parent", async () => {
+    const { backend, store, rt, clock } = started();
+    const b = await rt.golden.prepare();
+    await rt.golden.seal(b.id);
+    expect((await rt.golden.upgrade({ delta: deltaOf() })).road).toBe("builder");
+    expect(await store.get("builders", b.id)).toMatchObject({ sealed: { version: 2 }, parentSnapshotId: "snap_wsp-h1s1-default-v2" });
+    await rt.close();
+    const next = createRuntime({ backend, store, adapters: {}, goldenRecipe: recipeWith(importOf()), clock, hostId: "h1" });
+    const { version } = await next.golden.seal(b.id);
+    expect(version).toMatchObject({ version: 3, parentSnapshotId: "snap_wsp-h1s1-default-v2" });
+    await next.close();
+  });
+
   it("with the builder gone the update forks the head at its size: the delta runs on the fork and takes nothing off it, v2 is sealed and current, the fork is kept for its own window, and v1 stays for rollback", async () => {
     const { backend, store, rt } = started();
     const b = await rt.golden.prepare();
