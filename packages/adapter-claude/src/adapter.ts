@@ -1144,7 +1144,11 @@ export function createClaudeAdapter(deps: AdapterDeps): ClaudeAdapter {
       // Taken off the map before the write, so two answers racing on one prompt cannot both reach the CLI, which
       // ignores the second and would leave a second closed row behind it.
       pending.delete(askId);
-      const wrote = await stream.write(controlAnswerLine(ask, o.optionId, o.denyMessage ?? ""));
+      // A write that failed leaves the prompt open, or the CLI waits on an answer nobody can give again.
+      const wrote = await stream.write(controlAnswerLine(ask, o.optionId, o.denyMessage ?? "")).catch((e: unknown) => {
+        if (!exited) pending.set(askId, ask);
+        throw e;
+      });
       if (wrote !== "written") return "gone";
       onEvent({ type: "permission.close", sessionId: claudeSessionId, askId, outcome: o.outcome, optionId: o.optionId });
       return "answered";
