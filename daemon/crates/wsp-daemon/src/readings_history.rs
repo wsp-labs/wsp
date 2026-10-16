@@ -155,7 +155,10 @@ impl History {
             if name < first || name > last {
                 continue;
             }
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            // The folder sits beside the token, in a home local threads write: a link, a fifo or a day past the
+            // whole folder's cap there is skipped like a day that cannot be read.
+            let Ok(Some(bytes)) = crate::beneath::read_capped(&path, self.cap_bytes) else { continue };
+            let Ok(text) = String::from_utf8(bytes) else { continue };
             // A line cut short by a crash mid-write is skipped, not the whole day.
             for point in text.lines().filter_map(|l| serde_json::from_str::<SysPoint>(l).ok()) {
                 if point.at < from || point.at >= to {
@@ -369,5 +372,33 @@ mod tests {
         let recent = history.read(T0, T0 + 50_000, 1_000, 2000);
         assert_eq!(recent.points.len(), 60);
         assert_eq!(recent.points.last().unwrap().at, T0 + 499 * 100);
+    }
+
+    /// A history holding one point a day before the planted day file, and what a read across both answered inside a
+    /// second; Err where it was still reading then.
+    fn read_beside(plant: impl FnOnce(&Path)) -> Result<SysHistoryReply, std::sync::mpsc::RecvTimeoutError> {
+        let dir = tempfile::tempdir().unwrap();
+        let history = History::new(dir.path().to_path_buf(), 14, 1 << 20);
+        history.append(&SysPoint { at: T0, cpu: 1.0, load1: 0.1, mem: usage(1), disk: usage(1) }, T0).unwrap();
+        let planted = dir.path().join(format!("{}.jsonl", day_name(T0 + DAY_MS)));
+        plant(&planted);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || drop(tx.send(history.read(T0, T0 + 2 * DAY_MS, MINUTE_MS as u64, 100))));
+        let read = rx.recv_timeout(std::time::Duration::from_secs(1));
+        // A read still waiting on a fifo's open is let go by a writer that opens it and closes it at once.
+        let _freed = nix::fcntl::open(&planted, nix::fcntl::OFlag::O_WRONLY | nix::fcntl::OFlag::O_NONBLOCK, nix::sys::stat::Mode::empty());
+        read
+    }
+
+    #[test]
+    fn a_fifo_at_a_day_file_is_skipped_at_once() {
+        let read = read_beside(|at| nix::unistd::mkfifo(at, nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap());
+        assert_eq!(read.expect("the read is still waiting on a fifo at a day file after 1s").points.len(), 1);
+    }
+
+    #[test]
+    fn a_link_to_dev_zero_at_a_day_file_is_skipped_at_once() {
+        let read = read_beside(|at| std::os::unix::fs::symlink("/dev/zero", at).unwrap());
+        assert_eq!(read.expect("the read is still reading a link to /dev/zero at a day file after 1s").points.len(), 1);
     }
 }

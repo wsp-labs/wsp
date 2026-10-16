@@ -173,6 +173,7 @@ const DAEMON_CONTENTS = [
   "7597d805e74eefc52ec0bf1ee32836227fcce64919f7a32ad46500daedf4a609",
   "abdf6f4ac5c99fe513c25c9b1fedbfc466b7c3a45b011a5e172cc58e18749b8a",
   "0e91401e923d085a796c4ad82b0ed6ff84aba2f9f4453e8a01a41737e069a076",
+  "b7eced8de615c365ef130b3debe3fe2027ace26ad820c0236820e82fd47ba169",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -699,7 +700,13 @@ const DAEMON_CONTENTS = [
  * Version 163: The token file, the roots file and an update's parts are read with no link followed at the last name, no
  * wait on a fifo, a plain file only and under a cap, and an update's parts and the new and old binaries beside the
  * daemon are written with no link followed and no wait on a fifo, so a fifo or a link a home's threads leave there can
- * no longer hold the daemon's one thread, its memory, its update or a file the link names. */
+ * no longer hold the daemon's one thread, its memory, its update or a file the link names.
+ * Version 164: An update's parts are read, written and taken off only on the put folder held from the home with no link
+ * followed on the way or at its name, the landing's new and old binaries and its move go only through the binary's
+ * folder, held the same way where it sits under the home, and the cleanup takes only plain files, so a link a home's
+ * threads leave at the wsp folder, the put folder, the daemon's folder or in them no longer points the daemon at a
+ * folder the link names; the readings day files, the process manifest and the ssh server's host key are read with no
+ * link followed at their own names, no wait on a fifo, a plain file only and under a cap. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
