@@ -14,6 +14,7 @@ import { SERVER_OFF } from "@wsp/runtime";
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 import { agentHome, SECRET, type AgentHome } from "../../collect/test/agent-home.js";
 import { READER_CLOSED, agentsReader, eachScript } from "../src/agents-reader.js";
+import { pluginsActs } from "../src/plugins-acts.js";
 import { serverRowLines } from "../src/verbs/agents-help.js";
 import { fetchPost, signInProbes } from "../src/sign-in-probe.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -357,6 +358,25 @@ describe("the agents report off this computer and off a workspace", () => {
     const { machine } = road(at);
     const read = await agentsReader({ vault: () => ({}) }).read({ kind: "machine", machine, stores: { codex: store } });
     expect(read.agents.find(a => a.id === "codex")).toMatchObject({ signIn: "signed-in", signInKind: "subscription" });
+  });
+
+  it("lists a workspace's seeded plugin before its first turn, from the folder its seed variable names, and switches it", async () => {
+    const at = fixture();
+    const [store, seed] = [join(at.root, "claude-cfg"), join(at.root, "claude-plugin-seed")];
+    const plugin = join(seed, "cache/acme-tools/lint-guard/0.1.0");
+    mkdirSync(join(plugin, ".claude-plugin"), { recursive: true });
+    mkdirSync(store, { recursive: true });
+    writeFileSync(join(plugin, ".claude-plugin/plugin.json"), JSON.stringify({ name: "lint-guard", version: "0.1.0" }));
+    writeFileSync(join(seed, "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "lint-guard@acme-tools": [{ scope: "user", installPath: plugin, version: "0.1.0" }] } }));
+    writeFileSync(join(store, "settings.json"), JSON.stringify({ enabledPlugins: { "lint-guard@acme-tools": true } }));
+    const { machine } = road(at);
+    // The switch lands its settings file by the machine's byte road, which here writes on this computer.
+    const on = { kind: "machine" as const, machine: { ...machine, putBytes: async (path: string, bytes: Uint8Array) => writeFileSync(path, bytes) }, stores: { claude: store }, seeds: { claude: seed } };
+    const read = await agentsReader({ vault: () => ({}) }).read(on);
+    expect(read.plugins!.filter(p => p.agent === "claude")).toEqual([expect.objectContaining({ id: "lint-guard@acme-tools", on: true, path: plugin })]);
+    expect(read.plugins!.find(p => p.id === "lint-guard@acme-tools")!.missing).toBeUndefined();
+    await pluginsActs().toggle(on, { agent: "claude", plugin: "lint-guard@acme-tools", on: false });
+    expect(JSON.parse(readFileSync(join(store, "settings.json"), "utf8"))).toEqual({ enabledPlugins: { "lint-guard@acme-tools": false } });
   });
 
   it("reads every project a computer holds in one read, each project's rows naming it, and says which projects it covered", async () => {
