@@ -337,6 +337,8 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
       ...(builder.machine.streamUrl !== undefined ? { streamUrl: builder.machine.streamUrl } : {}),
       ...(builder.import !== undefined ? { import: builder.import } : {}),
       ...(builder.base !== undefined ? { base: builder.base } : {}),
+      ...(builder.parentSnapshotId !== undefined ? { parentSnapshotId: builder.parentSnapshotId } : {}),
+      ...(builder.retired !== undefined ? { retired: builder.retired } : {}),
       place,
     };
     const entry: LiveBuilder = placeholder ?? { record, builder, sealable: true, life: "own" };
@@ -442,6 +444,9 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
       if (copy === undefined && name === "default") await placeDoor?.markDefaultIfNone(place).catch((e: unknown) => console.warn(`the default place was not marked at the seal: ${e instanceof Error ? e.message : String(e)}`));
       if (result.builderKept) {
         entry.record.sealed = { at: new Date(clock.now()).toISOString(), version: result.version.version };
+        // Kept, the builder's disk is the version it just sealed, so its next seal descends from that snapshot.
+        entry.record.parentSnapshotId = result.version.snapshotId;
+        entry.builder = { ...entry.builder, parentSnapshotId: result.version.snapshotId };
         entry.life = "own";
         await hold(entry);
         armGrace(entry.record.id, entry.record.sealed.at);
