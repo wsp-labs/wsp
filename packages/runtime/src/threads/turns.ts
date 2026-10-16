@@ -172,9 +172,10 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
 
     /** The spans of this turn that went on a person rather than on work: closed ones added up, and the moment the
      * span still running began. The harness counts wall time from launch to result, so these are what its figure has
-     * to give back before a reader is told how long the turn worked. */
-    let waited = 0;
-    let waitingSince: number | undefined;
+     * to give back before a reader is told how long the turn worked. Kept on the row, so a turn re-opened after a
+     * restart still gives back what it stood on a person before it. */
+    let waited = turnLive.waited ?? 0;
+    let waitingSince = turnLive.waitingSince;
     /** What the turn has spent on the person by now, the open span included, so a result that lands under a prompt
      * still standing counts the same as one that lands after it closed. */
     const waitedSoFar = (): number => waited + (waitingSince === undefined ? 0 : clock.now() - waitingSince);
@@ -226,6 +227,9 @@ export function turnsArea(ctx: RuntimeContext): TurnsArea {
         waited += clock.now() - waitingSince;
         waitingSince = undefined;
       }
+      turnLive.waited = waited;
+      if (waitingSince === undefined) delete turnLive.waitingSince;
+      else turnLive.waitingSince = waitingSince;
       void ctx.persistSessions(workspaceId);
     };
 

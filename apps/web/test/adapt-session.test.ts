@@ -428,6 +428,21 @@ describe("deriveMessagesTimelineRows", () => {
     expect(r[1]).toMatchObject({ kind: "message", showAssistantMeta: true, assistantCopyStreaming: false });
   });
 
+  it("the fold counts work alone: ten minutes stood on a question come off its Worked for", () => {
+    const scoped = { ...scope, turnId: "turn_q" };
+    const ask = { askId: "ask_q", toolName: "AskUserQuestion", input: "{}", options: [{ id: "q0:o0", label: "Red", effect: "answer" as const }] };
+    const events: SessionEvent[] = [
+      { type: "session.start", ...scoped, at: 0, prompt: "merge both branches" },
+      { type: "session.delta", ...scoped, at: 30_000, kind: "text", text: "The branch name is taken; asking." },
+      { type: "session.permission", ...scoped, at: 31_000, ...ask },
+      { type: "session.permission.closed", ...scoped, at: 631_000, askId: "ask_q", outcome: "allowed", optionId: "q0:o0" },
+      { type: "session.delta", ...scoped, at: 660_000, kind: "text", text: "Pushed under a new name." },
+      { type: "session.done", ...scoped, at: 660_000, result: { status: "completed", durationMs: 660_000, waitedMs: 600_000, text: "Pushed under a new name." } },
+      { type: "session.end", ...scoped, at: 660_100, exitCode: 0, sawResult: true },
+    ];
+    expect(rows(events).find(x => x.kind === "turn-fold")).toMatchObject({ label: "Worked for 1m" });
+  });
+
   it("the cut row and the notify row hide behind the fold like any work, and stand alone as notice rows when it opens", () => {
     const scoped = { ...scope, turnId: "turn_c" };
     const events: SessionEvent[] = [

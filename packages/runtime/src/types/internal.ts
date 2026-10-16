@@ -593,6 +593,9 @@ export interface TurnLive {
    * with these words and as its steerer, past a host restart too, and an id missing here is a line this host never
    * wrote, which goes nowhere. */
   steered?: Record<string, Steered>;
+  /** What the turn has stood on a person, closed spans added up, and when the span still open began. */
+  waited?: number;
+  waitingSince?: number;
   /** What failed the turn's stream, as its transport threw it: a line's try reads its class. In memory alone. */
   failure?: unknown;
 }
@@ -827,8 +830,8 @@ export interface SessionIndexRecord {
    * for it; from is where the turn starts in that run's log, on a process that served the thread's earlier turns. All
    * of these are written for a running row alone. snapshot is the commit the turn's launch took of its
    * folder, which the turn's changes are read against wherever it ends; written while the turn runs and until that
-   * read is in. told and steered are a running row's `TurnLive` fields of the same names; toldLast is an older host's, read and dropped. */
-  sessions: (SessionView & { turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; reply?: TurnStatus; told?: number; toldLast?: true; steered?: Record<string, Steered>; run?: string; from?: number; asked?: TurnAsked; turnToken?: string; scopeDeviceId?: string; snapshot?: string })[];
+   * read is in. told, steered, waited and waitingSince are a running row's `TurnLive` fields of the same names; toldLast is an older host's, read and dropped. */
+  sessions: (SessionView & { turnId: string; notify?: readonly string[]; notifyBy?: ThreadScope; notifyRoad?: WorkspaceOrigin; reply?: TurnStatus; told?: number; toldLast?: true; steered?: Record<string, Steered>; waited?: number; waitingSince?: number; run?: string; from?: number; asked?: TurnAsked; turnToken?: string; scopeDeviceId?: string; snapshot?: string })[];
   /** Every thread of the workspace by its runtime id; absent on a document from before threads had a record. */
   threads?: Record<string, ThreadRecord>;
 }
