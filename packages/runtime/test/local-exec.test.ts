@@ -656,6 +656,25 @@ describe("a real turn's process group", () => {
     expect(await Promise.all([collect(kept.lines), collect(dropped.lines)])).toEqual([["seed", "late"], ["seed"]]);
   }, 20_000);
 
+  it("a line held after the seed with the same words as one the child already read reaches it again, and a write meanwhile goes after it", async () => {
+    const stream = ended(localExecStream({ root, runDir })("cat", { env: {}, input: ["seed"] }));
+    stream.writeAfter!("yes", Promise.resolve());
+    await vi.waitUntil(() => readFileSync(`${stream.run!}.in`, "utf8") === "seed\nyes\n", { timeout: 5_000 });
+    let due: () => void = () => {};
+    stream.writeAfter!("yes", new Promise<void>(resolve => (due = resolve)));
+    const steered = stream.write("steer");
+    let second: () => void = () => {};
+    stream.writeAfter!("again", new Promise<void>(resolve => (second = resolve)));
+    second();
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(readFileSync(`${stream.run!}.in`, "utf8")).toBe("seed\nyes\n");
+    due();
+    expect(await steered).toBe("written");
+    await vi.waitUntil(() => readFileSync(`${stream.run!}.in`, "utf8").split("\n").length === 6, { timeout: 5_000 });
+    stream.closeInput();
+    expect(await collect(stream.lines)).toEqual(["seed", "yes", "yes", "again", "steer"]);
+  }, 20_000);
+
   it("an attach hands over a late line held beside the run, and one the channel already took goes in no second time", async () => {
     const reading = new Set<() => void>();
     const factory = localExecStream({ root, runDir, reading });
@@ -665,6 +684,7 @@ describe("a real turn's process group", () => {
     reached.writeAfter!("late", Promise.resolve());
     await vi.waitUntil(() => readFileSync(`${reached.run!}.in`, "utf8") === "seed\nlate\n", { timeout: 5_000 });
     // A host that went between handing the line over and dropping it: the line is in the channel and still held.
+    writeFileSync(`${reached.run!}.late.key`, readFileSync(`${reached.run!}.late.went`, "utf8"));
     writeFileSync(`${reached.run!}.late`, "late\n");
     for (const stop of [...reading]) stop();
     const next = localExecStream({ root, runDir, pollMs: 50 });
