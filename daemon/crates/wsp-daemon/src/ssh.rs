@@ -349,11 +349,10 @@ impl Servers {
     /// The public half of its host key, by the same road; nothing where none is made yet.
     async fn host_key(&self, machine: &Machine<'_>, at: &Files) -> Result<Option<String>, OpError> {
         match machine {
-            Machine::Here => match std::fs::read_to_string(at.dir.join("host_ed25519.pub")) {
-                Ok(text) => Ok(Some(text.trim().to_owned())),
-                Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-                Err(e) => Err(OpError::plain(format!("reading the ssh server's host key: {e}"))),
-            },
+            Machine::Here => crate::beneath::read_capped(&at.dir.join("host_ed25519.pub"), wsp_frames::numbers::SSH_KEY_MAX as u64)
+                .and_then(|bytes| bytes.map(String::from_utf8).transpose().map_err(|e| e.to_string()))
+                .map(|key| key.map(|text| text.trim().to_owned()))
+                .map_err(|e| OpError::plain(format!("reading the ssh server's host key: {e}"))),
             #[cfg(target_os = "linux")]
             Machine::Inside { ops, id } => {
                 let (ops, id) = (Arc::clone(ops), (*id).to_owned());
@@ -714,6 +713,40 @@ pub(crate) mod tests {
 
     fn servers(dir: &Path, idle: Duration) -> Arc<Servers> {
         Arc::new(Servers::new(stand_ins(dir), idle, &dir.join("token")))
+    }
+
+    /// What the host key read of this machine answered with the planted file at its name inside a second; Err where it
+    /// was still reading then.
+    fn host_key_planted(plant: impl FnOnce(&Path)) -> Result<Result<Option<String>, String>, std::sync::mpsc::RecvTimeoutError> {
+        let dir = tempfile::tempdir().unwrap();
+        let s = servers(dir.path(), Duration::from_secs(60));
+        let at = Files { dir: dir.path().join("files") };
+        std::fs::create_dir_all(&at.dir).unwrap();
+        let key = at.dir.join("host_ed25519.pub");
+        plant(&key);
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread().build().unwrap();
+            let _ = tx.send(runtime.block_on(s.host_key(&Machine::Here, &at)).map_err(|e| e.message));
+        });
+        let read = rx.recv_timeout(Duration::from_secs(1));
+        // A read still waiting on a fifo's open is let go by a writer that opens it and closes it at once.
+        let _freed = nix::fcntl::open(&key, nix::fcntl::OFlag::O_WRONLY | nix::fcntl::OFlag::O_NONBLOCK, nix::sys::stat::Mode::empty());
+        read
+    }
+
+    #[test]
+    fn a_fifo_at_the_host_key_is_refused_at_once() {
+        let read = host_key_planted(|at| nix::unistd::mkfifo(at, nix::sys::stat::Mode::from_bits_truncate(0o644)).unwrap());
+        let refused = read.expect("the read is still waiting on a fifo at the host key after 1s").unwrap_err();
+        assert!(refused.contains("is not a file"), "{refused}");
+    }
+
+    #[test]
+    fn a_link_to_dev_zero_at_the_host_key_is_refused_at_once() {
+        let read = host_key_planted(|at| std::os::unix::fs::symlink("/dev/zero", at).unwrap());
+        let refused = read.expect("the read is still reading a link to /dev/zero at the host key after 1s").unwrap_err();
+        assert!(refused.contains("a link stands at"), "{refused}");
     }
 
     #[tokio::test]
