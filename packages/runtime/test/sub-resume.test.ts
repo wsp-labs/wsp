@@ -15,7 +15,7 @@ import { BOX_WORK_DIR, DiskGoneError, NoProviderBackend, type Machine, type Mach
 import { BOAT_DISK_GONE_LINE, DAEMON_TOKEN_PATH, PIPE_DAEMON_VERSION, diskExpired, diskGoneReleasedLine, SUB_TURN_GONE_LINE, fmtBytes, foldThreads, lostSessionPrompt, subOpening, subResumePreamble, subSessionNotKeptLine, subSessionTooLargeLine, subStayedLine, brokeredAgentRefusal, subHostNoSignInRefusal, subTwiceRefusal, type SubFault } from "@wsp/protocol";
 import { DAEMON_TOKEN_SET } from "../src/daemon-token.js";
 import { PIPE_IDLE } from "../src/pipe.js";
-import { copyKey, type HarnessStartOptions, type PlaceBackends, type Runtime } from "../src/runtime.js";
+import { copyKey, type HarnessAdapterFactory, type HarnessStartOptions, type PlaceBackends, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair } from "../src/places.js";
 import { wiring } from "./place-join.js";
 import { SUB_SESSIONS, SUB_SESSION_MAX_BYTES, subSessionLandCommand } from "../src/machines/sub-life.js";
@@ -36,11 +36,11 @@ afterEach(async () => {
 });
 
 /** A sub-thread on Boat whose first turn ended, its done read and its session kept, on the agent named. */
-async function doneOnce(o: { agent?: "claude" | "codex" | "opencode"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } & Pick<Setup, "broker" | "hostGh" | "image" | "storeTitle"> = {}) {
+async function doneOnce(o: { agent?: "claude" | "codex" | "opencode"; answers?: Partial<Answers>; deleteAfterMs?: number; picks?: string[]; sizes?: Record<string, number> } & Pick<Setup, "broker" | "codex" | "hostGh" | "image" | "storeTitle"> = {}) {
   const agent = o.agent ?? "claude";
   const answers: Answers = { read: PUSHED, session: Buffer.from(`gzipped ${agent} session`), ...o.answers };
   const { clock, jump } = jumpClock();
-  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}), ...(o.broker !== undefined ? { broker: o.broker } : {}), ...(o.hostGh !== undefined ? { hostGh: o.hostGh } : {}), ...(o.image !== undefined ? { image: o.image } : {}), ...(o.storeTitle !== undefined ? { storeTitle: o.storeTitle } : {}) });
+  const held = await leadOnThisComputer({ clock, picks: o.picks ?? ["CLAUDE.local.md"], ...(o.sizes !== undefined ? { sizes: o.sizes } : {}), ...(o.deleteAfterMs !== undefined ? { spendPerDayUsd: 5 } : {}), ...(o.broker !== undefined ? { broker: o.broker } : {}), ...(o.hostGh !== undefined ? { hostGh: o.hostGh } : {}), ...(o.image !== undefined ? { image: o.image } : {}), ...(o.storeTitle !== undefined ? { storeTitle: o.storeTitle } : {}), ...(o.codex !== undefined ? { codex: o.codex } : {}) });
   open.push(held.rt);
   if (o.deleteAfterMs !== undefined) await held.rt.places!.set("box", { deleteAfterMs: o.deleteAfterMs });
   answering(held.boat, answers);
@@ -482,6 +482,39 @@ describe("rewind and fork on a sub-thread whose machine was deleted", () => {
     expect(fork?.message).toBe(SUB_TURN_GONE_LINE);
     const later = await said(held.rt.sessions.fork({ prompt: "x", fork: { threadId: held.threadId, turnId: turns[1]! } }));
     expect(later?.message).not.toBe(SUB_TURN_GONE_LINE);
+  });
+});
+
+describe("rewind on a sub-thread whose machine napped after its turn", () => {
+  it("wakes the machine and cuts the turn, as a send wakes it, where the napped box takes no command", async () => {
+    const reverted: string[] = [];
+    // Codex cuts its thread by a run on the machine, which Boat refuses while the box is stopped.
+    const codex = (stub: HarnessAdapterFactory): HarnessAdapterFactory => hctx => ({
+      ...stub(hctx),
+      revert: async r => {
+        await hctx.machine.exec(`codex app-server revert ${r.session}`);
+        reverted.push(r.session);
+        return undefined;
+      },
+    });
+    const held = await doneOnce({ agent: "codex", codex });
+    const answer = held.boat.execImpl;
+    held.boat.execImpl = (m, cmd, stdin) => {
+      if (m.paused) throw Object.assign(new Error("Sandbox machine is not running."), { kind: "conflict", status: 409, code: "machine_not_running" });
+      return answer(m, cmd, stdin);
+    };
+    await held.rt.workspaces.wake(held.made.id);
+    await (await held.rt.sessions.start(held.made.id, { thread: held.threadId, prompt: "and the colour?", harness: "codex" })).finished;
+    await until(async () => ((await held.record()).phase === "napping" ? true : undefined), "the nap after the second turn");
+    expect(held.first.paused).toBe(true);
+    const turns = [...new Set((await held.rt.sessions.history(held.made.id)).filter(e => e.threadId === held.threadId && e.turnId !== undefined).map(e => e.turnId!))];
+    expect(turns).toHaveLength(2);
+    const resumes = held.first.resumes;
+
+    expect(await held.rt.sessions.rewind(held.threadId, { turnId: turns[0]! })).toMatchObject({ turns: 1 });
+    expect(held.first.resumes).toBe(resumes + 1);
+    expect(reverted).toHaveLength(1);
+    expect(new Set((await held.rt.sessions.history(held.made.id)).filter(e => e.threadId === held.threadId && e.turnId !== undefined).map(e => e.turnId!))).toEqual(new Set([turns[0]]));
   });
 });
 
