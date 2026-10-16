@@ -10,13 +10,15 @@ import { wiring } from "./place-join.js";
 import { memoryStore } from "../src/store.js";
 import { templateHost } from "../src/host-id.js";
 import type { PendingCreate } from "../src/types/internal.js";
-import { createOn, stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
+import { createOn, ownedStore, stubBackend, type StubBackend, type StubMachine } from "./stub-backend.js";
 import { dfOk } from "./image-fixtures.js";
 
 const HOST = "boat-test";
 const T0 = Date.parse("2026-10-11T10:00:00.000Z");
 /** Above any pid the kernel hands out, so no process holds it. */
 const DEAD_PID = 4_194_305;
+/** How long the fake provider keeps a create's key: Boat's 24 hours, less the two minutes its own asks may take. */
+const KEY_KEPT_MS = 24 * 3_600_000 - 120_000;
 const minutesAgo = (n: number): string => new Date(Date.now() - n * 60_000).toISOString();
 
 interface Sent {
@@ -50,7 +52,9 @@ function keyKeeping(backend: StubBackend) {
     }
     return real(spec, waiting);
   };
-  backend.replayCreate = async (key, bytes) => {
+  backend.replayCreate = async (key, bytes, madeAt) => {
+    // Past the window the provider keeps a key, an ask would make a new box, so none is sent.
+    if (Date.now() - Date.parse(madeAt) >= KEY_KEPT_MS) return undefined;
     replays.push({ key, bytes });
     const m = madeBy.get(key) ?? ((await real({ kind: "sandbox" })) as StubMachine);
     const labels = (JSON.parse(bytes) as { labels: Record<string, string> }).labels;
@@ -172,12 +176,11 @@ describe("a create whose answer is lost", () => {
 });
 
 /** A host that forks on none, as every public build does, with Boat a place beside it under its own backend. */
-function boatBeside() {
+function boatBeside(store = memoryStore()) {
   const none = new NoProviderBackend();
   const box = stubBackend();
   const kk = keyKeeping(box);
   const places: PlaceBackends = { wired: "none", backend: place => (place === "none" ? none : place === "box" ? box : undefined), list: () => ["box"] };
-  const store = memoryStore();
   const rt = createRuntime({ backend: none, places, store, adapters: {}, hostId: HOST, placeLinks: wiring(newPlaceKeyPair()) });
   return { rt, store, box, kk };
 }
@@ -280,10 +283,10 @@ describe("a create at a place this host does not fork on, whose answer is lost",
         let answerReplay!: () => void;
         const replayAnswered = new Promise<void>(resolve => (answerReplay = resolve));
         const replay = box.replayCreate!.bind(box);
-        box.replayCreate = async (key, bytes) => {
+        box.replayCreate = async (key, bytes, madeAt) => {
           asked = true;
           await replayAnswered;
-          return replay(key, bytes);
+          return replay(key, bytes, madeAt);
         };
         let answerCreate!: () => void;
         kk.hold = new Promise<void>(resolve => (answerCreate = resolve));
@@ -338,37 +341,71 @@ describe("a create at a place this host does not fork on, whose answer is lost",
   });
 });
 
+describe("an attempt older than the window the provider keeps its key", () => {
+  for (const atPlace of [false, true]) {
+    it(`is cleared without an ask, and the box its first create made is deleted as one named after this host's image${atPlace ? ", at a place this host does not fork on" : ""}`, async () => {
+      const { rt, store, box, kk } = atPlace ? boatBeside(ownedStore()) : (({ backend, ...rest }) => ({ ...rest, box: backend }))(setup(ownedStore()));
+      try {
+        const image = goldenName(templateHost(HOST) + templateHost(await rt.owner()), "default", 4);
+        const on = atPlace ? { on: "box" } : {};
+        await createOn(rt, { golden: image, name: "kept", ...on });
+        kk.lose = 1;
+        await expect(createOn(rt, { golden: image, name: "x", ...on })).rejects.toThrow("fetch failed");
+        const [lost] = [...kk.madeBy.values()];
+        kk.createdAt.set(lost!.id, minutesAgo(0));
+        const made = box.machines.length;
+
+        // A day on the provider has forgotten the key, and an ask under it would make a box anew.
+        vi.setSystemTime(T0 + 24 * 3_600_000);
+        kk.createdAt.set(lost!.id, minutesAgo(24 * 60));
+        kk.madeBy.clear();
+        const swept = await rt.reap();
+        expect(kk.replays).toEqual([]);
+        expect(box.machines).toHaveLength(made);
+        expect(await store.list("creates")).toEqual([]);
+        expect(lost!.killed).toBe(true);
+        expect(swept.reaped).toContainEqual(expect.objectContaining({ id: lost!.id, reason: "stray", name: image }));
+      } finally {
+        await rt.close();
+      }
+    });
+  }
+});
+
 describe("a box named after one of this host's images", () => {
-  it("is deleted once it is ten minutes old and no record or attempt names it; a box under any other name is never touched", async () => {
-    const { rt, store, kk } = setup();
-    const image = goldenName(templateHost(HOST) + templateHost(await rt.owner()), "default", 4);
-    const ws = await createOn(rt, { golden: image, name: "w" });
-    const own = (await rt.workspaces.get(ws.id)).machineId;
-    kk.names.set(own, image);
-    kk.createdAt.set(own, minutesAgo(30));
+  for (const atPlace of [false, true]) {
+    it(`is deleted once it is ten minutes old and no record or attempt names it; a box under any other name is never touched${atPlace ? ", at a place this host does not fork on" : ""}`, async () => {
+      const { rt, store, kk } = atPlace ? boatBeside() : setup();
+      const on = atPlace ? { on: "box" } : {};
+      const image = goldenName(templateHost(HOST) + templateHost(await rt.owner()), "default", 4);
+      const ws = await createOn(rt, { golden: image, name: "w", ...on });
+      const own = (await rt.workspaces.get(ws.id)).machineId;
+      kk.names.set(own, image);
+      kk.createdAt.set(own, minutesAgo(30));
 
-    const stray = await kk.stray(image, 11);
-    const young = await kk.stray(image, 9);
-    const untouched = [
-      await kk.stray(`${image}-copy`, 60),
-      await kk.stray(goldenName("otherhost", "default", 4), 60),
-      await kk.stray("my box", 60),
-      await kk.stray("", 60),
-    ];
-    // An attempt of this host that asked for the same image, not yet two minutes old: the box may be its.
-    await store.put("creates", "workspace/ws_pending", { key: "workspace/ws_pending:00", createdAt: minutesAgo(1), body: "b", request: "{}", image, host: HOST, pid: DEAD_PID } satisfies PendingCreate);
-    await rt.reap();
-    expect(stray.killed).toBe(false);
-    await store.delete("creates", "workspace/ws_pending");
+      const stray = await kk.stray(image, 11);
+      const young = await kk.stray(image, 9);
+      const untouched = [
+        await kk.stray(`${image}-copy`, 60),
+        await kk.stray(goldenName("otherhost", "default", 4), 60),
+        await kk.stray("my box", 60),
+        await kk.stray("", 60),
+      ];
+      // An attempt of this host that asked for the same image, not yet two minutes old: the box may be its.
+      await store.put("creates", "workspace/ws_pending", { key: "workspace/ws_pending:00", createdAt: minutesAgo(1), body: "b", request: "{}", image, host: HOST, pid: DEAD_PID, ...(atPlace ? { place: "box" } : {}) } satisfies PendingCreate);
+      await rt.reap();
+      expect(stray.killed).toBe(false);
+      await store.delete("creates", "workspace/ws_pending");
 
-    const swept = await rt.reap();
-    expect(stray.killed).toBe(true);
-    expect(swept.reaped).toContainEqual(expect.objectContaining({ id: stray.id, reason: "stray", name: image }));
-    expect(young.killed).toBe(false);
-    expect((await rt.workspaces.get(ws.id)).machineId).toBe(own);
-    expect(kk.names.has(own)).toBe(true);
-    expect(untouched.map(m => m.killed)).toEqual([false, false, false, false]);
-    // The listing is asked for this host's image names alone, so no other box is even read.
-    expect(kk.asked.at(-1)).toEqual([image]);
-  });
+      const swept = await rt.reap();
+      expect(stray.killed).toBe(true);
+      expect(swept.reaped).toContainEqual(expect.objectContaining({ id: stray.id, reason: "stray", name: image }));
+      expect(young.killed).toBe(false);
+      expect((await rt.workspaces.get(ws.id)).machineId).toBe(own);
+      expect(kk.names.has(own)).toBe(true);
+      expect(untouched.map(m => m.killed)).toEqual([false, false, false, false]);
+      // The listing is asked for this host's image names alone, so no other box is even read.
+      expect(kk.asked.at(-1)).toEqual([image]);
+    });
+  }
 });
