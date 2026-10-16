@@ -5,13 +5,15 @@
 // carried, none of which may be in it. The credentials are read where each
 // lives, the gh login once for calls that arrive together and kept 5 minutes.
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo, Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { brokerCredentials, GITHUB_CACHE_MS, type RunCommand } from "../src/broker/credentials.js";
 import { brokerLogFile, cleanLine, LOG_KEEP_MS } from "../src/broker/log.js";
 import type { AnthropicCredential, BrokerLogLine, BrokerService } from "../src/broker/types.js";
-import { responseOn } from "../src/chatgpt/forward.js";
+import { outgoingHeaders, passUpgrade, responseOn } from "../src/chatgpt/forward.js";
 import { tokenShaped } from "../src/token-shapes.js";
 import { CLAUDE, OP, REAL, TERMINAL, TURN, WS, pipePair, placeholderJwt, proxyLogin, rig, type Rig } from "./broker-fixture.js";
 
@@ -24,6 +26,19 @@ afterEach(async () => {
 });
 
 const FIELDS = ["at", "machine", "thread", "token", "service", "method", "path", "status", "bytesUp", "bytesDown", "ms", "heldMs"];
+
+/** A chatgpt stand-in that passes every upgrade on to `server` the way the real service does. */
+const passingTo = async (server: Server): Promise<BrokerService> => {
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const target = { url: new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/backend-api/codex/responses`) };
+  return {
+    id: "chatgpt",
+    claims: (_req, door) => door === "http",
+    serve: async ({ res }) => void res.end(),
+    upgrade: (q, socket, head, ctx) =>
+      passUpgrade(q.req, socket, head, target, outgoingHeaders(q.req, [], {}, true), (res, status, said) => ctx.refuse(res, status, said, "openai"), { refused: "refused", unreachable: "unreachable" }),
+  };
+};
 
 const readLog = (dir: string): { text: string; lines: BrokerLogLine[] } => {
   const text = readdirSync(dir).map(f => readFileSync(join(dir, f), "utf8")).join("");
@@ -79,6 +94,55 @@ describe("the log", () => {
       expect(refused.lines.map(l => [l.token, l.service, l.status])).toEqual([["turn", "chatgpt", 403]]);
     } finally {
       await service.close();
+    }
+  });
+
+  it("hands a large answer to an upgrade that did not switch on whole to a slow reader, then closes the pipe and writes the line", async () => {
+    const BODY = 4 * 1024 * 1024;
+    const nonSwitching = createServer((_req, res) => void res.writeHead(502, { "content-type": "text/plain", "content-length": String(BODY) }).end(Buffer.alloc(BODY, 0x61)));
+    r = await rig({ services: [await passingTo(nonSwitching)] });
+    const [host, client] = pipePair();
+    try {
+      const closed = new Promise<true>(resolve => host.once("close", () => resolve(true)));
+      r.broker.take(WS, { op: "pipe.open", door: "http", heldMs: 0 }, host);
+      client.write(`GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\nAuthorization: Bearer ${placeholderJwt(TURN)}\r\n${UPGRADE}\r\n`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const chunks: Buffer[] = [];
+      const ended = new Promise<true>(resolve => client.once("end", () => resolve(true)));
+      client.on("data", (d: Buffer) => chunks.push(d));
+      const timer = new Promise<false>(resolve => setTimeout(() => resolve(false), 3_000));
+      const [read, shut] = await Promise.all([Promise.race([ended, timer]), Promise.race([closed, timer])]);
+      const seen = Buffer.concat(chunks);
+      const start = seen.indexOf("\r\n\r\n") + 4;
+      expect([seen.subarray(0, 12).toString("latin1"), seen.length - start, read, shut]).toEqual(["HTTP/1.1 502", BODY, true, true]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(readLog(r.logDir).lines.map(l => [l.service, l.status])).toEqual([["chatgpt", 502]]);
+    } finally {
+      client.destroy();
+      await new Promise(resolve => nonSwitching.close(() => resolve(undefined)));
+    }
+  });
+
+  it.each(["destroy", "resetAndDestroy"] as const)("closes the pipe and writes the line when the upstream cuts its answer to an upgrade short (%s)", async cut => {
+    const cutting = createServer((_req, res) => {
+      res.writeHead(502, { "content-type": "text/plain", "content-length": String(4 * 1024 * 1024) });
+      res.write(Buffer.alloc(1024 * 1024, 0x61), () => void setTimeout(() => (res.socket as Socket)[cut](), 50));
+    });
+    r = await rig({ services: [await passingTo(cutting)] });
+    const [host, client] = pipePair();
+    try {
+      const closed = new Promise<true>(resolve => host.once("close", () => resolve(true)));
+      const ended = new Promise<true>(resolve => client.once("end", () => resolve(true)));
+      client.resume();
+      r.broker.take(WS, { op: "pipe.open", door: "http", heldMs: 0 }, host);
+      client.write(`GET /backend-api/codex/responses HTTP/1.1\r\nHost: 127.0.0.1:7071\r\nAuthorization: Bearer ${placeholderJwt(TURN)}\r\n${UPGRADE}\r\n`);
+      const timer = new Promise<false>(resolve => setTimeout(() => resolve(false), 3_000));
+      expect(await Promise.all([Promise.race([ended, timer]), Promise.race([closed, timer])])).toEqual([true, true]);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(readLog(r.logDir).lines.map(l => [l.service, l.status])).toEqual([["chatgpt", 502]]);
+    } finally {
+      client.destroy();
+      await new Promise(resolve => cutting.close(() => resolve(undefined)));
     }
   });
 
