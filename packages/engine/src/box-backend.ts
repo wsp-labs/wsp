@@ -98,9 +98,12 @@ export const BOX_POLL_MS = 2_000;
  * is the caller's: the restored disk streams in behind a ready box. */
 export const BOX_RESTORE_MS = 120_000;
 
+/** How long Boat keeps a create's key: inside it the same key and body answer the first box, another body under it is
+ * refused with idempotency_key_reused, and past it the key makes a box anew (docs.boat.dev/api/v1, "Idempotent
+ * sandbox creation"). */
+export const BOX_KEY_KEPT_MS = 24 * 3_600_000;
 /** How long a create whose answer never arrived is asked again under its key and with its bytes, and the wait between
- * asks after the first, which goes at once. Boat keeps a key 24 hours and answers its first box to the same key and
- * body; another body under it is refused with idempotency_key_reused. */
+ * asks after the first, which goes at once. */
 export const LOST_ANSWER_MS = 120_000;
 export const LOST_ANSWER_EVERY_MS = 5_000;
 /** The wait after idempotency_in_progress, Boat's answer while the first request under a key is still being made. */
@@ -852,8 +855,10 @@ export class BoxBackend implements MachineBackend {
   }
 
   /** Asks a create again under its key with the bytes its attempt sent, for a sweep that found the attempt never
-   * answered: Boat answers with the box the key made, named back to what the bytes asked so its labels read again. */
-  async replayCreate(key: string, bytes: string): Promise<Machine> {
+   * answered: Boat answers with the box the key made, named back to what the bytes asked so its labels read again. An
+   * attempt whose last ask could land past the key's 24 hours is never asked: the box its first ask made is the sweep's. */
+  async replayCreate(key: string, bytes: string, madeAt: string): Promise<Machine | undefined> {
+    if (this.clock.now() - Date.parse(madeAt) >= BOX_KEY_KEPT_MS - LOST_ANSWER_MS - LOST_ANSWER_EVERY_MS) return undefined;
     const { answer } = await this.postCreate(key, bytes);
     const name = (JSON.parse(bytes) as { name: string }).name;
     const state = stateOf(answer.box.state);

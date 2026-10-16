@@ -270,8 +270,10 @@ export interface MachineBackend {
   /** Optional, the three together: only a backend whose create takes a key the provider keeps. The exact bytes a
    * create of this spec sends, made once per attempt so a replay under its key carries the same body. */
   createRequest?(spec: MachineSpec): Promise<string>;
-  /** Asks again under `key` with the bytes its attempt sent and answers the machine the provider made for it. */
-  replayCreate?(key: string, bytes: string): Promise<Machine>;
+  /** Asks again under `key` with the bytes its attempt sent and answers the machine the provider made for it. An
+   * attempt made at `madeAt` that is past the window the provider keeps a key answers undefined with nothing sent,
+   * since the provider would make a box anew under a key it no longer holds. */
+  replayCreate?(key: string, bytes: string, madeAt: string): Promise<Machine | undefined>;
   /** The provider's machines named exactly one of `names`, whatever their labels: a machine made from a named image
    * carries the image's name until wsp names it. */
   namedAfter?(names: ReadonlySet<string>): Promise<NamedMachine[]>;
