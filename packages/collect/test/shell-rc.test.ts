@@ -63,7 +63,42 @@ describe("shell rc exports", () => {
     expect(stripExports(text, login).carried).toBe("if [ -f ~/.work ]; then\nfi\ndb() {\n}\n");
     expect(stripExports("cat <<EOF\nplain0\nEOF\n", login, [], true).carried).toBe("cat <<EOF\nEOF\n");
     expect(stripExports("# psql plain0\nalias g=git\n", login, [], true).carried).toBe("alias g=git\n");
-    expect(stripExports("case $OSTYPE in\n  darwin*) export GH_TOKEN=x ;;\n  *) export A=1 ;;\nesac\n", login, [], true).carried).toBe("case $OSTYPE in\n  *) export A=1 ;;\nesac\n");
+    expect(stripExports("case $OSTYPE in\n  darwin*) export GH_TOKEN=x ;;\n  *) export A=1 ;;\nesac\n", login, [], true).carried).toBe("case $OSTYPE in\n  darwin*) true ;;\n  *) export A=1 ;;\nesac\n");
+  });
+
+  it("in a script a cut command that shares its line stands as true and the rest of the line stays, the block's keyword or terminator with it", () => {
+    const login = (l: string): string | undefined => (l.includes("plain0") ? "a login" : undefined);
+    const cut = (text: string): string => stripExports(text, login, [], true).carried;
+    expect(cut("if x; then\n  export GH_TOKEN=x; fi\n")).toBe("if x; then\n  true; fi\n");
+    expect(cut("for f in a; do\n  export LAB_TOKEN=x; done\n")).toBe("for f in a; do\n  true; done\n");
+    expect(cut("if x\nthen export GH_TOKEN=x\n  y\nfi\n")).toBe("if x\nthen true\n  y\nfi\n");
+    expect(cut("{ export API_KEY=x; export IN=1; }\ndb() { export API_KEY=x; }\n")).toBe("{ true; export IN=1; }\ndb() { true; }\n");
+    expect(cut("case $x in\n  a)\n    export GH_TOKEN=x ;;\n  b) export B_TOKEN=y ;&\n  c) export C_TOKEN=z ;|\nesac\n")).toBe("case $x in\n  a)\n    true ;;\n  b) true ;&\n  c) true ;|\nesac\n");
+    expect(cut('if x; then\n  export API_KEY="a\nb"; export IN=1; fi\n')).toBe("if x; then\n  true; export IN=1; fi\n");
+    expect(cut("[ -n x ] && export GH_TOKEN=x || y\n")).toBe("[ -n x ] && true || y\n");
+    expect(stripExports("if x; then export A=1 GH_TOKEN=x; elif y; then eval 'export B_KEY=1; z'; fi\n", login, [], true)).toEqual({ names: ["GH_TOKEN", "B_KEY"], carried: "if x; then true; elif y; then true; fi\n" });
+  });
+
+  it("a cut command holds together through its substitutions, quotes, arrays and redirects, and a cut that cannot split stands as one true", () => {
+    const login = (l: string): string | undefined => (l.includes("plain0") ? "a login" : undefined);
+    const cut = (text: string): string => stripExports(text, login, [], true).carried;
+    expect(cut('  export GH_TOKEN="$(pass show "gh; x" | head -1)" 2>&1 && y; fi\n')).toBe("  true && y; fi\n");
+    expect(cut("export A_TOKEN=$((1 + 2)) `echo ;` $'a\\';' ${X:-;}; fi\n")).toBe("true; fi\n");
+    expect(cut("typeset -a API_KEY=(a b); fi\nif test -n x; set -gx GH_TOKEN (pass show gh); end\n")).toBe("true; fi\nif test -n x; true; end\n");
+    expect(cut("export GH_TOKEN=x; cat <<EOF; fi\nbody\nEOF\nnext\n")).toBe("true\nnext\n");
+    expect(cut("  y; fi # plain0\n")).toBe("  y; fi\n");
+    expect(cut("for t in plain0; do y; done\ncase $x in (a) y plain0;; (b) z;; esac\n")).toBe("true\n");
+  });
+
+  it("in a script what a cut command decided never runs: a condition holding one stands as false, or true after until, and a list it leads into stands as one true; a cut assignment answers 0, so it stays true", () => {
+    const login = (l: string): string | undefined => (l.includes("plain0") ? "a login" : undefined);
+    const cut = (text: string): string => stripExports(text, login, [], true).carried;
+    expect(cut('if [ "$T" = plain0 ]; then\n  y\nfi\n')).toBe("if false; then\n  y\nfi\n");
+    expect(cut("if ! [[ -z x || $T = plain0 ]]; then y; elif x && test $T = plain0; then y; fi\n")).toBe("if false; then y; elif false; then y; fi\n");
+    expect(cut('while [ "$T" = plain0 ]; do y; done\nuntil ! [[ -z x && $T = plain0 ]]; do y; done\nwhile x; do y plain0; done\n')).toBe("while false; do y; done\nuntil true; do y; done\nwhile x; do true; done\n");
+    expect(cut("if [[ $T = plain0 ]] { y } elif [[ $T = plain0 ]] { y }\nuntil [[ $T = plain0 ]] { y }\n")).toBe("if [[ -n '' ]] { y } elif [[ -n '' ]] { y }\nuntil [[ -z '' ]] { y }\n");
+    expect(cut('[ "$T" != plain0 ] && return\ncurl -fs https://plain0@h || y\necho plain0 | gh auth login --with-token\n  x && grep -q plain0 f && y; z\n')).toBe("true\ntrue\ntrue\n  true; z\n");
+    expect(cut("if export GH_TOKEN=x; then y; fi\nexport GH_TOKEN=x && y\nGH_TOKEN=$(pass show gh) || y\nGH_TOKEN=x gh auth status && y\n")).toBe("if true; then y; fi\ntrue && y\ntrue\ntrue\n");
   });
 
   it("a script with nothing to cut comes back byte for byte", () => {

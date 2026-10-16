@@ -212,10 +212,33 @@ describe("a copied shell file or git config", () => {
     expect(configTexts("shell", home)[0]!.text).toBe("cat > ~/.pgpass.example <<EOF\nhost=db\nEOF\nalias g=git\n");
   });
 
+  /** `blocks` as each road lands it, on a box and on an owned and a provider's image, and each landed file as `name`
+   * reads it: whether a value is left, what `-n` exits and what `out` prints after sourcing it. */
+  const readLanded = async (shell: string, name: string, blocks: string, out: string): Promise<[string, boolean, number | null, string][]> => {
+    const home = laptop();
+    writeFileSync(join(home, ".zshrc"), blocks);
+    writeFileSync(join(home, ".bashrc"), blocks);
+    const landed: [string, string][] = [["a box's ~/.zshrc", configTexts("shell", home)[0]!.text]];
+    for (const cloud of [false, true]) {
+      const root = extract((await importFor(ROWS.slice(0, 2), { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack()).tar);
+      for (const rc of [".zshrc", ".bashrc"]) landed.push([`${cloud ? "a provider's" : "an owned"} image's ~/${rc}`, readFileSync(join(root, rc), "utf8")]);
+    }
+    // An empty home and no stdin: bash on a socket for stdin reads ~/.bashrc first, as if sshd had started it.
+    const bare = mkdtempSync(join(tmpdir(), "wsp-config-secrets-sh-"));
+    dirs.push(bare);
+    return landed.map(([where, text]) => {
+      const file = join(bare, "landed.sh");
+      writeFileSync(file, text);
+      const opts: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { PATH: process.env["PATH"], HOME: bare } };
+      const parse = spawnSync(shell, ["-n", file], opts);
+      const run = spawnSync(shell, ["-c", `. "$1"; ${out}`, name, file], opts);
+      return [where, text.includes("plain0"), parse.status, run.stdout];
+    });
+  };
+
   for (const name of ["bash", "zsh"]) {
     const shell = (process.env["PATH"] ?? "").split(delimiter).filter(d => d !== "").map(d => join(d, name)).find(p => existsSync(p));
     it.skipIf(shell === undefined)(`a cut line that was the only line of an if, a function or a loop stands as a no-op, so ${name} reads the landed file and runs past it, on a box and on an image`, async () => {
-      const home = laptop();
       const blocks = [
         "if [ -f ~/.work ]; then",
         "  export DATABASE_URL=postgres://lab:plain0if@db.acme.dev/app",
@@ -234,25 +257,57 @@ describe("a copied shell file or git config", () => {
         "export AFTER=1",
         "",
       ].join("\n");
-      writeFileSync(join(home, ".zshrc"), blocks);
-      writeFileSync(join(home, ".bashrc"), blocks);
-      const landed: [string, string][] = [["a box's ~/.zshrc", configTexts("shell", home)[0]!.text]];
-      for (const cloud of [false, true]) {
-        const root = extract((await importFor(ROWS.slice(0, 2), { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack()).tar);
-        for (const rc of [".zshrc", ".bashrc"]) landed.push([`${cloud ? "a provider's" : "an owned"} image's ~/${rc}`, readFileSync(join(root, rc), "utf8")]);
-      }
-      // An empty home and no stdin: bash on a socket for stdin reads ~/.bashrc first, as if sshd had started it.
-      const bare = mkdtempSync(join(tmpdir(), "wsp-config-secrets-sh-"));
-      dirs.push(bare);
-      const read = landed.map(([where, text]) => {
-        const file = join(bare, "landed.sh");
-        writeFileSync(file, text);
-        const opts: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { PATH: process.env["PATH"], HOME: bare } };
-        const parse = spawnSync(shell!, ["-n", file], opts);
-        const run = spawnSync(shell!, ["-c", '. "$1"; printf %s "$AFTER"', name, file], opts);
-        return [where, text.includes("plain0"), parse.status, run.stdout];
-      });
-      expect(read).toEqual(landed.map(([where]) => [where, false, 0, "1"]));
+      const read = await readLanded(shell!, name, blocks, 'printf %s "$AFTER"');
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, "1"]));
+    });
+
+    it.skipIf(shell === undefined)(`a cut command that shares its line keeps the rest of the line, so the block it closes or opens still parses in ${name} and the commands beside it run, on a box and on an image`, async () => {
+      const blocks = [
+        'if [ -n "$HOME" ]; then',
+        "  export GH_TOKEN=plain0fi; export IN_FI=1; fi",
+        "for f in a; do",
+        "  export LAB_TOKEN=plain0done; done",
+        'if [ -n "$HOME" ]',
+        "then export DATABASE_URL=postgres://lab:plain0then@db.acme.dev/app",
+        "  export IN_THEN=1",
+        "fi",
+        "{ export API_KEY=plain0brace; export IN_BRACE=1; }",
+        "case lab in",
+        "  lab)",
+        "    export HOMEBREW_GITHUB_API_TOKEN=plain0case ;;",
+        "  *) ;;",
+        "esac",
+        'if [ -n "$HOME" ]; then',
+        '  export MULTI_KEY="plain0a',
+        'plain0b"; export IN_MULTI=1; fi',
+        'if [[ -z "$HOME" || "$U" = https://lab:plain0cond@db.acme.dev/app ]]; then :; fi; export IN_COND=1',
+        "for u in https://lab:plain0for@db.acme.dev/app; do :; done",
+        'if [ -n "$HOME" ]; then export IN_NOTE=1; fi # https://lab:plain0note@db.acme.dev/app',
+        "export AFTER=1",
+        "",
+      ].join("\n");
+      const left = ["GH_TOKEN", "LAB_TOKEN", "DATABASE_URL", "API_KEY", "HOMEBREW_GITHUB_API_TOKEN", "MULTI_KEY"].map(v => `\${${v}:+${v}}`).join("");
+      const read = await readLanded(shell!, name, blocks, `printf "%s " "$IN_FI" "$IN_THEN" "$IN_BRACE" "$IN_MULTI" "$IN_COND" "$IN_NOTE" "$AFTER" "${left}"`);
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, "1 1 1 1 1 1 1  "]));
+    });
+
+    it.skipIf(shell === undefined)(`what a cut test decided never runs in ${name}, its loop never spins and it never ends the file early, on a box and on an image`, async () => {
+      const blocks = [
+        'if [ "$U" = https://lab:plain0if@db.acme.dev/app ]; then',
+        "  export IN_IF=1",
+        "else",
+        "  export IN_ELSE=1",
+        "fi",
+        'while [ "$U" = https://lab:plain0while@db.acme.dev/app ]; do',
+        "  export IN_LOOP=1",
+        "done",
+        '[ "$U" = https://lab:plain0and@db.acme.dev/app ] && export IN_AND=1',
+        '[ "$U" != https://lab:plain0ret@db.acme.dev/app ] && return',
+        "export AFTER=1",
+        "",
+      ].join("\n");
+      const read = await readLanded(shell!, name, blocks, 'printf "%s " "$IN_IF" "$IN_ELSE" "$IN_LOOP" "$IN_AND" "$AFTER"');
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, " 1   1 "]));
     });
   }
 

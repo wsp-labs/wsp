@@ -42,6 +42,11 @@ const PLAIN = new RegExp(`^\\s*(${NAME})=`);
 const KEYWORDS = /^\s*(?:then|do|else|elif|if|while|until|exec|command|builtin|!)\s+/;
 /** `eval 'export X=1'`: the quoted argument is shell again. */
 const EVAL = /^\s*eval\s+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|(\S.*))$/;
+/** A command whose status is 0 whatever it held, so `true` stands for it anywhere: an export-like builtin, or a bare
+ * assignment with no substitution (a bare `X=$(cmd)` answers with cmd's status). */
+const ASSIGNS = new RegExp(`^(?:(?:export|typeset|declare|readonly|local|set)\\s|${NAME}=(?:"[^"$\`]*"|'[^']*'|[^\\s"'$\`])*$)`);
+/** The keyword whose condition a list is, `!` left to the condition: what follows an `if`, `elif`, `while` or `until`. */
+const GUARD = /(?<=^|[\s;&|({])(if|elif|while|until)\s+(?=(?:!\s+)?$)/;
 
 /** The simple commands of a line: split outside quotes on `;`, `&&`, `||`, `|`, `&` and braces or parentheses, comment dropped. */
 export function simpleCommands(line: string): string[] {
@@ -215,22 +220,126 @@ function carried(line: string, arith: number): Pick<Open, "heredoc" | "arith"> {
   return { heredoc: o.heredoc, arith: o.arith };
 }
 
+/** How far a command's leading blanks and keywords run. */
+function leadOf(segment: string): number {
+  let at = /^(?:\s|\\\n)*/.exec(segment)![0].length;
+  for (let m = KEYWORDS.exec(segment.slice(at)); m !== null; m = KEYWORDS.exec(segment.slice(at))) at += m[0].length;
+  return at;
+}
+
+/** The top-level simple commands and comments of closed shell text, keywords skipped, as [start, end) offsets. They split
+ * on `;`, `|`, a newline, an `&` that is no redirect's, a bare `{` or `}`, and a `(` or `)` opening a subshell or closing a
+ * case pattern; quotes, substitutions, `[[ ]]` and a `(` inside a command (an array, a fish substitution, `f()`) hold together.
+ * With `lists`, `&&`, `||` and `|` do not split, so each span is a whole and-or list. */
+function commandSpans(text: string, lists = false): [number, number][] {
+  const spans: [number, number][] = [];
+  const stack: string[] = [];
+  let start = 0;
+  const end = (i: number): void => {
+    const s = start + leadOf(text.slice(start, i));
+    const e = start + text.slice(start, i).replace(/(?:\s|\\\n)*$/, "").length;
+    if (e > s) spans.push([s, e]);
+  };
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i]!;
+    const top = stack.at(-1);
+    if (c === "\\" && top !== "'") i += 1;
+    else if (top === "'" || top === "$'" || top === "`") {
+      if (c === (top === "`" ? "`" : "'")) stack.pop();
+    } else if (c === "$" && (text[i + 1] === "(" || text[i + 1] === "{")) {
+      stack.push(text[i + 1]!);
+      i += 1;
+    } else if (c === "`" || (top !== '"' && (c === "'" || c === '"'))) stack.push(c);
+    else if (top === '"') {
+      if (c === '"') stack.pop();
+    } else if (c === "$" && text[i + 1] === "'") {
+      stack.push("$'");
+      i += 1;
+    } else if (top !== undefined) {
+      if (c === "(") stack.push(c);
+      else if ((c === ")" && top === "(") || (c === "}" && top === "{")) stack.pop();
+      else if (top === "[[" && text.startsWith("]]", i)) {
+        stack.pop();
+        i += 1;
+      }
+    } else if (commentAt(text, i)) {
+      end(i);
+      const from = i;
+      while (i + 1 < text.length && text[i + 1] !== "\n") i += 1;
+      spans.push([from, i + 1]);
+      start = i + 1;
+    } else if (/^\[\[\s/.test(text.slice(i, i + 3)) && leadOf(text.slice(start, i)) === i - start) {
+      stack.push("[[");
+      i += 1;
+    } else if (c === "(" && leadOf(text.slice(start, i)) < i - start) stack.push(c);
+    else if (
+      ";\n()".includes(c) ||
+      (c === "|" && text[i - 1] !== ">" && !lists) ||
+      (c === "&" && !/[<>]/.test(text[i - 1] ?? "") && text[i + 1] !== ">" && !(lists && /[&|]/.test(`${text[i - 1] ?? ""}${text[i + 1] ?? ""}`))) ||
+      ((c === "{" || c === "}") && /^\s?$/.test(text[i + 1] ?? "") && /^[\s;&]?$/.test(text[i - 1] ?? ""))
+    ) {
+      end(i);
+      start = i + 1;
+    }
+  }
+  end(text.length);
+  return spans;
+}
+
 /** The arithmetic depth is one stream over the file: a cut line reads it and writes it back like a kept line does. A
  * line `secretIn` finds a secret in goes too, a heredoc's included. `names` holds only variables, each one a cut line
  * assigns a secret to, since init asks the person for each; `held` gets what `secretIn` names for a cut line that
- * assigns none. In a `script`, a cut command leaves `true` at its indent: bash refuses a block it was the only line of, left empty.
- * A cut line holding a case arm's `;;`, `;&` or `;|` leaves nothing, since among the arms a `true` reads as a pattern. */
+ * assigns none. In a `script`, each cut command stands as `true`, a cut comment goes, and the rest of its line stays, so
+ * a block it opened, closed or was the only line of still parses. What a cut command that does more than assign decided
+ * never runs: an `if`, `elif` or `while` condition holding one stands as false and an `until` condition as true, and a
+ * list where one leads into `&&`, `||` or `|` stands as one `true`. A cut that cannot split (a heredoc, the head of a
+ * for, select or case) stands as one `true` at its indent, or as nothing when it is a comment or holds a case arm's `;;`,
+ * `;&` or `;|`. */
 export function stripExports(text: string, secretIn?: (line: string) => string | undefined, held: string[] = [], script = false): { names: string[]; carried: string } {
   const names: string[] = [];
   const kept: string[] = [];
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-  let cutting: Open | undefined;
+  const holds = (command: string): boolean => assignedIn(command.replace(/\\?\n/g, " ")).some(isSecretName) || secretIn?.(command) !== undefined;
+  const leave = (lines: string[], whole: boolean): void => {
+    if (!script) return;
+    const cut = lines.join("\n");
+    let rest = "";
+    let at = 0;
+    const spans = (whole ? commandSpans(cut) : []).filter(([s, e]) => holds(cut.slice(s, e)));
+    const lists = commandSpans(cut, true);
+    const stands = (s: number, e: number): [number, number, string] => {
+      if (cut[s] === "#") return [s, e, ""];
+      if (ASSIGNS.test(cut.slice(s, e))) return [s, e, "true"];
+      const [ls, le] = lists.find(([a, b]) => a <= s && e <= b) ?? [s, e];
+      const guard = GUARD.exec(cut.slice(0, ls));
+      if (guard !== null) {
+        const until = guard[1] === "until";
+        // zsh's `if [[ ]] { }` reads its condition only up to a closing `]]`.
+        const word = /^\s*\{/.test(cut.slice(le)) ? `[[ ${until ? "-z" : "-n"} '' ]]` : until ? "true" : "false";
+        return [guard.index + guard[0].length, le, word];
+      }
+      return /^\s*[&|]/.test(cut.slice(e, le)) ? [ls, le, "true"] : [s, e, "true"];
+    };
+    const ranges = spans.some(([s]) => /^(?:for|select|case)\s/.test(cut.slice(s))) ? [] : spans.map(([s, e]) => stands(s, e));
+    for (const [s, e, word] of ranges.sort(([a, b], [c, d]) => a - c || d - b)) {
+      if (s < at) continue;
+      rest += word === "" ? cut.slice(at, s).replace(/[ \t]+$/, "") : `${cut.slice(at, s)}${word}`;
+      at = e;
+    }
+    rest += cut.slice(at);
+    const first = lines[0]!;
+    if (rest !== cut && rest.trim() !== "" && !rest.split("\n").some(l => secretIn?.(l) !== undefined || simpleCommands(l).some(holds))) kept.push(...rest.split("\n"));
+    else if (!first.trimStart().startsWith("#") && !/;;|;&|;\|/.test(first)) kept.push(`${/^[ \t]*/.exec(first)?.[0] ?? ""}true`);
+  };
+  let cutting: { open: Open; lines: string[]; whole: boolean } | undefined;
   let passing: Pick<Open, "heredoc" | "arith"> = { arith: 0 };
   for (const line of text.split(/\r?\n/)) {
     if (cutting !== undefined) {
-      const o = scanLine(line, cutting);
-      if (isOpen(o)) cutting = o;
+      const o = scanLine(line, cutting.open);
+      cutting.lines.push(line);
+      if (isOpen(o)) cutting = { ...cutting, open: o, whole: cutting.whole && o.heredoc === undefined };
       else {
+        leave(cutting.lines, cutting.whole);
         cutting = undefined;
         passing = { arith: o.arith };
       }
@@ -252,11 +361,14 @@ export function stripExports(text: string, secretIn?: (line: string) => string |
     }
     for (const h of hits) if (!names.includes(h)) names.push(h);
     if (hits.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
-    if (script && !line.trimStart().startsWith("#") && !/;;|;&|;\|/.test(line)) kept.push(`${/^[ \t]*/.exec(line)?.[0] ?? ""}true`);
     const o = scanLine(line, { ...CLOSED, arith: passing.arith });
-    if (isOpen(o)) cutting = o;
-    else passing = { arith: o.arith };
+    if (isOpen(o)) cutting = { open: o, lines: [line], whole: o.heredoc === undefined };
+    else {
+      leave([line], true);
+      passing = { arith: o.arith };
+    }
   }
+  if (cutting !== undefined) leave(cutting.lines, false);
   return { names, carried: kept.join(eol) };
 }
 
