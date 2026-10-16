@@ -130,6 +130,34 @@ describe("a turn the host comes back to", () => {
     return { workspaceId: ws.id, run };
   };
 
+  it("a turn re-opened after a restart still gives back the minutes it stood on a question before the host went", async () => {
+    const backend = stubBackend();
+    const store = memoryStore();
+    const h = machineRuns();
+    const wait = fakeClock();
+    const rt = createRuntime({ backend, store, adapters: { claude: h.adapter }, clock: wait.clock });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    await rt.sessions.start(ws.id, { prompt: "merge both branches" });
+    await until(async () => (await rt.sessions.history(ws.id)).some(e => e.type === "session.start"));
+    const run = h.handles()[0]!;
+    h.emit(run, { type: "permission.ask", sessionId: "sess-1", ask: { askId: "ask_q", toolName: "AskUserQuestion", input: "{}", options: [{ id: PERMISSION_ALLOW, label: "Red", effect: "allow" }] } });
+    await until(async () => (await rt.sessions.list(ws.id))[0]!.asking !== undefined);
+    wait.advance(10 * 60_000);
+    await rt.close();
+
+    const rt2 = createRuntime({ backend, store, adapters: { claude: h.adapter }, clock: wait.clock });
+    await until(async () => (await rt2.sessions.list(ws.id))[0]!.asking !== undefined);
+    wait.advance(60_000);
+    h.emit(run, { type: "permission.close", sessionId: "sess-1", askId: "ask_q", outcome: "allowed", optionId: PERMISSION_ALLOW });
+    wait.advance(60_000);
+    h.emit(run, { type: "turn.done", sessionId: "sess-1", result: { status: "completed", text: "done", durationMs: 12 * 60_000 } });
+    h.emit(run, { type: "session.end", sessionId: "sess-1", exitCode: 0, sawResult: true });
+    await until(async () => (await rt2.sessions.list(ws.id))[0]!.status === "completed");
+    const done = (await rt2.sessions.history(ws.id)).find(e => e.type === "session.done");
+    expect(done?.type === "session.done" ? done.result : undefined).toMatchObject({ durationMs: 12 * 60_000, waitedMs: 11 * 60_000 });
+    await rt2.close();
+  });
+
   it("a run re-read after a restart files each call by its age against the run's newest stamp, so a call made long before stays out", async () => {
     const backend = stubBackend();
     const store = memoryStore();

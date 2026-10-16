@@ -214,7 +214,7 @@ export interface TurnSummary {
   readonly model: string | null;
   readonly durationMs: number | null;
   /** How much of durationMs the turn stood on a permission prompt nobody had answered; null on a turn that waited
-   * on nobody. The footer takes it off the duration, so Worked for counts work. */
+   * on nobody. The footer and the fold take it off the duration, so Worked for counts work. */
   readonly waitedMs: number | null;
   readonly costUsd: number | null;
   /** What the turn read and wrote, and what the model held at its end, as its agent counted them; null on a turn whose
