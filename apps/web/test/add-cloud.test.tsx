@@ -6,7 +6,7 @@
 // setup rather than another.
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_PREFERENCES, KEY_REFUSED, KEY_UNCHECKED, type AgentsReport, type Preferences, type InitJob, type InitScreen, type InitSetup, type PlaceView, type RecipeOptions, type WorkspaceView } from "@wsp/protocol";
+import { CLOUD_SETUP_WORDS, DEFAULT_PREFERENCES, KEY_REFUSED, KEY_UNCHECKED, type AgentsReport, type Preferences, type InitJob, type InitScreen, type InitSetup, type PlaceView, type RecipeOptions, type WorkspaceView } from "@wsp/protocol";
 import { RequestError, type Api } from "../src/protocol/client.js";
 import { forgetHeld } from "../src/protocol/held.js";
 import { useStore } from "../src/protocol/store.js";
@@ -159,6 +159,25 @@ describe("the CLIs step", () => {
     expect(document.querySelector("[data-pick-row='gh'] [data-pick-note]")?.textContent).toBe("Installed signed out.");
     expect(document.querySelector("[data-pick-row='jq'] [data-pick-note]")).toBeNull();
     expect(document.querySelector("[data-pick-row='jq']")?.textContent).toContain("12 calls");
+  });
+
+  it("draws a row the host fixed on or off as fixed, says always on, and a click leaves each as it was", async () => {
+    const tools: InitScreen = { ...screenOf("tools", [["curl", "curl"], ["jq", "jq"]], ["jq"]), items: [{ id: "curl", label: "curl", detail: [], lock: "on" }, { id: "jq", label: "jq", why: "12 calls", detail: [] }, { id: "rg", label: "ripgrep", detail: [], lock: "off" }] };
+    useStore.setState({ places: [here, boat], initJob: jobOf({ step: 1, screens: [SCREENS[0]!, tools, SCREENS[2]!] }) });
+    mountSettings({ api: host().api });
+    act(() => openCloudAdd("box"));
+    await settle();
+    const box = (id: string) => document.querySelector<HTMLElement>(`[data-pick-row='${id}'] [data-slot=checkbox]`)!;
+    expect(box("curl").hasAttribute("data-disabled")).toBe(true);
+    expect(box("jq").hasAttribute("data-disabled")).toBe(false);
+    expect(box("rg").hasAttribute("data-disabled")).toBe(true);
+    expect(box("rg").getAttribute("aria-checked")).toBe("false");
+    expect(document.querySelector("[data-pick-row='curl'] [data-pick-note]")?.textContent).toBe(CLOUD_SETUP_WORDS.screen.alwaysOn);
+    fireEvent.click(box("curl"));
+    fireEvent.click(box("rg"));
+    await settle();
+    expect(box("curl").getAttribute("aria-checked")).toBe("true");
+    expect(box("rg").getAttribute("aria-checked")).toBe("false");
   });
 });
 

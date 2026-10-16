@@ -36,6 +36,8 @@ export const CLOUD_SETUP_WORDS = {
     changeKey: "Change the key",
   },
   screen: {
+    /** A row wsp puts on every image, so its tick cannot be taken off. */
+    alwaysOn: "always on",
     keycap: "Continue",
     back: "Back",
     again: "Start over",
