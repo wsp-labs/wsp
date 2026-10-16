@@ -642,6 +642,37 @@ describe("a copied shell file or git config", () => {
     });
   }
 
+  const GLUED = [
+    "export PGPASSWORD=plain0pg",
+    "MYSQL_PWD=plain0mysql",
+    "export GHTOKEN=plain0token LAB_CLIENTSECRET=plain0secret",
+    "alias pg='PGPASSWORD=plain0alias psql'",
+    "",
+  ].join("\n");
+  const FISH_GLUED = ["set -gx PGPASSWORD plain0pg", "set -gx MYSQL_PWD plain0mysql", "set -gx GHTOKEN plain0token", "alias pg 'PGPASSWORD=plain0alias psql'", ""].join("\n");
+  const SETTINGS = ["export KEYTIMEOUT=1", "HISTKEY=1", "DISABLE_FZF_KEY_BINDINGS=true", "export PASSWORD_STORE_DIR=~/.pass", "cd ~ && echo $OLDPWD", "export TIKTOKEN_CACHE_DIR=~/.cache/tiktoken", `alias yt='curl -s "https://www.googleapis.com/youtube/v3/search?part=snippet&pageToken=CAUQAA"'`, "export AFTER=1", ""].join("\n");
+  const FISH_SETTINGS = ["set -g fish_key_bindings fish_vi_key_bindings", "set -U fish_sequence_key_delay_ms 200", "set -g fish_prompt_pwd_dir_length 3", "set -gx AFTER 1", ""].join("\n");
+
+  it("a secret word glued to another part of the name is cut and a shell's own setting holding one lands as it was, on a box and on an image, and init asks only for the cut ones", async () => {
+    const landed = unguarded(await landedTexts(GLUED + SETTINGS, FISH_GLUED + FISH_SETTINGS));
+    expect(landed).toEqual(landed.map(([where]) => [where, where.endsWith(".fish") ? `true\ntrue\ntrue\ntrue\n${FISH_SETTINGS}` : `true\ntrue\ntrue\ntrue\n${SETTINGS}`]));
+    const home = laptop();
+    mkdirSync(join(home, ".config", "fish"), { recursive: true });
+    const rows = [...ROWS.slice(0, 2), row({ rung: "shell", id: "shell/fish", paths: ["~/.config/fish"] })];
+    const cut = async (posix: string, fish: string): Promise<{ path: string; names: string[] }[] | undefined> => {
+      for (const rc of [".zshrc", ".bashrc"]) writeFileSync(join(home, rc), posix);
+      writeFileSync(join(home, ".config", "fish", "config.fish"), fish);
+      return (await importFor(rows, { home, secrets: new Map(), platform: "darwin" }).files!.pack()).cut;
+    };
+    const glued = ["PGPASSWORD", "MYSQL_PWD", "GHTOKEN", "LAB_CLIENTSECRET"];
+    expect(await cut(GLUED + SETTINGS, FISH_GLUED + FISH_SETTINGS)).toEqual([
+      { path: "~/.bashrc", names: glued },
+      { path: "~/.config/fish/config.fish", names: glued.filter(n => n !== "LAB_CLIENTSECRET") },
+      { path: "~/.zshrc", names: glued },
+    ]);
+    expect(await cut(SETTINGS, FISH_SETTINGS)).toEqual([]);
+  });
+
   it("a shell row's file that is no script loses a cut line with nothing in its place, on a box and on a provider's image", async () => {
     const home = laptop();
     mkdirSync(join(home, ".config"));
