@@ -34,19 +34,25 @@ export function isSecretName(name: string): boolean {
 }
 
 const NAME = "[A-Za-z_][A-Za-z0-9_]*";
-const EXPORTED = new RegExp(`^\\s*(?:export|typeset|declare|readonly|local|env)(?:\\s+-\\w+)*\\s+(.*)$`);
-const FISH_SET = new RegExp(`^\\s*set(?:\\s+-\\w+)*\\s+(${NAME})(?:\\s|$)`);
+const EXPORTED = new RegExp(`^\\s*\\\\?(?:export|typeset|declare|readonly|local|integer|float|private|env|sudo|doas|nohup|nice)(?:\\s+-\\w+)*\\s+(.*)$`);
+const FISH_SET = new RegExp(`^\\s*set((?:\\s+--?[\\w-]+)*)\\s+(${NAME})(?:\\s|$)`);
+/** fish's `set` flags that query, erase, show or list a variable: such a `set` assigns nothing. */
+const FISH_READS = /\s(?:-[A-Za-z]*[eqnS][A-Za-z]*|--(?:erase|query|names|show))(?=\s|$)/;
 const ASSIGNED = new RegExp(`^["']?(${NAME})=`);
 const PLAIN = new RegExp(`^\\s*(${NAME})=`);
-/** Words that open a compound command's body; what follows is a simple command of its own. */
-const KEYWORDS = /^\s*(?:then|do|else|elif|if|while|until|exec|command|builtin|!)\s+/;
+/** The precommand words of bash, zsh and fish (fish's `and`, `or` and `not` among them), zsh's `repeat N` and `coproc`,
+ * with their flags and an alias-dodging backslash: what follows is a simple command of its own. */
+const PRECOMMAND = String.raw`\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|coproc|repeat\s+\S+|time(?:\s+-p)?|command(?:\s+-p)?|exec(?:\s+-[cl]*a\s+\S+|\s+-[cl]+)*)`;
+/** Words that open a compound command's body, and the precommand words. */
+const KEYWORDS = new RegExp(String.raw`^\s*(?:then|do|else|elif|if|while|until|${PRECOMMAND})\s+`);
 /** `eval 'export X=1'`: the quoted argument is shell again. */
 const EVAL = /^\s*eval\s+(?:'([^']*)'|"((?:[^"\\]|\\.)*)"|(\S.*))$/;
 /** A command whose status is 0 whatever it held, so `true` stands for it anywhere: an export-like builtin, or a bare
  * assignment with no substitution (a bare `X=$(cmd)` answers with cmd's status). */
 const ASSIGNS = new RegExp(`^(?:(?:export|typeset|declare|readonly|local|set)\\s|${NAME}=(?:"[^"$\`]*"|'[^']*'|[^\\s"'$\`])*$)`);
-/** The keyword whose condition a list is, `!` left to the condition: what follows an `if`, `elif`, `while` or `until`. */
-const GUARD = /(?<=^|[\s;&|({])(if|elif|while|until)\s+(?=(?:!\s+)?$)/;
+/** The keyword whose condition a list is, `!` and the precommand words left to the condition: what follows an `if`,
+ * `elif`, `while` or `until`. */
+const GUARD = new RegExp(String.raw`(?<=^|[\s;&|({])(if|elif|while|until)\s+(?=(?:${PRECOMMAND}\s+)*$)`);
 
 /** The simple commands of a line: split outside quotes on `;`, `&&`, `||`, `|`, `&` and braces or parentheses, comment dropped. */
 export function simpleCommands(line: string): string[] {
@@ -90,7 +96,7 @@ function assignedIn(command: string): string[] {
   const ev = EVAL.exec(command);
   if (ev !== null) return assignedNames(ev[1] ?? ev[2] ?? ev[3] ?? "");
   const fish = FISH_SET.exec(command);
-  if (fish?.[1] !== undefined) return [fish[1]];
+  if (fish?.[2] !== undefined) return FISH_READS.test(fish[1]!) ? [] : [fish[2]];
   const exported = EXPORTED.exec(command);
   if (exported?.[1] !== undefined) {
     return exported[1].split(/\s+/).map(t => ASSIGNED.exec(t)?.[1]).filter((n): n is string => n !== undefined);
