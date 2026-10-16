@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { localWiring } from "../src/cli.js";
 import { buildBesideHost, type DoorClient } from "../src/init-beside.js";
 import { envFileFor, writeEnvFile } from "../src/env-keys.js";
-import { InitJobs, type InitJobDeps } from "../src/init-job.js";
+import { InitJobs, timedRuns, type InitJobDeps } from "../src/init-job.js";
 import { upgradeSentence } from "../src/init-upgrade.js";
 import type { InitIO } from "../src/init.js";
 import { loadRecipe, saveSmallRecipe, smallRecipePath } from "../src/recipe-file.js";
@@ -154,7 +154,7 @@ async function forkable(f: Fake): Promise<void> {
   await f.rt.projects.add({ source: "https://github.com/dev/first.git", on: "default" });
 }
 
-function fake(over: { platform?: "darwin" | "linux"; env?: Record<string, string>; provider?: MachineBackend; configured?: boolean; read?: Partial<InitJobDeps["read"]>; now?: () => number; agent?: { adapter: HarnessAdapterFactory; starts: HarnessStartOptions[] }; writesRecipe?: boolean; agents?: AgentHere[]; adapters?: Record<string, HarnessAdapterFactory>; deployDaemon?: () => Promise<string>; /** The provider whose key this host's own step asks for; absent from the object leaves it Solari's. */ keyProvider?: string; /** The provider this host forks on, which a terminal run beside it reads off the setup. */ forksOn?: string; /** The places this host can build at, over the runtime's own stub as the wired one. */ places?: (wired: StubBackend) => PlaceBackends; /** How long the vault step waits for this client's token. */ vaultWaitMs?: number; /** The wsp home holds the Claude token unless a case says it does not. */ tokenHeld?: boolean; /** Saves keys the way the command line wires it, through the one writer of the .env beside the state. */ writesEnv?: boolean; /** The place door the serving host wires, so the places it lists are read. */ placeLinks?: boolean; /** The stub builds as a provider, whose machines use this computer's sign-ins through wsp. */ atProvider?: boolean } = {}): Fake {
+function fake(over: { platform?: "darwin" | "linux"; env?: Record<string, string>; provider?: MachineBackend; configured?: boolean; read?: Partial<InitJobDeps["read"]>; now?: () => number; agent?: { adapter: HarnessAdapterFactory; starts: HarnessStartOptions[] }; writesRecipe?: boolean; agents?: AgentHere[]; adapters?: Record<string, HarnessAdapterFactory>; deployDaemon?: () => Promise<string>; /** The provider whose key this host's own step asks for; absent from the object leaves it Solari's. */ keyProvider?: string; /** The provider this host forks on, which a terminal run beside it reads off the setup. */ forksOn?: string; /** The places this host can build at, over the runtime's own stub as the wired one. */ places?: (wired: StubBackend) => PlaceBackends; /** How long the vault step waits for this client's token. */ vaultWaitMs?: number; /** The wsp home holds the Claude token unless a case says it does not. */ tokenHeld?: boolean; /** Saves keys the way the command line wires it, through the one writer of the .env beside the state. */ writesEnv?: boolean; /** The place door the serving host wires, so the places it lists are read. */ placeLinks?: boolean; /** The stub builds as a provider, whose machines use this computer's sign-ins through wsp. */ atProvider?: boolean; /** Where the host's log lines go. */ log?: (line: string) => void } = {}): Fake {
   const dir = mkdtempSync(join(tmpdir(), "wsp-init-job-"));
   dirs.push(dir);
   const home = mkdtempSync(join(tmpdir(), "wsp-init-job-home-"));
@@ -251,6 +251,7 @@ function fake(over: { platform?: "darwin" | "linux"; env?: Record<string, string
     // The vault step waits for this client to send a token it asked for; these runs send none, so the wait is short.
     vaultWaitMs: over.vaultWaitMs ?? 20,
     ...(over.now !== undefined ? { now: over.now } : {}),
+    ...(over.log !== undefined ? { log: over.log } : {}),
   };
   const jobs = new InitJobs(deps);
   const events: InitJobEvent[] = [];
@@ -407,6 +408,114 @@ describe("the init job, manual road", () => {
     expect(read.disk).toMatchObject({ total: 20 * 1024 * 1024 * 1024 });
     expect(read.disk!.fixed).toBeGreaterThan(0);
     expect(read.disk!.fixed).toBeLessThan(read.disk!.total);
+  });
+
+  it("logs each step of the read with the time it started and how long it took, and the screens standing at the end", async () => {
+    const lines: string[] = [];
+    let clock = Date.parse("2026-10-17T03:23:00.000Z");
+    const f = fake({
+      log: line => lines.push(line),
+      now: () => clock,
+      read: {
+        collect: async onRung => {
+          clock += 1_500;
+          onRung("identity", 3);
+          clock += 250;
+          for (const rung of ["shell", "toolchains", "tools", "agents", "logins"] as const) onRung(rung, 1);
+          return FIXTURE;
+        },
+        recipe: async onHistory => {
+          clock += 17_000;
+          onHistory({ agent: "claude", state: "read", sessions: 2, calls: 9 });
+          return RECIPE;
+        },
+        scan: async () => {
+          await new Promise(resolve => setTimeout(resolve, 0));
+          clock += 300_000;
+          return [];
+        },
+      },
+    });
+    await forkable(f);
+    await f.jobs.start({ road: "manual" });
+    await f.settled();
+    expect(lines).toContain("setup read: Identity started at 2026-10-17T03:23:00.000Z");
+    expect(lines).toContain("setup read: Identity, 3 found, took 1.5s from 2026-10-17T03:23:00.000Z");
+    expect(lines).toContain("setup read: Shell, 1 found, took 0.3s from 2026-10-17T03:23:01.500Z");
+    expect(lines).toContain("setup read: Package managers started at 2026-10-17T03:23:01.750Z");
+    expect(lines).toContain("setup read: Agents' histories started at 2026-10-17T03:23:01.750Z");
+    expect(lines).toContain("setup read: Claude Code, 2 sessions, 9 tool calls, took 0.0s from 2026-10-17T03:23:18.750Z");
+    expect(lines).toContain("setup read: Agents' histories, read, took 17.0s from 2026-10-17T03:23:01.750Z");
+    expect(lines).toContain("setup read: Package managers, 0 found, took 317.0s from 2026-10-17T03:23:01.750Z");
+    expect(lines.at(-1)).toBe("setup read: the screens stand, took 318.8s from 2026-10-17T03:23:00.000Z");
+  });
+
+  it("logs each command a read runs with when it started, how long it took and whether it answered", async () => {
+    const lines: string[] = [];
+    let clock = Date.parse("2026-10-17T03:27:00.000Z");
+    const host = timedRuns(
+      {
+        platform: "darwin",
+        home: "/Users/dev",
+        fs: { stat: async () => undefined, list: async () => [], readText: async () => undefined, walk: async () => [], lines: async function* () {} },
+        exec: {
+          which: async () => true,
+          run: async cmd => {
+            clock += cmd === "brew" ? 5_100 : 40;
+            return cmd === "brew" ? "brew \"jq\"\n" : undefined;
+          },
+        },
+      },
+      line => lines.push(line),
+      () => clock,
+    );
+    expect(await host.exec.run("brew", ["bundle", "dump", "--file=-"])).toBe('brew "jq"\n');
+    expect(await host.exec.run("pipx", ["list", "--json"])).toBeUndefined();
+    expect(lines).toEqual(["setup read: ran brew bundle dump --file=-, answered, took 5.1s from 2026-10-17T03:27:00.000Z", "setup read: ran pipx list --json, failed, took 0.0s from 2026-10-17T03:27:05.100Z"]);
+  });
+
+  it("reads the package managers while the agents' histories are read, not after them", async () => {
+    let scanning!: () => void;
+    const scanned = new Promise<void>(resolve => (scanning = resolve));
+    let overlapped = false;
+    const f = fake({
+      read: {
+        recipe: async () => {
+          overlapped = await Promise.race([scanned.then(() => true), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 2_000))]);
+          return RECIPE;
+        },
+        scan: async () => {
+          scanning();
+          return [];
+        },
+      },
+    });
+    await forkable(f);
+    await f.jobs.start({ road: "manual" });
+    await f.settled();
+    expect(overlapped).toBe(true);
+    expect(f.jobs.view()!.phase).toBe("answering");
+  });
+
+  it("sends a read's per-file progress a few times a second at most, and the screens the moment the read ends, so a window never trails it", async () => {
+    let ended = -1;
+    const f: Fake = fake({
+      read: {
+        recipe: async (onHistory, _onProject, onProgress) => {
+          for (let read = 1; read <= 5_000; read++) onProgress({ agent: "claude", read, files: 5_000 });
+          onHistory({ agent: "claude", state: "read", sessions: 5_000, calls: 9 });
+          ended = f.events.length;
+          return RECIPE;
+        },
+      },
+    });
+    await forkable(f);
+    await f.jobs.start({ road: "manual" });
+    await f.settled();
+    expect(f.events.filter(e => e.job.phase === "reading").length).toBeLessThan(40);
+    // Past the two lines the history read ends on (its spinner's and what it took), the next view is the screens: no
+    // timer holds the phase change back.
+    expect(f.events.slice(ended).map(e => e.job.phase).indexOf("answering")).toBeLessThanOrEqual(2);
   });
 
   it("the step follows the answers and a step back, so a setup shut mid-way reopens where it was; a step off the screens is refused", async () => {

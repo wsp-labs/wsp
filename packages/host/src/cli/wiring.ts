@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { collect, expand, nodeHost, seedMenu, type Manifest, type Rung } from "@wsp/collect";
+import { collect, expand, nodeHost, seedMenu, type Host, type Manifest, type Rung } from "@wsp/collect";
 import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type GoldenRecipe, type GoldenVersion, type HarnessAdapterFactory, type LocalWiring, type Machine, type PlaceWiring, type Runtime, type SeedWiring, type Store } from "@wsp/runtime";
 import { CATALOG_AGENTS, GOLDEN_SETUP, GOLDEN_SMOKE } from "@wsp/catalog";
 import { PRICES_URL, PERSON_HOME_ENV, providerKeyStillLine, type KeyStill, type SealedImage } from "@wsp/protocol";
@@ -410,8 +410,8 @@ function hostCopyRecipe(statePath: string): (image: SealedImage, at: { cloud: bo
 
 /** The collector's ladder over this laptop; onRung lets the terminal count rows as each rung lands. Its logins are
  * looked for where the login shell keeps them, which a launch by launchd or a service was not handed. */
-export function collectThisComputer(onRung: (rung: Rung, rows: number) => void): Promise<Manifest> {
-  return collect({ ...nodeHost(), ...loginFolders() }, { onRung });
+export function collectThisComputer(onRung: (rung: Rung, rows: number) => void, host: Host = nodeHost()): Promise<Manifest> {
+  return collect({ ...host, ...loginFolders() }, { onRung });
 }
 
 /** A folder a `~/`-relative answer or a flag named: where it is, and whether there is one there. The one place both

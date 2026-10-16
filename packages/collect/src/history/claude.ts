@@ -30,7 +30,7 @@ export const claudeReader: HistoryReader = {
   async *read(host: Host, root: string, file: string): AsyncIterable<Call> {
     const session = claudeSession(file.slice(root.length + 1));
     if (session === undefined) return;
-    for await (const line of host.fs.lines(file)) {
+    for await (const line of host.fs.lines(file, '"tool_use"')) {
       // Only an assistant line holds a tool_use block; the two checks keep the large tool-result lines unparsed.
       if (!line.includes('"tool_use"') || !line.includes('"assistant"')) continue;
       const row = tryJson(line);

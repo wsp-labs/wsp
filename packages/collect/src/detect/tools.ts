@@ -25,6 +25,14 @@ export function parseBrewfile(text: string): BrewLine[] {
   return out;
 }
 
+/** The taps and formulae this computer's Homebrew has, as `brew bundle dump` writes them. A plain dump also runs a
+ * lister for casks, App Store apps, editor extensions and every other manager's packages, none of which a reader here
+ * keeps; and `bundle` is a command Homebrew runs `brew update` before once its last one is a day old. Measured on a
+ * Mac with 103 formulae: 3.3 s plain, 0.7 s like this. */
+export async function brewfileHere(host: Host): Promise<BrewLine[]> {
+  return parseBrewfile((await host.exec.run("brew", ["bundle", "dump", "--file=-", "--formula", "--taps", "--no-restart"], { env: { HOMEBREW_NO_AUTO_UPDATE: "1" } })) ?? "");
+}
+
 export interface Pkg {
   name: string;
   version?: string;
@@ -215,7 +223,7 @@ function formulaRow(host: Host, name: string): ManifestEntry {
 
 async function brewRows(host: Host): Promise<ManifestEntry[]> {
   if (!(await host.exec.which("brew"))) return [];
-  const lines = parseBrewfile((await host.exec.run("brew", ["bundle", "dump", "--file=-"])) ?? "");
+  const lines = await brewfileHere(host);
   return lines.map(l => (l.kind === "tap" ? item({ rung: "tools", id: `tools/brew-tap/${l.name}`, label: l.name, group: "Homebrew taps", linux: "yes" }) : formulaRow(host, l.name)));
 }
 
@@ -233,24 +241,23 @@ async function goRows(host: Host): Promise<ManifestEntry[]> {
   return rows;
 }
 
+async function nixRows(host: Host): Promise<(ManifestEntry | undefined)[]> {
+  if (!(await exists(host, "~/.config/home-manager")) && !(await exists(host, "~/.config/nixpkgs/home.nix"))) return [];
+  return [entry({ rung: "tools", id: "tools/nix-home-manager", label: "Nix home-manager config", linux: "yes", ...(await found(host, ["~/.config/home-manager", "~/.config/nixpkgs/home.nix"])) })];
+}
+
+// Each row installs on the image: a language manager fetches that package's own Linux build, and apt is the
+// image's own package manager. A manager whose rows the build reads no road off (apt) files none for a tool the
+// catalog carries: that row would stand in for the catalog's, whose own road is what installs it there.
+async function globalRows(host: Host, g: GlobalManager): Promise<ManifestEntry[]> {
+  if (!(await host.exec.which(g.bin))) return [];
+  const all = "list" in g ? await g.list(host) : g.parse((await host.exec.run(g.bin, g.args)) ?? "");
+  const pkgs = readsRowRoad(g.id) ? all : all.filter(p => catalogToolFor(p.name) === undefined);
+  return pkgs.map(p => item({ rung: "tools", id: toolRowId(g.id, p.name), label: versioned(p, g.sep), group: g.group, linux: "yes", ...(p.version !== undefined ? { version: p.version } : {}) }));
+}
+
 export async function detectTools(host: Host): Promise<ManifestEntry[]> {
-  const rows: (ManifestEntry | undefined)[] = [...(await brewRows(host))];
-
-  if ((await exists(host, "~/.config/home-manager")) || (await exists(host, "~/.config/nixpkgs/home.nix"))) {
-    rows.push(entry({ rung: "tools", id: "tools/nix-home-manager", label: "Nix home-manager config", linux: "yes", ...(await found(host, ["~/.config/home-manager", "~/.config/nixpkgs/home.nix"])) }));
-  }
-
-  // Each row installs on the image: a language manager fetches that package's own Linux build, and apt is the
-  // image's own package manager. A manager whose rows the build reads no road off (apt) files none for a tool the
-  // catalog carries: that row would stand in for the catalog's, whose own road is what installs it there.
-  for (const g of GLOBALS) {
-    if (!(await host.exec.which(g.bin))) continue;
-    const all = "list" in g ? await g.list(host) : g.parse((await host.exec.run(g.bin, g.args)) ?? "");
-    const pkgs = readsRowRoad(g.id) ? all : all.filter(p => catalogToolFor(p.name) === undefined);
-    for (const p of pkgs) {
-      rows.push(item({ rung: "tools", id: toolRowId(g.id, p.name), label: versioned(p, g.sep), group: g.group, linux: "yes", ...(p.version !== undefined ? { version: p.version } : {}) }));
-    }
-  }
-  rows.push(...(await goRows(host)));
-  return present(rows);
+  // Every manager is a program of its own, so they are all asked at once; the rows keep this order whichever answers first.
+  const [brew, nix, globals, go] = await Promise.all([brewRows(host), nixRows(host), Promise.all(GLOBALS.map(g => globalRows(host, g))), goRows(host)]);
+  return present([...brew, ...nix, ...globals.flat(), ...go]);
 }
