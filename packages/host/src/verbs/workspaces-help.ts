@@ -62,7 +62,6 @@ import {
   workspaceKind,
   workspaceState,
   workspaceStateLine,
-  type PauseMode,
   workspaceStateOf,
   DISK_EXPIRED_WORD,
   diskExpired,
@@ -194,23 +193,11 @@ export async function threadRows(client: HostClient, within?: string): Promise<T
   });
 }
 
-/** How the computer a workspace's project lands on pauses a machine, for every line that prints a state word: the
- * landing's own flags, which is the reading the app's rows take it from too, so the table and the sidebar cannot
- * say two things about one nap. Nothing where the landing is refused, which reads the stopping words as every
- * caller holding no mode does. */
-export async function pauseModeOf(client: HostClient, project: string): Promise<PauseMode | undefined> {
-  try {
-    return (await client.request<{ capabilities: Capabilities }>("workspaces.landing", { project })).capabilities.pauseMode;
-  } catch {
-    return undefined;
-  }
-}
-
 /** The workspace's name and its state word, the line a pause prints once the runtime has answered: the phase is the
- * whole of what a pause changed, and the machine's own state follows it. The computer's pause mode rides, so a nap
- * at a provider that keeps the machine's memory reads paused and a stop reads stopped. */
-export function stateLine(workspace: WorkspaceView, pauseMode?: PauseMode): string {
-  return workspaceStateLine(workspace.name, workspaceState({ phase: workspace.phase }), pauseMode);
+ * whole of what a pause changed, and the machine's own state follows it. Its own computer's pause mode rides, so a
+ * nap at a provider that keeps the machine's memory reads paused and a stop reads stopped. */
+export function stateLine(workspace: WorkspaceView): string {
+  return workspaceStateLine(workspace.name, workspaceState({ phase: workspace.phase }), workspace.pauseMode);
 }
 
 /** The line a wake prints: the word the next `wsp workspaces` will print for this workspace, read back off the
@@ -218,8 +205,7 @@ export function stateLine(workspace: WorkspaceView, pauseMode?: PauseMode): stri
  * table says unreachable is two answers about one machine, and the phase alone cannot tell them apart. */
 export async function wokeLine(client: HostClient, workspace: WorkspaceOut): Promise<string> {
   const listed = (await workspaceStatuses(client)).find(w => w.id === workspace.id);
-  const mode = await pauseModeOf(client, workspace.project.id);
-  return workspaceStateLine(workspace.name, listed === undefined ? workspaceState({ phase: workspace.phase }) : workspaceStateOf(listed, listed), mode);
+  return workspaceStateLine(workspace.name, listed === undefined ? workspaceState({ phase: workspace.phase }) : workspaceStateOf(listed, listed), workspace.pauseMode);
 }
 
 /** Naps the workspace a person names; the view after, as every director shows it. */
@@ -243,7 +229,7 @@ export async function rebuild(client: HostClient, ref: string): Promise<Workspac
   const source = await workspaceOf(client, ref);
   const listed = (await workspaceStatuses(client)).find(w => w.id === source.id) ?? null;
   const state = { phase: source.phase, machineState: listed?.machineState, reach: listed?.reach.state, wakeRefused: source.wakeRefused };
-  if (!needsRebuild(state)) throw new Error(goneRoadRefusal(workspaceState(state), "rebuild"));
+  if (!needsRebuild(state)) throw new Error(goneRoadRefusal(workspaceState(state), "rebuild", source.pauseMode));
   return (await client.request<{ workspace: WorkspaceOut }>("workspaces.rebuild", { workspaceId: source.id })).workspace;
 }
 
@@ -828,13 +814,6 @@ export const NO_PROJECT_YET = "no projects yet; wsp add <folder> records one her
 /** A workspace of one project: the landing is read first, so a computer that forks nothing refuses in one sentence
  * before a stage is streamed, and the image is the computer's own head unless a project image is named. `size`
  * is the --size word; `engine` asks the computer for its container engine through the fenced socket. */
-/** The two flags a computer declares about copies, read through the landing of a project standing on it: a row
- * that carries a copy is a row on the computer the host runs on, so its own project is what answers. Asked once
- * per table and only where a row holds a copy, since every other row's cells are empty either way. */
-export async function hereCapabilities(client: HostClient, project: string): Promise<Pick<Capabilities, "copies" | "ownNetwork" | "pauseMode">> {
-  return (await client.request<{ capabilities: Capabilities }>("workspaces.landing", { project })).capabilities;
-}
-
 export async function createFor(
   client: HostClient,
   out: Out,

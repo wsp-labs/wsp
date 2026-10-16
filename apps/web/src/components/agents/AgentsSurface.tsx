@@ -90,6 +90,7 @@ export function AgentsSurface({ workspaceId }: { workspaceId: string }) {
           ...(where === "here" ? { typeInTerminal: (typed: string) => void openPanelTerminalWith(workspaceId, typed) } : {}),
         }}
         now={Date.now()}
+        {...(workspace?.pauseMode === undefined ? {} : { pauseMode: workspace.pauseMode })}
       />
     </div>
   );
