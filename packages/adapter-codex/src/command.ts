@@ -205,8 +205,13 @@ export function codexLaunch(launch: AgentLaunch | undefined, broker: CodexBroker
 export function codexWord(launch: AgentLaunch | undefined, broker: CodexBroker | undefined): string {
   const program = programWord("codex", launch);
   if (broker === undefined) return program;
-  const word = broker.mode === "apikey" ? `sh -c ${shellQuote(`unset ${KEY_FILE_ENV} && exec "$0" "$@"`)} ${program}` : program;
-  return [word, ...doorFlags(broker, providersOf(broker), "ephemeral"), configRaw("features.plugins", "false")].join(" ");
+  const { steps, flags } = noLoginLine(broker);
+  const word = steps.length > 0 ? `sh -c ${shellQuote([...steps, 'exec "$0" "$@"'].join(" && "))} ${program}` : program;
+  return [word, ...flags].join(" ");
+}
+
+function noLoginLine(broker: CodexBroker): { steps: string[]; flags: string[] } {
+  return { steps: broker.mode === "apikey" ? [`unset ${KEY_FILE_ENV}`] : [], flags: [...doorFlags(broker, providersOf(broker), "ephemeral"), configRaw("features.plugins", "false")] };
 }
 
 /** The program a terminal on a brokered machine finds as codex in `folder`, ahead of the real one on its PATH: codex
@@ -233,8 +238,8 @@ export interface BuildCommandOptions {
   broker?: CodexBroker;
   /** The config's own servers this launch leaves out, by name: on a cloud machine, those that need the person's sign-in. */
   offServers?: readonly string[];
-  /** A server run that starts no turn, a revert or a fork: it writes the login only when it carries the token, as
-   * every launch outside a turn does, and otherwise runs at the door on the file the last turn left. */
+  /** A server run that starts no turn, a revert or a fork's look for its turn: it asks no model, so it runs on no login
+   * as codexWord's launches do, since a revert carries no token and the last turn's is dead. */
   turn?: false;
 }
 
@@ -309,7 +314,7 @@ export function accessParams(mode: string | undefined): AccessParams {
 /** The server as one bash line in the folder the turn runs in. Guest exec carries no HOME, so the default folder is
  * `~`, which bash reads from passwd. */
 export function buildCommand(options: BuildCommandOptions): string {
-  const brokered = options.broker === undefined ? { steps: [], flags: [] } : brokeredLine(options.broker, Date.now(), options.turn !== false);
+  const brokered = options.broker === undefined ? { steps: [], flags: [] } : options.turn === false ? noLoginLine(options.broker) : brokeredLine(options.broker, Date.now(), true);
   // The plan tool is off in a headless server unless its config turns it on; its updates are the turn's steps.
   const server = [`${agentWord("codex", options.launch)} app-server`, ...launchWords(options.launch), configRaw("tools.update_plan.enabled", "true"), ...brokered.flags, ...serverFlags(options.mcpServers ?? {}), ...offFlags(options.offServers ?? [])].join(" ");
   return inFolder(options.cwd, [...brokered.steps, server].join(" && "));

@@ -274,9 +274,10 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
   /** What a launch on a brokered workspace carries in place of the vault, the turn token in each place a credential
    * would sit, the kind Claude Code's placeholder takes and the login Codex's is written as. A Codex turn whose login
    * the broker named none of refuses, since codex there would start unsigned and off the door. A launch with no token
-   * carries only Codex's, read by knowBroker before any such launch starts codex, so a title or a probe runs at the
-   * door on the login the last turn left there. Only Claude Code and Codex are launched there, since the broker adds
-   * no other agent's key. Undefined for every other workspace, whose launches keep today's road. */
+   * carries only Codex's, read by knowBroker before any such launch starts codex, so a title runs at the door on the
+   * login the last turn left there, and a probe, a revert or a fork's turn lookup on none. Only Claude Code and Codex
+   * are launched there, since the broker adds no other agent's key. Undefined for every other workspace, whose
+   * launches keep today's road. */
   const brokeredLaunch = (entry: LiveWorkspace, harness: string, token: string | undefined): ReturnType<KindsArea["brokeredLaunch"]> => {
     if (!brokered(entry.record)) return undefined;
     const codexBroker = harness === "codex" ? codexBrokerOf(brokerSaid, claimsSaid) : undefined;
