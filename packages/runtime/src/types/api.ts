@@ -521,6 +521,9 @@ export interface Runtime {
     /** Writes one thread.waited on the thread: a request a turn on a machine whose credentials the host keeps held
      * past five seconds while this host was away, or `said`, the sentence the host answered instead. */
     noteWaited(threadId: string, ms: number, said?: string): Promise<void>;
+    /** Writes the retry of a model call the host cut, or saw answered with a failure the agent retries, into the
+     * thread's running turn as the turn's retry line, unless the agent says that retry itself within RETRY_SETTLE_MS. */
+    noteRetry(threadId: string, retry: { attempt: number; why: string }): void;
     /** Whether a start may name this thread in replaces, read alone and refused as that start would refuse it: a
      * thread working or asking anywhere in its tree, one the caller may not settle, and one that already has a restart. */
     replaceable(threadId: string, origin?: Caller): Promise<void>;
