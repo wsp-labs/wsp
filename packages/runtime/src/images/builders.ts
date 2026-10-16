@@ -9,12 +9,11 @@ import {
   OWNER_LABEL,
   SMOKE_LABEL,
   WSP_LABEL,
+  dropTemplate,
   imageHash,
-  isMissing,
   killUntilGone,
   readGone,
   sealGolden,
-  templatesOf,
   type Builder,
   type GoldenImport,
   type SealResult,
@@ -467,16 +466,11 @@ export function buildersArea(ctx: RuntimeContext): BuildersArea {
     }
   };
 
-  /** Deletes what a version's forks boot from. The template goes first: the provider refuses to delete a snapshot
-   * while a template stands on it, and a template already gone is no failure. The sealed vault is not this
+  /** Deletes what a version's forks boot from, its template first. The sealed vault is not this
    * function's: a manifest counts its own place's versions, and the record's blob is keyed by the record's, so
    * only the seal that replaces a version may take that version's blob. */
   const dropImage = async (v: GoldenVersion, at: MachineBackend = backend): Promise<void> => {
-    if (v.templateId !== undefined) {
-      await templatesOf(at)?.delete(v.templateId).catch((e: unknown) => {
-        if (!isMissing(e)) throw e;
-      });
-    }
+    await dropTemplate(at, v.templateId);
     await at.deleteSnapshot(v.snapshotId);
   };
   return {

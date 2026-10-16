@@ -167,6 +167,20 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     return holds;
   };
 
+  /** The image snapshots this host saved at a provider, each with the size its listing gives; a listing that fails or
+   * gives none leaves the size out rather than the snapshot. */
+  const imagesSized = async (placeId: string): Promise<NonNullable<PlaceHolds["images"]>> => {
+    const images = (await recording.imagesOn?.(placeId)) ?? [];
+    const at = providerBackend(placeId);
+    const list = at?.capabilities.snapshotListing === true ? at.listSnapshots?.bind(at) : undefined;
+    // Given the ids, Boat reads its named snapshots alone and not the account's whole history.
+    const rows = images.length === 0 || list === undefined ? [] : await list(images.map(i => i.id)).catch(() => []);
+    return images.map(i => {
+      const sizeBytes = rows.find(r => r.id === i.id)?.sizeBytes;
+      return sizeBytes === undefined || sizeBytes === 0 ? { id: i.id } : { id: i.id, sizeBytes };
+    });
+  };
+
   const unrecordedUnsaved = async (placeId: string): Promise<string[]> => {
     const run = (cmd: string, o: { timeoutMs: number }) => ctx.door.exec(placeId, cmd, o);
     const recorded = new Set((await recording.projectsOn(placeId)).flatMap(p => (p.checkout === undefined ? [] : [p.checkout])));
@@ -546,8 +560,11 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     holds: async placeId => {
       const held = await recordOf(placeId);
       if (held !== undefined) return holdsOf(placeId, held);
-      // A cloud holds no project and no folder; what a remove takes from it unsaved is its sub-threads' work.
-      return { forks: [], projects: [], unsaved: providerIds().includes(placeId) ? ((await recording.subHoldsOn?.(placeId)) ?? []) : [] };
+      if (!providerIds().includes(placeId)) return { forks: [], projects: [], unsaved: [] };
+      // A cloud holds no project and no folder; what a remove takes from it unsaved is its sub-threads' work, and
+      // with it go the image snapshots this host saved there.
+      const images = await imagesSized(placeId);
+      return { forks: [], projects: [], unsaved: (await recording.subHoldsOn?.(placeId)) ?? [], ...(images.length === 0 ? {} : { images }) };
     },
 
     async remove(placeId, ask = {}) {
@@ -562,7 +579,17 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       }
       if (provider !== undefined) {
         const forgetKey = wiring.forgetKey?.bind(wiring);
-        const answer = await removeProvider({ placeId, backend: provider, owner: (await opts.owner?.()) ?? "", known: (await recording.machinesOn?.(placeId)) ?? [], ...(forgetKey === undefined ? {} : { forgetKey }), ...(opts.killConfirm === undefined ? {} : { confirm: opts.killConfirm }) });
+        const { imagesOn, dropImageOn } = recording;
+        const images = imagesOn === undefined || dropImageOn === undefined ? undefined : { held: () => imagesOn(placeId), drop: (id: string) => dropImageOn(placeId, id) };
+        const answer = await removeProvider({
+          placeId,
+          backend: provider,
+          owner: (await opts.owner?.()) ?? "",
+          known: (await recording.machinesOn?.(placeId)) ?? [],
+          ...(forgetKey === undefined ? {} : { forgetKey }),
+          ...(opts.killConfirm === undefined ? {} : { confirm: opts.killConfirm }),
+          ...(images === undefined ? {} : { images }),
+        });
         if (answer.removed) {
           await recording.releaseRecordsOn?.(placeId);
           emit({ type: "place.removed", placeId });
