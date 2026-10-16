@@ -1050,7 +1050,7 @@ describe("packPlan: rc files with secret exports", () => {
     );
     const packed = await packPlan(plan, { secrets: new Map(), home });
     const dir = extract(packed.tar);
-    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\nalias ll='ls -l'\n");
+    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\ntrue\nalias ll='ls -l'\n");
     expect(gunzipSync(packed.tar).includes("sk-ant-fake-value")).toBe(false);
     expect(packed.cut).toEqual([{ path: "~/.zshrc", names: ["A_KEY"] }]);
     expect(listTar(packed.tar).find(e => e.path === ".zshrc")?.mode).toMatch(/^-rw-r--r--/);
@@ -1071,8 +1071,8 @@ describe("packPlan: rc files with secret exports", () => {
     );
     const packed = await packPlan(plan, { secrets: new Map(), home });
     const dir = extract(packed.tar);
-    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\n");
-    expect(readFileSync(join(dir, ".config", "fish", "config.fish"), "utf8")).toBe("set -g theme x\n");
+    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\ntrue\n");
+    expect(readFileSync(join(dir, ".config", "fish", "config.fish"), "utf8")).toBe("true\nset -g theme x\n");
     expect(readFileSync(join(dir, ".config", "fish", "functions", "ll.fish"), "utf8")).toBe("function ll\n  ls -l\nend\n");
     const bytes = gunzipSync(packed.tar);
     expect(bytes.includes("fake-old")).toBe(false);
@@ -1094,9 +1094,9 @@ describe("packPlan: rc files with secret exports", () => {
     );
     const packed = await packPlan(plan, { secrets: new Map(), home });
     const dir = extract(packed.tar);
-    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\n");
-    expect(readFileSync(join(dir, ".dotfiles", "zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\n");
-    expect(readFileSync(join(dir, ".dotfiles", ".bashrc"), "utf8")).toBe("alias g=git\n");
+    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\ntrue\n");
+    expect(readFileSync(join(dir, ".dotfiles", "zshrc"), "utf8")).toBe("export PATH=$HOME/bin:$PATH\ntrue\n");
+    expect(readFileSync(join(dir, ".dotfiles", ".bashrc"), "utf8")).toBe("true\nalias g=git\n");
     // A file that is not an rc file by name or by identity keeps its lines: the strip is not a grep over the tree.
     expect(readFileSync(join(dir, ".dotfiles", "README.md"), "utf8")).toBe("export NOT_RC_TOKEN=kept-here\n");
     const bytes = gunzipSync(packed.tar);
@@ -1128,8 +1128,8 @@ describe("packPlan: rc files with secret exports", () => {
     );
     const packed = await packPlan(plan, { secrets: new Map(), home });
     const dir = extract(packed.tar);
-    expect(readFileSync(join(dir, ".dotfiles", ".zshrc"), "utf8")).toBe("alias a=b\n");
-    expect(readFileSync(join(dir, ".config", "fish", "config.fish"), "utf8")).toBe("set -g theme x\n");
+    expect(readFileSync(join(dir, ".dotfiles", ".zshrc"), "utf8")).toBe("true\nalias a=b\n");
+    expect(readFileSync(join(dir, ".config", "fish", "config.fish"), "utf8")).toBe("true\nset -g theme x\n");
     expect(readFileSync(join(dir, ".config", "app", ".profile"), "utf8")).toBe("export DEEP_KEY=kept-deep\nset -o vi\n");
     expect(readFileSync(join(dir, ".config", "app", "shell", ".bashrc"), "utf8")).toBe("export DEEPER_KEY=kept-deeper\n");
     expect(packed.cut).toEqual([{ path: "~/.config/fish/config.fish", names: ["FISH_KEY"] }, { path: "~/.dotfiles/.zshrc", names: ["SHALLOW_KEY"] }]);
@@ -1145,7 +1145,7 @@ describe("packPlan: rc files with secret exports", () => {
     expect(modeOf(".zshrc")).toMatch(/^-r--r--r--/);
     expect(modeOf(".bashrc")).toMatch(/^-r--r--r--/);
     const dir = extract(packed.tar);
-    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("alias ll='ls -l'\n");
+    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe("true\nalias ll='ls -l'\n");
     expect(readFileSync(join(dir, ".bashrc"), "utf8")).toBe("alias g=git\n");
     expect(packed.cut).toEqual([{ path: "~/.zshrc", names: ["RO_KEY"] }]);
     expect(packed.skipped).toEqual([]);
@@ -1165,7 +1165,7 @@ describe("packPlan: source guard", () => {
     const packed = await packPlan(planFiles(rows, { home, stat: statOf, platform: "darwin" }), { secrets: new Map(), home });
     expect(listTar(packed.tar).find(e => e.path === ".zshrc")?.mode).toMatch(/^-r--r--r--/);
     const dir = extract(packed.tar);
-    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe(['[ -r "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"', "source ~/.zsh/functions.zsh", '[ -r "$HOME"/.deno/env ] && source "$HOME"/.deno/env # deno', "[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh", "source $ZSH/oh-my-zsh.sh", "[ -r /home/linuxbrew/.linuxbrew/opt/nvm/nvm.sh ] && source /home/linuxbrew/.linuxbrew/opt/nvm/nvm.sh", '[ -r "$HOME/.zsh/functions.zsh" ] && . "$HOME/.zsh/functions.zsh"', ""].join("\n"));
+    expect(readFileSync(join(dir, ".zshrc"), "utf8")).toBe(['[ -r "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"', "source ~/.zsh/functions.zsh", '[ -r "$HOME"/.deno/env ] && source "$HOME"/.deno/env # deno', "[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh", "true", "source $ZSH/oh-my-zsh.sh", "[ -r /home/linuxbrew/.linuxbrew/opt/nvm/nvm.sh ] && source /home/linuxbrew/.linuxbrew/opt/nvm/nvm.sh", '[ -r "$HOME/.zsh/functions.zsh" ] && . "$HOME/.zsh/functions.zsh"', ""].join("\n"));
     expect(readFileSync(join(dir, ".config", "fish", "config.fish"), "utf8")).toBe("source ~/.config/fish/local.fish\n");
     expect(packed.cut).toEqual([{ path: "~/.zshrc", names: ["RO_KEY"] }]);
     expect(packed.macPaths).toEqual(["/opt/homebrew/opt/nvm/nvm.sh now /home/linuxbrew/.linuxbrew/opt/nvm/nvm.sh"]);

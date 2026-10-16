@@ -8,7 +8,7 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readF
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { AGENTS, FISH_CONF_D, MCP_BIN_DIRS, MCP_REMOTE_ID, type ManifestEntry, RC_NAMES, SSH_CONFIG_PATH, calledCommands, dropPlugins, guardCommands, guardSources, isRcPath, rcFiles, sourcedPaths, stripExports, withIgnoreUnknown } from "@wsp/collect";
+import { AGENTS, FISH_CONF_D, MCP_BIN_DIRS, MCP_REMOTE_ID, type ManifestEntry, RC_NAMES, SSH_CONFIG_PATH, calledCommands, dropPlugins, guardCommands, guardSources, isRcPath, rcFiles, sourcedPaths, withIgnoreUnknown } from "@wsp/collect";
 import {
   agentInstallsFor,
   imageCommands,
@@ -43,7 +43,7 @@ import {
 import { baseNote, CATALOG_AGENTS, CLAUDE_SETTINGS_FILE, GUEST_HOME, GUEST_REWRITES, MCP_AGENTS, rewrittenRel, serversByName } from "@wsp/catalog";
 import type { GoldenLeftBehind, RecipeCustomRow } from "@wsp/protocol";
 import { carriesSecret, cloudCut, leftWhole, SIGN_INS_STAY, stayedLine } from "./cloud-configs.js";
-import { shellCut } from "./recipe-configs.js";
+import { shellCut, shellScript } from "./recipe-configs.js";
 import { tarPackCommand } from "./doctor.js";
 import type { ServerVault } from "./env-keys.js";
 import { keyOwner } from "./providers.js";
@@ -384,7 +384,7 @@ export async function packPlan(plan: FilesPlan, opts: PackOptions): Promise<Pack
     const { onImage, tools } = opts;
     const strip = (staged: string): void => {
       const text = readFileSync(staged, "utf8");
-      const { names, held, carried } = shellCut(text);
+      const { names, held, carried } = shellCut(text, shellScript(staged, true));
       const fish = staged.endsWith(".fish");
       const sourced = fish ? carried : guardSources(carried, opts.home, rel => existsSync(join(stage, rel)));
       const pruned = fish || onImage === undefined || tools === undefined ? { text: sourced, dropped: [] } : dropPlugins(sourced, name => tools.has(name) && !onImage.has(name));
@@ -700,11 +700,10 @@ export function digestOf(file: PlannedFile, home: string, cloud = false): string
         }
         hash.update(`F ${rel} ${mode} ${lands.length}\n`);
         hash.update(lands);
-        // A line the pack cuts for the value it holds digests apart, so an image packed before that cut reads changed.
+        // A file the pack cuts digests its cut, so an image packed before the cut took a line, or left it no `true`, reads changed.
         if (stripped(rel, real)) {
-          const text = bytes.toString("utf8");
-          const cut = shellCut(text).carried;
-          if (cut !== stripExports(text).carried) hash.update(`S ${rel} ${cut.length}\n${cut}`);
+          const { names, held, carried } = shellCut(bytes.toString("utf8"), shellScript(`${file.dest}${rel}`, true));
+          if (names.length + held.length > 0) hash.update(`S ${rel} ${carried.length}\n${carried}`);
         }
         // What the cut takes out of an MCP server reaches the machine through the vault, which only a re-pack refreshes.
         if (lands !== bytes) hash.update(createHash("sha256").update(bytes).digest("hex"));

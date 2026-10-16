@@ -218,8 +218,9 @@ function carried(line: string, arith: number): Pick<Open, "heredoc" | "arith"> {
 /** The arithmetic depth is one stream over the file: a cut line reads it and writes it back like a kept line does. A
  * line `secretIn` finds a secret in goes too, a heredoc's included. `names` holds only variables, each one a cut line
  * assigns a secret to, since init asks the person for each; `held` gets what `secretIn` names for a cut line that
- * assigns none. */
-export function stripExports(text: string, secretIn?: (line: string) => string | undefined, held: string[] = []): { names: string[]; carried: string } {
+ * assigns none. In a `script`, a cut command leaves `true` at its indent: bash refuses a block it was the only line of, left empty.
+ * A cut line holding a case arm's `;;`, `;&` or `;|` leaves nothing, since among the arms a `true` reads as a pattern. */
+export function stripExports(text: string, secretIn?: (line: string) => string | undefined, held: string[] = [], script = false): { names: string[]; carried: string } {
   const names: string[] = [];
   const kept: string[] = [];
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
@@ -251,6 +252,7 @@ export function stripExports(text: string, secretIn?: (line: string) => string |
     }
     for (const h of hits) if (!names.includes(h)) names.push(h);
     if (hits.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
+    if (script && !line.trimStart().startsWith("#") && !/;;|;&|;\|/.test(line)) kept.push(`${/^[ \t]*/.exec(line)?.[0] ?? ""}true`);
     const o = scanLine(line, { ...CLOSED, arith: passing.arith });
     if (isOpen(o)) cutting = o;
     else passing = { arith: o.arith };
