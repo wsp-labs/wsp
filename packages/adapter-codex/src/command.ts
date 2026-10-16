@@ -216,8 +216,12 @@ export function codexWord(launch: AgentLaunch | undefined, broker: CodexBroker |
 export function codexForShell(broker: CodexBroker, folder: string): string {
   const { word, flags } = codexLaunch(undefined, broker);
   const unpath = `IFS=:; p=; for d in $PATH; do [ "$d" = ${shellQuote(folder)} ] || p=\${p:+$p:}$d; done; PATH=$p; unset IFS`;
+  // codex exec refuses a folder outside a git repo unless told otherwise, whatever its trust table says (codex-rs
+  // exec/src/lib.rs at rust-v0.163.0), and a sub-thread's folder holds none until its agent fetches the code. The
+  // flag given twice is refused (codex-cli 0.155.1: "cannot be used multiple times"), so one already typed stands.
+  const anyFolder = 'case "$1" in exec|e) k=; for a; do [ "$a" = --skip-git-repo-check ] && k=1; done; [ -n "$k" ] || { s=$1; shift; set -- "$s" --skip-git-repo-check "$@"; };; esac';
   // A pane's shell names no CODEX_HOME, and codex's own default is ~/.codex.
-  return ["#!/bin/sh", unpath, 'export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"', `exec ${[word, ...flags].join(" ")} "$@"`, ""].join("\n");
+  return ["#!/bin/sh", unpath, 'export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"', anyFolder, `exec ${[word, ...flags].join(" ")} "$@"`, ""].join("\n");
 }
 
 export interface BuildCommandOptions {
