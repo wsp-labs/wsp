@@ -304,9 +304,8 @@ describe("a copied shell file or git config", () => {
     expect(landed).toEqual(landed.map(([where, , kind]) => [where, want[kind as keyof typeof want], kind]));
   });
 
-  /** `blocks` as each road lands it, on a box and on an owned and a provider's image, and each landed file as `name`
-   * reads it: whether a value is left, what `-n` exits and what `out` prints after sourcing it. */
-  const readLanded = async (shell: string, name: string, blocks: string, out: string): Promise<[string, boolean, number | null, string][]> => {
+  /** `blocks` as each road lands it, on a box and on an owned and a provider's image. */
+  const landedTexts = async (blocks: string): Promise<[string, string][]> => {
     const home = laptop();
     writeFileSync(join(home, ".zshrc"), blocks);
     writeFileSync(join(home, ".bashrc"), blocks);
@@ -315,6 +314,13 @@ describe("a copied shell file or git config", () => {
       const root = extract((await importFor(ROWS.slice(0, 2), { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack()).tar);
       for (const rc of [".zshrc", ".bashrc"]) landed.push([`${cloud ? "a provider's" : "an owned"} image's ~/${rc}`, readFileSync(join(root, rc), "utf8")]);
     }
+    return landed;
+  };
+
+  /** Each file `landedTexts` gives as `name` reads it: whether a value is left, what `-n` exits and what `out` prints
+   * after sourcing it. */
+  const readLanded = async (shell: string, name: string, blocks: string, out: string): Promise<[string, boolean, number | null, string][]> => {
+    const landed = await landedTexts(blocks);
     // An empty home and no stdin: bash on a socket for stdin reads ~/.bashrc first, as if sshd had started it.
     const bare = mkdtempSync(join(tmpdir(), "wsp-config-secrets-sh-"));
     dirs.push(bare);
@@ -425,6 +431,51 @@ describe("a copied shell file or git config", () => {
       const left = ["A_TOKEN", "C_TOKEN", "D_TOKEN", "E_TOKEN", "H_TOKEN", "N_KEY", "Q_TOKEN", "R_TOKEN", "S_TOKEN", "T_TOKEN", "U_TOKEN", "V_TOKEN", "W_TOKEN"].map(v => `\${${v}:+${v}}`).join("");
       const read = await readLanded(shell!, name, blocks, `printf "%s " "$IN_TIME" "$IN_BUILTIN" "$IN_IF" "$IN_LOOP" "$AFTER" "${left}"`);
       expect(read).toEqual(read.map(([where]) => [where, false, 0, "1 1   1  "]));
+    });
+  }
+
+  const ARRAYS = [
+    "API_KEY=(",
+    "  plain0arr",
+    "  plain0arr2",
+    ")",
+    "declare -a GH_TOKEN=(",
+    '  "plain0quoted ) a"',
+    "  'plain0paren)'",
+    ")",
+    "typeset -a LAB_SECRET=(",
+    "  plain0typeset # note (",
+    '  "plain0multi',
+    'plain0line"',
+    ")",
+    "LAB_TOKEN+=(",
+    "  plain0append",
+    ")",
+    'if [ -n "$HOME" ]; then',
+    "  DB_PASSWORD=(",
+    "    plain0block # (",
+    "  ); export IN_BLOCK=1; fi",
+    "PLAIN=(",
+    "  one",
+    "  two",
+    ")",
+    "export AFTER=1",
+    "",
+  ].join("\n");
+
+  it("an array spanning lines under a secret name lands as one true, its values gone, and one under a plain name lands as it was, on a box and on an image", async () => {
+    const want = ["true", "true", "true", "true", 'if [ -n "$HOME" ]; then', "  true; export IN_BLOCK=1; fi", "PLAIN=(", "  one", "  two", ")", "export AFTER=1", ""].join("\n");
+    // An owned image's rc opens with a guard block for the commands the image lacks; only the cut is checked here.
+    const landed = (await landedTexts(ARRAYS)).map(([where, text]): [string, string] => [where, text.replace(new RegExp(`^${GUARD_BEGIN}\\n[^]*?${GUARD_END}\\n\\n`), "")]);
+    expect(landed).toEqual(landed.map(([where]) => [where, want]));
+  });
+
+  for (const name of ["bash", "zsh"]) {
+    const shell = (process.env["PATH"] ?? "").split(delimiter).filter(d => d !== "").map(d => join(d, name)).find(p => existsSync(p));
+    it.skipIf(shell === undefined)(`an array spanning lines under a secret name is cut whole, so ${name} reads the landed file to its end with no value set, and a plain array keeps its values, on a box and on an image`, async () => {
+      const left = ["API_KEY", "GH_TOKEN", "LAB_SECRET", "LAB_TOKEN", "DB_PASSWORD"].map(v => `\${${v}:+${v}}`).join("");
+      const read = await readLanded(shell!, name, ARRAYS, `printf "%s " "$IN_BLOCK" "\${PLAIN[*]}" "$AFTER" "${left}"`);
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, "1 one two 1  "]));
     });
   }
 
