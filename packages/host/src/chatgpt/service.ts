@@ -7,7 +7,7 @@
 // codex-mcp/src/mcp/mod.rs).
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
-import { outgoingHeaders, passHttp, passUpgrade, responseOn, type Sentences, type Target } from "./forward.js";
+import { outgoingHeaders, passHttp, passUpgrade, responseOn, type FirstByteWait, type Sentences, type Target } from "./forward.js";
 import { CHATGPT_ORIGIN, chatgptSignIn } from "./models.js";
 import { codexPlaceholders, turnOfRefreshToken } from "./placeholders.js";
 import type { BrokerContext, BrokerRequest, BrokerService, ChatgptCredential, Door, OpenaiCredential } from "./types.js";
@@ -42,6 +42,34 @@ function doorUrl(req: IncomingMessage): URL | undefined {
 }
 
 const pathOf = (req: IncomingMessage) => doorUrl(req)?.pathname ?? "";
+
+/** The wait for a model call's reply to start, plus a second per 32 KB the call sends: as long as Codex gives its own
+ * websocket warm-up call. ChatGPT sends its first event within 2.3 s of a call of any size, by HTTP or websocket, long
+ * before the model's first token, so a call silent past this is held. Codex waits 300 s or more on such a call. */
+const FIRST_BYTE_MS = 15_000;
+/** Codex keeps its first websocket retry quiet, so two cut calls bring its retry line; past them, an agent's calls
+ * within a minute wait as long as Codex does, so a reply slow to start costs retries, never the reply. */
+const CUTS_BEFORE_WAITING = 2;
+const CUTS_KEPT_MS = 60_000;
+
+/** The wait for each agent's next model call, none once two of its calls were cut in the last minute. A turn's lead
+ * and each subagent it spawns call at once on the turn's grant, each named by its own thread-id header (codex-cli
+ * 0.155.1), so one agent's cuts never spend another's. */
+function firstByteWaits(ms: number): (r: BrokerRequest) => FirstByteWait | undefined {
+  const cuts = new Map<string, { count: number; at: number }>();
+  return (r) => {
+    const now = Date.now();
+    for (const [key, cut] of cuts) if (now - cut.at > CUTS_KEPT_MS) cuts.delete(key);
+    const key = `${r.grant.workspaceId} ${r.grant.threadId ?? ""} ${String(r.req.headers["thread-id"] ?? "")}`;
+    if ((cuts.get(key)?.count ?? 0) >= CUTS_BEFORE_WAITING) return undefined;
+    return { ms, cut: () => void cuts.set(key, { count: (cuts.get(key)?.count ?? 0) + 1, at: Date.now() }) };
+  };
+}
+
+/** A call asking for its reply as events, as Codex asks of every turn; a reply that is not streamed starts only once
+ * it is whole, so no wait covers it. */
+const streamed = (req: IncomingMessage) => req.method === "POST" && (req.headers.accept ?? "").includes("text/event-stream");
+const responsesSocket = (req: IncomingMessage) => pathOf(req).endsWith("/responses");
 
 const CHATGPT_OWNED = ["chatgpt-account-id", "x-openai-fedramp"];
 const OPENAI_OWNED = ["openai-organization", "openai-project"];
@@ -150,8 +178,9 @@ function openaiTarget(req: IncomingMessage, cred: OpenaiCredential): Target {
 }
 
 // dial: the address a public origin is reached at; tests point it at a stand-in.
-export function chatgptService(opts: { dial?: (url: URL) => URL; now?: () => number } = {}): BrokerService {
+export function chatgptService(opts: { dial?: (url: URL) => URL; now?: () => number; firstByteMs?: number } = {}): BrokerService {
   const now = opts.now ?? Date.now;
+  const waitFor = firstByteWaits(opts.firstByteMs ?? FIRST_BYTE_MS);
   const origins = new Map<string, string>();
   const target = (req: IncomingMessage, origin: string): Target => {
     const at = doorUrl(req)!;
@@ -173,20 +202,22 @@ export function chatgptService(opts: { dial?: (url: URL) => URL; now?: () => num
       const cred = await ctx.credential("chatgpt");
       if (!cred) return ctx.refuse(r.res, 403, CHATGPT_WORDS.signedOut, "openai");
       if (path !== ACCOUNTS_CHECK || r.req.method !== "GET") {
-        return passHttp(r.req, r.res, routed(r.req, cred), chatgptHeaders(r.req, cred, false), refuser(ctx), CHATGPT_SAID);
+        return passHttp(r.req, r.res, routed(r.req, cred), chatgptHeaders(r.req, cred, false), refuser(ctx), CHATGPT_SAID, { wait: streamed(r.req) ? waitFor(r) : undefined });
       }
       const headers = chatgptHeaders(r.req, cred, false, { "Accept-Encoding": "identity" });
-      await passHttp(r.req, r.res, target(r.req, CHATGPT_ORIGIN), headers, refuser(ctx), CHATGPT_SAID, (body) => {
-        const answer = rewriteAccounts(body, cred.accountId);
-        if (answer?.origin) origins.set(cred.accountId, answer.origin);
-        return answer?.body;
+      await passHttp(r.req, r.res, target(r.req, CHATGPT_ORIGIN), headers, refuser(ctx), CHATGPT_SAID, {
+        rewrite: (body) => {
+          const answer = rewriteAccounts(body, cred.accountId);
+          if (answer?.origin) origins.set(cred.accountId, answer.origin);
+          return answer?.body;
+        },
       });
     },
     async upgrade(r: BrokerRequest, socket: Duplex, head: Buffer, ctx: BrokerContext) {
       if (!pathOf(r.req).startsWith(BACKEND)) return void responseOn(r.req, socket).writeHead(404, { "content-length": "0" }).end();
       const cred = await ctx.credential("chatgpt");
       if (!cred) return ctx.refuse(responseOn(r.req, socket), 403, CHATGPT_WORDS.signedOut, "openai");
-      await passUpgrade(r.req, socket, head, routed(r.req, cred), chatgptHeaders(r.req, cred, true), refuser(ctx), CHATGPT_SAID);
+      await passUpgrade(r.req, socket, head, routed(r.req, cred), chatgptHeaders(r.req, cred, true), refuser(ctx), CHATGPT_SAID, responsesSocket(r.req) ? () => waitFor(r) : undefined);
     },
   };
 }
