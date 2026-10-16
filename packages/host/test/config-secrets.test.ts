@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
-import { stripExports, type ManifestEntry } from "@wsp/collect";
+import { GUARD_BEGIN, GUARD_END, stripExports, type ManifestEntry } from "@wsp/collect";
 import { importFor } from "../src/init-import.js";
 import { CLOUD_GIT_CUTS, configDigest, configTexts, gitCut, shellScript } from "../src/recipe-configs.js";
 import { placeProvisioner } from "../src/place-provision.js";
@@ -212,6 +212,98 @@ describe("a copied shell file or git config", () => {
     expect(configTexts("shell", home)[0]!.text).toBe("cat > ~/.pgpass.example <<EOF\nhost=db\nEOF\nalias g=git\n");
   });
 
+  it("a secret behind a precommand word, a declaration builtin or fish's and, or and not is cut like a bare export, and a command behind one stays, on a box and on an image", async () => {
+    const home = laptop();
+    const posix = [
+      "time export A_TOKEN=plain0time",
+      "time -p export B_TOKEN=plain0timep",
+      "noglob export C_TOKEN=plain0noglob",
+      "nocorrect export D_TOKEN=plain0nocorrect",
+      "- export E_TOKEN=plain0dash",
+      "builtin export F_TOKEN=plain0builtin",
+      "command export G_TOKEN=plain0command",
+      "command -p export H_TOKEN=plain0commandp",
+      "noglob builtin typeset -x I_TOKEN=plain0both",
+      "typeset -x J_TOKEN=plain0typeset",
+      "declare -x K_TOKEN=plain0declare",
+      "readonly L_TOKEN=plain0readonly",
+      "db() { local -x M_TOKEN=plain0local; }",
+      "integer -x N_KEY=plain0integer",
+      "float -x O_KEY=plain0float",
+      "env P_TOKEN=plain0env make",
+      "time Q_TOKEN=plain0prefix make",
+      "noglob export LAB_VALUE=ghp_plain0tokenAbCdEfGh1234567890",
+      "time make",
+      "noglob git status",
+      "nocorrect git log",
+      "command -v git",
+      "export AFTER=1",
+      "",
+    ].join("\n");
+    const fish = [
+      "and set -gx GH_TOKEN plain0and",
+      "or set -x LAB_TOKEN plain0or",
+      "not set -gx API_KEY plain0not",
+      "set --global --export LAB_KEY plain0long",
+      "if not set -q GH_TOKEN; echo none; end",
+      "and set -gx LAB_VALUE ghp_plain0tokenAbCdEfGh1234567890",
+      "and git status",
+      "time make",
+      "set -gx AFTER 1",
+      "",
+    ].join("\n");
+    writeFileSync(join(home, ".zshrc"), posix);
+    writeFileSync(join(home, ".bashrc"), posix);
+    mkdirSync(join(home, ".config", "fish"), { recursive: true });
+    writeFileSync(join(home, ".config", "fish", "config.fish"), fish);
+    const box = Object.fromEntries(configTexts("shell", home).map(t => [t.rel, t.text]));
+    const landed: [string, string | undefined, string][] = [
+      ["a box's ~/.zshrc", box[".zshrc"], "posix"],
+      ["a box's config.fish", box[".config/fish/config.fish"], "fish"],
+    ];
+    const rows = [...ROWS.slice(0, 2), row({ rung: "shell", id: "shell/fish", paths: ["~/.config/fish"] })];
+    for (const cloud of [false, true]) {
+      const packed = await importFor(rows, { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack();
+      expect(packed.cut?.find(c => c.path === "~/.zshrc")?.names).toEqual([..."ABCDEFGHIJKLM".split("").map(l => `${l}_TOKEN`), "N_KEY", "O_KEY", "P_TOKEN", "Q_TOKEN", "LAB_VALUE"]);
+      const root = extract(packed.tar);
+      const where = cloud ? "a provider's" : "an owned";
+      // An owned image's rc opens with a guard block for the commands the image lacks; only the cut is checked here.
+      const cut = (rc: string): string => readFileSync(join(root, rc), "utf8").replace(new RegExp(`^${GUARD_BEGIN}\\n[^]*?${GUARD_END}\\n\\n`), "");
+      for (const rc of [".zshrc", ".bashrc"]) landed.push([`${where} image's ~/${rc}`, cut(rc), "posix"]);
+      landed.push([`${where} image's config.fish`, readFileSync(join(root, ".config", "fish", "config.fish"), "utf8"), "fish"]);
+    }
+    const want = {
+      posix: [
+        "time true",
+        "time -p true",
+        "noglob true",
+        "nocorrect true",
+        "- true",
+        "builtin true",
+        "command true",
+        "command -p true",
+        "noglob builtin true",
+        "true",
+        "true",
+        "true",
+        "db() { true; }",
+        "true",
+        "true",
+        "true",
+        "time true",
+        "noglob true",
+        "time make",
+        "noglob git status",
+        "nocorrect git log",
+        "command -v git",
+        "export AFTER=1",
+        "",
+      ].join("\n"),
+      fish: ["and true", "or true", "not true", "true", "if not set -q GH_TOKEN; echo none; end", "and true", "and git status", "time make", "set -gx AFTER 1", ""].join("\n"),
+    };
+    expect(landed).toEqual(landed.map(([where, , kind]) => [where, want[kind as keyof typeof want], kind]));
+  });
+
   /** `blocks` as each road lands it, on a box and on an owned and a provider's image, and each landed file as `name`
    * reads it: whether a value is left, what `-n` exits and what `out` prints after sourcing it. */
   const readLanded = async (shell: string, name: string, blocks: string, out: string): Promise<[string, boolean, number | null, string][]> => {
@@ -308,6 +400,31 @@ describe("a copied shell file or git config", () => {
       ].join("\n");
       const read = await readLanded(shell!, name, blocks, 'printf "%s " "$IN_IF" "$IN_ELSE" "$IN_LOOP" "$IN_AND" "$AFTER"');
       expect(read).toEqual(read.map(([where]) => [where, false, 0, " 1   1 "]));
+    });
+
+    it.skipIf(shell === undefined)(`a cut behind a precommand word, a declaration builtin, a backslash or nice leaves a file ${name} reads to its end, a condition behind one never runs, and a command behind one still runs, on a box and on an image`, async () => {
+      const blocks = [
+        "time export A_TOKEN=plain0time",
+        "noglob export C_TOKEN=plain0noglob",
+        "nocorrect export D_TOKEN=plain0nocorrect",
+        "- export E_TOKEN=plain0dash",
+        "command -p export H_TOKEN=plain0commandp",
+        "integer -x N_KEY=plain0integer",
+        "time Q_TOKEN=plain0prefix true",
+        "repeat 1 export R_TOKEN=plain0repeat",
+        "\\export S_TOKEN=plain0backslash",
+        "\\builtin export T_TOKEN=plain0bsbuiltin",
+        "if time U_TOKEN=plain0if true; then export IN_IF=1; fi",
+        "while noglob V_TOKEN=plain0while true; do export IN_LOOP=1; break; done",
+        "nice -n 5 env W_TOKEN=plain0nice true",
+        "time export IN_TIME=1",
+        "builtin export IN_BUILTIN=1",
+        "export AFTER=1",
+        "",
+      ].join("\n");
+      const left = ["A_TOKEN", "C_TOKEN", "D_TOKEN", "E_TOKEN", "H_TOKEN", "N_KEY", "Q_TOKEN", "R_TOKEN", "S_TOKEN", "T_TOKEN", "U_TOKEN", "V_TOKEN", "W_TOKEN"].map(v => `\${${v}:+${v}}`).join("");
+      const read = await readLanded(shell!, name, blocks, `printf "%s " "$IN_TIME" "$IN_BUILTIN" "$IN_IF" "$IN_LOOP" "$AFTER" "${left}"`);
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, "1 1   1  "]));
     });
   }
 
