@@ -215,8 +215,11 @@ function carried(line: string, arith: number): Pick<Open, "heredoc" | "arith"> {
   return { heredoc: o.heredoc, arith: o.arith };
 }
 
-/** The arithmetic depth is one stream over the file: a cut line reads it and writes it back like a kept line does. */
-export function stripExports(text: string): { names: string[]; carried: string } {
+/** The arithmetic depth is one stream over the file: a cut line reads it and writes it back like a kept line does. A
+ * line `secretIn` finds a secret in goes too, a heredoc's included. `names` holds only variables, each one a cut line
+ * assigns a secret to, since init asks the person for each; `held` gets what `secretIn` names for a cut line that
+ * assigns none. */
+export function stripExports(text: string, secretIn?: (line: string) => string | undefined, held: string[] = []): { names: string[]; carried: string } {
   const names: string[] = [];
   const kept: string[] = [];
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
@@ -233,17 +236,21 @@ export function stripExports(text: string): { names: string[]; carried: string }
       continue;
     }
     if (passing.heredoc !== undefined) {
-      kept.push(line);
+      const found = line.trim() === passing.heredoc ? undefined : secretIn?.(line);
+      if (found === undefined) kept.push(line);
+      else if (!held.includes(found)) held.push(found);
       if (line.trim() === passing.heredoc) passing = { arith: passing.arith };
       continue;
     }
-    const hits = assignedNames(line).filter(isSecretName);
-    if (hits.length === 0) {
+    const found = secretIn?.(line);
+    const hits = simpleCommands(line).flatMap(c => assignedIn(c).filter(n => isSecretName(n) || (found !== undefined && secretIn?.(c) !== undefined)));
+    if (hits.length === 0 && found === undefined) {
       kept.push(line);
       passing = carried(line, passing.arith);
       continue;
     }
     for (const h of hits) if (!names.includes(h)) names.push(h);
+    if (hits.length === 0 && found !== undefined && !held.includes(found)) held.push(found);
     const o = scanLine(line, { ...CLOSED, arith: passing.arith });
     if (isOpen(o)) cutting = o;
     else passing = { arith: o.arith };

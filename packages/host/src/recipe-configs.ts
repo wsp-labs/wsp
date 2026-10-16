@@ -9,7 +9,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { isSecretName, stripExports } from "@wsp/collect";
 import { folderFiles } from "./folder-files.js";
-import { tokenShaped } from "./token-shapes.js";
+import { secretIn } from "./token-shapes.js";
 
 /** The configs a recipe can tick that land as files. The GitHub row is a vault token and lands none. */
 export type ConfigFiles = "git" | "shell";
@@ -89,13 +89,22 @@ const BOX_GIT_CUTS: GitCuts = { sections: GIT_DROPPED_SECTIONS, runs: true, help
  * helper, and a url rewrite, whose section name can carry a token. A config that loses nothing lands as it is. */
 export const CLOUD_GIT_CUTS: GitCuts = { sections: /^(credential|url)$/i, runs: false, helper: "replacing" };
 
-/** A git config with what never travels cut, and on the main file the gh credential helper added. */
-export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS): string {
+/** A shell file with every line that holds a secret cut: the variables that held one, and what a cut line that
+ * assigns none held. */
+export const shellCut = (text: string): { names: string[]; held: string[]; carried: string } => {
+  const held: string[] = [];
+  return { ...stripExports(text, secretIn, held), held };
+};
+
+/** A git config with what never travels cut, and on the main file the gh credential helper added; `names` gets each
+ * key cut as a secret, by the name git gives it. */
+export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS, names: string[] = []): string {
   const out: string[] = [];
   let dropped = false;
   let credential = false;
   let section = "";
   let named = false;
+  let sub = "";
   let dropping = false;
   // git reads a key written after its section's header on the same line as that section's key, so it is cut as one.
   const lines = text.split(/\r?\n/).flatMap(line => {
@@ -107,7 +116,11 @@ export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS
     if (header !== null) {
       section = header[1]!.toLowerCase();
       named = header[2] !== undefined;
-      dropping = cuts.sections.test(section);
+      sub = named ? `.${header[2]!.trim().slice(1, -1)}` : "";
+      // A subsection named by an address, as `[http "https://user:pass@host/"]`, can hold the login itself.
+      const held = named ? secretIn(header[2]!) : undefined;
+      if (held !== undefined) names.push(held);
+      dropping = cuts.sections.test(section) || held !== undefined;
       if (dropping && section === "credential") credential = true;
       if (dropping) dropped = true;
       else out.push(line);
@@ -116,7 +129,9 @@ export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS
     if (dropping) continue;
     const pair = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/.exec(line);
     const key = pair?.[1]?.toLowerCase();
-    if (key !== undefined && gitKeyCut(section, named, key, pair?.[2] ?? "", cuts.runs)) {
+    const cut = key === undefined ? undefined : gitKeyCut(section, named, key, pair?.[2] ?? "", cuts.runs);
+    if (cut !== undefined) {
+      if (cut === "secret") names.push(`${section}${sub}.${key}`);
       dropped = true;
       continue;
     }
@@ -128,21 +143,22 @@ export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS
   return `${out.join("\n")}\n`;
 }
 
-/** Whether one key of a section that travels is cut: a secret always, a key git runs only where `runs` says. */
-function gitKeyCut(section: string, named: boolean, key: string, value: string, runs: boolean): boolean {
-  // A secret never lands: a key named like one, a value shaped like a token, a URL carrying a login.
-  if (isSecretName(key) || (section === "sendemail" && key === "smtppass") || tokenShaped(value) || /[a-z][a-z0-9+.-]*:\/\/[^/\s@]+@/i.test(value)) return true;
-  if (!runs) return false;
-  if (!named && GIT_DROPPED_KEYS.has(`${section}.${key}`)) return true;
-  if (named && (section === "diff" || section === "merge") && GIT_DRIVER_KEYS.has(key)) return true;
+/** Why one key of a section that travels is cut: a secret always, a key git runs only where `runs` says. */
+function gitKeyCut(section: string, named: boolean, key: string, value: string, runs: boolean): "secret" | "runs" | undefined {
+  // A secret never lands: a key named like one, or a value holding one.
+  if (isSecretName(key) || (section === "sendemail" && key === "smtppass") || secretIn(value) !== undefined) return "secret";
+  if (!runs) return undefined;
+  if (!named && GIT_DROPPED_KEYS.has(`${section}.${key}`)) return "runs";
+  if (named && (section === "diff" || section === "merge") && GIT_DRIVER_KEYS.has(key)) return "runs";
   // An alias that starts with ! is a shell command.
-  return section === "alias" && value.trim().startsWith("!");
+  return section === "alias" && value.trim().startsWith("!") ? "runs" : undefined;
 }
 
-/** One file a config row lands: home-relative, with the bytes that land. */
+/** One file a config row lands: home-relative, with the bytes that land and the secrets cut from them by name. */
 export interface ConfigText {
   rel: string;
   text: string;
+  cut: string[];
 }
 
 /** Every file under one path, home-relative, in order: the path itself read where it points, what is under it by the
@@ -162,7 +178,12 @@ export function configTexts(id: ConfigFiles, home: string): ConfigText[] {
   return CONFIG_PATHS[id].flatMap(path =>
     filesUnder(home, path).map(rel => {
       const raw = readFileSync(join(home, rel), "utf8");
-      return { rel, text: id === "git" ? gitCut(raw, rel === ".gitconfig") : stripExports(raw).carried };
+      if (id === "shell") {
+        const { names, held, carried } = shellCut(raw);
+        return { rel, text: carried, cut: [...names, ...held] };
+      }
+      const cut: string[] = [];
+      return { rel, text: gitCut(raw, rel === ".gitconfig", BOX_GIT_CUTS, cut), cut };
     }),
   );
 }
