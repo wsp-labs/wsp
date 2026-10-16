@@ -13,7 +13,7 @@ import { NO_PLACE_DOOR, type PlaceDoor } from "./places.js";
 
 /** What the host reads off a target: the report less what the runtime stamps on it, and the login its lines are handed
  * to where the road runs as root and the home is somebody else's. */
-export type AgentsRead = Omit<AgentsReport, "target" | "readAt" | "stale" | "reach"> & { runAs?: string };
+export type AgentsRead = Omit<AgentsReport, "target" | "readAt" | "stale" | "pauseMode" | "reach"> & { runAs?: string };
 
 /** The wsp server a turn's launch on a fork hands its agent, which the agents report lists there too. */
 export const GUEST_WSP_MCP: LaunchServer = { command: "wsp", args: ["mcp"] };
@@ -444,7 +444,7 @@ export function agentsReads<Caller>(o: AgentsReadOptions<Caller>): {
       if ("napping" in on) {
         const held = "workspaceId" in target ? last.get(target.workspaceId) : undefined;
         if (held === undefined) throw usage(nappingAgentsRefusal(on.napping, on.pauseMode));
-        return { ...held, stale: "napping" };
+        return { ...held, stale: "napping", ...(on.pauseMode !== undefined ? { pauseMode: on.pauseMode } : {}) };
       }
       const { runAs, ...read } = await reader.read(on, { latest: (await o.latestOn?.()) ?? true });
       const setups = (row: AgentRow): AgentRow => {

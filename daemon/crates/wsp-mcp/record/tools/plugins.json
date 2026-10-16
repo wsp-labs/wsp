@@ -1,7 +1,7 @@
 {
   "cloudOff": {
     "name": "plugins",
-    "description": "Every plugin of each agent on one computer or where a thread runs, one row per agent and plugin in each scope: its id (name@marketplace), the agent, the scope it is installed for (user, or a project's or a project's local with that project), whether the agent's own settings turn it on there (Claude Code: local over project over user settings, then the plugin's default; Codex: what its app server answers), missing where the agent names it and loads nothing of it (Claude Code's folder for it is not there, or Codex lists no such plugin), its folder, its version, its description, where its marketplace comes from, and what it brings: skills, commands and subagents by the names a turn gives them, the events its hooks run on, its tool servers, language servers and apps. Claude Code's are read off its files, never by claude plugin list, which fetches; Codex's are asked of its app server. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.",
+    "description": "Every plugin of each agent on one computer or where a thread runs, one row per agent and plugin in each scope: its id (name@marketplace), the agent, the scope it is installed for (user, or a project's or a project's local with that project), whether the agent's own settings turn it on there (Claude Code: local over project over user settings, then the plugin's default; Codex: what its app server answers), missing where the agent names it and loads nothing of it (Claude Code's folder for it is not there, or Codex lists no such plugin), its folder, its version, its description, where its marketplace comes from, and what it brings: skills, commands and subagents by the names a turn gives them, the events its hooks run on, its tool servers, language servers and apps. Claude Code's are read off its files, never by claude plugin list, which fetches; Codex's are asked of its app server. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -63,6 +63,13 @@
         "stale": {
           "type": "string",
           "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
         },
         "refused": {
           "type": "array",
@@ -247,7 +254,7 @@
   },
   "cloudOn": {
     "name": "plugins",
-    "description": "Every plugin of each agent on one computer or where a thread runs, one row per agent and plugin in each scope: its id (name@marketplace), the agent, the scope it is installed for (user, or a project's or a project's local with that project), whether the agent's own settings turn it on there (Claude Code: local over project over user settings, then the plugin's default; Codex: what its app server answers), missing where the agent names it and loads nothing of it (Claude Code's folder for it is not there, or Codex lists no such plugin), its folder, its version, its description, where its marketplace comes from, and what it brings: skills, commands and subagents by the names a turn gives them, the events its hooks run on, its tool servers, language servers and apps. Claude Code's are read off its files, never by claude plugin list, which fetches; Codex's are asked of its app server. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale, and is not woken.",
+    "description": "Every plugin of each agent on one computer or where a thread runs, one row per agent and plugin in each scope: its id (name@marketplace), the agent, the scope it is installed for (user, or a project's or a project's local with that project), whether the agent's own settings turn it on there (Claude Code: local over project over user settings, then the plugin's default; Codex: what its app server answers), missing where the agent names it and loads nothing of it (Claude Code's folder for it is not there, or Codex lists no such plugin), its folder, its version, its description, where its marketplace comes from, and what it brings: skills, commands and subagents by the names a turn gives them, the events its hooks run on, its tool servers, language servers and apps. Claude Code's are read off its files, never by claude plugin list, which fetches; Codex's are asked of its app server. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -309,6 +316,13 @@
         "stale": {
           "type": "string",
           "const": "napping"
+        },
+        "pauseMode": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "disk"
+          ]
         },
         "refused": {
           "type": "array",

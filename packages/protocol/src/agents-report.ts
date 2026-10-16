@@ -7,13 +7,13 @@
 import { z } from "zod";
 import { AgentSetupView } from "./thread-defaults.js";
 import { HERE_PLACE_ID } from "./place-word.js";
-import type { PauseMode } from "./wire/capabilities.js";
+import { PauseMode } from "./wire/capabilities.js";
 import { EXEC_BODY_MAX } from "./wire/limits.js";
 import { fmtBytes } from "./words/units.js";
 
-/** What a napping workspace is in a refusal's words: only a computer that keeps the machine's memory naps it, and every
- * other one, or one whose mode cannot be read, stops it, as workspaceWord says. */
-const nappedWord = (pauseMode?: PauseMode): string => (pauseMode === "memory" ? "napping" : "stopped");
+/** What a napping workspace is in a refusal's or a stale report's words: only a computer that keeps the machine's memory
+ * naps it, and every other one, or one whose mode cannot be read, stops it, as workspaceWord says. */
+export const nappedWord = (pauseMode?: PauseMode): string => (pauseMode === "memory" ? "napping" : "stopped");
 
 /** Whether an agent on a computer can run a turn there without anybody signing anything in: its own login stands on
  * that computer, the vault this host holds has the variable that agent reads, or neither. One word per agent, worked
@@ -399,6 +399,8 @@ export const AgentsReport = z.object({
   readAt: z.string(),
   /** The workspace is napping and this is the last report read while it ran; nothing was asked of it. */
   stale: z.literal("napping").optional(),
+  /** How the stale workspace's computer naps it, beside `stale` alone. */
+  pauseMode: PauseMode.optional(),
   agents: z.array(AgentRow),
   skills: z.array(SkillRow),
   servers: z.array(McpRow),
