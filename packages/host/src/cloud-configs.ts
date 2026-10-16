@@ -3,12 +3,12 @@
 // Claude account fields; the secret-named variables of an env block or of
 // Codex's shell set, and every variable an agent reads as header lines; every
 // header that holds a value, in JSON or in TOML however it is spelled; a query
-// value under a secret's name, in an address or in Codex's query_params; the
-// API key Codex (experimental_bearer_token) or OpenCode (apiKey) sends; a
-// secret a hook, an MCP argument or an address holds inline (a login, a
-// key-shaped path segment); git's credential helpers and url rewrites; and
-// every value shaped like a token. What a config holds besides lands as it is,
-// so a config with no secret lands byte for byte.
+// value under a secret's name or a signed address's signature, in an address or
+// in Codex's query_params; the API key Codex (experimental_bearer_token) or
+// OpenCode (apiKey) sends; a secret a hook, an MCP argument or an address holds
+// inline (a login, a key-shaped path segment); git's credential helpers and url
+// rewrites; and every value shaped like a token. What a config holds besides
+// lands as it is, so a config with no secret lands byte for byte.
 import { KEYLIKE_SEGMENT, hidesValue, plainArg, readArgs, secretNamed, type ArgRead } from "@wsp/collect";
 import { CATALOG_AGENTS, MCP_AGENTS, editJson, readJsonc, rewriteTomlLine, tomlOpenArray, tomlStrings, uncommentToml, type JsonEdit } from "@wsp/catalog";
 import { CLOUD_GIT_CUTS, CONFIG_PATHS, FISH_VARIABLES, gitCut } from "./recipe-configs.js";
@@ -54,8 +54,14 @@ const envSecret = (name: string): boolean => secretNamed(name) || name.toUpperCa
 /** Keys an agent sends as its API key, so a literal there is the person's key: Codex's `experimental_bearer_token` on a
  * model provider (0.155.1), OpenCode's provider `apiKey` (1.18.30). */
 const KEY_FIELDS = new Set(["experimental_bearer_token", "apiKey"]);
-/** A query parameter that holds something under a secret's name, in an address or in Codex's `query_params`. */
-const querySecret = (name: string, value: string): boolean => carries(value) && secretNamed(name.replace(/-/g, "_"));
+/** The words a signed address names its signature with: Azure's SAS `sig`, S3's `X-Amz-Signature`, Cloud Storage's
+ * `X-Goog-Signature`, CloudFront's `Signature`. */
+const SIGNATURE_WORDS = new Set(["SIG", "SIGNATURE"]);
+/** A query parameter that holds something under a secret's name or a signature's, in an address or in Codex's `query_params`. */
+const querySecret = (name: string, value: string): boolean => {
+  const words = name.replace(/-/g, "_");
+  return carries(value) && (secretNamed(words) || words.toUpperCase().split("_").some(w => SIGNATURE_WORDS.has(w)));
+};
 /** Words that name a flag taking a mode or a file, as in `--auth oauth` or `--cert none`, rather than the secret. */
 const MODE_WORDS = new Set(["AUTH", "CERT"]);
 /** A lowercase word after a flag that only auth or cert names a secret is a mode; a flag named by any other secret word
@@ -101,7 +107,7 @@ function blankString(s: string, own: boolean): Cut {
 }
 
 /** Whether an address holds anything a copy to a provider's machine blanks out of one: a login, a value under a
- * secret's name in its query, a path segment shaped like a key, or a token's shape. */
+ * secret's name or a signature in its query, a path segment shaped like a key, or a token's shape. */
 export const carriesSecret = (address: string): boolean => blankString(address, true).text !== address;
 
 /** One argument as the collector read it: a flag's or an assignment's secret value goes, an assignment that holds an
