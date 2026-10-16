@@ -633,8 +633,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
             if (launching !== undefined && launching.turnId !== turnId) {
               // A held turn ahead of this one would otherwise wait on the slot this send's follower holds.
               if (lender !== undefined) ctx.capLend(launching.turnId, lender);
-              if (outcome === "started" || toldBox) bus.emit({ type: "session.queued", workspaceId, threadId, harness, prompt: o.prompt, ...(o.requestId !== undefined ? { requestId: o.requestId } : {}) });
-              outcome = "queued";
+              if (toldBox || (outcome === "started" && !adapter.steers)) bus.emit({ type: "session.queued", workspaceId, threadId, harness, prompt: o.prompt, ...(o.requestId !== undefined ? { requestId: o.requestId } : {}) });
+              if (!adapter.steers) outcome = "queued";
               toldBox = false;
               await launching.launch;
               refuse();

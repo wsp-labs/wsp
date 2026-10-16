@@ -6,6 +6,7 @@
 // A send behind that end waits for it, says so, and a Stop or a delete gives it
 // up. The agent is the real Claude adapter over a fake computer on the link.
 import { describe, expect, it, vi } from "vitest";
+import { createClaudeAdapter } from "@wsp/adapter-claude";
 import { cgroupEndScript, sendGivenUpLine, threadCgroup, threadEndAwayLine, threadEndLateLine, threadLeftLine, type EventUnion, type SessionInterruptResult } from "@wsp/protocol";
 import { createRuntime } from "../src/runtime.js";
 import { serveRuntime } from "../src/serve.js";
@@ -19,6 +20,8 @@ import { box, HETZNER, joined, type Box } from "./box-fixture.js";
 import { until } from "./until.js";
 
 const ADAPTERS = { claude: HARNESS_ADAPTERS.claude };
+/** The real Claude adapter with a short wait for an init, so a test sees a send that waited it out queue. */
+const BOUNDED: typeof ADAPTERS = { claude: c => createClaudeAdapter({ exec: c.execStream, configDir: c.home("claude"), baseEnv: c.env, signInRefusal: c.signInRefusal, steerJoinMs: 300 }) };
 const BACK = report("hetzner", { login: { HOME: "/root", USER: "root", PATH: "/usr/bin" } });
 const END = (threadId: string): string => cgroupEndScript(threadCgroup(threadId), { remove: true });
 
@@ -29,9 +32,9 @@ const within = <T,>(stop: Promise<T>, ms: number): Promise<T | "still waiting"> 
 const settled = (send: Promise<unknown>): Promise<string> => send.then(() => "launched", (e: unknown) => (e instanceof Error ? e.message : String(e)));
 
 /** A host holding hetzner with a turn of the real Claude adapter running on it. */
-async function running() {
+async function running(adapters = ADAPTERS) {
   const store = memoryStore();
-  const held = await joined({ store, adapters: ADAPTERS });
+  const held = await joined({ store, adapters });
   const at = await held.rt.workspaces.folderFor({ project: held.project.id });
   const turn = await held.rt.sessions.start(at.workspace.id, { prompt: "work", harness: "claude" });
   await until(() => held.seen.execs.some(e => e.cmd.includes("WSP_LAUNCHED")));
@@ -159,19 +162,47 @@ describe("a stop on a running box turn while the box is away", () => {
     await away(placeId);
     const events: EventUnion[] = [];
     rt.events.on("*", e => events.push(e));
-    await heldSend(workspaceId, threadId, "req_before");
+    // The turn never announced itself, so this send waits to join it, and the Stop is what sends it behind the end.
+    void settled(rt.sessions.start(workspaceId, { prompt: "and then", harness: "claude", thread: threadId, requestId: "req_before" }));
     expect(await within(rt.sessions.interrupt(turn.id), 2000)).toEqual({ outcome: "accepted", left: threadEndAwayLine("hetzner") });
     // Its row says so too, for a window opened after, and is the one a Stop gives up.
-    expect((await heldRow(workspaceId, threadId))?.waitsFor).toBe("hetzner");
+    await until(async () => (await heldRow(workspaceId, threadId))?.waitsFor === "hetzner");
     await heldSend(workspaceId, threadId, "req_first");
     await heldSend(workspaceId, threadId, "req_second");
 
-    expect(events.filter(e => e.type === "session.queued").map(e => (e.type === "session.queued" ? { requestId: e.requestId, waitsFor: e.waitsFor } : undefined))).toEqual([
-      { requestId: "req_before", waitsFor: undefined },
+    expect(events.filter(e => e.type === "session.queued" && e.waitsFor !== undefined).map(e => (e.type === "session.queued" ? { requestId: e.requestId, waitsFor: e.waitsFor } : undefined))).toEqual([
       { requestId: "req_before", waitsFor: "hetzner" },
       { requestId: "req_first", waitsFor: "hetzner" },
       { requestId: "req_second", waitsFor: "hetzner" },
     ]);
+  }, 15_000);
+
+  it("sends a message that waits to join a turn the CLI never announced behind the end at a Stop, where a second Stop gives it up", async () => {
+    const { rt, store, placeId, workspaceId, turn, threadId } = await running();
+    await away(placeId);
+    const events: EventUnion[] = [];
+    rt.events.on("*", e => events.push(e));
+    const send = settled(rt.sessions.start(workspaceId, { prompt: "and then", harness: "claude", thread: threadId, requestId: "req_early" }));
+    // Kept on the turn before its write, so the send is in the steer's wait for an init the away box never prints.
+    await until(async () => ((await store.get("sessions", workspaceId)) as { sessions: { steered?: Record<string, { requestId?: string }> }[] } | undefined)?.sessions.some(r => Object.values(r.steered ?? {}).some(m => m.requestId === "req_early")) === true);
+    expect(await within(rt.sessions.interrupt(turn.id), 2000)).toEqual({ outcome: "accepted", left: threadEndAwayLine("hetzner") });
+    await until(async () => (await heldRow(workspaceId, threadId))?.waitsFor === "hetzner");
+    expect(events.filter(e => e.type === "session.queued" && e.waitsFor !== undefined).map(e => (e.type === "session.queued" ? e.requestId : undefined))).toEqual(["req_early"]);
+    expect(await within(rt.sessions.interrupt((await heldRow(workspaceId, threadId))!.id), 2000)).toEqual({ outcome: "accepted", left: sendGivenUpLine("hetzner") });
+    expect(await within(send, 2000)).toBe(sendGivenUpLine("hetzner"));
+  }, 15_000);
+
+  it("queues a send that waited out the bound on a turn the CLI never announced and says so before any Stop, where a Stop and then a second Stop give it up", async () => {
+    const { rt, placeId, workspaceId, turn, threadId } = await running(BOUNDED);
+    await away(placeId);
+    const events: EventUnion[] = [];
+    rt.events.on("*", e => events.push(e));
+    const { send } = await heldSend(workspaceId, threadId, "req_late");
+    expect(events.filter(e => e.type === "session.queued").map(e => (e.type === "session.queued" ? { requestId: e.requestId, waitsFor: e.waitsFor } : undefined))).toEqual([{ requestId: "req_late", waitsFor: undefined }]);
+    expect(await within(rt.sessions.interrupt(turn.id), 2000)).toEqual({ outcome: "accepted", left: threadEndAwayLine("hetzner") });
+    await until(async () => (await heldRow(workspaceId, threadId))?.waitsFor === "hetzner");
+    expect(await within(rt.sessions.interrupt((await heldRow(workspaceId, threadId))!.id), 2000)).toEqual({ outcome: "accepted", left: sendGivenUpLine("hetzner") });
+    expect(await within(send, 2000)).toBe(sendGivenUpLine("hetzner"));
   }, 15_000);
 
   it("hands the row to the next send waiting on the box when a Stop gives the holder up, so a second Stop gives that one up too", async () => {

@@ -339,6 +339,107 @@ describe("runtime session steer", () => {
     await rt.close();
   });
 
+  it("over the claude adapter on a fake machine: a send while the CLI has not announced itself yet joins the turn once it does, and is written after the init", async () => {
+    const backend = stubBackend();
+    const plain = backend.execImpl;
+    let log = Buffer.alloc(0);
+    let exitFile = "";
+    const appends: string[] = [];
+    backend.execImpl = (m, cmd) => {
+      if (cmd.includes("WSP_LAUNCHED")) return { exitCode: 0, stdout: "WSP_LAUNCHED\n", stderr: "" };
+      const sentinel = cmd.match(/(__WSP_EOF_[a-z0-9]+__)/)?.[1];
+      if (sentinel !== undefined) {
+        const from = Number(cmd.match(/tail -c \+(\d+)/)?.[1] ?? "1") - 1;
+        return { exitCode: 0, stdout: `${log.subarray(from).toString("base64")}\n${sentinel} ${exitFile} ${exitFile === "" ? "up" : "down"}\n`, stderr: "" };
+      }
+      if (cmd.includes("base64 -d >> ")) {
+        appends.push(cmd);
+        return { exitCode: 0, stdout: "WSP_OK\n", stderr: "" };
+      }
+      return plain(m, cmd);
+    };
+    const rt = createRuntime({
+      backend,
+      store: memoryStore(),
+      adapters: { claude: ctx => createClaudeAdapter({ exec: machineExecStream(ctx.machine, { pollMs: 20 }), configDir: "/root/.claude-cfg" }) },
+    });
+    const events: EventUnion[] = [];
+    rt.events.on("*", e => events.push(e));
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const first = await rt.sessions.start(ws.id, { prompt: "go" });
+    try {
+      const threadId = first.view().threadId!;
+      let joined: Awaited<ReturnType<typeof rt.sessions.start>> | undefined;
+      void rt.sessions.start(ws.id, { prompt: "also this", thread: threadId, requestId: "req_2" }).then(s => (joined = s));
+      await settle();
+      expect(joined).toBeUndefined();
+      expect(appends).toHaveLength(0);
+      log = Buffer.from(`{"type":"system","subtype":"init","session_id":"${SID}"}\n`);
+      await vi.waitFor(() => expect(joined?.outcome).toBe("steered"), { timeout: 3000, interval: 10 });
+      expect(joined!.turnId).toBe(first.turnId);
+      expect(events.filter(e => e.type === "session.steer")).toMatchObject([{ turnId: first.turnId, threadId, prompt: "also this", requestId: "req_2" }]);
+      expect(appends).toHaveLength(1);
+    } finally {
+      exitFile = "0";
+      await first.finished;
+      await rt.close();
+    }
+  });
+
+  it("over the claude adapter on a fake machine: a send while the turn is still on its way to the machine joins it once the CLI announces itself, and says no wait behind it", async () => {
+    const backend = stubBackend();
+    const plain = backend.execImpl;
+    let log = Buffer.alloc(0);
+    let exitFile = "";
+    let hold: Promise<void> | undefined;
+    backend.execImpl = async (m, cmd) => {
+      if (cmd.includes("WSP_LAUNCHED")) return { exitCode: 0, stdout: "WSP_LAUNCHED\n", stderr: "" };
+      const sentinel = cmd.match(/(__WSP_EOF_[a-z0-9]+__)/)?.[1];
+      if (sentinel !== undefined) {
+        const from = Number(cmd.match(/tail -c \+(\d+)/)?.[1] ?? "1") - 1;
+        return { exitCode: 0, stdout: `${log.subarray(from).toString("base64")}\n${sentinel} ${exitFile} ${exitFile === "" ? "up" : "down"}\n`, stderr: "" };
+      }
+      if (cmd.includes("base64 -d >> ")) return { exitCode: 0, stdout: "WSP_OK\n", stderr: "" };
+      // The first start's look at its folder is held, so the second send meets a turn still on its way to the machine.
+      if (hold !== undefined && cmd.includes("rev-parse")) {
+        const held = hold;
+        hold = undefined;
+        await held;
+      }
+      return plain(m, cmd);
+    };
+    const rt = createRuntime({
+      backend,
+      store: memoryStore(),
+      adapters: { claude: ctx => createClaudeAdapter({ exec: machineExecStream(ctx.machine, { pollMs: 20 }), configDir: "/root/.claude-cfg" }) },
+    });
+    const events: EventUnion[] = [];
+    rt.events.on("*", e => events.push(e));
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    let release!: () => void;
+    hold = new Promise<void>(r => (release = r));
+    const launching = rt.sessions.start(ws.id, { prompt: "go" });
+    await settle();
+    const threadId = (await rt.sessions.list(ws.id)).find(r => r.status === "running")!.threadId!;
+    let joined: Awaited<ReturnType<typeof rt.sessions.start>> | undefined;
+    void rt.sessions.start(ws.id, { prompt: "also this", thread: threadId, requestId: "req_2" }).then(s => (joined = s));
+    await settle();
+    release();
+    const first = await launching;
+    try {
+      await settle();
+      expect(joined).toBeUndefined();
+      log = Buffer.from(`{"type":"system","subtype":"init","session_id":"${SID}"}\n`);
+      await vi.waitFor(() => expect(joined?.outcome).toBe("steered"), { timeout: 3000, interval: 10 });
+      expect(joined!.turnId).toBe(first.turnId);
+      expect(events.some(e => e.type === "session.queued")).toBe(false);
+    } finally {
+      exitFile = "0";
+      await first.finished;
+      await rt.close();
+    }
+  });
+
   it("unsupported when the session's harness takes no message mid-turn; the catalog says so before the turn runs", async () => {
     const plain = steerable({ steers: false });
     const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: plain.adapter } });

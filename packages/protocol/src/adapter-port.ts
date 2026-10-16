@@ -341,6 +341,14 @@ async function outlasted(stream: ExecStream, ms: number): Promise<boolean> {
   return waited;
 }
 
+/** Whether `turn` settled, either way, inside `ms`. */
+export async function settlesWithin(turn: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled = await Promise.race([turn.then(() => true, () => true), new Promise<boolean>(resolve => (timer = setTimeout(() => resolve(false), ms)))]);
+  clearTimeout(timer);
+  return settled;
+}
+
 /**
  * The one road a turn's process leaves by, whatever launched it and whatever ended the turn: SIGTERM to it and to
  * everything it started, then SIGKILL to whatever is still there once the grace window passes. Settles when the

@@ -6,7 +6,7 @@
 // and reads the limits again only once the consume answered, so the reading is
 // the one the reset left. The count landed in 0.141, the details in 0.143.
 import { programWord, shellQuote, type HarnessLimit, type PlanResets, type ResetReading, type ResetRoad, type ResetSpend } from "@wsp/protocol";
-import { creditsOf, limitOf, snapshotOf } from "./adapter.js";
+import { creditsOf, limitOf, snapshotOf } from "./limits.js";
 import { answersOf, appServerScript, initializeRequest, notification, request, resultOf, type ServerAnswer } from "@wsp/catalog";
 import { buildEnv, slug } from "./command.js";
 
