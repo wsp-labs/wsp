@@ -511,10 +511,10 @@ export interface BootArea {
   readonly rereadHeld: (id: string, by: GoneSeenBy) => Promise<void>;
   readonly hydrateWorkspace: (raw: unknown, seen?: FoundMachine) => Promise<LiveWorkspace | undefined>;
   readonly ready: () => Promise<void>;
-  readonly entryOf: (id: string, origin?: Caller, o?: { now?: true; act?: AcrossAct; thread?: string }) => Promise<LiveWorkspace>;
+  readonly entryOf: (id: string, origin?: Caller, o?: { now?: true; act?: AcrossAct; thread?: string; beingMade?: true }) => Promise<LiveWorkspace>;
   readonly childOf: (lead: LiveWorkspace, ref: string, origin?: Caller, threads?: { lead?: string; child?: string }) => Promise<LiveWorkspace>;
   readonly reachesRow: (row: { threadId?: string; workspaceId: string }, caller: Caller | undefined, talk?: TreeTalk) => boolean;
-  readonly entryOfRow: (row: { threadId?: string; workspaceId: string }, origin: Caller | undefined, talk?: TreeTalk) => Promise<LiveWorkspace | undefined>;
+  readonly entryOfRow: (row: { threadId?: string; workspaceId: string }, origin: Caller | undefined, talk?: TreeTalk, o?: { beingMade?: true }) => Promise<LiveWorkspace | undefined>;
   readonly listedRows: (held: readonly (Map<string, SessionEntry> extends Map<string, infer V> ? V : never)[]) => SessionView[];
   readonly placedRows: (listed: SessionView[]) => Promise<SessionView[]>;
   readonly rowGone: (id: string, at: { workspaceId: string; threadId?: string }) => void;
