@@ -79,13 +79,21 @@ function git(dir: string, args: string[]): Promise<string | undefined> {
 }
 
 async function indexPack(dir: string, pack: Buffer): Promise<boolean> {
+  // A push carries only what changed, so a .gitattributes its root tree names but GitHub already holds is absent from
+  // the pack, which fsck counts as an error (a spoo-me/spoo README push, 2026-10-17); a missing .gitmodules already
+  // passes. git before 2.44 takes no fsck levels and answers usage (129), so there the plain check runs.
+  const code = await indexPackWith(dir, pack, "--fsck-objects=gitattributesMissing=ignore");
+  return (code === 129 ? await indexPackWith(dir, pack, "--fsck-objects") : code) === 0;
+}
+
+function indexPackWith(dir: string, pack: Buffer, fsck: string): Promise<number | null> {
   // index-pack resolves one delta chain per thread, so 8 chains under the cap took 463 MB on 2 threads and 233 MB on 1.
-  const child = spawn("git", ["-C", dir, "index-pack", "--stdin", "--fsck-objects", "--threads=1"], { env: gitEnv(), stdio: ["pipe", "ignore", "ignore"], timeout: INDEX_PACK_MS });
+  const child = spawn("git", ["-C", dir, "index-pack", "--stdin", fsck, "--threads=1"], { env: gitEnv(), stdio: ["pipe", "ignore", "ignore"], timeout: INDEX_PACK_MS });
   child.stdin.on("error", () => undefined);
   child.stdin.end(pack);
   return new Promise(resolve => {
-    child.on("error", () => resolve(false));
-    child.on("close", code => resolve(code === 0));
+    child.on("error", () => resolve(null));
+    child.on("close", code => resolve(code));
   });
 }
 
