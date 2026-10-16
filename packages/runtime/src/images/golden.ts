@@ -323,6 +323,8 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
             const setupSha = nextSetupSha(head.setupSha, recipe.setup, o.delta.import);
             kept.record.import = applied.ledger;
             kept.record.setupSha = setupSha;
+            kept.record.parentSnapshotId = head.snapshotId;
+            kept.record.retired = o.delta.retiredOnImage;
             delete kept.record.building;
             // The builder was sealed as the head, so the version it seals next descends from the head's snapshot.
             kept.builder = { ...kept.builder, import: applied.ledger, setupSha, parentSnapshotId: head.snapshotId, retired: o.delta.retiredOnImage };
