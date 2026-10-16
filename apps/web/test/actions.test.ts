@@ -174,6 +174,9 @@ describe("workspace actions", () => {
     expect(actionById(noTrips, "export-project").refusal).toBe("This client cannot export projects");
     expect(actionById(resolveActions(workspaceActions, workspace("paused"), verbs), "open-browser").refusal).toBe("Workspace is paused; wake it to preview");
     expect(actionById(resolveActions(workspaceActions, workspace("waking"), verbs), "open-browser").refusal).toBe("Workspace is waking; previews open when it is running");
+    expect(actionById(resolveActions(workspaceActions, workspace("waking"), verbs), "bring-back").refusal).toBe("Workspace is waking; git actions open when it is running");
+    expect(actionById(resolveActions(workspaceActions, workspace("unreachable"), verbs), "bring-back").refusal).toBe("Workspace is unreachable; git actions open when the machine answers");
+    expect(actionById(resolveActions(workspaceActions, workspace("paused"), verbs), "bring-back").refusal).toBe("Workspace is paused; wake it to push");
   });
 
   it("every handler reaches its verb with the workspace, and copy id copies the machine id", async () => {
