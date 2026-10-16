@@ -83,6 +83,35 @@ describe("a workspace's pause mode", () => {
     expect(got).toEqual(asks.flatMap(([, tail]) => [`on-box is stopped${tail}`, `on-solari is napping${tail}`]));
   });
 
+  it("rides the report a napping workspace answers from while it ran, so each list can say stopped or napping", async () => {
+    const solari = stubBackend();
+    const box = stubBackend();
+    box.capabilities.pauseMode = "disk";
+    const rt = createRuntime({
+      backend: solari,
+      store: memoryStore(),
+      adapters: {},
+      places: twoProviders("solari", { solari, box }),
+      placeLinks: wiring(newPlaceKeyPair(), { id: "solari", rateUsdPerHour: 0.11 }),
+      agentsReader: { read: async () => ({ home: "/root", user: "root", agents: [], skills: [], servers: [], refused: [] }), tools: () => Promise.reject(new Error("not asked here")) },
+    });
+    open.push(rt);
+    const there = await createOn(rt, { golden: "snap_g", name: "on-box", on: "box" });
+    const here = await createOn(rt, { golden: "snap_g", name: "on-solari", on: "solari" });
+    const running = [await rt.agents.read({ workspaceId: there.id }), await rt.agents.read({ workspaceId: here.id })];
+    expect(running.map(r => [r.stale, r.pauseMode])).toEqual([
+      [undefined, undefined],
+      [undefined, undefined],
+    ]);
+    await rt.workspaces.nap(there.id);
+    await rt.workspaces.nap(here.id);
+    const kept = [await rt.agents.read({ workspaceId: there.id }), await rt.agents.read({ workspaceId: here.id })];
+    expect(kept.map(r => [r.stale, r.pauseMode])).toEqual([
+      ["napping", "disk"],
+      ["napping", "memory"],
+    ]);
+  });
+
   it("is a Boat sub-thread's own on a host wired to a cloud that keeps the memory, whatever its project's computer does", async () => {
     const solari = stubBackend();
     // Boat joins the table once the fixture has made it, and the host starts again on the same state to hold both.
