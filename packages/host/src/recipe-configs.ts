@@ -70,6 +70,8 @@ const GIT_DROPPED_KEYS = new Set([
 ]);
 /** Keys of a named diff or merge driver that git runs, cut whatever the driver's name. */
 const GIT_DRIVER_KEYS = new Set(["textconv", "command", "driver"]);
+/** git's own password keys whose name glues the word on, from `git help -c`: send-email's and cvsserver's. */
+const GIT_PASSWORD_KEYS = new Set(["sendemail.smtppass", "gitcvs.dbpass"]);
 /** What a landed .gitconfig asks git for credentials with, so a box with GH_TOKEN in a run's environment clones a
  * private repo and nothing writes the file there afterwards. */
 export const GH_CREDENTIAL_HELPER = "!gh auth git-credential";
@@ -154,7 +156,7 @@ export function gitCut(text: string, main: boolean, cuts: GitCuts = BOX_GIT_CUTS
 /** Why one key of a section that travels is cut: a secret always, a key git runs only where `runs` says. */
 function gitKeyCut(section: string, named: boolean, key: string, value: string, runs: boolean): "secret" | "runs" | undefined {
   // A secret never lands: a key named like one, or a value holding one.
-  if (isSecretName(key) || (section === "sendemail" && key === "smtppass") || secretIn(value) !== undefined) return "secret";
+  if (isSecretName(key) || GIT_PASSWORD_KEYS.has(`${section}.${key}`) || secretIn(value) !== undefined) return "secret";
   if (!runs) return undefined;
   if (!named && GIT_DROPPED_KEYS.has(`${section}.${key}`)) return "runs";
   if (named && (section === "diff" || section === "merge") && GIT_DRIVER_KEYS.has(key)) return "runs";
