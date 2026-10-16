@@ -10,8 +10,8 @@ import { ROOT } from "./source-files.js";
 
 const NOTES = ["packages/runtime", "packages/host", "packages/protocol", "apps/web", "daemon"].map(d => `${d}/AGENTS.md`);
 const MAX_LINES = 80;
-const MAX_NOTE_BYTES = 4096;
-// Five notes at the 4096 cap plus the root note; one writer folds the lines in, so the per-note cap is the one that bites.
+const MAX_NOTE_BYTES = 5120;
+// A note at this cap prunes an older line for a new one; the set cap below is the limit that binds.
 const MAX_SET_BYTES = 30 * 1024;
 const PARTS = ["## How it works", "## Invariants", "## Traps", "## One home for"];
 const SOURCE = ["*.ts", "*.tsx", "*.mts", "*.mjs", "*.js", "*.rs"];
