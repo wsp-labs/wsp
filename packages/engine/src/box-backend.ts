@@ -9,7 +9,7 @@
 // is a declaration through the seam or an internal of this file.
 
 import { createHash, randomBytes } from "node:crypto";
-import { BOAT_BALANCE_LINE, BOAT_DISK_GONE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, DAEMON_UNIT, boatBoxStateLine, boatCancelledLine, boatPlanWords, boatRefusedLogLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
+import { BOAT_BALANCE_LINE, BOAT_DISK_GONE_LINE, BOAT_MEMBER_CAP_LINE, BOAT_NO_CAPACITY_LINE, BOAT_REQUEST_LIMIT_LINE, DAEMON_UNIT, boatBoxStateLine, boatCancelledLine, boatPlanWords, boatRefusedLogLine, boatRequestLimitWaitLine, createAnswerLostLine, moveTimedOutLine, noWorkFolderLine, providerKeyName, providerRoadRetryLine, refusalLine, shellQuote, SIZE_PICK_FIX, sizeRefusal, sizeWord, startsUsedLine, type Capabilities, type CloudLimits, type StartWindow } from "@wsp/protocol";
 import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MachineStoppedError, MoveUnansweredError, PROVIDER_READ_CAP_MS, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, abort, backoffMs, classify, farEndAnswered, isMissing, realRetryClock, roadBackoffMs, roadCode, shouldRetry, type RetryClock, type WspError } from "./errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS, execDetached } from "./exec-detached.js";
 import { EXEC_ENV } from "./golden-import.js";
@@ -434,6 +434,19 @@ const CAP_WORDS = /concurrent (box|sandbox)/i;
 /** The two codes of a window of starts used: rate_limited is the minute or the hour, which only a read of /limits
  * tells apart (`startRefused`). */
 const START_CODES: ReadonlySet<string> = new Set(["rate_limited", "daily_limit_reached"]);
+/** Boat's refusal of one address past 1,000 requests a minute on any endpoint, its wait in seconds in the body
+ * (`retryAfter`) and no Retry-After header (docs.boat.dev/limits.md, read 2026-10-16). Every Boat thread of a host
+ * shares its address, so a create, a command or a person's write meets it only because others are busy: it passes. */
+const REQUEST_LIMIT_CODE = "IP_RATE_LIMIT_EXCEEDED";
+const REQUEST_LIMIT_WINDOW_MS = 60_000;
+/** The person behind a steer, an answer or a create hears nothing while a call waits, so two minutes of waits at most. */
+const REQUEST_LIMIT_TRIES = 3;
+/** The wait the refusal names, at the top of the body or in the envelope's details; the limit's minute where it
+ * names none, and never past it. */
+function requestLimitWaitMs(body: { retryAfter?: unknown; error?: { details?: { retryAfter?: unknown } } }): number {
+  const s = body.retryAfter ?? body.error?.details?.retryAfter;
+  return typeof s === "number" && s > 0 ? Math.min(s * 1000, REQUEST_LIMIT_WINDOW_MS) : REQUEST_LIMIT_WINDOW_MS;
+}
 /** Refusals whose own words name nothing a person can act on, in wsp's line instead; Boat's words stay in `said`. */
 const REFUSAL_LINES: Readonly<Record<string, string>> = {
   billing_required: BOAT_BALANCE_LINE,
@@ -444,6 +457,7 @@ const REFUSAL_LINES: Readonly<Record<string, string>> = {
 /** A refusal read by its code, never by its status alone. A 429 whose code nobody listed keeps the cap reading
  * classify gave it and its own words, so nothing is hidden. */
 function boxRefusal(e: WspError): WspError {
+  if (e.code === REQUEST_LIMIT_CODE) return { ...e, kind: "transient", message: BOAT_REQUEST_LIMIT_LINE, said: e.message };
   if (e.code !== undefined && START_CODES.has(e.code)) return { ...e, kind: "startLimit", ...(e.code === "daily_limit_reached" ? { window: "day" as const } : {}) };
   if ((e.code !== undefined && CAP_CODES.has(e.code)) || CAP_WORDS.test(e.message)) return { ...e, kind: "concurrency" };
   if (e.status === 429) return { ...e, said: e.message };
@@ -457,6 +471,7 @@ function boxRefusal(e: WspError): WspError {
  * three fast retries of a 502). A snapshot the provider could not take reads as its own kind and is not here. */
 const stillRestoring = (e: unknown): boolean => {
   const { kind, code } = e as Partial<WspError>;
+  if (code === REQUEST_LIMIT_CODE) return false;
   if (kind === "transient") return true;
   return kind === "conflict" && (code === "sandbox_restoring" || code === "sandbox_starting");
 };
@@ -583,14 +598,15 @@ export class BoxBackend implements MachineBackend {
   }
 
   /** One request to the API. A refusal is read out of the error envelope (`code`, `message`, `requestId`) and thrown
-   * as the engine's error kinds; a gateway status is retried on the engine's backoff; a road that failed before the
-   * request left this computer is retried too, since nothing was sent. */
+   * as the engine's error kinds; a gateway status is retried on the engine's backoff and Boat's request limit after the
+   * wait it names; a road that failed before the request left this computer is retried too, since nothing was sent. */
   async request<T>(method: string, path: string, opts: RequestOpts = {}): Promise<T> {
     const headers: Record<string, string> = { Authorization: `Bearer ${this.apiKey}`, ...opts.headers };
     const body = opts.bytes ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined);
     if (body !== undefined) headers["Content-Type"] = "application/json";
     let roadRetries = 0;
     let attempt = 1;
+    let limited = 0;
     for (;;) {
       let res: Response;
       try {
@@ -610,7 +626,7 @@ export class BoxBackend implements MachineBackend {
       }
       const text = await res.text();
       if (res.ok) return (text ? JSON.parse(text) : {}) as T;
-      let envelope: { code?: string; message?: string; requestId?: string; error?: { code?: string; message?: string } } = {};
+      let envelope: { code?: string; message?: string; requestId?: string; retryAfter?: unknown; error?: { code?: string; message?: string; details?: { retryAfter?: unknown } } } = {};
       try {
         envelope = JSON.parse(text) as typeof envelope;
       } catch { /* not a JSON envelope */ }
@@ -618,6 +634,14 @@ export class BoxBackend implements MachineBackend {
       const said = envelope.message ?? envelope.error?.message ?? text;
       this.logRefusal(`${method} ${path}`, res.status, code, envelope.requestId, said);
       const e = boxRefusal(classify(res.status, { code, error: said }, envelope.requestId));
+      if (e.code === REQUEST_LIMIT_CODE) {
+        if (opts.once || ++limited >= REQUEST_LIMIT_TRIES) fail(e);
+        const waitMs = requestLimitWaitMs(envelope);
+        console.warn(boatRequestLimitWaitLine(`${method} ${path}`, waitMs, limited + 1, REQUEST_LIMIT_TRIES));
+        await this.clock.sleep(waitMs);
+        opts.signal?.throwIfAborted();
+        continue;
+      }
       if (opts.once || !shouldRetry(e, attempt)) fail(e);
       await this.clock.sleep(backoffMs(attempt));
       attempt++;

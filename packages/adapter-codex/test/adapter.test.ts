@@ -618,6 +618,44 @@ describe("an approval Codex asks for", () => {
     for (const d of decisions) expect(d).not.toMatch(/acceptForSession|Execpolicy|NetworkPolicy/);
   });
 
+  it("an answer whose write failed leaves the request open, so answering again lands it", async () => {
+    const refused = Object.assign(new Error("Boat is refusing requests from this computer's address"), { kind: "transient", status: 429 });
+    let failing = true;
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") self.push(turnStarted, commandAsk);
+        },
+      });
+      const write = w.stream.write;
+      w.stream = {
+        ...w.stream,
+        write: async line => {
+          if (failing && parse(line).result !== undefined) {
+            failing = false;
+            throw refused;
+          }
+          return write(line);
+        },
+      };
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { events, onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "clean", permissionMode: "workspace-write", onEvent });
+    await until(() => events.some(e => e.type === "permission.ask"));
+    await expect(session.answer!("ask-7", { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).rejects.toBe(refused);
+    expect(live.wires[0]!.written.filter(m => m.result !== undefined)).toEqual([]);
+    expect(events.some(e => e.type === "permission.close")).toBe(false);
+
+    expect(await session.answer!("ask-7", { optionId: PERMISSION_ALLOW, outcome: "allowed", denyMessage: "" })).toBe("answered");
+    expect(live.wires[0]!.written.filter(m => m.result !== undefined)).toEqual([{ id: "ask-7", result: { decision: "accept" } }]);
+    expect(events.filter(e => e.type === "permission.close")).toEqual([{ type: "permission.close", sessionId: THREAD_ID, askId: "ask-7", outcome: "allowed", optionId: PERMISSION_ALLOW }]);
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+  });
+
   it("closes a prompt the server resolved itself, and every prompt still open when the process goes", async () => {
     const live = approving(fileAsk);
     const { events, onEvent } = collect();
