@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { createHash, randomBytes } from "node:crypto";
-import { MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk, nameOwner, strays, type ReapedMachine, type ReapFailure, type ProviderBoxState } from "@wsp/engine";
+import { MachineStoppedError, MachineUnreachableError, RestoreUnfinishedError, MoveUnansweredError, ResumeUnansweredError, CREATED_AT_LABEL, GOLDEN_LABEL, NAME_LABEL, OWNER_LABEL, WORKSPACE_LABEL, WSP_LABEL, Workspace, importInto, isMissing, NapRefusedError, StopRefusedError, killUntilGone, readGone, type ExecResult, type Machine, type MachineBackend, type MachineKind, type MachineShape, type MachineSpec, type MachineState, type RunOptions, type WspError, type WorkspaceHooks, type WorkspacePhase as EnginePhase, applyMachineContext, DiskSyncError, syncDisk, nameOwner, strays, type ReapedMachine, type ReapFailure, type ProviderBoxState } from "@wsp/engine";
 import { type WorkspacePhase, goneRefusal, notFoundRefusal, noWorkspaceRefusal, noCommandsYetLine, WAKE_STOPPED_UP, type WorkspaceSize, type WorkspaceView, settingFor, IDLE_REASON, ALREADY_RUNNING, goldenImage, goneWords, HOSTNAME_KEPT, hostnameSetLine, NOT_GONE, GONE_UNCHECKED, RESUME_UNANSWERED, runsInFolder, placeHoldsNoImageLine } from "@wsp/protocol";
 import { LOGIN_PATHS } from "@wsp/catalog";
 import { templateHost } from "../host-id.js";
@@ -270,7 +270,8 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
   };
   /** The entry's machine with every exec and run read for the provider's word that it cannot reach it: that refusal
    * marks the workspace and puts the sentence on the row now, and any answer takes the mark off for the next tick to
-   * say, since a push here would carry the marked tick's reach without its sentence. */
+   * say, since a push here would carry the marked tick's reach without its sentence. Its word that the machine is
+   * stopped puts the record to napping, so the next verb wakes it rather than meeting the same refusal. */
   const watched = (entry: LiveWorkspace, machine: Machine): Machine => {
     const heard = async (call: () => Promise<ExecResult>): Promise<ExecResult> => {
       let res: ExecResult;
@@ -282,6 +283,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
           ctx.unreached.set(entry.record.id, { machineId: machine.id, line: e.message });
           if (!standing && entry.record.phase === "running") await ctx.emitStatus(entry, "unreachable", e.message);
         }
+        if (e instanceof MachineStoppedError && entry.machine.id === machine.id) await adoptPause(entry);
         throw e;
       }
       if (ctx.unreached.get(entry.record.id)?.machineId === machine.id) ctx.unreached.delete(entry.record.id);

@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { BOAT_DISK_GONE_LINE, DAEMON_UNIT, stopRefusedLine } from "@wsp/protocol";
 import { writeStub } from "../../protocol/test/stub-script.js";
-import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
+import { CreateCancelledError, DiskGoneError, EnvNotLandedError, GuestUnusableError, MachineStoppedError, MoveUnansweredError, RestoreUnfinishedError, ROAD_TRIES, StopRefusedError, isMissing, type RetryClock } from "../src/errors.js";
 import { DAEMON_ENV_FILE, DEADLINE_EXIT, INLINE_EXEC_MS } from "../src/exec-detached.js";
 import { EXEC_ENV } from "../src/golden-import.js";
 import { GONE_READS, killUntilGone, snapshotUntilGone } from "../src/golden.js";
@@ -541,8 +541,10 @@ describe("BoxBackend against a fake Box API", () => {
     // A command the provider cut off at its timeout reads as a run past its deadline does.
     expect((await machine.exec("true", { timeoutMs: BOX_INLINE_MAX_MS })).exitCode).toBe(DEADLINE_EXIT);
     expect((api.seen.at(-1)!.body as { timeoutSeconds: number }).timeoutSeconds).toBe(BOX_INLINE_MAX_MS / 1000);
-    // A box that is not running refuses the command; that is the provider's signal and it is thrown as itself.
-    await expect(machine.exec("true")).rejects.toMatchObject({ kind: "conflict", code: "machine_not_running" });
+    // A box that is not running refuses the command, thrown as the stopped machine with the refusal's kind and code.
+    const stopped = await machine.exec("true").catch((e: unknown) => e);
+    expect(stopped).toBeInstanceOf(MachineStoppedError);
+    expect(stopped).toMatchObject({ machineId: "bx_tumrjngm", kind: "conflict", status: 409, code: "machine_not_running", message: "Box machine is not running." });
   });
 
   it("an exec asked for longer than the edge allows goes through the detached road, and no command sent carries more than the inline cap", async () => {
