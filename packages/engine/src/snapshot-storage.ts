@@ -107,7 +107,7 @@ export interface RetentionPlan {
   abandoned: GoldenVersion[];
   /** Versions a workspace was forked from; each stays while that workspace exists. */
   guarded: { version: GoldenVersion; workspaces: string[] }[];
-  /** The kept parent was taken as the next version down: the head was sealed before parents were recorded. */
+  /** The head was sealed before parents were recorded, so the kept parent is a guess by version order. */
   parentAssumed: boolean;
   /** What the listing says the dropped snapshots hold; a snapshot the listing lacks counts as nothing. */
   freedBytes: number;
@@ -119,10 +119,11 @@ export interface RetentionPlan {
   pricing: SnapshotStoragePricing;
 }
 
-/** The chain of ancestors from the head: each version's recorded parent, or for a version sealed before parents
- * were recorded the next version down. Versions off the chain and behind the head are abandoned branches: nothing
- * kept was built through them, so they are offered too, behind the same lineage guard. Versions ahead of the head
- * (right after a rollback, before an update seals past them) may still be rolled forward to and are left alone. */
+/** The chain of ancestors from the head: each version's recorded parent, or for a version built from a fresh machine
+ * or sealed before parents were recorded the next version down. Versions off the chain and behind the head are
+ * abandoned branches: nothing kept was built through them, so they are offered too, behind the same lineage guard.
+ * Versions ahead of the head (right after a rollback, before an update seals past them) may still be rolled forward to
+ * and are left alone. */
 export function retentionPlan(
   manifest: GoldenManifest,
   rows: readonly SnapshotRow[],
@@ -135,7 +136,8 @@ export function retentionPlan(
   const parentOf = (v: GoldenVersion): { parent: GoldenVersion | undefined; assumed: boolean } => {
     if (v.parentSnapshotId !== undefined) return { parent: bySnapshot.get(v.parentSnapshotId), assumed: false };
     const below = manifest.versions.filter(x => x.version < v.version).sort((a, b) => b.version - a.version);
-    return { parent: below[0], assumed: below.length > 0 };
+    // Seals record base since 2026-09-06, a day after parents, so a version with base was never sealed before parents.
+    return { parent: below[0], assumed: below.length > 0 && v.base === undefined };
   };
   const chain: GoldenVersion[] = head === undefined ? [] : [head];
   let parentAssumed = false;

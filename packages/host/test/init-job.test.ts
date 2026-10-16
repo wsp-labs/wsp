@@ -1922,6 +1922,8 @@ describe("the init job, terminal road", () => {
     const [rebuilt, updated] = [said[2]!, said[3]!];
     expect(rebuilt).toContain("Image v3 sealed on the host serving this state.");
     expect(rebuilt).toMatch(/Delete image v1, [\d.]+ GB, .*\? v3 and v2 stay\..* Taken as yes \(--yes\)\./);
+    // v3 was built from a fresh machine, so the offer has no parent to have assumed.
+    expect(rebuilt).not.toContain("sealed before parents were recorded");
     expect(rebuilt).toContain("Deleted image v1.");
     expect(rebuilt).toContain("storage at default: 2 snapshots, 16.0 GB");
     expect(rebuilt.indexOf("Image v3 sealed")).toBeLessThan(rebuilt.indexOf("Delete image v1"));
