@@ -26,7 +26,8 @@ function filesIo(files: Record<string, string>, o: { store?: string; run?: (line
       const lists = new Map<string, string[]>();
       const looked = new Set<string>();
       for (const g of groups) {
-        const from = g.rootsFrom === undefined ? [] : plainValues(files[g.rootsFrom.file] ?? "", g.rootsFrom.key);
+        const key = g.rootsFrom?.key ?? "";
+        const from = [...new Set((g.rootsFrom?.files ?? []).flatMap(f => plainValues(files[f] ?? "", key)))];
         for (const r of [...(g.roots ?? []), ...from]) {
           looked.add(joinPath(r));
           for (const f of g.files ?? []) if (files[joinPath(r, f)] !== undefined) texts.set(joinPath(r, f), files[joinPath(r, f)]!);

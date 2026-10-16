@@ -61,7 +61,7 @@ export async function roadOf(on: AgentsOn, here: () => Host, what: string): Prom
   }
   const machine = on.machine;
   return {
-    host: { ...machineHost(machine, login, { land: machine }), ...stores },
+    host: { ...machineHost(machine, login, { land: machine }), ...stores, ...(on.seeds !== undefined ? { seeds: on.seeds } : {}) },
     run: (line, stdin) => (stdin === undefined ? machine.exec(asLogin(login, line), bound) : stageAsLogin(machine, machine, login, what, stdin, file => machine.exec(asLogin(login, `{\n${line}\n} < ${shellQuote(file)}`), bound), bound)),
   };
 }
