@@ -70,8 +70,9 @@ const GIT_DROPPED_KEYS = new Set([
 ]);
 /** Keys of a named diff or merge driver that git runs, cut whatever the driver's name. */
 const GIT_DRIVER_KEYS = new Set(["textconv", "command", "driver"]);
-/** git's own password keys whose name glues the word on, from `git help -c`: send-email's and cvsserver's. */
-const GIT_PASSWORD_KEYS = new Set(["sendemail.smtppass", "gitcvs.dbpass"]);
+/** git's own password keys whose name glues the word on, from `git help -c`: send-email's and cvsserver's; and http's
+ * extra header, whose `Authorization: basic` login is base64 that no token shape matches. */
+const GIT_PASSWORD_KEYS = new Set(["sendemail.smtppass", "gitcvs.dbpass", "http.extraheader"]);
 /** What a landed .gitconfig asks git for credentials with, so a box with GH_TOKEN in a run's environment clones a
  * private repo and nothing writes the file there afterwards. */
 export const GH_CREDENTIAL_HELPER = "!gh auth git-credential";

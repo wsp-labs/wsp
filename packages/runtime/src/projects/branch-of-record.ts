@@ -43,22 +43,41 @@ function githubRepoOf(remote: string, project: string, on: string): string {
   return repo;
 }
 
-/** The repo a remote names, as GitHub names it now: its id, and the owner and name a renamed repo answers with. */
+/** The repo a remote names, as GitHub names it now: its id, the owner and name a renamed repo answers with, and
+ * whether it is public. */
 export async function repoOfRecord(ctx: RuntimeContext, remote: string, project: string, on: string): Promise<Repo> {
   const repo = githubRepoOf(remote, project, on);
-  const [id, owner, name] = await ghHere(ctx, repo, ["api", `repos/${repo}`, "--jq", "[.id, .owner.login, .name] | @tsv"]);
-  return { repoId: idOf(repo, id), owner: owner ?? "", name: name ?? "" };
+  const [id, owner, name, hidden] = await ghHere(ctx, repo, ["api", `repos/${repo}`, "--jq", "[.id, .owner.login, .name, .private] | @tsv"]);
+  return { repoId: idOf(repo, id), owner: owner ?? "", name: name ?? "", ...(hidden === "false" ? { public: true as const } : {}) };
 }
 
-/** A pull request thread's branch of record: the pull request's head branch on the repo that holds it, read now. A
- * fork's head takes a thread's pushes only where its author allowed maintainers to push, so a start that pushes is
- * refused there before anything is made; a review pushes nothing and reads the head all the same. */
+const PUBLIC_REREAD_MS = 5 * 60_000;
+const publicReadAt = new WeakMap<LiveWorkspace, number>();
+
+/** A public repo of record read again by its id, at most every five minutes: one GitHub now answers as private is
+ * fetched through the host from the next launch on. No answer keeps it public, since its fetch then fails either way. */
+export async function rereadPublic(ctx: RuntimeContext, entry: LiveWorkspace): Promise<void> {
+  const ofRecord = entry.record.branchOfRecord;
+  const now = ctx.clock.now();
+  if (ofRecord?.public !== true || now - (publicReadAt.get(entry) ?? -Infinity) < PUBLIC_REREAD_MS) return;
+  publicReadAt.set(entry, now);
+  const [hidden] = await ghHere(ctx, `${ofRecord.owner}/${ofRecord.name}`, ["api", `repositories/${ofRecord.repoId}`, "--jq", ".private"]).catch(() => [undefined]);
+  if (hidden !== "true" || entry.record.branchOfRecord !== ofRecord) return;
+  const { public: _, ...rest } = ofRecord;
+  entry.record.branchOfRecord = rest;
+  await ctx.persist(entry.record);
+}
+
+/** A pull request thread's branch of record: the pull request's head branch on the repo that holds it, read now, and
+ * whether that repo is public. A fork's head takes a thread's pushes only where its author allowed maintainers to
+ * push, so a start that pushes is refused there before anything is made; a review pushes nothing and reads the head
+ * all the same. */
 export async function pullRequestOfRecord(ctx: RuntimeContext, remote: string, number: number, project: string, on: string, pushes: boolean): Promise<BranchOfRecord> {
   const repo = githubRepoOf(remote, project, on);
-  const [id, owner, name, branch, editable, base, head] = await ghHere(ctx, repo, ["api", `repos/${repo}/pulls/${number}`, "--jq", "[.head.repo.id, .head.repo.owner.login, .head.repo.name, .head.ref, .maintainer_can_modify, .base.repo.id, .head.sha] | @tsv"]);
+  const [id, owner, name, branch, editable, base, head, hidden] = await ghHere(ctx, repo, ["api", `repos/${repo}/pulls/${number}`, "--jq", "[.head.repo.id, .head.repo.owner.login, .head.repo.name, .head.ref, .maintainer_can_modify, .base.repo.id, .head.sha, .head.repo.private] | @tsv"]);
   if (id === undefined || id === "") throw forkHeadGoneRefusal(number);
   if (pushes && id !== base && editable !== "true") throw forkNotPushableRefusal(owner ?? "", number);
-  return { repoId: idOf(repo, id), owner: owner ?? "", name: name ?? "", branch: branch ?? "", startSha: shaOf(repo, head) };
+  return { repoId: idOf(repo, id), owner: owner ?? "", name: name ?? "", branch: branch ?? "", startSha: shaOf(repo, head), ...(hidden === "false" ? { public: true as const } : {}) };
 }
 
 /** The branch a thread on a machine of this host's is given where its start names none: `wanted`, numbered past a
@@ -98,7 +117,7 @@ export async function withOpToken<T>(ctx: RuntimeContext, entry: LiveWorkspace, 
   const scope = { kind: "thread" as const, threadId, workspaceId: entry.record.id, rootThreadId: entry.record.rootThreadId ?? threadId };
   const minted = await ctx.deviceDoor.mint(`op ${op}`, scope, ctx.clock.now(), { road: ctx.moduleOf(entry.record.kind).turnRoad });
   try {
-    return await run(brokeredGitEnv(minted.deviceToken));
+    return await run(brokeredGitEnv(minted.deviceToken, entry.record.branchOfRecord));
   } finally {
     await ctx.deviceDoor.revoke(minted.deviceId).catch((e: unknown) => console.warn(`the ${op} token of ${entry.record.name} was not taken away: ${e instanceof Error ? e.message : String(e)}`));
   }
