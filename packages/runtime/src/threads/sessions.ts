@@ -31,7 +31,7 @@ import type { Runtime } from "../types/api.js";
 import {
   ATTACHMENTS, ATTACHMENT_KEYS, searchIndex, type SearchedHit, namedOnly, writeLines, type KeptProcess, type KeptLaunch, type ThreadRecord, type KeptImages, type LiveSession, type SessionEntry, stopLogLine,
 } from "../types/internal.js";
-import { cloudsTold, launchArea, servedTo } from "./launch.js";
+import { cloudsTold, launchArea, seedAfterLoss, servedTo } from "./launch.js";
 import { trimmedRow } from "./trimmed-row.js";
 import type { RuntimeContext, SessionsArea } from "../context.js";
 
@@ -816,7 +816,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
               ...(launchKey !== undefined ? { keep: true as const } : {}),
               ...(catalog?.source === "harness" && catalog.version !== null ? { version: catalog.version } : {}),
               // The thread's earlier turns as its transcript holds them, this one left out since its message follows.
-              ...(resume !== undefined ? { seed: async () => threadSeed(threadMessages((await ctx.openThread(workspaceId, threadId)).filter(e => e.turnId !== turnId), threadId)) } : {}),
+              ...(resume !== undefined ? { seed: seedAfterLoss(adapter, entry.machine, { sessionId: resume, threadId, workspaceId }, async () => threadSeed(threadMessages((await ctx.openThread(workspaceId, threadId)).filter(e => e.turnId !== turnId), threadId))) } : {}),
               onEvent,
             }),
         });

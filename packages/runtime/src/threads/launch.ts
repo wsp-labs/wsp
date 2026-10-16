@@ -3,11 +3,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
+import { harnessExec, type Machine } from "@wsp/engine";
 import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, cloudAddedLine, cloudRemovedLine, placeSaid, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
 import { harnessCatalog, notRunRefused } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
-import { launchesAs, type KeptLaunch, type ThreadRecord } from "../types/internal.js";
+import { launchesAs, lostSessionLogLine, type KeptLaunch, type ThreadRecord } from "../types/internal.js";
+import { SESSION_TITLE_TIMEOUT_MS } from "../types/events.js";
 import type { PlaceDoor } from "../places.js";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
@@ -139,4 +141,27 @@ export function launchArea(ctx: RuntimeContext) {
   };
 
   return { launchPicks, launchFixed, warm };
+}
+
+/** The seed a resuming start hands its agent, which asks for it only when its store no longer holds the session: on
+ * that first ask the host also reads what the machine does hold for the session and says so in one log line, so the
+ * next loss names its own cause. A reading that fails says why in the same line, and neither holds the seed back. */
+export function seedAfterLoss(
+  adapter: Pick<HarnessAdapter, "sessionHeld">,
+  machine: Pick<Machine, "exec" | "takesStdin">,
+  at: { sessionId: string; threadId: string; workspaceId: string },
+  seed: () => Promise<string>,
+): () => Promise<string> {
+  let read = false;
+  return () => {
+    const held = adapter.sessionHeld;
+    if (!read && held !== undefined) {
+      read = true;
+      void Promise.resolve()
+        .then(() => held.call(adapter, at.sessionId, harnessExec(machine, SESSION_TITLE_TIMEOUT_MS)))
+        .catch((e: unknown) => `not read: ${e instanceof Error ? e.message : String(e)}`)
+        .then(words => console.warn(lostSessionLogLine(at.sessionId, at.threadId, at.workspaceId, words)));
+    }
+    return seed();
+  };
 }

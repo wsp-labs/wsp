@@ -254,6 +254,9 @@ export interface HarnessAdapter {
   /** Where one session's own file sits on the machine: under `folder`, `depth` folders down, its name ending in
    * `name`. The one file a resume of that session elsewhere needs; absent on a harness whose session is no one file. */
   sessionFile?(sessionId: string): { folder: string; name: string; depth: number };
+  /** What the machine's store holds for a session a resume could not open, in one log line's words: files, index and
+   * boot, paths and ids alone. Absent on a harness with no such reading. */
+  sessionHeld?(sessionId: string, exec: HarnessExec): Promise<string>;
   /** Writes a person's name for a session into that same store; absent on a harness that keeps no name of a person's. */
   renameSession?: SessionRenamer;
   /** Asks the harness itself for a name for a thread it has just replied in; absent on a harness that cannot answer a
