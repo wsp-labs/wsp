@@ -8,7 +8,7 @@ import type { PipeDoor } from "@wsp/protocol";
 import { pathOf } from "../src/broker/tokens.js";
 import type { BrokerService, ServiceId } from "../src/broker/types.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { CONNECT_SAID, DEAD_TOKEN_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, connectorSaid } from "../src/broker/refuse.js";
+import { CONNECT_SAID, DEAD_TOKEN_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, UNHELD_SAID, connectorSaid } from "../src/broker/refuse.js";
 import { CLAUDE, DOCTOR_OP, ENDED_TURN, GRANTS, STORAGE_HOST, OP, OTHER_TURN, OTHER_WS, REAL, TERMINAL, TURN, WS, pipePair, placeholderJwt, proxyLogin, rig, type CallOptions, type Rig } from "./broker-fixture.js";
 
 let r: Rig;
@@ -17,6 +17,11 @@ afterEach(async () => {
 });
 
 const anthropicError = (body: string): unknown => JSON.parse(body);
+/** The sentence a refusal stops Codex with: a plain-text 400, the one status codex-cli 0.155.1 does not retry. */
+const codexSaid = (res: { status: number; headers: Record<string, unknown>; body: string }): string => {
+  expect([res.status, res.headers["content-type"], res.headers["x-should-retry"], res.body.at(-1)]).toEqual([400, "text/plain; charset=utf-8", "false", "\n"]);
+  return res.body.slice(0, -1);
+};
 
 describe("who may call", () => {
   it("refuses a call with no token, in Anthropic's shape, and sends nothing upstream", async () => {
@@ -92,17 +97,19 @@ describe("who may call", () => {
     r = await rig();
     r.revokedTokens.push(TURN);
     const codex = await r.call({ method: "POST", path: "/backend-api/codex/responses", headers: { authorization: `Bearer ${placeholderJwt(TURN)}` }, body: "{}" });
-    expect(codex.status).toBe(403);
-    expect(JSON.parse(codex.body)).toEqual({ error: { message: DEAD_TOKEN_SAID, type: "wsp_refused", param: null, code: null } });
+    expect(codexSaid(codex)).toBe(DEAD_TOKEN_SAID);
+    const claude = await r.call({ method: "POST", path: "/v1/messages", headers: { ...CLAUDE, "x-api-key": TURN }, body: "{}" });
+    expect([claude.status, claude.headers["x-should-retry"]]).toEqual([403, "false"]);
+    expect(anthropicError(claude.body)).toEqual({ type: "error", error: { type: "permission_error", message: DEAD_TOKEN_SAID } });
     const git = await r.call({ path: "http://github.com/acme/lab.git/info/refs?service=git-upload-pack", headers: { host: "github.com", "proxy-authorization": proxyLogin(TURN) } });
-    expect(git.status).toBe(403);
+    expect([git.status, git.headers["x-should-retry"]]).toEqual([403, "false"]);
     expect(git.headers["content-type"]).toMatch(/^text\/plain/);
     expect(git.body).toBe(`${DEAD_TOKEN_SAID}\n`);
     const rest = await r.call({ door: "gh", path: "/repos/acme/lab", headers: { host: "api.github.com", authorization: `token ${TURN}` } });
-    expect(rest.status).toBe(403);
+    expect([rest.status, rest.headers["x-should-retry"]]).toEqual([403, "false"]);
     expect(JSON.parse(rest.body).message).toBe(DEAD_TOKEN_SAID);
     const graphql = await r.call({ door: "gh", method: "POST", path: "/graphql", headers: { host: "api.github.com", authorization: `token ${TURN}` }, body: '{"query":"{viewer{login}}"}' });
-    expect(graphql.status).toBe(200);
+    expect([graphql.status, graphql.headers["x-should-retry"]]).toEqual([200, "false"]);
     expect(JSON.parse(graphql.body)).toEqual({ errors: [{ type: "FORBIDDEN", message: DEAD_TOKEN_SAID }] });
     expect(r.up.seen).toEqual([]);
   });
@@ -131,7 +138,7 @@ describe("who may call", () => {
   it("refuses a Codex JWT without the turn claim, and gh's token read anywhere but its own scheme", async () => {
     r = await rig();
     const noClaim = await r.call({ method: "POST", path: "/backend-api/codex/responses", headers: { authorization: `Bearer ${placeholderJwt(undefined)}` }, body: "{}" });
-    expect(JSON.parse(noClaim.body).error.message).toBe(NO_TOKEN_SAID);
+    expect(codexSaid(noClaim)).toBe(NO_TOKEN_SAID);
     const ghBearer = await r.call({ door: "gh", path: "/user", headers: { host: "api.github.com", authorization: `Bearer ${TURN}` } });
     expect(JSON.parse(ghBearer.body).message).toBe(NO_TOKEN_SAID);
     expect(r.up.seen).toEqual([]);
@@ -146,16 +153,15 @@ describe("who may call", () => {
     expect((await r.call({ method: "POST", path: "/backend-api/ps/mcp", body: "{}" })).status).toBe(200);
     r.live.push({ kind: "turn", workspaceId: WS, threadId: "th-acme-3", agent: "codex" });
     const two = await r.call({ method: "POST", path: "/backend-api/ps/mcp", body: "{}" });
-    expect(two.status).toBe(403);
-    expect(JSON.parse(two.body).error.message).toBe(connectorSaid(2));
+    expect(codexSaid(two)).toBe(connectorSaid(2));
     r.live.length = 0;
     const none = await r.call({ method: "POST", path: "/backend-api/ps/mcp", body: "{}" });
-    expect(JSON.parse(none.body).error.message).toBe(connectorSaid(0));
+    expect(codexSaid(none)).toBe(connectorSaid(0));
     r.live.push({ ...GRANTS[TURN]!, agent: "codex" });
     const dotted = await r.call({ method: "POST", path: "/backend-api/ps/mcp/../../codex/responses", body: "{}" });
-    expect(JSON.parse(dotted.body).error.message).toBe(NO_TOKEN_SAID);
+    expect(codexSaid(dotted)).toBe(NO_TOKEN_SAID);
     const elsewhere = await r.call({ method: "POST", path: "/backend-api/codex/responses", body: "{}" });
-    expect(JSON.parse(elsewhere.body).error.message).toBe(NO_TOKEN_SAID);
+    expect(codexSaid(elsewhere)).toBe(NO_TOKEN_SAID);
     expect(r.up.seen).toHaveLength(2);
   });
 
@@ -166,13 +172,13 @@ describe("who may call", () => {
     expect(ok.status).toBe(200);
     expect(r.served.at(-1)?.grant).toEqual(GRANTS[TURN]);
     expect(r.up.seen.at(-1)?.body).toBe(body);
-    const refused = async (b: string): Promise<string> => JSON.parse((await r!.call({ method: "POST", path: "/oauth/token", headers: { "content-type": "application/json" }, body: b })).body).error.message;
+    const refused = async (b: string): Promise<string> => codexSaid(await r!.call({ method: "POST", path: "/oauth/token", headers: { "content-type": "application/json" }, body: b }));
     expect(await refused(JSON.stringify({ refresh_token: `rt_wsp_${OTHER_TURN}` }))).toBe(OTHER_MACHINE_SAID);
     expect(await refused(JSON.stringify({ refresh_token: `rt_wsp_${TURN}`, pad: "x".repeat(16 * 1024) }))).toBe(NO_TOKEN_SAID);
     expect(await refused(JSON.stringify({ refresh_token: TURN }))).toBe(NO_TOKEN_SAID);
     expect(await refused(`refresh_token=rt_wsp_${TURN}`)).toBe(NO_TOKEN_SAID);
     const get = await r.call({ path: "/oauth/token", headers: { "content-type": "application/json" } });
-    expect(JSON.parse(get.body).error.message).toBe(NO_TOKEN_SAID);
+    expect(codexSaid(get)).toBe(NO_TOKEN_SAID);
     expect(r.up.seen).toHaveLength(1);
   });
 
@@ -185,7 +191,7 @@ describe("who may call", () => {
     expect(r.served.at(-1)?.grant).toEqual(GRANTS[TURN]);
     expect(JSON.parse((await fetch({ method: "POST" })).body).message).toBe(NO_TOKEN_SAID);
     expect(JSON.parse((await fetch({ host: "api.github.com" })).body).message).toBe(NO_TOKEN_SAID);
-    expect(JSON.parse((await r.call({ path: "/acme/lab/blob", headers: { host: STORAGE_HOST } })).body).error.message).toBe(NO_TOKEN_SAID);
+    expect(codexSaid(await r.call({ path: "/acme/lab/blob", headers: { host: STORAGE_HOST } }))).toBe(NO_TOKEN_SAID);
     r.live.splice(0, r.live.length, { kind: "op", workspaceId: WS, op: "git.push" });
     expect(JSON.parse((await fetch()).body).message).toBe(NO_TOKEN_SAID);
     r.live.splice(0, r.live.length, { kind: "terminal", workspaceId: WS, threadId: "th-acme-1" }, { kind: "turn", workspaceId: WS, threadId: "th-acme-5" });
@@ -353,7 +359,7 @@ describe("what the policy refuses for every call", () => {
       });
     expect(await upgrade({ authorization: `Bearer ${placeholderJwt(TURN)}` })).toEqual({ status: 101, echo: "echo:frame-1" });
     expect(r.served.at(-1)?.id).toBe("chatgpt");
-    expect(await upgrade({})).toEqual({ status: 403 });
+    expect(await upgrade({})).toEqual({ status: 400 });
     expect(r.served).toHaveLength(1);
   });
 
@@ -429,5 +435,57 @@ describe("a service that throws stops its client with what failed, never with a 
       req.end();
     });
     expect(answer).toEqual({ status: 400, retry: "false", body: `${said("Codex ChatGPT call")}\n` });
+  });
+});
+
+describe("every refusal the broker writes stops Codex at its first answer", () => {
+  const CHATGPT_ROAD = (token: string | undefined): CallOptions => ({ method: "POST", path: "/backend-api/codex/responses", headers: token === undefined ? {} : { authorization: `Bearer ${placeholderJwt(token)}` }, body: "{}" });
+  const OPENAI_ROAD = (token: string | undefined, path = "/v1/responses"): CallOptions => ({ method: "POST", path, headers: token === undefined ? {} : { authorization: `Bearer sk-wsp-${token}` }, body: "{}" });
+
+  it.each<[string, CallOptions, string]>([
+    ["no token on the ChatGPT road", CHATGPT_ROAD(undefined), NO_TOKEN_SAID],
+    ["no token on the OpenAI road", OPENAI_ROAD(undefined), NO_TOKEN_SAID],
+    ["a dead token on the ChatGPT road", CHATGPT_ROAD(ENDED_TURN), DEAD_TOKEN_SAID],
+    ["a dead token on the OpenAI road", OPENAI_ROAD(ENDED_TURN), DEAD_TOKEN_SAID],
+    ["another machine's token on the ChatGPT road", CHATGPT_ROAD(OTHER_TURN), OTHER_MACHINE_SAID],
+    ["another machine's token on the OpenAI road", OPENAI_ROAD(OTHER_TURN), OTHER_MACHINE_SAID],
+    ["a path no service claims", OPENAI_ROAD(TURN, "/v2/responses"), NOWHERE_SAID],
+  ])("%s", async (_name, call, said) => {
+    r = await rig();
+    expect(codexSaid(await r.call(call))).toBe(said);
+    expect(r.served).toEqual([]);
+    expect(r.up.seen).toEqual([]);
+  });
+
+  it("a revoked machine, on both roads", async () => {
+    r = await rig();
+    await r.broker.revoke(WS);
+    expect(codexSaid(await r.call(CHATGPT_ROAD(TURN)))).toBe(REVOKED_SAID);
+    expect(codexSaid(await r.call(OPENAI_ROAD(TURN)))).toBe(REVOKED_SAID);
+    expect(r.up.seen).toEqual([]);
+  });
+
+  it("a machine the computer holds no workspace for, on both roads", async () => {
+    r = await rig({ workspace: async () => undefined });
+    expect(codexSaid(await r.call(CHATGPT_ROAD(TURN)))).toBe(UNHELD_SAID);
+    expect(codexSaid(await r.call(OPENAI_ROAD(TURN)))).toBe(UNHELD_SAID);
+    expect(r.up.seen).toEqual([]);
+  });
+
+  it("a CONNECT with no proxy login", async () => {
+    r = await rig();
+    const [host, client] = pipePair();
+    r.broker.take(WS, { op: "pipe.open", door: "http", heldMs: 0 }, host);
+    const answer = await new Promise<{ status: number; headers: Record<string, unknown>; body: string }>((resolve, reject) => {
+      const req = request({ createConnection: () => client as never, method: "CONNECT", path: "chatgpt.com:443", headers: { host: "chatgpt.com:443" } });
+      req.on("connect", (res, socket, head) => {
+        const chunks: Buffer[] = [head];
+        socket.on("data", (c: Buffer) => chunks.push(c));
+        socket.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    expect(codexSaid(answer)).toBe(CONNECT_SAID);
   });
 });
