@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What a terminal pane says over its frozen frame, from the workspace's state
 // (the one vocabulary), the daemon reach and the pane's own socket. A pty
-// survives a pause (the machine is frozen, not rebuilt), so a paused pane keeps
-// its frame and offers the wake; only a replaced machine loses the shell.
-import { biggerSizeLine, outOfMemoryLine, type AbsentComputer, type DaemonLinkStatus, type MachineSizeOffer, type MemoryReading, type ReachState, type WorkspaceSize, type WorkspaceState } from "@wsp/protocol";
+// survives a pause only where the provider keeps the machine's memory; a nap
+// anywhere else is a stop that ends every process, the shell with it.
+import { biggerSizeLine, outOfMemoryLine, workspaceWord, type AbsentComputer, type DaemonLinkStatus, type MachineSizeOffer, type MemoryReading, type PauseMode, type ReachState, type WorkspaceSize, type WorkspaceState } from "@wsp/protocol";
 
 export type TerminalPaneState =
   | { readonly kind: "live" }
@@ -30,8 +30,9 @@ export type TerminalPaneState =
    * workspace: the computer dials this host itself when it is on, so the pane says so in the two halves the one
    * reading of it carries rather than leaving a line in the sidebar's corner. */
   | { readonly kind: "absent"; readonly absent: AbsentComputer }
-  | { readonly kind: "paused"; readonly pausing: boolean }
-  | { readonly kind: "waking" }
+  /** pauseMode is how the computer naps, absent where the caller holds none, which reads as a stop. */
+  | { readonly kind: "paused"; readonly pausing: boolean; readonly pauseMode?: PauseMode }
+  | { readonly kind: "waking"; readonly pauseMode?: PauseMode }
   | { readonly kind: "gone" };
 
 export interface TerminalPaneInput {
@@ -54,6 +55,8 @@ export interface TerminalPaneInput {
   /** The person's own computer this link reaches, by its own name: the one the app runs on or one they added. Left
    * out for a machine a cloud lends, which has no name of the person's, and the lines then say the thread's computer. */
   readonly computer?: string;
+  /** How the workspace's computer naps a machine: only "memory" keeps the shell through it. */
+  readonly pauseMode?: PauseMode;
 }
 
 /** What a line calls the computer at the far end of the link: its own name where it is the person's, else the
@@ -65,6 +68,7 @@ export function terminalPaneState(input: TerminalPaneInput): TerminalPaneState {
   const at = input.computer === undefined ? {} : { computer: input.computer };
   const local = input.local ?? false;
   const where = input.where ?? "the thread's computer";
+  const nap = input.pauseMode === undefined ? {} : { pauseMode: input.pauseMode };
   /** What a machine that is up but whose link is not open reads as, from the link alone. */
   const fromLink = (): TerminalPaneState => {
     if (input.socket === "opening") return { kind: "starting", local, where };
@@ -79,13 +83,13 @@ export function terminalPaneState(input: TerminalPaneInput): TerminalPaneState {
     case "released":
       return { kind: "gone" };
     case "waiting":
-      return { kind: "waking" };
+      return { kind: "waking", ...nap };
     case "pausing":
-      return { kind: "paused", pausing: true };
+      return { kind: "paused", pausing: true, ...nap };
     case "paused":
-      return { kind: "paused", pausing: false };
+      return { kind: "paused", pausing: false, ...nap };
     case "waking":
-      return { kind: "waking" };
+      return { kind: "waking", ...nap };
     case "unreachable":
       return input.reach === "zombie" ? { kind: "not-answering", ...oom, ...at } : fromLink();
     case "running":
@@ -100,6 +104,9 @@ export function terminalPaneState(input: TerminalPaneInput): TerminalPaneState {
     }
   }
 }
+
+/** The nap's word as the state word says it: a pause where the computer keeps the memory, a stop everywhere else. */
+const napWord = (pane: { readonly pausing: boolean; readonly pauseMode?: PauseMode }): string => workspaceWord(pane.pausing ? "pausing" : "paused", pane.pauseMode);
 
 /** The one line a pane shows for its state; null while live. */
 export function terminalPaneTitle(pane: TerminalPaneState): string | null {
@@ -122,9 +129,10 @@ export function terminalPaneTitle(pane: TerminalPaneState): string | null {
     case "refused":
       return `The connection to ${named(pane)} was refused; its threads keep running`;
     case "paused":
-      return `${pane.pausing ? "Pausing" : "Paused"}. The shell is kept; wake the thread to continue`;
+      if (pane.pauseMode === "memory") return `${napWord(pane)}. The shell is kept; wake the thread to continue`;
+      return `${napWord(pane)}. The shell ${pane.pausing ? "ends" : "ended"} with the stop; wake the thread to open a new one`;
     case "waking":
-      return "Waking the thread. The shell continues when it is back";
+      return pane.pauseMode === "memory" ? "Waking the thread. The shell continues when it is back" : "Waking the thread. The shell ended with the stop; open a new one when it is back";
     case "gone":
       return "What this thread ran on is gone";
     default: {
@@ -146,6 +154,10 @@ const REBUILD_HINT = `Rebuild it from the ${WORKSPACE_ROW}`;
  * read the same thing. It names the terminal process and not the computer: quitting and reopening the app restarts
  * this computer's terminals and an update restarts a box's, with the computer up all along. */
 export const SHELL_ENDED_LINE = "This shell ended when the terminal process on its computer restarted";
+
+/** What a shell open before a nap that ends every process says once the thread is back: the stop ended it, not a
+ * restart of the terminal process, and the overlay and the scrollback read it alike. */
+export const SHELL_STOPPED_LINE = "This shell ended when the thread stopped";
 
 /** What to do once nothing has answered. The fact is in the title; this half is the one thing a person can act on,
  * and it names the thing to look at rather than leaving an "it" open. Both halves read the same name for where,
@@ -214,7 +226,7 @@ export function terminalEmptyLine(pane: TerminalPaneState): string | null {
     case "refused":
       return `No terminal opens from this window: ${pane.reason}. Your threads keep running.`;
     case "paused":
-      return `The thread is ${pane.pausing ? "pausing" : "paused"}; wake it to open a terminal`;
+      return `The thread is ${napWord(pane).toLowerCase()}; wake it to open a terminal`;
     case "waking":
       return "The thread is waking; terminals open when it is running";
     case "gone":
@@ -247,7 +259,7 @@ export function terminalInputRefusal(pane: TerminalPaneState): string | null {
     case "refused":
       return `Typing is refused: the connection to ${named(pane)} was refused`;
     case "paused":
-      return `Typing is refused: the thread is ${pane.pausing ? "pausing" : "paused"}`;
+      return `Typing is refused: the thread is ${napWord(pane).toLowerCase()}`;
     case "waking":
       return "Typing is refused while the thread wakes";
     case "gone":

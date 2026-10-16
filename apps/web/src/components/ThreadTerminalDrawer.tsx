@@ -50,7 +50,7 @@ import { useStore } from "../protocol/store";
 import { useGlass } from "../settings/theme";
 import { type GhosttyColor, type GhosttyTheme } from "../terminal/ghostty/core";
 import type { TerminalIo } from "../terminal/pty-io";
-import { SHELL_ENDED_LINE, terminalEmptyLine, terminalInputRefusal, terminalPaneTitle, type TerminalPaneState } from "../adapt/index";
+import { terminalEmptyLine, terminalInputRefusal, terminalPaneTitle, type TerminalPaneState } from "../adapt/index";
 import { StartDaemonButton } from "./DaemonDown";
 import { insertIntoComposer } from "./chat/composerInsert";
 import { terminalExcerptText } from "../composer-editor-mentions";
@@ -516,8 +516,8 @@ export interface ThreadTerminalDrawerProps {
   paneHints?: readonly string[];
   /** The wake every Wake button calls: the same op the Machine panel uses. */
   onWake?: () => void;
-  /** Ptys the daemon no longer holds: their pane says the shell ended and offers a new one. */
-  lostTerminalIds?: ReadonlySet<string>;
+  /** Ptys the daemon no longer holds, each with the sentence it ended with: their pane says it and offers a new one. */
+  lostTerminals?: ReadonlyMap<string, string>;
   /** Bytes in, keys out and resize for one terminal; the drawer itself never talks to the daemon. */
   terminalIo: (terminalId: string) => TerminalIo;
   terminalConfig?: TerminalViewportConfig;
@@ -554,7 +554,7 @@ function TerminalActionButton({ label, className, onClick, children }: TerminalA
 
 const LIVE_PANE: TerminalPaneState = { kind: "live" };
 const NO_HINTS: readonly string[] = [];
-const NO_LOST: ReadonlySet<string> = new Set();
+const NO_LOST: ReadonlyMap<string, string> = new Map();
 
 /** Seconds since it mounted, ticking on its own clock so the overlay re-renders once a second at most. */
 function Elapsed() {
@@ -623,14 +623,14 @@ function TerminalPaneOverlay({ pane, hints, refused, workspaceId, onWake, onLift
   );
 }
 
-function ShellGoneOverlay({ onNewTerminal, label }: { onNewTerminal: () => void; label: string }) {
+function ShellGoneOverlay({ line, onNewTerminal, label }: { line: string; onNewTerminal: () => void; label: string }) {
   return (
     <div
       role="status"
       data-terminal-overlay="shell-gone"
       className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-(--terminal-background)/70 px-4 text-center text-sm text-foreground"
     >
-      <p>{SHELL_ENDED_LINE}</p>
+      <p>{line}</p>
       <Button size="xs" variant="outline" onClick={onNewTerminal}>
         {label}
       </Button>
@@ -658,7 +658,7 @@ export default function ThreadTerminalDrawer({
   pane = LIVE_PANE,
   paneHints = NO_HINTS,
   onWake,
-  lostTerminalIds = NO_LOST,
+  lostTerminals = NO_LOST,
   terminalIo,
   terminalConfig = EMPTY_CONFIG,
 }: ThreadTerminalDrawerProps) {
@@ -1029,7 +1029,7 @@ export default function ThreadTerminalDrawer({
       onInputRefused={onInputRefused}
     />
   );
-  const activeLost = lostTerminalIds.has(resolvedActiveTerminalId);
+  const activeLost = lostTerminals.get(resolvedActiveTerminalId);
 
   return (
     <aside
@@ -1102,8 +1102,8 @@ export default function ThreadTerminalDrawer({
       <div className="relative min-h-0 w-full flex-1">
         {pane.kind !== "live" ? (
           <TerminalPaneOverlay pane={pane} hints={paneHints} refused={refused} workspaceId={workspaceId} onLift={onOverlayLift} {...(onWake !== undefined ? { onWake } : {})} />
-        ) : activeLost ? (
-          <ShellGoneOverlay onNewTerminal={onNewTerminalAction} label={newTerminalActionLabel} />
+        ) : activeLost !== undefined ? (
+          <ShellGoneOverlay line={activeLost} onNewTerminal={onNewTerminalAction} label={newTerminalActionLabel} />
         ) : null}
         <div
           className={cn(
