@@ -3,7 +3,10 @@
 // who may call, the off switch, CONNECT, an address no service claims, an
 // upstream's redirect and 401, and the caller's own auth never reaching an
 // upstream. Each refusal is read in the shape its client parses.
-import { request, type ServerResponse } from "node:http";
+import { request, type IncomingMessage, type ServerResponse } from "node:http";
+import type { PipeDoor } from "@wsp/protocol";
+import { pathOf } from "../src/broker/tokens.js";
+import type { BrokerService, ServiceId } from "../src/broker/types.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONNECT_SAID, DEAD_TOKEN_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, connectorSaid } from "../src/broker/refuse.js";
 import { CLAUDE, DOCTOR_OP, ENDED_TURN, GRANTS, STORAGE_HOST, OP, OTHER_TURN, OTHER_WS, REAL, TERMINAL, TURN, WS, pipePair, placeholderJwt, proxyLogin, rig, type CallOptions, type Rig } from "./broker-fixture.js";
@@ -374,5 +377,57 @@ describe("what the policy refuses for every call", () => {
     await new Promise(res => setImmediate(res));
     client.write("early");
     expect(await got).toMatch(/^HTTP\/1\.1 101 [^]*echo:early$/);
+  });
+});
+
+describe("a service that throws stops its client with what failed, never with a wait", () => {
+  const said = (call: string): string => `wsp: your computer failed on its side of this ${call} (ERR_INVALID_HTTP_TOKEN) and would fail the same way on every try, so it stopped the call.`;
+  /** A service whose call throws the way node's client does on a header name with a space, before anything is written. */
+  const throwing = (id: ServiceId, door: PipeDoor, claims: (path: string, req: IncomingMessage) => boolean): BrokerService => {
+    const fault = (): never => {
+      request({ host: "127.0.0.1", port: 9, headers: { "x team": "lab" } });
+      throw new Error("node took the header name");
+    };
+    return { id, claims: (req, d) => d === door && claims(pathOf(req.url), req), serve: async () => fault(), upgrade: async () => fault() };
+  };
+  const services = [
+    throwing("anthropic", "http", (_path, req) => req.headers["anthropic-version"] !== undefined),
+    throwing("chatgpt", "http", path => path.startsWith("/backend-api/")),
+    throwing("openai", "http", path => path.startsWith("/v1/")),
+    throwing("git", "http", (_path, req) => (req.url ?? "").startsWith("http://github.com/")),
+    throwing("gh", "gh", () => true),
+  ];
+
+  it.each<[string, CallOptions, number, string, unknown]>([
+    ["Claude Code", { method: "POST", path: "/v1/messages?beta=true", headers: { ...CLAUDE, "x-api-key": TURN }, body: "{}" }, 403, "application/json", { type: "error", error: { type: "permission_error", message: said("Claude model call") } }],
+    ["Codex on ChatGPT", { method: "POST", path: "/backend-api/codex/responses", headers: { authorization: `Bearer ${placeholderJwt(TURN)}` }, body: "{}" }, 400, "text/plain; charset=utf-8", `${said("Codex ChatGPT call")}\n`],
+    ["Codex on OpenAI", { method: "POST", path: "/v1/responses", headers: { authorization: `Bearer sk-wsp-${TURN}` }, body: "{}" }, 400, "text/plain; charset=utf-8", `${said("Codex OpenAI call")}\n`],
+    ["git", { path: "http://github.com/acme/lab.git/info/refs?service=git-upload-pack", headers: { host: "github.com", "proxy-authorization": proxyLogin(TURN) } }, 403, "text/plain; charset=utf-8", `${said("git call to GitHub")}\n`],
+    ["gh's REST", { door: "gh", path: "/repos/acme/lab", headers: { host: "api.github.com", authorization: `token ${TURN}` } }, 403, "application/json; charset=utf-8", { message: said("gh call to GitHub"), status: "403" }],
+    ["gh's GraphQL", { door: "gh", method: "POST", path: "/graphql", headers: { host: "api.github.com", authorization: `token ${TURN}` }, body: '{"query":"{viewer{login}}"}' }, 200, "application/json; charset=utf-8", { errors: [{ type: "FORBIDDEN", message: said("gh call to GitHub") }] }],
+  ])("answers %s in its own shape, naming the call and the fault, with x-should-retry false", async (_client, call, status, type, body) => {
+    r = await rig({ services });
+    const got = await r.call(call);
+    expect([got.status, got.headers["x-should-retry"], got.headers["content-type"]]).toEqual([status, "false", type]);
+    expect(type.startsWith("text/") ? got.body : JSON.parse(got.body)).toEqual(body);
+    expect(got.body).not.toContain("x team");
+  });
+
+  it("answers an upgrade whose service throws before its handshake a 400, the one status codex-cli does not retry", async () => {
+    r = await rig({ services });
+    const [host, client] = pipePair();
+    r.broker.take(WS, { op: "pipe.open", door: "http", heldMs: 0 }, host);
+    const answer = await new Promise<{ status: number; retry?: string; body: string }>((resolve, reject) => {
+      const req = request({ createConnection: () => client as never, path: "/backend-api/codex/responses", headers: { host: "127.0.0.1:7071", connection: "Upgrade", upgrade: "websocket", authorization: `Bearer ${placeholderJwt(TURN)}` } });
+      req.on("upgrade", res => resolve({ status: res.statusCode ?? 0, body: "" }));
+      req.on("response", res => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, retry: res.headers["x-should-retry"] as string, body: Buffer.concat(chunks).toString("utf8") }));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    expect(answer).toEqual({ status: 400, retry: "false", body: `${said("Codex ChatGPT call")}\n` });
   });
 });

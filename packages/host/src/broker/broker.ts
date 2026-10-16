@@ -12,7 +12,7 @@ import type { BrokerStatus, PipeDoor, PipeOpen } from "@wsp/protocol";
 import { brokerCredentials, type CredentialPorts } from "./credentials.js";
 import type { BrokerLog } from "./log.js";
 import { offSwitch, type OffSwitch } from "./off.js";
-import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, FAILED_SAID, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, UNHELD_SAID, writeRefusal, type RefusalStatus } from "./refuse.js";
+import { CONNECT_SAID, connectorSaid, DEAD_TOKEN_SAID, failedSaid, NO_TOKEN_SAID, NOWHERE_SAID, OTHER_MACHINE_SAID, REVOKED_SAID, shapeOf, stopStatus, UNHELD_SAID, writeRefusal, type RefusalStatus } from "./refuse.js";
 import { dropCallerAuth, hostOf, isConnectorCall, isRefreshCall, pathOf, REFRESH_BODY_MAX, refreshToken, tokenOf } from "./tokens.js";
 import type { BrokerContext, BrokerLogLine, BrokerService, BrokerWorkspace, Grant, LiveGrant, PushedRef, RefusalShape } from "./types.js";
 
@@ -329,13 +329,15 @@ export function createBroker(o: BrokerOptions): Broker {
     const line = lineFor(req, p);
     neverUnauthorized(res);
     res.on("close", () => line.done(res.headersSent ? res.statusCode : 0));
+    const shape = shapeOf(req, p.door);
     void (async () => {
       const admitted = await admit(req, res, p, line);
       if (admitted === undefined) return;
       try {
         await admitted.service.serve(brokerRequest(p, admitted.grant, admitted.req, res, line.heldMs), contextFor(p, line.note));
-      } catch {
-        writeRefusal(res, 503, FAILED_SAID, shapeOf(req, p.door));
+      } catch (e) {
+        // A 503 reads to Claude Code as overloaded, three of which end the turn, though a retry fails the same way.
+        writeRefusal(res, stopStatus(shape), failedSaid(admitted.service.id, e), shape);
       }
     })().catch(() => res.destroy());
   });
@@ -350,16 +352,19 @@ export function createBroker(o: BrokerOptions): Broker {
     socket.on("close", () => line.done(res.headersSent ? res.statusCode : (p.rawStatus ?? 0)));
     // An ended pipe's ws stream emits no close until something destroys it (measured on ws 8.21), and the line waits on that close.
     res.on("finish", () => socket.destroy());
+    const shape = shapeOf(req, p.door);
     void (async () => {
       const admitted = await admit(req, res, p, line);
       if (admitted === undefined) return;
       const upgrade = admitted.service.upgrade;
-      if (upgrade === undefined) return writeRefusal(res, 404, NOWHERE_SAID, shapeOf(req, p.door));
+      if (upgrade === undefined) return writeRefusal(res, 404, NOWHERE_SAID, shape);
       res.detachSocket(socket as Parameters<ServerResponse["detachSocket"]>[0]);
       try {
         await upgrade.call(admitted.service, brokerRequest(p, admitted.grant, req, res, line.heldMs), socket, head, contextFor(p, line.note));
-      } catch {
-        socket.destroy();
+      } catch (e) {
+        if (p.rawStatus !== undefined || socket.destroyed) return socket.destroy();
+        res.assignSocket(socket as Parameters<ServerResponse["assignSocket"]>[0]);
+        writeRefusal(res, stopStatus(shape), failedSaid(admitted.service.id, e), shape);
       }
     })().catch(() => socket.destroy());
   });
