@@ -128,16 +128,17 @@ function grantOf(who: Awaited<ReturnType<RuntimeServer["authorize"]>>): Grant | 
   return { ...kindOf(device.name), workspaceId: scope.workspaceId, threadId: scope.threadId };
 }
 
-/** A service whose refusals are also written into the calling thread: an agent may not print a refusal's body, so the
- * sentence is a row there too, once per turn. A refusal to a caller already gone writes no row: a service cuts its
- * upstream when its caller leaves and reads the cut as unreachable, as when Codex's process ends mid-poll. */
-function withRows(service: BrokerService, row: (grant: Grant, said: string) => void): BrokerService {
+/** A service whose refusals and retries are also written into the calling thread: an agent may not print a refusal's
+ * body, so the sentence is a row there too, once per turn. A refusal to a caller already gone writes no row: a service
+ * cuts its upstream when its caller leaves and reads the cut as unreachable, as when Codex's process ends mid-poll. */
+function withRows(service: BrokerService, row: (grant: Grant, said: string) => void, retrying: (grant: Grant, retry: { attempt: number; why: string }) => void): BrokerService {
   const told = (grant: Grant, ctx: BrokerContext): BrokerContext => ({
     ...ctx,
     refuse: (res, status, said, shape) => {
       if (!res.destroyed) row(grant, said);
       ctx.refuse(res, status, said, shape);
     },
+    retrying: retry => retrying(grant, retry),
   });
   const { upgrade } = service;
   return {
@@ -257,8 +258,11 @@ export function hostBroker(o: HostBrokerOptions): HostBroker {
       const row = (grant: Grant, said: string): void => {
         if (grant.threadId !== undefined) void rt.sessions.noteWaited(grant.threadId, 0, said).catch(() => undefined);
       };
+      const retrying = (grant: Grant, retry: { attempt: number; why: string }): void => {
+        if (grant.kind === "turn" && grant.threadId !== undefined) rt.sessions.noteRetry(grant.threadId, retry);
+      };
       const broker = createBroker({
-        services: services.map(service => withRows(service, row)),
+        services: services.map(service => withRows(service, row, retrying)),
         authorize: async token => doctorGrants.get(token) ?? grantOf(await server.authorize(token)),
         workspace: id => workspaceOf(rt, id),
         live: id => liveOn(rt, id),

@@ -237,6 +237,7 @@ export function createBroker(o: BrokerOptions): Broker {
       return w;
     },
     refuse: (res, status, said, shape) => writeRefusal(res, status, said, shape),
+    retrying() {},
     log(line) {
       if (Array.isArray(line.pushes)) note.pushes.push(...line.pushes);
     },

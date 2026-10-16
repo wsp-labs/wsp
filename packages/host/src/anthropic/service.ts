@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { pipeline } from "node:stream";
+import { anthropicRetryWhy } from "@wsp/protocol";
 import { computerNameHere } from "../places/this-computer.js";
 
 /** The person's Claude sign-in as the broker hands it over for one request: a setup-token or a claude.ai login's
@@ -24,6 +25,7 @@ export interface AnthropicRequest {
 export interface AnthropicContext {
   credential(kind: "anthropic"): Promise<AnthropicCredential | undefined>;
   refuse(res: ServerResponse, status: 403, said: string, shape: "anthropic"): void;
+  retrying(retry: { attempt: number; why: string }): void;
 }
 
 const ALLOWED = new Set(["POST /v1/messages", "POST /v1/messages/count_tokens", "GET /v1/models", "HEAD /api/hello"]);
@@ -100,6 +102,24 @@ function streams(body: Buffer): boolean {
   }
 }
 
+/** Whether Claude Code makes a call again after this failed answer, its `tries`th, by its own rule, not its SDK's
+ * (2.1.301): the API's x-should-retry, else a 408, 409 or any 5xx. A 429 it retries by the sign-in and the account's limit
+ * headers, and never for a claude.ai login at its limit, so a 429 is left to the agent's own line; off a claude.ai login
+ * it gives up at the third 529 in a row on Opus, Fable and Mythos; and it retries an overloaded_error body under
+ * x-should-retry false, a body this reads none of. */
+function retried(up: IncomingMessage, kind: AnthropicCredential["kind"], tries: number): boolean {
+  const status = up.statusCode ?? 0;
+  if (status < 400 || status === 401 || status === 429 || (status === 529 && kind !== "token" && tries >= 3)) return false;
+  const said = up.headers["x-should-retry"];
+  return said === "true" || (said !== "false" && (status === 408 || status === 409 || status >= 500));
+}
+
+const categoryOf = (status: number): string | undefined => (status === 529 ? "overloaded" : status >= 500 ? "server_error" : undefined);
+
+/** How many times Claude Code makes a failed call again before it gives up, unless its launch sets
+ * CLAUDE_CODE_MAX_RETRIES (2.1.301): a failure past it is never tried again. */
+const CLI_RETRIES = 10;
+
 /** 403 with x-should-retry false, which Claude Code obeys at once, printing the sentence. */
 function stop(res: ServerResponse, ctx: AnthropicContext, said: string): void {
   res.setHeader("x-should-retry", "false");
@@ -113,12 +133,20 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
   const upstream = options.upstream ?? "https://api.anthropic.com";
   const computer = options.computer ?? computerNameHere;
   const firstByteMs = options.firstByteMs ?? FIRST_BYTE_MS;
-  /** When each call was cut at the wait, by its thread and its body, kept a minute. */
-  const cut = new Map<string, number>();
-  const retried = (call: string): boolean => {
+  /** Each call that failed in the last minute and was not made again yet, by its thread and its body, which its retry
+   * repeats byte for byte: how many times, and whether it was cut at the wait, which spares the retry the wait once.
+   * One entry per failure, since subagents given one prompt send one body and each retries its own. */
+  const failed = new Map<string, Array<{ at: number; tries: number; cut: boolean }>>();
+  const takeFailed = (call: string): { at: number; tries: number; cut: boolean } | undefined => {
     const now = Date.now();
-    for (const [key, at] of cut) if (now - at > RETRY_WITHIN_MS) cut.delete(key);
-    return cut.delete(call);
+    for (const [key, list] of failed) {
+      const kept = list.filter(f => now - f.at <= RETRY_WITHIN_MS);
+      if (kept.length === 0) failed.delete(key);
+      else failed.set(key, kept);
+    }
+    const taken = failed.get(call)?.shift();
+    if (failed.get(call)?.length === 0) failed.delete(call);
+    return taken;
   };
   return {
     id: "anthropic" as const,
@@ -145,8 +173,21 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
       const wait = credential.kind === "gateway" ? undefined : firstByteMs + Math.floor(Number(req.headers["content-length"] ?? 0) / 32_768) * PER_32KB_MS;
       await new Promise<void>(done => {
         let call: string | undefined;
+        let before: { tries: number; cut: boolean } | undefined;
+        let left = false;
+        let told = false;
+        /** The call failed and Claude Code makes it again: the thread is told, since for a background subagent's call
+         * the CLI prints nothing, and for every other it prints its own line, which the thread keeps in place of this. */
+        const again = (why: string, cut: boolean): void => {
+          if (told || left) return;
+          told = true;
+          const tries = (before?.tries ?? 0) + 1;
+          if (call !== undefined) failed.set(call, [...(failed.get(call) ?? []), { at: Date.now(), tries, cut }]);
+          if (tries <= CLI_RETRIES) ctx.retrying({ attempt: tries, why });
+        };
         const out = send(target, { method: req.method, headers: upstreamHeaders(req.rawHeaders, credential, target.host), setHost: false }, up => {
           clearTimeout(timer);
+          if (retried(up, credential.kind, (before?.tries ?? 0) + 1)) again(anthropicRetryWhy(categoryOf(up.statusCode ?? 0), up.statusCode), false);
           if (up.statusCode === 401) {
             up.resume();
             stop(res, ctx, credential.kind === "token" && credential.expiresAt !== undefined ? said.expired : said[credential.kind]);
@@ -158,28 +199,31 @@ export function anthropicService(options: { upstream?: string; computer?: () => 
           pipeline(up, res, () => done());
         });
         const timer = wait === undefined ? undefined : setTimeout(() => {
-          if (call !== undefined) cut.set(call, Date.now());
+          again(anthropicRetryWhy(undefined, undefined), true);
           out.destroy(new Error("no reply started"));
         }, wait);
-        if (timer !== undefined) {
-          const body: Buffer[] = [];
-          req.on("data", (chunk: Buffer) => body.push(chunk));
-          req.on("end", () => {
-            const whole = Buffer.concat(body);
-            body.length = 0;
-            call = `${grant.workspaceId} ${grant.threadId ?? ""} ${createHash("sha256").update(whole).digest("hex")}`;
-            if (retried(call) || !streams(whole)) clearTimeout(timer);
-          });
-        }
+        const body: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => body.push(chunk));
+        req.on("end", () => {
+          const whole = Buffer.concat(body);
+          body.length = 0;
+          call = `${grant.workspaceId} ${grant.threadId ?? ""} ${createHash("sha256").update(whole).digest("hex")}`;
+          before = takeFailed(call);
+          if (before?.cut !== true && (timer === undefined || streams(whole))) return;
+          clearTimeout(timer);
+        });
         // Claude Code reads any status as an answer, a 503 overloaded_error as overloaded; only a cut reads as Anthropic not answering.
         out.on("error", () => {
           clearTimeout(timer);
+          if (!res.headersSent) again(anthropicRetryWhy(undefined, undefined), false);
           if (!res.writableEnded) res.destroy();
           done();
         });
         res.on("close", () => {
           clearTimeout(timer);
-          if (!res.writableFinished) out.destroy();
+          if (res.writableFinished) return;
+          left = true;
+          out.destroy();
         });
         pipeline(req, out, () => {});
       });

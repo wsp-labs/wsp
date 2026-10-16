@@ -1937,6 +1937,21 @@ describe("a model call Claude Code tries again", () => {
     expect(await whyOf(429, "rate_limit")).toMatchObject({ why: "Anthropic's rate limit was reached" });
     expect(await whyOf(418, "something_new")).toMatchObject({ why: "Anthropic answered 418" });
   });
+
+  it("says a subagent's retry off the progress line its call carries, the CLI's only word on it (measured on 2.1.301)", async () => {
+    // A subagent the agent waits on, its call held past the CLI's wait: a heartbeat, the retry, then the call through.
+    const progress = (more: Record<string, unknown>) => JSON.stringify({ type: "tool_progress", tool_use_id: "agent_msg_12", tool_name: "Agent", parent_tool_use_id: "toolu_one", elapsed_time_seconds: 0, session_id: FIXTURE_SESSION_ID, uuid: "66f6638f-09b9-4699-bc14-552076ae3cec", subagent_type: "general-purpose", ...more });
+    const { events } = await run([
+      JSON.stringify({ type: "tool_progress", tool_use_id: "toolu_one-heartbeat-0", tool_name: "Agent", parent_tool_use_id: "toolu_one", elapsed_time_seconds: 30, heartbeat: true, session_id: FIXTURE_SESSION_ID, uuid: "66f6638f-09b9-4699-bc14-552076ae3cec" }),
+      progress({ subagent_retry: { agent_id: "a306bf0cc23c2cec4", attempt: 1, max_retries: 10, retry_delay_ms: 580, error_status: null, error_category: "unknown" } }),
+      progress({ subagent_retry: { agent_id: "a306bf0cc23c2cec4", attempt: 2, max_retries: 10, retry_delay_ms: 1100, error_status: 529, error_category: "overloaded" } }),
+      progress({}),
+    ]);
+    expect(events.filter(e => e.type === "turn.retry")).toEqual([
+      { type: "turn.retry", sessionId: FIXTURE_SESSION_ID, attempt: 1, of: 10, why: "Anthropic did not answer" },
+      { type: "turn.retry", sessionId: FIXTURE_SESSION_ID, attempt: 2, of: 10, why: "Anthropic was overloaded" },
+    ]);
+  });
 });
 
 describe("a compaction Claude Code ran by itself mid-session", () => {

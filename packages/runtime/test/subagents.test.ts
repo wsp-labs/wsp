@@ -11,6 +11,8 @@ import { describe, expect, it } from "vitest";
 import { foldThreads, type AdapterEvent, type HarnessCatalogAnswer, type SessionEvent, type TaskStop, type TurnResult } from "@wsp/protocol";
 import { createRuntime, TOOL_RESULT_KEPT, TRANSCRIPT_BYTES, type HarnessAdapterFactory, type HarnessSession } from "../src/runtime.js";
 import { memoryStore, type Store } from "../src/store.js";
+import { RETRY_SETTLE_MS } from "../src/threads/waits.js";
+import { fakeClock } from "./fake-clock.js";
 import { createOn, stubBackend, type StubBackend } from "./stub-backend.js";
 import { until } from "./until.js";
 
@@ -312,6 +314,54 @@ describe("an agent's own subagents as children of its thread", () => {
     await until(async () => rows(await rt3.sessions.history(ws.id)).includes("two"));
     expect(rows(await rt3.sessions.history(ws.id))).toEqual(["one", "retry 1 of 10: Anthropic is overloaded", "retry 1 of 10: Anthropic did not answer", "two"]);
     await rt3.close();
+  });
+
+  it("a run re-read after a restart counts only the agent's own retries, never one the host saw and wrote itself", async () => {
+    const h = machineRuns();
+    const store = memoryStore();
+    const backend = stubBackend();
+    const { rt, ws, handle, run } = await begin(h, store, backend);
+    const rows = (events: readonly SessionEvent[]) => events.flatMap(e => (e.type === "session.retry" ? [`retry ${e.attempt}: ${e.why}`] : []));
+    h.emit(run, { type: "turn.retry", sessionId: "sess-1", attempt: 1, of: 10, why: "Anthropic was overloaded" });
+    // A background subagent's call the host cut, which its agent never says.
+    rt.sessions.noteRetry(handle.view().threadId!, { attempt: 1, why: "Anthropic did not answer" });
+    await until(async () => rows(await rt.sessions.history(ws.id)).length === 2);
+    await rt.close();
+
+    const rt2 = createRuntime({ backend, store, adapters: { claude: h.adapter } });
+    h.emit(run, { type: "turn.retry", sessionId: "sess-1", attempt: 2, of: 10, why: "Anthropic was overloaded" });
+    await until(async () => rows(await rt2.sessions.history(ws.id)).length >= 3);
+    expect(rows(await rt2.sessions.history(ws.id))).toEqual(["retry 1: Anthropic was overloaded", "retry 1: Anthropic did not answer", "retry 2: Anthropic was overloaded"]);
+    await rt2.close();
+  });
+
+  it("a retry the host saw is no row when its agent says it inside the window, and one it never says is written as itself", async () => {
+    const h = machineRuns();
+    const fc = fakeClock();
+    const rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter }, clock: fc.clock });
+    const ws = await createOn(rt, { golden: "snap_g", name: "a" });
+    const handle = await rt.sessions.start(ws.id, { prompt: "fan out" });
+    await until(async () => (await rt.sessions.history(ws.id)).some(e => e.type === "session.start"));
+    const run = h.handles().at(-1)!;
+    const thread = handle.view().threadId!;
+    const rows = async () => (await rt.sessions.history(ws.id)).flatMap(e => (e.type === "session.retry" ? [`${e.line === undefined ? "host" : "agent"} ${e.attempt}: ${e.why}`] : []));
+    const says = async (why: string) => {
+      h.emit(run, { type: "turn.retry", sessionId: "sess-1", attempt: 1, of: 10, why });
+      await until(async () => (await rows()).includes(`agent 1: ${why}`));
+    };
+    // A cut the agent says at once; a background subagent's 500, which it never says; a 529 it says 0.3 s on, as the
+    // cut's own wait ends.
+    rt.sessions.noteRetry(thread, { attempt: 1, why: "Anthropic did not answer" });
+    await says("Anthropic did not answer");
+    fc.advance(1_000);
+    rt.sessions.noteRetry(thread, { attempt: 3, why: "Anthropic answered with a server error (500)" });
+    fc.advance(850);
+    rt.sessions.noteRetry(thread, { attempt: 1, why: "Anthropic was overloaded" });
+    fc.advance(300);
+    await says("Anthropic was overloaded");
+    fc.advance(RETRY_SETTLE_MS);
+    expect(await rows()).toEqual(["agent 1: Anthropic did not answer", "agent 1: Anthropic was overloaded", "host 3: Anthropic answered with a server error (500)"]);
+    await rt.close();
   });
 
   it("a resumed child stays while its second start row is in the ring, though its first has left", async () => {
