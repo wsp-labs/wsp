@@ -74,6 +74,9 @@ export interface AgentRun {
   turns: number;
   log: Buffer;
   exit?: string;
+  /** The seed its launch held back, and a line parked until due, each until the command that hands it over. */
+  held?: string;
+  late?: string;
 }
 
 /** How the computer answers stdio.open, stdio.write and stdio.close, for a case that runs their commands: the reply,
@@ -127,7 +130,26 @@ function agentAnswers(seen: Box, sessions: Map<string, { session: string; cwd: s
     seen.runs.set(base, run);
     sessions.set(base, { session: /--(?:session-id|resume) '?([0-9a-f-]{36})/.exec(script.text)?.[1] ?? "", cwd: /cd '([^']+)' && /.exec(script.text)?.[1] ?? login.home });
     for (const line of (files.find(f => f.path === `${base}.in`)?.text ?? "").split("\n").filter(Boolean)) answer(run, sessions.get(base)!, line);
+    const held = files.find(f => f.path === `${base}.held`)?.text;
+    if (held !== undefined) run.held = held;
     return "WSP_LAUNCHED\n";
+  }
+  // What the channel was held back from goes in where a command hands it over, ahead of anything else it does.
+  const handOver = (pattern: RegExp, key: "held" | "late"): boolean => {
+    const at = pattern.exec(cmd)?.[1];
+    const run = at === undefined ? undefined : seen.runs.get(at);
+    if (run === undefined) return false;
+    const text = run[key];
+    delete run[key];
+    if (text !== undefined && run.exit === undefined) for (const line of text.split("\n").filter(Boolean)) answer(run, sessions.get(at!)!, line);
+    return true;
+  };
+  const released = [handOver(/if \[ -e '([^']+)'\.held \]/, "held"), handOver(/if \[ -e '([^']+)'\.late \]/, "late")].some(Boolean);
+  const parked = files.find(f => !f.append && f.path.endsWith(".late"));
+  if (parked !== undefined) {
+    const run = seen.runs.get(parked.path.slice(0, -".late".length));
+    if (run !== undefined) run.late = parked.text;
+    return "";
   }
   const write = files.find(f => f.append && f.path.endsWith(".in"));
   if (write !== undefined) {
@@ -159,6 +181,8 @@ function agentAnswers(seen: Box, sessions: Map<string, { session: string; cwd: s
   }
   if (base === undefined && /rm -rf '([^']+)'\.\*/.test(cmd)) return "";
   if (cmd.includes("wc -c <")) return seen.sessionBytes === undefined ? "" : `${seen.sessionBytes}\n`;
+  if (released && !cmd.includes(HANDSHAKE.run)) return "";
+  if (/^rm -f '[^']+'\.late '[^']+'\.late\.key$/.test(cmd)) return "";
   return undefined;
 }
 
