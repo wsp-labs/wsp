@@ -2176,8 +2176,8 @@ describe("wsp init, flags and no terminal", () => {
         clock: { now: Date.now, sleep: async () => {} },
         fetch: (async (url: string, init?: RequestInit) => {
           const path = new URL(String(url)).pathname;
-          if (path.endsWith("/limits")) return Response.json({ accessTier: "standard", maxActiveBoxes: 100, activeBoxes: 11, boxPlanKey: "box_20", starts: { minute: { limit: 12, used: 1, remaining: 11 }, hour: { limit: 60, used: 9, remaining: 51 }, day } });
-          if (init?.method === "POST" && path.endsWith("/boxes")) posts += 1;
+          if (path.endsWith("/limits")) return Response.json({ accessTier: "standard", maxActiveSandboxes: 100, activeSandboxes: 11, sandboxPlanKey: "box_20", starts: { minute: { limit: 12, used: 1, remaining: 11 }, hour: { limit: 60, used: 9, remaining: 51 }, day } });
+          if (init?.method === "POST" && path.endsWith("/sandboxes")) posts += 1;
           return Response.json({ ok: false, status: 429, code, message: said, requestId: "req_1" }, { status: 429 });
         }) as typeof globalThis.fetch,
       });

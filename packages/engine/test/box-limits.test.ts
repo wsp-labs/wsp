@@ -7,21 +7,21 @@ import type { RetryClock } from "../src/errors.js";
 /** GET /limits on the owner's account, 2026-10-11 17:06 UTC, trimmed to the fields phase 1 reads (spec 01). */
 const OWNER_LIMITS = {
   accessTier: "standard",
-  maxActiveBoxes: 100,
-  activeBoxes: 11,
+  maxActiveSandboxes: 100,
+  activeSandboxes: 11,
   startLimits: { perMinute: 12, perHour: 60, perDay: 200 },
   starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
   activeStates: ["provisioned", "cloning", "ready", "idle", "running"],
   canStart: true,
   startBlockedReason: null,
   creditBalanceHours: 81.6,
-  boxPlanKey: "box_20",
+  sandboxPlanKey: "box_20",
 };
 
 /** The trial's limits as Boat's pricing states them: two machines, 5, 25 and 75 starts. */
 const TRIAL_LIMITS = {
   accessTier: "trial",
-  maxActiveBoxes: 2,
+  maxActiveSandboxes: 2,
   starts: { minute: { limit: 5, used: 1, remaining: 4 }, hour: { limit: 25, used: 3, remaining: 22 }, day: { limit: 75, used: 3, remaining: 72 } },
 };
 
@@ -42,7 +42,7 @@ describe("Boat's plan and starts on its row", () => {
   });
 
   it("sells 16x32 from the $100 plan up, and two sizes on the trial", () => {
-    expect(placeLimitsOf(limitsOf({ ...OWNER_LIMITS, boxPlanKey: "box_100" }))?.plan.sizes).toEqual(["2x4", "4x8", "8x16", "16x32"]);
+    expect(placeLimitsOf(limitsOf({ ...OWNER_LIMITS, sandboxPlanKey: "box_100" }))?.plan.sizes).toEqual(["2x4", "4x8", "8x16", "16x32"]);
     expect(placeLimitsOf(limitsOf(TRIAL_LIMITS))).toEqual({
       plan: { trial: true, machinesAtOnce: 2, sizes: ["2x4", "4x8"] },
       starts: { minute: { used: 1, limit: 5 }, hour: { used: 3, limit: 25 }, day: { used: 3, limit: 75 } },
@@ -50,7 +50,7 @@ describe("Boat's plan and starts on its row", () => {
   });
 
   it("carries nothing for a read that names no machine cap", () => {
-    const { maxActiveBoxes: _cap, ...rest } = OWNER_LIMITS;
+    const { maxActiveSandboxes: _cap, ...rest } = OWNER_LIMITS;
     expect(placeLimitsOf(limitsOf(rest))).toBeUndefined();
   });
 

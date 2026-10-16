@@ -329,7 +329,7 @@ describe("Boat with the cloud off, as a public build registers it", () => {
     });
     expect(await providerKeyCheck({}, "bx_plainly_wrong_key", "box", OFF)).toEqual({ state: "refused", said: "401 unauthorized" });
     expect(await providerKeyCheck({}, "bx_good", "box", OFF)).toEqual({ state: "taken", answer: limitsOf({}) });
-    expect(asked.filter(path => path.endsWith("/limits"))).toEqual(["/api/box/v1/limits", "/api/box/v1/limits"]);
+    expect(asked.filter(path => path.endsWith("/limits"))).toEqual(["/api/v1/limits", "/api/v1/limits"]);
   });
 
   it("builds the row a person named, the wired row only where none was named, and refuses a name no row has", () => {

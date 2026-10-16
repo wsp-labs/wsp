@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { compareVersions } from "../../protocol/src/semver.mjs";
 import { bundleNames } from "../../protocol/src/bundles.mjs";
-import { PERMISSIONS_AGAIN, bundleNote, changeLines, cliArgs, previousTag, releaseNotes, renameNote } from "../scripts/release-notes.mjs";
+import { BOX_API_URL } from "../../engine/src/box-backend.js";
+import { BOAT_MOVED, BOAT_SUNSET, PERMISSIONS_AGAIN, bundleNote, changeLines, cliArgs, previousTag, releaseNotes, renameNote } from "../scripts/release-notes.mjs";
 
 const readme = readFileSync(fileURLToPath(new URL("../../../README.md", import.meta.url)), "utf8");
 const published = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")).name as string;
@@ -169,6 +170,16 @@ describe("the notes on the draft release", () => {
     expect(notes()).toContain(`\n${PERMISSIONS_AGAIN}\n`);
     expect(PERMISSIONS_AGAIN).toBe("macOS may ask again for permissions you gave wsp, since each update is signed on its own.");
     expect(notes(true)).not.toContain(PERMISSIONS_AGAIN);
+  });
+
+  it("tell a person on Boat the base wsp now calls and the date to update by, until the date Boat's Sunset header names", () => {
+    expect(BOAT_MOVED).toContain(BOX_API_URL.replace("https://", ""));
+    expect(BOAT_MOVED).toContain("31 October 2026");
+    expect(BOAT_MOVED).toContain("update wsp before then");
+    expect(new Date(BOAT_SUNSET).toUTCString()).toBe("Sat, 31 Oct 2026 00:00:00 GMT");
+    const at = (now: number): string => releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(readme, false), now });
+    expect(at(Date.parse("2026-10-16T00:00:00Z"))).toContain(`## What changed since v0.1.3\n\n${BOAT_MOVED}\n`);
+    expect(at(BOAT_SUNSET)).not.toContain(BOAT_MOVED);
   });
 
   it("carry the README's lines on opening a downloaded bundle, for the signing the release got", () => {

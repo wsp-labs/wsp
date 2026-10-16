@@ -17,11 +17,11 @@ runsFromItsOwnFolder();
 /** GET /limits on the owner's account, 2026-10-11 17:06 UTC, trimmed to the fields a row reads (spec 01). */
 const OWNER_LIMITS = {
   accessTier: "standard",
-  maxActiveBoxes: 100,
-  activeBoxes: 11,
+  maxActiveSandboxes: 100,
+  activeSandboxes: 11,
   starts: { unlimited: false, minute: { limit: 12, used: 0, remaining: 12 }, hour: { limit: 60, used: 9, remaining: 51 }, day: { limit: 200, used: 187, remaining: 13 } },
   canStart: true,
-  boxPlanKey: "box_20",
+  sandboxPlanKey: "box_20",
 };
 
 describe("Boat's settings and its limits on the command line", () => {
@@ -118,7 +118,7 @@ describe("Boat's settings and its limits on the command line", () => {
     expect(head!.split(/ {2,}/)).toEqual(expect.arrayContaining(["STARTS", "WORKSPACES"]));
     expect(rows.find(r => r.startsWith("Boat"))).toContain("187/200 today");
     // The host's sweep lists Boat's boxes beside this; the limits are read once.
-    expect(asked.filter(at => at.endsWith("/limits"))).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
+    expect(asked.filter(at => at.endsWith("/limits"))).toEqual(["GET https://boat.dev/api/v1/limits"]);
   });
 
   it("starts the host and lists and sets its computers while Boat's /limits has not answered, and the row reads it once it has", async () => {
@@ -130,7 +130,7 @@ describe("Boat's settings and its limits on the command line", () => {
       const ran = await h.run(...line);
       expect(ran.io.errors, line.join(" ")).toEqual([]);
     }
-    expect(asked.filter(at => at.endsWith("/limits"))).toEqual(["GET https://ascii.dev/api/box/v1/limits"]);
+    expect(asked.filter(at => at.endsWith("/limits"))).toEqual(["GET https://boat.dev/api/v1/limits"]);
     expect((await boatRow()).settings).toEqual({ size: { cpu: 4, memMb: 8192 } });
     answer();
     await vi.waitFor(async () => expect((await h.rt.places!.list(Date.now())).find(p => p.id === "box")?.plan).toMatchObject({ key: "box_20" }));
