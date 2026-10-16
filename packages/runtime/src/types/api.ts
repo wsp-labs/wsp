@@ -645,8 +645,8 @@ export interface Runtime {
      * snapshot a template stands on). The split is read again first, so nothing recorded since is touched, and
      * nothing without this host's mark is ever passed to a delete. */
     deleteOrphans(): Promise<OrphansDeleted | undefined>;
-    /** Every place holding versions of the golden: the place it was sealed at, then the place this host forks on when
-     * that is another place and holds a copy of it. */
+    /** Every place this host has that holds versions of the golden: the place it was sealed at, then the place this
+     * host forks on when that is another place, then every other place holding a copy. */
     retentionPlaces(name?: string): Promise<string[]>;
     /** The golden's ancestors older than its head and the head's parent at one place (the place it was sealed at when
      * none is named), with what deleting them frees, minus every version a workspace of this runtime was forked from,
