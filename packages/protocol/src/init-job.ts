@@ -219,6 +219,10 @@ export const InitJob = z.object({
   /** What the update road said as it ran, which a terminal beside the host prints as it lands: that the image already
    * matches the recipe, or the changes since it and the road taken. Absent off that road. */
   update: z.array(InitSaidLine).optional(),
+  /** What the run said of the builders earlier runs left on the account, which a terminal beside the host prints as it
+   * lands: each one found with its price, the stop and why nobody was asked, or the one attached to. Absent when none
+   * was running. */
+  builders: z.array(InitSaidLine).optional(),
   workspace: z.object({ id: z.string(), name: z.string() }).optional(),
   /** The computer the job is for, by id and the name wsp places lists: the one a card started it from, from its start,
    * then the place the build was sent to once it starts. Absent on a job no card started, until its build starts. */
