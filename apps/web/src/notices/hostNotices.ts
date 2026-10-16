@@ -18,14 +18,14 @@
 // sound while the person keeps that switch on. The
 // dock's badge counts the threads waiting on the person. A newer release is
 // never a notice: the sidebar's update card says it.
-import { NOTIFY_ME, waitLine, setupNeedsYouLine, setupReadyLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
+import { NOTIFY_ME, waitLine, setupNeedsYouLine, setupReadyLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type InitJob, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import type { ProtocolEvent } from "../protocol/client.js";
 import { threadOnScreen, useProtocolEvents, useStore } from "../protocol/store.js";
 import { desktopBridge } from "../lib/desktopShell.js";
 import { placeName } from "../settings/places.js";
 import { openSetup, sayEnded, useAddFlow } from "../settings/add/addFlow.js";
-import { useCloudFlow } from "../settings/add/cloudFlow.js";
+import { openReadyOwed, useCloudFlow } from "../settings/add/cloudFlow.js";
 import { useSettingsStore } from "../settings/settingsStore.js";
 import { needsYouRoad, type NeedsYouRoad } from "../shell/needsYou.js";
 import { copyName } from "../sidebar/workspaceRows.js";
@@ -111,6 +111,26 @@ const openComputer = (placeId: string | undefined): NoticeAction => ({
     useStore.getState().openSettings();
   },
 });
+
+/** A sealed build's Open: Add a cloud provider's ready page where that build still owes it, else the computer's page. */
+const openSealed = (placeId: string | undefined, jobId: string): NoticeAction => ({
+  word: HOST_NOTICE_WORDS.open,
+  run: () => (placeId !== undefined && openReadyOwed(placeId, jobId) ? undefined : openComputer(placeId).run()),
+});
+
+/** A build's computer by the name wsp places lists, else the name the job carries, and its image's words. */
+function sealWords(job: InitJob): { name: string | undefined; sealed: string } {
+  const place = useStore.getState().places.find(p => p.id === job.place?.id);
+  return { name: place === undefined ? job.place?.name : placeName(place), sealed: HOST_NOTICE_WORDS.imageSealed(job.golden?.version) };
+}
+
+/** A seal said in the window, its Open the ready page where that build owes it. Add a cloud provider closed on a
+ * sealed build says it too, since its heading stood in for this notice. */
+export function saySealed(job: InitJob): void {
+  const { name, sealed } = sealWords(job);
+  if (name === undefined) addNotice({ kind: "done", text: sealed });
+  else addNotice({ kind: "done", text: setupReadyLine(name), detail: `${sealed}.`, where: name, action: openSealed(job.place?.id, job.id) });
+}
 
 /** What the rules keep between events, for one mounted effect. */
 interface Held {
@@ -307,15 +327,12 @@ const RULES: { [T in ProtocolEvent["type"]]?: Rule<T> } = {
     if ((phase !== "done" && phase !== "failed") || held.jobsEnded.has(id)) return;
     held.jobsEnded.add(id);
     const at = e.job.place?.id;
-    const place = useStore.getState().places.find(p => p.id === at);
-    const name = place === undefined ? e.job.place?.name : placeName(place);
-    const sealed = HOST_NOTICE_WORDS.imageSealed(e.job.golden?.version);
+    const { name, sealed } = sealWords(e.job);
     // A build sent to the background ends with nobody watching, so its end goes out on the shell's road too.
-    if (phase === "done" && name !== undefined) sayOutside(held, openComputer(at).run, lineFor({ kind: "imageReady", computer: name, image: sealed }));
+    if (phase === "done" && name !== undefined) sayOutside(held, openSealed(at, id).run, lineFor({ kind: "imageReady", computer: name, image: sealed }));
     if (buildOnScreen(at) || cloudBuildOnScreen(at)) return;
     if (phase === "failed") addNotice({ kind: "error", text: HOST_NOTICE_WORDS.imageNotBuilt(e.job.error), action: openComputer(at) });
-    else if (name === undefined) addNotice({ kind: "done", text: sealed });
-    else addNotice({ kind: "done", text: setupReadyLine(name), detail: `${sealed}.`, where: name, action: openComputer(at) });
+    else saySealed(e.job);
   },
   "workspace.gone": e => {
     const name = workspaceNamed(e.workspaceId);

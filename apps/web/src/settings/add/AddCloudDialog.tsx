@@ -24,6 +24,7 @@ import { RadioGroup } from "../../components/ui/radio-group.js";
 import { Spinner } from "../../components/ui/spinner.js";
 import { keyTakenAt } from "../../keyOwners.js";
 import { cn } from "../../lib/utils.js";
+import { saySealed } from "../../notices/hostNotices.js";
 import { failureOf, type Failure } from "../../protocol/failure.js";
 import { useStore } from "../../protocol/store.js";
 import { requestComposerFocus } from "../../shell/shellRequests.js";
@@ -38,7 +39,7 @@ import { cloudsOffered } from "../providers.js";
 import { useSettingsStore } from "../settingsStore.js";
 import { CopyRow, RefusalSlot } from "../sheetParts.js";
 import { CLOUD_KEY_STEPS } from "./cloudKey.js";
-import { CLOUD_PICKS, checkKey, closeCloudAdd, cloudSteps, goCloud, jobFor, keyWorksLine, pickScreens, useCloudFlow, type CloudPick, type CloudStep, type KeyCheck } from "./cloudFlow.js";
+import { CLOUD_PICKS, checkKey, closeCloudAdd, cloudSteps, goCloud, jobFor, keyWorksLine, oweReady, pickScreens, useCloudFlow, type CloudPick, type CloudStep, type KeyCheck } from "./cloudFlow.js";
 import { PickList, RANGE_HOVER } from "./PickList.js";
 import { Choice, Size } from "./PickLists.js";
 import { PickRow } from "./PickRow.js";
@@ -368,6 +369,14 @@ export function AddCloudDialog() {
     if (initJobBuilding(phase) && flow.step === "summary") goCloud("building");
   }, [flow.open, phase, flow.step]);
 
+  // A close before the seal leaves the ready page to the seal's Open.
+  const jobId = job?.id;
+  useEffect(() => {
+    if (!flow.open || jobId === undefined) return;
+    if (flow.step === "building") oweReady(flow.provider, jobId);
+    else if (flow.step === "ready") oweReady(flow.provider, null);
+  }, [flow.open, flow.step, flow.provider, jobId]);
+
   if (!flow.open) return null;
 
   const offered = cloudsOffered(setup);
@@ -377,6 +386,7 @@ export function AddCloudDialog() {
   const close = (): void => {
     setKeyText("");
     keyNow.current = "";
+    if (flow.step === "building" && job?.phase === "done") saySealed(job);
     closeCloudAdd();
   };
 
