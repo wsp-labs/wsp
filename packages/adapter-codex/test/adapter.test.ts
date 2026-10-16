@@ -7,7 +7,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { agentWord, BROKER_PORT, conversationWrittenElsewhereLine, LOST_SESSION_NOTE, lostSessionPrompt, asideWallLine, CODEX_FEWER_TURNS, CODEX_LEGACY_HISTORY, codexKeyRefusedLine, codexNoTurnLine, codexMissingEnvLine, codexNotSignedInLine, codexReconnectLine, PERMISSION_ALLOW, PERMISSION_DENY, SLATE_SERVER_NAME, toolCallFacts } from "@wsp/protocol";
 import type { AdapterEvent, ExecStream, ExecStreamFactory, TurnResult } from "@wsp/protocol";
-import { createCodexAdapter, creditsOf, type CodexSession } from "../src/adapter.js";
+import { createCodexAdapter, type CodexSession } from "../src/adapter.js";
+import { creditsOf } from "../src/limits.js";
 import { buildCommand } from "../src/command.js";
 import { LETS_GO } from "../src/conversations.js";
 
@@ -146,7 +147,7 @@ const deltasOf = (events: AdapterEvent[]) => events.filter((e): e is Extract<Ada
 
 const LOGIN = "codex login --device-auth";
 const NOT_SIGNED_IN = codexNotSignedInLine(LOGIN);
-const adapterOver = (launch: Launch, extra: { graceMs?: number; stallMs?: number; resultExitMs?: number } = {}) =>
+const adapterOver = (launch: Launch, extra: { graceMs?: number; stallMs?: number; resultExitMs?: number; steerJoinMs?: number } = {}) =>
   createCodexAdapter({
     exec: launch.factory,
     home: "/root/.codex",
@@ -154,6 +155,7 @@ const adapterOver = (launch: Launch, extra: { graceMs?: number; stallMs?: number
     ...(extra.graceMs !== undefined ? { interruptGraceMs: extra.graceMs } : {}),
     ...(extra.stallMs !== undefined ? { reconnectStallMs: extra.stallMs } : {}),
     ...(extra.resultExitMs !== undefined ? { resultExitMs: extra.resultExitMs } : {}),
+    ...(extra.steerJoinMs !== undefined ? { steerJoinMs: extra.steerJoinMs } : {}),
   });
 
 /** The lines a live server prints up to a running turn, for the cases that drive the rest by hand. */
@@ -486,7 +488,7 @@ describe("a message sent while a Codex turn runs", () => {
     expect(await session.finished).toMatchObject({ status: "completed", text: "stopped at 12" });
   });
 
-  it("reads not-running when the server turns the steer down, and before the turn has started", async () => {
+  it("reads not-running when the server turns the steer down, and after the turn ended", async () => {
     const live = launcher(seed => {
       const w = wire({
         onWrite: (message, self) => {
@@ -498,8 +500,6 @@ describe("a message sent while a Codex turn runs", () => {
       return w;
     });
     const session = adapterOver(live).start({ prompt: "x", onEvent: () => {} });
-    expect(await session.steer!("too early")).toBe("not-running");
-    expect(live.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
     live.wires[0]!.push(turnStarted);
     await new Promise(r => setTimeout(r, 5));
     expect(await session.steer!("refused")).toBe("not-running");
@@ -893,6 +893,76 @@ describe("what ends a Codex turn", () => {
     expect(await session.steer("one more thing")).toBe("accepted");
     live.wires[0]!.push(completed("completed"));
     expect(await session.finished).toMatchObject({ status: "completed", text: "all done" });
+  });
+
+  it("a steer sent before the server named the turn waits for turn/started and names that turn; one whose turn ends first is not-running", async () => {
+    let started = (): void => {};
+    const live = launcher(seed => {
+      const w = wire({
+        onWrite: (message, self) => {
+          if (message.method === "thread/start") self.push(...opened());
+          if (message.method === "turn/start") started = () => self.push(turnStarted);
+          if (message.method === "turn/steer") self.push(`{"id":${JSON.stringify(message.id)},"result":{"turnId":"${TURN_ID}"}}`);
+        },
+      });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const { onEvent } = collect();
+    const session = adapterOver(live).start({ prompt: "x", onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    const steered = session.steer("one more thing");
+    expect(await pending(steered, 50)).toBe(true);
+    started();
+    expect(await steered).toBe("accepted");
+    expect(live.wires[0]!.written.find(m => m.method === "turn/steer")!.params).toMatchObject({ threadId: THREAD_ID, expectedTurnId: TURN_ID });
+    live.wires[0]!.push(completed("completed"));
+    await session.finished;
+
+    const gone = launcher(seed => {
+      const w = wire({ onWrite: (message, self) => message.method === "thread/start" && self.push(...opened()) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const early = adapterOver(gone).start({ prompt: "x", onEvent: collect().onEvent });
+    await until(() => gone.wires[0]!.written.some(m => m.method === "turn/start"));
+    const late = early.steer("too soon");
+    gone.wires[0]!.exit(1);
+    expect(await late).toBe("not-running");
+    expect(gone.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
+  });
+
+  it("a steer waiting for turn/started answers not-running at a stop whose server does not go, and writes nothing", async () => {
+    const live = launcher(seed => {
+      const w = wire({ hang: true, onWrite: (message, self) => message.method === "thread/start" && self.push(...opened()) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(live, { graceMs: 60_000 }).start({ prompt: "x", onEvent: collect().onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    const steered = session.steer("too soon");
+    void session.interrupt();
+    expect(await pending(steered, 50)).toBe(false);
+    expect(await steered).toBe("not-running");
+    expect(live.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
+    live.wires[0]!.exit(0);
+    await session.finished;
+  });
+
+  it("a steer waiting for a turn/started that never comes answers not-running once the bound passes, and writes nothing", async () => {
+    const live = launcher(seed => {
+      const w = wire({ hang: true, onWrite: (message, self) => message.method === "thread/start" && self.push(...opened()) });
+      for (const line of seed) void w.stream.write(line);
+      return w;
+    });
+    const session = adapterOver(live, { steerJoinMs: 100 }).start({ prompt: "x", onEvent: collect().onEvent });
+    await until(() => live.wires[0]!.written.some(m => m.method === "turn/start"));
+    const steered = session.steer("too soon");
+    expect(await pending(steered, 50)).toBe(true);
+    expect(await steered).toBe("not-running");
+    expect(live.wires[0]!.written.some(m => m.method === "turn/steer")).toBe(false);
+    live.wires[0]!.exit(0);
+    await session.finished;
   });
 
   it("an interrupt's answer is not the turn's end: it stays open until turn/completed says interrupted", async () => {

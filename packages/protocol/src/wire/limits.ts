@@ -79,6 +79,10 @@ export const ASIDE_WALL_MS = 3 * 60_000;
 export const RUN_STOP_MS = 2_000;
 /** How long an interrupted turn's harness gets on the graceful signal before it and its tree are killed. */
 export const INTERRUPT_GRACE_MS = 5_000;
+/** The longest a message sent while its turn's agent is still starting waits for the agent to be up before it queues
+ * behind the turn and says so: Claude Code on Boat took its prompt 1.3 to 2 s after the row started on an awake
+ * machine and 1.5 to 5.4 s on one the send woke (2026-10-16). */
+export const STEER_JOIN_MS = 10_000;
 /** How long a stop waits for the computer a turn runs on to answer a ping before it reads that computer as away: the
  * link's own heartbeat takes up to two beats, 20 s, to say so. */
 export const STOP_REACH_MS = 3_000;
