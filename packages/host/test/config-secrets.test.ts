@@ -304,15 +304,23 @@ describe("a copied shell file or git config", () => {
     expect(landed).toEqual(landed.map(([where, , kind]) => [where, want[kind as keyof typeof want], kind]));
   });
 
-  /** `blocks` as each road lands it, on a box and on an owned and a provider's image. */
-  const landedTexts = async (blocks: string): Promise<[string, string][]> => {
+  /** `blocks` as each road lands it, on a box and on an owned and a provider's image; with `fish`, config.fish's too. */
+  const landedTexts = async (blocks: string, fish?: string): Promise<[string, string][]> => {
     const home = laptop();
     writeFileSync(join(home, ".zshrc"), blocks);
     writeFileSync(join(home, ".bashrc"), blocks);
-    const landed: [string, string][] = [["a box's ~/.zshrc", configTexts("shell", home)[0]!.text]];
+    const rcs = [".zshrc", ".bashrc"];
+    if (fish !== undefined) {
+      mkdirSync(join(home, ".config", "fish"), { recursive: true });
+      writeFileSync(join(home, ".config", "fish", "config.fish"), fish);
+      rcs.push(".config/fish/config.fish");
+    }
+    const box = Object.fromEntries(configTexts("shell", home).map(t => [t.rel, t.text]));
+    const landed: [string, string][] = rcs.filter(rc => rc !== ".bashrc").map(rc => [`a box's ~/${rc}`, box[rc]!]);
+    const rows = fish === undefined ? ROWS.slice(0, 2) : [...ROWS.slice(0, 2), row({ rung: "shell", id: "shell/fish", paths: ["~/.config/fish"] })];
     for (const cloud of [false, true]) {
-      const root = extract((await importFor(ROWS.slice(0, 2), { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack()).tar);
-      for (const rc of [".zshrc", ".bashrc"]) landed.push([`${cloud ? "a provider's" : "an owned"} image's ~/${rc}`, readFileSync(join(root, rc), "utf8")]);
+      const root = extract((await importFor(rows, { home, secrets: new Map(), platform: "darwin", cloud }).files!.pack()).tar);
+      for (const rc of rcs) landed.push([`${cloud ? "a provider's" : "an owned"} image's ~/${rc}`, readFileSync(join(root, rc), "utf8")]);
     }
     return landed;
   };
@@ -476,6 +484,77 @@ describe("a copied shell file or git config", () => {
       const left = ["API_KEY", "GH_TOKEN", "LAB_SECRET", "LAB_TOKEN", "DB_PASSWORD"].map(v => `\${${v}:+${v}}`).join("");
       const read = await readLanded(shell!, name, ARRAYS, `printf "%s " "$IN_BLOCK" "\${PLAIN[*]}" "$AFTER" "${left}"`);
       expect(read).toEqual(read.map(([where]) => [where, false, 0, "1 one two 1  "]));
+    });
+  }
+
+  const ALIASES = [
+    "alias gh='GH_TOKEN=plain0alias gh'",
+    'alias gl="GITLAB_TOKEN=plain0double glab"',
+    "alias ex='export API_KEY=plain0export'",
+    "alias en='env LAB_TOKEN=plain0env make'",
+    "alias a1='A1_TOKEN=plain0first' a2='A2_TOKEN=plain0second'",
+    "alias -g DBP='DB_PASSWORD=plain0global'",
+    "\\alias bs='BS_TOKEN=plain0backslash gh'",
+    "alias lp='LAB=1 LP_TOKEN=plain0lead gh'",
+    "alias gv='GH_VALUE=ghp_plain0tokenAbCdEfGh1234567890 gh'",
+    'alias db="psql postgres://lab:plain0alias@db.acme.dev/app"',
+    '"export" QB_TOKEN=plain0quotedbuiltin',
+    "ex'port' QP_TOKEN=plain0partquoted",
+    'export "QN_TOKEN=plain0quotedname"',
+    'export "QE_TOKEN"=plain0quotedeq',
+    "'typeset' -x QT_TOKEN=plain0typeset",
+    "alias tok='printenv GH_TOKEN'",
+    "export AFTER=1",
+    "",
+  ].join("\n");
+  const FISH_ALIASES = [
+    "alias gh 'GH_TOKEN=plain0alias gh'",
+    'alias gl="GITLAB_TOKEN=plain0eq glab"',
+    "alias ex 'set -gx API_KEY plain0set'",
+    "abbr -a ab 'AB_TOKEN=plain0abbr gh'",
+    "abbr --add aw AW_TOKEN=plain0words gh",
+    "abbr ap --position anywhere -- 'AP_TOKEN=plain0position'",
+    "abbr -a -r '^g.+' ar 'AR_TOKEN=plain0regex'",
+    "abbr -ac git ac 'AC_TOKEN=plain0cluster'",
+    "alias gv 'echo ghp_plain0tokenAbCdEfGh1234567890'",
+    "abbr -a gw 'echo ghp_plain0tokenAbCdEfGh1234567890'",
+    'set -gx "QN_TOKEN" plain0quotedname',
+    '"set" -gx QB_TOKEN plain0quotedbuiltin',
+    "alias tok 'printenv GH_TOKEN'",
+    "abbr -a gs 'git status'",
+    "set -gx AFTER 1",
+    "",
+  ].join("\n");
+  const POSIX_LEFT = ["GH_TOKEN", "GITLAB_TOKEN", "API_KEY", "LAB_TOKEN", "A1_TOKEN", "A2_TOKEN", "DB_PASSWORD", "BS_TOKEN", "LP_TOKEN", "GH_VALUE", "QB_TOKEN", "QP_TOKEN", "QN_TOKEN", "QE_TOKEN", "QT_TOKEN"];
+  const FISH_LEFT = ["GH_TOKEN", "GITLAB_TOKEN", "API_KEY", "AB_TOKEN", "AW_TOKEN", "AP_TOKEN", "AR_TOKEN", "QN_TOKEN", "QB_TOKEN"];
+
+  it("an alias or abbr whose body assigns a secret or holds one, a quoted builtin and a quoted name land as true, and an alias that only names a variable lands as it was, on a box and on an image", async () => {
+    const want = {
+      posix: [...Array<string>(15).fill("true"), "alias tok='printenv GH_TOKEN'", "export AFTER=1", ""].join("\n"),
+      fish: [...Array<string>(12).fill("true"), "alias tok 'printenv GH_TOKEN'", "abbr -a gs 'git status'", "set -gx AFTER 1", ""].join("\n"),
+    };
+    const landed = (await landedTexts(ALIASES, FISH_ALIASES)).map(([where, text]): [string, string] => [where, text.replace(new RegExp(`^${GUARD_BEGIN}\\n[^]*?${GUARD_END}\\n\\n`), "")]);
+    expect(landed.map(([where]) => where)).toEqual(["a box's ~/.zshrc", "a box's ~/.config/fish/config.fish", ...["an owned", "a provider's"].flatMap(w => [".zshrc", ".bashrc", ".config/fish/config.fish"].map(rc => `${w} image's ~/${rc}`))]);
+    expect(landed).toEqual(landed.map(([where]) => [where, where.endsWith(".fish") ? want.fish : want.posix]));
+  });
+
+  for (const name of ["bash", "zsh", "fish"]) {
+    const shell = (process.env["PATH"] ?? "").split(delimiter).filter(d => d !== "").map(d => join(d, name)).find(p => existsSync(p));
+    it.skipIf(shell === undefined)(`a cut alias leaves a file ${name} reads to its end with no value set, and the alias that only names a variable still runs, on a box and on an image`, async () => {
+      const fish = name === "fish";
+      const bare = mkdtempSync(join(tmpdir(), "wsp-config-secrets-sh-"));
+      dirs.push(bare);
+      const opts: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: { PATH: process.env["PATH"], HOME: bare } };
+      const left = fish ? `(for v in ${FISH_LEFT.join(" ")}; set -q $v; and echo $v; end)` : `"${POSIX_LEFT.map(v => `\${${v}:+${v}}`).join("")}"`;
+      // bash expands an alias only with expand_aliases and only in text it reads after the alias is defined, so the call goes through eval.
+      const out = fish ? `source $argv[1]; GH_TOKEN=kept tok; abbr --show; printf "%s " $AFTER ${left}` : `[ -n "$BASH_VERSION" ] && shopt -s expand_aliases; . "$1"; eval 'GH_TOKEN=kept tok'; printf "%s " "$AFTER" ${left}`;
+      const read = (await landedTexts(ALIASES, FISH_ALIASES)).filter(([where]) => where.endsWith(".fish") === fish).map(([where, text]) => {
+        const file = join(bare, fish ? "landed.fish" : "landed.sh");
+        writeFileSync(file, text);
+        const run = spawnSync(shell!, fish ? ["--no-config", "-c", out, file] : ["-c", out, name, file], opts);
+        return [where, text.includes("plain0"), spawnSync(shell!, ["-n", file], opts).status, run.stdout];
+      });
+      expect(read).toEqual(read.map(([where]) => [where, false, 0, fish ? "kept\nabbr -a -- gs 'git status'\n1 " : "kept\n1  "]));
     });
   }
 

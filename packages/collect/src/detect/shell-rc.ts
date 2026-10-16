@@ -38,8 +38,7 @@ const EXPORTED = new RegExp(`^\\s*\\\\?(?:export|typeset|declare|readonly|local|
 const FISH_SET = new RegExp(`^\\s*set((?:\\s+--?[\\w-]+)*)\\s+(${NAME})(?:\\s|$)`);
 /** fish's `set` flags that query, erase, show or list a variable: such a `set` assigns nothing. */
 const FISH_READS = /\s(?:-[A-Za-z]*[eqnS][A-Za-z]*|--(?:erase|query|names|show))(?=\s|$)/;
-const ASSIGNED = new RegExp(`^["']?(${NAME})\\+?=`);
-const PLAIN = new RegExp(`^\\s*(${NAME})\\+?=`);
+const ASSIGNED = new RegExp(`^(${NAME})\\+?=`);
 /** The precommand words of bash, zsh and fish (fish's `and`, `or` and `not` among them), zsh's `repeat N` and `coproc`,
  * with their flags and an alias-dodging backslash: what follows is a simple command of its own. */
 const PRECOMMAND = String.raw`\\?(?:!|-|builtin|noglob|nocorrect|and|or|not|coproc|repeat\s+\S+|time(?:\s+-p)?|command(?:\s+-p)?|exec(?:\s+-[cl]*a\s+\S+|\s+-[cl]+)*)`;
@@ -85,24 +84,93 @@ export function simpleCommands(line: string): string[] {
     cur += c;
   }
   out.push(cur);
-  return out.map(s => {
-    let t = s;
-    for (let m = KEYWORDS.exec(t); m !== null; m = KEYWORDS.exec(t)) t = t.slice(m[0].length);
-    return t;
-  }).filter(s => s.trim() !== "");
+  return out.map(skipKeywords).filter(s => s.trim() !== "");
 }
 
+function skipKeywords(command: string): string {
+  let t = command;
+  for (let m = KEYWORDS.exec(t); m !== null; m = KEYWORDS.exec(t)) t = t.slice(m[0].length);
+  return t;
+}
+
+/** A simple command's words as the shell hands them over: split on blanks outside quotes, each quote taken off. */
+function shellWords(command: string): string[] {
+  const words: string[] = [];
+  let cur = "";
+  let inWord = false;
+  let quote: "" | "'" | '"' | "$'" = "";
+  for (let i = 0; i < command.length; i += 1) {
+    const c = command[i]!;
+    const next = command[i + 1] ?? "";
+    if (quote === "'" || (quote === "$'" && c !== "\\")) {
+      if (c === "'") quote = "";
+      else cur += c;
+    } else if (c === "\\") {
+      cur += quote === '"' && !'"\\$`'.includes(next) ? c + next : next;
+      inWord = true;
+      i += 1;
+    } else if (quote === '"') {
+      if (c === '"') quote = "";
+      else cur += c;
+    } else if (/\s/.test(c)) {
+      if (inWord) words.push(cur);
+      cur = "";
+      inWord = false;
+    } else {
+      inWord = true;
+      if (c === "$" && next === "'") {
+        quote = "$'";
+        i += 1;
+      } else if (c === "'" || c === '"') quote = c;
+      else cur += c;
+    }
+  }
+  if (inWord) words.push(cur);
+  return words;
+}
+
+/** fish's abbr options that take the next word as their value: a long one, or a short one that ends its cluster (`-ac git`). */
+const ABBR_VALUE = /^(?:-[^-prcf]*[prcf]|--(?:position|regex|command|function))$/;
+
+/** The text an `alias` (bash, zsh, fish) or fish `abbr` would run: each `name=body`'s body, and fish's `name body...`. */
+function aliasBodies(words: string[]): string[] {
+  const args: string[] = [];
+  for (let i = 1; i < words.length; i += 1) {
+    const w = words[i]!;
+    if (w === "--") {
+      args.push(...words.slice(i + 1));
+      break;
+    }
+    if (/^[-+]./.test(w)) {
+      if (words[0] === "abbr" && ABBR_VALUE.test(w)) i += 1;
+    } else args.push(w);
+  }
+  const bodies = args.filter(a => a.includes("=")).map(a => a.slice(a.indexOf("=") + 1));
+  if (args.length > 1 && !args[0]!.includes("=")) bodies.push(args.slice(1).join(" "));
+  return bodies;
+}
+
+/** The variables a simple command assigns, each of its leading assignments among them. A quoted builtin or name is read
+ * as the bare one, and an alias or abbr body, like eval's argument, is shell again. */
 function assignedIn(command: string): string[] {
   const ev = EVAL.exec(command);
   if (ev !== null) return assignedNames(ev[1] ?? ev[2] ?? ev[3] ?? "");
-  const fish = FISH_SET.exec(command);
+  const words = shellWords(command);
+  if (words[0] === "alias" || words[0] === "abbr") return aliasBodies(words).flatMap(assignedNames);
+  const bare = skipKeywords(words.join(" "));
+  const fish = FISH_SET.exec(bare);
   if (fish?.[2] !== undefined) return FISH_READS.test(fish[1]!) ? [] : [fish[2]];
-  const exported = EXPORTED.exec(command);
+  const exported = EXPORTED.exec(bare);
   if (exported?.[1] !== undefined) {
     return exported[1].split(/\s+/).map(t => ASSIGNED.exec(t)?.[1]).filter((n): n is string => n !== undefined);
   }
-  const plain = PLAIN.exec(command);
-  return plain?.[1] === undefined ? [] : [plain[1]];
+  const names: string[] = [];
+  for (let i = words.findIndex((_, k) => words.slice(k).join(" ") === bare); i >= 0 && i < words.length; i += 1) {
+    const m = ASSIGNED.exec(words[i]!);
+    if (m === null) break;
+    names.push(m[1]!);
+  }
+  return names;
 }
 
 function assignedNames(line: string): string[] {
