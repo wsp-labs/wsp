@@ -4,6 +4,7 @@ import { createServer, request, type IncomingMessage, type Server, type ServerRe
 import type { AddressInfo } from "node:net";
 import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
+import { retryLine } from "@wsp/protocol";
 import { anthropicService, type AnthropicContext, type AnthropicCredential } from "../src/anthropic/service.js";
 import { writeRefusal } from "../src/broker/refuse.js";
 
@@ -59,6 +60,7 @@ function context(credential: AnthropicCredential | undefined): AnthropicContext 
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify({ type: "error", error: { type: "permission_error", message: said } }));
     },
+    retrying() {},
   };
 }
 
@@ -243,7 +245,7 @@ describe("an upstream the host cannot reach reads to Claude Code as Anthropic no
   /** The broker's own refusal, so a refusal reaches the caller in the shape and status Claude Code reads. */
   function brokerContext(credential: AnthropicCredential): AnthropicContext & { refusals: string[] } {
     const refusals: string[] = [];
-    return { refusals, credential: async () => credential, refuse: (res, status, said, shape) => (refusals.push(said), writeRefusal(res, status, said, shape)) };
+    return { refusals, credential: async () => credential, refuse: (res, status, said, shape) => (refusals.push(said), writeRefusal(res, status, said, shape)), retrying() {} };
   }
 
   it.each([
@@ -303,10 +305,11 @@ describe("a model call no reply has started for is cut at a wait, so Claude Code
   async function doorFor(upstreamUrl: string, credential: AnthropicCredential, firstByteMs: number) {
     const service = anthropicService({ upstream: upstreamUrl, computer: () => COMPUTER, firstByteMs });
     const refusals: string[] = [];
-    const ctx: AnthropicContext = { credential: async () => credential, refuse: (res, status, said) => (refusals.push(said), context(credential).refuse(res, status, said, "anthropic")) };
+    const retries: string[] = [];
+    const ctx: AnthropicContext = { credential: async () => credential, refuse: (res, status, said) => (refusals.push(said), context(credential).refuse(res, status, said, "anthropic")), retrying: r => void retries.push(retryLine(r)) };
     let grant = lab;
     const url = await listen((req, res) => void service.serve({ req, res, grant }, ctx));
-    return { url, refusals, as: (g: typeof lab) => void (grant = g) };
+    return { url, refusals, retries, as: (g: typeof lab) => void (grant = g) };
   }
 
   const withText = (body: string): Recorded => {
@@ -321,6 +324,7 @@ describe("a model call no reply has started for is cut at a wait, so Claude Code
     await expect(send(door.url, RECORDED.key)).rejects.toThrow(/socket hang up|ECONNRESET/);
     await expect.poll(up.left).toBe(1);
     expect(door.refusals).toEqual([]);
+    expect(door.retries).toEqual(["Anthropic did not answer, trying again (1)"]);
   });
 
   it("lets a cut call's retry wait as long as Claude Code does, so a reply slow to start costs a retry, never the reply", async () => {
@@ -332,6 +336,61 @@ describe("a model call no reply has started for is cut at a wait, so Claude Code
     expect(retried.body.equals(Buffer.concat(SSE))).toBe(true);
     door.as({ workspaceId: "ws_lab", threadId: "th_two" });
     await expect(send(door.url, RECORDED.key)).rejects.toThrow();
+    expect(door.retries).toEqual(["Anthropic did not answer, trying again (1)", "Anthropic did not answer, trying again (1)"]);
+  });
+
+  it("tells the thread each answer Claude Code retries, counting a call's attempts by its bytes, and nothing for one it does not", async () => {
+    const answers = [529, 529, 500, 200, 529, 400, 503];
+    const url = await listen((req, res) => {
+      req.resume();
+      const status = answers.shift()!;
+      res.writeHead(status, { "content-type": "application/json", ...(status === 503 ? { "x-should-retry": "false" } : {}) }).end(JSON.stringify({ type: "error", error: { type: status === 503 ? "api_error" : "overloaded_error" } }));
+    });
+    const door = await doorFor(url, key, 150);
+    for (let i = 0; i < 4; i++) await send(door.url, RECORDED.key);
+    expect(door.retries).toEqual(["Anthropic was overloaded, trying again (1)", "Anthropic was overloaded, trying again (2)", "Anthropic answered with a server error (500), trying again (3)"]);
+    for (let i = 0; i < 3; i++) await send(door.url, RECORDED.key);
+    expect(door.retries.slice(3)).toEqual(["Anthropic was overloaded, trying again (1)"]);
+  });
+
+  it("counts two calls with one body apiece and spares each retry the wait, as subagents given one prompt send it", async () => {
+    const up = await slowUpstream([Infinity, Infinity, 400, 400]);
+    const door = await doorFor(up.url, key, 150);
+    await Promise.all([expect(send(door.url, RECORDED.key)).rejects.toThrow(), expect(send(door.url, RECORDED.key)).rejects.toThrow()]);
+    const retried = await Promise.all([send(door.url, RECORDED.key), send(door.url, RECORDED.key)]);
+    expect(retried.map(got => got.status)).toEqual([200, 200]);
+    expect(door.retries).toEqual(["Anthropic did not answer, trying again (1)", "Anthropic did not answer, trying again (1)"]);
+  });
+
+  it("tells the thread no retry Claude Code gives up on: a 429 at a claude.ai login's limit, a key's third 529 in a row, an eleventh failure", async () => {
+    const answers = [429, 529, 529, 529, ...Array<number>(11).fill(529)];
+    const url = await listen((req, res) => {
+      req.resume();
+      const status = answers.shift()!;
+      res.writeHead(status, { "content-type": "application/json", ...(status === 429 ? { "anthropic-ratelimit-unified-status": "rejected", "anthropic-ratelimit-unified-representative-claim": "five_hour" } : {}) }).end(JSON.stringify({ type: "error", error: { type: status === 429 ? "rate_limit_error" : "overloaded_error" } }));
+    });
+    const login = await doorFor(url, { kind: "token", token: "token-for-test" }, 150);
+    await send(login.url, withText(`${RECORDED.key.body} `));
+    expect(login.retries).toEqual([]);
+    const keyed = await doorFor(url, key, 150);
+    for (let i = 0; i < 3; i++) await send(keyed.url, RECORDED.key);
+    expect(keyed.retries).toEqual(["Anthropic was overloaded, trying again (1)", "Anthropic was overloaded, trying again (2)"]);
+    for (let i = 0; i < 11; i++) await send(login.url, RECORDED.key);
+    expect(login.retries).toHaveLength(10);
+    expect(login.retries.at(-1)).toBe("Anthropic was overloaded, trying again (10)");
+  });
+
+  it("tells the thread nothing of a call whose caller left before its reply started", async () => {
+    const up = await slowUpstream([Infinity]);
+    const door = await doorFor(up.url, key, 5_000);
+    const { port } = new URL(door.url);
+    const req = request({ host: "127.0.0.1", port, method: RECORDED.key.method, path: RECORDED.key.url, headers: RECORDED.key.rawHeaders, setHost: false });
+    req.on("error", () => undefined);
+    req.end(RECORDED.key.body);
+    await expect.poll(up.calls).toBe(1);
+    req.destroy();
+    await expect.poll(up.left).toBe(1);
+    expect(door.retries).toEqual([]);
   });
 
   it("cuts each of a thread's calls at most once when several wait at once, as a turn's subagents do", async () => {
