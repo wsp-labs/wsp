@@ -174,6 +174,7 @@ const DAEMON_CONTENTS = [
   "abdf6f4ac5c99fe513c25c9b1fedbfc466b7c3a45b011a5e172cc58e18749b8a",
   "0e91401e923d085a796c4ad82b0ed6ff84aba2f9f4453e8a01a41737e069a076",
   "b7eced8de615c365ef130b3debe3fe2027ace26ad820c0236820e82fd47ba169",
+  "83099b125e585d337464a4f27fed457423ca7f35df3a3cd5ff6d3e10a4d01ead",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -706,7 +707,8 @@ const DAEMON_CONTENTS = [
  * folder, held the same way where it sits under the home, and the cleanup takes only plain files, so a link a home's
  * threads leave at the wsp folder, the put folder, the daemon's folder or in them no longer points the daemon at a
  * folder the link names; the readings day files, the process manifest and the ssh server's host key are read with no
- * link followed at their own names, no wait on a fifo, a plain file only and under a cap. */
+ * link followed at their own names, no wait on a fifo, a plain file only and under a cap.
+ * Version 165: worked time leaves out questions, merges list their files. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

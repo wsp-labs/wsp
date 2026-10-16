@@ -1,5 +1,5 @@
 {
-  "daemon/crates/wsp-daemon/src/git.rs": 2001,
+  "daemon/crates/wsp-daemon/src/git.rs": 1715,
   "daemon/crates/wsp-daemon/src/hosts/github.rs": 1922,
   "daemon/crates/wsp-daemon/src/ops.rs": 1978,
   "daemon/crates/wsp-runtime/src/bundle.rs": 2464,
