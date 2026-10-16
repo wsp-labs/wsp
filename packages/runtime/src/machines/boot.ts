@@ -434,7 +434,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
           console.warn(`sessions document for ${index.workspaceId} has no rows array, read as empty`);
           continue;
         }
-        for (const { turnId, notify, notifyBy, notifyRoad, reply, told, toldLast: _toldLast, steered: storedSteered, run, from, asked: storedAsked, turnToken, scopeDeviceId, snapshot, ...view } of index.sessions) {
+        for (const { turnId, notify, notifyBy, notifyRoad, reply, told, toldLast: _toldLast, steered: storedSteered, waited, waitingSince, run, from, asked: storedAsked, turnToken, scopeDeviceId, snapshot, ...view } of index.sessions) {
           const by = readScope(notifyBy);
           const asked = readAsked(storedAsked);
           const road = readRoad(notifyRoad);
@@ -467,8 +467,16 @@ export function bootArea(ctx: RuntimeContext): BootArea {
             // went then, as the person's; one that does not read as a scope is no scope at all.
             ...(by !== undefined ? { notifyBy: by } : {}),
             ...(road !== undefined ? { notifyRoad: road } : {}),
-            ...(reply !== undefined || typeof told === "number" || steered !== undefined
-              ? { turnLive: { ...(reply !== undefined ? { reply } : {}), ...(typeof told === "number" ? { told } : {}), ...(steered !== undefined ? { steered } : {}) } }
+            ...(reply !== undefined || typeof told === "number" || steered !== undefined || typeof waited === "number" || typeof waitingSince === "number"
+              ? {
+                  turnLive: {
+                    ...(reply !== undefined ? { reply } : {}),
+                    ...(typeof told === "number" ? { told } : {}),
+                    ...(steered !== undefined ? { steered } : {}),
+                    ...(typeof waited === "number" ? { waited } : {}),
+                    ...(typeof waitingSince === "number" ? { waitingSince } : {}),
+                  },
+                }
               : {}),
             ...(run !== undefined ? { run } : {}),
             ...(typeof from === "number" && Number.isSafeInteger(from) && from >= 0 ? { from } : {}),
