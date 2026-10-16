@@ -29,7 +29,8 @@ export function GitSplit({ workspaceId }: { workspaceId: string }) {
   const setScope = useDiffStore(s => s.setScope);
   const [busy, setBusy] = useState(false);
   useCheckoutOf(workspaceId);
-  if (workspace === null || status?.checkout === undefined || api?.bringBack === undefined) return null;
+  // A sub-thread's deleted machine leaves no copy to commit or push from.
+  if (workspace === null || workspace.phase === "released" || status?.checkout === undefined || api?.bringBack === undefined) return null;
   const state = { checkout: status.checkout, pr: status.pr, base, opensPr: workspace.parentThreadId === undefined, busy };
   const quick = gitQuickAction(state);
   const name = workspace.name;
