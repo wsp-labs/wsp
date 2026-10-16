@@ -15,7 +15,7 @@ import { workspaceActions, workspaceTarget } from "../../actions/workspaceAction
 import { TONE_TEXT } from "../../lib/tone.js";
 import { cn } from "../../lib/utils.js";
 import { LIVE_WINDOW, staleWord, useWorkspaceLive, type StaleWord } from "../../machine/live.js";
-import { useAbsentComputer, useCapabilities, useCost, usePlaces, useSidebarProjects, useStatus, useWorkspace } from "../../protocol/store.js";
+import { useAbsentComputer, useCost, usePlaces, useSidebarProjects, useStatus, useWorkspace } from "../../protocol/store.js";
 import { useMinuteClockWhen } from "../status/useMinuteClock.js";
 import { subMachineFacts } from "../../sidebar/tileCard.js";
 import { placeName } from "../../settings/places.js";
@@ -184,9 +184,8 @@ function FactChips({ items, path }: { items: readonly (ChipItem | null)[]; path?
 function Facts({ workspace }: { workspace: WorkspaceView }) {
   const status = useStatus(workspace.id);
   const places = usePlaces();
-  const capabilities = useCapabilities();
   const absent = useAbsentComputer(workspace.id);
-  const state = absent?.word ?? workspaceWord(workspaceStateOf(workspace, status), capabilities?.pauseMode);
+  const state = absent?.word ?? workspaceWord(workspaceStateOf(workspace, status), workspace.pauseMode);
   const size = status ? fmtSize(status.size, kindWords(workspaceKind(workspace)).cpu) : null;
   const sub = useSubThread(workspace.id);
   const cost = useCost(sub === undefined ? null : workspace.id);

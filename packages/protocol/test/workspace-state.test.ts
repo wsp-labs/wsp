@@ -106,6 +106,7 @@ describe("workspaceState", () => {
     // terminal while every pane on it reads that it is not.
     expect(goneRoadRefusal("running", "rebuild")).toBe("This one is running, so nothing needs rebuilding; the rebuild is offered once a workspace is gone");
     expect(goneRoadRefusal("paused", "rebuild")).toBe("This one is stopped, so nothing needs rebuilding; the rebuild is offered once a workspace is gone");
+    expect(goneRoadRefusal("paused", "rebuild", "memory")).toBe("This one is paused, so nothing needs rebuilding; the rebuild is offered once a workspace is gone");
     expect(goneRoadRefusal("unreachable", "rebuild")).toBe("This one is not answering yet; the rebuild is offered once it is gone");
     expect(goneRoadRefusal("unreachable", "forget")).toBe("This one is not answering yet; the forget is offered once it is gone");
     expect(goneRoadRefusal("waking", "forget")).toBe("Only a workspace whose computer is gone can be forgotten; this one is waking");

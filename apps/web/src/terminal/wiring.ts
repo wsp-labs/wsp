@@ -17,7 +17,7 @@ import { getLive } from "../machine/live.js";
 import { feedPortEvent, syncPorts } from "../machine/ports.js";
 import { getProcs } from "../machine/procs.js";
 import type { Api } from "../protocol/client.js";
-import { pauseModesOf, type useStore } from "../protocol/store.js";
+import type { useStore } from "../protocol/store.js";
 import { anyPanelOpen, useRightPanelStore } from "../rightPanelStore.js";
 import { paneOf } from "../panes.js";
 import { useSignInStore } from "../shell/signInStore.js";
@@ -200,7 +200,7 @@ export function wireTerminals(store: typeof useStore, opts: WiringOptions = {}):
         const parked: DaemonLinkStatus = wt.everLive() ? "connecting" : NOT_OPENED_YET;
         unlink(entry);
         // Only a computer that keeps the memory keeps a shell through a nap; anywhere else the stop ends it.
-        if ((w.phase === "pausing" || w.phase === "napping") && pauseModesOf(store.getState().landings)[w.project.id] !== "memory") wt.feedStop();
+        if ((w.phase === "pausing" || w.phase === "napping") && w.pauseMode !== "memory") wt.feedStop();
         wt.feedStatus(parked);
         if (sysFromDaemon) getLive(w.id).feedStatus(parked);
         getProcs(w.id).feedStatus(parked);

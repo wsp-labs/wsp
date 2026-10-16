@@ -48,7 +48,7 @@ import {
   StartResult,
 } from "@wsp/protocol";
 import { hostBack, usageIs, tool, type Verb, PICK_FLAGS, PICK_OPTIONS, flag, flagList, absoluteFolder, openedThreadLine, threadIdOf } from "./client.js";
-import { workspaceOf, threadOf, pauseModeOf, stateLine, wokeLine, nap, resize, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
+import { workspaceOf, threadOf, stateLine, wokeLine, nap, resize, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
 import { pickFlags, checkedStart, threadHere, subDeleting, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
 import { confirmed, QUIET, QUIET_LINE, QUIET_TURN, Created, TurnOut, asJson, asText, WorkspaceIn, ThreadIn, SHARED_WITH, AgentIn, NotifyIn, CwdIn, ConfirmIn, PICK_INPUTS, SizeIn, SpawnIn, MaxMachinesIn, MaxDepthIn } from "./io.js";
@@ -489,7 +489,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       if (ref === undefined || ctx.args.length !== 1) throw usageRefusal("wsp pause takes one workspace.", usageIs(ctx));
       const client = await ctx.client();
       const workspace = await nap(client, ref);
-      ctx.out.emit({ workspace }, stateLine(workspace, await pauseModeOf(client, workspace.project.id)));
+      ctx.out.emit({ workspace }, stateLine(workspace));
       return 0;
     },
     tool: tool({
