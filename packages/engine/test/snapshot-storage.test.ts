@@ -149,6 +149,15 @@ describe("retention plan", () => {
     expect(mixed.parentAssumed).toBe(false);
   });
 
+  it("a head built from a fresh machine keeps the next version down as its step back, and nothing says a parent was assumed", () => {
+    const fresh = (n: number, parent?: number): GoldenVersion => ({ ...version(n, parent), base: [{ name: "git", version: "2.43.0" }] });
+    const plan = retentionPlan({ head: 3, versions: [fresh(1), fresh(2, 1), fresh(3)] }, rows, nobody, SNAPSHOT_STORAGE);
+    expect(plan.keep.map(v => v.version)).toEqual([3, 2]);
+    expect(plan.drop.map(v => v.version)).toEqual([1]);
+    expect(plan.abandoned).toEqual([]);
+    expect(plan.parentAssumed).toBe(false);
+  });
+
   it("a recorded parent no longer in the manifest ends the chain: the head alone is kept and the rest is abandoned", () => {
     const plan = retentionPlan(chained(3, [1, undefined], [3, 9]), rows, nobody, SNAPSHOT_STORAGE);
     expect(plan.keep.map(v => v.version)).toEqual([3]);
