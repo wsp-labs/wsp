@@ -27,7 +27,7 @@ struct Content {
 
 impl Render for Content {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        layout(&self.sidebar, &self.thread_view, cx)
+        layout(&self.sidebar, &self.thread_view, false, cx)
     }
 }
 

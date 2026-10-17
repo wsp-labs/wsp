@@ -88,13 +88,13 @@ Why (the reversal):
   passed on a Boat machine with no display (the wsp-map#2365 review). The
   app's own pixel test is `apps/desktop-gpui/app/tests/pixels.rs`.
 
-What we give up for now: backdrop blur and rounded clipping of children.
-Panels are solid. Our own blur and rounded clip on this base is its own ticket
-when a screen needs them. Zed's closed effect PRs are the reference
-([#63773](https://github.com/zed-industries/zed/pull/63773),
-[#63777](https://github.com/zed-industries/zed/pull/63777),
-[#63780](https://github.com/zed-industries/zed/pull/63780)), and the work
-could go back upstream.
+Backdrop blur and rounded clipping of children are our patch (wsp-map#2373):
+[patches/](../../../apps/desktop-gpui/patches/gpui-pre-0.3.9.patch) over three
+pinned crates, applied in `vendor/` by
+[gpui-patches.sh](../../../apps/desktop-gpui/scripts/gpui-patches.sh) (`apply`
+after a clone, `save` after an edit). `.backdrop_blur(..)` is CSS's
+`backdrop-filter`, `.rounded(..).overflow_hidden()` clips children to the
+corners; [effects.rs](../../../apps/desktop-gpui/app/tests/effects.rs) checks both against Chromium.
 
 The vendored gpui-kit skills match this pin. Their `UPSTREAM` commit d4c5681
 is 14f5933's parent, and `git log --oneline -- skills/` at 14f5933 shows no
@@ -222,7 +222,7 @@ one-off shaders issue moved off Zed's tracker to a maintainer's own, where it
 is open ([#43273](https://github.com/zed-industries/zed/issues/43273),
 [gpui-projects#10](https://github.com/mikayla-maki/gpui-projects/issues/10)).
 Cap shipped without its header's backdrop blur because its pinned rev has no
-hook for it (Cap README, "No header backdrop filter"). wsp has none for now
+hook for it (Cap README, "No header backdrop filter"). wsp patches in its own
 (The fork).
 
 **Keys in a text field.** GPUI matches key bindings before the platform's input
