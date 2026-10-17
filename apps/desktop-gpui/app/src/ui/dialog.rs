@@ -150,18 +150,26 @@ fn popup_max(window: &Window) -> Pixels {
 pub struct AlertDialog {
     title: SharedString,
     sentence: Option<AnyElement>,
+    lead: Option<AnyElement>,
     body: Vec<AnyElement>,
     acts: Vec<AnyElement>,
 }
 
 impl AlertDialog {
     pub fn new(title: impl Into<SharedString>) -> Self {
-        AlertDialog { title: title.into(), sentence: None, body: Vec::new(), acts: Vec::new() }
+        AlertDialog { title: title.into(), sentence: None, lead: None, body: Vec::new(), acts: Vec::new() }
     }
 
     /// The description under the title: what leaves, read off what the thing holds now.
     pub fn sentence(mut self, sentence: impl IntoElement) -> Self {
         self.sentence = Some(sentence.into_any_element());
+        self
+    }
+
+    /// The block straight under the head at the body's sides alone, as a radio group sits under the title
+    /// (`RewindDialog.tsx`'s `RadioGroup className="px-5"`); the body's `pt-2` then stands between it and the body.
+    pub fn lead(mut self, lead: impl IntoElement) -> Self {
+        self.lead = Some(lead.into_any_element());
         self
     }
 
@@ -222,6 +230,7 @@ impl RenderOnce for AlertDialog {
             .shadow(p.dialog_shadow.clone())
             .text_color(p.foreground)
             .child(head)
+            .children(self.lead.map(|lead| div().px_5().child(lead)))
             .children(body)
             .child(h_flex().justify_end().gap_2().px_5().pt_3().pb_4().children(self.acts))
     }

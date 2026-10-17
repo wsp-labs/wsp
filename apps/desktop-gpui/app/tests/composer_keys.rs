@@ -170,10 +170,11 @@ fn a_thread_that_has_run_offers_only_its_own_agents_models(cx: &mut TestAppConte
 fn the_drawer_shows_each_waiting_row_and_the_queue_opens_its_bar(cx: &mut TestAppContext) {
     let cx = open("queued", cx);
     let composer = composer_of(cx);
-    composer.update(cx, |c, cx| {
+    composer.update_in(cx, |c, window, cx| {
+        c.set_prompt(Some(states::asked()), window, cx);
+        c.fold_prompt(window, cx);
         c.set_drawer(
             Drawer {
-                question: Some("Run cargo test?".into()),
                 limit: Some(("Usage limit reached".into(), "Claude Code resumes at 18:00".into())),
                 slot: Some("build-box is running 2 of 2 threads".into()),
                 tasks: Some(("Write the test".into(), "1/3".into())),
@@ -383,6 +384,7 @@ fn a_refused_send_from_the_queue_goes_back_to_its_head_held(cx: &mut TestAppCont
         fast: false,
         resume: None,
         from_queue: true,
+        fork: None,
     };
     composer.update_in(cx, |c, window, cx| c.refused_send(out, window, cx));
     composer.read_with(cx, |c, cx| {
@@ -408,6 +410,70 @@ fn enter_on_a_slash_draft_that_names_no_command_sends_nothing(cx: &mut TestAppCo
     cx.simulate_keystrokes("enter");
     assert!(started.borrow().is_empty(), "Enter holds what the button holds");
     assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "/nope");
+}
+
+#[gpui_kit::test]
+fn each_thread_keeps_its_own_draft_across_a_switch(cx: &mut TestAppContext) {
+    let dir = std::env::temp_dir().join(format!("composer-switch-draft-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    let text = |cx: &mut gpui_kit::VisualTestContext| composer.read_with(cx, |c, cx| c.text(cx));
+    let kept = |cx: &mut gpui_kit::VisualTestContext, key: &str| {
+        cx.update(|_, cx| store::draft(cx.global::<local_store::LocalStore>(), key).map(|(t, _)| t))
+    };
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("short-1".into(), window, cx);
+        c.editor().focus_handle(cx).focus(window, cx);
+    });
+    cx.simulate_input("x");
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("short-2".into(), window, cx));
+    assert_eq!(text(cx), "", "a thread with no draft opens on an empty box");
+    cx.executor().advance_clock(std::time::Duration::from_secs(1));
+    cx.run_until_parked();
+    assert_eq!(kept(cx, "short-2"), None, "the first thread's words are not kept under the second's key");
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("short-1".into(), window, cx));
+    assert_eq!(text(cx), "x", "the first thread's draft is back");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[gpui_kit::test]
+fn a_message_queued_before_a_switch_still_starts_the_next_turn_with_its_files(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::composer::model::File;
+    use desktop_gpui::screens::composer::ComposerEvent;
+    let dir = std::env::temp_dir().join(format!("composer-switch-queue-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("running", cx);
+    let composer = composer_of(cx);
+    let started = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let sink = started.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&composer, move |_, e: &ComposerEvent, _| {
+            if let ComposerEvent::Start(out) = e {
+                sink.borrow_mut().push((out.prompt.clone(), out.files.len()));
+            }
+        })
+        .detach()
+    });
+    let file = File { name: "notes.txt".into(), media_type: "text/plain".into(), bytes: std::sync::Arc::new(b"hi".to_vec()) };
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("short-1".into(), window, cx);
+        c.attach(vec![file], cx);
+        c.set_text("then the sidebar", window, cx);
+        c.submit(window, cx);
+        c.set_thread_key("short-2".into(), window, cx);
+        c.set_thread_key("short-1".into(), window, cx);
+        c.set_thread_key("short-1".into(), window, cx);
+        c.set_turn(true, false, cx);
+    });
+    assert_eq!(
+        *started.borrow(),
+        [("then the sidebar".to_owned(), 1)],
+        "a glance at another thread neither holds the queue as a launch does nor drops its files"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[gpui_kit::test]
@@ -660,7 +726,7 @@ fn a_draft_typed_just_before_the_app_quits_is_kept(cx: &mut TestAppContext) {
     drop(composer);
     cx.quit();
     let kept = store::draft(&local_store::LocalStore::open(dir.join("local-store.json")), "thread-1");
-    assert_eq!(kept.map(|(t, _)| t).as_deref(), Some("fix the scroll"), "Cmd+Q inside the draft's 400 ms keeps it");
+    assert_eq!(kept.map(|(t, _)| t).as_deref(), Some("fix the scroll"), "Cmd+Q inside the draft's 300 ms keeps it");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -675,4 +741,181 @@ fn enter_sends_a_slash_word_on_a_thread_that_lists_no_commands(cx: &mut TestAppC
     });
     cx.simulate_keystrokes("enter");
     assert_eq!(*started.borrow(), ["/init"], "the web holds only a lone slash where the menu has nothing to check against");
+}
+
+fn out(prompt: &str, from_queue: bool) -> desktop_gpui::screens::composer::Outgoing {
+    desktop_gpui::screens::composer::Outgoing {
+        prompt: prompt.into(),
+        files: Vec::new(),
+        picks: Default::default(),
+        fast: false,
+        resume: None,
+        from_queue,
+        fork: None,
+    }
+}
+
+#[gpui_kit::test]
+fn a_steer_answered_after_a_switch_leaves_its_own_threads_queue(cx: &mut TestAppContext) {
+    let dir = std::env::temp_dir().join(format!("composer-steer-switch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("running", cx);
+    let composer = composer_of(cx);
+    let started = starts(&composer, cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.set_steer_preferred(true, cx);
+        c.set_text("turn left", window, cx);
+        c.submit(window, cx);
+        c.set_thread_key("thread-2".into(), window, cx);
+    });
+    // The host takes the steer while the box shows the second thread.
+    composer.update(cx, |c, cx| c.steered_on("thread-1", true, cx));
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("thread-1".into(), window, cx));
+    assert_eq!(composer.read_with(cx, |c, _| c.queue().len()), 0, "the taken steer left its own thread's queue");
+    composer.update(cx, |c, cx| c.set_turn(true, false, cx));
+    assert!(started.borrow().is_empty(), "the steer is not sent again as the next turn");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[gpui_kit::test]
+fn a_switch_lets_go_of_what_the_last_thread_held(cx: &mut TestAppContext) {
+    use desktop_gpui::screens::composer::model::Picks;
+    use desktop_gpui::screens::composer::{Banner, ComposerEvent};
+    let cx = open("attachments", cx);
+    let composer = composer_of(cx);
+    let asked = std::rc::Rc::new(std::cell::Cell::new(0));
+    let sink = asked.clone();
+    cx.update(|_, cx| {
+        cx.subscribe(&composer, move |_, e: &ComposerEvent, _| {
+            if matches!(e, ComposerEvent::Files) {
+                sink.set(sink.get() + 1);
+            }
+        })
+        .detach()
+    });
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.set_picks(Picks { model: Some("claude-sonnet-5".into()), ..Picks::default() }, cx);
+        c.set_banner(Some(Banner::resume("conv".into(), "Old chat", false, "Claude Code")), cx);
+        c.set_prompt(Some(states::asked()), window, cx);
+        c.raise("Could not send now".into(), cx);
+        c.set_text("@", window, cx);
+        c.set_folder_files(vec!["a.rs".into()], cx);
+    });
+    assert_eq!(asked.get(), 1);
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("thread-2".into(), window, cx));
+    composer.read_with(cx, |c, _| {
+        assert_eq!(c.picks(), &Picks::default(), "the model picked on the first thread");
+        assert!(c.files().is_empty(), "its files");
+        assert!(c.banner().is_none(), "its banner");
+        assert!(c.dock().is_none(), "its prompt");
+        assert!(c.notice().is_none(), "its notice");
+    });
+    composer.update_in(cx, |c, window, cx| c.set_text("@", window, cx));
+    assert_eq!(asked.get(), 2, "the second thread's folder is listed for itself");
+}
+
+#[gpui_kit::test]
+fn a_refusal_from_the_last_threads_link_lands_in_that_thread(cx: &mut TestAppContext) {
+    let dir = std::env::temp_dir().join(format!("composer-late-refusal-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.set_thread_key("thread-2".into(), window, cx);
+        c.set_text("the second's words", window, cx);
+        c.refused_on("thread-1", out("the first's send", false), window, cx);
+        c.refused_on("thread-1", out("the first's queued send", true), window, cx);
+    });
+    assert_eq!(composer.read_with(cx, |c, cx| c.text(cx)), "the second's words", "nothing lands in the second thread's box");
+    assert!(composer.read_with(cx, |c, _| c.queue().is_empty()), "or its queue");
+    composer.update_in(cx, |c, window, cx| c.set_thread_key("thread-1".into(), window, cx));
+    composer.read_with(cx, |c, cx| {
+        assert_eq!(c.text(cx), "the first's send", "the refused words wait in the first thread's box");
+        assert_eq!(c.queue().iter().map(|q| q.prompt.as_str()).collect::<Vec<_>>(), ["the first's queued send"]);
+    });
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[gpui_kit::test]
+fn the_draft_is_written_300_ms_after_typing_and_at_once_on_send_stash_and_switch(cx: &mut TestAppContext) {
+    let dir = std::env::temp_dir().join(format!("composer-draft-at-once-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    cx.update(|cx| local_store::init(dir.join("local-store.json"), cx));
+    let cx = open("empty", cx);
+    let composer = composer_of(cx);
+    let kept = |cx: &mut gpui_kit::VisualTestContext, key: &str| {
+        cx.update(|_, cx| store::draft(cx.global::<local_store::LocalStore>(), key).map(|(t, _)| t))
+    };
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.set_text("fix it", window, cx);
+    });
+    cx.executor().advance_clock(std::time::Duration::from_millis(250));
+    assert_eq!(kept(cx, "thread-1"), None, "nothing is written while the person types");
+    cx.executor().advance_clock(std::time::Duration::from_millis(60));
+    assert_eq!(kept(cx, "thread-1").as_deref(), Some("fix it"), "written 300 ms after the last edit");
+    composer.update_in(cx, |c, window, cx| c.submit(window, cx));
+    assert_eq!(kept(cx, "thread-1"), None, "a send empties the kept draft at once");
+    composer.update_in(cx, |c, window, cx| {
+        c.set_text("park this", window, cx);
+        c.stash_draft(window, cx);
+    });
+    assert_eq!(kept(cx, "thread-1"), None, "a stash empties it at once");
+    composer.update_in(cx, |c, window, cx| {
+        c.set_text("half typed", window, cx);
+        c.set_thread_key("thread-2".into(), window, cx);
+    });
+    assert_eq!(kept(cx, "thread-1").as_deref(), Some("half typed"), "a switch keeps the leaving draft at once");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[gpui_kit::test]
+fn denys_field_stands_in_its_rows_right_column_wide_enough_for_a_sentence(cx: &mut TestAppContext) {
+    let cx = open("prompt-dock", cx);
+    let composer = composer_of(cx);
+    assert!(cx.debug_bounds("control").is_none(), "Allow opens no field");
+    cx.simulate_keystrokes("2");
+    cx.run_until_parked();
+    assert_eq!(composer.read_with(cx, |c, _| c.dock().map(|d| d.primary_word())), Some("Deny"));
+    let (field, dock, copy) =
+        (cx.debug_bounds("control").unwrap(), cx.debug_bounds("prompt-dock").unwrap(), cx.debug_bounds("copy-row").unwrap());
+    assert_eq!(field.size, gpui_kit::size(gpui_kit::px(384.), gpui_kit::px(30.)), "`ROW_FIELD` at `w-96`");
+    // The body's 20 px side, the card's 1 px edge and the row's 20 px inset.
+    assert_eq!(dock.right() - field.right(), gpui_kit::px(41.), "at the row's right edge");
+    // Under the copy row: the body's 20 px gap, the card's edge, the Allow row's 60 px floor, then the middle of what
+    // Deny's floor holds under its 1 px rule.
+    assert_eq!(field.center().y - copy.bottom(), gpui_kit::px(20. + 1. + 60. + 1. + 29.5), "in the Deny row, so no row moves");
+}
+
+#[gpui_kit::test]
+fn a_send_out_when_the_person_switched_away_and_back_keeps_the_next_message_waiting(cx: &mut TestAppContext) {
+    let cx = open("running", cx);
+    let composer = composer_of(cx);
+    let started = starts(&composer, cx);
+    composer.update_in(cx, |c, window, cx| {
+        c.set_thread_key("thread-1".into(), window, cx);
+        c.set_text("first queued", window, cx);
+        c.submit(window, cx);
+        c.set_text("second queued", window, cx);
+        c.submit(window, cx);
+        // The turn ends: the queue's head goes, and the host has not answered it yet.
+        c.set_turn(true, false, cx);
+        c.set_thread_key("thread-2".into(), window, cx);
+        c.set_thread_key("thread-1".into(), window, cx);
+        // The link stands again and the transcript still says no turn runs.
+        c.set_hold(None, cx);
+        c.set_turn(true, false, cx);
+    });
+    assert_eq!(*started.borrow(), ["first queued"], "the second waits for the host to answer the first");
+    composer.update(cx, |c, cx| {
+        c.sent_on("thread-1", cx);
+        c.set_turn(true, true, cx);
+        c.set_turn(true, false, cx);
+    });
+    assert_eq!(*started.borrow(), ["first queued", "second queued"], "and goes once the first turn ends");
 }

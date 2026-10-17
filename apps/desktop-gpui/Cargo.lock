@@ -1350,6 +1350,7 @@ dependencies = [
  "lyon",
  "objc",
  "raw-window-handle",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

@@ -349,18 +349,28 @@ impl RenderOnce for Button {
     }
 }
 
-/// The radio of a `Choice`: 16 px round on the field's edge, and once picked the primary fill with its 6 px dot.
-fn radio(picked: bool, cx: &App) -> impl IntoElement {
+/// The radio of a `Choice`: 16 px round on the field's edge, and once picked the primary fill with its 6 px dot; held,
+/// at 64% with no shadow.
+pub fn radio(picked: bool, held: bool, cx: &App) -> impl IntoElement {
     let p = cx.palette();
     let dark = cx.theme().is_dark();
     let ground = if dark { p.input.opacity(0.32) } else { p.background };
-    div().debug_selector(|| "radio".into()).flex().flex_none().items_center().justify_center().size(px(16.)).rounded_full().map(|el| {
-        if picked {
-            el.bg(p.primary).child(div().size(px(6.)).rounded_full().bg(p.primary_foreground))
-        } else {
-            el.border_1().border_color(p.input).bg(ground).shadow(p.control_shadow.clone())
-        }
-    })
+    div()
+        .debug_selector(|| "radio".into())
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .size(px(16.))
+        .rounded_full()
+        .when(held, |el| el.opacity(0.64))
+        .map(|el| {
+            if picked {
+                el.bg(p.primary).child(div().size(px(6.)).rounded_full().bg(p.primary_foreground))
+            } else {
+                el.border_1().border_color(p.input).bg(ground).when(!held, |el| el.shadow(p.control_shadow.clone()))
+            }
+        })
 }
 
 /// The checkbox of a `PickRow`: 16 px with a 4 px radius, and once ticked the primary fill with its tick.
@@ -381,6 +391,7 @@ fn checkbox(checked: bool, cx: &App) -> impl IntoElement {
 /// it.
 fn pick_words(
     name: SharedString,
+    title: (Pixels, Pixels),
     tag: Option<SharedString>,
     marks: Option<AnyElement>,
     note: Option<SharedString>,
@@ -400,8 +411,8 @@ fn pick_words(
                 .child(
                     div()
                         .debug_selector(|| "title".into())
-                        .text_size(text::LIST_TITLE.0)
-                        .line_height(text::LIST_TITLE.1)
+                        .text_size(title.0)
+                        .line_height(title.1)
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(ink)
                         .child(name),
@@ -434,6 +445,10 @@ struct Pick {
     marks: Option<AnyElement>,
     note: Option<SharedString>,
     slot: Option<AnyElement>,
+    /// The name's size and line: `LIST_TITLE`, or a dock's `SETTING_TITLE`.
+    title: (Pixels, Pixels),
+    /// The one sentence the row's hover says: the keys that pick it.
+    hover: Option<SharedString>,
     on_click: Option<SharedClick>,
     corners: Corners,
 }
@@ -450,6 +465,8 @@ impl Pick {
             marks: None,
             note: None,
             slot: None,
+            title: text::LIST_TITLE,
+            hover: None,
             on_click: None,
             corners: Corners::default(),
         }
@@ -458,7 +475,7 @@ impl Pick {
     /// The mark is the tab stop and wears the ring, as the web's radio and checkbox do; the whole row takes a press.
     fn render(self, mark: impl IntoElement, radius: Pixels, floor: Pixels, cx: &App) -> AnyElement {
         let ring_ink = cx.palette().ring;
-        let words = pick_words(self.name, self.tag, self.marks, self.note, self.on, cx);
+        let words = pick_words(self.name, self.title, self.tag, self.marks, self.note, self.on, cx);
         let keyed = self.on_click.clone();
         let mark = div()
             .id(SharedString::from(format!("{}-mark", self.id)))
@@ -492,6 +509,7 @@ impl Pick {
         });
         row_frame(&self.id, floor, self.corners)
             .cursor_pointer()
+            .when_some(self.hover, |el, hover| el.tooltip(tip(hover)))
             .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
             .child(h_flex().gap_5().child(lead).children(slot))
             .into_any_element()
@@ -515,6 +533,24 @@ macro_rules! pick_builders {
                 self.0.on_click = Some(std::rc::Rc::new(f));
                 self
             }
+
+            /// One control or the facts at the right.
+            pub fn slot(mut self, slot: impl IntoElement) -> Self {
+                self.0.slot = Some(slot.into_any_element());
+                self
+            }
+
+            /// The name's size and line where the list is not a settings list's: a dock's `SETTING_TITLE`.
+            pub fn title(mut self, title: (Pixels, Pixels)) -> Self {
+                self.0.title = title;
+                self
+            }
+
+            /// One sentence on hover: the keys that pick the row.
+            pub fn hover(mut self, hover: impl Into<SharedString>) -> Self {
+                self.0.hover = Some(hover.into());
+                self
+            }
         }
     };
 }
@@ -534,7 +570,7 @@ pick_builders!(Choice);
 
 impl RenderOnce for Choice {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mark = radio(self.0.on, cx);
+        let mark = radio(self.0.on, false, cx);
         self.0.render(mark, px(8.), size::ROW_FLOOR, cx)
     }
 }
@@ -575,12 +611,6 @@ impl PickRow {
         self.0.marks = Some(marks.into_any_element());
         self
     }
-
-    /// One control or the facts at the right.
-    pub fn slot(mut self, slot: impl IntoElement) -> Self {
-        self.0.slot = Some(slot.into_any_element());
-        self
-    }
 }
 
 impl RenderOnce for PickRow {
@@ -598,13 +628,13 @@ impl From<PickRow> for CardItem {
     }
 }
 
-/// A control at the row's width that, while held, lets nothing through.
-fn field_frame(control: impl IntoElement, held: bool) -> gpui_kit::Div {
+/// A control `width` wide in a row that, while held, lets nothing through.
+fn field_frame(control: impl IntoElement, held: bool, width: Pixels) -> gpui_kit::Div {
     div()
         .debug_selector(|| "control".into())
         .relative()
         .flex_none()
-        .w(size::SELECT_WIDTH)
+        .w(width)
         .h(size::CONTROL_HEIGHT)
         .child(control)
         .when(held, |el| el.child(div().absolute().inset_0().occlude()))
@@ -619,11 +649,19 @@ pub struct Field {
     held: bool,
     invalid: bool,
     sheet: Option<bool>,
+    /// A row field's width: the select's, or a sentence's (`w-96`) where it takes what to do instead.
+    width: Pixels,
 }
 
 impl Field {
     pub fn new(state: &Entity<InputState>) -> Self {
-        Field { state: state.clone(), held: false, invalid: false, sheet: None }
+        Field { state: state.clone(), held: false, invalid: false, sheet: None, width: size::SELECT_WIDTH }
+    }
+
+    /// A row field wide enough for a sentence, as a prompt's Deny and Other open (`w-96`).
+    pub fn wide(mut self) -> Self {
+        self.width = size::SENTENCE_FIELD_WIDTH;
+        self
     }
 
     pub fn held(mut self, held: bool) -> Self {
@@ -672,7 +710,7 @@ impl RenderOnce for Field {
             .bg(fill)
             .text_color(ink);
         match self.sheet {
-            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(size::SELECT_WIDTH).text_size(text::FACT.0), self.held),
+            None => field_frame(Styled::h(input, size::CONTROL_HEIGHT).w(self.width).text_size(text::FACT.0), self.held, self.width),
             Some(mono) => {
                 let input = Styled::h(input, px(40.)).w_full().rounded(size::BUTTON_RADIUS);
                 let input = if mono {

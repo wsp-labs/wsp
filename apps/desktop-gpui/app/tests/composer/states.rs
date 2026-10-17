@@ -7,11 +7,12 @@
 
 use std::sync::Arc;
 
+use desktop_gpui::screens::composer::dock::{Pick, Prompt};
 use desktop_gpui::screens::composer::model::{Agent, Drawer, File, Hold, Picks, Skill};
 use desktop_gpui::screens::composer::{Banner, Bar, Composer, Popup};
 use gpui_kit::{Context, Window};
 
-pub const STATES: [&str; 27] = [
+pub const STATES: [&str; 28] = [
     "empty",
     "typing",
     "mention-open",
@@ -39,6 +40,7 @@ pub const STATES: [&str; 27] = [
     "drawer-tasks",
     "resume-banner",
     "paste-file",
+    "prompt-dock",
 ];
 
 /// This computer's name, which the web shots' host shows as its own.
@@ -97,6 +99,32 @@ pub fn files() -> Vec<File> {
 /// The files the web shots' project holds, as fs.files lists them.
 pub const FOLDER: [&str; 6] =
     ["README.md", "package.json", "src/scroll-anchor.ts", "src/tool-output.tsx", "src/transcript.ts", "test/transcript.test.ts"];
+
+/// The prompt the thread waits on: run `rm -rf build`.
+pub fn asked() -> Prompt {
+    let pick = |id: &str, label: &str, effect: &str| Pick {
+        id: id.into(),
+        label: label.into(),
+        description: String::new(),
+        effect: effect.into(),
+        mode: None,
+    };
+    Prompt {
+        session: "s".into(),
+        ask: "perm-1".into(),
+        agent: Some("claude".into()),
+        title: "Run a command".into(),
+        note: None,
+        code: Some("rm -rf build".into()),
+        runs_in: None,
+        fields: Vec::new(),
+        file: None,
+        cwd: None,
+        options: vec![pick("allow", "Allow", "allow"), pick("deny", "Deny", "deny")],
+        questions: None,
+        asked: "Run a command: rm -rf build".into(),
+    }
+}
 
 /// Puts a fresh composer into `state`.
 pub fn stage(state: &str, c: &mut Composer, window: &mut Window, cx: &mut Context<Composer>) {
@@ -169,11 +197,19 @@ pub fn stage(state: &str, c: &mut Composer, window: &mut Window, cx: &mut Contex
         "drawer-question" | "drawer-slot" | "drawer-tasks" => {
             c.set_turn(true, true, cx);
             let drawer = match state {
-                "drawer-question" => Drawer { question: Some("Run a command: rm -rf build".into()), ..Drawer::default() },
+                "drawer-question" => {
+                    c.set_prompt(Some(asked()), window, cx);
+                    c.fold_prompt(window, cx);
+                    Drawer::default()
+                }
                 "drawer-slot" => Drawer { slot: Some(format!("{} is running 3 of 3 threads", computer())), ..Drawer::default() },
                 _ => Drawer { tasks: Some(("Pin the scroll anchor before tool output mounts".into(), "1/4".into())), ..Drawer::default() },
             };
             c.set_drawer(drawer, cx);
+        }
+        "prompt-dock" => {
+            c.set_turn(true, true, cx);
+            c.set_prompt(Some(asked()), window, cx);
         }
         "drawer-limit" => c.set_drawer(
             Drawer { limit: Some(("Usage limit reached".into(), "Claude Code resumes at 02:00".into())), ..Drawer::default() },

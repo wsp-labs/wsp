@@ -19,8 +19,8 @@ use gpui_kit::{
 use tokio::runtime::Runtime;
 use wsp_host_client::ops::settings::PreferencesReply;
 use wsp_host_client::protocol::WorkspacesListRequest;
-use wsp_host_client::protocol::{EventUnion, Preferences, PreferencesGetRequest, PreferencesSetRequest, SessionEvent};
-use wsp_host_client::{Env, Event, Failure, HostClient, Live};
+use wsp_host_client::protocol::{EventUnion, Preferences, PreferencesGetRequest, PreferencesSetRequest};
+use wsp_host_client::{Env, Event, Failure, HostClient};
 
 use crate::bench::{self, PX_PER_S};
 use crate::glass::composer_glass;
@@ -31,6 +31,7 @@ use crate::screens::app_shell::panel::{At, RightPanel};
 use crate::screens::app_shell::vibrancy::{self, Vibrancy};
 use crate::screens::app_shell::AbortOnDrop;
 use crate::screens::composer::screen::ComposerScreen;
+use crate::screens::thread_view::{Capture, ThreadScreen};
 use crate::screens::{self, app_shell, Entry, Host, Mounted, Opened, Pane, Place, Route, Screen, THREAD};
 use crate::sidebar::{Asked, Link, Selected, Sidebar, ThreadItem};
 use crate::thread_view::ThreadView;
@@ -50,34 +51,41 @@ const FOCUS_WAIT: Duration = Duration::from_secs(10);
 const UNFOCUSED: i32 = 3;
 /// How long a bench holds still after its scroll, so the run can read the app's memory after a full scroll.
 const HOLD: Duration = Duration::from_secs(10);
-
-enum Arrival {
-    History(Vec<SessionEvent>),
-    Event(Box<SessionEvent>),
-    Failed(String),
-}
-
-/// One thread followed live; dropping it stops the host task and the receiver.
-struct Following {
-    thread_id: String,
-    task: tokio::task::AbortHandle,
-    _receive: Task<()>,
-}
-
-impl Drop for Following {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
+/// The timed switches after the bench's own, among its switch threads in turn, each after the wait the Electron bench
+/// keeps between its switches.
+const TIMED_SWITCHES: usize = 30;
+const SWITCH_REST: Duration = Duration::from_secs(1);
 
 type Presented = Rc<RefCell<Option<Instant>>>;
 
 enum Phase {
     Opening,
     Loading(Presented),
-    Scrolling { start: Instant, frames: Rc<RefCell<Vec<Instant>>> },
-    Holding { until: Instant, _wake: Task<()> },
-    Switching { ix: usize, start: Instant, presented: Presented },
+    /// The thread reads its older pages until it holds all of them, as the Electron bench pages back before it scrolls.
+    Paging,
+    Scrolling {
+        start: Instant,
+        frames: Rc<RefCell<Vec<Instant>>>,
+    },
+    Holding {
+        until: Instant,
+        _wake: Task<()>,
+    },
+    Switching {
+        ix: usize,
+        start: Instant,
+        presented: Presented,
+    },
+    Resting {
+        n: usize,
+        until: Instant,
+        _wake: Task<()>,
+    },
+    Timing {
+        n: usize,
+        start: Instant,
+        presented: Presented,
+    },
 }
 
 struct BenchRun {
@@ -87,6 +95,7 @@ struct BenchRun {
     rows: usize,
     frame_ms: Vec<f64>,
     switch: Vec<(String, f64)>,
+    timed: Vec<(String, f64)>,
 }
 
 /// What the launch asked the window to show first.
@@ -134,7 +143,6 @@ pub struct Shell {
     vibrancy: Vibrancy,
     focus: FocusHandle,
     blank: AnyView,
-    following: Option<Following>,
     bench: Option<BenchRun>,
     glass: bool,
     _connect: Task<()>,
@@ -272,6 +280,7 @@ impl Shell {
             rows: 0,
             frame_ms: Vec::new(),
             switch: Vec::new(),
+            timed: Vec::new(),
         });
         let mac = cfg!(target_os = "macos");
         let rules = keys::bound(mac, &BTreeMap::new());
@@ -309,7 +318,6 @@ impl Shell {
             vibrancy: Vibrancy::default(),
             focus,
             blank: cx.new(|_| Blank).into(),
-            following: None,
             bench,
             glass,
             _connect: connect,
@@ -404,7 +412,6 @@ impl Shell {
         match &route {
             Route::Empty => {
                 self.screen = None;
-                self.following = None;
                 self.panel.update(cx, |p, cx| p.show_for(At::Here, window, cx));
                 if let Some(thread) = &self.thread {
                     (thread.show.clone())(Opened::default(), window, cx);
@@ -412,12 +419,7 @@ impl Shell {
             }
             Route::Thread { workspace_id, thread_id } => {
                 self.screen = None;
-                let item = self.sidebar.update(cx, |s, cx| s.mark(thread_id, cx)).unwrap_or_else(|| ThreadItem {
-                    workspace_id: workspace_id.clone(),
-                    thread_id: thread_id.clone(),
-                    project: String::new(),
-                    title: String::new(),
-                });
+                self.sidebar.update(cx, |s, cx| s.mark(thread_id, cx));
                 let running = self.running.get(workspace_id).copied().unwrap_or(false);
                 let at = At::Thread { workspace_id: workspace_id.clone(), thread_id: thread_id.clone(), running };
                 self.panel.update(cx, |p, cx| p.show_for(at, window, cx));
@@ -425,11 +427,8 @@ impl Shell {
                 match (&self.thread, self.host.clone(), screens::screen(THREAD)) {
                     (Some(thread), _, _) => (thread.show.clone())(opened, window, cx),
                     (None, Some(host), Some(entry)) => {
-                        self.following = None;
                         self.thread = Some((entry.mount)(&Host::new(host, self.runtime.clone()), opened, window, cx));
                     }
-                    // Settings leaves the thread followed behind it, so coming back reads nothing again.
-                    _ if self.following.as_ref().is_none_or(|f| f.thread_id != *thread_id) => self.open(item, cx),
                     _ => {}
                 }
             }
@@ -488,6 +487,7 @@ impl Shell {
     /// Reads what the host keeps for the frame: the sidebar's width, the person's chords and the theme.
     fn apply(&mut self, preferences: &Preferences, window: &mut Window, cx: &mut Context<Self>) {
         let value = serde_json::to_value(preferences).unwrap_or_default();
+        crate::screens::thread_view::markdown::set_sizes(&value, cx);
         self.sidebar_width = value.get("sidebarWidth").and_then(|w| w.as_f64()).map_or(frame::SIDEBAR_DEFAULT, |w| px(w as f32));
         let overrides: BTreeMap<String, Option<String>> = value
             .get("keybindings")
@@ -514,6 +514,10 @@ impl Shell {
 
     /// The theme the person's picks name for the computer's appearance now, which a system pick follows as it moves.
     fn pick_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(theme) = cx.try_global::<Capture>().and_then(|c| c.theme.clone()) {
+            self.restyle(Some(theme), self.picks.transparency, window, cx);
+            return;
+        }
         let dark = match self.picks.mode.as_deref() {
             Some("dark") => true,
             Some("light") => false,
@@ -690,61 +694,10 @@ impl Shell {
         self.sidebar.read(cx).items().iter().filter(|i| i.workspace_id == *workspace_id).cloned().collect()
     }
 
-    /// Shows `item`'s transcript, read whole, then follows it live.
-    fn open(&mut self, item: ThreadItem, cx: &mut Context<Self>) {
-        self.following = None;
-        self.thread_view.update(cx, |v, cx| v.show(&item.thread_id, cx));
-        let Some(host) = self.host.clone() else { return };
-        let thread_id = item.thread_id.clone();
-        let (tx, mut rx) = mpsc::unbounded();
-        let task = self.runtime.spawn(async move {
-            let followed: Result<(), Failure> = async {
-                let mut thread = host.open(&item.workspace_id, &item.thread_id).await?;
-                _ = tx.unbounded_send(Arrival::History(std::mem::take(&mut thread.history)));
-                while let Some(next) = thread.next().await {
-                    if let Live::Event(event) = next? {
-                        _ = tx.unbounded_send(Arrival::Event(event));
-                    }
-                }
-                Ok(())
-            }
-            .await;
-            if let Err(failure) = followed {
-                _ = tx.unbounded_send(Arrival::Failed(failure.message));
-            }
-        });
-        let receive = cx.spawn(async move |this, cx| {
-            while let Some(arrival) = rx.next().await {
-                if this.update(cx, |this, cx| this.arrive(arrival, cx)).is_err() {
-                    break;
-                }
-            }
-        });
-        self.following = Some(Following { thread_id, task: task.abort_handle(), _receive: receive });
-    }
-
-    fn arrive(&mut self, arrival: Arrival, cx: &mut Context<Self>) {
-        let benching = self.bench.is_some();
-        self.thread_view.update(cx, |v, cx| match arrival {
-            Arrival::History(events) => {
-                v.load(events, cx);
-                v.scroll_to_end(cx);
-            }
-            Arrival::Event(event) => v.push(*event, cx),
-            Arrival::Failed(failure) => {
-                if benching {
-                    eprintln!("desktop-gpui: {failure}");
-                    std::process::exit(1);
-                }
-                v.fail(failure, cx)
-            }
-        });
-    }
-
     /// One step of bench mode, run on every frame until it writes its result and quits.
     fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(mut run) = self.bench.take() else { return };
-        let measuring = matches!(run.phase, Phase::Scrolling { .. } | Phase::Switching { .. });
+        let measuring = matches!(run.phase, Phase::Scrolling { .. } | Phase::Switching { .. } | Phase::Timing { .. });
         if !window.is_window_active() && (measuring || run.began.elapsed() > FOCUS_WAIT) {
             eprintln!("desktop-gpui: the bench window has no focus, and GPUI caps a window without focus at 30 fps");
             std::process::exit(UNFOCUSED);
@@ -758,15 +711,22 @@ impl Shell {
                 }
             }
             Phase::Loading(presented) => {
-                if presented.borrow().is_some() && window.is_window_active() {
+                if presented.borrow().is_some() {
+                    self.bench_view(cx).update(cx, |v, cx| v.read_whole(cx));
+                    run.phase = Phase::Paging;
+                }
+            }
+            Phase::Paging => {
+                if self.bench_view(cx).read(cx).complete() && window.is_window_active() {
                     let (start, frames) = (Instant::now(), Rc::new(RefCell::new(Vec::new())));
-                    run.rows = self.thread_view.read(cx).rows().len();
-                    self.thread_view.update(cx, |v, cx| v.drive(PX_PER_S, start, frames.clone(), cx));
+                    let view = self.bench_view(cx);
+                    run.rows = view.read(cx).rows().len();
+                    view.update(cx, |v, cx| v.drive(PX_PER_S, start, frames.clone(), cx));
                     run.phase = Phase::Scrolling { start, frames };
                 }
             }
             Phase::Scrolling { start, frames } => {
-                if self.thread_view.read(cx).driven_to_end() {
+                if self.bench_view(cx).read(cx).driven_to_end() {
                     run.frame_ms = frames.borrow().iter().map(|t| t.duration_since(*start).as_secs_f64() * 1000.).collect();
                     eprintln!("bench: scrolled");
                     let wake = cx.spawn(async move |this, cx| {
@@ -786,11 +746,31 @@ impl Shell {
                 if let Some(shown) = shown {
                     run.switch.push((run.args.switch[*ix].clone(), shown.duration_since(*start).as_secs_f64() * 1000.));
                     run.phase = self.switch_to(ix + 1, &run.args, window, cx);
+                    if matches!(run.phase, Phase::Switching { ix, .. } if ix >= run.args.switch.len()) && !run.args.switch.is_empty() {
+                        run.phase = Self::rest(0, cx);
+                    }
+                }
+            }
+            Phase::Resting { n, until, .. } => {
+                if Instant::now() >= *until {
+                    let thread = run.args.switch[n % run.args.switch.len()].clone();
+                    let start = Instant::now();
+                    let presented = self.bench_open(&thread, window, cx);
+                    run.phase = Phase::Timing { n: *n, start, presented };
+                }
+            }
+            Phase::Timing { n, start, presented } => {
+                let shown = *presented.borrow();
+                if let Some(shown) = shown {
+                    let thread = run.args.switch[n % run.args.switch.len()].clone();
+                    run.timed.push((thread, shown.duration_since(*start).as_secs_f64() * 1000.));
+                    run.phase = Self::rest(n + 1, cx);
                 }
             }
         }
-        if matches!(run.phase, Phase::Switching { ix, .. } if ix >= run.args.switch.len()) {
-            let json = bench::result(run.rows, &run.frame_ms, &run.switch);
+        let timed = matches!(run.phase, Phase::Resting { n, .. } if n >= TIMED_SWITCHES);
+        if timed || (run.args.switch.is_empty() && matches!(run.phase, Phase::Switching { .. })) {
+            let json = bench::result(run.rows, &run.frame_ms, &run.switch, &run.timed);
             if let Err(e) = std::fs::write(&run.args.out, format!("{json}\n")) {
                 eprintln!("desktop-gpui: {}: {e}", run.args.out.display());
                 std::process::exit(1);
@@ -798,7 +778,7 @@ impl Shell {
             cx.quit();
             return;
         }
-        let holding = matches!(run.phase, Phase::Holding { .. });
+        let holding = matches!(run.phase, Phase::Holding { .. } | Phase::Resting { .. });
         self.bench = Some(run);
         if !holding {
             window.request_animation_frame();
@@ -807,7 +787,8 @@ impl Shell {
 
     /// Where a bench past its limit waits, so a run on another machine says it.
     fn bench_stuck(&self, cx: &App) -> String {
-        let list = self.thread_view.read(cx).list();
+        let view = self.bench_view(cx);
+        let list = view.read(cx).list();
         match self.bench.as_ref().map(|run| &run.phase) {
             Some(Phase::Opening) => "waiting for the host or a first frame".to_owned(),
             Some(Phase::Loading(_)) => "waiting for the thread's first frame and the window's focus".to_owned(),
@@ -818,9 +799,21 @@ impl Shell {
                 list.is_scrolled_to_end()
             ),
             Some(Phase::Holding { .. }) => "holding after the scroll".to_owned(),
+            Some(Phase::Paging) => "reading the thread's older pages".to_owned(),
             Some(Phase::Switching { ix, .. }) => format!("waiting for switch {} to draw", ix + 1),
+            Some(Phase::Resting { n, .. }) => format!("resting before timed switch {}", n + 1),
+            Some(Phase::Timing { n, .. }) => format!("waiting for timed switch {} to draw", n + 1),
             None => "past its last step".to_owned(),
         }
+    }
+
+    /// The wait before timed switch `n`, which wakes the window when it is over.
+    fn rest(n: usize, cx: &mut Context<Self>) -> Phase {
+        let wake = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(SWITCH_REST).await;
+            _ = this.update(cx, |_, cx| cx.notify());
+        });
+        Phase::Resting { n, until: Instant::now() + SWITCH_REST, _wake: wake }
     }
 
     fn switch_to(&mut self, ix: usize, args: &bench::Bench, window: &mut Window, cx: &mut Context<Self>) -> Phase {
@@ -837,8 +830,18 @@ impl Shell {
         };
         self.go(Route::Thread { workspace_id: item.workspace_id, thread_id: item.thread_id }, window, cx);
         let presented = Presented::default();
-        self.thread_view.update(cx, |v, cx| v.watch_presented(thread, presented.clone(), cx));
+        self.bench_view(cx).update(cx, |v, cx| v.watch_presented(thread, presented.clone(), cx));
         presented
+    }
+
+    /// The thread view the bench drives: the registered thread screen's, else the frame's own.
+    fn bench_view(&self, cx: &App) -> Entity<ThreadView> {
+        self.thread_screen().map_or_else(|| self.thread_view.clone(), |s| s.read(cx).view().clone())
+    }
+
+    /// The thread screen the frame keeps across thread switches, once a thread has been opened.
+    pub fn thread_screen(&self) -> Option<Entity<ThreadScreen>> {
+        self.thread.as_ref().and_then(|m| m.view.clone().downcast::<ThreadScreen>().ok())
     }
 }
 
@@ -871,6 +874,8 @@ impl Render for Shell {
             Route::Empty => None,
         };
         let parts = mounted.map(|m| &m.parts);
+        // A mounted thread screen docks the real composer, whose own glass the stand-in would blur twice.
+        let stand_in = self.glass && !(matches!(self.route, Route::Thread { .. }) && mounted.is_some());
         let main: AnyView = match (mounted, &self.route) {
             (Some(m), _) => m.view.clone(),
             (None, Route::Screen(_)) => self.blank.clone(),
@@ -1001,7 +1006,18 @@ impl Render for Shell {
             .when(fills.grain, |el| el.child(frame::grain()))
             .child(header)
             .child(div().flex_1().min_h_0().child(main.cached(StyleRefinement::default().size_full())))
-            .when(self.glass, |el| el.child(h_flex().absolute().bottom_4().left_0().right_0().justify_center().child(composer_glass(cx))));
+            .when(stand_in, |el| {
+                el.child(
+                    h_flex()
+                        .debug_selector(|| "glass-stand-in".into())
+                        .absolute()
+                        .bottom_4()
+                        .left_0()
+                        .right_0()
+                        .justify_center()
+                        .child(composer_glass(cx)),
+                )
+            });
 
         let panel = panel_open.then(|| {
             let controls = if inline { controls(cx).into_any_element() } else { div().into_any_element() };
@@ -1089,6 +1105,12 @@ impl Render for Shell {
             .on_action(
                 cx.listener(|this, _: &keys::PreviousThread, window, cx| this.step_thread(this.workspace_threads(cx), -1, window, cx)),
             )
+            .on_action(cx.listener(|this, _: &keys::OpenInEditor, _, cx| {
+                match this.thread_screen().filter(|_| matches!(this.route, Route::Thread { .. })) {
+                    Some(screen) => screen.read(cx).view().clone().update(cx, crate::screens::thread_view::header::open_default),
+                    None => cx.propagate(),
+                }
+            }))
             .on_drag_move(cx.listener(|this, e: &DragMoveEvent<Side>, window, cx| {
                 let side = *e.drag(cx);
                 let x = e.event.position.x - this.grab;
