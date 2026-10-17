@@ -81,6 +81,11 @@
         "status-working": "#f472b6ff",
         "status-failed": "#ffa2a2ff",
         "status-done": "#5ee9b5ff",
+        "composer-outline": "#ffffff17",
+        "composer-highlight": "#ffffff0a",
+        "composer-menu-outline": "#ffffff0d",
+        "button-light": "#ffffff29",
+        "destructive-ink": "#ffffffff",
         "dialog-shadow": [
           {
             "inset": true,
@@ -136,7 +141,8 @@
             "spread": -2,
             "color": "#0000000d"
           }
-        ]
+        ],
+        "composer-shadow": []
       }
     }
   ]

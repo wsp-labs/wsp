@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use desktop_gpui::gallery::Gallery;
 use desktop_gpui::screens::app_shell::{assets::AppAssets, menu};
+use desktop_gpui::screens::composer;
 use desktop_gpui::shell::{Launch, Shell};
 use desktop_gpui::ui::{self, Side};
-use desktop_gpui::{bench, screens, TITLE};
+use desktop_gpui::{bench, local_store, screens, TITLE};
 use gpui_kit::component::Root;
 use gpui_kit::{point, px, size, App, AppContext, Bounds, TitlebarOptions, WindowAppearance, WindowBounds, WindowOptions};
 use wsp_host_client::Env;
@@ -30,6 +31,12 @@ fn main() {
         eprintln!("desktop-gpui: no screen is named {name}");
         std::process::exit(64);
     }
+    // A launch on a named state keeps its store beside that state, so a capture or a bench on a throwaway host never
+    // writes into the person's own.
+    let kept = match &args.state {
+        Some(state) => state.with_file_name("desktop-gpui-local-store.json"),
+        None => local_store::default_path(),
+    };
     let state = args.state.unwrap_or_else(default_state);
     let env: Env = std::env::vars().collect();
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a tokio runtime"));
@@ -55,6 +62,8 @@ fn main() {
         .detach();
         let dark = matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark);
         ui::init(if dark { Side::Dark } else { Side::Light }, cx);
+        local_store::init(kept.clone(), cx);
+        composer::init(cx);
         if gallery {
             let bounds = Bounds::centered(None, size(px(760.), px(900.)), cx);
             cx.open_window(
